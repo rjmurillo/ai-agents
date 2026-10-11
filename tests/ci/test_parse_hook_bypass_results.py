@@ -70,9 +70,7 @@ def test_malformed_json_fails_loud(tmp_path: Path) -> None:
     assert not out.exists()
 
 
-def test_unreadable_input_is_usage_error(
-    tmp_path: Path, monkeypatch, capsys
-) -> None:
+def test_unreadable_input_is_usage_error(tmp_path: Path, monkeypatch, capsys) -> None:
     src = tmp_path / "audit.json"
     src.write_text(json.dumps(_report(1)), encoding="utf-8")
     out = tmp_path / "count.txt"
@@ -88,9 +86,7 @@ def test_unreadable_input_is_usage_error(
     assert "cannot read input" in capsys.readouterr().err
 
 
-def test_undecodable_input_is_malformed_error(
-    tmp_path: Path, capsys
-) -> None:
+def test_undecodable_input_is_malformed_error(tmp_path: Path, capsys) -> None:
     src = tmp_path / "audit.json"
     src.write_bytes(b"\xff")
     out = tmp_path / "count.txt"

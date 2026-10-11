@@ -122,10 +122,13 @@ def update_setting(owner: str, repo: str, new_value: str) -> None:
     """Write `squash_merge_commit_message` via the gh CLI."""
     result = subprocess.run(
         [
-            "gh", "api",
+            "gh",
+            "api",
             f"repos/{owner}/{repo}",
-            "--method", "PATCH",
-            "--field", f"squash_merge_commit_message={new_value}",
+            "--method",
+            "PATCH",
+            "--field",
+            f"squash_merge_commit_message={new_value}",
         ],
         capture_output=True,
         encoding="utf-8",
@@ -148,18 +151,23 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--owner", default="")
     p.add_argument("--repo", default="")
     p.add_argument(
-        "--set", choices=_ALLOWED_VALUES, default=None,
+        "--set",
+        choices=_ALLOWED_VALUES,
+        default=None,
         help="New squash_merge_commit_message value. Omit to read-only.",
     )
     p.add_argument(
-        "--expected-current", choices=_ALLOWED_VALUES, default=None,
+        "--expected-current",
+        choices=_ALLOWED_VALUES,
+        default=None,
         help=(
             "Abort (exit 1) if the live value does not match this. Guards "
             "against overwriting a setting someone else already changed."
         ),
     )
     p.add_argument(
-        "--dry-run", action="store_true",
+        "--dry-run",
+        action="store_true",
         help="Report what would change without writing.",
     )
     add_output_format_arg(p)
@@ -178,8 +186,11 @@ def main(argv: list[str] | None = None) -> int:
         current = fetch_current_setting(owner, repo)
     except (RuntimeError, subprocess.SubprocessError, OSError) as exc:
         write_skill_error(
-            str(exc), 3, error_type="ApiError",
-            output_format=fmt, script_name=_SCRIPT_NAME,
+            str(exc),
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name=_SCRIPT_NAME,
         )
         return 3
 
@@ -197,8 +208,14 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.set is None:
         write_skill_output(
-            {"Success": True, "owner": owner, "repo": repo,
-             "action": "read", "before": current, "after": current},
+            {
+                "Success": True,
+                "owner": owner,
+                "repo": repo,
+                "action": "read",
+                "before": current,
+                "after": current,
+            },
             output_format=fmt,
             human_summary=f"{owner}/{repo}: squash_merge_commit_message is {current}",
             status="PASS",
@@ -208,8 +225,14 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.set == current:
         write_skill_output(
-            {"Success": True, "owner": owner, "repo": repo,
-             "action": "no-op", "before": current, "after": current},
+            {
+                "Success": True,
+                "owner": owner,
+                "repo": repo,
+                "action": "no-op",
+                "before": current,
+                "after": current,
+            },
             output_format=fmt,
             human_summary=f"{owner}/{repo}: already {current}, no write needed",
             status="PASS",
@@ -219,8 +242,14 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.dry_run:
         write_skill_output(
-            {"Success": True, "owner": owner, "repo": repo,
-             "action": "dry-run", "before": current, "would_set": args.set},
+            {
+                "Success": True,
+                "owner": owner,
+                "repo": repo,
+                "action": "dry-run",
+                "before": current,
+                "would_set": args.set,
+            },
             output_format=fmt,
             human_summary=f"{owner}/{repo}: dry-run, would set {current} -> {args.set}",
             status="PASS",
@@ -233,14 +262,23 @@ def main(argv: list[str] | None = None) -> int:
         after = fetch_current_setting(owner, repo)
     except (RuntimeError, subprocess.SubprocessError, OSError) as exc:
         write_skill_error(
-            str(exc), 3, error_type="ApiError",
-            output_format=fmt, script_name=_SCRIPT_NAME,
+            str(exc),
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name=_SCRIPT_NAME,
         )
         return 3
 
     write_skill_output(
-        {"Success": True, "owner": owner, "repo": repo,
-         "action": "updated", "before": current, "after": after},
+        {
+            "Success": True,
+            "owner": owner,
+            "repo": repo,
+            "action": "updated",
+            "before": current,
+            "after": after,
+        },
         output_format=fmt,
         human_summary=f"{owner}/{repo}: squash_merge_commit_message {current} -> {after}",
         status="PASS",

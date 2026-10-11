@@ -12,6 +12,7 @@ last 30 days:
 
 Prints per-PR removed CRITICAL counts and totals.
 """
+
 from __future__ import annotations
 
 import json
@@ -38,6 +39,7 @@ CHANGE_CLAIM_SECTION_PATTERN = re.compile(
     re.IGNORECASE | re.MULTILINE,
 )
 
+
 def _split_change_claim_regions(cleaned: str) -> list[tuple[int, int]]:
     """Return char spans inside a change-claim H2 section."""
     headings = [(m.start(), m.end()) for m in CHANGE_CLAIM_SECTION_PATTERN.finditer(cleaned)]
@@ -56,11 +58,13 @@ def _split_change_claim_regions(cleaned: str) -> list[tuple[int, int]]:
         regions.append((h_end, end))
     return regions
 
+
 def _in_regions(pos: int, regions: list[tuple[int, int]]) -> bool:
     for s, e in regions:
         if s <= pos < e:
             return True
     return False
+
 
 def extract_under_policy(description: str, policy: str) -> list[str]:
     if not description:
@@ -99,6 +103,7 @@ def extract_under_policy(description: str, policy: str) -> list[str]:
             out.append(p)
     return out
 
+
 def critical_files(mentioned: list[str], actual: list[str]) -> list[str]:
     out: list[str] = []
     for m in mentioned:
@@ -106,7 +111,9 @@ def critical_files(mentioned: list[str], actual: list[str]) -> list[str]:
             out.append(m)
     return out
 
+
 POLICIES = ["baseline", "strict", "permissive", "hybrid"]
+
 
 def main() -> None:
     sample_path = DATA_DIR / "sample_prs.txt"
@@ -122,9 +129,7 @@ def main() -> None:
             continue
         body = body_path.read_text(encoding="utf-8")
         actual = [
-            x.strip()
-            for x in files_path.read_text(encoding="utf-8").splitlines()
-            if x.strip()
+            x.strip() for x in files_path.read_text(encoding="utf-8").splitlines() if x.strip()
         ]
         results = {}
         for pol in POLICIES:
@@ -133,14 +138,16 @@ def main() -> None:
             results[pol] = crit
             totals[pol] += len(crit)
         base_set = set(results["baseline"])
-        rows.append({
-            "pr": n,
-            "actual_files": len(actual),
-            **{f"{p}_crit": len(results[p]) for p in POLICIES},
-            "removed_strict": sorted(base_set - set(results["strict"])),
-            "removed_permissive": sorted(base_set - set(results["permissive"])),
-            "removed_hybrid": sorted(base_set - set(results["hybrid"])),
-        })
+        rows.append(
+            {
+                "pr": n,
+                "actual_files": len(actual),
+                **{f"{p}_crit": len(results[p]) for p in POLICIES},
+                "removed_strict": sorted(base_set - set(results["strict"])),
+                "removed_permissive": sorted(base_set - set(results["permissive"])),
+                "removed_hybrid": sorted(base_set - set(results["hybrid"])),
+            }
+        )
     print(
         f"{'PR':>6} {'files':>6} "
         + " ".join(f"{p:>10}" for p in POLICIES)
@@ -152,9 +159,12 @@ def main() -> None:
             if len(r["removed_strict"]) > 2
             else r["removed_strict"]
         )
-        print(f"{r['pr']:>6} {r['actual_files']:>6} " +
-              " ".join(f"{r[p+'_crit']:>10}" for p in POLICIES) +
-              "  " + (",".join(ex) if ex else "-"))
+        print(
+            f"{r['pr']:>6} {r['actual_files']:>6} "
+            + " ".join(f"{r[p + '_crit']:>10}" for p in POLICIES)
+            + "  "
+            + (",".join(ex) if ex else "-")
+        )
     print()
     print("TOTALS:")
     for p in POLICIES:
@@ -163,13 +173,18 @@ def main() -> None:
     rem_strict = totals["baseline"] - totals["strict"]
     rem_hybrid = totals["baseline"] - totals["hybrid"]
     rem_perm = totals["baseline"] - totals["permissive"]
-    print(f"Removed by strict:     {rem_strict} ({rem_strict/max(totals['baseline'],1)*100:.0f}%)")
-    print(f"Removed by hybrid:     {rem_hybrid} ({rem_hybrid/max(totals['baseline'],1)*100:.0f}%)")
-    print(f"Removed by permissive: {rem_perm} ({rem_perm/max(totals['baseline'],1)*100:.0f}%)")
+    print(
+        f"Removed by strict:     {rem_strict} ({rem_strict / max(totals['baseline'], 1) * 100:.0f}%)"
+    )
+    print(
+        f"Removed by hybrid:     {rem_hybrid} ({rem_hybrid / max(totals['baseline'], 1) * 100:.0f}%)"
+    )
+    print(f"Removed by permissive: {rem_perm} ({rem_perm / max(totals['baseline'], 1) * 100:.0f}%)")
     # save details
     output_path = DATA_DIR / "regression_rows.json"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(rows, indent=2) + "\n", encoding="utf-8")
+
 
 if __name__ == "__main__":
     main()

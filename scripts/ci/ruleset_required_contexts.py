@@ -24,7 +24,7 @@ REQUIRED_CONTEXTS: frozenset[str] = frozenset(
 
 REFRESH_COMMAND = (
     f"gh api repos/{REPOSITORY}/rulesets/{RULESET_ID} \\\n"
-    "  --jq '.rules[] | select(.type==\"required_status_checks\") "
+    '  --jq \'.rules[] | select(.type=="required_status_checks") '
     "| .parameters.required_status_checks[].context' \\\n"
     "  | sort"
 )

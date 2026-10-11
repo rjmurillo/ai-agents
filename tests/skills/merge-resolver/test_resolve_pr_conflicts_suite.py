@@ -42,6 +42,7 @@ from resolve_pr_conflicts import (
 # Security Validation - Branch Names (ADR-015)
 # ---------------------------------------------------------------------------
 
+
 class TestSafeBranchName:
     """Test branch name validation for command injection prevention."""
 
@@ -91,6 +92,7 @@ class TestSafeBranchName:
 # Security Validation - Worktree Path (ADR-015)
 # ---------------------------------------------------------------------------
 
+
 class TestSafeWorktreePath:
     """Test worktree path validation for path traversal prevention."""
 
@@ -115,6 +117,7 @@ class TestSafeWorktreePath:
 # ---------------------------------------------------------------------------
 # Auto-Resolvable Files
 # ---------------------------------------------------------------------------
+
 
 class TestAutoResolvable:
     """Test auto-resolvable file classification."""
@@ -147,6 +150,7 @@ class TestAutoResolvable:
 # GitHub Runner Detection
 # ---------------------------------------------------------------------------
 
+
 class TestGitHubRunner:
     """Test GitHub Actions runner detection."""
 
@@ -164,6 +168,7 @@ class TestGitHubRunner:
 # ---------------------------------------------------------------------------
 # Result Structure
 # ---------------------------------------------------------------------------
+
 
 class TestResultStructure:
     """Test that resolve_pr_conflicts returns proper structure."""
@@ -193,29 +198,42 @@ class TestResultStructure:
 # Argument Parser
 # ---------------------------------------------------------------------------
 
+
 class TestBuildParser:
     """Test CLI argument parsing."""
 
     def test_required_args(self) -> None:
-        args = build_parser().parse_args([
-            "--pr-number", "123",
-            "--branch-name", "fix/test",
-        ])
+        args = build_parser().parse_args(
+            [
+                "--pr-number",
+                "123",
+                "--branch-name",
+                "fix/test",
+            ]
+        )
         assert args.pr_number == 123
         assert args.branch_name == "fix/test"
         assert args.target_branch == "main"
         assert args.dry_run is False
 
     def test_all_args(self) -> None:
-        args = build_parser().parse_args([
-            "--owner", "testowner",
-            "--repo", "testrepo",
-            "--pr-number", "456",
-            "--branch-name", "feat/new",
-            "--target-branch", "develop",
-            "--worktree-base-path", "/tmp/wt",
-            "--dry-run",
-        ])
+        args = build_parser().parse_args(
+            [
+                "--owner",
+                "testowner",
+                "--repo",
+                "testrepo",
+                "--pr-number",
+                "456",
+                "--branch-name",
+                "feat/new",
+                "--target-branch",
+                "develop",
+                "--worktree-base-path",
+                "/tmp/wt",
+                "--dry-run",
+            ]
+        )
         assert args.owner == "testowner"
         assert args.repo == "testrepo"
         assert args.pr_number == 456

@@ -337,9 +337,7 @@ def test_one_run_prints_the_mid_merge_note_once(tmp_path, capsys):
     """
     repo, _ = _taste_repo_stopped_mid_merge(tmp_path)
 
-    rc = taste_count_ratchet.main(
-        ["--repo-root", str(repo), "--base-ref", "ratchet-landed"]
-    )
+    rc = taste_count_ratchet.main(["--repo-root", str(repo), "--base-ref", "ratchet-landed"])
 
     err = capsys.readouterr().err
     assert rc == count_ratchet.EXIT_REGRESSION, "the fixture must trip the ratchet"

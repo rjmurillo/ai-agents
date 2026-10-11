@@ -23,11 +23,17 @@ def test_a_missing_file_is_an_empty_history_with_no_note(tmp_path: Path) -> None
 
 @pytest.mark.parametrize(
     ("body", "fragment"),
-    [("not json", "unreadable"), ('{"schema": 99, "snapshots": []}', "schema 99"),
-     ('{"schema": 1}', "unreadable"), ("[]", "unreadable"),
-     ('{"schema": 1, "snapshots": [{"sha": "s", "recorded_at": "t", "partitions": {}, '
-      '"modules": {"tests/test_alpha.py": {"tests": 2, "seconds": "10", "ids": "x"}}}]}',
-      "seconds is str")],
+    [
+        ("not json", "unreadable"),
+        ('{"schema": 99, "snapshots": []}', "schema 99"),
+        ('{"schema": 1}', "unreadable"),
+        ("[]", "unreadable"),
+        (
+            '{"schema": 1, "snapshots": [{"sha": "s", "recorded_at": "t", "partitions": {}, '
+            '"modules": {"tests/test_alpha.py": {"tests": 2, "seconds": "10", "ids": "x"}}}]}',
+            "seconds is str",
+        ),
+    ],
 )
 def test_a_malformed_history_is_reported_and_treated_as_empty(
     tmp_path: Path, body: str, fragment: str
@@ -45,8 +51,19 @@ def test_write_history_appends_and_keeps_the_newest(tmp_path: Path) -> None:
     report = write_junit(tmp_path, "p", {"tests.test_alpha": [1.0, 1.0]}, 2.0)
     out = tmp_path / "out.json"
 
-    rc = trend.main([str(report), "--history", str(write_history(tmp_path, [1.0, 2.0, 3.0])),
-                     "--write-history", str(out), "--max-history", "2", "--sha", "newest"])
+    rc = trend.main(
+        [
+            str(report),
+            "--history",
+            str(write_history(tmp_path, [1.0, 2.0, 3.0])),
+            "--write-history",
+            str(out),
+            "--max-history",
+            "2",
+            "--sha",
+            "newest",
+        ]
+    )
 
     assert rc == 0
     assert _shas(out) == ["sha2", "newest"]
@@ -59,8 +76,17 @@ def test_a_cache_miss_creates_the_output_directory(tmp_path: Path) -> None:
     history = out_dir / "history.json"
     assert not out_dir.exists()
 
-    rc = trend.main([str(report), "--history", str(history), "--write-history", str(history),
-                     "--snapshot-out", str(out_dir / "snapshot.json")])
+    rc = trend.main(
+        [
+            str(report),
+            "--history",
+            str(history),
+            "--write-history",
+            str(history),
+            "--snapshot-out",
+            str(out_dir / "snapshot.json"),
+        ]
+    )
 
     assert rc == 0
     assert len(_shas(history)) == 1
@@ -71,8 +97,20 @@ def test_history_read_and_written_in_place_keeps_the_old_entries(tmp_path: Path)
     report = write_junit(tmp_path, "p", {"tests.test_alpha": [1.0, 1.0]}, 2.0)
     history = write_history(tmp_path, [1.0, 2.0])
 
-    assert trend.main([str(report), "--history", str(history),
-                       "--write-history", str(history), "--sha", "third"]) == 0
+    assert (
+        trend.main(
+            [
+                str(report),
+                "--history",
+                str(history),
+                "--write-history",
+                str(history),
+                "--sha",
+                "third",
+            ]
+        )
+        == 0
+    )
     assert _shas(history) == ["sha0", "sha1", "third"]
 
 
@@ -82,13 +120,28 @@ def test_a_history_with_a_string_seconds_value_reseeds_instead_of_crashing(
     """Valid JSON, wrong field type: the report says so and main writes a fresh history."""
     report = write_junit(tmp_path, "p", {"tests.test_alpha": [1.0, 1.0]}, 2.0)
     history = tmp_path / "history.json"
-    history.write_text(json.dumps({"schema": 1, "snapshots": [{
-        "sha": "bad", "recorded_at": "t", "partitions": {},
-        "modules": {"tests/test_alpha.py": {"tests": 2, "seconds": "10", "ids": "x"}}}]}),
-        encoding="utf-8")
+    history.write_text(
+        json.dumps(
+            {
+                "schema": 1,
+                "snapshots": [
+                    {
+                        "sha": "bad",
+                        "recorded_at": "t",
+                        "partitions": {},
+                        "modules": {
+                            "tests/test_alpha.py": {"tests": 2, "seconds": "10", "ids": "x"}
+                        },
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
 
-    rc = trend.main([str(report), "--history", str(history), "--write-history", str(history),
-                     "--sha", "fresh"])
+    rc = trend.main(
+        [str(report), "--history", str(history), "--write-history", str(history), "--sha", "fresh"]
+    )
 
     assert rc == 0
     assert "Note: history unreadable, starting fresh" in capsys.readouterr().out

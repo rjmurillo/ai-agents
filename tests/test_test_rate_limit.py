@@ -14,9 +14,7 @@ sys.path.insert(
 )
 sys.path.insert(
     0,
-    os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", ".github", "scripts")
-    ),
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".github", "scripts")),
 )
 
 import test_rate_limit  # must come after sys.path setup
@@ -56,15 +54,11 @@ class TestMain:
 
     @patch("test_rate_limit.check_workflow_rate_limit")
     def test_low_rate_limit_returns_one(self, mock_check: MagicMock) -> None:
-        mock_check.return_value = _make_result(
-            success=False, core_remaining=10
-        )
+        mock_check.return_value = _make_result(success=False, core_remaining=10)
         assert test_rate_limit.main([]) == 1
 
     @patch("test_rate_limit.check_workflow_rate_limit")
-    def test_indeterminate_rate_limit_returns_one(
-        self, mock_check: MagicMock, capsys
-    ) -> None:
+    def test_indeterminate_rate_limit_returns_one(self, mock_check: MagicMock, capsys) -> None:
         mock_check.return_value = _make_result(
             success=False,
             status=RateLimitStatus.COULD_NOT_DETERMINE,
@@ -80,39 +74,27 @@ class TestMain:
     @patch("test_rate_limit.check_workflow_rate_limit")
     def test_custom_thresholds_passed(self, mock_check: MagicMock) -> None:
         mock_check.return_value = _make_result(success=True)
-        test_rate_limit.main(
-            ["--core-threshold", "200", "--graphql-threshold", "100"]
-        )
+        test_rate_limit.main(["--core-threshold", "200", "--graphql-threshold", "100"])
         mock_check.assert_called_once_with(
             resource_thresholds={"core": 200, "graphql": 100},
         )
 
     @patch("test_rate_limit.check_workflow_rate_limit")
-    def test_writes_github_output(
-        self, mock_check: MagicMock, tmp_path: Path
-    ) -> None:
-        mock_check.return_value = _make_result(
-            success=True, core_remaining=4500
-        )
+    def test_writes_github_output(self, mock_check: MagicMock, tmp_path: Path) -> None:
+        mock_check.return_value = _make_result(success=True, core_remaining=4500)
         output_file = tmp_path / "github_output"
         output_file.write_text("")
-        with patch.dict(
-            os.environ, {"GITHUB_OUTPUT": str(output_file)}
-        ):
+        with patch.dict(os.environ, {"GITHUB_OUTPUT": str(output_file)}):
             test_rate_limit.main([])
         content = output_file.read_text()
         assert "core_remaining=4500" in content
 
     @patch("test_rate_limit.check_workflow_rate_limit")
-    def test_writes_step_summary(
-        self, mock_check: MagicMock, tmp_path: Path
-    ) -> None:
+    def test_writes_step_summary(self, mock_check: MagicMock, tmp_path: Path) -> None:
         mock_check.return_value = _make_result(success=True)
         summary_file = tmp_path / "step_summary"
         summary_file.write_text("")
-        with patch.dict(
-            os.environ, {"GITHUB_STEP_SUMMARY": str(summary_file)}
-        ):
+        with patch.dict(os.environ, {"GITHUB_STEP_SUMMARY": str(summary_file)}):
             test_rate_limit.main([])
         content = summary_file.read_text()
         assert "Rate Limit OK" in content
@@ -155,6 +137,7 @@ class TestProbeApiReachability:
     def test_returns_false_on_timeout(self, mock_run: MagicMock) -> None:
         """A timeout from the probe returns False without raising."""
         import subprocess
+
         mock_run.side_effect = subprocess.TimeoutExpired(cmd="gh", timeout=15)
         assert probe_api_reachability("owner", "repo") is False
 

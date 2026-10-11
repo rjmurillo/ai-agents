@@ -69,9 +69,7 @@ session_qa_binding = _qa_report.session_qa_binding
 validate_qa_report = _qa_report.validate_qa_report
 
 QA_COMMIT = "a" * 40
-QA_SESSION_LOG = (
-    ".project-toolkit/sessions/2026-08-06-session-10004-memory-index-duplicate.json"
-)
+QA_SESSION_LOG = ".project-toolkit/sessions/2026-08-06-session-10004-memory-index-duplicate.json"
 
 
 def _write_qa_report(
@@ -456,10 +454,13 @@ def test_maps_external_session_file_to_canonical_identity(
     )
 
     assert identity == ".project-toolkit/sessions/nested/session.json"
-    assert resolve_session_log_path(
-        identity,
-        sessions_root=sessions_root,
-    ) == session_path
+    assert (
+        resolve_session_log_path(
+            identity,
+            sessions_root=sessions_root,
+        )
+        == session_path
+    )
 
 
 def test_rejects_session_file_outside_configured_root(tmp_path: Path) -> None:
@@ -528,11 +529,7 @@ def test_detects_code_touched_then_reverted_after_qa(tmp_path: Path) -> None:
         subprocess.CompletedProcess(
             [],
             0,
-            (
-                "scripts/changed.py\0"
-                ".project-toolkit/qa/report.md\0"
-                "scripts/changed.py\0"
-            ),
+            ("scripts/changed.py\0.project-toolkit/qa/report.md\0scripts/changed.py\0"),
             "",
         ),
     ]
@@ -742,8 +739,7 @@ def test_hand_resolved_merge_conflict_still_invalidates_the_binding(
     changed = post_qa_code_changes(qa_commit, head, repo_root=tmp_path)
 
     assert changed == ["shared.py"], (
-        "the hand-resolved path must invalidate the binding, and the cleanly "
-        "merged path must not"
+        "the hand-resolved path must invalidate the binding, and the cleanly merged path must not"
     )
 
 
@@ -774,9 +770,7 @@ def test_authored_commit_after_a_catch_up_merge_still_invalidates(
     git("commit", "-q", "-m", "test: real work after QA")
     head = git("rev-parse", "HEAD")
 
-    assert post_qa_code_changes(qa_commit, head, repo_root=tmp_path) == [
-        "authored_after_qa.py"
-    ]
+    assert post_qa_code_changes(qa_commit, head, repo_root=tmp_path) == ["authored_after_qa.py"]
 
 
 def test_catch_up_merge_of_evidence_paths_only_stays_bound(
@@ -785,9 +779,7 @@ def test_catch_up_merge_of_evidence_paths_only_stays_bound(
     """Edge: evidence-prefixed paths never invalidate, merged or authored."""
     git = _qa_binding_repo(tmp_path)
     (tmp_path / ".project-toolkit" / "qa").mkdir(parents=True)
-    (tmp_path / ".project-toolkit" / "qa" / "report.md").write_text(
-        "base\n", encoding="utf-8"
-    )
+    (tmp_path / ".project-toolkit" / "qa" / "report.md").write_text("base\n", encoding="utf-8")
     git("add", "-A")
     git("commit", "-q", "-m", "test: base")
 
@@ -850,8 +842,7 @@ def test_qa_commit_off_the_first_parent_chain_falls_back_to_full_walk(
     changed = post_qa_code_changes(qa_commit, head, repo_root=tmp_path)
 
     assert "authored_after_qa.py" in changed, (
-        "post-QA work reachable only through a second parent must still "
-        "invalidate the binding"
+        "post-QA work reachable only through a second parent must still invalidate the binding"
     )
 
 
@@ -1679,9 +1670,7 @@ class TestValidateQaReportEvidence:
             encoding="utf-8",
         )
 
-    def test_existing_report_under_qa_root_passes(
-        self, tmp_path: Path
-    ) -> None:
+    def test_existing_report_under_qa_root_passes(self, tmp_path: Path) -> None:
         qa_root = tmp_path / "qa"
         qa_root.mkdir()
         report = qa_root / "report.md"
@@ -1803,9 +1792,7 @@ class TestValidateQaReportEvidence:
             "QA report is stale; code changed after its commit: scripts/new_code.py"
         ]
 
-    def test_fallback_head_masks_a_real_change_between_the_two_fields(
-        self, tmp_path: Path
-    ) -> None:
+    def test_fallback_head_masks_a_real_change_between_the_two_fields(self, tmp_path: Path) -> None:
         # ADR-102 Implementation Note 8. Pins the laxer-direction exposure
         # named in "The laxer direction is bounded, not impossible": when
         # live-HEAD resolution fails (validation_head=None, simulating that
@@ -1839,9 +1826,7 @@ class TestValidateQaReportEvidence:
                 "scripts.validate_session_json.artifact_dir",
                 return_value=qa_root,
             ),
-            mock.patch.object(
-                _qa_report.subprocess, "run", side_effect=completed
-            ) as run,
+            mock.patch.object(_qa_report.subprocess, "run", side_effect=completed) as run,
         ):
             validate_qa_report_evidence(
                 data,
@@ -1892,13 +1877,9 @@ class TestValidateQaReportEvidence:
                 session_log=self.SESSION_LOG,
             )
 
-        assert result.errors == [
-            f"QA report not found: {(qa_root / 'missing.md').resolve()}"
-        ]
+        assert result.errors == [f"QA report not found: {(qa_root / 'missing.md').resolve()}"]
 
-    def test_report_outside_qa_root_fails_closed(
-        self, tmp_path: Path
-    ) -> None:
+    def test_report_outside_qa_root_fails_closed(self, tmp_path: Path) -> None:
         qa_root = tmp_path / "qa"
         qa_root.mkdir()
         outside = tmp_path / "outside.md"
@@ -1921,14 +1902,10 @@ class TestValidateQaReportEvidence:
             f"artifact root: {str(outside)!r}"
         ]
 
-    def test_verified_skip_does_not_require_report(
-        self, tmp_path: Path
-    ) -> None:
+    def test_verified_skip_does_not_require_report(self, tmp_path: Path) -> None:
         result = ValidationResult()
 
-        with mock.patch(
-            "scripts.validate_session_json.artifact_dir"
-        ) as artifact_dir_mock:
+        with mock.patch("scripts.validate_session_json.artifact_dir") as artifact_dir_mock:
             validate_qa_report_evidence(
                 self._data(),
                 self._session_end("SKIPPED: investigation-only"),
@@ -1962,9 +1939,7 @@ class TestValidateQaReportEvidence:
                 session_log=self.SESSION_LOG,
             )
 
-        assert result.errors == [
-            f"QA report verdict must be PASS, got {verdict!r}"
-        ]
+        assert result.errors == [f"QA report verdict must be PASS, got {verdict!r}"]
 
     def test_unrelated_session_report_fails_closed(self, tmp_path: Path) -> None:
         qa_root = tmp_path / "qa"
@@ -2022,9 +1997,7 @@ class TestValidateQaReportEvidence:
             "QA report is stale; code changed after its commit: scripts/new_code.py"
         ]
 
-    def test_mismatched_commit_with_evidence_only_changes_passes(
-        self, tmp_path: Path
-    ) -> None:
+    def test_mismatched_commit_with_evidence_only_changes_passes(self, tmp_path: Path) -> None:
         # ADR-096: the specific defect this ADR fixes. A qaCommit that
         # differs from the fallback head because only evidence-bookkeeping
         # commits (a rebind) landed in between no longer forces a rebind.
@@ -2130,22 +2103,16 @@ class TestValidateQaReportEvidence:
 
         assert result.errors == ["Could not inspect commits after QA"]
 
-    def test_existing_log_defers_qa_report_validation(
-        self, tmp_path: Path
-    ) -> None:
+    def test_existing_log_defers_qa_report_validation(self, tmp_path: Path) -> None:
         qa_root = tmp_path / "qa"
         qa_root.mkdir()
         missing_report = qa_root / "missing.md"
         data = {
             **self._data(),
-            "protocolCompliance": {
-                "sessionEnd": self._session_end(str(missing_report))
-            }
+            "protocolCompliance": {"sessionEnd": self._session_end(str(missing_report))},
         }
 
-        with mock.patch(
-            "scripts.validate_session_json.artifact_dir"
-        ) as artifact_dir_mock:
+        with mock.patch("scripts.validate_session_json.artifact_dir") as artifact_dir_mock:
             result = validate_session_log(data, existing_log=True)
 
         assert not any("QA report" in error for error in result.errors)
@@ -2161,9 +2128,7 @@ class TestValidateQaReportEvidence:
         self._write_report(report)
         data = {
             **self._data(),
-            "protocolCompliance": {
-                "sessionEnd": self._session_end(str(report))
-            },
+            "protocolCompliance": {"sessionEnd": self._session_end(str(report))},
         }
 
         with (
@@ -2185,22 +2150,16 @@ class TestValidateQaReportEvidence:
         artifact_dir_mock.assert_not_called()
         post_qa_code_changes.assert_not_called()
 
-    def test_creation_mode_defers_qa_report_validation(
-        self, tmp_path: Path
-    ) -> None:
+    def test_creation_mode_defers_qa_report_validation(self, tmp_path: Path) -> None:
         qa_root = tmp_path / "qa"
         qa_root.mkdir()
         missing_report = qa_root / "missing.md"
         data = {
             **self._data(),
-            "protocolCompliance": {
-                "sessionEnd": self._session_end(str(missing_report))
-            }
+            "protocolCompliance": {"sessionEnd": self._session_end(str(missing_report))},
         }
 
-        with mock.patch(
-            "scripts.validate_session_json.artifact_dir"
-        ) as artifact_dir_mock:
+        with mock.patch("scripts.validate_session_json.artifact_dir") as artifact_dir_mock:
             result = validate_session_log(data, creation_mode=True)
 
         assert not any("QA report" in error for error in result.errors)
@@ -2339,9 +2298,7 @@ class TestValidateQaSkipScope:
         completed = subprocess.CompletedProcess(
             [],
             0,
-            stdout=json.dumps(
-                {"Eligible": False, "Violations": ["scripts/main.py"]}
-            ),
+            stdout=json.dumps({"Eligible": False, "Violations": ["scripts/main.py"]}),
             stderr="",
         )
         result = ValidationResult()
@@ -2350,17 +2307,14 @@ class TestValidateQaSkipScope:
             validate_qa_skip_scope(self._log(), result)
 
         assert result.errors == [
-            "QA investigation-only scope includes disqualifying changes: "
-            "scripts/main.py"
+            "QA investigation-only scope includes disqualifying changes: scripts/main.py"
         ]
 
     def test_checker_error_fails_closed(self) -> None:
         completed = subprocess.CompletedProcess(
             [],
             0,
-            stdout=json.dumps(
-                {"Eligible": False, "Violations": [], "Error": "bad ref"}
-            ),
+            stdout=json.dumps({"Eligible": False, "Violations": [], "Error": "bad ref"}),
             stderr="",
         )
         result = ValidationResult()
@@ -2368,9 +2322,7 @@ class TestValidateQaSkipScope:
         with mock.patch("subprocess.run", return_value=completed):
             validate_qa_skip_scope(self._log(), result)
 
-        assert result.errors == [
-            "QA investigation-only scope cannot be verified: bad ref"
-        ]
+        assert result.errors == ["QA investigation-only scope cannot be verified: bad ref"]
 
     def test_docs_only_eligible_range_passes(self) -> None:
         completed = subprocess.CompletedProcess(
@@ -2419,9 +2371,7 @@ class TestValidateQaSkipScope:
         completed = subprocess.CompletedProcess(
             [],
             0,
-            stdout=json.dumps(
-                {"Eligible": False, "Violations": [], "Error": "bad ref"}
-            ),
+            stdout=json.dumps({"Eligible": False, "Violations": [], "Error": "bad ref"}),
             stderr="",
         )
         result = ValidationResult()
@@ -3200,9 +3150,7 @@ class TestMainNarrowsOnThePayload:
             )
             data = _make_valid_log()
             data["endingCommit"] = commit
-            data["protocolCompliance"]["sessionEnd"]["qaValidation"]["evidence"] = str(
-                report
-            )
+            data["protocolCompliance"]["sessionEnd"]["qaValidation"]["evidence"] = str(report)
             log.write_text(json.dumps(data), encoding="utf-8")
             proc = _run_cli(
                 log,
@@ -4302,6 +4250,7 @@ class TestSessionScopeIsDecidedOnceForBothCallSites:
         source = inspect.getsource(vsj.main)
         assert "args.scope_from_git and not existing_log" in source
 
+
 class TestCheckSessionsCreationMode:
     """check_sessions uses staged adds, not branch ancestry, for creation-mode.
 
@@ -4501,6 +4450,7 @@ class TestCheckSessionsCreationMode:
         assert commands
         assert "--creation-mode" not in commands[0]
         assert "--existing-log" not in commands[0]
+
 
 def _log_with_evidence(**items: str) -> dict:
     """A valid log whose named checklist items carry the given evidence.

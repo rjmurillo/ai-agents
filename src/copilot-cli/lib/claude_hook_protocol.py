@@ -53,10 +53,7 @@ def _is_valid_pretooluse_block(doc: dict[str, object], event: str) -> bool:
         and hso.get("hookEventName") == "PreToolUse"
         and hso.get("permissionDecision") == "deny"
         and isinstance(hso.get("permissionDecisionReason"), str)
-        and (
-            "additionalContext" not in hso
-            or isinstance(hso["additionalContext"], str)
-        )
+        and ("additionalContext" not in hso or isinstance(hso["additionalContext"], str))
     )
 
 

@@ -176,9 +176,7 @@ def _strongest(disk: Sections | None, committed: Sections | None) -> Sections | 
     return merged
 
 
-def read_previous_sections(
-    repo_root: Path, path: Path
-) -> tuple[Sections | None, str | None]:
+def read_previous_sections(repo_root: Path, path: Path) -> tuple[Sections | None, str | None]:
     """Read every counted section of the baseline being replaced.
 
     Returns `(sections, problem)`. A problem is a reason to refuse the write.

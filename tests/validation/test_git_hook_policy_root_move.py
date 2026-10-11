@@ -26,9 +26,7 @@ ADR_BODY = (
 
 
 def _git(repo: Path, *args: str) -> str:
-    result = subprocess.run(
-        ["git", *args], cwd=repo, check=True, capture_output=True, text=True
-    )
+    result = subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True, text=True)
     return result.stdout
 
 

@@ -476,5 +476,3 @@ class TestScopeBoundaries:
 
         assert code == 0
         assert "examined 1 citation(s)" in out
-
-

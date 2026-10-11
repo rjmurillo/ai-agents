@@ -21,7 +21,11 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 def _git(repo: Path, *args: str) -> str:
     result = subprocess.run(
         ["git", "-C", str(repo), *args],
-        capture_output=True, text=True, encoding="utf-8", errors="replace", check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=True,
     )
     return result.stdout.strip()
 
@@ -48,8 +52,16 @@ def repo(tmp_path: Path) -> Path:
 
 def _marker(repo: Path, axes: str) -> policy.PushUpdate:
     tip = _git(repo, "rev-parse", "HEAD")
-    _git(repo, "commit", "-q", "--allow-empty", "-m", "review: marker",
-         "--trailer", f"Reviewed-By: /review@{axes} on {tip}")
+    _git(
+        repo,
+        "commit",
+        "-q",
+        "--allow-empty",
+        "-m",
+        "review: marker",
+        "--trailer",
+        f"Reviewed-By: /review@{axes} on {tip}",
+    )
     head = _git(repo, "rev-parse", "HEAD")
     source = policy.PushRef("refs/heads/a", head, "refs/heads/a", "0" * 40)
     return policy.PushUpdate(source, tip, head, f"{tip}..{head}", "a")

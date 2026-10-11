@@ -947,10 +947,7 @@ def aggregate(
                 reason=REASON_NO_OUTCOMES,
                 scope="no validator produced an outcome",
                 examined=0,
-                detail=(
-                    "the run produced no outcomes, so it examined nothing and "
-                    "proved nothing"
-                ),
+                detail=("the run produced no outcomes, so it examined nothing and proved nothing"),
             ),
         )
     return AggregateOutcome(
@@ -991,8 +988,7 @@ def exit_code_for(summary: AggregateOutcome) -> int:
     blocking = worst_state(outcome.state for outcome in summary.rejected)
     if blocking is EvidenceState.BLOCKED:
         if any(
-            outcome.state is EvidenceState.BLOCKED
-            and outcome.reason == REASON_AUTH_UNAVAILABLE
+            outcome.state is EvidenceState.BLOCKED and outcome.reason == REASON_AUTH_UNAVAILABLE
             for outcome in summary.rejected
         ):
             return 4

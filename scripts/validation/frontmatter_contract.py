@@ -170,9 +170,7 @@ def _no_duplicate_keys(loader: yaml.SafeLoader, node: yaml.MappingNode) -> dict[
     return mapping
 
 
-_StrictLoader.add_constructor(
-    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _no_duplicate_keys
-)
+_StrictLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _no_duplicate_keys)
 
 
 class _PinnedHandler(YAMLHandler):

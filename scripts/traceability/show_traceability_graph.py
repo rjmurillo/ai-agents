@@ -112,8 +112,10 @@ def format_text_graph(
         indent = "  " * level
         node = graph["nodes"][node_id]
         status = node.get("status", "")
-        marker = "[x]" if status in ("complete", "done", "implemented") else (
-            "[~]" if status == "approved" else "[ ]"
+        marker = (
+            "[x]"
+            if status in ("complete", "done", "implemented")
+            else ("[~]" if status == "approved" else "[ ]")
         )
         lines.append(f"{indent}{marker} {node_id} ({node['type']})")
         if max_depth == 0 or level < max_depth:
@@ -135,7 +137,8 @@ def format_text_graph(
 
         if show_orphans:
             orphaned_designs = [
-                did for did in specs["designs"]
+                did
+                for did in specs["designs"]
                 if not graph["forward_refs"].get(did) and did not in visited
             ]
             if orphaned_designs:
@@ -145,7 +148,8 @@ def format_text_graph(
                     write_node(did, 1)
 
             orphaned_tasks = [
-                tid for tid in specs["tasks"]
+                tid
+                for tid in specs["tasks"]
                 if not graph["backward_refs"].get(tid) and tid not in visited
             ]
             if orphaned_tasks:
@@ -248,9 +252,7 @@ def format_json_graph(
     return json.dumps(result, indent=2)
 
 
-def _get_included_nodes(
-    graph: dict[str, Any], root_id: str | None, max_depth: int
-) -> set[str]:
+def _get_included_nodes(graph: dict[str, Any], root_id: str | None, max_depth: int) -> set[str]:
     """Determine which nodes to include based on root and depth."""
     if root_id:
         if root_id not in graph["nodes"]:

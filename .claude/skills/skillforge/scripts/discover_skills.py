@@ -32,20 +32,23 @@ from typing import Any
 # Import shared constants (optional - used for validation if available)
 try:
     from _constants import SEMVER_REGEX, VALID_AGENT_TYPES
+
     HAS_CONSTANTS = True
 except ImportError:
     HAS_CONSTANTS = False
-    SEMVER_REGEX = r'^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$'
-    VALID_AGENT_TYPES = {'Explore', 'Plan', 'general-purpose'}
+    SEMVER_REGEX = r"^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$"
+    VALID_AGENT_TYPES = {"Explore", "Plan", "general-purpose"}
 
 
 # ===========================================================================
 # RESULT TYPES
 # ===========================================================================
 
+
 @dataclass
 class Result:
     """Standard result object for script operations."""
+
     success: bool
     message: str
     data: dict = field(default_factory=dict)
@@ -59,7 +62,7 @@ class Result:
             "data": self.data,
             "errors": self.errors,
             "warnings": self.warnings,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
 
@@ -72,32 +75,32 @@ SKILL_SOURCES = [
         "name": "custom",
         "path": Path.home() / ".claude" / "skills",
         "pattern": "*/[Ss][Kk][Ii][Ll][Ll].[Mm][Dd]",  # Case-insensitive: SKILL.md or skill.md
-        "priority": 1
+        "priority": 1,
     },
     {
         "name": "superpowers",
         "path": Path.home() / ".claude" / "plugins" / "cache" / "superpowers" / "skills",
         "pattern": "*/*.md",
-        "priority": 2
+        "priority": 2,
     },
     {
         "name": "anthropic-agent-skills",
         "path": Path.home() / ".claude" / "plugins" / "marketplaces" / "anthropic-agent-skills",
         "pattern": "skills/*/skill.md",
-        "priority": 3
+        "priority": 3,
     },
     {
         "name": "claude-code-workflows",
         "path": Path.home() / ".claude" / "plugins" / "marketplaces" / "claude-code-workflows",
         "pattern": "plugins/*/skills/*/skill.md",
-        "priority": 4
+        "priority": 4,
     },
     {
         "name": "claude-code-plugins",
         "path": Path.home() / ".claude" / "plugins" / "marketplaces" / "claude-code-plugins",
         "pattern": "*/skills/*/skill.md",
-        "priority": 5
-    }
+        "priority": 5,
+    },
 ]
 
 # ===========================================================================
@@ -112,24 +115,70 @@ DOMAIN_KEYWORDS = {
     "document": ["word", "docx", "doc", "document", "report", "write"],
     "presentation": ["powerpoint", "pptx", "slides", "presentation", "deck", "keynote"],
     "pdf": ["pdf", "portable document"],
-
     # Development domains
-    "debugging": ["debug", "error", "trace", "exception", "stack trace", "fix bug", "investigate", "root cause"],
-    "testing": ["test", "tdd", "coverage", "e2e", "unit", "integration", "cypress", "jest", "pytest", "spec"],
+    "debugging": [
+        "debug",
+        "error",
+        "trace",
+        "exception",
+        "stack trace",
+        "fix bug",
+        "investigate",
+        "root cause",
+    ],
+    "testing": [
+        "test",
+        "tdd",
+        "coverage",
+        "e2e",
+        "unit",
+        "integration",
+        "cypress",
+        "jest",
+        "pytest",
+        "spec",
+    ],
     "security": ["security", "owasp", "vulnerability", "audit", "pentest", "xss", "injection"],
-    "code_quality": ["review", "refactor", "lint", "code smell", "solid", "pr review", "code review"],
-    "database": ["database", "db", "sql", "postgres", "mysql", "mongodb", "migration", "schema", "orm"],
+    "code_quality": [
+        "review",
+        "refactor",
+        "lint",
+        "code smell",
+        "solid",
+        "pr review",
+        "code review",
+    ],
+    "database": [
+        "database",
+        "db",
+        "sql",
+        "postgres",
+        "mysql",
+        "mongodb",
+        "migration",
+        "schema",
+        "orm",
+    ],
     "api": ["api", "rest", "graphql", "openapi", "endpoint", "swagger", "http"],
     "frontend": ["ui", "ux", "frontend", "react", "vue", "angular", "component", "css", "styling"],
     "accessibility": ["accessibility", "a11y", "wcag", "screen reader", "aria"],
     "performance": ["performance", "optimize", "slow", "speed", "cache", "profiling", "bottleneck"],
     "authentication": ["auth", "login", "authentication", "oauth", "jwt", "session", "password"],
     "deployment": ["deploy", "release", "ship", "hosting", "production"],
-    "devops": ["ci", "cd", "docker", "kubernetes", "k8s", "container", "helm", "terraform", "pipeline"],
+    "devops": [
+        "ci",
+        "cd",
+        "docker",
+        "kubernetes",
+        "k8s",
+        "container",
+        "helm",
+        "terraform",
+        "pipeline",
+    ],
     "documentation": ["documentation", "docs", "readme", "changelog", "jsdoc"],
     "architecture": ["architecture", "system design", "microservices", "monolith", "pattern"],
     "workflow": ["flowchart", "diagram", "workflow", "process", "swimlane", "sequence"],
-
     # Specialized domains
     "ai_ml": ["ai", "ml", "llm", "rag", "langchain", "prompt", "embedding", "model"],
     "visual": ["visual", "image", "graphic", "art", "canvas", "brand"],
@@ -140,6 +189,7 @@ DOMAIN_KEYWORDS = {
 # ===========================================================================
 # PARSING FUNCTIONS
 # ===========================================================================
+
 
 def extract_frontmatter(content: str) -> dict[str, Any]:
     """Extract YAML frontmatter from markdown content."""
@@ -153,6 +203,7 @@ def extract_frontmatter(content: str) -> dict[str, Any]:
             # Try proper YAML parsing first
             try:
                 import yaml
+
                 parsed = yaml.safe_load(yaml_content)
                 if isinstance(parsed, dict):
                     frontmatter = parsed
@@ -174,7 +225,9 @@ def extract_frontmatter(content: str) -> dict[str, Any]:
                         frontmatter[current_key] = value.strip()
                     elif line.startswith("  ") and current_key == "metadata":
                         # Basic nested parsing for metadata
-                        if "metadata" not in frontmatter or not isinstance(frontmatter["metadata"], dict):
+                        if "metadata" not in frontmatter or not isinstance(
+                            frontmatter["metadata"], dict
+                        ):
                             frontmatter["metadata"] = {}
                         if ":" in line:
                             key, value = line.strip().split(":", 1)
@@ -205,10 +258,10 @@ def extract_triggers(content: str) -> list[str]:
 
     # Look for triggers in frontmatter or content
     trigger_patterns = [
-        r'\*\*Triggers?:\*\*\s*`([^`]+)`',
-        r'Triggers?:\s*`([^`]+)`',
-        r'\|\s*`([^`]+)`\s*\|.*trigger',
-        r'trigger[s]?.*`([^`]+)`',
+        r"\*\*Triggers?:\*\*\s*`([^`]+)`",
+        r"Triggers?:\s*`([^`]+)`",
+        r"\|\s*`([^`]+)`\s*\|.*trigger",
+        r"trigger[s]?.*`([^`]+)`",
     ]
 
     for pattern in trigger_patterns:
@@ -216,7 +269,7 @@ def extract_triggers(content: str) -> list[str]:
         triggers.extend(matches)
 
     # Also extract from trigger tables
-    table_pattern = r'\|\s*`([^`]+)`\s*\|'
+    table_pattern = r"\|\s*`([^`]+)`\s*\|"
     trigger_start = content.find("Trigger")
     if trigger_start != -1:
         # Guard against find() returning -1
@@ -239,16 +292,16 @@ def extract_keywords(content: str, name: str) -> list[str]:
     keywords.extend(name.lower().replace("-", " ").split())
 
     # Look for keywords in tables
-    keyword_pattern = r'\|\s*\*\*[^*]+\*\*\s*\|[^|]+\|\s*([^|]+)\s*\|'
+    keyword_pattern = r"\|\s*\*\*[^*]+\*\*\s*\|[^|]+\|\s*([^|]+)\s*\|"
     matches = re.findall(keyword_pattern, content)
     for match in matches:
         keywords.extend([k.strip().lower() for k in match.split(",")])
 
     # Extract from purpose/description
-    purpose_pattern = r'(?:Purpose|Description)[:\s]+([^\n]+)'
+    purpose_pattern = r"(?:Purpose|Description)[:\s]+([^\n]+)"
     matches = re.findall(purpose_pattern, content, re.IGNORECASE)
     for match in matches:
-        words = re.findall(r'\b[a-z]{4,}\b', match.lower())
+        words = re.findall(r"\b[a-z]{4,}\b", match.lower())
         keywords.extend(words)
 
     return list(set(keywords))
@@ -308,13 +361,14 @@ def parse_skill_file(path: Path, source_name: str, priority: int) -> dict | None
         "triggers": triggers,
         "keywords": keywords,
         "domains": domains,
-        "version": get_version(frontmatter)
+        "version": get_version(frontmatter),
     }
 
 
 # ===========================================================================
 # DISCOVERY
 # ===========================================================================
+
 
 def discover_skills(verbose: bool = False) -> Result:
     """Scan all skill sources and build index."""
@@ -370,16 +424,17 @@ def discover_skills(verbose: bool = False) -> Result:
             "skills": skills,
             "domains": domain_index,
             "sources": {s["name"]: str(s["path"]) for s in SKILL_SOURCES},
-            "total_count": len(skills)
+            "total_count": len(skills),
         },
         warnings=warnings,
-        errors=errors
+        errors=errors,
     )
 
 
 # ===========================================================================
 # STATE MANAGEMENT
 # ===========================================================================
+
 
 def get_index_path() -> Path:
     """Get the skill index file path."""
@@ -399,7 +454,7 @@ def save_index(result: Result, output_path: Path | None = None) -> None:
         "skills": result.data["skills"],
         "domains": result.data["domains"],
         "sources": result.data["sources"],
-        "total_count": result.data["total_count"]
+        "total_count": result.data["total_count"],
     }
 
     path.write_text(json.dumps(index_data, indent=2))
@@ -409,29 +464,23 @@ def save_index(result: Result, output_path: Path | None = None) -> None:
 # CLI
 # ===========================================================================
 
+
 def main():
     parser = argparse.ArgumentParser(
         description="Discover and index all available skills",
-        formatter_class=argparse.RawDescriptionHelpFormatter
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
     parser.add_argument(
-        "--output", "-o",
+        "--output",
+        "-o",
         type=Path,
-        help="Output file path (default: ~/.cache/skillrecommender/skill_index.json)"
+        help="Output file path (default: ~/.cache/skillrecommender/skill_index.json)",
     )
 
-    parser.add_argument(
-        "--verbose", "-v",
-        action="store_true",
-        help="Enable verbose output"
-    )
+    parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose output")
 
-    parser.add_argument(
-        "--json",
-        action="store_true",
-        help="Output results as JSON"
-    )
+    parser.add_argument("--json", action="store_true", help="Output results as JSON")
 
     args = parser.parse_args()
 
@@ -457,7 +506,7 @@ def main():
     # Exit codes: 0 = success, 1 = general failure, 3 = no sources found
     if not result.success:
         sys.exit(1)
-    elif result.data['total_count'] == 0 and len(result.warnings) == len(SKILL_SOURCES):
+    elif result.data["total_count"] == 0 and len(result.warnings) == len(SKILL_SOURCES):
         # All sources were missing - this is exit code 3 per docstring
         sys.exit(3)
     else:

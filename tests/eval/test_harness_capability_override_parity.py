@@ -36,9 +36,7 @@ def test_equal_parent_and_child_value_is_never_verified() -> None:
 def test_equal_value_trap_applies_to_effort_too() -> None:
     # The same undecidable case can arise on effort_override, not only
     # model_override; classify_override backs both.
-    status = capability.classify_override(
-        "high", "high", EvidenceKind.BACKEND, parent_value="high"
-    )
+    status = capability.classify_override("high", "high", EvidenceKind.BACKEND, parent_value="high")
     assert status is CapabilityStatus.UNVERIFIED
 
 

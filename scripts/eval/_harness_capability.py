@@ -691,8 +691,7 @@ def _arm_eligibility_dict(
     rows: list[dict[str, object]] = []
     for arm in ARMS:
         eligibility = {
-            harness.harness: _record_eligibility(arm, harness, records).value
-            for harness in records
+            harness.harness: _record_eligibility(arm, harness, records).value for harness in records
         }
         rows.append({"arm": arm.arm_id, "summary": arm.summary, "eligibility": eligibility})
     return rows

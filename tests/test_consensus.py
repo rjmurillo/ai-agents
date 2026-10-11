@@ -48,16 +48,12 @@ class TestVote:
     def test_invalid_confidence_high(self) -> None:
         """Confidence above 1.0 is rejected."""
         with pytest.raises(ValueError, match="Confidence must be 0.0-1.0"):
-            Vote(
-                agent="qa", position="approve", rationale="Test", confidence=1.5
-            )
+            Vote(agent="qa", position="approve", rationale="Test", confidence=1.5)
 
     def test_invalid_confidence_low(self) -> None:
         """Confidence below 0.0 is rejected."""
         with pytest.raises(ValueError, match="Confidence must be 0.0-1.0"):
-            Vote(
-                agent="qa", position="approve", rationale="Test", confidence=-0.1
-            )
+            Vote(agent="qa", position="approve", rationale="Test", confidence=-0.1)
 
 
 class TestMajorityConsensus:
@@ -450,15 +446,17 @@ class TestDecisionRecorder:
         """Decision JSON with unexpected fields is skipped."""
         recorder = DecisionRecorder(tmp_path)
         (tmp_path / "extra.json").write_text(
-            json.dumps({
-                "id": "extra",
-                "timestamp": "2026-01-01T00:00:00+00:00",
-                "topic": "Topic",
-                "context": "Context",
-                "votes": [],
-                "result": {},
-                "unexpected": True,
-            }),
+            json.dumps(
+                {
+                    "id": "extra",
+                    "timestamp": "2026-01-01T00:00:00+00:00",
+                    "topic": "Topic",
+                    "context": "Context",
+                    "votes": [],
+                    "result": {},
+                    "unexpected": True,
+                }
+            ),
             encoding="utf-8",
         )
 
@@ -474,12 +472,8 @@ class TestDecisionRecorder:
         votes = [Vote("architect", "approve", "Good", 0.9)]
         result = majority_consensus(votes)
 
-        recorder.record_decision(
-            topic="Decision 1", context="Test", votes=votes, result=result
-        )
-        recorder.record_decision(
-            topic="Decision 2", context="Test", votes=votes, result=result
-        )
+        recorder.record_decision(topic="Decision 1", context="Test", votes=votes, result=result)
+        recorder.record_decision(topic="Decision 2", context="Test", votes=votes, result=result)
 
         decisions = recorder.list_decisions()
 
@@ -492,9 +486,7 @@ class TestDecisionRecorder:
         recorder = DecisionRecorder(tmp_path)
         votes = [Vote("architect", "approve", "Good", 0.9)]
         result = majority_consensus(votes)
-        recorder.record_decision(
-            topic="Valid decision", context="Test", votes=votes, result=result
-        )
+        recorder.record_decision(topic="Valid decision", context="Test", votes=votes, result=result)
         (tmp_path / "bad.json").write_text("not json", encoding="utf-8")
 
         decisions = recorder.list_decisions()

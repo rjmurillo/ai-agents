@@ -45,7 +45,8 @@ def _run(repo_root: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, str(SCRIPT), "--repo-root", str(repo_root)],
         capture_output=True,
-        text=True, encoding="utf-8",
+        text=True,
+        encoding="utf-8",
         check=False,
     )
 
@@ -135,11 +136,19 @@ def test_readme_files_excluded(tmp_path: Path) -> None:
 def test_non_frontmatter_id_mention_ignored(tmp_path: Path) -> None:
     """`id:` text in the prose body does not count as a declared id."""
     specs = _scaffold(tmp_path)
-    _make_spec(specs / "requirements", "REQ-001-a.md", "REQ-001",
-               body="\nSee related id: REQ-001 reference in prose.\n")
+    _make_spec(
+        specs / "requirements",
+        "REQ-001-a.md",
+        "REQ-001",
+        body="\nSee related id: REQ-001 reference in prose.\n",
+    )
     # Second file references REQ-001 in prose but declares REQ-002.
-    _make_spec(specs / "requirements", "REQ-002-b.md", "REQ-002",
-               body="\nThis discusses id: REQ-001 historically.\n")
+    _make_spec(
+        specs / "requirements",
+        "REQ-002-b.md",
+        "REQ-002",
+        body="\nThis discusses id: REQ-001 historically.\n",
+    )
 
     result = _run(tmp_path)
     assert result.returncode == 0, result.stdout + result.stderr
@@ -171,6 +180,5 @@ def test_real_repo_has_unique_spec_ids() -> None:
     """Regression: the actual repo tree must satisfy the gate post-#2068."""
     result = _run(REPO_ROOT)
     assert result.returncode == 0, (
-        "Real spec catalog has duplicate IDs:\n"
-        + result.stdout + result.stderr
+        "Real spec catalog has duplicate IDs:\n" + result.stdout + result.stderr
     )

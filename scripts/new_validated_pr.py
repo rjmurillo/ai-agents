@@ -53,7 +53,9 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--head", default="", help="Source branch (default: current)")
     parser.add_argument("--draft", action="store_true", help="Create as draft PR")
     parser.add_argument(
-        "--web", action="store_true", help="Open browser to create PR interactively",
+        "--web",
+        action="store_true",
+        help="Open browser to create PR interactively",
     )
     parser.add_argument("--skip-validation", action="store_true", help="Skip validation checks")
     parser.add_argument("--audit-reason", default="", help="Reason for skipping validation")
@@ -102,9 +104,7 @@ def _build_skill_args(skill_script: Path, args: argparse.Namespace) -> list[str]
     return skill_args
 
 
-def _copy_body_to_prepared_path(
-    repo_root: Path, skill_script: Path, source_path: str
-) -> str:
+def _copy_body_to_prepared_path(repo_root: Path, skill_script: Path, source_path: str) -> str:
     """Preserve the wrapper body-file API through the secure allocator."""
     content = Path(source_path).read_text(encoding="utf-8")
     module_path = skill_script.with_name("prepare_pr_body.py")
@@ -144,9 +144,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.body_file:
         try:
-            args.body_file = _copy_body_to_prepared_path(
-                repo_root, skill_script, args.body_file
-            )
+            args.body_file = _copy_body_to_prepared_path(repo_root, skill_script, args.body_file)
         except (OSError, RuntimeError, UnicodeError) as exc:
             print(f"ERROR: Could not prepare PR body: {exc}", file=sys.stderr)
             return 2

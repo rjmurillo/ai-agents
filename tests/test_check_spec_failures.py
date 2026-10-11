@@ -41,10 +41,14 @@ class TestBuildParser:
         assert args.completeness_verdict == ""
 
     def test_cli_args_override(self):
-        args = build_parser().parse_args([
-            "--trace-verdict", "PASS",
-            "--completeness-verdict", "FAIL",
-        ])
+        args = build_parser().parse_args(
+            [
+                "--trace-verdict",
+                "PASS",
+                "--completeness-verdict",
+                "FAIL",
+            ]
+        )
         assert args.trace_verdict == "PASS"
         assert args.completeness_verdict == "FAIL"
 
@@ -80,10 +84,14 @@ class TestMain:
         assert rc == 1
 
     def test_critical_fail_returns_1(self):
-        rc = main([
-            "--trace-verdict", "CRITICAL_FAIL",
-            "--completeness-verdict", "PASS",
-        ])
+        rc = main(
+            [
+                "--trace-verdict",
+                "CRITICAL_FAIL",
+                "--completeness-verdict",
+                "PASS",
+            ]
+        )
         assert rc == 1
 
     def test_both_empty_fails_closed(self, capsys):
@@ -112,12 +120,18 @@ class TestMain:
 
     def test_both_infra_failures_fail_closed(self, capsys):
         """Issue #5738: a required check that could not run must not pass."""
-        rc = main([
-            "--trace-verdict", "CRITICAL_FAIL",
-            "--completeness-verdict", "CRITICAL_FAIL",
-            "--trace-infra-failure", "true",
-            "--completeness-infra-failure", "true",
-        ])
+        rc = main(
+            [
+                "--trace-verdict",
+                "CRITICAL_FAIL",
+                "--completeness-verdict",
+                "CRITICAL_FAIL",
+                "--trace-infra-failure",
+                "true",
+                "--completeness-infra-failure",
+                "true",
+            ]
+        )
         assert rc == 1
         output = capsys.readouterr().out
         assert "infrastructure failure" in output.lower()
@@ -129,31 +143,48 @@ class TestMain:
 
     def test_both_infra_failures_fail_closed_even_with_pass_verdicts(self, capsys):
         """Edge: the flag alone blocks, whatever the raw verdict text says."""
-        rc = main([
-            "--trace-verdict", "PASS",
-            "--completeness-verdict", "PASS",
-            "--trace-infra-failure", "1",
-            "--completeness-infra-failure", "yes",
-        ])
+        rc = main(
+            [
+                "--trace-verdict",
+                "PASS",
+                "--completeness-verdict",
+                "PASS",
+                "--trace-infra-failure",
+                "1",
+                "--completeness-infra-failure",
+                "yes",
+            ]
+        )
         assert rc == 1
         assert "Spec validation passed" not in capsys.readouterr().out
 
     def test_infra_flag_is_case_insensitive(self):
-        rc = main([
-            "--trace-verdict", "PASS",
-            "--completeness-verdict", "PASS",
-            "--trace-infra-failure", "TRUE",
-        ])
+        rc = main(
+            [
+                "--trace-verdict",
+                "PASS",
+                "--completeness-verdict",
+                "PASS",
+                "--trace-infra-failure",
+                "TRUE",
+            ]
+        )
         assert rc == 1
 
     def test_false_infra_flags_do_not_block_a_passing_run(self, capsys):
         """Negative control: flags that are not truthy leave a pass green."""
-        rc = main([
-            "--trace-verdict", "PASS",
-            "--completeness-verdict", "PASS",
-            "--trace-infra-failure", "false",
-            "--completeness-infra-failure", "",
-        ])
+        rc = main(
+            [
+                "--trace-verdict",
+                "PASS",
+                "--completeness-verdict",
+                "PASS",
+                "--trace-infra-failure",
+                "false",
+                "--completeness-infra-failure",
+                "",
+            ]
+        )
         assert rc == 0
         output = capsys.readouterr().out
         assert "Spec validation passed" in output
@@ -161,11 +192,16 @@ class TestMain:
 
     def test_trace_infra_failure_only_fails_closed(self, capsys):
         """Half of validation missing is still missing evidence: block."""
-        rc = main([
-            "--trace-verdict", "CRITICAL_FAIL",
-            "--completeness-verdict", "PASS",
-            "--trace-infra-failure", "true",
-        ])
+        rc = main(
+            [
+                "--trace-verdict",
+                "CRITICAL_FAIL",
+                "--completeness-verdict",
+                "PASS",
+                "--trace-infra-failure",
+                "true",
+            ]
+        )
         assert rc == 1
         output = capsys.readouterr().out
         assert "Traceability check did not run" in output
@@ -173,11 +209,16 @@ class TestMain:
         assert "Spec validation passed" not in output
 
     def test_completeness_infra_failure_only_fails_closed(self, capsys):
-        rc = main([
-            "--trace-verdict", "PASS",
-            "--completeness-verdict", "CRITICAL_FAIL",
-            "--completeness-infra-failure", "true",
-        ])
+        rc = main(
+            [
+                "--trace-verdict",
+                "PASS",
+                "--completeness-verdict",
+                "CRITICAL_FAIL",
+                "--completeness-infra-failure",
+                "true",
+            ]
+        )
         assert rc == 1
         output = capsys.readouterr().out
         assert "Completeness check did not run" in output
@@ -186,51 +227,74 @@ class TestMain:
 
     def test_real_fail_not_masked_by_infra(self):
         """Real completeness failure should still block even if trace is infra."""
-        rc = main([
-            "--trace-verdict", "CRITICAL_FAIL",
-            "--completeness-verdict", "FAIL",
-            "--trace-infra-failure", "true",
-        ])
+        rc = main(
+            [
+                "--trace-verdict",
+                "CRITICAL_FAIL",
+                "--completeness-verdict",
+                "FAIL",
+                "--trace-infra-failure",
+                "true",
+            ]
+        )
         assert rc == 1
 
     def test_real_fail_reports_failure_message_alongside_infra(self, capsys):
         """A genuine FAIL on the healthy side names the real failure."""
-        rc = main([
-            "--trace-verdict", "CRITICAL_FAIL",
-            "--completeness-verdict", "FAIL",
-            "--trace-infra-failure", "true",
-        ])
+        rc = main(
+            [
+                "--trace-verdict",
+                "CRITICAL_FAIL",
+                "--completeness-verdict",
+                "FAIL",
+                "--trace-infra-failure",
+                "true",
+            ]
+        )
         assert rc == 1
         assert "Spec validation failed" in capsys.readouterr().out
 
     def test_findings_text_does_not_suppress_failures(self):
         """Free-form findings cannot override structured failure flags."""
-        rc = main([
-            "--trace-verdict", "CRITICAL_FAIL",
-            "--completeness-verdict", "CRITICAL_FAIL",
-            "--trace-findings",
-            "Copilot CLI infrastructure failure after 3 attempts",
-            "--completeness-findings",
-            "Copilot CLI infrastructure failure after 3 attempts",
-        ])
+        rc = main(
+            [
+                "--trace-verdict",
+                "CRITICAL_FAIL",
+                "--completeness-verdict",
+                "CRITICAL_FAIL",
+                "--trace-findings",
+                "Copilot CLI infrastructure failure after 3 attempts",
+                "--completeness-findings",
+                "Copilot CLI infrastructure failure after 3 attempts",
+            ]
+        )
         assert rc == 1
 
     def test_one_finding_with_infra_text_still_fails(self):
-        rc = main([
-            "--trace-verdict", "CRITICAL_FAIL",
-            "--completeness-verdict", "PASS",
-            "--trace-findings",
-            "Copilot CLI infrastructure failure after 3 attempts",
-        ])
+        rc = main(
+            [
+                "--trace-verdict",
+                "CRITICAL_FAIL",
+                "--completeness-verdict",
+                "PASS",
+                "--trace-findings",
+                "Copilot CLI infrastructure failure after 3 attempts",
+            ]
+        )
         assert rc == 1
 
     def test_findings_without_infra_keyword_still_fails(self):
         """Findings without infrastructure keyword do not suppress failure."""
-        rc = main([
-            "--trace-verdict", "CRITICAL_FAIL",
-            "--completeness-verdict", "PASS",
-            "--trace-findings", "Some other error message",
-        ])
+        rc = main(
+            [
+                "--trace-verdict",
+                "CRITICAL_FAIL",
+                "--completeness-verdict",
+                "PASS",
+                "--trace-findings",
+                "Some other error message",
+            ]
+        )
         assert rc == 1
 
 
@@ -245,16 +309,26 @@ class TestStepOutcome:
         return argv
 
     def test_success_outcomes_with_verdicts_pass(self, capsys):
-        rc = main(self._args(
-            "PASS", "PASS", trace_outcome="success", completeness_outcome="success",
-        ))
+        rc = main(
+            self._args(
+                "PASS",
+                "PASS",
+                trace_outcome="success",
+                completeness_outcome="success",
+            )
+        )
         assert rc == 0
         assert "Spec validation passed" in capsys.readouterr().out
 
     def test_failure_outcome_fails_closed_despite_pass_verdict(self, capsys):
-        rc = main(self._args(
-            "PASS", "PASS", trace_outcome="failure", completeness_outcome="success",
-        ))
+        rc = main(
+            self._args(
+                "PASS",
+                "PASS",
+                trace_outcome="failure",
+                completeness_outcome="success",
+            )
+        )
         assert rc == 1
         output = capsys.readouterr().out
         assert "step outcome was 'failure'" in output
@@ -262,50 +336,84 @@ class TestStepOutcome:
         assert "Spec validation passed" not in output
 
     def test_cancelled_completeness_outcome_fails_closed(self, capsys):
-        rc = main(self._args(
-            "PASS", "PASS", trace_outcome="success", completeness_outcome="cancelled",
-        ))
+        rc = main(
+            self._args(
+                "PASS",
+                "PASS",
+                trace_outcome="success",
+                completeness_outcome="cancelled",
+            )
+        )
         assert rc == 1
         assert "Completeness check did not complete" in capsys.readouterr().out
 
     def test_skipped_outcome_fails_closed(self):
-        rc = main(self._args(
-            "PASS", "PASS", trace_outcome="skipped", completeness_outcome="success",
-        ))
+        rc = main(
+            self._args(
+                "PASS",
+                "PASS",
+                trace_outcome="skipped",
+                completeness_outcome="success",
+            )
+        )
         assert rc == 1
 
     def test_outcome_is_case_and_whitespace_insensitive(self):
-        rc = main(self._args(
-            "PASS", "PASS", trace_outcome=" Success ", completeness_outcome="SUCCESS",
-        ))
+        rc = main(
+            self._args(
+                "PASS",
+                "PASS",
+                trace_outcome=" Success ",
+                completeness_outcome="SUCCESS",
+            )
+        )
         assert rc == 0
 
     def test_failure_outcome_with_empty_verdict_fails_closed(self):
         """The crash shape: outcome failure and no outputs at all."""
-        rc = main(self._args(
-            "", "", trace_outcome="failure", completeness_outcome="failure",
-        ))
+        rc = main(
+            self._args(
+                "",
+                "",
+                trace_outcome="failure",
+                completeness_outcome="failure",
+            )
+        )
         assert rc == 1
 
     def test_success_outcome_with_empty_verdict_fails_closed(self):
-        rc = main(self._args(
-            "", "PASS", trace_outcome="success", completeness_outcome="success",
-        ))
+        rc = main(
+            self._args(
+                "",
+                "PASS",
+                trace_outcome="success",
+                completeness_outcome="success",
+            )
+        )
         assert rc == 1
 
     def test_real_fail_still_reports_failure_message(self, capsys):
-        rc = main(self._args(
-            "FAIL", "PASS", trace_outcome="success", completeness_outcome="failure",
-        ))
+        rc = main(
+            self._args(
+                "FAIL",
+                "PASS",
+                trace_outcome="success",
+                completeness_outcome="failure",
+            )
+        )
         assert rc == 1
         assert "Spec validation failed" in capsys.readouterr().out
 
     def test_infra_flag_wins_over_gap_message(self, capsys):
-        rc = main(self._args(
-            "", "PASS",
-            trace_outcome="failure", completeness_outcome="success",
-            trace_infra_failure="true",
-        ))
+        rc = main(
+            self._args(
+                "",
+                "PASS",
+                trace_outcome="failure",
+                completeness_outcome="success",
+                trace_infra_failure="true",
+            )
+        )
         assert rc == 1
         output = capsys.readouterr().out
         assert "check the ANTHROPIC_API_KEY secret" in output
@@ -324,10 +432,20 @@ class TestStepOutcome:
         import subprocess
 
         result = subprocess.run(
-            [sys.executable, str(_SCRIPTS_DIR / "check_spec_failures.py"),
-             "--trace-verdict", "PASS", "--completeness-verdict", "PASS",
-             "--trace-outcome", "failure"],
-            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            [
+                sys.executable,
+                str(_SCRIPTS_DIR / "check_spec_failures.py"),
+                "--trace-verdict",
+                "PASS",
+                "--completeness-verdict",
+                "PASS",
+                "--trace-outcome",
+                "failure",
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
             check=False,
         )
         assert result.returncode == 1

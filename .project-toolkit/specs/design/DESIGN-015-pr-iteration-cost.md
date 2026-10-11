@@ -72,8 +72,7 @@ def run_guard(
     validator_fn: Callable[[list[str], list[str]], list[str]],
     globs: list[str],
     name: str,
-) -> int:
-    ...
+) -> int: ...
 ```
 
 **Output format** (mirrors `invoke_session_log_guard.py`):
@@ -114,8 +113,7 @@ Fix and re-push.
 
 **Validator signature**:
 ```python
-def _validate_markdown(md_files: list[str], _all: list[str]) -> list[str]:
-    ...
+def _validate_markdown(md_files: list[str], _all: list[str]) -> list[str]: ...
 ```
 
 ---
@@ -137,8 +135,7 @@ def _validate_markdown(md_files: list[str], _all: list[str]) -> list[str]:
 
 **Validator signature**:
 ```python
-def _validate_manifest_counts(_manifest_files: list[str], _all: list[str]) -> list[str]:
-    ...
+def _validate_manifest_counts(_manifest_files: list[str], _all: list[str]) -> list[str]: ...
 ```
 
 ---
@@ -185,10 +182,7 @@ semantic search index, not a count manifest, and is not in scope for this work.
 
 **Validator signature**:
 ```python
-def _validate_session_log_fields(
-    session_files: list[str], all_changed: list[str]
-) -> list[str]:
-    ...
+def _validate_session_log_fields(session_files: list[str], all_changed: list[str]) -> list[str]: ...
 ```
 
 ---

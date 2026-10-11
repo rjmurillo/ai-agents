@@ -47,7 +47,6 @@ WORKFLOW_DIR = Path(__file__).resolve().parents[2] / ".github/workflows"
 _GRANDFATHERED: frozenset[tuple[str, str]] = frozenset(
     {
         ("ai-metrics-analysis.yml", "analyze-metrics"),
-
         ("ai-spec-validation.yml", "debounce"),
         ("ai-spec-validation.yml", "validate-spec"),
         ("artifact-insight-scanner.yml", "scan-artifacts"),

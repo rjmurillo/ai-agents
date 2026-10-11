@@ -55,10 +55,12 @@ def record_context_fetch_failure(
     if not isinstance(failures, list):
         failures = []
         data["context_fetch_failures"] = failures
-    failures.append({
-        "field": field,
-        "message": context_fetch_failure_message(result, command),
-    })
+    failures.append(
+        {
+            "field": field,
+            "message": context_fetch_failure_message(result, command),
+        }
+    )
 
 
 def author_is_bot(author: object) -> bool | None:

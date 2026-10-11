@@ -176,9 +176,7 @@ class _CodexCLIProvider:
             prompt,
         ]
 
-    def _build_env(
-        self, credential: ResolvedCredential, codex_home: Path | None
-    ) -> dict[str, str]:
+    def _build_env(self, credential: ResolvedCredential, codex_home: Path | None) -> dict[str, str]:
         """Build the child environment for the resolved credential step.
 
         The `disk` step points `CODEX_HOME` at an isolated directory holding a
@@ -259,8 +257,7 @@ class _CodexCLIProvider:
             ) from None
         if not answer:
             raise RuntimeError(
-                f"{PROVIDER_LABEL} API returned no choices; "
-                "model identifier redacted"
+                f"{PROVIDER_LABEL} API returned no choices; model identifier redacted"
             )
         return answer
 

@@ -40,10 +40,7 @@ def _load_object_id_validator(
 ) -> Callable[[str], bool]:
     if module_path is None:
         module_path = (
-            Path(__file__).resolve().parents[2]
-            / "scripts"
-            / "validation"
-            / "object_id.py"
+            Path(__file__).resolve().parents[2] / "scripts" / "validation" / "object_id.py"
         )
     spec = importlib.util.spec_from_file_location("safe_push_object_id", module_path)
     if spec is None or spec.loader is None:
@@ -52,9 +49,7 @@ def _load_object_id_validator(
     try:
         spec.loader.exec_module(module)
     except (OSError, SyntaxError) as exc:
-        raise RuntimeError(
-            f"cannot load object id validator from {module_path}: {exc}"
-        ) from exc
+        raise RuntimeError(f"cannot load object id validator from {module_path}: {exc}") from exc
     try:
         validator = vars(module)["is_full_object_id"]
     except KeyError as exc:
@@ -63,8 +58,7 @@ def _load_object_id_validator(
         ) from exc
     if not callable(validator):
         raise RuntimeError(
-            f"object id validator {module_path} defines a non-callable "
-            "is_full_object_id"
+            f"object id validator {module_path} defines a non-callable is_full_object_id"
         )
     return cast(Callable[[str], bool], validator)
 
@@ -200,8 +194,7 @@ def _assert_on_branch(branch: str, repo_root: str) -> None:
     current = _current_branch(repo_root)
     if current != branch:
         raise SafePushError(
-            "refusing to push: HEAD is on "
-            f"{current!r} but requested branch is {branch!r}",
+            f"refusing to push: HEAD is on {current!r} but requested branch is {branch!r}",
             EXIT_VERIFICATION,
         )
 
@@ -252,11 +245,7 @@ def _require_single_porcelain_ref(
     refs: list[PorcelainRef], source_ref: str, dest_ref: str, audit: PushAudit
 ) -> PorcelainRef:
     audit.parsed_refs = _porcelain_refs_for_audit(refs)
-    expected = [
-        ref
-        for ref in refs
-        if ref.source == source_ref and ref.destination == dest_ref
-    ]
+    expected = [ref for ref in refs if ref.source == source_ref and ref.destination == dest_ref]
     if len(refs) != 1 or len(expected) != 1:
         audit.error = (
             "expected exactly one porcelain ref "
@@ -285,7 +274,6 @@ def _ls_remote_sha(
         audit.error = f"git ls-remote returned unexpected output for {dest_ref!r}: {line!r}"
         raise SafePushError(audit.error, EXIT_VERIFICATION, audit)
     return fields[0]
-
 
 
 def safe_push(
@@ -317,8 +305,7 @@ def safe_push(
             raise SafePushError(audit.error, EXIT_USAGE, audit)
         if not is_full_object_id(expected_remote_sha):
             audit.error = (
-                "--expected-remote-sha must be a full 40 or 64 character "
-                "hexadecimal object id"
+                "--expected-remote-sha must be a full 40 or 64 character hexadecimal object id"
             )
             raise SafePushError(audit.error, EXIT_USAGE, audit)
         push_args.insert(2, f"--force-with-lease={dest_ref}:{expected_remote_sha}")
@@ -352,13 +339,13 @@ def safe_push(
     audit.remote_new_sha = observed_sha or audit.remote_new_sha
     if observed_sha != local_sha:
         audit.error = (
-            f"remote {dest_ref!r} is {observed_sha or 'missing'}, "
-            f"expected local sha {local_sha}"
+            f"remote {dest_ref!r} is {observed_sha or 'missing'}, expected local sha {local_sha}"
         )
         raise SafePushError(audit.error, EXIT_VERIFICATION, audit)
 
     audit.verified = True
     return audit
+
 
 def _emit_audit(audit: PushAudit) -> None:
     print(json.dumps(asdict(audit), sort_keys=True), file=sys.stderr)
@@ -428,10 +415,7 @@ def main(argv: list[str] | None = None) -> int:
         return exc.exit_code
 
     _emit_audit(audit)
-    print(
-        f"::notice::pushed {audit.branch} -> {audit.remote} "
-        f"at {audit.local_sha} (verified)"
-    )
+    print(f"::notice::pushed {audit.branch} -> {audit.remote} at {audit.local_sha} (verified)")
     return EXIT_OK
 
 

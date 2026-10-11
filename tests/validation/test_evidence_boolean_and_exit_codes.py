@@ -66,9 +66,7 @@ class TestCheckOutcomeHasNoTruthValue:
             bool(_ONE_PER_STATE[state])
 
     @pytest.mark.parametrize("state", list(EvidenceState))
-    def test_the_message_names_the_state_and_the_validator(
-        self, state: EvidenceState
-    ) -> None:
+    def test_the_message_names_the_state_and_the_validator(self, state: EvidenceState) -> None:
         """The reader has to learn which gate to fix from the traceback alone."""
         with pytest.raises(TypeError) as excinfo:
             bool(_ONE_PER_STATE[state])
@@ -147,9 +145,7 @@ class TestAuthExitCode:
 
     def test_a_blocked_non_auth_gate_still_exits_three(self) -> None:
         """Negative control. A missing binary is an external dependency, not a login."""
-        summary = aggregate(
-            "pre_pr", [CheckOutcome.blocked("v", reason=REASON_TOOL_ABSENT)]
-        )
+        summary = aggregate("pre_pr", [CheckOutcome.blocked("v", reason=REASON_TOOL_ABSENT)])
 
         assert exit_code_for(summary) == 3
 
@@ -173,9 +169,7 @@ class TestAuthExitCode:
         That is a logic error whatever the reason string says, and mapping it to
         4 would tell the reader to authenticate when the evidence is the problem.
         """
-        summary = aggregate(
-            "pre_pr", [CheckOutcome.unknown("v", reason=REASON_AUTH_UNAVAILABLE)]
-        )
+        summary = aggregate("pre_pr", [CheckOutcome.unknown("v", reason=REASON_AUTH_UNAVAILABLE)])
 
         assert exit_code_for(summary) == 1
 
@@ -237,14 +231,10 @@ class TestPolicyDocstringMatchesThePolicy:
     def test_the_stated_exception_count_matches_the_returned_one(self) -> None:
         """The claim that was false when #5641 shipped."""
         doc = default_pre_pr_policy.__doc__ or ""
-        match = re.search(
-            rf"\b({'|'.join(_NUMBER_WORDS)})\b exceptions?", doc, re.IGNORECASE
-        )
+        match = re.search(rf"\b({'|'.join(_NUMBER_WORDS)})\b exceptions?", doc, re.IGNORECASE)
 
         assert match is not None, "the docstring must state how many exceptions there are"
-        assert _NUMBER_WORDS[match.group(1).lower()] == len(
-            default_pre_pr_policy().exceptions
-        )
+        assert _NUMBER_WORDS[match.group(1).lower()] == len(default_pre_pr_policy().exceptions)
 
     def test_the_docstring_names_every_validator_it_licenses(self) -> None:
         """A licence nobody can find in the prose is an unreviewed licence."""
@@ -255,7 +245,7 @@ class TestPolicyDocstringMatchesThePolicy:
                 assert exception.validator in doc
 
     def test_the_docstring_names_every_state_it_licenses(self) -> None:
-        """"BLOCKED gets no exception" was false; this is what makes it stay false."""
+        """ "BLOCKED gets no exception" was false; this is what makes it stay false."""
         doc = default_pre_pr_policy.__doc__ or ""
         licensed = {
             state.value

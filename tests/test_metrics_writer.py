@@ -30,9 +30,7 @@ def _symlink_or_skip(link: Path, target: Path) -> None:
     try:
         link.symlink_to(target)
     except (OSError, NotImplementedError):
-        pytest.skip(
-            "symlink creation unavailable on this platform; PR #2354 tracks coverage"
-        )
+        pytest.skip("symlink creation unavailable on this platform; PR #2354 tracks coverage")
 
 
 # --- positive: normal append -------------------------------------------------
@@ -83,9 +81,7 @@ def test_append_creates_owner_only_file(tmp_path: Path) -> None:
     assert stat.S_IMODE(target.stat().st_mode) == 0o600
 
 
-def test_relative_path_without_base_is_anchored_to_project_dir(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_relative_path_without_base_is_anchored_to_project_dir(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(metrics_writer, "_PROJECT_DIR", tmp_path)
     relative_target = Path("metrics") / "tally.md"
 
@@ -95,9 +91,7 @@ def test_relative_path_without_base_is_anchored_to_project_dir(
     assert written.read_text(encoding="utf-8") == _TALLY + "\n"
 
 
-def test_relative_path_escape_from_project_dir_is_rejected(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_relative_path_escape_from_project_dir_is_rejected(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(metrics_writer, "_PROJECT_DIR", tmp_path / "project")
 
     with pytest.raises(MetricsWriteError, match="traversal"):
@@ -106,9 +100,7 @@ def test_relative_path_escape_from_project_dir_is_rejected(
     assert not (tmp_path / "outside.md").exists()
 
 
-def test_absolute_path_escape_from_project_dir_is_rejected(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_absolute_path_escape_from_project_dir_is_rejected(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(metrics_writer, "_PROJECT_DIR", tmp_path / "project")
 
     with pytest.raises(MetricsWriteError, match="traversal"):
@@ -196,9 +188,7 @@ def test_symlink_target_is_rejected_by_precheck(tmp_path: Path) -> None:
     assert secret.read_text(encoding="utf-8") == "do not touch"
 
 
-def test_symlink_swapped_after_precheck_is_rejected_by_open(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_symlink_swapped_after_precheck_is_rejected_by_open(tmp_path: Path, monkeypatch) -> None:
     """Simulate the TOCTOU swap: the pre-check passes, then a symlink appears.
 
     The O_NOFOLLOW open must refuse it (CWE-367). We plant the symlink inside a
@@ -276,9 +266,7 @@ def test_write_failure_is_wrapped(tmp_path: Path, monkeypatch) -> None:
         safe_append_tally(target, _TALLY, base_dir=tmp_path)
 
 
-def test_short_write_retries_until_record_is_complete(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_short_write_retries_until_record_is_complete(tmp_path: Path, monkeypatch) -> None:
     target = tmp_path / "metrics.md"
     real_write = os.write
     writes: list[bytes] = []

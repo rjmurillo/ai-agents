@@ -125,10 +125,12 @@ def test_parser_flags_an_unclassified_row() -> None:
 
 
 def test_parser_flags_an_expired_row_and_keeps_a_current_one() -> None:
-    rows = parse_rows(_table(
-        "| `old.py:1` | B: keep advisory. | rjmurillo | 2026-01-01 |",
-        "| `new.py:1` | B: keep advisory. | rjmurillo | 2026-12-31 |",
-    ))
+    rows = parse_rows(
+        _table(
+            "| `old.py:1` | B: keep advisory. | rjmurillo | 2026-01-01 |",
+            "| `new.py:1` | B: keep advisory. | rjmurillo | 2026-12-31 |",
+        )
+    )
     assert [r.path for r in _expired(rows, date(2026, 9, 29))] == ["`old.py:1`"]
 
 

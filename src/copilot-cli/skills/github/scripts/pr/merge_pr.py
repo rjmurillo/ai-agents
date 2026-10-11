@@ -87,25 +87,30 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument(
-        "--pull-request", type=int, required=True, help="Pull request number",
+        "--pull-request",
+        type=int,
+        required=True,
+        help="Pull request number",
     )
     parser.add_argument(
-        "--strategy", choices=["merge", "squash", "rebase"], default=None,
-        help=(
-            "Merge strategy. Omit to auto-pick from repo policy "
-            "(squash > merge > rebase)."
-        ),
+        "--strategy",
+        choices=["merge", "squash", "rebase"],
+        default=None,
+        help=("Merge strategy. Omit to auto-pick from repo policy (squash > merge > rebase)."),
     )
     parser.add_argument(
-        "--delete-branch", action="store_true",
+        "--delete-branch",
+        action="store_true",
         help="Delete the head branch after merge",
     )
     parser.add_argument(
-        "--auto", action="store_true",
+        "--auto",
+        action="store_true",
         help="Enable auto-merge (merge when checks pass)",
     )
     parser.add_argument(
-        "--expected-head-sha", default="",
+        "--expected-head-sha",
+        default="",
         help=(
             "Reviewed head commit SHA (40 hex). Refuses to merge when the PR "
             "head differs, and pins the merge to this commit."
@@ -147,8 +152,7 @@ _READBACK_FIELDS = "state,mergeCommit,mergedBy,autoMergeRequest,headRefOid"
 _APPROVAL = "repository branch protection (server-enforced)"
 
 _RESIDUAL_RISK = (
-    "deny rules match command text only; branch protection is the enforcement "
-    "(ADR-112)"
+    "deny rules match command text only; branch protection is the enforcement (ADR-112)"
 )
 
 
@@ -182,8 +186,11 @@ def get_allowed_merge_methods(repo_flag: str) -> dict[str, bool]:
     """
     result = subprocess.run(
         [
-            "gh", "api", f"repos/{repo_flag}",
-            "--jq", "{allow_merge_commit, allow_squash_merge, allow_rebase_merge}",
+            "gh",
+            "api",
+            f"repos/{repo_flag}",
+            "--jq",
+            "{allow_merge_commit, allow_squash_merge, allow_rebase_merge}",
         ],
         capture_output=True,
         encoding="utf-8",
@@ -200,10 +207,7 @@ def get_allowed_merge_methods(repo_flag: str) -> dict[str, bool]:
         raise ValueError(f"Failed to decode JSON from GitHub API response: {e}") from e
     if not isinstance(data, dict):
         raise ValueError("GitHub repository settings response must be an object")
-    return {
-        field: bool(data.get(field, False))
-        for field in _STRATEGY_TO_REPO_FIELD.values()
-    }
+    return {field: bool(data.get(field, False)) for field in _STRATEGY_TO_REPO_FIELD.values()}
 
 
 def resolve_default_strategy(repo_settings: dict[str, bool]) -> str | None:
@@ -243,8 +247,7 @@ def validate_strategy(
         return
 
     allowed = [
-        name for name, fld in _STRATEGY_TO_REPO_FIELD.items()
-        if repo_settings.get(fld, False)
+        name for name, fld in _STRATEGY_TO_REPO_FIELD.items() if repo_settings.get(fld, False)
     ]
     hint = f" Allowed: {', '.join(allowed)}." if allowed else ""
     write_skill_error(
@@ -305,8 +308,14 @@ def _fetch_pr_state(
     """Fetch the PR state via gh; emit envelope and exit on failure."""
     pr_result = subprocess.run(
         [
-            "gh", "pr", "view", str(pr), "--repo", repo_flag,
-            "--json", "state,mergeable,mergeStateStatus,headRefName,headRefOid",
+            "gh",
+            "pr",
+            "view",
+            str(pr),
+            "--repo",
+            repo_flag,
+            "--json",
+            "state,mergeable,mergeStateStatus,headRefName,headRefOid",
         ],
         capture_output=True,
         encoding="utf-8",
@@ -383,7 +392,10 @@ def _reject_unknown_merge_state(
 
 
 def _build_merge_args(
-    args: argparse.Namespace, pr: int, repo_flag: str, head_sha: str = "",
+    args: argparse.Namespace,
+    pr: int,
+    repo_flag: str,
+    head_sha: str = "",
 ) -> list[str]:
     """Assemble the gh pr merge argv from parsed args.
 
@@ -391,8 +403,12 @@ def _build_merge_args(
     merge when the head moved after review (issue #5767).
     """
     merge_args = [
-        "gh", "pr", "merge", str(pr),
-        "--repo", repo_flag,
+        "gh",
+        "pr",
+        "merge",
+        str(pr),
+        "--repo",
+        repo_flag,
         f"--{args.strategy}",
     ]
     if head_sha:
@@ -435,10 +451,15 @@ def _rest_merge(
     GraphQL-specific refusal as a client-side error.
     """
     cmd = [
-        "gh", "api", "-X", "PUT",
+        "gh",
+        "api",
+        "-X",
+        "PUT",
         f"repos/{repo_flag}/pulls/{pr}/merge",
-        "-f", f"merge_method={strategy}",
-        "-f", f"sha={head_sha}",
+        "-f",
+        f"merge_method={strategy}",
+        "-f",
+        f"sha={head_sha}",
     ]
     if subject:
         cmd += ["-f", f"commit_title={subject}"]
@@ -525,7 +546,12 @@ def _handle_merge_failure(
     if not ctx.auto and (is_stack or any(kw in output for kw in _BLOCKED_KEYWORDS)):
         # GraphQL refused with a BLOCKED policy or stack error; retry via REST once.
         rest_result = _rest_merge(
-            pr, ctx.repo_flag, ctx.strategy, ctx.head_sha, subject, body,
+            pr,
+            ctx.repo_flag,
+            ctx.strategy,
+            ctx.head_sha,
+            subject,
+            body,
         )
         if rest_result.returncode == 0:
             try:
@@ -582,8 +608,7 @@ def _read_back(pr: int, repo_flag: str) -> dict[str, Any] | None:
     """
     try:
         result = subprocess.run(
-            ["gh", "pr", "view", str(pr), "--repo", repo_flag,
-             "--json", _READBACK_FIELDS],
+            ["gh", "pr", "view", str(pr), "--repo", repo_flag, "--json", _READBACK_FIELDS],
             capture_output=True,
             encoding="utf-8",
             errors="replace",
@@ -694,7 +719,11 @@ def _emit_merge_success(
             ctx.output_format,
             pr,
             audit=_build_audit(
-                ctx, "merge", "unverified: readback head differs", readback, original_error,
+                ctx,
+                "merge",
+                "unverified: readback head differs",
+                readback,
+                original_error,
             ),
         )
     merged = readback.get("state") == "MERGED"
@@ -805,7 +834,9 @@ def _recover_or_fail(ctx: _MergeContext, failure: _MergeFailureError) -> int:
 
 
 def _resolve_strategy(
-    args: argparse.Namespace, repo_flag: str, pr: int,
+    args: argparse.Namespace,
+    repo_flag: str,
+    pr: int,
 ) -> dict[str, bool] | None:
     """Pick args.strategy from repo policy when omitted; return the settings used."""
     if args.strategy is not None:
@@ -832,7 +863,9 @@ def _resolve_strategy(
 
 
 def _require_expected_head(
-    pr_data: dict[str, Any], expected: str, ctx: _MergeContext,
+    pr_data: dict[str, Any],
+    expected: str,
+    ctx: _MergeContext,
 ) -> None:
     """Exit 1 when the PR head is not the reviewed SHA (wrong target or stale)."""
     if not expected:

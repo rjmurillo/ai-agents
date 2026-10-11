@@ -52,6 +52,7 @@ def _make_trees(tmp_path: Path) -> tuple[Path, Path]:
 # Positive: trees are identical -> exit 0
 # ---------------------------------------------------------------------------
 
+
 def test_identical_trees_pass(tmp_path: Path) -> None:
     claude, src = _make_trees(tmp_path)
     content = b"# Agent\n\nSome content.\n"
@@ -79,6 +80,7 @@ def test_check_flag_is_not_supported(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 # Negative: drift -> exit 1
 # ---------------------------------------------------------------------------
+
 
 def test_content_mismatch_fails(tmp_path: Path) -> None:
     claude, src = _make_trees(tmp_path)
@@ -111,6 +113,7 @@ def test_missing_from_claude_fails(tmp_path: Path) -> None:
 # Edge: exempt files do not cause failures
 # ---------------------------------------------------------------------------
 
+
 def test_allowed_only_in_claude_no_failure(tmp_path: Path) -> None:
     if not ALLOWED_ONLY_IN_CLAUDE:
         pytest.skip(
@@ -141,6 +144,7 @@ def test_allowed_only_in_src_no_failure(tmp_path: Path) -> None:
 # Negative: the claude-mem stub is no longer exempt (issue #5493)
 # ---------------------------------------------------------------------------
 
+
 def test_claude_md_stub_is_not_exempt(tmp_path: Path) -> None:
     """A returning .claude/agents/CLAUDE.md fails, it is not skipped.
 
@@ -160,6 +164,7 @@ def test_claude_md_stub_is_not_exempt(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 # Edge: JSON output is parseable and correct
 # ---------------------------------------------------------------------------
+
 
 def test_json_output_on_drift(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     claude, src = _make_trees(tmp_path)
@@ -196,6 +201,7 @@ def test_json_output_clean(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -
 # Edge: missing directory errors out cleanly (exit 2)
 # ---------------------------------------------------------------------------
 
+
 def test_missing_claude_dir_returns_2(tmp_path: Path) -> None:
     (tmp_path / "pyproject.toml").write_text("[project]\nname = 'test'\n")
     # Neither .claude/agents nor src/claude exist
@@ -206,6 +212,7 @@ def test_missing_claude_dir_returns_2(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 # Load-bearing proof: gate passes on current repo (all 15 diffs are fixed)
 # ---------------------------------------------------------------------------
+
 
 def test_current_repo_trees_are_in_parity() -> None:
     """The gate must pass against the real repo trees after the sync fix.

@@ -419,9 +419,7 @@ def test_output_flag_is_denied_for_every_granted_read_subcommand() -> None:
     granted = ("status", "diff", "show", "log", "rev-parse", "ls-files", "blame")
     rules = _deny_rules()
     reachable = [
-        sub
-        for sub in granted
-        if not _denied_by(f"git {sub} --output=/tmp/pwned.txt", rules)
+        sub for sub in granted if not _denied_by(f"git {sub} --output=/tmp/pwned.txt", rules)
     ]
 
     assert reachable == [], (
@@ -444,9 +442,7 @@ def test_git_output_flag_really_writes_a_file(tmp_path: Path) -> None:
     repo.mkdir()
 
     def run(*args: str) -> subprocess.CompletedProcess[str]:
-        return subprocess.run(
-            ["git", *args], cwd=repo, capture_output=True, text=True, check=False
-        )
+        return subprocess.run(["git", *args], cwd=repo, capture_output=True, text=True, check=False)
 
     run("init", "-q")
     run("config", "user.email", "test@example.invalid")
@@ -486,18 +482,13 @@ class TestMatcherDetectsAbsentCoverage:
 
     def test_prefix_only_output_rule_misses_a_flag_placed_later(self) -> None:
         """`Bash(git --output*)` looks right and catches nothing real."""
-        assert (
-            _denied_by("git diff HEAD~1 --output=/tmp/pwned.txt", ["Bash(git --output*)"])
-            == []
-        )
+        assert _denied_by("git diff HEAD~1 --output=/tmp/pwned.txt", ["Bash(git --output*)"]) == []
 
     def test_non_bash_rule_is_ignored(self) -> None:
         assert _denied_by(ARBITRARY_WRITE_EXPLOITS[0], ["Read(./.env)"]) == []
 
     def test_matcher_accepts_a_covering_rule(self) -> None:
-        assert _denied_by(
-            "git diff HEAD~1 --output=/tmp/pwned.txt", ["Bash(git *--output*)"]
-        )
+        assert _denied_by("git diff HEAD~1 --output=/tmp/pwned.txt", ["Bash(git *--output*)"])
 
 
 class TestMatcherSemantics:

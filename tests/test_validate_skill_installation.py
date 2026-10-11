@@ -111,12 +111,8 @@ class TestGlobalInstallation:
         global_root = tmp_path / "global-skills"
         skill = global_root / "SkillForge"
         skill.mkdir(parents=True)
-        (skill / "SKILL.md").write_text(
-            "---\nname: skillforge\ndescription: Test\n---\n"
-        )
-        monkeypatch.setattr(
-            validator_module, "GLOBAL_SKILL_PATHS", {"test": global_root}
-        )
+        (skill / "SKILL.md").write_text("---\nname: skillforge\ndescription: Test\n---\n")
+        monkeypatch.setattr(validator_module, "GLOBAL_SKILL_PATHS", {"test": global_root})
         assert validator_module.check_global_installation(verbose=False) == 1
 
 

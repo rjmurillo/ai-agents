@@ -19,6 +19,7 @@ a CI run that publishes only JUnit still produces a report.
 
 Exit codes: 0 ok, 1 logic, 2 config, 3 external.
 """
+
 from __future__ import annotations
 
 import argparse

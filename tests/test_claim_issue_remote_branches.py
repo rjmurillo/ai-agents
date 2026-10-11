@@ -17,7 +17,12 @@ import pytest
 
 _SCRIPT = (
     Path(__file__).resolve().parents[1]
-    / ".claude" / "skills" / "github" / "scripts" / "issue" / "claim_issue.py"
+    / ".claude"
+    / "skills"
+    / "github"
+    / "scripts"
+    / "issue"
+    / "claim_issue.py"
 )
 
 
@@ -38,7 +43,11 @@ _REAL_MERGED = claim.merged_through_pr
 def _git(cwd: Path, *args: str) -> str:
     result = subprocess.run(
         ["git", "-C", str(cwd), *args],
-        capture_output=True, text=True, encoding="utf-8", errors="replace", check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=True,
     )
     return result.stdout.strip()
 
@@ -59,8 +68,7 @@ def clone(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     bare = tmp_path / "origin.git"
     subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(bare)], check=True)
     work = tmp_path / "work"
-    subprocess.run(["git", "clone", "-q", str(bare), str(work)], check=True,
-                   capture_output=True)
+    subprocess.run(["git", "clone", "-q", str(bare), str(work)], check=True, capture_output=True)
     _git(work, "config", "user.email", "t@example.com")
     _git(work, "config", "user.name", "T")
     _git(work, "config", "commit.gpgsign", "false")
@@ -95,7 +103,8 @@ class TestMatchingRemoteHeads:
     def test_matches_issue_number_in_branch(self):
         out = "a1\trefs/heads/codex/5420-a-paths\nb2\trefs/heads/fix-5420-x\n"
         assert claim.matching_remote_heads(out, 5420) == [
-            ("codex/5420-a-paths", "a1"), ("fix-5420-x", "b2"),
+            ("codex/5420-a-paths", "a1"),
+            ("fix-5420-x", "b2"),
         ]
 
     def test_rejects_numeric_near_miss(self):
@@ -176,7 +185,8 @@ class TestFindInFlightBranches:
     def test_ls_remote_runtime_error_degrades_to_named_warning(self, clone):
         with patch.object(claim, "_run", side_effect=RuntimeError("git timed out")):
             assert claim.find_in_flight_branches("o", "r", 5420) == (
-                [], ["remote branch probe skipped: git timed out"],
+                [],
+                ["remote branch probe skipped: git timed out"],
             )
 
 
@@ -319,7 +329,10 @@ def _fake_run(real_run):
             return subprocess.CompletedProcess(cmd, 0, stdout="alice\n", stderr="")
         if cmd[:3] == ["gh", "issue", "view"]:
             return subprocess.CompletedProcess(
-                cmd, 0, stdout=json.dumps({"assignees": [{"login": "alice"}]}), stderr="",
+                cmd,
+                0,
+                stdout=json.dumps({"assignees": [{"login": "alice"}]}),
+                stderr="",
             )
         raise AssertionError(f"unexpected call: {cmd}")
 

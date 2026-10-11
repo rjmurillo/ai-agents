@@ -38,8 +38,7 @@ import pytest
 # Import the script via importlib (not a package)
 # ---------------------------------------------------------------------------
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1]
-    / ".claude" / "skills" / "github" / "scripts" / "pr"
+    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "pr"
 )
 
 
@@ -68,7 +67,10 @@ is_superseded_by_base = _mod.is_superseded_by_base
 
 def _completed(stdout: str = "", stderr: str = "", rc: int = 0):
     return subprocess.CompletedProcess(
-        args=[], returncode=rc, stdout=stdout, stderr=stderr,
+        args=[],
+        returncode=rc,
+        stdout=stdout,
+        stderr=stderr,
     )
 
 
@@ -480,30 +482,34 @@ class TestMain:
             "baseRefName": "main",
             "baseRefOid": "base123def456",
         }
-        with patch("check_pr_live_state.assert_gh_authenticated"), \
-             patch(
+        with (
+            patch("check_pr_live_state.assert_gh_authenticated"),
+            patch(
                 "check_pr_live_state.resolve_repo_params",
                 return_value=_mod.RepoInfo(owner="o", repo="r"),
-             ), \
-             patch(
+            ),
+            patch(
                 "check_pr_live_state.gh_graphql",
                 return_value={"repository": {"pullRequest": pr}},
-             ), \
-             patch(
+            ),
+            patch(
                 "check_pr_live_state.subprocess.run",
                 return_value=_completed(stdout="+ abc1234567890\n", rc=0),
-             ):
-            rc = main([
-                "--pull-request",
-                "2409",
-                "--skip-fetch",
-                "--expected-head-sha",
-                "abc123def456",
-                "--expected-base-ref",
-                "main",
-                "--expected-base-sha",
-                "base123def456",
-            ])
+            ),
+        ):
+            rc = main(
+                [
+                    "--pull-request",
+                    "2409",
+                    "--skip-fetch",
+                    "--expected-head-sha",
+                    "abc123def456",
+                    "--expected-base-ref",
+                    "main",
+                    "--expected-base-sha",
+                    "base123def456",
+                ]
+            )
         assert rc == 0
         out = capsys.readouterr().out
         envelope = json.loads(out)
@@ -540,16 +546,17 @@ class TestMain:
             "baseRefName": "main",
             "baseRefOid": "current-base",
         }
-        with patch("check_pr_live_state.assert_gh_authenticated"), \
-             patch(
+        with (
+            patch("check_pr_live_state.assert_gh_authenticated"),
+            patch(
                 "check_pr_live_state.resolve_repo_params",
                 return_value=_mod.RepoInfo(owner="o", repo="r"),
-             ), \
-             patch(
+            ),
+            patch(
                 "check_pr_live_state.gh_graphql",
                 return_value={"repository": {"pullRequest": pr}},
-             ), \
-             patch(
+            ),
+            patch(
                 "check_pr_live_state.is_superseded_by_base",
                 return_value={
                     "pr_commits": 1,
@@ -558,14 +565,17 @@ class TestMain:
                     "git_cherry_failed": False,
                     "probe_inconclusive": False,
                 },
-             ):
-            rc = main([
-                "--pull-request",
-                "2409",
-                "--skip-fetch",
-                expected_arg,
-                expected_value,
-            ])
+            ),
+        ):
+            rc = main(
+                [
+                    "--pull-request",
+                    "2409",
+                    "--skip-fetch",
+                    expected_arg,
+                    expected_value,
+                ]
+            )
 
         assert rc == 1
         envelope = json.loads(capsys.readouterr().out)
@@ -590,19 +600,20 @@ class TestMain:
             "merged": True,
             "closed": True,
         }
-        with patch("check_pr_live_state.assert_gh_authenticated"), \
-             patch(
+        with (
+            patch("check_pr_live_state.assert_gh_authenticated"),
+            patch(
                 "check_pr_live_state.resolve_repo_params",
                 return_value=_mod.RepoInfo(owner="o", repo="r"),
-             ), \
-             patch(
+            ),
+            patch(
                 "check_pr_live_state.gh_graphql",
                 side_effect=[
                     {"repository": {"pullRequest": open_pr}},
                     {"repository": {"pullRequest": merged_pr}},
                 ],
-             ) as query, \
-             patch(
+            ) as query,
+            patch(
                 "check_pr_live_state.is_superseded_by_base",
                 return_value={
                     "pr_commits": 1,
@@ -611,7 +622,8 @@ class TestMain:
                     "git_cherry_failed": False,
                     "probe_inconclusive": False,
                 },
-             ):
+            ),
+        ):
             rc = main(["--pull-request", "2409", "--skip-fetch"])
 
         assert rc == 1
@@ -634,19 +646,20 @@ class TestMain:
             "baseRefName": "main",
         }
         updated_pr = {**initial_pr, "headRefOid": "def456abc123"}
-        with patch("check_pr_live_state.assert_gh_authenticated"), \
-             patch(
+        with (
+            patch("check_pr_live_state.assert_gh_authenticated"),
+            patch(
                 "check_pr_live_state.resolve_repo_params",
                 return_value=_mod.RepoInfo(owner="o", repo="r"),
-             ), \
-             patch(
+            ),
+            patch(
                 "check_pr_live_state.gh_graphql",
                 side_effect=[
                     {"repository": {"pullRequest": initial_pr}},
                     {"repository": {"pullRequest": updated_pr}},
                 ],
-             ), \
-             patch(
+            ),
+            patch(
                 "check_pr_live_state.is_superseded_by_base",
                 return_value={
                     "pr_commits": 1,
@@ -655,7 +668,8 @@ class TestMain:
                     "git_cherry_failed": False,
                     "probe_inconclusive": False,
                 },
-             ):
+            ),
+        ):
             rc = main(["--pull-request", "2409", "--skip-fetch"])
 
         assert rc == 1
@@ -680,19 +694,20 @@ class TestMain:
             "baseRefOid": "base111",
         }
         updated_pr = {**initial_pr, "baseRefOid": "base222"}
-        with patch("check_pr_live_state.assert_gh_authenticated"), \
-             patch(
+        with (
+            patch("check_pr_live_state.assert_gh_authenticated"),
+            patch(
                 "check_pr_live_state.resolve_repo_params",
                 return_value=_mod.RepoInfo(owner="o", repo="r"),
-             ), \
-             patch(
+            ),
+            patch(
                 "check_pr_live_state.gh_graphql",
                 side_effect=[
                     {"repository": {"pullRequest": initial_pr}},
                     {"repository": {"pullRequest": updated_pr}},
                 ],
-             ), \
-             patch(
+            ),
+            patch(
                 "check_pr_live_state.is_superseded_by_base",
                 return_value={
                     "pr_commits": 1,
@@ -701,7 +716,8 @@ class TestMain:
                     "git_cherry_failed": False,
                     "probe_inconclusive": False,
                 },
-             ):
+            ),
+        ):
             rc = main(["--pull-request", "2409", "--skip-fetch"])
 
         assert rc == 1
@@ -724,16 +740,17 @@ class TestMain:
             "baseRefName": "main",
             "baseRefOid": "base111",
         }
-        with patch("check_pr_live_state.assert_gh_authenticated"), \
-             patch(
+        with (
+            patch("check_pr_live_state.assert_gh_authenticated"),
+            patch(
                 "check_pr_live_state.resolve_repo_params",
                 return_value=_mod.RepoInfo(owner="o", repo="r"),
-             ), \
-             patch(
+            ),
+            patch(
                 "check_pr_live_state.gh_graphql",
                 return_value={"repository": {"pullRequest": pr}},
-             ), \
-             patch(
+            ),
+            patch(
                 "check_pr_live_state.is_superseded_by_base",
                 return_value={
                     "pr_commits": 0,
@@ -743,7 +760,8 @@ class TestMain:
                     "probe_inconclusive": True,
                     "head_unresolved": True,
                 },
-             ):
+            ),
+        ):
             rc = main(["--pull-request", "2409", "--skip-fetch"])
 
         assert rc == 0
@@ -763,19 +781,20 @@ class TestMain:
             "headRefOid": "abc123def456",
             "baseRefName": "main",
         }
-        with patch("check_pr_live_state.assert_gh_authenticated"), \
-             patch(
+        with (
+            patch("check_pr_live_state.assert_gh_authenticated"),
+            patch(
                 "check_pr_live_state.resolve_repo_params",
                 return_value=_mod.RepoInfo(owner="o", repo="r"),
-             ), \
-             patch(
+            ),
+            patch(
                 "check_pr_live_state.gh_graphql",
                 side_effect=[
                     {"repository": {"pullRequest": open_pr}},
                     RuntimeError("network timeout"),
                 ],
-             ), \
-             patch(
+            ),
+            patch(
                 "check_pr_live_state.is_superseded_by_base",
                 return_value={
                     "pr_commits": 1,
@@ -784,8 +803,9 @@ class TestMain:
                     "git_cherry_failed": False,
                     "probe_inconclusive": False,
                 },
-             ), \
-             pytest.raises(SystemExit) as exc:
+            ),
+            pytest.raises(SystemExit) as exc,
+        ):
             main(["--pull-request", "2409", "--skip-fetch"])
 
         assert exc.value.code == 3
@@ -801,15 +821,17 @@ class TestMain:
             "headRefOid": "def456abc123",
             "baseRefName": "main",
         }
-        with patch("check_pr_live_state.assert_gh_authenticated"), \
-             patch(
+        with (
+            patch("check_pr_live_state.assert_gh_authenticated"),
+            patch(
                 "check_pr_live_state.resolve_repo_params",
                 return_value=_mod.RepoInfo(owner="o", repo="r"),
-             ), \
-             patch(
+            ),
+            patch(
                 "check_pr_live_state.gh_graphql",
                 return_value={"repository": {"pullRequest": pr}},
-             ) as query:
+            ) as query,
+        ):
             rc = main(["--pull-request", "2412", "--skip-fetch"])
         assert rc == 1
         assert query.call_count == 1
@@ -831,19 +853,21 @@ class TestMain:
             "headRefName": "fix/foo",
             "baseRefName": "main",
         }
-        with patch("check_pr_live_state.assert_gh_authenticated"), \
-             patch(
+        with (
+            patch("check_pr_live_state.assert_gh_authenticated"),
+            patch(
                 "check_pr_live_state.resolve_repo_params",
                 return_value=_mod.RepoInfo(owner="o", repo="r"),
-             ), \
-             patch(
+            ),
+            patch(
                 "check_pr_live_state.gh_graphql",
                 return_value={"repository": {"pullRequest": pr}},
-             ), \
-             patch(
+            ),
+            patch(
                 "check_pr_live_state.subprocess.run",
                 return_value=_completed(stdout="- abc1234567890\n- def4567890abc\n", rc=0),
-             ):
+            ),
+        ):
             rc = main(["--pull-request", "2409", "--skip-fetch"])
         assert rc == 1
         out = capsys.readouterr().out

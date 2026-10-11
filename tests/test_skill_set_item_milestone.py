@@ -10,8 +10,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1]
-    / ".claude" / "skills" / "github" / "scripts" / "milestone"
+    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "milestone"
 )
 
 

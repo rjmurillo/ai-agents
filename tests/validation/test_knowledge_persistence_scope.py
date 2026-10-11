@@ -163,16 +163,12 @@ def test_no_live_prose_cites_a_relocated_must_not_number() -> None:
     """
     offenders: list[str] = []
     for path in _live_markdown_files():
-        for line_no, line in enumerate(
-            path.read_text(encoding="utf-8").splitlines(), start=1
-        ):
+        for line_no, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
             for match in _STALE_MUST_NOT.finditer(line):
                 if int(match.group(1)) > SURVIVING_MUST_NOT_COUNT:
                     rel = path.relative_to(REPO_ROOT)
                     offenders.append(f"{rel}:{line_no}: {match.group(0)}")
-    assert not offenders, "stale knowledge-persistence MUST NOT citations: " + "; ".join(
-        offenders
-    )
+    assert not offenders, "stale knowledge-persistence MUST NOT citations: " + "; ".join(offenders)
 
 
 def test_the_staleness_scan_can_actually_fail() -> None:

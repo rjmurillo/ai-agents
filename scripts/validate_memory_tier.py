@@ -29,9 +29,7 @@ if str(_REPO_ROOT) not in sys.path:
 from scripts.utils.markdown_parser import extract_lookup_references  # noqa: E402
 
 # Regex for domain index table rows: | keywords | [file](path.md) |
-INDEX_TABLE_ROW_RE = re.compile(
-    r"^\|[^|]+\|\s*\[([^\]]*)\]\(([^)]+\.md)\)\s*\|$"
-)
+INDEX_TABLE_ROW_RE = re.compile(r"^\|[^|]+\|\s*\[([^\]]*)\]\(([^)]+\.md)\)\s*\|$")
 
 # Regex for pure lookup table lines (header, separator, or data row)
 LOOKUP_TABLE_LINE_RE = re.compile(
@@ -75,9 +73,7 @@ def validate_references_exist(
             )
             continue
         if not ref_path.exists():
-            result.errors.append(
-                f"{source_file}: broken reference -> {ref} (file not found)"
-            )
+            result.errors.append(f"{source_file}: broken reference -> {ref} (file not found)")
 
 
 def validate_memory_index(memories_dir: Path, result: ValidationResult) -> list[str]:
@@ -120,9 +116,7 @@ def validate_domain_index_references(
     """Validate references within a domain index file. Return referenced files."""
     content = index_path.read_text(encoding="utf-8")
     references = extract_file_references(content)
-    validate_references_exist(
-        references, memories_dir, index_path.name, result
-    )
+    validate_references_exist(references, memories_dir, index_path.name, result)
 
     # Check for deprecated skill- prefix in references
     for ref in references:
@@ -146,9 +140,7 @@ def validate_orphan_indexes(
     referenced_names = {Path(ref).name for ref in memory_index_refs}
     for idx in domain_indexes:
         if idx.name not in referenced_names:
-            result.warnings.append(
-                f"{idx.name}: domain index not referenced in memory-index.md"
-            )
+            result.warnings.append(f"{idx.name}: domain index not referenced in memory-index.md")
 
 
 def validate_orphan_atomics(
@@ -166,10 +158,7 @@ def validate_orphan_atomics(
             continue
         if md_file.name in skip_names:
             continue
-        if (
-            md_file.parent == memories_dir
-            and DOMAIN_INDEX_RE.match(md_file.name)
-        ):
+        if md_file.parent == memories_dir and DOMAIN_INDEX_RE.match(md_file.name):
             continue
         all_md_files.append(md_file)
 
@@ -185,9 +174,7 @@ def validate_orphan_atomics(
                     f"(not referenced by any index)"
                 )
             else:
-                result.warnings.append(
-                    f"{rel_str}: atomic file not referenced by any domain index"
-                )
+                result.warnings.append(f"{rel_str}: atomic file not referenced by any domain index")
 
 
 def canonicalize_references(
@@ -224,9 +211,7 @@ def validate_memory_tier(memories_dir: Path) -> ValidationResult:
     # 4. Validate each domain index format and references
     all_indexed_refs: set[str] = set()
     # Root entries are selected essential memories and valid retrieval routes.
-    all_indexed_refs.update(
-        canonicalize_references(memories_dir, memory_index_refs)
-    )
+    all_indexed_refs.update(canonicalize_references(memories_dir, memory_index_refs))
 
     for idx in domain_indexes:
         validate_domain_index_format(idx, result)
@@ -241,9 +226,7 @@ def validate_memory_tier(memories_dir: Path) -> ValidationResult:
 
 def main(argv: list[str] | None = None) -> int:
     """Entry point for memory tier validation."""
-    parser = argparse.ArgumentParser(
-        description="Validate memory tier hierarchy per ADR-017."
-    )
+    parser = argparse.ArgumentParser(description="Validate memory tier hierarchy per ADR-017.")
     parser.add_argument(
         "--path",
         default=".serena/memories",
@@ -273,10 +256,7 @@ def main(argv: list[str] | None = None) -> int:
     if result.is_valid:
         error_count = 0
         warning_count = len(result.warnings)
-        print(
-            f"Memory tier validation passed. "
-            f"{warning_count} warning(s)."
-        )
+        print(f"Memory tier validation passed. {warning_count} warning(s).")
         return 0
 
     error_count = len(result.errors)

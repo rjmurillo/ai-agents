@@ -19,8 +19,7 @@ from unittest.mock import patch
 from scripts.github_core.api import RepoInfo
 
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1]
-    / ".claude" / "skills" / "github" / "scripts" / "pr"
+    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "pr"
 )
 SKILL_MD = Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "SKILL.md"
 
@@ -47,15 +46,18 @@ OLD_HEAD = "a" * 40
 NEW_HEAD = "b" * 40
 OTHER_HEAD = "c" * 40
 _PUT_ENDPOINT = "repos/o/r/pulls/50/update-branch"
-_ACCEPTED_BODY = json.dumps({
-    "message": "Updating pull request branch.",
-    "url": "https://github.com/o/r/pull/50",
-})
+_ACCEPTED_BODY = json.dumps(
+    {
+        "message": "Updating pull request branch.",
+        "url": "https://github.com/o/r/pull/50",
+    }
+)
 # Bodies captured live from GitHub on 2026-10-03 against PR #6139. Note the
 # curly apostrophe in the head-moved message.
 HEAD_MOVED_MESSAGE = "expected head sha didn\u2019t match current head ref."
 HEAD_MOVED_BODY = json.dumps(
-    {"message": HEAD_MOVED_MESSAGE, "status": "422"}, ensure_ascii=False,
+    {"message": HEAD_MOVED_MESSAGE, "status": "422"},
+    ensure_ascii=False,
 )
 
 
@@ -104,9 +106,15 @@ class FakeGh:
 def run_main(argv: list[str], fake: Any, *, auth: Any = None):
     """Run main with gh mocked; return (exit code, parsed envelope)."""
     auth = auth or GhAuthResult(GhAuthStatus.AUTHENTICATED)
-    with patch.object(script, "check_gh_auth", return_value=auth), patch.object(
-        script, "resolve_repo_params", return_value=RepoInfo(owner="o", repo="r"),
-    ), patch("subprocess.run", side_effect=fake):
+    with (
+        patch.object(script, "check_gh_auth", return_value=auth),
+        patch.object(
+            script,
+            "resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ),
+        patch("subprocess.run", side_effect=fake),
+    ):
         try:
             rc = main([*argv, "--output-format", "json"])
         except SystemExit as exc:

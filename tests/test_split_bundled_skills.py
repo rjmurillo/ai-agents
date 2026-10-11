@@ -15,9 +15,7 @@ class TestProcessBundledFile:
 
     def test_extracts_single_skill(self, tmp_path: Path) -> None:
         content = (
-            "# Skills\n\n"
-            "## Skill-Testing-001: Always run tests first\n\n"
-            "Some skill content here.\n"
+            "# Skills\n\n## Skill-Testing-001: Always run tests first\n\nSome skill content here.\n"
         )
         f = tmp_path / "skills-testing.md"
         f.write_text(content, encoding="utf-8")

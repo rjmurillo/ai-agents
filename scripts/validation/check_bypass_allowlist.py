@@ -282,9 +282,7 @@ def find_advisory_steps(repo_root: Path, files: Iterable[str]) -> list[StepUse]:
     return found
 
 
-def _toggle_problems(
-    toggles: dict[str, list[str]], allowlist: Allowlist, today: date
-) -> list[str]:
+def _toggle_problems(toggles: dict[str, list[str]], allowlist: Allowlist, today: date) -> list[str]:
     problems: list[str] = []
     for name, paths in sorted(toggles.items()):
         entry = allowlist.toggles.get(name)
@@ -350,9 +348,7 @@ def evaluate(repo_root: Path, allowlist: Allowlist, today: date) -> tuple[CheckO
         toggles = find_toggles(repo_root, files)
         uses = find_advisory_steps(repo_root, files)
     except TreeReadError as exc:
-        blocked = CheckOutcome.blocked(
-            VALIDATOR, reason=exc.reason, scope=SCOPE, detail=exc.detail
-        )
+        blocked = CheckOutcome.blocked(VALIDATOR, reason=exc.reason, scope=SCOPE, detail=exc.detail)
         return blocked, []
     problems = (
         _toggle_problems(toggles, allowlist, today)

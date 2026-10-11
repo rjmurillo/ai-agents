@@ -134,9 +134,7 @@ class TestDashPrefixedImporterCannotBecomeAFlag:
         assert argv[2] == os.path.abspath(importer), "tsx must receive the absolute path"
         assert not argv[2].startswith("-"), "an argv entry starting with a dash is a flag"
 
-    def test_the_same_holds_for_the_environment_tier(
-        self, tmp_path: Path, monkeypatch
-    ) -> None:
+    def test_the_same_holds_for_the_environment_tier(self, tmp_path: Path, monkeypatch) -> None:
         importer = self._stage(tmp_path, monkeypatch, "--experimental-foo")
         calls = self._record(monkeypatch)
         env = {_import_mem.IMPORTER_ENV_VAR: "--experimental-foo"}

@@ -320,10 +320,7 @@ def test_finding_without_disposition_still_fails_the_gate() -> None:
 
 
 def test_disposition_clears_only_the_finding_it_names() -> None:
-    body = (
-        "<summary>Suppressed comments (2)</summary>\n"
-        "**a.py:1**\n* First\n\n**b.py:2**\n* Second"
-    )
+    body = "<summary>Suppressed comments (2)</summary>\n**a.py:1**\n* First\n\n**b.py:2**\n* Second"
     report = _report([_review(11, body)], {"11:1": _GOOD})
     assert report["active_suppressed_count"] == 2
     assert report["dispositioned_suppressed_count"] == 1
@@ -459,9 +456,7 @@ def test_main_passes_registry_through_and_reports_dispositioned(capsys, tmp_path
         patch("test_pr_merge_ready._dispositions_file_is_tracked", return_value=True),
         patch(
             "subprocess.run",
-            side_effect=_gh_api_run(
-                reviews_completed=reviews_completed, pr_completed=pr_completed
-            ),
+            side_effect=_gh_api_run(reviews_completed=reviews_completed, pr_completed=pr_completed),
         ),
     ):
         rc = main(["--pull-request", "99", "--dispositions-file", str(registry)])

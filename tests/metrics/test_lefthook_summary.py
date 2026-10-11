@@ -101,5 +101,3 @@ def test_edge_trailing_non_job_line_after_summary_stops_parsing() -> None:
     )
     samples, _reported = ls.parse_summary(stdout)
     assert [s.name for s in samples] == ["only-job"]
-
-

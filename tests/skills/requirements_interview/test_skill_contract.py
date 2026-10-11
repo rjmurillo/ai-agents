@@ -30,9 +30,7 @@ from scripts.validation.skill_frontmatter import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-SKILL_PATH = (
-    REPO_ROOT / ".claude" / "skills" / "requirements-interview" / "SKILL.md"
-)
+SKILL_PATH = REPO_ROOT / ".claude" / "skills" / "requirements-interview" / "SKILL.md"
 
 SKILL_LINE_LIMIT = 500
 DESCRIPTION_MAX = 1024
@@ -84,9 +82,7 @@ def test_frontmatter_required_fields(skill_metadata):
 def test_name_matches_pattern(skill_metadata):
     name = skill_metadata["name"]
     assert name == "requirements-interview"
-    assert _NAME_PATTERN.match(name), (
-        f"name {name!r} fails {_NAME_PATTERN.pattern}"
-    )
+    assert _NAME_PATTERN.match(name), f"name {name!r} fails {_NAME_PATTERN.pattern}"
 
 
 def test_description_constraints(skill_metadata):
@@ -95,9 +91,7 @@ def test_description_constraints(skill_metadata):
     assert len(desc) <= DESCRIPTION_MAX, (
         f"description is {len(desc)} chars, exceeds {DESCRIPTION_MAX}"
     )
-    assert not _XML_TAG_PATTERN.search(desc), (
-        "description must not contain XML tags"
-    )
+    assert not _XML_TAG_PATTERN.search(desc), "description must not contain XML tags"
 
 
 def test_model_is_supported(skill_metadata):
@@ -108,8 +102,7 @@ def test_model_is_supported(skill_metadata):
     if model is None:
         return
     assert model == "haiku", (
-        f"ADR-080: skill model pin must be 'haiku' "
-        f"(only alias below default), got {model!r}"
+        f"ADR-080: skill model pin must be 'haiku' (only alias below default), got {model!r}"
     )
     assert skill_metadata.get("model-rationale"), (
         "ADR-080: skill model pin requires a model-rationale field"
@@ -141,6 +134,6 @@ def test_recommended_answer_discipline(skill_text):
 
 
 def test_codebase_first_principle(skill_text):
-    assert re.search(
-        r"\bcodebase\b.*\b(grep|explore)\b", skill_text, re.IGNORECASE | re.DOTALL
-    ), "SKILL.md must instruct grepping the codebase before asking the user"
+    assert re.search(r"\bcodebase\b.*\b(grep|explore)\b", skill_text, re.IGNORECASE | re.DOTALL), (
+        "SKILL.md must instruct grepping the codebase before asking the user"
+    )

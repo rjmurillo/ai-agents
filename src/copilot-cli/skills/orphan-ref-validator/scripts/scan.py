@@ -62,9 +62,7 @@ OPT_IN_ADR_TARGETS = (
     "docs",
 )
 
-OPT_IN_SKILL_TARGETS = (
-    ".claude/skills/*/SKILL.md",
-)
+OPT_IN_SKILL_TARGETS = (".claude/skills/*/SKILL.md",)
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -232,9 +230,7 @@ def scan_file(
         text = _read_supported_text(target_path)
     except UnicodeError as exc:
         LOGGER.warning("could not decode %s: %s", target_path, exc)
-        return FileScanOutcome(
-            findings, refs_checked, f"could not decode file: {exc}", "config"
-        )
+        return FileScanOutcome(findings, refs_checked, f"could not decode file: {exc}", "config")
     except OSError as exc:
         LOGGER.warning("could not read %s: %s", target_path, exc)
         return FileScanOutcome(
@@ -247,9 +243,7 @@ def scan_file(
         return FileScanOutcome(
             findings=[],
             refs_checked=0,
-            directive_suppressed=_suppressed_refs_for_text(
-                text, rel, "file ignore directive"
-            ),
+            directive_suppressed=_suppressed_refs_for_text(text, rel, "file ignore directive"),
             skipped=True,
         )
 
@@ -263,9 +257,7 @@ def scan_file(
     findings.extend(script_findings)
     refs_checked += script_refs
 
-    skill_script_findings, skill_script_refs = _check_skill_script_refs(
-        text, rel, repo_root
-    )
+    skill_script_findings, skill_script_refs = _check_skill_script_refs(text, rel, repo_root)
     findings.extend(skill_script_findings)
     refs_checked += skill_script_refs
 
@@ -321,9 +313,7 @@ def directive_suppressed_refs(target_path: Path, repo_root: Path) -> list[Suppre
     ) + _suppressed_refs_for_text(text, rel, "citation block")
 
 
-def _suppressed_refs_for_text(
-    text: str, rel: str, reason: str
-) -> list[SuppressedReference]:
+def _suppressed_refs_for_text(text: str, rel: str, reason: str) -> list[SuppressedReference]:
     extractors = {
         "file ignore directive": extract_all_reference_candidates,
         "citation block": extract_citation_block_refs,
@@ -346,9 +336,7 @@ def _io_error_type(exc: OSError) -> str:
     return "config"
 
 
-def _is_role_category_use(
-    ref: str, lines: list[str], lineno: int, known_skills: set[str]
-) -> bool:
+def _is_role_category_use(ref: str, lines: list[str], lineno: int, known_skills: set[str]) -> bool:
     """True when a role value names a category, not a specific skill.
 
     "a ``front-door`` skill" describes a class. "the ``lifecycle`` skill" is a
@@ -439,9 +427,7 @@ def _check_skill_refs(
         if not candidate:
             continue
         refs_checked += 1
-        findings.append(
-            _skill_ref_finding(ref, rel, lineno, skill_catalog_present)
-        )
+        findings.append(_skill_ref_finding(ref, rel, lineno, skill_catalog_present))
     for lineno, ref in extract_single_word_skill_refs(text):
         if _is_metasyntactic_placeholder(ref):
             continue
@@ -456,15 +442,11 @@ def _check_skill_refs(
         if not is_typed and not _is_known_single_word_skill(ref):
             continue
         refs_checked += 1
-        findings.append(
-            _skill_ref_finding(ref, rel, lineno, skill_catalog_present)
-        )
+        findings.append(_skill_ref_finding(ref, rel, lineno, skill_catalog_present))
     return findings, refs_checked
 
 
-def _skill_ref_finding(
-    ref: str, rel: str, lineno: int, skill_catalog_present: bool
-) -> Finding:
+def _skill_ref_finding(ref: str, rel: str, lineno: int, skill_catalog_present: bool) -> Finding:
     """Build a ``skill_name`` finding for an orphaned skill reference.
 
     Severity is ``critical`` when the catalog is authoritative (present) and
@@ -491,9 +473,7 @@ def _skill_ref_finding(
     )
 
 
-def _script_ref_resolves(
-    script_ref: str, rel: str, repo_root: Path, line: str = ""
-) -> bool:
+def _script_ref_resolves(script_ref: str, rel: str, repo_root: Path, line: str = "") -> bool:
     """True when a script reference resolves on disk.
 
     Tries repo-root-relative first (the historical contract). For a reference
@@ -529,9 +509,7 @@ def _resolves_in_named_skill(script_ref: str, repo_root: Path, line: str) -> boo
     )
 
 
-def _check_script_refs(
-    text: str, rel: str, repo_root: Path
-) -> tuple[list[Finding], int]:
+def _check_script_refs(text: str, rel: str, repo_root: Path) -> tuple[list[Finding], int]:
     """Emit script_path findings for backticked repo-relative ``.py`` paths
     that do not exist on disk."""
     findings: list[Finding] = []
@@ -557,9 +535,7 @@ def _check_script_refs(
     return findings, refs_checked
 
 
-def _check_skill_script_refs(
-    text: str, rel: str, repo_root: Path
-) -> tuple[list[Finding], int]:
+def _check_skill_script_refs(text: str, rel: str, repo_root: Path) -> tuple[list[Finding], int]:
     """Emit script_path findings for skill-script references (.claude/skills or
     the copilot mirror), backticked or bare, that do not exist on disk. This is
     the issue #1987 wrong-script-name class (e.g. get_unresolved_threads.py for
@@ -674,17 +650,13 @@ def _missing_target_issue(target: Path, repo_root: Path) -> IncompleteScan:
 MAX_FINDINGS = 500
 
 
-def _suppress_baselined(
-    findings: list[Finding], baseline: set[str]
-) -> list[Finding]:
+def _suppress_baselined(findings: list[Finding], baseline: set[str]) -> list[Finding]:
     """Return findings with baselined keys marked ``suppressed``.
 
     A finding whose ``key`` is in the baseline is replaced by a suppressed
     copy. Non-baselined findings pass through unchanged.
     """
-    return [
-        replace(f, suppressed=True) if f.key in baseline else f for f in findings
-    ]
+    return [replace(f, suppressed=True) if f.key in baseline else f for f in findings]
 
 
 class BaselineError(ValueError):
@@ -739,20 +711,12 @@ def _load_baseline_json(stripped: str, path: Path) -> set[str]:
                 line = f.get("line")
                 kind = f.get("kind")
                 referenced_entity = f.get("referenced_entity")
-                if (
-                    target_file is None
-                    or line is None
-                    or kind is None
-                    or referenced_entity is None
-                ):
+                if target_file is None or line is None or kind is None or referenced_entity is None:
                     continue
-                keys.add(
-                    f"{target_file}:{line}:{kind}:{referenced_entity}"
-                )
+                keys.add(f"{target_file}:{line}:{kind}:{referenced_entity}")
             return keys
     raise BaselineError(
-        f"baseline file {path} JSON must be a list of keys or a scan "
-        "envelope with Data.findings"
+        f"baseline file {path} JSON must be a list of keys or a scan envelope with Data.findings"
     )
 
 
@@ -849,9 +813,7 @@ def scan(
                 try:
                     path.resolve().relative_to(repo_root)
                 except (OSError, ValueError) as exc:
-                    LOGGER.warning(
-                        "incomplete scan for %s: resolves outside repo root", path
-                    )
+                    LOGGER.warning("incomplete scan for %s: resolves outside repo root", path)
                     result.incomplete_scans.append(
                         IncompleteScan(
                             _path_under(repo_root, path),
@@ -869,9 +831,7 @@ def scan(
                 if outcome.directive_suppressed is not None:
                     result.directive_suppressed.extend(outcome.directive_suppressed)
                 else:
-                    result.directive_suppressed.extend(
-                        directive_suppressed_refs(path, repo_root)
-                    )
+                    result.directive_suppressed.extend(directive_suppressed_refs(path, repo_root))
                 if outcome.scan_error is not None:
                     result.incomplete_scans.append(
                         IncompleteScan(
@@ -1101,9 +1061,7 @@ def main(argv: list[str] | None = None) -> int:
             allow_missing_targets=args.allow_missing_targets,
         )
         if result.incomplete_scans:
-            message = (
-                "scan incomplete: one or more requested targets could not be scanned"
-            )
+            message = "scan incomplete: one or more requested targets could not be scanned"
             print(render_scan_error_envelope(result, message, args.output))
             return int(scan_error_exit_code(result))
         if result.files_scanned == 0 and result.files_skipped == 0 and not args.allow_empty_scan:

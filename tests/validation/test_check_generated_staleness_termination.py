@@ -86,12 +86,9 @@ class TestBoundedGracefulTermination:
         # The job declares its own cap to the gate so the runtime clamp can
         # key off it (review round 5). The declaration must equal the job's
         # actual timeout, or the clamp bounds against a fiction.
-        declared = caps[0].get("env", {}).get(
-            check_generated_staleness._OUTER_CAP_ENV
-        )
+        declared = caps[0].get("env", {}).get(check_generated_staleness._OUTER_CAP_ENV)
         assert declared is not None, (
-            f"pre-pr-validation must declare"
-            f" {check_generated_staleness._OUTER_CAP_ENV}"
+            f"pre-pr-validation must declare {check_generated_staleness._OUTER_CAP_ENV}"
         )
         assert float(declared) == cap_seconds
 
@@ -146,9 +143,7 @@ class TestBoundedGracefulTermination:
             "time.sleep(60)\n",
             encoding="utf-8",
         )
-        monkeypatch.setattr(
-            check_generated_staleness, "_TERMINATION_GRACE_SECONDS", 1.0
-        )
+        monkeypatch.setattr(check_generated_staleness, "_TERMINATION_GRACE_SECONDS", 1.0)
 
         code, output = check_generated_staleness._run_check(child, tmp_path, 2.0)
 
@@ -187,14 +182,10 @@ class TestBoundedGracefulTermination:
                 return None
 
         fake = FakeProc()
-        monkeypatch.setattr(
-            check_generated_staleness.subprocess, "Popen", lambda *a, **k: fake
-        )
+        monkeypatch.setattr(check_generated_staleness.subprocess, "Popen", lambda *a, **k: fake)
         monkeypatch.setattr(check_generated_staleness.os, "name", "nt")
 
-        code, _output = check_generated_staleness._run_check(
-            tmp_path / "any.py", tmp_path, 1.0
-        )
+        code, _output = check_generated_staleness._run_check(tmp_path / "any.py", tmp_path, 1.0)
 
         assert code is None
         assert fake.terminated, "non-POSIX expiry must call terminate()"
@@ -221,15 +212,15 @@ class TestBoundedGracefulTermination:
         # real declared cap must behave exactly as with no clamp at all.
         root = fake_repo(tmp_path, build_exit=0)
         monkeypatch.setenv(check_generated_staleness._OUTER_CAP_ENV, "900")
-        monkeypatch.setattr(
-            check_generated_staleness, "_PROCESS_START", time.monotonic()
-        )
+        monkeypatch.setattr(check_generated_staleness, "_PROCESS_START", time.monotonic())
 
         assert check_generated_staleness.main([str(root)]) == 0
         assert build_all_ran(root)
 
     def test_a_malformed_outer_cap_warns_and_disables_the_clamp(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         # A typo in the hook configuration must not block every contributor's

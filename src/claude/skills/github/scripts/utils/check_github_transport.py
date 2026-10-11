@@ -157,9 +157,7 @@ def _repository_capability_probe() -> GhAuthResult | None:
     if result.returncode == 0:
         return GhAuthResult(GhAuthStatus.AUTHENTICATED)
     text = f"{result.stdout}\n{result.stderr}"
-    return GhAuthResult(
-        classify_gh_failure_text(text), str(sanitize_failure_detail(text))
-    )
+    return GhAuthResult(classify_gh_failure_text(text), str(sanitize_failure_detail(text)))
 
 
 def resolve_transport() -> tuple[str, int, str, str]:

@@ -19,8 +19,7 @@ from scripts.github_core.api import RepoInfo
 # Import the script via importlib (not a package)
 # ---------------------------------------------------------------------------
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1]
-    / ".claude" / "skills" / "github" / "scripts" / "pr"
+    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "pr"
 )
 _SCRIPT = _SCRIPTS_DIR / "get_pr_comments_by_reviewer.py"
 
@@ -124,9 +123,7 @@ class TestBuildParser:
         assert args.include_reviewer == ["alice", "bob"]
 
     def test_exclude_reviewer(self):
-        args = build_parser().parse_args(
-            ["--pull-request", "1", "--exclude-reviewer", "bot1"]
-        )
+        args = build_parser().parse_args(["--pull-request", "1", "--exclude-reviewer", "bot1"])
         assert args.exclude_reviewer == ["bot1"]
 
     def test_comment_type_default(self):
@@ -134,9 +131,7 @@ class TestBuildParser:
         assert args.comment_type == "all"
 
     def test_comment_type_review_only(self):
-        args = build_parser().parse_args(
-            ["--pull-request", "1", "--comment-type", "review"]
-        )
+        args = build_parser().parse_args(["--pull-request", "1", "--comment-type", "review"])
         assert args.comment_type == "review"
 
     def test_include_self_comments_default_false(self):
@@ -202,17 +197,22 @@ class TestMain:
                 return [_make_review_comment()]
             return []
 
-        with patch(
-            f"{_MODULE}.assert_gh_authenticated",
-        ), patch(
-            f"{_MODULE}.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            f"{_MODULE}.gh_graphql",
-            return_value=author_response,
-        ), patch(
-            f"{_MODULE}.gh_api_paginated",
-            side_effect=rest,
+        with (
+            patch(
+                f"{_MODULE}.assert_gh_authenticated",
+            ),
+            patch(
+                f"{_MODULE}.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                f"{_MODULE}.gh_graphql",
+                return_value=author_response,
+            ),
+            patch(
+                f"{_MODULE}.gh_api_paginated",
+                side_effect=rest,
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "42"])
@@ -229,21 +229,24 @@ class TestMain:
         author_login: str | int = 42 if location == "author" else "author1"
         author_response = _author_response(author_login)
         comments = (
-            [{"user": {"login": 42, "type": "Bot"}, "body": "bad"}]
-            if location == "comment"
-            else []
+            [{"user": {"login": 42, "type": "Bot"}, "body": "bad"}] if location == "comment" else []
         )
-        with patch(
-            f"{_MODULE}.assert_gh_authenticated",
-        ), patch(
-            f"{_MODULE}.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            f"{_MODULE}.gh_graphql",
-            return_value=author_response,
-        ), patch(
-            f"{_MODULE}.gh_api_paginated",
-            return_value=comments,
+        with (
+            patch(
+                f"{_MODULE}.assert_gh_authenticated",
+            ),
+            patch(
+                f"{_MODULE}.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                f"{_MODULE}.gh_graphql",
+                return_value=author_response,
+            ),
+            patch(
+                f"{_MODULE}.gh_api_paginated",
+                return_value=comments,
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "42", "--comment-type", "review"])
@@ -255,14 +258,18 @@ class TestMain:
         self,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        with patch(
-            f"{_MODULE}.assert_gh_authenticated",
-        ), patch(
-            f"{_MODULE}.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            f"{_MODULE}.gh_graphql",
-            side_effect=subprocess.TimeoutExpired("gh", 30),
+        with (
+            patch(
+                f"{_MODULE}.assert_gh_authenticated",
+            ),
+            patch(
+                f"{_MODULE}.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                f"{_MODULE}.gh_graphql",
+                side_effect=subprocess.TimeoutExpired("gh", 30),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "42"])
@@ -272,17 +279,22 @@ class TestMain:
 
     def test_no_comments(self, capsys):
         author_response = _author_response()
-        with patch(
-            f"{_MODULE}.assert_gh_authenticated",
-        ), patch(
-            f"{_MODULE}.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            f"{_MODULE}.gh_graphql",
-            return_value=author_response,
-        ), patch(
-            f"{_MODULE}.gh_api_paginated",
-            return_value=[],
+        with (
+            patch(
+                f"{_MODULE}.assert_gh_authenticated",
+            ),
+            patch(
+                f"{_MODULE}.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                f"{_MODULE}.gh_graphql",
+                return_value=author_response,
+            ),
+            patch(
+                f"{_MODULE}.gh_api_paginated",
+                return_value=[],
+            ),
         ):
             rc = main(["--pull-request", "42"])
         assert rc == 0
@@ -298,17 +310,22 @@ class TestMain:
             _make_review_comment("bob", "Add test"),
             _make_review_comment("alice", "Check style"),
         ]
-        with patch(
-            f"{_MODULE}.assert_gh_authenticated",
-        ), patch(
-            f"{_MODULE}.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            f"{_MODULE}.gh_graphql",
-            return_value=author_response,
-        ), patch(
-            f"{_MODULE}.gh_api_paginated",
-            return_value=review_comments,
+        with (
+            patch(
+                f"{_MODULE}.assert_gh_authenticated",
+            ),
+            patch(
+                f"{_MODULE}.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                f"{_MODULE}.gh_graphql",
+                return_value=author_response,
+            ),
+            patch(
+                f"{_MODULE}.gh_api_paginated",
+                return_value=review_comments,
+            ),
         ):
             rc = main(["--pull-request", "1", "--comment-type", "review"])
         assert rc == 0
@@ -347,12 +364,15 @@ class TestGetPrCommentsByReviewer:
                 return issue_comments
             return []
 
-        with patch(
-            f"{_MODULE}.gh_graphql",
-            return_value=author_response,
-        ), patch(
-            f"{_MODULE}.gh_api_paginated",
-            side_effect=paginated_side_effect,
+        with (
+            patch(
+                f"{_MODULE}.gh_graphql",
+                return_value=author_response,
+            ),
+            patch(
+                f"{_MODULE}.gh_api_paginated",
+                side_effect=paginated_side_effect,
+            ),
         ):
             return get_pr_comments_by_reviewer("o", "r", [1], **kwargs)
 
@@ -462,12 +482,15 @@ class TestGetPrCommentsByReviewer:
                 return review_comments_pr2
             return []
 
-        with patch(
-            f"{_MODULE}.gh_graphql",
-            return_value=author_response,
-        ), patch(
-            f"{_MODULE}.gh_api_paginated",
-            side_effect=paginated_side_effect,
+        with (
+            patch(
+                f"{_MODULE}.gh_graphql",
+                return_value=author_response,
+            ),
+            patch(
+                f"{_MODULE}.gh_api_paginated",
+                side_effect=paginated_side_effect,
+            ),
         ):
             result = get_pr_comments_by_reviewer("o", "r", [1, 2])
 
@@ -635,11 +658,7 @@ class TestGetPrCommentsByReviewer:
 
     def test_ids_separate_an_ambiguous_author_from_the_reviewer(self):
         result = self._run(
-            review_comments=[
-                _make_review_comment(
-                    "Copilot", user_type="Bot", actor_id=175728472
-                )
-            ],
+            review_comments=[_make_review_comment("Copilot", user_type="Bot", actor_id=175728472)],
             pr_author="Copilot",
             pr_author_id=198982749,
         )
@@ -648,9 +667,7 @@ class TestGetPrCommentsByReviewer:
 
     def test_different_id_with_same_login_is_not_a_self_comment(self):
         result = self._run(
-            review_comments=[
-                _make_review_comment("shared-service", actor_id=101)
-            ],
+            review_comments=[_make_review_comment("shared-service", actor_id=101)],
             pr_author="shared-service",
             pr_author_id=202,
         )

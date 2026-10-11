@@ -197,18 +197,14 @@ def _merge_ref_head(repo: Path, *, cut_from: str, branch: str, base_at_trigger: 
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git not on PATH")
-def test_a_merge_ref_head_that_never_moved_the_number_is_not_blocked(
-    tmp_path, capsys
-) -> None:
+def test_a_merge_ref_head_that_never_moved_the_number_is_not_blocked(tmp_path, capsys) -> None:
     """Issue #5065 on the topology CI actually evaluates.
 
     The merged tree carries the fork point's 100 because neither side touched
     the baseline, ``main`` has since lowered it to 99, and the fork point of a
     merge commit resolves to its second parent, the base as of trigger time.
     """
-    repo, baseline_file, main_ref, base_at_trigger = _main_moved_then_lowered_to_99(
-        tmp_path
-    )
+    repo, baseline_file, main_ref, base_at_trigger = _main_moved_then_lowered_to_99(tmp_path)
     _merge_ref_head(
         repo, cut_from=f"{main_ref}~2", branch="branch-f", base_at_trigger=base_at_trigger
     )
@@ -231,9 +227,7 @@ def test_a_merge_ref_head_that_raised_the_number_still_blocks(tmp_path, capsys) 
     point of 100. Without this case the merge-ref pair would prove only that
     the notice is reachable there, never that the gate survives it.
     """
-    repo, baseline_file, main_ref, base_at_trigger = _main_moved_then_lowered_to_99(
-        tmp_path
-    )
+    repo, baseline_file, main_ref, base_at_trigger = _main_moved_then_lowered_to_99(tmp_path)
     _git(repo, "checkout", "-q", "-b", "branch-g", f"{main_ref}~2")
     baseline_file.write_text("101\n", encoding="utf-8")
     _commit_all(repo, "branch-g: widen the allowance")
@@ -254,9 +248,7 @@ def test_a_count_above_the_baseline_still_regresses(tmp_path) -> None:
     """Control: the count leg is untouched by the fork-point read."""
     repo, baseline_file, main_ref = _main_lowered_to_99(tmp_path)
 
-    assert _run_against(repo, baseline_file, main_ref, count=100) == (
-        count_ratchet.EXIT_REGRESSION
-    )
+    assert _run_against(repo, baseline_file, main_ref, count=100) == (count_ratchet.EXIT_REGRESSION)
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git not on PATH")

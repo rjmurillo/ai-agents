@@ -28,9 +28,7 @@ EVAL_DIR = REPO_ROOT / "scripts" / "eval"
 
 def _load_module(filename: str, module_name: str):
     """Load a script-style module (filename has hyphens, or sibling helper)."""
-    spec = importlib.util.spec_from_file_location(
-        module_name, EVAL_DIR / filename
-    )
+    spec = importlib.util.spec_from_file_location(module_name, EVAL_DIR / filename)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = module
@@ -68,12 +66,8 @@ Report = types_mod.Report
 RunRecord = types_mod.RunRecord
 SchemaVersionError = types_mod.SchemaVersionError
 SCHEMA_VERSION = types_mod.SCHEMA_VERSION
-RUN_RECORD_SCHEMA_VERSION = getattr(
-    types_mod, "RUN_RECORD_SCHEMA_VERSION", SCHEMA_VERSION + 1
-)
-REPORT_SCHEMA_VERSION = getattr(
-    types_mod, "REPORT_SCHEMA_VERSION", SCHEMA_VERSION + 1
-)
+RUN_RECORD_SCHEMA_VERSION = getattr(types_mod, "RUN_RECORD_SCHEMA_VERSION", SCHEMA_VERSION + 1)
+REPORT_SCHEMA_VERSION = getattr(types_mod, "REPORT_SCHEMA_VERSION", SCHEMA_VERSION + 1)
 
 ScoringEngine = scoring_mod.ScoringEngine
 RegexScorer = scoring_mod.RegexScorer
@@ -123,12 +117,8 @@ class TestBuildPromptSymmetry:
         agent_system = "Some agent system prompt"
         fixture_input = "Review this code."
 
-        _, agent_user = cli_mod._build_prompt(
-            "agent", agent_system, fixture_input
-        )
-        _, baseline_user = cli_mod._build_prompt(
-            "baseline", agent_system, fixture_input
-        )
+        _, agent_user = cli_mod._build_prompt("agent", agent_system, fixture_input)
+        _, baseline_user = cli_mod._build_prompt("baseline", agent_system, fixture_input)
 
         assert cli_mod.OUTPUT_SHAPE_SUFFIX in agent_user
         assert cli_mod.OUTPUT_SHAPE_SUFFIX in baseline_user
@@ -140,12 +130,8 @@ class TestBuildPromptSymmetry:
         agent_system = "Some agent system prompt"
         fixture_input = "Review this code."
 
-        _, agent_user = cli_mod._build_prompt(
-            "agent", agent_system, fixture_input
-        )
-        _, baseline_user = cli_mod._build_prompt(
-            "baseline", agent_system, fixture_input
-        )
+        _, agent_user = cli_mod._build_prompt("agent", agent_system, fixture_input)
+        _, baseline_user = cli_mod._build_prompt("baseline", agent_system, fixture_input)
 
         assert agent_user == baseline_user
 
@@ -155,12 +141,8 @@ class TestBuildPromptSymmetry:
         agent_system = "Curated security-reviewer system prompt"
         fixture_input = "Review this code."
 
-        agent_sys, _ = cli_mod._build_prompt(
-            "agent", agent_system, fixture_input
-        )
-        baseline_sys, _ = cli_mod._build_prompt(
-            "baseline", agent_system, fixture_input
-        )
+        agent_sys, _ = cli_mod._build_prompt("agent", agent_system, fixture_input)
+        baseline_sys, _ = cli_mod._build_prompt("baseline", agent_system, fixture_input)
 
         assert agent_sys != baseline_sys
         assert agent_sys == agent_system
@@ -395,9 +377,7 @@ def _make_fixtures(n: int) -> list:
             id=f"F{i:03d}",
             input=f"input {i}",
             provenance="synthetic",
-            assertions=[
-                Assertion(kind=AssertionKind.VERDICT, expected_value="IDENTIFY")
-            ],
+            assertions=[Assertion(kind=AssertionKind.VERDICT, expected_value="IDENTIFY")],
         )
         for i in range(1, n + 1)
     ]
@@ -501,13 +481,10 @@ class TestPlanRunner:
         )
         lines = PlanRunner.format_plan_lines(plan)
         assert not [ln for ln in lines if ln.startswith("cost_estimate_usd=")]
-        cost_line = [
-            ln for ln in lines if ln.startswith("cost_estimate_requests=")
-        ]
+        cost_line = [ln for ln in lines if ln.startswith("cost_estimate_requests=")]
         assert len(cost_line) == 1
-        assert cost_line[0] == (
-            f"cost_estimate_requests={plan.planned_calls} basis=requests"
-        )
+        assert cost_line[0] == (f"cost_estimate_requests={plan.planned_calls} basis=requests")
+
     def test_opus_5_costs_the_published_per_mtok_rate(self):
         # Issue #3905: claude-opus-5 had no pricing row, so every plan naming
         # it raised UnsupportedModelError. The expected value is derived from
@@ -621,13 +598,15 @@ class TestDataclassSchemaVersions:
 class TestCliExitCodes:
     def test_missing_fixtures_dir_exits_two(self, tmp_path, capsys):
         missing = tmp_path / "does-not-exist"
-        rc = cli_main([
-            "--dry-run",
-            "--agent",
-            "security",
-            "--fixtures",
-            str(missing),
-        ])
+        rc = cli_main(
+            [
+                "--dry-run",
+                "--agent",
+                "security",
+                "--fixtures",
+                str(missing),
+            ]
+        )
         assert rc == 2
         captured = capsys.readouterr()
         assert "no fixtures found" in captured.err
@@ -635,13 +614,15 @@ class TestCliExitCodes:
     def test_empty_fixtures_dir_exits_two(self, tmp_path, capsys):
         empty = tmp_path / "fixtures"
         empty.mkdir()
-        rc = cli_main([
-            "--dry-run",
-            "--agent",
-            "security",
-            "--fixtures",
-            str(empty),
-        ])
+        rc = cli_main(
+            [
+                "--dry-run",
+                "--agent",
+                "security",
+                "--fixtures",
+                str(empty),
+            ]
+        )
         assert rc == 2
         captured = capsys.readouterr()
         assert "no fixtures found" in captured.err
@@ -650,22 +631,22 @@ class TestCliExitCodes:
         fixtures_dir = tmp_path / "fixtures"
         fixtures_dir.mkdir()
         _write_fixture(fixtures_dir, "F001.json", _valid_fixture_payload())
-        rc = cli_main([
-            "--dry-run",
-            "--agent",
-            "security",
-            "--fixtures",
-            str(fixtures_dir),
-        ])
+        rc = cli_main(
+            [
+                "--dry-run",
+                "--agent",
+                "security",
+                "--fixtures",
+                str(fixtures_dir),
+            ]
+        )
         assert rc == 0
         captured = capsys.readouterr()
         assert "planned_calls=6" in captured.out
         assert "cost_estimate_usd=" in captured.out
         assert "rate_as_of=" in captured.out
 
-    def test_dry_run_on_a_quota_provider_exits_zero(
-        self, tmp_path, capsys, monkeypatch
-    ):
+    def test_dry_run_on_a_quota_provider_exits_zero(self, tmp_path, capsys, monkeypatch):
         """The end-to-end shape #4002 reported: a non-Anthropic model planned.
 
         `cli_main` writes --provider into the process environment, so the
@@ -676,44 +657,47 @@ class TestCliExitCodes:
         fixtures_dir = tmp_path / "fixtures"
         fixtures_dir.mkdir()
         _write_fixture(fixtures_dir, "F001.json", _valid_fixture_payload())
-        rc = cli_main([
-            "--dry-run",
-            "--agent",
-            "security",
-            "--fixtures",
-            str(fixtures_dir),
-            "--provider",
-            "github-models",
-            "--model",
-            "openai/gpt-4o-mini",
-        ])
+        rc = cli_main(
+            [
+                "--dry-run",
+                "--agent",
+                "security",
+                "--fixtures",
+                str(fixtures_dir),
+                "--provider",
+                "github-models",
+                "--model",
+                "openai/gpt-4o-mini",
+            ]
+        )
         assert rc == 0
         captured = capsys.readouterr()
         assert "planned_calls=6" in captured.out
         assert "cost_estimate_requests=6 basis=requests" in captured.out
         assert "cost_estimate_usd=" not in captured.out
 
-    def test_dry_run_on_a_usd_provider_still_exits_config(
-        self, tmp_path, capsys, monkeypatch
-    ):
+    def test_dry_run_on_a_usd_provider_still_exits_config(self, tmp_path, capsys, monkeypatch):
         """An unpriced model on a per-token provider is still an operator gap."""
         monkeypatch.setenv("EVAL_PROVIDER", "")
         fixtures_dir = tmp_path / "fixtures"
         fixtures_dir.mkdir()
         _write_fixture(fixtures_dir, "F001.json", _valid_fixture_payload())
-        rc = cli_main([
-            "--dry-run",
-            "--agent",
-            "security",
-            "--fixtures",
-            str(fixtures_dir),
-            "--provider",
-            "openai",
-            "--model",
-            "gpt-4o-mini",
-        ])
+        rc = cli_main(
+            [
+                "--dry-run",
+                "--agent",
+                "security",
+                "--fixtures",
+                str(fixtures_dir),
+                "--provider",
+                "openai",
+                "--model",
+                "gpt-4o-mini",
+            ]
+        )
         assert rc == 2
         assert "No pricing rate" in capsys.readouterr().err
+
     def test_panel_model_opus_5_plans_and_exits_zero(self, tmp_path, capsys):
         # The exact command that failed in issue #3905. claude-opus-5 is the
         # reference tier in scripts/eval/panels/owner-copilot-cli.json, and
@@ -722,15 +706,17 @@ class TestCliExitCodes:
         fixtures_dir.mkdir()
         _write_fixture(fixtures_dir, "F001.json", _valid_fixture_payload())
 
-        rc = cli_main([
-            "--dry-run",
-            "--agent",
-            "security",
-            "--fixtures",
-            str(fixtures_dir),
-            "--model",
-            "claude-opus-5",
-        ])
+        rc = cli_main(
+            [
+                "--dry-run",
+                "--agent",
+                "security",
+                "--fixtures",
+                str(fixtures_dir),
+                "--model",
+                "claude-opus-5",
+            ]
+        )
 
         assert rc == 0
         captured = capsys.readouterr()
@@ -744,15 +730,17 @@ class TestCliExitCodes:
         fixtures_dir.mkdir()
         _write_fixture(fixtures_dir, "F001.json", _valid_fixture_payload())
 
-        rc = cli_main([
-            "--dry-run",
-            "--agent",
-            "security",
-            "--fixtures",
-            str(fixtures_dir),
-            "--model",
-            "claude-opus-99",
-        ])
+        rc = cli_main(
+            [
+                "--dry-run",
+                "--agent",
+                "security",
+                "--fixtures",
+                str(fixtures_dir),
+                "--model",
+                "claude-opus-99",
+            ]
+        )
 
         assert rc == 2
         captured = capsys.readouterr()
@@ -797,9 +785,7 @@ def _timeout_error() -> Exception:
 class TestAnthropicAPIAdapterSuccess:
     def test_first_call_succeeds(self):
         transport = _FakeTransport(script=["IDENTIFY: ok"])
-        adapter = AnthropicAPIAdapter(
-            transport=transport, sleep=lambda _s: None
-        )
+        adapter = AnthropicAPIAdapter(transport=transport, sleep=lambda _s: None)
         result = adapter.call_model(
             prompt="hi",
             model_id="claude-sonnet-4-6",
@@ -816,12 +802,8 @@ class TestAnthropicAPIAdapterSuccess:
         assert result.latency_ms >= 0
 
     def test_429_then_success_categorizes_rate_limit(self):
-        transport = _FakeTransport(
-            script=[lambda: (_ for _ in ()).throw(_http_error(429)), "OK"]
-        )
-        adapter = AnthropicAPIAdapter(
-            transport=transport, sleep=lambda _s: None
-        )
+        transport = _FakeTransport(script=[lambda: (_ for _ in ()).throw(_http_error(429)), "OK"])
+        adapter = AnthropicAPIAdapter(transport=transport, sleep=lambda _s: None)
         result = adapter.call_model(
             prompt="x",
             model_id="claude-sonnet-4-6",
@@ -837,9 +819,7 @@ class TestAnthropicAPIAdapterSuccess:
         transport = _FakeTransport(
             script=[lambda: (_ for _ in ()).throw(_timeout_error()), "ESCALATE"]
         )
-        adapter = AnthropicAPIAdapter(
-            transport=transport, sleep=lambda _s: None
-        )
+        adapter = AnthropicAPIAdapter(transport=transport, sleep=lambda _s: None)
         result = adapter.call_model(
             prompt="x",
             model_id="claude-sonnet-4-6",
@@ -860,9 +840,7 @@ class TestAnthropicAPIAdapterErrors:
                 lambda: (_ for _ in ()).throw(_http_error(500)),
             ]
         )
-        adapter = AnthropicAPIAdapter(
-            transport=transport, sleep=lambda _s: None
-        )
+        adapter = AnthropicAPIAdapter(transport=transport, sleep=lambda _s: None)
         result = adapter.call_model(
             prompt="x",
             model_id="claude-sonnet-4-6",
@@ -876,12 +854,8 @@ class TestAnthropicAPIAdapterErrors:
         assert result.raw_response is None
 
     def test_400_immediate_error_no_retry(self):
-        transport = _FakeTransport(
-            script=[lambda: (_ for _ in ()).throw(_http_error(400))]
-        )
-        adapter = AnthropicAPIAdapter(
-            transport=transport, sleep=lambda _s: None
-        )
+        transport = _FakeTransport(script=[lambda: (_ for _ in ()).throw(_http_error(400))])
+        adapter = AnthropicAPIAdapter(transport=transport, sleep=lambda _s: None)
         result = adapter.call_model(
             prompt="x",
             model_id="claude-sonnet-4-6",
@@ -894,12 +868,8 @@ class TestAnthropicAPIAdapterErrors:
         assert result.attempts == 1
 
     def test_408_retried_then_success(self):
-        transport = _FakeTransport(
-            script=[lambda: (_ for _ in ()).throw(_http_error(408)), "OK"]
-        )
-        adapter = AnthropicAPIAdapter(
-            transport=transport, sleep=lambda _s: None
-        )
+        transport = _FakeTransport(script=[lambda: (_ for _ in ()).throw(_http_error(408)), "OK"])
+        adapter = AnthropicAPIAdapter(transport=transport, sleep=lambda _s: None)
         result = adapter.call_model(
             prompt="x",
             model_id="claude-sonnet-4-6",
@@ -978,9 +948,7 @@ class TestAnthropicAPIAdapterLogging:
                 "scored response",
             ]
         )
-        adapter = AnthropicAPIAdapter(
-            transport=transport, sleep=lambda _s: None
-        )
+        adapter = AnthropicAPIAdapter(transport=transport, sleep=lambda _s: None)
         adapter.call_model(
             prompt="user prompt",
             model_id="claude-sonnet-4-6",
@@ -1082,9 +1050,7 @@ class TestAnthropicAPIAdapterLogging:
         reaches the `ERR_UNKNOWN` fallthrough. That branch is unreachable for
         any 4xx or 5xx, so the retry test above cannot cover it."""
         message = self._provider_message(302)
-        transport = _FakeTransport(
-            script=[lambda: (_ for _ in ()).throw(RuntimeError(message))]
-        )
+        transport = _FakeTransport(script=[lambda: (_ for _ in ()).throw(RuntimeError(message))])
         adapter = AnthropicAPIAdapter(transport=transport, sleep=lambda _s: None)
         result = adapter.call_model(
             prompt="user prompt",
@@ -1098,9 +1064,7 @@ class TestAnthropicAPIAdapterLogging:
         # Not transient, so one attempt and one record.
         self._assert_records_carry_no_provider_text(capsys.readouterr(), 1)
 
-    def test_a_transport_resolve_failure_logs_no_provider_text(
-        self, monkeypatch, capsys
-    ):
+    def test_a_transport_resolve_failure_logs_no_provider_text(self, monkeypatch, capsys):
         """Transport construction fails before any attempt, which is a
         separate `_emit_log` call site the two tests above never reach."""
         message = self._provider_message(500)
@@ -1254,9 +1218,7 @@ class TestRunPersistenceJsonlRoundTrip:
         payload["schemaVersion"] = 1
         payload.pop("system_fingerprint", None)
         payload.pop("seed", None)
-        (run_dir / "runs.jsonl").write_text(
-            json.dumps(payload) + "\n", encoding="utf-8"
-        )
+        (run_dir / "runs.jsonl").write_text(json.dumps(payload) + "\n", encoding="utf-8")
 
         records = list(RunPersistence(run_dir, resume=True).iter_records())
 
@@ -1360,9 +1322,7 @@ class TestRunPersistenceMalformedJsonl:
             ),
         ],
     )
-    def test_persisted_records_are_strictly_validated(
-        self, tmp_path, mutate, expected_msg
-    ):
+    def test_persisted_records_are_strictly_validated(self, tmp_path, mutate, expected_msg):
         payload = json.loads(_record_json_for_test(_make_record(seed=0)))
         mutate(payload)
         run_dir = self._seed(tmp_path, json.dumps(payload) + "\n")
@@ -1426,9 +1386,7 @@ class TestRunPersistenceMalformedJsonl:
         (run_dir / "runs.jsonl").write_text(valid + "\n", encoding="utf-8")
         persistence = RunPersistence(run_dir, resume=True)
         # Now corrupt the file to exercise the iterator path.
-        (run_dir / "runs.jsonl").write_text(
-            valid + "\n{not valid json\n", encoding="utf-8"
-        )
+        (run_dir / "runs.jsonl").write_text(valid + "\n{not valid json\n", encoding="utf-8")
         with pytest.raises(MalformedRunRecordError, match=r"line 2 is not valid JSON"):
             list(persistence.iter_records())
 
@@ -1437,11 +1395,7 @@ class TestRunPersistenceMalformedJsonl:
         # written with `raw_response=None` (see `_eval_api_adapter.py`).
         # Resume must not fail closed on a legitimate error record just
         # because the field is null.
-        payload = json.loads(
-            _record_json_for_test(
-                _make_record(outcome="error", seed=0)
-            )
-        )
+        payload = json.loads(_record_json_for_test(_make_record(outcome="error", seed=0)))
         payload["raw_response"] = None
         payload["assertions"] = []
         run_dir = self._seed(tmp_path, json.dumps(payload) + "\n")
@@ -1659,9 +1613,7 @@ class TestRunnerLiveLoop:
         # Stub the adapter constructor.
         return agents_dir
 
-    def test_live_run_writes_jsonl_and_no_secret_in_logs(
-        self, tmp_path, monkeypatch, capsys
-    ):
+    def test_live_run_writes_jsonl_and_no_secret_in_logs(self, tmp_path, monkeypatch, capsys):
         self._setup(tmp_path, monkeypatch)
         secret = "sk-ant-MUST-NOT-LEAK-9999"
         monkeypatch.setenv("ANTHROPIC_API_KEY", secret)
@@ -1689,14 +1641,16 @@ class TestRunnerLiveLoop:
         adapter = _StubAdapter(results)
         monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda **_: adapter)
 
-        rc = cli_main([
-            "--agent",
-            "security",
-            "--fixtures",
-            str(fixtures_dir),
-            "--n-runs",
-            "3",
-        ])
+        rc = cli_main(
+            [
+                "--agent",
+                "security",
+                "--fixtures",
+                str(fixtures_dir),
+                "--n-runs",
+                "3",
+            ]
+        )
         assert rc == 0
         assert adapter.call_count == 6
         # Captured logs MUST NOT contain the API key.
@@ -1714,9 +1668,7 @@ class TestRunnerLiveLoop:
             assert payload["schemaVersion"] == RUN_RECORD_SCHEMA_VERSION
             assert payload["model_id"] == "claude-sonnet-4-6"
 
-    def test_resume_does_not_recall_completed_triples(
-        self, tmp_path, monkeypatch
-    ):
+    def test_resume_does_not_recall_completed_triples(self, tmp_path, monkeypatch):
         self._setup(tmp_path, monkeypatch)
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-resume2")
         fixtures_dir = tmp_path / "fixtures"
@@ -1739,16 +1691,18 @@ class TestRunnerLiveLoop:
         adapter1 = _StubAdapter(list(all_six))
         monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda **_: adapter1)
         run_id = "20260503T130000Z-cafebabe"
-        rc = cli_main([
-            "--agent",
-            "security",
-            "--fixtures",
-            str(fixtures_dir),
-            "--n-runs",
-            "3",
-            "--run-id",
-            run_id,
-        ])
+        rc = cli_main(
+            [
+                "--agent",
+                "security",
+                "--fixtures",
+                str(fixtures_dir),
+                "--n-runs",
+                "3",
+                "--run-id",
+                run_id,
+            ]
+        )
         assert rc == 0
         assert adapter1.call_count == 6
 
@@ -1756,22 +1710,22 @@ class TestRunnerLiveLoop:
         # are already completed.
         adapter2 = _StubAdapter([])  # empty: any call would IndexError
         monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda **_: adapter2)
-        rc2 = cli_main([
-            "--agent",
-            "security",
-            "--fixtures",
-            str(fixtures_dir),
-            "--n-runs",
-            "3",
-            "--resume",
-            run_id,
-        ])
+        rc2 = cli_main(
+            [
+                "--agent",
+                "security",
+                "--fixtures",
+                str(fixtures_dir),
+                "--n-runs",
+                "3",
+                "--resume",
+                run_id,
+            ]
+        )
         assert rc2 == 0
         assert adapter2.call_count == 0
 
-    def test_resume_accepts_legacy_v1_records_with_default_seed(
-        self, tmp_path, monkeypatch
-    ):
+    def test_resume_accepts_legacy_v1_records_with_default_seed(self, tmp_path, monkeypatch):
         self._setup(tmp_path, monkeypatch)
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-resume-v1")
         fixtures_dir = tmp_path / "fixtures"
@@ -1794,26 +1748,21 @@ class TestRunnerLiveLoop:
             ]
         )
         monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda **_: adapter1)
-        rc = cli_main([
-            "--agent",
-            "security",
-            "--fixtures",
-            str(fixtures_dir),
-            "--n-runs",
-            "3",
-            "--run-id",
-            run_id,
-        ])
+        rc = cli_main(
+            [
+                "--agent",
+                "security",
+                "--fixtures",
+                str(fixtures_dir),
+                "--n-runs",
+                "3",
+                "--run-id",
+                run_id,
+            ]
+        )
         assert rc == 0
 
-        runs_jsonl = (
-            tmp_path
-            / "evals"
-            / "security-spike"
-            / "runs"
-            / run_id
-            / "runs.jsonl"
-        )
+        runs_jsonl = tmp_path / "evals" / "security-spike" / "runs" / run_id / "runs.jsonl"
         legacy_lines = []
         for line in runs_jsonl.read_text(encoding="utf-8").splitlines():
             payload = json.loads(line)
@@ -1825,26 +1774,21 @@ class TestRunnerLiveLoop:
 
         adapter2 = _StubAdapter([])
         monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda **_: adapter2)
-        rc2 = cli_main([
-            "--agent",
-            "security",
-            "--fixtures",
-            str(fixtures_dir),
-            "--n-runs",
-            "3",
-            "--resume",
-            run_id,
-        ])
+        rc2 = cli_main(
+            [
+                "--agent",
+                "security",
+                "--fixtures",
+                str(fixtures_dir),
+                "--n-runs",
+                "3",
+                "--resume",
+                run_id,
+            ]
+        )
         assert rc2 == 0
         assert adapter2.call_count == 0
-        report_json = (
-            tmp_path
-            / "evals"
-            / "security-spike"
-            / "reports"
-            / run_id
-            / "report.json"
-        )
+        report_json = tmp_path / "evals" / "security-spike" / "reports" / run_id / "report.json"
         assert json.loads(report_json.read_text(encoding="utf-8"))["seed"] == 0
 
     def test_error_rate_above_10pct_exits_one(self, tmp_path, monkeypatch, capsys):
@@ -1869,14 +1813,16 @@ class TestRunnerLiveLoop:
         ]
         adapter = _StubAdapter(all_errors)
         monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda **_: adapter)
-        rc = cli_main([
-            "--agent",
-            "security",
-            "--fixtures",
-            str(fixtures_dir),
-            "--n-runs",
-            "3",
-        ])
+        rc = cli_main(
+            [
+                "--agent",
+                "security",
+                "--fixtures",
+                str(fixtures_dir),
+                "--n-runs",
+                "3",
+            ]
+        )
         assert rc == 1
         captured = capsys.readouterr()
         assert "error rate exceeds 10%" in captured.err
@@ -1963,29 +1909,21 @@ def _build_records(
     records: list[RunRecord] = []
     for fid in fixture_ids:
         for ri in range(n_runs):
-            records.append(
-                _success_record(fid, "agent", ri, passed=agent_passed)
-            )
-            records.append(
-                _success_record(fid, "baseline", ri, passed=baseline_passed)
-            )
+            records.append(_success_record(fid, "agent", ri, passed=agent_passed))
+            records.append(_success_record(fid, "baseline", ri, passed=baseline_passed))
     return records
 
 
 class TestReportAggregatorRecall:
     def test_all_pass_recall_is_one(self):
-        records = _build_records(
-            ["F001", "F002"], agent_passed=True, baseline_passed=True
-        )
+        records = _build_records(["F001", "F002"], agent_passed=True, baseline_passed=True)
         result = ReportAggregator(records, model_id="claude-sonnet-4-6").aggregate()
         assert result.agent_recall == 1.0
         assert result.baseline_recall == 1.0
         assert result.recall_delta == 0.0
 
     def test_all_fail_recall_is_zero(self):
-        records = _build_records(
-            ["F001", "F002"], agent_passed=False, baseline_passed=False
-        )
+        records = _build_records(["F001", "F002"], agent_passed=False, baseline_passed=False)
         result = ReportAggregator(records, model_id="claude-sonnet-4-6").aggregate()
         assert result.agent_recall == 0.0
         assert result.baseline_recall == 0.0
@@ -2041,9 +1979,7 @@ class TestReportAggregatorRecall:
             error_category=None,
             attempts=1,
         )
-        result = ReportAggregator(
-            [record], model_id="claude-sonnet-4-6"
-        ).aggregate()
+        result = ReportAggregator([record], model_id="claude-sonnet-4-6").aggregate()
         # 1 passed of 2 assertions → 0.5.
         assert result.agent_recall == 0.5
 
@@ -2086,17 +2022,13 @@ class TestReportAggregatorCI:
 
 class TestReportAggregatorFlakiness:
     def test_identical_runs_no_flakiness(self):
-        records = _build_records(
-            ["F001", "F002"], agent_passed=True, baseline_passed=False
-        )
+        records = _build_records(["F001", "F002"], agent_passed=True, baseline_passed=False)
         result = ReportAggregator(records, model_id="claude-sonnet-4-6").aggregate()
         assert result.flakiness is False
         assert result.flaky_fixtures_excluded == []
 
     def test_skill_variant_flakiness_does_not_move_v1_metrics(self):
-        records = _build_records(
-            ["F001", "F002"], agent_passed=True, baseline_passed=False
-        )
+        records = _build_records(["F001", "F002"], agent_passed=True, baseline_passed=False)
         records.extend(
             [
                 _success_record("F001", "skill", 0, passed=True),
@@ -2159,9 +2091,7 @@ class TestReportAggregatorFlakiness:
         assert result.baseline_recall == 0.0
 
 
-def _records_with_flaky_subset(
-    *, total: int, flaky: int, bootstrap_iterations: int = 200
-) -> list:
+def _records_with_flaky_subset(*, total: int, flaky: int, bootstrap_iterations: int = 200) -> list:
     """Build `total` fixtures; the first `flaky` have agent pass-rate variance.
 
     Stable fixtures: agent passes every run, baseline fails every run.
@@ -2173,14 +2103,10 @@ def _records_with_flaky_subset(
     for index in range(total):
         fid = f"F{index + 1:03d}"
         is_flaky = index < flaky
-        agent_pass = (
-            [True, False, True] if is_flaky else [True, True, True]
-        )
+        agent_pass = [True, False, True] if is_flaky else [True, True, True]
         for run_index, passed in enumerate(agent_pass):
             records.append(_success_record(fid, "agent", run_index, passed=passed))
-            records.append(
-                _success_record(fid, "baseline", run_index, passed=False)
-            )
+            records.append(_success_record(fid, "baseline", run_index, passed=False))
     return records
 
 
@@ -2300,9 +2226,7 @@ class TestReportAggregatorNAwareHalt:
 
 class TestReportAggregatorCost:
     def test_cost_uses_pricing_constants(self):
-        records = _build_records(
-            ["F001"], agent_passed=True, baseline_passed=True
-        )
+        records = _build_records(["F001"], agent_passed=True, baseline_passed=True)
         result = ReportAggregator(records, model_id="claude-sonnet-4-6").aggregate()
         # 6 records × tokens_in=100, tokens_out=50.
         # cost = (600 * 0.003 + 300 * 0.015) / 1000 = (1.8 + 4.5)/1000 = 0.0063
@@ -2315,9 +2239,7 @@ class TestReportAggregatorCost:
 
     def test_quota_provider_reports_no_usd_cost(self):
         """A completed quota-billed run must produce a report, not an exception."""
-        records = _build_records(
-            ["F001"], agent_passed=True, baseline_passed=True
-        )
+        records = _build_records(["F001"], agent_passed=True, baseline_passed=True)
         result = ReportAggregator(
             records, model_id="openai/gpt-4o-mini", provider="github-models"
         ).aggregate()
@@ -2325,18 +2247,12 @@ class TestReportAggregatorCost:
         assert result.cost_basis == "requests"
 
     def test_usd_provider_still_raises_on_an_unpriced_model(self):
-        records = _build_records(
-            ["F001"], agent_passed=True, baseline_passed=True
-        )
+        records = _build_records(["F001"], agent_passed=True, baseline_passed=True)
         with pytest.raises(UnsupportedModelError):
-            ReportAggregator(
-                records, model_id="gpt-4o-mini", provider="openai"
-            ).aggregate()
+            ReportAggregator(records, model_id="gpt-4o-mini", provider="openai").aggregate()
 
     def test_absent_provider_keeps_the_usd_basis(self):
-        records = _build_records(
-            ["F001"], agent_passed=True, baseline_passed=True
-        )
+        records = _build_records(["F001"], agent_passed=True, baseline_passed=True)
         result = ReportAggregator(records, model_id="claude-sonnet-4-6").aggregate()
         assert result.cost_basis == "usd"
         assert result.cost_estimate_usd == pytest.approx(0.0063)
@@ -2530,9 +2446,7 @@ class TestRunnerEndToEndReport:
     def _setup(self, tmp_path, monkeypatch):
         agents_dir = tmp_path / "templates" / "agents"
         agents_dir.mkdir(parents=True)
-        (agents_dir / "security.shared.md").write_text(
-            "agent prompt", encoding="utf-8"
-        )
+        (agents_dir / "security.shared.md").write_text("agent prompt", encoding="utf-8")
         monkeypatch.setattr(cli_mod, "REPO_ROOT", tmp_path)
         return agents_dir
 
@@ -2558,14 +2472,16 @@ class TestRunnerEndToEndReport:
             ]
         )
         monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda **_: adapter)
-        rc = cli_main([
-            "--agent",
-            "security",
-            "--fixtures",
-            str(fixtures_dir),
-            "--n-runs",
-            "3",
-        ])
+        rc = cli_main(
+            [
+                "--agent",
+                "security",
+                "--fixtures",
+                str(fixtures_dir),
+                "--n-runs",
+                "3",
+            ]
+        )
         assert rc == 0
         # Report files exist under the run-id directory.
         reports_root = tmp_path / "evals" / "security-spike" / "reports"
@@ -2602,14 +2518,16 @@ class TestRunnerEndToEndReport:
             ]
         )
         monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda **_: adapter)
-        rc = cli_main([
-            "--agent",
-            "security",
-            "--fixtures",
-            str(fixtures_dir),
-            "--n-runs",
-            "3",
-        ])
+        rc = cli_main(
+            [
+                "--agent",
+                "security",
+                "--fixtures",
+                str(fixtures_dir),
+                "--n-runs",
+                "3",
+            ]
+        )
         assert rc == 0
 
         reports_root = tmp_path / "evals" / "security-spike" / "reports"
@@ -2645,9 +2563,7 @@ class TestRunnerEndToEndReport:
         )
         monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda **_: adapter)
 
-        rc = cli_main(
-            ["--agent", "security", "--fixtures", str(fixtures_dir), "--n-runs", "3"]
-        )
+        rc = cli_main(["--agent", "security", "--fixtures", str(fixtures_dir), "--n-runs", "3"])
 
         credentials.reset_credential_cache()
         assert rc == 0
@@ -2681,16 +2597,18 @@ class TestRunnerEndToEndReport:
             ]
         )
         monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda **_: adapter)
-        rc = cli_main([
-            "--agent",
-            "security",
-            "--fixtures",
-            str(fixtures_dir),
-            "--n-runs",
-            "3",
-            "--seed",
-            "3475",
-        ])
+        rc = cli_main(
+            [
+                "--agent",
+                "security",
+                "--fixtures",
+                str(fixtures_dir),
+                "--n-runs",
+                "3",
+                "--seed",
+                "3475",
+            ]
+        )
         assert rc == 0
 
         runs_root = tmp_path / "evals" / "security-spike" / "runs"
@@ -2703,9 +2621,7 @@ class TestRunnerEndToEndReport:
         payload = json.loads(report_json.read_text(encoding="utf-8"))
         assert payload["seed"] == 3475
 
-    def test_e2e_include_skill_writes_form_factor_report(
-        self, tmp_path, monkeypatch
-    ):
+    def test_e2e_include_skill_writes_form_factor_report(self, tmp_path, monkeypatch):
         self._setup(tmp_path, monkeypatch)
         skills_dir = tmp_path / ".claude" / "skills" / "security-review"
         skills_dir.mkdir(parents=True)
@@ -2730,15 +2646,17 @@ class TestRunnerEndToEndReport:
             ]
         )
         monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda **_: adapter)
-        rc = cli_main([
-            "--agent",
-            "security",
-            "--fixtures",
-            str(fixtures_dir),
-            "--n-runs",
-            "3",
-            "--include-skill",
-        ])
+        rc = cli_main(
+            [
+                "--agent",
+                "security",
+                "--fixtures",
+                str(fixtures_dir),
+                "--n-runs",
+                "3",
+                "--include-skill",
+            ]
+        )
 
         assert rc == 0
         assert adapter.call_count == 9
@@ -2796,15 +2714,11 @@ class TestRunnerFreshRunMode:
     def _setup(self, tmp_path, monkeypatch):
         agents_dir = tmp_path / "templates" / "agents"
         agents_dir.mkdir(parents=True)
-        (agents_dir / "security.shared.md").write_text(
-            "agent prompt", encoding="utf-8"
-        )
+        (agents_dir / "security.shared.md").write_text("agent prompt", encoding="utf-8")
         monkeypatch.setattr(cli_mod, "REPO_ROOT", tmp_path)
         return agents_dir
 
-    def test_fresh_run_against_populated_dir_exits_one(
-        self, tmp_path, monkeypatch, capsys
-    ):
+    def test_fresh_run_against_populated_dir_exits_one(self, tmp_path, monkeypatch, capsys):
         self._setup(tmp_path, monkeypatch)
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-fresh")
         fixtures_dir = tmp_path / "fixtures"
@@ -2813,25 +2727,25 @@ class TestRunnerFreshRunMode:
 
         # Pre-populate the run dir so the fresh-run guard fires.
         run_id = "20260503T160000Z-deadbeef"
-        run_dir = (
-            tmp_path / "evals" / "security-spike" / "runs" / run_id
-        )
+        run_dir = tmp_path / "evals" / "security-spike" / "runs" / run_id
         run_dir.mkdir(parents=True)
         first = RunPersistence(run_dir, resume=False)
         first.write_record(_make_record())
 
         adapter = _StubAdapter([])  # any call IndexErrors → proves no calls
         monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda **_: adapter)
-        rc = cli_main([
-            "--agent",
-            "security",
-            "--fixtures",
-            str(fixtures_dir),
-            "--n-runs",
-            "3",
-            "--run-id",
-            run_id,
-        ])
+        rc = cli_main(
+            [
+                "--agent",
+                "security",
+                "--fixtures",
+                str(fixtures_dir),
+                "--n-runs",
+                "3",
+                "--run-id",
+                run_id,
+            ]
+        )
         assert rc == 1
         captured = capsys.readouterr()
         assert "runs.jsonl" in captured.err
@@ -2865,9 +2779,7 @@ class TestTokensEstimatedFlag:
         # New default is True for backward compat across persisted shape.
         assert record.tokens_estimated is True
 
-    def test_record_explicit_false_round_trips_through_persistence(
-        self, tmp_path
-    ):
+    def test_record_explicit_false_round_trips_through_persistence(self, tmp_path):
         persistence = RunPersistence(tmp_path / "rt-est", resume=False)
         record = _make_record()
         record.tokens_estimated = False
@@ -2882,23 +2794,15 @@ class TestTokensEstimatedFlag:
 
     def test_aggregate_carries_tokens_estimated_flag(self):
         # Build records all marked estimated → aggregate.tokens_estimated=True.
-        records = _build_records(
-            ["F001"], agent_passed=True, baseline_passed=True
-        )
-        result = ReportAggregator(
-            records, model_id="claude-sonnet-4-6"
-        ).aggregate()
+        records = _build_records(["F001"], agent_passed=True, baseline_passed=True)
+        result = ReportAggregator(records, model_id="claude-sonnet-4-6").aggregate()
         assert result.tokens_estimated is True
 
     def test_aggregate_all_measured_clears_flag(self):
-        records = _build_records(
-            ["F001"], agent_passed=True, baseline_passed=True
-        )
+        records = _build_records(["F001"], agent_passed=True, baseline_passed=True)
         for record in records:
             record.tokens_estimated = False
-        result = ReportAggregator(
-            records, model_id="claude-sonnet-4-6"
-        ).aggregate()
+        result = ReportAggregator(records, model_id="claude-sonnet-4-6").aggregate()
         assert result.tokens_estimated is False
 
     def test_an_error_result_reports_uncounted_zeros_as_estimated(self):
@@ -2913,9 +2817,7 @@ class TestTokensEstimatedFlag:
         with no caveat.
         """
         message = "Anthropic API returned HTTP 404: missing"
-        transport = _FakeTransport(
-            script=[lambda: (_ for _ in ()).throw(RuntimeError(message))]
-        )
+        transport = _FakeTransport(script=[lambda: (_ for _ in ()).throw(RuntimeError(message))])
         adapter = AnthropicAPIAdapter(transport=transport, sleep=lambda _s: None)
         result = adapter.call_model(
             prompt="user prompt",
@@ -2932,14 +2834,10 @@ class TestTokensEstimatedFlag:
     def test_a_run_of_only_estimated_records_keeps_the_cost_caveat(self):
         """Pins the consequence the test above protects: the caveat is what
         stops a zero cost from reading as a measured one."""
-        records = _build_records(
-            ["F001"], agent_passed=False, baseline_passed=False
-        )
+        records = _build_records(["F001"], agent_passed=False, baseline_passed=False)
         for record in records:
             record.tokens_estimated = True
-        aggregate = ReportAggregator(
-            records, model_id="claude-sonnet-4-6"
-        ).aggregate()
+        aggregate = ReportAggregator(records, model_id="claude-sonnet-4-6").aggregate()
         assert aggregate.tokens_estimated is True
         rendered = writer_mod._render_cost_section(aggregate, 1.0)
         assert "estimated from a text-length heuristic" in rendered
@@ -2947,9 +2845,7 @@ class TestTokensEstimatedFlag:
         # Not vacuous: the caveat is absent when nothing was estimated.
         for record in records:
             record.tokens_estimated = False
-        measured = ReportAggregator(
-            records, model_id="claude-sonnet-4-6"
-        ).aggregate()
+        measured = ReportAggregator(records, model_id="claude-sonnet-4-6").aggregate()
         assert measured.tokens_estimated is False
         assert "estimated from a text-length heuristic" not in (
             writer_mod._render_cost_section(measured, 1.0)
@@ -3011,9 +2907,7 @@ class TestEmptyRunError:
 
 class TestUnsupportedModelInAggregator:
     def test_aggregate_unsupported_model_raises(self):
-        records = _build_records(
-            ["F001"], agent_passed=True, baseline_passed=True
-        )
+        records = _build_records(["F001"], agent_passed=True, baseline_passed=True)
         with pytest.raises(UnsupportedModelError):
             ReportAggregator(records, model_id="model-without-pricing").aggregate()
 
@@ -3155,9 +3049,7 @@ class TestAdapterTotalWallBudget:
             if line.strip().startswith("{")
         ]
         aborted = [
-            record
-            for record in budget_lines
-            if record.get("error_category") == ERR_TOTAL_TIMEOUT
+            record for record in budget_lines if record.get("error_category") == ERR_TOTAL_TIMEOUT
         ]
         assert len(aborted) == 1
         assert aborted[0]["attempt"] == result.attempts
@@ -3200,9 +3092,7 @@ class TestTransportsRefuseAMalformedFingerprint:
     """
 
     @pytest.mark.parametrize("malformed", [123, 4.5, True, {"id": "fp"}, ["fp"]])
-    def test_provider_transport_raises_on_a_non_string_fingerprint(
-        self, malformed: object
-    ) -> None:
+    def test_provider_transport_raises_on_a_non_string_fingerprint(self, malformed: object) -> None:
         class _Provider:
             def __init__(self) -> None:
                 self.system_fingerprint = malformed
@@ -3306,9 +3196,7 @@ class TestTransportsRefuseAMalformedFingerprint:
         assert capsys.readouterr().err == ""
 
     @pytest.mark.parametrize("fingerprint", [None, "", "fp-1"])
-    def test_call_model_accepts_valid_fingerprint_states(
-        self, fingerprint: str | None
-    ) -> None:
+    def test_call_model_accepts_valid_fingerprint_states(self, fingerprint: str | None) -> None:
         class _Transport:
             def __init__(self) -> None:
                 self.system_fingerprint = fingerprint
@@ -3414,9 +3302,7 @@ class TestResumeRetriesErrored:
         assert second.write_record(_make_record(outcome="success")) is True
         # File now has exactly one record, marked success.
         lines = [
-            ln
-            for ln in second.jsonl_path.read_text(encoding="utf-8").splitlines()
-            if ln.strip()
+            ln for ln in second.jsonl_path.read_text(encoding="utf-8").splitlines() if ln.strip()
         ]
         assert len(lines) == 1
         payload = json.loads(lines[0])
@@ -3441,9 +3327,7 @@ class TestResumeSkipLogging:
     def _setup(self, tmp_path, monkeypatch):
         agents_dir = tmp_path / "templates" / "agents"
         agents_dir.mkdir(parents=True)
-        (agents_dir / "security.shared.md").write_text(
-            "agent prompt", encoding="utf-8"
-        )
+        (agents_dir / "security.shared.md").write_text("agent prompt", encoding="utf-8")
         monkeypatch.setattr(cli_mod, "REPO_ROOT", tmp_path)
         return agents_dir
 
@@ -3471,32 +3355,36 @@ class TestResumeSkipLogging:
         )
         monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda **_: adapter1)
         run_id = "20260503T160000Z-skiplog0"
-        rc = cli_main([
-            "--agent",
-            "security",
-            "--fixtures",
-            str(fixtures_dir),
-            "--n-runs",
-            "3",
-            "--run-id",
-            run_id,
-        ])
+        rc = cli_main(
+            [
+                "--agent",
+                "security",
+                "--fixtures",
+                str(fixtures_dir),
+                "--n-runs",
+                "3",
+                "--run-id",
+                run_id,
+            ]
+        )
         assert rc == 0
         capsys.readouterr()  # discard phase-1 logs
 
         # Phase 2: resume; every triple is already complete → 6 skips.
         adapter2 = _StubAdapter([])
         monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda **_: adapter2)
-        rc2 = cli_main([
-            "--agent",
-            "security",
-            "--fixtures",
-            str(fixtures_dir),
-            "--n-runs",
-            "3",
-            "--resume",
-            run_id,
-        ])
+        rc2 = cli_main(
+            [
+                "--agent",
+                "security",
+                "--fixtures",
+                str(fixtures_dir),
+                "--n-runs",
+                "3",
+                "--resume",
+                run_id,
+            ]
+        )
         assert rc2 == 0
         captured = capsys.readouterr()
         # Parse every JSON log line and filter by `event` key. Substring
@@ -3511,9 +3399,7 @@ class TestResumeSkipLogging:
                 continue
         per_triple = [e for e in events if e.get("event") == "resume_skip"]
         assert len(per_triple) == 6
-        summary = [
-            e for e in events if e.get("event") == "resume_skip_summary"
-        ]
+        summary = [e for e in events if e.get("event") == "resume_skip_summary"]
         assert len(summary) == 1
         assert summary[0]["resume_skips_count"] == 6
 
@@ -3525,9 +3411,7 @@ class TestResumeSkipLogging:
 
 def _passing_runs(fixture_id: str, variant: str, n_runs: int, *, fail_indices: set):
     return [
-        _success_record(
-            fixture_id, variant, ri, passed=ri not in fail_indices
-        )
+        _success_record(fixture_id, variant, ri, passed=ri not in fail_indices)
         for ri in range(n_runs)
     ]
 
@@ -3592,9 +3476,7 @@ class TestContingencyRerun:
         # 4 flaky of 10 (40%). The N-aware halt count at N=10 is 5, so 4
         # flaky no longer halts; the flaky fixtures are excluded and the run
         # continues on the stable subset.
-        records = self._ten_fixture_contingency(
-            {"F001", "F002", "F003", "F004"}
-        )
+        records = self._ten_fixture_contingency({"F001", "F002", "F003", "F004"})
         result = ReportAggregator(
             records,
             model_id="claude-sonnet-4-6",
@@ -3612,9 +3494,7 @@ class TestContingencyRerun:
 
     def test_contingency_five_of_ten_halts(self):
         # N-aware halt count at N=10 is 5; 5 flaky of 10 reaches it → halt.
-        records = self._ten_fixture_contingency(
-            {"F001", "F002", "F003", "F004", "F005"}
-        )
+        records = self._ten_fixture_contingency({"F001", "F002", "F003", "F004", "F005"})
         result = ReportAggregator(
             records,
             model_id="claude-sonnet-4-6",
@@ -3634,15 +3514,11 @@ class TestRunnerEmptyAndUnsupported:
     def _setup(self, tmp_path, monkeypatch):
         agents_dir = tmp_path / "templates" / "agents"
         agents_dir.mkdir(parents=True)
-        (agents_dir / "security.shared.md").write_text(
-            "agent prompt", encoding="utf-8"
-        )
+        (agents_dir / "security.shared.md").write_text("agent prompt", encoding="utf-8")
         monkeypatch.setattr(cli_mod, "REPO_ROOT", tmp_path)
         return agents_dir
 
-    def test_runner_unsupported_model_exits_two(
-        self, tmp_path, monkeypatch, capsys
-    ):
+    def test_runner_unsupported_model_exits_two(self, tmp_path, monkeypatch, capsys):
         # Model unsupported is caught in plan-build before live run, which
         # already exits 2; this test pins that contract so the new
         # aggregator-side raise does not change CLI behavior for the
@@ -3651,15 +3527,17 @@ class TestRunnerEmptyAndUnsupported:
         fixtures_dir = tmp_path / "fixtures"
         fixtures_dir.mkdir()
         _write_fixture(fixtures_dir, "F001.json", _valid_fixture_payload())
-        rc = cli_main([
-            "--dry-run",
-            "--agent",
-            "security",
-            "--fixtures",
-            str(fixtures_dir),
-            "--model",
-            "unpriced-model",
-        ])
+        rc = cli_main(
+            [
+                "--dry-run",
+                "--agent",
+                "security",
+                "--fixtures",
+                str(fixtures_dir),
+                "--model",
+                "unpriced-model",
+            ]
+        )
         assert rc == 2
         captured = capsys.readouterr()
         assert "pricing rate" in captured.err.lower()
@@ -3784,8 +3662,8 @@ class TestRunPersistenceResumeSchemaGuard:
         # Now mutate the file to an incompatible version and exercise the
         # downstream parser.
         (run_dir / "runs.jsonl").write_text(
-            json.dumps({**json.loads((run_dir / "runs.jsonl").read_text()),
-                        "schemaVersion": 99}) + "\n",
+            json.dumps({**json.loads((run_dir / "runs.jsonl").read_text()), "schemaVersion": 99})
+            + "\n",
             encoding="utf-8",
         )
         with pytest.raises(SchemaVersionError, match="schemaVersion=99"):
@@ -3801,9 +3679,7 @@ class TestPerFixtureHaltThreshold:
     def _setup(self, tmp_path, monkeypatch):
         agents_dir = tmp_path / "templates" / "agents"
         agents_dir.mkdir(parents=True)
-        (agents_dir / "security.shared.md").write_text(
-            "agent prompt", encoding="utf-8"
-        )
+        (agents_dir / "security.shared.md").write_text("agent prompt", encoding="utf-8")
         monkeypatch.setattr(cli_mod, "REPO_ROOT", tmp_path)
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-x")
 
@@ -3847,11 +3723,16 @@ class TestPerFixtureHaltThreshold:
         ]
         adapter = _StubAdapter(results)
         monkeypatch.setattr(cli_mod, "AnthropicAPIAdapter", lambda **_: adapter)
-        rc = cli_main([
-            "--agent", "security",
-            "--fixtures", str(fixtures_dir),
-            "--n-runs", "3",
-        ])
+        rc = cli_main(
+            [
+                "--agent",
+                "security",
+                "--fixtures",
+                str(fixtures_dir),
+                "--n-runs",
+                "3",
+            ]
+        )
         assert rc == 1
         captured = capsys.readouterr()
         assert "fixture-level error rate exceeds 10%" in captured.err
@@ -4126,6 +4007,7 @@ class TestCliInputValidators:
     )
     def test_agent_name_validator_rejects_traversal_and_invalid(self, bad):
         import argparse as _argparse
+
         with pytest.raises(_argparse.ArgumentTypeError):
             cli_mod._agent_name_arg(bad)
 
@@ -4136,6 +4018,7 @@ class TestCliInputValidators:
     @pytest.mark.parametrize("bad", ["..", "/etc/passwd", "rid/../x", "a" * 65])
     def test_run_id_validator_rejects_traversal(self, bad):
         import argparse as _argparse
+
         with pytest.raises(_argparse.ArgumentTypeError):
             cli_mod._run_id_arg(bad)
 

@@ -23,11 +23,16 @@ SKILL_SCRIPT_DIRS = {
 
 
 def make_completed_process(
-    stdout: str = "", stderr: str = "", returncode: int = 0,
+    stdout: str = "",
+    stderr: str = "",
+    returncode: int = 0,
 ):
     """Create a mock CompletedProcess."""
     return subprocess.CompletedProcess(
-        args=[], returncode=returncode, stdout=stdout, stderr=stderr,
+        args=[],
+        returncode=returncode,
+        stdout=stdout,
+        stderr=stderr,
     )
 
 

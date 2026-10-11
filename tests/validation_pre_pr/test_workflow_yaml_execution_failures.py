@@ -46,7 +46,7 @@ class TestWorkflowYamlExecutionFailures:
 
     def test_a_real_finding_still_fails(self, tmp_path: Path) -> None:
         """Positive control. actionlint's own finding exit is unchanged."""
-        outcome = _run(tmp_path, (1, "ci.yml:3:1: unexpected key \"jobss\"", ""))
+        outcome = _run(tmp_path, (1, 'ci.yml:3:1: unexpected key "jobss"', ""))
 
         assert outcome.state is EvidenceState.FAIL
         assert outcome.reason == "actionlint.violation"
@@ -71,9 +71,7 @@ class TestWorkflowYamlExecutionFailures:
         assert outcome.state is EvidenceState.BLOCKED
         assert outcome.reason == REASON_TOOL_ABSENT
 
-    def test_a_timeout_is_not_licensed_by_the_documented_policy(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_timeout_is_not_licensed_by_the_documented_policy(self, tmp_path: Path) -> None:
         """The policy licenses an absent actionlint, never an unfinished one.
 
         Install it versus find out why it hung are different remedies, which is
@@ -97,9 +95,7 @@ class TestWorkflowYamlExecutionFailures:
 
         assert default_pre_pr_policy().accepts(outcome)
 
-    def test_no_execution_failure_claims_to_have_examined_files(
-        self, tmp_path: Path
-    ) -> None:
+    def test_no_execution_failure_claims_to_have_examined_files(self, tmp_path: Path) -> None:
         """``ci-scripts.md`` MUST 12: a run that did nothing must not count.
 
         A BLOCKED or UNKNOWN carrying ``examined=1`` would tell a summary reader

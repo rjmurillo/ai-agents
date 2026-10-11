@@ -242,7 +242,9 @@ premise gets `Action: Clarify` and stays open per `reviewer-findings` MUST 4.
 For each comment, delegate to orchestrator with full context:
 
 ```python
-Task(subagent_type="orchestrator", prompt="""
+Task(
+    subagent_type="orchestrator",
+    prompt="""
 [Context from Step 3.1]
 
 After analysis, save plan to: `.project-toolkit/pr-comments/PR-[number]/[comment_id]-plan.md`
@@ -256,7 +258,8 @@ Return:
 - Priority: [Critical / Major / Minor / Won't Fix / Question]
 - Action: [Implement / Reply Only / Defer / Clarify]
 - Rationale: [Why this classification]
-""")
+""",
+)
 ```
 
 ## Phase 4: Task List Generation
@@ -307,12 +310,15 @@ python3 "$SCRIPTS_DIR/pr/add_pr_review_thread_reply.py" \
 For each task, delegate to orchestrator:
 
 ```python
-Task(subagent_type="orchestrator", prompt="""
+Task(
+    subagent_type="orchestrator",
+    prompt="""
 Implement this PR comment fix:
 [Task details]
 [Comment details]
 [Plan]
-""")
+""",
+)
 ```
 
 After implementation:
@@ -357,7 +363,7 @@ mcp__serena__edit_memory(
     memory_file_name="pr-review/pr-comment-responder-skills",
     needle="### Per-PR Breakdown",
     repl=new_pr_section,
-    mode="literal"
+    mode="literal",
 )
 ```
 

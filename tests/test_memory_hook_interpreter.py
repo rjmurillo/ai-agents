@@ -100,14 +100,10 @@ class TestReexecUnderProjectVenv:
         return calls
 
     @pytest.mark.unit
-    def test_execs_the_venv_interpreter_when_the_dependency_is_missing(
-        self, tmp_path, monkeypatch
-    ):
+    def test_execs_the_venv_interpreter_when_the_dependency_is_missing(self, tmp_path, monkeypatch):
         interpreter = _make_venv(tmp_path)
         monkeypatch.setenv(REENTRY_GUARD, "0")
-        monkeypatch.setattr(
-            "memory_enhancement.interpreter.dependency_available", lambda: False
-        )
+        monkeypatch.setattr("memory_enhancement.interpreter.dependency_available", lambda: False)
         calls = self._record_execv(monkeypatch)
 
         reexec_under_project_venv(tmp_path, ["hook.py"])
@@ -118,9 +114,7 @@ class TestReexecUnderProjectVenv:
     def test_sets_the_guard_so_the_child_cannot_loop(self, tmp_path, monkeypatch):
         _make_venv(tmp_path)
         monkeypatch.setenv(REENTRY_GUARD, "0")
-        monkeypatch.setattr(
-            "memory_enhancement.interpreter.dependency_available", lambda: False
-        )
+        monkeypatch.setattr("memory_enhancement.interpreter.dependency_available", lambda: False)
         self._record_execv(monkeypatch)
 
         reexec_under_project_venv(tmp_path, ["hook.py"])
@@ -131,9 +125,7 @@ class TestReexecUnderProjectVenv:
     def test_does_nothing_when_the_dependency_imports(self, tmp_path, monkeypatch):
         _make_venv(tmp_path)
         monkeypatch.setenv(REENTRY_GUARD, "0")
-        monkeypatch.setattr(
-            "memory_enhancement.interpreter.dependency_available", lambda: True
-        )
+        monkeypatch.setattr("memory_enhancement.interpreter.dependency_available", lambda: True)
         calls = self._record_execv(monkeypatch)
 
         reexec_under_project_venv(tmp_path, ["hook.py"])
@@ -144,9 +136,7 @@ class TestReexecUnderProjectVenv:
     def test_does_nothing_when_the_guard_is_already_set(self, tmp_path, monkeypatch):
         _make_venv(tmp_path)
         monkeypatch.setenv(REENTRY_GUARD, "1")
-        monkeypatch.setattr(
-            "memory_enhancement.interpreter.dependency_available", lambda: False
-        )
+        monkeypatch.setattr("memory_enhancement.interpreter.dependency_available", lambda: False)
         calls = self._record_execv(monkeypatch)
 
         reexec_under_project_venv(tmp_path, ["hook.py"])
@@ -156,9 +146,7 @@ class TestReexecUnderProjectVenv:
     @pytest.mark.unit
     def test_does_nothing_without_a_venv(self, tmp_path, monkeypatch):
         monkeypatch.setenv(REENTRY_GUARD, "0")
-        monkeypatch.setattr(
-            "memory_enhancement.interpreter.dependency_available", lambda: False
-        )
+        monkeypatch.setattr("memory_enhancement.interpreter.dependency_available", lambda: False)
         calls = self._record_execv(monkeypatch)
 
         reexec_under_project_venv(tmp_path, ["hook.py"])
@@ -166,9 +154,7 @@ class TestReexecUnderProjectVenv:
         assert calls == []
 
     @pytest.mark.unit
-    def test_does_nothing_when_already_running_under_that_venv(
-        self, tmp_path, monkeypatch
-    ):
+    def test_does_nothing_when_already_running_under_that_venv(self, tmp_path, monkeypatch):
         """The intended skip: this process belongs to the virtualenv found.
 
         Establishing that means setting ``sys.prefix``, which is what actually
@@ -179,12 +165,8 @@ class TestReexecUnderProjectVenv:
         """
         _make_venv(tmp_path)
         monkeypatch.setenv(REENTRY_GUARD, "0")
-        monkeypatch.setattr(
-            "memory_enhancement.interpreter.dependency_available", lambda: False
-        )
-        monkeypatch.setattr(
-            "memory_enhancement.interpreter.sys.prefix", str(tmp_path / ".venv")
-        )
+        monkeypatch.setattr("memory_enhancement.interpreter.dependency_available", lambda: False)
+        monkeypatch.setattr("memory_enhancement.interpreter.sys.prefix", str(tmp_path / ".venv"))
         calls = self._record_execv(monkeypatch)
 
         reexec_under_project_venv(tmp_path, ["hook.py"])
@@ -205,9 +187,7 @@ class TestReexecUnderProjectVenv:
         """
         interpreter = _make_symlinked_venv(tmp_path)
         monkeypatch.setenv(REENTRY_GUARD, "0")
-        monkeypatch.setattr(
-            "memory_enhancement.interpreter.dependency_available", lambda: False
-        )
+        monkeypatch.setattr("memory_enhancement.interpreter.dependency_available", lambda: False)
         monkeypatch.setattr(
             "memory_enhancement.interpreter.sys.prefix", str(tmp_path / "elsewhere")
         )
@@ -237,28 +217,20 @@ class TestRunningUnderVenv:
     def test_true_when_the_prefix_is_the_venv(self, tmp_path, monkeypatch):
         venv_dir = tmp_path / ".venv"
         venv_dir.mkdir()
-        monkeypatch.setattr(
-            "memory_enhancement.interpreter.sys.prefix", str(venv_dir)
-        )
+        monkeypatch.setattr("memory_enhancement.interpreter.sys.prefix", str(venv_dir))
 
         assert running_under_venv(venv_dir) is True
 
     @pytest.mark.unit
-    def test_false_when_the_prefix_is_the_base_installation(
-        self, tmp_path, monkeypatch
-    ):
+    def test_false_when_the_prefix_is_the_base_installation(self, tmp_path, monkeypatch):
         venv_dir = tmp_path / ".venv"
         venv_dir.mkdir()
-        monkeypatch.setattr(
-            "memory_enhancement.interpreter.sys.prefix", str(tmp_path / "usr")
-        )
+        monkeypatch.setattr("memory_enhancement.interpreter.sys.prefix", str(tmp_path / "usr"))
 
         assert running_under_venv(venv_dir) is False
 
     @pytest.mark.unit
     def test_false_for_a_venv_that_does_not_exist(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(
-            "memory_enhancement.interpreter.sys.prefix", str(tmp_path / "usr")
-        )
+        monkeypatch.setattr("memory_enhancement.interpreter.sys.prefix", str(tmp_path / "usr"))
 
         assert running_under_venv(tmp_path / "absent" / ".venv") is False

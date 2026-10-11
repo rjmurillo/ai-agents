@@ -78,17 +78,13 @@ class Assertion:
             if self.pattern is None:
                 raise ValueError("REGEX assertions require pattern")
             if self.expected_value is not None:
-                raise ValueError(
-                    "REGEX assertions must not set expected_value"
-                )
+                raise ValueError("REGEX assertions must not set expected_value")
             return
         if self.kind is AssertionKind.VERDICT:
             if self.expected_value is None:
                 raise ValueError("VERDICT assertions require expected_value")
             if self.pattern is not None:
-                raise ValueError(
-                    "VERDICT assertions must not set pattern"
-                )
+                raise ValueError("VERDICT assertions must not set pattern")
             return
         # Defensive fallthrough: AssertionKind is a closed enum, but a
         # future kind added without updating this guard would silently

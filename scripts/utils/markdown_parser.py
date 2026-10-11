@@ -142,9 +142,7 @@ def _block_token_shape(tokens: list) -> list:
     ]
 
 
-def _raise_if_nesting_truncated(
-    markdown: str, tokens: list, md: MarkdownIt
-) -> None:
+def _raise_if_nesting_truncated(markdown: str, tokens: list, md: MarkdownIt) -> None:
     """Fail closed when the primary parse dropped content at ``maxNesting``.
 
     The primary token stream cannot reveal truncation on its own: markdown-it
@@ -380,11 +378,7 @@ def _table_lookup_references(
             continue
         bare_target = token.content.strip()
         if bare_target:
-            references.append(
-                bare_target
-                if bare_target.endswith(".md")
-                else f"{bare_target}.md"
-            )
+            references.append(bare_target if bare_target.endswith(".md") else f"{bare_target}.md")
 
     return references, table_lines
 
@@ -592,9 +586,7 @@ def _code_span_end(markdown: str, markup: str, start: int, end: int) -> int:
     return close_start + len(markup)
 
 
-def _find_unescaped_occurrence(
-    markdown: str, content: str, start: int, end: int
-) -> int:
+def _find_unescaped_occurrence(markdown: str, content: str, start: int, end: int) -> int:
     """First position in ``markdown[start:end]`` where ``content`` occurs and
     is not backslash-escaped, or -1 if none exists.
 
@@ -730,9 +722,7 @@ def _html_comment_inline_ranges(
             continue
         start_line, end_line = token.map
         span_start = line_offsets[start_line]
-        span_end = (
-            line_offsets[end_line] if end_line < len(line_offsets) else len(markdown)
-        )
+        span_end = line_offsets[end_line] if end_line < len(line_offsets) else len(markdown)
         cursor = span_start
         for child in token.children:
             if child.type == "code_inline":
@@ -813,9 +803,7 @@ def _mask_inline_contexts(
             comment_start = line.find("<!--", position)
             backtick = _next_unescaped_backtick(line, position)
             backtick_start = backtick[0] if backtick is not None else -1
-            if comment_start >= 0 and (
-                backtick_start < 0 or comment_start < backtick_start
-            ):
+            if comment_start >= 0 and (backtick_start < 0 or comment_start < backtick_start):
                 in_comment = True
                 _mask_range(
                     characters,
@@ -846,9 +834,7 @@ def extract_lookup_references(markdown: str) -> list[str]:
     ignored_lines = _ignored_block_lines(tokens) | table_lines
     root_lines = _root_paragraph_lines(tokens) - ignored_lines
 
-    for line_number, line in enumerate(
-        _mask_inline_contexts(markdown, ignored_lines)
-    ):
+    for line_number, line in enumerate(_mask_inline_contexts(markdown, ignored_lines)):
         if line_number not in root_lines:
             continue
         if not line.startswith("|"):

@@ -78,11 +78,7 @@ def _concreteness_count(text: str) -> int:
 
     Near-zero concreteness usually signals fluent filler (feeds Layer 4).
     """
-    return (
-        len(_NUMBER.findall(text))
-        + len(_PATH.findall(text))
-        + len(_ENTITY.findall(text))
-    )
+    return len(_NUMBER.findall(text)) + len(_PATH.findall(text)) + len(_ENTITY.findall(text))
 
 
 def analyze(text: str) -> ProseStats:
@@ -137,9 +133,7 @@ def build_parser() -> argparse.ArgumentParser:
         description="Layer 3 burstiness/concreteness proxy for prose-self-check."
     )
     parser.add_argument("file", help="path to the prose artifact to analyze")
-    parser.add_argument(
-        "--json", action="store_true", help="emit machine-readable JSON"
-    )
+    parser.add_argument("--json", action="store_true", help="emit machine-readable JSON")
     return parser
 
 

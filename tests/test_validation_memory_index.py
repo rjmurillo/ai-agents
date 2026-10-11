@@ -46,9 +46,7 @@ from scripts.validation.memory_index import (
 # ---------------------------------------------------------------------------
 
 
-def create_memory_structure(
-    base: Path, files: dict[str, str]
-) -> None:
+def create_memory_structure(base: Path, files: dict[str, str]) -> None:
     """Create test memory files from a dictionary."""
     base.mkdir(parents=True, exist_ok=True)
     for name, content in files.items():
@@ -80,20 +78,14 @@ class TestParseIndexEntries:
 
     def test_skips_header_and_separator(self, tmp_path: Path) -> None:
         index = tmp_path / "skills-test-index.md"
-        index.write_text(
-            "| Keywords | File |\n"
-            "|----------|------|\n"
-            "| keyword1 | skill-file |\n"
-        )
+        index.write_text("| Keywords | File |\n|----------|------|\n| keyword1 | skill-file |\n")
         entries = parse_index_entries(index)
         assert len(entries) == 1
 
     def test_parses_markdown_links(self, tmp_path: Path) -> None:
         index = tmp_path / "skills-test-index.md"
         index.write_text(
-            "| Keywords | File |\n"
-            "|----------|------|\n"
-            "| alpha beta | [link-test](link-test.md) |\n"
+            "| Keywords | File |\n|----------|------|\n| alpha beta | [link-test](link-test.md) |\n"
         )
         entries = parse_index_entries(index)
         assert entries[0].file_name == "link-test"
@@ -116,10 +108,7 @@ class TestParseIndexEntries:
 
     def test_header_only_returns_empty(self, tmp_path: Path) -> None:
         index = tmp_path / "skills-test-index.md"
-        index.write_text(
-            "| Keywords | File |\n"
-            "|----------|------|\n"
-        )
+        index.write_text("| Keywords | File |\n|----------|------|\n")
         entries = parse_index_entries(index)
         assert entries == []
 
@@ -245,11 +234,13 @@ class TestCheckKeywordDensity:
         entries = [
             IndexEntry(
                 ["shared", "keyword", "overlap", "common", "alpha"],
-                "skill-one", "",
+                "skill-one",
+                "",
             ),
             IndexEntry(
                 ["shared", "keyword", "overlap", "common", "beta"],
-                "skill-two", "",
+                "skill-two",
+                "",
             ),
         ]
         result = check_keyword_density(entries)
@@ -295,11 +286,7 @@ class TestCheckIndexFormat:
 
     def test_pure_table_passes(self, tmp_path: Path) -> None:
         index = tmp_path / "index.md"
-        index.write_text(
-            "| Keywords | File |\n"
-            "|----------|------|\n"
-            "| alpha beta | skill-one |\n"
-        )
+        index.write_text("| Keywords | File |\n|----------|------|\n| alpha beta | skill-one |\n")
         result = check_index_format(index)
         assert result.passed is True
         assert not result.issues
@@ -307,10 +294,7 @@ class TestCheckIndexFormat:
     def test_title_detected(self, tmp_path: Path) -> None:
         index = tmp_path / "index.md"
         index.write_text(
-            "# Skills Index\n\n"
-            "| Keywords | File |\n"
-            "|----------|------|\n"
-            "| alpha | skill |\n"
+            "# Skills Index\n\n| Keywords | File |\n|----------|------|\n| alpha | skill |\n"
         )
         result = check_index_format(index)
         assert result.passed is False
@@ -334,10 +318,7 @@ class TestCheckIndexFormat:
     def test_navigation_section_detected(self, tmp_path: Path) -> None:
         index = tmp_path / "index.md"
         index.write_text(
-            "Parent: memory-index\n\n"
-            "| Keywords | File |\n"
-            "|----------|------|\n"
-            "| alpha | skill |\n"
+            "Parent: memory-index\n\n| Keywords | File |\n|----------|------|\n| alpha | skill |\n"
         )
         result = check_index_format(index)
         assert result.passed is False
@@ -381,12 +362,7 @@ class TestCheckIndexFormat:
         """Issue #4776: a domain index is a pure table, with no frontmatter."""
         index = tmp_path / "index.md"
         index.write_text(
-            "---\n"
-            "title: skills\n"
-            "---\n"
-            "| Keywords | File |\n"
-            "|----------|------|\n"
-            "| alpha | skill |\n"
+            "---\ntitle: skills\n---\n| Keywords | File |\n|----------|------|\n| alpha | skill |\n"
         )
         result = check_index_format(index)
         assert result.passed is False
@@ -421,10 +397,7 @@ class TestCheckIndexFormat:
     def test_heading_level_2_detected(self, tmp_path: Path) -> None:
         index = tmp_path / "index.md"
         index.write_text(
-            "## Secondary Heading\n\n"
-            "| Keywords | File |\n"
-            "|----------|------|\n"
-            "| alpha | skill |\n"
+            "## Secondary Heading\n\n| Keywords | File |\n|----------|------|\n| alpha | skill |\n"
         )
         result = check_index_format(index)
         assert result.passed is False
@@ -528,9 +501,7 @@ class TestCheckMemoryIndexReferences:
         assert result.passed is False
         assert any("not found" in i for i in result.issues)
 
-    def test_option_like_base_ref_fails_closed(
-        self, tmp_path: Path
-    ) -> None:
+    def test_option_like_base_ref_fails_closed(self, tmp_path: Path) -> None:
         counts, error = _load_base_reference_counts(
             tmp_path,
             "--octopus",
@@ -539,9 +510,7 @@ class TestCheckMemoryIndexReferences:
         assert counts is None
         assert error == "invalid base ref: '--octopus'"
 
-    def test_loads_canonical_base_reference_counts(
-        self, tmp_path: Path
-    ) -> None:
+    def test_loads_canonical_base_reference_counts(self, tmp_path: Path) -> None:
         memory_path = tmp_path / ".serena" / "memories"
         memory_path.mkdir(parents=True)
         commit_id = "a" * 40
@@ -614,13 +583,11 @@ class TestCheckMemoryIndexReferences:
             ),
             (
                 3,
-                "could not read .serena/memories/memory-index.md "
-                f"at base ref {'a' * 40}",
+                f"could not read .serena/memories/memory-index.md at base ref {'a' * 40}",
             ),
             (
                 4,
-                "could not inspect .serena/memories at base ref "
-                f"{'a' * 40}",
+                f"could not inspect .serena/memories at base ref {'a' * 40}",
             ),
         ],
     )
@@ -659,9 +626,7 @@ class TestCheckMemoryIndexReferences:
         assert counts is None
         assert error == expected_error
 
-    def test_malformed_tree_output_fails_closed(
-        self, tmp_path: Path
-    ) -> None:
+    def test_malformed_tree_output_fails_closed(self, tmp_path: Path) -> None:
         memory_path = tmp_path / ".serena" / "memories"
         memory_path.mkdir(parents=True)
         commit_id = "a" * 40
@@ -685,9 +650,7 @@ class TestCheckMemoryIndexReferences:
         assert counts is None
         assert error == "could not parse base-ref tree output"
 
-    def test_base_counts_come_from_merge_base_not_base_tip(
-        self, tmp_path: Path
-    ) -> None:
+    def test_base_counts_come_from_merge_base_not_base_tip(self, tmp_path: Path) -> None:
         repo = tmp_path / "repo"
         memory_path = repo / ".serena" / "memories"
         memory_path.mkdir(parents=True)
@@ -705,8 +668,7 @@ class TestCheckMemoryIndexReferences:
 
         def write_index(link_count: int) -> None:
             rows = "".join(
-                f"| keywords {index}: [entry {index}](shared.md)\n"
-                for index in range(link_count)
+                f"| keywords {index}: [entry {index}](shared.md)\n" for index in range(link_count)
             )
             (memory_path / "memory-index.md").write_text(rows)
             (memory_path / "shared.md").write_text("content")
@@ -746,9 +708,7 @@ class TestCheckMemoryIndexReferences:
         assert result.passed is False
         assert result.duplicate_references == ["shared"]
 
-    def test_symbolic_link_in_base_tree_fails_closed(
-        self, tmp_path: Path
-    ) -> None:
+    def test_symbolic_link_in_base_tree_fails_closed(self, tmp_path: Path) -> None:
         memory_path = tmp_path / ".serena" / "memories"
         memory_path.mkdir(parents=True)
         commit_id = "a" * 40
@@ -779,14 +739,9 @@ class TestCheckMemoryIndexReferences:
             )
 
         assert counts is None
-        assert error == (
-            "base memory-index target is a symbolic link: "
-            ".serena/memories/shared.md"
-        )
+        assert error == ("base memory-index target is a symbolic link: .serena/memories/shared.md")
 
-    def test_symbolic_link_ancestor_in_base_tree_fails_closed(
-        self, tmp_path: Path
-    ) -> None:
+    def test_symbolic_link_ancestor_in_base_tree_fails_closed(self, tmp_path: Path) -> None:
         memory_path = tmp_path / ".serena" / "memories"
         memory_path.mkdir(parents=True)
         commit_id = "a" * 40
@@ -799,10 +754,7 @@ class TestCheckMemoryIndexReferences:
             subprocess.CompletedProcess(
                 [],
                 0,
-                (
-                    "120000 blob bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-                    "\t.serena/memories/alias\0"
-                ),
+                ("120000 blob bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\t.serena/memories/alias\0"),
                 "",
             ),
         ]
@@ -818,13 +770,10 @@ class TestCheckMemoryIndexReferences:
 
         assert counts is None
         assert error == (
-            "base memory-index target is a symbolic link: "
-            ".serena/memories/alias/shared.md"
+            "base memory-index target is a symbolic link: .serena/memories/alias/shared.md"
         )
 
-    def test_removed_symlink_component_in_base_tree_fails_closed(
-        self, tmp_path: Path
-    ) -> None:
+    def test_removed_symlink_component_in_base_tree_fails_closed(self, tmp_path: Path) -> None:
         memory_path = tmp_path / ".serena" / "memories"
         memory_path.mkdir(parents=True)
         commit_id = "a" * 40
@@ -837,10 +786,7 @@ class TestCheckMemoryIndexReferences:
             subprocess.CompletedProcess(
                 [],
                 0,
-                (
-                    "120000 blob bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-                    "\t.serena/memories/alias\0"
-                ),
+                ("120000 blob bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\t.serena/memories/alias\0"),
                 "",
             ),
         ]
@@ -855,33 +801,33 @@ class TestCheckMemoryIndexReferences:
             )
 
         assert counts is None
-        assert error == (
-            "base memory-index target is a symbolic link: "
-            ".serena/memories/shared.md"
-        )
+        assert error == ("base memory-index target is a symbolic link: .serena/memories/shared.md")
 
     def test_valid_references(self, tmp_path: Path) -> None:
-        create_memory_structure(tmp_path, {
-            "memory-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-                "| test | "
-                "[skills-test-index](skills-test-index.md) |\n"
-            ),
-            "skills-test-index.md": "| Keywords | File |\n",
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "memory-index.md": (
+                    "| Keywords | File |\n"
+                    "|----------|------|\n"
+                    "| test | "
+                    "[skills-test-index](skills-test-index.md) |\n"
+                ),
+                "skills-test-index.md": "| Keywords | File |\n",
+            },
+        )
         indices = [DomainIndex(tmp_path / "skills-test-index.md", "skills-test-index", "test")]
         result = check_memory_index_references(tmp_path, indices, Counter())
         assert result.passed is True
 
     def test_unreferenced_domain_index(self, tmp_path: Path) -> None:
-        create_memory_structure(tmp_path, {
-            "memory-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-            ),
-            "skills-test-index.md": "content",
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "memory-index.md": ("| Keywords | File |\n|----------|------|\n"),
+                "skills-test-index.md": "content",
+            },
+        )
         indices = [DomainIndex(tmp_path / "skills-test-index.md", "skills-test-index", "test")]
         result = check_memory_index_references(tmp_path, indices, Counter())
         assert result.passed is False
@@ -892,7 +838,7 @@ class TestCheckMemoryIndexReferences:
         [
             "<!-- [entry](skills-test-index.md) -->\n",
             "`[entry](skills-test-index.md)`\n",
-            "<a href=\"skills-test-index.md\">entry</a>\n",
+            '<a href="skills-test-index.md">entry</a>\n',
         ],
     )
     def test_non_links_do_not_satisfy_completeness(
@@ -900,10 +846,13 @@ class TestCheckMemoryIndexReferences:
         tmp_path: Path,
         decoy: str,
     ) -> None:
-        create_memory_structure(tmp_path, {
-            "memory-index.md": decoy,
-            "skills-test-index.md": "content",
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "memory-index.md": decoy,
+                "skills-test-index.md": "content",
+            },
+        )
         indices = [
             DomainIndex(
                 tmp_path / "skills-test-index.md",
@@ -921,16 +870,16 @@ class TestCheckMemoryIndexReferences:
         assert result.passed is False
         assert result.unreferenced_indices == ["skills-test-index"]
 
-    def test_canonical_reference_link_satisfies_completeness(
-        self, tmp_path: Path
-    ) -> None:
-        create_memory_structure(tmp_path, {
-            "memory-index.md": (
-                "| keywords: [entry][domain]\n\n"
-                "[domain]: ./skills-test-index.md\n"
-            ),
-            "skills-test-index.md": "content",
-        })
+    def test_canonical_reference_link_satisfies_completeness(self, tmp_path: Path) -> None:
+        create_memory_structure(
+            tmp_path,
+            {
+                "memory-index.md": (
+                    "| keywords: [entry][domain]\n\n[domain]: ./skills-test-index.md\n"
+                ),
+                "skills-test-index.md": "content",
+            },
+        )
         indices = [
             DomainIndex(
                 tmp_path / "skills-test-index.md",
@@ -948,16 +897,15 @@ class TestCheckMemoryIndexReferences:
         assert result.passed is True
         assert result.unreferenced_indices == []
 
-    def test_parser_nesting_exhaustion_fails_closed(
-        self, tmp_path: Path
-    ) -> None:
+    def test_parser_nesting_exhaustion_fails_closed(self, tmp_path: Path) -> None:
         quote = ">" * 20 + " "
-        create_memory_structure(tmp_path, {
-            "memory-index.md": (
-                f"{quote}[entry](skills-test-index.md)\n"
-            ),
-            "skills-test-index.md": "content",
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "memory-index.md": (f"{quote}[entry](skills-test-index.md)\n"),
+                "skills-test-index.md": "content",
+            },
+        )
         indices = [
             DomainIndex(
                 tmp_path / "skills-test-index.md",
@@ -973,19 +921,18 @@ class TestCheckMemoryIndexReferences:
         )
 
         assert result.passed is False
-        assert any(
-            "maxNesting" in issue
-            for issue in result.issues
-        )
+        assert any("maxNesting" in issue for issue in result.issues)
 
     def test_duplicate_target_path(self, tmp_path: Path) -> None:
-        create_memory_structure(tmp_path, {
-            "memory-index.md": (
-                "| first keywords: [first](shared.md)\n"
-                "| second keywords: [second](shared.md)\n"
-            ),
-            "shared.md": "content",
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "memory-index.md": (
+                    "| first keywords: [first](shared.md)\n| second keywords: [second](shared.md)\n"
+                ),
+                "shared.md": "content",
+            },
+        )
 
         result = check_memory_index_references(tmp_path, [], Counter())
 
@@ -993,15 +940,14 @@ class TestCheckMemoryIndexReferences:
         assert result.duplicate_references == ["shared"]
         assert any("P0 DUPLICATE" in issue for issue in result.issues)
 
-    def test_space_separated_links_count_as_duplicates(
-        self, tmp_path: Path
-    ) -> None:
-        create_memory_structure(tmp_path, {
-            "memory-index.md": (
-                "| keywords | [one](shared.md) [two](shared.md) |\n"
-            ),
-            "shared.md": "content",
-        })
+    def test_space_separated_links_count_as_duplicates(self, tmp_path: Path) -> None:
+        create_memory_structure(
+            tmp_path,
+            {
+                "memory-index.md": ("| keywords | [one](shared.md) [two](shared.md) |\n"),
+                "shared.md": "content",
+            },
+        )
 
         result = check_memory_index_references(
             tmp_path,
@@ -1012,17 +958,16 @@ class TestCheckMemoryIndexReferences:
         assert result.passed is False
         assert result.duplicate_references == ["shared"]
 
-    def test_unparsed_file_cell_content_rejected(
-        self, tmp_path: Path
-    ) -> None:
-        create_memory_structure(tmp_path, {
-            "memory-index.md": (
-                "| keywords | file |\n"
-                "|---|---|\n"
-                "| keywords | prefix [entry](shared.md) |\n"
-            ),
-            "shared.md": "content",
-        })
+    def test_unparsed_file_cell_content_rejected(self, tmp_path: Path) -> None:
+        create_memory_structure(
+            tmp_path,
+            {
+                "memory-index.md": (
+                    "| keywords | file |\n|---|---|\n| keywords | prefix [entry](shared.md) |\n"
+                ),
+                "shared.md": "content",
+            },
+        )
 
         result = check_memory_index_references(
             tmp_path,
@@ -1031,10 +976,7 @@ class TestCheckMemoryIndexReferences:
         )
 
         assert result.passed is False
-        assert any(
-            "unparsed content" in issue
-            for issue in result.issues
-        )
+        assert any("unparsed content" in issue for issue in result.issues)
 
     @pytest.mark.parametrize(
         "reference_content",
@@ -1049,13 +991,13 @@ class TestCheckMemoryIndexReferences:
         tmp_path: Path,
         reference_content: str,
     ) -> None:
-        create_memory_structure(tmp_path, {
-            "memory-index.md": (
-                "[one](shared.md)\n\n"
-                f"{reference_content}"
-            ),
-            "shared.md": "content",
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "memory-index.md": (f"[one](shared.md)\n\n{reference_content}"),
+                "shared.md": "content",
+            },
+        )
 
         result = check_memory_index_references(
             tmp_path,
@@ -1070,14 +1012,8 @@ class TestCheckMemoryIndexReferences:
         "unsupported_content",
         [
             "| hidden | [two][missing] |\n",
-            (
-                "| hidden | "
-                "[outer [inner](shared.md)](other.md) |\n"
-            ),
-            (
-                "| hidden | "
-                "[outer ![inner](shared.md)](other.md) |\n"
-            ),
+            ("| hidden | [outer [inner](shared.md)](other.md) |\n"),
+            ("| hidden | [outer ![inner](shared.md)](other.md) |\n"),
         ],
     )
     def test_unresolved_or_nested_link_syntax_fails_closed(
@@ -1085,11 +1021,14 @@ class TestCheckMemoryIndexReferences:
         tmp_path: Path,
         unsupported_content: str,
     ) -> None:
-        create_memory_structure(tmp_path, {
-            "memory-index.md": unsupported_content,
-            "shared.md": "content",
-            "other.md": "content",
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "memory-index.md": unsupported_content,
+                "shared.md": "content",
+                "other.md": "content",
+            },
+        )
 
         result = check_memory_index_references(
             tmp_path,
@@ -1099,25 +1038,25 @@ class TestCheckMemoryIndexReferences:
 
         assert result.passed is False
         assert any(
-            "unresolved link syntax" in issue
-            or "images are unsupported" in issue
+            "unresolved link syntax" in issue or "images are unsupported" in issue
             for issue in result.issues
         )
 
-    def test_unsupported_link_syntax_in_code_is_ignored(
-        self, tmp_path: Path
-    ) -> None:
-        create_memory_structure(tmp_path, {
-            "memory-index.md": (
-                "| direct | [one](shared.md) |\n"
-                "`[inline][ref]`\n"
-                "```markdown\n"
-                "[ref]: shared.md\n"
-                "[outer [inner](shared.md)](other.md)\n"
-                "```\n"
-            ),
-            "shared.md": "content",
-        })
+    def test_unsupported_link_syntax_in_code_is_ignored(self, tmp_path: Path) -> None:
+        create_memory_structure(
+            tmp_path,
+            {
+                "memory-index.md": (
+                    "| direct | [one](shared.md) |\n"
+                    "`[inline][ref]`\n"
+                    "```markdown\n"
+                    "[ref]: shared.md\n"
+                    "[outer [inner](shared.md)](other.md)\n"
+                    "```\n"
+                ),
+                "shared.md": "content",
+            },
+        )
 
         result = check_memory_index_references(
             tmp_path,
@@ -1128,17 +1067,15 @@ class TestCheckMemoryIndexReferences:
         assert result.passed is True
         assert result.duplicate_references == []
 
-    def test_normal_inline_links_still_pass(
-        self, tmp_path: Path
-    ) -> None:
-        create_memory_structure(tmp_path, {
-            "memory-index.md": (
-                "| first | [one](shared.md) |\n"
-                "| second | [two](other.md) |\n"
-            ),
-            "shared.md": "content",
-            "other.md": "content",
-        })
+    def test_normal_inline_links_still_pass(self, tmp_path: Path) -> None:
+        create_memory_structure(
+            tmp_path,
+            {
+                "memory-index.md": ("| first | [one](shared.md) |\n| second | [two](other.md) |\n"),
+                "shared.md": "content",
+                "other.md": "content",
+            },
+        )
 
         result = check_memory_index_references(
             tmp_path,
@@ -1155,16 +1092,14 @@ class TestCheckMemoryIndexReferences:
             '[two](shared.md\n "title")',
         ],
     )
-    def test_multiline_link_duplicate_counted(
-        self, tmp_path: Path, multiline_link: str
-    ) -> None:
-        create_memory_structure(tmp_path, {
-            "memory-index.md": (
-                "| direct: [one](shared.md)\n"
-                f"| hidden: {multiline_link}\n"
-            ),
-            "shared.md": "content",
-        })
+    def test_multiline_link_duplicate_counted(self, tmp_path: Path, multiline_link: str) -> None:
+        create_memory_structure(
+            tmp_path,
+            {
+                "memory-index.md": (f"| direct: [one](shared.md)\n| hidden: {multiline_link}\n"),
+                "shared.md": "content",
+            },
+        )
 
         result = check_memory_index_references(
             tmp_path,
@@ -1175,18 +1110,16 @@ class TestCheckMemoryIndexReferences:
         assert result.passed is False
         assert result.duplicate_references == ["shared"]
 
-    def test_invalid_backtick_fence_does_not_hide_link(
-        self, tmp_path: Path
-    ) -> None:
-        create_memory_structure(tmp_path, {
-            "memory-index.md": (
-                "| direct: [one](shared.md)\n"
-                "``` bad`info\n"
-                "| hidden: [two](shared.md)\n"
-                "```\n"
-            ),
-            "shared.md": "content",
-        })
+    def test_invalid_backtick_fence_does_not_hide_link(self, tmp_path: Path) -> None:
+        create_memory_structure(
+            tmp_path,
+            {
+                "memory-index.md": (
+                    "| direct: [one](shared.md)\n``` bad`info\n| hidden: [two](shared.md)\n```\n"
+                ),
+                "shared.md": "content",
+            },
+        )
 
         result = check_memory_index_references(
             tmp_path,
@@ -1197,22 +1130,23 @@ class TestCheckMemoryIndexReferences:
         assert result.passed is False
         assert result.duplicate_references == ["shared"]
 
-    def test_valid_fences_and_code_spans_ignore_links(
-        self, tmp_path: Path
-    ) -> None:
-        create_memory_structure(tmp_path, {
-            "memory-index.md": (
-                "| direct: [one](shared.md)\n"
-                "`[inline](shared.md)`\n"
-                "````markdown\n"
-                "[fenced](shared.md)\n"
-                "````\n"
-                "~~~markdown\n"
-                "[tilde](shared.md)\n"
-                "~~~\n"
-            ),
-            "shared.md": "content",
-        })
+    def test_valid_fences_and_code_spans_ignore_links(self, tmp_path: Path) -> None:
+        create_memory_structure(
+            tmp_path,
+            {
+                "memory-index.md": (
+                    "| direct: [one](shared.md)\n"
+                    "`[inline](shared.md)`\n"
+                    "````markdown\n"
+                    "[fenced](shared.md)\n"
+                    "````\n"
+                    "~~~markdown\n"
+                    "[tilde](shared.md)\n"
+                    "~~~\n"
+                ),
+                "shared.md": "content",
+            },
+        )
 
         result = check_memory_index_references(
             tmp_path,
@@ -1235,13 +1169,13 @@ class TestCheckMemoryIndexReferences:
         tmp_path: Path,
         raw_html: str,
     ) -> None:
-        create_memory_structure(tmp_path, {
-            "memory-index.md": (
-                "| direct: [one](shared.md)\n"
-                f"{raw_html}\n"
-            ),
-            "shared.md": "content",
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "memory-index.md": (f"| direct: [one](shared.md)\n{raw_html}\n"),
+                "shared.md": "content",
+            },
+        )
 
         result = check_memory_index_references(
             tmp_path,
@@ -1252,16 +1186,14 @@ class TestCheckMemoryIndexReferences:
         assert result.passed is True
         assert result.duplicate_references == []
 
-    def test_link_after_void_raw_html_still_counts(
-        self, tmp_path: Path
-    ) -> None:
-        create_memory_structure(tmp_path, {
-            "memory-index.md": (
-                "| direct: [one](shared.md)\n"
-                "<br> [two](shared.md)\n"
-            ),
-            "shared.md": "content",
-        })
+    def test_link_after_void_raw_html_still_counts(self, tmp_path: Path) -> None:
+        create_memory_structure(
+            tmp_path,
+            {
+                "memory-index.md": ("| direct: [one](shared.md)\n<br> [two](shared.md)\n"),
+                "shared.md": "content",
+            },
+        )
 
         result = check_memory_index_references(
             tmp_path,
@@ -1273,46 +1205,50 @@ class TestCheckMemoryIndexReferences:
         assert result.duplicate_references == ["shared"]
 
     def test_dot_alias_counts_as_same_target(self, tmp_path: Path) -> None:
-        create_memory_structure(tmp_path, {
-            "memory-index.md": (
-                "| first keywords: [first](shared.md)\n"
-                "| second keywords: [second](./shared.md)\n"
-            ),
-            "shared.md": "content",
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "memory-index.md": (
+                    "| first keywords: [first](shared.md)\n"
+                    "| second keywords: [second](./shared.md)\n"
+                ),
+                "shared.md": "content",
+            },
+        )
 
         result = check_memory_index_references(tmp_path, [], Counter())
 
         assert result.passed is False
         assert result.duplicate_references == ["shared"]
 
-    def test_section_relative_alias_counts_as_same_target(
-        self, tmp_path: Path
-    ) -> None:
-        create_memory_structure(tmp_path, {
-            "memory-index.md": (
-                "| first keywords: [first](shared.md)\n"
-                "| second keywords: [second](section/../shared.md)\n"
-            ),
-            "shared.md": "content",
-        })
+    def test_section_relative_alias_counts_as_same_target(self, tmp_path: Path) -> None:
+        create_memory_structure(
+            tmp_path,
+            {
+                "memory-index.md": (
+                    "| first keywords: [first](shared.md)\n"
+                    "| second keywords: [second](section/../shared.md)\n"
+                ),
+                "shared.md": "content",
+            },
+        )
 
         result = check_memory_index_references(tmp_path, [], Counter())
 
         assert result.passed is False
         assert result.duplicate_references == ["shared"]
 
-    def test_case_alias_uses_platform_case_semantics(
-        self, tmp_path: Path
-    ) -> None:
-        create_memory_structure(tmp_path, {
-            "memory-index.md": (
-                "| first keywords: [first](Shared.md)\n"
-                "| second keywords: [second](shared.md)\n"
-            ),
-            "Shared.md": "content",
-            "shared.md": "content",
-        })
+    def test_case_alias_uses_platform_case_semantics(self, tmp_path: Path) -> None:
+        create_memory_structure(
+            tmp_path,
+            {
+                "memory-index.md": (
+                    "| first keywords: [first](Shared.md)\n| second keywords: [second](shared.md)\n"
+                ),
+                "Shared.md": "content",
+                "shared.md": "content",
+            },
+        )
 
         with patch(
             "scripts.validation.memory_index.os.path.normcase",
@@ -1341,9 +1277,7 @@ class TestCheckMemoryIndexReferences:
         decoy = tmp_path / decoy_path
         decoy.parent.mkdir(parents=True, exist_ok=True)
         decoy.write_text("content")
-        (tmp_path / "memory-index.md").write_text(
-            f"| keywords: [entry]({destination})\n"
-        )
+        (tmp_path / "memory-index.md").write_text(f"| keywords: [entry]({destination})\n")
 
         result = check_memory_index_references(
             tmp_path,
@@ -1352,10 +1286,7 @@ class TestCheckMemoryIndexReferences:
         )
 
         assert result.passed is False
-        assert any(
-            "destination" in issue
-            for issue in result.issues
-        )
+        assert any("destination" in issue for issue in result.issues)
         assert result.duplicate_references == []
 
     @pytest.mark.parametrize(
@@ -1370,13 +1301,13 @@ class TestCheckMemoryIndexReferences:
     def test_parser_normalized_alias_counts_as_duplicate(
         self, tmp_path: Path, destination: str
     ) -> None:
-        create_memory_structure(tmp_path, {
-            "memory-index.md": (
-                "| direct: [one](shared.md)\n"
-                f"| alias: [two]({destination})\n"
-            ),
-            "shared.md": "content",
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "memory-index.md": (f"| direct: [one](shared.md)\n| alias: [two]({destination})\n"),
+                "shared.md": "content",
+            },
+        )
 
         result = check_memory_index_references(
             tmp_path,
@@ -1387,14 +1318,10 @@ class TestCheckMemoryIndexReferences:
         assert result.passed is False
         assert result.duplicate_references == ["shared"]
 
-    def test_symbolic_link_target_rejected(
-        self, tmp_path: Path
-    ) -> None:
+    def test_symbolic_link_target_rejected(self, tmp_path: Path) -> None:
         (tmp_path / "target.md").write_text("content")
         (tmp_path / "shared.md").symlink_to("target.md")
-        (tmp_path / "memory-index.md").write_text(
-            "| keywords: [entry](shared.md)\n"
-        )
+        (tmp_path / "memory-index.md").write_text("| keywords: [entry](shared.md)\n")
 
         result = check_memory_index_references(
             tmp_path,
@@ -1403,21 +1330,14 @@ class TestCheckMemoryIndexReferences:
         )
 
         assert result.passed is False
-        assert any(
-            "symbolic link" in issue
-            for issue in result.issues
-        )
+        assert any("symbolic link" in issue for issue in result.issues)
 
-    def test_symbolic_link_ancestor_rejected(
-        self, tmp_path: Path
-    ) -> None:
+    def test_symbolic_link_ancestor_rejected(self, tmp_path: Path) -> None:
         target_dir = tmp_path / "target"
         target_dir.mkdir()
         (target_dir / "shared.md").write_text("content")
         (tmp_path / "alias").symlink_to(target_dir, target_is_directory=True)
-        (tmp_path / "memory-index.md").write_text(
-            "| keywords: [entry](alias/shared.md)\n"
-        )
+        (tmp_path / "memory-index.md").write_text("| keywords: [entry](alias/shared.md)\n")
 
         result = check_memory_index_references(
             tmp_path,
@@ -1426,10 +1346,7 @@ class TestCheckMemoryIndexReferences:
         )
 
         assert result.passed is False
-        assert any(
-            "symbolic link" in issue
-            for issue in result.issues
-        )
+        assert any("symbolic link" in issue for issue in result.issues)
 
     @pytest.mark.parametrize(
         ("base_count", "head_count", "expected_pass"),
@@ -1451,8 +1368,7 @@ class TestCheckMemoryIndexReferences:
         file_name = "shared"
         (tmp_path / "shared.md").write_text("content")
         rows = "".join(
-            f"| keywords {index}: [entry {index}]({file_name}.md)\n"
-            for index in range(head_count)
+            f"| keywords {index}: [entry {index}]({file_name}.md)\n" for index in range(head_count)
         )
         (tmp_path / "memory-index.md").write_text(rows)
         base_counts = Counter({file_name: base_count})
@@ -1469,8 +1385,7 @@ class TestCheckMemoryIndexReferences:
         if not expected_pass:
             allowed_count = max(base_count, 1)
             assert any(
-                f"{head_count} times, allowed {allowed_count}" in issue
-                for issue in result.issues
+                f"{head_count} times, allowed {allowed_count}" in issue for issue in result.issues
             )
 
     @pytest.mark.parametrize(
@@ -1503,35 +1418,36 @@ class TestCheckMemoryIndexReferences:
 
         assert result.passed is False
         assert result.duplicate_references == [file_name]
-        assert any(
-            "3 times, allowed 2" in issue
-            for issue in result.issues
-        )
+        assert any("3 times, allowed 2" in issue for issue in result.issues)
 
     def test_unreferenced_generic_domain_index(self, tmp_path: Path) -> None:
         """Completeness covers every ADR-017 {domain}-index file."""
-        create_memory_structure(tmp_path, {
-            "memory-index.md": "| Keywords | File |\n|----------|------|\n",
-            "quality-index.md": "| Keywords | File |\n|----------|------|\n",
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "memory-index.md": "| Keywords | File |\n|----------|------|\n",
+                "quality-index.md": "| Keywords | File |\n|----------|------|\n",
+            },
+        )
 
         result = check_memory_index_references(tmp_path, [], Counter())
 
         assert result.passed is False
         assert result.unreferenced_indices == ["quality-index"]
 
-    def test_comment_and_link_label_do_not_satisfy_completeness(
-        self, tmp_path: Path
-    ) -> None:
+    def test_comment_and_link_label_do_not_satisfy_completeness(self, tmp_path: Path) -> None:
         """Only an exact lookup target makes a domain index retrievable."""
-        create_memory_structure(tmp_path, {
-            "memory-index.md": (
-                "| hidden: <!-- [quality](quality-index.md) -->\n"
-                "| label: [quality-index](other.md)\n"
-            ),
-            "quality-index.md": "| Keywords | File |\n|----------|------|\n",
-            "other.md": "other",
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "memory-index.md": (
+                    "| hidden: <!-- [quality](quality-index.md) -->\n"
+                    "| label: [quality-index](other.md)\n"
+                ),
+                "quality-index.md": "| Keywords | File |\n|----------|------|\n",
+                "other.md": "other",
+            },
+        )
 
         result = check_memory_index_references(tmp_path, [], Counter())
 
@@ -1539,26 +1455,30 @@ class TestCheckMemoryIndexReferences:
         assert result.unreferenced_indices == ["quality-index"]
 
     def test_broken_reference(self, tmp_path: Path) -> None:
-        create_memory_structure(tmp_path, {
-            "memory-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-                "| test | nonexistent-file |\n"
-            ),
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "memory-index.md": (
+                    "| Keywords | File |\n|----------|------|\n| test | nonexistent-file |\n"
+                ),
+            },
+        )
         result = check_memory_index_references(tmp_path, [], Counter())
         assert result.passed is False
         assert "nonexistent-file" in result.broken_references
 
     def test_markdown_link_in_memory_index(self, tmp_path: Path) -> None:
-        create_memory_structure(tmp_path, {
-            "memory-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-                "| test | [skills-test-index](skills-test-index.md) |\n"
-            ),
-            "skills-test-index.md": "content",
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "memory-index.md": (
+                    "| Keywords | File |\n"
+                    "|----------|------|\n"
+                    "| test | [skills-test-index](skills-test-index.md) |\n"
+                ),
+                "skills-test-index.md": "content",
+            },
+        )
         indices = [DomainIndex(tmp_path / "skills-test-index.md", "skills-test-index", "test")]
         result = check_memory_index_references(tmp_path, indices, Counter())
         assert result.passed is True
@@ -1566,14 +1486,17 @@ class TestCheckMemoryIndexReferences:
 
     def test_pipe_delimited_format(self, tmp_path: Path) -> None:
         """Pipe-delimited memory-index format is validated correctly."""
-        create_memory_structure(tmp_path, {
-            "memory-index.md": (
-                "# Memory Index\n\n"
-                "[Session and Protocol]\n"
-                "|session start init: [skills-session-init-index](skills-session-init-index.md)\n"
-            ),
-            "skills-session-init-index.md": "content",
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "memory-index.md": (
+                    "# Memory Index\n\n"
+                    "[Session and Protocol]\n"
+                    "|session start init: [skills-session-init-index](skills-session-init-index.md)\n"
+                ),
+                "skills-session-init-index.md": "content",
+            },
+        )
         indices = [
             DomainIndex(
                 tmp_path / "skills-session-init-index.md",
@@ -1587,40 +1510,45 @@ class TestCheckMemoryIndexReferences:
 
     def test_pipe_delimited_broken_reference(self, tmp_path: Path) -> None:
         """Pipe-delimited format detects broken references."""
-        create_memory_structure(tmp_path, {
-            "memory-index.md": (
-                "[Section]\n"
-                "|keywords: [nonexistent](nonexistent.md)\n"
-            ),
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "memory-index.md": ("[Section]\n|keywords: [nonexistent](nonexistent.md)\n"),
+            },
+        )
         result = check_memory_index_references(tmp_path, [], Counter())
         assert result.passed is False
         assert "nonexistent" in result.broken_references
 
     def test_pipe_delimited_multiple_links(self, tmp_path: Path) -> None:
         """Pipe-delimited format with multiple comma-separated links."""
-        create_memory_structure(tmp_path, {
-            "memory-index.md": (
-                "[Section]\n"
-                "|keywords: [index-a](index-a.md), [index-b](index-b.md)\n"
-            ),
-            "index-a.md": "content",
-            "index-b.md": "content",
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "memory-index.md": (
+                    "[Section]\n|keywords: [index-a](index-a.md), [index-b](index-b.md)\n"
+                ),
+                "index-a.md": "content",
+                "index-b.md": "content",
+            },
+        )
         result = check_memory_index_references(tmp_path, [], Counter())
         assert result.passed is True
         assert not result.broken_references
 
     def test_duplicate_link_targets_fail(self, tmp_path: Path) -> None:
         """Issue #4705: memory-index must not point at one target twice."""
-        create_memory_structure(tmp_path, {
-            "memory-index.md": (
-                "[Section]\n"
-                "|alpha beta: [one](shared.md)\n"
-                "|gamma delta: [also one](shared.md)\n"
-            ),
-            "shared.md": "content",
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "memory-index.md": (
+                    "[Section]\n"
+                    "|alpha beta: [one](shared.md)\n"
+                    "|gamma delta: [also one](shared.md)\n"
+                ),
+                "shared.md": "content",
+            },
+        )
 
         result = check_memory_index_references(tmp_path, [])
 
@@ -1629,14 +1557,17 @@ class TestCheckMemoryIndexReferences:
         assert any("Duplicate memory-index target" in issue for issue in result.issues)
 
     def test_duplicate_alias_link_targets_fail(self, tmp_path: Path) -> None:
-        create_memory_structure(tmp_path, {
-            "memory-index.md": (
-                "[Section]\n"
-                "|alpha beta: [one](shared.md)\n"
-                "|gamma delta: [also one](./shared.md)\n"
-            ),
-            "shared.md": "content",
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "memory-index.md": (
+                    "[Section]\n"
+                    "|alpha beta: [one](shared.md)\n"
+                    "|gamma delta: [also one](./shared.md)\n"
+                ),
+                "shared.md": "content",
+            },
+        )
 
         result = check_memory_index_references(tmp_path, [])
 
@@ -1646,14 +1577,17 @@ class TestCheckMemoryIndexReferences:
 
     def test_path_traversal_detected(self, tmp_path: Path) -> None:
         memory_path = tmp_path / "memories"
-        create_memory_structure(memory_path, {
-            "memory-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-                "| evil | ../outside |\n"
-                "| alias | .././outside |\n"
-            ),
-        })
+        create_memory_structure(
+            memory_path,
+            {
+                "memory-index.md": (
+                    "| Keywords | File |\n"
+                    "|----------|------|\n"
+                    "| evil | ../outside |\n"
+                    "| alias | .././outside |\n"
+                ),
+            },
+        )
         (tmp_path / "outside.md").write_text("content")
 
         result = check_memory_index_references(memory_path, [], Counter())
@@ -1672,28 +1606,30 @@ class TestFindOrphanedFiles:
     """Tests for orphan detection (P1)."""
 
     def test_no_orphans(self, tmp_path: Path) -> None:
-        create_memory_structure(tmp_path, {
-            "skills-test-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-                "| alpha | test-skill |\n"
-            ),
-            "test-skill.md": "content",
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "skills-test-index.md": (
+                    "| Keywords | File |\n|----------|------|\n| alpha | test-skill |\n"
+                ),
+                "test-skill.md": "content",
+            },
+        )
         indices = find_domain_indices(tmp_path)
         orphans = find_orphaned_files(indices, tmp_path)
         assert orphans == []
 
     def test_skill_prefix_orphan_detected(self, tmp_path: Path) -> None:
-        create_memory_structure(tmp_path, {
-            "skills-test-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-                "| alpha | test-valid |\n"
-            ),
-            "test-valid.md": "content",
-            "skill-orphan.md": "orphaned",
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "skills-test-index.md": (
+                    "| Keywords | File |\n|----------|------|\n| alpha | test-valid |\n"
+                ),
+                "test-valid.md": "content",
+                "skill-orphan.md": "orphaned",
+            },
+        )
         indices = find_domain_indices(tmp_path)
         orphans = find_orphaned_files(indices, tmp_path)
         skill_orphans = [o for o in orphans if o.domain == "INVALID"]
@@ -1701,67 +1637,74 @@ class TestFindOrphanedFiles:
         assert skill_orphans[0].file == "skill-orphan"
 
     def test_domain_prefix_orphan_detected(self, tmp_path: Path) -> None:
-        create_memory_structure(tmp_path, {
-            "skills-test-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-                "| alpha | test-indexed |\n"
-            ),
-            "test-indexed.md": "content",
-            "test-unindexed.md": "orphaned",
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "skills-test-index.md": (
+                    "| Keywords | File |\n|----------|------|\n| alpha | test-indexed |\n"
+                ),
+                "test-indexed.md": "content",
+                "test-unindexed.md": "orphaned",
+            },
+        )
         indices = find_domain_indices(tmp_path)
         orphans = find_orphaned_files(indices, tmp_path)
         assert any(o.file == "test-unindexed" and o.domain == "test" for o in orphans)
 
     def test_indexed_skill_prefix_not_orphan(self, tmp_path: Path) -> None:
-        create_memory_structure(tmp_path, {
-            "skills-test-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-                "| alpha | skill-indexed |\n"
-            ),
-            "skill-indexed.md": "content",
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "skills-test-index.md": (
+                    "| Keywords | File |\n|----------|------|\n| alpha | skill-indexed |\n"
+                ),
+                "skill-indexed.md": "content",
+            },
+        )
         indices = find_domain_indices(tmp_path)
         orphans = find_orphaned_files(indices, tmp_path)
         assert not any(o.file == "skill-indexed" for o in orphans)
 
     def test_skillbook_not_flagged_as_invalid(self, tmp_path: Path) -> None:
-        create_memory_structure(tmp_path, {
-            "skills-test-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-                "| alpha | test-valid |\n"
-            ),
-            "test-valid.md": "content",
-            "skillbook-unindexed.md": "not skill- prefix",
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "skills-test-index.md": (
+                    "| Keywords | File |\n|----------|------|\n| alpha | test-valid |\n"
+                ),
+                "test-valid.md": "content",
+                "skillbook-unindexed.md": "not skill- prefix",
+            },
+        )
         indices = find_domain_indices(tmp_path)
         orphans = find_orphaned_files(indices, tmp_path)
         invalid_orphans = [o for o in orphans if o.domain == "INVALID"]
         assert not any(o.file == "skillbook-unindexed" for o in invalid_orphans)
 
     def test_skill_prefix_no_domain_index(self, tmp_path: Path) -> None:
-        create_memory_structure(tmp_path, {
-            "skill-no-domain.md": "orphan with no domain index",
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "skill-no-domain.md": "orphan with no domain index",
+            },
+        )
         orphans = find_orphaned_files([], tmp_path)
         assert len(orphans) == 1
         assert orphans[0].domain == "INVALID"
 
     def test_multiple_skill_prefix_orphans(self, tmp_path: Path) -> None:
-        create_memory_structure(tmp_path, {
-            "skills-test-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-                "| alpha | test-indexed |\n"
-            ),
-            "test-indexed.md": "content",
-            "skill-orphan-one.md": "orphan 1",
-            "skill-orphan-two.md": "orphan 2",
-            "skill-orphan-three.md": "orphan 3",
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "skills-test-index.md": (
+                    "| Keywords | File |\n|----------|------|\n| alpha | test-indexed |\n"
+                ),
+                "test-indexed.md": "content",
+                "skill-orphan-one.md": "orphan 1",
+                "skill-orphan-two.md": "orphan 2",
+                "skill-orphan-three.md": "orphan 3",
+            },
+        )
         indices = find_domain_indices(tmp_path)
         orphans = find_orphaned_files(indices, tmp_path)
         skill_orphans = [o for o in orphans if o.domain == "INVALID"]
@@ -1777,54 +1720,57 @@ class TestRunValidation:
     """Integration tests for the full validation pipeline."""
 
     def test_valid_structure_passes(self, tmp_path: Path) -> None:
-        create_memory_structure(tmp_path, {
-            "skills-test-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-                "| alpha beta gamma delta epsilon | test-skill-one |\n"
-                "| zeta eta theta iota kappa | test-skill-two |\n"
-            ),
-            "test-skill-one.md": "content",
-            "test-skill-two.md": "content",
-            "memory-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-                "| test | "
-                "[skills-test-index](skills-test-index.md) |\n"
-            ),
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "skills-test-index.md": (
+                    "| Keywords | File |\n"
+                    "|----------|------|\n"
+                    "| alpha beta gamma delta epsilon | test-skill-one |\n"
+                    "| zeta eta theta iota kappa | test-skill-two |\n"
+                ),
+                "test-skill-one.md": "content",
+                "test-skill-two.md": "content",
+                "memory-index.md": (
+                    "| Keywords | File |\n"
+                    "|----------|------|\n"
+                    "| test | "
+                    "[skills-test-index](skills-test-index.md) |\n"
+                ),
+            },
+        )
         report = run_validation(tmp_path, "json", Counter())
         assert report.passed is True
         assert report.summary.total_domains == 1
         assert report.summary.missing_files == 0
 
     def test_missing_files_fail(self, tmp_path: Path) -> None:
-        create_memory_structure(tmp_path, {
-            "skills-broken-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-                "| alpha beta | missing-skill |\n"
-            ),
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "skills-broken-index.md": (
+                    "| Keywords | File |\n|----------|------|\n| alpha beta | missing-skill |\n"
+                ),
+            },
+        )
         report = run_validation(tmp_path, "json", Counter())
         assert report.passed is False
         assert report.summary.missing_files == 1
 
     def test_multiple_domains(self, tmp_path: Path) -> None:
-        create_memory_structure(tmp_path, {
-            "skills-d1-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-                "| alpha | d1-skill |\n"
-            ),
-            "skills-d2-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-                "| beta | d2-skill |\n"
-            ),
-            "d1-skill.md": "c",
-            "d2-skill.md": "c",
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "skills-d1-index.md": (
+                    "| Keywords | File |\n|----------|------|\n| alpha | d1-skill |\n"
+                ),
+                "skills-d2-index.md": (
+                    "| Keywords | File |\n|----------|------|\n| beta | d2-skill |\n"
+                ),
+                "d1-skill.md": "c",
+                "d2-skill.md": "c",
+            },
+        )
         report = run_validation(tmp_path, "json", Counter())
         assert report.summary.total_domains == 2
         assert "d1" in report.domain_results
@@ -1840,9 +1786,12 @@ class TestRunValidation:
 
     def test_no_domains_with_memory_index(self, tmp_path: Path) -> None:
         """Directory with memory-index.md but no domain indices passes."""
-        create_memory_structure(tmp_path, {
-            "memory-index.md": "| Keywords | File |\n|----------|------|\n",
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "memory-index.md": "| Keywords | File |\n|----------|------|\n",
+            },
+        )
         report = run_validation(tmp_path, "json", Counter())
         assert report.passed is True
         assert report.summary.total_domains == 0
@@ -1854,42 +1803,46 @@ class TestRunValidation:
         set report.passed = False, so memory_index.py --ci exited 0 even
         when orphans were present.
         """
-        create_memory_structure(tmp_path, {
-            "skills-test-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-                "| alpha beta gamma delta epsilon | test-indexed |\n"
-            ),
-            "test-indexed.md": "indexed content",
-            "test-orphan.md": "not in any index",
-            "memory-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-                "| test | [skills-test-index](skills-test-index.md) |\n"
-            ),
-        })
-        report = run_validation(tmp_path, "json", Counter())
-        assert report.passed is False, (
-            "orphaned file must cause report.passed = False (#4313)"
+        create_memory_structure(
+            tmp_path,
+            {
+                "skills-test-index.md": (
+                    "| Keywords | File |\n"
+                    "|----------|------|\n"
+                    "| alpha beta gamma delta epsilon | test-indexed |\n"
+                ),
+                "test-indexed.md": "indexed content",
+                "test-orphan.md": "not in any index",
+                "memory-index.md": (
+                    "| Keywords | File |\n"
+                    "|----------|------|\n"
+                    "| test | [skills-test-index](skills-test-index.md) |\n"
+                ),
+            },
         )
+        report = run_validation(tmp_path, "json", Counter())
+        assert report.passed is False, "orphaned file must cause report.passed = False (#4313)"
         assert len(report.orphans) >= 1
         assert any(o.file == "test-orphan" for o in report.orphans)
 
     def test_no_orphans_passes(self, tmp_path: Path) -> None:
         """All files indexed: validation passes (negative control for #4313)."""
-        create_memory_structure(tmp_path, {
-            "skills-test-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-                "| alpha beta gamma delta epsilon | test-indexed |\n"
-            ),
-            "test-indexed.md": "indexed content",
-            "memory-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-                "| test | [skills-test-index](skills-test-index.md) |\n"
-            ),
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "skills-test-index.md": (
+                    "| Keywords | File |\n"
+                    "|----------|------|\n"
+                    "| alpha beta gamma delta epsilon | test-indexed |\n"
+                ),
+                "test-indexed.md": "indexed content",
+                "memory-index.md": (
+                    "| Keywords | File |\n"
+                    "|----------|------|\n"
+                    "| test | [skills-test-index](skills-test-index.md) |\n"
+                ),
+            },
+        )
         report = run_validation(tmp_path, "json", Counter())
         assert report.passed is True
         assert report.orphans == []
@@ -1901,24 +1854,27 @@ class TestRunValidation:
         carried unparseable YAML frontmatter, so the corruption in
         implementation-008 merged silently.
         """
-        create_memory_structure(tmp_path, {
-            "skills-test-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-                "| alpha beta gamma delta epsilon | test-indexed |\n"
-            ),
-            "test-indexed.md": (
-                "---\n"
-                "description: Constraints for artifacts (REQ/DESIGN): read it\n"
-                "---\n\n"
-                "indexed content\n"
-            ),
-            "memory-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-                "| test | [skills-test-index](skills-test-index.md) |\n"
-            ),
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "skills-test-index.md": (
+                    "| Keywords | File |\n"
+                    "|----------|------|\n"
+                    "| alpha beta gamma delta epsilon | test-indexed |\n"
+                ),
+                "test-indexed.md": (
+                    "---\n"
+                    "description: Constraints for artifacts (REQ/DESIGN): read it\n"
+                    "---\n\n"
+                    "indexed content\n"
+                ),
+                "memory-index.md": (
+                    "| Keywords | File |\n"
+                    "|----------|------|\n"
+                    "| test | [skills-test-index](skills-test-index.md) |\n"
+                ),
+            },
+        )
         report = run_validation(tmp_path, "json", Counter())
         assert report.passed is False, (
             "malformed frontmatter must cause report.passed = False (#4918)"
@@ -1928,24 +1884,27 @@ class TestRunValidation:
 
     def test_valid_frontmatter_passes_validation(self, tmp_path: Path) -> None:
         """Valid frontmatter is the negative control for #4918."""
-        create_memory_structure(tmp_path, {
-            "skills-test-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-                "| alpha beta gamma delta epsilon | test-indexed |\n"
-            ),
-            "test-indexed.md": (
-                "---\n"
-                "description: Constraints for artifacts, read spec first\n"
-                "---\n\n"
-                "indexed content\n"
-            ),
-            "memory-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-                "| test | [skills-test-index](skills-test-index.md) |\n"
-            ),
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "skills-test-index.md": (
+                    "| Keywords | File |\n"
+                    "|----------|------|\n"
+                    "| alpha beta gamma delta epsilon | test-indexed |\n"
+                ),
+                "test-indexed.md": (
+                    "---\n"
+                    "description: Constraints for artifacts, read spec first\n"
+                    "---\n\n"
+                    "indexed content\n"
+                ),
+                "memory-index.md": (
+                    "| Keywords | File |\n"
+                    "|----------|------|\n"
+                    "| test | [skills-test-index](skills-test-index.md) |\n"
+                ),
+            },
+        )
         report = run_validation(tmp_path, "json", Counter())
         assert report.passed is True
         assert report.frontmatter_validity is not None
@@ -1956,83 +1915,97 @@ class TestFormatMarkdown:
     """Tests for markdown output format."""
 
     def test_contains_header(self, tmp_path: Path) -> None:
-        create_memory_structure(tmp_path, {
-            "skills-test-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-                "| alpha | test-skill |\n"
-            ),
-            "test-skill.md": "c",
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "skills-test-index.md": (
+                    "| Keywords | File |\n|----------|------|\n| alpha | test-skill |\n"
+                ),
+                "test-skill.md": "c",
+            },
+        )
         report = run_validation(tmp_path, "json", Counter())
         md = format_markdown(report)
         assert "# Memory Index Validation Report" in md
         assert "| Metric | Value |" in md
 
     def test_includes_domain_results(self, tmp_path: Path) -> None:
-        create_memory_structure(tmp_path, {
-            "skills-test-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-                "| alpha | test-skill |\n"
-            ),
-            "test-skill.md": "c",
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "skills-test-index.md": (
+                    "| Keywords | File |\n|----------|------|\n| alpha | test-skill |\n"
+                ),
+                "test-skill.md": "c",
+            },
+        )
         report = run_validation(tmp_path, "json", Counter())
         md = format_markdown(report)
         assert "## Domain: test" in md
 
     def test_reports_missing_file_issues(self, tmp_path: Path) -> None:
-        create_memory_structure(tmp_path, {
-            "skills-test-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-                "| alpha bravo charlie | test-absent |\n"
-            ),
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "skills-test-index.md": (
+                    "| Keywords | File |\n"
+                    "|----------|------|\n"
+                    "| alpha bravo charlie | test-absent |\n"
+                ),
+            },
+        )
         report = run_validation(tmp_path, "json", Counter())
         md = format_markdown(report)
         assert "### File Issues" in md
         assert "- Missing file: test-absent.md" in md
 
     def test_reports_orphaned_files(self, tmp_path: Path) -> None:
-        create_memory_structure(tmp_path, {
-            "skills-test-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-                "| alpha bravo charlie | test-skill |\n"
-            ),
-            "test-skill.md": "c",
-            "test-stray.md": "c",
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "skills-test-index.md": (
+                    "| Keywords | File |\n"
+                    "|----------|------|\n"
+                    "| alpha bravo charlie | test-skill |\n"
+                ),
+                "test-skill.md": "c",
+                "test-stray.md": "c",
+            },
+        )
         report = run_validation(tmp_path, "json", Counter())
         md = format_markdown(report)
         assert "## Orphaned Files" in md
         assert "- test-stray - add to skills-test-index.md" in md
 
     def test_reports_malformed_frontmatter(self, tmp_path: Path) -> None:
-        create_memory_structure(tmp_path, {
-            "skills-test-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-                "| alpha bravo charlie | test-skill |\n"
-            ),
-            "test-skill.md": _MALFORMED_FRONTMATTER,
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "skills-test-index.md": (
+                    "| Keywords | File |\n"
+                    "|----------|------|\n"
+                    "| alpha bravo charlie | test-skill |\n"
+                ),
+                "test-skill.md": _MALFORMED_FRONTMATTER,
+            },
+        )
         report = run_validation(tmp_path, "json", Counter())
         md = format_markdown(report)
         assert "## Malformed Frontmatter" in md
         assert "- Malformed YAML frontmatter: test-skill.md" in md
 
     def test_omits_sections_with_nothing_to_report(self, tmp_path: Path) -> None:
-        create_memory_structure(tmp_path, {
-            "skills-test-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-                "| alpha bravo charlie delta echo | test-skill |\n"
-            ),
-            "test-skill.md": "c",
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "skills-test-index.md": (
+                    "| Keywords | File |\n"
+                    "|----------|------|\n"
+                    "| alpha bravo charlie delta echo | test-skill |\n"
+                ),
+                "test-skill.md": "c",
+            },
+        )
         report = run_validation(tmp_path, "json", Counter())
         md = format_markdown(report)
         assert "### File Issues" not in md
@@ -2046,14 +2019,16 @@ class TestFormatJson:
 
     def test_valid_json(self, tmp_path: Path) -> None:
         import json
-        create_memory_structure(tmp_path, {
-            "skills-test-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-                "| alpha | test-skill |\n"
-            ),
-            "test-skill.md": "c",
-        })
+
+        create_memory_structure(
+            tmp_path,
+            {
+                "skills-test-index.md": (
+                    "| Keywords | File |\n|----------|------|\n| alpha | test-skill |\n"
+                ),
+                "test-skill.md": "c",
+            },
+        )
         report = run_validation(tmp_path, "json", Counter())
         json_str = format_json(report)
         data = json.loads(json_str)
@@ -2078,9 +2053,7 @@ class TestMain:
         ):
             yield
 
-    def test_nonexistent_path_no_ci(
-        self, tmp_path: Path
-    ) -> None:
+    def test_nonexistent_path_no_ci(self, tmp_path: Path) -> None:
         exit_code = main(["--path", str(tmp_path / "missing")])
         assert exit_code == 0
 
@@ -2089,16 +2062,22 @@ class TestMain:
         [
             pytest.param(["--ci"], True, 0, id="ci-defaults-to-ratchet"),
             pytest.param(
-                ["--ci", "--orphan-policy", "strict"], False, 1,
+                ["--ci", "--orphan-policy", "strict"],
+                False,
+                1,
                 id="ci-honors-explicit-strict",
             ),
             pytest.param(
-                ["--ci", "--orphan-policy", "ratchet"], True, 0,
+                ["--ci", "--orphan-policy", "ratchet"],
+                True,
+                0,
                 id="ci-honors-explicit-ratchet",
             ),
             pytest.param([], False, 0, id="local-defaults-to-strict"),
             pytest.param(
-                ["--orphan-policy", "ratchet"], True, 0,
+                ["--orphan-policy", "ratchet"],
+                True,
+                0,
                 id="local-honors-explicit-ratchet",
             ),
         ],
@@ -2118,14 +2097,16 @@ class TestMain:
         resolved policy is observed through the JSON ``passed`` field.
         """
         import json
+
         monkeypatch.delenv("CI", raising=False)
-        create_memory_structure(tmp_path, {
-            "memory-index.md": "| Keywords | File |\n|----------|------|\n",
-            "skills-orphaned.md": "content",
-        })
-        exit_code = main(
-            ["--path", str(tmp_path), "--format", "json", *extra_args]
+        create_memory_structure(
+            tmp_path,
+            {
+                "memory-index.md": "| Keywords | File |\n|----------|------|\n",
+                "skills-orphaned.md": "content",
+            },
         )
+        exit_code = main(["--path", str(tmp_path), "--format", "json", *extra_args])
         data = json.loads(capsys.readouterr().out)
         assert data["passed"] is expected_passed
         assert exit_code == expected_exit
@@ -2134,15 +2115,11 @@ class TestMain:
         exit_code = main(["--path", str(tmp_path / "missing"), "--ci"])
         assert exit_code == 2
 
-    def test_empty_dir_passes(
-        self, tmp_path: Path
-    ) -> None:
+    def test_empty_dir_passes(self, tmp_path: Path) -> None:
         exit_code = main(["--path", str(tmp_path)])
         assert exit_code == 0
 
-    def test_base_reference_failure_fails_closed(
-        self, tmp_path: Path
-    ) -> None:
+    def test_base_reference_failure_fails_closed(self, tmp_path: Path) -> None:
         (tmp_path / "memory-index.md").write_text("")
         with patch(
             "scripts.validation.memory_index._load_base_reference_counts",
@@ -2152,31 +2129,35 @@ class TestMain:
         assert exit_code == 2
 
     def test_valid_structure_ci_passes(self, tmp_path: Path) -> None:
-        create_memory_structure(tmp_path, {
-            "skills-test-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-                "| alpha beta gamma delta epsilon | test-skill |\n"
-            ),
-            "test-skill.md": "c",
-            "memory-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-                "| test | "
-                "[skills-test-index](skills-test-index.md) |\n"
-            ),
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "skills-test-index.md": (
+                    "| Keywords | File |\n"
+                    "|----------|------|\n"
+                    "| alpha beta gamma delta epsilon | test-skill |\n"
+                ),
+                "test-skill.md": "c",
+                "memory-index.md": (
+                    "| Keywords | File |\n"
+                    "|----------|------|\n"
+                    "| test | "
+                    "[skills-test-index](skills-test-index.md) |\n"
+                ),
+            },
+        )
         exit_code = main(["--path", str(tmp_path), "--ci"])
         assert exit_code == 0
 
     def test_missing_files_ci_fails(self, tmp_path: Path) -> None:
-        create_memory_structure(tmp_path, {
-            "skills-broken-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-                "| alpha | missing-skill |\n"
-            ),
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "skills-broken-index.md": (
+                    "| Keywords | File |\n|----------|------|\n| alpha | missing-skill |\n"
+                ),
+            },
+        )
         exit_code = main(["--path", str(tmp_path), "--ci"])
         assert exit_code == 1
 
@@ -2186,24 +2167,27 @@ class TestMain:
         Guards the report-to-CLI wiring: an in-process report failure that never
         reached main() could silently green the gate.
         """
-        create_memory_structure(tmp_path, {
-            "skills-test-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-                "| alpha beta gamma delta epsilon | test-indexed |\n"
-            ),
-            "test-indexed.md": (
-                "---\n"
-                "description: Constraints for artifacts (REQ/DESIGN): read it\n"
-                "---\n\n"
-                "indexed content\n"
-            ),
-            "memory-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-                "| test | [skills-test-index](skills-test-index.md) |\n"
-            ),
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "skills-test-index.md": (
+                    "| Keywords | File |\n"
+                    "|----------|------|\n"
+                    "| alpha beta gamma delta epsilon | test-indexed |\n"
+                ),
+                "test-indexed.md": (
+                    "---\n"
+                    "description: Constraints for artifacts (REQ/DESIGN): read it\n"
+                    "---\n\n"
+                    "indexed content\n"
+                ),
+                "memory-index.md": (
+                    "| Keywords | File |\n"
+                    "|----------|------|\n"
+                    "| test | [skills-test-index](skills-test-index.md) |\n"
+                ),
+            },
+        )
         exit_code = main(["--path", str(tmp_path), "--ci"])
         assert exit_code == 1
 
@@ -2215,65 +2199,62 @@ class TestMain:
         Without a frontmatter section the markdown report shows a generic
         FAILED status with no filename or remediation.
         """
-        create_memory_structure(tmp_path, {
-            "skills-test-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-                "| alpha beta gamma delta epsilon | test-indexed |\n"
-            ),
-            "test-indexed.md": (
-                "---\n"
-                "description: Constraints for artifacts (REQ/DESIGN): read it\n"
-                "---\n\n"
-                "indexed content\n"
-            ),
-            "memory-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-                "| test | [skills-test-index](skills-test-index.md) |\n"
-            ),
-        })
-        exit_code = main(
-            ["--path", str(tmp_path), "--format", "markdown", "--ci"]
+        create_memory_structure(
+            tmp_path,
+            {
+                "skills-test-index.md": (
+                    "| Keywords | File |\n"
+                    "|----------|------|\n"
+                    "| alpha beta gamma delta epsilon | test-indexed |\n"
+                ),
+                "test-indexed.md": (
+                    "---\n"
+                    "description: Constraints for artifacts (REQ/DESIGN): read it\n"
+                    "---\n\n"
+                    "indexed content\n"
+                ),
+                "memory-index.md": (
+                    "| Keywords | File |\n"
+                    "|----------|------|\n"
+                    "| test | [skills-test-index](skills-test-index.md) |\n"
+                ),
+            },
         )
+        exit_code = main(["--path", str(tmp_path), "--format", "markdown", "--ci"])
         assert exit_code == 1
         out = capsys.readouterr().out
         assert "## Malformed Frontmatter" in out
         assert "test-indexed.md" in out
 
-    def test_inherited_memory_index_target_over_limit_ci_fails(
-        self, tmp_path: Path
-    ) -> None:
-        create_memory_structure(tmp_path, {
-            "memory-index.md": (
-                "| first keywords: [first](skills-copilot-index.md)\n"
-                "| second keywords: [second](skills-copilot-index.md)\n"
-                "| third keywords: [third](skills-copilot-index.md)\n"
-            ),
-            "skills-copilot-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-            ),
-        })
+    def test_inherited_memory_index_target_over_limit_ci_fails(self, tmp_path: Path) -> None:
+        create_memory_structure(
+            tmp_path,
+            {
+                "memory-index.md": (
+                    "| first keywords: [first](skills-copilot-index.md)\n"
+                    "| second keywords: [second](skills-copilot-index.md)\n"
+                    "| third keywords: [third](skills-copilot-index.md)\n"
+                ),
+                "skills-copilot-index.md": ("| Keywords | File |\n|----------|------|\n"),
+            },
+        )
 
         exit_code = main(["--path", str(tmp_path), "--ci"])
 
         assert exit_code == 1
 
-    def test_inherited_memory_index_target_at_baseline_ci_passes(
-        self, tmp_path: Path
-    ) -> None:
-        create_memory_structure(tmp_path, {
-            "memory-index.md": (
-                "| first keywords: [first](skills-copilot-index.md)\n"
-                "| second keywords: [second](skills-copilot-index.md)\n"
-                "| third keywords: [third](skills-copilot-index.md)\n"
-            ),
-            "skills-copilot-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-            ),
-        })
+    def test_inherited_memory_index_target_at_baseline_ci_passes(self, tmp_path: Path) -> None:
+        create_memory_structure(
+            tmp_path,
+            {
+                "memory-index.md": (
+                    "| first keywords: [first](skills-copilot-index.md)\n"
+                    "| second keywords: [second](skills-copilot-index.md)\n"
+                    "| third keywords: [third](skills-copilot-index.md)\n"
+                ),
+                "skills-copilot-index.md": ("| Keywords | File |\n|----------|------|\n"),
+            },
+        )
 
         with patch(
             "scripts.validation.memory_index._load_base_reference_counts",
@@ -2286,63 +2267,73 @@ class TestMain:
 
         assert exit_code == 0
 
-    def test_json_format(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_json_format(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         import json
-        create_memory_structure(tmp_path, {
-            "skills-test-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-                "| alpha | test-skill |\n"
-            ),
-            "test-skill.md": "c",
-            "memory-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-                "| test | "
-                "[skills-test-index](skills-test-index.md) |\n"
-            ),
-        })
-        exit_code = main([
-            "--path", str(tmp_path),
-            "--format", "json",
-        ])
+
+        create_memory_structure(
+            tmp_path,
+            {
+                "skills-test-index.md": (
+                    "| Keywords | File |\n|----------|------|\n| alpha | test-skill |\n"
+                ),
+                "test-skill.md": "c",
+                "memory-index.md": (
+                    "| Keywords | File |\n"
+                    "|----------|------|\n"
+                    "| test | "
+                    "[skills-test-index](skills-test-index.md) |\n"
+                ),
+            },
+        )
+        exit_code = main(
+            [
+                "--path",
+                str(tmp_path),
+                "--format",
+                "json",
+            ]
+        )
         assert exit_code == 0
         output = capsys.readouterr().out
         data = json.loads(output)
         assert data["passed"] is True
 
     def test_markdown_format(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str],
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
     ) -> None:
-        create_memory_structure(tmp_path, {
-            "skills-test-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-                "| alpha | test-skill |\n"
-            ),
-            "test-skill.md": "c",
-        })
-        exit_code = main([
-            "--path", str(tmp_path),
-            "--format", "markdown",
-        ])
+        create_memory_structure(
+            tmp_path,
+            {
+                "skills-test-index.md": (
+                    "| Keywords | File |\n|----------|------|\n| alpha | test-skill |\n"
+                ),
+                "test-skill.md": "c",
+            },
+        )
+        exit_code = main(
+            [
+                "--path",
+                str(tmp_path),
+                "--format",
+                "markdown",
+            ]
+        )
         assert exit_code == 0
         output = capsys.readouterr().out
         assert "# Memory Index Validation Report" in output
 
-    def test_console_format(
-        self, tmp_path: Path
-    ) -> None:
-        create_memory_structure(tmp_path, {
-            "skills-test-index.md": (
-                "| Keywords | File |\n"
-                "|----------|------|\n"
-                "| alpha | test-skill |\n"
-            ),
-            "test-skill.md": "c",
-        })
+    def test_console_format(self, tmp_path: Path) -> None:
+        create_memory_structure(
+            tmp_path,
+            {
+                "skills-test-index.md": (
+                    "| Keywords | File |\n|----------|------|\n| alpha | test-skill |\n"
+                ),
+                "test-skill.md": "c",
+            },
+        )
         exit_code = main(["--path", str(tmp_path), "--format", "console"])
         assert exit_code == 0
 
@@ -2580,10 +2571,7 @@ Body text with a colon: value that is not frontmatter.
 # so blank leading lines do not stop the loader from opening this block, warning,
 # and dropping the metadata. The gate strips for the same reason.
 _MALFORMED_LEADING_WHITESPACE = (
-    "\n  \n----\n"
-    "title: Broken memory\n"
-    "description: invalid: nested mapping\n"
-    "----\n\n# Body\n"
+    "\n  \n----\ntitle: Broken memory\ndescription: invalid: nested mapping\n----\n\n# Body\n"
 )
 
 
@@ -2670,9 +2658,7 @@ class TestCheckFrontmatterValidity:
         assert result.passed is True
         assert result.invalid_files == []
 
-    def test_dashes_with_trailing_text_not_frontmatter(
-        self, tmp_path: Path
-    ) -> None:
+    def test_dashes_with_trailing_text_not_frontmatter(self, tmp_path: Path) -> None:
         # Widening the delimiter must not widen it into `--- ---`, which the
         # canonical boundary rejects because `-` is not whitespace.
         (tmp_path / "hr-text-memory.md").write_text(_DASHES_WITH_TRAILING_TEXT)
@@ -2711,14 +2697,10 @@ class TestCheckFrontmatterValidity:
         )
         assert result.invalid_files == ["probe-memory.md"]
 
-    def test_leading_whitespace_is_normalized_like_loader(
-        self, tmp_path: Path
-    ) -> None:
+    def test_leading_whitespace_is_normalized_like_loader(self, tmp_path: Path) -> None:
         # Blank leading lines survive `frontmatter.parse`'s strip, so the
         # loader still opens the block and warns; the gate must too.
-        (tmp_path / "leading-space-memory.md").write_text(
-            _MALFORMED_LEADING_WHITESPACE
-        )
+        (tmp_path / "leading-space-memory.md").write_text(_MALFORMED_LEADING_WHITESPACE)
         result = check_frontmatter_validity(tmp_path)
         assert result.passed is False
         assert result.invalid_files == ["leading-space-memory.md"]
@@ -2740,9 +2722,7 @@ class TestCheckFrontmatterValidity:
         assert canonical.flags & re.MULTILINE
         assert not _FM_BOUNDARY.flags & re.MULTILINE
 
-    def test_bom_before_valid_frontmatter_is_flagged(
-        self, tmp_path: Path
-    ) -> None:
+    def test_bom_before_valid_frontmatter_is_flagged(self, tmp_path: Path) -> None:
         """A BOM loses valid metadata as surely as a malformed block does.
 
         `FM_BOUNDARY.match` fails on `\ufeff---`, so the loader reads the whole
@@ -2759,29 +2739,21 @@ class TestCheckFrontmatterValidity:
         assert result.invalid_files == ["bom-valid-memory.md"]
         assert "BOM" in result.issues[0]
 
-    def test_bom_before_malformed_frontmatter_is_flagged(
-        self, tmp_path: Path
-    ) -> None:
+    def test_bom_before_malformed_frontmatter_is_flagged(self, tmp_path: Path) -> None:
         content = "\ufeff" + _MALFORMED_FRONTMATTER
         (tmp_path / "bom-bad-memory.md").write_text(content, encoding="utf-8")
         result = check_frontmatter_validity(tmp_path)
         assert result.passed is False
         assert result.invalid_files == ["bom-bad-memory.md"]
 
-    def test_bom_without_frontmatter_is_not_flagged(
-        self, tmp_path: Path
-    ) -> None:
+    def test_bom_without_frontmatter_is_not_flagged(self, tmp_path: Path) -> None:
         # No metadata means nothing to lose, so a BOM alone is not a defect.
-        (tmp_path / "bom-plain-memory.md").write_text(
-            "\ufeff" + _NO_FRONTMATTER, encoding="utf-8"
-        )
+        (tmp_path / "bom-plain-memory.md").write_text("\ufeff" + _NO_FRONTMATTER, encoding="utf-8")
         result = check_frontmatter_validity(tmp_path)
         assert result.passed is True
         assert result.invalid_files == []
 
-    def test_unicode_line_separator_does_not_close_a_block(
-        self, tmp_path: Path
-    ) -> None:
+    def test_unicode_line_separator_does_not_close_a_block(self, tmp_path: Path) -> None:
         """Only `\\n` starts a line, because only `\\n` anchors `re.MULTILINE`.
 
         `str.splitlines()` would treat the `\\u2028` here as a line break and
@@ -2853,19 +2825,25 @@ class TestOrphanEnforcesFailure:
 
     def test_orphan_sets_passed_false(self, tmp_path: Path) -> None:
         """A skill-prefixed file not in any index makes validation fail."""
-        create_memory_structure(tmp_path, {
-            "memory-index.md": "| Keywords | File |\n|----------|------|\n",
-            "skills-orphaned.md": "content",  # skill-prefix, not in any index
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "memory-index.md": "| Keywords | File |\n|----------|------|\n",
+                "skills-orphaned.md": "content",  # skill-prefix, not in any index
+            },
+        )
         report = run_validation(tmp_path, "json", Counter())
         assert report.passed is False
         assert len(report.orphans) > 0
 
     def test_no_orphans_does_not_fail(self, tmp_path: Path) -> None:
         """A directory with no orphans and a valid memory-index passes."""
-        create_memory_structure(tmp_path, {
-            "memory-index.md": "| Keywords | File |\n|----------|------|\n",
-        })
+        create_memory_structure(
+            tmp_path,
+            {
+                "memory-index.md": "| Keywords | File |\n|----------|------|\n",
+            },
+        )
         report = run_validation(tmp_path, "json", Counter())
         assert report.passed is True
         assert report.orphans == []

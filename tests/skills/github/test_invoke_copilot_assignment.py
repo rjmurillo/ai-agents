@@ -23,6 +23,7 @@ from test_helpers import make_completed_process
 @pytest.fixture
 def _import_module():
     import importlib
+
     mod_name = "invoke_copilot_assignment"
     if mod_name in sys.modules:
         del sys.modules[mod_name]
@@ -55,20 +56,24 @@ class TestHelpers:
 
     def test_get_maintainer_guidance_bullets(self, _import_module):
         mod = _import_module
-        comments = [{
-            "user": {"login": "rjmurillo"},
-            "body": "- Use the new API endpoint\n- Check error handling",
-        }]
+        comments = [
+            {
+                "user": {"login": "rjmurillo"},
+                "body": "- Use the new API endpoint\n- Check error handling",
+            }
+        ]
         result = mod._get_maintainer_guidance(comments, ["rjmurillo"])
         assert len(result) == 2
         assert "Use the new API endpoint" in result[0]
 
     def test_get_maintainer_guidance_rfc_keywords(self, _import_module):
         mod = _import_module
-        comments = [{
-            "user": {"login": "rjmurillo"},
-            "body": "This implementation MUST handle edge cases properly.",
-        }]
+        comments = [
+            {
+                "user": {"login": "rjmurillo"},
+                "body": "This implementation MUST handle edge cases properly.",
+            }
+        ]
         result = mod._get_maintainer_guidance(comments, ["rjmurillo"])
         assert len(result) >= 1
 
@@ -80,10 +85,12 @@ class TestHelpers:
 
     def test_get_coderabbit_plan_with_implementation(self, _import_module):
         mod = _import_module
-        comments = [{
-            "user": {"login": "coderabbitai[bot]"},
-            "body": "## Implementation\nDo X then Y\n## Other",
-        }]
+        comments = [
+            {
+                "user": {"login": "coderabbitai[bot]"},
+                "body": "## Implementation\nDo X then Y\n## Other",
+            }
+        ]
         patterns = {
             "username": "coderabbitai[bot]",
             "implementation_plan": "## Implementation",
@@ -96,30 +103,37 @@ class TestHelpers:
 
     def test_get_coderabbit_plan_no_comments(self, _import_module):
         mod = _import_module
-        result = mod._get_coderabbit_plan([], {
-            "username": "coderabbitai[bot]",
-            "implementation_plan": "## Implementation",
-            "related_issues": "",
-            "related_prs": "",
-        })
+        result = mod._get_coderabbit_plan(
+            [],
+            {
+                "username": "coderabbitai[bot]",
+                "implementation_plan": "## Implementation",
+                "related_issues": "",
+                "related_prs": "",
+            },
+        )
         assert result is None
 
     def test_get_ai_triage_info_table_format(self, _import_module):
         mod = _import_module
-        comments = [{
-            "user": {"login": "bot"},
-            "body": "<!-- AI-ISSUE-TRIAGE -->\n| **Priority** | `P1` |\n| **Category** | `bug` |",
-        }]
+        comments = [
+            {
+                "user": {"login": "bot"},
+                "body": "<!-- AI-ISSUE-TRIAGE -->\n| **Priority** | `P1` |\n| **Category** | `bug` |",
+            }
+        ]
         result = mod._get_ai_triage_info(comments, "<!-- AI-ISSUE-TRIAGE -->")
         assert result["priority"] == "P1"
         assert result["category"] == "bug"
 
     def test_get_ai_triage_info_plain_format(self, _import_module):
         mod = _import_module
-        comments = [{
-            "user": {"login": "bot"},
-            "body": "<!-- AI-ISSUE-TRIAGE -->\nPriority: P2\nCategory: enhancement",
-        }]
+        comments = [
+            {
+                "user": {"login": "bot"},
+                "body": "<!-- AI-ISSUE-TRIAGE -->\nPriority: P2\nCategory: enhancement",
+            }
+        ]
         result = mod._get_ai_triage_info(comments, "<!-- AI-ISSUE-TRIAGE -->")
         assert result["priority"] == "P2"
 
@@ -137,16 +151,20 @@ class TestHasSynthesizableContent:
 
     def test_with_triage(self, _import_module):
         mod = _import_module
-        assert mod._has_synthesizable_content(
-            [], None, {"priority": "P1", "category": None}
-        ) is True
+        assert (
+            mod._has_synthesizable_content([], None, {"priority": "P1", "category": None}) is True
+        )
 
     def test_with_coderabbit_implementation(self, _import_module):
         mod = _import_module
-        assert mod._has_synthesizable_content(
-            [], {"implementation": "do X", "related_issues": [], "related_prs": []},
-            None,
-        ) is True
+        assert (
+            mod._has_synthesizable_content(
+                [],
+                {"implementation": "do X", "related_issues": [], "related_prs": []},
+                None,
+            )
+            is True
+        )
 
     def test_empty(self, _import_module):
         mod = _import_module
@@ -154,23 +172,30 @@ class TestHasSynthesizableContent:
 
     def test_triage_with_none_values(self, _import_module):
         mod = _import_module
-        assert mod._has_synthesizable_content(
-            [], None, {"priority": None, "category": None}
-        ) is False
+        assert (
+            mod._has_synthesizable_content([], None, {"priority": None, "category": None}) is False
+        )
 
     def test_empty_plan(self, _import_module):
         mod = _import_module
-        assert mod._has_synthesizable_content(
-            [], {"implementation": None, "related_issues": [], "related_prs": []},
-            None,
-        ) is False
+        assert (
+            mod._has_synthesizable_content(
+                [],
+                {"implementation": None, "related_issues": [], "related_prs": []},
+                None,
+            )
+            is False
+        )
 
 
 class TestBuildSynthesisComment:
     def test_includes_marker_and_copilot(self, _import_module):
         mod = _import_module
         body = mod._build_synthesis_comment(
-            "<!-- MARKER -->", ["guidance item"], None, None,
+            "<!-- MARKER -->",
+            ["guidance item"],
+            None,
+            None,
         )
         assert "<!-- MARKER -->" in body
         assert "@copilot" in body
@@ -179,8 +204,10 @@ class TestBuildSynthesisComment:
     def test_includes_ai_triage(self, _import_module):
         mod = _import_module
         body = mod._build_synthesis_comment(
-            "<!-- M -->", [],
-            None, {"priority": "P0", "category": "bug"},
+            "<!-- M -->",
+            [],
+            None,
+            {"priority": "P0", "category": "bug"},
         )
         assert "**Priority**: P0" in body
         assert "**Category**: bug" in body

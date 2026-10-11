@@ -85,9 +85,14 @@ def main(argv: list[str] | None = None) -> int:
     try:
         result = subprocess.run(
             [
-                "gh", "issue", "view", str(args.issue),
-                "--repo", f"{owner}/{repo}",
-                "--json", fields,
+                "gh",
+                "issue",
+                "view",
+                str(args.issue),
+                "--repo",
+                f"{owner}/{repo}",
+                "--json",
+                fields,
             ],
             capture_output=True,
             encoding="utf-8",

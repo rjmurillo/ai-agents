@@ -177,8 +177,7 @@ def scope_violations(changed_paths: Sequence[str], allowed_paths: Sequence[str])
     return sum(
         1
         for path in changed_paths
-        if not _is_incidental_path(path)
-        and not matches_allowed(path, allowed_paths)
+        if not _is_incidental_path(path) and not matches_allowed(path, allowed_paths)
     )
 
 

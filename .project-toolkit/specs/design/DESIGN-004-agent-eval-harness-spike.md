@@ -91,7 +91,10 @@ class Fixture:
     tags: list[str]
     schema_version: int  # must equal 1
 
+
 def validate_fixtures(paths: list[Path]) -> list[Fixture]: ...
+
+
 # raises FixtureValidationError on first invalid fixture
 ```
 
@@ -115,7 +118,7 @@ class AssertionKind(str, Enum):
 @dataclass
 class Assertion:
     kind: AssertionKind
-    pattern: str | None = None    # regex pattern (for REGEX kind)
+    pattern: str | None = None  # regex pattern (for REGEX kind)
     expected_value: str | None = None  # expected verdict string (for VERDICT kind)
     # Future kinds (AST, TEST_PASS) add fields as Optional with default None.
     # This avoids a single 'value' field whose semantics depend on 'kind' at runtime,
@@ -127,10 +130,10 @@ class Assertion:
 @dataclass
 class AssertionResult:
     kind: AssertionKind
-    pattern: str | None        # mirror of input Assertion.pattern (REGEX kind only)
-    expected_value: str | None # mirror of input Assertion.expected_value (VERDICT kind only)
+    pattern: str | None  # mirror of input Assertion.pattern (REGEX kind only)
+    expected_value: str | None  # mirror of input Assertion.expected_value (VERDICT kind only)
     passed: bool
-    extracted: str | None      # what the scorer extracted from the response
+    extracted: str | None  # what the scorer extracted from the response
 ```
 
 **`ScoringEngine`**:
@@ -176,6 +179,7 @@ class ExecutionPlan:
     estimated_cost_usd: float
     pricing_rate_as_of: str  # ISO date the rate constant was last updated
 
+
 def build_plan(
     fixtures: list[Fixture],
     model_id: str,
@@ -210,6 +214,7 @@ class APICallResult:
     latency_ms: float
     error_category: str | None  # e.g. "rate_limit", "server_error", "timeout"
     attempts: int
+
 
 def call_model(
     prompt: str,

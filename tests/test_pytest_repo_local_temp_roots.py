@@ -71,9 +71,7 @@ def test_no_test_writes_to_an_unrecognized_temp_root(project_root: Path) -> None
         f"{path.relative_to(project_root)}:{number}"
         for tree in ("tests", "scripts", "build")
         for path in sorted((project_root / tree).rglob("*.py"))
-        for number, line in enumerate(
-            path.read_text(encoding="utf-8").splitlines(), start=1
-        )
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1)
         if near_miss in line
     ]
 

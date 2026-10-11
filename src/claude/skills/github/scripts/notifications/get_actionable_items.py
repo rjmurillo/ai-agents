@@ -63,7 +63,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument(
-        "--limit", type=int, default=20,
+        "--limit",
+        type=int,
+        default=20,
         help="Max items per category (1-100, default: 20)",
     )
     add_output_format_arg(parser)
@@ -83,11 +85,15 @@ def _get_current_user() -> str:
     """Return the authenticated GitHub username."""
     result = subprocess.run(
         ["gh", "api", "user", "--jq", ".login"],
-        capture_output=True, text=True, timeout=15, check=False,
+        capture_output=True,
+        text=True,
+        timeout=15,
+        check=False,
     )
     if result.returncode != 0:
         error_and_exit(
-            f"Failed to determine current user: {result.stderr or result.stdout}", 4,
+            f"Failed to determine current user: {result.stderr or result.stdout}",
+            4,
         )
     return result.stdout.strip()
 
@@ -99,15 +105,21 @@ def _try_notifications(repo_flag: str, limit: int) -> list[dict] | None:
     """
     result = subprocess.run(
         [
-            "gh", "api", "notifications",
-            "--jq", (
+            "gh",
+            "api",
+            "notifications",
+            "--jq",
+            (
                 f'[.[] | select(.repository.full_name == "{repo_flag}") '
-                f'| {{reason: .reason, title: .subject.title, '
-                f'type: .subject.type, url: .subject.url, '
-                f'updated_at: .updated_at}}] | .[:' + str(limit) + ']'
+                f"| {{reason: .reason, title: .subject.title, "
+                f"type: .subject.type, url: .subject.url, "
+                f"updated_at: .updated_at}}] | .[:" + str(limit) + "]"
             ),
         ],
-        capture_output=True, text=True, timeout=30, check=False,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
     )
     if result.returncode != 0:
         stderr = result.stderr or ""
@@ -125,13 +137,22 @@ def _get_review_requests(repo_flag: str, user: str, limit: int) -> list[dict]:
     """Fetch PRs where the current user is requested as reviewer."""
     result = subprocess.run(
         [
-            "gh", "pr", "list",
-            "--repo", repo_flag,
-            "--search", f"review-requested:{user}",
-            "--limit", str(limit),
-            "--json", "number,title,author,updatedAt,url",
+            "gh",
+            "pr",
+            "list",
+            "--repo",
+            repo_flag,
+            "--search",
+            f"review-requested:{user}",
+            "--limit",
+            str(limit),
+            "--json",
+            "number,title,author,updatedAt,url",
         ],
-        capture_output=True, text=True, timeout=30, check=False,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
     )
     if result.returncode != 0:
         return []
@@ -158,13 +179,22 @@ def _get_authored_prs(repo_flag: str, user: str, limit: int) -> list[dict]:
     """Fetch open PRs authored by the current user."""
     result = subprocess.run(
         [
-            "gh", "pr", "list",
-            "--repo", repo_flag,
-            "--author", user,
-            "--limit", str(limit),
-            "--json", "number,title,reviewDecision,updatedAt,url",
+            "gh",
+            "pr",
+            "list",
+            "--repo",
+            repo_flag,
+            "--author",
+            user,
+            "--limit",
+            str(limit),
+            "--json",
+            "number,title,reviewDecision,updatedAt,url",
         ],
-        capture_output=True, text=True, timeout=30, check=False,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
     )
     if result.returncode != 0:
         return []
@@ -191,13 +221,22 @@ def _get_assigned_issues(repo_flag: str, user: str, limit: int) -> list[dict]:
     """Fetch open issues assigned to the current user."""
     result = subprocess.run(
         [
-            "gh", "issue", "list",
-            "--repo", repo_flag,
-            "--assignee", user,
-            "--limit", str(limit),
-            "--json", "number,title,labels,updatedAt,url",
+            "gh",
+            "issue",
+            "list",
+            "--repo",
+            repo_flag,
+            "--assignee",
+            user,
+            "--limit",
+            str(limit),
+            "--json",
+            "number,title,labels,updatedAt,url",
         ],
-        capture_output=True, text=True, timeout=30, check=False,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
     )
     if result.returncode != 0:
         return []

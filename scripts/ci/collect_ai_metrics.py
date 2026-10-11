@@ -53,8 +53,7 @@ def _write_outputs(table: str, start: str, end: str, output_path: str | None) ->
         # arbitrary step outputs.
         table = table.replace(_DELIMITER, _DELIMITER + "_ESCAPED")
     body = (
-        f"metrics_table<<{_DELIMITER}\n{table}\n{_DELIMITER}\n"
-        f"start_date={start}\nend_date={end}\n"
+        f"metrics_table<<{_DELIMITER}\n{table}\n{_DELIMITER}\nstart_date={start}\nend_date={end}\n"
     )
     if not output_path:
         print(body, end="")

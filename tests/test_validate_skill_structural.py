@@ -372,9 +372,7 @@ class TestTriggerPhraseRepoWideGuard:
             "Latent SkillForge trigger-phrase violations found repo-wide "
             "(issue #3233). Each file below has an unsafe trigger phrase that "
             "would block the next unrelated commit that stages it:\n"
-            + "\n".join(
-                f"  {name}: {'; '.join(msgs)}" for name, msgs in offenders.items()
-            )
+            + "\n".join(f"  {name}: {'; '.join(msgs)}" for name, msgs in offenders.items())
         )
 
     def test_guard_detects_injected_unsafe_trigger(self, tmp_path: Path) -> None:

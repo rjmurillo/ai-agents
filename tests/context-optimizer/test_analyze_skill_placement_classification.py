@@ -6,7 +6,6 @@ limit. The seam is the same one the module has: measurement below, decisions and
 CLI surface here.
 """
 
-
 from __future__ import annotations
 
 import json
@@ -133,8 +132,11 @@ class TestGetClassification:
         removed = {"always_needed": 5}
         with pytest.raises(TypeError):
             get_classification(
-                tool_calls=0, action_verbs=0, reference_ratio=0.5,
-                user_triggers=0, **removed,
+                tool_calls=0,
+                action_verbs=0,
+                reference_ratio=0.5,
+                user_triggers=0,
+                **removed,
             )
 
 

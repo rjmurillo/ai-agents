@@ -118,6 +118,7 @@ first rather than passing the markdown directly:
 
 ```python
 import json, pathlib
+
 body = pathlib.Path("comment.md").read_text()
 pathlib.Path("payload.json").write_text(json.dumps({"body": body}))
 ```

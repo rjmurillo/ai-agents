@@ -28,9 +28,7 @@ _SCRIPT = (
     / "test-infrastructure-failure.sh"
 )
 
-_MODEL_UNAVAILABLE_STDERR = (
-    'Error: Model "claude-opus-4.5" from --model flag is not available.'
-)
+_MODEL_UNAVAILABLE_STDERR = 'Error: Model "claude-opus-4.5" from --model flag is not available.'
 
 
 def _classify(exit_code: int, stdout: str, stderr: str) -> str:
@@ -67,9 +65,7 @@ def test_script_exists() -> None:
         (1, "", "HTTP 503 Service Unavailable"),
     ],
 )
-def test_infrastructure_failures_classified_true(
-    exit_code: int, stdout: str, stderr: str
-) -> None:
+def test_infrastructure_failures_classified_true(exit_code: int, stdout: str, stderr: str) -> None:
     """Infrastructure-style failures classify as infra (non-blocking)."""
     assert _classify(exit_code, stdout, stderr) == "true"
 

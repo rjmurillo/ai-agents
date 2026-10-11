@@ -33,9 +33,7 @@ def _discover_fixture_stems() -> list[str]:
     claude_dir = fixture_dir / "claude"
     if not claude_dir.is_dir():
         return []
-    return sorted(
-        path.name[:-3] for path in claude_dir.glob("*.md")
-    )
+    return sorted(path.name[:-3] for path in claude_dir.glob("*.md"))
 
 
 class TestLosslessRendering:
@@ -92,13 +90,9 @@ class TestLosslessRendering:
     def test_fixture_count_is_30(self) -> None:
         """Exactly 30 fixtures must exist."""
         stems = _discover_fixture_stems()
-        assert len(stems) == 30, (
-            f"Expected 30 fixtures, found {len(stems)}: {stems}"
-        )
+        assert len(stems) == 30, f"Expected 30 fixtures, found {len(stems)}: {stems}"
 
-    def test_negative_control_template_change_is_detected(
-        self, tmp_path: Path
-    ) -> None:
+    def test_negative_control_template_change_is_detected(self, tmp_path: Path) -> None:
         """Appending to template produces different bytes (proves test can fail)."""
         fixture_dir = _fixture_dir()
         stems = _discover_fixture_stems()

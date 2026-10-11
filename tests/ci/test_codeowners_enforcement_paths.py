@@ -85,11 +85,7 @@ def test_a_pattern_with_no_owner_is_reported_unowned() -> None:
 
 def test_comments_and_blank_lines_are_ignored() -> None:
     """Edge: comment lines, inline comments, and blanks parse away."""
-    owners = parse_codeowners(
-        "# a comment\n\n"
-        "/scripts/ci/ @rjmurillo  # trailing comment\n"
-        "   \n"
-    )
+    owners = parse_codeowners("# a comment\n\n/scripts/ci/ @rjmurillo  # trailing comment\n   \n")
     assert owners == {"/scripts/ci/": ["@rjmurillo"]}
 
 

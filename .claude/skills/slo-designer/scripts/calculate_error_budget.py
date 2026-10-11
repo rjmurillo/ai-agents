@@ -161,9 +161,7 @@ def format_text_output(budget: ErrorBudget, burn_rates: dict) -> str:
         else:
             time_str = f"{hours / 24:.1f} days"
 
-        lines.append(
-            f"  {rate:>6} burn: {time_str:>15} to exhaust ({data['alert_severity']})"
-        )
+        lines.append(f"  {rate:>6} burn: {time_str:>15} to exhaust ({data['alert_severity']})")
 
     return "\n".join(lines)
 

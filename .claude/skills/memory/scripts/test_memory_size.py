@@ -47,10 +47,7 @@ def _strip_fenced_code_blocks(content: str) -> str:
     for line in content.splitlines(keepends=True):
         if fence_char:
             stripped = line.strip()
-            if (
-                stripped.startswith(fence_char * fence_length)
-                and set(stripped) <= {fence_char}
-            ):
+            if stripped.startswith(fence_char * fence_length) and set(stripped) <= {fence_char}:
                 fence_char = ""
                 fence_length = 0
             continue
@@ -70,6 +67,7 @@ def _strip_fenced_code_blocks(content: str) -> str:
 @dataclass
 class ValidationResult:
     """Memory file validation result."""
+
     file_path: str
     is_valid: bool
     char_count: int
@@ -91,7 +89,7 @@ class MemorySizeValidator:
         self,
         max_chars: int = MAX_CHARS,
         max_skills: int = MAX_SKILLS,
-        max_categories: int = MAX_CATEGORIES
+        max_categories: int = MAX_CATEGORIES,
     ):
         self.max_chars = max_chars
         self.max_skills = max_skills
@@ -119,7 +117,7 @@ class MemorySizeValidator:
         heading_content = _strip_fenced_code_blocks(content)
 
         # Count skills (## level-2 headings)
-        skill_count = len(re.findall(r'^## ', heading_content, re.MULTILINE))
+        skill_count = len(re.findall(r"^## ", heading_content, re.MULTILINE))
 
         # Count categories (heuristic: unique tags or top-level sections)
         # Look for common category markers: tags, labels, or h1 sections
@@ -133,9 +131,7 @@ class MemorySizeValidator:
             )
 
         if skill_count > self.max_skills:
-            violations.append(
-                f"Skill count ({skill_count}) exceeds maximum ({self.max_skills})"
-            )
+            violations.append(f"Skill count ({skill_count}) exceeds maximum ({self.max_skills})")
 
         if category_count > self.max_categories:
             violations.append(
@@ -170,7 +166,7 @@ class MemorySizeValidator:
             skill_count=skill_count,
             category_count=category_count,
             violations=violations,
-            recommendation=recommendation
+            recommendation=recommendation,
         )
 
     def _count_categories(self, content: str) -> int:
@@ -183,20 +179,20 @@ class MemorySizeValidator:
         3. Distinct top-level concept groups
         """
         # Count H1 headings (excluding title)
-        h1_headings = re.findall(r'^# (.+)$', content, re.MULTILINE)
+        h1_headings = re.findall(r"^# (.+)$", content, re.MULTILINE)
 
         # Exclude common non-category headings
-        excluded = {'toc', 'table of contents', 'overview', 'introduction'}
+        excluded = {"toc", "table of contents", "overview", "introduction"}
         categories = [h for h in h1_headings if h.lower() not in excluded]
 
         # If no H1s, use H2 groupings as proxy
         if not categories:
             # Group H2s by common prefixes (e.g., "Git: ", "GitHub: ")
-            h2_headings = re.findall(r'^## (.+)$', content, re.MULTILINE)
+            h2_headings = re.findall(r"^## (.+)$", content, re.MULTILINE)
             prefixes = set()
             for h2 in h2_headings:
                 # Extract prefix before colon or hyphen
-                match = re.match(r'^([^:-]+)[:-]', h2)
+                match = re.match(r"^([^:-]+)[:-]", h2)
                 if match:
                     prefixes.add(match.group(1).strip())
             return len(prefixes) if prefixes else 1  # At least 1 category
@@ -204,10 +200,7 @@ class MemorySizeValidator:
         return len(categories)
 
     def validate_directory(
-        self,
-        directory: Path,
-        pattern: str = "*.md",
-        recursive: bool = False
+        self, directory: Path, pattern: str = "*.md", recursive: bool = False
     ) -> list[ValidationResult]:
         """
         Validate all memory files in directory.
@@ -250,7 +243,7 @@ def format_result(result: ValidationResult, verbose: bool = False) -> str:
         f"{status}: {result.file_path}",
         f"  Characters: {result.char_count:,}",
         f"  Skills: {result.skill_count}",
-        f"  Categories: {result.category_count}"
+        f"  Categories: {result.category_count}",
     ]
 
     if not result.is_valid:
@@ -268,50 +261,36 @@ def main():
     parser = argparse.ArgumentParser(
         description="Validate Serena memory file sizes against context engineering thresholds"
     )
+    parser.add_argument("path", type=Path, help="Memory file or directory to validate")
     parser.add_argument(
-        "path",
-        type=Path,
-        help="Memory file or directory to validate"
-    )
-    parser.add_argument(
-        "-r", "--recursive",
-        action="store_true",
-        help="Recursively process directory"
+        "-r", "--recursive", action="store_true", help="Recursively process directory"
     )
     parser.add_argument(
         "--pattern",
         type=str,
         default="*.md",
-        help="File pattern for directory mode (default: *.md)"
+        help="File pattern for directory mode (default: *.md)",
     )
     parser.add_argument(
         "--max-chars",
         type=int,
         default=MemorySizeValidator.MAX_CHARS,
-        help=f"Maximum character count (default: {MemorySizeValidator.MAX_CHARS:,})"
+        help=f"Maximum character count (default: {MemorySizeValidator.MAX_CHARS:,})",
     )
     parser.add_argument(
         "--max-skills",
         type=int,
         default=MemorySizeValidator.MAX_SKILLS,
-        help=f"Maximum skills per file (default: {MemorySizeValidator.MAX_SKILLS})"
+        help=f"Maximum skills per file (default: {MemorySizeValidator.MAX_SKILLS})",
     )
     parser.add_argument(
         "--max-categories",
         type=int,
         default=MemorySizeValidator.MAX_CATEGORIES,
-        help=f"Maximum categories per file (default: {MemorySizeValidator.MAX_CATEGORIES})"
+        help=f"Maximum categories per file (default: {MemorySizeValidator.MAX_CATEGORIES})",
     )
-    parser.add_argument(
-        "-v", "--verbose",
-        action="store_true",
-        help="Verbose output"
-    )
-    parser.add_argument(
-        "--fail-fast",
-        action="store_true",
-        help="Exit on first validation failure"
-    )
+    parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
+    parser.add_argument("--fail-fast", action="store_true", help="Exit on first validation failure")
 
     args = parser.parse_args()
 
@@ -322,9 +301,7 @@ def main():
         sys.exit(1)
 
     validator = MemorySizeValidator(
-        max_chars=args.max_chars,
-        max_skills=args.max_skills,
-        max_categories=args.max_categories
+        max_chars=args.max_chars, max_skills=args.max_skills, max_categories=args.max_categories
     )
 
     try:
@@ -336,11 +313,7 @@ def main():
 
         elif args.path.is_dir():
             # Directory mode
-            results = validator.validate_directory(
-                args.path,
-                args.pattern,
-                args.recursive
-            )
+            results = validator.validate_directory(args.path, args.pattern, args.recursive)
 
             if not results:
                 print(f"No files matching '{args.pattern}' in {args.path}", file=sys.stderr)

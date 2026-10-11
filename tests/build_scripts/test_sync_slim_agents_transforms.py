@@ -119,8 +119,7 @@ def tree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 def test_github_tool_prefix_is_stripped_into_both_destinations(tree: Path) -> None:
     """The one mechanizable rule: `mcp__github__x` reaches a mirror as `x`."""
-    _write(tree / "src" / "claude" / f"{AGENT}.md",
-           CLAUDE_FRONTMATTER + GITHUB_TOOL_BODY)
+    _write(tree / "src" / "claude" / f"{AGENT}.md", CLAUDE_FRONTMATTER + GITHUB_TOOL_BODY)
     template = tree / "templates" / "agents" / f"{AGENT}.shared.md"
     github = tree / ".github" / "agents" / f"{AGENT}.agent.md"
     _write(template, TEMPLATE_FRONTMATTER + STALE_BODY)
@@ -135,8 +134,7 @@ def test_github_tool_prefix_is_stripped_into_both_destinations(tree: Path) -> No
 
 def test_serena_tool_prefix_is_written_through_unchanged(tree: Path) -> None:
     """`mcp__serena__` is in all three trees, so stripping it would be wrong."""
-    _write(tree / "src" / "claude" / f"{AGENT}.md",
-           CLAUDE_FRONTMATTER + SERENA_TOOL_BODY)
+    _write(tree / "src" / "claude" / f"{AGENT}.md", CLAUDE_FRONTMATTER + SERENA_TOOL_BODY)
     template = tree / "templates" / "agents" / f"{AGENT}.shared.md"
     github = tree / ".github" / "agents" / f"{AGENT}.agent.md"
     _write(template, TEMPLATE_FRONTMATTER + STALE_BODY)
@@ -144,16 +142,13 @@ def test_serena_tool_prefix_is_written_through_unchanged(tree: Path) -> None:
 
     assert sync_slim_agents.main(["--write"]) == sync_slim_agents.EXIT_OK
 
-    assert template.read_text(encoding="utf-8") == (
-        TEMPLATE_FRONTMATTER + SERENA_TOOL_BODY
-    )
+    assert template.read_text(encoding="utf-8") == (TEMPLATE_FRONTMATTER + SERENA_TOOL_BODY)
     assert github.read_text(encoding="utf-8") == GITHUB_FRONTMATTER + SERENA_TOOL_BODY
 
 
 def test_destination_missing_a_whole_section_still_syncs(tree: Path) -> None:
     """Insert-only is the safe shape: the copy adds lines and drops none."""
-    _write(tree / "src" / "claude" / f"{AGENT}.md",
-           CLAUDE_FRONTMATTER + SECTIONED_BODY)
+    _write(tree / "src" / "claude" / f"{AGENT}.md", CLAUDE_FRONTMATTER + SECTIONED_BODY)
     template = tree / "templates" / "agents" / f"{AGENT}.shared.md"
     github = tree / ".github" / "agents" / f"{AGENT}.agent.md"
     _write(template, TEMPLATE_FRONTMATTER + "# Analyst\n")
@@ -164,8 +159,7 @@ def test_destination_missing_a_whole_section_still_syncs(tree: Path) -> None:
     assert template.read_text(encoding="utf-8") == TEMPLATE_FRONTMATTER + SECTIONED_BODY
 
 
-def test_reworded_destination_blocks_write_and_writes_nothing(tree: Path,
-                                                              capsys) -> None:
+def test_reworded_destination_blocks_write_and_writes_nothing(tree: Path, capsys) -> None:
     """A `replace` opcode is destination wording no transform reproduces.
 
     The second mirror carries insert-only drift, so it is writable on its own.
@@ -203,17 +197,15 @@ def test_destination_only_line_blocks_write(tree: Path, capsys) -> None:
     assert "templates/agents/analyst.shared.md" in err
     assert "line 10 destination: Destination-only note." in err
     assert "line 10 source:      (no matching source line)" in err
-    assert template.read_text(encoding="utf-8") == (
-        TEMPLATE_FRONTMATTER + DESTINATION_ONLY_BODY
-    )
+    assert template.read_text(encoding="utf-8") == (TEMPLATE_FRONTMATTER + DESTINATION_ONLY_BODY)
 
 
 def test_check_counts_the_two_kinds_of_drift_apart(tree: Path, capsys) -> None:
     """Both kinds exit 1, but only one of them is cleared by running --write."""
-    _write(tree / "templates" / "agents" / f"{AGENT}.shared.md",
-           TEMPLATE_FRONTMATTER + REWORDED_BODY)
-    _write(tree / ".github" / "agents" / f"{AGENT}.agent.md",
-           GITHUB_FRONTMATTER + STALE_BODY)
+    _write(
+        tree / "templates" / "agents" / f"{AGENT}.shared.md", TEMPLATE_FRONTMATTER + REWORDED_BODY
+    )
+    _write(tree / ".github" / "agents" / f"{AGENT}.agent.md", GITHUB_FRONTMATTER + STALE_BODY)
 
     assert sync_slim_agents.main(["--check"]) == sync_slim_agents.EXIT_DRIFT
 
@@ -227,8 +219,10 @@ def test_check_counts_the_two_kinds_of_drift_apart(tree: Path, capsys) -> None:
 
 def test_blocked_line_is_truncated_in_the_report(tree: Path, capsys) -> None:
     """One 200-character table row must not scroll the other findings away."""
-    _write(tree / "templates" / "agents" / f"{AGENT}.shared.md",
-           TEMPLATE_FRONTMATTER + "# Analyst\n\n" + "x" * 200 + "\n")
+    _write(
+        tree / "templates" / "agents" / f"{AGENT}.shared.md",
+        TEMPLATE_FRONTMATTER + "# Analyst\n\n" + "x" * 200 + "\n",
+    )
 
     assert sync_slim_agents.main(["--write"]) == sync_slim_agents.EXIT_CONFIG
 
@@ -251,14 +245,11 @@ def test_apply_sync_skips_a_blocked_file_when_called_directly(tree: Path) -> Non
 def test_check_reports_no_drift_when_bodies_match(tree: Path, capsys) -> None:
     assert sync_slim_agents.main([]) == sync_slim_agents.EXIT_OK
 
-    assert "examined 2 destination files: 2 in sync, 0 with drift" in (
-        capsys.readouterr().out
-    )
+    assert "examined 2 destination files: 2 in sync, 0 with drift" in (capsys.readouterr().out)
 
 
 def test_check_exits_nonzero_and_names_the_drifted_file(tree: Path, capsys) -> None:
-    _write(tree / "templates" / "agents" / f"{AGENT}.shared.md",
-           TEMPLATE_FRONTMATTER + STALE_BODY)
+    _write(tree / "templates" / "agents" / f"{AGENT}.shared.md", TEMPLATE_FRONTMATTER + STALE_BODY)
 
     assert sync_slim_agents.main([]) == sync_slim_agents.EXIT_DRIFT
 

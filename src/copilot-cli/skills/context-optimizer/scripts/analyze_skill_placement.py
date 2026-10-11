@@ -191,9 +191,7 @@ def measure_reference_content(text: str) -> float:
     # Count procedural indicators
     procedural_indicators = 0
     procedural_indicators += len(re.findall(r"^\d+\.\s+", text, re.MULTILINE))
-    procedural_indicators += len(
-        re.findall(r"(?:Phase|Step|Stage)\s+\d+", text, re.IGNORECASE)
-    )
+    procedural_indicators += len(re.findall(r"(?:Phase|Step|Stage)\s+\d+", text, re.IGNORECASE))
 
     total = reference_indicators + procedural_indicators
     if total == 0:
@@ -267,14 +265,10 @@ def get_classification(
     # Reference content indicates passive
     if reference_ratio > 0.7:
         score.passive_score += 3
-        score.reasons.append(
-            f"High reference content ratio ({reference_ratio:.2f})"
-        )
+        score.reasons.append(f"High reference content ratio ({reference_ratio:.2f})")
     elif reference_ratio > 0.5:
         score.passive_score += 1
-        score.reasons.append(
-            f"Moderate reference content ({reference_ratio:.2f})"
-        )
+        score.reasons.append(f"Moderate reference content ({reference_ratio:.2f})")
 
     # User triggers indicate skill
     if user_triggers > 3:
@@ -298,9 +292,7 @@ def get_classification(
     return classification, confidence, score.reasons
 
 
-def get_hybrid_recommendations(
-    text: str, classification: str
-) -> Recommendations | None:
+def get_hybrid_recommendations(text: str, classification: str) -> Recommendations | None:
     """Get recommendations for hybrid content.
 
     Args:
@@ -344,9 +336,7 @@ def get_hybrid_recommendations(
     return recommendations
 
 
-def analyze_content(
-    content: str, detailed: bool = False
-) -> AnalysisResult:
+def analyze_content(content: str, detailed: bool = False) -> AnalysisResult:
     """Analyze content and classify placement.
 
     Args:
@@ -399,9 +389,7 @@ def main() -> int:
     Returns:
         Exit code (0 success, 1 error)
     """
-    parser = argparse.ArgumentParser(
-        description="Analyze skill content for optimal placement"
-    )
+    parser = argparse.ArgumentParser(description="Analyze skill content for optimal placement")
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument(
         "-p",

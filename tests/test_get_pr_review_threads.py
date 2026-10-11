@@ -49,12 +49,12 @@ def _assert_envelope_shape(envelope: dict, *, success: bool) -> None:
     assert "Version" in envelope["Metadata"]
     assert "Timestamp" in envelope["Metadata"]
 
+
 # ---------------------------------------------------------------------------
 # Import the script via importlib (not a package)
 # ---------------------------------------------------------------------------
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1]
-    / ".claude" / "skills" / "github" / "scripts" / "pr"
+    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "pr"
 )
 
 
@@ -87,22 +87,31 @@ def _graphql_response(threads=None, total_count=None):
         threads = []
     if total_count is None:
         total_count = len(threads)
-    return json.dumps({
-        "data": {
-            "repository": {
-                "pullRequest": {
-                    "reviewThreads": {
-                        "totalCount": total_count,
-                        "nodes": threads,
+    return json.dumps(
+        {
+            "data": {
+                "repository": {
+                    "pullRequest": {
+                        "reviewThreads": {
+                            "totalCount": total_count,
+                            "nodes": threads,
+                        },
                     },
                 },
             },
-        },
-    })
+        }
+    )
 
 
-def _thread(thread_id="PRRT_1", resolved=False, outdated=False, path="file.py",
-            line=10, body="comment", author="alice"):
+def _thread(
+    thread_id="PRRT_1",
+    resolved=False,
+    outdated=False,
+    path="file.py",
+    line=10,
+    body="comment",
+    author="alice",
+):
     return {
         "id": thread_id,
         "isResolved": resolved,
@@ -144,9 +153,14 @@ class TestBuildParser:
             build_parser().parse_args([])
 
     def test_flags(self):
-        args = build_parser().parse_args([
-            "--pull-request", "50", "--unresolved-only", "--include-comments",
-        ])
+        args = build_parser().parse_args(
+            [
+                "--pull-request",
+                "50",
+                "--unresolved-only",
+                "--include-comments",
+            ]
+        )
         assert args.unresolved_only is True
         assert args.include_comments is True
 
@@ -167,14 +181,18 @@ class TestMain:
             assert exc.value.code == 4
 
     def test_pr_not_found_returns_2(self, capsys):
-        with patch(
-            "get_pr_review_threads.assert_gh_authenticated",
-        ), patch(
-            "get_pr_review_threads.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(rc=1, stderr="Could not resolve"),
+        with (
+            patch(
+                "get_pr_review_threads.assert_gh_authenticated",
+            ),
+            patch(
+                "get_pr_review_threads.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(rc=1, stderr="Could not resolve"),
+            ),
         ):
             rc = main(["--pull-request", "999"])
         assert rc == 2
@@ -186,14 +204,18 @@ class TestMain:
     def test_success_all_threads(self, capsys):
         threads = [_thread("PRRT_1", resolved=False), _thread("PRRT_2", resolved=True)]
         response = _graphql_response(threads)
-        with patch(
-            "get_pr_review_threads.assert_gh_authenticated",
-        ), patch(
-            "get_pr_review_threads.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout=response, rc=0),
+        with (
+            patch(
+                "get_pr_review_threads.assert_gh_authenticated",
+            ),
+            patch(
+                "get_pr_review_threads.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=response, rc=0),
+            ),
         ):
             rc = main(["--pull-request", "50"])
         assert rc == 0
@@ -211,14 +233,18 @@ class TestMain:
     def test_unresolved_only_filter(self, capsys):
         threads = [_thread("PRRT_1", resolved=False), _thread("PRRT_2", resolved=True)]
         response = _graphql_response(threads)
-        with patch(
-            "get_pr_review_threads.assert_gh_authenticated",
-        ), patch(
-            "get_pr_review_threads.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout=response, rc=0),
+        with (
+            patch(
+                "get_pr_review_threads.assert_gh_authenticated",
+            ),
+            patch(
+                "get_pr_review_threads.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=response, rc=0),
+            ),
         ):
             rc = main(["--pull-request", "50", "--unresolved-only"])
         assert rc == 0
@@ -229,14 +255,18 @@ class TestMain:
     def test_include_comments(self, capsys):
         threads = [_thread("PRRT_1")]
         response = _graphql_response(threads)
-        with patch(
-            "get_pr_review_threads.assert_gh_authenticated",
-        ), patch(
-            "get_pr_review_threads.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout=response, rc=0),
+        with (
+            patch(
+                "get_pr_review_threads.assert_gh_authenticated",
+            ),
+            patch(
+                "get_pr_review_threads.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=response, rc=0),
+            ),
         ):
             rc = main(["--pull-request", "50", "--include-comments"])
         assert rc == 0
@@ -246,14 +276,18 @@ class TestMain:
 
     def test_empty_threads(self, capsys):
         response = _graphql_response([])
-        with patch(
-            "get_pr_review_threads.assert_gh_authenticated",
-        ), patch(
-            "get_pr_review_threads.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout=response, rc=0),
+        with (
+            patch(
+                "get_pr_review_threads.assert_gh_authenticated",
+            ),
+            patch(
+                "get_pr_review_threads.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=response, rc=0),
+            ),
         ):
             rc = main(["--pull-request", "50"])
         assert rc == 0
@@ -263,14 +297,18 @@ class TestMain:
 
     def test_api_error_returns_3(self, capsys):
         """Generic RuntimeError (not 'Could not resolve') returns code 3 with ApiError envelope."""
-        with patch(
-            "get_pr_review_threads.assert_gh_authenticated",
-        ), patch(
-            "get_pr_review_threads.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_pr_review_threads._run_threads_query",
-            side_effect=RuntimeError("rate limit exceeded"),
+        with (
+            patch(
+                "get_pr_review_threads.assert_gh_authenticated",
+            ),
+            patch(
+                "get_pr_review_threads.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_pr_review_threads._run_threads_query",
+                side_effect=RuntimeError("rate limit exceeded"),
+            ),
         ):
             rc = main(["--pull-request", "50"])
         assert rc == 3
@@ -288,14 +326,18 @@ class TestMain:
                 },
             },
         }
-        with patch(
-            "get_pr_review_threads.assert_gh_authenticated",
-        ), patch(
-            "get_pr_review_threads.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_pr_review_threads._run_threads_query",
-            return_value=data,
+        with (
+            patch(
+                "get_pr_review_threads.assert_gh_authenticated",
+            ),
+            patch(
+                "get_pr_review_threads.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_pr_review_threads._run_threads_query",
+                return_value=data,
+            ),
         ):
             rc = main(["--pull-request", "50"])
         assert rc == 2
@@ -306,14 +348,18 @@ class TestMain:
     def test_missing_pull_request_returns_2(self, capsys):
         """Missing pullRequest in response returns code 2."""
         data = {"repository": {}}
-        with patch(
-            "get_pr_review_threads.assert_gh_authenticated",
-        ), patch(
-            "get_pr_review_threads.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_pr_review_threads._run_threads_query",
-            return_value=data,
+        with (
+            patch(
+                "get_pr_review_threads.assert_gh_authenticated",
+            ),
+            patch(
+                "get_pr_review_threads.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_pr_review_threads._run_threads_query",
+                return_value=data,
+            ),
         ):
             rc = main(["--pull-request", "50"])
         assert rc == 2
@@ -352,15 +398,19 @@ class TestMain:
             make_response(page2_threads, False, None, 107),
         ]
 
-        with patch(
-            "get_pr_review_threads.assert_gh_authenticated",
-        ), patch(
-            "get_pr_review_threads.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_pr_review_threads._run_threads_query",
-            side_effect=responses,
-        ) as mock_query:
+        with (
+            patch(
+                "get_pr_review_threads.assert_gh_authenticated",
+            ),
+            patch(
+                "get_pr_review_threads.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_pr_review_threads._run_threads_query",
+                side_effect=responses,
+            ) as mock_query,
+        ):
             rc = main(["--pull-request", "50"])
 
         assert rc == 0
@@ -410,15 +460,19 @@ class TestMain:
         # Supply cap+5 page responses; loop must stop at cap.
         responses = [_page(i) for i in range(cap + 5)]
 
-        with patch(
-            "get_pr_review_threads.assert_gh_authenticated",
-        ), patch(
-            "get_pr_review_threads.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_pr_review_threads._run_threads_query",
-            side_effect=responses,
-        ) as mock_query:
+        with (
+            patch(
+                "get_pr_review_threads.assert_gh_authenticated",
+            ),
+            patch(
+                "get_pr_review_threads.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_pr_review_threads._run_threads_query",
+                side_effect=responses,
+            ) as mock_query,
+        ):
             with pytest.warns(UserWarning, match=r"Hit _MAX_THREAD_PAGES"):
                 rc = main(["--pull-request", "1894"])
 
@@ -461,9 +515,9 @@ class TestMain:
         assert nodes is None
         assert total == 0
         assert truncated is False
-        assert any(
-            "reason=pr_not_found" in r.message for r in caplog.records
-        ), "PR-not-found path must log a distinct reason for observability"
+        assert any("reason=pr_not_found" in r.message for r in caplog.records), (
+            "PR-not-found path must log a distinct reason for observability"
+        )
         caplog.clear()
 
         # Case 1b: PR exists but reviewThreads connection is missing
@@ -472,17 +526,15 @@ class TestMain:
         with caplog.at_level(logging.WARNING, logger="get_pr_review_threads"):
             with patch(
                 "get_pr_review_threads._run_threads_query",
-                return_value={
-                    "repository": {"pullRequest": {"reviewThreads": None}}
-                },
+                return_value={"repository": {"pullRequest": {"reviewThreads": None}}},
             ):
                 nodes, total, truncated = _mod._collect_all_threads("o", "r", 1, 1)
         assert nodes is None
         assert total == 0
         assert truncated is False
-        assert any(
-            "reason=field_missing" in r.message for r in caplog.records
-        ), "reviewThreads-missing path must log a distinct reason"
+        assert any("reason=field_missing" in r.message for r in caplog.records), (
+            "reviewThreads-missing path must log a distinct reason"
+        )
         caplog.clear()
 
         # Case 2: PR exists, zero threads (single page, hasNextPage=false).
@@ -552,15 +604,19 @@ class TestMain:
             },
         }
 
-        with patch(
-            "get_pr_review_threads.assert_gh_authenticated",
-        ), patch(
-            "get_pr_review_threads.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_pr_review_threads._run_threads_query",
-            side_effect=[page1, page2],
-        ) as mock_query:
+        with (
+            patch(
+                "get_pr_review_threads.assert_gh_authenticated",
+            ),
+            patch(
+                "get_pr_review_threads.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_pr_review_threads._run_threads_query",
+                side_effect=[page1, page2],
+            ) as mock_query,
+        ):
             main(["--pull-request", "50"])
 
         # On the second call, the cursor kwarg must be CURSOR_X.
@@ -609,14 +665,16 @@ class TestTransformThread:
 
     def test_thread_with_multiple_comments(self):
         thread = _thread()
-        thread["comments"]["nodes"].append({
-            "id": "C2",
-            "databaseId": 200,
-            "body": "reply",
-            "author": {"login": "bob"},
-            "createdAt": "2025-01-02T00:00:00Z",
-            "updatedAt": "2025-01-02T00:00:00Z",
-        })
+        thread["comments"]["nodes"].append(
+            {
+                "id": "C2",
+                "databaseId": 200,
+                "body": "reply",
+                "author": {"login": "bob"},
+                "createdAt": "2025-01-02T00:00:00Z",
+                "updatedAt": "2025-01-02T00:00:00Z",
+            }
+        )
         thread["comments"]["totalCount"] = 2
         result = _transform_thread(thread, include_comments=True)
         assert len(result["comments"]) == 2

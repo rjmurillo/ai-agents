@@ -10,13 +10,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent))
 sys.path.insert(
     0,
-    str(
-        Path(__file__).parent.parent
-        / ".claude"
-        / "skills"
-        / "context-optimizer"
-        / "scripts"
-    ),
+    str(Path(__file__).parent.parent / ".claude" / "skills" / "context-optimizer" / "scripts"),
 )
 
 from test_extract_and_index import (

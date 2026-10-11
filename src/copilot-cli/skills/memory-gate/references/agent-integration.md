@@ -78,6 +78,7 @@ under the skill, not an installed distribution, so put the skill directory on
 ```python
 import os
 import sys
+
 _root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT") or ".claude"
 sys.path.insert(0, f"{_root}/skills/memory")
 
@@ -109,7 +110,6 @@ For direct MCP tool access:
 mcp__serena__list_memories()
 mcp__serena__read_memory(memory_file_name="powershell/powershell-array-handling")
 mcp__serena__write_memory(memory_file_name="new-pattern", content="...")
-
 ```
 
 **Advantages**:

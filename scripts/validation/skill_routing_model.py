@@ -53,4 +53,3 @@ class SkillDecl:
     invoker: str | None
     replaced_by: str | None
     scenario: str
-

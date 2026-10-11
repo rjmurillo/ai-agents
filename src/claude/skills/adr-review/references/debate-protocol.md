@@ -93,7 +93,9 @@ P0 = blocking, P1 = important, P2 = nice-to-have
 **Agent Invocation Pattern:**
 
 ```python
-Task(subagent_type="architect", prompt="""
+Task(
+    subagent_type="architect",
+    prompt="""
 ADR Review Request (Phase 1: Independent Review)
 
 ## ADR Content
@@ -117,7 +119,8 @@ Path: [Claims ledger path]
    Q6. Are consequences reported as objectively as possible?
    Q7. Is the solution described actionably? Traceable to requirements? Has a review date?
 6. Return structured review per Phase 1 format
-""")
+""",
+)
 ```
 
 Repeat for: critic, independent-thinker, security, analyst, high-level-advisor.
@@ -136,7 +139,9 @@ After all 6 reviews complete:
 **Conflict Resolution Pattern:**
 
 ```python
-Task(subagent_type="high-level-advisor", prompt="""
+Task(
+    subagent_type="high-level-advisor",
+    prompt="""
 ADR Conflict Resolution Required
 
 ## Conflict 1: [Description]
@@ -153,7 +158,8 @@ For each conflict, provide:
 2. Rationale
 3. Whether ADR should be split
 4. Final P0/P1/P2 classification
-""")
+""",
+)
 ```
 
 ## Phase 3: Resolution
@@ -184,7 +190,9 @@ If 2+ agents flag scope concerns, recommend splitting:
 Re-invoke each agent to review proposed updates:
 
 ```python
-Task(subagent_type="[agent]", prompt="""
+Task(
+    subagent_type="[agent]",
+    prompt="""
 ADR Convergence Check (Round [N])
 
 ## Updated ADR
@@ -201,7 +209,8 @@ Provide ONE position:
 - **Accept**: No blocking concerns remain
 - **Disagree-and-Commit**: Reservations exist but agree to proceed (document dissent)
 - **Block**: Unresolved P0 concerns (specify what remains)
-""")
+""",
+)
 ```
 
 **Consensus Criteria:**

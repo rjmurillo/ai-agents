@@ -10,12 +10,7 @@ from unittest.mock import patch
 import pytest
 
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1]
-    / ".claude"
-    / "skills"
-    / "github"
-    / "scripts"
-    / "pr"
+    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "pr"
 )
 
 
@@ -59,10 +54,7 @@ def _threads(*ids: str, has_next: bool = False, cursor: str | None = None) -> di
                         "hasNextPage": has_next,
                         "endCursor": cursor,
                     },
-                    "nodes": [
-                        {"id": thread_id, "isResolved": False}
-                        for thread_id in ids
-                    ],
+                    "nodes": [{"id": thread_id, "isResolved": False} for thread_id in ids],
                 },
             },
         },

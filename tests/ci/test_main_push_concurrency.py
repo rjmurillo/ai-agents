@@ -125,9 +125,7 @@ def test_detector_ignores_push_workflow_without_main_branch() -> None:
 
 
 def test_all_known_post_merge_workflows_are_guarded() -> None:
-    missing = sorted(
-        name for name in PROTECTED_WORKFLOWS if not (WORKFLOW_DIR / name).is_file()
-    )
+    missing = sorted(name for name in PROTECTED_WORKFLOWS if not (WORKFLOW_DIR / name).is_file())
     assert missing == []
 
     unguarded = []

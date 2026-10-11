@@ -238,7 +238,7 @@ def get_step_2_guidance(plan_file: str) -> dict:
             "After collecting reconciliation results for all milestones, "
             "invoke step 3:\n\n"
             f'  python3 executor.py --plan-file "{plan_file}" --step-number 3 '
-            "--total-steps 7 --thoughts \"Reconciliation complete: "
+            '--total-steps 7 --thoughts "Reconciliation complete: '
             'M1: SATISFIED, M2: NOT_SATISFIED, ..."'
         ),
     }
@@ -605,9 +605,7 @@ Examples:
         "--plan-file", type=str, required=True, help="Path to the plan file to execute"
     )
     parser.add_argument("--step-number", type=int, required=True, help="Current step (1-7)")
-    parser.add_argument(
-        "--total-steps", type=int, required=True, help="Total steps (always 7)"
-    )
+    parser.add_argument("--total-steps", type=int, required=True, help="Total steps (always 7)")
     parser.add_argument(
         "--thoughts", type=str, required=True, help="Your current thinking and status"
     )
@@ -635,9 +633,7 @@ Examples:
     }
 
     print("=" * 80)
-    print(
-        f"EXECUTOR - Step {args.step_number} of 7: {step_names.get(args.step_number, 'Unknown')}"
-    )
+    print(f"EXECUTOR - Step {args.step_number} of 7: {step_names.get(args.step_number, 'Unknown')}")
     print("=" * 80)
     print()
     print(f"STATUS: {'execution_complete' if is_complete else 'in_progress'}")

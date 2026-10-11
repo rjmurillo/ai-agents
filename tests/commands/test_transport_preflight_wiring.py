@@ -73,9 +73,9 @@ class TestReviewPreflightWiring:
     def test_every_consumer_runs_the_preflight_before_step_1(self, path):
         body = path.read_text(encoding="utf-8")
         assert "transport_preflight" in body, f"{path.name} never runs the preflight"
-        assert body.index("transport_preflight") < body.index(
-            "Step 1: Parse and Validate PRs"
-        ), f"{path.name} reaches Step 1 before deciding transport"
+        assert body.index("transport_preflight") < body.index("Step 1: Parse and Validate PRs"), (
+            f"{path.name} reaches Step 1 before deciding transport"
+        )
 
 
 # The reads every MCP-mode consumer needs: PR context and threads, issue
@@ -123,9 +123,9 @@ _MCP_FORBIDDEN = frozenset(
 
 def _granted(path):
     body = path.read_text(encoding="utf-8")
-    allowed = next(
-        line for line in body.splitlines() if line.startswith("allowed-tools:")
-    ).split(":", 1)[1]
+    allowed = next(line for line in body.splitlines() if line.startswith("allowed-tools:")).split(
+        ":", 1
+    )[1]
     return {t.strip() for t in allowed.split(",")}
 
 
@@ -142,16 +142,12 @@ class TestMcpGrantsAreEnumerated:
     @pytest.mark.parametrize("path", [AUTOFIX, REVIEW])
     def test_the_reads_mcp_mode_depends_on_are_granted(self, path):
         granted = _granted(path)
-        missing = sorted(
-            op for op in _MCP_READS if f"mcp__github__{op}" not in granted
-        )
+        missing = sorted(op for op in _MCP_READS if f"mcp__github__{op}" not in granted)
         assert not missing, f"{path.name} cannot call MCP operations it names: {missing}"
 
     def test_pr_review_is_granted_its_reply_and_resolve_operations(self):
         granted = _granted(REVIEW)
-        missing = sorted(
-            op for op in _MCP_REVIEW_WRITES if f"mcp__github__{op}" not in granted
-        )
+        missing = sorted(op for op in _MCP_REVIEW_WRITES if f"mcp__github__{op}" not in granted)
         assert not missing, f"pr-review cannot answer or resolve a thread: {missing}"
 
     def test_pr_review_can_enumerate_the_open_queue(self):
@@ -174,18 +170,14 @@ class TestMcpGrantsAreEnumerated:
         """
         granted = _granted(AUTOFIX)
         writes = sorted(
-            op
-            for op in _MCP_REVIEW_WRITES | _MCP_FORBIDDEN
-            if f"mcp__github__{op}" in granted
+            op for op in _MCP_REVIEW_WRITES | _MCP_FORBIDDEN if f"mcp__github__{op}" in granted
         )
         assert not writes, f"pr-autofix is read-only but grants: {writes}"
 
     @pytest.mark.parametrize("path", [AUTOFIX, REVIEW])
     def test_no_repository_mutation_is_granted(self, path):
         granted = _granted(path)
-        forbidden = sorted(
-            op for op in _MCP_FORBIDDEN if f"mcp__github__{op}" in granted
-        )
+        forbidden = sorted(op for op in _MCP_FORBIDDEN if f"mcp__github__{op}" in granted)
         assert not forbidden, f"{path.name} grants a repository mutation: {forbidden}"
 
     @pytest.mark.parametrize("path", [AUTOFIX, REVIEW])
@@ -200,9 +192,7 @@ class TestMcpGrantsAreEnumerated:
         assert "mcp__github__*" not in _granted(path)
 
     @pytest.mark.parametrize("harness", ["claude_code", "copilot"])
-    def test_every_command_in_each_harness_map_names_a_file_that_exists(
-        self, harness
-    ):
+    def test_every_command_in_each_harness_map_names_a_file_that_exists(self, harness):
         """A map is only selectable if its targets are real.
 
         The Copilot map named nine PowerShell files that exist in neither this
@@ -286,8 +276,7 @@ class TestMcpGrantsAreEnumerated:
         named = {n for n in re.findall(r"`([a-z][a-z0-9_]+)`", text) if n in known}
         assert named, f"{path} names no command keys; the scan is inert"
         assert named <= available, (
-            f"{path} selects scripts.{harness} but names keys it lacks: "
-            f"{sorted(named - available)}"
+            f"{path} selects scripts.{harness} but names keys it lacks: {sorted(named - available)}"
         )
 
     def test_the_preflight_verifies_trust_before_it_dispatches(self):
@@ -315,9 +304,7 @@ class TestMcpGrantsAreEnumerated:
             "trust must come from the existing verifier, not a second one"
         )
         exits = {e["exit_code"] for e in preflight["verify_trust_exits"]}
-        assert exits == {0, 2, 3}, (
-            f"every documented outcome needs a meaning; got {sorted(exits)}"
-        )
+        assert exits == {0, 2, 3}, f"every documented outcome needs a meaning; got {sorted(exits)}"
 
     def test_verify_trust_names_the_config_file_it_lives_in(self):
         """The trust check must verify ITS OWN file, not a path that moved.
@@ -386,9 +373,7 @@ class TestMcpGrantsAreEnumerated:
         """
         for tool in _granted(path):
             if "*" in tool:
-                assert tool.startswith("Bash("), (
-                    f"{path.name} has an unscoped wildcard: {tool}"
-                )
+                assert tool.startswith("Bash("), f"{path.name} has an unscoped wildcard: {tool}"
 
     def test_the_copilot_prompt_grants_the_same_operations_its_own_way(self):
         """Same set, Copilot's spelling, and no blanket grant there either."""
@@ -396,10 +381,7 @@ class TestMcpGrantsAreEnumerated:
         tools = set(config["tools"])
 
         assert "github/*" not in tools
-        expected = {
-            f"github/{op}"
-            for op in _MCP_READS | _MCP_REVIEW_WRITES | {_MCP_QUEUE_READ}
-        }
+        expected = {f"github/{op}" for op in _MCP_READS | _MCP_REVIEW_WRITES | {_MCP_QUEUE_READ}}
         assert expected <= tools, f"prompt is missing {sorted(expected - tools)}"
         forbidden = sorted(f"github/{op}" for op in _MCP_FORBIDDEN if f"github/{op}" in tools)
         assert not forbidden, f"prompt grants a repository mutation: {forbidden}"

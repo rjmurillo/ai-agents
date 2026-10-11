@@ -78,12 +78,10 @@ def test_settings_dispatcher_timeouts_cover_serial_members_and_headroom():
     for group_id, timeout in timeout_by_group.items():
         shims = MANIFEST["groups"][group_id]["shims"]
         required = (
-            sum(shim.get("timeout", _DEFAULT_SHIM_TIMEOUT) for shim in shims)
-            + _DISPATCHER_HEADROOM
+            sum(shim.get("timeout", _DEFAULT_SHIM_TIMEOUT) for shim in shims) + _DISPATCHER_HEADROOM
         )
         assert timeout >= required, (
-            f"{group_id}: dispatcher timeout {timeout}s is below the "
-            f"{required}s serial budget"
+            f"{group_id}: dispatcher timeout {timeout}s is below the {required}s serial budget"
         )
 
 
@@ -242,5 +240,3 @@ def test_no_authorization_outlives_the_hook_it_authorizes():
         f"authorized but not running: {sorted(stale)}. Delete these entries; "
         f"the ledger records what runs, not what once did."
     )
-
-

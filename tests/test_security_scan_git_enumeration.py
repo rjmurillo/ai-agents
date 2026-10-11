@@ -24,20 +24,13 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCANNER_PATH = (
-    REPO_ROOT
-    / ".claude"
-    / "skills"
-    / "security-scan"
-    / "scripts"
-    / "scan_vulnerabilities.py"
+    REPO_ROOT / ".claude" / "skills" / "security-scan" / "scripts" / "scan_vulnerabilities.py"
 )
 
 
 def _load_scanner() -> ModuleType:
     """Load the scanner module by path (it is not on the package tree)."""
-    spec = importlib.util.spec_from_file_location(
-        "scan_vulnerabilities_git_enum", SCANNER_PATH
-    )
+    spec = importlib.util.spec_from_file_location("scan_vulnerabilities_git_enum", SCANNER_PATH)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

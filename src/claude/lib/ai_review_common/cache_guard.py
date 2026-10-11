@@ -59,9 +59,7 @@ class CacheGuardConfigError(ValueError):
 def validate_agent_name(agent: str) -> str:
     """Return a safe agent name or raise for invalid path input."""
     if not _AGENT_PATTERN.fullmatch(agent):
-        raise CacheGuardConfigError(
-            f"Invalid agent name: {agent}. Must match '^[a-zA-Z0-9_-]+$'."
-        )
+        raise CacheGuardConfigError(f"Invalid agent name: {agent}. Must match '^[a-zA-Z0-9_-]+$'.")
     return agent
 
 
@@ -113,9 +111,7 @@ def populate_cache(
     try:
         _atomic_write_text(cache_dir / "verdict.txt", verdict)
         _atomic_write_text(cache_dir / "findings.txt", findings)
-        _atomic_write_text(
-            cache_dir / "infrastructure-failure.txt", infra_failure or "false"
-        )
+        _atomic_write_text(cache_dir / "infrastructure-failure.txt", infra_failure or "false")
     except OSError as exc:
         # A crash mid-sequence must not leave a partial cache dir that a later
         # read treats as a populated hit. Remove what landed and report

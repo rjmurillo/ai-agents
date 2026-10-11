@@ -299,8 +299,7 @@ class TestExitContract:
             return {}, []
 
         monkeypatch.setattr(
-            "memory_enhancement.hooks.session_end_memory."
-            "update_confidence_scores_with_memories",
+            "memory_enhancement.hooks.session_end_memory.update_confidence_scores_with_memories",
             fake_scores,
         )
         monkeypatch.setattr(

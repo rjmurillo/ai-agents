@@ -125,15 +125,13 @@ def _check_type(
     if expected_type == "string":
         if field_value is not None and not isinstance(field_value, str):
             errors.append(
-                f"Field '{field_name}' should be string, "
-                f"got {type(field_value).__name__}"
+                f"Field '{field_name}' should be string, got {type(field_value).__name__}"
             )
 
     elif expected_type == "number":
         if field_value is not None and not isinstance(field_value, (int, float)):
             errors.append(
-                f"Field '{field_name}' should be number, "
-                f"got {type(field_value).__name__}"
+                f"Field '{field_name}' should be number, got {type(field_value).__name__}"
             )
 
     elif expected_type == "integer":
@@ -142,34 +140,25 @@ def _check_type(
             not isinstance(field_value, int) or isinstance(field_value, bool)
         ):
             errors.append(
-                f"Field '{field_name}' should be integer, "
-                f"got {type(field_value).__name__}"
+                f"Field '{field_name}' should be integer, got {type(field_value).__name__}"
             )
 
     elif expected_type == "boolean":
         if field_value is not None and not isinstance(field_value, bool):
             errors.append(
-                f"Field '{field_name}' should be boolean, "
-                f"got {type(field_value).__name__}"
+                f"Field '{field_name}' should be boolean, got {type(field_value).__name__}"
             )
 
     elif expected_type == "array":
         if field_value is None:
-            errors.append(
-                f"Field '{field_name}' is null, should be array "
-                "(use [] for empty array)"
-            )
+            errors.append(f"Field '{field_name}' is null, should be array (use [] for empty array)")
         elif not isinstance(field_value, list):
-            errors.append(
-                f"Field '{field_name}' should be array, "
-                f"got {type(field_value).__name__}"
-            )
+            errors.append(f"Field '{field_name}' should be array, got {type(field_value).__name__}")
 
     elif expected_type == "object":
         if field_value is not None and not isinstance(field_value, dict):
             errors.append(
-                f"Field '{field_name}' should be object, "
-                f"got {type(field_value).__name__}"
+                f"Field '{field_name}' should be object, got {type(field_value).__name__}"
             )
 
     return errors
@@ -236,17 +225,13 @@ def test_schema_valid(
             # Null check for required fields
             if field_value is None and field_schema.get("type") != "null":
                 if field_name in required_fields:
-                    errors.append(
-                        f"Field '{field_name}' is null but is required"
-                    )
+                    errors.append(f"Field '{field_name}' is null but is required")
                 continue
 
             # Type validation
             field_type = field_schema.get("type")
             if field_type:
-                errors.extend(
-                    _check_type(field_name, field_value, field_type, field_schema)
-                )
+                errors.extend(_check_type(field_name, field_value, field_type, field_schema))
 
             # Enum constraints
             enum_values = field_schema.get("enum")
@@ -311,9 +296,7 @@ def write_validated_json(
         )
 
     # Validate against schema
-    validation_result = test_schema_valid(
-        json_str, schema_name, schema_directory
-    )
+    validation_result = test_schema_valid(json_str, schema_name, schema_directory)
 
     if not validation_result.valid:
         return WriteResult(

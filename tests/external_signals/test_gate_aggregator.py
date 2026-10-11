@@ -74,10 +74,14 @@ def test_cli_closed_loop_exits_nonzero(capsys: pytest.CaptureFixture[str]):
 
 
 def test_cli_pass_when_external_present(capsys: pytest.CaptureFixture[str]):
-    rc = ga.main([
-        "--signal", "external:pytest=PASS",
-        "--signal", "llm:qa=PASS",
-    ])
+    rc = ga.main(
+        [
+            "--signal",
+            "external:pytest=PASS",
+            "--signal",
+            "llm:qa=PASS",
+        ]
+    )
     assert rc == 0
     out = capsys.readouterr().out
     assert "VERDICT: PASS" in out
@@ -151,10 +155,14 @@ def test_did_not_run_external_triggers_needs_review():
 
 def test_did_not_run_does_not_crash_cli(capsys: pytest.CaptureFixture[str]):
     """CLI must exit 1 (logic), not 2 (harness error), for DID_NOT_RUN."""
-    rc = ga.main([
-        "--signal", "external:pytest=PASS",
-        "--signal", "llm:qa=DID_NOT_RUN",
-    ])
+    rc = ga.main(
+        [
+            "--signal",
+            "external:pytest=PASS",
+            "--signal",
+            "llm:qa=DID_NOT_RUN",
+        ]
+    )
     assert rc == 1
     out = capsys.readouterr().out
     assert "NEEDS_REVIEW" in out

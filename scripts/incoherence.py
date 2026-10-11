@@ -147,7 +147,7 @@ def get_step_guidance(step_number, total_steps, script_path=None):
                 "   [ ] ADRs  [ ] Style guides  [ ] CONTRIBUTING.md",
                 "   [ ] Test descriptions  [ ] Error catalogs",
             ],
-            "next": "Invoke step 2 with survey results in --thoughts"
+            "next": "Invoke step 2 with survey results in --thoughts",
         }
 
     if step_number == 2:
@@ -162,7 +162,7 @@ def get_step_guidance(step_number, total_steps, script_path=None):
                 "",
                 "OUTPUT: List selected dimensions with rationale.",
             ],
-            "next": "Invoke step 3 with selected dimensions in --thoughts"
+            "next": "Invoke step 3 with selected dimensions in --thoughts",
         }
 
     if step_number == 3:
@@ -184,10 +184,10 @@ def get_step_guidance(step_number, total_steps, script_path=None):
                 "",
                 "Start by invoking:",
                 f"  python3 {script_path} --step-number 4 --total-steps 22 \\",
-                "    --thoughts \"Dimension: {category_letter} - {dimension_name}\"",
+                '    --thoughts "Dimension: {category_letter} - {dimension_name}"',
                 "```",
             ],
-            "next": "After all agents complete, invoke step 8 with combined findings"
+            "next": "After all agents complete, invoke step 8 with combined findings",
         }
 
     # =========================================================================
@@ -220,7 +220,7 @@ def get_step_guidance(step_number, total_steps, script_path=None):
                 "",
                 "Track which directories/files you searched.",
             ],
-            "next": "Invoke step 5 with your findings and searched locations in --thoughts"
+            "next": "Invoke step 5 with your findings and searched locations in --thoughts",
         }
 
     if step_number == 5:
@@ -246,7 +246,7 @@ def get_step_guidance(step_number, total_steps, script_path=None):
                 "  1. List of gaps/unexplored areas (at least 3)",
                 "  2. Specific files or patterns to search next",
             ],
-            "next": "Invoke step 6 with identified gaps in --thoughts"
+            "next": "Invoke step 6 with identified gaps in --thoughts",
         }
 
     if step_number == 6:
@@ -269,7 +269,7 @@ def get_step_guidance(step_number, total_steps, script_path=None):
                 "Record any new potential incoherences found.",
                 "Same format: Location A, Location B, conflict, confidence.",
             ],
-            "next": "Invoke step 7 with all findings (original + new) in --thoughts"
+            "next": "Invoke step 7 with all findings (original + new) in --thoughts",
         }
 
     if step_number == 7:
@@ -298,7 +298,7 @@ def get_step_guidance(step_number, total_steps, script_path=None):
                 "Include ALL findings, even low-confidence ones.",
                 "Deduplication happens in step 8.",
             ],
-            "next": "Output formatted results. Sub-agent task complete."
+            "next": "Output formatted results. Sub-agent task complete.",
         }
 
     # =========================================================================
@@ -315,7 +315,7 @@ def get_step_guidance(step_number, total_steps, script_path=None):
                 "",
                 "Output: C1, C2, ... with location, summary, score.",
             ],
-            "next": "Invoke step 9 with selected candidates in --thoughts"
+            "next": "Invoke step 9 with selected candidates in --thoughts",
         }
 
     if step_number == 9:
@@ -338,17 +338,17 @@ def get_step_guidance(step_number, total_steps, script_path=None):
                 "YOUR WORKFLOW:",
                 "",
                 "STEP A: Get exploration instructions",
-                f"   python3 {script_path} --step-number 10 --total-steps 22 --thoughts \"Verifying: {{id}}\"",
+                f'   python3 {script_path} --step-number 10 --total-steps 22 --thoughts "Verifying: {{id}}"',
                 "",
                 "STEP B: Follow those instructions to gather evidence",
                 "",
                 "STEP C: Format your findings",
-                f"   python3 {script_path} --step-number 11 --total-steps 22 --thoughts \"<your findings>\"",
+                f'   python3 {script_path} --step-number 11 --total-steps 22 --thoughts "<your findings>"',
                 "",
                 "IMPORTANT: You MUST invoke step 10 before exploring, step 11 to format.",
                 "```",
             ],
-            "next": "After all agents complete, invoke step 12 with all verdicts"
+            "next": "After all agents complete, invoke step 12 with all verdicts",
         }
 
     # =========================================================================
@@ -383,7 +383,7 @@ def get_step_guidance(step_number, total_steps, script_path=None):
                 "   - TRUE_INCOHERENCE: genuinely conflicting claims",
                 "   - FALSE_POSITIVE: apparent conflict resolves with context",
             ],
-            "next": "When done exploring, invoke step 11 with findings in --thoughts"
+            "next": "When done exploring, invoke step 11 with findings in --thoughts",
         }
 
     if step_number == 11:
@@ -403,13 +403,13 @@ def get_step_guidance(step_number, total_steps, script_path=None):
                 "SOURCE A:",
                 "  File: [path]",
                 "  Line: [number]",
-                "  Quote: \"[exact quote]\"",
+                '  Quote: "[exact quote]"',
                 "  Claims: [what it asserts]",
                 "",
                 "SOURCE B:",
                 "  File: [path]",
                 "  Line: [number]",
-                "  Quote: \"[exact quote]\"",
+                '  Quote: "[exact quote]"',
                 "  Claims: [what it asserts]",
                 "",
                 "ANALYSIS: [why they do/don't conflict]",
@@ -418,7 +418,7 @@ def get_step_guidance(step_number, total_steps, script_path=None):
                 "RECOMMENDATION: [fix action]",
                 "```",
             ],
-            "next": "Output formatted result. Sub-agent task complete."
+            "next": "Output formatted result. Sub-agent task complete.",
         }
 
     if step_number == 12:
@@ -434,7 +434,7 @@ def get_step_guidance(step_number, total_steps, script_path=None):
                 "",
                 "Quality check each TRUE_INCOHERENCE for exact quotes.",
             ],
-            "next": "Invoke step 13 with confirmed findings"
+            "next": "Invoke step 13 with confirmed findings",
         }
 
     if step_number == 13:
@@ -495,7 +495,7 @@ def get_step_guidance(step_number, total_steps, script_path=None):
                 "[Repeat for each issue I2, I3, ...]",
                 "```",
             ],
-            "next": "DETECTION PHASE COMPLETE. User edits report, then runs step 14."
+            "next": "DETECTION PHASE COMPLETE. User edits report, then runs step 14.",
         }
 
     # =========================================================================
@@ -529,8 +529,8 @@ def get_step_guidance(step_number, total_steps, script_path=None):
                 "PARSED RESOLUTIONS",
                 "",
                 "To process:",
-                "  I1: \"Use the spec value (100MB)\"",
-                "  I3: \"The code is correct, update docs to match\"",
+                '  I1: "Use the spec value (100MB)"',
+                '  I3: "The code is correct, update docs to match"',
                 "",
                 "Skipped (already resolved):",
                 "  I5",
@@ -541,7 +541,7 @@ def get_step_guidance(step_number, total_steps, script_path=None):
                 "",
                 "If no issues to process: RECONCILIATION COMPLETE (nothing to do).",
             ],
-            "next": "Invoke step 15 with issues to process in --thoughts"
+            "next": "Invoke step 15 with issues to process in --thoughts",
         }
 
     if step_number == 15:
@@ -584,7 +584,7 @@ def get_step_guidance(step_number, total_steps, script_path=None):
                 "- I7 requires changes to both docs AND code. List both files.",
                 "```",
             ],
-            "next": "Invoke step 16 with analysis in --thoughts"
+            "next": "Invoke step 16 with analysis in --thoughts",
         }
 
     if step_number == 16:
@@ -602,11 +602,11 @@ def get_step_guidance(step_number, total_steps, script_path=None):
                 "FILE GROUPS",
                 "",
                 "src/uploader.py:",
-                "  - I1 (Developer) - \"Use the spec value\"",
-                "  - I6 (Developer) - \"Add validation\"",
+                '  - I1 (Developer) - "Use the spec value"',
+                '  - I6 (Developer) - "Add validation"',
                 "",
                 "docs/config.md:",
-                "  - I3 (Technical Writer) - \"Update to match code\"",
+                '  - I3 (Technical Writer) - "Update to match code"',
                 "```",
                 "",
                 "STEP B: DETECT CONFLICTS",
@@ -640,7 +640,7 @@ def get_step_guidance(step_number, total_steps, script_path=None):
                 "  [none]",
                 "```",
             ],
-            "next": "Invoke step 17 with dispatch plan in --thoughts"
+            "next": "Invoke step 17 with dispatch plan in --thoughts",
         }
 
     if step_number == 17:
@@ -680,16 +680,16 @@ def get_step_guidance(step_number, total_steps, script_path=None):
                 "",
                 "YOUR WORKFLOW:",
                 f"1. python3 {script_path} --step-number 18 --total-steps 22 \\",
-                "     --thoughts \"FILE: {file_path} | ISSUES: {id_list}\"",
+                '     --thoughts "FILE: {file_path} | ISSUES: {id_list}"',
                 "2. Apply the resolution(s)",
                 f"3. python3 {script_path} --step-number 19 --total-steps 22 \\",
-                "     --thoughts \"<what you did>\"",
+                '     --thoughts "<what you did>"',
                 "4. Output your formatted result",
                 "```",
                 "",
                 "Launch all agents for THIS WAVE in a SINGLE message (parallel).",
             ],
-            "next": "After all wave agents complete, invoke step 20 with results"
+            "next": "After all wave agents complete, invoke step 20 with results",
         }
 
     # =========================================================================
@@ -739,7 +739,7 @@ def get_step_guidance(step_number, total_steps, script_path=None):
                 "",
                 "BIAS: Apply the resolution. Interpret charitably. Skip rarely.",
             ],
-            "next": "When done, invoke step 19 with results in --thoughts"
+            "next": "When done, invoke step 19 with results in --thoughts",
         }
 
     if step_number == 19:
@@ -774,7 +774,7 @@ def get_step_guidance(step_number, total_steps, script_path=None):
                 "",
                 "Keep CHANGE descriptions brief (one line, ~60 chars max).",
             ],
-            "next": "Output formatted result(s). Sub-agent task complete."
+            "next": "Output formatted result(s). Sub-agent task complete.",
         }
 
     if step_number == 20:
@@ -818,10 +818,10 @@ def get_step_guidance(step_number, total_steps, script_path=None):
                 "  - RESOLVED: I1, I3, I6",
                 "  - SKIPPED: [none]",
                 "",
-                "Remaining waves: [list or \"none\"]",
+                'Remaining waves: [list or "none"]',
                 "```",
             ],
-            "next": "If more waves: invoke step 17. Otherwise: invoke step 21."
+            "next": "If more waves: invoke step 17. Otherwise: invoke step 21.",
         }
 
     if step_number == 21:
@@ -858,7 +858,7 @@ def get_step_guidance(step_number, total_steps, script_path=None):
                 "",
                 "Save the updated report file.",
             ],
-            "next": "Invoke step 22 to output summary"
+            "next": "Invoke step 22 to output summary",
         }
 
     if step_number >= 22:
@@ -893,7 +893,7 @@ def get_step_guidance(step_number, total_steps, script_path=None):
                 "  - Keep summaries brief",
                 "  - Do NOT create a separate file",
             ],
-            "next": "RECONCILIATION COMPLETE."
+            "next": "RECONCILIATION COMPLETE.",
         }
 
     return {"actions": ["Unknown step"], "next": "Check step number"}

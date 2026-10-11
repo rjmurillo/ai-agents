@@ -334,9 +334,7 @@ class TestMain:
         captured = capsys.readouterr()
         assert "FAIL" in captured.out
 
-    def test_fail_non_ci_returns_zero(
-        self, tmp_path: Path
-    ) -> None:
+    def test_fail_non_ci_returns_zero(self, tmp_path: Path) -> None:
         content = "x" * 40000
         (tmp_path / "AGENTS.md").write_text(content, encoding="utf-8")
         exit_code = main(["--path", str(tmp_path), "--budget", "AGENTS.md:100"])
@@ -348,11 +346,16 @@ class TestMain:
 
     def test_json_output(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         (tmp_path / "AGENTS.md").write_text("# Test", encoding="utf-8")
-        exit_code = main([
-            "--path", str(tmp_path),
-            "--format", "json",
-            "--budget", "AGENTS.md:2000",
-        ])
+        exit_code = main(
+            [
+                "--path",
+                str(tmp_path),
+                "--format",
+                "json",
+                "--budget",
+                "AGENTS.md:2000",
+            ]
+        )
         assert exit_code == 0
         captured = capsys.readouterr()
         data = json.loads(captured.out)
@@ -364,8 +367,12 @@ class TestMain:
 
     def test_budget_override_applied(self, tmp_path: Path) -> None:
         (tmp_path / "custom.md").write_text("content", encoding="utf-8")
-        exit_code = main([
-            "--path", str(tmp_path),
-            "--budget", "custom.md:5000",
-        ])
+        exit_code = main(
+            [
+                "--path",
+                str(tmp_path),
+                "--budget",
+                "custom.md:5000",
+            ]
+        )
         assert exit_code == 0

@@ -60,13 +60,9 @@ class Citation:
         if not self.target:
             raise ValueError("Citation target must be non-empty")
         if self.status != CitationStatus.UNVERIFIED and self.verified_at is None:
-            raise ValueError(
-                f"Citation with status {self.status.value} must have verified_at set"
-            )
+            raise ValueError(f"Citation with status {self.status.value} must have verified_at set")
         if self.status == CitationStatus.UNVERIFIED and self.verified_at is not None:
-            raise ValueError(
-                "Citation with status unverified must not have verified_at set"
-            )
+            raise ValueError("Citation with status unverified must not have verified_at set")
 
 
 @dataclass(frozen=True)
@@ -93,9 +89,7 @@ class VerificationResult:
     checked_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     @classmethod
-    def create(
-        cls, citation: Citation, is_valid: bool, reason: str
-    ) -> VerificationResult:
+    def create(cls, citation: Citation, is_valid: bool, reason: str) -> VerificationResult:
         """Create a VerificationResult with the current timestamp."""
         return cls(
             citation=citation,
@@ -124,9 +118,7 @@ class MemoryWithCitations:
         if not self.memory_id:
             raise ValueError("memory_id must be non-empty")
         if not 0.0 <= self.confidence <= 1.0:
-            raise ValueError(
-                f"confidence must be between 0.0 and 1.0, got {self.confidence}"
-            )
+            raise ValueError(f"confidence must be between 0.0 and 1.0, got {self.confidence}")
         if self.updated_at < self.created_at:
             raise ValueError("updated_at must be >= created_at")
         # Convert mutable lists to tuples for collection immutability
@@ -219,8 +211,6 @@ class HealthReport:
                 f"{citation_sum} != {self.total_citations}"
             )
         if not 0.0 <= self.health_score <= 1.0:
-            raise ValueError(
-                f"health_score must be between 0.0 and 1.0, got {self.health_score}"
-            )
+            raise ValueError(f"health_score must be between 0.0 and 1.0, got {self.health_score}")
         object.__setattr__(self, "stale_memories", tuple(self.stale_memories))
         object.__setattr__(self, "recommendations", tuple(self.recommendations))

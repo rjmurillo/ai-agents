@@ -129,9 +129,7 @@ class TestDedupe:
         assert (real / nudge.STATE_SUBDIR).is_dir()
 
     @pytest.mark.skipif(os.name != "posix", reason="mode bits")
-    def test_group_writable_state_root_is_accepted(
-        self, corrected: Path, tmp_path: Path
-    ) -> None:
+    def test_group_writable_state_root_is_accepted(self, corrected: Path, tmp_path: Path) -> None:
         """A 0o002 umask makes this normal; the 0o700 child carries the safety."""
         state = tmp_path / "state"
         state.mkdir()
@@ -287,9 +285,7 @@ class TestRegisteredPath:
         assert "fail-open" in done.stderr
 
     @pytest.mark.skipif(os.name != "posix", reason="registered command is a POSIX shell string")
-    def test_registered_command_exits_zero_when_the_script_is_missing(
-        self, tmp_path: Path
-    ) -> None:
+    def test_registered_command_exits_zero_when_the_script_is_missing(self, tmp_path: Path) -> None:
         """python exits 2 on a missing script and exit 2 blocks Stop; `|| true` prevents it."""
         env = {**os.environ, "CLAUDE_PROJECT_DIR": str(tmp_path)}
         command = self._command()

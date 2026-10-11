@@ -1,4 +1,5 @@
 """Structure test for this skill, mirroring the prose-self-check tests pattern."""
+
 import re
 from pathlib import Path
 
@@ -84,4 +85,3 @@ def test_provenance_table_has_no_escaped_pipes():
     """
     for row in _provenance_rows():
         assert "\\|" not in row, f"escaped pipe in provenance row: {row[:60]}"
-

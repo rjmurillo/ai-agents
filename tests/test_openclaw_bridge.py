@@ -316,37 +316,52 @@ class TestWriteWorkspace:
 class TestMain:
     def test_success_with_valid_dir(self, agents_dir, tmp_path):
         output = tmp_path / "output"
-        exit_code = main([
-            "--agents-dir", str(agents_dir),
-            "--output-dir", str(output),
-        ])
+        exit_code = main(
+            [
+                "--agents-dir",
+                str(agents_dir),
+                "--output-dir",
+                str(output),
+            ]
+        )
         assert exit_code == 0
         assert (output / "AGENTS.md").exists()
 
     def test_dry_run(self, agents_dir, tmp_path):
         output = tmp_path / "output"
-        exit_code = main([
-            "--agents-dir", str(agents_dir),
-            "--output-dir", str(output),
-            "--dry-run",
-        ])
+        exit_code = main(
+            [
+                "--agents-dir",
+                str(agents_dir),
+                "--output-dir",
+                str(output),
+                "--dry-run",
+            ]
+        )
         assert exit_code == 0
         assert not output.exists()
 
     def test_json_format(self, agents_dir, capsys):
-        exit_code = main([
-            "--agents-dir", str(agents_dir),
-            "--format", "json",
-        ])
+        exit_code = main(
+            [
+                "--agents-dir",
+                str(agents_dir),
+                "--format",
+                "json",
+            ]
+        )
         assert exit_code == 0
         captured = capsys.readouterr()
         data = json.loads(captured.out)
         assert data["count"] == 3
 
     def test_invalid_agents_dir(self, tmp_path):
-        exit_code = main([
-            "--agents-dir", str(tmp_path / "nonexistent"),
-        ])
+        exit_code = main(
+            [
+                "--agents-dir",
+                str(tmp_path / "nonexistent"),
+            ]
+        )
         assert exit_code == 2
 
     def test_empty_agents_dir(self, tmp_path):

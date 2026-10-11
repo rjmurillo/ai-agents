@@ -43,8 +43,7 @@ def test_eval_agent_vs_baseline_has_no_unicode_dashes() -> None:
         "Unicode dashes (U+2014 / U+2013) found in "
         f"{_EVAL_TEST.relative_to(_REPO_ROOT)} "
         "(Issue #2192). Replace U+2014 with comma/period/colon; "
-        "U+2013 with hyphen. Offending lines: "
-        + ", ".join(str(lineno) for lineno, _ in hits)
+        "U+2013 with hyphen. Offending lines: " + ", ".join(str(lineno) for lineno, _ in hits)
     )
 
 

@@ -131,15 +131,12 @@ class TestProcessFiles:
 
     def test_specific_files_filter(self, memories_dir: Path) -> None:
         target = memories_dir / "testing-index.md"
-        stats = process_files(
-            memories_dir, files_to_process=[target], output_json=True
-        )
+        stats = process_files(memories_dir, files_to_process=[target], output_json=True)
         assert stats["FilesProcessed"] == 1
 
     def test_no_changes_when_already_linked(self, memories_dir: Path) -> None:
         (memories_dir / "testing-index.md").write_text(
-            "| Topic | Memory |\n|---|---|\n"
-            "| hooks | [git-hooks](git-hooks.md) |\n"
+            "| Topic | Memory |\n|---|---|\n| hooks | [git-hooks](git-hooks.md) |\n"
         )
         stats = process_files(memories_dir, output_json=True)
         assert stats["FilesModified"] == 0
@@ -147,11 +144,14 @@ class TestProcessFiles:
 
 class TestMain:
     def test_json_output(self, memories_dir: Path, capsys: pytest.CaptureFixture[str]) -> None:
-        exit_code = main([
-            "--memories-path", str(memories_dir),
-            "--output-json",
-            "--skip-path-validation",
-        ])
+        exit_code = main(
+            [
+                "--memories-path",
+                str(memories_dir),
+                "--output-json",
+                "--skip-path-validation",
+            ]
+        )
         assert exit_code == 0
         captured = capsys.readouterr()
         data = json.loads(captured.out)
@@ -161,10 +161,13 @@ class TestMain:
         assert "Errors" in data
 
     def test_human_output(self, memories_dir: Path, capsys: pytest.CaptureFixture[str]) -> None:
-        exit_code = main([
-            "--memories-path", str(memories_dir),
-            "--skip-path-validation",
-        ])
+        exit_code = main(
+            [
+                "--memories-path",
+                str(memories_dir),
+                "--skip-path-validation",
+            ]
+        )
         assert exit_code == 0
         captured = capsys.readouterr()
         assert "Conversion complete" in captured.out
@@ -173,8 +176,11 @@ class TestMain:
         # Non-existent directory causes no files to process, not an error
         empty_dir = tmp_path / "empty"
         empty_dir.mkdir()
-        exit_code = main([
-            "--memories-path", str(empty_dir),
-            "--skip-path-validation",
-        ])
+        exit_code = main(
+            [
+                "--memories-path",
+                str(empty_dir),
+                "--skip-path-validation",
+            ]
+        )
         assert exit_code == 0

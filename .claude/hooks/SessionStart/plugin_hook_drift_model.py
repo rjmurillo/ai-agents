@@ -497,4 +497,3 @@ def root_registrations(
     return read_registrations(
         root / HOOKS_MANIFEST_REL, schema=schema, dispatch=root / DISPATCH_MANIFEST_REL
     )
-

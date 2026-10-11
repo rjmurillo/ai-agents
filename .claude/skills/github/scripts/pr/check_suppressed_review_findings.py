@@ -201,11 +201,13 @@ def _review_author(review: dict[str, Any]) -> str:
     return ""
 
 
-_FINDING_DISPOSITIONS = frozenset({
-    "addressed-by-pr-metadata",
-    "not-applicable",
-    "tracked-issue",
-})
+_FINDING_DISPOSITIONS = frozenset(
+    {
+        "addressed-by-pr-metadata",
+        "not-applicable",
+        "tracked-issue",
+    }
+)
 
 
 def _load_finding_dispositions(dispositions_file: str | None) -> dict[str, object]:

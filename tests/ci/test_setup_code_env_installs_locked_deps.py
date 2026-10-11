@@ -34,7 +34,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 ACTION = REPO_ROOT / ".github/actions/setup-code-env/action.yml"
 SCRIPT = REPO_ROOT / "scripts/ci/install_locked_deps.py"
 
-STUB_UV = "#!/bin/bash\necho \"$*\" >> \"$UVLOG\"\nexit ${UVFAIL:-0}\n"
+STUB_UV = '#!/bin/bash\necho "$*" >> "$UVLOG"\nexit ${UVFAIL:-0}\n'
 
 
 def _load_module():
@@ -180,7 +180,10 @@ class TestFailurePropagation:
         env = {**os.environ, "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}"}
         done = subprocess.run(
             [sys.executable, str(SCRIPT), str(root)],
-            capture_output=True, text=True, encoding="utf-8", env=env
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            env=env,
         )
         assert done.returncode == 3
         assert "Traceback" not in done.stderr

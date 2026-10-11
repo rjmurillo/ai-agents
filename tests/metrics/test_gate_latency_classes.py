@@ -57,6 +57,7 @@ class _FakeCompleted:
         self.stdout = stdout
         self.stderr = stderr
 
+
 # --- stdin provenance and the hooks change class -----------------------------
 
 
@@ -120,9 +121,10 @@ def test_positive_each_change_class_file_matches_its_job_glob(
     # would report a false mismatch for `.github/workflows/**/*.{yml,yaml}`.
     flags = glob.GLOBSTAR | glob.BRACE
     for rel in files:
-        assert any(
-            glob.globmatch(rel, pattern, flags=flags) for pattern in globs
-        ), f"{rel} matches none of {job_name}'s globs {globs}"
+        assert any(glob.globmatch(rel, pattern, flags=flags) for pattern in globs), (
+            f"{rel} matches none of {job_name}'s globs {globs}"
+        )
+
 
 def test_positive_change_class_file_lists_all_exist_in_this_repository() -> None:
     """AC-08's startup validation over the real, shipped table."""
@@ -133,9 +135,9 @@ def test_positive_change_class_file_lists_all_exist_in_this_repository() -> None
             missing_msg = f"change class {name!r} names a missing path {rel!r}"
             assert (REPO_ROOT / rel).is_file(), missing_msg
 
+
 def test_negative_missing_change_class_path_exits_2(repo: Path) -> None:
     """A class whose file has been deleted is a configuration problem, not a zero sample."""
     (repo / "README.md").unlink()
 
     assert gl.main(["--repo", str(repo), "--hook", "pre-commit", "--change-class", "markdown"]) == 2
-

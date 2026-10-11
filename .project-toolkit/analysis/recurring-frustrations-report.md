@@ -1039,10 +1039,9 @@ mcp__forgetful__execute_forgetful_tool("get_memory", {"memory_id": [ID]})
 To search for patterns:
 
 ```python
-mcp__forgetful__execute_forgetful_tool("query_memory", {
-    "query": "[search terms]",
-    "query_context": "[why searching]"
-})
+mcp__forgetful__execute_forgetful_tool(
+    "query_memory", {"query": "[search terms]", "query_context": "[why searching]"}
+)
 ```
 
 **Report generated**: January 3, 2026

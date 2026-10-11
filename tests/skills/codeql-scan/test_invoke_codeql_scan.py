@@ -88,9 +88,7 @@ class TestGetRepoRoot:
 
 class TestMain:
     @patch("subprocess.run")
-    def test_not_in_git_repo(
-        self, mock_run: MagicMock, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_not_in_git_repo(self, mock_run: MagicMock, capsys: pytest.CaptureFixture[str]) -> None:
         mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="not a repo")
         exit_code = main([])
         assert exit_code == 3

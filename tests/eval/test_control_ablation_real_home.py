@@ -34,9 +34,7 @@ class EnvSpyRunner(FakeClaudeRunner):
         super().__init__(tasks)
         self.envs: list[dict[str, str]] = []
 
-    def __call__(
-        self, argv: list[str], **kwargs: object
-    ) -> subprocess.CompletedProcess[str]:
+    def __call__(self, argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         if "--version" not in [str(a) for a in argv]:
             env = kwargs["env"]
             assert isinstance(env, dict)

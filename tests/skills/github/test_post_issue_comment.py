@@ -54,9 +54,9 @@ class TestPostIssueComment:
         with (
             patch("post_issue_comment.assert_gh_authenticated"),
             patch("post_issue_comment.resolve_repo_params", return_value=_mock_repo()),
-            patch("subprocess.run", return_value=make_completed_process(
-                stdout=json.dumps(response)
-            )),
+            patch(
+                "subprocess.run", return_value=make_completed_process(stdout=json.dumps(response))
+            ),
         ):
             rc = mod.main(["--issue", "1", "--body", "hello"])
         assert rc == 0
@@ -72,14 +72,20 @@ class TestPostIssueComment:
         with (
             patch("post_issue_comment.assert_gh_authenticated"),
             patch("post_issue_comment.resolve_repo_params", return_value=_mock_repo()),
-            patch("subprocess.run", return_value=make_completed_process(
-                stdout=json.dumps(comments)
-            )),
+            patch(
+                "subprocess.run", return_value=make_completed_process(stdout=json.dumps(comments))
+            ),
         ):
-            rc = mod.main([
-                "--issue", "1", "--body", "new body",
-                "--marker", "TEST-MARKER",
-            ])
+            rc = mod.main(
+                [
+                    "--issue",
+                    "1",
+                    "--body",
+                    "new body",
+                    "--marker",
+                    "TEST-MARKER",
+                ]
+            )
         assert rc == 0
         out = capsys.readouterr().out
         result = json.loads(out.strip().splitlines()[-1])
@@ -94,15 +100,22 @@ class TestPostIssueComment:
         with (
             patch("post_issue_comment.assert_gh_authenticated"),
             patch("post_issue_comment.resolve_repo_params", return_value=_mock_repo()),
-            patch("subprocess.run", return_value=make_completed_process(
-                stdout=json.dumps(comments)
-            )),
+            patch(
+                "subprocess.run", return_value=make_completed_process(stdout=json.dumps(comments))
+            ),
             patch("post_issue_comment.update_issue_comment", return_value=updated),
         ):
-            rc = mod.main([
-                "--issue", "1", "--body", "new body",
-                "--marker", "M", "--update-if-exists",
-            ])
+            rc = mod.main(
+                [
+                    "--issue",
+                    "1",
+                    "--body",
+                    "new body",
+                    "--marker",
+                    "M",
+                    "--update-if-exists",
+                ]
+            )
         assert rc == 0
         out = capsys.readouterr().out
         result = json.loads(out.strip().splitlines()[-1])
@@ -114,9 +127,13 @@ class TestPostIssueComment:
         with (
             patch("post_issue_comment.assert_gh_authenticated"),
             patch("post_issue_comment.resolve_repo_params", return_value=_mock_repo()),
-            patch("subprocess.run", return_value=make_completed_process(
-                stderr="HTTP 403 Forbidden", returncode=1,
-            )),
+            patch(
+                "subprocess.run",
+                return_value=make_completed_process(
+                    stderr="HTTP 403 Forbidden",
+                    returncode=1,
+                ),
+            ),
             patch("post_issue_comment._save_failed_comment_artifact", return_value=None),
         ):
             with pytest.raises(SystemExit) as exc:
@@ -128,9 +145,13 @@ class TestPostIssueComment:
         with (
             patch("post_issue_comment.assert_gh_authenticated"),
             patch("post_issue_comment.resolve_repo_params", return_value=_mock_repo()),
-            patch("subprocess.run", return_value=make_completed_process(
-                stderr="Internal Server Error", returncode=1,
-            )),
+            patch(
+                "subprocess.run",
+                return_value=make_completed_process(
+                    stderr="Internal Server Error",
+                    returncode=1,
+                ),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 mod.main(["--issue", "1", "--body", "body"])
@@ -143,9 +164,13 @@ class TestPostIssueComment:
         with (
             patch("post_issue_comment.assert_gh_authenticated"),
             patch("post_issue_comment.resolve_repo_params", return_value=_mock_repo()),
-            patch("subprocess.run", side_effect=subprocess.TimeoutExpired(
-                cmd=["gh"], timeout=30,
-            )),
+            patch(
+                "subprocess.run",
+                side_effect=subprocess.TimeoutExpired(
+                    cmd=["gh"],
+                    timeout=30,
+                ),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 mod.main(["--issue", "1", "--body", "body"])
@@ -158,9 +183,13 @@ class TestPostIssueComment:
         with (
             patch("post_issue_comment.assert_gh_authenticated"),
             patch("post_issue_comment.resolve_repo_params", return_value=_mock_repo()),
-            patch("subprocess.run", side_effect=subprocess.TimeoutExpired(
-                cmd=["gh"], timeout=30,
-            )),
+            patch(
+                "subprocess.run",
+                side_effect=subprocess.TimeoutExpired(
+                    cmd=["gh"],
+                    timeout=30,
+                ),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 mod.main(["--issue", "1", "--body", "body", "--marker", "M"])
@@ -171,9 +200,7 @@ class TestPostIssueComment:
         with (
             patch("post_issue_comment.assert_gh_authenticated"),
             patch("post_issue_comment.resolve_repo_params", return_value=_mock_repo()),
-            patch("subprocess.run", return_value=make_completed_process(
-                stdout="not json"
-            )),
+            patch("subprocess.run", return_value=make_completed_process(stdout="not json")),
         ):
             rc = mod.main(["--issue", "1", "--body", "body"])
         assert rc == 0
@@ -192,13 +219,16 @@ class TestPostIssueComment:
         with (
             patch("post_issue_comment.assert_gh_authenticated"),
             patch("post_issue_comment.resolve_repo_params", return_value=_mock_repo()),
-            patch("subprocess.run", side_effect=[
-                # Construct CompletedProcess directly: make_completed_process is
-                # typed stdout: str, but this regression needs the genuine
-                # stdout=None the Windows decode failure produces.
-                subprocess.CompletedProcess(args=["gh"], returncode=0, stdout=None, stderr=""),
-                make_completed_process(stdout=json.dumps(response), returncode=0),
-            ]) as mock_run,
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    # Construct CompletedProcess directly: make_completed_process is
+                    # typed stdout: str, but this regression needs the genuine
+                    # stdout=None the Windows decode failure produces.
+                    subprocess.CompletedProcess(args=["gh"], returncode=0, stdout=None, stderr=""),
+                    make_completed_process(stdout=json.dumps(response), returncode=0),
+                ],
+            ) as mock_run,
         ):
             rc = mod.main(["--issue", "1", "--body", "b", "--marker", "M"])
         assert rc == 0
@@ -273,12 +303,12 @@ class TestSubprocessEncoding:
         for call in calls:
             encoding = self._kw(call, "encoding")
             errors = self._kw(call, "errors")
-            assert (
-                isinstance(encoding, ast.Constant) and encoding.value == "utf-8"
-            ), f"{rel}:{call.lineno} subprocess.run missing encoding=\"utf-8\""
-            assert (
-                isinstance(errors, ast.Constant) and errors.value == "replace"
-            ), f"{rel}:{call.lineno} subprocess.run missing errors=\"replace\""
+            assert isinstance(encoding, ast.Constant) and encoding.value == "utf-8", (
+                f'{rel}:{call.lineno} subprocess.run missing encoding="utf-8"'
+            )
+            assert isinstance(errors, ast.Constant) and errors.value == "replace", (
+                f'{rel}:{call.lineno} subprocess.run missing errors="replace"'
+            )
             assert self._kw(call, "text") is None, (
                 f"{rel}:{call.lineno} subprocess.run still passes text= "
                 "(use encoding/errors instead)"

@@ -17,9 +17,7 @@ _SKILL_CONFIDENCE_THRESHOLD = 0.8
 _SKILL_MIN_LINKS = 2
 
 
-def generate_skill_candidates(
-    memories_dir: Path, repo_root: Path
-) -> list[dict[str, str]]:
+def generate_skill_candidates(memories_dir: Path, repo_root: Path) -> list[dict[str, str]]:
     """Identify high-confidence memories that could become skills.
 
     Governed mode: returns candidates without auto-promoting.
@@ -44,12 +42,14 @@ def generate_skill_candidates(
             continue
         if len(memory.links) < _SKILL_MIN_LINKS:
             continue
-        candidates.append({
-            "memory_id": memory_id,
-            "title": memory.title,
-            "confidence": f"{score:.3f}",
-            "reason": f"confidence={score:.3f}, links={len(memory.links)}",
-        })
+        candidates.append(
+            {
+                "memory_id": memory_id,
+                "title": memory.title,
+                "confidence": f"{score:.3f}",
+                "reason": f"confidence={score:.3f}, links={len(memory.links)}",
+            }
+        )
 
     return candidates
 

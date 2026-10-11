@@ -85,11 +85,7 @@ def find_missing(verdicts: list[tuple[str, str]]) -> list[str]:
 def find_blocking(verdicts: list[tuple[str, str]]) -> list[str]:
     """Return ``"name: verdict"`` for agents with a blocking verdict."""
 
-    return [
-        f"{name}: {verdict}"
-        for name, verdict in verdicts
-        if verdict in BLOCKING_VERDICTS
-    ]
+    return [f"{name}: {verdict}" for name, verdict in verdicts if verdict in BLOCKING_VERDICTS]
 
 
 def _report_missing(missing: list[str]) -> None:

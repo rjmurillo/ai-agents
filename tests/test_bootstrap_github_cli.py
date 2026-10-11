@@ -68,9 +68,7 @@ class TestConfigureGithubCli:
     ) -> tuple[subprocess.CompletedProcess[str], list[str]]:
         log = self._fake_gh(tmp_path, fail_on)
         script = f"set -uo pipefail\n{self._extract()}\nconfigure_github_cli\n"
-        base = {
-            k: v for k, v in os.environ.items() if k not in {"GH_TOKEN", "GITHUB_TOKEN"}
-        }
+        base = {k: v for k, v in os.environ.items() if k not in {"GH_TOKEN", "GITHUB_TOKEN"}}
         result = subprocess.run(
             ["bash", "-c", script],
             capture_output=True,
@@ -101,25 +99,17 @@ class TestConfigureGithubCli:
     def test_login_sees_no_environment_token(self, tmp_path: Path) -> None:
         """gh prefers an env token over stored credentials, so the unset must
         happen before login or the stored credential never gets written."""
-        _result, lines = self._run(
-            tmp_path, {"GH_TOKEN": "tok-gh", "GITHUB_TOKEN": "tok-github"}
-        )
+        _result, lines = self._run(tmp_path, {"GH_TOKEN": "tok-gh", "GITHUB_TOKEN": "tok-github"})
 
         assert lines[1] == "env:GH_TOKEN=<unset> GITHUB_TOKEN=<unset>"
 
-    def test_explicit_gh_token_wins_over_the_actions_alias(
-        self, tmp_path: Path
-    ) -> None:
-        _result, lines = self._run(
-            tmp_path, {"GH_TOKEN": "tok-gh", "GITHUB_TOKEN": "tok-github"}
-        )
+    def test_explicit_gh_token_wins_over_the_actions_alias(self, tmp_path: Path) -> None:
+        _result, lines = self._run(tmp_path, {"GH_TOKEN": "tok-gh", "GITHUB_TOKEN": "tok-github"})
 
         assert "stdin:tok-gh" in lines
         assert "stdin:tok-github" not in lines
 
-    def test_missing_token_warns_and_skips_every_gh_call(
-        self, tmp_path: Path
-    ) -> None:
+    def test_missing_token_warns_and_skips_every_gh_call(self, tmp_path: Path) -> None:
         result, lines = self._run(tmp_path, {})
 
         assert result.returncode == 0
@@ -151,9 +141,7 @@ class TestConfigureGithubCli:
     def test_setup_git_failure_does_not_blame_the_token(self, tmp_path: Path) -> None:
         """`auth status` and `api user` already passed, so reporting missing
         authentication would send operators to rotate a valid credential."""
-        result, _lines = self._run(
-            tmp_path, {"GITHUB_TOKEN": "tok"}, fail_on="auth setup-git"
-        )
+        result, _lines = self._run(tmp_path, {"GITHUB_TOKEN": "tok"}, fail_on="auth setup-git")
 
         assert "authentication succeeded" in result.stderr
         assert "the token itself is valid" in result.stderr
@@ -192,9 +180,7 @@ class TestRestoreOriginRemote:
             check=False,
         ).stdout.strip()
 
-    def test_adds_the_canonical_remote_when_origin_is_absent(
-        self, tmp_path: Path
-    ) -> None:
+    def test_adds_the_canonical_remote_when_origin_is_absent(self, tmp_path: Path) -> None:
         repo = tmp_path / "no-origin"
         result = self._run(repo)
 
@@ -207,9 +193,7 @@ class TestRestoreOriginRemote:
         repo = tmp_path / "fork"
         fork_url = "https://github.com/someone-else/ai-agents.git"
         subprocess.run(["git", "init", "-q", str(repo)], check=True)
-        subprocess.run(
-            ["git", "remote", "add", "origin", fork_url], cwd=repo, check=True
-        )
+        subprocess.run(["git", "remote", "add", "origin", fork_url], cwd=repo, check=True)
 
         script = f"set -uo pipefail\n{self._extract()}\nrestore_origin_remote\n"
         result = subprocess.run(

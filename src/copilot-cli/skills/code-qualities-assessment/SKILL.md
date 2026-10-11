@@ -371,6 +371,7 @@ class User:
     def __init__(self):
         self.db = DatabaseConnection()  # Hard-coded dependency
 
+
 # After
 class User:
     def __init__(self, db: DatabaseInterface):

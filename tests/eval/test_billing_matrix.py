@@ -66,14 +66,10 @@ def test_a_required_env_var_flag_names_at_least_one_variable(cell: MatrixCell) -
 
 def test_every_subscription_cell_bills_requests() -> None:
     """A seat spends an allowance; quoting it in dollars invents a rate."""
-    subscription = [
-        cell for cell in _billing_matrix.cells() if cell.payer == "subscription"
-    ]
+    subscription = [cell for cell in _billing_matrix.cells() if cell.payer == "subscription"]
 
     assert subscription
-    assert all(
-        cell.cost_basis == _billing_matrix.COST_BASIS_REQUESTS for cell in subscription
-    )
+    assert all(cell.cost_basis == _billing_matrix.COST_BASIS_REQUESTS for cell in subscription)
 
 
 # --- Lookup -------------------------------------------------------------
@@ -126,9 +122,7 @@ def test_cell_for_rejects_an_unknown_billing_mode() -> None:
         ("copilot-api", "copilot-api"),
     ],
 )
-def test_legacy_and_canonical_spellings_resolve_to_one_cell(
-    alias: str, expected: str
-) -> None:
+def test_legacy_and_canonical_spellings_resolve_to_one_cell(alias: str, expected: str) -> None:
     cell = _billing_matrix.cell_for_provider(alias)
 
     assert cell is not None
@@ -186,12 +180,8 @@ def test_disagreeing_provider_and_axes_are_refused() -> None:
     [("codex", ""), ("", "subscription")],
 )
 def test_half_an_axis_pair_is_refused(harness: str, billing: str) -> None:
-    with pytest.raises(
-        _billing_matrix.BillingMatrixError, match="must be given together"
-    ):
-        _billing_matrix.resolve_selection(
-            harness=harness, billing=billing, environ={}
-        )
+    with pytest.raises(_billing_matrix.BillingMatrixError, match="must be given together"):
+        _billing_matrix.resolve_selection(harness=harness, billing=billing, environ={})
 
 
 def test_an_unknown_provider_names_the_valid_spellings() -> None:
@@ -207,9 +197,7 @@ def test_an_unknown_provider_names_the_valid_spellings() -> None:
 def test_apply_selection_publishes_the_canonical_provider_for_an_axis_pair() -> None:
     env: dict[str, str] = {}
 
-    cell = _billing_matrix.apply_selection(
-        harness="codex", billing="subscription", environ=env
-    )
+    cell = _billing_matrix.apply_selection(harness="codex", billing="subscription", environ=env)
 
     assert cell is not None and cell.name == "codex-subscription"
     assert env["EVAL_PROVIDER"] == "codex-cli"
@@ -269,9 +257,7 @@ def test_every_registry_row_is_classified_by_a_matrix_cell() -> None:
     assert _providers.registry_classification_gaps() == frozenset()
 
 
-@pytest.mark.parametrize(
-    "alias", sorted(_billing_matrix.known_selector_names())
-)
+@pytest.mark.parametrize("alias", sorted(_billing_matrix.known_selector_names()))
 def test_cost_basis_agrees_with_the_cell_for_every_selector(
     alias: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:

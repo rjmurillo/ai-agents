@@ -386,9 +386,7 @@ def test_quota_exhausted_is_transient_and_blocked_but_not_auth() -> None:
 
 def test_quota_headline_says_out_of_credits_not_reset_window_or_rotate() -> None:
     """Wrong advice here sends the operator to poll for a day or rotate a live token."""
-    headline = copilot_run_blocked_headline(
-        _completed(stderr=_QUOTA_STDERR, returncode=1)
-    ).lower()
+    headline = copilot_run_blocked_headline(_completed(stderr=_QUOTA_STDERR, returncode=1)).lower()
     assert "quota" in headline
     assert "402" in headline
     assert "reset window" not in headline
@@ -589,6 +587,7 @@ def test_headline_preserves_leading_cause_sentence() -> None:
     headline = copilot_auth_failure_headline(rejected_result)
     assert "GitHub returned: Bad credentials" in headline
 
+
 # Excerpt of the stderr from a rate-limited run, captured 2026-08-04 from a
 # pre-push `plugin-load-e2e` failure. It starts mid-request-id and its first line
 # ends in an ellipsis, so treat this as a captured excerpt, not the full GitHub
@@ -685,16 +684,12 @@ def test_transient_failure_detects_socket_error_not_unanchored_5xx() -> None:
 
 def test_transient_failure_tolerates_none_streams() -> None:
     """A timed-out or not-yet-run process has None streams and must not raise."""
-    assert not copilot_transient_failure(
-        _completed(stdout=None, stderr=None, returncode=1)
-    )
+    assert not copilot_transient_failure(_completed(stdout=None, stderr=None, returncode=1))
 
 
 def test_transient_headline_names_the_cause_and_denies_an_auth_fault() -> None:
     """The skip reason must not send anyone to provision or rotate a secret."""
-    text = copilot_transient_failure_headline(
-        _completed(stderr=_RATE_LIMITED_STDERR, returncode=1)
-    )
+    text = copilot_transient_failure_headline(_completed(stderr=_RATE_LIMITED_STDERR, returncode=1))
     lowered = text.lower()
     assert "transport" in lowered
     assert "credential status is unknown" in lowered
@@ -705,7 +700,5 @@ def test_transient_headline_names_the_cause_and_denies_an_auth_fault() -> None:
 
 def test_transient_headline_tolerates_none_streams() -> None:
     """None streams must not raise while building the skip reason."""
-    text = copilot_transient_failure_headline(
-        _completed(stdout=None, stderr=None, returncode=3)
-    )
+    text = copilot_transient_failure_headline(_completed(stdout=None, stderr=None, returncode=3))
     assert "rc=3" in text

@@ -11,17 +11,13 @@ from unittest.mock import patch
 
 import pytest
 
-sys.path.insert(
-    0, str(Path(__file__).resolve().parents[2] / "scripts" / "validation")
-)
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts" / "validation"))
 import check_ruleset_params_drift as mod
 
 # Matches scripts/validation/ruleset_params_baseline.json's "ruleset" section
 # so TestMainLive's default mock stays in sync with the committed baseline.
 _DEFAULT_ENFORCEMENT = "active"
-_DEFAULT_BYPASS_ACTORS = [
-    {"actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always"}
-]
+_DEFAULT_BYPASS_ACTORS = [{"actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always"}]
 
 
 class TestCheckDrift:
@@ -121,8 +117,7 @@ class TestBypassActorSortKey:
             "ruleset": {
                 "enforcement": "active",
                 "bypass_actors": [
-                    {"actor_id": 5, "actor_type": "RepositoryRole",
-                     "bypass_mode": "always"},
+                    {"actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always"},
                     {"actor_type": "DeployKey", "bypass_mode": "always"},
                 ],
             }
@@ -131,8 +126,7 @@ class TestBypassActorSortKey:
             "enforcement": "active",
             "bypass_actors": [
                 {"actor_type": "DeployKey", "bypass_mode": "always"},
-                {"actor_id": 5, "actor_type": "RepositoryRole",
-                 "bypass_mode": "always"},
+                {"actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always"},
             ],
         }
         assert mod.check_ruleset_drift(baseline, live) == []
@@ -240,9 +234,7 @@ class TestMainLive:
                 "bypass_actors": bypass_actors,
             }
         )
-        return subprocess.CompletedProcess(
-            args=[], returncode=0, stdout=payload, stderr=""
-        )
+        return subprocess.CompletedProcess(args=[], returncode=0, stdout=payload, stderr="")
 
     def _matching_params(self) -> dict:
         """Rule parameters matching every non-delegated key in the baseline."""
@@ -276,9 +268,7 @@ class TestMainLive:
         assert "DRIFT" in capsys.readouterr().out
 
     def test_api_failure_exits_auth(self):
-        fail = subprocess.CompletedProcess(
-            args=[], returncode=1, stdout="", stderr="auth failed"
-        )
+        fail = subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr="auth failed")
         with patch("subprocess.run", return_value=fail):
             with pytest.raises(SystemExit) as exc_info:
                 mod.main([])
@@ -346,9 +336,7 @@ class TestMainLive:
         must-not-create-a-second-baseline decision.
         """
         live_params = self._matching_params()
-        live_params["required_status_checks"] = [
-            {"context": f"Check {i}"} for i in range(9)
-        ]
+        live_params["required_status_checks"] = [{"context": f"Check {i}"} for i in range(9)]
         with patch("subprocess.run", return_value=self._mock_gh(live_params)):
             rc = mod.main([])
         assert rc == 0
@@ -389,17 +377,13 @@ class TestEdgeCases:
         top-level state section is mandatory, not optional.
         """
         no_ruleset = tmp_path / "no_ruleset.json"
-        no_ruleset.write_text(
-            json.dumps({"ruleset_id": 1, "parameters": {}}), encoding="utf-8"
-        )
+        no_ruleset.write_text(json.dumps({"ruleset_id": 1, "parameters": {}}), encoding="utf-8")
         with patch.object(mod, "BASELINE_PATH", no_ruleset):
             with pytest.raises(SystemExit) as exc_info:
                 mod.main([])
             assert exc_info.value.code == mod.EXIT_CONFIG
 
-    def test_ruleset_section_missing_bypass_actors_exits_config(
-        self, tmp_path: Path
-    ) -> None:
+    def test_ruleset_section_missing_bypass_actors_exits_config(self, tmp_path: Path) -> None:
         """A malformed 'ruleset' section (missing a required subkey) is config error."""
         malformed = tmp_path / "malformed_ruleset.json"
         malformed.write_text(
@@ -424,9 +408,7 @@ class TestEdgeCases:
         old one-directional contract. check_drift() now also iterates
         live.items(), so an added rule or a widened permission is caught.
         """
-        baseline: dict[str, Any] = {
-            "parameters": {"strict_required_status_checks_policy": False}
-        }
+        baseline: dict[str, Any] = {"parameters": {"strict_required_status_checks_policy": False}}
         live: dict[str, Any] = {
             "strict_required_status_checks_policy": False,
             "require_linear_history": True,

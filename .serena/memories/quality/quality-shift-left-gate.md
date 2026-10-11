@@ -14,12 +14,22 @@ Run ALL 6 agents using standardized prompts BEFORE pushing code:
 
 ```python
 # Agent consultation sequence (can run in parallel)
-Task(subagent_type="analyst", prompt="Review changes per .github/prompts/pr-quality-gate-analyst.md")
-Task(subagent_type="architect", prompt="Review changes per .github/prompts/pr-quality-gate-architect.md")
+Task(
+    subagent_type="analyst", prompt="Review changes per .github/prompts/pr-quality-gate-analyst.md"
+)
+Task(
+    subagent_type="architect",
+    prompt="Review changes per .github/prompts/pr-quality-gate-architect.md",
+)
 Task(subagent_type="devops", prompt="Review changes per .github/prompts/pr-quality-gate-devops.md")
 Task(subagent_type="qa", prompt="Review changes per .github/prompts/pr-quality-gate-qa.md")
-Task(subagent_type="roadmap", prompt="Review changes per .github/prompts/pr-quality-gate-roadmap.md")
-Task(subagent_type="security", prompt="Review changes per .github/prompts/pr-quality-gate-security.md")
+Task(
+    subagent_type="roadmap", prompt="Review changes per .github/prompts/pr-quality-gate-roadmap.md"
+)
+Task(
+    subagent_type="security",
+    prompt="Review changes per .github/prompts/pr-quality-gate-security.md",
+)
 ```
 
 **Verification**: All 6 agents produce reports before push

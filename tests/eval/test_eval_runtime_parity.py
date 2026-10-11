@@ -98,16 +98,10 @@ class FakeRunner:
         if "Phases 1 and 2" in prompt:
             return "CONTINUE_PHASE_3"
         if "parity-result.txt" in prompt:
-            (workspace / "parity-result.txt").write_text(
-                "parity-ok\n", encoding="utf-8"
-            )
+            (workspace / "parity-result.txt").write_text("parity-ok\n", encoding="utf-8")
             return "TOOL_EXECUTED"
         if "deployment choice" in prompt:
-            return (
-                "A) Canary deployment\n"
-                "B) Immediate deployment\n"
-                "Recommendation: A"
-            )
+            return "A) Canary deployment\nB) Immediate deployment\nRecommendation: A"
         return "REJECT_INCOMPLETE\nOnly 16 of 49 promised artifacts are valid."
 
 
@@ -185,9 +179,7 @@ def test_commands_isolate_profiles_and_send_the_same_fixture() -> None:
 
     assert parity.DEFAULT_MODEL == "claude-opus-5-5"
     claude = parity.build_argv("claude", "claude", parity.DEFAULT_MODEL, fixture)
-    copilot = parity.build_argv(
-        "copilot", "copilot", parity.DEFAULT_MODEL, fixture
-    )
+    copilot = parity.build_argv("copilot", "copilot", parity.DEFAULT_MODEL, fixture)
 
     assert claude[claude.index("--model") + 1] == "claude-opus-5-5"
     assert copilot[copilot.index("--model") + 1] == "claude-opus-5.5"
@@ -205,12 +197,13 @@ def test_commands_isolate_profiles_and_send_the_same_fixture() -> None:
     assert set(available.split("=", 1)[1].split(",")) == {"view", "edit"}
     assert claude[claude.index("--print") + 1] == fixture.prompt
     assert copilot[copilot.index("--prompt") + 1] == fixture.prompt
-    assert parity._redacted_argv(claude, "claude")[
-        claude.index("--print") + 1
-    ] == "<fixture-prompt>"
-    assert parity._redacted_argv(copilot, "copilot")[
-        copilot.index("--prompt") + 1
-    ] == "<fixture-prompt>"
+    assert (
+        parity._redacted_argv(claude, "claude")[claude.index("--print") + 1] == "<fixture-prompt>"
+    )
+    assert (
+        parity._redacted_argv(copilot, "copilot")[copilot.index("--prompt") + 1]
+        == "<fixture-prompt>"
+    )
 
 
 def test_runtime_env_uses_isolated_profiles(tmp_path: Path) -> None:
@@ -224,9 +217,7 @@ def test_runtime_env_uses_isolated_profiles(tmp_path: Path) -> None:
 
     assert claude_env["CLAUDE_CONFIG_DIR"].startswith(str(claude_workspace))
     assert copilot_env["COPILOT_HOME"].startswith(str(copilot_workspace))
-    assert copilot_env["COPILOT_SESSION_STATE_DIR"].startswith(
-        str(copilot_workspace)
-    )
+    assert copilot_env["COPILOT_SESSION_STATE_DIR"].startswith(str(copilot_workspace))
     assert "COPILOT_PLUGIN_ROOT" not in copilot_env
 
 
@@ -391,10 +382,7 @@ def test_dry_run_executes_versions_only(tmp_path: Path) -> None:
     assert len(runner.calls) == 2
     assert all("--version" in call for call in runner.calls)
     assert all("positive" in record["controls"] for record in report["fixtures"])
-    assert all(
-        record["controls"]["provenance"] == "prompt-only"
-        for record in report["fixtures"]
-    )
+    assert all(record["controls"]["provenance"] == "prompt-only" for record in report["fixtures"])
     assert all(record["claude_agent_sha256"] for record in report["fixtures"])
     assert all(record["copilot_agent_sha256"] for record in report["fixtures"])
 
@@ -427,9 +415,7 @@ def test_main_returns_config_exit_for_invalid_model(capsys) -> None:
     assert "invalid format" in capsys.readouterr().err
 
 
-def test_main_returns_config_exit_for_bad_fixture(
-    tmp_path: Path, capsys
-) -> None:
+def test_main_returns_config_exit_for_bad_fixture(tmp_path: Path, capsys) -> None:
     fixture = tmp_path / "bad.json"
     fixture.write_text("{}", encoding="utf-8")
 
@@ -442,9 +428,7 @@ def test_main_returns_config_exit_for_bad_fixture(
     assert "schema_version" in capsys.readouterr().err
 
 
-def test_a_question_mechanism_mismatch_fails_the_run(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_a_question_mechanism_mismatch_fails_the_run(tmp_path: Path, monkeypatch) -> None:
     output = tmp_path / "run" / "report.json"
     real = parity._run_fixture
 

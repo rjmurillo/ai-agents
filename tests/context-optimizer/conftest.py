@@ -19,6 +19,7 @@ def _tiktoken_available() -> bool:
     """Return True if tiktoken can load the cl100k_base BPE encoding."""
     try:
         import tiktoken
+
         tiktoken.get_encoding("cl100k_base")
         return True
     except Exception:

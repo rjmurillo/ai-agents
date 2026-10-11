@@ -241,9 +241,7 @@ class TestAnExhaustedBudgetReportsInsteadOfRunningMoreGit:
         assert "could not be verified" in err
         assert "git budget ran out" in err
 
-    def test_a_healthy_checkout_still_exits_zero_on_the_real_budget(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_healthy_checkout_still_exits_zero_on_the_real_budget(self, tmp_path: Path) -> None:
         """The discriminating control for the two cases above."""
         repo = _make_repo(tmp_path)
 

@@ -191,8 +191,7 @@ class TestApiKeyImport:
         path = EVAL_DIR / script
         source = path.read_text(encoding="utf-8")
         assert self.EXPECTED_IMPORT in source, (
-            f"{script} still imports bare load_api_key; "
-            f"expected {self.EXPECTED_IMPORT!r}"
+            f"{script} still imports bare load_api_key; expected {self.EXPECTED_IMPORT!r}"
         )
 
     @pytest.mark.parametrize("script", SCRIPTS)
@@ -201,9 +200,7 @@ class TestApiKeyImport:
         source = path.read_text(encoding="utf-8")
         # Bare import: "load_api_key as _load_api_key" without "for_selected_provider"
         bare = "load_api_key as _load_api_key"
-        assert bare not in source, (
-            f"{script} still has the bare {bare!r} import"
-        )
+        assert bare not in source, f"{script} still has the bare {bare!r} import"
 
 
 # ---------------------------------------------------------------------------
@@ -250,12 +247,8 @@ class TestRuleScenarioFiles:
     def test_scenarios_have_positive_and_negative(self, rule_id):
         path = RULE_SCENARIOS_DIR / f"{rule_id}.json"
         data = json.loads(path.read_text(encoding="utf-8"))
-        has_positive = any(
-            s.get("expected_signals") for s in data["scenarios"]
-        )
-        has_negative = any(
-            not s.get("expected_signals") for s in data["scenarios"]
-        )
+        has_positive = any(s.get("expected_signals") for s in data["scenarios"])
+        has_negative = any(not s.get("expected_signals") for s in data["scenarios"])
         assert has_positive, f"{rule_id}: no positive scenario"
         assert has_negative, f"{rule_id}: no negative scenario"
 
@@ -273,9 +266,7 @@ class TestRuleScenarioFiles:
         skill_path = REPO_ROOT / data["skill_path"]
         reference_path = REPO_ROOT / data["reference_path"]
         assert skill_path.exists(), f"skill_path {data['skill_path']!r} does not exist"
-        assert reference_path.exists(), (
-            f"reference_path {data['reference_path']!r} does not exist"
-        )
+        assert reference_path.exists(), f"reference_path {data['reference_path']!r} does not exist"
 
     def test_issue_5392_has_all_recovery_fixtures(self):
         """R1-R8 moved to universal.json (issue #5951): the recovery contract lives
@@ -298,9 +289,7 @@ class TestRuleScenarioFiles:
             "R8": "recovery-negative-control",
         }
         assert set(scenarios) == set(required) | {"S1", "S2", "S3", "S4", "S5", "S6"}
-        actual = {
-            scenario_id: scenarios[scenario_id]["expected_gate"] for scenario_id in required
-        }
+        actual = {scenario_id: scenarios[scenario_id]["expected_gate"] for scenario_id in required}
         assert actual == required
         expected_signals = {
             "R1": ["transient", "bounded", "retry", "success"],
@@ -382,9 +371,7 @@ class TestRuleScenarioFiles:
             "agent-workflow/agent-workflow-atomic-commits.md",
         )
         for relative_path in candidates:
-            content = (REPO_ROOT / ".serena/memories" / relative_path).read_text(
-                encoding="utf-8"
-            )
+            content = (REPO_ROOT / ".serena/memories" / relative_path).read_text(encoding="utf-8")
             assert content.startswith("# Evidence:")
             assert "<!-- placement: evidence;" in content
             assert "## Constraints" not in content

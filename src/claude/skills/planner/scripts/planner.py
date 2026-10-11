@@ -161,7 +161,7 @@ def get_planning_step_guidance(step_number: int, total_steps: int) -> dict:
                 "  Step 1: @agent-technical-writer scrubs code snippets\n"
                 "  Step 2: @agent-quality-reviewer validates the plan\n"
                 "  Then: Ready for /plan-execution"
-            )
+            ),
         }
 
     if step_number == 1:
@@ -199,7 +199,7 @@ def get_planning_step_guidance(step_number: int, total_steps: int) -> dict:
                 "  - [ ] Defined testable acceptance criteria",
                 "</step_1_checklist>",
             ],
-            "next": f"Invoke step {next_step} with your context analysis and approach options."
+            "next": f"Invoke step {next_step} with your context analysis and approach options.",
         }
 
     if step_number == 2:
@@ -263,7 +263,7 @@ def get_planning_step_guidance(step_number: int, total_steps: int) -> dict:
             "next": (
                 f"Invoke step {next_step} with your chosen approach "
                 "(include state evaluation summary), architecture, and milestone structure."
-            )
+            ),
         }
 
     if step_number == 3:
@@ -349,9 +349,8 @@ def get_planning_step_guidance(step_number: int, total_steps: int) -> dict:
                 "</step_3_validate>",
             ],
             "next": (
-                f"Invoke step {next_step} with refined milestones, risks, "
-                "and uncertainty flags."
-            )
+                f"Invoke step {next_step} with refined milestones, risks, and uncertainty flags."
+            ),
         }
 
     # Steps 4+
@@ -392,7 +391,7 @@ def get_planning_step_guidance(step_number: int, total_steps: int) -> dict:
         "next": (
             f"Invoke step {next_step}. {remaining} step(s) remaining until completion. "
             "(Or invoke earlier step if backtracking.)"
-        )
+        ),
     }
 
 
@@ -428,7 +427,7 @@ def get_review_step_guidance(step_number: int, total_steps: int) -> dict:
                 f"After TW completes, invoke step {next_step}:\n"
                 "   python3 planner.py --phase review --step-number 2 --total-steps 2 "
                 '--thoughts "TW scrub complete, [summary of changes]"'
-            )
+            ),
         }
 
     if step_number == 2:
@@ -465,7 +464,7 @@ def get_review_step_guidance(step_number: int, total_steps: int) -> dict:
                 "  - NEEDS_CHANGES: Address issues in plan, then restart review from step 1:\n"
                 "    python3 planner.py --phase review --step-number 1 --total-steps 2 \\\n"
                 '      --thoughts "Addressed QR feedback: [summary of changes]"'
-            )
+            ),
         }
 
     if is_complete:
@@ -484,13 +483,13 @@ def get_review_step_guidance(step_number: int, total_steps: int) -> dict:
                 "PLAN APPROVED.\n\n"
                 "Ready for implementation via /plan-execution command.\n"
                 "Pass the plan file path as argument."
-            )
+            ),
         }
 
     # Shouldn't reach here with standard 2-step review, but handle gracefully
     return {
         "actions": ["Continue review process as needed."],
-        "next": f"Invoke step {next_step} when ready."
+        "next": f"Invoke step {next_step} when ready.",
     }
 
 
@@ -513,12 +512,16 @@ Examples:
   # Start review (after plan written)
   python3 planner.py --phase review --step-number 1 --total-steps 2 \
       --thoughts "Plan at plans/auth.md"
-"""
+""",
     )
 
-    parser.add_argument("--phase", type=str, default="planning",
-                        choices=["planning", "review"],
-                        help="Workflow phase: planning (default) or review")
+    parser.add_argument(
+        "--phase",
+        type=str,
+        default="planning",
+        choices=["planning", "review"],
+        help="Workflow phase: planning (default) or review",
+    )
     parser.add_argument("--step-number", type=int, required=True)
     parser.add_argument("--total-steps", type=int, required=True)
     parser.add_argument("--thoughts", type=str, required=True)

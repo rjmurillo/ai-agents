@@ -70,8 +70,7 @@ def test_no_job_mixes_a_full_checkout_with_a_depth_limited_fetch() -> None:
     assert not offenders, (
         "a job checks out at fetch-depth 0 and then fetches shallowly, which "
         "writes .git/shallow for the rest of the job and severs ancestry for "
-        "every later step (issue #4680). Drop the depth flag:\n  "
-        + "\n  ".join(offenders)
+        "every later step (issue #4680). Drop the depth flag:\n  " + "\n  ".join(offenders)
     )
 
 
@@ -93,9 +92,5 @@ def test_no_workflow_computes_its_checkout_depth_from_an_expression() -> None:
     assert not computed, (
         "a root checkout computes fetch-depth from an expression, which the "
         "shallow-graft invariant cannot classify statically. Either pin the "
-        "depth to a literal or teach the invariant this case:\n  "
-        + "\n  ".join(computed)
+        "depth to a literal or teach the invariant this case:\n  " + "\n  ".join(computed)
     )
-
-
-

@@ -44,9 +44,7 @@ def test_ruff_ratchets_block_through_the_aggregate_job() -> None:
 def test_registry_contains_both_ruff_ratchets() -> None:
     by_name = {ratchet.job_name: ratchet for ratchet in checks_ratchet.RATCHETS}
     assert by_name["python-lint-ratchet"].script == "scripts/ci/ruff_ratchet.py"
-    assert by_name["python-lint-count-ratchet"].script == (
-        "scripts/ci/ruff_count_ratchet.py"
-    )
+    assert by_name["python-lint-count-ratchet"].script == ("scripts/ci/ruff_count_ratchet.py")
 
 
 def test_ruff_ratchets_keep_the_dev_extra() -> None:

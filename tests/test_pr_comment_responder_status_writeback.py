@@ -386,8 +386,7 @@ def test_without_the_writeback_gate_four_blocks_forever(tmp_path: Path) -> None:
     )
 
     assert gate_four.returncode == 1, (
-        f"pre-fix workflow cleared Gate 4: exit {gate_four.returncode}, "
-        f"stdout {gate_four.stdout!r}"
+        f"pre-fix workflow cleared Gate 4: exit {gate_four.returncode}, stdout {gate_four.stdout!r}"
     )
     assert "[BLOCKED] Comment map still has 3 pending comment(s)" in gate_four.stdout, (
         f"pre-fix workflow left {gate_four.stdout!r}; three worked comments "

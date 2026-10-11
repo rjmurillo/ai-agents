@@ -40,15 +40,12 @@ class TestBaselineCeilingEnforcement:
         _write_command(
             repo,
             "build",
-            'Task(subagent_type="shaped"): do work.\n'
-            'Invoke Skill(skill="pre-mortem") first.\n',
+            'Task(subagent_type="shaped"): do work.\nInvoke Skill(skill="pre-mortem") first.\n',
         )
         baseline_path = repo / "scripts" / "validation" / "baseline.json"
         baseline_path.parent.mkdir(parents=True, exist_ok=True)
         # Record a lower ceiling than the agent's actual score of 3.
-        baseline_path.write_text(
-            json.dumps({"files": {rel: 1}}), encoding="utf-8"
-        )
+        baseline_path.write_text(json.dumps({"files": {rel: 1}}), encoding="utf-8")
         seed_repo(repo)
 
         original_bytes = baseline_path.read_bytes()
@@ -67,18 +64,14 @@ class TestBaselineCeilingEnforcement:
         rel = _write_agent(repo, "shaped", _prose_body())
         baseline_path = repo / "scripts" / "validation" / "baseline.json"
         baseline_path.parent.mkdir(parents=True, exist_ok=True)
-        baseline_path.write_text(
-            json.dumps({"files": {rel: 3}}), encoding="utf-8"
-        )
+        baseline_path.write_text(json.dumps({"files": {rel: 3}}), encoding="utf-8")
         seed_repo(repo)
 
         proc = run_update_baseline(repo, baseline_path, "--allow-baseline-shrink")
 
         assert proc.returncode == 0, proc.stdout + proc.stderr
 
-    def test_update_baseline_rejects_new_candidate_at_threshold(
-        self, tmp_path: Path
-    ) -> None:
+    def test_update_baseline_rejects_new_candidate_at_threshold(self, tmp_path: Path) -> None:
         """A new agent scoring >= 2 cannot be grandfathered into the baseline.
 
         Without this guard, --update-baseline records the candidate and later
@@ -90,8 +83,7 @@ class TestBaselineCeilingEnforcement:
         _write_command(
             repo,
             "build",
-            'Task(subagent_type="shaped"): do work.\n'
-            'Invoke Skill(skill="pre-mortem") first.\n',
+            'Task(subagent_type="shaped"): do work.\nInvoke Skill(skill="pre-mortem") first.\n',
         )
         baseline_path = repo / "scripts" / "validation" / "baseline.json"
         baseline_path.parent.mkdir(parents=True, exist_ok=True)
@@ -120,8 +112,7 @@ class TestBaselineDirtyStateGuard:
         _write_command(
             repo,
             "build",
-            'Task(subagent_type="shaped"): do work.\n'
-            'Invoke Skill(skill="pre-mortem") first.\n',
+            'Task(subagent_type="shaped"): do work.\nInvoke Skill(skill="pre-mortem") first.\n',
         )
         baseline_path = repo / "scripts" / "validation" / "baseline.json"
         baseline_path.parent.mkdir(parents=True, exist_ok=True)
@@ -142,8 +133,7 @@ class TestBaselineDirtyStateGuard:
         _write_command(
             repo,
             "build",
-            'Task(subagent_type="shaped"): do work.\n'
-            'Invoke Skill(skill="pre-mortem") first.\n',
+            'Task(subagent_type="shaped"): do work.\nInvoke Skill(skill="pre-mortem") first.\n',
         )
         baseline_path = repo / "scripts" / "validation" / "baseline.json"
         baseline_path.parent.mkdir(parents=True, exist_ok=True)

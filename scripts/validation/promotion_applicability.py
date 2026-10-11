@@ -151,7 +151,7 @@ def _when_problem(value: object) -> str | None:
     if value in (ALWAYS, NEVER):
         return None
     if not isinstance(value, list) or not value:
-        return f"'when' must be \"{ALWAYS}\", \"{NEVER}\", or a non-empty list of glob patterns"
+        return f'\'when\' must be "{ALWAYS}", "{NEVER}", or a non-empty list of glob patterns'
     for pattern in value:
         if not isinstance(pattern, str) or not pattern.strip() or _has_forbidden_char(pattern):
             return "'when' patterns must be non-empty printable strings"

@@ -103,10 +103,7 @@ class TestValidation5DashCheck:
                     "main",
                     "feat/branch",
                     title="feat: clean",
-                    body=(
-                        f"line 1 clean\nline 2 has {chr(0x2014)} dash\n"
-                        "line 3 clean\n"
-                    ),
+                    body=(f"line 1 clean\nline 2 has {chr(0x2014)} dash\nline 3 clean\n"),
                 )
             except SystemExit:
                 pass
@@ -151,9 +148,7 @@ class TestValidation6EscapedNewlineCheck:
             self._validate(tmp_path, body="## Summary\\n\\nDetail\\n" + "\n")
         assert excinfo.value.code == 1
 
-    def test_escaped_newline_inside_a_real_multiline_body_passes(
-        self, tmp_path, capsys
-    ):
+    def test_escaped_newline_inside_a_real_multiline_body_passes(self, tmp_path, capsys):
         self._validate(
             tmp_path,
             body='## Notes\n\n```python\nprint("a\\nb")\n```\n',
@@ -187,8 +182,7 @@ class TestValidation6EscapedNewlineCheck:
         func = next(
             node
             for node in ast.walk(tree)
-            if isinstance(node, ast.FunctionDef)
-            and node.name == "escaped_newline_body_error"
+            if isinstance(node, ast.FunctionDef) and node.name == "escaped_newline_body_error"
         )
         body_start = func.body[1].lineno
         lines = canonical.read_text(encoding="utf-8").splitlines()
@@ -201,30 +195,22 @@ class TestValidation6EscapedNewlineCheck:
             copy = next(
                 node
                 for node in ast.walk(module)
-                if isinstance(node, ast.FunctionDef)
-                and node.name == "validate_no_escaped_newlines"
+                if isinstance(node, ast.FunctionDef) and node.name == "validate_no_escaped_newlines"
             )
             doc = ast.get_docstring(copy, clean=False)
             assert doc is not None, mirror
             marker = "body::"
             assert marker in doc, f"{mirror}: citation marker missing"
-            quoted = textwrap.dedent(
-                doc.split(marker, 1)[1].split("\n\n", 2)[1]
-            ).strip("\n")
+            quoted = textwrap.dedent(doc.split(marker, 1)[1].split("\n\n", 2)[1]).strip("\n")
             quoted_lines = quoted.splitlines()
             assert len(quoted_lines) >= 5, (
-                f"{mirror}: quote too short to be the guard plus predicate: "
-                f"{quoted_lines!r}"
+                f"{mirror}: quote too short to be the guard plus predicate: {quoted_lines!r}"
             )
             actual = [
-                line[4:]
-                for line in lines[
-                    body_start - 1 : body_start - 1 + len(quoted_lines)
-                ]
+                line[4:] for line in lines[body_start - 1 : body_start - 1 + len(quoted_lines)]
             ]
             assert quoted_lines == actual, (
-                f"{mirror}: quote is not verbatim.\n"
-                f"quoted={quoted_lines!r}\nactual={actual!r}"
+                f"{mirror}: quote is not verbatim.\nquoted={quoted_lines!r}\nactual={actual!r}"
             )
 
     def test_chain_is_renumbered_to_six_steps(self, tmp_path, capsys):

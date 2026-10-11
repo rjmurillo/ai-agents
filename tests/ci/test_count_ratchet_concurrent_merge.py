@@ -88,9 +88,7 @@ def two_branches_that_each_lower_by_one(tmp_path: Path) -> tuple[Path, Path]:
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
-def test_two_concurrent_baseline_lowerings_leave_slack_not_a_red_main(
-    tmp_path, capsys
-):
+def test_two_concurrent_baseline_lowerings_leave_slack_not_a_red_main(tmp_path, capsys):
     """Both branches pass, the identical edits merge clean, and main stays green.
 
     This is the race issue #4057 reports. Each branch removes one violation
@@ -161,9 +159,7 @@ def test_a_current_base_does_not_turn_the_second_branch_red(tmp_path, capsys):
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
-def test_the_updated_second_branch_goes_green_once_it_records_the_true_count(
-    tmp_path, capsys
-):
+def test_the_updated_second_branch_goes_green_once_it_records_the_true_count(tmp_path, capsys):
     """Recording the true count is the way to close the slack, and it works."""
     repo, baseline = two_branches_that_each_lower_by_one(tmp_path)
     merge_into_main(repo, "branch-a")
@@ -180,9 +176,7 @@ def test_the_updated_second_branch_goes_green_once_it_records_the_true_count(
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
-def test_cumulative_lowering_across_three_branches_leaves_slack_of_two(
-    tmp_path, capsys
-):
+def test_cumulative_lowering_across_three_branches_leaves_slack_of_two(tmp_path, capsys):
     """The drift scales with the number of branches that land the same edit."""
     repo, baseline = repo_with_markers(tmp_path, 3)
 

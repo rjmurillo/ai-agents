@@ -272,9 +272,7 @@ def _site_violations(
         )
 
 
-def _target_is_temp_rooted(
-    graph: _Graph, facts: _ModuleFacts, module: str, site: Site
-) -> bool:
+def _target_is_temp_rooted(graph: _Graph, facts: _ModuleFacts, module: str, site: Site) -> bool:
     """Trace this command's target, or the vector carrying it, to a temp root."""
     scope = site.enclosing
     assert scope is not None
@@ -284,9 +282,7 @@ def _target_is_temp_rooted(
     # The build-then-run shape: the token was appended to a vector, so the
     # target travels with a later call that receives that vector.
     consumers = facts.call_references.get(scope, [])
-    return any(
-        site.carriers & names and names & rooted for names in consumers
-    )
+    return any(site.carriers & names and names & rooted for names in consumers)
 
 
 def _module_scope_violations(

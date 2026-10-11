@@ -136,11 +136,7 @@ class TestEscapedPipeInFencedBlock:
 
     def test_fenced_block_not_flagged(self, tmp_path: Path) -> None:
         md = tmp_path / "fenced.md"
-        md.write_text(
-            "```bash\n"
-            '| grep "A\\|B" file\n'
-            "```\n"
-        )
+        md.write_text('```bash\n| grep "A\\|B" file\n```\n')
         assert _find_escaped_pipe_rows([md]) == []
 
 
@@ -159,9 +155,7 @@ class TestEscapedPipeInTableRowDetected:
     def test_escaped_pipe_in_cell_detected(self, tmp_path: Path) -> None:
         md = tmp_path / "bad.md"
         md.write_text(
-            "| Step | Command |\n"
-            "| --- | --- |\n"
-            "| Count | `ls .serena/memories/ \\| wc -l` |\n"
+            "| Step | Command |\n| --- | --- |\n| Count | `ls .serena/memories/ \\| wc -l` |\n"
         )
         violations = _find_escaped_pipe_rows([md])
         assert len(violations) == 1
@@ -170,9 +164,7 @@ class TestEscapedPipeInTableRowDetected:
     def test_clean_table_not_flagged(self, tmp_path: Path) -> None:
         md = tmp_path / "clean.md"
         md.write_text(
-            "| Step | Command |\n"
-            "| --- | --- |\n"
-            "| Count | `git grep -c -e foo -e bar .` |\n"
+            "| Step | Command |\n| --- | --- |\n| Count | `git grep -c -e foo -e bar .` |\n"
         )
         assert _find_escaped_pipe_rows([md]) == []
 

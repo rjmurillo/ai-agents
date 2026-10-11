@@ -19,6 +19,7 @@ for _p in (str(_lib_dir), str(_scripts_dir)):
 @pytest.fixture
 def _import_module():
     import importlib
+
     mod_name = "test_workflow_locally"
     if mod_name in sys.modules:
         del sys.modules[mod_name]
@@ -83,10 +84,13 @@ class TestCheckPrerequisites:
 
         with (
             patch("shutil.which", side_effect=which_side),
-            patch("subprocess.run", side_effect=[
-                make_completed_process(stdout="act 0.2.0"),  # act --version
-                make_completed_process(returncode=1, stderr="Cannot connect"),  # docker info
-            ]),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    make_completed_process(stdout="act 0.2.0"),  # act --version
+                    make_completed_process(returncode=1, stderr="Cannot connect"),  # docker info
+                ],
+            ),
         ):
             rc = mod.main(["--workflow", "pester-tests"])
         assert rc == 2
@@ -129,10 +133,13 @@ class TestResolveWorkflowPath:
 
         with (
             patch("shutil.which", side_effect=which_side),
-            patch("subprocess.run", side_effect=[
-                make_completed_process(stdout="act 0.2.0"),
-                make_completed_process(),
-            ]),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    make_completed_process(stdout="act 0.2.0"),
+                    make_completed_process(),
+                ],
+            ),
             patch("test_workflow_locally._get_repo_root", return_value=str(tmp_path)),
         ):
             rc = mod.main(["--workflow", "nonexistent"])
@@ -180,10 +187,13 @@ class TestTestWorkflowLocally:
 
         with (
             patch("shutil.which", side_effect=which_side),
-            patch("subprocess.run", side_effect=[
-                make_completed_process(stdout="act 0.2.0"),
-                make_completed_process(),
-            ]),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    make_completed_process(stdout="act 0.2.0"),
+                    make_completed_process(),
+                ],
+            ),
             patch("test_workflow_locally._get_repo_root", return_value=str(tmp_path)),
         ):
             rc = mod.main(["--workflow", "nonexistent-workflow"])

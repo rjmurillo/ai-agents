@@ -158,9 +158,7 @@ def summarize_tools(events: list[dict]) -> dict:
             t["max_duration_ms"] = duration
     for t in tools.values():
         if t["call_count"] > 0:
-            t["avg_duration_ms"] = round(
-                t["total_duration_ms"] / t["call_count"], 1
-            )
+            t["avg_duration_ms"] = round(t["total_duration_ms"] / t["call_count"], 1)
     return {"tools": sorted(tools.values(), key=lambda x: x["call_count"], reverse=True)}
 
 
@@ -203,9 +201,7 @@ def format_table(events: list[dict]) -> str:
 
 def main() -> int:
     """Entry point."""
-    parser = argparse.ArgumentParser(
-        description="Query agent observability logs (JSONL format)"
-    )
+    parser = argparse.ArgumentParser(description="Query agent observability logs (JSONL format)")
     parser.add_argument("logfile", help="Path to JSONL log file")
     parser.add_argument("--event-type", help="Filter by event type")
     parser.add_argument("--session-id", help="Filter by session ID")
@@ -214,9 +210,7 @@ def main() -> int:
     parser.add_argument("--tool", dest="tool_name", help="Filter by tool name")
     parser.add_argument("--since", help="Filter events after this ISO timestamp")
     parser.add_argument("--until", help="Filter events before this ISO timestamp")
-    parser.add_argument(
-        "--errors-only", action="store_true", help="Show only error events"
-    )
+    parser.add_argument("--errors-only", action="store_true", help="Show only error events")
     parser.add_argument(
         "--slow",
         type=float,

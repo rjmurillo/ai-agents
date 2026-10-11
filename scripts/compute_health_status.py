@@ -424,9 +424,7 @@ def compute_health(
 
 def main() -> int:
     """Entry point for CLI usage."""
-    parser = argparse.ArgumentParser(
-        description="Compute aggregate health status from metrics"
-    )
+    parser = argparse.ArgumentParser(description="Compute aggregate health status from metrics")
     parser.add_argument(
         "--memories-dir",
         type=Path,
@@ -474,8 +472,7 @@ def main() -> int:
             resolved = dir_arg.resolve()
             if not resolved.is_relative_to(project_root):
                 print(
-                    f"[ERROR] {name} directory must be within project root"
-                    f" ({project_root})",
+                    f"[ERROR] {name} directory must be within project root ({project_root})",
                     file=sys.stderr,
                 )
                 return 2
@@ -512,8 +509,7 @@ def _print_table(report: HealthStatusReport) -> None:
 
     if not report.components:
         print(
-            "No components checked. Ensure .serena/memories/ and "
-            ".project-toolkit/sessions/ exist."
+            "No components checked. Ensure .serena/memories/ and .project-toolkit/sessions/ exist."
         )
         return
 
@@ -521,9 +517,7 @@ def _print_table(report: HealthStatusReport) -> None:
     print("-" * 80)
     for comp in report.components:
         icon = _level_icon(comp.level)
-        print(
-            f"{comp.name:<30} {icon:<10} {comp.value:>7.1%}  {comp.detail}"
-        )
+        print(f"{comp.name:<30} {icon:<10} {comp.value:>7.1%}  {comp.detail}")
     print()
     print(
         f"Summary: {report.healthy_count} healthy, "

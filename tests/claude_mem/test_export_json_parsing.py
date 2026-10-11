@@ -18,11 +18,7 @@ from unittest.mock import patch
 
 import pytest
 
-SCRIPTS_DIR = str(
-    Path(__file__).resolve().parent.parent.parent
-    / ".claude-mem"
-    / "scripts"
-)
+SCRIPTS_DIR = str(Path(__file__).resolve().parent.parent.parent / ".claude-mem" / "scripts")
 sys.path.insert(0, SCRIPTS_DIR)
 
 from export_claude_mem_direct import _parse_json_output  # noqa: E402
@@ -44,7 +40,7 @@ class TestParseJsonOutput:
 
     def test_corrupted_json_returns_empty_list(self) -> None:
         """Corrupted JSON returns empty list instead of crashing."""
-        raw = '{not valid json at all'
+        raw = "{not valid json at all"
         result = _parse_json_output(raw, "observations")
         assert result == []
 
@@ -75,9 +71,7 @@ class TestParseJsonOutput:
         assert "x" * 200 in captured.err
         assert "x" * 201 not in captured.err
 
-    def test_empty_raw_string_logs_empty_marker(
-        self, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_empty_raw_string_logs_empty_marker(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Empty raw string shows '(empty)' in the preview."""
         _parse_json_output("", "prompts")
         captured = capsys.readouterr()
@@ -106,7 +100,8 @@ class TestParseJsonOutput:
         assert result == [{"key": "value"}]
 
     def test_unexpected_json_type_returns_empty_list(
-        self, capsys: pytest.CaptureFixture[str],
+        self,
+        capsys: pytest.CaptureFixture[str],
     ) -> None:
         """Non-dict, non-list JSON (e.g. string, int) returns empty list."""
         result = _parse_json_output('"just a string"', "observations")
@@ -135,12 +130,8 @@ class TestMainWithCorruptedOutput:
 
         return db_file, memories_dir, script_dir
 
-    def _make_completed_process(
-        self, stdout: str, returncode: int = 0
-    ) -> CompletedProcess[str]:
-        return CompletedProcess(
-            args=["sqlite3"], returncode=returncode, stdout=stdout, stderr=""
-        )
+    def _make_completed_process(self, stdout: str, returncode: int = 0) -> CompletedProcess[str]:
+        return CompletedProcess(args=["sqlite3"], returncode=returncode, stdout=stdout, stderr="")
 
     def test_partial_export_saves_when_one_query_returns_bad_json(
         self, mock_env: tuple[Path, Path, Path]
@@ -168,9 +159,7 @@ class TestMainWithCorruptedOutput:
             self._make_completed_process(valid_sessions),
         ]
 
-        def mock_run(
-            db_path: str, query: str, json_mode: bool = False
-        ) -> CompletedProcess[str]:
+        def mock_run(db_path: str, query: str, json_mode: bool = False) -> CompletedProcess[str]:
             idx = call_count["n"]
             call_count["n"] += 1
             return responses[idx]
@@ -217,9 +206,7 @@ class TestMainWithCorruptedOutput:
             self._make_completed_process("CORRUPT4"),
         ]
 
-        def mock_run(
-            db_path: str, query: str, json_mode: bool = False
-        ) -> CompletedProcess[str]:
+        def mock_run(db_path: str, query: str, json_mode: bool = False) -> CompletedProcess[str]:
             idx = call_count["n"]
             call_count["n"] += 1
             return responses[idx]
@@ -266,9 +253,7 @@ class TestMainWithCorruptedOutput:
             self._make_completed_process("[]"),
         ]
 
-        def mock_run(
-            db_path: str, query: str, json_mode: bool = False
-        ) -> CompletedProcess[str]:
+        def mock_run(db_path: str, query: str, json_mode: bool = False) -> CompletedProcess[str]:
             idx = call_count["n"]
             call_count["n"] += 1
             return responses[idx]

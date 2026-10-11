@@ -127,9 +127,7 @@ class TestChangedFilesAgainstBase:
 
         assert result is None
 
-    def test_returns_empty_list_when_no_changes_and_no_untracked(
-        self, tmp_path: Path
-    ) -> None:
+    def test_returns_empty_list_when_no_changes_and_no_untracked(self, tmp_path: Path) -> None:
         """Returns [] when the tree is clean and nothing is untracked."""
 
         def fake_run(cmd, **kwargs):

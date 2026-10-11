@@ -265,9 +265,7 @@ class TestYamlStyleExecutionFailures:
         assert outcome.state is EvidenceState.UNKNOWN
         assert outcome.reason == REASON_TIMEOUT
 
-    def test_a_timeout_is_not_licensed_by_the_documented_policy(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_timeout_is_not_licensed_by_the_documented_policy(self, tmp_path: Path) -> None:
         """The policy licenses an absent yamllint, never an unfinished one.
 
         An absent tool and a tool that timed out have different remedies, which
@@ -294,9 +292,7 @@ class TestYamlStyleExecutionFailures:
         assert outcome.state is EvidenceState.BLOCKED
         assert outcome.reason == REASON_TOOL_ABSENT
 
-    def test_an_ordinary_finding_exit_is_a_licensed_advisory_fail(
-        self, tmp_path: Path
-    ) -> None:
+    def test_an_ordinary_finding_exit_is_a_licensed_advisory_fail(self, tmp_path: Path) -> None:
         """Negative control: the fix must not turn real findings into failures.
 
         Without this, classifying non-zero exits could have made every style

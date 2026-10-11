@@ -155,9 +155,7 @@ def run_mutants(repo_root: Path) -> None:
     results: list[tuple[str, str, str]] = []
     for name, old, new, expected in _MUTANTS:
         print(f"\n--- Mutant: {name} ---")
-        actual = _run_one_mutant(
-            name, old, new, original_bytes, expected, repo_root
-        )
+        actual = _run_one_mutant(name, old, new, original_bytes, expected, repo_root)
         results.append((name, actual, expected))
     _print_summary(results)
 

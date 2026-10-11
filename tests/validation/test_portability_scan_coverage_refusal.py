@@ -51,8 +51,16 @@ def _commit_tree(root: Path) -> None:
     _git(root, "init", "-q", "-b", "main")
     _git(root, "add", "-A")
     _git(
-        root, "-c", "user.email=t@t", "-c", "user.name=t",
-        "commit", "-q", "--allow-empty", "-m", "seed",
+        root,
+        "-c",
+        "user.email=t@t",
+        "-c",
+        "user.name=t",
+        "commit",
+        "-q",
+        "--allow-empty",
+        "-m",
+        "seed",
     )
 
 

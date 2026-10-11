@@ -77,12 +77,13 @@ def _append_no_vulnerabilities(output: list[str], result: _ScanResultLike) -> No
         output.append(f"Exit code: {EXIT_ERROR} (scan error)")
 
 
-def _append_vulnerability_details(
-    output: list[str], result: _ScanResultLike
-) -> None:
+def _append_vulnerability_details(output: list[str], result: _ScanResultLike) -> None:
     """Append per-vulnerability detail blocks, grouped by severity."""
     by_severity: dict[str, list[_VulnerabilityLike]] = {
-        "CRITICAL": [], "HIGH": [], "MEDIUM": [], "LOW": []
+        "CRITICAL": [],
+        "HIGH": [],
+        "MEDIUM": [],
+        "LOW": [],
     }
     for vuln in result.vulnerabilities:
         by_severity.get(vuln.severity, by_severity["MEDIUM"]).append(vuln)

@@ -8,6 +8,7 @@ reachable with a GitHub token), so one transport reaches many vendors.
 Prereqs: `pip install openai`, and a token in GITHUB_TOKEN / GH_TOKEN (a
 `gh auth token` works). Imports the harness from the repository scripts/eval directory.
 """
+
 import json
 import os
 import sys
@@ -49,16 +50,25 @@ def main():
             try:
                 # github/openai reasoning models need the #2711/#2712 fix; the
                 # vendors above are non-reasoning and take max_tokens/temperature.
-                text = provider.complete(messages=[{"role": "user", "content": code}],
-                                         system=evalkit.RUBRIC, model=model, max_tokens=1500)
+                text = provider.complete(
+                    messages=[{"role": "user", "content": code}],
+                    system=evalkit.RUBRIC,
+                    model=model,
+                    max_tokens=1500,
+                )
                 dur = int((time.monotonic() - t) * 1000)
                 scores = evalkit.parse_scores(text)
-                rec = {"scores": scores, "ms": dur} if scores else {"error": "unparseable", "ms": dur}
+                rec = (
+                    {"scores": scores, "ms": dur} if scores else {"error": "unparseable", "ms": dur}
+                )
             except Exception as exc:
                 rec = {"error": str(exc)[:160], "ms": int((time.monotonic() - t) * 1000)}
             report["files"][rel][model] = rec
             ov = rec.get("scores", {}).get("overall") if "scores" in rec else "ERR"
-            print(f"  {rel.split('/')[-1][:32]:32} {model:32} ov={ov} ({rec['ms'] / 1000:.1f}s)", flush=True)
+            print(
+                f"  {rel.split('/')[-1][:32]:32} {model:32} ov={ov} ({rec['ms'] / 1000:.1f}s)",
+                flush=True,
+            )
             time.sleep(1.5)  # gentle pacing for github-models rate limits
     out = evalkit.out_dir() / "github_comparison.json"
     with open(out, "w", encoding="utf-8") as handle:

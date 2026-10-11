@@ -198,9 +198,7 @@ def full_corpus_agent_paths(
     if tracked is None:
         return None
     return sorted(
-        path
-        for path in tracked
-        if path.startswith(AGENT_CORPUS_ROOTS) and is_agent_path(path)
+        path for path in tracked if path.startswith(AGENT_CORPUS_ROOTS) and is_agent_path(path)
     )
 
 
@@ -241,9 +239,7 @@ def refuse_dirty_scoring_inputs(repo_root: Path) -> bool:
 
     if _untracked_listing_refuses(repo_root, "untracked", SCORING_ROOTS, False):
         return True
-    return _untracked_listing_refuses(
-        repo_root, "ignored", PIPELINE_FILE_PATHSPECS, True
-    )
+    return _untracked_listing_refuses(repo_root, "ignored", PIPELINE_FILE_PATHSPECS, True)
 
 
 def _untracked_listing_refuses(

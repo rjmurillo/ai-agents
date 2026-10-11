@@ -111,19 +111,19 @@ def get_applicable_steering(
         for file_path in files:
             matches_include = file_matches_pattern(file_path, include_patterns)
             matches_exclude = (
-                file_matches_pattern(file_path, exclude_patterns)
-                if exclude_patterns
-                else False
+                file_matches_pattern(file_path, exclude_patterns) if exclude_patterns else False
             )
 
             if matches_include and not matches_exclude:
-                applicable.append({
-                    "Name": steering_file.stem,
-                    "Path": str(steering_file.resolve()),
-                    "ApplyTo": apply_to,
-                    "ExcludeFrom": exclude_from,
-                    "Priority": priority,
-                })
+                applicable.append(
+                    {
+                        "Name": steering_file.stem,
+                        "Path": str(steering_file.resolve()),
+                        "ApplyTo": apply_to,
+                        "ExcludeFrom": exclude_from,
+                        "Priority": priority,
+                    }
+                )
                 break  # Only need one file to match to include this steering file
 
     applicable.sort(key=lambda s: s["Priority"], reverse=True)
@@ -135,15 +135,17 @@ def main() -> int:
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Match file paths against steering"
-        " file glob patterns",
+        description="Match file paths against steering file glob patterns",
     )
     parser.add_argument(
-        "--files", nargs="+", required=True,
+        "--files",
+        nargs="+",
+        required=True,
         help="File paths to analyze",
     )
     parser.add_argument(
-        "--steering-path", default=".agents/steering",
+        "--steering-path",
+        default=".agents/steering",
         help="Path to steering directory",
     )
     parser.add_argument("--json", action="store_true", help="Output as JSON")

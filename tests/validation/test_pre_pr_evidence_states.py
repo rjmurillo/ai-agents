@@ -255,9 +255,7 @@ class TestMainExitCode:
 class TestMainSummaryJson:
     """The machine-readable summary preserves every child state."""
 
-    def test_summary_json_is_written_with_child_states_and_policy(
-        self, tmp_path: Path
-    ) -> None:
+    def test_summary_json_is_written_with_child_states_and_policy(self, tmp_path: Path) -> None:
         """Acceptance criterion: aggregators produce a machine-readable summary."""
         destination = tmp_path / "summary.json"
         assert not destination.exists()

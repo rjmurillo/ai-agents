@@ -307,49 +307,38 @@ _CONTAINER_CASES: dict[str, str] = {
     # closes the item, and the paragraph closes with it, so the `2.` is
     # judged where no paragraph is open. At the same level rule 4 still
     # vetoes it, which is why the second case must stay unfenced.
-    "dedent past the content column reopens an ordered marker":
-        "- text\n  more\n2. ```\ncode\n",
+    "dedent past the content column reopens an ordered marker": "- text\n  more\n2. ```\ncode\n",
     # Negative control for rule 15, and it passed before rule 15 too. That is
     # the point: it pins that widening the veto did not over-fire. Deleting it
     # because it is green removes the only guard on the inverse failure.
-    "same level keeps rule 4's paragraph veto":
-        "- text\n  more\n  2. ```\n  code\n",
-    "a one-column dedent is still a dedent":
-        "  - text\n    more\n   2. ```\n   code\n",
-    "an empty item's paragraph closes on dedent too":
-        "- \n  more\n2. ```\ncode\n",
+    "same level keeps rule 4's paragraph veto": "- text\n  more\n  2. ```\n  code\n",
+    "a one-column dedent is still a dedent": "  - text\n    more\n   2. ```\n   code\n",
+    "an empty item's paragraph closes on dedent too": "- \n  more\n2. ```\ncode\n",
     # Rule 14 reaching the marker-line rescan. U+00A0 is item content to
     # CommonMark, so the remainder opens a paragraph and the content
     # column moves; `str.strip()` read it as an empty item and both
     # directions of mask were wrong.
-    "U+00A0 remainder is item content, not an empty item":
-        "- \u00a0\n  2. ```\n  not code\n",
+    "U+00A0 remainder is item content, not an empty item": "- \u00a0\n  2. ```\n  not code\n",
     # This one also passes on the unfixed scanner, and is kept because it is
     # the case that caught the naive repair. Measured on all three variants:
     # unfixed AGREE, rule 14 applied ALONE DIVERGE, rule 14 plus rule 15 AGREE.
     # Rule 14 without rule 15 leaves the remainder's paragraph open across the
     # dedent, so rule 4 vetoes the `2.` and the fence is lost. It is a guard on
     # the composite, not on either half.
-    "U+00A0 remainder after wide padding":
-        "-  \u00a0\n  2. ```\n  not code\n",
+    "U+00A0 remainder after wide padding": "-  \u00a0\n  2. ```\n  not code\n",
     # A closing fence may be followed only by spaces and tabs, so a fence
     # carrying U+00A0 does not close its block. `str.strip()` read it as a
     # blank info string, closed the block two lines early, and `--write`
     # then appended a fence to a document the reference parser reads as
     # well formed. That is the corruption class this whole module exists to
     # prevent, and no ratchet could reach it.
-    "U+00A0 does not blank a closing fence's info string":
-        "```\nx\n```\u00a0\ny\n```\n",
-    "U+3000 does not blank a closing fence's info string":
-        "```\nx\n```\u3000\ny\n```\n",
-    "a tilde closer carrying U+00A0 does not close either":
-        "~~~\nx\n~~~\u00a0\ny\n~~~\n",
+    "U+00A0 does not blank a closing fence's info string": "```\nx\n```\u00a0\ny\n```\n",
+    "U+3000 does not blank a closing fence's info string": "```\nx\n```\u3000\ny\n```\n",
+    "a tilde closer carrying U+00A0 does not close either": "~~~\nx\n~~~\u00a0\ny\n~~~\n",
     # Controls: a real space and a real tab DO blank the info string, so the
     # fix must not swing the other way and reject a valid closer.
-    "a trailing space still closes a fence":
-        "```\nx\n``` \ny\n```\n",
-    "a trailing tab still closes a fence":
-        "```\nx\n```\t\ny\n```\n",
+    "a trailing space still closes a fence": "```\nx\n``` \ny\n```\n",
+    "a trailing tab still closes a fence": "```\nx\n```\t\ny\n```\n",
     # Line terminators. `str.splitlines` splits on characters CommonMark does
     # not treat as line endings, enumerated at `_LINE_SPLIT_RE` in either
     # scanner rather than counted here: this comment said `six` and the real

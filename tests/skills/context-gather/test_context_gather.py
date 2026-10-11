@@ -131,9 +131,9 @@ class TestFrontmatter:
         assert "version" in frontmatter, "Frontmatter missing 'version' field"
 
     def test_version_semver(self, frontmatter: dict[str, str]) -> None:
-        assert re.match(
-            r"^\d+\.\d+\.\d+$", frontmatter["version"]
-        ), f"Version '{frontmatter['version']}' is not valid semver"
+        assert re.match(r"^\d+\.\d+\.\d+$", frontmatter["version"]), (
+            f"Version '{frontmatter['version']}' is not valid semver"
+        )
 
 
 class TestStructure:
@@ -201,9 +201,7 @@ class TestStructure:
     def test_spec_005_referenced(self, skill_content: str) -> None:
         assert "SPEC-005" in skill_content, "SKILL.md must reference SPEC-005"
 
-    def test_routes_to_folded_context_retrieval_reference(
-        self, skill_content: str
-    ) -> None:
+    def test_routes_to_folded_context_retrieval_reference(self, skill_content: str) -> None:
         """Issue #2103, #5574: SKILL.md points at the folded reference doc.
 
         The pointer used to route through the knowledge-graph skill. That
@@ -265,7 +263,8 @@ class TestStructure:
             triggers_section = triggers_section[:next_section]
         # Look for the table body rows; each leading column must contain backticks
         table_rows = [
-            line for line in triggers_section.splitlines()
+            line
+            for line in triggers_section.splitlines()
             if line.startswith("|") and "---" not in line and "Phrase" not in line
         ]
         for row in table_rows:

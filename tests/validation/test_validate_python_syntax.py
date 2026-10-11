@@ -59,7 +59,8 @@ def _run_cli(repo_root: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, str(SCRIPT), str(repo_root)],
         capture_output=True,
-        text=True, encoding="utf-8",
+        text=True,
+        encoding="utf-8",
         check=False,
     )
 
@@ -123,9 +124,7 @@ def test_index_read_has_a_bounded_git_timeout(tmp_path: Path, monkeypatch) -> No
         _read_python_source(tmp_path, missing)
 
 
-def test_tracked_file_discovery_has_a_bounded_git_timeout(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_tracked_file_discovery_has_a_bounded_git_timeout(tmp_path: Path, monkeypatch) -> None:
     def timeout_git(command: list[str], **kwargs: Any) -> None:
         assert command[-2:] == ["ls-files", "*.py"]
         assert kwargs["timeout"] == 10

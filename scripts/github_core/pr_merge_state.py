@@ -148,9 +148,7 @@ class PrMergeState:
         return self.status is not PrMergeStatus.PROBE_FAILED
 
 
-def _probe_failed(
-    owner: str, repo: str, number: int, detail: object
-) -> PrMergeState:
+def _probe_failed(owner: str, repo: str, number: int, detail: object) -> PrMergeState:
     """Build a PROBE_FAILED state, mapping the detail to exit 3 or 4."""
     text = sanitize_failure_detail(detail, _DETAIL_LIMIT)
     return PrMergeState(
@@ -172,9 +170,7 @@ def _merged_by_login(pull_request: dict) -> str | None:
     return login if isinstance(login, str) else None
 
 
-def _classify(
-    owner: str, repo: str, number: int, data: object
-) -> PrMergeState:
+def _classify(owner: str, repo: str, number: int, data: object) -> PrMergeState:
     """Turn a GraphQL ``data`` payload into a PrMergeState.
 
     Every shape that is not a definite answer becomes ``PROBE_FAILED``. A null
@@ -184,29 +180,19 @@ def _classify(
     """
     repository = data.get("repository") if isinstance(data, dict) else None
     if not isinstance(repository, dict):
-        return _probe_failed(
-            owner, repo, number, "GraphQL response carried no repository object"
-        )
+        return _probe_failed(owner, repo, number, "GraphQL response carried no repository object")
     if "pullRequest" not in repository:
-        return _probe_failed(
-            owner, repo, number, "GraphQL response carried no pullRequest field"
-        )
+        return _probe_failed(owner, repo, number, "GraphQL response carried no pullRequest field")
 
     pull_request = repository["pullRequest"]
     if pull_request is None:
-        return PrMergeState(
-            owner=owner, repo=repo, number=number, status=PrMergeStatus.NOT_FOUND
-        )
+        return PrMergeState(owner=owner, repo=repo, number=number, status=PrMergeStatus.NOT_FOUND)
     if not isinstance(pull_request, dict):
-        return _probe_failed(
-            owner, repo, number, "GraphQL pullRequest was not an object"
-        )
+        return _probe_failed(owner, repo, number, "GraphQL pullRequest was not an object")
 
     merged = pull_request.get("merged")
     if merged is not True and merged is not False:
-        return _probe_failed(
-            owner, repo, number, "GraphQL pullRequest.merged was not a boolean"
-        )
+        return _probe_failed(owner, repo, number, "GraphQL pullRequest.merged was not a boolean")
 
     pr_state = pull_request.get("state")
     merged_at = pull_request.get("mergedAt")

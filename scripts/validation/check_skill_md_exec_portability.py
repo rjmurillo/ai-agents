@@ -180,9 +180,7 @@ def _reraise_os_error(error: OSError) -> None:
 
 def _iter_reference_markdown(root_resolved: Path, references_dir: Path) -> list[Path]:
     paths: list[Path] = []
-    for dirpath, dirnames, filenames in os.walk(
-        references_dir, onerror=_reraise_os_error
-    ):
+    for dirpath, dirnames, filenames in os.walk(references_dir, onerror=_reraise_os_error):
         directory = Path(dirpath)
         _refuse_exec_escape(root_resolved, directory, "Skill directory")
         kept_dirs: list[str] = []
@@ -443,9 +441,7 @@ def _refuse_marker_files_growth(
     if problem or previous is None:
         return False
     committed_marker = previous.get("marker_files", {})
-    committed_total = sum(
-        v for v in committed_marker.values() if isinstance(v, int)
-    )
+    committed_total = sum(v for v in committed_marker.values() if isinstance(v, int))
     current_total = sum(marker_current.values())
     if current_total > committed_total:
         print(
@@ -605,9 +601,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     regressions, improvements = diff_against_baseline(current, baseline)
-    marker_regressions, marker_improvements = diff_marker_baseline(
-        marker_current, marker_baseline
-    )
+    marker_regressions, marker_improvements = diff_marker_baseline(marker_current, marker_baseline)
     regressions.extend(marker_regressions)
     improvements.extend(marker_improvements)
     _print_report(args.output_format, regressions, improvements, dangling, current, baseline)

@@ -7,13 +7,7 @@ from pathlib import Path
 
 sys.path.insert(
     0,
-    str(
-        Path(__file__).parent.parent
-        / ".claude"
-        / "skills"
-        / "context-optimizer"
-        / "scripts"
-    ),
+    str(Path(__file__).parent.parent / ".claude" / "skills" / "context-optimizer" / "scripts"),
 )
 
 import context_output_cli as cli
@@ -21,6 +15,7 @@ import extract_and_index as core
 from test_extract_and_index import REPO_ROOT, SAMPLE_DOC
 
 __all__ = ("REPO_ROOT", "SAMPLE_DOC", "cli", "cli_args", "cli_workspace", "core")
+
 
 def cli_args(**overrides):
     """Return a namespace with all extractor CLI defaults."""

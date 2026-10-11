@@ -58,10 +58,18 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Report test durations against main history.")
     parser.add_argument("inputs", nargs="+", type=Path, help="pytest JUnit XML reports.")
     parser.add_argument("--history", type=Path, help="History JSON to compare against.")
-    parser.add_argument("--write-history", type=Path, metavar="PATH",
-                        help="Append this snapshot to the history and write it here.")
-    parser.add_argument("--max-history", type=int, default=30,
-                        help="Snapshots kept by --write-history (default: 30).")
+    parser.add_argument(
+        "--write-history",
+        type=Path,
+        metavar="PATH",
+        help="Append this snapshot to the history and write it here.",
+    )
+    parser.add_argument(
+        "--max-history",
+        type=int,
+        default=30,
+        help="Snapshots kept by --write-history (default: 30).",
+    )
     parser.add_argument("--sha", default="unknown", help="Commit this run measured.")
     parser.add_argument("--summary", type=Path, help="Append the markdown report here.")
     parser.add_argument("--snapshot-out", type=Path, help="Write this run's snapshot JSON here.")
@@ -86,14 +94,14 @@ def is_enforced(event: str | None, ref: str | None) -> bool:
     return event == ENFORCED_EVENT and ref == ENFORCED_REF
 
 
-def _write_outputs(args: argparse.Namespace, snapshot: Snapshot,
-                   history: list[Snapshot], report: str) -> None:
+def _write_outputs(
+    args: argparse.Namespace, snapshot: Snapshot, history: list[Snapshot], report: str
+) -> None:
     """Write the data files first, so a summary never appears for a failed write."""
     if args.snapshot_out:
         duration_history.write_snapshot(args.snapshot_out, snapshot)
     if args.write_history:
-        duration_history.write_history(args.write_history, [*history, snapshot],
-                                        args.max_history)
+        duration_history.write_history(args.write_history, [*history, snapshot], args.max_history)
     if args.summary:
         with args.summary.open("a", encoding="utf-8") as handle:
             handle.write(report)
@@ -116,15 +124,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         print("no test records in the given inputs", file=sys.stderr)
         return 1
     history, note = duration_history.load_history(args.history)
-    limits = Thresholds(args.module_ratio, args.module_min_delta,
-                        args.suite_ratio, args.suite_min_delta)
+    limits = Thresholds(
+        args.module_ratio, args.module_min_delta, args.suite_ratio, args.suite_min_delta
+    )
     comparison = compare(snapshot, history, limits)
     report = duration_render.render_markdown(snapshot, history, comparison, args.top, note)
     regressed = len(comparison.modules) + (1 if comparison.suite else 0)
     advisory = bool(regressed) and not is_enforced(args.event, args.ref)
     if advisory:
-        report += (f"\nAdvisory run ({args.event} on {args.ref}): only a push to "
-                   f"`{ENFORCED_REF}` fails on a duration regression.\n")
+        report += (
+            f"\nAdvisory run ({args.event} on {args.ref}): only a push to "
+            f"`{ENFORCED_REF}` fails on a duration regression.\n"
+        )
     try:
         _write_outputs(args, snapshot, history, report)
     except OSError as exc:
@@ -133,12 +144,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(report)
     for line in duration_render.warning_commands(comparison):
         print(line)
-    print(f"duration: {regressed} regressions in {comparison.comparable} comparable "
-          f"modules, {len(snapshot.modules)} modules measured", file=sys.stderr)
+    print(
+        f"duration: {regressed} regressions in {comparison.comparable} comparable "
+        f"modules, {len(snapshot.modules)} modules measured",
+        file=sys.stderr,
+    )
     if not advisory:
         return 1 if regressed else 0
-    print(f"duration: advisory on event={args.event} ref={args.ref}; only a push to "
-          f"{ENFORCED_REF} fails on a regression", file=sys.stderr)
+    print(
+        f"duration: advisory on event={args.event} ref={args.ref}; only a push to "
+        f"{ENFORCED_REF} fails on a regression",
+        file=sys.stderr,
+    )
     return 0
 
 

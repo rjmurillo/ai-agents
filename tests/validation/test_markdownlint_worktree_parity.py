@@ -22,11 +22,11 @@ MARKDOWNLINT_CONFIG = REPO_ROOT / ".markdownlint-cli2.yaml"
 # Globs that look like worktree root shapes (either glob wildcard or known prefix).
 _WORKTREE_SHAPE = re.compile(
     r"^("
-    r"worktree[-_]"       # worktree-* or worktree--
-    r"|wt_"               # wt_*
-    r"|\.wt$"             # .wt exactly
-    r"|\.work-"           # .work-*
-    r"|\.worktrees$"      # .worktrees exactly
+    r"worktree[-_]"  # worktree-* or worktree--
+    r"|wt_"  # wt_*
+    r"|\.wt$"  # .wt exactly
+    r"|\.work-"  # .work-*
+    r"|\.worktrees$"  # .worktrees exactly
     r"|\.claude/worktrees$"  # .claude/worktrees exactly
     r")"
 )
@@ -124,4 +124,3 @@ def test_markdownlint_has_no_orphaned_worktree_entries() -> None:
         f"{sorted(orphaned)}. "
         "Either add them to .gitignore or remove the stale markdownlint entry."
     )
-

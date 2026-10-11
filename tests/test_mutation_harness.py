@@ -203,9 +203,9 @@ class TestMutationResults:
         with pytest.raises(MutationTimeoutError) as exc_info:
             runner._run_command(("python", "-c", "pass"), timeout_seconds=7)
 
-        assert "command timed out after 7s: python -c pass" in str(
-            exc_info.value
-        ), "timeout diagnostic should name the command and limit"
+        assert "command timed out after 7s: python -c pass" in str(exc_info.value), (
+            "timeout diagnostic should name the command and limit"
+        )
         assert observed["timeout"] == 7, "subprocess timeout should use entry limit"
         assert observed["encoding"] == "utf-8"
         assert observed["errors"] == "replace", "subprocess decode errors should be replaced"

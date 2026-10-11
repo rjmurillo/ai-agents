@@ -25,9 +25,7 @@ _path_added = str(EVAL_DIR) not in sys.path
 if _path_added:
     sys.path.insert(0, str(EVAL_DIR))
 try:
-    _spec = importlib.util.spec_from_file_location(
-        "eval_knowledge_integration", SCRIPT
-    )
+    _spec = importlib.util.spec_from_file_location("eval_knowledge_integration", SCRIPT)
     assert _spec and _spec.loader
     eval_mod = importlib.util.module_from_spec(_spec)
     _spec.loader.exec_module(eval_mod)
@@ -40,7 +38,8 @@ def _run(*args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, str(SCRIPT), *args],
         capture_output=True,
-        text=True, encoding="utf-8",
+        text=True,
+        encoding="utf-8",
         timeout=60,
     )
 

@@ -196,6 +196,7 @@ class TestPlaceholderGuardRejectsCommits:
         (repo / "file.txt").write_text("content\n")
         _git(["add", "."], repo)
         import os
+
         env_overrides = {
             "GIT_COMMITTER_NAME": "Test",
             "GIT_COMMITTER_EMAIL": "test@test.com",
@@ -259,7 +260,9 @@ class TestPlaceholderGuardRejectsCommits:
         base = _git(["rev-parse", "HEAD"], repo).stdout.strip()
 
         self._plant_commit(
-            repo, name="rjmurillo-bot", email="rjmurillo-bot@users.noreply.github.com",
+            repo,
+            name="rjmurillo-bot",
+            email="rjmurillo-bot@users.noreply.github.com",
         )
         head = _git(["rev-parse", "HEAD"], repo).stdout.strip()
 
@@ -298,12 +301,10 @@ class TestGuardTmpPathExemption:
         # The heuristic fires only when tmp_path contains "pytest-of-".
         # Verify the path so the assertion matches the actual environment.
         import tempfile as _tempfile
+
         resolved = repo.resolve()
         tmp_dir = Path(_tempfile.gettempdir()).resolve()
-        is_pytest_layout = (
-            str(resolved).startswith(str(tmp_dir))
-            and "pytest-of-" in str(resolved)
-        )
+        is_pytest_layout = str(resolved).startswith(str(tmp_dir)) and "pytest-of-" in str(resolved)
         if is_pytest_layout:
             assert result.returncode == 0
             combined = (result.stdout + result.stderr).upper()
@@ -426,9 +427,10 @@ class TestSquashBodySanitizer:
         """is_placeholder_identity returns False for the real bot identity."""
         from scripts.github_core.placeholder_identity import is_placeholder_identity
 
-        assert is_placeholder_identity(
-            "rjmurillo-bot", "rjmurillo-bot@users.noreply.github.com"
-        ) is False
+        assert (
+            is_placeholder_identity("rjmurillo-bot", "rjmurillo-bot@users.noreply.github.com")
+            is False
+        )
 
 
 class TestCIBackstopWorkflow:
@@ -459,5 +461,3 @@ class TestCIBackstopWorkflow:
         """Must run on pull_request to catch placeholder before merge."""
         content = self.WORKFLOW.read_text(encoding="utf-8")
         assert "pull_request:" in content
-
-

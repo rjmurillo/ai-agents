@@ -303,9 +303,7 @@ class TestValidateInvestigationClaims:
         }
         (tmp_path / "session.json").write_text(json.dumps(session))
 
-        with patch.object(
-            _mod, "get_commit_for_session", return_value="aaa" * 13 + "a"
-        ):
+        with patch.object(_mod, "get_commit_for_session", return_value="aaa" * 13 + "a"):
             result = validate_investigation_claims(tmp_path, ["bbb" * 13 + "b"])
 
         assert result.valid
@@ -468,4 +466,3 @@ class TestMain:
         assert exit_code == 1
         captured = capsys.readouterr()
         assert "cannot start with a dash" in captured.err.lower()
-

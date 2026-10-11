@@ -8,13 +8,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent))
 sys.path.insert(
     0,
-    str(
-        Path(__file__).parent.parent
-        / ".claude"
-        / "skills"
-        / "context-optimizer"
-        / "scripts"
-    ),
+    str(Path(__file__).parent.parent / ".claude" / "skills" / "context-optimizer" / "scripts"),
 )
 
 from extract_and_index import check_generated_files, extract_and_index

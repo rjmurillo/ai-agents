@@ -25,7 +25,7 @@ KEEP line per kept worktree, and that line always carries the token
 (`gc_worktrees.py:426-431`):
 
 ```python
-lambda d: f"    - {d.path} [{d.branch}] KEEP: {d.reason}",
+(lambda d: f"    - {d.path} [{d.branch}] KEEP: {d.reason}",)
 ```
 
 `format_report` itself emits more than that group. It calls

@@ -204,9 +204,7 @@ class GhAuthStatus(Enum):
 # exception: TRANSPORT_BLOCKED is an environment configuration fault and maps
 # to exit 2, because exit 3 is the retry signal and a refused session has no
 # reset. See describe_gh_auth_failure.
-_AUTH_FAILURE_STATUSES = frozenset(
-    {GhAuthStatus.MISSING_GH, GhAuthStatus.INVALID_CREDENTIALS}
-)
+_AUTH_FAILURE_STATUSES = frozenset({GhAuthStatus.MISSING_GH, GhAuthStatus.INVALID_CREDENTIALS})
 
 # Substrings that prove a gh failure message is a credential fault (ADR-035
 # exit 4). Quoted verbatim from the canonical per-script copy in
@@ -345,17 +343,13 @@ _TRANSIENT_SIGNATURE = re.compile(
 # GitHub's secondary limit and abuse-detection wording. Checked before the
 # primary pattern because both bodies say "rate limit" and the remedies differ:
 # secondary clears in about a minute, primary waits for the bucket reset.
-_SECONDARY_RATE_LIMIT_SIGNATURE = re.compile(
-    r"secondary rate limit|abuse detection", re.IGNORECASE
-)
+_SECONDARY_RATE_LIMIT_SIGNATURE = re.compile(r"secondary rate limit|abuse detection", re.IGNORECASE)
 
 # Primary quota refusal, in every shape GitHub emits it: with an HTTP code
 # ("... (HTTP 403)"), without one ("GraphQL: API rate limit already exceeded
 # for user ID ..."), and the REST body form (issues #4326, #4344).
 _RATE_LIMIT_SIGNATURE = re.compile(r"rate limit (?:already )?exceeded", re.IGNORECASE)
-_RATE_LIMIT_REMAINING_HEADER = re.compile(
-    r"(?im)^x-ratelimit-remaining:\s*(\d+)\s*$"
-)
+_RATE_LIMIT_REMAINING_HEADER = re.compile(r"(?im)^x-ratelimit-remaining:\s*(\d+)\s*$")
 
 # An agent sandbox that proxies egress can refuse GitHub for the whole session
 # while leaving `gh` installed and a GH_TOKEN set. The refusal arrives as HTTP
@@ -505,17 +499,13 @@ def _graphql_viewer_probe() -> GhAuthResult:
         return GhAuthResult(GhAuthStatus.MISSING_GH)
     except subprocess.TimeoutExpired:
         logger.debug("gh api graphql viewer probe timed out")
-        return GhAuthResult(
-            GhAuthStatus.TRANSIENT_ERROR, "GraphQL viewer probe timed out"
-        )
+        return GhAuthResult(GhAuthStatus.TRANSIENT_ERROR, "GraphQL viewer probe timed out")
 
     if result.returncode == 0:
         return GhAuthResult(GhAuthStatus.AUTHENTICATED)
 
     combined = f"{result.stdout}\n{result.stderr}"
-    return GhAuthResult(
-        classify_gh_failure_text(combined), sanitize_failure_detail(combined)
-    )
+    return GhAuthResult(classify_gh_failure_text(combined), sanitize_failure_detail(combined))
 
 
 def _rest_credential_probe() -> GhAuthResult:
@@ -539,18 +529,13 @@ def _rest_credential_probe() -> GhAuthResult:
         return GhAuthResult(GhAuthStatus.MISSING_GH)
     except subprocess.TimeoutExpired:
         logger.debug("gh api user credential probe timed out")
-        return GhAuthResult(
-            GhAuthStatus.TRANSIENT_ERROR, "REST credential probe timed out"
-        )
+        return GhAuthResult(GhAuthStatus.TRANSIENT_ERROR, "REST credential probe timed out")
 
     if result.returncode == 0:
         return GhAuthResult(GhAuthStatus.AUTHENTICATED)
 
     combined = f"{result.stdout}\n{result.stderr}"
-    return GhAuthResult(
-        classify_gh_failure_text(combined), sanitize_failure_detail(combined)
-    )
-
+    return GhAuthResult(classify_gh_failure_text(combined), sanitize_failure_detail(combined))
 
 
 def _is_session_wide_refusal(rest_text: str, graphql_text: str) -> bool:
@@ -575,14 +560,11 @@ def _is_session_wide_refusal(rest_text: str, graphql_text: str) -> bool:
     if _TRANSPORT_BLOCKED_SIGNATURE.search(rest_text):
         return True
     return bool(
-        _SESSION_POLICY_REFUSAL.search(rest_text)
-        and _SESSION_POLICY_REFUSAL.search(graphql_text)
+        _SESSION_POLICY_REFUSAL.search(rest_text) and _SESSION_POLICY_REFUSAL.search(graphql_text)
     )
 
 
-def _resolve_policy_refused_probe(
-    rest_text: str, probe: GhAuthResult
-) -> GhAuthResult:
+def _resolve_policy_refused_probe(rest_text: str, probe: GhAuthResult) -> GhAuthResult:
     """Decide the verdict when GraphQL refused the query by policy.
 
     Extracted from :func:`check_gh_auth` so that function stays inside the
@@ -690,9 +672,7 @@ def check_gh_auth() -> GhAuthResult:
     # stands alone" rule; without it that rule held only when GraphQL also
     # failed (Copilot review on PR #5509).
     if _TRANSPORT_BLOCKED_SIGNATURE.search(rest_text):
-        return GhAuthResult(
-            GhAuthStatus.TRANSPORT_BLOCKED, sanitize_failure_detail(rest_text)
-        )
+        return GhAuthResult(GhAuthStatus.TRANSPORT_BLOCKED, sanitize_failure_detail(rest_text))
 
     if probe.is_authenticated:
         return probe
@@ -774,9 +754,7 @@ def _rate_limit_reset_hint() -> str:
             if isinstance(reset, int)
             else "unknown"
         )
-        parts.append(
-            f"{name} {bucket['remaining']}/{bucket.get('limit', '?')} reset {reset_text}"
-        )
+        parts.append(f"{name} {bucket['remaining']}/{bucket.get('limit', '?')} reset {reset_text}")
     return "; ".join(parts)
 
 
@@ -885,9 +863,7 @@ def assert_gh_authenticated() -> None:
 
 REST_PAGE_PACE_SECONDS = 3.0
 REST_REFUSAL_BACKOFF_SECONDS = (300.0, 600.0)
-_RETRYABLE_REST_HTTP_PATTERN = re.compile(
-    r"\(?\bHTTP\s+(429|500|502|503|504)\b", re.IGNORECASE
-)
+_RETRYABLE_REST_HTTP_PATTERN = re.compile(r"\(?\bHTTP\s+(429|500|502|503|504)\b", re.IGNORECASE)
 _RETRYABLE_REST_REFUSALS = frozenset(
     {GhAuthStatus.RATE_LIMITED, GhAuthStatus.SECONDARY_RATE_LIMITED}
 )
@@ -1112,16 +1088,12 @@ def _parse_graphql_response(stdout: str) -> dict:
         raise RuntimeError(f"Failed to parse GraphQL response: {stdout}") from exc
 
     if not isinstance(parsed, dict):
-        raise RuntimeError(
-            f"GraphQL response is not a JSON object: {type(parsed).__name__}"
-        )
+        raise RuntimeError(f"GraphQL response is not a JSON object: {type(parsed).__name__}")
 
     errors = parsed.get("errors")
     if errors:
         if not isinstance(errors, list):
-            raise RuntimeError(
-                f"GraphQL 'errors' field is not a list: {type(errors).__name__}"
-            )
+            raise RuntimeError(f"GraphQL 'errors' field is not a list: {type(errors).__name__}")
         messages: list[str] = []
         for entry in errors:
             if isinstance(entry, dict):
@@ -1277,9 +1249,7 @@ def _collect_prs_with_comments(
             return matched, True
 
         threads = (pr.get("reviewThreads") or {}).get("nodes") or []
-        has_comments = any(
-            len((t.get("comments") or {}).get("nodes") or []) > 0 for t in threads
-        )
+        has_comments = any(len((t.get("comments") or {}).get("nodes") or []) > 0 for t in threads)
         if has_comments:
             matched.append(pr)
     return matched, False
@@ -1388,10 +1358,13 @@ def update_issue_comment(owner: str, repo: str, comment_id: int, body: str) -> d
 
     result = subprocess.run(
         [
-            "gh", "api",
+            "gh",
+            "api",
             f"repos/{owner}/{repo}/issues/comments/{comment_id}",
-            "-X", "PATCH",
-            "--input", "-",
+            "-X",
+            "PATCH",
+            "--input",
+            "-",
         ],
         input=payload,
         capture_output=True,

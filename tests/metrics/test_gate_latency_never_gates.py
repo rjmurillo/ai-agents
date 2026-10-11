@@ -26,9 +26,7 @@ _DIVIDER = "\x1b[38;2;56;56;56m" + "─" * 40 + "\x1b[0m"
 # Real captured output, this session (see test_gate_latency.py's fixture of
 # the same name for the full provenance note).
 REAL_CAPTURED_STDOUT = (
-    f"{_DIVIDER}\n"
-    "summary: (done in 0.20 seconds)\n"
-    "✓ security-suppressions-staged (0.20 seconds)\n"
+    f"{_DIVIDER}\nsummary: (done in 0.20 seconds)\n✓ security-suppressions-staged (0.20 seconds)\n"
 )
 
 _LEFTHOOK_YML = """\
@@ -89,6 +87,7 @@ class _FakeCompleted:
 
 # --- Never-gates matrix and the reference-absence checks ---------------------
 
+
 @pytest.mark.parametrize("hook_exit_code", [0, 1, 2, 130])
 @pytest.mark.parametrize("duration", [0.0, 0.19, 999.5])
 def test_never_gates_exit_0_regardless_of_hook_exit_code_or_duration(
@@ -147,4 +146,3 @@ def test_negative_gate_latency_is_not_referenced_by_any_workflow() -> None:
     workflows_dir = REPO_ROOT / ".github" / "workflows"
     for path in workflows_dir.glob("*.yml"):
         assert "gate_latency" not in path.read_text(encoding="utf-8"), path
-

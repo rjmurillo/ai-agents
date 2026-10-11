@@ -109,9 +109,7 @@ def test_build_report_iter2_cache_only_covers_iter2_sessions_with_assistant_turn
     tmp_path: Path,
 ) -> None:
     diff = diff_text([("a.py", "+x\n")])
-    write_transcript(
-        tmp_path, "proj-a", "iter2.jsonl", successful_session(iter2_prompt(diff))
-    )
+    write_transcript(tmp_path, "proj-a", "iter2.jsonl", successful_session(iter2_prompt(diff)))
     write_transcript(
         tmp_path, "proj-a", "investigate.jsonl", successful_session(investigate_prompt(diff))
     )
@@ -159,9 +157,7 @@ def test_build_report_counts_by_kind_and_prompt_bytes(tmp_path: Path) -> None:
     diff = diff_text([("a.py", "+x\n")])
     investigate_text = investigate_prompt(diff)
     refute_text = refute_prompt(diff)
-    write_transcript(
-        tmp_path, "proj-a", "s1.jsonl", successful_session(investigate_text)
-    )
+    write_transcript(tmp_path, "proj-a", "s1.jsonl", successful_session(investigate_text))
     write_transcript(tmp_path, "proj-a", "s2.jsonl", successful_session(refute_text))
 
     report = audit.build_report(tmp_path, since=None, until=None, top=20)
@@ -283,9 +279,7 @@ def test_build_report_excludes_sessions_outside_window_but_still_counts_skipped_
         "new.jsonl",
         successful_session(investigate_prompt(diff), ts_start="2026-09-20T00:00:00Z"),
     )
-    report = audit.build_report(
-        tmp_path, since=date(2026, 9, 1), until=date(2026, 9, 30), top=20
-    )
+    report = audit.build_report(tmp_path, since=date(2026, 9, 1), until=date(2026, 9, 30), top=20)
 
     assert report.sessions_examined == 1
     assert report.skipped_lines == 1
@@ -305,5 +299,3 @@ def test_parse_date_bound_parses_iso_date() -> None:
 def test_parse_date_bound_raises_on_malformed_date() -> None:
     with pytest.raises(ValueError):
         audit._parse_date_bound("not-a-date")
-
-

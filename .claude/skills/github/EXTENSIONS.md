@@ -315,25 +315,18 @@ import subprocess
 import json
 import sys
 
+
 def run_extension():
     """Execute gh extension with error handling."""
     try:
         result = subprocess.run(
-            ["gh", "extension-command", "args"],
-            capture_output=True,
-            text=True,
-            check=True
+            ["gh", "extension-command", "args"], capture_output=True, text=True, check=True
         )
 
-        return {
-            "success": True,
-            "data": result.stdout
-        }
+        return {"success": True, "data": result.stdout}
     except subprocess.CalledProcessError as e:
-        return {
-            "success": False,
-            "error": e.stderr
-        }
+        return {"success": False, "error": e.stderr}
+
 
 if __name__ == "__main__":
     result = run_extension()

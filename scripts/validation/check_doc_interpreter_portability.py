@@ -233,8 +233,7 @@ def is_in_scope(rel_path: str) -> bool:
     """Return whether a file carries instructions this guard should gate."""
     generated_prompt = rel_path.startswith(GENERATED_PROMPT_PREFIX) and rel_path.endswith(".md")
     return not (
-        rel_path.startswith(HISTORICAL_ROOTS + GENERATED_ROOTS + FIXTURE_ROOTS)
-        or generated_prompt
+        rel_path.startswith(HISTORICAL_ROOTS + GENERATED_ROOTS + FIXTURE_ROOTS) or generated_prompt
     )
 
 
@@ -328,9 +327,7 @@ def _tracked_regular_file(repo_root: Path, rel_path: str) -> Path:
     path = repo_root / rel_path
     linked = find_symlinked_component(path, repo_root)
     if linked is not None:
-        raise ScanError(
-            f"tracked file is reached through a symlink ({linked}): {rel_path}"
-        )
+        raise ScanError(f"tracked file is reached through a symlink ({linked}): {rel_path}")
     if not path.is_file():
         raise ScanError(f"tracked file is missing or not a regular file: {rel_path}")
     return path

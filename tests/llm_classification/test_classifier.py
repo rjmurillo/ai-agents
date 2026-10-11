@@ -36,30 +36,22 @@ class TestLLMClassifier:
     def cache(self) -> ClassificationCache:
         return ClassificationCache(max_entries=10)
 
-    def test_classify_returns_none_when_disabled(
-        self, disabled_config: LLMFallbackConfig
-    ) -> None:
+    def test_classify_returns_none_when_disabled(self, disabled_config: LLMFallbackConfig) -> None:
         classifier = LLMClassifier(config=disabled_config)
         result = classifier.classify("test comment")
         assert result is None
 
-    def test_should_use_fallback_when_disabled(
-        self, disabled_config: LLMFallbackConfig
-    ) -> None:
+    def test_should_use_fallback_when_disabled(self, disabled_config: LLMFallbackConfig) -> None:
         classifier = LLMClassifier(config=disabled_config)
         assert classifier.should_use_fallback(0.5) is False
 
-    def test_should_use_fallback_in_range(
-        self, enabled_config: LLMFallbackConfig
-    ) -> None:
+    def test_should_use_fallback_in_range(self, enabled_config: LLMFallbackConfig) -> None:
         classifier = LLMClassifier(config=enabled_config)
         assert classifier.should_use_fallback(0.5) is True
         assert classifier.should_use_fallback(0.4) is True
         assert classifier.should_use_fallback(0.6) is True
 
-    def test_should_use_fallback_out_of_range(
-        self, enabled_config: LLMFallbackConfig
-    ) -> None:
+    def test_should_use_fallback_out_of_range(self, enabled_config: LLMFallbackConfig) -> None:
         classifier = LLMClassifier(config=enabled_config)
         assert classifier.should_use_fallback(0.39) is False
         assert classifier.should_use_fallback(0.61) is False

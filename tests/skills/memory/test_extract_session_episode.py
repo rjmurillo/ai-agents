@@ -1261,6 +1261,7 @@ class TestMergePreserving:
         assert milestone_ev["timestamp"] == "2026-01-08T10:00:00+00:00"
         # Timestamps differ, so ordering is well-defined.
         assert commit_ev["timestamp"] != milestone_ev["timestamp"]
+
     """--preserve end-to-end and flag exclusivity (#2170)."""
 
     def _write_log(self, tmp_path, sha="bbbbbbb1234"):
@@ -2958,9 +2959,7 @@ class TestCausalEdgeConsistency:
 
         problems = extract_session_episode.validate_episode_file(target)
 
-        assert any(
-            "causal edge e001 -> e002 is stored but not derivable" in p for p in problems
-        )
+        assert any("causal edge e001 -> e002 is stored but not derivable" in p for p in problems)
 
     def test_unsupported_event_type_is_reported(self, tmp_path):
         event = self._evt("e001", "2026-01-01T00:00:00+00:00")
@@ -3006,8 +3005,7 @@ class TestCausalEdgeConsistency:
         problems = extract_session_episode.validate_episode_file(target)
 
         assert any(
-            "causal edge e001 -> e002 is missing reciprocal caused_by" in p
-            for p in problems
+            "causal edge e001 -> e002 is missing reciprocal caused_by" in p for p in problems
         )
 
     def test_missing_leads_to_reciprocal_is_reported(self, tmp_path):
@@ -3025,10 +3023,7 @@ class TestCausalEdgeConsistency:
 
         problems = extract_session_episode.validate_episode_file(target)
 
-        assert any(
-            "causal edge e001 -> e002 is missing reciprocal leads_to" in p
-            for p in problems
-        )
+        assert any("causal edge e001 -> e002 is missing reciprocal leads_to" in p for p in problems)
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
@@ -3074,11 +3069,16 @@ class TestCommitReachabilityGuard:
         _git(repo, "add", "f.txt")
         subprocess.run(
             ["git", "-C", str(repo), "commit", "-m", "side commit"],
-            env=env, capture_output=True, encoding="utf-8", check=True,
+            env=env,
+            capture_output=True,
+            encoding="utf-8",
+            check=True,
         )
         sha_r = subprocess.run(
             ["git", "-C", str(repo), "rev-parse", "--short", "HEAD"],
-            capture_output=True, encoding="utf-8", check=True,
+            capture_output=True,
+            encoding="utf-8",
+            check=True,
         )
         dangling_sha = sha_r.stdout.strip()
 
@@ -3134,22 +3134,32 @@ class TestCommitReachabilityGuard:
         _git(repo, "add", "a.txt")
         subprocess.run(
             ["git", "-C", str(repo), "commit", "-m", "older"],
-            env=older_env, capture_output=True, encoding="utf-8", check=True,
+            env=older_env,
+            capture_output=True,
+            encoding="utf-8",
+            check=True,
         )
         older_sha = subprocess.run(
             ["git", "-C", str(repo), "rev-parse", "--short", "HEAD"],
-            capture_output=True, encoding="utf-8", check=True,
+            capture_output=True,
+            encoding="utf-8",
+            check=True,
         ).stdout.strip()
 
         (repo / "b.txt").write_text("b", encoding="utf-8")
         _git(repo, "add", "b.txt")
         subprocess.run(
             ["git", "-C", str(repo), "commit", "-m", "newer"],
-            env=newer_env, capture_output=True, encoding="utf-8", check=True,
+            env=newer_env,
+            capture_output=True,
+            encoding="utf-8",
+            check=True,
         )
         newer_sha = subprocess.run(
             ["git", "-C", str(repo), "rev-parse", "--short", "HEAD"],
-            capture_output=True, encoding="utf-8", check=True,
+            capture_output=True,
+            encoding="utf-8",
+            check=True,
         ).stdout.strip()
 
         monkeypatch.chdir(repo)
@@ -3522,8 +3532,7 @@ class TestDedupeEventsCollapsesAbbreviatedCommits:
         result = extract_session_episode._dedupe_events(existing, new, None, session_id="")
         commit_events = [e for e in result if e["type"] == "commit"]
         assert len(commit_events) == 2, (
-            "two distinct commits were collapsed into one: "
-            f"{[e['content'] for e in commit_events]}"
+            f"two distinct commits were collapsed into one: {[e['content'] for e in commit_events]}"
         )
 
     def test_commit_content_that_does_not_match_the_sha_format_falls_back_to_exact_key(
@@ -3854,9 +3863,7 @@ class TestPreserveChronology:
     def _event(episode, content):
         return next(evt for evt in episode["events"] if evt["content"] == content)
 
-    def test_preserve_keeps_timestamped_milestone_after_commit(
-        self, tmp_path, monkeypatch
-    ) -> None:
+    def test_preserve_keeps_timestamped_milestone_after_commit(self, tmp_path, monkeypatch) -> None:
         repo = self._repo(tmp_path)
         first = _commit(repo, "first.txt", "first", when="2026-08-04T05:00:00+00:00")
         second = _commit(repo, "second.txt", "second", when="2026-08-04T10:00:00+00:00")
@@ -3880,9 +3887,12 @@ class TestPreserveChronology:
         episodes = tmp_path / "episodes"
         episode_file = episodes / "episode-2026-08-04-session-4435-chronology.json"
 
-        assert extract_session_episode.main(
-            [str(session_file), "--output-path", str(episodes), "--force"]
-        ) == 0
+        assert (
+            extract_session_episode.main(
+                [str(session_file), "--output-path", str(episodes), "--force"]
+            )
+            == 0
+        )
         corrupted = json.loads(episode_file.read_text(encoding="utf-8"))
         milestone = self._event(corrupted, "Finalized closeout chronology")
         first_commit = self._event(corrupted, f"Commit: {first}")
@@ -3894,9 +3904,12 @@ class TestPreserveChronology:
         second_commit["leads_to"] = []
         episode_file.write_text(json.dumps(corrupted, indent=2) + "\n", encoding="utf-8")
 
-        assert extract_session_episode.main(
-            [str(session_file), "--output-path", str(episodes), "--preserve", "--pending-stage"]
-        ) == 0
+        assert (
+            extract_session_episode.main(
+                [str(session_file), "--output-path", str(episodes), "--preserve", "--pending-stage"]
+            )
+            == 0
+        )
 
         episode = json.loads(episode_file.read_text(encoding="utf-8"))
         milestone = self._event(episode, "Finalized closeout chronology")

@@ -188,9 +188,7 @@ class TestEveryDeferralIsSound:
     def test_a_deferral_target_must_not_be_glob_gated(self) -> None:
         assert _unsound_deferrals() == []
 
-    def test_the_rule_rejects_a_globbed_target(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_the_rule_rejects_a_globbed_target(self, monkeypatch: pytest.MonkeyPatch) -> None:
         real_lookup = _job_named
 
         def lookup(hook: str, name: str) -> dict[str, Any] | None:

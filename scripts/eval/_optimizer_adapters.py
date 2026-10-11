@@ -116,9 +116,7 @@ def _as_float(value: object, context: str, *, lo: float, hi: float) -> float:
     if isinstance(value, float) and not math.isfinite(value):
         raise AdapterError(f"{context} must be finite, got {value!r}")
     if not lo <= value <= hi:
-        raise AdapterError(
-            f"{context} must be between {lo} and {hi}, got {value!r}"
-        )
+        raise AdapterError(f"{context} must be between {lo} and {hi}, got {value!r}")
     return float(value)
 
 
@@ -128,17 +126,13 @@ def _as_rate(value: object, context: str) -> float:
 
 def _as_rule_score(value: object, context: str) -> int:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise AdapterError(
-            f"{context} must be a numeric integer score, got {value!r}"
-        )
+        raise AdapterError(f"{context} must be a numeric integer score, got {value!r}")
     if isinstance(value, float) and not math.isfinite(value):
         raise AdapterError(f"{context} must be a finite integer score, got {value!r}")
     if not isinstance(value, int):
         raise AdapterError(f"{context} must be an integer score, got {value!r}")
     if not 0 <= value <= _MAX_RULE_SCORE:
-        raise AdapterError(
-            f"{context} must be between 0.0 and {_MAX_RULE_SCORE}, got {value!r}"
-        )
+        raise AdapterError(f"{context} must be between 0.0 and {_MAX_RULE_SCORE}, got {value!r}")
     return value
 
 
@@ -175,9 +169,7 @@ def agent_results(
             fraction can occupy, or `reduce` is unknown.
     """
     if reduce not in _REDUCERS:
-        raise AdapterError(
-            f"reduce must be one of {sorted(_REDUCERS)}, got {reduce!r}"
-        )
+        raise AdapterError(f"reduce must be one of {sorted(_REDUCERS)}, got {reduce!r}")
     pass_threshold = _as_rate(pass_threshold, "pass_threshold")
     if "per_fixture_pass_rates" not in report:
         raise AdapterError("report is missing per_fixture_pass_rates")
@@ -206,10 +198,7 @@ def agent_results(
             parts.append(f"missing fixture(s): {', '.join(missing[:20])}")
         if extra:
             parts.append(f"unexpected fixture(s): {', '.join(extra[:20])}")
-        raise AdapterError(
-            "agent report task inventory mismatch: "
-            + "; ".join(parts)
-        )
+        raise AdapterError("agent report task inventory mismatch: " + "; ".join(parts))
 
     out: dict[str, bool] = {}
     for fixture_id in expected:
@@ -220,9 +209,7 @@ def agent_results(
                 f"got a {type(per_variant).__name__}"
             )
         if variant not in per_variant:
-            raise AdapterError(
-                f"fixture {fixture_id!r} variant {variant!r} has no completed runs"
-            )
+            raise AdapterError(f"fixture {fixture_id!r} variant {variant!r} has no completed runs")
         runs = per_variant[variant]
         if not isinstance(runs, Sequence) or isinstance(runs, str):
             raise AdapterError(
@@ -230,13 +217,8 @@ def agent_results(
                 f"of scores, got {type(runs).__name__}"
             )
         if not runs:
-            raise AdapterError(
-                f"fixture {fixture_id!r} variant {variant!r} has no completed runs"
-            )
-        values = [
-            _as_rate(v, f"fixture {fixture_id!r} variant {variant!r} run")
-            for v in runs
-        ]
+            raise AdapterError(f"fixture {fixture_id!r} variant {variant!r} has no completed runs")
+        values = [_as_rate(v, f"fixture {fixture_id!r} variant {variant!r} run") for v in runs]
         out[fixture_id] = reducer(values) >= pass_threshold
     return out
 
@@ -288,8 +270,7 @@ def _rule_run_scores(
     """
     if reduce_samples not in _REDUCERS:
         raise AdapterError(
-            f"reduce_samples must be one of {sorted(_REDUCERS)}, "
-            f"got {reduce_samples!r}"
+            f"reduce_samples must be one of {sorted(_REDUCERS)}, got {reduce_samples!r}"
         )
     reducer = _REDUCERS[reduce_samples]
     out: dict[str, float | None] = {}
@@ -357,16 +338,12 @@ def _rule_run_scores(
                 or isinstance(raw_samples, (str, bytes))
                 or not raw_samples
             ):
-                raise AdapterError(
-                    f"scenario {sid!r} score_samples must be a non-empty list"
-                )
+                raise AdapterError(f"scenario {sid!r} score_samples must be a non-empty list")
             samples = []
             judge_failed = False
             for index, sample in enumerate(raw_samples):
                 if not isinstance(sample, Mapping):
-                    raise AdapterError(
-                        f"scenario {sid!r} score_samples[{index}] must be an object"
-                    )
+                    raise AdapterError(f"scenario {sid!r} score_samples[{index}] must be an object")
                 if sample.get("judge_failed"):
                     # One broken call proves nothing, and reducing only the
                     # samples that survived would report a number gathered
@@ -376,8 +353,7 @@ def _rule_run_scores(
                 missing = [key for key in _RULE_SCORE_KEYS if key not in sample]
                 if missing:
                     raise AdapterError(
-                        f"scenario {sid!r} score_samples[{index}] missing "
-                        f"{', '.join(missing)}"
+                        f"scenario {sid!r} score_samples[{index}] missing {', '.join(missing)}"
                     )
                 samples.append(sample)
             if judge_failed:
@@ -389,12 +365,7 @@ def _rule_run_scores(
         # spread. Indexing is safe: both branches above refuse a missing key
         # rather than defaulting it, so there is no silent zero left here.
         triple = [
-            reducer(
-                [
-                    _as_rule_score(sample[key], f"scenario {sid!r} {key}")
-                    for sample in samples
-                ]
-            )
+            reducer([_as_rule_score(sample[key], f"scenario {sid!r} {key}") for sample in samples])
             for key in _RULE_SCORE_KEYS
         ]
         # No inversion. eval-rule-activation.py tells the judge that 5 is the
@@ -455,9 +426,7 @@ def rule_results(
     min_score = _as_float(min_score, "min_score", lo=0.0, hi=_MAX_RULE_SCORE)
     return {
         sid: score is not None and score >= min_score
-        for sid, score in _rule_run_scores(
-            scenarios, mechanism, reduce_samples=reduce
-        ).items()
+        for sid, score in _rule_run_scores(scenarios, mechanism, reduce_samples=reduce).items()
     }
 
 
@@ -509,16 +478,11 @@ def rule_results_multi(
     """
     min_score = _as_float(min_score, "min_score", lo=0.0, hi=_MAX_RULE_SCORE)
     if reduce not in _REDUCERS:
-        raise AdapterError(
-            f"reduce must be one of {sorted(_REDUCERS)}, got {reduce!r}"
-        )
+        raise AdapterError(f"reduce must be one of {sorted(_REDUCERS)}, got {reduce!r}")
     if not runs:
         raise AdapterError("reducing rule scenarios needs at least one run, got 0")
 
-    scored = [
-        _rule_run_scores(run, mechanism, reduce_samples=reduce_samples)
-        for run in runs
-    ]
+    scored = [_rule_run_scores(run, mechanism, reduce_samples=reduce_samples) for run in runs]
     expected = set(scored[0])
     for index, run_scores in enumerate(scored[1:], start=2):
         if set(run_scores) != expected:
@@ -577,9 +541,7 @@ def pytest_results(junit_xml: str, *, on_skip: str = _DEFAULT_SKIP_POLICY) -> di
             repeat, a test was skipped or errored, or `on_skip` is unknown.
     """
     if on_skip not in _SKIP_POLICIES:
-        raise AdapterError(
-            f"on_skip must be one of {list(_SKIP_POLICIES)}, got {on_skip!r}"
-        )
+        raise AdapterError(f"on_skip must be one of {list(_SKIP_POLICIES)}, got {on_skip!r}")
     try:
         root = ElementTree.fromstring(junit_xml)
     except ElementTree.ParseError as exc:
@@ -602,8 +564,7 @@ def pytest_results(junit_xml: str, *, on_skip: str = _DEFAULT_SKIP_POLICY) -> di
             )
         if case.find("error") is not None:
             raise AdapterError(
-                f"testcase {node_id} errored; a measurement not taken is "
-                "not a measurement of zero"
+                f"testcase {node_id} errored; a measurement not taken is not a measurement of zero"
             )
         out[node_id] = case.find("failure") is None
     return out

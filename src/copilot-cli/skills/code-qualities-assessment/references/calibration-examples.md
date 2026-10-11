@@ -227,6 +227,7 @@ def calculate_discount(price: float, discount_rate: float) -> float:
     """Pure function - no side effects, deterministic"""
     return price * (1 - discount_rate)
 
+
 # Test
 assert calculate_discount(100, 0.2) == 80
 ```
@@ -243,6 +244,7 @@ class DiscountCalculator:
     def calculate_final_price(self, price: float, discount: float) -> float:
         discounted = price * (1 - discount)
         return discounted * (1 + self.tax_rate)
+
 
 # Test
 calc = DiscountCalculator(tax_rate=0.1)
@@ -264,6 +266,7 @@ class DiscountCalculator:
         # Database query
         pass
 
+
 # Test requires mocking database
 ```
 
@@ -274,6 +277,7 @@ class DiscountCalculator:
 ```python
 import random
 from datetime import datetime
+
 
 class DiscountCalculator:
     def calculate_final_price(self, price: float) -> float:
@@ -304,8 +308,10 @@ class DiscountCalculator:
 def calculate_tax(amount: float, rate: float) -> float:
     return amount * rate
 
+
 def calculate_order_total(subtotal: float, tax_rate: float) -> float:
     return subtotal + calculate_tax(subtotal, tax_rate)
+
 
 def calculate_invoice_total(subtotal: float, tax_rate: float) -> float:
     return subtotal + calculate_tax(subtotal, tax_rate)
@@ -319,6 +325,7 @@ def calculate_invoice_total(subtotal: float, tax_rate: float) -> float:
 def calculate_order_total(subtotal: float, tax_rate: float) -> float:
     tax = subtotal * tax_rate
     return subtotal + tax
+
 
 def calculate_invoice_total(subtotal: float, tax_rate: float, discount: float) -> float:
     discounted = subtotal * (1 - discount)
@@ -337,6 +344,7 @@ def process_order(subtotal: float, tax_rate: float) -> float:
     total = subtotal + tax + shipping
     print(f"Order: ${total:.2f}")
     return total
+
 
 def process_invoice(subtotal: float, tax_rate: float) -> float:
     tax = subtotal * tax_rate  # Duplicated
@@ -361,6 +369,7 @@ def process_order(subtotal: float, tax_rate: float) -> float:
     print(f"Order total: ${total:.2f}")
     return total
 
+
 def process_invoice(subtotal: float, tax_rate: float) -> float:
     tax = subtotal * tax_rate
     shipping = 10.0
@@ -370,6 +379,7 @@ def process_invoice(subtotal: float, tax_rate: float) -> float:
         total *= 0.9
     print(f"Invoice total: ${total:.2f}")
     return total
+
 
 def process_quote(subtotal: float, tax_rate: float) -> float:
     tax = subtotal * tax_rate

@@ -73,17 +73,20 @@ def test_followup_pattern(pr: dict, original_pr_number: int = 0) -> bool:
 
 
 def get_copilot_announcement(
-    owner: str, repo: str, pr_number: int,
+    owner: str,
+    repo: str,
+    pr_number: int,
 ) -> str | None:
     """Find Copilot's announcement comment on the original PR."""
     result = subprocess.run(
         [
-            "gh", "api",
+            "gh",
+            "api",
             f"repos/{owner}/{repo}/issues/{pr_number}/comments",
             "--jq",
             '.[] | select(.user.login == "copilot-swe-agent[bot]" and '
             '(.body | contains("opened a new pull request"))) | '
-            '{id: .id, body: .body, created_at: .created_at}',
+            "{id: .id, body: .body, created_at: .created_at}",
         ],
         capture_output=True,
         text=True,
@@ -95,7 +98,9 @@ def get_copilot_announcement(
 
 
 def get_followup_pr_diff(
-    owner: str, repo: str, followup_pr_number: int,
+    owner: str,
+    repo: str,
+    followup_pr_number: int,
 ) -> str:
     """Get unified diff for a follow-up PR."""
     result = subprocess.run(
@@ -110,14 +115,21 @@ def get_followup_pr_diff(
 
 
 def get_original_pr_commits(
-    owner: str, repo: str, pr_number: int,
+    owner: str,
+    repo: str,
+    pr_number: int,
 ) -> list[dict]:
     """Get commits from original PR for comparison."""
     result = subprocess.run(
         [
-            "gh", "pr", "view", str(pr_number),
-            "--repo", f"{owner}/{repo}",
-            "--json", "commits",
+            "gh",
+            "pr",
+            "view",
+            str(pr_number),
+            "--repo",
+            f"{owner}/{repo}",
+            "--json",
+            "commits",
         ],
         capture_output=True,
         text=True,
@@ -154,9 +166,14 @@ def compare_diff_content(
         if original_pr_number > 0:
             result = subprocess.run(
                 [
-                    "gh", "pr", "view", str(original_pr_number),
-                    "--repo", f"{owner}/{repo}",
-                    "--json", "merged",
+                    "gh",
+                    "pr",
+                    "view",
+                    str(original_pr_number),
+                    "--repo",
+                    f"{owner}/{repo}",
+                    "--json",
+                    "merged",
                 ],
                 capture_output=True,
                 text=True,
@@ -173,10 +190,7 @@ def compare_diff_content(
         return {"similarity": 100, "category": "DUPLICATE", "reason": reason}
 
     # Extract file paths from follow-up diff
-    diff_sections = [
-        s for s in re.split(r"(?m)^diff --git", followup_diff)
-        if s.strip()
-    ]
+    diff_sections = [s for s in re.split(r"(?m)^diff --git", followup_diff) if s.strip()]
     followup_files: list[str] = []
     for section in diff_sections:
         match = _DIFF_FILE_PATTERN.search(section)
@@ -257,10 +271,7 @@ def compare_diff_content(
     return {
         "similarity": 0,
         "category": "INDEPENDENT",
-        "reason": (
-            f"No file overlap with original PR "
-            f"({len(followup_files)} new files)"
-        ),
+        "reason": (f"No file overlap with original PR ({len(followup_files)} new files)"),
     }
 
 
@@ -270,18 +281,26 @@ def compare_diff_content(
 
 
 def detect_followups(
-    owner: str, repo: str, pr_number: int,
+    owner: str,
+    repo: str,
+    pr_number: int,
 ) -> dict:
     """Main detection logic. Returns structured result."""
     # Step 1: Query for follow-up PRs
     search_query = f"head:copilot/sub-pr-{pr_number}"
     result = subprocess.run(
         [
-            "gh", "pr", "list",
-            "--repo", f"{owner}/{repo}",
-            "--state", "open",
-            "--search", search_query,
-            "--json", "number,title,body,headRefName,baseRefName,state,author,createdAt",
+            "gh",
+            "pr",
+            "list",
+            "--repo",
+            f"{owner}/{repo}",
+            "--state",
+            "open",
+            "--search",
+            search_query,
+            "--json",
+            "number,title,body,headRefName,baseRefName,state,author,createdAt",
         ],
         capture_output=True,
         text=True,
@@ -300,10 +319,7 @@ def detect_followups(
             pass
 
     # Filter with pattern validation
-    followup_prs = [
-        p for p in followup_prs
-        if test_followup_pattern(p, pr_number)
-    ]
+    followup_prs = [p for p in followup_prs if test_followup_pattern(p, pr_number)]
 
     if not followup_prs:
         return {
@@ -331,7 +347,11 @@ def detect_followups(
         original_commits = get_original_pr_commits(owner, repo, pr_number)
 
         comparison = compare_diff_content(
-            owner, repo, diff, original_commits, pr_number,
+            owner,
+            repo,
+            diff,
+            original_commits,
+            pr_number,
         )
 
         # Determine recommendation
@@ -349,22 +369,22 @@ def detect_followups(
         if isinstance(author_data, dict):
             author_login = author_data.get("login", "")
 
-        analyses.append({
-            "followUpPRNumber": fu_num,
-            "headBranch": followup.get("headRefName", ""),
-            "baseBranch": followup.get("baseRefName", ""),
-            "createdAt": followup.get("createdAt", ""),
-            "author": author_login,
-            "category": category,
-            "similarity": comparison["similarity"],
-            "reason": comparison["reason"],
-            "recommendation": recommendation,
-        })
+        analyses.append(
+            {
+                "followUpPRNumber": fu_num,
+                "headBranch": followup.get("headRefName", ""),
+                "baseBranch": followup.get("baseRefName", ""),
+                "createdAt": followup.get("createdAt", ""),
+                "author": author_login,
+                "category": category,
+                "similarity": comparison["similarity"],
+                "reason": comparison["reason"],
+                "recommendation": recommendation,
+            }
+        )
 
     overall_rec = (
-        analyses[0]["recommendation"]
-        if len(analyses) == 1
-        else "MULTIPLE_FOLLOW_UPS_REVIEW"
+        analyses[0]["recommendation"] if len(analyses) == 1 else "MULTIPLE_FOLLOW_UPS_REVIEW"
     )
 
     return {
@@ -388,7 +408,9 @@ def build_parser() -> argparse.ArgumentParser:
         description="Detect and analyze Copilot follow-up PR patterns.",
     )
     parser.add_argument(
-        "--pr-number", type=int, required=True,
+        "--pr-number",
+        type=int,
+        required=True,
         help="Original PR number to check for follow-ups",
     )
     parser.add_argument("--owner", default="", help="Repository owner")

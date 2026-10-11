@@ -17,8 +17,7 @@ from scripts.github_core.api import RepoInfo
 # Import the script via importlib (not a package)
 # ---------------------------------------------------------------------------
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[3]
-    / ".claude" / "skills" / "github" / "scripts" / "pr"
+    Path(__file__).resolve().parents[3] / ".claude" / "skills" / "github" / "scripts" / "pr"
 )
 
 
@@ -70,19 +69,21 @@ def _gql_pr(
                                     "state": overall_state,
                                     "contexts": {
                                         "nodes": check_nodes or [],
-                                        "pageInfo": context_page_info or {
+                                        "pageInfo": context_page_info
+                                        or {
                                             "hasNextPage": False,
                                             "endCursor": None,
                                         },
                                     },
-                                }
+                                },
                             }
                         }
                     ]
                 },
                 "reviewThreads": {
                     "nodes": thread_nodes or [],
-                    "pageInfo": thread_page_info or {
+                    "pageInfo": thread_page_info
+                    or {
                         "hasNextPage": False,
                         "endCursor": None,
                     },
@@ -109,9 +110,7 @@ def _check_run_node(
         "isRequired": required,
     }
     if run_number is not None:
-        node["detailsUrl"] = (
-            f"https://github.com/o/r/actions/runs/{run_number}/job/{run_number}"
-        )
+        node["detailsUrl"] = f"https://github.com/o/r/actions/runs/{run_number}/job/{run_number}"
         node["checkSuite"] = {
             "workflowRun": {
                 "databaseId": run_number,
@@ -157,9 +156,7 @@ class TestDiagnose:
         pr_data = {
             "MergeStateStatus": "BLOCKED",
             "OverallState": "SUCCESS",
-            "CheckNodes": [
-                _check_run_node("Validate PR", "SUCCESS", required=False)
-            ],
+            "CheckNodes": [_check_run_node("Validate PR", "SUCCESS", required=False)],
             "ThreadNodes": [],
         }
         result = diagnose(pr_data, ["Validate PR"])
@@ -189,12 +186,8 @@ class TestDiagnose:
 
     def test_failure_and_skipped_same_name_still_fails(self):
         nodes = [
-            _check_run_node(
-                "Validate PR", "FAILURE", required=True, run_number=100
-            ),
-            _check_run_node(
-                "Validate PR", "SKIPPED", required=True, run_number=100
-            ),
+            _check_run_node("Validate PR", "FAILURE", required=True, run_number=100),
+            _check_run_node("Validate PR", "SKIPPED", required=True, run_number=100),
         ]
         pr_data = {
             "MergeStateStatus": "BLOCKED",
@@ -355,11 +348,7 @@ class TestDiagnose:
         initial = _gql_pr(
             merge_state_status="BLOCKED",
             overall_state="FAILURE",
-            check_nodes=[
-                _check_run_node(
-                    "Validate PR", "SUCCESS", required=True, run_number=100
-                )
-            ],
+            check_nodes=[_check_run_node("Validate PR", "SUCCESS", required=True, run_number=100)],
             context_page_info={"hasNextPage": True, "endCursor": "checks-1"},
         )
         next_page = {
@@ -487,9 +476,14 @@ class TestBuildParser:
         assert args.base_branch is None
 
     def test_custom_base_branch(self):
-        args = build_parser().parse_args([
-            "--pull-request", "42", "--base-branch", "develop",
-        ])
+        args = build_parser().parse_args(
+            [
+                "--pull-request",
+                "42",
+                "--base-branch",
+                "develop",
+            ]
+        )
         assert args.base_branch == "develop"
 
 
@@ -519,12 +513,17 @@ class TestMain:
             overall_state="SUCCESS",
             check_nodes=[_check_run_node("Validate PR", "SUCCESS")],
         )
-        with patch("why_pr_blocked.assert_gh_authenticated"), patch(
-            "why_pr_blocked.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch("why_pr_blocked.gh_graphql", return_value=gql), patch(
-            "why_pr_blocked.fetch_ruleset_required_contexts",
-            return_value=["Validate PR"],
+        with (
+            patch("why_pr_blocked.assert_gh_authenticated"),
+            patch(
+                "why_pr_blocked.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("why_pr_blocked.gh_graphql", return_value=gql),
+            patch(
+                "why_pr_blocked.fetch_ruleset_required_contexts",
+                return_value=["Validate PR"],
+            ),
         ):
             rc = main(["--pull-request", "42", "--output-format", "json"])
 
@@ -541,12 +540,17 @@ class TestMain:
             overall_state="SUCCESS",
             check_nodes=[_check_run_node("Run Python Tests", "SUCCESS")],
         )
-        with patch("why_pr_blocked.assert_gh_authenticated"), patch(
-            "why_pr_blocked.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch("why_pr_blocked.gh_graphql", return_value=gql), patch(
-            "why_pr_blocked.fetch_ruleset_required_contexts",
-            return_value=["Run Python Tests", "Validate PR"],
+        with (
+            patch("why_pr_blocked.assert_gh_authenticated"),
+            patch(
+                "why_pr_blocked.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("why_pr_blocked.gh_graphql", return_value=gql),
+            patch(
+                "why_pr_blocked.fetch_ruleset_required_contexts",
+                return_value=["Run Python Tests", "Validate PR"],
+            ),
         ):
             rc = main(["--pull-request", "42", "--output-format", "json"])
 
@@ -561,12 +565,17 @@ class TestMain:
             overall_state="FAILURE",
             check_nodes=[_check_run_node("Validate PR", "FAILURE", required=True)],
         )
-        with patch("why_pr_blocked.assert_gh_authenticated"), patch(
-            "why_pr_blocked.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch("why_pr_blocked.gh_graphql", return_value=gql), patch(
-            "why_pr_blocked.fetch_ruleset_required_contexts",
-            return_value=["Validate PR"],
+        with (
+            patch("why_pr_blocked.assert_gh_authenticated"),
+            patch(
+                "why_pr_blocked.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("why_pr_blocked.gh_graphql", return_value=gql),
+            patch(
+                "why_pr_blocked.fetch_ruleset_required_contexts",
+                return_value=["Validate PR"],
+            ),
         ):
             rc = main(["--pull-request", "42", "--output-format", "json"])
 
@@ -588,12 +597,17 @@ class TestMain:
                 )
             ],
         )
-        with patch("why_pr_blocked.assert_gh_authenticated"), patch(
-            "why_pr_blocked.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch("why_pr_blocked.gh_graphql", return_value=gql), patch(
-            "why_pr_blocked.fetch_ruleset_required_contexts",
-            return_value=["Validate PR"],
+        with (
+            patch("why_pr_blocked.assert_gh_authenticated"),
+            patch(
+                "why_pr_blocked.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("why_pr_blocked.gh_graphql", return_value=gql),
+            patch(
+                "why_pr_blocked.fetch_ruleset_required_contexts",
+                return_value=["Validate PR"],
+            ),
         ):
             rc = main(["--pull-request", "42", "--output-format", "json"])
 
@@ -608,11 +622,17 @@ class TestMain:
             overall_state="SUCCESS",
             thread_nodes=[_thread(False), _thread(False)],
         )
-        with patch("why_pr_blocked.assert_gh_authenticated"), patch(
-            "why_pr_blocked.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch("why_pr_blocked.gh_graphql", return_value=gql), patch(
-            "why_pr_blocked.fetch_ruleset_required_contexts", return_value=[],
+        with (
+            patch("why_pr_blocked.assert_gh_authenticated"),
+            patch(
+                "why_pr_blocked.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("why_pr_blocked.gh_graphql", return_value=gql),
+            patch(
+                "why_pr_blocked.fetch_ruleset_required_contexts",
+                return_value=[],
+            ),
         ):
             rc = main(["--pull-request", "42", "--output-format", "json"])
 
@@ -626,12 +646,17 @@ class TestMain:
             overall_state="SUCCESS",
             check_nodes=[_check_run_node("Validate PR", "SUCCESS")],
         )
-        with patch("why_pr_blocked.assert_gh_authenticated"), patch(
-            "why_pr_blocked.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch("why_pr_blocked.gh_graphql", return_value=gql), patch(
-            "why_pr_blocked.fetch_ruleset_required_contexts",
-            return_value=["Validate PR"],
+        with (
+            patch("why_pr_blocked.assert_gh_authenticated"),
+            patch(
+                "why_pr_blocked.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("why_pr_blocked.gh_graphql", return_value=gql),
+            patch(
+                "why_pr_blocked.fetch_ruleset_required_contexts",
+                return_value=["Validate PR"],
+            ),
         ):
             rc = main(["--pull-request", "42", "--output-format", "json"])
 
@@ -646,13 +671,18 @@ class TestMain:
             overall_state="SUCCESS",
             check_nodes=[_check_run_node("Release Validation", "SUCCESS")],
         )
-        with patch("why_pr_blocked.assert_gh_authenticated"), patch(
-            "why_pr_blocked.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch("why_pr_blocked.gh_graphql", return_value=gql), patch(
-            "why_pr_blocked.fetch_ruleset_required_contexts",
-            return_value=["Release Validation"],
-        ) as mock_fetch:
+        with (
+            patch("why_pr_blocked.assert_gh_authenticated"),
+            patch(
+                "why_pr_blocked.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("why_pr_blocked.gh_graphql", return_value=gql),
+            patch(
+                "why_pr_blocked.fetch_ruleset_required_contexts",
+                return_value=["Release Validation"],
+            ) as mock_fetch,
+        ):
             rc = main(["--pull-request", "42", "--output-format", "json"])
 
         assert rc == 0
@@ -661,25 +691,31 @@ class TestMain:
 
     def test_pr_not_found_exits_2(self, capsys):
         gql = {"repository": {"pullRequest": None}}
-        with patch("why_pr_blocked.assert_gh_authenticated"), patch(
-            "why_pr_blocked.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch("why_pr_blocked.gh_graphql", return_value=gql), patch(
-            "why_pr_blocked.fetch_ruleset_required_contexts", return_value=None
+        with (
+            patch("why_pr_blocked.assert_gh_authenticated"),
+            patch(
+                "why_pr_blocked.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("why_pr_blocked.gh_graphql", return_value=gql),
+            patch("why_pr_blocked.fetch_ruleset_required_contexts", return_value=None),
         ):
             rc = main(["--pull-request", "9999", "--output-format", "json"])
 
         assert rc == 2
 
     def test_api_error_exits_3(self, capsys):
-        with patch("why_pr_blocked.assert_gh_authenticated"), patch(
-            "why_pr_blocked.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "why_pr_blocked.gh_graphql",
-            side_effect=RuntimeError("server error"),
-        ), patch(
-            "why_pr_blocked.fetch_ruleset_required_contexts", return_value=None
+        with (
+            patch("why_pr_blocked.assert_gh_authenticated"),
+            patch(
+                "why_pr_blocked.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "why_pr_blocked.gh_graphql",
+                side_effect=RuntimeError("server error"),
+            ),
+            patch("why_pr_blocked.fetch_ruleset_required_contexts", return_value=None),
         ):
             rc = main(["--pull-request", "42", "--output-format", "json"])
 
@@ -691,12 +727,17 @@ class TestMain:
             overall_state="SUCCESS",
             check_nodes=[_check_run_node("Validate PR", "SUCCESS")],
         )
-        with patch("why_pr_blocked.assert_gh_authenticated"), patch(
-            "why_pr_blocked.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch("why_pr_blocked.gh_graphql", return_value=gql), patch(
-            "why_pr_blocked.fetch_ruleset_required_contexts",
-            return_value=None,
+        with (
+            patch("why_pr_blocked.assert_gh_authenticated"),
+            patch(
+                "why_pr_blocked.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("why_pr_blocked.gh_graphql", return_value=gql),
+            patch(
+                "why_pr_blocked.fetch_ruleset_required_contexts",
+                return_value=None,
+            ),
         ):
             rc = main(["--pull-request", "42", "--output-format", "json"])
 
@@ -710,17 +751,25 @@ class TestMain:
             overall_state="SUCCESS",
             check_nodes=[_check_run_node("Run Python Tests", "SUCCESS")],
         )
-        with patch("why_pr_blocked.assert_gh_authenticated"), patch(
-            "why_pr_blocked.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch("why_pr_blocked.gh_graphql", return_value=gql), patch(
-            "why_pr_blocked.fetch_ruleset_required_contexts"
-        ) as mock_fetch:
-            rc = main([
-                "--pull-request", "42",
-                "--base-branch", "",
-                "--output-format", "json",
-            ])
+        with (
+            patch("why_pr_blocked.assert_gh_authenticated"),
+            patch(
+                "why_pr_blocked.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("why_pr_blocked.gh_graphql", return_value=gql),
+            patch("why_pr_blocked.fetch_ruleset_required_contexts") as mock_fetch,
+        ):
+            rc = main(
+                [
+                    "--pull-request",
+                    "42",
+                    "--base-branch",
+                    "",
+                    "--output-format",
+                    "json",
+                ]
+            )
 
         mock_fetch.assert_not_called()
         data = json.loads(capsys.readouterr().out)["Data"]
@@ -729,11 +778,17 @@ class TestMain:
 
     def test_human_output_no_blocker_says_mergeable(self, capsys):
         gql = _gql_pr(overall_state="SUCCESS")
-        with patch("why_pr_blocked.assert_gh_authenticated"), patch(
-            "why_pr_blocked.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch("why_pr_blocked.gh_graphql", return_value=gql), patch(
-            "why_pr_blocked.fetch_ruleset_required_contexts", return_value=[],
+        with (
+            patch("why_pr_blocked.assert_gh_authenticated"),
+            patch(
+                "why_pr_blocked.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("why_pr_blocked.gh_graphql", return_value=gql),
+            patch(
+                "why_pr_blocked.fetch_ruleset_required_contexts",
+                return_value=[],
+            ),
         ):
             rc = main(["--pull-request", "42", "--output-format", "human"])
 

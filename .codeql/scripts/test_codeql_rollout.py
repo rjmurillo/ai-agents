@@ -34,12 +34,15 @@ def build_parser() -> argparse.ArgumentParser:
         description="Validate CodeQL integration deployment.",
     )
     parser.add_argument(
-        "--format", choices=["console", "json"], default="console",
+        "--format",
+        choices=["console", "json"],
+        default="console",
         dest="output_format",
         help="Output format.",
     )
     parser.add_argument(
-        "--ci", action="store_true",
+        "--ci",
+        action="store_true",
         help="CI mode: returns non-zero exit code on failures.",
     )
     return parser
@@ -62,16 +65,22 @@ class ValidationTracker:
         self.passed_checks = 0
 
     def add(
-        self, category: str, name: str, passed: bool, details: str = "",
+        self,
+        category: str,
+        name: str,
+        passed: bool,
+        details: str = "",
     ) -> None:
         self.total_checks += 1
         if passed:
             self.passed_checks += 1
-        self.results[category].append({
-            "name": name,
-            "passed": passed,
-            "details": details,
-        })
+        self.results[category].append(
+            {
+                "name": name,
+                "passed": passed,
+                "details": details,
+            }
+        )
 
     def print_check(self, passed: bool, message: str) -> None:
         status = "[PASS]" if passed else "[FAIL]"
@@ -92,7 +101,10 @@ def check_cli(tracker: ValidationTracker) -> None:
         try:
             result = subprocess.run(
                 [cli_path, "version"],
-                capture_output=True, text=True, timeout=30, check=False,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
             )
             version = result.stdout.strip().split("\n")[0] if result.returncode == 0 else ""
             version_valid = "CodeQL command-line toolchain release" in version
@@ -183,7 +195,9 @@ def check_scripts(tracker: ValidationTracker) -> None:
 
     tracker.print_check(all_tests, f"Pytest tests exist ({tests_found}/{tests_total})")
     tracker.add(
-        "Scripts", "Pytest tests", all_tests,
+        "Scripts",
+        "Pytest tests",
+        all_tests,
         f"{tests_found} of {tests_total} test files found",
     )
 
@@ -350,8 +364,7 @@ def main(argv: list[str] | None = None) -> int:
     banner_dest = sys.stderr if args.output_format == "json" else sys.stdout
     print("\n========================================", file=banner_dest)
     print(
-        f"Overall Status: {status} "
-        f"({tracker.passed_checks}/{tracker.total_checks} checks)",
+        f"Overall Status: {status} ({tracker.passed_checks}/{tracker.total_checks} checks)",
         file=banner_dest,
     )
     print("========================================\n", file=banner_dest)

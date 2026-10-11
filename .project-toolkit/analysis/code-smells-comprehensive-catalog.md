@@ -372,6 +372,7 @@ def process_order(order):
     tax = calculate_tax(order, discount)
     return finalize_order(order, discount, tax)
 
+
 def validate_order(order):
     if not order.items:
         raise ValueError("Empty order")
@@ -412,6 +413,7 @@ class Customer:
             rate *= 0.9
         return rate
 
+
 class OrderProcessor:
     def calculate_shipping(self, customer):
         return customer.calculate_shipping_rate(5.99)
@@ -438,17 +440,22 @@ When adding a new payment type, you must change:
 ```python
 class PaymentStrategy(ABC):
     @abstractmethod
-    def process(self, amount): pass
+    def process(self, amount):
+        pass
 
     @abstractmethod
-    def validate(self): pass
+    def validate(self):
+        pass
 
     @abstractmethod
-    def get_display_name(self): pass
+    def get_display_name(self):
+        pass
+
 
 class CreditCardPayment(PaymentStrategy):
     # All credit card logic in one place
     pass
+
 
 class PayPalPayment(PaymentStrategy):
     # All PayPal logic in one place
@@ -488,6 +495,7 @@ class Email:
         if "@" not in self.value or "." not in self.value:
             raise ValueError("Invalid email format")
 
+
 @dataclass(frozen=True)
 class PhoneNumber:
     value: str
@@ -496,7 +504,8 @@ class PhoneNumber:
         cleaned = self.value.replace("-", "").replace(" ", "")
         if len(cleaned) != 10:
             raise ValueError("Invalid phone number")
-        object.__setattr__(self, 'value', cleaned)
+        object.__setattr__(self, "value", cleaned)
+
 
 def create_user(email: Email, phone: PhoneNumber, postal_code: PostalCode):
     # Validation is guaranteed by the type system

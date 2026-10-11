@@ -50,6 +50,7 @@ MODE_SHAPE = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,63}$")
 MATCHER_SHAPE = re.compile(r"^[A-Za-z0-9._|*,:-]{1,64}$")
 SCRIPT_NAME_SHAPE = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 
+
 def sanitize_label(text: object, limit: int = MAX_LABEL_CHARS) -> str:
     """Reduce untrusted manifest text to inert, length-capped label characters."""
     collapsed = " ".join(str(text).split())

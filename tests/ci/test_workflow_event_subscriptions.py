@@ -29,9 +29,7 @@ _WORKFLOWS_DIR = Path(__file__).resolve().parents[2] / ".github" / "workflows"
 
 def parse_yaml(source: str, name: str = "wf.yml"):
     """Parse a workflow snippet the same way yaml.safe_load does in production."""
-    return parse_workflow_subscriptions(
-        yaml.safe_load(textwrap.dedent(source)), fallback_name=name
-    )
+    return parse_workflow_subscriptions(yaml.safe_load(textwrap.dedent(source)), fallback_name=name)
 
 
 class TestTriggerShapes:
@@ -94,9 +92,7 @@ class TestTriggerShapes:
     def test_unusable_types_value_yields_no_subscription_not_the_default(self):
         # Failing closed matters: defaulting here would assert `reopened`
         # coverage the workflow never declared.
-        subscriptions = parse_workflow_subscriptions(
-            {"on": {"pull_request": {"types": 7}}}
-        )
+        subscriptions = parse_workflow_subscriptions({"on": {"pull_request": {"types": 7}}})
 
         assert subscriptions.pull_request_types == frozenset()
 
@@ -133,9 +129,7 @@ class TestNaming:
 
 class TestSubscribesTo:
     def test_reopened_omission_blocks_a_close_reopen_recovery(self):
-        subscriptions = parse_yaml(
-            "on:\n  pull_request:\n    types: [opened, synchronize]\n"
-        )
+        subscriptions = parse_yaml("on:\n  pull_request:\n    types: [opened, synchronize]\n")
 
         assert subscribes_to(subscriptions, "synchronize") is True
         assert subscribes_to(subscriptions, "reopened") is False
@@ -178,13 +172,9 @@ class TestLoadWorkflowSubscriptions:
     def test_missing_directory_yields_an_empty_map(self, tmp_path: Path):
         assert load_workflow_subscriptions(tmp_path / "absent") == {}
 
-    def test_malformed_workflow_is_skipped_without_hiding_its_siblings(
-        self, tmp_path: Path
-    ):
+    def test_malformed_workflow_is_skipped_without_hiding_its_siblings(self, tmp_path: Path):
         (tmp_path / "broken.yml").write_text("name: [unclosed\n", encoding="utf-8")
-        (tmp_path / "good.yml").write_text(
-            "name: Good\non:\n  pull_request:\n", encoding="utf-8"
-        )
+        (tmp_path / "good.yml").write_text("name: Good\non:\n  pull_request:\n", encoding="utf-8")
 
         loaded = load_workflow_subscriptions(tmp_path)
 
@@ -266,9 +256,7 @@ class TestSharedWorkflowNames:
         (tmp_path / "a.yml").write_text(
             "name: Dup\non:\n  pull_request:\n  workflow_dispatch:\n", encoding="utf-8"
         )
-        (tmp_path / "b.yml").write_text(
-            "name: Dup\non:\n  pull_request:\n", encoding="utf-8"
-        )
+        (tmp_path / "b.yml").write_text("name: Dup\non:\n  pull_request:\n", encoding="utf-8")
 
         loaded = load_workflow_subscriptions(tmp_path)
 
@@ -313,18 +301,14 @@ class TestSharedWorkflowNames:
         (tmp_path / "a.yml").write_text(
             "name: Dup\non:\n  pull_request:\n    paths: ['docs/**']\n", encoding="utf-8"
         )
-        (tmp_path / "b.yml").write_text(
-            "name: Dup\non:\n  pull_request:\n", encoding="utf-8"
-        )
+        (tmp_path / "b.yml").write_text("name: Dup\non:\n  pull_request:\n", encoding="utf-8")
 
         loaded = load_workflow_subscriptions(tmp_path)
 
         assert loaded["Dup"].has_path_filters is True
         assert loaded["b.yml"].has_path_filters is False
 
-    def test_a_declared_name_colliding_with_a_filename_narrows_both(
-        self, tmp_path: Path
-    ):
+    def test_a_declared_name_colliding_with_a_filename_narrows_both(self, tmp_path: Path):
         # `impostor.yml` declares the name "target.yml", which is also a real
         # file. A run record supplies the declared name, so a lookup of
         # "target.yml" cannot tell the two apart and must narrow to what both
@@ -370,7 +354,5 @@ class TestSharedWorkflowNames:
 
         loaded = load_workflow_subscriptions(tmp_path)
 
-        assert loaded["solo.yml"].pull_request_types == frozenset(
-            {"opened", "reopened"}
-        )
+        assert loaded["solo.yml"].pull_request_types == frozenset({"opened", "reopened"})
         assert subscribes_to(loaded["solo.yml"], "reopened") is True

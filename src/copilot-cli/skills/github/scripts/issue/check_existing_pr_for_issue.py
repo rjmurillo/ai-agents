@@ -368,13 +368,15 @@ def filter_prs_for_issue(
             current_user_login=current_user_login,
         ):
             continue
-        matches.append({
-            "number": pr.get("number"),
-            "title": title,
-            "url": _as_text(pr.get("html_url") or pr.get("url")),
-            "head": head_ref,
-            "author": author_login,
-        })
+        matches.append(
+            {
+                "number": pr.get("number"),
+                "title": title,
+                "url": _as_text(pr.get("html_url") or pr.get("url")),
+                "head": head_ref,
+                "author": author_login,
+            }
+        )
     return matches
 
 
@@ -389,8 +391,13 @@ def find_open_prs_for_issue(
     """Fetch open PRs and return those claiming implementation of ``issue``."""
 
     result = _run(
-        ["gh", "api", f"repos/{owner}/{repo}/pulls?state=open&per_page=100",
-         "--paginate", "--slurp"],
+        [
+            "gh",
+            "api",
+            f"repos/{owner}/{repo}/pulls?state=open&per_page=100",
+            "--paginate",
+            "--slurp",
+        ],
     )
     if result.returncode != 0:
         raise RuntimeError(result.stderr.strip() or "gh api pulls failed")
@@ -435,8 +442,11 @@ def main(argv: list[str] | None = None) -> int:
         )
     except RuntimeError as err:
         write_skill_error(
-            str(err), 3, error_type="ApiError",
-            output_format=fmt, script_name="check_existing_pr_for_issue.py",
+            str(err),
+            3,
+            error_type="ApiError",
+            output_format=fmt,
+            script_name="check_existing_pr_for_issue.py",
         )
         raise SystemExit(3) from err
 
@@ -450,19 +460,22 @@ def main(argv: list[str] | None = None) -> int:
         write_skill_error(
             f"Issue #{args.issue} already has open PR(s): {summary}. "
             "Do not open a duplicate; coordinate on the existing PR.",
-            1, error_type="General",
-            output_format=fmt, script_name="check_existing_pr_for_issue.py",
+            1,
+            error_type="General",
+            output_format=fmt,
+            script_name="check_existing_pr_for_issue.py",
             extra=data,
         )
         raise SystemExit(1)
 
     write_skill_output(
-        data, output_format=fmt,
+        data,
+        output_format=fmt,
         human_summary=(
-            f"No open PR claims implementation ownership of issue #{args.issue}; "
-            "safe to proceed."
+            f"No open PR claims implementation ownership of issue #{args.issue}; safe to proceed."
         ),
-        status="PASS", script_name="check_existing_pr_for_issue.py",
+        status="PASS",
+        script_name="check_existing_pr_for_issue.py",
     )
     return 0
 

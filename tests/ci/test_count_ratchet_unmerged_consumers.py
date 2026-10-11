@@ -173,9 +173,7 @@ _LISTER_IDS = [module.__name__.rsplit(".", 1)[-1] for module, _ in _LISTER_CONSU
 
 
 @pytest.mark.parametrize(("module", "prepare"), _LISTER_CONSUMERS, ids=_LISTER_IDS)
-def test_the_diagnostic_re_read_does_not_repeat_the_note(
-    module, prepare, monkeypatch, tmp_path
-):
+def test_the_diagnostic_re_read_does_not_repeat_the_note(module, prepare, monkeypatch, tmp_path):
     """Both listers must enumerate silently, whatever their path to the helper.
 
     ``taste_count_ratchet`` calls the enumeration straight from its lister;
@@ -194,8 +192,7 @@ def test_the_diagnostic_re_read_does_not_repeat_the_note(
 
     assert spy.calls >= 1, f"{module.__name__} lister did not reach the enumeration"
     assert not any(spy.announced), (
-        f"{module.__name__} lister re-announced the mid-merge note on the "
-        f"run's second index read"
+        f"{module.__name__} lister re-announced the mid-merge note on the run's second index read"
     )
 
 

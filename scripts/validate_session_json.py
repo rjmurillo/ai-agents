@@ -972,8 +972,7 @@ def validate_qa_report_evidence(
         resolved_report.relative_to(qa_root)
     except ValueError:
         result.errors.append(
-            "QA evidence must name a report under the configured QA "
-            f"artifact root: {evidence!r}"
+            f"QA evidence must name a report under the configured QA artifact root: {evidence!r}"
         )
         return
     if not resolved_report.is_file():
@@ -1208,9 +1207,7 @@ def validate_session_log(
 
     protocol = data.get("protocolCompliance")
     session_end = (
-        get_case_insensitive(protocol, "sessionEnd")
-        if isinstance(protocol, dict)
-        else None
+        get_case_insensitive(protocol, "sessionEnd") if isinstance(protocol, dict) else None
     )
     if not existing_log and not creation_mode and isinstance(session_end, dict):
         validate_qa_report_evidence(
@@ -1243,9 +1240,7 @@ def _qa_skip_claim(data: object) -> tuple[str, object, object] | None:
 
     session = data.get("session")
     starting_commit = (
-        get_case_insensitive(session, "startingCommit")
-        if isinstance(session, dict)
-        else None
+        get_case_insensitive(session, "startingCommit") if isinstance(session, dict) else None
     )
     return evidence, starting_commit, data.get("endingCommit")
 
@@ -1303,8 +1298,7 @@ def validate_qa_skip_scope(
     checker_name, label = _QA_SKIP_CHECKERS[evidence]
     if not isinstance(starting_commit, str) or not isinstance(ending_commit, str):
         result.errors.append(
-            f"QA {label} scope cannot be verified: "
-            "startingCommit and endingCommit are required"
+            f"QA {label} scope cannot be verified: startingCommit and endingCommit are required"
         )
         return
 
@@ -1512,9 +1506,7 @@ def _validate_session_path(path: str | Path) -> Path:
             return validate_safe_path(path, root)
         except (ValueError, FileNotFoundError):
             continue
-    raise ValueError(
-        f"Path {path} is outside the repository and configured sessions root"
-    )
+    raise ValueError(f"Path {path} is outside the repository and configured sessions root")
 
 
 def _session_identity(path: Path) -> str:

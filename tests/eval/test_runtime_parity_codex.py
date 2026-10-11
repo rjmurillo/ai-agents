@@ -33,9 +33,7 @@ def _version_runner(stdout: str = "codex-cli 0.34.0\n", *, returncode: int = 0) 
 # --- Positive: the codex profile builds ---------------------------------------
 
 
-def test_runtime_env_builds_isolated_codex_profile(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_runtime_env_builds_isolated_codex_profile(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("HOME", "/operator/home")
     workspace = tmp_path / "codex"
     workspace.mkdir()
@@ -71,9 +69,7 @@ def test_codex_receives_only_its_own_credentials(tmp_path: Path, monkeypatch) ->
 def test_probe_version_parses_well_formed_codex_version(tmp_path: Path) -> None:
     runner = _version_runner("codex-cli 0.34.0\n")
 
-    version = parity.probe_version(
-        "codex", "codex", tmp_path / "probe", runner, 30
-    )
+    version = parity.probe_version("codex", "codex", tmp_path / "probe", runner, 30)
 
     assert version == "codex-cli 0.34.0"
 

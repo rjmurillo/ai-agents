@@ -106,7 +106,6 @@ class TestCitation:
                 verified_at=None,
             )
 
-
     @pytest.mark.unit
     def test_citation_unverified_with_verified_at_raises(self):
         with pytest.raises(ValueError, match="unverified"):
@@ -149,9 +148,7 @@ class TestVerificationResult:
     def test_create_result(self):
         c = Citation(source_type=SourceType.FILE, target="f.py", context="")
         now = datetime.now(UTC)
-        r = VerificationResult(
-            citation=c, is_valid=True, reason="File exists", checked_at=now
-        )
+        r = VerificationResult(citation=c, is_valid=True, reason="File exists", checked_at=now)
         assert r.is_valid is True
         assert r.reason == "File exists"
         assert r.checked_at == now
@@ -229,9 +226,7 @@ class TestMemoryWithCitationsPostInit:
     @pytest.mark.unit
     def test_invalid_confidence_raises(self):
         with pytest.raises(ValueError, match="confidence"):
-            MemoryWithCitations(
-                memory_id="t", title="T", content="C", confidence=1.5
-            )
+            MemoryWithCitations(memory_id="t", title="T", content="C", confidence=1.5)
 
     @pytest.mark.unit
     def test_updated_before_created_raises(self):
@@ -251,9 +246,7 @@ class TestMemoryWithCitationsPostInit:
             memory_id="t",
             title="T",
             content="C",
-            citations=[
-                Citation(source_type=SourceType.FILE, target="f.py", context="")
-            ],
+            citations=[Citation(source_type=SourceType.FILE, target="f.py", context="")],
         )
         assert isinstance(m.citations, tuple)
 

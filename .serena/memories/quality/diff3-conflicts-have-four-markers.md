@@ -47,8 +47,8 @@ anything:
 
 ```python
 assert a < b < c < d, "markers out of order, not a diff3 conflict block"
-ours  = lines[a + 1 : b]
-base  = lines[b + 1 : c]
+ours = lines[a + 1 : b]
+base = lines[b + 1 : c]
 theirs = lines[c + 1 : d]
 ```
 

@@ -86,15 +86,11 @@ _ENV_KEYWORD = "env"
 
 # pytest's own temp fixtures. Requesting one roots every path the body derives
 # from it under the session temp directory, outside every checkout.
-_PYTEST_TEMP_PARAMS = frozenset(
-    {"tmp_path", "tmp_path_factory", "tmpdir", "tmpdir_factory"}
-)
+_PYTEST_TEMP_PARAMS = frozenset({"tmp_path", "tmp_path_factory", "tmpdir", "tmpdir_factory"})
 
 # stdlib temp factories, matched on the attribute or the bare name so both
 # `tempfile.TemporaryDirectory()` and an imported `TemporaryDirectory()` count.
-_TEMPFILE_FACTORIES = frozenset(
-    {"TemporaryDirectory", "mkdtemp", "mkstemp", "NamedTemporaryFile"}
-)
+_TEMPFILE_FACTORIES = frozenset({"TemporaryDirectory", "mkdtemp", "mkstemp", "NamedTemporaryFile"})
 
 # This repository's durable fixture root, required by `.claude/rules/testing.md`
 # MUST NOT 4 for fixtures that must outlive one test. `.gitignore` covers it and
@@ -116,6 +112,7 @@ SCANNER_MODULES = frozenset(
         "tests.test_bare_repo_fixtures_are_temp_rooted",
     }
 )
+
 
 @dataclass(frozen=True)
 class Violation:

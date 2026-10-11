@@ -77,9 +77,7 @@ _MEMORY_SUBAGENT_HANDOFF = re.compile(
 )
 
 
-@pytest.mark.parametrize(
-    "path", AGENT_MEMORY_PATHS, ids=lambda p: str(p.relative_to(REPO_ROOT))
-)
+@pytest.mark.parametrize("path", AGENT_MEMORY_PATHS, ids=lambda p: str(p.relative_to(REPO_ROOT)))
 def test_memory_agent_file_absent(path: Path) -> None:
     """No `memory` agent prompt exists in any platform tree."""
     assert not path.exists(), (
@@ -120,8 +118,8 @@ def test_no_agent_prompt_reintroduces_memory_subagent() -> None:
                 offenders.append(str(path.relative_to(REPO_ROOT)))
     assert not offenders, (
         "These agent prompts reference a retired `memory` subagent via "
-        f"subagent_type=\"memory\": {offenders}. Route memory work through "
-        "Skill(\"memory\") instead (Issue #2102)."
+        f'subagent_type="memory": {offenders}. Route memory work through '
+        'Skill("memory") instead (Issue #2102).'
     )
 
 

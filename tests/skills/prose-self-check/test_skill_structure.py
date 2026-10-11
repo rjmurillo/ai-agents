@@ -59,15 +59,9 @@ CANONICAL_SKILL_MD = (
     else None
 )
 COPILOT_MIRROR = (
-    REPO_ROOT.joinpath(*_COPILOT_SEGMENTS, _SKILL_NAME, _SKILL_FILE)
-    if REPO_ROOT
-    else None
+    REPO_ROOT.joinpath(*_COPILOT_SEGMENTS, _SKILL_NAME, _SKILL_FILE) if REPO_ROOT else None
 )
-VOICE_MD = (
-    REPO_ROOT / _CLAUDE_DIR_NAME / _RULES_DIR_NAME / _VOICE_RULE
-    if REPO_ROOT
-    else None
-)
+VOICE_MD = REPO_ROOT / _CLAUDE_DIR_NAME / _RULES_DIR_NAME / _VOICE_RULE if REPO_ROOT else None
 
 _FRONTMATTER = re.compile(r"(?s)\A---\r?\n(.*?)\r?\n---\r?\n")
 _BACKTICK_TRIGGER = re.compile(r"`[^`]+`")

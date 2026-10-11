@@ -32,7 +32,7 @@ Task(
     2. [Specific capability question 2]
     3. [...]
 
-    Report [PASS]/[FAIL] for each with objective gap identification."""
+    Report [PASS]/[FAIL] for each with objective gap identification.""",
 )
 ```
 

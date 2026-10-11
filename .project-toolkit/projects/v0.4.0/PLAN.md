@@ -320,6 +320,7 @@ All framework scripts that use consumer paths MUST:
 ```python
 import os
 
+
 def get_safe_path(env_var: str, default: str, project_root: str) -> str:
     """Resolve path with traversal protection."""
     raw = os.environ.get(env_var, default)

@@ -425,8 +425,9 @@ def test_compare_better_requires_no_zero_drop_even_with_better_average() -> None
     ]
     result = durable.compare(baseline, candidate)
     assert result["result"] != "BETTER"
-    assert result["candidate"]["verdict_counts"]["ACCEPTED_DURABLE"] == (
-        result["baseline"]["verdict_counts"]["ACCEPTED_DURABLE"]
+    assert (
+        result["candidate"]["verdict_counts"]["ACCEPTED_DURABLE"]
+        == (result["baseline"]["verdict_counts"]["ACCEPTED_DURABLE"])
     )
     assert result["candidate"]["zero_success_tasks"] == ["t2"]
 

@@ -109,9 +109,7 @@ def normalized_levenshtein(a: str, b: str) -> float:
     return 0.0 if longest == 0 else levenshtein(a, b) / longest
 
 
-def response_text_variance(
-    responses: list[str], run_indices: list[int] | None = None
-) -> dict:
+def response_text_variance(responses: list[str], run_indices: list[int] | None = None) -> dict:
     """Text-level variance across responses.
 
     ``all_identical`` answers the issue's first branch (variance not from the
@@ -129,8 +127,7 @@ def response_text_variance(
     unique_count = len(set(responses))
     if run_indices is None:
         consecutive = [
-            normalized_levenshtein(responses[i - 1], responses[i])
-            for i in range(1, count)
+            normalized_levenshtein(responses[i - 1], responses[i]) for i in range(1, count)
         ]
     else:
         consecutive = [
@@ -360,9 +357,7 @@ def build_report_md(
 
 def _name_arg(value: str) -> str:
     if not _NAME_RE.match(value):
-        raise argparse.ArgumentTypeError(
-            f"value must match {_NAME_RE.pattern} (got {value!r})"
-        )
+        raise argparse.ArgumentTypeError(f"value must match {_NAME_RE.pattern} (got {value!r})")
     return value
 
 
@@ -381,9 +376,7 @@ def _assert_under_repo_root(path: Path) -> Path:
     except OSError as exc:
         raise FileNotFoundError(f"refusing to resolve path {path!s}: {exc}") from exc
     if repo_root not in (resolved, *resolved.parents):
-        raise FileNotFoundError(
-            f"refusing to access {resolved} (outside REPO_ROOT {repo_root})"
-        )
+        raise FileNotFoundError(f"refusing to access {resolved} (outside REPO_ROOT {repo_root})")
     return resolved
 
 
@@ -399,8 +392,7 @@ def _load_fixture(fixture_id: str) -> dict:
     fixture = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(fixture, dict):
         raise ValueError(
-            f"fixture {fixture_id} must be a JSON object, "
-            f"got {type(fixture).__name__}"
+            f"fixture {fixture_id} must be a JSON object, got {type(fixture).__name__}"
         )
     if "input" not in fixture:
         raise ValueError(f"fixture {fixture_id} missing required 'input' field")
@@ -428,9 +420,7 @@ def _expected_verdict(fixture: dict) -> str:
 
 
 def _read_agent_prompt(agent: str) -> str:
-    path = _assert_under_repo_root(
-        REPO_ROOT / "templates" / "agents" / f"{agent}.shared.md"
-    )
+    path = _assert_under_repo_root(REPO_ROOT / "templates" / "agents" / f"{agent}.shared.md")
     if not path.exists():
         raise FileNotFoundError(f"agent prompt not found: {path}")
     return path.read_text(encoding="utf-8")
@@ -441,23 +431,37 @@ def build_parser() -> argparse.ArgumentParser:
         description="Quantify Anthropic API determinism at temperature=0 (issue #1877).",
     )
     parser.add_argument(
-        "--fixture", default="F002", type=_name_arg, help="fixture id (default: F002)",
+        "--fixture",
+        default="F002",
+        type=_name_arg,
+        help="fixture id (default: F002)",
     )
     parser.add_argument(
-        "--agent", default="security", type=_name_arg, help="agent name (default: security)",
+        "--agent",
+        default="security",
+        type=_name_arg,
+        help="agent name (default: security)",
     )
     parser.add_argument(
-        "--reps", type=int, default=DEFAULT_REPS,
+        "--reps",
+        type=int,
+        default=DEFAULT_REPS,
         help=f"repetitions (default: {DEFAULT_REPS})",
     )
     parser.add_argument(
-        "--model", default=DEFAULT_MODEL, help=f"model id (default: {DEFAULT_MODEL})",
+        "--model",
+        default=DEFAULT_MODEL,
+        help=f"model id (default: {DEFAULT_MODEL})",
     )
     parser.add_argument(
-        "--run-id", type=_name_arg, default=None, help="run id (default: generated)",
+        "--run-id",
+        type=_name_arg,
+        default=None,
+        help="run id (default: generated)",
     )
     parser.add_argument(
-        "--dry-run", action="store_true",
+        "--dry-run",
+        action="store_true",
         help="validate inputs and print the plan; issue no API calls",
     )
     return parser
@@ -485,15 +489,14 @@ def main(argv: list[str] | None = None) -> int:
     # failure must exit 2 with a single-line error, not crash with a traceback
     # (the resolution happens outside the input-validation try/except above).
     try:
-        out_dir = _assert_under_repo_root(
-            REPO_ROOT / CONTROL_DIR_TEMPLATE.format(run_id=run_id)
-        )
+        out_dir = _assert_under_repo_root(REPO_ROOT / CONTROL_DIR_TEMPLATE.format(run_id=run_id))
     except (FileNotFoundError, ValueError, OSError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 2
     if not args.dry_run:
         existing_artifacts = [
-            out_dir / name for name in ("raw.jsonl", "summary.json", "REPORT.md")
+            out_dir / name
+            for name in ("raw.jsonl", "summary.json", "REPORT.md")
             if (out_dir / name).exists()
         ]
         if existing_artifacts:
@@ -537,8 +540,11 @@ def main(argv: list[str] | None = None) -> int:
         return 4
     summary = summarize_variance(records, expected)
     report = build_report_md(
-        run_id=run_id, fixture_id=args.fixture, agent=args.agent,
-        model_id=args.model, summary=summary,
+        run_id=run_id,
+        fixture_id=args.fixture,
+        agent=args.agent,
+        model_id=args.model,
+        summary=summary,
     )
     # Write to temp files first, then rename atomically to avoid partial artifacts
     # if a write fails partway through (Bug #2: mixed artifacts on failure).

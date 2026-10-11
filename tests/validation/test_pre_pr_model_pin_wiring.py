@@ -64,9 +64,7 @@ def test_validate_model_pins_fails_on_config_error(
     is a real defect (an unreadable or malformed baseline or manifest) and must
     not pass.
     """
-    monkeypatch.setattr(
-        checks_spec, "_run_subprocess", lambda *_a, **_k: (2, "", "config error")
-    )
+    monkeypatch.setattr(checks_spec, "_run_subprocess", lambda *_a, **_k: (2, "", "config error"))
     assert checks_spec.validate_model_pins(REPO_ROOT) is False
 
 
@@ -125,9 +123,7 @@ def test_validate_model_pins_prints_new_violations_past_backlog(
         "[model-pins] warn mode: reporting only, exit 0",
     ]
     output = "\n".join(["[model-pins] scanned 60 pinned units", *backlog, *tail])
-    monkeypatch.setattr(
-        checks_spec, "_run_subprocess", lambda *_a, **_k: (0, output, "")
-    )
+    monkeypatch.setattr(checks_spec, "_run_subprocess", lambda *_a, **_k: (0, output, ""))
 
     assert checks_spec.validate_model_pins(REPO_ROOT) is True
 
@@ -228,9 +224,7 @@ def test_check_model_pins_runs_as_standalone_script() -> None:
 
 def test_pre_pr_under_size_ceiling() -> None:
     """Edge: extraction keeps ``pre_pr.py`` under 500 lines (Issue #3073)."""
-    text = (REPO_ROOT / "scripts" / "validation" / "pre_pr.py").read_text(
-        encoding="utf-8"
-    )
+    text = (REPO_ROOT / "scripts" / "validation" / "pre_pr.py").read_text(encoding="utf-8")
     assert len(text.splitlines()) < 500
 
 

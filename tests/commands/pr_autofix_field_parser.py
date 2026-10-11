@@ -55,9 +55,7 @@ _JQ_PATH = re.compile(r"(?:^|[^A-Za-z0-9_.])(\.[A-Za-z_][A-Za-z0-9_.]*)")
 # A literal key passed to `has` is a field read too. `_JQ_PATH` sees only the
 # containing object in `.Data | has("author_is_bot")`, so synthesize the full
 # path and let the existing schema checks validate the key.
-_JQ_HAS = re.compile(
-    r'\(?\s*(\.[A-Za-z_][A-Za-z0-9_.]*)\s*\)?\s*\|\s*has\(\s*"([^"]+)"\s*\)'
-)
+_JQ_HAS = re.compile(r'\(?\s*(\.[A-Za-z_][A-Za-z0-9_.]*)\s*\)?\s*\|\s*has\(\s*"([^"]+)"\s*\)')
 _JQ_HAS_TOKEN = re.compile(r"\bhas\s*\(")
 # Bracket-notation field access, which `_JQ_PATH` cannot see. Not parsed into a
 # path deliberately; see unsupported_path_syntax for why it is reported instead.
@@ -307,8 +305,7 @@ def extract_field_reads(text: str) -> list[FieldRead]:
             continue
         for source, program in _reads_by_invocation(line, bindings):
             reads.extend(
-                FieldRead(line=lineno, script=source, path=path)
-                for path in _program_paths(program)
+                FieldRead(line=lineno, script=source, path=path) for path in _program_paths(program)
             )
             reads.extend(
                 FieldRead(line=lineno, script=source, path=container, literal_key=key)
@@ -462,8 +459,8 @@ def jq_invocation_lines(text: str) -> list[tuple[int, str]]:
 
 def _envelope_violation(read: FieldRead, schema: ProducerSchema) -> str | None:
     """Report a read whose `Data.` prefix disagrees with the producer."""
-    has_prefix = read.path == ".Data" if read.literal_key is not None else read.path.startswith(
-        ".Data."
+    has_prefix = (
+        read.path == ".Data" if read.literal_key is not None else read.path.startswith(".Data.")
     )
     if schema.wraps_in_data and not has_prefix:
         return (

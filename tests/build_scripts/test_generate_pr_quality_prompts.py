@@ -94,17 +94,11 @@ def test_transform_strips_required_frontmatter_keys() -> None:
 
 
 def test_transform_prepends_static_ci_header() -> None:
-    text = (
-        "---\nname: analyst\nrole: analyst\nversion: 1.0.0\n"
-        "description: y\n---\n\n# body\n"
-    )
+    text = "---\nname: analyst\nrole: analyst\nversion: 1.0.0\ndescription: y\n---\n\n# body\n"
     out = gen.transform(text, "analyst")
     assert out.startswith("<!-- GENERATED -- DO NOT EDIT -->\n")
     assert "<!-- Source: .claude/skills/review/references/analyst.md -->\n" in out
-    assert (
-        "<!-- Run: python3 build/scripts/generate_pr_quality_prompts.py -->\n"
-        in out
-    )
+    assert "<!-- Run: python3 build/scripts/generate_pr_quality_prompts.py -->\n" in out
 
 
 def test_transform_emits_context_mode_header_line() -> None:
@@ -114,9 +108,7 @@ def test_transform_emits_context_mode_header_line() -> None:
     ai-review action prepends the resolved CONTEXT_MODE header separately at
     runtime.
     """
-    text = (
-        "---\nname: x\nrole: x\nversion: 1.0.0\ndescription: y\n---\n\n# body\n"
-    )
+    text = "---\nname: x\nrole: x\nversion: 1.0.0\ndescription: y\n---\n\n# body\n"
     out = gen.transform(text, "x")
     assert "<!-- CONTEXT_MODE: ${CONTEXT_MODE} (full|summary|partial); " in out
     assert "PASS forbidden when not full" in out
@@ -129,9 +121,7 @@ def test_transform_context_mode_header_is_literal_not_format_expanded() -> None:
     `{CONTEXT_MODE}` would raise KeyError or be expanded. Pin that the doubled
     braces render to a literal `${CONTEXT_MODE}` token.
     """
-    text = (
-        "---\nname: x\nrole: x\nversion: 1.0.0\ndescription: y\n---\n\n# body\n"
-    )
+    text = "---\nname: x\nrole: x\nversion: 1.0.0\ndescription: y\n---\n\n# body\n"
     out = gen.transform(text, "x")
     assert "${CONTEXT_MODE}" in out
     # The pre-format escape form must NOT appear (would mean a bug).
@@ -140,16 +130,12 @@ def test_transform_context_mode_header_is_literal_not_format_expanded() -> None:
 
 def test_transform_context_mode_header_is_idempotent() -> None:
     """The header line carries no time/env token, so two runs are identical."""
-    text = (
-        "---\nname: x\nrole: x\nversion: 1.0.0\ndescription: y\n---\n\n# body\n"
-    )
+    text = "---\nname: x\nrole: x\nversion: 1.0.0\ndescription: y\n---\n\n# body\n"
     assert gen.transform(text, "x") == gen.transform(text, "x")
 
 
 def test_transform_header_has_no_timestamp_or_sha() -> None:
-    text = (
-        "---\nname: x\nrole: x\nversion: 1.0.0\ndescription: y\n---\n\n# body\n"
-    )
+    text = "---\nname: x\nrole: x\nversion: 1.0.0\ndescription: y\n---\n\n# body\n"
     out1 = gen.transform(text, "qa")
     out2 = gen.transform(text, "qa")
     assert out1 == out2  # idempotent: same input -> same output every time
@@ -260,9 +246,7 @@ def test_regenerate_dry_run_drift_returns_one(stub_canonical: Path) -> None:
     generated = stub_canonical.parent.parent.parent / "out"
     generated.mkdir(parents=True, exist_ok=True)
     # Write stale content to trigger drift.
-    (generated / "pr-quality-gate-example.md").write_text(
-        "stale content\n", encoding="utf-8"
-    )
+    (generated / "pr-quality-gate-example.md").write_text("stale content\n", encoding="utf-8")
     code, log = gen.regenerate(stub_canonical, generated, dry_run=True)
     assert code == 1
     assert any("status=drift" in line for line in log)
@@ -274,9 +258,7 @@ def test_regenerate_dry_run_drift_returns_one(stub_canonical: Path) -> None:
 
 
 def test_regenerate_missing_canonical_dir_returns_two(tmp_path: Path) -> None:
-    code, log = gen.regenerate(
-        tmp_path / "does-not-exist", tmp_path / "out", dry_run=False
-    )
+    code, log = gen.regenerate(tmp_path / "does-not-exist", tmp_path / "out", dry_run=False)
     assert code == 2
     assert any("config_error" in line for line in log)
 
@@ -350,8 +332,7 @@ def test_regenerate_symlinked_dest_no_status_written_log(
         f"expected role={role} status=config_error, got {role_lines}"
     )
     assert not any("status=written" in line for line in role_lines), (
-        f"role={role} must NOT log status=written after config_error; "
-        f"got {role_lines}"
+        f"role={role} must NOT log status=written after config_error; got {role_lines}"
     )
 
 
@@ -438,9 +419,7 @@ def test_validate_filename_rejects_invalid(name: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_main_dry_run_clean_exit_zero(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_main_dry_run_clean_exit_zero(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """End-to-end: main() returns 0 on a clean dry-run."""
     canonical = tmp_path / ".claude" / "skills" / "review" / "references"
     canonical.mkdir(parents=True)
@@ -456,9 +435,7 @@ def test_main_dry_run_clean_exit_zero(
     assert gen.main(["--dry-run"]) == 0
 
 
-def test_main_dry_run_drift_exit_one(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_main_dry_run_drift_exit_one(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     canonical = tmp_path / ".claude" / "skills" / "review" / "references"
     canonical.mkdir(parents=True)
     (canonical / "x.md").write_text(
@@ -467,9 +444,7 @@ def test_main_dry_run_drift_exit_one(
     )
     generated = tmp_path / "out"
     generated.mkdir()
-    (generated / "pr-quality-gate-x.md").write_text(
-        "stale\n", encoding="utf-8"
-    )
+    (generated / "pr-quality-gate-x.md").write_text("stale\n", encoding="utf-8")
     monkeypatch.setattr(gen, "CANONICAL_DIR", canonical)
     monkeypatch.setattr(gen, "GENERATED_DIR", generated)
     assert gen.main(["--dry-run"]) == 1
@@ -485,9 +460,7 @@ _CI_WRAPPER = REPO_ROOT / "build" / "scripts" / "run_drift_check_ci.py"
 
 
 def _load_wrapper():
-    spec = importlib.util.spec_from_file_location(
-        "run_drift_check_ci", _CI_WRAPPER
-    )
+    spec = importlib.util.spec_from_file_location("run_drift_check_ci", _CI_WRAPPER)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
@@ -626,9 +599,7 @@ def test_dry_run_compares_against_head_not_working_tree(
     generated = tmp_path / ".github" / "prompts"
     generated.mkdir(parents=True)
     # Working tree has matching content (would pass if hook used working tree).
-    expected = gen.transform(
-        (canonical / "x.md").read_text(encoding="utf-8"), "x"
-    )
+    expected = gen.transform((canonical / "x.md").read_text(encoding="utf-8"), "x")
     (generated / "pr-quality-gate-x.md").write_text(expected, encoding="utf-8")
 
     # But HEAD has stale content. Stub _read_committed_dest to return stale.
@@ -707,9 +678,7 @@ def test_dry_run_falls_back_to_working_tree_when_git_unavailable(
 
     monkeypatch.setattr(gen, "_read_committed_dest", lambda dest: None)
 
-    expected = gen.transform(
-        (canonical / "x.md").read_text(encoding="utf-8"), "x"
-    )
+    expected = gen.transform((canonical / "x.md").read_text(encoding="utf-8"), "x")
     (generated / "pr-quality-gate-x.md").write_text(expected, encoding="utf-8")
 
     code, log = gen.regenerate(canonical, generated, dry_run=True)

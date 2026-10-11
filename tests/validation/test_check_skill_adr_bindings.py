@@ -396,9 +396,7 @@ def test_edge_a_gitignored_declaration_is_never_counted(repo: Path) -> None:
     """The shape that turned main red in issue #4748: build output an author
     happens to have generated and CI never will."""
     (repo / ".gitignore").write_text("generated/\n", encoding="utf-8")
-    _write_skill(
-        repo, "s", "name: s\nmetadata:\n  adr: ADR-002", tree="generated", track=False
-    )
+    _write_skill(repo, "s", "name: s\nmetadata:\n  adr: ADR-002", tree="generated", track=False)
     assert _scan(repo) == []
 
 
@@ -520,16 +518,13 @@ def test_edge_one_absent_manifest_is_named_and_the_rest_still_scan(
     _make_absent(repo, "skills/gone/SKILL.md", skip_worktree=False)
 
     baseline = repo / "b.json"
-    baseline.write_text(
-        json.dumps({"schema_version": "1", "counts": {CHECK: 1}}), encoding="utf-8"
-    )
+    baseline.write_text(json.dumps({"schema_version": "1", "counts": {CHECK: 1}}), encoding="utf-8")
     assert _run(repo, baseline) == EXIT_OK
     captured = capsys.readouterr()
     assert "skills/gone/SKILL.md" in captured.err
     assert "1 of 2 tracked" in captured.err
     assert "more" not in captured.err, (
-        "one absent path is below the sample cap, so the note must not claim a "
-        "truncated remainder"
+        "one absent path is below the sample cap, so the note must not claim a truncated remainder"
     )
     assert "across 1 of 2 tracked SKILL.md file(s)" in captured.out
 
@@ -554,9 +549,7 @@ def test_edge_absent_exactly_at_the_sample_cap_claims_no_remainder(
         _make_absent(repo, f"skills/gone{index}/SKILL.md", skip_worktree=False)
 
     baseline = repo / "b.json"
-    baseline.write_text(
-        json.dumps({"schema_version": "1", "counts": {CHECK: 1}}), encoding="utf-8"
-    )
+    baseline.write_text(json.dumps({"schema_version": "1", "counts": {CHECK: 1}}), encoding="utf-8")
     assert _run(repo, baseline) == EXIT_OK
     err = capsys.readouterr().err
     assert f"{_ABSENT_SAMPLE} of {_ABSENT_SAMPLE + 1} tracked" in err
@@ -584,9 +577,7 @@ def test_pos_every_terminal_line_carries_the_examined_count(
         assert expected in out
         assert "across 1 of 1 tracked SKILL.md file(s)" in out, out
 
-    baseline.write_text(
-        json.dumps({"schema_version": "1", "counts": {CHECK: 0}}), encoding="utf-8"
-    )
+    baseline.write_text(json.dumps({"schema_version": "1", "counts": {CHECK: 0}}), encoding="utf-8")
     assert _run(repo, baseline) == EXIT_REGRESSION
     assert "across 1 of 1 tracked SKILL.md file(s)" in capsys.readouterr().err
 
@@ -604,9 +595,7 @@ def test_neg_write_baseline_refuses_to_raise_the_ceiling(repo: Path) -> None:
     for index in range(3):
         _write_skill(repo, f"s{index}", "name: s\nmetadata:\n  adr: ADR-002")
     baseline = repo / "b.json"
-    baseline.write_text(
-        json.dumps({"schema_version": "1", "counts": {CHECK: 1}}), encoding="utf-8"
-    )
+    baseline.write_text(json.dumps({"schema_version": "1", "counts": {CHECK: 1}}), encoding="utf-8")
 
     assert _run(repo, baseline, "--write-baseline") == EXIT_CONFIG
     assert json.loads(baseline.read_text(encoding="utf-8"))["counts"][CHECK] == 1
@@ -617,9 +606,7 @@ def test_pos_write_baseline_lowers_the_ceiling(repo: Path) -> None:
     A gate that refused every write would pass that test and fail this one."""
     _write_skill(repo, "s", "name: s\nmetadata:\n  adr: ADR-002")
     baseline = repo / "b.json"
-    baseline.write_text(
-        json.dumps({"schema_version": "1", "counts": {CHECK: 9}}), encoding="utf-8"
-    )
+    baseline.write_text(json.dumps({"schema_version": "1", "counts": {CHECK: 9}}), encoding="utf-8")
 
     assert _run(repo, baseline, "--write-baseline") == EXIT_OK
     assert json.loads(baseline.read_text(encoding="utf-8"))["counts"][CHECK] == 1
@@ -665,9 +652,7 @@ def test_pos_a_partial_read_still_scans_and_only_the_write_is_strict(
     _write_skill(repo, "here", "name: s\nmetadata:\n  adr: ADR-002")
     _make_absent(repo, "skills/gone/SKILL.md", skip_worktree=False)
     baseline = repo / "b.json"
-    baseline.write_text(
-        json.dumps({"schema_version": "1", "counts": {CHECK: 4}}), encoding="utf-8"
-    )
+    baseline.write_text(json.dumps({"schema_version": "1", "counts": {CHECK: 4}}), encoding="utf-8")
 
     assert _run(repo, baseline) == EXIT_OK, "a partial read must not block the check"
     assert _run(repo, baseline, "--write-baseline") == EXIT_CONFIG
@@ -714,9 +699,7 @@ def test_neg_write_baseline_refuses_an_unstattable_ceiling(repo: Path) -> None:
     hidden = repo / "hidden"
     hidden.mkdir()
     baseline = hidden / "b.json"
-    baseline.write_text(
-        json.dumps({"schema_version": "1", "counts": {CHECK: 1}}), encoding="utf-8"
-    )
+    baseline.write_text(json.dumps({"schema_version": "1", "counts": {CHECK: 1}}), encoding="utf-8")
     hidden.chmod(0)
     try:
         assert _run(repo, baseline, "--write-baseline") == EXIT_CONFIG
@@ -763,9 +746,7 @@ def test_neg_write_baseline_refuses_a_partially_checked_out_tree(repo: Path) -> 
     _write_skill(repo, "gone", "name: s\nmetadata:\n  adr: ADR-002")
     _make_absent(repo, "skills/gone/SKILL.md", skip_worktree=True)
     baseline = repo / "b.json"
-    baseline.write_text(
-        json.dumps({"schema_version": "1", "counts": {CHECK: 7}}), encoding="utf-8"
-    )
+    baseline.write_text(json.dumps({"schema_version": "1", "counts": {CHECK: 7}}), encoding="utf-8")
 
     assert _run(repo, baseline, "--write-baseline") == EXIT_CONFIG
     assert json.loads(baseline.read_text(encoding="utf-8"))["counts"][CHECK] == 7
@@ -784,9 +765,7 @@ def test_neg_an_empty_adr_corpus_is_a_config_fault(tmp_path: Path) -> None:
     (tmp_path / ".project-toolkit" / "architecture").mkdir(parents=True)
     _write_skill(tmp_path, "s", "name: s\nmetadata:\n  adr: ADR-002")
     baseline = tmp_path / "b.json"
-    baseline.write_text(
-        json.dumps({"schema_version": "1", "counts": {CHECK: 0}}), encoding="utf-8"
-    )
+    baseline.write_text(json.dumps({"schema_version": "1", "counts": {CHECK: 0}}), encoding="utf-8")
     assert _run(tmp_path, baseline) == EXIT_CONFIG
 
 
@@ -795,9 +774,7 @@ def test_pos_the_same_tree_with_one_record_flags_the_skill(tmp_path: Path) -> No
     _write_adr(tmp_path, 2, "superseded")
     _write_skill(tmp_path, "s", "name: s\nmetadata:\n  adr: ADR-002")
     baseline = tmp_path / "b.json"
-    baseline.write_text(
-        json.dumps({"schema_version": "1", "counts": {CHECK: 0}}), encoding="utf-8"
-    )
+    baseline.write_text(json.dumps({"schema_version": "1", "counts": {CHECK: 0}}), encoding="utf-8")
     assert _run(tmp_path, baseline) == EXIT_REGRESSION
 
 
@@ -813,9 +790,7 @@ def test_edge_a_tracked_symlink_is_reported_not_followed(
     the manifest, so reading through it takes the count from bytes no ref holds.
     That is the untracked-state read the tracked enumeration exists to prevent."""
     outside = tmp_path_factory.mktemp("outside") / "not-in-any-ref.md"
-    outside.write_text(
-        "---\nname: s\nmetadata:\n  adr: ADR-002\n---\n\n# s\n", encoding="utf-8"
-    )
+    outside.write_text("---\nname: s\nmetadata:\n  adr: ADR-002\n---\n\n# s\n", encoding="utf-8")
     link_dir = repo / "skills" / "linked"
     link_dir.mkdir(parents=True)
     (link_dir / "SKILL.md").symlink_to(outside)
@@ -864,13 +839,8 @@ def test_neg_an_unlistable_root_exits_external(tmp_path: Path) -> None:
     """The process-level half of the case above, per `testing.md` MUST 8."""
     _write_adr(tmp_path, 2, "superseded")
     baseline = tmp_path / "baseline.json"
-    baseline.write_text(
-        json.dumps({"schema_version": "1", "counts": {CHECK: 0}}), encoding="utf-8"
-    )
-    assert (
-        main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
-        == EXIT_EXTERNAL
-    )
+    baseline.write_text(json.dumps({"schema_version": "1", "counts": {CHECK: 0}}), encoding="utf-8")
+    assert main(["--repo-root", str(tmp_path), "--baseline", str(baseline)]) == EXIT_EXTERNAL
     assert validate_skill_adr_bindings(tmp_path) is False
 
 
@@ -936,9 +906,7 @@ def test_neg_missing_baseline_exits_config(repo: Path, tmp_path: Path) -> None:
         json.dumps({"counts": {CHECK: "3"}}),  # string is not a count
     ],
 )
-def test_neg_unusable_baseline_shapes_exit_config(
-    repo: Path, tmp_path: Path, payload: str
-) -> None:
+def test_neg_unusable_baseline_shapes_exit_config(repo: Path, tmp_path: Path, payload: str) -> None:
     path = tmp_path / "b.json"
     path.write_text(payload, encoding="utf-8")
     assert _run(repo, path) == EXIT_CONFIG

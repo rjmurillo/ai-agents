@@ -374,11 +374,7 @@ def test_the_gate_runs_as_a_remote_check_not_only_a_local_hook() -> None:
     job = workflow["jobs"].get(_REMOTE_GATE_JOB)
     assert job is not None, f"{rel} no longer defines the `{_REMOTE_GATE_JOB}` job"
 
-    matching = [
-        step
-        for step in job["steps"]
-        if _GATE_SCRIPT_PATH in str(step.get("run", ""))
-    ]
+    matching = [step for step in job["steps"] if _GATE_SCRIPT_PATH in str(step.get("run", ""))]
     assert len(matching) == 1, (
         f"{rel} job `{_REMOTE_GATE_JOB}` should run {_GATE_SCRIPT_PATH} exactly once, "
         f"found {len(matching)}. The gate is back to being local-hook-only."

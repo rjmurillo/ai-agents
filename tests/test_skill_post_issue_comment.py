@@ -12,8 +12,7 @@ from unittest.mock import patch
 import pytest
 
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1]
-    / ".claude" / "skills" / "github" / "scripts" / "issue"
+    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "issue"
 )
 
 
@@ -38,11 +37,13 @@ def _completed(stdout: str = "", stderr: str = "", rc: int = 0):
 
 @patch("subprocess.run")
 def test_post_comment(mock_run, capsys):
-    response = json.dumps({
-        "id": 100,
-        "html_url": "https://github.com/o/r/issues/1#issuecomment-100",
-        "created_at": "2025-01-01T00:00:00Z",
-    })
+    response = json.dumps(
+        {
+            "id": 100,
+            "html_url": "https://github.com/o/r/issues/1#issuecomment-100",
+            "created_at": "2025-01-01T00:00:00Z",
+        }
+    )
     mock_run.side_effect = [
         _completed(rc=0),  # auth
         _completed(stdout="https://github.com/o/r\n"),  # remote
@@ -81,9 +82,9 @@ def _extract_json(text: str) -> dict:
 
 @patch("subprocess.run")
 def test_marker_skip_existing(mock_run, capsys):
-    comments = json.dumps([
-        {"id": 50, "body": "<!-- TEST-MARKER -->\n\nOld content", "user": {"login": "bot"}}
-    ])
+    comments = json.dumps(
+        [{"id": 50, "body": "<!-- TEST-MARKER -->\n\nOld content", "user": {"login": "bot"}}]
+    )
     mock_run.side_effect = [
         _completed(rc=0),  # auth
         _completed(stdout="https://github.com/o/r\n"),  # remote
@@ -98,14 +99,16 @@ def test_marker_skip_existing(mock_run, capsys):
 
 @patch("subprocess.run")
 def test_marker_update_existing(mock_run, capsys):
-    comments = json.dumps([
-        {"id": 50, "body": "<!-- TEST-MARKER -->\n\nOld", "user": {"login": "bot"}}
-    ])
-    updated = json.dumps({
-        "id": 50,
-        "html_url": "https://github.com/o/r/issues/1#issuecomment-50",
-        "updated_at": "2025-01-02T00:00:00Z",
-    })
+    comments = json.dumps(
+        [{"id": 50, "body": "<!-- TEST-MARKER -->\n\nOld", "user": {"login": "bot"}}]
+    )
+    updated = json.dumps(
+        {
+            "id": 50,
+            "html_url": "https://github.com/o/r/issues/1#issuecomment-50",
+            "updated_at": "2025-01-02T00:00:00Z",
+        }
+    )
     mock_run.side_effect = [
         _completed(rc=0),  # auth
         _completed(stdout="https://github.com/o/r\n"),  # remote
@@ -113,10 +116,17 @@ def test_marker_update_existing(mock_run, capsys):
         _completed(stdout=updated),  # update comment
     ]
 
-    rc = main([
-        "--issue", "1", "--body", "Updated",
-        "--marker", "TEST-MARKER", "--update-if-exists",
-    ])
+    rc = main(
+        [
+            "--issue",
+            "1",
+            "--body",
+            "Updated",
+            "--marker",
+            "TEST-MARKER",
+            "--update-if-exists",
+        ]
+    )
     assert rc == 0
     output = _extract_json(capsys.readouterr().out)
     assert output["Data"]["updated"] is True

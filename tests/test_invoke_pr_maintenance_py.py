@@ -73,15 +73,11 @@ class TestGetBotAuthorInfo:
 
 class TestIsBotReviewer:
     def test_returns_true_for_agent_reviewer(self) -> None:
-        review_requests = {
-            "nodes": [{"requestedReviewer": {"login": "rjmurillo-bot"}}]
-        }
+        review_requests = {"nodes": [{"requestedReviewer": {"login": "rjmurillo-bot"}}]}
         assert is_bot_reviewer(review_requests) is True
 
     def test_returns_false_for_human_reviewer(self) -> None:
-        review_requests = {
-            "nodes": [{"requestedReviewer": {"login": "humandev"}}]
-        }
+        review_requests = {"nodes": [{"requestedReviewer": {"login": "humandev"}}]}
         assert is_bot_reviewer(review_requests) is False
 
     def test_returns_false_for_none(self) -> None:
@@ -94,24 +90,12 @@ class TestIsBotReviewer:
 class TestHasFailingChecks:
     def test_ignores_aggregate_failure_without_failing_contexts(self) -> None:
         rollup = {"state": "FAILURE", "contexts": {"nodes": []}}
-        pr = {
-            "commits": {
-                "nodes": [
-                    {"commit": {"statusCheckRollup": rollup}}
-                ]
-            }
-        }
+        pr = {"commits": {"nodes": [{"commit": {"statusCheckRollup": rollup}}]}}
         assert has_failing_checks(pr) is False
 
     def test_returns_false_for_success_state(self) -> None:
         rollup = {"state": "SUCCESS", "contexts": {"nodes": []}}
-        pr = {
-            "commits": {
-                "nodes": [
-                    {"commit": {"statusCheckRollup": rollup}}
-                ]
-            }
-        }
+        pr = {"commits": {"nodes": [{"commit": {"statusCheckRollup": rollup}}]}}
         assert has_failing_checks(pr) is False
 
     def test_returns_false_when_no_commits(self) -> None:
@@ -129,9 +113,7 @@ class TestHasFailingChecks:
                         "commit": {
                             "statusCheckRollup": {
                                 "state": "PENDING",
-                                "contexts": {
-                                    "nodes": [{"conclusion": "FAILURE"}]
-                                },
+                                "contexts": {"nodes": [{"conclusion": "FAILURE"}]},
                             }
                         }
                     }
@@ -285,10 +267,13 @@ class TestHasFailingChecks:
         completed = subprocess.CompletedProcess(
             args=[], returncode=0, stdout=json.dumps(payload), stderr=""
         )
-        with patch("scripts.invoke_pr_maintenance.run_gh", return_value=completed), patch(
-            "scripts.invoke_pr_maintenance._fetch_status_context_page",
-            return_value=(page, {"hasNextPage": False, "endCursor": None}),
-        ) as fetch_page:
+        with (
+            patch("scripts.invoke_pr_maintenance.run_gh", return_value=completed),
+            patch(
+                "scripts.invoke_pr_maintenance._fetch_status_context_page",
+                return_value=(page, {"hasNextPage": False, "endCursor": None}),
+            ) as fetch_page,
+        ):
             prs = get_open_prs("owner", "repo", 1)
 
         contexts = prs[0]["commits"]["nodes"][0]["commit"]["statusCheckRollup"]["contexts"]
@@ -431,17 +416,13 @@ class TestClassifyPrs:
 
 class TestGetOpenPrs:
     def test_raises_on_api_failure(self) -> None:
-        failed = subprocess.CompletedProcess(
-            args=[], returncode=1, stdout="", stderr="API error"
-        )
+        failed = subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr="API error")
         with patch("scripts.invoke_pr_maintenance.run_gh", return_value=failed):
             with pytest.raises(RuntimeError, match="Failed to query PRs"):
                 get_open_prs("owner", "repo", 20)
 
     def test_raises_on_invalid_json(self) -> None:
-        bad_json = subprocess.CompletedProcess(
-            args=[], returncode=0, stdout="not json", stderr=""
-        )
+        bad_json = subprocess.CompletedProcess(args=[], returncode=0, stdout="not json", stderr="")
         with patch("scripts.invoke_pr_maintenance.run_gh", return_value=bad_json):
             with pytest.raises(RuntimeError, match="Failed to parse PR response"):
                 get_open_prs("owner", "repo", 20)
@@ -563,9 +544,7 @@ class TestMain:
         assert "thresholds not met" in capsys.readouterr().err
 
     @patch("scripts.invoke_pr_maintenance.check_workflow_rate_limit")
-    def test_indeterminate_rate_limit_says_so(
-        self, mock_rate: MagicMock, capsys
-    ) -> None:
+    def test_indeterminate_rate_limit_says_so(self, mock_rate: MagicMock, capsys) -> None:
         from scripts.github_core import RateLimitResult, RateLimitStatus
 
         mock_rate.return_value = RateLimitResult(
@@ -649,9 +628,7 @@ class TestHasUnresolvedThreads:
         pr: dict[str, Any] = {"reviewThreads": {"nodes": []}}
         assert has_unresolved_threads(pr) is False
 
-    def test_warns_when_threads_truncated(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
+    def test_warns_when_threads_truncated(self, caplog: pytest.LogCaptureFixture) -> None:
         import logging
 
         from scripts.invoke_pr_maintenance import has_unresolved_threads

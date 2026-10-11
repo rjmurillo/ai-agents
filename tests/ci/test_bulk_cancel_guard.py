@@ -52,9 +52,7 @@ class TestDryRun:
         runs_file = write_runs(tmp_path / "runs.json", incident_runs())
         client = FakeClient()
 
-        code = main(
-            argv(runs_file, workflows, "--recovery-event", "reopened"), client=client
-        )
+        code = main(argv(runs_file, workflows, "--recovery-event", "reopened"), client=client)
 
         out = capsys.readouterr().out
         assert code == EXIT_OK
@@ -64,9 +62,7 @@ class TestDryRun:
         assert "Re-run with --confirm" in out
         assert client.posts == []
 
-    def test_dry_run_writes_a_manifest_that_names_every_run(
-        self, tmp_path: Path, workflows: Path
-    ):
+    def test_dry_run_writes_a_manifest_that_names_every_run(self, tmp_path: Path, workflows: Path):
         runs_file = write_runs(tmp_path / "runs.json", incident_runs())
         manifest_path = tmp_path / "out" / "recovery.json"
 
@@ -166,8 +162,7 @@ class TestExecution:
         self, tmp_path: Path, workflows: Path
     ):
         optional_only = [
-            run for run in incident_runs(pr_count=2)
-            if run.contexts == (OPTIONAL_CONTEXT,)
+            run for run in incident_runs(pr_count=2) if run.contexts == (OPTIONAL_CONTEXT,)
         ]
         runs_file = write_runs(tmp_path / "runs.json", optional_only)
         client = FakeClient()
@@ -226,9 +221,7 @@ class TestInputHandling:
 
         assert main(argv(broken, workflows), client=FakeClient()) == EXIT_CONFIG
 
-    def test_json_object_without_a_runs_list_exits_config(
-        self, tmp_path: Path, workflows: Path
-    ):
+    def test_json_object_without_a_runs_list_exits_config(self, tmp_path: Path, workflows: Path):
         wrong = tmp_path / "runs.json"
         wrong.write_text(json.dumps({"runs": "nope"}), encoding="utf-8")
 
@@ -243,9 +236,7 @@ class TestInputHandling:
             encoding="utf-8",
         )
 
-        code = main(
-            argv(wrapped, workflows, "--recovery-event", "reopened"), client=FakeClient()
-        )
+        code = main(argv(wrapped, workflows, "--recovery-event", "reopened"), client=FakeClient())
 
         assert code == EXIT_OK
 
@@ -255,9 +246,7 @@ class TestInputHandling:
 
         assert excinfo.value.code == 2
 
-    def test_unknown_recovery_event_is_rejected_by_argparse(
-        self, tmp_path: Path, workflows: Path
-    ):
+    def test_unknown_recovery_event_is_rejected_by_argparse(self, tmp_path: Path, workflows: Path):
         runs_file = write_runs(tmp_path / "runs.json", incident_runs(pr_count=1))
 
         with pytest.raises(SystemExit):

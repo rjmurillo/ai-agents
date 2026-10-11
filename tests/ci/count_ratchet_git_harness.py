@@ -17,9 +17,7 @@ from scripts.ci import count_ratchet
 def init_repo(repo: Path) -> None:
     """A repository with an identity and a deterministic default branch."""
     subprocess.run(["git", "init", "-q", "-b", "main", str(repo)], check=True)
-    subprocess.run(
-        ["git", "-C", str(repo), "config", "user.email", "t@example.com"], check=True
-    )
+    subprocess.run(["git", "-C", str(repo), "config", "user.email", "t@example.com"], check=True)
     subprocess.run(["git", "-C", str(repo), "config", "user.name", "t"], check=True)
 
 

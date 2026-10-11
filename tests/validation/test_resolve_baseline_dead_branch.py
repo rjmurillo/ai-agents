@@ -45,9 +45,7 @@ class TestResolveBaselinePathNoBranching:
         root = tmp_path / "repo"
         (root / "scripts" / "validation").mkdir(parents=True)
 
-        result = common.resolve_baseline_path(
-            root, Path("scripts/validation/b.json"), "d.json"
-        )
+        result = common.resolve_baseline_path(root, Path("scripts/validation/b.json"), "d.json")
 
         assert result == root / "scripts" / "validation" / "b.json"
 
@@ -129,10 +127,13 @@ class TestGitignoreLockFiles:
             "Advisory lock files must be ignored to keep git status clean (issue #4511)."
         )
 
-    @pytest.mark.parametrize("other_name", [
-        "scripts/validation/skill_md_portability_baseline.json",
-        "docs/something.write-lock",
-    ])
+    @pytest.mark.parametrize(
+        "other_name",
+        [
+            "scripts/validation/skill_md_portability_baseline.json",
+            "docs/something.write-lock",
+        ],
+    )
     def test_non_lock_files_are_not_gitignored(self, other_name: str) -> None:
         """The ignore rule must not swallow actual baseline files or unrelated paths."""
         result = subprocess.run(
@@ -140,6 +141,4 @@ class TestGitignoreLockFiles:
             cwd=str(self.REPO_ROOT),
             capture_output=True,
         )
-        assert result.returncode != 0, (
-            f"{other_name} is wrongly ignored by .gitignore"
-        )
+        assert result.returncode != 0, f"{other_name} is wrongly ignored by .gitignore"

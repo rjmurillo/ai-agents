@@ -71,9 +71,7 @@ def _generate_reflection(memories_dir: Path, repo_root: Path) -> str:
     decayed = apply_confidence_decay(memories_dir, repo_root)
 
     # Pass pre-loaded memories to avoid redundant load + citation verification.
-    report = generate_health_report(
-        memories_dir, repo_root, preloaded_memories=memories
-    )
+    report = generate_health_report(memories_dir, repo_root, preloaded_memories=memories)
     if report.total_memories == 0:
         return ""
 

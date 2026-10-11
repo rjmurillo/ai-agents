@@ -110,9 +110,7 @@ class TestRun:
         out = capsys.readouterr().out
         assert "Duplicates skipped: 1" in out
 
-    def test_create_failure_main_returns_external(
-        self, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_create_failure_main_returns_external(self, capsys: pytest.CaptureFixture[str]) -> None:
         findings = json.dumps(
             [
                 {"title": "New Issue", "body": "b", "labels": [], "source": "s.md"},

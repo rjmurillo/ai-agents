@@ -51,9 +51,7 @@ _COPY_IGNORE = shutil.ignore_patterns(
 
 # Directories and files the copy never carries, so the drift fingerprint must
 # skip them on both sides. The dogfood marker only exists in the target.
-_FINGERPRINT_SKIP_DIRS = frozenset(
-    {"__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache"}
-)
+_FINGERPRINT_SKIP_DIRS = frozenset({"__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache"})
 _FINGERPRINT_SKIP_SUFFIXES = (".pyc", ".pyo")
 
 

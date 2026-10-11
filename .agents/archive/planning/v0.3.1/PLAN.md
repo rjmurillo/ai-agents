@@ -743,6 +743,7 @@ def build_parser() -> argparse.ArgumentParser:
     # ... env vars become defaults for CLI args
     return parser
 
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     # Use args.owner, args.repo instead of os.environ.get(...)
@@ -820,6 +821,7 @@ Testing requires `unittest.mock.patch("scripts.github_core.api.get_issue_comment
 ```python
 from scripts.github_core.protocol import GitHubClient
 
+
 def process_comments(client: GitHubClient, issue: int) -> None:
     comments = client.get_issue_comments("owner", "repo", issue)
     # ...
@@ -830,10 +832,15 @@ Testing uses a simple stub: `client = FakeGitHubClient(comments=[...])`.
 ```python
 from typing import Protocol, Any
 
+
 class GitHubClient(Protocol):
     def get_issue_comments(self, owner: str, repo: str, issue: int) -> list[dict[str, Any]]: ...
-    def create_issue_comment(self, owner: str, repo: str, issue: int, body: str) -> dict[str, Any]: ...
-    def update_issue_comment(self, owner: str, repo: str, comment_id: int, body: str) -> dict[str, Any]: ...
+    def create_issue_comment(
+        self, owner: str, repo: str, issue: int, body: str
+    ) -> dict[str, Any]: ...
+    def update_issue_comment(
+        self, owner: str, repo: str, comment_id: int, body: str
+    ) -> dict[str, Any]: ...
     def gh_api_paginated(self, endpoint: str) -> list[dict[str, Any]]: ...
     def gh_graphql(self, query: str, **variables: Any) -> dict[str, Any]: ...
     def resolve_repo_params(self, owner: str, repo: str) -> dict[str, str]: ...

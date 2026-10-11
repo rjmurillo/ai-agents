@@ -53,9 +53,7 @@ PER_CALL_EVENTS = (
 # not the PascalCase `PreToolUse` alias the checks above scan for). Scanning
 # only PascalCase would leave that native form a silent blind spot for
 # exactly the surface ADR-097 retired.
-PER_CALL_EVENTS_COPILOT_NATIVE = tuple(
-    event[0].lower() + event[1:] for event in PER_CALL_EVENTS
-)
+PER_CALL_EVENTS_COPILOT_NATIVE = tuple(event[0].lower() + event[1:] for event in PER_CALL_EVENTS)
 
 
 def _load(path: Path) -> dict:
@@ -164,10 +162,12 @@ def test_github_hooks_scan_would_catch_a_reintroduced_registration(tmp_path: Pat
     fake_dir.mkdir()
     reintroduced = fake_dir / "require-subagent-model.json"
     reintroduced.write_text(
-        json.dumps({
-            "version": 1,
-            "hooks": {"preToolUse": [{"type": "command", "command": "true"}]},
-        }),
+        json.dumps(
+            {
+                "version": 1,
+                "hooks": {"preToolUse": [{"type": "command", "command": "true"}]},
+            }
+        ),
         encoding="utf-8",
     )
 

@@ -28,11 +28,18 @@ Reproduce:
 
 ~~~python
 import subprocess, collections
+
 REF = "8150dbb38"
-roots = [".serena/memories", ".claude/skills", ".claude/agents",
-         ".claude/rules", ".claude/commands"]
-files = subprocess.run(["git", "ls-tree", "-r", "--name-only", REF, *roots],
-                       capture_output=True, text=True).stdout.split()
+roots = [
+    ".serena/memories",
+    ".claude/skills",
+    ".claude/agents",
+    ".claude/rules",
+    ".claude/commands",
+]
+files = subprocess.run(
+    ["git", "ls-tree", "-r", "--name-only", REF, *roots], capture_output=True, text=True
+).stdout.split()
 lines, occ = collections.Counter(), collections.Counter()
 for f in files:
     blob = subprocess.run(["git", "show", f"{REF}:{f}"], capture_output=True)

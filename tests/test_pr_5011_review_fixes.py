@@ -6,6 +6,7 @@ Covers:
    while keeping rate-limit 403s as exit 3
 3. Commit probe body validation on exit 0
 """
+
 from __future__ import annotations
 
 import importlib.util
@@ -60,9 +61,7 @@ class TestParseGraphqlResponseShapeValidation:
             _parse_graphql_response(payload)
 
     def test_valid_response_returns_data(self):
-        payload = json.dumps(
-            {"data": {"repository": {"pullRequest": {"merged": True}}}}
-        )
+        payload = json.dumps({"data": {"repository": {"pullRequest": {"merged": True}}}})
         result = _parse_graphql_response(payload)
         assert result == {"repository": {"pullRequest": {"merged": True}}}
 
@@ -93,17 +92,11 @@ class TestPermissionDenialExitCode:
         assert is_auth_failure_text(text) is False
 
     def test_secondary_rate_limit_403_is_not_auth_failure(self):
-        text = (
-            "gh: secondary rate limit; "
-            "Resource not accessible by integration"
-        )
+        text = "gh: secondary rate limit; Resource not accessible by integration"
         assert is_auth_failure_text(text) is False
 
     def test_abuse_detection_not_auth_failure(self):
-        text = (
-            "abuse detection; "
-            "Resource not accessible by integration"
-        )
+        text = "abuse detection; Resource not accessible by integration"
         assert is_auth_failure_text(text) is False
 
     def test_plain_403_without_permission_marker_not_auth(self):
@@ -124,17 +117,14 @@ class TestPermissionDenialExitCode:
 # test_close_issue.py which also registers sys.modules["close_issue"].
 
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1]
-    / ".claude" / "skills" / "github" / "scripts" / "issue"
+    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "issue"
 )
 
 
 def _get_close_mod():
     if "close_issue" in sys.modules:
         return sys.modules["close_issue"]
-    spec = importlib.util.spec_from_file_location(
-        "close_issue", _SCRIPTS_DIR / "close_issue.py"
-    )
+    spec = importlib.util.spec_from_file_location("close_issue", _SCRIPTS_DIR / "close_issue.py")
     mod = importlib.util.module_from_spec(spec)
     sys.modules["close_issue"] = mod
     spec.loader.exec_module(mod)
@@ -142,9 +132,7 @@ def _get_close_mod():
 
 
 def _completed(stdout="", stderr="", rc=0):
-    return subprocess.CompletedProcess(
-        args=[], returncode=rc, stdout=stdout, stderr=stderr
-    )
+    return subprocess.CompletedProcess(args=[], returncode=rc, stdout=stdout, stderr=stderr)
 
 
 class TestCommitProbeBodyValidation:
@@ -155,7 +143,8 @@ class TestCommitProbeBodyValidation:
         with patch("subprocess.run", return_value=response):
             result = _get_close_mod().verify_claims(
                 _get_close_mod().Claims(commits=("abc1234",), prs=()),
-                owner="o", repo="r",
+                owner="o",
+                repo="r",
             )
         assert result.blocked is False
 
@@ -164,7 +153,8 @@ class TestCommitProbeBodyValidation:
         with patch("subprocess.run", return_value=response):
             result = _get_close_mod().verify_claims(
                 _get_close_mod().Claims(commits=("abc1234",), prs=()),
-                owner="o", repo="r",
+                owner="o",
+                repo="r",
             )
         assert result.exit_code == 3
         err = result.probe_errors[0].lower()
@@ -175,7 +165,8 @@ class TestCommitProbeBodyValidation:
         with patch("subprocess.run", return_value=response):
             result = _get_close_mod().verify_claims(
                 _get_close_mod().Claims(commits=("abc1234",), prs=()),
-                owner="o", repo="r",
+                owner="o",
+                repo="r",
             )
         assert result.exit_code == 3
 
@@ -184,7 +175,8 @@ class TestCommitProbeBodyValidation:
         with patch("subprocess.run", return_value=response):
             result = _get_close_mod().verify_claims(
                 _get_close_mod().Claims(commits=("abc1234",), prs=()),
-                owner="o", repo="r",
+                owner="o",
+                repo="r",
             )
         assert result.exit_code == 3
 
@@ -193,7 +185,8 @@ class TestCommitProbeBodyValidation:
         with patch("subprocess.run", return_value=response):
             result = _get_close_mod().verify_claims(
                 _get_close_mod().Claims(commits=("abc1234",), prs=()),
-                owner="o", repo="r",
+                owner="o",
+                repo="r",
             )
         assert result.exit_code == 3
 
@@ -202,7 +195,8 @@ class TestCommitProbeBodyValidation:
         with patch("subprocess.run", return_value=response):
             result = _get_close_mod().verify_claims(
                 _get_close_mod().Claims(commits=("abc1234",), prs=()),
-                owner="o", repo="r",
+                owner="o",
+                repo="r",
             )
         assert result.exit_code == 3
         assert "does not match" in result.probe_errors[0]

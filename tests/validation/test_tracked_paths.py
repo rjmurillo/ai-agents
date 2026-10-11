@@ -52,9 +52,7 @@ def _make_repo(tmp_path: Path) -> Path:
 
 
 def _drift(repo: Path, text: str) -> list[str]:
-    return marker_path_drift(
-        text, repo, "SKILL.md", _strip_code, _strip_inline_code
-    )
+    return marker_path_drift(text, repo, "SKILL.md", _strip_code, _strip_inline_code)
 
 
 class TestPathExistsInRepo:
@@ -144,9 +142,7 @@ class TestPathExistsInRepo:
         assert (repo / "alias" / "mod.py").exists() is False
         assert path_exists_in_repo(repo, "alias/mod.py") is True
 
-    def test_parent_relative_tracked_link_stays_inside_repo(
-        self, tmp_path: Path
-    ) -> None:
+    def test_parent_relative_tracked_link_stays_inside_repo(self, tmp_path: Path) -> None:
         repo = _make_repo(tmp_path)
         target = repo / "shared" / "mod.py"
         target.parent.mkdir(parents=True)
@@ -226,9 +222,7 @@ class TestPathExistsInRepo:
 class TestDriftUsesTrackedPaths:
     """Integration: reverting the drift checker to candidate.exists() fails here."""
 
-    def test_gitignored_artifact_is_still_an_existence_miss(
-        self, tmp_path: Path
-    ) -> None:
+    def test_gitignored_artifact_is_still_an_existence_miss(self, tmp_path: Path) -> None:
         repo = _make_repo(tmp_path)
         text = (
             "<!-- vendor-portability: declared. References "

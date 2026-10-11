@@ -10,8 +10,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1]
-    / ".claude" / "skills" / "github" / "scripts" / "milestone"
+    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "milestone"
 )
 
 
@@ -35,11 +34,13 @@ def _completed(stdout: str = "", stderr: str = "", rc: int = 0):
 
 @patch("subprocess.run")
 def test_finds_latest_milestone(mock_run, capsys):
-    milestones = json.dumps([
-        {"title": "0.2.0", "number": 1},
-        {"title": "0.10.0", "number": 2},
-        {"title": "0.3.0", "number": 3},
-    ])
+    milestones = json.dumps(
+        [
+            {"title": "0.2.0", "number": 1},
+            {"title": "0.10.0", "number": 2},
+            {"title": "0.3.0", "number": 3},
+        ]
+    )
     mock_run.side_effect = [
         _completed(rc=0),  # auth
         _completed(stdout="https://github.com/o/r\n"),  # remote
@@ -72,10 +73,12 @@ def test_no_milestones(mock_run, capsys):
 
 @patch("subprocess.run")
 def test_no_semantic_milestones(mock_run, capsys):
-    milestones = json.dumps([
-        {"title": "Future", "number": 1},
-        {"title": "Backlog", "number": 2},
-    ])
+    milestones = json.dumps(
+        [
+            {"title": "Future", "number": 1},
+            {"title": "Backlog", "number": 2},
+        ]
+    )
     mock_run.side_effect = [
         _completed(rc=0),
         _completed(stdout="https://github.com/o/r\n"),

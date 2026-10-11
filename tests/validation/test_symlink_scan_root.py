@@ -69,9 +69,7 @@ class TestRefuseSymlinkedScanRoot:
 
         assert refused is True
 
-    def test_rejects_symlink_inside_repo_pointing_outside(
-        self, tmp_path: Path
-    ) -> None:
+    def test_rejects_symlink_inside_repo_pointing_outside(self, tmp_path: Path) -> None:
         """Even a symlink inside the repo tree is refused when it points outside."""
         outside = tmp_path / "outside_dir"
         outside.mkdir()
@@ -105,9 +103,7 @@ class TestMdPortabilityScanAllRejectsSymlinkedRoot:
         repo = _make_repo(tmp_path)
         skill = repo / ".claude" / "skills" / "a"
         skill.mkdir(parents=True)
-        (skill / "SKILL.md").write_text(
-            "No references here.\n", encoding="utf-8"
-        )
+        (skill / "SKILL.md").write_text("No references here.\n", encoding="utf-8")
 
         ref_counts, marker_counts, scanned, drift_failures = cmp.scan_all(repo)
 

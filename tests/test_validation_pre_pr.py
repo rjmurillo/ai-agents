@@ -69,9 +69,7 @@ class TestRunSubprocess:
         assert "hello" in stdout
 
     def test_command_not_found(self) -> None:
-        exit_code, stdout, stderr = _run_subprocess(
-            ["nonexistent_command_xyz_123"]
-        )
+        exit_code, stdout, stderr = _run_subprocess(["nonexistent_command_xyz_123"])
         assert exit_code == -1
         assert "not found" in stderr.lower() or "Command not found" in stderr
 
@@ -183,9 +181,7 @@ class TestValidateSessionEnd:
         # Patch _resolve_branch_base_ref to return a ref (so the gate tries to
         # run rather than skipping on "no base ref"), and _run_subprocess to
         # return the session log in the diff.
-        with patch(
-            "checks_tooling._resolve_branch_base_ref", return_value="main"
-        ):
+        with patch("checks_tooling._resolve_branch_base_ref", return_value="main"):
             with patch(
                 "checks_tooling._run_subprocess",
                 return_value=(0, ".project-toolkit/sessions/2025-12-01-session-1.json\0", ""),
@@ -193,9 +189,7 @@ class TestValidateSessionEnd:
                 with pytest.raises(MissingScriptSkip):
                     validate_session_end(tmp_path)
 
-    def test_changed_log_is_validated_through_current_head(
-        self, tmp_path: Path
-    ) -> None:
+    def test_changed_log_is_validated_through_current_head(self, tmp_path: Path) -> None:
         sessions = tmp_path / ".project-toolkit" / "sessions"
         sessions.mkdir(parents=True)
         log = sessions / "2025-12-01-session-1.json"
@@ -215,20 +209,22 @@ class TestValidateSessionEnd:
                 return 0, f"{head}\n", ""
             return 0, "", ""
 
-        with patch(
-            "checks_tooling._resolve_branch_base_ref",
-            return_value="origin/main",
-        ), patch(
-            "checks_tooling.new_session_logs",
-            return_value={".project-toolkit/sessions/2025-12-01-session-1.json"},
-        ), patch("checks_tooling._run_subprocess", side_effect=fake_run):
+        with (
+            patch(
+                "checks_tooling._resolve_branch_base_ref",
+                return_value="origin/main",
+            ),
+            patch(
+                "checks_tooling.new_session_logs",
+                return_value={".project-toolkit/sessions/2025-12-01-session-1.json"},
+            ),
+            patch("checks_tooling._run_subprocess", side_effect=fake_run),
+        ):
             assert validate_session_end(tmp_path).state is EvidenceState.PASS
 
         assert seen[-1][-2:] == ["--validation-head", head]
 
-    def test_existing_historical_log_is_validated_as_a_record(
-        self, tmp_path: Path
-    ) -> None:
+    def test_existing_historical_log_is_validated_as_a_record(self, tmp_path: Path) -> None:
         sessions = tmp_path / ".project-toolkit" / "sessions"
         sessions.mkdir(parents=True)
         log = sessions / "2025-12-01-session-1.json"
@@ -247,13 +243,17 @@ class TestValidateSessionEnd:
                 return 0, f"{'c' * 40}\n", ""
             return 0, "", ""
 
-        with patch(
-            "checks_tooling._resolve_branch_base_ref",
-            return_value="origin/main",
-        ), patch(
-            "checks_tooling.new_session_logs",
-            return_value=set(),
-        ), patch("checks_tooling._run_subprocess", side_effect=fake_run):
+        with (
+            patch(
+                "checks_tooling._resolve_branch_base_ref",
+                return_value="origin/main",
+            ),
+            patch(
+                "checks_tooling.new_session_logs",
+                return_value=set(),
+            ),
+            patch("checks_tooling._run_subprocess", side_effect=fake_run),
+        ):
             assert validate_session_end(tmp_path).state is EvidenceState.PASS
 
         assert seen[-1][-1] == "--existing-log"
@@ -286,13 +286,17 @@ class TestValidateSessionEnd:
                 return 1, "", "bad ref"
             return 1, "", "invalid validation head"
 
-        with patch(
-            "checks_tooling._resolve_branch_base_ref",
-            return_value="origin/main",
-        ), patch(
-            "checks_tooling.new_session_logs",
-            return_value={".project-toolkit/sessions/2025-12-01-session-1.json"},
-        ), patch("checks_tooling._run_subprocess", side_effect=fake_run):
+        with (
+            patch(
+                "checks_tooling._resolve_branch_base_ref",
+                return_value="origin/main",
+            ),
+            patch(
+                "checks_tooling.new_session_logs",
+                return_value={".project-toolkit/sessions/2025-12-01-session-1.json"},
+            ),
+            patch("checks_tooling._run_subprocess", side_effect=fake_run),
+        ):
             outcome = validate_session_end(tmp_path)
 
         assert outcome.state is EvidenceState.UNKNOWN
@@ -333,11 +337,7 @@ class TestBuildParser:
         ``summary_json`` joined the set with issue #5635; ``main`` reads it in
         ``_write_summary_json``.
         """
-        dests = {
-            action.dest
-            for action in build_parser()._actions
-            if action.dest != "help"
-        }
+        dests = {action.dest for action in build_parser()._actions if action.dest != "help"}
         assert dests == {"quick", "markdown_lint_only", "markdown_files", "summary_json"}
 
 
@@ -383,9 +383,7 @@ class TestRemovedFlagsAreRejected:
         args = build_parser().parse_args([])
         assert not hasattr(args, "skip_tests")
 
-    def test_quick_still_reads_its_env_default(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_quick_still_reads_its_env_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Positive control: the surviving env default still works."""
         monkeypatch.setenv("QUICK_MODE", "true")
         assert build_parser().parse_args([]).quick is True

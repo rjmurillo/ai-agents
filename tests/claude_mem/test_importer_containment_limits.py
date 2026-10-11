@@ -59,9 +59,7 @@ class TestExpandHomeIsNotAContainmentCheck:
         assert result == Path("/etc/passwd")
         assert not result.is_relative_to(tmp_path)
 
-    def test_other_user_tilde_is_left_relative_rather_than_contained(
-        self, tmp_path: Path
-    ) -> None:
+    def test_other_user_tilde_is_left_relative_rather_than_contained(self, tmp_path: Path) -> None:
         """`~otheruser` is a non-expansion, not a rejection and not a containment."""
         result = _import_mem.expand_home("~otheruser/x", tmp_path)
 

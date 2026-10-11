@@ -31,9 +31,7 @@ _CONSUMER_WORKSPACE_PATHS: tuple[tuple[str, ...], ...] = (
 # Generated artifacts named in prose that no clean checkout contains. Listed as
 # exact paths, not a directory prefix, so a typo under the same directory is
 # still reported as an existence miss.
-_GENERATED_ARTIFACTS: frozenset[str] = frozenset(
-    {"build/audit/GENERATION-AUDIT.md"}
-)
+_GENERATED_ARTIFACTS: frozenset[str] = frozenset({"build/audit/GENERATION-AUDIT.md"})
 
 # Regex for the vendor-portability HTML comment marker (same as main module).
 _MARKER_PATTERN = re.compile(
@@ -56,19 +54,36 @@ def _strip_html_comments(text: str) -> str:
 # Pre-computed constants for _extract_paths_from_text (avoid per-call rebuild).
 _PATH_CHAR = r"[\w./_\\-]"
 _SIMPLE_ANCHOR = r"(?:^|(?<=[\s(\[\"'`|,;*]))"
-_KNOWN_SUBDIRS = frozenset({
-    "agents", "platforms", "lib", "review-axes",
-    "skills", "commands", "hooks", "rules",
-    "validation", "architecture", "sessions",
-    "analysis", "retrospective", "security", "scratch",
-    "governance", "critique", "memory", "references",
-    "scripts", "tests", "modules", "utils",
-})
+_KNOWN_SUBDIRS = frozenset(
+    {
+        "agents",
+        "platforms",
+        "lib",
+        "review-axes",
+        "skills",
+        "commands",
+        "hooks",
+        "rules",
+        "validation",
+        "architecture",
+        "sessions",
+        "analysis",
+        "retrospective",
+        "security",
+        "scratch",
+        "governance",
+        "critique",
+        "memory",
+        "references",
+        "scripts",
+        "tests",
+        "modules",
+        "utils",
+    }
+)
 
 
-def _extract_paths_from_text(
-    text: str, *, unsafe_collector: set[str] | None = None
-) -> set[str]:
+def _extract_paths_from_text(text: str, *, unsafe_collector: set[str] | None = None) -> set[str]:
     """Return the set of upstream path strings found in text.
 
     Uses dedicated full-path regexes. Single-segment prefixes (build, scripts,
@@ -92,7 +107,7 @@ def _extract_paths_from_text(
     def _clean_match(raw: str) -> str:
         cleaned = re.sub(r'^[\s(\[<>"\'`|,;*]+', "", raw)
         # Strip only leading './' (relative prefix), NOT bare '/' (absolute)
-        cleaned = re.sub(r'^(?:\.[\\/])', "", cleaned)
+        cleaned = re.sub(r"^(?:\.[\\/])", "", cleaned)
         return cleaned.rstrip("/\\.")
 
     def _is_phrase(normalized: str) -> bool:
@@ -139,8 +154,7 @@ def _extract_paths_from_text(
     # reference escaped the plugin unreported. Refs #4116.
     for prefix in (r"\.agents", r"\.project-toolkit", r"build", r"scripts"):
         pat = re.compile(
-            simple_anchor + r"[\\/]?(?:[\w.\-]+[\\/])*?"
-            + prefix + r"[\\/]" + path_char + r"+",
+            simple_anchor + r"[\\/]?(?:[\w.\-]+[\\/])*?" + prefix + r"[\\/]" + path_char + r"+",
             re.MULTILINE,
         )
         for m in pat.finditer(text):
@@ -156,8 +170,12 @@ def _extract_paths_from_text(
         r"templates[\\/]+platforms",
     ):
         pat = re.compile(
-            simple_anchor + r"[\\/]?(?:[\w.\-]+[\\/])*?"
-            + prefix + r"(?:[\\/]" + path_char + r"*)?",
+            simple_anchor
+            + r"[\\/]?(?:[\w.\-]+[\\/])*?"
+            + prefix
+            + r"(?:[\\/]"
+            + path_char
+            + r"*)?",
             re.MULTILINE,
         )
         for m in pat.finditer(text):
@@ -183,9 +201,7 @@ def marker_declared_paths(
     declared: set[str] = set()
     for m in _MARKER_PATTERN.finditer(strip_inline_fn(strip_code_fn(text))):
         marker_text = m.group(0)
-        declared |= _extract_paths_from_text(
-            marker_text, unsafe_collector=unsafe_collector
-        )
+        declared |= _extract_paths_from_text(marker_text, unsafe_collector=unsafe_collector)
     return declared
 
 
@@ -205,9 +221,7 @@ def prose_declared_paths(
     prose = strip_code_fn(text)
     prose_no_marker = _MARKER_PATTERN.sub("", prose)
     prose_clean = _strip_html_comments(prose_no_marker)
-    return _extract_paths_from_text(
-        prose_clean, unsafe_collector=unsafe_collector
-    )
+    return _extract_paths_from_text(prose_clean, unsafe_collector=unsafe_collector)
 
 
 def _is_consumer_workspace_path(path: str) -> bool:
@@ -265,8 +279,8 @@ def marker_path_drift(
     # (d) invalid paths: absolute or containing '..' traversal
     for p in sorted(unsafe_paths):
         failures.append(
-            f"{rel_path}: invalid path: \'{p}\' is absolute or contains "
-            f"\'..\' traversal and cannot be validated"
+            f"{rel_path}: invalid path: '{p}' is absolute or contains "
+            f"'..' traversal and cannot be validated"
         )
 
     def _is_covered_by(path: str, declarations: set[str]) -> bool:
@@ -283,10 +297,7 @@ def marker_path_drift(
     for d in sorted(declared):
         d_parts = PurePosixPath(d).parts
         # A declaration is used if ANY prose path equals or starts with it
-        if not any(
-            PurePosixPath(p).parts[:len(d_parts)] == d_parts
-            for p in prose_paths
-        ):
+        if not any(PurePosixPath(p).parts[: len(d_parts)] == d_parts for p in prose_paths):
             failures.append(
                 f"{rel_path}: stale marker declaration: '{d}' is declared in the "
                 f"vendor-portability marker but no longer referenced in prose"
@@ -344,9 +355,7 @@ def _load_drift_baseline(path: Path) -> dict[str, int]:
         try:
             baseline[str(key)] = int(value)
         except (TypeError, ValueError) as exc:
-            raise ValueError(
-                f"Drift baseline count for {key!r} is not an integer"
-            ) from exc
+            raise ValueError(f"Drift baseline count for {key!r} is not an integer") from exc
     return baseline
 
 
@@ -371,9 +380,7 @@ def diff_drift_baseline(
                 "paths, or regenerate the baseline with --update-baseline."
             )
         elif count < allowed:
-            improvements.append(
-                f"{rel}: drift dropped from {allowed} to {count}"
-            )
+            improvements.append(f"{rel}: drift dropped from {allowed} to {count}")
     return regressions, improvements
 
 

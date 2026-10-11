@@ -16,12 +16,7 @@ from types import ModuleType
 
 import pytest
 
-_SCRIPT = (
-    Path(__file__).resolve().parents[2]
-    / "scripts"
-    / "ci"
-    / "test_installed_plugin_hooks.py"
-)
+_SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "ci" / "test_installed_plugin_hooks.py"
 
 
 def _load() -> ModuleType:

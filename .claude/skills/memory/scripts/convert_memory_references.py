@@ -49,9 +49,7 @@ def _find_project_root(fallback_dir: Path | None = None) -> Path:
     raise SystemExit("Could not find project root (no .git directory found)")
 
 
-def _validate_path_within_project(
-    memories_path: str, project_root: Path
-) -> Path:
+def _validate_path_within_project(memories_path: str, project_root: Path) -> Path:
     """Validate that a path is within the project root (CWE-22 mitigation)."""
     resolved = Path(memories_path).resolve()
     root_resolved = project_root.resolve()
@@ -76,9 +74,7 @@ def _count_md_links(content: str) -> int:
     return len(re.findall(r"\[[^\]]+\]\([^)]+\.md\)", content))
 
 
-def _convert_backtick_refs(
-    content: str, memory_names: dict[str, bool]
-) -> str:
+def _convert_backtick_refs(content: str, memory_names: dict[str, bool]) -> str:
     """Convert backtick references to markdown links.
 
     Pattern: `memory-name` -> [memory-name](memory-name.md)
@@ -189,17 +185,13 @@ def main(argv: list[str] | None = None) -> int:
         if args.skip_path_validation:
             memories_path = Path(args.memories_path).resolve()
         else:
-            memories_path = _validate_path_within_project(
-                args.memories_path, project_root
-            )
+            memories_path = _validate_path_within_project(args.memories_path, project_root)
     else:
         memories_path = project_root / ".serena" / "memories"
 
     files_to_process = [Path(f) for f in args.files] if args.files else None
 
-    stats = process_files(
-        memories_path, files_to_process, output_json=args.output_json
-    )
+    stats = process_files(memories_path, files_to_process, output_json=args.output_json)
 
     if args.output_json:
         print(json.dumps(stats, separators=(",", ":")))

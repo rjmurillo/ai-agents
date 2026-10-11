@@ -49,11 +49,7 @@ class TestLoadPlatformConfigErrors:
 
     def test_anchor_rejected(self, tmp_path: Path) -> None:
         cfg = tmp_path / "anchor.yaml"
-        cfg.write_text(
-            'schemaVersion: "1.0"\n'
-            "provider: &p test\n"
-            "alias_field: *p\n"
-        )
+        cfg.write_text('schemaVersion: "1.0"\nprovider: &p test\nalias_field: *p\n')
         with pytest.raises(ConfigError, match="anchor detected"):
             load_platform_config(cfg)
 
@@ -68,9 +64,7 @@ class TestLoadPlatformConfigErrors:
         # trigger the alias scanner.
         cfg = tmp_path / "quoted.yaml"
         cfg.write_text(
-            'schemaVersion: "1.0"\n'
-            'provider: "x"\n'
-            'note: "see &amp; or *star inside quotes"\n'
+            'schemaVersion: "1.0"\nprovider: "x"\nnote: "see &amp; or *star inside quotes"\n'
         )
         data = load_platform_config(cfg)
         assert data["provider"] == "x"
@@ -146,9 +140,7 @@ class TestLoadPlatformConfigEnhancements:
     def test_anchor_error_includes_file_path(self, tmp_path: Path) -> None:
         """Anchor rejection error must include file path."""
         cfg = tmp_path / "anchor.yaml"
-        cfg.write_text(
-            'schemaVersion: "1.0"\nprovider: x\nfoo: &a 1\nbar: *a\n'
-        )
+        cfg.write_text('schemaVersion: "1.0"\nprovider: x\nfoo: &a 1\nbar: *a\n')
         with pytest.raises(ConfigError) as exc_info:
             load_platform_config(cfg)
         assert str(cfg) in str(exc_info.value)

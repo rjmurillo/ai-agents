@@ -30,8 +30,7 @@ from classify_semantic_title_result import (  # noqa: E402
 )
 
 UNICORN_LOG = (
-    "<!DOCTYPE html>\n<title>Unicorn! · GitHub</title>\n"
-    "Something went wrong, but worry not."
+    "<!DOCTYPE html>\n<title>Unicorn! · GitHub</title>\nSomething went wrong, but worry not."
 )
 SEMANTIC_REASON = (
     'No release type found in pull request title "broken title". '
@@ -53,9 +52,7 @@ def test_real_semantic_failure_blocks_with_reason():
 def test_real_semantic_failure_blocks_even_when_log_has_unicorn():
     # error_message present is authoritative: a real reason blocks regardless of
     # incidental Unicorn text elsewhere in the log.
-    result = classify(
-        outcome="failure", error_message=SEMANTIC_REASON, log=UNICORN_LOG
-    )
+    result = classify(outcome="failure", error_message=SEMANTIC_REASON, log=UNICORN_LOG)
     assert result.exit_code == 1
     assert result.is_semantic_failure is True
 

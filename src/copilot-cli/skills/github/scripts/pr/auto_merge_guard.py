@@ -88,7 +88,9 @@ def _thread_context(thread_id: str) -> dict[str, Any] | None:
 
 
 def _fetch_unresolved_thread_ids(
-    owner: str, repo: str, pr_number: int,
+    owner: str,
+    repo: str,
+    pr_number: int,
 ) -> tuple[list[str], bool]:
     unresolved: list[str] = []
     cursor: str | None = None
@@ -103,11 +105,7 @@ def _fetch_unresolved_thread_ids(
             variables["cursor"] = cursor
 
         data = gh_graphql(_UNRESOLVED_THREADS_QUERY, variables)
-        review_threads = (
-            data.get("repository", {})
-            .get("pullRequest", {})
-            .get("reviewThreads")
-        )
+        review_threads = data.get("repository", {}).get("pullRequest", {}).get("reviewThreads")
         if not isinstance(review_threads, dict):
             return unresolved, False
 
@@ -130,9 +128,7 @@ def _fetch_unresolved_thread_ids(
 def _disable_auto_merge(pull_request_id: str) -> bool:
     data = gh_graphql(_DISABLE_MUTATION, {"pullRequestId": pull_request_id})
     auto_merge = (
-        data.get("disablePullRequestAutoMerge", {})
-        .get("pullRequest", {})
-        .get("autoMergeRequest")
+        data.get("disablePullRequestAutoMerge", {}).get("pullRequest", {}).get("autoMergeRequest")
     )
     return auto_merge is None
 
@@ -166,7 +162,9 @@ def guard_auto_merge_before_final_thread_resolution(thread_id: str) -> dict[str,
     owner, repo, pr_number, pr_id = _pull_request_identity(pull_request)
 
     unresolved_ids, fetched_pages_complete = _fetch_unresolved_thread_ids(
-        owner, repo, pr_number,
+        owner,
+        repo,
+        pr_number,
     )
     if not fetched_pages_complete:
         raise RuntimeError("could not prove unresolved review thread count")

@@ -116,19 +116,14 @@ class TestValidateConfig:
         config = copy.deepcopy(VALID_CONFIG)
         del config["completion_criteria"][0]["pass_when"]
         errors = validate_config(config)
-        assert any(
-            "completion_criteria[0] missing field: pass_when" in e
-            for e in errors
-        )
+        assert any("completion_criteria[0] missing field: pass_when" in e for e in errors)
 
     def test_completion_criteria_pass_when_python_accepted(self) -> None:
         # pass_when_python is the documented escape hatch when the DSL is
         # too narrow; using it instead of pass_when must validate cleanly.
         config = copy.deepcopy(VALID_CONFIG)
         del config["completion_criteria"][0]["pass_when"]
-        config["completion_criteria"][0]["pass_when_python"] = (
-            "lambda d: d.get('x', 0) == 0"
-        )
+        config["completion_criteria"][0]["pass_when_python"] = "lambda d: d.get('x', 0) == 0"
         errors = validate_config(config)
         assert errors == []
 
@@ -137,13 +132,9 @@ class TestValidateConfig:
         # dispatcher silently picks pass_when_python first. The
         # validator must reject it before runtime.
         config = copy.deepcopy(VALID_CONFIG)
-        config["completion_criteria"][0]["pass_when_python"] = (
-            "lambda d: True"
-        )
+        config["completion_criteria"][0]["pass_when_python"] = "lambda d: True"
         errors = validate_config(config)
-        assert any(
-            "both pass_when and pass_when_python" in e for e in errors
-        )
+        assert any("both pass_when and pass_when_python" in e for e in errors)
 
     def test_completion_criteria_null_pass_when_rejected(self) -> None:
         # YAML `pass_when:` with no value yields None. The key exists
@@ -152,10 +143,7 @@ class TestValidateConfig:
         config = copy.deepcopy(VALID_CONFIG)
         config["completion_criteria"][0]["pass_when"] = None
         errors = validate_config(config)
-        assert any(
-            "completion_criteria[0] missing field: pass_when" in e
-            for e in errors
-        )
+        assert any("completion_criteria[0] missing field: pass_when" in e for e in errors)
 
     def test_completion_criteria_empty_pass_when_rejected(self) -> None:
         # YAML `pass_when: ""` yields an empty string. Now caught by
@@ -164,10 +152,7 @@ class TestValidateConfig:
         config = copy.deepcopy(VALID_CONFIG)
         config["completion_criteria"][0]["pass_when"] = ""
         errors = validate_config(config)
-        assert any(
-            "completion_criteria[0] missing field: pass_when" in e
-            for e in errors
-        )
+        assert any("completion_criteria[0] missing field: pass_when" in e for e in errors)
 
     def test_completion_criteria_command_must_be_string(self) -> None:
         # Per Copilot review: presence is not enough. A YAML config that
@@ -176,25 +161,19 @@ class TestValidateConfig:
         config = copy.deepcopy(VALID_CONFIG)
         config["completion_criteria"][0]["command"] = ["echo", "ignored"]
         errors = validate_config(config)
-        assert any(
-            "command must be a non-empty string" in e for e in errors
-        )
+        assert any("command must be a non-empty string" in e for e in errors)
 
     def test_completion_criteria_pass_when_must_be_nonempty_string(self) -> None:
         config = copy.deepcopy(VALID_CONFIG)
         config["completion_criteria"][0]["pass_when"] = ""
         errors = validate_config(config)
-        assert any(
-            "pass_when must be a non-empty string" in e for e in errors
-        )
+        assert any("pass_when must be a non-empty string" in e for e in errors)
 
     def test_completion_criteria_name_must_be_nonempty_string(self) -> None:
         config = copy.deepcopy(VALID_CONFIG)
         config["completion_criteria"][0]["name"] = "   "
         errors = validate_config(config)
-        assert any(
-            "name must be a non-empty string" in e for e in errors
-        )
+        assert any("name must be a non-empty string" in e for e in errors)
 
     def test_completion_criteria_must_be_list_not_dict(self) -> None:
         # Per Copilot review: a YAML-parsed dict would have iterated
@@ -205,33 +184,23 @@ class TestValidateConfig:
         config["completion_criteria"] = {"key": "value"}
         errors = validate_config(config)
         # Single, clear error about the container; not a swarm.
-        container_errors = [
-            e for e in errors if "completion_criteria must be a list" in e
-        ]
+        container_errors = [e for e in errors if "completion_criteria must be a list" in e]
         assert len(container_errors) == 1
         # And no per-element noise:
-        per_element_errors = [
-            e for e in errors if e.startswith("completion_criteria[")
-        ]
+        per_element_errors = [e for e in errors if e.startswith("completion_criteria[")]
         assert per_element_errors == []
 
     def test_completion_criteria_verification_must_be_command(self) -> None:
         config = copy.deepcopy(VALID_CONFIG)
         config["completion_criteria"][0]["verification"] = "narrative"
         errors = validate_config(config)
-        assert any(
-            "completion_criteria[0].verification must be 'command'" in e
-            for e in errors
-        )
+        assert any("completion_criteria[0].verification must be 'command'" in e for e in errors)
 
     def test_completion_criteria_fail_open_must_be_bool(self) -> None:
         config = copy.deepcopy(VALID_CONFIG)
         config["completion_criteria"][0]["fail_open"] = "yes"
         errors = validate_config(config)
-        assert any(
-            "completion_criteria[0].fail_open must be a boolean" in e
-            for e in errors
-        )
+        assert any("completion_criteria[0].fail_open must be a boolean" in e for e in errors)
 
     def test_missing_error_recovery_field(self) -> None:
         config = copy.deepcopy(VALID_CONFIG)
@@ -299,9 +268,7 @@ class TestValidateConfig:
         del config["scripts"]["claude_code"]["wait_for_settled_zero"]
         errors = validate_config(config)
         assert any("wait_for_settled_zero" in e for e in errors)
-        assert not any(
-            "copilot" in e and "wait_for_settled_zero" in e for e in errors
-        )
+        assert not any("copilot" in e and "wait_for_settled_zero" in e for e in errors)
 
     def test_copilot_section_does_not_require_wait_for_settled_zero(self) -> None:
         # Edge: the copilot section has no wait_for_settled_zero key by design.
@@ -317,14 +284,12 @@ class TestValidateConfig:
         # validator change is meant to prevent.
         import yaml
 
-        config_path = (
-            _REPO_ROOT / ".claude" / "skills" / "pr-review" / "pr-review-config.yaml"
-        )
+        config_path = _REPO_ROOT / ".claude" / "skills" / "pr-review" / "pr-review-config.yaml"
         with open(config_path) as f:
             live = yaml.safe_load(f)
-        assert (
-            "wait_for_settled_zero" in live["scripts"]["claude_code"]
-        ), "wait_for_unresolved_zero.py must be wired into the config layer"
+        assert "wait_for_settled_zero" in live["scripts"]["claude_code"], (
+            "wait_for_unresolved_zero.py must be wired into the config layer"
+        )
         assert validate_config(live) == []
 
     def test_missing_invocation_limits_field(self) -> None:
@@ -344,8 +309,7 @@ class TestValidateConfig:
         config["output_constraints"]["summary_required_columns"] = []
         errors = validate_config(config)
         assert any(
-            "summary_required_columns must be a non-empty list of non-empty strings"
-            in e
+            "summary_required_columns must be a non-empty list of non-empty strings" in e
             for e in errors
         )
 
@@ -397,9 +361,7 @@ class TestValidateConfig:
         config = copy.deepcopy(VALID_CONFIG)
         config["invocation_limits"]["all_open_overflow_action"] = "  "
         errors = validate_config(config)
-        assert any(
-            "all_open_overflow_action must be a non-empty string" in e for e in errors
-        )
+        assert any("all_open_overflow_action must be a non-empty string" in e for e in errors)
 
     def test_per_pr_max_response_tokens_rejects_zero(self) -> None:
         config = copy.deepcopy(VALID_CONFIG)
@@ -418,8 +380,7 @@ class TestValidateConfig:
         config["output_constraints"]["summary_format_allowed_values"] = []
         errors = validate_config(config)
         assert any(
-            "summary_format_allowed_values must be a non-empty list of non-empty strings"
-            in e
+            "summary_format_allowed_values must be a non-empty list of non-empty strings" in e
             for e in errors
         )
 
@@ -428,8 +389,7 @@ class TestValidateConfig:
         config["output_constraints"]["summary_format_allowed_values"] = ["table", 42]
         errors = validate_config(config)
         assert any(
-            "summary_format_allowed_values must be a non-empty list of non-empty strings"
-            in e
+            "summary_format_allowed_values must be a non-empty list of non-empty strings" in e
             for e in errors
         )
 
@@ -439,8 +399,7 @@ class TestValidateConfig:
         config["output_constraints"]["summary_format_allowed_values"] = ["table"]
         errors = validate_config(config)
         assert any(
-            "summary_format must be one of summary_format_allowed_values" in e
-            for e in errors
+            "summary_format must be one of summary_format_allowed_values" in e for e in errors
         )
 
     def test_summary_required_columns_rejects_non_string_entry(self) -> None:
@@ -448,8 +407,7 @@ class TestValidateConfig:
         config["output_constraints"]["summary_required_columns"] = ["PR", 0, "Branch"]
         errors = validate_config(config)
         assert any(
-            "summary_required_columns must be a non-empty list of non-empty strings"
-            in e
+            "summary_required_columns must be a non-empty list of non-empty strings" in e
             for e in errors
         )
 
@@ -458,8 +416,7 @@ class TestValidateConfig:
         config["output_constraints"]["summary_required_columns"] = ["PR", "  ", "Branch"]
         errors = validate_config(config)
         assert any(
-            "summary_required_columns must be a non-empty list of non-empty strings"
-            in e
+            "summary_required_columns must be a non-empty list of non-empty strings" in e
             for e in errors
         )
 
@@ -477,17 +434,13 @@ class TestValidateConfig:
         config = copy.deepcopy(VALID_CONFIG)
         config["invocation_limits"]["completion_gate_max_retries"] = False
         errors = validate_config(config)
-        assert any(
-            "completion_gate_max_retries must be an integer >= 0" in e for e in errors
-        )
+        assert any("completion_gate_max_retries must be an integer >= 0" in e for e in errors)
 
     def test_per_pr_max_response_tokens_rejects_bool(self) -> None:
         config = copy.deepcopy(VALID_CONFIG)
         config["output_constraints"]["per_pr_max_response_tokens"] = True
         errors = validate_config(config)
-        assert any(
-            "per_pr_max_response_tokens must be an integer >= 1" in e for e in errors
-        )
+        assert any("per_pr_max_response_tokens must be an integer >= 1" in e for e in errors)
 
 
 class TestPathValidationHardening:
@@ -531,16 +484,14 @@ class TestPathValidationHardening:
         result = subprocess.run(
             [sys.executable, str(_VALIDATOR), "config\r.yaml"],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             cwd=str(_REPO_ROOT),
         )
         assert result.returncode == 2
         # Either "Invalid config path" (from validate_safe_path) or
         # "Config file not found" is acceptable; both signal rejection.
-        assert (
-            "Invalid config path" in result.stderr
-            or "Config file not found" in result.stderr
-        )
+        assert "Invalid config path" in result.stderr or "Config file not found" in result.stderr
 
 
 class TestCliPathSafety:
@@ -550,7 +501,8 @@ class TestCliPathSafety:
         return subprocess.run(
             [sys.executable, str(_VALIDATOR), *argv],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             cwd=str(_REPO_ROOT),
         )
 

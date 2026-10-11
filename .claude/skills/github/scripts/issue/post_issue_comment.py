@@ -87,7 +87,11 @@ def _write_github_output(outputs: dict[str, str]) -> None:
 
 
 def _save_failed_comment_artifact(
-    owner: str, repo: str, issue: int, body: str, error: str,
+    owner: str,
+    repo: str,
+    issue: int,
+    body: str,
+    error: str,
 ) -> str | None:
     """Save the failed comment payload as a JSON artifact for manual recovery."""
     now = datetime.now(UTC)
@@ -96,7 +100,10 @@ def _save_failed_comment_artifact(
     try:
         result = subprocess.run(
             ["git", "rev-parse", "--git-common-dir"],
-            capture_output=True, encoding="utf-8", errors="replace", timeout=10,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=10,
         )
         if result.returncode == 0:
             git_common = Path(result.stdout.strip())
@@ -113,18 +120,21 @@ def _save_failed_comment_artifact(
     artifact_dir = Path(repo_root) / ".github" / "artifacts"
     artifact_path = artifact_dir / f"failed-comment-{timestamp}.json"
 
-    payload = json.dumps({
-        "timestamp": now.isoformat(),
-        "owner": owner,
-        "repo": repo,
-        "issue": issue,
-        "body": body,
-        "error": error,
-        "guidance": (
-            f"Use 'gh api repos/{owner}/{repo}/issues/{issue}/comments"
-            " -X POST -f body=@body.txt' to post manually"
-        ),
-    }, indent=2)
+    payload = json.dumps(
+        {
+            "timestamp": now.isoformat(),
+            "owner": owner,
+            "repo": repo,
+            "issue": issue,
+            "body": body,
+            "error": error,
+            "guidance": (
+                f"Use 'gh api repos/{owner}/{repo}/issues/{issue}/comments"
+                " -X POST -f body=@body.txt' to post manually"
+            ),
+        },
+        indent=2,
+    )
 
     try:
         artifact_dir.mkdir(parents=True, exist_ok=True)
@@ -195,8 +205,11 @@ def main(argv: list[str] | None = None) -> int:
         try:
             comments_result = subprocess.run(
                 ["gh", "api", f"repos/{owner}/{repo}/issues/{issue}/comments"],
-                capture_output=True, encoding="utf-8", errors="replace",
-                check=False, timeout=30,
+                capture_output=True,
+                encoding="utf-8",
+                errors="replace",
+                check=False,
+                timeout=30,
             )
         except subprocess.TimeoutExpired:
             error_and_exit("Timed out (30s) listing issue comments via gh.", 3)
@@ -234,16 +247,18 @@ def main(argv: list[str] | None = None) -> int:
                         human_summary=f"Updated comment on issue #{issue}",
                         script_name=_SCRIPT_NAME,
                     )
-                    _write_github_output({
-                        "success": "true",
-                        "skipped": "false",
-                        "updated": "true",
-                        "issue": str(issue),
-                        "comment_id": str(response["id"]),
-                        "html_url": response.get("html_url", ""),
-                        "updated_at": response.get("updated_at", ""),
-                        "marker": args.marker,
-                    })
+                    _write_github_output(
+                        {
+                            "success": "true",
+                            "skipped": "false",
+                            "updated": "true",
+                            "issue": str(issue),
+                            "comment_id": str(response["id"]),
+                            "html_url": response.get("html_url", ""),
+                            "updated_at": response.get("updated_at", ""),
+                            "marker": args.marker,
+                        }
+                    )
                     return 0
 
                 write_skill_output(
@@ -258,12 +273,14 @@ def main(argv: list[str] | None = None) -> int:
                     ),
                     script_name=_SCRIPT_NAME,
                 )
-                _write_github_output({
-                    "success": "true",
-                    "skipped": "true",
-                    "issue": str(issue),
-                    "marker": args.marker,
-                })
+                _write_github_output(
+                    {
+                        "success": "true",
+                        "skipped": "true",
+                        "issue": str(issue),
+                        "marker": args.marker,
+                    }
+                )
                 return 0
 
         body = _prepend_marker(body, marker_html)
@@ -273,10 +290,13 @@ def main(argv: list[str] | None = None) -> int:
     try:
         result = subprocess.run(
             [
-                "gh", "api",
+                "gh",
+                "api",
                 f"repos/{owner}/{repo}/issues/{issue}/comments",
-                "-X", "POST",
-                "--input", "-",
+                "-X",
+                "POST",
+                "--input",
+                "-",
             ],
             input=payload,
             capture_output=True,
@@ -297,12 +317,14 @@ def main(argv: list[str] | None = None) -> int:
                 file=sys.stderr,
             )
             artifact_path = _save_failed_comment_artifact(owner, repo, issue, body, error_str)
-            _write_github_output({
-                "success": "false",
-                "error": "PERMISSION_DENIED",
-                "status_code": "403",
-                **({"artifact_path": artifact_path} if artifact_path else {}),
-            })
+            _write_github_output(
+                {
+                    "success": "false",
+                    "error": "PERMISSION_DENIED",
+                    "status_code": "403",
+                    **({"artifact_path": artifact_path} if artifact_path else {}),
+                }
+            )
             raise SystemExit(4)
 
         error_and_exit(f"Failed to post comment: {error_str}", 3)
@@ -321,12 +343,14 @@ def main(argv: list[str] | None = None) -> int:
             human_summary=f"Posted comment to issue #{issue} (response parsing failed)",
             script_name=_SCRIPT_NAME,
         )
-        _write_github_output({
-            "success": "true",
-            "skipped": "false",
-            "issue": str(issue),
-            "parse_error": "true",
-        })
+        _write_github_output(
+            {
+                "success": "true",
+                "skipped": "false",
+                "issue": str(issue),
+                "parse_error": "true",
+            }
+        )
         return 0
 
     write_skill_output(

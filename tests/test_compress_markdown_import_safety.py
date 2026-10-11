@@ -19,11 +19,7 @@ from pathlib import Path
 import pytest
 
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parent.parent
-    / ".claude"
-    / "skills"
-    / "context-optimizer"
-    / "scripts"
+    Path(__file__).resolve().parent.parent / ".claude" / "skills" / "context-optimizer" / "scripts"
 )
 sys.path.insert(0, str(_SCRIPTS_DIR))
 
@@ -41,9 +37,7 @@ _IMPORT_PROBE = (
 
 # Negative control: if the import guard still exited at module load, this probe
 # (which forces the ImportError branch and then calls sys.exit(4)) would exit 4.
-_LEGACY_BAD_PROBE = (
-    "import sys; sys.exit(4)"
-)
+_LEGACY_BAD_PROBE = "import sys; sys.exit(4)"
 
 
 def _run_probe(code: str) -> subprocess.CompletedProcess[str]:

@@ -74,9 +74,7 @@ class TestValidateWorkflowYaml:
         wf_dir.mkdir(parents=True)
         (wf_dir / "ci.yml").write_text("name: ci\non: push\n")
         with patch.dict(os.environ, {"SHELLCHECK_OPTS": "--exclude=SC1091"}, clear=False):
-            with patch(
-                "checks_tooling.shutil.which", return_value="actionlint"
-            ):
+            with patch("checks_tooling.shutil.which", return_value="actionlint"):
                 with patch("checks_tooling._run_subprocess") as mock_run:
                     mock_run.return_value = (0, "", "")
                     assert validate_workflow_yaml(tmp_path).state is EvidenceState.PASS
@@ -230,6 +228,7 @@ class TestWorkflowYamlTargets:
                 with patch("checks_workflow_targets._deleted_paths_since_base", return_value=[]):
                     with pytest.raises(ChangedPathMissingError, match="removed.yml"):
                         _workflow_yaml_targets(tmp_path)
+
 
 class TestWorkflowYamlTargetsWorktreeOnly:
     """Real-repo regression: a workflow file edited only in the worktree
@@ -431,9 +430,7 @@ class TestValidateCiDependencyPinsSkipsBeforeImporting:
         monkeypatch.setitem(sys.modules, "check_ci_dependency_pins", None)
 
     def test_an_absent_github_tree_skips_without_importing(
-        self,
-        tmp_path: Path,
-        monkeypatch: Any
+        self, tmp_path: Path, monkeypatch: Any
     ) -> None:
         from checks_tooling import validate_ci_dependency_pins
 
@@ -445,9 +442,7 @@ class TestValidateCiDependencyPinsSkipsBeforeImporting:
             validate_ci_dependency_pins(tmp_path)
 
     def test_an_absent_pyproject_skips_without_importing(
-        self,
-        tmp_path: Path,
-        monkeypatch: Any
+        self, tmp_path: Path, monkeypatch: Any
     ) -> None:
         from checks_tooling import validate_ci_dependency_pins
 

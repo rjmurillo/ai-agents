@@ -62,9 +62,7 @@ class TestProcessFiles:
         source = tmp_path / "source.md"
         source.write_text("See `target` for info.")
 
-        stats = convert_memory_references.process_files(
-            tmp_path, [source], True
-        )
+        stats = convert_memory_references.process_files(tmp_path, [source], True)
         assert stats["FilesProcessed"] == 1
 
     def test_empty_dir(self, tmp_path):

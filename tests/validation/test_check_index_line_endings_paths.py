@@ -110,9 +110,7 @@ def test_the_paste_command_for_an_undecodable_path_actually_remediates_it(
 
 
 @posix_only_paths
-def test_the_paste_command_names_the_shells_its_second_form_needs(
-    tmp_path: Path, capsys
-) -> None:
+def test_the_paste_command_names_the_shells_its_second_form_needs(tmp_path: Path, capsys) -> None:
     """An undecodable byte has no text spelling at all, so the note is not decoration."""
     repo, _raw_name = _repo_with_undecodable_crlf_blob(tmp_path)
 
@@ -123,9 +121,7 @@ def test_the_paste_command_names_the_shells_its_second_form_needs(
     assert "bash and zsh" in out
 
 
-def test_the_paste_command_stays_plain_when_every_path_is_spellable(
-    tmp_path: Path, capsys
-) -> None:
+def test_the_paste_command_stays_plain_when_every_path_is_spellable(tmp_path: Path, capsys) -> None:
     """Control: an ordinary name must not acquire a shell-specific spelling."""
     repo = _repo_with_crlf_blob(tmp_path, name="a handoff.md")
 
@@ -176,9 +172,7 @@ def test_a_bidi_override_in_a_path_cannot_disguise_it(tmp_path: Path, capsys) ->
 
 
 @posix_only_paths
-def test_an_escape_sequence_in_a_path_cannot_repaint_the_terminal(
-    tmp_path: Path, capsys
-) -> None:
+def test_an_escape_sequence_in_a_path_cannot_repaint_the_terminal(tmp_path: Path, capsys) -> None:
     """The other half of CWE-117: ESC rewrites what the reader sees."""
     repo = _repo_with_crlf_blob(tmp_path, name="handoff\x1b[2K.md")
 

@@ -65,8 +65,7 @@ _M4_REPORT: dict[str, object] = {
             "skill_b": "memory-enhancement",
             "verdict": "DISTINCT",
             "recommendation": (
-                "Keep both. curating-memories and memory-enhancement cover "
-                "different prompts."
+                "Keep both. curating-memories and memory-enhancement cover different prompts."
             ),
         },
         {
@@ -249,9 +248,7 @@ def test_emit_drops_non_retirement_verdict_even_when_report_agrees():
 
 
 def test_report_verdict_for_pair_returns_report_word():
-    verdict = eso.report_verdict_for_pair(
-        _M4_REPORT, "curating-memories", "memory-enhancement"
-    )
+    verdict = eso.report_verdict_for_pair(_M4_REPORT, "curating-memories", "memory-enhancement")
     assert verdict == "DISTINCT"
 
 
@@ -288,35 +285,27 @@ def test_load_report_verdicts_raises_on_malformed_pair():
 # ===========================================================================
 
 
-def test_coerce_reads_matrix_json_from_directory(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-):
+def test_coerce_reads_matrix_json_from_directory(tmp_path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(eso, "REPO_ROOT", tmp_path)
     report_dir = _write_report_dir(tmp_path, _M4_REPORT)
     payload = eso._coerce_report_payload(report_dir)
     assert payload["run_id"] == "m4-overlap-1949-2026-06-17"
 
 
-def test_coerce_reads_matrix_json_from_file_path(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-):
+def test_coerce_reads_matrix_json_from_file_path(tmp_path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(eso, "REPO_ROOT", tmp_path)
     report_dir = _write_report_dir(tmp_path, _M4_REPORT)
     payload = eso._coerce_report_payload(report_dir / "matrix.json")
     assert payload["pairs"][0]["verdict"] == "DISTINCT"
 
 
-def test_coerce_raises_when_report_file_missing(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-):
+def test_coerce_raises_when_report_file_missing(tmp_path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(eso, "REPO_ROOT", tmp_path)
     with pytest.raises(eso.ReportVerdictError):
         eso._coerce_report_payload(tmp_path / "overlap-missing")
 
 
-def test_coerce_raises_when_report_path_escapes_repo(
-    tmp_path, monkeypatch: pytest.MonkeyPatch
-):
+def test_coerce_raises_when_report_path_escapes_repo(tmp_path, monkeypatch: pytest.MonkeyPatch):
     repo_root = tmp_path / "repo"
     repo_root.mkdir()
     monkeypatch.setattr(eso, "REPO_ROOT", repo_root)

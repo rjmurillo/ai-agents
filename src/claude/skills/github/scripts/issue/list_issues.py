@@ -73,27 +73,36 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument(
-        "--state", choices=["open", "closed", "all"], default="open",
+        "--state",
+        choices=["open", "closed", "all"],
+        default="open",
         help="Issue state filter (default: open)",
     )
     parser.add_argument(
-        "--label", default="",
+        "--label",
+        default="",
         help="Filter by label(s). Comma-separated for multiple.",
     )
     parser.add_argument(
-        "--author", default="", help="Filter by issue author username",
+        "--author",
+        default="",
+        help="Filter by issue author username",
     )
     parser.add_argument(
-        "--assignee", default="",
+        "--assignee",
+        default="",
         help="Filter by assignee username (use '@me' for self).",
     )
     parser.add_argument(
-        "--search", default="",
+        "--search",
+        default="",
         help="GitHub search query (e.g. 'fix auth is:open'). "
-             "When used, --state/--label/--author/--assignee are ignored.",
+        "When used, --state/--label/--author/--assignee are ignored.",
     )
     parser.add_argument(
-        "--limit", type=int, default=30,
+        "--limit",
+        type=int,
+        default=30,
         help="Max number of issues to return (1-1000, default: 30)",
     )
     add_output_format_arg(parser)
@@ -144,10 +153,15 @@ def _resolve_repo(args: argparse.Namespace, fmt: str) -> tuple[str, str]:
 
 def _build_issue_list_args(args: argparse.Namespace, repo_flag: str) -> list[str]:
     list_args = [
-        "gh", "issue", "list",
-        "--repo", repo_flag,
-        "--limit", str(args.limit),
-        "--json", "number,title,state,labels,assignees,author,url,createdAt,updatedAt",
+        "gh",
+        "issue",
+        "list",
+        "--repo",
+        repo_flag,
+        "--limit",
+        str(args.limit),
+        "--json",
+        "number,title,state,labels,assignees,author,url,createdAt,updatedAt",
     ]
 
     if args.search:
@@ -283,11 +297,7 @@ def _format_issue(issue: dict[str, Any]) -> dict[str, object]:
         "number": issue.get("number"),
         "title": issue.get("title"),
         "state": issue.get("state"),
-        "labels": [
-            lbl.get("name")
-            for lbl in (issue.get("labels") or [])
-            if isinstance(lbl, dict)
-        ],
+        "labels": [lbl.get("name") for lbl in (issue.get("labels") or []) if isinstance(lbl, dict)],
         "assignees": [
             assignee.get("login")
             for assignee in (issue.get("assignees") or [])
@@ -315,9 +325,7 @@ def main(argv: list[str] | None = None) -> int:
     _require_gh_auth(fmt)
     owner, repo = _resolve_repo(args, fmt)
     issues = _run_issue_list(_build_issue_list_args(args, f"{owner}/{repo}"), fmt)
-    output = [
-        _format_issue(issue) for issue in issues if isinstance(issue, dict)
-    ]
+    output = [_format_issue(issue) for issue in issues if isinstance(issue, dict)]
 
     write_skill_output(
         {"issues": output, "count": len(output)},

@@ -271,7 +271,7 @@ async def with_retry(operation: Callable, max_retries: int = 3) -> Any:
             return await operation()
         except TransientError:
             if i < max_retries - 1:
-                await asyncio.sleep(2 ** i)
+                await asyncio.sleep(2**i)
     raise MaxRetriesExceededError()
 ```
 

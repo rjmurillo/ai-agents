@@ -50,7 +50,8 @@ def _git(repo: Path, *args: str, message_stdin: str | None = None) -> str:
     result = subprocess.run(
         ["git", "-C", str(repo), *args],
         capture_output=True,
-        text=True, encoding="utf-8",
+        text=True,
+        encoding="utf-8",
         input=message_stdin,
         check=True,
     )
@@ -468,7 +469,8 @@ def test_source_validator_cli_runs() -> None:
     result = subprocess.run(
         [sys.executable, str(SCRIPT_PATH), "--help"],
         capture_output=True,
-        text=True, encoding="utf-8",
+        text=True,
+        encoding="utf-8",
         check=False,
     )
     assert result.returncode == 0
@@ -533,11 +535,18 @@ def test_cli_defaults_repo_root_to_current_working_directory(git_repo: Path) -> 
     """Vendored validator invocations validate the consumer repo by default."""
     _write_marker_commit(git_repo, "analyst")
     result = subprocess.run(
-        [sys.executable, str(SCRIPT_PATH), "--ref", "HEAD",
-         "--references-dir", str(REFERENCES_DIR)],
+        [
+            sys.executable,
+            str(SCRIPT_PATH),
+            "--ref",
+            "HEAD",
+            "--references-dir",
+            str(REFERENCES_DIR),
+        ],
         cwd=git_repo,
         capture_output=True,
-        text=True, encoding="utf-8",
+        text=True,
+        encoding="utf-8",
         check=False,
     )
     assert result.returncode == 0

@@ -257,16 +257,17 @@ import subprocess
 # Try REST API first (simpler)
 result = subprocess.run(
     ["gh", "api", f"repos/{owner}/{repo}/pulls/{number}"],
-    capture_output=True, text=True,
+    capture_output=True,
+    text=True,
 )
 data = json.loads(result.stdout)
 
 # If operation not available, use GraphQL
 if need_thread_resolution:
     subprocess.run(
-        ["gh", "api", "graphql", "-f",
-         "query=mutation { resolveReviewThread... }"],
-        capture_output=True, text=True,
+        ["gh", "api", "graphql", "-f", "query=mutation { resolveReviewThread... }"],
+        capture_output=True,
+        text=True,
     )
 ```
 
@@ -292,12 +293,21 @@ query($owner: String!, $repo: String!, $number: Int!) {
 }
 """
 result = subprocess.run(
-    ["gh", "api", "graphql",
-     "-f", f"query={query}",
-     "-f", f"owner={owner}",
-     "-f", f"repo={repo}",
-     "-F", f"number={number}"],
-    capture_output=True, text=True,
+    [
+        "gh",
+        "api",
+        "graphql",
+        "-f",
+        f"query={query}",
+        "-f",
+        f"owner={owner}",
+        "-f",
+        f"repo={repo}",
+        "-F",
+        f"number={number}",
+    ],
+    capture_output=True,
+    text=True,
 )
 data = json.loads(result.stdout)
 ```

@@ -87,9 +87,7 @@ def scan_signals(text: str) -> Signals:
         historical_tags=len(_HISTORICAL_RE.findall(text)),
         strikethrough_pairs=len(_STRIKE_RE.findall(text)) // 2,
         dated_banner=bool(_BANNER_RE.search(text)),
-        dated_snapshot_frame=bool(
-            _DATE_RE.search(head) and _SNAPSHOT_FRAME_RE.search(head)
-        ),
+        dated_snapshot_frame=bool(_DATE_RE.search(head) and _SNAPSHOT_FRAME_RE.search(head)),
     )
 
 
@@ -181,10 +179,8 @@ def render_text(proposals: list[Proposal]) -> str:
         f"  scanned: {len(proposals)}",
         f"  live: {counts[LIVE]}",
         f"  healthy-supersession (leave alone): {counts[HEALTHY_SUPERSESSION]}",
-        "  resolved-or-historical-but-present (propose collapse): "
-        f"{counts[RESOLVED_HISTORICAL]}",
-        "  temporal-snapshot-as-live (propose dated banner): "
-        f"{counts[TEMPORAL_SNAPSHOT]}",
+        f"  resolved-or-historical-but-present (propose collapse): {counts[RESOLVED_HISTORICAL]}",
+        f"  temporal-snapshot-as-live (propose dated banner): {counts[TEMPORAL_SNAPSHOT]}",
     ]
     flagged = [p for p in proposals if p.disposition in ACTIONABLE]
     if flagged:

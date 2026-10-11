@@ -87,9 +87,7 @@ def purge_bytecode(root: Path) -> None:
             shutil.rmtree(pycache)
 
 
-def _snapshot_targets(
-    repo_root: Path, targets: Sequence[Path | str]
-) -> tuple[TargetSnapshot, ...]:
+def _snapshot_targets(repo_root: Path, targets: Sequence[Path | str]) -> tuple[TargetSnapshot, ...]:
     if not targets:
         raise MutationWorkspaceError("at least one mutation target is required")
     relative_paths = sorted({_relative_target(repo_root, target) for target in targets})
@@ -99,9 +97,7 @@ def _snapshot_targets(
     )
 
 
-def _require_targets_match_head(
-    repo_root: Path, targets: Sequence[TargetSnapshot]
-) -> None:
+def _require_targets_match_head(repo_root: Path, targets: Sequence[TargetSnapshot]) -> None:
     for target in targets:
         status = _run_git(
             repo_root,
@@ -113,8 +109,7 @@ def _require_targets_match_head(
         )
         if status.returncode != 0:
             raise MutationWorkspaceError(
-                f"cannot inspect mutation target state {target.path}: "
-                f"{status.stderr.strip()}"
+                f"cannot inspect mutation target state {target.path}: {status.stderr.strip()}"
             )
         if status.stdout:
             raise MutationWorkspaceError(
@@ -151,9 +146,7 @@ def _marker_payload(
         "pid": os.getpid(),
         "repo_root": str(repo_root),
         "scratch_worktree": str(scratch_root),
-        "targets": [
-            {"path": target.path, "sha256": target.sha256} for target in targets
-        ],
+        "targets": [{"path": target.path, "sha256": target.sha256} for target in targets],
     }
 
 
@@ -188,9 +181,7 @@ def _validate_active_targets(
     return states
 
 
-def _require_active_targets_unchanged(
-    repo_root: Path, targets: Sequence[TargetSnapshot]
-) -> None:
+def _require_active_targets_unchanged(repo_root: Path, targets: Sequence[TargetSnapshot]) -> None:
     changed = [
         f"{path} [{state}]"
         for path, state in _validate_active_targets(repo_root, targets)
@@ -450,9 +441,7 @@ def recover_marker(
     try:
         payload = _read_marker(resolved_marker)
         if _pid_is_running(payload.get("pid")):
-            raise MutationWorkspaceError(
-                f"mutation process {payload.get('pid')} is still running"
-            )
+            raise MutationWorkspaceError(f"mutation process {payload.get('pid')} is still running")
         targets = _read_target_snapshots(payload, resolved_marker)
         _require_active_targets_unchanged(root, targets)
         scratch = _scratch_root_from_marker(root, payload, resolved_marker)

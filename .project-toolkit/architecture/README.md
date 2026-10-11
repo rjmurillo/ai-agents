@@ -18,17 +18,17 @@ from frontmatter.default_handlers import YAMLHandler
 
 _HANDLER = YAMLHandler()
 
-for path in sorted(pathlib.Path('.project-toolkit/architecture').glob('ADR-[0-9]*.md')):
-    text = path.read_text(encoding='utf-8')
+for path in sorted(pathlib.Path(".project-toolkit/architecture").glob("ADR-[0-9]*.md")):
+    text = path.read_text(encoding="utf-8")
     if not _HANDLER.detect(text):
         continue  # no frontmatter: see Needs backfill below
     try:
         raw, _body = _HANDLER.split(text)
     except ValueError:
-        raise ValueError(f'{path.name}: opens with --- but never closes it')
+        raise ValueError(f"{path.name}: opens with --- but never closes it")
     front = yaml.safe_load(raw) or {}
-    if str(front.get('status', '')).strip().lower() == 'accepted':
-        print(front.get('id') or path.name)
+    if str(front.get("status", "")).strip().lower() == "accepted":
+        print(front.get("id") or path.name)
 ```
 
 **Normalise before comparing, as above.** Both gates that bucket a record by

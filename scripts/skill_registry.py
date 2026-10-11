@@ -347,6 +347,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="Project root directory (defaults to auto-detection)",
     )
+
     def _non_negative_int(value: str) -> int:
         parsed = int(value)
         if parsed < 0:

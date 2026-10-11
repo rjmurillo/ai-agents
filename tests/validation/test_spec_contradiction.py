@@ -65,13 +65,7 @@ _NO_FRONTMATTER = "# Just a heading\n\nNo frontmatter here.\n"
 
 
 def test_extract_linked_issues_finds_all_keywords():
-    body = (
-        "Closes #1894\n"
-        "Fixes #100\n"
-        "Resolves: #200\n"
-        "Implements #300\n"
-        "Refs #400\n"
-    )
+    body = "Closes #1894\nFixes #100\nResolves: #200\nImplements #300\nRefs #400\n"
     assert sc.extract_linked_issues(body) == [1894, 100, 200, 300, 400]
 
 
@@ -265,9 +259,7 @@ def test_collect_contradictions_no_pr_returns_empty(monkeypatch):
 
 
 def test_collect_contradictions_no_changed_files_returns_empty(monkeypatch):
-    monkeypatch.setattr(
-        sc, "fetch_current_pr_body", lambda owner, repo: "Fixes #1894"
-    )
+    monkeypatch.setattr(sc, "fetch_current_pr_body", lambda owner, repo: "Fixes #1894")
     monkeypatch.setattr(sc, "_resolve_base_ref", lambda repo_root: "origin/main")
     monkeypatch.setattr(sc, "_changed_agent_files", lambda repo_root, base: {})
     assert sc.collect_contradictions(REPO_ROOT, "o", "r") == []
@@ -323,9 +315,7 @@ def test_collect_contradictions_pr_body_claim_flagged(monkeypatch):
 
 def test_collect_contradictions_issue_fetch_failure_skipped(monkeypatch):
     """An unreachable linked issue is skipped, not fatal."""
-    monkeypatch.setattr(
-        sc, "fetch_current_pr_body", lambda owner, repo: "Fixes #1894"
-    )
+    monkeypatch.setattr(sc, "fetch_current_pr_body", lambda owner, repo: "Fixes #1894")
     monkeypatch.setattr(sc, "_resolve_base_ref", lambda repo_root: "origin/main")
     monkeypatch.setattr(
         sc,

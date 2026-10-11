@@ -62,9 +62,7 @@ def parse_signal(spec: str) -> Signal:
     """Parse ``kind:name=VERDICT`` (e.g. ``external:pytest=PASS``)."""
 
     if "=" not in spec or ":" not in spec.split("=", 1)[0]:
-        raise ValueError(
-            f"signal must be 'kind:name=VERDICT', got {spec!r}"
-        )
+        raise ValueError(f"signal must be 'kind:name=VERDICT', got {spec!r}")
     head, verdict = spec.split("=", 1)
     kind, name = head.split(":", 1)
     kind = kind.strip().lower()
@@ -76,8 +74,7 @@ def parse_signal(spec: str) -> Signal:
         raise ValueError(f"signal {spec!r} is missing a name")
     if verdict not in _KNOWN:
         raise ValueError(
-            f"unknown verdict {verdict!r} for signal {name!r}; "
-            f"expected one of {sorted(_KNOWN)}"
+            f"unknown verdict {verdict!r} for signal {name!r}; expected one of {sorted(_KNOWN)}"
         )
     return Signal(kind=kind, name=name, verdict=verdict)
 
@@ -140,9 +137,7 @@ def aggregate(signals: Iterable[Signal]) -> tuple[str, str]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        description=(__doc__ or "").splitlines()[0] if __doc__ else ""
-    )
+    parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0] if __doc__ else "")
     parser.add_argument(
         "--signal",
         action="append",
@@ -163,9 +158,7 @@ def main(argv: list[str] | None = None) -> int:
     payload = {
         "verdict": verdict,
         "reason": reason,
-        "signals": [
-            {"kind": s.kind, "name": s.name, "verdict": s.verdict} for s in signals
-        ],
+        "signals": [{"kind": s.kind, "name": s.name, "verdict": s.verdict} for s in signals],
     }
     if args.json:
         print(json.dumps(payload, indent=2))

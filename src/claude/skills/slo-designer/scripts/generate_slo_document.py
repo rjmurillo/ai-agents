@@ -115,8 +115,7 @@ def parse_yaml_config(config_path: Path) -> SLOConfig:
 
     if not YAML_AVAILABLE:
         raise ImportError(
-            "PyYAML is required for YAML config files. "
-            "Install with: pip install pyyaml"
+            "PyYAML is required for YAML config files. Install with: pip install pyyaml"
         )
 
     with open(config_path) as f:
@@ -246,9 +245,7 @@ def generate_alerting_section(alerts: list[AlertConfig]) -> str:
     ]
 
     for alert in alerts:
-        lines.append(
-            f"| {alert.burn_rate}x | {alert.window} | {alert.severity} | {alert.action} |"
-        )
+        lines.append(f"| {alert.burn_rate}x | {alert.window} | {alert.severity} | {alert.action} |")
 
     lines.append("")
     return "\n".join(lines)

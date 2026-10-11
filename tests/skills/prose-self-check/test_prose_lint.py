@@ -339,5 +339,3 @@ class TestListNestedFences:
         masked, unterminated = mod._blank_fenced_blocks(source)
         assert unterminated is None
         assert masked[opener : opener + 3] == ["", "", ""]
-
-

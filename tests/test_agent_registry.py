@@ -284,9 +284,7 @@ class TestValidate:
         assert result.ok
         assert result.errors == []
 
-    def test_unpinned_agent_parses_and_validates_from_disk(
-        self, tmp_agent_dir: Path
-    ) -> None:
+    def test_unpinned_agent_parses_and_validates_from_disk(self, tmp_agent_dir: Path) -> None:
         """An agent file with no model: line reaches validate() and passes."""
         unpinned = tmp_agent_dir / "unpinned.md"
         unpinned.write_text(

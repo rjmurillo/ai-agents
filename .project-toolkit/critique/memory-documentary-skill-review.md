@@ -152,13 +152,16 @@ gh issue list --state open --search "recurring frustrations"
 **Recommendation**: Clarify that `query_context` tells Forgetful WHY you're searching (affects ranking):
 
 ```python
-mcp__forgetful__execute_forgetful_tool("query_memory", {
-    "query": "[topic]",
-    # WHY are you searching? Affects result ranking
-    "query_context": "Finding patterns and contradictions for meta-analysis",
-    "k": 10,
-    "include_links": true
-})
+mcp__forgetful__execute_forgetful_tool(
+    "query_memory",
+    {
+        "query": "[topic]",
+        # WHY are you searching? Affects result ranking
+        "query_context": "Finding patterns and contradictions for meta-analysis",
+        "k": 10,
+        "include_links": true,
+    },
+)
 ```
 
 Add note: "Use specific `query_context` to rank results for your documentary purpose, not generic context."

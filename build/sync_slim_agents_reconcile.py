@@ -226,9 +226,7 @@ def reconciliation_blockages(
     """
     destination_lines = destination_body.splitlines()
     source_lines = source_body.splitlines()
-    matcher = difflib.SequenceMatcher(
-        None, destination_lines, source_lines, autojunk=False
-    )
+    matcher = difflib.SequenceMatcher(None, destination_lines, source_lines, autojunk=False)
     blocked: list[Blockage] = []
     for tag, i1, i2, j1, j2 in matcher.get_opcodes():
         if tag not in ("replace", "delete"):
@@ -266,8 +264,7 @@ def print_blockages(blockages: Iterable[Blockage], stream: TextIO) -> None:
             else _excerpt(blockage.source_text)
         )
         print(
-            f"    line {blockage.line} destination: "
-            f"{_excerpt(blockage.destination_text)}",
+            f"    line {blockage.line} destination: {_excerpt(blockage.destination_text)}",
             file=stream,
         )
         print(f"    line {blockage.line} source:      {source}", file=stream)
@@ -302,9 +299,7 @@ def compare_file(
         target=target,
         in_sync=updated == destination_text,
         updated=updated,
-        blockages=reconciliation_blockages(
-            destination_body, body, frontmatter.count("\n")
-        ),
+        blockages=reconciliation_blockages(destination_body, body, frontmatter.count("\n")),
     )
 
 
@@ -335,8 +330,6 @@ def collect_drift(comparisons: Iterable[Comparison]) -> Drift:
     comparisons = tuple(comparisons)
     return Drift(
         in_sync=tuple(item for item in comparisons if item.in_sync),
-        applicable=tuple(
-            item for item in comparisons if not item.in_sync and not item.blockages
-        ),
+        applicable=tuple(item for item in comparisons if not item.in_sync and not item.blockages),
         blocked=tuple(item for item in comparisons if item.blockages),
     )

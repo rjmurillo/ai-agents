@@ -75,26 +75,19 @@ from pathlib import Path
 
 # Quick check
 result = check_stuck(
-    "Your response text here...",
-    Path("~/.semantic-hooks/stuck-history.json").expanduser()
+    "Your response text here...", Path("~/.semantic-hooks/stuck-history.json").expanduser()
 )
 if result.stuck:
     print(result.nudge)
 
 # Full guard usage
-config = StuckConfig(
-    stuck_threshold=3,
-    similarity_threshold=0.6,
-    user_name="Richard"
-)
+config = StuckConfig(stuck_threshold=3, similarity_threshold=0.6, user_name="Richard")
 guard = StuckDetectionGuard(config=config)
 
 # Check a response
 from semantic_hooks.core import HookContext, HookEvent
-context = HookContext(
-    event=HookEvent.POST_TOOL_USE,
-    tool_result="Your response text..."
-)
+
+context = HookContext(event=HookEvent.POST_TOOL_USE, tool_result="Your response text...")
 result = guard.check(context)
 
 # Reset history after successful topic change

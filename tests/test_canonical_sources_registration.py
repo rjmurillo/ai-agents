@@ -52,9 +52,7 @@ def test_code_quality_canonical_file_exists() -> None:
 def test_code_review_norms_canonical_file_exists() -> None:
     """The harness-neutral code-review-norms canonical source exists and is non-empty."""
     assert CODE_REVIEW_NORMS.exists(), f"Missing canonical source at {CODE_REVIEW_NORMS}"
-    assert CODE_REVIEW_NORMS.read_text(encoding="utf-8").strip(), (
-        "code-review-norms.md is empty"
-    )
+    assert CODE_REVIEW_NORMS.read_text(encoding="utf-8").strip(), "code-review-norms.md is empty"
 
 
 @pytest.mark.parametrize("path", (CODE_QUALITY, CODE_REVIEW_NORMS))
@@ -145,6 +143,4 @@ def test_canonical_files_cross_reference_each_other() -> None:
     assert "code-review-norms.md" in quality_text, (
         "code-quality.md should reference code-review-norms.md."
     )
-    assert "code-quality.md" in norms_text, (
-        "code-review-norms.md should reference code-quality.md."
-    )
+    assert "code-quality.md" in norms_text, "code-review-norms.md should reference code-quality.md."

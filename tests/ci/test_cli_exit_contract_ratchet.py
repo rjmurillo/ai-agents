@@ -298,9 +298,7 @@ def test_the_github_scripts_tree_is_in_scope(tmp_path, monkeypatch, capsys):
 def test_a_missing_baseline_is_a_config_error(tmp_path, monkeypatch):
     _arrange(tmp_path, monkeypatch, _SCRIPT_WITH_MAIN, "def test_x():\n    assert True\n")
 
-    code = ratchet.main(
-        ["--repo-root", str(tmp_path), "--baseline", str(tmp_path / "absent.txt")]
-    )
+    code = ratchet.main(["--repo-root", str(tmp_path), "--baseline", str(tmp_path / "absent.txt")])
 
     assert code == ratchet.EXIT_CONFIG
 
@@ -374,8 +372,6 @@ def test_the_shipped_baseline_matches_the_tracked_tree() -> None:
     )
 
 
-
-
 class TestLocalMainScopeGateBehavior:
     """Regression: _has_local_main_definition scope-aware module binding.
 
@@ -391,7 +387,9 @@ class TestLocalMainScopeGateBehavior:
     _SCRIPT = "def main(argv=None):\n    return 1\n"
 
     def test_class_method_main_does_not_suppress_sole_fallback(
-        self, tmp_path, monkeypatch,
+        self,
+        tmp_path,
+        monkeypatch,
     ):
         """Class method ``main`` must not suppress sole; bare main() credits."""
         _arrange(
@@ -411,7 +409,9 @@ class TestLocalMainScopeGateBehavior:
         assert _run(tmp_path, "0") == ratchet.EXIT_OK
 
     def test_if_guarded_def_main_suppresses_sole_fallback(
-        self, tmp_path, monkeypatch,
+        self,
+        tmp_path,
+        monkeypatch,
     ):
         """``if __name__: def main`` at module scope binds main, suppressing sole."""
         _arrange(
@@ -432,7 +432,9 @@ class TestLocalMainScopeGateBehavior:
         assert _run(tmp_path, "0") == ratchet.EXIT_REGRESSION
 
     def test_lambda_assignment_main_suppresses_sole_fallback(
-        self, tmp_path, monkeypatch,
+        self,
+        tmp_path,
+        monkeypatch,
     ):
         """``main = lambda: 0`` creates a local binding, suppressing sole."""
         _arrange(
@@ -487,10 +489,7 @@ def test_ci_invocation_passes_base_ref() -> None:
     from a raised allowance.
     """
     workflow_path = (
-        Path(__file__).resolve().parents[2]
-        / ".github"
-        / "workflows"
-        / "pr-validation.yml"
+        Path(__file__).resolve().parents[2] / ".github" / "workflows" / "pr-validation.yml"
     )
     with workflow_path.open(encoding="utf-8") as handle:
         workflow = yaml.safe_load(handle)
@@ -539,12 +538,7 @@ def test_a_file_naming_no_tracked_stem_is_never_parsed(monkeypatch):
     assert coverage.covered_stems(stem_free, frozenset({"widget"})) == set()
     assert parsed == []
 
-    proving = (
-        "from scripts.ci import widget\n"
-        "\n\n"
-        "def test_x():\n"
-        "    assert widget.main([]) == 1\n"
-    )
+    proving = "from scripts.ci import widget\n\n\ndef test_x():\n    assert widget.main([]) == 1\n"
     assert coverage.covered_stems(proving, frozenset({"widget"})) == {"widget"}
     assert parsed, "a file that names a tracked stem must still be parsed"
 
@@ -567,11 +561,6 @@ def test_the_bail_reads_the_stem_as_a_substring_not_as_an_identifier():
 
 def test_an_empty_stem_set_credits_nothing():
     """Edge: an empty alternation matches every file, so it is short-circuited."""
-    source = (
-        "from scripts.ci import widget\n"
-        "\n\n"
-        "def test_x():\n"
-        "    assert widget.main([]) == 1\n"
-    )
+    source = "from scripts.ci import widget\n\n\ndef test_x():\n    assert widget.main([]) == 1\n"
 
     assert ratchet.covered_stems(source, frozenset()) == set()

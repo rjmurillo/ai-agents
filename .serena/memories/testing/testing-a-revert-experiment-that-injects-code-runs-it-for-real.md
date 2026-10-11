@@ -28,7 +28,7 @@ Observed 2026-08-05 in `ai-agents`, proving the halves of a redesign of
 in `apply_removals`:
 
 ```python
-_run_git(["worktree", "prune", "-v"])   # injected by the revert harness
+_run_git(["worktree", "prune", "-v"])  # injected by the revert harness
 ```
 
 The apply tests in `TestApply`, `TestPlanMatchesApply`, and the whole

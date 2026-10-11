@@ -135,12 +135,8 @@ def test_imported_reference_file_exists(rel_path: str) -> None:
     assert (REPO_ROOT / rel_path).is_file(), f"missing imported reference: {rel_path}"
 
 
-@pytest.mark.parametrize(
-    ("rel_path", "wiki_source"), sorted(IMPORTED_REFERENCES.items())
-)
-def test_reference_cites_wiki_source_in_frontmatter(
-    rel_path: str, wiki_source: str
-) -> None:
+@pytest.mark.parametrize(("rel_path", "wiki_source"), sorted(IMPORTED_REFERENCES.items()))
+def test_reference_cites_wiki_source_in_frontmatter(rel_path: str, wiki_source: str) -> None:
     """AC1: frontmatter records the original wiki path as attribution."""
     frontmatter = _frontmatter(_read(rel_path))
     assert f"source: {wiki_source}" in frontmatter, (
@@ -151,17 +147,13 @@ def test_reference_cites_wiki_source_in_frontmatter(
 @pytest.mark.parametrize("rel_path", sorted(IMPORTED_REFERENCES))
 def test_reference_has_lens_section(rel_path: str) -> None:
     """AC4: each reference explains why the lens applies in PR review."""
-    assert LENS_HEADING in _read(rel_path), (
-        f"{rel_path} must contain a `{LENS_HEADING}` section"
-    )
+    assert LENS_HEADING in _read(rel_path), f"{rel_path} must contain a `{LENS_HEADING}` section"
 
 
 @pytest.mark.parametrize(
     ("rel_path", "required_sections"), sorted(REQUIRED_REFERENCE_SECTIONS.items())
 )
-def test_reference_inlines_body(
-    rel_path: str, required_sections: tuple[str, ...]
-) -> None:
+def test_reference_inlines_body(rel_path: str, required_sections: tuple[str, ...]) -> None:
     """AC1: the concept body is inlined with its core structural sections."""
     body = _read(rel_path)
     missing = [section for section in required_sections if section not in body]
@@ -188,12 +180,8 @@ def test_no_wiki_filesystem_link_in_references() -> None:
         assert "Mobile/wiki" not in text, f"{rel_path} links to the local wiki path"
 
 
-@pytest.mark.parametrize(
-    ("axis_path", "expected_citations"), sorted(AXIS_CITATIONS.items())
-)
-def test_axis_cites_new_reference(
-    axis_path: str, expected_citations: tuple[str, ...]
-) -> None:
+@pytest.mark.parametrize(("axis_path", "expected_citations"), sorted(AXIS_CITATIONS.items()))
+def test_axis_cites_new_reference(axis_path: str, expected_citations: tuple[str, ...]) -> None:
     """AC2: the axis file cites each new reference via its vendor-safe path."""
     text = _read(axis_path)
     for citation in expected_citations:
@@ -205,8 +193,7 @@ def test_distributed_fallacies_cited_by_two_axes() -> None:
     citing_axes = [
         axis
         for axis, refs in AXIS_CITATIONS.items()
-        if ".claude/skills/observability/references/distributed-systems-fallacies.md"
-        in refs
+        if ".claude/skills/observability/references/distributed-systems-fallacies.md" in refs
     ]
     assert set(citing_axes) == {
         ".claude/skills/review/references/architect.md",

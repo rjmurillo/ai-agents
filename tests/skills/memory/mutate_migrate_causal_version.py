@@ -22,13 +22,7 @@ from scripts.testing.mutation_workspace import (
 )
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
-_SCRIPT_REL = (
-    Path(".claude")
-    / "skills"
-    / "memory"
-    / "scripts"
-    / "migrate_causal_version.py"
-)
+_SCRIPT_REL = Path(".claude") / "skills" / "memory" / "scripts" / "migrate_causal_version.py"
 _TEST_REL = Path("tests/skills/memory/test_migrate_causal_version.py")
 
 _MUTATIONS: list[tuple[str, str, str, int]] = [

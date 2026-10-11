@@ -558,6 +558,7 @@ import frontmatter
 
 class LinkType(Enum):
     """Typed relationship between memories."""
+
     RELATED = "related"
     SUPERSEDES = "supersedes"
     BLOCKS = "blocks"
@@ -568,6 +569,7 @@ class LinkType(Enum):
 @dataclass
 class Citation:
     """Code reference with verification metadata."""
+
     path: str
     line: Optional[int] = None
     snippet: Optional[str] = None
@@ -579,6 +581,7 @@ class Citation:
 @dataclass
 class Link:
     """Typed relationship to another memory."""
+
     link_type: LinkType
     target_id: str
 
@@ -586,6 +589,7 @@ class Link:
 @dataclass
 class Memory:
     """Serena memory with citations and links."""
+
     id: str
     subject: str
     path: Path
@@ -664,6 +668,7 @@ from .models import Citation, Memory
 @dataclass
 class VerificationResult:
     """Result of verifying a memory's citations."""
+
     memory_id: str
     valid: bool
     total_citations: int
@@ -689,7 +694,9 @@ def verify_citation(citation: Citation, repo_root: Path) -> Citation:
         lines = file_path.read_text().splitlines()
         if citation.line < 1 or citation.line > len(lines):
             citation.valid = False
-            citation.mismatch_reason = f"Line {citation.line} out of range (file has {len(lines)} lines)"
+            citation.mismatch_reason = (
+                f"Line {citation.line} out of range (file has {len(lines)} lines)"
+            )
             return citation
 
         actual_line = lines[citation.line - 1]
@@ -798,15 +805,19 @@ def main():
         result = verify_memory(memory)
 
         if args.json:
-            print(json.dumps({
-                "memory_id": result.memory_id,
-                "valid": result.valid,
-                "confidence": result.confidence,
-                "stale_citations": [
-                    {"path": c.path, "line": c.line, "reason": c.mismatch_reason}
-                    for c in result.stale_citations
-                ],
-            }))
+            print(
+                json.dumps(
+                    {
+                        "memory_id": result.memory_id,
+                        "valid": result.valid,
+                        "confidence": result.confidence,
+                        "stale_citations": [
+                            {"path": c.path, "line": c.line, "reason": c.mismatch_reason}
+                            for c in result.stale_citations
+                        ],
+                    }
+                )
+            )
         else:
             status = "✅ VALID" if result.valid else "❌ STALE"
             print(f"{status} ({result.confidence:.0%} confidence)")
@@ -820,11 +831,18 @@ def main():
         stale = [r for r in results if not r.valid]
 
         if args.json:
-            print(json.dumps([{
-                "memory_id": r.memory_id,
-                "valid": r.valid,
-                "confidence": r.confidence,
-            } for r in results]))
+            print(
+                json.dumps(
+                    [
+                        {
+                            "memory_id": r.memory_id,
+                            "valid": r.valid,
+                            "confidence": r.confidence,
+                        }
+                        for r in results
+                    ]
+                )
+            )
         else:
             print(f"Verified {len(results)} memories with citations")
             if stale:

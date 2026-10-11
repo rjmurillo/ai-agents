@@ -136,19 +136,20 @@ class TestProcessFiles:
 
     def test_specific_files_filter(self, memories_dir: Path) -> None:
         target = memories_dir / "security-001.md"
-        stats = process_files(
-            memories_dir, files_to_process=[target], output_json=True
-        )
+        stats = process_files(memories_dir, files_to_process=[target], output_json=True)
         assert stats["FilesProcessed"] == 1
 
 
 class TestMain:
     def test_json_output(self, memories_dir: Path, capsys: pytest.CaptureFixture[str]) -> None:
-        exit_code = main([
-            "--memories-path", str(memories_dir),
-            "--output-json",
-            "--skip-path-validation",
-        ])
+        exit_code = main(
+            [
+                "--memories-path",
+                str(memories_dir),
+                "--output-json",
+                "--skip-path-validation",
+            ]
+        )
         assert exit_code == 0
         captured = capsys.readouterr()
         data = json.loads(captured.out)
@@ -157,21 +158,27 @@ class TestMain:
         assert "RelationshipsAdded" in data
 
     def test_human_output(self, memories_dir: Path, capsys: pytest.CaptureFixture[str]) -> None:
-        exit_code = main([
-            "--memories-path", str(memories_dir),
-            "--skip-path-validation",
-        ])
+        exit_code = main(
+            [
+                "--memories-path",
+                str(memories_dir),
+                "--skip-path-validation",
+            ]
+        )
         assert exit_code == 0
         captured = capsys.readouterr()
         assert "=== Summary ===" in captured.out
         assert "Files updated:" in captured.out
 
     def test_dry_run_message(self, memories_dir: Path, capsys: pytest.CaptureFixture[str]) -> None:
-        exit_code = main([
-            "--memories-path", str(memories_dir),
-            "--dry-run",
-            "--skip-path-validation",
-        ])
+        exit_code = main(
+            [
+                "--memories-path",
+                str(memories_dir),
+                "--dry-run",
+                "--skip-path-validation",
+            ]
+        )
         assert exit_code == 0
         captured = capsys.readouterr()
         assert "dry run" in captured.out.lower()

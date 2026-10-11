@@ -155,11 +155,7 @@ def _strict_int(payload: dict[str, Any], field: str, line_context: str) -> int:
 
 def _strict_number(payload: dict[str, Any], field: str, line_context: str) -> int | float:
     value = payload.get(field)
-    if (
-        not isinstance(value, (int, float))
-        or isinstance(value, bool)
-        or not math.isfinite(value)
-    ):
+    if not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value):
         raise MalformedRunRecordError(
             f"{line_context} field {field!r} has wrong type "
             f"(expected finite number, got {type(value).__name__})"
@@ -211,9 +207,7 @@ def _validate_assertions(payload: dict[str, Any], line_context: str) -> list[Ass
                 f"(expected object, got {type(assertion).__name__})"
             )
         if "kind" not in assertion:
-            raise MalformedRunRecordError(
-                f"{line_context} assertion {index} missing field: kind"
-            )
+            raise MalformedRunRecordError(f"{line_context} assertion {index} missing field: kind")
         assertions.append(
             AssertionResult(
                 kind=AssertionKind(assertion["kind"]),
@@ -323,9 +317,7 @@ class _Counters:
 class RunPersistence:
     """JSONL writer with idempotency guard. DESIGN-004 §5.5."""
 
-    def __init__(
-        self, run_dir: Path, *, resume: bool = False, seed: int | None = None
-    ) -> None:
+    def __init__(self, run_dir: Path, *, resume: bool = False, seed: int | None = None) -> None:
         self._run_dir = run_dir
         self._resume = resume
         self._seed = seed
@@ -383,9 +375,8 @@ class RunPersistence:
                 # `_seen`/`_completed` get seeded with rows whose shape
                 # the writer would otherwise accept.
                 schema_version = payload.get("schemaVersion")
-                if (
-                    schema_version not in SUPPORTED_RUN_RECORD_SCHEMA_VERSIONS
-                    or isinstance(schema_version, bool)
+                if schema_version not in SUPPORTED_RUN_RECORD_SCHEMA_VERSIONS or isinstance(
+                    schema_version, bool
                 ):
                     raise SchemaVersionError(
                         f"{self._jsonl_path}: line {line_no} has "
@@ -395,11 +386,7 @@ class RunPersistence:
                 line_context = f"{self._jsonl_path}: line {line_no}"
                 _normalize_seed(payload, cast(int, schema_version))
                 existing_seed = payload.get("seed")
-                if (
-                    self._resume
-                    and self._seed is not None
-                    and existing_seed != self._seed
-                ):
+                if self._resume and self._seed is not None and existing_seed != self._seed:
                     raise RunSeedMismatchError(
                         f"{self._jsonl_path}: line {line_no} has seed="
                         f"{existing_seed!r}, current seed={self._seed!r}"
@@ -431,9 +418,8 @@ class RunPersistence:
                 for name, expected_type, value in identity_types:
                     # `bool` is a subclass of `int`; reject it explicitly so
                     # `"run_index": true` cannot pass the int check.
-                    if (
-                        not isinstance(value, expected_type)
-                        or (expected_type is int and isinstance(value, bool))
+                    if not isinstance(value, expected_type) or (
+                        expected_type is int and isinstance(value, bool)
                     ):
                         raise MalformedRunRecordError(
                             f"{self._jsonl_path}: line {line_no} identity field "
@@ -443,8 +429,7 @@ class RunPersistence:
                 record_key = cast(tuple[str, str, int], key)
                 if record_key in self._seen:
                     raise MalformedRunRecordError(
-                        f"{self._jsonl_path}: line {line_no} duplicates "
-                        f"identity {record_key!r}"
+                        f"{self._jsonl_path}: line {line_no} duplicates identity {record_key!r}"
                     )
                 _validate_payload(payload, line_context)
                 _validate_assertions(payload, line_context)
@@ -535,11 +520,7 @@ class RunPersistence:
         temp file, then renames over the original. Avoids torn writes if
         the process is killed between syscalls.
         """
-        existing = (
-            self._jsonl_path.read_text(encoding="utf-8")
-            if self._jsonl_path.exists()
-            else ""
-        )
+        existing = self._jsonl_path.read_text(encoding="utf-8") if self._jsonl_path.exists() else ""
         # NamedTemporaryFile in the same directory ensures rename is atomic
         # (same filesystem). delete=False because we rename it ourselves.
         fd, tmp_path = tempfile.mkstemp(
@@ -560,9 +541,7 @@ class RunPersistence:
                 pass
             raise
 
-    def _atomic_replace(
-        self, key: tuple[str, str, int], record: RunRecord
-    ) -> None:
+    def _atomic_replace(self, key: tuple[str, str, int], record: RunRecord) -> None:
         """Replace any record matching `key` with `record`, atomically.
 
         Used when `--resume` retries a triple whose prior outcome was

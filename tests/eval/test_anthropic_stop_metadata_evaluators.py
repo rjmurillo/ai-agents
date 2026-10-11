@@ -50,7 +50,7 @@ def _fake_call_api(termination: str, text: str):
     caller's `metadata` kwarg and returns `text`. Both judges always pass
     `metadata` as a keyword, so `**kwargs` covers either call signature
     without a signature-specific fake per call site."""
-    return lambda *_args, **kwargs: (kwargs["metadata"].update(termination=termination) or text)
+    return lambda *_args, **kwargs: kwargs["metadata"].update(termination=termination) or text
 
 
 # eval-rule-activation.py: refusal / token_limit / incomplete are not scored

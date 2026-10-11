@@ -101,7 +101,9 @@ def get_discussion_sub_state(reply_bodies: list[str]) -> str | None:
 
 
 def get_lifecycle_state(
-    eyes_count: int, reply_count: int, is_thread_resolved: bool,
+    eyes_count: int,
+    reply_count: int,
+    is_thread_resolved: bool,
 ) -> str:
     """Determine the lifecycle state of a comment."""
     if is_thread_resolved:
@@ -139,9 +141,7 @@ def get_unaddressed_comments(
     """Get comments needing action, with lifecycle state analysis."""
     # Fetch all review comments
     try:
-        raw_comments = gh_api_paginated(
-            f"repos/{owner}/{repo}/pulls/{pr_number}/comments"
-        )
+        raw_comments = gh_api_paginated(f"repos/{owner}/{repo}/pulls/{pr_number}/comments")
     except SystemExit:
         raise
     except Exception as exc:
@@ -159,8 +159,10 @@ def get_unaddressed_comments(
         "TotalCount": 0,
         "LifecycleStateCounts": {"NEW": 0, "ACKNOWLEDGED": 0, "IN_DISCUSSION": 0, "RESOLVED": 0},
         "DiscussionSubStateCounts": {
-            "WONT_FIX": 0, "FIX_DESCRIBED": 0,
-            "FIX_COMMITTED": 0, "NEEDS_CLARIFICATION": 0,
+            "WONT_FIX": 0,
+            "FIX_DESCRIBED": 0,
+            "FIX_COMMITTED": 0,
+            "NEEDS_CLARIFICATION": 0,
         },
         "DomainCounts": {"security": 0, "bug": 0, "style": 0, "summary": 0, "general": 0},
         "AuthorSummary": [],
@@ -212,26 +214,28 @@ def get_unaddressed_comments(
 
         needs_action = comment_needs_action(state, sub_state)
 
-        all_processed.append({
-            "Id": cid,
-            "Author": comment.get("user", {}).get("login", ""),
-            "AuthorType": comment.get("user", {}).get("type", ""),
-            "Path": comment.get("path", ""),
-            "Line": comment.get("line") or comment.get("original_line"),
-            "Body": comment.get("body", ""),
-            "Domain": classify_domain(comment.get("body", "")),
-            "CreatedAt": comment.get("created_at", ""),
-            "UpdatedAt": comment.get("updated_at", ""),
-            "HtmlUrl": comment.get("html_url", ""),
-            "InReplyToId": None,
-            "IsReply": False,
-            "LifecycleState": state,
-            "DiscussionSubState": sub_state,
-            "EyesCount": eyes_count,
-            "ReplyCount": reply_count,
-            "IsThreadResolved": is_resolved,
-            "NeedsAction": needs_action,
-        })
+        all_processed.append(
+            {
+                "Id": cid,
+                "Author": comment.get("user", {}).get("login", ""),
+                "AuthorType": comment.get("user", {}).get("type", ""),
+                "Path": comment.get("path", ""),
+                "Line": comment.get("line") or comment.get("original_line"),
+                "Body": comment.get("body", ""),
+                "Domain": classify_domain(comment.get("body", "")),
+                "CreatedAt": comment.get("created_at", ""),
+                "UpdatedAt": comment.get("updated_at", ""),
+                "HtmlUrl": comment.get("html_url", ""),
+                "InReplyToId": None,
+                "IsReply": False,
+                "LifecycleState": state,
+                "DiscussionSubState": sub_state,
+                "EyesCount": eyes_count,
+                "ReplyCount": reply_count,
+                "IsThreadResolved": is_resolved,
+                "NeedsAction": needs_action,
+            }
+        )
 
     # Apply filter
     if only_unaddressed:
@@ -242,8 +246,10 @@ def get_unaddressed_comments(
     # Calculate lifecycle state counts from ALL processed comments
     lifecycle_counts = {"NEW": 0, "ACKNOWLEDGED": 0, "IN_DISCUSSION": 0, "RESOLVED": 0}
     sub_state_counts = {
-        "WONT_FIX": 0, "FIX_DESCRIBED": 0,
-        "FIX_COMMITTED": 0, "NEEDS_CLARIFICATION": 0,
+        "WONT_FIX": 0,
+        "FIX_DESCRIBED": 0,
+        "FIX_COMMITTED": 0,
+        "NEEDS_CLARIFICATION": 0,
     }
     for c in all_processed:
         lifecycle_counts[c["LifecycleState"]] = lifecycle_counts.get(c["LifecycleState"], 0) + 1
@@ -263,8 +269,7 @@ def get_unaddressed_comments(
         if c.get("Author"):
             author_counter[c["Author"]] += 1
     author_summary = [
-        {"Author": author, "Count": count}
-        for author, count in author_counter.items()
+        {"Author": author, "Count": count} for author, count in author_counter.items()
     ]
 
     actionable_count = sum(1 for c in all_processed if c["NeedsAction"])
@@ -306,23 +311,33 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument(
-        "--pull-request", type=int, required=True,
+        "--pull-request",
+        type=int,
+        required=True,
         help="PR number",
     )
     parser.add_argument(
-        "--bot-only", action="store_true", default=True,
+        "--bot-only",
+        action="store_true",
+        default=True,
         help="Only return bot comments (default: true)",
     )
     parser.add_argument(
-        "--no-bot-only", action="store_false", dest="bot_only",
+        "--no-bot-only",
+        action="store_false",
+        dest="bot_only",
         help="Include all comments regardless of author type",
     )
     parser.add_argument(
-        "--only-unaddressed", action="store_true", default=True,
+        "--only-unaddressed",
+        action="store_true",
+        default=True,
         help="Only return comments needing action (default: true)",
     )
     parser.add_argument(
-        "--no-only-unaddressed", action="store_false", dest="only_unaddressed",
+        "--no-only-unaddressed",
+        action="store_false",
+        dest="only_unaddressed",
         help="Include all comments with full lifecycle state info",
     )
     add_output_format_arg(parser)
@@ -355,9 +370,7 @@ def main(argv: list[str] | None = None) -> int:
     # inner copy to avoid a redundant Data.Success (matches get_pr_context.py).
     data = {k: v for k, v in result.items() if k != "Success"}
 
-    summary = (
-        f"PR #{args.pull_request}: {actionable_count} comments needing action"
-    )
+    summary = f"PR #{args.pull_request}: {actionable_count} comments needing action"
     write_skill_output(
         data,
         output_format=fmt,

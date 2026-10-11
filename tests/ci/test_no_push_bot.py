@@ -70,9 +70,7 @@ def _has_write_contents(workflow: dict[Any, Any], job: dict[str, Any]) -> bool:
     )
 
 
-def _bare_push_violations_in_job(
-    path_name: str, job_id: str, job: dict[str, Any]
-) -> list[str]:
+def _bare_push_violations_in_job(path_name: str, job_id: str, job: dict[str, Any]) -> list[str]:
     violations: list[str] = []
     for step in job.get("steps", []):
         if not isinstance(step, dict):
@@ -154,9 +152,7 @@ def test_bare_push_guard_rejects_comment_and_shell_chain_forms() -> None:
 def test_bare_push_guard_accepts_explicit_non_bare_push() -> None:
     workflow = {
         "permissions": {"contents": "write"},
-        "jobs": {
-            "safe": {"steps": [{"run": "git push origin HEAD:refs/heads/bot/update"}]}
-        },
+        "jobs": {"safe": {"steps": [{"run": "git push origin HEAD:refs/heads/bot/update"}]}},
     }
 
     assert _bare_push_violations_in_workflow(Path("safe.yml"), workflow) == []
@@ -192,9 +188,7 @@ jobs:
         raise AssertionError("entrypoint accepted a scheduled bare git push")
 
 
-def test_no_push_bot_entrypoint_accepts_safe_workflow(
-    monkeypatch: Any, tmp_path: Path
-) -> None:
+def test_no_push_bot_entrypoint_accepts_safe_workflow(monkeypatch: Any, tmp_path: Path) -> None:
     workflow = tmp_path / "safe.yml"
     workflow.write_text(
         """

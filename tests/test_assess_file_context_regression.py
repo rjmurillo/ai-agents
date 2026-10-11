@@ -1,5 +1,4 @@
-"""Per-file threshold context for new files in regression mode (issue #6166).
-"""
+"""Per-file threshold context for new files in regression mode (issue #6166)."""
 
 from __future__ import annotations
 

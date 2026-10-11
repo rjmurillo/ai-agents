@@ -101,9 +101,9 @@ class TestManifestRoundTrip:
         runs_file = write_runs(tmp_path / "runs.json", runs)
         manifest_path = tmp_path / "recovery.json"
         client = FakeClient()
-        client.post_failures[
-            f"repos/rjmurillo/ai-agents/actions/runs/{runs[1].run_id}/cancel"
-        ] = RuntimeError("409 Conflict")
+        client.post_failures[f"repos/rjmurillo/ai-agents/actions/runs/{runs[1].run_id}/cancel"] = (
+            RuntimeError("409 Conflict")
+        )
 
         code = main(
             argv(
@@ -211,18 +211,14 @@ class TestManifestRoundTrip:
         }
         del entry[missing]
         broken = tmp_path / "recovery.json"
-        broken.write_text(
-            json.dumps({"version": 1, "entries": [entry]}), encoding="utf-8"
-        )
+        broken.write_text(json.dumps({"version": 1, "entries": [entry]}), encoding="utf-8")
 
         code = main(argv(broken, workflows), client=FakeClient())
 
         assert code == EXIT_CONFIG
         assert f"is missing '{missing}'" in capsys.readouterr().err
 
-    @pytest.mark.parametrize(
-        "value", ["Validate PR", {"Validate PR": True}, 7, None, [7]]
-    )
+    @pytest.mark.parametrize("value", ["Validate PR", {"Validate PR": True}, 7, None, [7]])
     def test_a_wrongly_typed_context_array_exits_config(
         self, tmp_path: Path, workflows: Path, value: object
     ):
@@ -253,9 +249,7 @@ class TestManifestRoundTrip:
 
         assert main(argv(broken, workflows), client=FakeClient()) == EXIT_CONFIG
 
-    def test_control_a_well_formed_entry_still_replays(
-        self, tmp_path: Path, workflows: Path
-    ):
+    def test_control_a_well_formed_entry_still_replays(self, tmp_path: Path, workflows: Path):
         """Without this, a fix that refused every manifest entry would pass
         every negative case above.
         """
@@ -292,12 +286,8 @@ class TestPathFilteredWorkflowBlocksTheCli:
     place the operator reads it.
     """
 
-    def test_a_path_filtered_required_workflow_blocks_a_reopen_plan(
-        self, tmp_path: Path, capsys
-    ):
-        filtered = write_workflows(
-            tmp_path / "filtered", HEALTHY_TYPES, paths=["docs/**"]
-        )
+    def test_a_path_filtered_required_workflow_blocks_a_reopen_plan(self, tmp_path: Path, capsys):
+        filtered = write_workflows(tmp_path / "filtered", HEALTHY_TYPES, paths=["docs/**"])
         runs_file = write_runs(tmp_path / "runs.json", incident_runs(pr_count=1))
 
         code = main(
@@ -308,9 +298,7 @@ class TestPathFilteredWorkflowBlocksTheCli:
         assert code == EXIT_BLOCKED
         assert "declares pull_request trigger path filters" in capsys.readouterr().out
 
-    def test_control_the_same_workflows_without_paths_verify(
-        self, tmp_path: Path, workflows: Path
-    ):
+    def test_control_the_same_workflows_without_paths_verify(self, tmp_path: Path, workflows: Path):
         runs_file = write_runs(tmp_path / "runs.json", incident_runs(pr_count=1))
 
         code = main(

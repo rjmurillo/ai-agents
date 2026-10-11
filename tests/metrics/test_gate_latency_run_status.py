@@ -93,9 +93,7 @@ def test_negative_a_truncated_repetitions_wall_clock_is_absent_from_hook_summary
     truncated run's 2.0s would pull the summary down to n=2, min=2.0 if it
     leaked in; the fix keeps it out entirely.
     """
-    complete = _run(
-        repetition_index=0, wall_clock_seconds=100.0, jobs_parsed=3, status="complete"
-    )
+    complete = _run(repetition_index=0, wall_clock_seconds=100.0, jobs_parsed=3, status="complete")
     truncated = _run(
         repetition_index=1,
         exit_code=1,
@@ -153,9 +151,7 @@ def test_edge_every_run_incomplete_yields_empty_summaries() -> None:
 
 
 def test_positive_include_incomplete_restores_every_run() -> None:
-    complete = _run(
-        repetition_index=0, wall_clock_seconds=100.0, jobs_parsed=3, status="complete"
-    )
+    complete = _run(repetition_index=0, wall_clock_seconds=100.0, jobs_parsed=3, status="complete")
     truncated = _run(
         repetition_index=1,
         exit_code=1,

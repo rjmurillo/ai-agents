@@ -38,9 +38,7 @@ def test_ci_skips_the_local_clone_probe(
     assert check_git_hook_health.main([str(tmp_path)]) == 0
 
 
-def test_git_pins_the_diagnostic_locale(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_git_pins_the_diagnostic_locale(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # Copilot review on aef6e3a: non-repository detection must not depend on locale.
     def fake_run(*_args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
         env = kwargs["env"]
@@ -75,13 +73,9 @@ def test_scratch_git_helpers_isolate_host_configuration(
     helpers["_git"](tmp_path, "status")
     helpers["_run_cli"](tmp_path)
 
+    assert all(isinstance(env, dict) and env.get("GIT_CONFIG_NOSYSTEM") == "1" for env in observed)
     assert all(
-        isinstance(env, dict) and env.get("GIT_CONFIG_NOSYSTEM") == "1"
-        for env in observed
-    )
-    assert all(
-        isinstance(env, dict) and env.get("GIT_CONFIG_GLOBAL") == os.devnull
-        for env in observed
+        isinstance(env, dict) and env.get("GIT_CONFIG_GLOBAL") == os.devnull for env in observed
     )
 
 

@@ -93,14 +93,10 @@ class TestLiveEnumeration:
             }
         )
 
-    def test_all_open_prs_enumerates_through_pagination(
-        self, workflows: Path, capsys
-    ):
+    def test_all_open_prs_enumerates_through_pagination(self, workflows: Path, capsys):
         client = self._pulls_client()
 
-        code = main(
-            ["--all-open-prs", "--workflows-dir", str(workflows)], client=client
-        )
+        code = main(["--all-open-prs", "--workflows-dir", str(workflows)], client=client)
 
         assert code == EXIT_OK
         assert "pull requests       : 1" in capsys.readouterr().out
@@ -109,9 +105,7 @@ class TestLiveEnumeration:
         client = self._pulls_client()
         client.responses[f"repos/{self.REPOSITORY}/pulls/7"] = self._pull_payload()
 
-        code = main(
-            ["--pr", "7", "--workflows-dir", str(workflows)], client=client
-        )
+        code = main(["--pr", "7", "--workflows-dir", str(workflows)], client=client)
 
         assert code == EXIT_OK
 
@@ -155,18 +149,14 @@ class TestLiveEnumeration:
         assert client.posts == [f"repos/{self.REPOSITORY}/actions/runs/11/cancel"]
 
     def test_a_pr_with_no_head_branch_exits_config(self, workflows: Path, capsys):
-        client = FakeClient(
-            {f"repos/{self.REPOSITORY}/pulls/7": {"number": 7, "head": None}}
-        )
+        client = FakeClient({f"repos/{self.REPOSITORY}/pulls/7": {"number": 7, "head": None}})
 
         code = main(["--pr", "7", "--workflows-dir", str(workflows)], client=client)
 
         assert code == EXIT_CONFIG
         assert "no head branch" in capsys.readouterr().err
 
-    def test_a_pr_with_no_head_repository_exits_config(
-        self, workflows: Path, capsys
-    ):
+    def test_a_pr_with_no_head_repository_exits_config(self, workflows: Path, capsys):
         """Fail closed rather than assume the base repository. Without the head
         repository there is no way to tell this pull request's runs from
         another fork's runs on the same branch name.
@@ -267,9 +257,7 @@ class TestPerPullRequestProvenance:
             client=client,
         )
 
-    def test_a_pr_whose_own_workflow_omits_reopened_is_blocked(
-        self, workflows: Path, capsys
-    ):
+    def test_a_pr_whose_own_workflow_omits_reopened_is_blocked(self, workflows: Path, capsys):
         """The ``workflows`` fixture corpus declares ``reopened`` for every
         workflow, so this run verifies against the local checkout and blocks
         only when the pull request's own definition is read.
@@ -283,9 +271,7 @@ class TestPerPullRequestProvenance:
         """Without this, a fix that blocked every live run would pass the case
         above while making the tool useless.
         """
-        code = self._run(
-            self._client(["opened", "synchronize", "reopened"]), workflows
-        )
+        code = self._run(self._client(["opened", "synchronize", "reopened"]), workflows)
 
         assert code == EXIT_OK
 
@@ -296,9 +282,7 @@ class TestPerPullRequestProvenance:
         back to the local corpus, which would clear the run.
         """
         client = self._client(["opened", "synchronize", "reopened"])
-        del client.responses[
-            contents_endpoint(self.REPOSITORY, self.WORKFLOW_PATH, merge_ref(7))
-        ]
+        del client.responses[contents_endpoint(self.REPOSITORY, self.WORKFLOW_PATH, merge_ref(7))]
 
         code = self._run(client, workflows)
 
@@ -312,11 +296,7 @@ class TestPerPullRequestProvenance:
         client = self._client(["opened", "synchronize", "reopened"])
         queued = page_url(runs_url(self.REPOSITORY, "feat/a", "queued"), 1)
         client.responses[queued] = {
-            "workflow_runs": [
-                run_payload(
-                    11, name=self.WORKFLOW, head_repository=self.REPOSITORY
-                )
-            ]
+            "workflow_runs": [run_payload(11, name=self.WORKFLOW, head_repository=self.REPOSITORY)]
         }
 
         assert self._run(client, workflows) == EXIT_BLOCKED
@@ -329,10 +309,7 @@ class TestPerPullRequestProvenance:
 
         self._run(client, workflows)
 
-        assert (
-            contents_endpoint(self.REPOSITORY, self.WORKFLOW_PATH, merge_ref(7))
-            in client.gets
-        )
+        assert contents_endpoint(self.REPOSITORY, self.WORKFLOW_PATH, merge_ref(7)) in client.gets
 
 
 class TestPinnedContract:
@@ -374,11 +351,7 @@ class TestPinnedContract:
         refusing on the presence of the flag rather than on its value.
         """
         client = FakeClient(
-            {
-                page_url(
-                    "repos/rjmurillo/ai-agents/pulls?state=open&base=main", 1
-                ): []
-            }
+            {page_url("repos/rjmurillo/ai-agents/pulls?state=open&base=main", 1): []}
         )
 
         code = main(
@@ -445,9 +418,7 @@ class TestAuthenticationExit:
 
         assert code == EXIT_AUTH
 
-    def test_control_an_offline_dry_run_needs_no_credentials(
-        self, tmp_path: Path, workflows: Path
-    ):
+    def test_control_an_offline_dry_run_needs_no_credentials(self, tmp_path: Path, workflows: Path):
         """A ``--runs-file`` dry run touches nothing, so it must stay usable on
         a machine with no ``gh`` login. Without this control, gating every
         invocation on auth would pass both cases above.
@@ -462,9 +433,7 @@ class TestAuthenticationExit:
 
         assert code == EXIT_OK
 
-    def test_a_failing_auth_probe_is_treated_as_unauthenticated(
-        self, workflows: Path
-    ):
+    def test_a_failing_auth_probe_is_treated_as_unauthenticated(self, workflows: Path):
         code = main(
             ["--all-open-prs", "--workflows-dir", str(workflows)],
             client=self.ProbeExplodes(),
@@ -472,9 +441,7 @@ class TestAuthenticationExit:
 
         assert code == EXIT_AUTH
 
-    def test_an_authenticated_client_reaches_the_api_error_path(
-        self, workflows: Path
-    ):
+    def test_an_authenticated_client_reaches_the_api_error_path(self, workflows: Path):
         """Control proving the auth gate is not swallowing transport failures:
         an authenticated client whose read fails still exits 3, not 4.
         """

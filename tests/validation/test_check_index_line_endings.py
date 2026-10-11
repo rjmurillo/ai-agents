@@ -61,10 +61,10 @@ def test_lf_blob_under_eol_lf_is_clean() -> None:
 @pytest.mark.parametrize(
     "attributes",
     [
-        "attr/-text",           # exempted by declaration
-        "attr/text eol=crlf",   # CRLF requested on purpose
-        "attr/",                # no attribute at all
-        "attr/binary -text",    # binary payload
+        "attr/-text",  # exempted by declaration
+        "attr/text eol=crlf",  # CRLF requested on purpose
+        "attr/",  # no attribute at all
+        "attr/binary -text",  # binary payload
     ],
 )
 def test_crlf_blob_without_an_lf_promise_is_not_a_violation(attributes: str) -> None:
@@ -159,9 +159,7 @@ def test_a_row_with_an_empty_path_is_an_error_not_a_skip() -> None:
         ("i/lf w/lf attr/text\tdocs/a.md\0\0i/crlf w/crlf attr/text eol=lf\tb.md\0", 1),
     ],
 )
-def test_an_empty_record_that_is_not_the_terminator_is_an_error(
-    output: str, position: int
-) -> None:
+def test_an_empty_record_that_is_not_the_terminator_is_an_error(output: str, position: int) -> None:
     """`-z` terminates, so exactly one empty record is legitimate: the last.
 
     Passing over the others turns malformed producer output into a clean scan.
@@ -370,6 +368,7 @@ def test_an_unspellable_root_and_an_unspellable_target_are_both_named(capsys) ->
 
     out = capsys.readouterr().out
     assert "the repository root and 1 of 1 path(s)" in out
+
 
 def test_validate_passes_on_a_clean_repository(monkeypatch) -> None:
     monkeypatch.setattr(checker, "check_repository", lambda _root: ([], 9679))

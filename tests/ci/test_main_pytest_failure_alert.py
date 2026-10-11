@@ -142,6 +142,5 @@ def test_pytest_workflow_wires_main_failure_alert():
     assert "test-windows-pwsh" in job["needs"]
     assert "github.ref_name == github.event.repository.default_branch" in job["if"]
     assert any(
-        step.get("run") == "python scripts/ci/main_pytest_failure_alert.py"
-        for step in job["steps"]
+        step.get("run") == "python scripts/ci/main_pytest_failure_alert.py" for step in job["steps"]
     )

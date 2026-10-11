@@ -37,9 +37,12 @@ def _extract_json(text):
             except json.JSONDecodeError:
                 continue
     raise ValueError("No JSON found in output: " + repr(text))
+
+
 @pytest.fixture
 def _import_module():
     import importlib
+
     mod_name = "set_issue_milestone"
     if mod_name in sys.modules:
         del sys.modules[mod_name]
@@ -54,11 +57,14 @@ class TestSetIssueMilestone:
         with (
             patch("set_issue_milestone.assert_gh_authenticated"),
             patch("set_issue_milestone.resolve_repo_params", return_value=_mock_repo()),
-            patch("subprocess.run", side_effect=[
-                make_completed_process(stdout="null"),          # _get_current_milestone
-                make_completed_process(stdout="v1.0.0"),        # _get_milestone_titles
-                make_completed_process(),                        # gh issue edit
-            ]),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    make_completed_process(stdout="null"),  # _get_current_milestone
+                    make_completed_process(stdout="v1.0.0"),  # _get_milestone_titles
+                    make_completed_process(),  # gh issue edit
+                ],
+            ),
         ):
             rc = mod.main(["--issue", "1", "--milestone", "v1.0.0"])
         assert rc == 0
@@ -69,20 +75,20 @@ class TestSetIssueMilestone:
 
     def test_all_gh_calls_include_timeout(self, _import_module):
         mod = _import_module
-        with patch("subprocess.run", side_effect=[
-            make_completed_process(stdout="null"),
-            make_completed_process(stdout="v1.0.0"),
-            make_completed_process(),
-        ]) as run:
+        with patch(
+            "subprocess.run",
+            side_effect=[
+                make_completed_process(stdout="null"),
+                make_completed_process(stdout="v1.0.0"),
+                make_completed_process(),
+            ],
+        ) as run:
             with (
                 patch("set_issue_milestone.assert_gh_authenticated"),
                 patch("set_issue_milestone.resolve_repo_params", return_value=_mock_repo()),
             ):
                 assert mod.main(["--issue", "1", "--milestone", "v1.0.0"]) == 0
-        assert all(
-            call.kwargs["timeout"] == mod.GH_TIMEOUT_SECONDS
-            for call in run.call_args_list
-        )
+        assert all(call.kwargs["timeout"] == mod.GH_TIMEOUT_SECONDS for call in run.call_args_list)
 
     def test_milestone_list_reads_every_page_of_open_milestones(self, _import_module):
         titles = "".join(f"v0.{i}.0\n" for i in range(31))
@@ -98,10 +104,13 @@ class TestSetIssueMilestone:
         with (
             patch("set_issue_milestone.assert_gh_authenticated"),
             patch("set_issue_milestone.resolve_repo_params", return_value=_mock_repo()),
-            patch("subprocess.run", side_effect=[
-                make_completed_process(stdout="v1.0.0"),        # _get_current_milestone
-                make_completed_process(stdout="v1.0.0"),        # _get_milestone_titles
-            ]),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    make_completed_process(stdout="v1.0.0"),  # _get_current_milestone
+                    make_completed_process(stdout="v1.0.0"),  # _get_milestone_titles
+                ],
+            ),
         ):
             rc = mod.main(["--issue", "1", "--milestone", "v1.0.0"])
         assert rc == 0
@@ -113,11 +122,14 @@ class TestSetIssueMilestone:
         with (
             patch("set_issue_milestone.assert_gh_authenticated"),
             patch("set_issue_milestone.resolve_repo_params", return_value=_mock_repo()),
-            patch("subprocess.run", side_effect=[
-                make_completed_process(stdout="v0.9.0"),        # _get_current_milestone
-                make_completed_process(stdout="v1.0.0"),        # _get_milestone_titles
-                make_completed_process(),                        # gh issue edit
-            ]),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    make_completed_process(stdout="v0.9.0"),  # _get_current_milestone
+                    make_completed_process(stdout="v1.0.0"),  # _get_milestone_titles
+                    make_completed_process(),  # gh issue edit
+                ],
+            ),
         ):
             rc = mod.main(["--issue", "1", "--milestone", "v1.0.0", "--force"])
         assert rc == 0
@@ -130,16 +142,25 @@ class TestSetIssueMilestone:
         with (
             patch("set_issue_milestone.assert_gh_authenticated"),
             patch("set_issue_milestone.resolve_repo_params", return_value=_mock_repo()),
-            patch("subprocess.run", side_effect=[
-                make_completed_process(stdout="v0.9.0"),        # _get_current_milestone
-                make_completed_process(stdout="v1.0.0"),        # _get_milestone_titles
-            ]),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    make_completed_process(stdout="v0.9.0"),  # _get_current_milestone
+                    make_completed_process(stdout="v1.0.0"),  # _get_milestone_titles
+                ],
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
-                mod.main([
-                    "--issue", "1", "--milestone", "v1.0.0",
-                    "--output-format", "json",
-                ])
+                mod.main(
+                    [
+                        "--issue",
+                        "1",
+                        "--milestone",
+                        "v1.0.0",
+                        "--output-format",
+                        "json",
+                    ]
+                )
         assert exc.value.code == 1
         result = json.loads(capsys.readouterr().out)
         assert result["Error"]["Code"] == 1
@@ -151,19 +172,30 @@ class TestSetIssueMilestone:
         the without-force guard be skipped, overwriting an existing milestone.
         """
         mod = _import_module
-        run = patch("subprocess.run", side_effect=[
-            make_completed_process(stderr="api down", returncode=1),  # _get_current_milestone fails
-        ])
+        run = patch(
+            "subprocess.run",
+            side_effect=[
+                make_completed_process(
+                    stderr="api down", returncode=1
+                ),  # _get_current_milestone fails
+            ],
+        )
         with (
             patch("set_issue_milestone.assert_gh_authenticated"),
             patch("set_issue_milestone.resolve_repo_params", return_value=_mock_repo()),
             run as mock_run,
         ):
             with pytest.raises(SystemExit) as exc:
-                mod.main([
-                    "--issue", "1", "--milestone", "v1.0.0",
-                    "--output-format", "json",
-                ])
+                mod.main(
+                    [
+                        "--issue",
+                        "1",
+                        "--milestone",
+                        "v1.0.0",
+                        "--output-format",
+                        "json",
+                    ]
+                )
         assert exc.value.code == 3
         result = json.loads(capsys.readouterr().out)
         assert result["Error"]["Code"] == 3
@@ -176,39 +208,56 @@ class TestSetIssueMilestone:
         with (
             patch("set_issue_milestone.assert_gh_authenticated"),
             patch("set_issue_milestone.resolve_repo_params", return_value=_mock_repo()),
-            patch("subprocess.run", side_effect=[
-                make_completed_process(stdout="null"),                    # _get_current_milestone
-                make_completed_process(
-                    stderr="api down", returncode=1
-                ),  # _get_milestone_titles fails
-            ]),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    make_completed_process(stdout="null"),  # _get_current_milestone
+                    make_completed_process(
+                        stderr="api down", returncode=1
+                    ),  # _get_milestone_titles fails
+                ],
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
-                mod.main([
-                    "--issue", "1", "--milestone", "v1.0.0",
-                    "--output-format", "json",
-                ])
+                mod.main(
+                    [
+                        "--issue",
+                        "1",
+                        "--milestone",
+                        "v1.0.0",
+                        "--output-format",
+                        "json",
+                    ]
+                )
         assert exc.value.code == 3
         result = json.loads(capsys.readouterr().out)
         assert result["Error"]["Code"] == 3
         assert result["Error"]["Type"] == "ApiError"
-
 
     def test_milestone_not_found_exits_2(self, _import_module, capsys):
         mod = _import_module
         with (
             patch("set_issue_milestone.assert_gh_authenticated"),
             patch("set_issue_milestone.resolve_repo_params", return_value=_mock_repo()),
-            patch("subprocess.run", side_effect=[
-                make_completed_process(stdout="null"),          # _get_current_milestone
-                make_completed_process(stdout="v2.0.0"),        # _get_milestone_titles
-            ]),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    make_completed_process(stdout="null"),  # _get_current_milestone
+                    make_completed_process(stdout="v2.0.0"),  # _get_milestone_titles
+                ],
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
-                mod.main([
-                    "--issue", "1", "--milestone", "v1.0.0",
-                    "--output-format", "json",
-                ])
+                mod.main(
+                    [
+                        "--issue",
+                        "1",
+                        "--milestone",
+                        "v1.0.0",
+                        "--output-format",
+                        "json",
+                    ]
+                )
         assert exc.value.code == 2
         result = json.loads(capsys.readouterr().out)
         assert result["Success"] is False
@@ -234,17 +283,26 @@ class TestSetIssueMilestone:
         with (
             patch("set_issue_milestone.assert_gh_authenticated"),
             patch("set_issue_milestone.resolve_repo_params", return_value=_mock_repo()),
-            patch("subprocess.run", side_effect=[
-                make_completed_process(stdout="null"),
-                make_completed_process(stdout="v1.0.0"),
-                make_completed_process(returncode=1, stderr="api failed"),
-            ]),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    make_completed_process(stdout="null"),
+                    make_completed_process(stdout="v1.0.0"),
+                    make_completed_process(returncode=1, stderr="api failed"),
+                ],
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
-                mod.main([
-                    "--issue", "1", "--milestone", "v1.0.0",
-                    "--output-format", "json",
-                ])
+                mod.main(
+                    [
+                        "--issue",
+                        "1",
+                        "--milestone",
+                        "v1.0.0",
+                        "--output-format",
+                        "json",
+                    ]
+                )
         assert exc.value.code == 3
         result = json.loads(capsys.readouterr().out)
         assert result["Success"] is False
@@ -277,10 +335,13 @@ class TestSetIssueMilestone:
         with (
             patch("set_issue_milestone.assert_gh_authenticated"),
             patch("set_issue_milestone.resolve_repo_params", return_value=_mock_repo()),
-            patch("subprocess.run", side_effect=[
-                make_completed_process(stdout="v1.0.0"),        # _get_current_milestone
-                make_completed_process(),                        # PATCH to clear
-            ]),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    make_completed_process(stdout="v1.0.0"),  # _get_current_milestone
+                    make_completed_process(),  # PATCH to clear
+                ],
+            ),
         ):
             rc = mod.main(["--issue", "1", "--clear"])
         assert rc == 0

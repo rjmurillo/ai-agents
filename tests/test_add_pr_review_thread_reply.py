@@ -93,7 +93,8 @@ class TestMain:
 
     def test_empty_body_exits_2(self):
         with patch.object(
-            _mod, "assert_gh_authenticated",
+            _mod,
+            "assert_gh_authenticated",
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--thread-id", "PRRT_abc", "--body", ""])
@@ -101,7 +102,8 @@ class TestMain:
 
     def test_not_authenticated_exits_4(self):
         with patch.object(
-            _mod, "assert_gh_authenticated",
+            _mod,
+            "assert_gh_authenticated",
             side_effect=SystemExit(4),
         ):
             with pytest.raises(SystemExit) as exc:
@@ -122,14 +124,17 @@ class TestMain:
         }
         with (
             patch.object(
-                _mod, "assert_gh_authenticated",
+                _mod,
+                "assert_gh_authenticated",
             ),
             patch.object(
-                _mod, "query_thread_state",
+                _mod,
+                "query_thread_state",
                 return_value=_UNRESOLVED_STATE,
             ),
             patch.object(
-                _mod, "gh_graphql",
+                _mod,
+                "gh_graphql",
                 return_value=reply_data,
             ),
         ):
@@ -161,18 +166,22 @@ class TestMain:
         }
         with (
             patch.object(
-                _mod, "assert_gh_authenticated",
+                _mod,
+                "assert_gh_authenticated",
             ),
             patch.object(
-                _mod, "query_thread_state",
+                _mod,
+                "query_thread_state",
                 return_value=_UNRESOLVED_STATE,
             ),
             patch.object(
-                _mod, "guard_auto_merge_before_final_thread_resolution",
+                _mod,
+                "guard_auto_merge_before_final_thread_resolution",
                 return_value=_AUTO_MERGE_GUARD_NOOP,
             ),
             patch.object(
-                _mod, "gh_graphql",
+                _mod,
+                "gh_graphql",
                 side_effect=[reply_data, resolve_data],
             ),
         ):
@@ -217,18 +226,22 @@ class TestMain:
 
         with (
             patch.object(
-                _mod, "assert_gh_authenticated",
+                _mod,
+                "assert_gh_authenticated",
             ),
             patch.object(
-                _mod, "query_thread_state",
+                _mod,
+                "query_thread_state",
                 return_value=_UNRESOLVED_STATE,
             ),
             patch.object(
-                _mod, "guard_auto_merge_before_final_thread_resolution",
+                _mod,
+                "guard_auto_merge_before_final_thread_resolution",
                 side_effect=fake_guard,
             ),
             patch.object(
-                _mod, "gh_graphql",
+                _mod,
+                "gh_graphql",
                 side_effect=fake_graphql,
             ),
         ):
@@ -259,29 +272,35 @@ class TestMain:
         }
         with (
             patch.object(
-                _mod, "assert_gh_authenticated",
+                _mod,
+                "assert_gh_authenticated",
             ),
             patch.object(
-                _mod, "query_thread_state",
+                _mod,
+                "query_thread_state",
                 side_effect=[_UNRESOLVED_STATE, resolved_state],
             ),
             patch.object(
-                _mod, "guard_auto_merge_before_final_thread_resolution",
+                _mod,
+                "guard_auto_merge_before_final_thread_resolution",
             ) as guard,
             patch.object(
-                _mod, "gh_graphql",
+                _mod,
+                "gh_graphql",
                 return_value=reply_data,
             ) as graphql,
         ):
-            rc = main([
-                "--thread-id",
-                "PRRT_abc",
-                "--pull-request",
-                "42",
-                "--body",
-                "Fixed.",
-                "--resolve",
-            ])
+            rc = main(
+                [
+                    "--thread-id",
+                    "PRRT_abc",
+                    "--pull-request",
+                    "42",
+                    "--body",
+                    "Fixed.",
+                    "--resolve",
+                ]
+            )
         assert rc == 0
         assert graphql.call_count == 1
         guard.assert_not_called()
@@ -315,18 +334,22 @@ class TestMain:
 
         with (
             patch.object(
-                _mod, "assert_gh_authenticated",
+                _mod,
+                "assert_gh_authenticated",
             ),
             patch.object(
-                _mod, "query_thread_state",
+                _mod,
+                "query_thread_state",
                 return_value=_UNRESOLVED_STATE,
             ),
             patch.object(
-                _mod, "guard_auto_merge_before_final_thread_resolution",
+                _mod,
+                "guard_auto_merge_before_final_thread_resolution",
                 side_effect=RuntimeError("pagination incomplete"),
             ),
             patch.object(
-                _mod, "gh_graphql",
+                _mod,
+                "gh_graphql",
                 side_effect=fake_graphql,
             ),
         ):
@@ -339,10 +362,12 @@ class TestMain:
     def test_thread_not_found_exits_0_skip(self, capsys):
         with (
             patch.object(
-                _mod, "assert_gh_authenticated",
+                _mod,
+                "assert_gh_authenticated",
             ),
             patch.object(
-                _mod, "query_thread_state",
+                _mod,
+                "query_thread_state",
                 return_value=None,
             ),
         ):
@@ -355,10 +380,12 @@ class TestMain:
     def test_api_error_exits_3(self, capsys):
         with (
             patch.object(
-                _mod, "assert_gh_authenticated",
+                _mod,
+                "assert_gh_authenticated",
             ),
             patch.object(
-                _mod, "query_thread_state",
+                _mod,
+                "query_thread_state",
                 side_effect=RuntimeError("Server error"),
             ),
         ):
@@ -384,18 +411,22 @@ class TestMain:
         }
         with (
             patch.object(
-                _mod, "assert_gh_authenticated",
+                _mod,
+                "assert_gh_authenticated",
             ),
             patch.object(
-                _mod, "query_thread_state",
+                _mod,
+                "query_thread_state",
                 return_value=_UNRESOLVED_STATE,
             ),
             patch.object(
-                _mod, "guard_auto_merge_before_final_thread_resolution",
+                _mod,
+                "guard_auto_merge_before_final_thread_resolution",
                 return_value=_AUTO_MERGE_GUARD_NOOP,
             ),
             patch.object(
-                _mod, "gh_graphql",
+                _mod,
+                "gh_graphql",
                 return_value=reply_data,
             ),
             patch(
@@ -447,7 +478,8 @@ class TestQueryThreadState:
     def test_returns_thread_dict_when_found(self):
         node = {"id": "PRRT_abc", "isResolved": False}
         with patch.object(
-            _mod, "gh_graphql",
+            _mod,
+            "gh_graphql",
             return_value={"node": node},
         ):
             result = query_thread_state("PRRT_abc")
@@ -455,7 +487,8 @@ class TestQueryThreadState:
 
     def test_returns_none_when_not_found(self):
         with patch.object(
-            _mod, "gh_graphql",
+            _mod,
+            "gh_graphql",
             return_value={"node": None},
         ):
             result = query_thread_state("PRRT_missing")
@@ -463,7 +496,8 @@ class TestQueryThreadState:
 
     def test_propagates_api_error(self):
         with patch.object(
-            _mod, "gh_graphql",
+            _mod,
+            "gh_graphql",
             side_effect=RuntimeError("network error"),
         ):
             with pytest.raises(RuntimeError, match="network error"):

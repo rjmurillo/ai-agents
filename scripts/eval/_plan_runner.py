@@ -90,8 +90,7 @@ class PlanRunner:
         tokens_in, tokens_out = _estimate_tokens(planned_calls)
         basis = cost_basis(provider)
         cost_usd = (
-            None if basis == "requests"
-            else _estimate_cost_usd(model_id, tokens_in, tokens_out)
+            None if basis == "requests" else _estimate_cost_usd(model_id, tokens_in, tokens_out)
         )
 
         return ExecutionPlan(
@@ -116,9 +115,7 @@ class PlanRunner:
         `cost_estimate_usd=0.00` would read as a free run.
         """
         if plan.estimated_cost_usd is None:
-            cost_line = (
-                f"cost_estimate_requests={plan.planned_calls} basis=requests"
-            )
+            cost_line = f"cost_estimate_requests={plan.planned_calls} basis=requests"
         else:
             cost_line = (
                 f"cost_estimate_usd={plan.estimated_cost_usd:.2f} "

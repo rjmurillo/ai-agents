@@ -72,7 +72,7 @@ def test_the_write_once_decision_is_intentional_not_an_oversight() -> None:
     """
     run = _post_warning_step().get("run", "")
     assert "post_issue_comment.py" in run
-    assert "--marker \"INVESTIGATION-CLAIM-BACKSTOP\"" in run
+    assert '--marker "INVESTIGATION-CLAIM-BACKSTOP"' in run
     assert "--update-if-exists" not in run
 
 
@@ -190,7 +190,7 @@ def test_the_comment_self_identifies_as_a_point_in_time_record() -> None:
     test is what actually breaks if that hunk disappears.
     """
     step_block = _post_warning_step_raw_block()
-    assert 'HEAD_SHA:0:12' in step_block
+    assert "HEAD_SHA:0:12" in step_block
     assert "As of commit `%s`, this PR contained" in step_block
     # The old present-tense claim, unqualified by a commit reference, must
     # not survive: that exact phrasing is what made the comment read as a
@@ -214,9 +214,7 @@ def test_the_sha_interpolation_uses_printf_not_the_heredoc() -> None:
     # backtick-wrapped code span in it. Scanned line-by-line, skipping `#`
     # comment lines: this rationale comment's own prose mentions the bare
     # `<<EOF` syntax in quotes, which would otherwise false-positive.
-    code_lines = [
-        line for line in step_block.splitlines() if not line.strip().startswith("#")
-    ]
+    code_lines = [line for line in step_block.splitlines() if not line.strip().startswith("#")]
     heredoc_redirects = re.findall(r"<<-?'?\"?EOF'?\"?", "\n".join(code_lines))
     assert heredoc_redirects, "expected at least one heredoc redirect in the step"
     assert all(redirect in ("<<'EOF'", '<<"EOF"') for redirect in heredoc_redirects)

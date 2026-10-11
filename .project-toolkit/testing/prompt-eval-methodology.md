@@ -50,7 +50,8 @@ SCENARIOS = [
 from pathlib import Path
 
 BEFORE = Path(".agents/.../prompt.md").read_text()
-AFTER  = Path(".agents/.../prompt.md.after").read_text()
+AFTER = Path(".agents/.../prompt.md.after").read_text()
+
 
 def judge_scenario(prompt_text: str, scenario: dict) -> dict:
     """Invoke the LLM with prompt_text + scenario.input, return parsed verdict.
@@ -63,6 +64,7 @@ def judge_scenario(prompt_text: str, scenario: dict) -> dict:
     """
     ...
 
+
 def score(results, scenarios):
     passed = 0
     for r, s in zip(results, scenarios):
@@ -71,11 +73,12 @@ def score(results, scenarios):
             passed += 1
     return passed / len(scenarios)
 
+
 before_results = [judge_scenario(BEFORE, s) for s in SCENARIOS]
-after_results  = [judge_scenario(AFTER,  s) for s in SCENARIOS]
+after_results = [judge_scenario(AFTER, s) for s in SCENARIOS]
 
 before_score = score(before_results, SCENARIOS)
-after_score  = score(after_results,  SCENARIOS)
+after_score = score(after_results, SCENARIOS)
 delta = after_score - before_score
 
 print(f"Before: {before_score:.0%}  After: {after_score:.0%}  Delta: {delta:+.0%}")

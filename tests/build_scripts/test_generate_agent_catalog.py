@@ -34,12 +34,7 @@ def _write_template(
     templates_dir.mkdir(parents=True, exist_ok=True)
     path = templates_dir / f"{name}.shared.md"
     content = (
-        "---\n"
-        f"role: {role}\n"
-        f"description: {description}\n"
-        "---\n"
-        f"# {name.title()} Agent\n"
-        f"{extra_body}"
+        f"---\nrole: {role}\ndescription: {description}\n---\n# {name.title()} Agent\n{extra_body}"
     )
     path.write_text(content, encoding="utf-8")
     return path
@@ -286,10 +281,14 @@ def test_main_returns_external_error_on_unreadable_output_parent(tmp_path: Path)
     output_path.write_text("not a directory", encoding="utf-8")
 
     # Act
-    code = gac.main([
-        "--templates-path", str(templates_dir),
-        "--output", str(output_path / "out.md"),
-    ])
+    code = gac.main(
+        [
+            "--templates-path",
+            str(templates_dir),
+            "--output",
+            str(output_path / "out.md"),
+        ]
+    )
 
     # Assert
     assert code == 3
@@ -306,9 +305,7 @@ def test_templates_root_argument_normalizes_to_agents_subdirectory(tmp_path: Pat
 
     # Assert
     assert code == 0
-    assert "[alpha](../templates/agents/alpha.shared.md)" in output_path.read_text(
-        encoding="utf-8"
-    )
+    assert "[alpha](../templates/agents/alpha.shared.md)" in output_path.read_text(encoding="utf-8")
 
 
 def test_relative_templates_path_resolves_from_repo_root() -> None:

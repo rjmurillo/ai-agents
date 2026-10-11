@@ -17,8 +17,7 @@ from scripts.github_core.api import RepoInfo
 # Import the script via importlib (not a package)
 # ---------------------------------------------------------------------------
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1]
-    / ".claude" / "skills" / "github" / "scripts" / "issue"
+    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "issue"
 )
 
 
@@ -96,13 +95,20 @@ class TestBuildParser:
         assert args.assignee == ""
 
     def test_all_filters(self):
-        args = build_parser().parse_args([
-            "--state", "closed",
-            "--label", "bug,P1",
-            "--author", "alice",
-            "--assignee", "bob",
-            "--limit", "100",
-        ])
+        args = build_parser().parse_args(
+            [
+                "--state",
+                "closed",
+                "--label",
+                "bug,P1",
+                "--author",
+                "alice",
+                "--assignee",
+                "bob",
+                "--limit",
+                "100",
+            ]
+        )
         assert args.state == "closed"
         assert args.label == "bug,P1"
         assert args.author == "alice"
@@ -156,14 +162,18 @@ class TestMain:
             _issue(1, "First", labels=["bug"], assignees=["alice"]),
             _issue(2, "Second"),
         ]
-        with patch(
-            "list_issues.assert_gh_authenticated",
-        ), patch(
-            "list_issues.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout=json.dumps(issues), rc=0),
+        with (
+            patch(
+                "list_issues.assert_gh_authenticated",
+            ),
+            patch(
+                "list_issues.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=json.dumps(issues), rc=0),
+            ),
         ):
             rc = main([])
         assert rc == 0
@@ -175,15 +185,19 @@ class TestMain:
         assert output[0]["author"] == "alice"
 
     def test_label_filter_passes_each_label(self):
-        with patch(
-            "list_issues.assert_gh_authenticated",
-        ), patch(
-            "list_issues.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout="[]", rc=0),
-        ) as mock_run:
+        with (
+            patch(
+                "list_issues.assert_gh_authenticated",
+            ),
+            patch(
+                "list_issues.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout="[]", rc=0),
+            ) as mock_run,
+        ):
             rc = main(["--label", "bug,P1"])
         assert rc == 0
         cmd = mock_run.call_args_list[0][0][0]
@@ -192,15 +206,19 @@ class TestMain:
         assert "bug" in cmd and "P1" in cmd
 
     def test_assignee_filter_passed(self):
-        with patch(
-            "list_issues.assert_gh_authenticated",
-        ), patch(
-            "list_issues.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout="[]", rc=0),
-        ) as mock_run:
+        with (
+            patch(
+                "list_issues.assert_gh_authenticated",
+            ),
+            patch(
+                "list_issues.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout="[]", rc=0),
+            ) as mock_run,
+        ):
             main(["--assignee", "@me"])
         cmd = mock_run.call_args_list[0][0][0]
         assert "--assignee" in cmd
@@ -209,15 +227,19 @@ class TestMain:
     def test_state_all_forwards_state_flag(self):
         # gh issue list defaults to open-only when --state is omitted,
         # so --state all must be forwarded to actually return all states.
-        with patch(
-            "list_issues.assert_gh_authenticated",
-        ), patch(
-            "list_issues.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout="[]", rc=0),
-        ) as mock_run:
+        with (
+            patch(
+                "list_issues.assert_gh_authenticated",
+            ),
+            patch(
+                "list_issues.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout="[]", rc=0),
+            ) as mock_run,
+        ):
             main(["--state", "all"])
         cmd = mock_run.call_args_list[0][0][0]
         assert "--state" in cmd
@@ -225,15 +247,19 @@ class TestMain:
 
     def test_search_filter_ignores_other_flags(self, capsys):
         issues = [_issue(5, "Fix auth bug")]
-        with patch(
-            "list_issues.assert_gh_authenticated",
-        ), patch(
-            "list_issues.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout=json.dumps(issues), rc=0),
-        ) as mock_run:
+        with (
+            patch(
+                "list_issues.assert_gh_authenticated",
+            ),
+            patch(
+                "list_issues.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=json.dumps(issues), rc=0),
+            ) as mock_run,
+        ):
             rc = main(["--search", "fix auth", "--label", "bug", "--state", "open"])
         assert rc == 0
         cmd = mock_run.call_args[0][0]
@@ -248,14 +274,18 @@ class TestMain:
         assert len(output) == 1
 
     def test_api_error_exits_3(self, capsys):
-        with patch(
-            "list_issues.assert_gh_authenticated",
-        ), patch(
-            "list_issues.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(rc=1, stderr="API error"),
+        with (
+            patch(
+                "list_issues.assert_gh_authenticated",
+            ),
+            patch(
+                "list_issues.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(rc=1, stderr="API error"),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main([])
@@ -265,14 +295,18 @@ class TestMain:
         assert payload["Error"]["Type"] == "ApiError"
 
     def test_timeout_exits_3(self, capsys):
-        with patch(
-            "list_issues.assert_gh_authenticated",
-        ), patch(
-            "list_issues.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            side_effect=subprocess.TimeoutExpired(cmd="gh", timeout=30),
+        with (
+            patch(
+                "list_issues.assert_gh_authenticated",
+            ),
+            patch(
+                "list_issues.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=subprocess.TimeoutExpired(cmd="gh", timeout=30),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main([])
@@ -282,14 +316,18 @@ class TestMain:
         assert payload["Error"]["Type"] == "Timeout"
 
     def test_gh_missing_exits_3(self, capsys):
-        with patch(
-            "list_issues.assert_gh_authenticated",
-        ), patch(
-            "list_issues.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            side_effect=FileNotFoundError("gh"),
+        with (
+            patch(
+                "list_issues.assert_gh_authenticated",
+            ),
+            patch(
+                "list_issues.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=FileNotFoundError("gh"),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main([])
@@ -299,14 +337,18 @@ class TestMain:
         assert payload["Error"]["Type"] == "ApiError"
 
     def test_malformed_json_exits_3(self, capsys):
-        with patch(
-            "list_issues.assert_gh_authenticated",
-        ), patch(
-            "list_issues.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout="not json", rc=0),
+        with (
+            patch(
+                "list_issues.assert_gh_authenticated",
+            ),
+            patch(
+                "list_issues.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout="not json", rc=0),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main([])
@@ -320,14 +362,18 @@ class TestMain:
         # gh should always return a JSON array; a non-list root (null,
         # object, scalar) must map to ADR-035 exit code 3, not crash or
         # silently emit an empty list.
-        with patch(
-            "list_issues.assert_gh_authenticated",
-        ), patch(
-            "list_issues.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout=payload, rc=0),
+        with (
+            patch(
+                "list_issues.assert_gh_authenticated",
+            ),
+            patch(
+                "list_issues.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=payload, rc=0),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main([])
@@ -340,14 +386,18 @@ class TestMain:
         # gh should never return scalars, but a malformed response must
         # not crash on attribute access.
         payload = [_issue(1, "Good"), "garbage", None, 42]
-        with patch(
-            "list_issues.assert_gh_authenticated",
-        ), patch(
-            "list_issues.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout=json.dumps(payload), rc=0),
+        with (
+            patch(
+                "list_issues.assert_gh_authenticated",
+            ),
+            patch(
+                "list_issues.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=json.dumps(payload), rc=0),
+            ),
         ):
             rc = main([])
         assert rc == 0
@@ -356,25 +406,31 @@ class TestMain:
         assert output[0]["number"] == 1
 
     def test_null_labels_and_assignees_handled(self, capsys):
-        payload = [{
-            "number": 7,
-            "title": "Null lists",
-            "state": "OPEN",
-            "labels": None,
-            "assignees": None,
-            "author": {"login": "alice"},
-            "url": "https://github.com/o/r/issues/7",
-            "createdAt": None,
-            "updatedAt": None,
-        }]
-        with patch(
-            "list_issues.assert_gh_authenticated",
-        ), patch(
-            "list_issues.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout=json.dumps(payload), rc=0),
+        payload = [
+            {
+                "number": 7,
+                "title": "Null lists",
+                "state": "OPEN",
+                "labels": None,
+                "assignees": None,
+                "author": {"login": "alice"},
+                "url": "https://github.com/o/r/issues/7",
+                "createdAt": None,
+                "updatedAt": None,
+            }
+        ]
+        with (
+            patch(
+                "list_issues.assert_gh_authenticated",
+            ),
+            patch(
+                "list_issues.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=json.dumps(payload), rc=0),
+            ),
         ):
             rc = main([])
         assert rc == 0
@@ -383,15 +439,19 @@ class TestMain:
         assert output[0]["assignees"] == []
 
     def test_empty_results(self, capsys):
-        with patch(
-            "list_issues.assert_gh_authenticated",
-        ), patch(
-            "list_issues.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout="[]", rc=0),
-        ) as mock_run:
+        with (
+            patch(
+                "list_issues.assert_gh_authenticated",
+            ),
+            patch(
+                "list_issues.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout="[]", rc=0),
+            ) as mock_run,
+        ):
             rc = main([])
         assert rc == 0
         assert json.loads(capsys.readouterr().out)["Data"]["issues"] == []
@@ -402,14 +462,18 @@ class TestMain:
             _completed(stdout="[]", rc=0),
             _completed(stderr="GraphQL: API rate limit exceeded for user ID 1", rc=1),
         ]
-        with patch(
-            "list_issues.assert_gh_authenticated",
-        ), patch(
-            "list_issues.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            side_effect=calls,
+        with (
+            patch(
+                "list_issues.assert_gh_authenticated",
+            ),
+            patch(
+                "list_issues.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=calls,
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main([])
@@ -419,11 +483,14 @@ class TestMain:
         assert "Could not verify empty issue list" in error["Message"]
 
     def test_invalid_limit_exits_2(self, capsys):
-        with patch(
-            "list_issues.assert_gh_authenticated",
-        ), patch(
-            "list_issues.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
+        with (
+            patch(
+                "list_issues.assert_gh_authenticated",
+            ),
+            patch(
+                "list_issues.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--limit", "0"])
@@ -437,11 +504,14 @@ class TestMain:
             print("Invalid GitHub owner name: bad owner", file=sys.stderr)
             raise SystemExit(2)
 
-        with patch(
-            "list_issues.assert_gh_authenticated",
-        ), patch(
-            "list_issues.resolve_repo_params",
-            side_effect=fail_with_message,
+        with (
+            patch(
+                "list_issues.assert_gh_authenticated",
+            ),
+            patch(
+                "list_issues.resolve_repo_params",
+                side_effect=fail_with_message,
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main([])
@@ -453,25 +523,31 @@ class TestMain:
 
     def test_missing_author_login_handled(self, capsys):
         # Defensive: gh sometimes returns a null author (deleted user).
-        issues = [{
-            "number": 9,
-            "title": "Orphan",
-            "state": "OPEN",
-            "labels": [],
-            "assignees": [],
-            "author": None,
-            "url": "https://github.com/o/r/issues/9",
-            "createdAt": None,
-            "updatedAt": None,
-        }]
-        with patch(
-            "list_issues.assert_gh_authenticated",
-        ), patch(
-            "list_issues.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout=json.dumps(issues), rc=0),
+        issues = [
+            {
+                "number": 9,
+                "title": "Orphan",
+                "state": "OPEN",
+                "labels": [],
+                "assignees": [],
+                "author": None,
+                "url": "https://github.com/o/r/issues/9",
+                "createdAt": None,
+                "updatedAt": None,
+            }
+        ]
+        with (
+            patch(
+                "list_issues.assert_gh_authenticated",
+            ),
+            patch(
+                "list_issues.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=json.dumps(issues), rc=0),
+            ),
         ):
             rc = main([])
         assert rc == 0
@@ -490,14 +566,18 @@ class TestRateLimitClassification:
     def test_graphql_rate_limit_reports_rate_limit_error(self, capsys):
         """Primary rate-limit response yields RateLimitError, not ApiError."""
         stderr = "GraphQL: API rate limit exceeded for user ID 12345 - retry after 1723612800"
-        with patch(
-            "list_issues.assert_gh_authenticated",
-        ), patch(
-            "list_issues.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(rc=1, stderr=stderr),
+        with (
+            patch(
+                "list_issues.assert_gh_authenticated",
+            ),
+            patch(
+                "list_issues.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(rc=1, stderr=stderr),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main([])
@@ -510,14 +590,18 @@ class TestRateLimitClassification:
     def test_secondary_rate_limit_reports_rate_limit_error(self, capsys):
         """Secondary/abuse rate-limit yields RateLimitError."""
         stderr = "gh: secondary rate limit reached (HTTP 403)"
-        with patch(
-            "list_issues.assert_gh_authenticated",
-        ), patch(
-            "list_issues.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(rc=1, stderr=stderr),
+        with (
+            patch(
+                "list_issues.assert_gh_authenticated",
+            ),
+            patch(
+                "list_issues.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(rc=1, stderr=stderr),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main([])
@@ -529,14 +613,18 @@ class TestRateLimitClassification:
     def test_auth_failure_reports_auth_error(self, capsys):
         """Auth failure (not rate limit) yields AuthError exit 4."""
         stderr = "gh: Resource not accessible by integration (HTTP 403)"
-        with patch(
-            "list_issues.assert_gh_authenticated",
-        ), patch(
-            "list_issues.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(rc=1, stderr=stderr),
+        with (
+            patch(
+                "list_issues.assert_gh_authenticated",
+            ),
+            patch(
+                "list_issues.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(rc=1, stderr=stderr),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main([])
@@ -548,14 +636,18 @@ class TestRateLimitClassification:
     def test_generic_api_error_still_exits_3(self, capsys):
         """Non-rate-limit, non-auth errors still produce ApiError exit 3."""
         stderr = "gh: Could not resolve to a Repository"
-        with patch(
-            "list_issues.assert_gh_authenticated",
-        ), patch(
-            "list_issues.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(rc=1, stderr=stderr),
+        with (
+            patch(
+                "list_issues.assert_gh_authenticated",
+            ),
+            patch(
+                "list_issues.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(rc=1, stderr=stderr),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main([])
@@ -567,17 +659,21 @@ class TestRateLimitClassification:
     def test_empty_list_verify_rate_limited_reports_rate_limit_error(self, capsys):
         """Rate limit during empty-result verification yields RateLimitError."""
         stderr = "API rate limit already exceeded for user"
-        with patch(
-            "list_issues.assert_gh_authenticated",
-        ), patch(
-            "list_issues.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            side_effect=[
-                _completed(stdout="[]", rc=0),  # gh issue list returns empty
-                _completed(rc=1, stderr=stderr),  # verify probe hits rate limit
-            ],
+        with (
+            patch(
+                "list_issues.assert_gh_authenticated",
+            ),
+            patch(
+                "list_issues.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    _completed(stdout="[]", rc=0),  # gh issue list returns empty
+                    _completed(rc=1, stderr=stderr),  # verify probe hits rate limit
+                ],
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main([])

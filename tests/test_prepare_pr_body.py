@@ -78,10 +78,7 @@ def test_rejects_unreplaced_placeholder(tmp_path: Path) -> None:
 def test_reads_replaced_private_body(tmp_path: Path) -> None:
     body = _MODULE.prepare_pr_body(tmp_path)
     (tmp_path / body).write_text("## Summary\n\nReady.\n", encoding="utf-8")
-    assert (
-        _MODULE.read_prepared_pr_body(tmp_path, body.as_posix())
-        == "## Summary\n\nReady.\n"
-    )
+    assert _MODULE.read_prepared_pr_body(tmp_path, body.as_posix()) == "## Summary\n\nReady.\n"
 
 
 def test_rejects_symlinked_body_file(tmp_path: Path) -> None:
@@ -97,9 +94,7 @@ def test_rejects_symlinked_body_file(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("operation", ["read", "write"])
-def test_rejects_hard_linked_body_file(
-    tmp_path: Path, operation: str
-) -> None:
+def test_rejects_hard_linked_body_file(tmp_path: Path, operation: str) -> None:
     body = _MODULE.prepare_pr_body(tmp_path)
     body_path = tmp_path / body
     secret = tmp_path / "secret.txt"
@@ -122,9 +117,7 @@ def test_rejects_file_swapped_between_check_and_open(
     body_path = tmp_path / body
     real_open = _MODULE.os.open
 
-    def _swap_then_open(
-        path: Path | str, flags: int, *args: object, **kwargs: object
-    ) -> int:
+    def _swap_then_open(path: Path | str, flags: int, *args: object, **kwargs: object) -> int:
         if str(path).startswith("pr-body-"):
             body_path.unlink()
             body_path.write_text("attacker content", encoding="utf-8")
@@ -136,9 +129,7 @@ def test_rejects_file_swapped_between_check_and_open(
 
 
 @pytest.mark.parametrize("script", [_SCRIPT, _MIRROR_SCRIPT])
-def test_shipped_allocator_executes_from_consumer_cwd(
-    tmp_path: Path, script: Path
-) -> None:
+def test_shipped_allocator_executes_from_consumer_cwd(tmp_path: Path, script: Path) -> None:
     completed = subprocess.run(
         [sys.executable, str(script)],
         cwd=tmp_path,

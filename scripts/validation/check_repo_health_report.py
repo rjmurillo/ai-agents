@@ -71,9 +71,7 @@ class RepoHealth:
 
 def _repair_lines(health: RepoHealth) -> list[str]:
     """One repair per scope that carries the value, plus the immunization."""
-    lines = [
-        _SCOPE_REPAIRS.get(scope, _DEFAULT_REPAIR) for scope, _value in health.bare_scopes
-    ]
+    lines = [_SCOPE_REPAIRS.get(scope, _DEFAULT_REPAIR) for scope, _value in health.bare_scopes]
     if health.worktree_config and not any(
         scope == "worktree" for scope, _value in health.bare_scopes
     ):

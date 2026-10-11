@@ -99,9 +99,7 @@ def _assert_ran(result: subprocess.CompletedProcess[str]) -> None:
 
 def test_baseline_passes_without_mutation() -> None:
     """Sanity check: targeted tests pass on unmodified code."""
-    result = _run_targeted(
-        "push_files_warning or history_integrity_shallow_message"
-    )
+    result = _run_targeted("push_files_warning or history_integrity_shallow_message")
     _assert_ran(result)
     assert result.returncode == 0, result.stdout + result.stderr
 
@@ -120,23 +118,19 @@ def test_mutation_removing_unshallow_remedy_is_caught() -> None:
         assert count > 0, f"DID-NOT-APPLY: {old!r} not found in {_POLICY}"
         result = _run_targeted("history_integrity_shallow_message_names_remedy")
         _assert_ran(result)
-        assert result.returncode != 0, (
-            "Mutation survived: removing unshallow remedy was not caught"
-        )
+        assert result.returncode != 0, "Mutation survived: removing unshallow remedy was not caught"
 
 
 def test_mutation_removing_pin_sha_read_is_caught() -> None:
     """Replacing the pin-SHA read with an empty constant must cause
     test_history_integrity_shallow_message_names_pin_sha to fail."""
-    old = "pin_sha = first_line[0].strip() if first_line else \"\""
+    old = 'pin_sha = first_line[0].strip() if first_line else ""'
     new = 'pin_sha = ""  # mutation: pin-sha read removed'
     with _mutated(old, new) as count:
         assert count > 0, f"DID-NOT-APPLY: {old!r} not found in {_POLICY}"
         result = _run_targeted("history_integrity_shallow_message_names_pin_sha")
         _assert_ran(result)
-        assert result.returncode != 0, (
-            "Mutation survived: removing pin-SHA read was not caught"
-        )
+        assert result.returncode != 0, "Mutation survived: removing pin-SHA read was not caught"
 
 
 # ---------------------------------------------------------------------------
@@ -149,14 +143,11 @@ def test_mutation_disabling_explicit_refspec_quiet_path_is_caught() -> None:
     test_push_files_warning_is_quiet_for_explicit_refspec_push to fail."""
     old = "        if ref.local_ref != ref.remote_ref:\n            return\n"
     new = (
-        "        if False:  # mutation: explicit-refspec quiet path disabled\n"
-        "            return\n"
+        "        if False:  # mutation: explicit-refspec quiet path disabled\n            return\n"
     )
     with _mutated(old, new) as count:
         assert count > 0, f"DID-NOT-APPLY: {old!r} not found in {_POLICY}"
-        result = _run_targeted(
-            "push_files_warning_is_quiet_for_explicit_refspec_push"
-        )
+        result = _run_targeted("push_files_warning_is_quiet_for_explicit_refspec_push")
         _assert_ran(result)
         assert result.returncode != 0, (
             "Mutation survived: disabling explicit-refspec quiet path was not caught"
@@ -169,9 +160,7 @@ def test_inverted_multi_ref_still_warns_after_fix() -> None:
     This is an inverted control: the fix must NOT suppress the warning for a
     push that has two refs (one of which is off-HEAD).
     """
-    result = _run_targeted(
-        "push_files_warning_emits_for_multi_ref_with_explicit_refspec"
-    )
+    result = _run_targeted("push_files_warning_emits_for_multi_ref_with_explicit_refspec")
     _assert_ran(result)
     assert result.returncode == 0, result.stdout + result.stderr
 
@@ -183,8 +172,6 @@ def test_inverted_multi_ref_still_warns_after_fix() -> None:
 
 def test_baseline_still_passes_after_mutations() -> None:
     """Final guard: all targeted tests pass on restored code."""
-    result = _run_targeted(
-        "push_files_warning or history_integrity_shallow_message"
-    )
+    result = _run_targeted("push_files_warning or history_integrity_shallow_message")
     _assert_ran(result)
     assert result.returncode == 0, result.stdout + result.stderr

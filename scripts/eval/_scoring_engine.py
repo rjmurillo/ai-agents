@@ -75,9 +75,7 @@ class ScoringEngine:
             )
         return scorer(assertion, response)
 
-    def score_all(
-        self, assertions: list[Assertion], response: str
-    ) -> list[AssertionResult]:
+    def score_all(self, assertions: list[Assertion], response: str) -> list[AssertionResult]:
         return [self.score(a, response) for a in assertions]
 
 

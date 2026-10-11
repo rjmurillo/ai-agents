@@ -17,8 +17,7 @@ from scripts.github_core.api import RepoInfo
 # Import the script via importlib (not a package)
 # ---------------------------------------------------------------------------
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1]
-    / ".claude" / "skills" / "github" / "scripts" / "pr"
+    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "pr"
 )
 
 
@@ -77,14 +76,18 @@ class TestMain:
             assert exc.value.code == 4
 
     def test_pr_not_found_exits_2(self):
-        with patch(
-            "close_pr.assert_gh_authenticated",
-        ), patch(
-            "close_pr.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(rc=1, stderr="not found"),
+        with (
+            patch(
+                "close_pr.assert_gh_authenticated",
+            ),
+            patch(
+                "close_pr.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(rc=1, stderr="not found"),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "999"])
@@ -92,14 +95,18 @@ class TestMain:
 
     def test_already_closed_returns_0(self, capsys):
         state_json = json.dumps({"state": "CLOSED"})
-        with patch(
-            "close_pr.assert_gh_authenticated",
-        ), patch(
-            "close_pr.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout=state_json, rc=0),
+        with (
+            patch(
+                "close_pr.assert_gh_authenticated",
+            ),
+            patch(
+                "close_pr.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=state_json, rc=0),
+            ),
         ):
             rc = main(["--pull-request", "50"])
         assert rc == 0
@@ -109,14 +116,18 @@ class TestMain:
 
     def test_already_merged_returns_0(self, capsys):
         state_json = json.dumps({"state": "MERGED"})
-        with patch(
-            "close_pr.assert_gh_authenticated",
-        ), patch(
-            "close_pr.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout=state_json, rc=0),
+        with (
+            patch(
+                "close_pr.assert_gh_authenticated",
+            ),
+            patch(
+                "close_pr.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=state_json, rc=0),
+            ),
         ):
             rc = main(["--pull-request", "50"])
         assert rc == 0
@@ -134,14 +145,18 @@ class TestMain:
                 return _completed(stdout=state_json, rc=0)
             return _completed(rc=0)
 
-        with patch(
-            "close_pr.assert_gh_authenticated",
-        ), patch(
-            "close_pr.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            side_effect=_side_effect,
+        with (
+            patch(
+                "close_pr.assert_gh_authenticated",
+            ),
+            patch(
+                "close_pr.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=_side_effect,
+            ),
         ):
             rc = main(["--pull-request", "50"])
         assert rc == 0
@@ -159,18 +174,27 @@ class TestMain:
                 return _completed(stdout=state_json, rc=0)
             return _completed(rc=0)
 
-        with patch(
-            "close_pr.assert_gh_authenticated",
-        ), patch(
-            "close_pr.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            side_effect=_side_effect,
+        with (
+            patch(
+                "close_pr.assert_gh_authenticated",
+            ),
+            patch(
+                "close_pr.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=_side_effect,
+            ),
         ):
-            rc = main([
-                "--pull-request", "50", "--comment", "Superseded by #51",
-            ])
+            rc = main(
+                [
+                    "--pull-request",
+                    "50",
+                    "--comment",
+                    "Superseded by #51",
+                ]
+            )
         assert rc == 0
         assert call_count == 3
 
@@ -185,14 +209,18 @@ class TestMain:
                 return _completed(stdout=state_json, rc=0)
             return _completed(rc=1, stderr="permission denied")
 
-        with patch(
-            "close_pr.assert_gh_authenticated",
-        ), patch(
-            "close_pr.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            side_effect=_side_effect,
+        with (
+            patch(
+                "close_pr.assert_gh_authenticated",
+            ),
+            patch(
+                "close_pr.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=_side_effect,
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "50"])
@@ -211,45 +239,64 @@ class TestMain:
                 return _completed(stdout=state_json, rc=0)
             return _completed(rc=0)
 
-        with patch(
-            "close_pr.assert_gh_authenticated",
-        ), patch(
-            "close_pr.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            side_effect=_side_effect,
+        with (
+            patch(
+                "close_pr.assert_gh_authenticated",
+            ),
+            patch(
+                "close_pr.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=_side_effect,
+            ),
         ):
-            rc = main([
-                "--pull-request", "50",
-                "--comment-file", str(comment_file),
-            ])
+            rc = main(
+                [
+                    "--pull-request",
+                    "50",
+                    "--comment-file",
+                    str(comment_file),
+                ]
+            )
         assert rc == 0
         assert call_count == 3
 
     def test_comment_file_not_found_exits_2(self):
-        with patch(
-            "close_pr.assert_gh_authenticated",
-        ), patch(
-            "close_pr.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
+        with (
+            patch(
+                "close_pr.assert_gh_authenticated",
+            ),
+            patch(
+                "close_pr.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
-                main([
-                    "--pull-request", "50",
-                    "--comment-file", "/nonexistent/file.md",
-                ])
+                main(
+                    [
+                        "--pull-request",
+                        "50",
+                        "--comment-file",
+                        "/nonexistent/file.md",
+                    ]
+                )
             assert exc.value.code == 2
 
     def test_pr_view_non_not_found_error_exits_3(self):
-        with patch(
-            "close_pr.assert_gh_authenticated",
-        ), patch(
-            "close_pr.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(rc=1, stderr="internal server error"),
+        with (
+            patch(
+                "close_pr.assert_gh_authenticated",
+            ),
+            patch(
+                "close_pr.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(rc=1, stderr="internal server error"),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "50"])

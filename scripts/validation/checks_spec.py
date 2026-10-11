@@ -42,9 +42,7 @@ def validate_build_gates(repo_root: Path) -> bool:
     """
     script = repo_root / "scripts" / "validation" / "check_build_gates.py"
     if not script.exists():
-        raise MissingScriptSkip(
-            "scripts/validation/check_build_gates.py not present"
-        )
+        raise MissingScriptSkip("scripts/validation/check_build_gates.py not present")
     exit_code, stdout, stderr = _run_subprocess(
         [sys.executable, str(script), "--repo-root", str(repo_root)]
     )
@@ -64,9 +62,7 @@ def validate_spec_id_uniqueness(repo_root: Path) -> bool:
     """
     script = repo_root / "scripts" / "validation" / "check_spec_id_uniqueness.py"
     if not script.exists():
-        raise MissingScriptSkip(
-            "scripts/validation/check_spec_id_uniqueness.py not present"
-        )
+        raise MissingScriptSkip("scripts/validation/check_spec_id_uniqueness.py not present")
     exit_code, stdout, stderr = _run_subprocess(
         [sys.executable, str(script), "--repo-root", str(repo_root)]
     )
@@ -81,9 +77,7 @@ def validate_traceability(repo_root: Path) -> bool:
     """Enforce required REQ, DESIGN, and TASK references in the spec catalog."""
     script = repo_root / "scripts" / "validation" / "traceability.py"
     if not script.exists():
-        raise MissingScriptSkip(
-            "scripts/validation/traceability.py not present"
-        )
+        raise MissingScriptSkip("scripts/validation/traceability.py not present")
     exit_code, stdout, stderr = _run_subprocess(
         [
             sys.executable,
@@ -110,9 +104,7 @@ def validate_vendor_portability(repo_root: Path) -> bool:
     """
     script = repo_root / "scripts" / "validation" / "check_vendor_portability.py"
     if not script.exists():
-        raise MissingScriptSkip(
-            "scripts/validation/check_vendor_portability.py not present"
-        )
+        raise MissingScriptSkip("scripts/validation/check_vendor_portability.py not present")
     exit_code, stdout, stderr = _run_subprocess(
         [sys.executable, str(script), "--repo-root", str(repo_root)]
     )
@@ -135,9 +127,7 @@ def validate_skill_md_portability(repo_root: Path) -> bool:
     """
     script = repo_root / "scripts" / "validation" / "check_skill_md_portability.py"
     if not script.exists():
-        raise MissingScriptSkip(
-            "scripts/validation/check_skill_md_portability.py not present"
-        )
+        raise MissingScriptSkip("scripts/validation/check_skill_md_portability.py not present")
     cmd = [sys.executable, str(script), "--repo-root", str(repo_root)]
     base_ref = _resolve_branch_base_ref(repo_root)
     if base_ref:
@@ -161,13 +151,9 @@ def validate_rule_activation_coverage(repo_root: Path) -> bool:
     scenario pointing at a deleted artifact). Exit 1 and 2 are both hard
     failures here; a malformed input must never read as clean.
     """
-    script = (
-        repo_root / "scripts" / "validation" / "check_rule_activation_coverage.py"
-    )
+    script = repo_root / "scripts" / "validation" / "check_rule_activation_coverage.py"
     if not script.exists():
-        raise MissingScriptSkip(
-            "scripts/validation/check_rule_activation_coverage.py not present"
-        )
+        raise MissingScriptSkip("scripts/validation/check_rule_activation_coverage.py not present")
     exit_code, stdout, stderr = _run_subprocess(
         [sys.executable, str(script), "--repo-root", str(repo_root)]
     )
@@ -193,9 +179,7 @@ def validate_skill_shells(repo_root: Path) -> bool:
     """
     script = repo_root / "scripts" / "validation" / "validate_skill_shells.py"
     if not script.exists():
-        raise MissingScriptSkip(
-            "scripts/validation/validate_skill_shells.py not present"
-        )
+        raise MissingScriptSkip("scripts/validation/validate_skill_shells.py not present")
     exit_code, stdout, stderr = _run_subprocess(
         [sys.executable, str(script), "--repo-root", str(repo_root)]
     )
@@ -219,9 +203,7 @@ def validate_commands_retired(repo_root: Path) -> bool:
     """
     script = repo_root / "scripts" / "validation" / "check_commands_retired.py"
     if not script.exists():
-        raise MissingScriptSkip(
-            "scripts/validation/check_commands_retired.py not present"
-        )
+        raise MissingScriptSkip("scripts/validation/check_commands_retired.py not present")
     exit_code, stdout, stderr = _run_subprocess(
         [sys.executable, str(script), "--repo-root", str(repo_root)]
     )
@@ -243,9 +225,7 @@ def validate_skill_skip_clauses(repo_root: Path) -> bool:
     """
     script = repo_root / "scripts" / "validation" / "check_skill_skip_clauses.py"
     if not script.exists():
-        raise MissingScriptSkip(
-            "scripts/validation/check_skill_skip_clauses.py not present"
-        )
+        raise MissingScriptSkip("scripts/validation/check_skill_skip_clauses.py not present")
     exit_code, stdout, stderr = _run_subprocess(
         [sys.executable, str(script), "--repo-root", str(repo_root)]
     )
@@ -270,13 +250,9 @@ def validate_skill_memory_references(repo_root: Path) -> bool:
     ``pr-review/pr-comment-responder-skills``, so the blocking step failed for
     any agent that followed the instruction literally.
     """
-    script = (
-        repo_root / "scripts" / "validation" / "check_skill_memory_references.py"
-    )
+    script = repo_root / "scripts" / "validation" / "check_skill_memory_references.py"
     if not script.exists():
-        raise MissingScriptSkip(
-            "scripts/validation/check_skill_memory_references.py not present"
-        )
+        raise MissingScriptSkip("scripts/validation/check_skill_memory_references.py not present")
     exit_code, stdout, stderr = _run_subprocess(
         [sys.executable, str(script), "--repo-root", str(repo_root)]
     )
@@ -298,9 +274,7 @@ def validate_sync_registry(repo_root: Path) -> bool:
     """
     script = repo_root / "scripts" / "validation" / "validate_sync_registry.py"
     if not script.exists():
-        raise MissingScriptSkip(
-            "scripts/validation/validate_sync_registry.py not present"
-        )
+        raise MissingScriptSkip("scripts/validation/validate_sync_registry.py not present")
     exit_code, stdout, stderr = _run_subprocess(
         [sys.executable, str(script), "--repo-root", str(repo_root)]
     )
@@ -385,11 +359,7 @@ def validate_model_pins(repo_root: Path) -> bool:
     """
     script = repo_root / "scripts" / "validation" / "check_model_pins.py"
     if not script.exists():
-        raise MissingScriptSkip(
-            "scripts/validation/check_model_pins.py not present"
-        )
-    exit_code, stdout, stderr = _run_subprocess(
-        [sys.executable, str(script), "--mode", "warn"]
-    )
+        raise MissingScriptSkip("scripts/validation/check_model_pins.py not present")
+    exit_code, stdout, stderr = _run_subprocess([sys.executable, str(script), "--mode", "warn"])
     _print_model_pin_report((stdout or "") + (stderr or ""))
     return bool(exit_code == 0)

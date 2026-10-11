@@ -77,9 +77,7 @@ def _run_security_review_memories(output_path: Path) -> int:
         return 0
     print("\nRunning mandatory security review...")
     sys.stdout.flush()
-    sec_result = subprocess.run(
-        [sys.executable, str(security_script), "--", str(output_path)]
-    )
+    sec_result = subprocess.run([sys.executable, str(security_script), "--", str(output_path)])
     if sec_result.returncode != 0:
         print("ERROR: Security review FAILED.", file=sys.stderr)
         return 1

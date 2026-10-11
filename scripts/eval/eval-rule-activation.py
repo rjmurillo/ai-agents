@@ -540,9 +540,7 @@ Respond in JSON only, no other text:
         "raw_judge_response": raw,
         "termination": termination,
     }
-    fingerprint = require_str_or_none(
-        metadata.get("system_fingerprint"), "system_fingerprint"
-    )
+    fingerprint = require_str_or_none(metadata.get("system_fingerprint"), "system_fingerprint")
     if fingerprint is not None:
         result["judge_system_fingerprint"] = fingerprint
     return result
@@ -1581,12 +1579,10 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     # completely, so an absent floor distinguishes "nothing graded" from
     # "nothing graded on every negative scenario". This mirrors
     # `best_mechanism_partial` on the positive side.
-    summary["negative_floor_mechanisms"] = [
-        m for m in gate_mechs if _fully_graded(gate_cells[m])
-    ]
-    summary["negative_floor_partial"] = not summary[
-        "negative_floor_mechanisms"
-    ] and any(_graded_count(gate_cells[m]) > 0 for m in gate_mechs)
+    summary["negative_floor_mechanisms"] = [m for m in gate_mechs if _fully_graded(gate_cells[m])]
+    summary["negative_floor_partial"] = not summary["negative_floor_mechanisms"] and any(
+        _graded_count(gate_cells[m]) > 0 for m in gate_mechs
+    )
     summary["worst_negative_mechanism"] = worst_neg_mech
     summary["worst_negative_graded"] = (
         _graded_count(gate_cells[worst_neg_mech]) if worst_neg_mech else 0

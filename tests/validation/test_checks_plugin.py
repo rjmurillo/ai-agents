@@ -103,9 +103,7 @@ def test_workflow_local_run_detects_staged_change(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     workflow = ".github/workflows/staged.yml"
-    captured = _install_workflow_gate(
-        tmp_path, monkeypatch, staged=[workflow], on_disk=[workflow]
-    )
+    captured = _install_workflow_gate(tmp_path, monkeypatch, staged=[workflow], on_disk=[workflow])
 
     assert checks_plugin.validate_workflow_local_run(tmp_path) is True
     assert captured["files"] == [workflow]
@@ -140,9 +138,7 @@ def test_workflow_local_run_skips_deleted_path(
 ) -> None:
     live = ".github/workflows/live.yml"
     gone = ".github/workflows/gone.yml"
-    captured = _install_workflow_gate(
-        tmp_path, monkeypatch, committed=[live, gone], on_disk=[live]
-    )
+    captured = _install_workflow_gate(tmp_path, monkeypatch, committed=[live, gone], on_disk=[live])
 
     assert checks_plugin.validate_workflow_local_run(tmp_path) is True
     assert captured["files"] == [live]

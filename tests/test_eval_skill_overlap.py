@@ -577,9 +577,7 @@ def test_build_report_md_ends_with_single_newline_no_double_blank():
 
 def test_write_reports_produces_matrix_and_report(tmp_path):
     # Act
-    out_dir = eso.write_reports(
-        [_sample_result()], model="m", run_id="rid", reports_dir=tmp_path
-    )
+    out_dir = eso.write_reports([_sample_result()], model="m", run_id="rid", reports_dir=tmp_path)
 
     # Assert
     assert (out_dir / "matrix.json").is_file()
@@ -607,9 +605,7 @@ def test_write_reports_is_idempotent_on_same_run_id(tmp_path):
 def test_write_reports_rejects_run_id_path_traversal(tmp_path):
     # Act / Assert: report writes must stay under the reports root.
     with pytest.raises(ValueError, match="run id"):
-        eso.write_reports(
-            [_sample_result()], model="m", run_id="../escape", reports_dir=tmp_path
-        )
+        eso.write_reports([_sample_result()], model="m", run_id="../escape", reports_dir=tmp_path)
 
 
 # ===========================================================================
@@ -701,8 +697,8 @@ def test_run_returns_logic_exit_when_skill_dir_missing(tmp_path, monkeypatch):
     empty_skills.mkdir()
     monkeypatch.setattr(eso, "SKILLS_DIR", empty_skills)
     monkeypatch.setattr(eso, "_load_api_key_for_selected_provider", lambda: "fake-key")
-    monkeypatch.setattr(eso, "make_response_fn", lambda key, model: (lambda p, c: "r"))
-    monkeypatch.setattr(eso, "make_judge_fn", lambda key, model: (lambda p, r, e: 3.0))
+    monkeypatch.setattr(eso, "make_response_fn", lambda key, model: lambda p, c: "r")
+    monkeypatch.setattr(eso, "make_judge_fn", lambda key, model: lambda p, r, e: 3.0)
     args = eso.build_parser().parse_args(["--pairs", str(cluster)])
 
     # Act
@@ -727,7 +723,7 @@ def test_run_returns_external_exit_on_api_failure(tmp_path, monkeypatch):
     monkeypatch.setattr(eso, "SKILLS_DIR", skills_root)
     monkeypatch.setattr(eso, "_load_api_key_for_selected_provider", lambda: "fake-key")
     monkeypatch.setattr(eso, "make_response_fn", lambda key, model: _failing_respond)
-    monkeypatch.setattr(eso, "make_judge_fn", lambda key, model: (lambda p, r, e: 3.0))
+    monkeypatch.setattr(eso, "make_judge_fn", lambda key, model: lambda p, r, e: 3.0)
     args = eso.build_parser().parse_args(["--pairs", str(cluster)])
 
     # Act
@@ -747,13 +743,11 @@ def test_run_returns_external_exit_on_invalid_judge_payload(tmp_path, monkeypatc
 
     monkeypatch.setattr(eso, "SKILLS_DIR", skills_root)
     monkeypatch.setattr(eso, "_load_api_key_for_selected_provider", lambda: "fake-key")
-    monkeypatch.setattr(eso, "make_response_fn", lambda key, model: (lambda p, c: "r"))
+    monkeypatch.setattr(eso, "make_response_fn", lambda key, model: lambda p, c: "r")
     monkeypatch.setattr(
         eso,
         "make_judge_fn",
-        lambda key, model: (
-            lambda p, r, e: (_ for _ in ()).throw(eso.JudgeScoreError("bad score"))
-        ),
+        lambda key, model: lambda p, r, e: (_ for _ in ()).throw(eso.JudgeScoreError("bad score")),
     )
     args = eso.build_parser().parse_args(["--pairs", str(cluster)])
 

@@ -536,9 +536,7 @@ def test_committed_lsp_first_scope_matches_code_not_markdown() -> None:
     patterns = ib.parse_applyto(rule.read_text(encoding="utf-8"))
 
     assert any(ib._glob_to_regex(pattern).fullmatch("src/app.py") for pattern in patterns)
-    assert not any(
-        ib._glob_to_regex(pattern).fullmatch("docs/guide.md") for pattern in patterns
-    )
+    assert not any(ib._glob_to_regex(pattern).fullmatch("docs/guide.md") for pattern in patterns)
 
 
 # --------------------------------------------------------------------------

@@ -64,6 +64,7 @@ _TRIGGER_CELL_RE = re.compile(r"\|\s*`([^`]+)`\s*\|")
 **Code Evidence** (invoke_skill_learning.py:154):
 ```python
 from skill_pattern_loader import load_skill_patterns
+
 loaded_patterns, loaded_commands = load_skill_patterns(project_dir)
 if loaded_patterns:
     SKILL_PATTERNS = loaded_patterns
@@ -409,6 +410,7 @@ Design is sound. Implementation is correct. Test coverage is comprehensive.
 1. **Add stderr logging** (if hook failures reported):
    ```python
    import sys
+
    print(f"Failed to load patterns: {e}", file=sys.stderr)
    ```
 

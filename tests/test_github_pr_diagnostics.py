@@ -25,8 +25,7 @@ from scripts.github_core.api import RepoInfo
 # ---------------------------------------------------------------------------
 
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1]
-    / ".claude" / "skills" / "github" / "scripts" / "pr"
+    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "pr"
 )
 
 
@@ -62,12 +61,15 @@ _MOCK_REPO = RepoInfo(owner="testowner", repo="testrepo")
 # #4490: merge_pr.py - skip REST preflight when --strategy is explicit
 # ===========================================================================
 
+
 class TestMergePrSkipPreflightWhenExplicit:
     """When --strategy is explicit, skip repository-settings discovery."""
 
     def _pr_state(self, state="OPEN", mergeable="MERGEABLE"):
         return {
-            "state": state, "mergeable": mergeable, "mergeStateStatus": "CLEAN",
+            "state": state,
+            "mergeable": mergeable,
+            "mergeStateStatus": "CLEAN",
             "headRefOid": "a" * 40,
         }
 
@@ -84,8 +86,10 @@ class TestMergePrSkipPreflightWhenExplicit:
             ) as mock_settings,
             patch("subprocess.run", return_value=merge_result),
             patch(f"{_merge_mod.__name__}.write_skill_output"),
-            patch(f"{_merge_mod.__name__}._read_back",
-                  return_value={"state": "MERGED", "headRefOid": "a" * 40}),
+            patch(
+                f"{_merge_mod.__name__}._read_back",
+                return_value={"state": "MERGED", "headRefOid": "a" * 40},
+            ),
         ):
             _merge_mod.main(["--pull-request", "42", "--strategy", "squash"])
         mock_settings.assert_not_called()
@@ -106,20 +110,28 @@ class TestMergePrSkipPreflightWhenExplicit:
             patch(f"{_merge_mod.__name__}.assert_gh_authenticated"),
             patch(f"{_merge_mod.__name__}.resolve_repo_params", return_value=_MOCK_REPO),
             patch(f"{_merge_mod.__name__}._fetch_pr_state", return_value=pr_data),
-            patch(f"{_merge_mod.__name__}.get_allowed_merge_methods",
-                  return_value={"allow_squash_merge": True}),
+            patch(
+                f"{_merge_mod.__name__}.get_allowed_merge_methods",
+                return_value={"allow_squash_merge": True},
+            ),
             patch("subprocess.run", return_value=merge_result),
-            patch(f"{_merge_mod.__name__}._rest_merge",
-                  return_value=rest_result) as mock_rest,
+            patch(f"{_merge_mod.__name__}._rest_merge", return_value=rest_result) as mock_rest,
             patch(f"{_merge_mod.__name__}.write_skill_output"),
-            patch(f"{_merge_mod.__name__}._read_back",
-                  return_value={"state": "MERGED", "headRefOid": "a" * 40}),
+            patch(
+                f"{_merge_mod.__name__}._read_back",
+                return_value={"state": "MERGED", "headRefOid": "a" * 40},
+            ),
         ):
-            rc = _merge_mod.main([
-                "--pull-request", "42",
-                "--strategy", "squash",
-                "--body", body,
-            ])
+            rc = _merge_mod.main(
+                [
+                    "--pull-request",
+                    "42",
+                    "--strategy",
+                    "squash",
+                    "--body",
+                    body,
+                ]
+            )
 
         assert rc == 0
         fallback_body = mock_rest.call_args.args[5]
@@ -129,19 +141,25 @@ class TestMergePrSkipPreflightWhenExplicit:
     def test_get_allowed_merge_methods_called_when_no_strategy(self):
         pr_data = self._pr_state()
         merge_result = _completed()
-        settings = {"allow_squash_merge": True, "allow_merge_commit": False,
-                    "allow_rebase_merge": False}
+        settings = {
+            "allow_squash_merge": True,
+            "allow_merge_commit": False,
+            "allow_rebase_merge": False,
+        }
 
         with (
             patch(f"{_merge_mod.__name__}.assert_gh_authenticated"),
             patch(f"{_merge_mod.__name__}.resolve_repo_params", return_value=_MOCK_REPO),
-            patch(f"{_merge_mod.__name__}.get_allowed_merge_methods", return_value=settings)
-                as mock_settings,
+            patch(
+                f"{_merge_mod.__name__}.get_allowed_merge_methods", return_value=settings
+            ) as mock_settings,
             patch(f"{_merge_mod.__name__}._fetch_pr_state", return_value=pr_data),
             patch("subprocess.run", return_value=merge_result),
             patch(f"{_merge_mod.__name__}.write_skill_output"),
-            patch(f"{_merge_mod.__name__}._read_back",
-                  return_value={"state": "MERGED", "headRefOid": "a" * 40}),
+            patch(
+                f"{_merge_mod.__name__}._read_back",
+                return_value={"state": "MERGED", "headRefOid": "a" * 40},
+            ),
         ):
             _merge_mod.main(["--pull-request", "42"])
         mock_settings.assert_called_once()
@@ -168,8 +186,11 @@ class TestMergePrSkipPreflightWhenExplicit:
         _merge_mod.validate_strategy("squash", None, "o/r", "json")  # must not raise
 
     def test_validate_strategy_rejects_when_settings_present_and_disallowed(self):
-        settings = {"allow_squash_merge": False, "allow_merge_commit": False,
-                    "allow_rebase_merge": False}
+        settings = {
+            "allow_squash_merge": False,
+            "allow_merge_commit": False,
+            "allow_rebase_merge": False,
+        }
         with (
             patch(f"{_merge_mod.__name__}.write_skill_error"),
             pytest.raises(SystemExit) as exc_info,
@@ -182,11 +203,13 @@ class TestMergePrSkipPreflightWhenExplicit:
 # #4462: audit_closing_claims.py - Markdown context classification
 # ===========================================================================
 
+
 class TestClassifyClaim:
     """Tests for classify_claim in audit_closing_claims.py."""
 
     def _classify(self, text: str, pattern: str) -> str:
         import re
+
         m = re.search(re.escape(pattern), text)
         assert m is not None, f"Pattern {pattern!r} not found in {text!r}"
         # Need to compute fenced and html positions
@@ -199,6 +222,7 @@ class TestClassifyClaim:
         _, fenced = _audit_mod._strip_fenced_code(text)
         _, html = _audit_mod._strip_html_comments(text)
         import re
+
         m = re.search(r"Fixes #123", text)
         result = _audit_mod.classify_claim(text, m, fenced, html)
         assert result == "active"
@@ -208,6 +232,7 @@ class TestClassifyClaim:
         _, fenced = _audit_mod._strip_fenced_code(text)
         _, html = _audit_mod._strip_html_comments(text)
         import re
+
         m = re.search(r"Fixes #42", text)
         result = _audit_mod.classify_claim(text, m, fenced, html)
         assert result == "code_span"
@@ -233,6 +258,7 @@ class TestClassifyClaim:
         _, fenced = _audit_mod._strip_fenced_code(text)
         _, html = _audit_mod._strip_html_comments(text)
         import re
+
         m = re.search(r"Fixes #99", text)
         result = _audit_mod.classify_claim(text, m, fenced, html)
         assert result == "fenced_code"
@@ -247,6 +273,7 @@ class TestClassifyClaim:
         _, fenced = _audit_mod._strip_fenced_code(text)
         _, html = _audit_mod._strip_html_comments(text)
         import re
+
         m = re.search(r"Fixes #77", text)
         result = _audit_mod.classify_claim(text, m, fenced, html)
         assert result == "html_comment"
@@ -261,6 +288,7 @@ class TestClassifyClaim:
         _, fenced = _audit_mod._strip_fenced_code(text)
         _, html = _audit_mod._strip_html_comments(text)
         import re
+
         # The escaped hash is \#123, so the closing keyword pattern won't
         # match. But we can test the escaped_hash detection directly.
         # Build a fake match at the escaped position.
@@ -278,6 +306,7 @@ class TestClassifyClaim:
         _, html = _audit_mod._strip_html_comments(text)
         # The keyword is "close" in "does not close #55"
         import re
+
         m = re.search(r"close\s+#55", text, re.IGNORECASE)
         assert m is not None
         result = _audit_mod.classify_claim(text, m, fenced, html)
@@ -289,18 +318,14 @@ class TestExtractClaims:
 
     def test_active_fix_extracted(self):
         closing_refs = {("owner", "repo", 123): "OPEN"}
-        claims = _audit_mod.extract_claims(
-            10, "Fixes #123", "main", closing_refs, "owner", "repo"
-        )
+        claims = _audit_mod.extract_claims(10, "Fixes #123", "main", closing_refs, "owner", "repo")
         assert len(claims) == 1
         assert claims[0]["target_number"] == 123
         assert claims[0]["context_class"] == "active"
         assert claims[0]["github_will_close"] is True
 
     def test_nonexistent_issue_does_not_close(self):
-        claims = _audit_mod.extract_claims(
-            10, "Fixes #999999999", "main", {}, "owner", "repo"
-        )
+        claims = _audit_mod.extract_claims(10, "Fixes #999999999", "main", {}, "owner", "repo")
 
         assert claims[0]["target_state"] == "unknown"
         assert claims[0]["github_will_close"] is False
@@ -399,9 +424,7 @@ class TestExtractClaims:
         assert claims[0]["github_will_close"] is False
 
     def test_extracts_html_comment_claim_as_non_closing(self):
-        claims = _audit_mod.extract_claims(
-            10, "<!-- Fixes #77 hidden -->", "main", {}, "o", "r"
-        )
+        claims = _audit_mod.extract_claims(10, "<!-- Fixes #77 hidden -->", "main", {}, "o", "r")
         assert claims[0]["context_class"] == "html_comment"
         assert claims[0]["github_will_close"] is False
 
@@ -550,13 +573,15 @@ class TestClosingReferencePagination:
                 "defaultBranchRef": {"name": "main"},
                 "pullRequests": {
                     "pageInfo": {"hasNextPage": False, "endCursor": None},
-                    "nodes": [{
-                        "number": 42,
-                        "closingIssuesReferences": {
-                            "pageInfo": {"hasNextPage": True, "endCursor": "refs-1"},
-                            "nodes": initial_references,
-                        },
-                    }],
+                    "nodes": [
+                        {
+                            "number": 42,
+                            "closingIssuesReferences": {
+                                "pageInfo": {"hasNextPage": True, "endCursor": "refs-1"},
+                                "nodes": initial_references,
+                            },
+                        }
+                    ],
                 },
             },
         }
@@ -591,9 +616,10 @@ class TestClosingReferencePagination:
         references = nodes[0]["closingIssuesReferences"]["nodes"]
         assert len(references) == 102
         assert nodes[0]["defaultBranchName"] == "main"
-        assert references[-2:] == second_page["repository"]["pullRequest"][
-            "closingIssuesReferences"
-        ]["nodes"]
+        assert (
+            references[-2:]
+            == second_page["repository"]["pullRequest"]["closingIssuesReferences"]["nodes"]
+        )
         assert graphql.call_args_list[1].args[1] == {
             "owner": "owner",
             "repo": "repo",
@@ -662,7 +688,13 @@ class TestExtractReachableClaims:
 
     def test_active_claim_marked_reachable_when_source_reaches(self):
         claims = _audit_mod.extract_reachable_claims(
-            10, "Fixes #999", "commit", True, {}, "o", "r",
+            10,
+            "Fixes #999",
+            "commit",
+            True,
+            {},
+            "o",
+            "r",
         )
         assert claims[0]["reaches_squash"] is True
         assert claims[0]["source"] == "commit"
@@ -670,20 +702,38 @@ class TestExtractReachableClaims:
 
     def test_active_claim_not_reachable_when_source_does_not_reach(self):
         claims = _audit_mod.extract_reachable_claims(
-            10, "Fixes #999", "commit", False, {}, "o", "r",
+            10,
+            "Fixes #999",
+            "commit",
+            False,
+            {},
+            "o",
+            "r",
         )
         assert claims[0]["reaches_squash"] is False
 
     def test_escaped_hash_never_reachable_even_when_source_reaches(self):
         claims = _audit_mod.extract_reachable_claims(
-            10, r"Fixes \#999", "commit", True, {}, "o", "r",
+            10,
+            r"Fixes \#999",
+            "commit",
+            True,
+            {},
+            "o",
+            "r",
         )
         assert claims[0]["context_class"] == "escaped_hash"
         assert claims[0]["reaches_squash"] is False
 
     def test_source_tag_propagates_to_auto_merge_override(self):
         claims = _audit_mod.extract_reachable_claims(
-            10, "Fixes #1", "auto_merge_override", True, {}, "o", "r",
+            10,
+            "Fixes #1",
+            "auto_merge_override",
+            True,
+            {},
+            "o",
+            "r",
         )
         assert claims[0]["source"] == "auto_merge_override"
 
@@ -693,16 +743,24 @@ class TestMarkUnsupportedClaims:
 
     def _body_claim(self, target=1, will_close=True):
         return {
-            "source": "body", "target_owner": "o", "target_repo": "r",
-            "target_number": target, "github_will_close": will_close,
-            "reaches_squash": will_close, "unsupported": False,
+            "source": "body",
+            "target_owner": "o",
+            "target_repo": "r",
+            "target_number": target,
+            "github_will_close": will_close,
+            "reaches_squash": will_close,
+            "unsupported": False,
         }
 
     def _commit_claim(self, target=1, reaches=True):
         return {
-            "source": "commit", "target_owner": "o", "target_repo": "r",
-            "target_number": target, "github_will_close": False,
-            "reaches_squash": reaches, "unsupported": False,
+            "source": "commit",
+            "target_owner": "o",
+            "target_repo": "r",
+            "target_number": target,
+            "github_will_close": False,
+            "reaches_squash": reaches,
+            "unsupported": False,
         }
 
     def test_commit_claim_matching_a_supported_body_claim_is_supported(self):
@@ -839,9 +897,7 @@ class TestAuditRefusesUnsupportedReachableClaims:
         """
         artifact = tmp_path / "evidence.json"
         node = self._pr_node(commits={"nodes": [{"commit": {"message": "Fixes #999"}}]})
-        rc, status, _ = self._run(
-            node, "COMMIT_MESSAGES", extra_args=("--artifact", str(artifact))
-        )
+        rc, status, _ = self._run(node, "COMMIT_MESSAGES", extra_args=("--artifact", str(artifact)))
         assert rc == 1
         assert status == "FAIL"
         written = json.loads(artifact.read_text(encoding="utf-8"))
@@ -867,8 +923,13 @@ class TestAuditRefusesUnsupportedReachableClaims:
         node = self._pr_node(
             body="Fixes #999",
             closingIssuesReferences={
-                "nodes": [{"number": 999, "state": "OPEN",
-                           "repository": {"nameWithOwner": "testowner/testrepo"}}],
+                "nodes": [
+                    {
+                        "number": 999,
+                        "state": "OPEN",
+                        "repository": {"nameWithOwner": "testowner/testrepo"},
+                    }
+                ],
             },
             autoMergeRequest={"commitHeadline": "", "commitBody": "Fixes #999"},
         )
@@ -906,18 +967,20 @@ class TestFetchOpenPrsCommitPagination:
                 "defaultBranchRef": {"name": "main"},
                 "pullRequests": {
                     "pageInfo": {"hasNextPage": False, "endCursor": None},
-                    "nodes": [{
-                        "number": 7,
-                        "body": "",
-                        "closingIssuesReferences": {
-                            "pageInfo": {"hasNextPage": False, "endCursor": None},
-                            "nodes": [],
-                        },
-                        "commits": {
-                            "pageInfo": {"hasNextPage": True, "endCursor": "commits-1"},
-                            "nodes": [{"commit": {"message": "first"}}],
-                        },
-                    }],
+                    "nodes": [
+                        {
+                            "number": 7,
+                            "body": "",
+                            "closingIssuesReferences": {
+                                "pageInfo": {"hasNextPage": False, "endCursor": None},
+                                "nodes": [],
+                            },
+                            "commits": {
+                                "pageInfo": {"hasNextPage": True, "endCursor": "commits-1"},
+                                "nodes": [{"commit": {"message": "first"}}],
+                            },
+                        }
+                    ],
                 },
             },
         }
@@ -983,8 +1046,9 @@ class TestBodyHashAndValidate:
 
     def test_validate_body_multiple_issues_on_one_line_flagged(self):
         warnings = _edit_mod.validate_body("Fixes #1, #2 #3")
-        assert any("one" in w.lower() or "line" in w.lower() or "first" in w.lower()
-                   for w in warnings)
+        assert any(
+            "one" in w.lower() or "line" in w.lower() or "first" in w.lower() for w in warnings
+        )
 
     def test_validate_body_and_separated_issues_flagged(self):
         warnings = _edit_mod.validate_body("Fixes #1 and #2")
@@ -1017,12 +1081,18 @@ class TestEditPrBodyStaleWriteGuard:
             patch(f"{_edit_mod.__name__}.resolve_repo_params", return_value=_MOCK_REPO),
             patch(f"{_edit_mod.__name__}.fetch_current_body", return_value=current),
         ):
-            rc = _edit_mod.main([
-                "--pull-request", "42",
-                "--body", "new body",
-                "--expected-hash", wrong_hash,
-                "--output-format", "json",
-            ])
+            rc = _edit_mod.main(
+                [
+                    "--pull-request",
+                    "42",
+                    "--body",
+                    "new body",
+                    "--expected-hash",
+                    wrong_hash,
+                    "--output-format",
+                    "json",
+                ]
+            )
 
         output = json.loads(capsys.readouterr().out)
 
@@ -1040,11 +1110,16 @@ class TestEditPrBodyStaleWriteGuard:
             patch(f"{_edit_mod.__name__}.update_body") as mock_update,
             patch(f"{_edit_mod.__name__}.write_skill_output"),
         ):
-            rc = _edit_mod.main([
-                "--pull-request", "42",
-                "--body", body,
-                "--expected-hash", expected_hash,
-            ])
+            rc = _edit_mod.main(
+                [
+                    "--pull-request",
+                    "42",
+                    "--body",
+                    body,
+                    "--expected-hash",
+                    expected_hash,
+                ]
+            )
         assert rc == 0
         mock_update.assert_not_called()
 
@@ -1060,11 +1135,16 @@ class TestEditPrBodyStaleWriteGuard:
             patch(f"{_edit_mod.__name__}.update_body") as mock_update,
             patch(f"{_edit_mod.__name__}.write_skill_output"),
         ):
-            rc = _edit_mod.main([
-                "--pull-request", "42",
-                "--body", new_body,
-                "--expected-hash", expected_hash,
-            ])
+            rc = _edit_mod.main(
+                [
+                    "--pull-request",
+                    "42",
+                    "--body",
+                    new_body,
+                    "--expected-hash",
+                    expected_hash,
+                ]
+            )
         assert rc == 0
         mock_update.assert_called_once()
 
@@ -1075,10 +1155,14 @@ class TestEditPrBodyStaleWriteGuard:
             patch(f"{_edit_mod.__name__}.fetch_current_body", return_value=None),
             patch(f"{_edit_mod.__name__}.write_skill_error"),
         ):
-            rc = _edit_mod.main([
-                "--pull-request", "9999",
-                "--body", "something",
-            ])
+            rc = _edit_mod.main(
+                [
+                    "--pull-request",
+                    "9999",
+                    "--body",
+                    "something",
+                ]
+            )
         assert rc == 2
 
     def test_dry_run_does_not_write(self):
@@ -1089,11 +1173,15 @@ class TestEditPrBodyStaleWriteGuard:
             patch(f"{_edit_mod.__name__}.update_body") as mock_update,
             patch(f"{_edit_mod.__name__}.write_skill_output"),
         ):
-            rc = _edit_mod.main([
-                "--pull-request", "42",
-                "--body", "new body",
-                "--dry-run",
-            ])
+            rc = _edit_mod.main(
+                [
+                    "--pull-request",
+                    "42",
+                    "--body",
+                    "new body",
+                    "--dry-run",
+                ]
+            )
         assert rc == 0
         mock_update.assert_not_called()
 
@@ -1129,11 +1217,16 @@ class TestEditPrBodyStaleWriteGuard:
                 side_effect=subprocess.TimeoutExpired(["gh", "api"], 30),
             ),
         ):
-            rc = _edit_mod.main([
-                "--pull-request", "42",
-                "--body", "new body",
-                "--output-format", "json",
-            ])
+            rc = _edit_mod.main(
+                [
+                    "--pull-request",
+                    "42",
+                    "--body",
+                    "new body",
+                    "--output-format",
+                    "json",
+                ]
+            )
 
         output = json.loads(capsys.readouterr().out)
         assert rc == 3
@@ -1152,11 +1245,16 @@ class TestEditPrBodyStaleWriteGuard:
                 ],
             ),
         ):
-            rc = _edit_mod.main([
-                "--pull-request", "42",
-                "--body", "new body",
-                "--output-format", "json",
-            ])
+            rc = _edit_mod.main(
+                [
+                    "--pull-request",
+                    "42",
+                    "--body",
+                    "new body",
+                    "--output-format",
+                    "json",
+                ]
+            )
 
         output = json.loads(capsys.readouterr().out)
         assert rc == 3
@@ -1172,11 +1270,16 @@ class TestEditPrBodyStaleWriteGuard:
                 side_effect=FileNotFoundError("gh executable not found"),
             ),
         ):
-            rc = _edit_mod.main([
-                "--pull-request", "42",
-                "--body", "new body",
-                "--output-format", "json",
-            ])
+            rc = _edit_mod.main(
+                [
+                    "--pull-request",
+                    "42",
+                    "--body",
+                    "new body",
+                    "--output-format",
+                    "json",
+                ]
+            )
 
         output = json.loads(capsys.readouterr().out)
         assert rc == 3
@@ -1204,11 +1307,16 @@ class TestEditPrBodyStaleWriteGuard:
                 return_value=_completed(rc=1, stderr=""),
             ),
         ):
-            rc = _edit_mod.main([
-                "--pull-request", "42",
-                "--body", "new body",
-                "--output-format", "json",
-            ])  # must not raise
+            rc = _edit_mod.main(
+                [
+                    "--pull-request",
+                    "42",
+                    "--body",
+                    "new body",
+                    "--output-format",
+                    "json",
+                ]
+            )  # must not raise
 
         output = json.loads(capsys.readouterr().out)
         assert rc == 3
@@ -1227,6 +1335,7 @@ class TestEditPrBodyStaleWriteGuard:
         subprocess.run invocation ahead of these two (`.claude/rules/testing.md`
         MUST-11; Copilot review on PR #5283).
         """
+
         def _dispatch(cmd, **_kwargs):
             if "--method" in cmd:
                 return _completed(rc=1, stderr="")
@@ -1239,11 +1348,16 @@ class TestEditPrBodyStaleWriteGuard:
             patch(f"{_edit_mod.__name__}.resolve_repo_params", return_value=_MOCK_REPO),
             patch(f"{_edit_mod.__name__}.subprocess.run", side_effect=_dispatch),
         ):
-            rc = _edit_mod.main([
-                "--pull-request", "42",
-                "--body", "new body",
-                "--output-format", "json",
-            ])  # must not raise
+            rc = _edit_mod.main(
+                [
+                    "--pull-request",
+                    "42",
+                    "--body",
+                    "new body",
+                    "--output-format",
+                    "json",
+                ]
+            )  # must not raise
 
         output = json.loads(capsys.readouterr().out)
         assert rc == 3
@@ -1269,11 +1383,16 @@ class TestEditPrBodyStaleWriteGuard:
                 return_value=_completed(rc=1, stderr="", stdout="rate limited, retry in 30s"),
             ),
         ):
-            rc = _edit_mod.main([
-                "--pull-request", "42",
-                "--body", "new body",
-                "--output-format", "json",
-            ])
+            rc = _edit_mod.main(
+                [
+                    "--pull-request",
+                    "42",
+                    "--body",
+                    "new body",
+                    "--output-format",
+                    "json",
+                ]
+            )
 
         output = json.loads(capsys.readouterr().out)
         assert rc == 3
@@ -1284,6 +1403,7 @@ class TestEditPrBodyStaleWriteGuard:
         for update_body's raise site. Dispatches on argv per MUST-11, same
         as test_update_blank_stderr_does_not_crash above.
         """
+
         def _dispatch(cmd, **_kwargs):
             if "--method" in cmd:
                 return _completed(rc=1, stderr="", stdout="rate limited, retry in 30s")
@@ -1296,11 +1416,16 @@ class TestEditPrBodyStaleWriteGuard:
             patch(f"{_edit_mod.__name__}.resolve_repo_params", return_value=_MOCK_REPO),
             patch(f"{_edit_mod.__name__}.subprocess.run", side_effect=_dispatch),
         ):
-            rc = _edit_mod.main([
-                "--pull-request", "42",
-                "--body", "new body",
-                "--output-format", "json",
-            ])
+            rc = _edit_mod.main(
+                [
+                    "--pull-request",
+                    "42",
+                    "--body",
+                    "new body",
+                    "--output-format",
+                    "json",
+                ]
+            )
 
         output = json.loads(capsys.readouterr().out)
         assert rc == 3

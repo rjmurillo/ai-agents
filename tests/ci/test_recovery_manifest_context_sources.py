@@ -108,9 +108,7 @@ class TestStaticallyDeclaredJobNames:
             )
         }
 
-        manifest = plan(
-            [queued_run_with_no_api_contexts("CodeQL Analysis")], subscriptions, None
-        )
+        manifest = plan([queued_run_with_no_api_contexts("CodeQL Analysis")], subscriptions, None)
 
         assert manifest.is_safe is False
         assert manifest.blocked[0].required_contexts == (
@@ -244,9 +242,7 @@ class TestVerificationProvenance:
         return make_run(1, workflow=REQUIRED_WORKFLOW, context=REQUIRED_CONTEXT)
 
     def test_rerun_records_that_no_subscription_was_checked(self):
-        manifest = plan(
-            [self._run()], subscriptions_with({REQUIRED_WORKFLOW: []}), "rerun"
-        )
+        manifest = plan([self._run()], subscriptions_with({REQUIRED_WORKFLOW: []}), "rerun")
 
         entry = manifest.entries[0]
         assert entry.verified is True
@@ -268,9 +264,6 @@ class TestVerificationProvenance:
         the plan actionable is the run id the operator feeds back to the Actions
         API. Losing it would leave a verified entry nobody can act on.
         """
-        manifest = plan(
-            [self._run()], subscriptions_with({REQUIRED_WORKFLOW: []}), "rerun"
-        )
+        manifest = plan([self._run()], subscriptions_with({REQUIRED_WORKFLOW: []}), "rerun")
 
         assert manifest_to_dict(manifest)["entries"][0]["run_id"] == 1
-

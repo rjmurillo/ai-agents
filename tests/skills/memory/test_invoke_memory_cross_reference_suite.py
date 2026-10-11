@@ -33,20 +33,26 @@ def memories_dir(tmp_path: Path) -> Path:
 
 class TestMainOrchestration:
     def test_always_exits_zero(self, memories_dir: Path) -> None:
-        exit_code = main([
-            "--memories-path", str(memories_dir),
-            "--skip-path-validation",
-        ])
+        exit_code = main(
+            [
+                "--memories-path",
+                str(memories_dir),
+                "--skip-path-validation",
+            ]
+        )
         assert exit_code == 0
 
     def test_json_output_has_all_fields(
         self, memories_dir: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        exit_code = main([
-            "--memories-path", str(memories_dir),
-            "--output-json",
-            "--skip-path-validation",
-        ])
+        exit_code = main(
+            [
+                "--memories-path",
+                str(memories_dir),
+                "--output-json",
+                "--skip-path-validation",
+            ]
+        )
         assert exit_code == 0
         captured = capsys.readouterr()
         data = json.loads(captured.out)
@@ -60,11 +66,14 @@ class TestMainOrchestration:
     def test_success_true_when_no_errors(
         self, memories_dir: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        main([
-            "--memories-path", str(memories_dir),
-            "--output-json",
-            "--skip-path-validation",
-        ])
+        main(
+            [
+                "--memories-path",
+                str(memories_dir),
+                "--output-json",
+                "--skip-path-validation",
+            ]
+        )
         data = json.loads(capsys.readouterr().out)
         assert data["Success"] is True
         assert data["Errors"] == []
@@ -72,11 +81,14 @@ class TestMainOrchestration:
     def test_runs_all_three_scripts(
         self, memories_dir: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        main([
-            "--memories-path", str(memories_dir),
-            "--output-json",
-            "--skip-path-validation",
-        ])
+        main(
+            [
+                "--memories-path",
+                str(memories_dir),
+                "--output-json",
+                "--skip-path-validation",
+            ]
+        )
         data = json.loads(capsys.readouterr().out)
         # Index table links: testing-index.md has a convertible reference
         assert data["IndexLinksAdded"] >= 1
@@ -88,21 +100,27 @@ class TestMainOrchestration:
     def test_files_modified_is_aggregate(
         self, memories_dir: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        main([
-            "--memories-path", str(memories_dir),
-            "--output-json",
-            "--skip-path-validation",
-        ])
+        main(
+            [
+                "--memories-path",
+                str(memories_dir),
+                "--output-json",
+                "--skip-path-validation",
+            ]
+        )
         data = json.loads(capsys.readouterr().out)
         assert data["FilesModified"] >= 1
 
     def test_human_output_format(
         self, memories_dir: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        main([
-            "--memories-path", str(memories_dir),
-            "--skip-path-validation",
-        ])
+        main(
+            [
+                "--memories-path",
+                str(memories_dir),
+                "--skip-path-validation",
+            ]
+        )
         out = capsys.readouterr().out
         assert "Step 1/3" in out
         assert "Step 2/3" in out
@@ -113,22 +131,29 @@ class TestMainOrchestration:
         self, memories_dir: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         target = str(memories_dir / "security-001.md")
-        exit_code = main([
-            "--memories-path", str(memories_dir),
-            "--files", target,
-            "--output-json",
-            "--skip-path-validation",
-        ])
+        exit_code = main(
+            [
+                "--memories-path",
+                str(memories_dir),
+                "--files",
+                target,
+                "--output-json",
+                "--skip-path-validation",
+            ]
+        )
         assert exit_code == 0
 
     def test_empty_directory(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         empty_dir = tmp_path / "empty"
         empty_dir.mkdir()
-        exit_code = main([
-            "--memories-path", str(empty_dir),
-            "--output-json",
-            "--skip-path-validation",
-        ])
+        exit_code = main(
+            [
+                "--memories-path",
+                str(empty_dir),
+                "--output-json",
+                "--skip-path-validation",
+            ]
+        )
         assert exit_code == 0
         data = json.loads(capsys.readouterr().out)
         assert data["Success"] is True

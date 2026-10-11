@@ -66,18 +66,14 @@ def extract_ceilings(source: str, name: str = CEILING_NAME) -> dict[str, int]:
     raise ValueError(f"{name} not found")
 
 
-def find_raised_ceilings(
-    base: dict[str, int], head: dict[str, int]
-) -> list[tuple[str, int, int]]:
+def find_raised_ceilings(base: dict[str, int], head: dict[str, int]) -> list[tuple[str, int, int]]:
     """Return ``(ext, base_value, head_value)`` for every ceiling that rose.
 
     A key absent from ``base`` is a newly-tracked language and cannot be a
     regression. A key absent from ``head`` was retired and cannot be either.
     """
     return [
-        (ext, base[ext], head[ext])
-        for ext in sorted(head)
-        if ext in base and head[ext] > base[ext]
+        (ext, base[ext], head[ext]) for ext in sorted(head) if ext in base and head[ext] > base[ext]
     ]
 
 
@@ -138,9 +134,7 @@ class TestFindRaisedCeilings:
         assert find_raised_ceilings(same, dict(same)) == []
 
     def test_a_raise_is_reported_with_both_values(self) -> None:
-        assert find_raised_ceilings({".md": 83000}, {".md": 84000}) == [
-            (".md", 83000, 84000)
-        ]
+        assert find_raised_ceilings({".md": 83000}, {".md": 84000}) == [(".md", 83000, 84000)]
 
     def test_a_lower_is_clean(self) -> None:
         assert find_raised_ceilings({".md": 84000}, {".md": 83000}) == []
@@ -157,9 +151,7 @@ class TestFindRaisedCeilings:
         assert find_raised_ceilings(base, head) == [(".cs", 10, 12), (".md", 10, 11)]
 
     def test_a_one_byte_raise_is_a_raise(self) -> None:
-        assert find_raised_ceilings({".md": 83000}, {".md": 83001}) == [
-            (".md", 83000, 83001)
-        ]
+        assert find_raised_ceilings({".md": 83000}, {".md": 83001}) == [(".md", 83000, 83001)]
 
 
 class TestTheShippedCeilingsDidNotRise:
@@ -168,9 +160,7 @@ class TestTheShippedCeilingsDidNotRise:
         if base_source is None:
             pytest.skip(f"{BASE_REF}:{CONSTANTS_PATH} is not available")
         head_source = (_repo_root() / CONSTANTS_PATH).read_text(encoding="utf-8")
-        raised = find_raised_ceilings(
-            extract_ceilings(base_source), extract_ceilings(head_source)
-        )
+        raised = find_raised_ceilings(extract_ceilings(base_source), extract_ceilings(head_source))
         assert not raised, (
             "An always-on instruction ceiling was raised: "
             + ", ".join(f"{ext} {was} -> {now}" for ext, was, now in raised)
@@ -190,10 +180,7 @@ class TestTheShippedCeilingsDidNotRise:
 
 class TestExtractNamedCeilings:
     def test_reads_the_named_mapping_and_ignores_the_default_one(self) -> None:
-        source = (
-            f"{CEILING_NAME} = {{'.md': 1}}\n"
-            f"{FIXTURE_CEILING_NAME} = {{'F1': 2}}\n"
-        )
+        source = f"{CEILING_NAME} = {{'.md': 1}}\n{FIXTURE_CEILING_NAME} = {{'F1': 2}}\n"
         assert extract_ceilings(source, FIXTURE_CEILING_NAME) == {"F1": 2}
         assert extract_ceilings(source) == {".md": 1}
 

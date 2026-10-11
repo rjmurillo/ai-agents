@@ -18,8 +18,7 @@ from scripts.github_core.api import RepoInfo
 # Import the script via importlib (not a package)
 # ---------------------------------------------------------------------------
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1]
-    / ".claude" / "skills" / "github" / "scripts" / "pr"
+    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "pr"
 )
 
 
@@ -69,9 +68,16 @@ class TestBuildParser:
             build_parser().parse_args(["--pr-number", "1", "--findings-json", "{}"])
 
     def test_valid_args(self):
-        args = build_parser().parse_args([
-            "--pr-number", "42", "--verdict", "PASS", "--findings-json", '{"comments": []}',
-        ])
+        args = build_parser().parse_args(
+            [
+                "--pr-number",
+                "42",
+                "--verdict",
+                "PASS",
+                "--findings-json",
+                '{"comments": []}',
+            ]
+        )
         assert args.pr_number == 42
         assert args.verdict == "PASS"
 
@@ -172,9 +178,11 @@ class TestProcessComments:
         assert stats["skipped"] == 1
 
     def test_wontfix_with_resolution(self):
-        findings = {"comments": [
-            {"id": 1, "classification": "wontfix", "resolution": "Out of scope"},
-        ]}
+        findings = {
+            "comments": [
+                {"id": 1, "classification": "wontfix", "resolution": "Out of scope"},
+            ]
+        }
         with patch("subprocess.run", return_value=_completed(rc=0)):
             stats = process_comments("o", "r", 1, findings)
         assert stats["acknowledged"] == 1
@@ -201,47 +209,82 @@ class TestMain:
             "invoke_pr_comment_processing_skill.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
         ):
-            rc = main([
-                "--pr-number", "1", "--verdict", "PASS",
-                "--findings-json", '{"comments": []}',
-            ])
+            rc = main(
+                [
+                    "--pr-number",
+                    "1",
+                    "--verdict",
+                    "PASS",
+                    "--findings-json",
+                    '{"comments": []}',
+                ]
+            )
         assert rc == 0
 
     def test_warn_verdict_empty_findings_returns_0(self):
         # Issue #3180: the exact hourly failure. A WARN verdict routinely emits
         # an empty findings payload; the run must exit 0, not 2.
-        rc = main([
-            "--pr-number", "1", "--verdict", "WARN", "--findings-json", "",
-        ])
+        rc = main(
+            [
+                "--pr-number",
+                "1",
+                "--verdict",
+                "WARN",
+                "--findings-json",
+                "",
+            ]
+        )
         assert rc == 0
 
     def test_pass_verdict_prose_findings_returns_0(self):
         # AI emitted prose instead of a findings object: no-op, exit 0.
-        rc = main([
-            "--pr-number", "1", "--verdict", "PASS",
-            "--findings-json", "The review looks good.",
-        ])
+        rc = main(
+            [
+                "--pr-number",
+                "1",
+                "--verdict",
+                "PASS",
+                "--findings-json",
+                "The review looks good.",
+            ]
+        )
         assert rc == 0
 
     def test_warn_verdict_empty_stdin_returns_0(self):
         # Reproduces run 29603691792: findings piped via stdin ("-") are empty.
         with patch.object(sys, "stdin", io.StringIO("")):
-            rc = main([
-                "--pr-number", "1", "--verdict", "WARN", "--findings-json", "-",
-            ])
+            rc = main(
+                [
+                    "--pr-number",
+                    "1",
+                    "--verdict",
+                    "WARN",
+                    "--findings-json",
+                    "-",
+                ]
+            )
         assert rc == 0
 
     def test_processing_errors_returns_3(self):
         findings = json.dumps({"comments": [{"id": 1, "classification": "stale"}]})
-        with patch(
-            "invoke_pr_comment_processing_skill.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(rc=1, stderr="fail"),
+        with (
+            patch(
+                "invoke_pr_comment_processing_skill.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(rc=1, stderr="fail"),
+            ),
         ):
-            rc = main([
-                "--pr-number", "1", "--verdict", "PASS",
-                "--findings-json", findings,
-            ])
+            rc = main(
+                [
+                    "--pr-number",
+                    "1",
+                    "--verdict",
+                    "PASS",
+                    "--findings-json",
+                    findings,
+                ]
+            )
         assert rc == 3

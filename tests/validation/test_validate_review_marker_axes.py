@@ -192,9 +192,7 @@ def test_default_known_axes_is_none_for_empty_references_dir(tmp_path: Path) -> 
     assert vrm.default_known_axes(empty) is None
 
 
-def test_validate_ref_config_error_for_empty_references_dir(
-    git_repo: Path, tmp_path: Path
-) -> None:
+def test_validate_ref_config_error_for_empty_references_dir(git_repo: Path, tmp_path: Path) -> None:
     """A forged /review@correctness must not pass when every axis prompt is absent."""
     empty = tmp_path / "references"
     empty.mkdir()
@@ -217,8 +215,16 @@ def test_validate_ref_stale_marker_wins_over_missing_references(
 ) -> None:
     """A marker naming another SHA is exit 1 even with no axis directory."""
     monkeypatch.setattr(vrm, "find_references_dir", lambda: None)
-    _git(git_repo, "commit", "-q", "--allow-empty", "-m", "review: marker", "--trailer",
-         f"Reviewed-By: /review@analyst on {'b' * 40}")
+    _git(
+        git_repo,
+        "commit",
+        "-q",
+        "--allow-empty",
+        "-m",
+        "review: marker",
+        "--trailer",
+        f"Reviewed-By: /review@analyst on {'b' * 40}",
+    )
     outcome = vrm.validate_ref("HEAD", git_repo)
     assert outcome.exit_code == 1
     assert "does not bind" in outcome.message
@@ -228,9 +234,7 @@ def test_main_exit_2_for_bad_references_dir(
     git_repo: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     _marker_commit(git_repo, "analyst")
-    code = vrm.main(
-        ["--repo-root", str(git_repo), "--references-dir", str(tmp_path / "missing")]
-    )
+    code = vrm.main(["--repo-root", str(git_repo), "--references-dir", str(tmp_path / "missing")])
     assert code == 2
 
 
@@ -243,9 +247,7 @@ def test_main_passes_with_references_dir(
     assert "reviewed:" in capsys.readouterr().out
 
 
-def test_main_exit_1_for_unknown_axis(
-    git_repo: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_main_exit_1_for_unknown_axis(git_repo: Path, capsys: pytest.CaptureFixture[str]) -> None:
     _marker_commit(git_repo, "analyst,bogus")
     code = vrm.main(["--repo-root", str(git_repo), "--references-dir", str(REFERENCES)])
     assert code == 1
@@ -253,8 +255,16 @@ def test_main_exit_1_for_unknown_axis(
 
 
 def test_wrong_sha_still_reports_binding_failure(git_repo: Path) -> None:
-    _git(git_repo, "commit", "-q", "--allow-empty", "-m", "review: marker", "--trailer",
-         f"Reviewed-By: /review@bogus on {'a' * 40}")
+    _git(
+        git_repo,
+        "commit",
+        "-q",
+        "--allow-empty",
+        "-m",
+        "review: marker",
+        "--trailer",
+        f"Reviewed-By: /review@bogus on {'a' * 40}",
+    )
     outcome = vrm.validate_ref("HEAD", git_repo, KNOWN)
     assert outcome.exit_code == 1
     assert "does not bind" in outcome.message

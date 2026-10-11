@@ -83,8 +83,8 @@ def run_mutants(repo_root: Path) -> None:
         ),
         (
             "change exit-1 return to exit-0 in main",
-            b"    return 1\n\n\nif __name__ == \"__main__\":",
-            b"    return 0  # MUTANT-DELETED-3791\n\n\nif __name__ == \"__main__\":",
+            b'    return 1\n\n\nif __name__ == "__main__":',
+            b'    return 0  # MUTANT-DELETED-3791\n\n\nif __name__ == "__main__":',
         ),
     ]
 
@@ -122,7 +122,7 @@ def run_mutants(repo_root: Path) -> None:
         restored = target.read_bytes()
         assert restored == original_bytes, f"Restore was not byte-identical for: {name}"
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"DEAD:          {len(dead)}")
     print(f"SURVIVED:      {len(survived)}")
     print(f"DID-NOT-APPLY: {len(did_not_apply)}")

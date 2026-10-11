@@ -94,9 +94,7 @@ def test_selector_resolves_references_beside_the_script(
     assert selected == shipped_axes - {payload["stage1_axis"]}
 
 
-def test_selector_emits_parseable_json_on_stdout(
-    shipped_skill: Path, foreign_cwd: Path
-) -> None:
+def test_selector_emits_parseable_json_on_stdout(shipped_skill: Path, foreign_cwd: Path) -> None:
     """Exit 0 and a JSON object carrying the documented fields."""
     result = _run(shipped_skill, foreign_cwd, "--changed-path", CLASSIFIED_PATH)
 
@@ -114,9 +112,7 @@ def test_selector_emits_parseable_json_on_stdout(
     assert payload["skipped"], "a risk-mode run skipped nothing, so nothing was classified"
 
 
-def test_missing_references_dir_is_a_config_error(
-    shipped_skill: Path, foreign_cwd: Path
-) -> None:
+def test_missing_references_dir_is_a_config_error(shipped_skill: Path, foreign_cwd: Path) -> None:
     """Negative control for the resolution test above.
 
     Without it, a selector that silently emitted an empty set from a wrong
@@ -138,9 +134,7 @@ def test_missing_references_dir_is_a_config_error(
     assert result.stdout.strip() == ""
 
 
-def test_unknown_pinned_axis_is_a_config_error(
-    shipped_skill: Path, foreign_cwd: Path
-) -> None:
+def test_unknown_pinned_axis_is_a_config_error(shipped_skill: Path, foreign_cwd: Path) -> None:
     """A typo in a pin fails closed rather than selecting a phantom axis."""
     result = _run(
         shipped_skill,

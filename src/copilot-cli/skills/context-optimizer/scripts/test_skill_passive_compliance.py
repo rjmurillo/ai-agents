@@ -238,11 +238,13 @@ def audit_size_exception(skill_path: Path) -> CheckResult | None:
         for i in range(1, len(fm_lines)):
             if fm_lines[i].strip() == "---":
                 frontmatter_block = "\n".join(fm_lines[1:i])
-                has_exception = bool(re.search(
-                    r"^\s*size-exception:\s*true\s*(?:#.*)?$",
-                    frontmatter_block,
-                    re.IGNORECASE | re.MULTILINE,
-                ))
+                has_exception = bool(
+                    re.search(
+                        r"^\s*size-exception:\s*true\s*(?:#.*)?$",
+                        frontmatter_block,
+                        re.IGNORECASE | re.MULTILINE,
+                    )
+                )
                 break
     if not has_exception:
         return None
@@ -529,9 +531,7 @@ def run_compliance_checks(path: Path, claude_md_path: Path) -> ComplianceResults
                     "improve instruction adherence, but the vendor does not set a "
                     "fixed CLAUDE.md compliance limit."
                 ),
-                "memoryMd": (
-                    "Auto-memory uses MEMORY.md and follows separate vendor guidance."
-                ),
+                "memoryMd": ("Auto-memory uses MEMORY.md and follows separate vendor guidance."),
                 "source": CLAUDE_MD_MEMORY_DOCS,
                 "localSizePolicy": (
                     "skill_size.py owns this repository's local SKILL.md validation "
@@ -634,7 +634,9 @@ def run_compliance_checks(path: Path, claude_md_path: Path) -> ComplianceResults
         skill_dirs = sorted(
             skill_md.parent
             for skill_md in full_path.rglob("SKILL.md")
-            if not skill_md.resolve().is_relative_to((repo_root / ".claude" / "worktrees").resolve())
+            if not skill_md.resolve().is_relative_to(
+                (repo_root / ".claude" / "worktrees").resolve()
+            )
         )
 
         for skill_dir in skill_dirs:

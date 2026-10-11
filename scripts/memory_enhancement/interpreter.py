@@ -74,9 +74,7 @@ def running_under_venv(venv_dir: Path) -> bool:
         return False
 
 
-def reexec_under_project_venv(
-    project_dir: Path, argv: list[str] | None = None
-) -> None:
+def reexec_under_project_venv(project_dir: Path, argv: list[str] | None = None) -> None:
     """Replace this process with the project venv interpreter when needed.
 
     Returns without doing anything when the dependency already imports, when

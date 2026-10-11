@@ -57,9 +57,7 @@ def test_accepts_https(validate) -> None:
 
 
 def test_accepts_http_with_port(validate) -> None:
-    assert (
-        validate("http://10.0.0.1:8080/path") == "http://10.0.0.1:8080/path"
-    )
+    assert validate("http://10.0.0.1:8080/path") == "http://10.0.0.1:8080/path"
 
 
 # Negative: blocked schemes -------------------------------------------------
@@ -149,12 +147,7 @@ def test_memory_router_makes_no_outbound_request() -> None:
     reintroduced, with or without the validator.
     """
     text = (
-        REPO_ROOT
-        / ".claude"
-        / "skills"
-        / "memory"
-        / "memory_core"
-        / "memory_router.py"
+        REPO_ROOT / ".claude" / "skills" / "memory" / "memory_core" / "memory_router.py"
     ).read_text(encoding="utf-8")
     for forbidden in ("urllib", "socket", "http://", "https://", "requests"):
         assert forbidden not in text, (
@@ -171,12 +164,7 @@ def test_measure_memory_makes_no_outbound_request() -> None:
     asserts absence rather than the validator import.
     """
     text = (
-        REPO_ROOT
-        / ".claude"
-        / "skills"
-        / "memory"
-        / "scripts"
-        / "measure_memory_performance.py"
+        REPO_ROOT / ".claude" / "skills" / "memory" / "scripts" / "measure_memory_performance.py"
     ).read_text(encoding="utf-8")
     for forbidden in ("urllib", "socket", "http://", "https://", "requests"):
         assert forbidden not in text, (

@@ -20,11 +20,6 @@ get_staged_files = mod.get_staged_files
 CRITICAL_PATTERNS = mod.CRITICAL_PATTERNS
 HIGH_PATTERNS = mod.HIGH_PATTERNS
 main = mod.main
-SKILL_DIR = (
-    Path(__file__).resolve().parents[3]
-    / ".claude"
-    / "skills"
-    / "security-detection"
-)
+SKILL_DIR = Path(__file__).resolve().parents[3] / ".claude" / "skills" / "security-detection"
 SKILL_PATH = SKILL_DIR / "SKILL.md"
 SCRIPT_PATH = SKILL_DIR / "detect_infrastructure.py"

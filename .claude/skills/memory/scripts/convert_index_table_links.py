@@ -48,9 +48,7 @@ def _find_project_root(fallback_dir: Path | None = None) -> Path:
     raise SystemExit("Could not find project root (no .git directory found)")
 
 
-def _validate_path_within_project(
-    memories_path: str, project_root: Path
-) -> Path:
+def _validate_path_within_project(memories_path: str, project_root: Path) -> Path:
     """Validate that a path is within the project root (CWE-22 mitigation)."""
     resolved = Path(memories_path).resolve()
     root_resolved = project_root.resolve()
@@ -70,9 +68,7 @@ def _build_memory_names(memories_path: Path) -> dict[str, bool]:
     return names
 
 
-def _convert_single_refs(
-    content: str, memory_names: dict[str, bool]
-) -> str:
+def _convert_single_refs(content: str, memory_names: dict[str, bool]) -> str:
     """Convert table cells with single file references to markdown links.
 
     Pattern: | keyword | filename | -> | keyword | [filename](filename.md) |
@@ -91,16 +87,12 @@ def _convert_single_refs(
     return single_ref_pattern.sub(replace_single, content)
 
 
-def _convert_comma_refs(
-    content: str, memory_names: dict[str, bool]
-) -> str:
+def _convert_comma_refs(content: str, memory_names: dict[str, bool]) -> str:
     """Convert comma-separated file lists in table cells to markdown links.
 
     Pattern: | file1, file2, file3 | -> | [file1](file1.md), [file2](file2.md) |
     """
-    comma_pattern = re.compile(
-        r"\|\s*([a-z][a-z0-9-]+(?:,\s*[a-z][a-z0-9-]+)+)\s*\|"
-    )
+    comma_pattern = re.compile(r"\|\s*([a-z][a-z0-9-]+(?:,\s*[a-z][a-z0-9-]+)+)\s*\|")
 
     def replace_comma(match: re.Match[str]) -> str:
         file_list = match.group(1)
@@ -216,17 +208,13 @@ def main(argv: list[str] | None = None) -> int:
         if args.skip_path_validation:
             memories_path = Path(args.memories_path).resolve()
         else:
-            memories_path = _validate_path_within_project(
-                args.memories_path, project_root
-            )
+            memories_path = _validate_path_within_project(args.memories_path, project_root)
     else:
         memories_path = project_root / ".serena" / "memories"
 
     files_to_process = [Path(f) for f in args.files] if args.files else None
 
-    stats = process_files(
-        memories_path, files_to_process, output_json=args.output_json
-    )
+    stats = process_files(memories_path, files_to_process, output_json=args.output_json)
 
     if args.output_json:
         print(json.dumps(stats, separators=(",", ":")))

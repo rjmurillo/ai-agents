@@ -128,9 +128,7 @@ def check_hypothesis_quality(content: str) -> tuple[bool, list[str]]:
     warnings = []
 
     # Look for hypothesis section
-    hypothesis_match = re.search(
-        r"## Hypothesis\s*\n(.*?)(?=\n## |\Z)", content, re.DOTALL
-    )
+    hypothesis_match = re.search(r"## Hypothesis\s*\n(.*?)(?=\n## |\Z)", content, re.DOTALL)
 
     if not hypothesis_match:
         return False, ["Hypothesis section not found"]
@@ -160,9 +158,7 @@ def check_rollback_procedure(content: str) -> tuple[bool, list[str]]:
     """Check if rollback procedure is documented."""
     warnings = []
 
-    rollback_match = re.search(
-        r"## Rollback Procedure\s*\n(.*?)(?=\n## |\Z)", content, re.DOTALL
-    )
+    rollback_match = re.search(r"## Rollback Procedure\s*\n(.*?)(?=\n## |\Z)", content, re.DOTALL)
 
     if not rollback_match:
         return False, ["Rollback Procedure section not found"]
@@ -175,9 +171,7 @@ def check_rollback_procedure(content: str) -> tuple[bool, list[str]]:
         warnings.append("Rollback procedure should include executable commands")
 
     # Check for verification steps
-    has_verification = (
-        "verify" in rollback_text.lower() or "verification" in rollback_text.lower()
-    )
+    has_verification = "verify" in rollback_text.lower() or "verification" in rollback_text.lower()
     if not has_verification:
         warnings.append("Rollback procedure should include verification steps")
 
@@ -203,9 +197,7 @@ def check_metrics_defined(content: str) -> tuple[bool, list[str]]:
         warnings.append("Baseline should include a metrics table")
 
     # Check for threshold definitions
-    has_thresholds = (
-        "threshold" in baseline_text.lower() or "green" in baseline_text.lower()
-    )
+    has_thresholds = "threshold" in baseline_text.lower() or "green" in baseline_text.lower()
     if not has_thresholds:
         warnings.append("Baseline should define tolerance thresholds")
 
@@ -227,9 +219,7 @@ def calculate_score(
     required_score = (required_present / required_total) * 40 if required_total else 40
 
     # Recommended sections: 20 points
-    recommended_score = (
-        (recommended_present / recommended_total) * 20 if recommended_total else 20
-    )
+    recommended_score = (recommended_present / recommended_total) * 20 if recommended_total else 20
 
     # No incomplete markers: 20 points
     incomplete_score = max(0, 20 - (incomplete_count * 2))
@@ -277,16 +267,12 @@ def validate_experiment(path: Path, strict: bool = False) -> ValidationResult:
         )
 
     # Check required sections
-    required_present, required_missing = check_section_presence(
-        content, REQUIRED_SECTIONS
-    )
+    required_present, required_missing = check_section_presence(content, REQUIRED_SECTIONS)
     for section in required_missing:
         errors.append(f"Missing required section: {section}")
 
     # Check recommended sections
-    recommended_present, recommended_missing = check_section_presence(
-        content, RECOMMENDED_SECTIONS
-    )
+    recommended_present, recommended_missing = check_section_presence(content, RECOMMENDED_SECTIONS)
     for section in recommended_missing:
         warnings.append(f"Missing recommended section: {section}")
 

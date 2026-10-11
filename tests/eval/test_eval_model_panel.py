@@ -72,6 +72,7 @@ def test_panel_and_router_subprocess_readers_pin_utf8_decoding():
 
 def _fake_runner(deltas):
     """Runner that returns a report.json with recall_delta from deltas[(unit,tier)]."""
+
     def run(unit, tier, n_runs, fixtures):
         key = (unit, tier.label)
         if key not in deltas:
@@ -81,6 +82,7 @@ def _fake_runner(deltas):
             "recall_delta": deltas[key],
             "bootstrap_ci_95": [0.0, 1.0],
         }
+
     return run
 
 
@@ -99,14 +101,14 @@ def _panel_argv(tokens: list[str]) -> list[str]:
     repo_root = EVAL_DIR.parents[1]
     return [
         str(repo_root / token) if token.endswith(".json") else token
-        for token in tokens[script + 1:]
+        for token in tokens[script + 1 :]
     ]
 
 
 def _panel_config_usage_commands() -> list[tuple[str, list[str]]]:
     """(source, argv) for the `Usage:` line each shipped panel config carries."""
     return [
-        (path.name, _panel_argv(shlex.split(line[len("Usage: "):])))
+        (path.name, _panel_argv(shlex.split(line[len("Usage: ") :])))
         for path in sorted(PANELS_DIR.glob("*.json"))
         for line in json.loads(path.read_text(encoding="utf-8")).get("_comment", [])
         if line.startswith("Usage: ") and PANEL_SCRIPT in line
@@ -121,9 +123,7 @@ def _is_shell_invocation(line: str) -> bool:
     mention wraps the script in backticks, which fails both tests.
     """
     head = line.split(maxsplit=1)
-    return bool(head) and (
-        head[0].endswith(".py") or head[0] in ("python", "python3", "uv")
-    )
+    return bool(head) and (head[0].endswith(".py") or head[0] in ("python", "python3", "uv"))
 
 
 def _readme_commands() -> list[tuple[str, list[str]]]:
@@ -189,8 +189,10 @@ def test_bad_panel_config_exits_config(tmp_path, capsys):
 
 def test_live_sweep_reports_degradation(capsys):
     deltas = {
-        ("qa", "opus"): 0.5, ("qa", "sol"): 0.5,
-        ("qa", "sonnet"): 0.2, ("qa", "terra"): 0.45,
+        ("qa", "opus"): 0.5,
+        ("qa", "sol"): 0.5,
+        ("qa", "sonnet"): 0.2,
+        ("qa", "terra"): 0.45,
     }
     code = cli.main(
         ["--agents", "qa", "--output-format", "json"],
@@ -206,8 +208,10 @@ def test_live_sweep_reports_degradation(capsys):
 
 def test_live_sweep_robust_unit(capsys):
     deltas = {
-        ("qa", "opus"): 0.5, ("qa", "sol"): 0.5,
-        ("qa", "sonnet"): 0.48, ("qa", "terra"): 0.47,
+        ("qa", "opus"): 0.5,
+        ("qa", "sol"): 0.5,
+        ("qa", "sonnet"): 0.48,
+        ("qa", "terra"): 0.47,
     }
     code = cli.main(
         ["--agents", "qa", "--output-format", "json"],
@@ -221,7 +225,9 @@ def test_live_sweep_robust_unit(capsys):
 def test_runner_error_records_cell_and_exits_external(capsys):
     # Missing terra result -> that cell errors -> exit 3, but others still scored.
     deltas = {
-        ("qa", "opus"): 0.5, ("qa", "sol"): 0.5, ("qa", "sonnet"): 0.5,
+        ("qa", "opus"): 0.5,
+        ("qa", "sol"): 0.5,
+        ("qa", "sonnet"): 0.5,
     }
     code = cli.main(
         ["--agents", "qa", "--output-format", "json"],
@@ -235,8 +241,10 @@ def test_runner_error_records_cell_and_exits_external(capsys):
 
 def test_report_written(tmp_path):
     deltas = {
-        ("qa", "opus"): 0.5, ("qa", "sol"): 0.5,
-        ("qa", "sonnet"): 0.5, ("qa", "terra"): 0.5,
+        ("qa", "opus"): 0.5,
+        ("qa", "sol"): 0.5,
+        ("qa", "sonnet"): 0.5,
+        ("qa", "terra"): 0.5,
     }
     report = tmp_path / "reports" / "panel.json"
     code = cli.main(

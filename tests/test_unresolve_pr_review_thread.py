@@ -15,8 +15,7 @@ import pytest
 # Import the script via importlib (not a package)
 # ---------------------------------------------------------------------------
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1]
-    / ".claude" / "skills" / "github" / "scripts" / "pr"
+    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "pr"
 )
 
 
@@ -117,11 +116,16 @@ class TestMain:
             assert exc.value.code == 2
 
     def test_single_thread_success(self, capsys):
-        with patch(
-            "unresolve_pr_review_thread.assert_gh_authenticated",
-        ), patch(
-            "unresolve_pr_review_thread.gh_graphql",
-            return_value={"unresolveReviewThread": {"thread": {"id": "t1", "isResolved": False}}},
+        with (
+            patch(
+                "unresolve_pr_review_thread.assert_gh_authenticated",
+            ),
+            patch(
+                "unresolve_pr_review_thread.gh_graphql",
+                return_value={
+                    "unresolveReviewThread": {"thread": {"id": "t1", "isResolved": False}}
+                },
+            ),
         ):
             rc = main(["--thread-id", "PRRT_abc"])
         assert rc == 0
@@ -132,11 +136,14 @@ class TestMain:
         assert output["Success"] is True
 
     def test_all_threads_none_resolved(self, capsys):
-        with patch(
-            "unresolve_pr_review_thread.assert_gh_authenticated",
-        ), patch(
-            "unresolve_pr_review_thread.get_resolved_threads",
-            return_value=[],
+        with (
+            patch(
+                "unresolve_pr_review_thread.assert_gh_authenticated",
+            ),
+            patch(
+                "unresolve_pr_review_thread.get_resolved_threads",
+                return_value=[],
+            ),
         ):
             rc = main(["--pull-request", "10"])
         assert rc == 0
@@ -146,11 +153,14 @@ class TestMain:
         assert output["TotalResolved"] == 0
 
     def test_api_error_returns_3(self):
-        with patch(
-            "unresolve_pr_review_thread.assert_gh_authenticated",
-        ), patch(
-            "unresolve_pr_review_thread.get_resolved_threads",
-            side_effect=RuntimeError("API fail"),
+        with (
+            patch(
+                "unresolve_pr_review_thread.assert_gh_authenticated",
+            ),
+            patch(
+                "unresolve_pr_review_thread.get_resolved_threads",
+                side_effect=RuntimeError("API fail"),
+            ),
         ):
             rc = main(["--pull-request", "10"])
         assert rc == 3

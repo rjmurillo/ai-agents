@@ -69,7 +69,8 @@ class TestCheckCli:
             patch("subprocess.run") as mock_run,
         ):
             mock_run.return_value = MagicMock(
-                returncode=0, stdout="CodeQL command-line toolchain release 2.23.9\n",
+                returncode=0,
+                stdout="CodeQL command-line toolchain release 2.23.9\n",
             )
             result = check_cli()
             assert result["installed"] is True
@@ -108,7 +109,9 @@ class TestCheckConfig:
 class TestCheckDatabase:
     def test_no_database(self, tmp_path: Path) -> None:
         result = check_database(
-            str(tmp_path / "nonexistent"), "config.yml", str(tmp_path),
+            str(tmp_path / "nonexistent"),
+            "config.yml",
+            str(tmp_path),
         )
         assert result["exists"] is False
 
@@ -199,7 +202,9 @@ class TestMain:
 
 class TestCheckDatabaseCache:
     def test_corrupt_json_logs_warning(
-        self, tmp_path: Path, caplog: pytest.LogCaptureFixture,
+        self,
+        tmp_path: Path,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         db = tmp_path / "db"
         db.mkdir()
@@ -214,7 +219,9 @@ class TestCheckDatabaseCache:
         reason="chmod-based permission denial is a no-op for root (web containers)",
     )
     def test_unreadable_metadata_logs_warning(
-        self, tmp_path: Path, caplog: pytest.LogCaptureFixture,
+        self,
+        tmp_path: Path,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         db = tmp_path / "db"
         db.mkdir()

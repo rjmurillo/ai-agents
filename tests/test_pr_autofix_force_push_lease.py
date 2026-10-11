@@ -86,8 +86,7 @@ class TestTheDetectorItself:
     def test_a_bare_lease_split_across_a_continuation_is_still_caught(self):
         """Two-sided control for the continuation handling above."""
         wrapped = (
-            'git push origin "${SHA}:refs/heads/${BRANCH}" \\\n'
-            "  --force-with-lease --no-verify"
+            'git push origin "${SHA}:refs/heads/${BRANCH}" \\\n  --force-with-lease --no-verify'
         )
         assert len(find_unpinned_force_pushes(wrapped)) == 1
 

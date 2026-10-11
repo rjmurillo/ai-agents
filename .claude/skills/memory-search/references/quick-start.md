@@ -33,10 +33,7 @@ from reflexion_memory import get_episodes
 array_knowledge = search_memory(query="arrays", max_results=5)
 
 # 2. Review past failures in similar scenarios
-past_failures = [
-    ep for ep in get_episodes(outcome="failure")
-    if "array" in ep["task"]
-]
+past_failures = [ep for ep in get_episodes(outcome="failure") if "array" in ep["task"]]
 
 # 3. Read the lessons those failures recorded
 lessons = [lesson for ep in past_failures for lesson in ep["lessons"]]
@@ -244,10 +241,12 @@ git commit -m "session: Extract episode"
 from functools import lru_cache
 from memory_router import search_memory
 
+
 @lru_cache(maxsize=64)
 def get_cached_memory(query: str) -> list:
     """Cache frequently accessed memories within a session."""
     return search_memory(query=query)
+
 
 # Use cached results
 results = get_cached_memory("array handling patterns")
@@ -330,8 +329,7 @@ similar = search_memory(query="feature implementation patterns", max_results=10)
 
 # 2. Review past feature implementations that succeeded
 past_features = [
-    ep for ep in get_episodes()
-    if "implement" in ep["task"] and ep["outcome"] == "success"
+    ep for ep in get_episodes() if "implement" in ep["task"] and ep["outcome"] == "success"
 ]
 
 # 3. Read the design decisions those sessions recorded
@@ -352,16 +350,13 @@ error_knowledge = search_memory(query="error message text", max_results=5)
 
 # 2. Find past similar errors
 past_errors = [
-    ep for ep in get_episodes()
-    if any(e["type"] == "error" and "error pattern" in e["content"]
-           for e in ep["events"])
+    ep
+    for ep in get_episodes()
+    if any(e["type"] == "error" and "error pattern" in e["content"] for e in ep["events"])
 ]
 
 # 3. Check what those sessions did to recover
-recoveries = [
-    d for ep in past_errors
-    for d in ep["decisions"] if d["type"] == "recovery"
-]
+recoveries = [d for ep in past_errors for d in ep["decisions"] if d["type"] == "recovery"]
 
 # 4. Apply recovery strategy
 # ... debugging ...
@@ -377,15 +372,10 @@ from reflexion_memory import get_episodes
 standards = search_memory(query="code style guidelines", max_results=5)
 
 # 2. Read the lessons past failures recorded
-failure_lessons = [
-    lesson for ep in get_episodes(outcome="failure") for lesson in ep["lessons"]
-]
+failure_lessons = [lesson for ep in get_episodes(outcome="failure") for lesson in ep["lessons"]]
 
 # 3. Review past code review findings
-past_reviews = [
-    ep for ep in get_episodes()
-    if "review" in ep["task"] and len(ep["lessons"]) > 0
-]
+past_reviews = [ep for ep in get_episodes() if "review" in ep["task"] and len(ep["lessons"]) > 0]
 
 # 4. Perform review with context
 # ... review ...

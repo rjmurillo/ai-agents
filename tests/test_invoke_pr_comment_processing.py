@@ -163,11 +163,13 @@ class TestProcessComments:
 
     def test_wontfix_comment_replied(self):
         findings = {
-            "comments": [{
-                "id": 1,
-                "classification": "wontfix",
-                "resolution": "Not needed",
-            }]
+            "comments": [
+                {
+                    "id": 1,
+                    "classification": "wontfix",
+                    "resolution": "Not needed",
+                }
+            ]
         }
         with patch("subprocess.run", return_value=_completed(rc=0)):
             stats = process_comments("o", "r", 1, findings)
@@ -175,29 +177,27 @@ class TestProcessComments:
         assert stats["acknowledged"] == 1
 
     def test_wontfix_without_resolution_skipped(self):
-        findings = {
-            "comments": [{"id": 1, "classification": "wontfix"}]
-        }
+        findings = {"comments": [{"id": 1, "classification": "wontfix"}]}
         with patch("subprocess.run", return_value=_completed(rc=0)):
             stats = process_comments("o", "r", 1, findings)
         assert stats["skipped"] == 1
 
     def test_question_comment_skipped(self):
-        findings = {
-            "comments": [{"id": 1, "classification": "question", "summary": "Why?"}]
-        }
+        findings = {"comments": [{"id": 1, "classification": "question", "summary": "Why?"}]}
         with patch("subprocess.run", return_value=_completed(rc=0)):
             stats = process_comments("o", "r", 1, findings)
         assert stats["skipped"] == 1
 
     def test_implementation_comment_skipped(self):
         findings = {
-            "comments": [{
-                "id": 1,
-                "classification": "standard",
-                "action": "implement",
-                "summary": "Add tests",
-            }]
+            "comments": [
+                {
+                    "id": 1,
+                    "classification": "standard",
+                    "action": "implement",
+                    "summary": "Add tests",
+                }
+            ]
         }
         with patch("subprocess.run", return_value=_completed(rc=0)):
             stats = process_comments("o", "r", 1, findings)
@@ -231,11 +231,16 @@ class TestProcessComments:
 
 class TestMain:
     def test_non_pass_verdict_skips_processing(self):
-        rc = main([
-            "--pr-number", "1",
-            "--verdict", "FAIL",
-            "--findings-json", "{}",
-        ])
+        rc = main(
+            [
+                "--pr-number",
+                "1",
+                "--verdict",
+                "FAIL",
+                "--findings-json",
+                "{}",
+            ]
+        )
         assert rc == 0
 
     def test_pass_verdict_with_no_comments(self):
@@ -244,62 +249,96 @@ class TestMain:
             "invoke_pr_comment_processing.resolve_repo_params",
             return_value=RepoInfo(owner="o", repo="r"),
         ):
-            rc = main([
-                "--pr-number", "1",
-                "--verdict", "PASS",
-                "--findings-json", findings,
-            ])
+            rc = main(
+                [
+                    "--pr-number",
+                    "1",
+                    "--verdict",
+                    "PASS",
+                    "--findings-json",
+                    findings,
+                ]
+            )
         assert rc == 0
 
     def test_warn_verdict_processes_comments(self):
         findings = _make_findings([{"id": 1, "classification": "stale"}])
-        with patch(
-            "invoke_pr_comment_processing.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch("subprocess.run", return_value=_completed(rc=0)):
-            rc = main([
-                "--pr-number", "1",
-                "--verdict", "WARN",
-                "--findings-json", findings,
-            ])
+        with (
+            patch(
+                "invoke_pr_comment_processing.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("subprocess.run", return_value=_completed(rc=0)),
+        ):
+            rc = main(
+                [
+                    "--pr-number",
+                    "1",
+                    "--verdict",
+                    "WARN",
+                    "--findings-json",
+                    findings,
+                ]
+            )
         assert rc == 0
 
     def test_errors_return_3(self):
         # A real error (a comment with no id) still fails the run with exit 3.
         findings = _make_findings([{"classification": "stale"}])
-        with patch(
-            "invoke_pr_comment_processing.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch("subprocess.run", return_value=_completed(rc=1, stderr="err")):
-            rc = main([
-                "--pr-number", "1",
-                "--verdict", "PASS",
-                "--findings-json", findings,
-            ])
+        with (
+            patch(
+                "invoke_pr_comment_processing.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("subprocess.run", return_value=_completed(rc=1, stderr="err")),
+        ):
+            rc = main(
+                [
+                    "--pr-number",
+                    "1",
+                    "--verdict",
+                    "PASS",
+                    "--findings-json",
+                    findings,
+                ]
+            )
         assert rc == 3
 
     def test_reaction_404_does_not_fail_run(self):
         # Issue #2522: every reaction add 404s, but the comments are otherwise
         # processed, so the scheduled run must exit 0, not 3.
         findings = _make_findings([{"id": 1, "classification": "stale"}])
-        with patch(
-            "invoke_pr_comment_processing.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch("subprocess.run", return_value=_completed(rc=1, stderr="404")):
-            rc = main([
-                "--pr-number", "1",
-                "--verdict", "PASS",
-                "--findings-json", findings,
-            ])
+        with (
+            patch(
+                "invoke_pr_comment_processing.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("subprocess.run", return_value=_completed(rc=1, stderr="404")),
+        ):
+            rc = main(
+                [
+                    "--pr-number",
+                    "1",
+                    "--verdict",
+                    "PASS",
+                    "--findings-json",
+                    findings,
+                ]
+            )
         assert rc == 0
 
     def test_invalid_json_exits_2(self):
         with pytest.raises(SystemExit) as exc:
-            main([
-                "--pr-number", "1",
-                "--verdict", "PASS",
-                "--findings-json", "not json",
-            ])
+            main(
+                [
+                    "--pr-number",
+                    "1",
+                    "--verdict",
+                    "PASS",
+                    "--findings-json",
+                    "not json",
+                ]
+            )
         assert exc.value.code == 2
 
     def test_pr_number_required(self):

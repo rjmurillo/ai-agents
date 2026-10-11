@@ -66,6 +66,7 @@ else:
     def _unlock(fd: int) -> None:
         fcntl.flock(fd, fcntl.LOCK_UN)
 
+
 # os.O_NOFOLLOW is absent on some platforms (notably Windows). Fall back to 0 so
 # the open flags compose; the Path.is_symlink() pre-check still guards there.
 _O_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
@@ -85,9 +86,7 @@ class MetricsWriteError(Exception):
 def _reject_symlink(target: Path) -> None:
     """Raise if ``target`` is a symlink (the portable first TOCTOU gate)."""
     if target.is_symlink():
-        raise MetricsWriteError(
-            f"refusing to append to symlink (CWE-59 link following): {target}"
-        )
+        raise MetricsWriteError(f"refusing to append to symlink (CWE-59 link following): {target}")
 
 
 def _resolve_target_parent(target: Path) -> Path:
@@ -165,8 +164,7 @@ def safe_append_tally(
         fd = os.open(target, _OPEN_FLAGS, _FILE_MODE)
     except OSError as exc:
         raise MetricsWriteError(
-            f"cannot open tally file {target} (symlink or open failure, "
-            f"CWE-59/CWE-367): {exc}"
+            f"cannot open tally file {target} (symlink or open failure, CWE-59/CWE-367): {exc}"
         ) from exc
 
     try:

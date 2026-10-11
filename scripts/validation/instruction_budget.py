@@ -227,10 +227,7 @@ def evaluate(
 ) -> list[ExtensionResult]:
     """Measure the always-on budget for every configured extension."""
     files = load_instruction_files(repo_root)
-    return [
-        measure_extension(files, ext, ceilings[ext], reserve_bytes)
-        for ext in sorted(ceilings)
-    ]
+    return [measure_extension(files, ext, ceilings[ext], reserve_bytes) for ext in sorted(ceilings)]
 
 
 class BudgetVerdict(Protocol):
@@ -399,9 +396,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Error: path is not a directory: {args.path}", file=sys.stderr)
         return 2
 
-    if _resolve_safe(repo_path, INSTRUCTIONS_SUBDIR) is None or not (
-        repo_path / INSTRUCTIONS_SUBDIR
-    ).is_dir():
+    if (
+        _resolve_safe(repo_path, INSTRUCTIONS_SUBDIR) is None
+        or not (repo_path / INSTRUCTIONS_SUBDIR).is_dir()
+    ):
         print(f"Error: instructions directory not found: {INSTRUCTIONS_SUBDIR}", file=sys.stderr)
         return 2
 

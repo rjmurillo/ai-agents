@@ -648,8 +648,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
-_lib_dir = str(Path(_plugin_root).resolve() / "lib") if _plugin_root \
-           else str(Path(__file__).resolve().parents[2] / "lib")
+_lib_dir = (
+    str(Path(_plugin_root).resolve() / "lib")
+    if _plugin_root
+    else str(Path(__file__).resolve().parents[2] / "lib")
+)
 if os.path.isdir(_lib_dir) and _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
@@ -660,6 +663,7 @@ try:
         result = _get_project_directory()
         return Path(result) if result else None
 except ImportError:
+
     def get_project_directory() -> Path | None:
         env_dir = os.environ.get("CLAUDE_PROJECT_DIR")
         if env_dir:

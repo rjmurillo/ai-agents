@@ -48,7 +48,6 @@ else:
     )
 
 
-
 class MissingScriptSkip(Exception):  # noqa: N818 - control-flow signal, not an error condition
     """Raised by a validation when a referenced script is absent on disk.
 

@@ -18,8 +18,7 @@ import pytest
 from scripts.github_core.api import RepoInfo
 
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1]
-    / ".claude" / "skills" / "github" / "scripts" / "pr"
+    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "pr"
 )
 _MODULE = "get_pr_reviewers"
 _SCRIPT = _SCRIPTS_DIR / f"{_MODULE}.py"
@@ -130,16 +129,22 @@ def _api(
         stderr="",
     )
 
-    with patch(f"{_MODULE}.assert_gh_authenticated"), patch(
-        f"{_MODULE}.resolve_repo_params",
-        return_value=RepoInfo(owner="o", repo="r"),
-    ), patch(f"{_MODULE}.gh_graphql", side_effect=graphql), patch(
-        f"{_MODULE}.gh_api_paginated",
-        side_effect=rest,
-    ), patch(
-        f"{_MODULE}.subprocess.run",
-        return_value=pr_view,
-        side_effect=legacy_error,
+    with (
+        patch(f"{_MODULE}.assert_gh_authenticated"),
+        patch(
+            f"{_MODULE}.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ),
+        patch(f"{_MODULE}.gh_graphql", side_effect=graphql),
+        patch(
+            f"{_MODULE}.gh_api_paginated",
+            side_effect=rest,
+        ),
+        patch(
+            f"{_MODULE}.subprocess.run",
+            return_value=pr_view,
+            side_effect=legacy_error,
+        ),
     ):
         yield
 
@@ -191,9 +196,12 @@ class TestMain:
         assert exc.value.code == 4
 
     def test_pr_not_found_exits_2(self):
-        with _api(author=None), patch(
-            f"{_MODULE}.gh_graphql",
-            return_value={"repository": {"pullRequest": None}},
+        with (
+            _api(author=None),
+            patch(
+                f"{_MODULE}.gh_graphql",
+                return_value={"repository": {"pullRequest": None}},
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "999"])
@@ -236,9 +244,12 @@ class TestMain:
                 return [_comment("partial", 1)]
             return []
 
-        with _api(author=_actor("alice", 1)), patch(
-            f"{_MODULE}.gh_api_paginated",
-            side_effect=rest,
+        with (
+            _api(author=_actor("alice", 1)),
+            patch(
+                f"{_MODULE}.gh_api_paginated",
+                side_effect=rest,
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "10"])
@@ -281,9 +292,7 @@ class TestMain:
         with _api(author=author, review_comments=comments):
             assert main(["--pull-request", "10", "--exclude-author"]) == 0
         output = _output(capsys)
-        assert [reviewer["login"] for reviewer in output["reviewers"]] == [
-            "github-copilot[bot]"
-        ]
+        assert [reviewer["login"] for reviewer in output["reviewers"]] == ["github-copilot[bot]"]
 
     def test_missing_comment_user_is_skipped(self, capsys):
         with _api(author=_actor("alice", 1), review_comments=[{"user": None}]):
@@ -468,20 +477,10 @@ class TestMain:
     def test_non_string_actor_login_exits_3(self, location: str) -> None:
         malformed = {"__typename": "Bot", "login": 42, "databaseId": 1}
         author = malformed if location == "author" else _actor("alice", 1)
-        request_pages = (
-            [_connection([_request_node(malformed)])]
-            if location == "request"
-            else None
-        )
-        review_pages = (
-            [_connection([_review_node(malformed)])]
-            if location == "review"
-            else None
-        )
+        request_pages = [_connection([_request_node(malformed)])] if location == "request" else None
+        review_pages = [_connection([_review_node(malformed)])] if location == "review" else None
         review_comments = (
-            [{"user": {"login": 42, "id": 1, "type": "Bot"}}]
-            if location == "comment"
-            else None
+            [{"user": {"login": 42, "id": 1, "type": "Bot"}}] if location == "comment" else None
         )
         with _api(
             author=author,

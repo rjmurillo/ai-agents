@@ -142,10 +142,7 @@ def check_authorization(
             reason = f"Authorized via bot allowlist for pull_request: {actor}"
             return True, reason
         if mention and author_association in ALLOWED_ASSOCIATIONS:
-            reason = (
-                f"Authorized via @claude mention in PR by:"
-                f" {actor} ({author_association})"
-            )
+            reason = f"Authorized via @claude mention in PR by: {actor} ({author_association})"
             return True, reason
         reason = (
             f"Access denied: pull_request from Actor={actor}"
@@ -356,9 +353,7 @@ def main(argv: list[str] | None = None) -> int:
 
             if summary_path:
                 try:
-                    write_oversize_audit_log(
-                        summary_path, event_name, actor, len(body)
-                    )
+                    write_oversize_audit_log(summary_path, event_name, actor, len(body))
                 except OSError as audit_err:
                     logger.error(
                         "CRITICAL: Failed to write oversize body audit log"
@@ -380,7 +375,10 @@ def main(argv: list[str] | None = None) -> int:
         logger.info("  Has @claude Mention: %s", mention)
 
         is_authorized, reason = check_authorization(
-            event_name, actor, author_association, mention,
+            event_name,
+            actor,
+            author_association,
+            mention,
         )
 
         logger.info(
@@ -426,12 +424,15 @@ def main(argv: list[str] | None = None) -> int:
         if summary_path:
             try:
                 write_error_audit_log(
-                    summary_path, error_msg, event_name, actor, author_association,
+                    summary_path,
+                    error_msg,
+                    event_name,
+                    actor,
+                    author_association,
                 )
             except OSError as audit_err:
                 logger.error(
-                    "DOUBLE FAULT: Authorization check failed AND audit"
-                    " logging failed: %s",
+                    "DOUBLE FAULT: Authorization check failed AND audit logging failed: %s",
                     audit_err,
                 )
                 logger.error("Original error: %s", error_msg)

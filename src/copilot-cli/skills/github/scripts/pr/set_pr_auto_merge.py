@@ -127,7 +127,11 @@ def get_pr_node_id(owner: str, repo: str, pr_number: int) -> tuple[str, dict]:
 
 
 def disable_auto_merge(
-    owner: str, repo: str, pr_number: int, pr_id: str, pr_data: dict,
+    owner: str,
+    repo: str,
+    pr_number: int,
+    pr_id: str,
+    pr_data: dict,
 ) -> int:
     """Disable auto-merge. Returns exit code."""
     if pr_data.get("autoMergeRequest") is None:
@@ -148,9 +152,7 @@ def disable_auto_merge(
         error_and_exit(f"Failed to disable auto-merge: {exc}", 3)
 
     disabled = (
-        data.get("disablePullRequestAutoMerge", {})
-        .get("pullRequest", {})
-        .get("autoMergeRequest")
+        data.get("disablePullRequestAutoMerge", {}).get("pullRequest", {}).get("autoMergeRequest")
         is None
     )
 
@@ -212,13 +214,8 @@ def enable_auto_merge(
         # documented fallback for this state.
         if "unstable status" in msg.lower():
             strategy = merge_method.lower()
-            merge_script = shlex.quote(
-                str(Path(__file__).resolve().parent / "merge_pr.py")
-            )
-            fallback = (
-                f"python3 {merge_script} "
-                f"--pull-request {pr_number} --strategy {strategy}"
-            )
+            merge_script = shlex.quote(str(Path(__file__).resolve().parent / "merge_pr.py"))
+            fallback = f"python3 {merge_script} --pull-request {pr_number} --strategy {strategy}"
             error_and_exit(
                 "Cannot enable auto-merge: PR is in UNSTABLE merge state "
                 "(non-required checks failing). GitHub blocks auto-merge "
@@ -237,13 +234,8 @@ def enable_auto_merge(
         # instead of leaking the raw GraphQL prefix.
         if "clean status" in msg.lower():
             strategy = merge_method.lower()
-            merge_script = shlex.quote(
-                str(Path(__file__).resolve().parent / "merge_pr.py")
-            )
-            fallback = (
-                f"python3 {merge_script} "
-                f"--pull-request {pr_number} --strategy {strategy}"
-            )
+            merge_script = shlex.quote(str(Path(__file__).resolve().parent / "merge_pr.py"))
+            fallback = f"python3 {merge_script} --pull-request {pr_number} --strategy {strategy}"
             error_and_exit(
                 "Cannot enable auto-merge: PR merge state is already "
                 "satisfied (all required checks pass, no pending reviews, "
@@ -255,16 +247,13 @@ def enable_auto_merge(
             )
         if "not mergeable" in msg:
             error_and_exit(
-                "PR is not in a mergeable state. "
-                "Check for conflicts or required reviews.",
+                "PR is not in a mergeable state. Check for conflicts or required reviews.",
                 3,
             )
         error_and_exit(f"Failed to enable auto-merge: {msg}", 3)
 
     auto_merge = (
-        data.get("enablePullRequestAutoMerge", {})
-        .get("pullRequest", {})
-        .get("autoMergeRequest")
+        data.get("enablePullRequestAutoMerge", {}).get("pullRequest", {}).get("autoMergeRequest")
     )
     enabled = auto_merge is not None
 
@@ -300,33 +289,41 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument(
-        "--pull-request", type=int, required=True,
+        "--pull-request",
+        type=int,
+        required=True,
         help="PR number",
     )
 
     action = parser.add_mutually_exclusive_group(required=True)
     action.add_argument(
-        "--enable", action="store_true",
+        "--enable",
+        action="store_true",
         help="Enable auto-merge",
     )
     action.add_argument(
-        "--disable", action="store_true",
+        "--disable",
+        action="store_true",
         help="Disable auto-merge",
     )
 
     parser.add_argument(
-        "--merge-method", "--strategy", dest="merge_method",
+        "--merge-method",
+        "--strategy",
+        dest="merge_method",
         type=str.upper,
         choices=["MERGE", "SQUASH", "REBASE"],
         default="SQUASH",
         help="Merge method (default SQUASH). --strategy alias; case-insensitive (#2684).",
     )
     parser.add_argument(
-        "--commit-headline", default="",
+        "--commit-headline",
+        default="",
         help="Custom commit headline for squash/merge commits",
     )
     parser.add_argument(
-        "--commit-body", default="",
+        "--commit-body",
+        default="",
         help="Custom commit body for squash/merge commits",
     )
     return parser

@@ -78,6 +78,4 @@ class TestSkillProvenanceTableIntegrity:
         The escape character reaches a raw reader intact; a second shell
         command after the escaped pipe runs even when the first fails.
         """
-        assert r"\|" not in row, (
-            f"escaped pipe in {skill_name} provenance row: {row[:80]}"
-        )
+        assert r"\|" not in row, f"escaped pipe in {skill_name} provenance row: {row[:80]}"

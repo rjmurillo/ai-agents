@@ -136,6 +136,7 @@ def check_evidence_gate(thoughts: str) -> bool:
     """Verify evidence gate was passed."""
     return "Evidence gate:" in thoughts and "sources" in thoughts
 
+
 if step_number == 2 and not check_evidence_gate(thoughts):
     print("BLOCKED: Evidence gate not satisfied")
     print("Required: Document sources before proceeding")

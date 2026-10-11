@@ -30,9 +30,7 @@ from tests.validation.test_check_agent_skill_discriminator import (
 )
 
 
-def _score(
-    path: str, *, c1: bool = True, c2: bool = True, c3: bool = True
-) -> mod.AgentScore:
+def _score(path: str, *, c1: bool = True, c2: bool = True, c3: bool = True) -> mod.AgentScore:
     return mod.AgentScore(
         name=Path(path).stem,
         path=path,
@@ -56,16 +54,12 @@ def init_git(repo: Path) -> None:
         ["config", "user.email", "t@example.com"],
         ["config", "user.name", "t"],
     ):
-        subprocess.run(
-            ["git", "-C", str(repo), *command], check=True, capture_output=True
-        )
+        subprocess.run(["git", "-C", str(repo), *command], check=True, capture_output=True)
 
 
 def commit_all(repo: Path) -> None:
     """Stage and commit everything in ``repo``, creating HEAD."""
-    subprocess.run(
-        ["git", "-C", str(repo), "add", "-A"], check=True, capture_output=True
-    )
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True, capture_output=True)
     subprocess.run(
         ["git", "-C", str(repo), "commit", "-qm", "seed"],
         check=True,
@@ -119,9 +113,7 @@ class TestFullCorpusAgentPaths:
 
         assert corpus == [rel]
 
-    def test_an_untracked_agent_file_is_not_in_the_corpus(
-        self, tmp_path: Path
-    ) -> None:
+    def test_an_untracked_agent_file_is_not_in_the_corpus(self, tmp_path: Path) -> None:
         """The discriminating input for the walk-versus-ref defect.
 
         ``alpha`` is committed and ``ghost`` is not. A directory walk returns
@@ -142,9 +134,7 @@ class TestFullCorpusAgentPaths:
         # Control: the file really is on disk, so a walk would have found it.
         assert (repo / untracked).is_file()
 
-    def test_a_tracked_file_deleted_from_disk_is_still_in_the_corpus(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_tracked_file_deleted_from_disk_is_still_in_the_corpus(self, tmp_path: Path) -> None:
         """The other half of the same defect: a partial checkout.
 
         A walk reads a missing file as a missing agent and silently records a
@@ -158,18 +148,14 @@ class TestFullCorpusAgentPaths:
 
         assert bmod.full_corpus_agent_paths(repo, mod.is_agent_path) == [rel]
 
-    def test_a_repository_with_no_agents_yields_an_empty_corpus(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_repository_with_no_agents_yields_an_empty_corpus(self, tmp_path: Path) -> None:
         repo = _scaffold(tmp_path)
         (repo / "README.md").write_text("# repo\n", encoding="utf-8")
         seed_repo(repo)
 
         assert bmod.full_corpus_agent_paths(repo, mod.is_agent_path) == []
 
-    def test_a_directory_that_is_not_a_repository_fails_closed(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_directory_that_is_not_a_repository_fails_closed(self, tmp_path: Path) -> None:
         """``None``, not ``[]``. "git errored" is not "the tree is empty"."""
         repo = tmp_path / "not-a-repo"
         repo.mkdir()
@@ -297,8 +283,7 @@ class TestBaselineCli:
         _write_command(
             repo,
             "build",
-            'Task(subagent_type="shaped"): do work.\n'
-            'Invoke Skill(skill="pre-mortem") first.\n',
+            'Task(subagent_type="shaped"): do work.\nInvoke Skill(skill="pre-mortem") first.\n',
         )
         seed_repo(repo)
         baseline_path = repo / "scripts" / "validation" / "baseline.json"
@@ -315,8 +300,7 @@ class TestBaselineCli:
         _write_command(
             repo,
             "build",
-            'Task(subagent_type="shaped"): do work.\n'
-            'Invoke Skill(skill="pre-mortem") first.\n',
+            'Task(subagent_type="shaped"): do work.\nInvoke Skill(skill="pre-mortem") first.\n',
         )
         baseline_path = repo / "baseline.json"
         baseline_path.write_text(json.dumps({"files": {rel: 3}}), encoding="utf-8")
@@ -334,8 +318,7 @@ class TestBaselineCli:
         _write_command(
             repo,
             "build",
-            'Task(subagent_type="shaped"): do work.\n'
-            'Invoke Skill(skill="pre-mortem") first.\n',
+            'Task(subagent_type="shaped"): do work.\nInvoke Skill(skill="pre-mortem") first.\n',
         )
         baseline_path = repo / "baseline.json"
         # Recorded floor is below the agent's actual score of 3.
@@ -346,16 +329,13 @@ class TestBaselineCli:
         assert proc.returncode == 1, proc.stdout + proc.stderr
         assert "regression" in proc.stdout
 
-    def test_baseline_mode_new_agent_uses_ordinary_threshold(
-        self, tmp_path: Path
-    ) -> None:
+    def test_baseline_mode_new_agent_uses_ordinary_threshold(self, tmp_path: Path) -> None:
         repo = _scaffold(tmp_path)
         rel = _write_agent(repo, "shaped", _reference_body())
         _write_command(
             repo,
             "build",
-            'Task(subagent_type="shaped"): do work.\n'
-            'Invoke Skill(skill="pre-mortem") first.\n',
+            'Task(subagent_type="shaped"): do work.\nInvoke Skill(skill="pre-mortem") first.\n',
         )
         baseline_path = repo / "baseline.json"
         baseline_path.write_text(json.dumps({"files": {}}), encoding="utf-8")
@@ -379,9 +359,7 @@ class TestBaselineCli:
         init_git(repo)
         baseline_path = repo / "scripts" / "validation" / "baseline.json"
         baseline_path.parent.mkdir(parents=True, exist_ok=True)
-        baseline_path.write_text(
-            json.dumps({"files": {"stale/agent.md": 3}}), encoding="utf-8"
-        )
+        baseline_path.write_text(json.dumps({"files": {"stale/agent.md": 3}}), encoding="utf-8")
         commit_all(repo)
 
         proc = run_update_baseline(repo, baseline_path)
@@ -390,7 +368,5 @@ class TestBaselineCli:
         # a dropped entry and must be refused without --allow-baseline-shrink.
         assert proc.returncode == 2, proc.stdout + proc.stderr
 
-        proc_allowed = run_update_baseline(
-            repo, baseline_path, "--allow-baseline-shrink"
-        )
+        proc_allowed = run_update_baseline(repo, baseline_path, "--allow-baseline-shrink")
         assert proc_allowed.returncode == 0, proc_allowed.stdout + proc_allowed.stderr

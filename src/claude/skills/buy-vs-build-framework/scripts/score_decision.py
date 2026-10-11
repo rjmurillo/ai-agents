@@ -16,6 +16,7 @@ from dataclasses import dataclass
 @dataclass
 class DecisionScore:
     """Structured result for decision scoring."""
+
     scores: dict[str, float]
     winner: str
     confidence: str
@@ -26,20 +27,20 @@ def validate_criteria(criteria: dict) -> list[str]:
     """Validate criteria structure and weights."""
     errors = []
 
-    if 'weights' not in criteria:
+    if "weights" not in criteria:
         errors.append("Missing 'weights' section in criteria file")
         return errors
 
-    total_weight = sum(criteria['weights'].values())
+    total_weight = sum(criteria["weights"].values())
     if abs(total_weight - 100.0) > 0.01:
         errors.append(f"Weights must sum to 100%, got {total_weight}%")
 
-    if 'options' not in criteria:
+    if "options" not in criteria:
         errors.append("Missing 'options' section in criteria file")
         return errors
 
-    for option in criteria['options'].values():
-        for category in criteria['weights'].keys():
+    for option in criteria["options"].values():
+        for category in criteria["weights"].keys():
             if category not in option:
                 errors.append(f"Option missing category: {category}")
 
@@ -50,9 +51,9 @@ def calculate_scores(criteria: dict) -> dict[str, float]:
     """Calculate weighted scores for each option."""
     scores = {}
 
-    for option_name, option_scores in criteria['options'].items():
+    for option_name, option_scores in criteria["options"].items():
         total_score = 0.0
-        for category, weight in criteria['weights'].items():
+        for category, weight in criteria["weights"].items():
             category_score = sum(option_scores[category].values()) / len(option_scores[category])
             total_score += category_score * (weight / 100.0)
         scores[option_name] = total_score
@@ -80,19 +81,19 @@ def sensitivity_analysis(criteria: dict, base_scores: dict[str, float]) -> dict[
     """Analyze how weight changes affect ranking."""
     sensitivity = {}
 
-    for category in criteria['weights'].keys():
+    for category in criteria["weights"].keys():
         # Test ±20% weight change
         test_criteria = json.loads(json.dumps(criteria))  # Deep copy
-        original_weight = test_criteria['weights'][category]
+        original_weight = test_criteria["weights"][category]
 
         # Redistribute weight proportionally
-        test_criteria['weights'][category] = original_weight * 1.2
-        remaining = 100 - test_criteria['weights'][category]
+        test_criteria["weights"][category] = original_weight * 1.2
+        remaining = 100 - test_criteria["weights"][category]
 
-        for other_category in test_criteria['weights'].keys():
+        for other_category in test_criteria["weights"].keys():
             if other_category != category:
-                proportion = test_criteria['weights'][other_category] / (100 - original_weight)
-                test_criteria['weights'][other_category] = remaining * proportion
+                proportion = test_criteria["weights"][other_category] / (100 - original_weight)
+                test_criteria["weights"][other_category] = remaining * proportion
 
         new_scores = calculate_scores(test_criteria)
         max_delta = max(abs(new_scores[opt] - base_scores[opt]) for opt in base_scores.keys())
@@ -123,24 +124,28 @@ Example criteria file format (JSON):
     "partner": { ... }
   }
 }
-        """
+        """,
     )
 
-    parser.add_argument('--criteria-file', type=str, required=True,
-                       help='JSON file with criteria weights and scores')
+    parser.add_argument(
+        "--criteria-file",
+        type=str,
+        required=True,
+        help="JSON file with criteria weights and scores",
+    )
 
     args = parser.parse_args()
 
     # Load criteria
     # Validate input path to prevent path traversal (CWE-22)
     import os
+
     try:
         allowed_base = os.path.abspath(".")
         criteria_file_path = os.path.abspath(args.criteria_file)
         if not criteria_file_path.startswith(allowed_base):
             raise ValueError(
-                f"Path traversal attempt detected in --criteria-file: "
-                f"{args.criteria_file}"
+                f"Path traversal attempt detected in --criteria-file: {args.criteria_file}"
             )
     except ValueError as e:
         print(f"ERROR: {e}", file=sys.stderr)
@@ -175,7 +180,7 @@ Example criteria file format (JSON):
 
     # Output results
     print("Decision Matrix Scores")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     for option, score in sorted(scores.items(), key=lambda x: x[1], reverse=True):
         print(f"{option.capitalize():12} {score:.1f}")
     print("")
@@ -194,5 +199,5 @@ Example criteria file format (JSON):
         sys.exit(0)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

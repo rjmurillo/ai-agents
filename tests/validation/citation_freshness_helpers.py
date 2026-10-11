@@ -68,5 +68,3 @@ def _add_doc(root: Path, relpath: str, text: str) -> None:
 def _run(root: Path, capsys: pytest.CaptureFixture[str]) -> tuple[int, str]:
     code = checker.main(["--repo-root", str(root), "--base", "main"])
     return code, capsys.readouterr().out
-
-

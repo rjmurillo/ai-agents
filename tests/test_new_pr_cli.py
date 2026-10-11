@@ -30,9 +30,7 @@ class TestBuildParser:
             assert main(["--prepare-body-file"]) == 0
 
     def test_valid_args(self):
-        args = build_parser().parse_args(
-            ["--title", "feat: test", "--base", "main"]
-        )
+        args = build_parser().parse_args(["--title", "feat: test", "--base", "main"])
         assert args.title == "feat: test"
         assert args.base == "main"
 
@@ -123,14 +121,17 @@ class TestMain:
         assert rc == 0
 
     def test_body_file_not_found_returns_2(self, tmp_path):
-        with patch(
-            "subprocess.run",
-            side_effect=[
-                _completed(stdout=str(tmp_path), rc=0),
-                _completed(rc=0),
-                _completed(rc=0),
-            ],
-        ), patch.object(_mod, "run_validations"):
+        with (
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    _completed(stdout=str(tmp_path), rc=0),
+                    _completed(rc=0),
+                    _completed(rc=0),
+                ],
+            ),
+            patch.object(_mod, "run_validations"),
+        ):
             rc = main(
                 [
                     "--title",
@@ -163,15 +164,18 @@ class TestMain:
         assert rc == 2
 
     def test_gh_pr_create_failure_returns_exit_code(self, tmp_path):
-        with patch(
-            "subprocess.run",
-            side_effect=[
-                _completed(stdout=str(tmp_path), rc=0),
-                _completed(rc=0),
-                _completed(rc=0),
-                _completed(rc=1, stderr="error creating PR"),
-            ],
-        ), patch.object(_mod, "run_validations"):
+        with (
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    _completed(stdout=str(tmp_path), rc=0),
+                    _completed(rc=0),
+                    _completed(rc=0),
+                    _completed(rc=1, stderr="error creating PR"),
+                ],
+            ),
+            patch.object(_mod, "run_validations"),
+        ):
             rc = main(["--title", "feat: test", "--head", "feat/branch"])
         assert rc == 1
 
@@ -255,14 +259,17 @@ class TestMain:
         assert rc == 2
 
     def test_skip_validation_with_reason_writes_audit(self, tmp_path):
-        with patch(
-            "subprocess.run",
-            side_effect=[
-                _completed(stdout=str(tmp_path), rc=0),
-                _completed(rc=0),
-                _completed(rc=0),
-            ],
-        ), patch.object(_mod, "write_audit_log") as mock_audit:
+        with (
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    _completed(stdout=str(tmp_path), rc=0),
+                    _completed(rc=0),
+                    _completed(rc=0),
+                ],
+            ),
+            patch.object(_mod, "write_audit_log") as mock_audit,
+        ):
             rc = main(
                 [
                     "--title",
@@ -280,16 +287,19 @@ class TestMain:
         assert call_args[0][4] == "hotfix"
 
     def test_validation_exception_returns_1(self, tmp_path):
-        with patch(
-            "subprocess.run",
-            side_effect=[
-                _completed(stdout=str(tmp_path), rc=0),
-                _completed(rc=0),
-                _completed(rc=0),
-            ],
-        ), patch(
-            "new_pr.run_validations",
-            side_effect=Exception("unexpected error"),
+        with (
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    _completed(stdout=str(tmp_path), rc=0),
+                    _completed(rc=0),
+                    _completed(rc=0),
+                ],
+            ),
+            patch(
+                "new_pr.run_validations",
+                side_effect=Exception("unexpected error"),
+            ),
         ):
             rc = main(["--title", "feat: test", "--head", "feat/branch"])
         assert rc == 1
@@ -335,9 +345,7 @@ class TestMain:
                 return _completed(rc=0)
             return _completed(rc=0)
 
-        with patch("subprocess.run", side_effect=_run), patch(
-            "new_pr.run_validations"
-        ):
+        with patch("subprocess.run", side_effect=_run), patch("new_pr.run_validations"):
             assert (
                 main(
                     [
