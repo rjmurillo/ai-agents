@@ -61,9 +61,9 @@
     "src/claude/skills/work-operating-model/SKILL.md": 4,
     "src/claude/skills/work-operating-model/references/entry-contract.md": 1,
     "src/claude/skills/work-operating-model/references/layer-questions.md": 1,
-    "src/copilot-cli/instructions/canonical-source-mirror.instructions.md": 29,
+    "src/copilot-cli/instructions/canonical-source-mirror.instructions.md": 31,
     "src/copilot-cli/instructions/claude-agents.instructions.md": 19,
-    "src/copilot-cli/instructions/generated-artifacts.instructions.md": 17,
+    "src/copilot-cli/instructions/generated-artifacts.instructions.md": 18,
     "src/copilot-cli/instructions/knowledge-persistence.instructions.md": 3,
     "src/copilot-cli/instructions/plugin-version-bump.instructions.md": 2,
     "src/copilot-cli/instructions/python.instructions.md": 2,
@@ -110,6 +110,7 @@
     "templates/agents/qa.shared.md": 6,
     "templates/agents/retrospective.shared.md": 3,
     "templates/agents/security.shared.md": 6,
+    "templates/agents/skillbook.shared.md": 1,
     "templates/agents/task-decomposer.shared.md": 2
   },
   "marker_files": {
