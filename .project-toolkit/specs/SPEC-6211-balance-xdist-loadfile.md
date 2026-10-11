@@ -2,6 +2,8 @@
 
 Issue: #6211. Owner decision (2026-10-07, D2): keep `--dist loadfile`, split slow files, do not change the distribution mode.
 
+Superseded 2026-10-09: the owner switched `PYTEST_DIST_MODE` to `worksteal` (issue #6239). Evidence: identical failure sets across 7 full-suite runs (no isolation break), the same speed at CI's 4 workers, and about 20 percent faster at 16 workers (246s to 197s). The file splits below stay; the decision to keep `loadfile` does not.
+
 ## Step 0 First Principles
 
 ### Q1 Demand Reality
@@ -35,7 +37,7 @@ At ten times the tests, uneven files matter more, because the worker count grows
 ## Prior Art / Constraints
 
 - #4352 split `tests/test_validation_pre_pr.py` into `tests/validation_pre_pr/`. Its session record notes that copied `noqa` comments trip the pre-push security suppression policy.
-- `PYTEST_DIST_MODE = "loadfile"` in `scripts/validation/git_hook_policy.py:655` is deliberate. Module fixtures, module state, and file-local temp directories must keep behaving as they do serially.
+- <!-- citation-freshness: ignore -- superseded by the 2026-10-09 owner decision; the cited line is history --> (Superseded 2026-10-09: `PYTEST_DIST_MODE` is `worksteal` and lives in `scripts/ci/run_pytest_partition.py`.) `PYTEST_DIST_MODE = "loadfile"` in `scripts/validation/git_hook_policy.py:655` was deliberate. Module fixtures, module state, and file-local temp directories must keep behaving as they do serially.
 - `test_validator_argv_is_accepted_by_the_real_checker` is slow by design. Its docstring says it is the only test that runs the real checkers. It stays, unchanged.
 - `tests/validation/` is a package and already holds shared helper modules imported as `tests.validation.<name>`.
 
@@ -60,7 +62,7 @@ No data model. Test IDs change module path only.
 
 ## Integrations
 
-- pytest-xdist `--dist loadfile` (unchanged).
+- pytest-xdist `--dist loadfile` (superseded 2026-10-09: now `--dist worksteal`).
 - `scripts/test_selection` import graph: new files must import the same production modules, so selection still picks them.
 - #6194 duration trend job: reads JUnit per module. New module names start a new baseline.
 
@@ -89,7 +91,7 @@ What proves it works: the traced 16-worker run of the same 832-file subset, befo
 5. If the real-checker parameter list is split across files, then a guard test shall fail when any validator in `_EXPECTED` is missing from the split lists or appears in both.
 6. When the 832-file subset runs at 16 workers with tracing, the tail shall be smaller than the 35.5s baseline, and the before and after numbers shall be recorded on #6211.
 7. The change shall not edit any production file under `scripts/`.
-8. The moved tests shall pass alone and under `-n 16 --dist loadfile`.
+8. The moved tests shall pass alone and under `-n 16 --dist loadfile` (superseded 2026-10-09: the suite now runs `--dist worksteal`; the moved tests pass under both).
 9. When a vendor-portability checker script changes, import-graph test selection shall select both real-checker files, as it selected the original file before the split.
 
 ## Out of scope
@@ -110,7 +112,7 @@ None.
 
 ## CVA summary
 
-- Common: every split file keeps the loadfile isolation contract and imports shared helpers from one module.
+- Common: every split file keeps the loadfile isolation contract and imports shared helpers from one module. (Superseded 2026-10-09: the dist mode is now worksteal; the split files keep their shared-helper layout.)
 - Varies: why a file is slow. Time spread across tests can be split. A dominant test or a shared module fixture cannot.
 - Relationship: file time is at least its dominant test time, so the floor after splitting is about 26s.
 

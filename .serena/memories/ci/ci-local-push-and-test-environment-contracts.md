@@ -21,19 +21,22 @@ real drift in a generator-owned file and read the reported paths. Setting
 See `decision-warm-pycache-before-push-never-purge.md` for the cache race that
 does exist.
 
-## The pre-push python-tests job only collects
+## The pre-push python-tests job runs only testmon-selected tests
 
-By default pre-push runs a collection smoke, not the suite
-(`TEST_COLLECTION_TIMEOUT_SECONDS` in `scripts/validation/git_hook_policy.py`;
-full execution is opt-in through `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY`, per
-ADR-104). Real execution happens in CI or by hand. To match CI locally:
+By default pre-push runs `pytest --testmon` over the suite partitions
+(`_testmon_commands` in `scripts/validation/git_hook_policy.py`), so only the
+tests pytest-testmon selects run. Selection is best effort and misses code a test
+reaches only through a subprocess. With no `.testmondata` the hook first fetches
+main's CI seed (`scripts/validation/testmon_seed.py`) and otherwise runs
+everything (575 s at 4 workers). Full execution without selection is opt-in
+through `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY`, per ADR-104. To match CI locally:
 
 ```bash
 CLAUDE_PLUGIN_ROOT=.claude GITHUB_EVENT_NAME=merge_group \
   uv run --frozen pytest
 ```
 
-A green pre-push is not a green suite.
+A green pre-push is not a green suite: CI runs everything.
 
 ## A merge of main can demand a D9 review marker
 

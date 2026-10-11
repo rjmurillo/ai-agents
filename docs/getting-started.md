@@ -117,6 +117,7 @@ sequenceDiagram
 
 - [Autonomous issue development](autonomous-issue-development.md) for running the full pipeline AFK
 - [Ideation workflow](ideation-workflow.md) for turning vague ideas into specs before `/spec`
+- [Plan, implement, and review with a team of agents](plan-implement-review.md) for how this toolkit compares with Claude Code Agent Teams and Copilot CLI custom agents
 - [`.claude/skills/spec/SKILL.md`](../.claude/skills/spec/SKILL.md) for the full `/spec` process reference
 - [`.claude/skills/requirements-interview/SKILL.md`](../.claude/skills/requirements-interview/SKILL.md) for Grill Me skill internals
 

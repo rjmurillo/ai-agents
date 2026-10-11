@@ -1,4 +1,4 @@
-"""Shared fixtures and helpers for the pre-push collection tests (issue #6239).
+"""Shared fixtures and helpers for the pre-push testmon tests (issue #6239).
 
 Imported by test_pre_push_*.py. The name does not match `test_*.py`, so pytest
 never walks it.
@@ -13,11 +13,11 @@ import pytest
 
 from scripts.validation import git_hook_policy
 
-COLLECTION_ERROR_EXIT = 2
+CONFIG_ERROR_EXIT = 2
 
 
-def collection(tmp_path: Path) -> list[list[str]]:
-    return [git_hook_policy._pytest_collection_command(tmp_path)]
+def testmon(tmp_path: Path) -> list[list[str]]:
+    return git_hook_policy._testmon_commands(tmp_path)
 
 
 @pytest.fixture
@@ -25,6 +25,14 @@ def default_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, raising=False)
     monkeypatch.delenv(git_hook_policy.PYTEST_WORKERS_ENV, raising=False)
     monkeypatch.delenv(git_hook_policy.PYTEST_WORKER_CAP_ENV, raising=False)
+    monkeypatch.delenv("COVERAGE_CORE", raising=False)
+    monkeypatch.delenv(git_hook_policy.TESTMON_NO_SEED_ENV, raising=False)
+    # No test may reach the network: the seed fetch is stubbed to "no seed".
+    monkeypatch.setattr(
+        git_hook_policy.testmon_seed,
+        "fetch_seed",
+        lambda _root, **_kw: git_hook_policy.testmon_seed.SeedResult(False, "stubbed in tests"),
+    )
 
 
 def record_runs(

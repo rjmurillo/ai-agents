@@ -241,9 +241,10 @@ def _marker_for(scratch_root: Path) -> Path:
     This replaces ``assert not list(marker_directory(REPO_ROOT).iterdir())``,
     which asserted the shared directory was globally empty. That directory is
     repo-global and ``tests/test_mutation_workspace.py`` writes markers into it
-    too, so under ``--dist loadfile`` the sibling module runs on another xdist
-    worker at the same moment and the emptiness assertion fails on a file this
-    test never created (issue #4823, reproduced 3 of 3 runs at ``-n 2``).
+    too, so under xdist (``--dist loadfile`` then, ``worksteal`` now) the sibling
+    module runs on another xdist worker at the same moment and the emptiness
+    assertion fails on a file this test never created (issue #4823, reproduced 3
+    of 3 runs at ``-n 2``).
     Emptiness is a property no test can own while another worker runs; the
     lifecycle of its own marker is.
     """
@@ -394,8 +395,8 @@ def test_sigkill_leaves_marker_blocks_push_and_recovers(
         # have to create a second real marker, and the repo-global marker
         # directory is shared: tests/test_mutation_workspace.py's
         # test_recovery_refuses_changed_active_target calls recover_markers()
-        # over the whole directory, and under --dist loadfile it runs on
-        # another worker at the same time. Two concurrent windows on that
+        # over the whole directory, and under xdist (loadfile then, worksteal now)
+        # it runs on another worker at the same time. Two concurrent windows on that
         # directory is the #4823 race the _marker_for docstring describes, and
         # a flaky push-blocking test is the exact failure #5108 exists to
         # remove. This test already holds one such window; it does not need a

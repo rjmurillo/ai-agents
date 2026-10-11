@@ -1,7 +1,7 @@
 """Static-contract tests for bounded pytest-xdist parallelism in pytest.yml.
 
 Issue #4854, reshaped by issue #6239. The test job is a six-entry matrix. The
-four duration-balanced split groups use xdist (`-n auto --dist loadfile`).
+four duration-balanced split groups use xdist (`-n auto --dist worksteal`).
 Safe-push and pr-autofix stay serial. No hard-coded worker count.
 
 The coverage combine job downloads artifacts from all matrix legs and merges
@@ -26,7 +26,7 @@ _WINDOWS_JOB = "test-windows-pwsh"
 _WINDOWS_STEP = "Run Windows path-contract tests"
 
 _EXPECTED_WORKERS = "auto"
-_EXPECTED_DIST = "loadfile"
+_EXPECTED_DIST = "worksteal"
 _POOL_IGNORES = {
     "tests/test_ai_review.py",
     "tests/test_verdict.py",
@@ -176,7 +176,7 @@ class TestXdistParallelism:
     @pytest.mark.parametrize("partition", _SPLIT_LEGS)
     def test_split_groups_use_xdist(self, partition: str) -> None:
         args = _partition_args(partition)
-        assert args[:4] == ["-n", "auto", "--dist", "loadfile"]
+        assert args[:4] == ["-n", "auto", "--dist", "worksteal"]
 
     def test_safe_push_stays_serial(self) -> None:
         args = _partition_args("safe-push")

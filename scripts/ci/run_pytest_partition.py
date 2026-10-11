@@ -26,12 +26,14 @@ except ModuleNotFoundError:  # pragma: no cover - exercised via direct file exec
     sys.path.insert(0, str(_PROJECT_ROOT))
     from scripts.ci import run_pytest_non_tmp
 
-# `loadfile` sends every test in one file to one worker. That is the weakest
-# distribution mode xdist offers and the point: module-scoped fixtures, module
-# state, and file-local temp directories keep behaving the way they do serially.
+# `worksteal` starts each worker on an even share of the tests and lets an idle
+# worker take tests from a busy one, so one slow file no longer pins a worker
+# while the rest sit idle. The owner chose it over `loadfile` on 2026-10-09 (see
+# SPEC-6211): seven full-suite runs produced identical failure sets, speed at
+# CI's 4 workers was unchanged, and 16 workers ran about 20 percent faster.
 # CI partitions and the local pre-push hook (scripts/validation/git_hook_policy.py)
 # both read this one value.
-PYTEST_DIST_MODE = "loadfile"
+PYTEST_DIST_MODE = "worksteal"
 
 _PARALLEL = ["-n", "auto", "--dist", PYTEST_DIST_MODE]
 

@@ -2,7 +2,9 @@
 
 Used by test_pre_pr_covers_vendor_portability.py and the two real-checker files
 split from it. The real-checker test runs slow checkers, so issue #6211 spread
-its cases over two files to keep xdist ``loadfile`` workers balanced; the map of
+its cases over two files to keep xdist workers balanced (the suite then ran
+``--dist loadfile``, one file per worker; it now runs ``worksteal``, and the split
+still helps); the map of
 expected validators lives here so all three files read one copy.
 """
 
@@ -78,7 +80,8 @@ EXPECTED: dict[str, tuple[str, str]] = {
 # Validators whose real-checker case runs in its own file. Measured on
 # 2026-10-08: check_skill_md_portability took 25.8s of the real-checker test's
 # 38s, because it scans every SKILL.md in the tree. Keeping it with the other
-# cases made that file the slowest unit an xdist ``loadfile`` worker could get.
+# cases made that file the slowest unit an xdist worker could get under
+# ``--dist loadfile`` (the suite now runs ``worksteal``).
 REAL_CHECKER_ISOLATED = frozenset({"validate_skill_md_portability"})
 
 

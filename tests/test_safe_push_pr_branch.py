@@ -984,21 +984,20 @@ def test_run_pytest_shares_one_timeout_budget_across_commands(
     assert seen[-1] < budget
 
 
-def test_run_pytest_gives_the_collection_stand_in_the_smaller_budget(
+def test_run_pytest_gives_the_testmon_run_the_suite_budget(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    """The default pre-push path is bounded by collection, not by the suite.
+    """The default pre-push path gets the suite budget, not a shorter one.
 
-    `_pytest_budget_seconds` is unit-tested next to the selector; this is the
-    end-to-end pin that `run_pytest` actually hands that budget to the child,
-    because the deadline arithmetic sits between the two and a regression
-    there would restore a 29-minute ceiling on a push that never runs a test.
+    The first testmon run builds `.testmondata` over the whole suite, so a
+    collection-sized ceiling would kill it. End-to-end pin that `run_pytest`
+    hands the suite budget to the first child.
     """
     monkeypatch.delenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, raising=False)
     # Workstation contract: the aggregate is now clamped in a container, and
     # this suite also runs inside dev containers, so the assertion would read
-    # the 150s ceiling instead of the collection budget it names.
+    # the 150s ceiling instead of the suite budget it names.
     monkeypatch.setattr(git_hook_policy, "_container_clamped", lambda seconds: seconds)
     seen: list[float] = []
 
@@ -1011,9 +1010,9 @@ def test_run_pytest_gives_the_collection_stand_in_the_smaller_budget(
 
     assert git_hook_policy.run_pytest(tmp_path) == 0
 
-    assert len(seen) == 1
-    assert seen[0] <= git_hook_policy.TEST_COLLECTION_TIMEOUT_SECONDS
-    assert seen[0] > git_hook_policy.TEST_COLLECTION_TIMEOUT_SECONDS - 5
+    assert len(seen) == len(git_hook_policy._testmon_commands(tmp_path))
+    assert seen[0] <= git_hook_policy.TEST_SUITE_TIMEOUT_SECONDS
+    assert seen[0] > git_hook_policy.TEST_SUITE_TIMEOUT_SECONDS - 5
 
 
 def test_run_pytest_refuses_to_start_a_command_past_the_budget(
@@ -1030,7 +1029,7 @@ def test_run_pytest_refuses_to_start_a_command_past_the_budget(
     assert "exceeded" in capsys.readouterr().err
 
 
-def test_run_pytest_stops_on_the_first_failing_command(
+def test_run_pytest_runs_every_command_after_a_failure_and_returns_the_worst(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -1040,8 +1039,10 @@ def test_run_pytest_stops_on_the_first_failing_command(
         returncode=3,
     )
 
+    # Every partition records its tests in `.testmondata`, so a failing one no
+    # longer stops the rest (issue #6239).
     assert git_hook_policy.run_pytest(tmp_path) == 3
-    assert len(seen) == 1
+    assert len(seen) == len(git_hook_policy._testmon_commands(tmp_path))
 
 
 # ---------------------------------------------------------------------------

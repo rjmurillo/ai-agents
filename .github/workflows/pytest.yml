@@ -426,7 +426,7 @@ jobs:
 
       # Issue #5610. The count-ratchet registry deadline is calibrated against
       # a wall-clock measurement, and a wall clock taken inside the `-n auto
-      # --dist loadfile` shard above measures the runner's load, not the
+      # --dist worksteal` shard above measures the runner's load, not the
       # registry: `main` went red at 19f257b5b with 87.7s against an 85s
       # deadline on a tree whose corpus had shrunk. The test skips unless
       # COUNT_RATCHET_TIMING_MEASUREMENT is 1, so this is the only place it
@@ -707,6 +707,94 @@ jobs:
         with:
           name: test-durations
           path: test-durations/
+          retention-days: 7
+
+  # Issue #6239 / ADR-104. Builds the pytest-testmon database the pre-push hook
+  # downloads, so a developer's first push selects only what changed since main
+  # instead of running the whole suite to build one.
+  #
+  # Not part of the required chain. It is deliberately absent from `test-result`
+  # needs: a slow, failed, or skipped seed must never change `Run Python Tests`.
+  # It runs only for a push to main, never for a pull request, because the
+  # artifact is an SQLite file the hook hands to testmon and trusts. The hook
+  # downloads only artifacts from `push` runs on `main` of this repository
+  # (scripts/validation/testmon_seed.py re-checks event and head branch on the
+  # run itself), so a pull request cannot plant a database by any route.
+  #
+  # Same command as the hook, so the database is what the hook would record:
+  # the four partitions under `--testmon --testmon-forceselect`, the same
+  # marker filter, 4 workers, and COVERAGE_CORE=ctrace (testmon on Python 3.14
+  # otherwise records through sysmon and under-selects). The hook adds that
+  # core itself. Seeding is switched off here so the build starts empty.
+  #
+  # Timing. Measured locally at 4 workers: 575 s cold. This runner is slower:
+  # run 38015601869 on main spent 1390 s across its six 4-vCPU legs without
+  # testmon, and testmon with ctrace adds about 1.4x, so expect about 30
+  # minutes. The 60 minute cap leaves 2x. One database cannot be split across
+  # jobs (testmon keys it by path), so this stays one job. The first main push
+  # after merge gives the real figure.
+  #
+  # Only a complete, passing run uploads. A failed partition, a budget kill or a
+  # signal leaves a partial database, and a partial database would make the
+  # hook skip tests it never recorded. The name carries a key over uv.lock and
+  # pyproject.toml, computed by the same function the hook uses.
+  testmon-seed:
+    name: Seed testmon database
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup code environment
+        uses: ./.github/actions/setup-code-env
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+          enable-pester: false
+          enable-git-hooks: false
+
+      - name: Compute seed artifact name
+        id: seed
+        run: echo "name=$(uv run --frozen python scripts/validation/testmon_seed.py .)" >> "$GITHUB_OUTPUT"
+
+      # The build script runs the pre-push pytest step and writes
+      # `complete=true` to this step's output only when the hook exits 0, that
+      # is, every partition ran to completion and passed. Anything else (a
+      # failed partition, a budget kill, a signal) is a partial database and is
+      # never uploaded. The script exits with the hook's failure code, so a failing
+      # run turns this job red; the job is outside `test-result` needs, so that
+      # never reaches `Run Python Tests`. The branching lives in the script, which
+      # has tests. The
+      # seed run takes about 30 minutes, so it gets its own budget instead of the
+      # hook's 780 s suite budget; 3300 s leaves 5 minutes of the 60 minute cap
+      # for setup and upload.
+      - name: Build the testmon database
+        id: build
+        env:
+          AI_AGENTS_PYTEST_WORKER_CAP: "4"
+          AI_AGENTS_TESTMON_NO_SEED: "1"
+          AI_AGENTS_TESTMON_SEED_BUDGET_SECONDS: "3300"
+        run: uv run --frozen python scripts/validation/testmon_seed_build.py
+
+      # include-hidden-files: v4 and later skip dotfiles by default, and the
+      # database is `.testmondata`.
+      - name: Upload the testmon database
+        if: ${{ !cancelled() && steps.build.outputs.complete == 'true' && hashFiles('.testmondata') != '' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ steps.seed.outputs.name }}
+          path: .testmondata
+          include-hidden-files: true
+          if-no-files-found: error
           retention-days: 7
 
   # The only job that publishes the required "Run Python Tests" context. It

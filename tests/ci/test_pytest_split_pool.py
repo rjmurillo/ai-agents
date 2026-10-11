@@ -13,51 +13,51 @@ tree, so a group that drops or doubles a test fails here and not on a CI leg.
 from __future__ import annotations
 
 from collections import Counter
-from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
 from scripts.ci import run_pytest_partition as runner
-from tests.ci.pytest_split_collect_helpers import collect, pool_args, without_parallel_flags
+from tests.ci.pytest_split_collect_helpers import collect
+from tests.ci.pytest_split_group_collection import collect_groups
 
 
-@pytest.fixture(scope="module")
-def collected() -> dict[str, list[str]]:
-    """Collect the pool and each split group once, concurrently."""
-    jobs = {"pool": pool_args()}
+def _check_coverage(collected: dict[str, list[str]], subtests: pytest.Subtests) -> None:
+    union = [node_id for name in runner.split_names() for node_id in collected[name]]
+    with subtests.test("the pool is not empty"):
+        assert len(collected["pool"]) > 1000
+    with subtests.test("the union of the groups equals the pool"):
+        assert set(union) == set(collected["pool"])
+    with subtests.test("no node ID is collected twice"):
+        duplicates = [node_id for node_id, count in Counter(union).items() if count > 1]
+        assert not duplicates, duplicates[:5]
+        assert len(union) == len(collected["pool"])
     for name in runner.split_names():
-        jobs[name] = without_parallel_flags(runner._PARTITION_FULL_ARGS[name])
-    with ThreadPoolExecutor(max_workers=len(jobs)) as executor:
-        futures = {name: executor.submit(collect, args) for name, args in jobs.items()}
-        return {name: future.result() for name, future in futures.items()}
+        with subtests.test("every group collects something", group=name):
+            assert collected[name], name
+
+
+def _check_exclusions(collected: dict[str, list[str]], subtests: pytest.Subtests) -> None:
+    excluded = runner._SAFE_PUSH_TESTS | runner._PR_AUTOFIX_TESTS | runner._UNPARTITIONED_TESTS
+    for name in runner.split_names():
+        with subtests.test("no group collects a dedicated or pinned file", group=name):
+            files = {node_id.split("::", 1)[0] for node_id in collected[name]}
+            assert not files & excluded, (name, sorted(files & excluded))
 
 
 @pytest.mark.timeout(300)
 class TestSplitGroupsCoverThePool:
-    def test_the_pool_is_not_empty(self, collected: dict[str, list[str]]) -> None:
-        assert len(collected["pool"]) > 1000
-
-    def test_the_union_of_the_groups_equals_the_pool(self, collected: dict[str, list[str]]) -> None:
-        union = [node_id for name in runner.split_names() for node_id in collected[name]]
-        assert set(union) == set(collected["pool"])
-
-    def test_no_node_id_is_collected_twice(self, collected: dict[str, list[str]]) -> None:
-        union = [node_id for name in runner.split_names() for node_id in collected[name]]
-        duplicates = [node_id for node_id, count in Counter(union).items() if count > 1]
-        assert not duplicates, duplicates[:5]
-        assert len(union) == len(collected["pool"])
-
-    def test_every_group_collects_something(self, collected: dict[str, list[str]]) -> None:
-        for name in runner.split_names():
-            assert collected[name], name
-
-    def test_no_group_collects_a_dedicated_or_pinned_file(
-        self, collected: dict[str, list[str]]
+    def test_the_split_groups_cover_the_pool_exactly_once(
+        self, tmp_path_factory: pytest.TempPathFactory, subtests: pytest.Subtests
     ) -> None:
-        excluded = runner._SAFE_PUSH_TESTS | runner._PR_AUTOFIX_TESTS | runner._UNPARTITIONED_TESTS
-        for name in runner.split_names():
-            files = {node_id.split("::", 1)[0] for node_id in collected[name]}
-            assert not files & excluded, (name, sorted(files & excluded))
+        """One test, so one collection: worksteal ran a shared fixture once per worker.
+
+        Six tests over a module fixture took 138 s against a 63 s baseline on
+        PR #6261, because each worker that drew one of them collected again.
+        Subtests keep each check reported on its own.
+        """
+        collected = collect_groups(tmp_path_factory.mktemp("split") / "durations.json")
+        _check_coverage(collected, subtests)
+        _check_exclusions(collected, subtests)
 
     def test_the_dedicated_legs_still_collect_their_files(self) -> None:
         safe_push = collect(runner._PARTITION_FULL_ARGS["safe-push"])
