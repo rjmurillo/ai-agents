@@ -5,7 +5,14 @@
 
 ## Problem
 
-`ai-spec-validation.yml` produces its final verdict from LLM agent output
+Update (issue #6182): `ai-spec-validation.yml` no longer calls a model. Its
+`Validate Spec Coverage` check takes its verdict from
+`scripts/ci/spec_coverage_verdict.py`, which reads the acceptance-criteria
+checkboxes through `scripts/external_signals/acceptance_criteria.py`. The model
+review moved to `ai-spec-review.yml` and only comments. The text below records
+the problem as it stood before that change.
+
+`ai-spec-validation.yml` produced its final verdict from LLM agent output
 alone. A README badge that reads that workflow therefore advertises "verified"
 status decided by a model judging another model's work. That is a single closed
 loop: a ghost grading a ghost.

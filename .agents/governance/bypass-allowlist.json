@@ -94,35 +94,26 @@
     },
     {
       "kind": "continue-on-error",
-      "path": ".github/workflows/ai-spec-validation.yml",
-      "job": "validate-spec",
+      "path": ".github/workflows/ai-spec-review.yml",
+      "job": "review-spec",
       "step": "🔗 Requirements Traceability Check (Analyst Agent)",
-      "reason": "Re-asserted: check_spec_failures.py reads the step outcome, verdict, and infrastructure flag (fixed in PR 6043).",
+      "reason": "Advisory: the job only comments and never fails on a verdict or model failure (issue 6182). The typed report step records the outcome.",
       "owner": "rjmurillo",
       "expires": "2026-12-31"
     },
     {
       "kind": "continue-on-error",
-      "path": ".github/workflows/ai-spec-validation.yml",
-      "job": "validate-spec",
+      "path": ".github/workflows/ai-spec-review.yml",
+      "job": "review-spec",
       "step": "✅ Completeness Check (Critic Agent)",
-      "reason": "Re-asserted: check_spec_failures.py reads the step outcome, verdict, and infrastructure flag (fixed in PR 6043).",
+      "reason": "Advisory: the job only comments and never fails on a verdict or model failure (issue 6182). The typed report step records the outcome.",
       "owner": "rjmurillo",
       "expires": "2026-12-31"
     },
     {
       "kind": "continue-on-error",
-      "path": ".github/workflows/ai-spec-validation.yml",
-      "job": "validate-spec",
-      "step": "External-signal gate (observe)",
-      "reason": "Observe-only until the canary in PR 2361 decides. The authoritative gate is check_spec_failures.py. Re-review then.",
-      "owner": "rjmurillo",
-      "expires": "2026-12-31"
-    },
-    {
-      "kind": "continue-on-error",
-      "path": ".github/workflows/ai-spec-validation.yml",
-      "job": "validate-spec",
+      "path": ".github/workflows/ai-spec-review.yml",
+      "job": "review-spec",
       "step": "Post PR Comment",
       "reason": "Comment posting only. Carries no verdict.",
       "owner": "rjmurillo",

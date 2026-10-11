@@ -573,60 +573,40 @@ at byte level before editing.
 
 The validator takes `--pr-number` and fetches the **live** body, so push and
 update the PR before running it locally.
-## Spec coverage blocks when the PR body has no checked acceptance boxes
+## Spec coverage fails when the PR body has no checked acceptance boxes
 
-`Validate Spec Coverage` fails with this, and the reason names a rule rather
-than a missing file, so it reads like an infrastructure fault. Its wrapper
-`scripts/quality_gate/spec_external_signal_gate.py` always passes `--json` to
-the aggregator, so grep the quoted keys, not a prose line. (Running
-`gate_aggregator.py` by hand without `--json` does print prose, which is why
-the prose form looks plausible and never appears in CI.)
+`Validate Spec Coverage` runs `scripts/ci/spec_coverage_verdict.py`. It reads
+only the PR body and whether the PR links a spec. It calls no model, so a rerun
+on the same body gives the same result. The verdict, by case:
 
-```text
-  "verdict": "NEEDS_REVIEW",
-  "reason": "closed-loop:external-signal-inconclusive",
-```
+- No linked spec: PASS.
+- Linked spec, no acceptance checkbox section: FAIL. The `::error::` line names
+  the `## Acceptance criteria` heading.
+- Linked spec, any unchecked box: FAIL. One `::error::` line per unchecked item.
+- Linked spec, every box checked: PASS.
 
-The cause is a missing section in **the PR body**, not the issue.
-`scripts/external_signals/gate_aggregator.py` requires at least one signal of
-kind `external` whose verdict is passing or warning. The only external signal
-is `acceptance-criteria`, which
-`scripts/quality_gate/spec_external_signal_gate.py` parses out of
-`PR_BODY_FILE`. All boxes checked gives PASS, any box unchecked gives FAIL, and
-**no section at all gives UNKNOWN**, which empties the external list and
-blocks. The other two signals come from the model, and two readings from one
-model are one measurement, so the gate is right to refuse them alone.
-
-Two parsing constraints, both in `scripts/external_signals/acceptance_criteria.py`:
+The cause is the PR body, not the linked issue. Two parsing constraints, both
+in `scripts/external_signals/acceptance_criteria.py`:
 
 - The heading must match `^#{1,6}\s*acceptance(\s+criteria)?\s*$`.
 - Items must be `- [x]` task-list checkboxes. **A numbered list does not
   parse**, so copying an issue's `1.` through `5.` criteria verbatim still
-  yields UNKNOWN.
+  counts as no section.
 
-Reproduce and fix offline rather than pushing to find out. This runs the real
-gate and replaces a CI cycle with one second:
+Reproduce and fix offline rather than pushing to find out:
 
 ```bash
 gh pr view "$PR" --json body --jq .body > body.md
-PR_BODY_FILE=body.md TRACE_VERDICT=PASS COMPLETENESS_VERDICT=PARTIAL \
-  uv run --frozen python scripts/quality_gate/spec_external_signal_gate.py
+HAS_SPECS=true PR_BODY="$(cat body.md)" python3 scripts/ci/spec_coverage_verdict.py; echo "exit $?"
 ```
 
-Exit 0 means PASS or WARN. Editing the body re-triggers the gate, so no new
-commit is needed.
+Exit 0 is PASS, 1 is FAIL, 2 is a config error (`HAS_SPECS` unset, or the
+`workflow_dispatch` body fetch failed). Editing the body re-triggers the check
+on `pull_request: edited`, so no new commit is needed.
 
-**Do not read the PR comment to find out whether this passed.** The
-`AI-SPEC-VALIDATION` comment is posted once and never updated, so it keeps
-showing the first run's verdict. A red check can display `Final Verdict: PASS`
-indefinitely. Read the job log instead, and note that `gh run view
---log-failed` returns only cleanup noise for this job:
-
-```bash
-gh run view --job "$JOB_ID" --log | sed 's/\x1b\[[0-9;]*m//g' | grep -P 'VERDICT|"verdict"|"reason"'
-```
-
-Refs #4369 for the stale comment defect.
+The `AI-SPEC-VALIDATION` comment comes from the advisory model review in
+`ai-spec-review.yml`. It never reports this check's verdict. Read the check's
+job log or step summary instead.
 ## Never put a literal pipe inside a Markdown table cell
 
 Escape it as `\|` or reword. A bare `|` breaks rendering and trips bot
