@@ -594,12 +594,12 @@ jobs:
   # writes per-partition wall time and the slowest modules to the job summary,
   # and compares per-module seconds with the median of earlier main runs. A
   # module or the suite that crosses both the ratio and the seconds threshold
-  # raises a warning annotation. It fails this job only on a push to main; on a
-  # pull request, branch push, or merge queue run the script exits 0, because a
-  # non-required red check still blocks the merge tool (issue 6244). A leg
-  # slower than 480 s (80
-  # percent of the test job timeout) fails the coverage job instead, which the
-  # required check depends on. The history rides in the
+  # raises a warning annotation. It fails this job only on a push to main; on
+  # any other event or ref, such as a pull request or merge queue run, the
+  # script exits 0, because a non-required red check still blocks the merge
+  # tool (#6244). A leg slower than 480 s (80 percent of the test job timeout)
+  # fails the coverage job instead, which the required check depends on. The
+  # history rides in the
   # Actions cache, saved only from pushes to main, so a pull request reads the
   # main baseline and never writes it. ADR-015 caps artifact retention at
   # 7 days, which is why the history is not an artifact. Two overlapping main

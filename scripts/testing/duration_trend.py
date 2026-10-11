@@ -19,6 +19,7 @@ A regression fails the run only on a push to main. ``--event`` and ``--ref``
 name the run; any other event or ref, such as a pull request, reports the
 regression as a warning and exits 0, because runner timing noise must not block
 a merge (issue #6244). With neither flag the run is enforced, as on main.
+Passing only one of them makes the run advisory.
 
 Exit codes: 0 ok (no regression, no baseline yet, or an advisory run), 1 logic
 (a regression on an enforced run, or no test records), 2 config (bad arguments,

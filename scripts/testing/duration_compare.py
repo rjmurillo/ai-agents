@@ -22,17 +22,22 @@ modules, not a median of whole-run totals, because whole runs differ in which
 modules they selected.
 
 A module is flagged against the larger of its scaled median and the upper
-quartile of its samples. A module's seconds on main are bimodal:
-``tests/validation/test_baseline_integrity.py`` ran 22.9s to
-25.7s on 21 of 29 main runs and 12.8s to 17.5s on 7 (issue #6244). When the
-fast runs fill the window the median drops toward the fast mode, and an
-ordinary run on the slow mode then reads as 1.5x. The upper quartile sits on
-the slow mode while fewer than three quarters of the samples are fast. Replayed
-over the 30 main snapshots recorded 2026-10-08 to 2026-10-11, the median rule
-flagged 8 modules on 6 of 27 runs and the upper-quartile rule flagged 5 on 5,
+quartile of its samples. Some modules' seconds on main are bimodal:
+``tests/validation/test_baseline_integrity.py`` ran 22.9s to 25.7s on 21 of
+the 29 main runs that recorded it, 12.8s to 17.5s on 7, and 19.4s on one
+(issue #6244). When the fast runs fill the window the median drops toward the
+fast mode, and an ordinary run on the slow mode then reads as 1.5x. The upper
+quartile sits on the slow mode while fewer than three quarters of the samples
+are fast. Replayed over the 30 main snapshots recorded 2026-10-08 to 2026-10-11
+(the first three served only as history, so 27 runs were judged), the median
+rule raised 8 module flags on 6 runs and the upper-quartile rule raised 5 on 5,
 both without partition scaling. The three it dropped sit inside the range main
-recorded on later runs. The five it kept are the two slowdowns that PR #6261
-and PR #6267 went on to fix.
+recorded on later runs. The five flags it kept come from the two slowdowns that
+PR #6261 and PR #6267 went on to fix: one module on four runs, one on one.
+
+``Regression.baseline`` and the rendered ratio still report the median, so a
+flagged module can read as further over its baseline than the quartile it was
+judged against.
 """
 
 from __future__ import annotations
@@ -118,7 +123,8 @@ def _slow_partitions(current: Snapshot, baselines: dict[str, float],
 
 
 def compare(current: Snapshot, history: list[Snapshot], limits: Thresholds) -> Comparison:
-    """Measure every comparable module, and their sum, against the history median."""
+    """Measure every comparable module against the larger of its scaled median and
+    upper quartile, and their sum against the summed medians."""
     result = Comparison()
     baselines: dict[str, float] = {}
     quartiles: dict[str, float] = {}
