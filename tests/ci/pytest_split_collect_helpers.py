@@ -68,3 +68,15 @@ def without_parallel_flags(args: list[str]) -> list[str]:
 def pool_args() -> list[str]:
     """The pool with no split flags: what the four groups must add up to."""
     return [*runner._POOL_IGNORES, "tests/"]
+
+
+def with_durations_path(args: list[str], path: str) -> list[str]:
+    """Point ``--durations-path`` at ``path``, whatever it named before.
+
+    Each leg's own args name its own file (``artifacts/durations-split-N.json``),
+    and in CI only the current leg's copy exists. Groups that read different
+    maps split the pool differently, so a union taken across them is not the
+    pool. Collecting every group against one map is what real legs do.
+    """
+    index = args.index("--durations-path")
+    return [*args[: index + 1], path, *args[index + 2 :]]

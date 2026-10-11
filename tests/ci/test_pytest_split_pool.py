@@ -12,24 +12,52 @@ tree, so a group that drops or doubles a test fails here and not on a CI leg.
 
 from __future__ import annotations
 
+import json
+import zlib
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
 from scripts.ci import run_pytest_partition as runner
-from tests.ci.pytest_split_collect_helpers import collect, pool_args, without_parallel_flags
+from tests.ci.pytest_split_collect_helpers import (
+    collect,
+    pool_args,
+    with_durations_path,
+    without_parallel_flags,
+)
+
+
+def _fixture_durations(pool: list[str]) -> dict[str, float]:
+    """Deterministic timings for two thirds of the pool; the rest exercise the unknown path."""
+    return {
+        node_id: (zlib.crc32(node_id.encode()) % 900) / 10 + 0.1
+        for index, node_id in enumerate(pool)
+        if index % 3
+    }
 
 
 @pytest.fixture(scope="module")
-def collected() -> dict[str, list[str]]:
-    """Collect the pool and each split group once, concurrently."""
-    jobs = {"pool": pool_args()}
-    for name in runner.split_names():
-        jobs[name] = without_parallel_flags(runner._PARTITION_FULL_ARGS[name])
+def collected(tmp_path_factory: pytest.TempPathFactory) -> dict[str, list[str]]:
+    """Collect the pool, then every split group against one identical durations map.
+
+    The map is a fixture, not whatever a CI cache restored, so the result does
+    not depend on whether a cache existed. Real legs each get the same restored
+    map; reading each leg's own file here made group 1 split by timings and
+    groups 2 to 4 split evenly in CI, so the union missed tests (PR #6261).
+    """
+    pool = collect(pool_args())
+    durations = tmp_path_factory.mktemp("split-durations") / "durations.json"
+    durations.write_text(json.dumps(_fixture_durations(pool)), encoding="utf-8")
+    jobs = {
+        name: with_durations_path(
+            without_parallel_flags(runner._PARTITION_FULL_ARGS[name]), str(durations)
+        )
+        for name in runner.split_names()
+    }
     with ThreadPoolExecutor(max_workers=len(jobs)) as executor:
         futures = {name: executor.submit(collect, args) for name, args in jobs.items()}
-        return {name: future.result() for name, future in futures.items()}
+        return {"pool": pool, **{name: future.result() for name, future in futures.items()}}
 
 
 @pytest.mark.timeout(300)
