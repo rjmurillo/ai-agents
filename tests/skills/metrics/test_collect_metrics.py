@@ -19,6 +19,8 @@ from claude_skills_import import import_skill_script
 
 mod = import_skill_script(".claude/skills/metrics/collect_metrics.py")
 find_agents_in_text = mod.find_agents_in_text
+get_commits_since = mod.get_commits_since
+get_commit_files = mod.get_commit_files
 get_commit_type = mod.get_commit_type
 is_infrastructure_file = mod.is_infrastructure_file
 get_metrics = mod.get_metrics
@@ -171,6 +173,31 @@ class TestGetMetrics:
         metrics = get_metrics(str(tmp_path), 30)
         assert metrics["period"]["total_commits"] == 0
         assert metrics["metric_1_invocation_rate"]["total_invocations"] == 0
+        assert metrics["metric_2_coverage"]["coverage_rate"] == 0
+
+    def test_counts_commits_returned_by_git_log(self, tmp_path: Path) -> None:
+        commits = [
+            {"Hash": "abc", "Subject": "feat: impl orchestrator", "Author": "dev",
+             "Email": "d@e.com", "Date": "2024-01-01"},
+        ]
+        with (
+            patch.object(mod, "get_commits_since", return_value=commits),
+            patch.object(mod, "get_commit_files", return_value=[]),
+        ):
+            metrics = get_metrics(str(tmp_path), 30)
+        assert metrics["period"]["total_commits"] == 1
+
+
+class TestGitFailureFallbacks:
+    """git log and diff-tree failures degrade to empty results, not exceptions."""
+
+    def test_get_commits_since_returns_empty_when_git_missing(self, tmp_path: Path) -> None:
+        with patch("subprocess.run", side_effect=FileNotFoundError):
+            assert get_commits_since(30, str(tmp_path)) == []
+
+    def test_get_commit_files_returns_empty_when_git_missing(self, tmp_path: Path) -> None:
+        with patch("subprocess.run", side_effect=FileNotFoundError):
+            assert get_commit_files("abc123", str(tmp_path)) == []
 
 
 class TestFormatSummary:
@@ -180,6 +207,7 @@ class TestFormatSummary:
         metrics = _make_test_metrics()
         result = format_summary(metrics)
         assert "AGENT METRICS SUMMARY" in result
+        assert "METRIC 1" in result
 
     def test_contains_period(self) -> None:
         metrics = _make_test_metrics()
@@ -191,6 +219,12 @@ class TestFormatSummary:
         result = format_summary(metrics)
         assert "AGENT COVERAGE" in result
 
+    def test_reports_no_invocations_when_no_agents(self) -> None:
+        metrics = _make_test_metrics()
+        metrics["metric_1_invocation_rate"]["agents"] = {}
+        result = format_summary(metrics)
+        assert "No agent invocations detected" in result
+
 
 class TestFormatMarkdown:
     """Tests for format_markdown function."""
@@ -199,6 +233,7 @@ class TestFormatMarkdown:
         metrics = _make_test_metrics()
         result = format_markdown(metrics)
         assert "# Agent Metrics Report" in result
+        assert "## Executive Summary" in result
 
     def test_contains_table(self) -> None:
         metrics = _make_test_metrics()
@@ -210,6 +245,12 @@ class TestFormatMarkdown:
         metrics = _make_test_metrics()
         result = format_markdown(metrics)
         assert "collect_metrics.py" in result
+
+    def test_reports_no_agents_row_when_no_agents(self) -> None:
+        metrics = _make_test_metrics()
+        metrics["metric_1_invocation_rate"]["agents"] = {}
+        result = format_markdown(metrics)
+        assert "*No agents detected*" in result
 
 
 class TestMain:
@@ -234,6 +275,12 @@ class TestMain:
         captured = capsys.readouterr()
         data = json.loads(captured.out)
         assert "period" in data
+
+    def test_help_exits_zero(self) -> None:
+        with patch("sys.argv", ["collect_metrics.py", "--help"]):
+            with pytest.raises(SystemExit) as exc:
+                main()
+        assert exc.value.code == 0
 
 
 def _make_test_metrics() -> dict:

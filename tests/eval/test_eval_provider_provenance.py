@@ -420,7 +420,8 @@ class TestRunProvenance:
     """eval-rule-activation emits a run provenance block (fix for #3956)."""
 
     @pytest.fixture(scope="class")
-    def mod(self):
+    @classmethod
+    def mod(cls):
         _path_added = str(EVAL_DIR) not in sys.path
         if _path_added:
             sys.path.insert(0, str(EVAL_DIR))

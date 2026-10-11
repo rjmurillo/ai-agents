@@ -50,6 +50,8 @@ DEFAULT_WORKFLOWS: list[str] = [
     "label-pr",
     "memory-health",
     "codeql-analysis",
+    # claude.yml run name; its group is job-level and keyed per request (ADR-114).
+    "Claude Code Assistant",
 ]
 
 # ---------------------------------------------------------------------------

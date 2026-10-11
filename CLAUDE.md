@@ -24,10 +24,6 @@ surface, and a blocking validator refuses a command file under any plugin root.
 
 For non-trivial tasks: `Task(subagent_type="orchestrator", prompt="...")`
 
-## Memory
-
-Start with `/memory-search`; the `memory` skill's router covers deeper tiers and `search_memory.py`. Raw `mcp__serena__read_memory` is the last resort.
-
 ## Path-scoped instructions
 
 Before editing any file, read matching rules in `.claude/rules/*.md`; Claude Code reads that tree at runtime. Since ADR-109 B2 the edit location is `templates/rules/<name>.md`; `uv run python build/scripts/build_all.py` renders, mirrors, and binplaces it. A rule's `paths` frontmatter is the scope key; `check_rule_scope_keys.py` refuses any other. Universal rules live in `universal.md`.

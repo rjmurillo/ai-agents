@@ -526,14 +526,14 @@ python3 "$SCRIPTS_DIR/../memory/scripts/search_memory.py" "PR review patterns bo
 
 ```text
 mcp__serena__write_memory(
-    memory_file_name="pr-pattern-[category]",
+    memory_file_name="pr-review/pattern-[category]",
     content="# PR Pattern: [Category]\n\n**Statement**: [Pattern details]\n\n**Evidence**: ...\n\n## Details\n\n..."
 )
 ```
 
 {{> serena-worktree-write-guard}}
 
-> **Fallback**: If Memory Router unavailable, read `.serena/memories/` directly with Read tool.
+> **Fallback**: If Serena is unavailable, read `.serena/memories/` directly with the Read tool.
 
 | Category | What to Store | Why |
 |----------|---------------|-----|

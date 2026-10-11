@@ -108,7 +108,7 @@ jobs:
     needs: discover-prs
     if: needs.discover-prs.outputs.has-prs == 'true'
     runs-on: ubuntu-26.04-arm
-    environment: agent-copilot
+    environment: agent-claude
     # Budget: ceil(sum(3 * step timeout + 1.5) + 5) for 5, 10.
     timeout-minutes: 53
     # The only job that mutates state: pushes merge commits, comments on PRs,
@@ -152,7 +152,7 @@ jobs:
           BASE_REF: ${{ matrix.baseRefName }}
           REPO_OWNER: ${{ github.repository_owner }}
           REPO_NAME: ${{ github.event.repository.name }}
-        run: python3 scripts/ci/run_pr_conflict_resolver.py
+        run: python3 .trusted-helper/scripts/ci/run_pr_conflict_resolver.py
 
       - name: Prepare conflict context for AI analysis
         id: conflict-context
@@ -162,12 +162,12 @@ jobs:
           HEAD_REF: ${{ matrix.headRefName }}
           BASE_REF: ${{ matrix.baseRefName }}
           BLOCKED_FILES_JSON: ${{ steps.auto-resolve.outputs.blocked_files }}
-        run: python3 scripts/ci/prepare_conflict_context.py
+        run: python3 .trusted-helper/scripts/ci/prepare_conflict_context.py
 
       - name: AI conflict analysis
         id: ai-analysis
         if: steps.auto-resolve.outputs.needs_ai == 'true'
-        uses: ./.github/actions/ai-review
+        uses: ./.trusted-helper/.github/actions/ai-review
         with:
           agent: analyst
           context-type: pr-diff
@@ -179,10 +179,10 @@ jobs:
             ${{ steps.auto-resolve.outputs.blocked_files }}
 
             ${{ steps.conflict-context.outputs.conflict_context }}
-          prompt-file: .github/prompts/merge-conflict-analysis.md
+          prompt-file: .trusted-helper/.github/prompts/merge-conflict-analysis.md
           timeout-minutes: 5
           bot-pat: ${{ secrets.BOT_PAT }}
-          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 
       - name: Apply AI conflict resolution
         if: steps.auto-resolve.outputs.needs_ai == 'true' && steps.ai-analysis.outputs.verdict == 'PASS'
@@ -192,7 +192,7 @@ jobs:
           PR_NUMBER: ${{ matrix.number }}
           HEAD_REF: ${{ matrix.headRefName }}
           BASE_REF: ${{ matrix.baseRefName }}
-        run: python3 scripts/ci/apply_ai_conflict_resolution.py
+        run: python3 .trusted-helper/scripts/ci/apply_ai_conflict_resolution.py
 
       - name: Report unresolvable conflicts
         if: steps.auto-resolve.outputs.needs_ai == 'true' && steps.ai-analysis.outputs.verdict != 'PASS'
@@ -221,7 +221,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.BOT_PAT }}
           PR_NUMBER: ${{ matrix.number }}
-        run: python3 scripts/ci/detect_human_changes_requested.py
+        run: python3 .trusted-helper/scripts/ci/detect_human_changes_requested.py
 
       - name: "Process PR comments for PR #${{ matrix.number }}"
         id: process-comments
@@ -231,16 +231,16 @@ jobs:
           matrix.hasConflicts != true ||
           steps.auto-resolve.outputs.needs_ai != 'true' ||
           steps.ai-analysis.outputs.verdict == 'PASS'
-        uses: ./.github/actions/ai-review
+        uses: ./.trusted-helper/.github/actions/ai-review
         with:
           agent: pr-comment-responder
           context-type: pr-diff
           pr-number: ${{ matrix.number }}
-          prompt-file: .github/prompts/pr-comment-triage.md
-          execute-script: .claude/skills/github/scripts/pr/invoke_pr_comment_processing.py
+          prompt-file: .trusted-helper/.github/prompts/pr-comment-triage.md
+          execute-script: .trusted-helper/.claude/skills/github/scripts/pr/invoke_pr_comment_processing.py
           timeout-minutes: 10
           bot-pat: ${{ secrets.BOT_PAT }}
-          copilot-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 
       - name: Comment processing result
         if: steps.process-comments.outcome == 'success' || steps.process-comments.outcome == 'failure'

@@ -227,7 +227,8 @@ class TestTheRepositoryItself:
     """Run against this checkout, the way ci-scripts.md rule 13 asks of a new gate."""
 
     @pytest.fixture(scope="class")
-    def manifest(self) -> Manifest:
+    @classmethod
+    def manifest(cls) -> Manifest:
         # The class-scoped fixture cannot use the function-scoped autouse patch,
         # so pin the real contexts for the build and restore them afterwards.
         with pytest.MonkeyPatch.context() as patch:
@@ -262,7 +263,7 @@ class TestTheRepositoryItself:
         assert ".github/codeql/codeql-config.yml" in manifest.files
         # path_policy.yml left the closure when the pytest context stopped depending on
         # the check-paths job (its condition is no longer part of the verdict).
-        assert "scripts/test_selection/path_policy.yml" not in manifest.files
+        assert "scripts/ci/path_policy.yml" not in manifest.files
 
     def test_the_manifest_holds_only_tracked_files(self, manifest: Manifest) -> None:
         from closure_resolvers import RepoTree

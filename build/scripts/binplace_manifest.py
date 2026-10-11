@@ -355,6 +355,20 @@ def _is_claude_rooted(install_tree: Path | None, repo_root: Path) -> bool:
     return relative.parts[:1] == (".claude",)
 
 
+def is_bytecode_artifact(path: Path) -> bool:
+    """Return True for paths CPython writes as import side effects.
+
+    Any file under a ``__pycache__`` directory matches, whatever its
+    extension, plus any ``.pyc`` or ``.pyo`` anywhere. Coverage and mypy
+    also write into ``__pycache__``, so do not narrow this to bytecode
+    extensions. Generators emit source and data files, never bytecode, so
+    skipping these paths cannot mask a real drift. Running pytest or a
+    skill script imports a lib plugin tree and writes these caches there;
+    binplace must neither copy them nor report them as drift.
+    """
+    return "__pycache__" in path.parts or path.suffix in (".pyc", ".pyo")
+
+
 def _plugin_tree_install_paths(plugin_tree: Path, install_tree: Path) -> set[Path]:
     """Return each file under ``plugin_tree``, mapped onto ``install_tree``.
 
@@ -372,7 +386,7 @@ def _plugin_tree_install_paths(plugin_tree: Path, install_tree: Path) -> set[Pat
         return set()
     paths: set[Path] = set()
     for src_path in plugin_tree.rglob("*"):
-        if src_path.is_dir():
+        if src_path.is_dir() or is_bytecode_artifact(src_path):
             continue
         rel = src_path.relative_to(plugin_tree)
         paths.add(install_tree / rel)
@@ -423,7 +437,7 @@ def _binplace_one_row(
         return
     owned_relatives: set[Path] = set()
     for src_path in sorted(plugin_tree.rglob("*")):
-        if src_path.is_dir():
+        if src_path.is_dir() or is_bytecode_artifact(src_path):
             continue
         rel = src_path.relative_to(plugin_tree)
         owned_relatives.add(rel)
@@ -432,7 +446,7 @@ def _binplace_one_row(
     if not install_tree.is_dir():
         return
     for existing in sorted(install_tree.rglob("*")):
-        if existing.is_dir():
+        if existing.is_dir() or is_bytecode_artifact(existing):
             continue
         rel = existing.relative_to(install_tree)
         if rel not in owned_relatives:

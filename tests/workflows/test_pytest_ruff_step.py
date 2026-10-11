@@ -5,7 +5,7 @@ fail only on new violations in changed Python files. These tests pin the
 ratchet contract so a later edit cannot silently restore a repo-wide
 report-only run or drop the gating/skip condition.
 
-Issue #4854: the ruff step now runs only in the bulk matrix partition.
+Issue #4854: the ruff step now runs only in the primary matrix leg.
 """
 
 from __future__ import annotations
@@ -114,12 +114,12 @@ class TestRuffStepIsBlockingRatchet:
 
 
 class TestRuffStepGating:
-    """Edge: the step runs once, in the bulk partition."""
+    """Edge: the step runs once, in the primary leg."""
 
-    def test_ruff_step_runs_only_in_bulk_partition(self) -> None:
+    def test_ruff_step_runs_only_in_the_primary_leg(self) -> None:
         step = _find_ruff_step()
         assert step is not None
-        assert step.get("if") == "matrix.partition == 'bulk'"
+        assert step.get("if") == "matrix.primary"
 
     def test_ruff_step_has_no_untrusted_interpolation(self) -> None:
         """The run command must not interpolate untrusted GitHub event data."""

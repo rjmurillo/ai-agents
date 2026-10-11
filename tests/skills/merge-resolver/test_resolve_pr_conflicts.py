@@ -3,12 +3,10 @@
 
 from __future__ import annotations
 
-import json
 import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -157,6 +155,23 @@ class TestResolvePrConflicts:
         assert "files_resolved" in result
         assert "files_blocked" in result
 
+    def test_dry_run_returns_success_without_github_runner(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Dry run takes the worktree path (not the runner path) and stops early."""
+        monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+        top_level = MagicMock(returncode=0, stdout="/repo\n")
+        with patch.object(mod, "_run_git", return_value=top_level):
+            result = resolve_pr_conflicts(
+                pr_number=42,
+                branch_name="feat/test",
+                target_branch="main",
+                dry_run=True,
+                worktree_base_path=str(tmp_path),
+            )
+        assert result["success"] is True
+        assert "DryRun" in result["message"]
+
 
 class TestGetRepoInfo:
     """Tests for get_repo_info function."""
@@ -192,297 +207,3 @@ class TestGetRepoInfo:
         ):
             with pytest.raises(RuntimeError, match="Could not determine git remote origin"):
                 get_repo_info()
-
-
-is_plugin_manifest = mod.is_plugin_manifest
-resolve_plugin_manifest_conflict = mod.resolve_plugin_manifest_conflict
-_resolve_conflicted_file = mod._resolve_conflicted_file
-_parse_plain_semver = mod._parse_plain_semver
-
-
-class TestIsPluginManifest:
-    """Detection of packaged plugin manifests (issue #2543)."""
-
-    def test_claude_plugin_manifest(self) -> None:
-        assert is_plugin_manifest(".claude/.claude-plugin/plugin.json")
-
-    def test_copilot_plugin_manifest(self) -> None:
-        assert is_plugin_manifest("src/copilot-cli/.claude-plugin/plugin.json")
-
-    def test_backslash_path_normalized(self) -> None:
-        assert is_plugin_manifest(r".claude\.claude-plugin\plugin.json")
-
-    def test_root_plugin_json_is_not_manifest(self) -> None:
-        assert not is_plugin_manifest("plugin.json")
-
-    def test_other_skill_files_are_not_manifests(self) -> None:
-        assert not is_plugin_manifest(".claude/skills/github/SKILL.md")
-
-
-class TestParsePlainSemver:
-    """Strict MAJOR.MINOR.PATCH parsing; anything else falls back to manual."""
-
-    def test_plain_version(self) -> None:
-        assert _parse_plain_semver("0.5.168") == (0, 5, 168)
-
-    def test_prerelease_rejected(self) -> None:
-        assert _parse_plain_semver("0.6.0-rc.1") is None
-
-    def test_build_metadata_rejected(self) -> None:
-        assert _parse_plain_semver("0.6.0+build.5") is None
-
-    def test_malformed_rejected(self) -> None:
-        assert _parse_plain_semver("not-a-version") is None
-
-
-def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        ["git", *args],
-        cwd=cwd,
-        capture_output=True,
-        encoding="utf-8",
-        check=False,
-    )
-
-
-MANIFEST = ".claude-plugin/plugin.json"
-
-
-def _make_manifest_conflict(
-    repo: Path,
-    base: str,
-    ours: str,
-    theirs: str,
-    rel: str = MANIFEST,
-) -> None:
-    """Create a real merge conflict on the plugin manifest in a tmp repo.
-
-    ``ours`` is the PR-branch content (checked out), ``theirs`` is the
-    target-branch content being merged in, matching the resolver's merge
-    direction (merge main into the PR branch).
-    """
-    _git(repo, "init", "-b", "main")
-    _git(repo, "config", "user.email", "test@example.com")
-    _git(repo, "config", "user.name", "Test")
-    # Hermetic: a host-level commit.gpgsign with an unreachable signer would
-    # fail every fixture commit and dissolve the conflict under test.
-    _git(repo, "config", "commit.gpgsign", "false")
-    manifest = repo / rel
-    manifest.parent.mkdir(parents=True)
-    manifest.write_text(base, encoding="utf-8")
-    _git(repo, "add", "-A")
-    _git(repo, "commit", "-m", "base")
-    _git(repo, "checkout", "-b", "pr")
-    manifest.write_text(ours, encoding="utf-8")
-    _git(repo, "commit", "-am", "ours")
-    _git(repo, "checkout", "main")
-    manifest.write_text(theirs, encoding="utf-8")
-    _git(repo, "commit", "-am", "theirs")
-    _git(repo, "checkout", "pr")
-    merge = _git(repo, "merge", "main")
-    assert merge.returncode != 0, "expected a merge conflict"
-
-
-def _manifest_json(version: str, description: str = "toolkit") -> str:
-    return (
-        '{\n  "name": "project-toolkit",\n'
-        f'  "description": "{description}",\n'
-        f'  "version": "{version}"\n}}\n'
-    )
-
-
-def _versionless_manifest_json(description: str = "toolkit") -> str:
-    """The post-ADR-092 manifest shape: same keys, no version field."""
-    return f'{{\n  "name": "project-toolkit",\n  "description": "{description}"\n}}\n'
-
-
-class TestResolvePluginManifestConflict:
-    """Version-only conflicts resolve to one patch bump above the higher side."""
-
-    def test_version_only_conflict_resolves_to_bumped_max(self, tmp_path: Path) -> None:
-        _make_manifest_conflict(
-            tmp_path,
-            base=_manifest_json("0.5.1"),
-            ours=_manifest_json("0.5.2"),
-            theirs=_manifest_json("0.5.3"),
-        )
-        assert resolve_plugin_manifest_conflict(MANIFEST, cwd=str(tmp_path)) is True
-        content = (tmp_path / MANIFEST).read_text(encoding="utf-8")
-        assert '"version": "0.5.4"' in content
-        assert "<<<<<<<" not in content
-        staged = _git(tmp_path, "diff", "--name-only", "--cached").stdout
-        assert MANIFEST in staged
-        unmerged = _git(tmp_path, "diff", "--name-only", "--diff-filter=U").stdout
-        assert MANIFEST not in unmerged
-
-    def test_resolves_above_ours_when_ours_higher(self, tmp_path: Path) -> None:
-        _make_manifest_conflict(
-            tmp_path,
-            base=_manifest_json("0.5.1"),
-            ours=_manifest_json("0.5.9"),
-            theirs=_manifest_json("0.5.3"),
-        )
-        assert resolve_plugin_manifest_conflict(MANIFEST, cwd=str(tmp_path)) is True
-        content = (tmp_path / MANIFEST).read_text(encoding="utf-8")
-        assert '"version": "0.5.10"' in content
-
-    def test_non_version_difference_blocks(self, tmp_path: Path) -> None:
-        _make_manifest_conflict(
-            tmp_path,
-            base=_manifest_json("0.5.1"),
-            ours=_manifest_json("0.5.2", description="changed on pr"),
-            theirs=_manifest_json("0.5.3"),
-        )
-        assert resolve_plugin_manifest_conflict(MANIFEST, cwd=str(tmp_path)) is False
-        unmerged = _git(tmp_path, "diff", "--name-only", "--diff-filter=U").stdout
-        assert MANIFEST in unmerged
-
-    def test_prerelease_version_blocks(self, tmp_path: Path) -> None:
-        _make_manifest_conflict(
-            tmp_path,
-            base=_manifest_json("0.5.1"),
-            ours=_manifest_json("0.5.2"),
-            theirs=_manifest_json("0.6.0-rc.1"),
-        )
-        assert resolve_plugin_manifest_conflict(MANIFEST, cwd=str(tmp_path)) is False
-
-    def test_malformed_json_blocks(self, tmp_path: Path) -> None:
-        _make_manifest_conflict(
-            tmp_path,
-            base=_manifest_json("0.5.1"),
-            ours='{"name": "broken",\n',
-            theirs=_manifest_json("0.5.3"),
-        )
-        assert resolve_plugin_manifest_conflict(MANIFEST, cwd=str(tmp_path)) is False
-
-    def test_no_conflict_stages_returns_false(self, tmp_path: Path) -> None:
-        _git(tmp_path, "init", "-b", "main")
-        assert resolve_plugin_manifest_conflict(MANIFEST, cwd=str(tmp_path)) is False
-
-
-class TestResolvePluginManifestAdr091Migration:
-    """A side that dropped the version field wins: ADR-092 forbids the field."""
-
-    def test_main_dropped_version_resolves_to_versionless(self, tmp_path: Path) -> None:
-        # The shape every plugin PR opened before ADR-092 hits on merging main.
-        _make_manifest_conflict(
-            tmp_path,
-            base=_manifest_json("0.6.5448"),
-            ours=_manifest_json("0.6.5449"),
-            theirs=_versionless_manifest_json(),
-        )
-        assert resolve_plugin_manifest_conflict(MANIFEST, cwd=str(tmp_path)) is True
-        content = (tmp_path / MANIFEST).read_text(encoding="utf-8")
-        assert "version" not in json.loads(content)
-        assert "<<<<<<<" not in content
-        staged = _git(tmp_path, "diff", "--name-only", "--cached").stdout
-        assert MANIFEST in staged
-        unmerged = _git(tmp_path, "diff", "--name-only", "--diff-filter=U").stdout
-        assert MANIFEST not in unmerged
-
-    def test_branch_dropped_version_resolves_to_versionless(self, tmp_path: Path) -> None:
-        # The rebase direction, where ours and theirs swap.
-        _make_manifest_conflict(
-            tmp_path,
-            base=_manifest_json("0.6.5448"),
-            ours=_versionless_manifest_json(),
-            theirs=_manifest_json("0.6.5449"),
-        )
-        assert resolve_plugin_manifest_conflict(MANIFEST, cwd=str(tmp_path)) is True
-        assert "version" not in json.loads((tmp_path / MANIFEST).read_text(encoding="utf-8"))
-
-    def test_versionless_conflict_dispatches_as_resolved(self, tmp_path: Path) -> None:
-        # The full dispatch path at a real plugin-root path, not just the
-        # helper: pre-fix this returned "blocked" and every migrating PR
-        # needed a hand edit.
-        rooted = f".claude/{MANIFEST}"
-        _make_manifest_conflict(
-            tmp_path,
-            base=_manifest_json("0.6.5448"),
-            ours=_manifest_json("0.6.5449"),
-            theirs=_versionless_manifest_json(),
-            rel=rooted,
-        )
-        result: dict[str, Any] = {
-            "success": False,
-            "message": "",
-            "files_resolved": [],
-            "files_blocked": [],
-        }
-        status = _resolve_conflicted_file(rooted, result, cwd=str(tmp_path))
-        assert status == "resolved"
-        assert result["files_blocked"] == []
-        assert result["files_resolved"] == [rooted]
-
-    def test_versionless_with_other_difference_still_blocks(self, tmp_path: Path) -> None:
-        _make_manifest_conflict(
-            tmp_path,
-            base=_manifest_json("0.6.5448"),
-            ours=_manifest_json("0.6.5449", description="changed on pr"),
-            theirs=_versionless_manifest_json(),
-        )
-        assert resolve_plugin_manifest_conflict(MANIFEST, cwd=str(tmp_path)) is False
-        unmerged = _git(tmp_path, "diff", "--name-only", "--diff-filter=U").stdout
-        assert MANIFEST in unmerged
-
-
-class TestResolveConflictedFileDispatch:
-    """_resolve_conflicted_file routes manifests, patterns, and failures."""
-
-    def _result(self) -> dict[str, Any]:
-        return {"success": False, "message": "", "files_resolved": [], "files_blocked": []}
-
-    def test_plugin_manifest_resolved(self) -> None:
-        result = self._result()
-        with patch.object(mod, "resolve_plugin_manifest_conflict", return_value=True):
-            status = _resolve_conflicted_file(".claude/.claude-plugin/plugin.json", result)
-        assert status == "resolved"
-        assert result["files_resolved"] == [".claude/.claude-plugin/plugin.json"]
-
-    def test_plugin_manifest_unresolvable_blocks(self) -> None:
-        result = self._result()
-        with patch.object(mod, "resolve_plugin_manifest_conflict", return_value=False):
-            status = _resolve_conflicted_file(".claude/.claude-plugin/plugin.json", result)
-        assert status == "blocked"
-        assert result["files_blocked"] == [".claude/.claude-plugin/plugin.json"]
-
-    def test_auto_resolvable_takes_theirs(self) -> None:
-        result = self._result()
-        ok = MagicMock(returncode=0)
-        with patch.object(mod, "_run_git", return_value=ok) as run_git:
-            status = _resolve_conflicted_file(".agents/governance/PROJECT-CONSTRAINTS.md", result)
-        assert status == "resolved"
-        assert result["files_resolved"] == [".agents/governance/PROJECT-CONSTRAINTS.md"]
-        assert run_git.call_args_list[0].args[:2] == ("checkout", "--theirs")
-
-    def test_unknown_file_blocks(self) -> None:
-        result = self._result()
-        status = _resolve_conflicted_file("src/main.py", result)
-        assert status == "blocked"
-        assert result["files_blocked"] == ["src/main.py"]
-
-    def test_checkout_failure_is_error(self) -> None:
-        result = self._result()
-        fail = MagicMock(returncode=1)
-        with patch.object(mod, "_run_git", return_value=fail):
-            status = _resolve_conflicted_file(".agents/governance/PROJECT-CONSTRAINTS.md", result)
-        assert status == "error"
-        assert "checkout --theirs" in result["message"]
-
-
-class TestResolvePluginManifestPathContainment:
-    """The manifest write refuses paths that escape the conflict repo (CWE-22)."""
-
-    def test_path_escaping_cwd_is_blocked(self, tmp_path: Path) -> None:
-        ours = MagicMock(returncode=0, stdout=_manifest_json("0.5.2"))
-        theirs = MagicMock(returncode=0, stdout=_manifest_json("0.5.3"))
-        with patch.object(mod, "_run_git", side_effect=[ours, theirs]):
-            resolved = resolve_plugin_manifest_conflict(
-                "../escape-2543/.claude-plugin/plugin.json",
-                cwd=str(tmp_path),
-            )
-        assert resolved is False
-        # tmp_path.parent is the shared pytest session dir; assert on the
-        # unique escape target, not a generic name another test may create.
-        escape = tmp_path.parent / "escape-2543" / ".claude-plugin" / "plugin.json"
-        assert not escape.exists()

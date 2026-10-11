@@ -199,10 +199,6 @@ Matches file paths against steering file glob patterns to determine which govern
 
 Intelligent skill router and creator. Analyzes input to recommend existing skills or creates new ones following project conventions.
 
-### slashcommandcreator
-
-Autonomous meta-skill for creating high-quality custom slash commands. Follows frontmatter standards and testing patterns.
-
 ### reflect
 
 Critical learning capture. Extracts HIGH/MED/LOW confidence patterns from session work and stores them as reusable knowledge.

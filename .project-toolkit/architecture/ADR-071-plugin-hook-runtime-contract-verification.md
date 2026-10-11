@@ -614,6 +614,35 @@ Re-adding any tool-use hook requires re-establishing a runtime contract here
 from scratch. Do not read the retired amendments above as a contract a new hook
 inherits; they describe deleted code. See ADR-097 "Re-evaluation Triggers".
 
+
+### 2026-10-08 amendment: the real-CLI smoke gates pull requests (issue #6069)
+
+This amendment changes where the authenticated smoke runs. It does not change
+the runtime contract above. Owner decisions D20 to D26 are recorded in
+`.project-toolkit/critique/ADR-114-debate-log.md` round 5, and ADR-114
+Decision 13 holds the gate policy.
+
+- `.github/workflows/nightly-cli-smoke.yml` is deleted. It was replaced by
+  `.github/workflows/plugin-cli-smoke.yml`, which runs on pull requests that
+  change a path in `scripts/validation/cli_smoke_paths.py`. Its result check,
+  `CLI Smoke Result`, blocks merge. Wherever this ADR names the nightly
+  workflow below, read `plugin-cli-smoke.yml`. The tests it runs are the same
+  files, so the coverage named in Decision items 3 and 6 is unchanged.
+- There are now three pinned CLIs: Claude Code, Copilot CLI, and Codex CLI.
+  The Codex leg installs the Claude plugin and reads no credential.
+- Credentials reach only the execution steps, as Decision item 6 requires. The
+  Claude leg now reads `CLAUDE_CODE_OAUTH_TOKEN`, not `ANTHROPIC_API_KEY`.
+- Decision item 6 and the 2026-07-22 note say Renovate cannot auto-merge the
+  pins. That was already false before this amendment: `renovate.json` sets
+  `automerge: true` for all three CLI packages, and `tests/test_renovate_config.py`
+  pins it. Each bump edits `plugin-cli-smoke.yml`, which is a smoke path, so the
+  smoke runs on it. GitHub auto-merge waits for that result only after the owner
+  adds `CLI Smoke Result` to the branch ruleset (ADR-114 Decision 11 item 8).
+  Until then, a pin bump can merge before its smoke is approved.
+- Budget exhaustion is an accepted gap (D26). Each leg must pass a zero-token
+  load check. Prompt-based checks that hit an exhausted quota or credit balance
+  skip with a marker and do not fail the leg. Auth failures still fail.
+
 ## Decision
 
 1. **Anchor every plugin hook command to the plugin root.** Bash uses

@@ -228,10 +228,10 @@ def test_spec_file_context_without_pr_marks_partial() -> None:
     assert "[No PR diff provided]" in source
 
 
-def test_ai_review_action_invokes_context_builder_from_workspace() -> None:
+def test_ai_review_action_invokes_context_builder_from_action_root() -> None:
     """The composite action must not depend on caller working-directory."""
     source = AI_REVIEW_ACTION.read_text(encoding="utf-8")
-    assert 'python3 "$GITHUB_WORKSPACE/scripts/ci/build_ai_review_context.py"' in source
+    assert 'python3 "$AI_REVIEW_ROOT/scripts/ci/build_ai_review_context.py"' in source
     assert "run: python3 scripts/ci/build_ai_review_context.py" not in source
 
 

@@ -116,6 +116,9 @@ pre-commit:
 
 **Context**: Agent must initialize Serena MCP at session start.
 
+Historical case. Serena now starts active via `.mcp.json --project`, so the
+current step is `initial_instructions`; see `AGENTS.md`.
+
 **Trust-Based Approach (Failed)**:
 
 ```markdown

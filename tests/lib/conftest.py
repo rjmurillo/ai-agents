@@ -15,9 +15,7 @@ from pathlib import Path
 import pytest
 
 # Frontmatter keys required by REQ-008-01 acceptance criterion 2.
-REQUIRED_FRONTMATTER_KEYS: frozenset[str] = frozenset(
-    {"name", "role", "version", "description"}
-)
+REQUIRED_FRONTMATTER_KEYS: frozenset[str] = frozenset({"name", "role", "version", "description"})
 
 # Body sections required by REQ-008-01 acceptance criterion 6 (literal match,
 # not substring; level-2 headings).
@@ -132,16 +130,13 @@ def validate_axis_schema(path: Path) -> None:
     headings = _find_level_2_headings(body)
     for required in REQUIRED_SECTION_HEADINGS:
         assert required in headings, (
-            f"{path.name}: missing required level-2 heading {required!r}; "
-            f"found: {headings}"
+            f"{path.name}: missing required level-2 heading {required!r}; found: {headings}"
         )
 
     # Output Schema field presence: scan only the Output Schema section to
     # avoid matching the literal field names in other sections.
     schema_section = _extract_section(body, "## Output Schema")
-    missing_fields = [
-        field for field in REQUIRED_SCHEMA_FIELDS if field not in schema_section
-    ]
+    missing_fields = [field for field in REQUIRED_SCHEMA_FIELDS if field not in schema_section]
     assert not missing_fields, (
         f"{path.name}: Output Schema section missing field names: {missing_fields}"
     )

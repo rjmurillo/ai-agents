@@ -31,6 +31,8 @@ _GATE_ENV_VARS = (
     "CLAUDECODE",
     "CODESPACES",
     "CI",
+    # A test that reaches a summary writer must never append to a real Actions job summary.
+    "GITHUB_STEP_SUMMARY",
 )
 
 

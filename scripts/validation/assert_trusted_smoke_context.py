@@ -1,27 +1,30 @@
 #!/usr/bin/env python3
-"""Gate the authenticated CLI smoke to a trusted execution context (issue #2231 item 3).
+"""Gate the authenticated CLI smoke to a trusted execution context (issue #2231 item 3, REQ-047).
 
-The nightly smoke installs the real Copilot/Claude CLIs and runs a hook end to
-end. That needs auth secrets, so the run MUST NOT execute attacker-controlled
-code with those secrets in scope. Per ``.claude/rules/security.md`` and the
-issue-3 requirement ("run from a trusted ref only, do not auto-run the probe on
-fork PRs"), this script is the trusted-context gate. Per ADR-006 the decision
+The CLI smoke installs the real Copilot/Claude CLIs and runs a hook end to end.
+That needs auth secrets, so the run MUST NOT execute attacker-controlled code
+with those secrets in scope. Per ``.claude/rules/security.md`` and the issue-3
+requirement, this script is the trusted-context gate. Per ADR-006 the decision
 lives here, not in workflow YAML.
 
-The smoke workflow triggers only on ``schedule`` and ``workflow_dispatch``,
-which GitHub never fires from a fork. This gate is defense in depth: it
-re-checks the event and the repository so that adding a new trigger later (or a
-misconfigured fork of this repo) cannot silently start running the probe with
-secrets. It fails closed: anything it cannot positively confirm is untrusted.
+The smoke workflow triggers on ``pull_request`` and ``workflow_dispatch``.
+GitHub withholds secrets from fork pull requests, but this gate re-checks the
+event, repository, and head repository so a fork PR fails closed with a named
+reason instead of a confusing missing-credential failure. It fails closed:
+anything it cannot positively confirm is untrusted.
 
 Authorized when ALL hold:
-- ``--event-name`` is ``schedule`` or ``workflow_dispatch`` (never a PR, so a
-  fork PR can never reach the secret-bearing job).
+- ``--event-name`` is ``pull_request`` or ``workflow_dispatch``. ``schedule``
+  is no longer a trigger (REQ-047 removed the nightly).
 - ``--repository`` equals the expected trusted repo (default
-  ``rjmurillo/ai-agents``), so a fork running this workflow on its own schedule
-  does not match and is denied.
-- ``--ref`` equals the expected trusted ref (default ``refs/heads/main``), so a
-  manual dispatch from another branch cannot run code with smoke secrets.
+  ``rjmurillo/ai-agents``), so a fork running this workflow does not match.
+- For ``pull_request``: ``--head-repository`` equals ``--repository``, so a PR
+  whose head lives in a fork is denied. A missing or blank head repository is
+  denied too (a deleted fork reports an empty value).
+- For ``workflow_dispatch``: ``--ref`` equals the expected trusted ref (default
+  ``refs/heads/main``), so a manual dispatch from another branch cannot run
+  code with smoke secrets. A pull request ref (``refs/pull/N/merge``) is not
+  compared to the default branch; the head-repository rule governs it.
 
 Prints ``true`` or ``false`` to stdout for the workflow to branch on.
 
@@ -38,7 +41,9 @@ import sys
 EXIT_OK = 0
 EXIT_USAGE = 2
 
-_TRUSTED_EVENTS = frozenset({"schedule", "workflow_dispatch"})
+_PULL_REQUEST = "pull_request"
+_WORKFLOW_DISPATCH = "workflow_dispatch"
+_TRUSTED_EVENTS = frozenset({_PULL_REQUEST, _WORKFLOW_DISPATCH})
 _DEFAULT_TRUSTED_REPO = "rjmurillo/ai-agents"
 _DEFAULT_TRUSTED_REF = "refs/heads/main"
 
@@ -49,19 +54,33 @@ def is_trusted(
     expected_repo: str,
     ref: str = _DEFAULT_TRUSTED_REF,
     expected_ref: str = _DEFAULT_TRUSTED_REF,
+    head_repository: str | None = None,
 ) -> tuple[bool, str]:
     """Return ``(trusted, reason)`` for the given execution context.
 
-    Fail-closed: an unrecognized event or a non-matching repository is untrusted.
+    Fail-closed: an unrecognized event, a non-matching repository, a fork
+    pull request, or a dispatch from a non-default ref is untrusted.
     """
     if event_name not in _TRUSTED_EVENTS:
         allowed = ", ".join(sorted(_TRUSTED_EVENTS))
         return (False, f"event is not a trusted trigger (allowed: {allowed})")
     if repository.casefold() != expected_repo.casefold():
         return (False, "repository is not the trusted repo")
+    if event_name == _PULL_REQUEST:
+        return _check_pull_request_head(repository, head_repository)
     if ref != expected_ref:
         return (False, "ref is not the trusted ref")
     return (True, "trusted context: approved event, repo, and ref")
+
+
+def _check_pull_request_head(repository: str, head_repository: str | None) -> tuple[bool, str]:
+    """Allow a pull request only when its head lives in the base repository."""
+    head = (head_repository or "").strip()
+    if not head:
+        return (False, "pull request head repository is missing (deleted fork?)")
+    if head.casefold() != repository.casefold():
+        return (False, "pull request head is a fork of the trusted repo")
+    return (True, "trusted context: approved event, repo, and same-repo head")
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
@@ -84,6 +103,11 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         help="The github.ref the workflow is running from.",
     )
     parser.add_argument(
+        "--head-repository",
+        default=None,
+        help="The pull request head repository (owner/name). Required for pull_request.",
+    )
+    parser.add_argument(
         "--expected-repo",
         default=_DEFAULT_TRUSTED_REPO,
         help=f"The trusted repository (default: {_DEFAULT_TRUSTED_REPO}).",
@@ -104,6 +128,7 @@ def main(argv: list[str] | None = None) -> int:
         args.expected_repo,
         args.ref,
         args.expected_ref,
+        args.head_repository,
     )
     # stdout: the machine-readable decision the workflow branches on.
     print("true" if trusted else "false")

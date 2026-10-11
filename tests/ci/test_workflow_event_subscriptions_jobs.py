@@ -202,7 +202,7 @@ class TestRealCorpus:
         ) == frozenset({"Analyze (actions)", "Analyze (python)"})
 
     def test_the_real_corpus_marks_its_path_filtered_workflows(self):
-        """The five files carrying ``paths`` on a pull_request-family trigger."""
+        """The four files carrying ``paths`` on a pull_request-family trigger."""
         loaded = load_workflow_subscriptions(_WORKFLOWS_DIR)
 
         filtered = {
@@ -216,5 +216,4 @@ class TestRealCorpus:
             "software-engineering-library-activation.yml",
             "synthesis-panel-gate.yml",
             "test-codeql-integration.yml",
-            "vendor-provenance.yml",
         }

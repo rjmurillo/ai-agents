@@ -10,9 +10,10 @@ Pytest suite: root guard, `tests/conftest.py`, flat `test_*.py`, topic subdirs; 
 
 ## Entry points
 
-- `git_hook_policy.py pytest`: lefthook pre-push pytest command.
-- `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1`: the 4 local partitions (`_pytest_commands`); CI runs 6 legs (`scripts/ci/run_pytest_selected.py --partition`), local bulk covering CI `bulk`, `bulk-nested` and `bulk-nested-ci`.
+- `git_hook_policy.py pytest`: pre-push, `pytest --testmon`.
+- `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1`: the 4 local partitions, no testmon; CI runs 6 legs: `split-1`..`4`, `safe-push`, `pr-autofix`.
 - `check_zero_collection_tests.py`: finds a `test_*.py` under `testpaths` collecting zero tests.
+- One leg: `uv run python scripts/ci/run_pytest_partition.py --partition split-1`. Timings come from the Actions cache (`pytest-split-durations-`), saved on pushes to main; without it legs split by test count. `duration_gate_check.py` (coverage job) fails a leg over 480 s and warns at a 1.5x split spread.
 
 ## Where to look
 
@@ -27,7 +28,7 @@ Pytest suite: root guard, `tests/conftest.py`, flat `test_*.py`, topic subdirs; 
 
 ## Constraints
 
-- New skill tests go under `tests/skills/<name>/`. `check_colocated_skill_tests.py` blocks a newly added file colocated under `.claude/skills/`, `src/copilot-cli/skills/` or `src/claude/skills/` (all three populated); the grandfathered set was migrated (issue #5582), so none remain.
+- New skill tests go under `tests/skills/<name>/`. `check_colocated_skill_tests.py` blocks a newly added file colocated under `.claude/skills/`, `src/copilot-cli/skills/` or `src/claude/skills/`.
 - `tests/fixtures/guard_corpus_baseline.json` is a pinned finding set; `tests/test_guard_diff.py` fails on a lost finding, repair edits the baseline with a justification.
 - No write rooted at `PROJECT_ROOT`/`REPO_ROOT`/`ROOT` outside `tmp_path`/`.pytest_tmp/`: `check_test_tree_writes.py`.
 - No `test_*` nested inside another function: `check_nested_tests.py`; blind spot below.
@@ -38,12 +39,12 @@ Pytest suite: root guard, `tests/conftest.py`, flat `test_*.py`, topic subdirs; 
 
 - `check_nested_tests.py` does not scan every test file, and not by depth: helpers not named `test_*.py` (`tests/hook_test_helpers.py`, `tests/ci/ratchet_test_helpers.py`) are never opened.
 - `checks_coverage.py` is not a coverage gate; it wraps the advisory `/review`-marker check. Real 100% pins: `coverage report --fail-under=100` steps in `pytest.yml`.
-- "My push ran the suite" is false by default: without `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1` a push runs an import-graph subset or only collects, asserting nothing.
+- "My push ran the suite" is false: pre-push runs only testmon-selected tests; misses subprocess-only code. CI runs all.
 - `tests/evals/*-scenarios.json` are pytest input, not just `scripts/eval/` corpora. `tests/eval/test_eval_prompt_change.py::TestShippedScenariosValid` requires 2+ `verdict_options` each; sibling contract tests pin critic, qa, orchestrator and spec scenario IDs.
 
 ## Dependencies
 
-- Feeds `pytest.yml`'s `zero-collection-guard` (blocking, no `needs:`/`if:`) and its 5-leg matrix, gated by `check-paths` from `scripts/test_selection/path_policy.yml`; `select_tests.py` reads it locally.
+- Feeds `pytest.yml`'s `zero-collection-guard` (blocking, no `needs:`/`if:`) and the 6-leg matrix, which `check-paths` never gates.
 - Other workflows run named test files (grep below), so a rename reds a check the path filter never shows; `claude.yml` runs `tests/workflows/test_claude_authorization.py` as `scripts/ci/check_claude_authorization.py --checker`.
 - `lefthook.yml` pre-push expensive stage: `python-tests` (15m, `AI_AGENTS_PYTEST_WORKER_CAP=4`), `zero-collection-tests` (4m), both ignore the path filter.
 - Pre-PR gate registry and flags: `scripts/AGENTS.md`. Template-drift and parity semantics: `build/AGENTS.md`.

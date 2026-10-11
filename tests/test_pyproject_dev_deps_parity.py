@@ -39,6 +39,8 @@ PYPROJECT = REPO_ROOT / "pyproject.toml"
 #
 # ``pytest-xdist`` is required because both gates pass ``-n`` at the call site
 # and pytest exits 4 on an unrecognized flag (issue #4823).
+# ``pytest-testmon`` is required because the pre-push pytest step passes
+# ``--testmon`` (issue #6239).
 REQUIRED_DEV_TOOLS = frozenset(
     {
         "bandit",
@@ -47,6 +49,7 @@ REQUIRED_DEV_TOOLS = frozenset(
         "pip-audit",
         "pytest",
         "pytest-cov",
+        "pytest-testmon",
         "pytest-timeout",
         "pytest-xdist",
         "ruff",
@@ -194,6 +197,7 @@ def test_missing_required_tools_empty_when_all_present() -> None:
         "pytest-cov>=7.1.0",
         "pytest-timeout>=2.4.0",
         "pytest-xdist>=3.8.0",
+        "pytest-testmon>=2.2.0",
         "bandit[sarif]>=1.9.4",
         "lefthook==2.1.10",
         "pip-audit>=2.10.0",

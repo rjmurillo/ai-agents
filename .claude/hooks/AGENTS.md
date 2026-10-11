@@ -10,7 +10,7 @@ Claude Code lifecycle hooks: generated output, run by the harness, mirrored in p
 - Hand-maintained exceptions: `AGENTS.md`, five `CLAUDE.md`, `PostToolUse/README.md`.
 - Group dispatcher only on `SessionStart`; `UserPromptSubmit`, `Stop`, `SessionEnd`, `PreCompact` register directly.
 - `hooks.json` declares `"hooks": {}`: the shipped `project-toolkit` copy (`src/claude/hooks.json`) registers nothing. Every live registration is `.claude/settings.json`.
-- `PreToolUse`/`PostToolUse` ship no Python hook, only a bootstrap helper and a markdownlint config.
+- `PreToolUse`/`PostToolUse` ship no Python hook, only a bootstrap helper.
 - `invoke_memory_recall.py`/`invoke_memory_reflection.py` call a package outside the plugin root; consumer installs no-op silently.
 
 ## Entry points
@@ -48,7 +48,7 @@ Claude Code lifecycle hooks: generated output, run by the harness, mirrored in p
 
 ## Dependencies
 
-- Copilot mirror `src/copilot-cli/hooks/` renders from `src/claude/hooks.json` + `src/claude/hooks/`, not from settings, then binplaces to `.github/hooks/`, of which only `*.json` reaches Copilot CLI cloud. Both hold only an empty `hooks.json` and one config file; a settings-template registration reaches neither. `build/AGENTS.md` owns generator order (lib renders before hooks).
+- Copilot mirror `src/copilot-cli/hooks/` renders from `src/claude/hooks.json` + `src/claude/hooks/`, not from settings, then binplaces to `.github/hooks/`, of which only `*.json` reaches Copilot CLI cloud. Both hold only an empty `hooks.json`; a settings-template registration reaches neither. `build/AGENTS.md` owns generator order (lib renders before hooks).
 - `.claude/lib/` sibling: `hook_utilities/` there is a binplaced render, never edited there (`.claude/AGENTS.md` owns that split). Only `invoke_dispatch_claude.py` imports `claude_hook_dispatch.py`, which pulls `claude_hook_protocol.py`. `hook_utilities`: 4 of 6 invokers; `UserPromptSubmit`/`SessionEnd` import neither.
 - Gates upstream: a PR-only hook-contract check on `dispatch_groups.json` and exit codes; an installed-plugin hook guard, CI-only and never local, materializing the Copilot mirror, not this tree; pre-push, only lefthook's `hook-anchoring-e2e` globs here. `python-type-check` excludes this tree; the unglobbed pre-PR job still type-checks every changed `.py`.
 

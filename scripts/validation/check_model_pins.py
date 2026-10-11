@@ -95,7 +95,6 @@ _UNIT_GLOBS: tuple[tuple[str, str], ...] = (
     ("agent", ".github/agents/*.md"),
     ("agent", "src/claude/agents/*.md"),
     ("agent", "templates/agents/*.shared.md"),
-    ("command", ".claude/commands/**/*.md"),
     ("command", ".github/prompts/*.md"),
 )
 

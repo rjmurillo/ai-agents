@@ -56,6 +56,37 @@ import workflow_validator_inventory as inventory
 # Validators a pull-request workflow runs that no pre_pr gate runs, with the
 # reason. One place, so a reader can see every gap and why it is allowed.
 EXEMPT: dict[str, str] = {
+    "testmon_seed_build": (
+        "The testmon-seed job runs the pre-push pytest step through this script "
+        "on a push to main to build the testmon database it uploads "
+        "(issue #6239). It validates "
+        "nothing for a pull request, and pre_pr deliberately skips the suite: "
+        "CI's pytest legs run it."
+    ),
+    "assert_smoke_ran": (
+        "Reads the JUnit report a CI smoke leg writes after running a real CLI "
+        "with credentials. A local pre_pr run has no report to read. The "
+        "lefthook plugin-load-e2e and hook-anchoring-e2e pre-push jobs run the "
+        "smoke itself (REQ-047)."
+    ),
+    "smoke_quota_report": (
+        "Reads the JUnit report a CI smoke leg writes and the GITHUB_STEP_SUMMARY "
+        "file of a workflow run. A local pre_pr run has neither."
+    ),
+    "smoke_result": (
+        "Reads the needs.<job>.result values of the CLI smoke workflow, which "
+        "exist only inside a workflow run. No local equivalent."
+    ),
+    "assert_trusted_smoke_context": (
+        "Decides from the GitHub event name, repository, head repository, and "
+        "ref, which exist only inside a workflow run. No local equivalent."
+    ),
+    "cli_smoke_paths": (
+        "CI path filter over github.event.pull_request base and head SHAs. "
+        "The same glob tuples feed the lefthook pre-push gates, and "
+        "tests/validation/test_cli_smoke_paths.py fails when lefthook.yml "
+        "differs from them (REQ-047 AC10)."
+    ),
     "check_zero_collection_tests": (
         "The unconditional lefthook pre-push job zero-collection-tests runs it on "
         "every push. It costs about 38 seconds, measured, and pre-pr-validation "
@@ -332,6 +363,14 @@ def _new_gate_results(monkeypatch: pytest.MonkeyPatch, failing: str) -> dict[str
 
     monkeypatch.setattr(checks_ci_parity, "_run_subprocess", fake)
     monkeypatch.setattr(checks_ci_parity, "_resolve_default_base_ref", lambda _root: "origin/main")
+    # Change-triggered gates pass the branch's changed files as arguments. Pin
+    # that list so a branch that edits a validator does not put its name into
+    # another gate's argv and turn that gate red too.
+    monkeypatch.setattr(
+        checks_ci_parity,
+        "_changed_paths_since_base",
+        lambda _root, _label: ["templates/agents/analyst.shared.md"],
+    )
     gates = {gate.name: gate for gate in pre_pr_sequence._SEQUENCE}
     with redirect_stdout(io.StringIO()):
         return {name: bool(gates[name].run(REPO_ROOT, argparse.Namespace())) for name in _NEW_GATES}

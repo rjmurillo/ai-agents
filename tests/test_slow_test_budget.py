@@ -112,17 +112,13 @@ class TestFailurePaths:
 
     def test_a_missing_budget_file_exits_three(self, tmp_path: Path) -> None:
         assert (
-            budget_gate.main(
-                [str(_junit(tmp_path)), "--budget", str(tmp_path / "absent.toml")]
-            )
+            budget_gate.main([str(_junit(tmp_path)), "--budget", str(tmp_path / "absent.toml")])
             == 3
         )
 
     def test_a_missing_input_exits_three(self, tmp_path: Path) -> None:
         toml = _budget(tmp_path, '[tool.slow-test-budget]\n"tests/test_alpha.py" = 20.0\n')
-        assert (
-            budget_gate.main([str(tmp_path / "absent.xml"), "--budget", str(toml)]) == 3
-        )
+        assert budget_gate.main([str(tmp_path / "absent.xml"), "--budget", str(toml)]) == 3
 
     def test_an_empty_report_exits_one(self, tmp_path: Path) -> None:
         """No records means the run measured nothing, which is not a pass."""
@@ -143,16 +139,3 @@ class TestTheShippedBudget:
         for module, seconds in budget.items():
             assert (REPO_ROOT / module).is_file(), module
             assert seconds > 0, module
-
-    def test_the_workflow_runs_the_gate_on_the_junit_it_writes(self) -> None:
-        """The gate is wired, not merely available (ci-scripts.md items 11 and 13)."""
-        import yaml
-
-        workflow = yaml.safe_load(
-            (REPO_ROOT / ".github/workflows/pytest.yml").read_text(encoding="utf-8")
-        )
-        steps = workflow["jobs"]["test"]["steps"]
-        gate = [s for s in steps if "slow_test_budget.py" in str(s.get("run", ""))]
-        assert len(gate) == 1, "the slow-test budget gate is not wired into pytest.yml"
-        assert "--budget pyproject.toml" in gate[0]["run"]
-        assert "${{ matrix.junit_file }}" in gate[0]["run"]

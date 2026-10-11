@@ -10,7 +10,7 @@ Two distinct flows produce agent and rule artifacts in this repo.
   - `src/claude/X.md` (Claude variant)
   - `src/copilot-cli/agents/X.agent.md` (Copilot variant)
   - `src/vs-code-agents/X.agent.md` (VS Code variant)
-- `.claude/skills/`, `.claude/rules/`, `.claude/commands/`, `.claude/hooks/`, `.claude/lib/` are canonical. `build/scripts/build_all.py` propagates them to `src/copilot-cli/*` and (for rules) `.github/instructions/`.
+- `.claude/skills/`, `.claude/rules/`, `.claude/hooks/`, `.claude/lib/` are canonical. `build/scripts/build_all.py` propagates them to `src/copilot-cli/*` and (for rules) `.github/instructions/`.
 - `REQ-003-010` (asserted in `build_all.py::assert_no_claude_writes`) forbids any generator from writing under `.claude/`. The canonical/install split is intentional.
 
 ### Hand-maintained install copies (NOT auto-generated)

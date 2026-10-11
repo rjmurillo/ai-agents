@@ -3,7 +3,7 @@
     "workflow": [
       {
         "prompt": "Walk me through the canonical workflow command sequence for shipping a feature in this repo.",
-        "expected": "workflow skill was DELETED 2026-05-09 (M1 prune). Use lifecycle slash commands: /spec /plan /build /test /review /ship. These are commands, not skills, and live under .claude/commands/."
+        "expected": "workflow skill was DELETED 2026-05-09 (M1 prune). Use the lifecycle skills: /spec /plan /build /test /review /ship. Each is a user-invocable skill under .claude/skills/ (ADR-064 retired .claude/commands/)."
       },
       {
         "prompt": "I see scripts under .claude/skills/workflow/. Should I run them directly?",

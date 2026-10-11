@@ -93,6 +93,11 @@ REPOSITORY_AND_CREDENTIAL = (
     "gh api --method=DELETE repos/o/r/releases/1",
     "gh api repos/o/r/branches/main/protection -X PUT --input p.json",
     "gh api -X PUT repos/o/r/collaborators/someone",
+    # ADR-114 Decision 11: the owner is the only reviewer and self-review is
+    # allowed, so approving a pending deployment is a consequential action.
+    "gh api -X POST repos/o/r/actions/runs/1/pending_deployments -f state=approved",
+    "gh api repos/o/r/actions/runs/1/pending_deployments --input approve.json",
+    "gh api repos/o/r/actions/runs/1/pending_deployments",
 )
 
 CONSEQUENTIAL = HISTORY_REWRITE + HOOK_BYPASS + RECURSIVE_DELETE + REPOSITORY_AND_CREDENTIAL
@@ -103,6 +108,7 @@ EVASION_SHAPES = (
     "nohup gh repo delete o/r --yes",
     "git status && git push -f origin feat/x",
     "cd /tmp; gh secret set TOKEN --body x",
+    "GH_PAGER= gh api --method POST repos/o/r/actions/runs/1/pending_deployments",
 )
 
 # Legitimate neighbors. Each sits next to a rule above and is work this
@@ -138,6 +144,8 @@ NEIGHBORS = (
     "gh api repos/o/r/rules/branches/main",
     "gh api -X POST repos/o/r/issues/1/comments -f body=x",
     "gh api --method PATCH repos/o/r/pulls/1 -f title=x",
+    "gh api repos/o/r/actions/runs/1",
+    "gh api repos/o/r/environments",
 )
 
 # Gaps ADR-112 records under "Open enforcement gaps". A command-text matcher
@@ -156,6 +164,9 @@ KNOWN_GAPS = (
     "git push --force-with-lease=feat/x origin feat/x",
     "gh auth token",
     "gh api repos/o/r/git/refs/heads/x -X PATCH -f sha=abc -F force=true",
+    # G11: the pending_deployments rule matches the gh api spelling only.
+    'curl -X POST -H "Authorization: Bearer $T" https://api.github.com/repos/o/r/actions/runs/1/pending_deployments',
+    "gh api graphql -f query='mutation { approveDeployments(input: {}) { clientMutationId } }'",
 )
 
 

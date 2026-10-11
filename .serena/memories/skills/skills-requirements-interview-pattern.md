@@ -41,7 +41,7 @@ The skill is the alignment forcing function.
 
 - Skill: `.claude/skills/requirements-interview/SKILL.md`
 - Tests: `.claude/skills/requirements-interview/tests/test_skill_contract.py`
-- Wiring: `.claude/commands/spec.md` step 2 + step 6
+- Wiring: `.claude/skills/spec/SKILL.md` Step 2 + Step 6
 - Handoff target: `.claude/agents/spec-generator.md`
 
 ## Hard-won lessons from PR #1812

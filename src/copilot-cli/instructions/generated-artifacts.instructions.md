@@ -67,9 +67,9 @@ as load-bearing as the artifact's bytes.
 4. **Smoke-test in the real target runtime where feasible.** Install the vendored
    artifact into the actual CLI and run it end to end. When the runtime needs
    auth or credits that bare CI lacks, force the smoke locally (the pre-push hook
-   runs `tests/e2e/test_cli_hook_e2e.py` on hook-path changes) and document a
-   release or nightly smoke for the platforms CI cannot cover. A skipped smoke
-   MUST be loud, never silent.
+   runs `tests/e2e/test_cli_hook_e2e.py` on hook-path changes) and run a
+   PR-gated CLI smoke (`.github/workflows/plugin-cli-smoke.yml`) for the platforms CI
+   cannot cover. A skipped smoke MUST be loud, never silent.
 
 5. **Preserve one valid structured output per command hook.** Copilot CLI parses
    at most one final JSON document from each command hook. Before consolidating

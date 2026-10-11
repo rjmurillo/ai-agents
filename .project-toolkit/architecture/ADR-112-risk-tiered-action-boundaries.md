@@ -119,7 +119,10 @@ with `--no-verify` or `commit -n`; `rm` with recursive and force flags in
 eight spellings; `gh repo delete|archive|rename|edit`, `gh release delete`,
 `gh issue delete`, `gh label delete`, `gh secret`, `gh variable set|delete`,
 `gh pr merge --admin`; `gh api` with a DELETE method, and
-`gh api` against branch protection or collaborator endpoints.
+`gh api` against branch protection, collaborator, or `pending_deployments`
+endpoints. The last one slows an agent that tries to approve its own gated
+workflow job (ADR-114 Decision 11); it denies reads of that endpoint too, and
+G11 lists the spellings it misses.
 
 A lease pinned to an observed SHA (`--force-with-lease=<ref>:<sha>`) stays
 allowed. `pr-autofix` and `safe_push_pr_branch.py` depend on it, and the
@@ -233,6 +236,17 @@ flags (`rm -rfv`, `rm -vrf`, `rm build -rf`), and a forced ref update through
   GitHub auto-merge, which merges whatever head passes checks. A push after
   the request lands is merged without a new review of that head, unless the
   repository requires review on the new push.
+- **G11. Deployment approval.** The `pending_deployments` rule matches the
+  `gh api` spelling only. The list of misses is illustrative, not complete.
+  `curl` to the same REST endpoint and the GraphQL `approveDeployments`
+  mutation (schema introspection, 2026-10-08) still pass, and `KNOWN_GAPS`
+  pins both. Shell indirection or a split path, a `gh alias` or `gh`
+  extension, and other HTTP clients pass as well. The GitHub MCP tool surface
+  was not enumerated. Codex and Copilot CLI have no equivalent: a
+  Codex `prefix_rule` matches leading arguments and the run path is one
+  argument (developers.openai.com/codex/rules, read 2026-10-08), and Copilot CLI has no configured deny list (G3). A pre-tool-use
+  hook could match the path in all three harnesses, which needs its own
+  review under ADR-085.
 
 ## Rationale
 

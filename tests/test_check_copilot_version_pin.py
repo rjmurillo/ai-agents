@@ -1,7 +1,7 @@
 """Tests for the Copilot CLI version-pin guard (Issue #2630).
 
-The guard reads the pinned ``COPILOT_VERSION`` from
-``.github/actions/ai-review/action.yml`` and fails when the pin is missing,
+The guard reads the pinned Copilot CLI version (``COPILOT_CLI_VERSION`` in the
+CLI smoke workflow, or the shell form ``COPILOT_VERSION``) and fails when the pin is missing,
 unparseable, or on the known-bad list. ``0.0.397`` is the seed known-bad entry:
 npm flags it deprecated for "invalid session id errors", which broke the
 PR-comment-processing step of the PR Maintenance workflow.
@@ -91,7 +91,7 @@ def test_repo_action_pin_is_clean() -> None:
     version (e.g. reverts to 0.0.397) before the change reaches CI.
     """
     repo_action = (
-        Path(__file__).resolve().parents[1] / ".github" / "actions" / "ai-review" / "action.yml"
+        Path(__file__).resolve().parents[1] / ".github" / "workflows" / "plugin-cli-smoke.yml"
     )
     assert mod.check_action(repo_action) == mod.EXIT_OK
 

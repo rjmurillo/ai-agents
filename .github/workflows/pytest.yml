@@ -13,7 +13,7 @@
 # claims. The check-paths job still gates the two jobs that are not part of the
 # required context (Python Security Checks and the Windows path-contract tests).
 #
-# Which tests each partition runs is decided inside scripts/ci/run_pytest_selected.py.
+# Which tests each partition runs is decided inside scripts/ci/run_pytest_partition.py.
 #
 # Local developers and AI agents can run the same tests using:
 #   uv run pytest
@@ -74,11 +74,11 @@ jobs:
         if: github.event_name != 'workflow_dispatch' && github.event_name != 'merge_group' && env.ACT != 'true'
         with:
           # Issue #5318. The list itself lives in the policy file, which
-          # `scripts/test_selection/path_policy.py` also reads, so the
+          # `scripts/ci/path_policy.py` also reads, so the
           # local test selector and this gate cannot drift apart. The
           # action accepts a workspace-relative path here in place of an
           # inline document; the checkout above puts the file in place.
-          filters: scripts/test_selection/path_policy.yml
+          filters: scripts/ci/path_policy.yml
 
       - name: Determine if tests should run
         id: determine
@@ -108,10 +108,12 @@ jobs:
     # Copilot review round 3, PR #5344: this whole-tree guard examines every
     # file under testpaths regardless of diff, so it must not sit behind a
     # path filter (`.claude/rules/ci-scripts.md`: "The whole tree ... MUST
-    # run"). It used to live inside the `test` job's `bulk` partition, which
-    # is skipped whenever check-paths reports no Python-relevant diff,
-    # letting a mainline push publish a stale green tick without measuring
-    # the current tree. No `needs:`/`if:` here on purpose.
+    # run"). It used to live inside the `test` job's `primary` leg (split-1).
+    # That leg was skipped whenever check-paths reported no Python-relevant
+    # diff, which let a mainline push publish a stale green tick without
+    # measuring the current tree. The `test` job now has no job-level `if:` or
+    # `needs:`, but this guard stays a separate job. No `needs:`/`if:` here on
+    # purpose.
     runs-on: ubuntu-26.04-arm
     timeout-minutes: 5
     permissions:
@@ -262,8 +264,7 @@ jobs:
     # ADR-101 requirement 1: no `needs:` and no job-level `if:`. The partitions
     # sit inside the required "Run Python Tests" chain, so a path filter must
     # not decide whether they run. A diff that matches no policy path still
-    # runs every partition in full (run_pytest_selected.py falls back to the
-    # full partition when no affected test is owned by it).
+    # runs every partition in full (run_pytest_partition.py has no subset mode).
     runs-on: ubuntu-latest
     timeout-minutes: 10
     # `checks: write` was here from the ADR-042 migration (953b4534d, PR #967)
@@ -282,19 +283,24 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # `primary` marks the one leg that runs the steps that must happen once
+        # per run (lint ratchets, coverage pins, the count-ratchet timing).
+        # split-1 carries them, so its pytest share has to leave room for them
+        # inside the 10 minute job timeout (issue #4854).
         include:
-          - partition: bulk
-            coverage_file: artifacts/.coverage.bulk
-            junit_file: artifacts/pytest-results.xml
-          - partition: bulk-nested
-            coverage_file: artifacts/.coverage.bulk-nested
-            junit_file: artifacts/pytest-results-bulk-nested.xml
-          - partition: bulk-nested-ci
-            coverage_file: artifacts/.coverage.bulk-nested-ci
-            junit_file: artifacts/pytest-results-bulk-nested-ci.xml
-          - partition: mutation
-            coverage_file: artifacts/.coverage.mutation
-            junit_file: artifacts/pytest-results-mutation.xml
+          - partition: split-1
+            coverage_file: artifacts/.coverage.split-1
+            junit_file: artifacts/pytest-results-split-1.xml
+            primary: true
+          - partition: split-2
+            coverage_file: artifacts/.coverage.split-2
+            junit_file: artifacts/pytest-results-split-2.xml
+          - partition: split-3
+            coverage_file: artifacts/.coverage.split-3
+            junit_file: artifacts/pytest-results-split-3.xml
+          - partition: split-4
+            coverage_file: artifacts/.coverage.split-4
+            junit_file: artifacts/pytest-results-split-4.xml
           - partition: safe-push
             coverage_file: artifacts/.coverage.safe-push
             junit_file: artifacts/pytest-results-safe-push.xml
@@ -331,17 +337,17 @@ jobs:
       # from the ruff style backlog: a parse failure is a zero-false-positive
       # defect. Keep it BEFORE the ruff step and do NOT add continue-on-error.
       - name: Validate Python syntax (blocking)
-        if: matrix.partition == 'bulk'
+        if: matrix.primary
         run: python scripts/validation/validate_python_syntax.py
 
       - name: Validate AI review workflow budgets
-        if: matrix.partition == 'bulk'
+        if: matrix.primary
         run: python scripts/ci/validate_ai_review_budgets.py
 
       # Issue #2939: keep repo-wide ruff debt from blocking unrelated PRs while
       # failing new violations in changed Python files.
       - name: Run ruff ratchet (changed Python files)
-        if: matrix.partition == 'bulk'
+        if: matrix.primary
         # Same per-event base as the mypy ratchet below: HEAD^1 is the exact
         # base of the pull_request merge checkout, and merge_group.base_sha
         # keeps every batched PR in scope.
@@ -356,7 +362,7 @@ jobs:
       # keeps a stall from eating the pytest steps' share of the job's 10 min.
       # Measured: 40 scripts/validation files with a cold cache took 6.7s.
       - name: Run mypy ratchet (changed Python files)
-        if: matrix.partition == 'bulk'
+        if: matrix.primary
         timeout-minutes: 3
         # Base per event. pull_request checks out GitHub's merge commit, whose
         # first parent can be newer than pull_request.base.sha; HEAD^1 is the
@@ -368,7 +374,7 @@ jobs:
         run: python scripts/ci/mypy_ratchet.py
 
       - name: Check security suppressions in diff (pull request, issue 4061)
-        if: matrix.partition == 'bulk' && github.event_name == 'pull_request'
+        if: matrix.primary && github.event_name == 'pull_request'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
@@ -377,7 +383,7 @@ jobs:
           uv run --frozen python scripts/validation/git_hook_policy.py security-suppressions-diff --base-ref FETCH_HEAD
 
       - name: Check security suppressions in diff (non-PR, issue 4061)
-        if: matrix.partition == 'bulk' && github.event_name != 'pull_request'
+        if: matrix.primary && github.event_name != 'pull_request'
         env:
           BASE_REF: ${{ github.event.repository.default_branch }}
         run: |
@@ -385,52 +391,49 @@ jobs:
           git fetch origin "$BASE_REF"
           uv run --frozen python scripts/validation/git_hook_policy.py security-suppressions-diff --base-ref FETCH_HEAD
 
-      # Each matrix leg writes one statement-only coverage file. Bulk ignores
-      # the two pin suites, mutation, and the two process-sensitive files
-      # because those tests run in their own partition or pin step.
-      # `-n auto` uses every logical CPU exposed by the runner. On push and
-      # pull_request events the import graph narrows each partition to the
-      # affected tests (issue #5050); merge_group, any fail-safe verdict, and
-      # any partition with no affected test run the full partition, so coverage
-      # combine always receives non-empty data. The full-vs-subset decision and
-      # the partition argument lists live in the Python runner, not here, per
-      # ADR-006.
-      #
-      # Both selection refs are immutable SHAs from the event payload, never a
-      # branch name. The head one is why (issue #5378): on pull_request the
-      # checkout above is `refs/pull/N/merge`, a synthetic commit whose first
-      # parent is the current base-branch tip, so diffing `base.sha...HEAD`
-      # attributes every base-branch commit made since `base.sha` to this pull
-      # request. Observed on PR #5341, where an unrelated
-      # `.github/workflows/claude.yml` entered the changed set and forced the
-      # full suite. `head.sha` is the pull request's own tip and reproduces
-      # GitHub's base-to-head file list. The `fetch-depth: 0` checkout above is
-      # what makes both commits readable: it fetches every branch plus the
-      # merge ref, whose second parent is `head.sha`. If either commit is
-      # missing the git diff fails and the runner runs the full suite.
+      # Each matrix leg writes one statement-only coverage file. The split
+      # groups share one pool that leaves out the pin suites and the two
+      # process-sensitive files, because those run in their own leg or pin step.
+      # `-n auto` uses every logical CPU exposed by the runner. Every leg runs
+      # its full partition on every event, so coverage combine always receives
+      # non-empty data. The partition argument lists live in the Python runner,
+      # not here, per ADR-006.
+      # pytest-split timings. Nobody maintains a durations file: the test-durations
+      # job saves a fresh map to the Actions cache after every push to main, and
+      # every split leg restores the newest one here. restore-keys is a prefix, so
+      # the newest key wins. When nothing restores, pytest-split splits evenly by
+      # test count, every test still runs, and run_pytest_partition.py emits a
+      # ::warning. The runner copies this file to a per-leg path before pytest
+      # starts, so nothing writes to the restored file.
+      - name: Restore pytest-split durations
+        if: startsWith(matrix.partition, 'split-')
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: .pytest-split/durations.json
+          key: pytest-split-durations-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: pytest-split-durations-
+
       - name: Run pytest
         id: run-pytest
         env:
           PYTEST_NON_TMP_ROOT: ${{ runner.temp }}/ai-agents-pytest
           COVERAGE_FILE: ${{ matrix.coverage_file }}
-          PYTEST_SELECT_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
-          PYTEST_SELECT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: >-
-          uv run --frozen python scripts/ci/run_pytest_selected.py
+          uv run --frozen python scripts/ci/run_pytest_partition.py
           --partition ${{ matrix.partition }}
           --cov --cov-report=
           --junitxml=${{ matrix.junit_file }}
 
       # Issue #5610. The count-ratchet registry deadline is calibrated against
       # a wall-clock measurement, and a wall clock taken inside the `-n auto
-      # --dist loadfile` shard above measures the runner's load, not the
+      # --dist worksteal` shard above measures the runner's load, not the
       # registry: `main` went red at 19f257b5b with 87.7s against an 85s
       # deadline on a tree whose corpus had shrunk. The test skips unless
       # COUNT_RATCHET_TIMING_MEASUREMENT is 1, so this is the only place it
       # runs, and `-p no:xdist` keeps it alone on the runner. merge_group only:
       # once per merge, not once per push, and never on a PR shard.
       - name: Measure the count-ratchet registry (issue 5610)
-        if: github.event_name == 'merge_group' && matrix.partition == 'bulk-nested'
+        if: github.event_name == 'merge_group' && matrix.primary
         env:
           PYTEST_NON_TMP_ROOT: ${{ runner.temp }}/ai-agents-pytest
           COUNT_RATCHET_TIMING_MEASUREMENT: "1"
@@ -440,27 +443,13 @@ jobs:
           -p no:xdist
           -k test_the_real_registry_finishes_with_margin_inside_the_deadline
 
-      # Issue #5382. Reads the JUnit report the step above already wrote, so it
-      # runs no test of its own, and fails when a budgeted validator suite
-      # exceeds the seconds recorded for it in [tool.slow-test-budget]. A
-      # budgeted suite this partition did not run is absent from the report and
-      # is not a violation.
-      # The step name carries no "#": a plain scalar treats it as a comment
-      # (ci-scripts.md item 20).
-      - name: Enforce the slow-test budget (issue 5382)
-        if: steps.run-pytest.outcome != 'skipped' && !cancelled()
-        run: >-
-          uv run --frozen python scripts/testing/slow_test_budget.py
-          ${{ matrix.junit_file }}
-          --budget pyproject.toml
-
       # Issue #1963: verdict.py's 100% branch gate needs all three of
       # test_ai_review.py, test_verdict.py, and test_quality_gate.py
       # (test_ai_review.py alone reports 63%). Collection stays broad; the
       # next step isolates the gate with coverage report --include.
       - name: Pin ai_review_common.verdict coverage collection (REQ-008-07)
         id: pin-verdict-collect
-        if: matrix.partition == 'bulk' && steps.run-pytest.outcome != 'skipped' && !cancelled()
+        if: matrix.primary && steps.run-pytest.outcome != 'skipped' && !cancelled()
         env:
           COVERAGE_FILE: artifacts/.coverage.pin-verdict
         run: pytest tests/test_ai_review.py tests/test_verdict.py tests/test_quality_gate.py --cov --cov-branch --cov-report=
@@ -474,7 +463,7 @@ jobs:
       # Collect broadly here, then isolate the file paths in the next step.
       - name: "Pin REQ-009 module coverage collection (PR #1989 user requirement)"
         id: pin-req009-collect
-        if: matrix.partition == 'bulk' && steps.run-pytest.outcome != 'skipped' && !cancelled()
+        if: matrix.primary && steps.run-pytest.outcome != 'skipped' && !cancelled()
         env:
           COVERAGE_FILE: artifacts/.coverage.pin-req009
         run: |
@@ -537,10 +526,10 @@ jobs:
       - name: Combine coverage data
         run: |
           uv run --frozen python scripts/ci/combine_pin_coverage.py \
-            --main-data artifacts/.coverage.bulk \
-            --main-data artifacts/.coverage.bulk-nested \
-            --main-data artifacts/.coverage.bulk-nested-ci \
-            --main-data artifacts/.coverage.mutation \
+            --main-data artifacts/.coverage.split-1 \
+            --main-data artifacts/.coverage.split-2 \
+            --main-data artifacts/.coverage.split-3 \
+            --main-data artifacts/.coverage.split-4 \
             --main-data artifacts/.coverage.safe-push \
             --main-data artifacts/.coverage.pr-autofix \
             --pin-data artifacts/.coverage.pin-verdict \
@@ -557,11 +546,57 @@ jobs:
           overwrite: true
           retention-days: 7
 
-  # Test duration trend. Reads the JUnit reports the partitions already wrote,
+      # Issue #5382. pytest-split cuts a file across split groups, so no single
+      # leg's JUnit report holds a whole budgeted suite. Every leg's report is
+      # downloaded here, and slow_test_budget.py sums the seconds per module
+      # across them, so a split file cannot slip under its budget. The six
+      # reports are named, not globbed: a missing leg report makes the script
+      # exit 3 instead of undercounting. They mirror the matrix junit_file
+      # values (a test pins that). It runs
+      # after the upload so a budget failure still leaves the coverage data.
+      # This job runs only when every leg passed, so a budget overrun that
+      # lands with a test failure shows on the next green run; the failing leg
+      # already turns `Run Python Tests` red.
+      # The step name carries no "#": a plain scalar treats it as a comment
+      # (ci-scripts.md item 20).
+      - name: Enforce the slow-test budget (issue 5382)
+        run: >-
+          uv run --frozen python scripts/testing/slow_test_budget.py
+          artifacts/pytest-results-split-1.xml
+          artifacts/pytest-results-split-2.xml
+          artifacts/pytest-results-split-3.xml
+          artifacts/pytest-results-split-4.xml
+          artifacts/pytest-results-safe-push.xml
+          artifacts/pytest-results-pr-autofix.xml
+          --budget pyproject.toml
+
+      # Blocking leg wall-time gate. `test-result` (the required "Run Python
+      # Tests") needs this job, so a leg over the limit blocks the merge. The
+      # test-durations job is not required and cannot carry this gate. The
+      # limit is duration_gates.PARTITION_WALL_LIMIT_SECONDS (480 s). Each
+      # leg's wall_seconds is the JUnit testsuite time, which is pytest time
+      # only and leaves out job setup. Setup plus split-1's primary steps took
+      # about 95 s on PR #6241's run, so 480 s leaves room under the 600 s job
+      # limit. A split imbalance above 1.5x is only a ::warning annotation.
+      - name: Gate pytest leg wall time
+        run: >-
+          uv run --frozen python scripts/testing/duration_gate_check.py
+          artifacts/pytest-results-split-1.xml
+          artifacts/pytest-results-split-2.xml
+          artifacts/pytest-results-split-3.xml
+          artifacts/pytest-results-split-4.xml
+          artifacts/pytest-results-safe-push.xml
+          artifacts/pytest-results-pr-autofix.xml
+
+  # Test duration trend and pytest-split timings. Merges the per-leg durations
+  # files into the cache the split legs restore (saved only on a push to main),
+  # then reads the JUnit reports the partitions already wrote,
   # writes per-partition wall time and the slowest modules to the job summary,
   # and compares per-module seconds with the median of earlier main runs. A
   # module or the suite that crosses both the ratio and the seconds threshold
-  # fails this job and raises a warning annotation. The history rides in the
+  # fails this job and raises a warning annotation. A leg slower than 480 s (80
+  # percent of the test job timeout) fails the coverage job instead, which the
+  # required check depends on. The history rides in the
   # Actions cache, saved only from pushes to main, so a pull request reads the
   # main baseline and never writes it. ADR-015 caps artifact retention at
   # 7 days, which is why the history is not an artifact. Two overlapping main
@@ -608,8 +643,37 @@ jobs:
           key: test-duration-history-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: test-duration-history-
 
+      # pytest-split durations for the next run. Each split leg wrote only its own
+      # tests to artifacts/durations-split-N.json, so the four files union into
+      # the full map. The merge runs on every event so a wiring break shows on a
+      # pull request. The save runs only on a push to main. Actions scopes a
+      # cache to the ref that wrote it and a pull request can read the base
+      # branch's caches but never write one, so a pull request cannot plant
+      # timings that later legs restore. Never save from pull_request or
+      # merge_group. Do not widen the `if:` below.
+      - name: Merge pytest-split durations
+        id: merge-durations
+        run: >-
+          uv run --frozen python scripts/testing/duration_split_merge.py
+          artifacts/durations-split-1.json
+          artifacts/durations-split-2.json
+          artifacts/durations-split-3.json
+          artifacts/durations-split-4.json
+          --output .pytest-split/durations.json
+
+      - name: Save pytest-split durations
+        if: >-
+          github.event_name == 'push' && github.ref == 'refs/heads/main'
+          && steps.merge-durations.outcome == 'success'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: .pytest-split/durations.json
+          key: pytest-split-durations-${{ github.run_id }}-${{ github.run_attempt }}
+
+      # `!cancelled()` so a failed merge above still gets a duration report.
       - name: Report test duration trend
         id: duration-trend
+        if: "!cancelled()"
         env:
           RUN_SHA: ${{ github.sha }}
           HISTORY_KEY: ${{ steps.restore-history.outputs.cache-matched-key }}
@@ -643,6 +707,94 @@ jobs:
         with:
           name: test-durations
           path: test-durations/
+          retention-days: 7
+
+  # Issue #6239 / ADR-104. Builds the pytest-testmon database the pre-push hook
+  # downloads, so a developer's first push selects only what changed since main
+  # instead of running the whole suite to build one.
+  #
+  # Not part of the required chain. It is deliberately absent from `test-result`
+  # needs: a slow, failed, or skipped seed must never change `Run Python Tests`.
+  # It runs only for a push to main, never for a pull request, because the
+  # artifact is an SQLite file the hook hands to testmon and trusts. The hook
+  # downloads only artifacts from `push` runs on `main` of this repository
+  # (scripts/validation/testmon_seed.py re-checks event and head branch on the
+  # run itself), so a pull request cannot plant a database by any route.
+  #
+  # Same command as the hook, so the database is what the hook would record:
+  # the four partitions under `--testmon --testmon-forceselect`, the same
+  # marker filter, 4 workers, and COVERAGE_CORE=ctrace (testmon on Python 3.14
+  # otherwise records through sysmon and under-selects). The hook adds that
+  # core itself. Seeding is switched off here so the build starts empty.
+  #
+  # Timing. Measured locally at 4 workers: 575 s cold. This runner is slower:
+  # run 38015601869 on main spent 1390 s across its six 4-vCPU legs without
+  # testmon, and testmon with ctrace adds about 1.4x, so expect about 30
+  # minutes. The 60 minute cap leaves 2x. One database cannot be split across
+  # jobs (testmon keys it by path), so this stays one job. The first main push
+  # after merge gives the real figure.
+  #
+  # Only a complete, passing run uploads. A failed partition, a budget kill or a
+  # signal leaves a partial database, and a partial database would make the
+  # hook skip tests it never recorded. The name carries a key over uv.lock and
+  # pyproject.toml, computed by the same function the hook uses.
+  testmon-seed:
+    name: Seed testmon database
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup code environment
+        uses: ./.github/actions/setup-code-env
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+          enable-pester: false
+          enable-git-hooks: false
+
+      - name: Compute seed artifact name
+        id: seed
+        run: echo "name=$(uv run --frozen python scripts/validation/testmon_seed.py .)" >> "$GITHUB_OUTPUT"
+
+      # The build script runs the pre-push pytest step and writes
+      # `complete=true` to this step's output only when the hook exits 0, that
+      # is, every partition ran to completion and passed. Anything else (a
+      # failed partition, a budget kill, a signal) is a partial database and is
+      # never uploaded. The script exits with the hook's failure code, so a failing
+      # run turns this job red; the job is outside `test-result` needs, so that
+      # never reaches `Run Python Tests`. The branching lives in the script, which
+      # has tests. The
+      # seed run takes about 30 minutes, so it gets its own budget instead of the
+      # hook's 780 s suite budget; 3300 s leaves 5 minutes of the 60 minute cap
+      # for setup and upload.
+      - name: Build the testmon database
+        id: build
+        env:
+          AI_AGENTS_PYTEST_WORKER_CAP: "4"
+          AI_AGENTS_TESTMON_NO_SEED: "1"
+          AI_AGENTS_TESTMON_SEED_BUDGET_SECONDS: "3300"
+        run: uv run --frozen python scripts/validation/testmon_seed_build.py
+
+      # include-hidden-files: v4 and later skip dotfiles by default, and the
+      # database is `.testmondata`.
+      - name: Upload the testmon database
+        if: ${{ !cancelled() && steps.build.outputs.complete == 'true' && hashFiles('.testmondata') != '' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ steps.seed.outputs.name }}
+          path: .testmondata
+          include-hidden-files: true
+          if-no-files-found: error
           retention-days: 7
 
   # The only job that publishes the required "Run Python Tests" context. It
@@ -780,7 +932,7 @@ jobs:
           always() &&
           (github.event_name != 'pull_request' ||
           github.event.pull_request.head.repo.full_name == github.repository)
-        uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2  # v4
+        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d  # v4
         with:
           sarif_file: bandit.sarif
           category: bandit

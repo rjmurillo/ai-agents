@@ -66,3 +66,15 @@ def test_a_malformed_partition_entry_is_refused(entry: object) -> None:
 
     with pytest.raises(ValueError):
         Snapshot.from_dict(data)
+
+
+def test_a_module_split_across_partitions_belongs_to_the_one_with_most_seconds(
+    tmp_path: Path,
+) -> None:
+    small = write_junit(tmp_path, "pytest-results-a", {"tests.test_alpha": [1.0]}, wall=1.0)
+    large = write_junit(tmp_path, "pytest-results-b", {"tests.test_alpha": [5.0]}, wall=5.0)
+
+    snap = build_snapshot([large, small], "abc", NOW)
+
+    assert snap.module_partitions == {"tests/test_alpha.py": "pytest-results-b"}
+    assert snap.modules["tests/test_alpha.py"]["seconds"] == 6.0

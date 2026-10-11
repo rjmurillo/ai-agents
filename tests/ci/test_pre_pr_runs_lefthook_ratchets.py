@@ -603,10 +603,10 @@ class TestBudgetHoldsAgainstMeasuredRuntime:
 
     # Issue #5610. The measurement is only meaningful on a runner that is not
     # already saturated, and nothing about a pytest marker keeps it off one:
-    # `pyproject.toml` sets no `-m` filter and `scripts/ci/run_pytest_selected.py`
+    # `pyproject.toml` sets no `-m` filter and `scripts/ci/run_pytest_partition.py`
     # passes none, so `@pytest.mark.integration` alone left this running inside
-    # a `-n auto --dist loadfile` shard of roughly 19k tests. Three sibling
-    # xdist workers competed for the same four vCPUs while the clock ran, and
+    # a `-n auto` shard (then `--dist loadfile`, now `worksteal`) of roughly 19k
+    # tests. Three sibling xdist workers competed for the same four vCPUs while the clock ran, and
     # `main` went red at 19f257b5b with 87.7s measured against the 85s deadline
     # on a tree whose corpus had shrunk, not grown. So the gate is opt-in: only
     # a caller that has arranged an uncontended runner sets this variable, and

@@ -15,6 +15,25 @@ implemented: true
 
 Accepted (2026-08-15). Six of six ADR reviewers accepted Round 2 after the first draft was blocked. Review evidence: `.project-toolkit/critique/ADR-094-debate-log.md`.
 
+## Amendment 2026-10-08: the review path no longer runs Copilot CLI (issue #6069)
+
+Owner decision D20 (`.project-toolkit/critique/ADR-114-debate-log.md` round 5)
+moved every `ai-review` caller from Copilot to Claude. Decision 2 and Decision 3
+change as follows. Decisions 1, 4, and 6 are unchanged.
+
+- `.github/actions/ai-review/action.yml` no longer installs Copilot CLI and no
+  longer holds `COPILOT_VERSION`. The required review path has no Copilot pin.
+- `.github/workflows/nightly-cli-smoke.yml` is deleted. Its pin moved to
+  `COPILOT_CLI_VERSION` in `.github/workflows/plugin-cli-smoke.yml`, which is
+  now the only executable Copilot CLI version record. It stays Renovate-managed.
+- `check_copilot_version_pin.py` now guards that workflow pin, through the
+  `pre_pr` wrapper in `scripts/validation/checks_tooling.py`. It is still a
+  known-bad guard, not an allowlist.
+- Decision 5's install-time drift warning came from
+  `scripts/ci/install_copilot_cli.py`, which is deleted with the review path.
+  The smoke passes `--no-auto-update` on every Copilot command (ADR-071
+  Decision item 6), so the installed binary matches the pin.
+
 ## Date
 
 2026-08-15

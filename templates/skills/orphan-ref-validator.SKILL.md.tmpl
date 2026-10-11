@@ -179,7 +179,7 @@ Success criteria for the skill:
 - [ ] `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py --help` exits 0 with the documented argparse output.
 - [ ] `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py --targets missing.md` exits 2 with `VERDICT: ERROR`.
 - [ ] `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"/skills/orphan-ref-validator/scripts/scan.py` from the repo root exits 0 with `VERDICT: PASS` on default tracked text targets.
-- [ ] `.claude/commands/build.md` Mandatory Exit Gates lists orphan-ref-validator as gate 4.
+- [ ] The `build` skill Mandatory Exit Gates list orphan-ref-validator as gate 4.
 
 ## Scripts
 
@@ -328,7 +328,7 @@ Coverage target is 80 percent line coverage on `scan.py`. Cases cover positive a
 
 ### `/build` Mandatory Exit Gate
 
-`.claude/commands/build.md` invokes the skill. Exit `1` blocks the build phase.
+The `build` skill Mandatory Exit Gate 4 invokes the skill. Exit `1` blocks the build phase.
 
 ### PR exit gate: scope to changed files
 

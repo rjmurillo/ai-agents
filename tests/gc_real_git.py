@@ -62,6 +62,9 @@ def write_and_commit(cwd: Path, relative_path: str, content: str, message: str) 
     return git(cwd, "rev-parse", "HEAD").stdout.strip()
 
 
+_LOADED_HOST_GIT_TIMEOUT_SECONDS = 120
+
+
 def run_gc_json(
     sandbox: GitSandbox,
     monkeypatch: pytest.MonkeyPatch,
@@ -69,6 +72,10 @@ def run_gc_json(
 ) -> dict[str, object]:
     """Run the tool as the CLI does and return the report it printed."""
     monkeypatch.chdir(sandbox.main)
+    # The tool's 10 s per-git-call budget is sized for an idle hook run. On a
+    # loaded developer host (load average above the core count) a real git
+    # call outlives it and the run reports a timeout the test is not about.
+    monkeypatch.setattr(gc_worktrees, "_GIT_TIMEOUT_SECONDS", _LOADED_HOST_GIT_TIMEOUT_SECONDS)
     code = gc_worktrees.main(["--json"])
     captured = capsys.readouterr()
     assert code == 0, captured.err
