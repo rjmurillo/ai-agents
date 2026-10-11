@@ -183,7 +183,7 @@ says why.
 | Path | Workflow | Job.step | Construct | What fails silently | Visible | Contract | Target | Owner | Expiry |
 |---|---|---|---|---|---|---|---|---|---|
 | `skill-passive-compliance.yml:90` | Skill/Passive Context Compliance | `validate-compliance` / Run skill description budget | `continue-on-error: true` | a budget overrun or a script crash never fails the job, and no step reads the outcome | no | N/A | RESOLVED: no continue-on-error in this workflow on main b0e96997f | n/a | n/a |
-| `ai-spec-review.yml:168` | Spec Review (Advisory) | `review-spec` / Post PR Comment | `continue-on-error: true` | the report comment failing to post | yes, typed line `[STATE] spec-report-comment reason=...`, a `::warning::`, and the step summary | TYPED | B: keep advisory. Comment posting only; carries no verdict. | rjmurillo | 2026-12-31 |
+| `ai-spec-review.yml:177` | Spec Review (Advisory) | `review-spec` / Post PR Comment | `continue-on-error: true` | the report comment failing to post | yes, typed line `[STATE] spec-report-comment reason=...`, a `::warning::`, and the step summary | TYPED | B: keep advisory. Comment posting only; carries no verdict. | rjmurillo | 2026-12-31 |
 | `drift-detection.yml:47` | Agent Drift Detection | `detect-drift` / Emit K2 kill-criteria event | `continue-on-error: true` | kill-criteria metrics emission failure | yes, typed line for `drift-k2-event` | TYPED | B: keep advisory. Telemetry emission. | rjmurillo | 2026-12-31 |
 | `drift-detection.yml:74` | Agent Drift Detection | `detect-drift` / Upload kill-criteria events | `continue-on-error: true` | the drift-events artifact upload failing | yes, typed line for `drift-events-upload` | TYPED | B: keep advisory. Artifact upload. | rjmurillo | 2026-12-31 |
 | `agent-drift-detection.yml` (bypass marker step, removed) | Agent Drift Detection (CI) | `check-paths` / Check for bypass marker | `grep -c ... \|\| true`, removed | RESOLVED, issue #5636, PR #6056: the marker step and its `grep` are gone, so the construct cannot run | n/a | N/A | RESOLVED, PR #6056 | n/a | n/a |
@@ -194,8 +194,8 @@ says why.
 |---|---|---|---|---|---|---|---|---|---|
 | `memory-health.yml:88` | `health-check` / Run health check (Markdown) | `continue-on-error: true` | a `memory_enhancement` crash on the markdown path. Unlike the JSON path below, nothing re-asserts it: the only consumer is the PR-comment step, which wraps `readFileSync('health-report.md')` in try/catch and posts "Health check completed but no report generated." | yes, typed line for `memory-health-markdown` | TYPED | UNDOCUMENTED | B: keep advisory. Markdown report only; the JSON path is re-asserted. | rjmurillo | 2026-12-31 |
 | `pr-validation.yml:134` | `validate-pr` / Post PR Comment | `continue-on-error: true` | the validation report failing to post | yes, typed line for `pr-validation-comment` | TYPED | UNDOCUMENTED | B: keep advisory. Comment posting only, behind a retry wrapper. | rjmurillo | 2026-12-31 |
-| `ai-spec-review.yml:98` | `review-spec` / Requirements Traceability Check | `continue-on-error: true` | an analyst-agent crash or timeout at step level | yes, typed line for `spec-traceability-check`, plus an `INFRA_FAILURE` label in the review comment | TYPED | UNDOCUMENTED | B: keep advisory. The job only comments; the check that can fail is the deterministic `Validate Spec Coverage` (issue #6182). | rjmurillo | 2026-12-31 |
-| `ai-spec-review.yml:123` | `review-spec` / Completeness Check | `continue-on-error: true` | a critic-agent crash or timeout | yes, typed line for `spec-completeness-check`, plus an `INFRA_FAILURE` label in the review comment | TYPED | UNDOCUMENTED | B: keep advisory. The job only comments; the check that can fail is the deterministic `Validate Spec Coverage` (issue #6182). | rjmurillo | 2026-12-31 |
+| `ai-spec-review.yml:103` | `review-spec` / Requirements Traceability Check | `continue-on-error: true` | an analyst-agent crash or timeout at step level | yes, typed line for `spec-traceability-check`, plus an `INFRA_FAILURE` label in the review comment | TYPED | UNDOCUMENTED | B: keep advisory. The job only comments; the check that can fail is the deterministic `Validate Spec Coverage` (issue #6182). | rjmurillo | 2026-12-31 |
+| `ai-spec-review.yml:128` | `review-spec` / Completeness Check | `continue-on-error: true` | a critic-agent crash or timeout | yes, typed line for `spec-completeness-check`, plus an `INFRA_FAILURE` label in the review comment | TYPED | UNDOCUMENTED | B: keep advisory. The job only comments; the check that can fail is the deterministic `Validate Spec Coverage` (issue #6182). | rjmurillo | 2026-12-31 |
 | `memory-validation.yml:133` | `validate-memories` / Generate health report | `\|\| true` | RESOLVED by deletion, issue #5626: the workflow no longer exists, so the construct cannot run | n/a | N/A | was DELIBERATE, and the stated guard covered the JSON at :123, not this markdown file | RESOLVED by deletion, issue #5626 | n/a | n/a |
 | `memory-validation.yml:112` | `validate-memories` / Verify all memories | `set +e`, rc captured and tolerated | RESOLVED by deletion, issue #5626 | n/a | N/A | was DELIBERATE | RESOLVED by deletion, issue #5626 | n/a | n/a |
 | `audit-hook-bypass.yml:68` | `detect-bypass` / Report findings | `\|\| true` | a second, redundant detector invocation swallows its own exit code, including the `>=2` crash contract | yes, typed line for `hook-bypass-report`: `FAIL` with `advisory.findings` on exit 1, `BLOCKED` with `script.failed` on a crash | TYPED | DELIBERATE for exit 1; the reasoning does not cover the crash path on this re-invocation | B: keep advisory. Redundant second invocation; the hardened detection step already failed on a crash. | rjmurillo | 2026-12-31 |
@@ -348,10 +348,12 @@ Counts on 2026-09-29, 72 classified rows: `A` 4, `B` 47, `C` 10, `RESOLVED` 11.
 
 Update 2026-10-01: owner decision D24 (issue #5636) moved the two canonical-citation rows to `A`, hardened by the count ratchet in PR #6058. The counts above are not recomputed.
 
+Update 2026-10-11: issue #6182 moved two A rows to B and resolved one B row; counts not recomputed. The three `ai-spec-review.yml` rows cite the `continue-on-error: true` line of their step, read at `6c68e2390`, the last commit to that workflow.
+
 A `B` row that reaches its expiry without a re-read is a defect in this file,
 not permission to keep the path open. Validate Spec Coverage has been
-deterministic since issue #6182 and fails only on the acceptance checkboxes in the
-PR body, so no model quota state affects it.
+deterministic since issue #6182 and its verdict comes only from the acceptance
+checkboxes in the PR body, so no model quota state affects it.
 
 Line numbers in the Path column were read at `16ed125`. The class of each
 row was re-checked against `b0e96997f` by searching the workflow tree for the

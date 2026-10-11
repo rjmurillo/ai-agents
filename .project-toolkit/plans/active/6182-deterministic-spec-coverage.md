@@ -59,3 +59,4 @@ M1 before T2.1. T2.2 and T2.3 parallel after T2.1. T2.4 after T2.1 to T2.3. M3 a
 - T3.4 edits `templates/skills/push-pr.SKILL.md.tmpl`, not the rendered copies.
 - T3.2 lands in the same PR as T2.1.
 - `measure_workflow_coalescing.py` defaults stay unchanged (out of scope).
+- `ai-spec-review.yml` drops `edited` from its `pull_request` types, so a body edit does not queue another approval prompt. Reviewers use `workflow_dispatch`.

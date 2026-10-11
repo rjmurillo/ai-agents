@@ -573,25 +573,31 @@ at byte level before editing.
 
 The validator takes `--pr-number` and fetches the **live** body, so push and
 update the PR before running it locally.
-## Spec coverage fails when the PR body has no checked acceptance boxes
+## Spec coverage fails when a linked PR has unchecked or missing acceptance boxes
 
 `Validate Spec Coverage` runs `scripts/ci/spec_coverage_verdict.py`. It reads
-only the PR body and whether the PR links a spec. It calls no model, so a rerun
-on the same body gives the same result. The verdict, by case:
+only the PR body and the `has_specs` flag. `has_specs` is true when the PR title
+or body references a spec or an issue, with a closing or non-closing keyword
+(`Fixes #1`, `Refs #1`). The check calls no model, so a rerun on the same body
+gives the same result. The verdict, by case:
 
-- No linked spec: PASS.
-- Linked spec, no acceptance checkbox section: FAIL. The `::error::` line names
-  the `## Acceptance criteria` heading.
-- Linked spec, any unchecked box: FAIL. One `::error::` line per unchecked item.
-- Linked spec, every box checked: PASS.
+- No linked spec or issue: PASS.
+- Linked spec or issue, no acceptance checkbox section: FAIL. The `::error::`
+  line names the `## Acceptance criteria` heading.
+- Linked spec or issue, any unchecked box: FAIL. One `::error::` line per
+  unchecked item, capped at 8, with the rest in the step summary.
+- Linked spec or issue, every box checked: PASS.
 
-The cause is the PR body, not the linked issue. Two parsing constraints, both
-in `scripts/external_signals/acceptance_criteria.py`:
+The cause is the PR body, not the linked issue. Parsing rules, all in
+`scripts/external_signals/acceptance_criteria.py`:
 
 - The heading must match `^#{1,6}\s*acceptance(\s+criteria)?\s*$`.
 - Items must be `- [x]` task-list checkboxes. **A numbered list does not
   parse**, so copying an issue's `1.` through `5.` criteria verbatim still
   counts as no section.
+- Boxes inside HTML comments or fenced code blocks are ignored.
+- The section ends at the next heading of the same or higher level, so `###`
+  groups inside `## Acceptance criteria` keep their boxes.
 
 Reproduce and fix offline rather than pushing to find out:
 
@@ -600,9 +606,11 @@ gh pr view "$PR" --json body --jq .body > body.md
 HAS_SPECS=true PR_BODY="$(cat body.md)" python3 scripts/ci/spec_coverage_verdict.py; echo "exit $?"
 ```
 
-Exit 0 is PASS, 1 is FAIL, 2 is a config error (`HAS_SPECS` unset, or the
-`workflow_dispatch` body fetch failed). Editing the body re-triggers the check
-on `pull_request: edited`, so no new commit is needed.
+Exit 0 is PASS, 1 is FAIL, 2 is a config error: `HAS_SPECS` is anything other
+than `true` or `false`, or the `workflow_dispatch` body fetch failed. Editing
+the body re-triggers the check on `pull_request: edited`, so no new commit is
+needed. "Re-run jobs" replays the old event with the old body, so edit the body
+(even whitespace) to get a fresh run.
 
 The `AI-SPEC-VALIDATION` comment comes from the advisory model review in
 `ai-spec-review.yml`. It never reports this check's verdict. Read the check's
