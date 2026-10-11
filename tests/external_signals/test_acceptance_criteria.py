@@ -172,3 +172,67 @@ def test_pr_template_acceptance_section_parses() -> None:
     # The placeholder must be visible prose, not an HTML comment: a rendered
     # empty checkbox with no text hides the fill-me-in signal from authors.
     assert all("<!--" not in c.text for c in criteria)
+
+
+def test_subheadings_inside_the_section_keep_their_boxes() -> None:
+    body = (
+        "## Acceptance criteria\n\n### Group A\n- [x] one\n\n### Group B\n- [ ] two\n\n"
+        "## Notes\n- [ ] not a criterion\n"
+    )
+
+    crits = ac.parse_criteria(body)
+
+    assert [c.text for c in crits] == ["one", "two"]
+
+
+def test_section_ends_at_a_heading_of_the_same_level() -> None:
+    body = "## Acceptance\n- [x] a\n## Other\n- [ ] b\n"
+    assert [c.text for c in ac.parse_criteria(body)] == ["a"]
+
+
+def test_section_ends_at_a_higher_level_heading() -> None:
+    body = "### Acceptance\n- [x] a\n## Other\n- [ ] b\n"
+    assert [c.text for c in ac.parse_criteria(body)] == ["a"]
+
+
+def test_deeper_heading_does_not_end_the_section_but_sibling_does() -> None:
+    body = "## Acceptance\n#### deep\n- [x] a\n## Next\n- [ ] b\n"
+    assert [c.text for c in ac.parse_criteria(body)] == ["a"]
+
+
+@pytest.mark.parametrize("fence", ["```", "~~~", "````"])
+def test_checkboxes_in_fenced_code_are_ignored(fence: str) -> None:
+    body = f"## Acceptance\n- [x] real\n{fence}\n- [ ] example\n{fence}\n- [x] after\n"
+    assert [c.text for c in ac.parse_criteria(body)] == ["real", "after"]
+
+
+def test_heading_inside_a_fence_does_not_end_the_section() -> None:
+    body = "## Acceptance\n```bash\n# a shell comment\n```\n- [ ] still here\n"
+    assert [c.text for c in ac.parse_criteria(body)] == ["still here"]
+
+
+def test_shorter_or_other_char_fence_does_not_close() -> None:
+    body = "## Acceptance\n````\n```\n~~~\n- [ ] hidden\n````\n- [x] shown\n"
+    assert [c.text for c in ac.parse_criteria(body)] == ["shown"]
+
+
+def test_unclosed_fence_hides_the_rest() -> None:
+    body = "## Acceptance\n- [x] a\n```\n- [ ] hidden\n"
+    assert [c.text for c in ac.parse_criteria(body)] == ["a"]
+
+
+def test_checkboxes_in_html_comments_are_ignored() -> None:
+    body = (
+        "## Acceptance\n<!-- one-line - [ ] x -->\n<!--\n- [ ] multi\nline\n-->\n- [x] real\n"
+    )
+    assert [c.text for c in ac.parse_criteria(body)] == ["real"]
+
+
+def test_acceptance_heading_inside_a_comment_or_fence_is_not_a_section() -> None:
+    assert ac.parse_criteria("<!--\n## Acceptance\n- [ ] x\n-->\n") == []
+    assert ac.parse_criteria("```\n## Acceptance\n- [ ] x\n```\n") == []
+
+
+def test_fenced_unchecked_box_does_not_fail_the_report() -> None:
+    body = "## Acceptance\n- [x] real\n```\n- [ ] example\n```\n"
+    assert ac.evaluate(body).passed

@@ -33,11 +33,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 _ACCEPTANCE_HEADING = re.compile(
-    r"^#{1,6}\s*acceptance(?:\s+criteria)?\s*$",
+    r"^(?P<hashes>#{1,6})\s*acceptance(?:\s+criteria)?\s*$",
     re.IGNORECASE | re.MULTILINE,
 )
-_NEXT_HEADING = re.compile(r"^#{1,6}\s+\S", re.MULTILINE)
+_ANY_HEADING = re.compile(r"^(?P<hashes>#{1,6})\s+\S", re.MULTILINE)
 _CHECKBOX = re.compile(r"^\s*[-*]\s*\[(?P<mark>[ xX])\]\s+(?P<text>.+?)\s*$")
+_FENCE = re.compile(r"^ {0,3}(?P<run>`{3,}|~{3,})")
+_HTML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
 
 
 @dataclass(frozen=True)
@@ -72,16 +74,59 @@ class Report:
         }
 
 
-def extract_acceptance_section(body: str) -> str:
-    """Return the text between an ``## Acceptance`` heading and the next heading."""
+def _blank_fenced_lines(body: str) -> str:
+    """Replace lines inside ``` or ~~~ fences (and the fences) with empty lines.
 
-    match = _ACCEPTANCE_HEADING.search(body)
+    A fence closes on a run of the same character at least as long as the
+    opener. An unclosed fence hides the rest of the body, as Markdown renders it.
+    """
+
+    out: list[str] = []
+    opener = ""
+    for line in body.split("\n"):
+        match = _FENCE.match(line)
+        if opener:
+            closes = (
+                match is not None
+                and match.group("run")[0] == opener[0]
+                and len(match.group("run")) >= len(opener)
+            )
+            if closes:
+                opener = ""
+            out.append("")
+        elif match:
+            opener = match.group("run")
+            out.append("")
+        else:
+            out.append(line)
+    return "\n".join(out)
+
+
+def _blank_html_comments(text: str) -> str:
+    """Remove ``<!-- -->`` comments, keeping their newlines so line count holds."""
+
+    return _HTML_COMMENT.sub(lambda m: "\n" * m.group(0).count("\n"), text)
+
+
+def extract_acceptance_section(body: str) -> str:
+    """Return the text under an ``Acceptance`` heading, up to its end.
+
+    The section ends at the next heading of the same or higher level (equal or
+    fewer ``#``), so ``###`` sub-headings under a ``##`` heading stay inside it.
+    Fenced code blocks and HTML comments are blanked first, so a heading or a
+    checkbox inside either is not part of the section.
+    """
+
+    visible = _blank_html_comments(_blank_fenced_lines(body))
+    match = _ACCEPTANCE_HEADING.search(visible)
     if not match:
         return ""
-    start = match.end()
-    tail = body[start:]
-    next_heading = _NEXT_HEADING.search(tail)
-    return tail[: next_heading.start()] if next_heading else tail
+    level = len(match.group("hashes"))
+    tail = visible[match.end():]
+    for heading in _ANY_HEADING.finditer(tail):
+        if len(heading.group("hashes")) <= level:
+            return tail[: heading.start()]
+    return tail
 
 
 def parse_criteria(body: str) -> list[Criterion]:
