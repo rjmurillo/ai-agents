@@ -80,7 +80,7 @@ Claude Code marketplace (`.claude-plugin/marketplace.json`):
   "plugins": [
     {
       "name": "project-toolkit",
-      "description": "Complete project development toolkit for Claude Code",
+      "description": "Complete project development toolkit: agents, reusable skills, and lifecycle skills (/spec to /ship) for Claude Code workflows",
       "source": "./src/claude"
     }
   ]

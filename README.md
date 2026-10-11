@@ -2,7 +2,7 @@
 
 AI Agents is an open-source multi-agent toolkit for software development with Claude Code, GitHub Copilot CLI, and VS Code Copilot Chat. An orchestrator routes work across 30 specialized agents, including analyst, architect, code-reviewer, dependency-auditor, implementer, critic, QA, security, and DevOps, to plan, build, review, and ship code with explicit handoffs and quality gates at each stage.
 
-Built for platform teams, engineering managers, and organizations that want AI-assisted development with real governance: plan-to-ship lifecycle skills (`/spec`, `/plan`, `/build`, `/test`, `/review`, `/ship`) in Claude Code, review gates and a session protocol in both CLIs, and ADR-steered agent behavior. Optional cross-session memory is available via Serena. Install from the plugin marketplace with `/plugin marketplace add rjmurillo/ai-agents` then `/plugin install project-toolkit@ai-agents`, in Claude Code or Copilot CLI. MIT licensed.
+Built for platform teams, engineering managers, and organizations that want AI-assisted development with real governance: plan-to-ship lifecycle skills (`/spec`, `/plan`, `/build`, `/test`, `/review`, `/ship`) in both CLIs, run as slash commands in Claude Code, review gates and a session protocol in both CLIs, and ADR-steered agent behavior. Optional cross-session memory is available via Serena. Install from the plugin marketplace with `/plugin marketplace add rjmurillo/ai-agents` then `/plugin install project-toolkit@ai-agents`, in Claude Code or Copilot CLI. MIT licensed.
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/rjmurillo/ai-agents)
 
@@ -61,7 +61,7 @@ Each AI tool has its own native marketplace flow. This repo ships a Claude Code 
 
 A Claude install lands the full set of agents and skills, including the six lifecycle skills. A Copilot install lands the same capabilities generated from the same canonical sources. See [Verify Installation](#verify-installation) for the per-tool check that confirms your install, or [More Installation Options](#alternative-full-installation) for component-level installs (agents only, etc.).
 
-> **No registered hooks.** The `project-toolkit@ai-agents` plugin registers no hooks for either CLI (ADR-097), so no hook runtime runs at install or in your session. Some skills run Python scripts, and those skills need Python on PATH. The hook dispatcher scripts still ship unregistered and declare a Python 3.10 floor (`build/scripts/generate_dispatcher.py`); that floor covers the dispatcher, not the skills. Python 3.14.x is a contributor requirement for this repository (see [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites)).
+> **No registered hooks.** The `project-toolkit@ai-agents` plugin registers no hooks for either CLI (ADR-097), so no hook runtime runs at install or in your session. Some skills run Python scripts, and those skills need Python on PATH (`py` on Windows). Skills declare no shared minimum version; individual scripts can declare their own, for example `requires-python = ">=3.14"` in `src/claude/skills/github/scripts/pr/new_pr.py`. The hook dispatcher scripts still ship unregistered and declare a Python 3.10 floor (`build/scripts/generate_dispatcher.py`); that floor covers the dispatcher, not the skills. Python 3.14.x is a contributor requirement for this repository (see [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites)).
 
 ### What You Get
 
@@ -69,7 +69,7 @@ A Claude install lands the full set of agents and skills, including the six life
 |-----------|-------------|-------------|
 | Agents | Included | Included |
 | Skills | Included | Included |
-| Lifecycle skills (`/spec` to `/ship`) | Included, run as slash commands | Included, as skills |
+| Lifecycle skills (`/spec` to `/ship`) | Included, run as slash commands | Included, name the skill with a slash in your prompt (for example `Use /plan ...`), per GitHub's Copilot CLI skills docs |
 | Hooks | Not registered (ADR-097) | Not registered (ADR-097) |
 | Session protocol | Included | Included |
 | Review gates | Included | Included |
@@ -79,9 +79,8 @@ Specialized agent roles include analyst, architect, implementer, QA, security, d
 ### Troubleshooting
 
 - **Copilot CLI install fails with "No plugin.json found in repository":** This repo is a marketplace, not a single plugin. Run `/plugin marketplace add rjmurillo/ai-agents` first, then `/plugin install project-toolkit@ai-agents`.
-- **`/plugin` not recognized:** Update your CLI to a recent stable release with plugin marketplace support. Check the version with `/version` in Claude Code, or `copilot --version` in a regular terminal for Copilot CLI.
 - **`Denied by preToolUse hook from "project-toolkit@ai-agents"`:** Current plugin versions register no hooks (ADR-097), so this message cannot come from them. If you see it, your installed plugin predates that change. Reinstall with `/plugin install project-toolkit@ai-agents`.
-- **Plugin install fails or hangs:** Confirm your AI tool is on a recent stable release that supports the install command, then retry. Check the version per tool: in Claude Code use `/version` or the title bar; for Copilot CLI run `copilot --version` in a regular terminal.
+- **`/plugin` not recognized, or plugin install fails or hangs:** Update your CLI to a recent stable release with plugin marketplace support, then retry. Check the version in a regular terminal with `claude --version` or `copilot --version`.
 - **Agents not responding after install:** Restart Claude Code (Copilot CLI does not need a restart). Then verify with `Task(subagent_type="analyst", prompt="Hello, are you available?")` in Claude Code, `copilot plugin list` in Copilot CLI to confirm `project-toolkit@ai-agents` is installed, or `@orchestrator Hello, are you available?` in VS Code Copilot Chat.
 
 ---
@@ -120,7 +119,7 @@ Specialized agent roles include analyst, architect, implementer, QA, security, d
     - [Examples](#examples)
       - [Simple Scenarios](#simple-scenarios)
       - [Advanced Scenarios](#advanced-scenarios)
-  - [Lifecycle Commands](#lifecycle-commands)
+  - [Lifecycle Skills](#lifecycle-skills)
   - [System Architecture](#system-architecture)
     - [How Agents Work Together](#how-agents-work-together)
     - [Agent Catalog](#agent-catalog)
@@ -318,7 +317,7 @@ The orchestrator runs the same evaluation pipeline across all candidates, produc
 
 ---
 
-## Lifecycle Commands
+## Lifecycle Skills
 
 Six lifecycle skills that map to the development lifecycle. Claude Code runs them as slash commands. Each one activates the right agents and quality gates automatically.
 

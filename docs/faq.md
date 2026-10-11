@@ -38,13 +38,13 @@ Yes. Run these two commands inside Copilot CLI. No restart is needed. See [insta
 
 ### Are the lifecycle skills available in Copilot CLI?
 
-They ship as skills. The six lifecycle skills (`spec`, `plan`, `build`, `test`, `review`, `ship`) are in both bundles, along with agents, the session protocol, and review gates. Claude Code runs them as slash commands (`/spec` to `/ship`). The README [What You Get](../README.md#what-you-get) table lists them as skills for Copilot CLI. [when-to-use.md](when-to-use.md) maps task shapes to lifecycle phases.
+Yes. The six lifecycle skills (`spec`, `plan`, `build`, `test`, `review`, `ship`) ship in both bundles, along with agents, the session protocol, and review gates. In Claude Code you run them as slash commands (`/spec` to `/ship`). In Copilot CLI, GitHub's [skills docs](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/create-skills) say to name the skill with a forward slash in your prompt, for example `Use /plan to break this feature into milestones`. [when-to-use.md](when-to-use.md) maps task shapes to lifecycle phases.
 
 ## Requirements and cost
 
 ### What does it require?
 
-Claude Code or GitHub Copilot CLI with plugin marketplace support. The `project-toolkit` plugin registers no hooks for either CLI (ADR-097), so no hook runtime runs in your session. Some skills run Python scripts, and those skills need Python on PATH. Python 3.14.x is a contributor requirement for this repository.
+Claude Code or GitHub Copilot CLI with plugin marketplace support. The `project-toolkit` plugin registers no hooks for either CLI (ADR-097), so no hook runtime runs in your session. Some skills run Python scripts, and those skills need Python on PATH (`py` on Windows). Skills declare no shared minimum version; a script can declare its own, and `github/scripts/pr/new_pr.py` declares 3.14 or later. To contribute to this repository, see [CONTRIBUTING.md](../CONTRIBUTING.md#prerequisites).
 
 ### Is it free?
 
