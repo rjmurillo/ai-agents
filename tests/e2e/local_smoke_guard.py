@@ -61,6 +61,8 @@ class GuardedPopen(subprocess.Popen):  # type: ignore[type-arg]
 
     def __init__(self, args: Any, *rest: Any, **kwargs: Any) -> None:
         refuse_copilot(args)
+        if kwargs.get("executable") is not None:
+            refuse_copilot([kwargs["executable"]])
         super().__init__(args, *rest, **kwargs)
 
 

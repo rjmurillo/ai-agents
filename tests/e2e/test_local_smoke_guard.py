@@ -67,6 +67,16 @@ def test_installed_guard_stops_run_before_the_process_starts(
         subprocess.run(["copilot", "--version"], check=False)
 
 
+def test_installed_guard_checks_the_executable_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Edge: ``executable=`` names the real program, whatever ``args[0]`` says."""
+    guard.install(monkeypatch.setattr)
+
+    with pytest.raises(guard.CopilotCallRefusedError):
+        subprocess.run(["harmless"], executable="/usr/bin/copilot", check=False)
+
+
 def test_installed_guard_still_starts_other_programs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
