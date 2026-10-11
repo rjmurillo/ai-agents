@@ -20,6 +20,19 @@ a slowdown in that module is not flagged on the pull request that made it.
 The suite baseline is the sum of per-module medians over the comparable
 modules, not a median of whole-run totals, because whole runs differ in which
 modules they selected.
+
+A module is flagged against the larger of its scaled median and the upper
+quartile of its samples. A module's seconds on main are bimodal:
+``tests/validation/test_baseline_integrity.py`` ran 22.9s to
+25.7s on 21 of 29 main runs and 12.8s to 17.5s on 7 (issue #6244). When the
+fast runs fill the window the median drops toward the fast mode, and an
+ordinary run on the slow mode then reads as 1.5x. The upper quartile sits on
+the slow mode while fewer than three quarters of the samples are fast. Replayed
+over the 30 main snapshots recorded 2026-10-08 to 2026-10-11, the median rule
+flagged 8 modules on 6 of 27 runs and the upper-quartile rule flagged 5 on 5,
+both without partition scaling. The three it dropped sit inside the range main
+recorded on later runs. The five it kept are the two slowdowns that PR #6261
+and PR #6267 went on to fix.
 """
 
 from __future__ import annotations
@@ -76,6 +89,13 @@ def module_baseline(module: str, ids: str, history: list[Snapshot]) -> list[floa
     ]
 
 
+def upper_quartile(samples: list[float]) -> float:
+    """The 75th percentile of ``samples``, interpolated; one sample is its own quartile."""
+    if len(samples) == 1:
+        return samples[0]
+    return statistics.quantiles(samples, n=4, method="inclusive")[2]
+
+
 def regressed(seconds: float, baseline: float, ratio: float, min_delta: float) -> bool:
     """Both thresholds must hold, so runner jitter on a fast module does not count."""
     return seconds - baseline >= min_delta and seconds >= baseline * ratio
@@ -101,12 +121,14 @@ def compare(current: Snapshot, history: list[Snapshot], limits: Thresholds) -> C
     """Measure every comparable module, and their sum, against the history median."""
     result = Comparison()
     baselines: dict[str, float] = {}
+    quartiles: dict[str, float] = {}
     sample_counts: dict[str, int] = {}
     for module, entry in current.modules.items():
         samples = module_baseline(module, entry["ids"], history)
         if not samples:
             continue
         baselines[module] = statistics.median(samples)
+        quartiles[module] = upper_quartile(samples)
         sample_counts[module] = len(samples)
         result.comparable += 1
         result.seconds += entry["seconds"]
@@ -116,7 +138,8 @@ def compare(current: Snapshot, history: list[Snapshot], limits: Thresholds) -> C
     scaled = scaled_baselines(current, baselines, result.speeds)
     for module, baseline in baselines.items():
         seconds = current.modules[module]["seconds"]
-        if regressed(seconds, scaled[module], limits.module_ratio, limits.module_min_delta):
+        reference = max(scaled[module], quartiles[module])
+        if regressed(seconds, reference, limits.module_ratio, limits.module_min_delta):
             result.modules.append(Regression(module, seconds, baseline, sample_counts[module]))
     result.modules += _slow_partitions(current, baselines, sample_counts, result.speeds)
     result.modules.sort(key=lambda r: (-(r.seconds - r.baseline), r.name))

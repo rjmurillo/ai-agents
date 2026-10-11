@@ -15,9 +15,15 @@ and ``--suite-min-delta`` pair. ``duration_compare.py`` defines "comparable".
 ``--write-history`` appends this run's snapshot to the history, keeping the
 newest ``--max-history`` entries. It may name the same file as ``--history``.
 
-Exit codes: 0 ok (no regression, or no baseline yet), 1 logic (a regression,
-or no test records), 2 config (bad arguments, or a report declaring a DTD or
-entity), 3 external (unreadable input, or an output that cannot be written).
+A regression fails the run only on a push to main. ``--event`` and ``--ref``
+name the run; any other event or ref, such as a pull request, reports the
+regression as a warning and exits 0, because runner timing noise must not block
+a merge (issue #6244). With neither flag the run is enforced, as on main.
+
+Exit codes: 0 ok (no regression, no baseline yet, or an advisory run), 1 logic
+(a regression on an enforced run, or no test records), 2 config (bad arguments,
+or a report declaring a DTD or entity), 3 external (unreadable input, or an
+output that cannot be written).
 """
 
 from __future__ import annotations
@@ -63,7 +69,20 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--module-min-delta", type=_positive, default=10.0)
     parser.add_argument("--suite-ratio", type=_positive, default=1.25)
     parser.add_argument("--suite-min-delta", type=_positive, default=60.0)
+    parser.add_argument("--event", help="Event that started the run (GITHUB_EVENT_NAME).")
+    parser.add_argument("--ref", help="Ref the run measured (GITHUB_REF).")
     return parser
+
+
+ENFORCED_EVENT = "push"
+ENFORCED_REF = "refs/heads/main"
+
+
+def is_enforced(event: str | None, ref: str | None) -> bool:
+    """True when a regression fails the run: a push to main, or no run named."""
+    if event is None and ref is None:
+        return True
+    return event == ENFORCED_EVENT and ref == ENFORCED_REF
 
 
 def _write_outputs(args: argparse.Namespace, snapshot: Snapshot,
@@ -100,6 +119,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                         args.suite_ratio, args.suite_min_delta)
     comparison = compare(snapshot, history, limits)
     report = duration_render.render_markdown(snapshot, history, comparison, args.top, note)
+    regressed = len(comparison.modules) + (1 if comparison.suite else 0)
+    advisory = bool(regressed) and not is_enforced(args.event, args.ref)
+    if advisory:
+        report += (f"\nAdvisory run ({args.event} on {args.ref}): only a push to "
+                   f"`{ENFORCED_REF}` fails on a duration regression.\n")
     try:
         _write_outputs(args, snapshot, history, report)
     except OSError as exc:
@@ -108,10 +132,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(report)
     for line in duration_render.warning_commands(comparison):
         print(line)
-    regressed = len(comparison.modules) + (1 if comparison.suite else 0)
     print(f"duration: {regressed} regressions in {comparison.comparable} comparable "
           f"modules, {len(snapshot.modules)} modules measured", file=sys.stderr)
-    return 1 if regressed else 0
+    if not advisory:
+        return 1 if regressed else 0
+    print(f"duration: advisory on event={args.event} ref={args.ref}; only a push to "
+          f"{ENFORCED_REF} fails on a regression", file=sys.stderr)
+    return 0
 
 
 if __name__ == "__main__":

@@ -594,7 +594,10 @@ jobs:
   # writes per-partition wall time and the slowest modules to the job summary,
   # and compares per-module seconds with the median of earlier main runs. A
   # module or the suite that crosses both the ratio and the seconds threshold
-  # fails this job and raises a warning annotation. A leg slower than 480 s (80
+  # raises a warning annotation. It fails this job only on a push to main; on a
+  # pull request, branch push, or merge queue run the script exits 0, because a
+  # non-required red check still blocks the merge tool (issue 6244). A leg
+  # slower than 480 s (80
   # percent of the test job timeout) fails the coverage job instead, which the
   # required check depends on. The history rides in the
   # Actions cache, saved only from pushes to main, so a pull request reads the
@@ -676,6 +679,8 @@ jobs:
         if: "!cancelled()"
         env:
           RUN_SHA: ${{ github.sha }}
+          RUN_EVENT: ${{ github.event_name }}
+          RUN_REF: ${{ github.ref }}
           HISTORY_KEY: ${{ steps.restore-history.outputs.cache-matched-key }}
         run: >-
           echo "history restored from cache key: ${HISTORY_KEY:-none}" &&
@@ -685,6 +690,8 @@ jobs:
           --write-history test-durations/history.json
           --snapshot-out test-durations/snapshot.json
           --sha "$RUN_SHA"
+          --event "$RUN_EVENT"
+          --ref "$RUN_REF"
           --summary "$GITHUB_STEP_SUMMARY"
 
       # The script writes the history even when it reports a regression, so

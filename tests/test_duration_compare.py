@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.testing.duration_compare import Thresholds, compare
+from scripts.testing.duration_compare import Thresholds, compare, upper_quartile
 from scripts.testing.duration_history import load_history
 from scripts.testing.duration_snapshot import Snapshot, build_snapshot
 from tests.duration_test_helpers import DEFAULT_LIMITS, NOW, write_history, write_junit
@@ -94,3 +94,34 @@ def test_a_replaced_test_with_the_same_count_is_not_compared(tmp_path: Path) -> 
 
     assert result.comparable == 0
     assert result.modules == [] and result.suite is None
+
+
+def test_upper_quartile_of_one_sample_is_that_sample() -> None:
+    assert upper_quartile([7.0]) == 7.0
+
+
+def test_upper_quartile_interpolates_between_samples() -> None:
+    assert upper_quartile([10.0, 12.0]) == 11.5
+    assert upper_quartile([12.0, 13.0, 24.0, 24.0, 25.0]) == 24.0
+
+
+def test_a_slow_mode_run_against_a_fast_median_is_not_a_regression(tmp_path: Path) -> None:
+    # Issue #6244: three fast samples drag the median to 18.5s. A 31s run is
+    # 1.68x that median but only 1.29x the 24s upper quartile, so it is not flagged.
+    history, _ = load_history(write_history(tmp_path, [12.0, 13.0, 13.0, 24.0, 24.0, 25.0]))
+
+    result = compare(_alpha(tmp_path, [15.5, 15.5]), history, DEFAULT_LIMITS)
+
+    assert result.baseline == 18.5
+    assert result.modules == []
+
+
+def test_a_run_past_the_upper_quartile_by_both_thresholds_still_regresses(
+    tmp_path: Path,
+) -> None:
+    history, _ = load_history(write_history(tmp_path, [12.0, 13.0, 13.0, 24.0, 24.0, 25.0]))
+
+    result = compare(_alpha(tmp_path, [20.0, 20.0]), history, DEFAULT_LIMITS)
+
+    assert [(r.name, r.seconds, r.baseline) for r in result.modules] == [
+        ("tests/test_alpha.py", 40.0, 18.5)]

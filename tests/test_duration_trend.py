@@ -94,3 +94,58 @@ def test_the_script_runs_under_a_bare_interpreter_from_another_directory(tmp_pat
 
     assert result.returncode == 0, result.stderr
     assert "1 tests, 1.0 test seconds across 1 partitions." in result.stdout
+
+
+@pytest.mark.parametrize(
+    ("event", "ref"),
+    [("pull_request", "refs/pull/6244/merge"),
+     ("push", "refs/heads/feature"),
+     ("merge_group", "refs/heads/main"),
+     ("workflow_dispatch", "refs/heads/main")],
+)
+def test_a_regression_outside_a_push_to_main_warns_and_exits_zero(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], event: str, ref: str
+) -> None:
+    report = write_junit(tmp_path, "p", {"tests.test_alpha": [20.0, 20.0]}, 40.0)
+    history = str(write_history(tmp_path, [10.0, 12.0]))
+
+    summary = tmp_path / "summary.md"
+
+    rc = trend.main([str(report), "--history", history, "--event", event, "--ref", ref,
+                     "--summary", str(summary)])
+
+    assert rc == 0
+    assert f"Advisory run ({event} on {ref})" in summary.read_text(encoding="utf-8")
+    captured = capsys.readouterr()
+    assert "::warning title=Test duration regression::tests/test_alpha.py" in captured.out
+    assert f"duration: advisory on event={event} ref={ref}" in captured.err
+
+
+def test_a_regression_on_a_push_to_main_exits_one(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    report = write_junit(tmp_path, "p", {"tests.test_alpha": [20.0, 20.0]}, 40.0)
+    history = str(write_history(tmp_path, [10.0, 12.0]))
+
+    summary = tmp_path / "summary.md"
+
+    rc = trend.main([str(report), "--history", history, "--summary", str(summary),
+                     "--event", "push", "--ref", "refs/heads/main"])
+
+    assert rc == 1
+    assert "Advisory run" not in summary.read_text(encoding="utf-8")
+    assert "advisory" not in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("event", "ref", "enforced"),
+    [(None, None, True),
+     ("push", "refs/heads/main", True),
+     ("push", None, False),
+     (None, "refs/heads/main", False),
+     ("pull_request", "refs/heads/main", False)],
+)
+def test_only_a_push_to_main_or_an_unnamed_run_is_enforced(
+    event: str | None, ref: str | None, enforced: bool
+) -> None:
+    assert trend.is_enforced(event, ref) is enforced
