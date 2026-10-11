@@ -56,6 +56,8 @@ CHECK_NAME = "Validate Spec Coverage"
 ACCEPTANCE_HEADING = "## Acceptance criteria"
 _DISPATCH_EVENT = "workflow_dispatch"
 _FETCH_TIMEOUT_SECONDS = 60
+# GitHub shows about ten annotations per step. Leave room for the verdict line.
+_MAX_ITEM_ANNOTATIONS = 8
 
 
 @dataclass(frozen=True)
@@ -144,12 +146,29 @@ def _format_summary(verdict: Verdict) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _escape_annotation(text: str) -> str:
+    """Escape text for a workflow command: ``%``, CR, and LF (GitHub's rules)."""
+    return text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+
+
 def _write_summary(text: str) -> None:
+    """Append to the step summary. A write failure warns and never changes the verdict."""
     path = os.environ.get("GITHUB_STEP_SUMMARY", "")
     if not path:
         return
-    with open(path, "a", encoding="utf-8") as handle:
-        handle.write(text)
+    try:
+        with open(path, "a", encoding="utf-8") as handle:
+            handle.write(text)
+    except OSError as exc:
+        print(f"::warning::could not write the step summary: {exc}", file=sys.stderr)
+
+
+def _annotate_unchecked(unchecked: list[str]) -> None:
+    for item in unchecked[:_MAX_ITEM_ANNOTATIONS]:
+        print(f"::error::{_escape_annotation('Unchecked acceptance criterion: ' + item)}")
+    hidden = len(unchecked) - _MAX_ITEM_ANNOTATIONS
+    if hidden > 0:
+        print(f"::error::{hidden} more unchecked criteria are listed in the step summary.")
 
 
 def _report(verdict: Verdict) -> None:
@@ -157,30 +176,37 @@ def _report(verdict: Verdict) -> None:
     print(f"{CHECK_NAME}: {label}. {verdict.reason}")
     for item in verdict.unchecked:
         print(f"  unchecked: {item}")
-        if not verdict.passed:
-            print(f"::error::Unchecked acceptance criterion: {item}")
+    _annotate_unchecked(verdict.unchecked)
     if not verdict.passed:
-        print(f"::error::{CHECK_NAME}: {verdict.reason}")
+        print(f"::error::{_escape_annotation(f'{CHECK_NAME}: {verdict.reason}')}")
     _write_summary(_format_summary(verdict))
 
 
-def run(_argv: list[str] | None = None) -> int:
+def _config_error(message: str) -> int:
+    """Report a config error on stderr and in a one-line step summary."""
+    print(f"::error::{_escape_annotation(message)}", file=sys.stderr)
+    _write_summary(f"### {CHECK_NAME}: ERROR\n\n{message}\n")
+    return EXIT_CONFIG
+
+
+def run() -> int:
     """Read the environment, decide, report, and return the exit code."""
     has_specs = _parse_has_specs(os.environ.get("HAS_SPECS", ""))
     if has_specs is None:
-        print(
-            '::error::HAS_SPECS must be "true" or "false"; the Extract Spec '
-            "References step did not emit it.",
-            file=sys.stderr,
+        return _config_error(
+            'HAS_SPECS must be "true" or "false"; the Extract Spec '
+            "References step did not emit it."
         )
-        return EXIT_CONFIG
     body = os.environ.get("PR_BODY", "")
     if not body and os.environ.get("EVENT_NAME", "") == _DISPATCH_EVENT:
         fetched = _fetch_body(
             os.environ.get("PR_NUMBER", ""), os.environ.get("GITHUB_REPOSITORY", "")
         )
         if fetched is None:
-            return EXIT_CONFIG
+            return _config_error(
+                "Could not read the pull request body for this workflow_dispatch "
+                "run; see the log for the gh error."
+            )
         body = fetched
     verdict = decide(has_specs, body)
     _report(verdict)

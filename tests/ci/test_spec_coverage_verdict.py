@@ -160,6 +160,85 @@ class TestRun:
         mock_run.assert_not_called()
 
 
+class TestAnnotationsAndSummary:
+    def test_item_annotations_are_capped_with_a_remainder_line(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        body = "## Acceptance criteria\n" + "".join(f"- [ ] item {n}\n" for n in range(12))
+        monkeypatch.setenv("HAS_SPECS", "true")
+        monkeypatch.setenv("PR_BODY", body)
+        assert run() == EXIT_FAIL
+        out = capsys.readouterr().out
+        assert out.count("::error::Unchecked acceptance criterion:") == 8
+        assert "item 7" in out
+        assert "::error::Unchecked acceptance criterion: item 8" not in out
+        assert "::error::4 more unchecked criteria are listed in the step summary." in out
+        assert out.count("  unchecked: ") == 12
+
+    def test_exactly_the_cap_has_no_remainder_line(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        body = "## Acceptance criteria\n" + "".join(f"- [ ] item {n}\n" for n in range(8))
+        monkeypatch.setenv("HAS_SPECS", "true")
+        monkeypatch.setenv("PR_BODY", body)
+        run()
+        assert "more unchecked" not in capsys.readouterr().out
+
+    def test_annotation_text_escapes_percent_and_line_breaks(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        monkeypatch.setenv("HAS_SPECS", "true")
+        monkeypatch.setenv("PR_BODY", "## Acceptance criteria\n- [ ] 100% done\r\n")
+        run()
+        out = capsys.readouterr().out
+        assert "::error::Unchecked acceptance criterion: 100%25 done" in out
+        assert "\r" not in out
+
+    def test_escape_covers_all_three_characters(self) -> None:
+        assert verdict_module._escape_annotation("a%b\rc\nd") == "a%25b%0Dc%0Ad"
+
+    def test_summary_write_failure_warns_and_keeps_the_exit_code(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(tmp_path / "missing" / "s.md"))
+        monkeypatch.setenv("HAS_SPECS", "true")
+        monkeypatch.setenv("PR_BODY", ONE_UNCHECKED)
+        assert run() == EXIT_FAIL
+        assert "::warning::could not write the step summary" in capsys.readouterr().err
+
+    def test_summary_write_failure_does_not_fail_a_passing_run(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(tmp_path))
+        monkeypatch.setenv("HAS_SPECS", "false")
+        assert run() == EXIT_OK
+
+    def test_config_error_writes_a_one_line_summary(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        summary = tmp_path / "summary.md"
+        monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+        monkeypatch.setenv("HAS_SPECS", "maybe")
+        assert run() == EXIT_CONFIG
+        text = summary.read_text(encoding="utf-8")
+        assert "Validate Spec Coverage: ERROR" in text
+        assert "HAS_SPECS" in text
+
+    def test_fetch_failure_writes_a_one_line_summary(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        summary = tmp_path / "summary.md"
+        monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+        monkeypatch.setenv("HAS_SPECS", "true")
+        monkeypatch.setenv("EVENT_NAME", "workflow_dispatch")
+        with patch.object(verdict_module.subprocess, "run", side_effect=OSError("x")):
+            assert run() == EXIT_CONFIG
+        assert "Could not read the pull request body" in summary.read_text(encoding="utf-8")
+
+
 class TestDispatchFetch:
     def _env(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("HAS_SPECS", "true")
