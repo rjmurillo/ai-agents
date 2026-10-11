@@ -244,3 +244,23 @@ def test_acceptance_heading_inside_a_comment_or_fence_is_not_a_section() -> None
 def test_fenced_unchecked_box_does_not_fail_the_report() -> None:
     body = "## Acceptance\n- [x] real\n```\n- [ ] example\n```\n"
     assert ac.evaluate(body).passed
+
+
+def test_fence_line_with_an_info_string_does_not_close_the_fence() -> None:
+    body = "## Acceptance\n```\n```python\n- [ ] example\n```\n- [x] real\n"
+    assert [c.text for c in ac.parse_criteria(body)] == ["real"]
+
+
+def test_closing_fence_may_carry_trailing_whitespace() -> None:
+    body = "## Acceptance\n```\n- [ ] hidden\n```   \n- [x] real\n"
+    assert [c.text for c in ac.parse_criteria(body)] == ["real"]
+
+
+def test_unclosed_html_comment_hides_the_rest() -> None:
+    body = "## Acceptance\n- [x] a\n<!-- never closed\n- [ ] hidden\n"
+    assert [c.text for c in ac.parse_criteria(body)] == ["a"]
+
+
+def test_closed_comment_followed_by_text_still_shows_text() -> None:
+    body = "## Acceptance\n<!-- c --> \n- [x] a\n"
+    assert [c.text for c in ac.parse_criteria(body)] == ["a"]

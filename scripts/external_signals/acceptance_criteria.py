@@ -38,8 +38,9 @@ _ACCEPTANCE_HEADING = re.compile(
 )
 _ANY_HEADING = re.compile(r"^(?P<hashes>#{1,6})\s+\S", re.MULTILINE)
 _CHECKBOX = re.compile(r"^\s*[-*]\s*\[(?P<mark>[ xX])\]\s+(?P<text>.+?)\s*$")
-_FENCE = re.compile(r"^ {0,3}(?P<run>`{3,}|~{3,})")
-_HTML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
+_FENCE = re.compile(r"^ {0,3}(?P<run>`{3,}|~{3,})(?P<info>.*)$")
+# An unclosed comment runs to the end of the text, as Markdown renders it.
+_HTML_COMMENT = re.compile(r"<!--.*?(?:-->|\Z)", re.DOTALL)
 
 
 @dataclass(frozen=True)
@@ -78,7 +79,9 @@ def _blank_fenced_lines(body: str) -> str:
     """Replace lines inside ``` or ~~~ fences (and the fences) with empty lines.
 
     A fence closes on a run of the same character at least as long as the
-    opener. An unclosed fence hides the rest of the body, as Markdown renders it.
+    opener, followed only by whitespace: a line such as ```python is an opening
+    fence, never a closer. An unclosed fence hides the rest of the body, as
+    Markdown renders it.
     """
 
     out: list[str] = []
@@ -90,6 +93,7 @@ def _blank_fenced_lines(body: str) -> str:
                 match is not None
                 and match.group("run")[0] == opener[0]
                 and len(match.group("run")) >= len(opener)
+                and not match.group("info").strip()
             )
             if closes:
                 opener = ""
@@ -103,7 +107,10 @@ def _blank_fenced_lines(body: str) -> str:
 
 
 def _blank_html_comments(text: str) -> str:
-    """Remove ``<!-- -->`` comments, keeping their newlines so line count holds."""
+    """Remove ``<!-- -->`` comments, keeping their newlines so line count holds.
+
+    An unclosed ``<!--`` hides the rest of the text.
+    """
 
     return _HTML_COMMENT.sub(lambda m: "\n" * m.group(0).count("\n"), text)
 
