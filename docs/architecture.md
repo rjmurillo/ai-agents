@@ -111,10 +111,10 @@ Users install plugins with `/plugin install <plugin-name>@ai-agents` after regis
 | Agent location | `src/claude/` | `src/copilot-cli/` | `src/vs-code-agents/` |
 | File format | `.md` (no frontmatter) | `.agent.md` (with frontmatter) | `.agent.md` (with frontmatter) |
 | Invocation | `Task(subagent_type="...")` | `--agent` flag or `/agent` | `@agent` in Copilot Chat |
-| Skills | Yes (49 skills in `.claude/skills/`) | No | No |
-| Hooks | Yes (`.claude/hooks/`) | No | No |
+| Skills | Yes (109 in `src/claude/skills/`) | Yes (108 in `src/copilot-cli/skills/`) | No |
+| Plugin hooks | None registered (ADR-097) | None registered (ADR-097) | No |
 
-Claude Code has the richest integration because it supports skills and hooks in addition to agents.
+Claude Code and Copilot CLI both get agents and skills from the `project-toolkit` plugin. Claude Code also runs the six lifecycle skills as slash commands (`/spec` to `/ship`). Neither plugin registers hooks: `src/claude/hooks.json` and `src/copilot-cli/hooks/hooks.json` both hold `"hooks": {}`. Contributors to this repository get the hooks in `.claude/hooks/` through `.claude/settings.json`.
 
 ## Agent Communication
 
