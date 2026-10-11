@@ -1536,6 +1536,7 @@ class TestBaselineSuppression:
 
     def test_load_baseline_json_list(self, tmp_path):
         bl = tmp_path / "baseline.json"
+        # citation-freshness: ignore -- baseline entry test data, not a file citation
         bl.write_text(json.dumps(["docs/a.md:1:skill_name:gamma-skill"]), encoding="utf-8")
         assert load_baseline(bl) == {"docs/a.md:1:skill_name:gamma-skill"}
 

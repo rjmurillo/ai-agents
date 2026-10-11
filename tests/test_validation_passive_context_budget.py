@@ -353,6 +353,7 @@ class TestMain:
                 "--format",
                 "json",
                 "--budget",
+                # citation-freshness: ignore -- CLI budget argument, not a file citation
                 "AGENTS.md:2000",
             ]
         )
