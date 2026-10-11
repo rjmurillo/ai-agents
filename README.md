@@ -14,7 +14,30 @@ Built for platform teams, engineering managers, and organizations that want AI-a
 ![Pester Tests](https://github.com/rjmurillo/ai-agents/actions/workflows/pester-tests.yml/badge.svg)
 ![CodeQL Analysis](https://github.com/rjmurillo/ai-agents/actions/workflows/codeql-analysis.yml/badge.svg)
 
-![Fastest Start demo](https://github.com/rjmurillo/ai-agents/assets/TODO-record-gif-before-v0.2)
+## Why AI Agents
+
+- **Orchestrated specialists.** An orchestrator routes work to specialist agents (analyst, architect, milestone-planner, implementer, critic, qa, security, devops) with explicit handoffs.
+- **Plan-to-ship lifecycle.** Six commands cover the path in Claude Code: `/spec`, `/plan`, `/build`, `/test`, `/review`, `/ship`.
+- **Review gates that loop back.** The critic returns APPROVED, APPROVED_WITH_CONCERNS, NEEDS_REVISION, or BLOCKED. NEEDS_REVISION sends the plan back to the planner. A QA failure sends the work back to the implementer.
+- **One marketplace URL, two CLIs.** The same repository URL installs as a plugin marketplace in Claude Code and in GitHub Copilot CLI.
+- **VS Code Copilot Chat support.** Agents also load in VS Code Copilot Chat from `.github/agents/`.
+- **MIT licensed.**
+
+## Is AI Agents right for you?
+
+**Good fit:**
+
+- You want governed plan, build, review, and ship stages in Claude Code or GitHub Copilot CLI.
+- You want a critic, QA, and security agent to check work before it merges.
+- Your team uses both Claude Code and Copilot CLI and wants one toolkit for both.
+
+**Not a fit:**
+
+- You only want a single-agent assistant. Claude Code or Copilot CLI alone covers that.
+- You need Gemini CLI or Codex CLI. This README documents Claude Code, GitHub Copilot CLI, and VS Code Copilot Chat only.
+- You want a tmux-driven pipeline across many CLIs. [AgentMux](https://github.com/markuswondrak/AgentMux) is an option there.
+
+More answers: [FAQ](docs/faq.md). Copilot CLI install: [docs/installation.md](docs/installation.md#github-copilot-cli). Which lifecycle phases fit which task: [docs/when-to-use.md](docs/when-to-use.md). Every agent: [docs/agent-catalog.md](docs/agent-catalog.md).
 
 ---
 
@@ -82,6 +105,8 @@ Specialized agent roles include analyst, architect, implementer, QA, security, d
 ## Table of Contents
 
 - [AI Agents: Multi-Agent Toolkit for Claude Code and GitHub Copilot CLI](#ai-agents-multi-agent-toolkit-for-claude-code-and-github-copilot-cli)
+  - [Why AI Agents](#why-ai-agents)
+  - [Is AI Agents right for you?](#is-ai-agents-right-for-you)
   - [Fastest Start](#fastest-start)
     - [What You Get](#what-you-get)
     - [Troubleshooting](#troubleshooting)
@@ -402,7 +427,7 @@ Both bundles include every agent. `spec-generator` is now a skill (issue #2001),
 | **dependency-auditor** | Audit dependencies for vulnerabilities, outdated versions, and deprecations | Prioritized supply-chain risk report | both |
 | **milestone-planner** | Milestones and work packages | Implementation plans with acceptance criteria | both |
 | **implementer** | Production code and tests | Code, tests, commits | both |
-| **critic** | Plan stress-testing, gap identification | Verdicts: APPROVE / APPROVE WITH CONDITIONS / REJECT | both |
+| **critic** | Plan stress-testing, gap identification | Verdicts: APPROVED / APPROVED_WITH_CONCERNS / NEEDS_REVISION / BLOCKED | both |
 | **qa** | Test strategy and verification | Test reports, coverage analysis | both |
 | **security** | Threat modeling, vulnerability assessment | Threat matrices with CWE/CVSS ratings | both |
 | **silent-failure-hunter** | Audit error handling and fallback behavior for silent failures | Evidence-backed findings and remediation | both |
@@ -536,6 +561,7 @@ This project uses a **template-based generation system**. To modify agents:
 | Document | Description |
 |----------|-------------|
 | [docs/getting-started.md](docs/getting-started.md) | Step-by-step setup guide |
+| [docs/faq.md](docs/faq.md) | Short answers on install, platforms, agent count, review gates, and requirements |
 | [docs/agent-catalog.md](docs/agent-catalog.md) | All agents with capabilities and examples |
 | [docs/skill-reference.md](docs/skill-reference.md) | All skills with usage descriptions |
 | [docs/architecture.md](docs/architecture.md) | Plugin structure, template system, design decisions |

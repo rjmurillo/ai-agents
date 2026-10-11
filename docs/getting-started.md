@@ -60,7 +60,7 @@ The fastest method uses the built-in plugin marketplace. Run the commands below 
 
 The Copilot CLI flow also works from a regular shell: `copilot plugin marketplace add rjmurillo/ai-agents` then `copilot plugin install project-toolkit@ai-agents`.
 
-This installs the full toolkit for your platform. The Claude bundle ships 23 agents, 23 commands, 29 hooks, and 69 skills. The Copilot bundle ships 24 agents, 28 hooks, and 81 skills. For selective installation (agents only, etc.), see [docs/installation.md](installation.md).
+This installs the full toolkit for your platform. Both bundles ship all 30 agents, plus hooks and skills generated from the same sources. See [Verify Installation](../README.md#verify-installation) for the exact counts in your install. For selective installation (agents only, etc.), see [docs/installation.md](installation.md).
 
 ## Step 2: Understand the Workflow
 
@@ -184,7 +184,7 @@ Each agent produces structured output specific to its role:
 |-------|---------------|
 | analyst | Findings with evidence and feasibility assessment |
 | architect | Design assessment rated Strong/Adequate/Needs-Work |
-| critic | Verdict: APPROVE, APPROVE WITH CONDITIONS, or REJECT |
+| critic | Verdict: APPROVED, APPROVED_WITH_CONCERNS, NEEDS_REVISION, or BLOCKED |
 | implementer | Code, tests, and atomic commits |
 | qa | Test reports with coverage analysis |
 | security | Threat matrix with CWE/CVSS ratings |

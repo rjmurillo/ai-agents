@@ -82,7 +82,7 @@ Register the marketplace once:
 
 | Component | Install Command | What You Get |
 |-----------|----------------|--------------|
-| Copilot full toolkit | `/plugin install project-toolkit@ai-agents` | 24 agents, 28 hooks, 81 skills from `src/copilot-cli/` |
+| Copilot full toolkit | `/plugin install project-toolkit@ai-agents` | Agents, hooks, and skills from `src/copilot-cli/` |
 
 ## Installation Paths
 
