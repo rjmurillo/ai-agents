@@ -49,9 +49,12 @@ personal preference.
   behavior (`returns_empty_when_no_rows`). Mock only at I/O and process
   boundaries; never mock the function under test.
 - Pin the interpreter and dependencies. Do not rely on the system Python.
-- **Run `ruff format`; `ruff format --check` is a blocking gate.**
-  CI and lefthook both run it and the tree conforms. Issue #5304 and
-  `tests/validation/test_ruff_format_enforced.py` pin the premise.
+- **Run `uv run --frozen --extra dev ruff format <files>`; `ruff format --check`
+  is a blocking gate.** That locked command uses CI's pinned ruff, because
+  pyproject only sets a floor. CI runs `--check .` over the tree, and the
+  lefthook `python-format` hook runs `--check` only, so run the formatter
+  before committing. Issue #5304 and `tests/validation/test_ruff_format_enforced.py`
+  pin the premise.
 
 ## Errors
 

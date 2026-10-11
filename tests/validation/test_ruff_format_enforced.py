@@ -85,8 +85,9 @@ def test_required_enforcement_surface_invokes_ruff_format(surface: str) -> None:
 
     assert _invocations(text), (
         f"{surface} no longer invokes `ruff format`, so the Tooling section of "
-        ".claude/rules/python.md ('Run `ruff format`; `ruff format --check` is a "
-        "blocking gate.') is false. Restore the gate or rewrite that rule."
+        ".claude/rules/python.md ('Run the locked `ruff format` command; "
+        "`ruff format --check` is a blocking gate.') is false. Restore the gate "
+        "or rewrite that rule."
     )
 
 
@@ -190,7 +191,7 @@ def test_python_rule_still_carries_the_instruction_this_module_backs() -> None:
     """
     text = " ".join(PYTHON_RULE.read_text(encoding="utf-8").split())
 
-    assert "Run `ruff format`" in text
+    assert "`uv run --frozen --extra dev ruff format <files>`" in text
     assert "`ruff format --check` is a blocking gate" in text
     assert Path(__file__).name in text, (
         "python.md should point at this module so a reader who changes the rule "
