@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size (ruff format pushed this file past 500 lines)
 """Tests for get_pr_review_comments.py skill script."""
 
 from __future__ import annotations

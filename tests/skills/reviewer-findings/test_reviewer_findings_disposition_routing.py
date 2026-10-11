@@ -21,6 +21,7 @@ and the evidence-bearing reply template carries every required field.
 from __future__ import annotations
 
 import importlib.util
+import re
 from pathlib import Path
 
 # pytest here runs under --import-mode=importlib (pyproject.toml), which never
@@ -162,7 +163,9 @@ class TestPremiseDispositionRouting:
         workflow = _read_reference(plugin_root, ROUTER_SKILL, "workflow.md")
         phase3 = _workflow_phase_section(workflow, "3")
         check_pos = phase3.find("grep -n -F")
-        delegate_pos = phase3.find("Task(subagent_type=")
+        # `\s*` tolerates ruff format wrapping the call onto one argument per line.
+        delegate_match = re.search(r"Task\(\s*subagent_type=", phase3)
+        delegate_pos = delegate_match.start() if delegate_match else -1
         assert check_pos != -1, (
             f"{ROUTER_SKILL}/references/workflow.md in {plugin_root} Phase 3 "
             f"no longer names the premise-verification command"

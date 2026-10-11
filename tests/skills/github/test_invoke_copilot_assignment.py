@@ -119,7 +119,9 @@ class TestHelpers:
         comments = [
             {
                 "user": {"login": "bot"},
-                "body": "<!-- AI-ISSUE-TRIAGE -->\n| **Priority** | `P1` |\n| **Category** | `bug` |",
+                "body": (
+                    "<!-- AI-ISSUE-TRIAGE -->\n| **Priority** | `P1` |\n| **Category** | `bug` |"
+                ),
             }
         ]
         result = mod._get_ai_triage_info(comments, "<!-- AI-ISSUE-TRIAGE -->")

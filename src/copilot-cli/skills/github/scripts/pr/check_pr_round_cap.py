@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size (ruff format pushed this file past 500 lines)
 """Per-PR round/time circuit breaker for pr-autofix's T3/T4 thread loop (issue #5056).
 
 pr-autofix's thread-lifecycle loop (Phase 2, T3/T4 of the pr-autofix skill in

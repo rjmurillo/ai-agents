@@ -711,17 +711,17 @@ _INTRO = (
     "\n"
     "_HANDLER = YAMLHandler()\n"
     "\n"
-    "for path in sorted(pathlib.Path('.project-toolkit/architecture').glob('ADR-[0-9]*.md')):\n"
-    "    text = path.read_text(encoding='utf-8')\n"
+    'for path in sorted(pathlib.Path(".project-toolkit/architecture").glob("ADR-[0-9]*.md")):\n'
+    '    text = path.read_text(encoding="utf-8")\n'
     "    if not _HANDLER.detect(text):\n"
     "        continue  # no frontmatter: see Needs backfill below\n"
     "    try:\n"
     "        raw, _body = _HANDLER.split(text)\n"
     "    except ValueError:\n"
-    "        raise ValueError(f'{path.name}: opens with --- but never closes it')\n"
+    '        raise ValueError(f"{path.name}: opens with --- but never closes it")\n'
     "    front = yaml.safe_load(raw) or {}\n"
-    "    if str(front.get('status', '')).strip().lower() == 'accepted':\n"
-    "        print(front.get('id') or path.name)\n"
+    '    if str(front.get("status", "")).strip().lower() == "accepted":\n'
+    '        print(front.get("id") or path.name)\n'
     "```\n\n"
     "**Normalise before comparing, as above.** Both gates that bucket a record by\n"
     "status lower and strip it first: `_status_of` in\n"

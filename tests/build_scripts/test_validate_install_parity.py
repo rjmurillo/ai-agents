@@ -228,7 +228,10 @@ def test_handmaintained_plus_generated_src_is_still_drift(fake_repo: Path) -> No
 
 
 def test_install_plus_generated_src_partial_is_still_drift(fake_repo: Path) -> None:
-    """A generated src copy is strict; carve-out does not apply. ADR-109 B1: SHARED_AGENT delegated."""
+    """A generated src copy is strict; carve-out does not apply.
+
+    ADR-109 B1: SHARED_AGENT delegated.
+    """
     touched = [
         "src/vs-code-agents/alpha.agent.md",
         ".claude/agents/alpha.md",

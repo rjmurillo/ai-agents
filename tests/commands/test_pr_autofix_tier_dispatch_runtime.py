@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 from pathlib import Path
 
@@ -361,7 +362,7 @@ def test_the_fake_tier_producer_matches_the_real_output_shape(tmp_path: Path, do
     # The flag the block forwards. If the producer drops it, the block starts
     # passing an argument argparse rejects, and the whole loop breaks on every
     # bot PR. That must fail here rather than in production (issue #5208).
-    assert '"--is-bot", action="store_true",' in real, (
+    assert re.search(r'"--is-bot",\s*action="store_true",', real), (
         "the real producer no longer declares --is-bot, which the tier-dispatch "
         "block forwards for bot-authored PRs"
     )

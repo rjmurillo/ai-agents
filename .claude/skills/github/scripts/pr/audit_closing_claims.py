@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size (ruff format pushed this file past 500 lines)
 """Audit closing claims across open pull requests.
 
 Paginates open PRs and extracts closing keywords (Fixes, Closes, Resolves,

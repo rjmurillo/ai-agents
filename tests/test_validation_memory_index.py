@@ -1492,7 +1492,8 @@ class TestCheckMemoryIndexReferences:
                 "memory-index.md": (
                     "# Memory Index\n\n"
                     "[Session and Protocol]\n"
-                    "|session start init: [skills-session-init-index](skills-session-init-index.md)\n"
+                    "|session start init: "
+                    "[skills-session-init-index](skills-session-init-index.md)\n"
                 ),
                 "skills-session-init-index.md": "content",
             },

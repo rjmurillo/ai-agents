@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size (ruff format pushed this file past 500 lines)
 """Orchestrate CodeQL database creation and analysis for the repository.
 
 Performs a complete CodeQL security scan by:

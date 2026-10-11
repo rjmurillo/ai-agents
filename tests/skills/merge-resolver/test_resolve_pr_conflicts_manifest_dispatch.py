@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Tests for conflicted-file dispatch and plugin manifest path containment in resolve_pr_conflicts."""
+"""Tests for conflicted-file dispatch and plugin manifest path containment.
+
+Covers resolve_pr_conflicts.
+"""
 
 from __future__ import annotations
 

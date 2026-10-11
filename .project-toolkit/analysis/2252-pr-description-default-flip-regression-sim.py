@@ -174,10 +174,12 @@ def main() -> None:
     rem_hybrid = totals["baseline"] - totals["hybrid"]
     rem_perm = totals["baseline"] - totals["permissive"]
     print(
-        f"Removed by strict:     {rem_strict} ({rem_strict / max(totals['baseline'], 1) * 100:.0f}%)"
+        f"Removed by strict:     {rem_strict} "
+        f"({rem_strict / max(totals['baseline'], 1) * 100:.0f}%)"
     )
     print(
-        f"Removed by hybrid:     {rem_hybrid} ({rem_hybrid / max(totals['baseline'], 1) * 100:.0f}%)"
+        f"Removed by hybrid:     {rem_hybrid} "
+        f"({rem_hybrid / max(totals['baseline'], 1) * 100:.0f}%)"
     )
     print(f"Removed by permissive: {rem_perm} ({rem_perm / max(totals['baseline'], 1) * 100:.0f}%)")
     # save details
