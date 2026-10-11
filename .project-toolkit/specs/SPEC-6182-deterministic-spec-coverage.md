@@ -100,7 +100,7 @@ The check writes the verdict, reason, and each unchecked criterion to the step s
 
 ## Deferred
 
-- Whether to remove `ai-spec-validation.yml` from `advisory_agent_workflows`. Owner: rjmurillo. Revisit after 30 days with no false FAIL reported.
+- Whether to remove `ai-spec-validation.yml` from `advisory_agent_workflows`. Owner: rjmurillo. Revisit 30 days after the #6182 pull request merges, if no false FAIL is reported on issue #6182 by then.
 
 ## Open questions
 

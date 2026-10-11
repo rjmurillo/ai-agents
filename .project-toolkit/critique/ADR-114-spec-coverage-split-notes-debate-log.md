@@ -38,7 +38,7 @@ The first draft was one paragraph. Both seats read it before the workflow files 
 
 ## Post-implementation check
 
-A later `/review` decision-rigor seat checked the final tree. `review-spec` exists behind `agent-claude`. `validate-spec` declares no environment. Both workflows are listed. That review also found the `debounce` job still on `bot-secrets`. The change removed that environment, and the note says so.
+A later `/review` decision-rigor seat checked the tree at commit c4ccde79b, and again at cc2a4487d. `review-spec` exists behind `agent-claude`. `validate-spec` declares no environment. Both workflows are listed. That review also found the `debounce` job still on `bot-secrets`. The change removed that environment, and the note says so.
 
 ## Decision
 
