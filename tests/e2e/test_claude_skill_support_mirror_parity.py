@@ -17,9 +17,15 @@ which exercises the mirror function itself against synthetic fixtures.
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT / "build" / "scripts") not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
+
+import skill_distribution  # noqa: E402
+
 _SKILLS_SOURCE = REPO_ROOT / ".claude" / "skills"
 _SKILLS_TARGET = REPO_ROOT / "src" / "claude" / "skills"
 _SKILL_MD = Path("SKILL.md")
@@ -42,11 +48,14 @@ def _support_relpaths(skill_dir: Path) -> set[Path]:
 
 
 def _skill_dirs(root: Path) -> list[Path]:
+    """Shipped skill directories; a repo-local skill has no plugin twin by design."""
+    repo_local = skill_distribution.repo_local_names(REPO_ROOT)
     return sorted(
         child
         for child in root.iterdir()
         if child.is_dir()
         and child.name not in _TOP_LEVEL_EXCLUDES
+        and child.name not in repo_local
         and (child / "SKILL.md").is_file()
     )
 
