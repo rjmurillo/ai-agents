@@ -6,6 +6,7 @@ import json
 import subprocess
 import sys
 import urllib.error
+from email.message import Message
 from pathlib import Path
 from unittest.mock import patch
 
@@ -322,7 +323,7 @@ class TestDispatchFetch:
     @pytest.mark.parametrize(
         "failure",
         [
-            urllib.error.HTTPError("u", 404, "nf", None, None),  # type: ignore[arg-type]
+            urllib.error.HTTPError("u", 404, "nf", Message(), None),
             urllib.error.URLError("down"),
             TimeoutError("slow"),
             OSError("reset"),
