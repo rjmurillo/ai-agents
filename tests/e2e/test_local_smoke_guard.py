@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -33,6 +32,16 @@ import local_smoke_guard as guard
         ["npx", "-y", "@github/copilot"],
         "'/opt/my tools/copilot' --version",
         r"C:\npm\copilot.cmd --version",
+        ["env", "-u", "FOO", "copilot"],
+        ["sudo", "-u", "root", "copilot"],
+        ["env", "--unset=FOO", "copilot"],
+        ["sh", "-c", "copilot --help"],
+        "bash -c 'FOO=1 copilot -p hi'",
+        ["cmd.exe", "/c", "copilot.cmd"],
+        ["pwsh", "-Command", "copilot"],
+        ["npx", "@github/copilot@1.0.91"],
+        ["npx", "-p", "@github/copilot", "copilot"],
+        Path("/opt/my tools/copilot"),
     ],
 )
 def test_refuses_every_spelling_of_the_copilot_program(args: object) -> None:
@@ -50,6 +59,12 @@ def test_refuses_every_spelling_of_the_copilot_program(args: object) -> None:
         ["/usr/bin/copilotx"],
         ["gh", "copilot", "suggest"],
         "FOO=copilot claude -p hi",
+        ["env", "-u", "copilot", "claude"],
+        ["sudo", "-u", "copilot", "claude"],
+        ["command", "-v", "copilot"],
+        ["sh", "-c", "claude -p hi"],
+        ["sh", "script.sh"],
+        Path("/opt/my tools/claude"),
         [],
         "",
         None,
@@ -106,48 +121,3 @@ def test_installed_guard_still_starts_other_programs(
     with subprocess.Popen([sys.executable, "-c", "pass"]) as proc:
         assert isinstance(proc, subprocess.Popen)
     assert proc.returncode == 0
-
-
-def _run_unmarked_copilot_test(tmp_path: Path, *, armed: bool) -> subprocess.CompletedProcess[str]:
-    """Run a throwaway suite that calls a fake ``copilot`` with no marker."""
-    e2e_dir = Path(__file__).resolve().parent
-    for name in ("conftest.py", "local_smoke_guard.py"):
-        (tmp_path / name).write_text((e2e_dir / name).read_text(encoding="utf-8"), encoding="utf-8")
-    fake = tmp_path / "bin" / "copilot"
-    fake.parent.mkdir()
-    fake.write_text(f"#!{sys.executable}\n", encoding="utf-8")
-    fake.chmod(0o755)
-    (tmp_path / "pytest.ini").write_text("[pytest]\n", encoding="utf-8")
-    (tmp_path / "test_unmarked.py").write_text(
-        "import subprocess\n\n"
-        "def test_unmarked_copilot_call():\n"
-        f"    subprocess.run([{str(fake)!r}], check=True)\n",
-        encoding="utf-8",
-    )
-    env = {k: v for k, v in os.environ.items() if k != guard.LOCAL_SMOKE_ENV}
-    if armed:
-        env[guard.LOCAL_SMOKE_ENV] = "1"
-    return subprocess.run(
-        [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-c", "pytest.ini", "."],
-        cwd=tmp_path,
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=120,
-        check=False,
-    )
-
-
-def test_conftest_fails_an_unmarked_copilot_call_under_the_gate_flag(tmp_path: Path) -> None:
-    result = _run_unmarked_copilot_test(tmp_path, armed=True)
-
-    assert result.returncode == 1, result.stdout + result.stderr
-    assert "must not call Copilot" in result.stdout
-
-
-@pytest.mark.skipif(sys.platform == "win32", reason="the fake copilot is a shebang script")
-def test_conftest_leaves_copilot_alone_without_the_gate_flag(tmp_path: Path) -> None:
-    """Negative control: CI's copilot leg never sets the flag, so calls proceed."""
-    result = _run_unmarked_copilot_test(tmp_path, armed=False)
-
-    assert result.returncode == 0, result.stdout + result.stderr

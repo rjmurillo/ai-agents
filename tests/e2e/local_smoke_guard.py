@@ -20,10 +20,32 @@ from typing import Any
 
 LOCAL_SMOKE_ENV = "AI_AGENTS_LOCAL_CLI_SMOKE"
 _COPILOT_NAMES = frozenset({"copilot", "copilot.exe", "copilot.cmd", "copilot.bat"})
-# Launchers that run the next word as the program. ``gh copilot`` is a gh
-# extension, not the Copilot CLI, so ``gh`` is not listed.
+# A leading NAME=VALUE environment assignment, as in ``FOO=1 copilot``.
 _ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
-_LAUNCHERS = frozenset({"env", "npx", "exec", "command", "nohup", "sudo"})
+# An npm package spec's version suffix, as in ``@github/copilot@1.0.91``.
+_VERSION_SUFFIX = re.compile(r"(?<=.)@[^/]*$")
+# Launchers that run a later word as the program, mapped to their options that
+# take a separate value. ``gh copilot`` is a gh extension, not the Copilot CLI,
+# so ``gh`` is not listed.
+_LAUNCHERS: dict[str, frozenset[str]] = {
+    "env": frozenset({"-u", "--unset", "-C", "--chdir"}),
+    "sudo": frozenset({"-u", "-g", "-C", "-D", "-h", "-p", "-r", "-t", "-U", "--user", "--group"}),
+    "npx": frozenset({"-p", "--package", "-c", "--call"}),
+    "nohup": frozenset(),
+    "exec": frozenset({"-a"}),
+    "command": frozenset(),
+}
+# Options after which a launcher only looks the program up instead of running it.
+_LOOKUP_OPTIONS = frozenset({"-v", "-V"})
+# Shells, mapped to the option whose value is a command line to run.
+_SHELLS: dict[str, frozenset[str]] = (
+    {name: frozenset({"-c"}) for name in ("sh", "bash", "zsh", "dash", "ksh")}
+    | {name: frozenset({"/c", "/k"}) for name in ("cmd", "cmd.exe")}
+    | {
+        name: frozenset({"-c", "-command"})
+        for name in ("pwsh", "pwsh.exe", "powershell", "powershell.exe")
+    }
+)
 
 
 class CopilotCallRefusedError(AssertionError):
@@ -37,8 +59,14 @@ def guard_active(environ: Mapping[str, str] | None = None) -> bool:
 
 
 def _words(args: object) -> list[str]:
-    """Split a subprocess ``args`` value into words."""
-    if isinstance(args, (str, bytes, os.PathLike)):
+    """Split a subprocess ``args`` value into words.
+
+    A path object is one program path, as ``Popen`` treats it, even when the
+    path holds spaces. A string is split like a shell command line.
+    """
+    if isinstance(args, os.PathLike):
+        return [os.fsdecode(args)]
+    if isinstance(args, (str, bytes)):
         text = os.fsdecode(args)
         if "\\" in text:
             return text.split()
@@ -52,21 +80,48 @@ def _words(args: object) -> list[str]:
 
 
 def _basename(word: str) -> str:
-    return PureWindowsPath(PurePath(word).name).name.lower()
+    name = PureWindowsPath(PurePath(word).name).name.lower()
+    return _VERSION_SUFFIX.sub("", name)
+
+
+def _shell_command(name: str, rest: list[str]) -> str | None:
+    """Return the command line a shell runs with ``-c`` or its equivalent."""
+    flags = _SHELLS[name]
+    for index, word in enumerate(rest):
+        if word.lower() in flags and index + 1 < len(rest):
+            return rest[index + 1]
+    return None
 
 
 def program_name(args: object) -> str:
     """Return the lowercased basename of the program a subprocess call starts.
 
-    Leading ``NAME=VALUE`` assignments are skipped, and so is a launcher such as
-    ``env`` or ``npx`` together with its own options and assignments.
+    Leading ``NAME=VALUE`` assignments are skipped. A launcher such as ``env``,
+    ``sudo`` or ``npx`` is skipped with its flags and the values its known
+    options take. A shell's ``-c`` command line is read as the real command.
+    ``command -v`` only looks a program up, so it starts nothing. A version
+    suffix on an npm package spec is dropped.
     """
-    for word in _words(args):
+    words = _words(args)
+    launcher = ""
+    index = 0
+    while index < len(words):
+        word = words[index]
+        index += 1
         if _ASSIGNMENT.match(word):
             continue
-        name = _basename(word)
-        if name in _LAUNCHERS or word.startswith("-"):
+        if word.startswith("-"):
+            if launcher == "command" and word in _LOOKUP_OPTIONS:
+                return ""
+            index += word in _LAUNCHERS.get(launcher, frozenset())
             continue
+        name = _basename(word)
+        if name in _LAUNCHERS:
+            launcher = name
+            continue
+        if name in _SHELLS:
+            command = _shell_command(name, words[index:])
+            return name if command is None else program_name(command)
         return name
     return ""
 
@@ -76,7 +131,9 @@ def refuse_copilot(args: object) -> None:
     if program_name(args) in _COPILOT_NAMES:
         raise CopilotCallRefusedError(
             f"The local CLI smoke must not call Copilot (got {args!r}). "
-            "Mark the test with requires_copilot so only the CI leg runs it."
+            "Give the test the copilot marker (the requires_copilot decorator in "
+            "test_plugin_load_smoke.py and test_cli_hook_e2e.py applies it), so "
+            "only the CI leg runs it."
         )
 
 
