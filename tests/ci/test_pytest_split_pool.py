@@ -13,41 +13,18 @@ tree, so a group that drops or doubles a test fails here and not on a CI leg.
 from __future__ import annotations
 
 from collections import Counter
-from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
 from scripts.ci import run_pytest_partition as runner
-from tests.ci.pytest_split_collect_helpers import (
-    collect,
-    pool_args,
-    with_durations_path,
-    without_parallel_flags,
-    write_fixture_durations,
-)
+from tests.ci.pytest_split_collect_helpers import collect
+from tests.ci.pytest_split_group_collection import collect_groups
 
 
 @pytest.fixture(scope="module")
 def collected(tmp_path_factory: pytest.TempPathFactory) -> dict[str, list[str]]:
-    """Collect the pool, then every split group against one identical durations map.
-
-    The map is a fixture, not whatever a CI cache restored, so the result does
-    not depend on whether a cache existed. Real legs each get the same restored
-    map; reading each leg's own file here made group 1 split by timings and
-    groups 2 to 4 split evenly in CI, so the union missed tests (PR #6261).
-    """
-    pool = collect(pool_args())
-    durations = tmp_path_factory.mktemp("split-durations") / "durations.json"
-    write_fixture_durations(pool, durations)
-    jobs = {
-        name: with_durations_path(
-            without_parallel_flags(runner._PARTITION_FULL_ARGS[name]), str(durations)
-        )
-        for name in runner.split_names()
-    }
-    with ThreadPoolExecutor(max_workers=len(jobs)) as executor:
-        futures = {name: executor.submit(collect, args) for name, args in jobs.items()}
-        return {"pool": pool, **{name: future.result() for name, future in futures.items()}}
+    """Collect the pool, then every split group against one identical durations map."""
+    return collect_groups(tmp_path_factory.mktemp("split-durations") / "durations.json")
 
 
 @pytest.mark.timeout(300)

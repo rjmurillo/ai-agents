@@ -6,11 +6,9 @@ pytest never walks it.
 
 from __future__ import annotations
 
-import json
 import os
 import subprocess
 import sys
-import zlib
 from pathlib import Path
 
 from scripts.ci import run_pytest_partition as runner
@@ -70,29 +68,3 @@ def without_parallel_flags(args: list[str]) -> list[str]:
 def pool_args() -> list[str]:
     """The pool with no split flags: what the four groups must add up to."""
     return [*runner._POOL_IGNORES, "tests/"]
-
-
-def with_durations_path(args: list[str], path: str) -> list[str]:
-    """Point ``--durations-path`` at ``path``, whatever it named before.
-
-    Each leg's own args name its own file (``artifacts/durations-split-N.json``),
-    and in CI only the current leg's copy exists. Groups that read different
-    maps split the pool differently, so a union taken across them is not the
-    pool. Collecting every group against one map is what real legs do.
-    """
-    index = args.index("--durations-path")
-    return [*args[: index + 1], path, *args[index + 2 :]]
-
-
-def write_fixture_durations(pool: list[str], path: Path) -> None:
-    """Write a deterministic durations map for two thirds of the pool.
-
-    The other third has no entry, so a split exercises both the known-timing and
-    the unknown-timing paths, and the result never depends on a restored cache.
-    """
-    durations = {
-        node_id: (zlib.crc32(node_id.encode()) % 900) / 10 + 0.1
-        for index, node_id in enumerate(pool)
-        if index % 3
-    }
-    path.write_text(json.dumps(durations), encoding="utf-8")
