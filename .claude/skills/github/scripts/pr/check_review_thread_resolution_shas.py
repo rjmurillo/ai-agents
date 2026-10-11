@@ -147,11 +147,21 @@ def _inline_text(token: Token) -> str:
     return "".join(parts)
 
 
+def _reached_nesting_limit(tokens: list[Token], max_nesting: int) -> bool:
+    # markdown-it drops content past maxNesting without raising, and a token at
+    # maxNesting - 1 cannot tell a complete parse from a truncated one.
+    children = (child for token in tokens for child in token.children or [])
+    return any(token.level >= max_nesting - 1 for token in (*tokens, *children))
+
+
 def _visible_text(body: str) -> str:
     if _MARKDOWN is None:
         return body
+    tokens = _MARKDOWN.parse(body)
+    if _reached_nesting_limit(tokens, _MARKDOWN.options["maxNesting"]):
+        return body
     parts: list[str] = []
-    for token in _MARKDOWN.parse(body):
+    for token in tokens:
         if token.type == "inline":
             parts.append(_inline_text(token))
         elif token.type == "html_block":

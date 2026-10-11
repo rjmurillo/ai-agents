@@ -391,7 +391,7 @@ def test_pr_review_config_contains_resolution_sha_gate() -> None:
         if item["name"] == "Resolved thread commit references are reachable"
     )
     assert (
-        sha_gate["command"] == "python3 .claude/skills/github/scripts/pr/"
+        sha_gate["command"] == "uv run --frozen python .claude/skills/github/scripts/pr/"
         "check_review_thread_resolution_shas.py --pull-request {pr}"
     )
     assert sha_gate["pass_when"] == (
@@ -456,3 +456,13 @@ def test_missing_parser_scans_raw_body() -> None:
 def test_link_text_and_soft_breaks_are_visible() -> None:
     body = "[fix](https://example.com) in abc1234\nand def5678"
     assert extract_shas(body) == ["abc1234", "def5678"]
+
+
+def test_nesting_past_parser_limit_scans_raw_body() -> None:
+    body = "\n".join(" " * (2 * depth) + "- x" for depth in range(40)) + " deadbee"
+    assert extract_shas(body) == ["deadbee"]
+
+
+def test_nesting_below_parser_limit_uses_parser() -> None:
+    body = ">" * 10 + f" Fixed in abc1234 {_MARKER}"
+    assert extract_shas(body) == ["abc1234"]
