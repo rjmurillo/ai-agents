@@ -57,6 +57,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 VALID_PROVIDERS = ("claude", "gpt", "gemini")
 DEFAULT_SKILL_ROOT_ENV = "MODEL_BENCHMARK_SKILL_ROOTS"
@@ -155,7 +156,7 @@ def _run_cli(
     prompt_stdin: str | None,
     workdir: str,
     timeout_ms: int,
-    env: dict | None = None,
+    env: dict[str, Any] | None = None,
 ) -> tuple[str, str, bool]:
     """Run a CLI, return (stdout, stderr, timed_out). Non-throwing."""
     try:
@@ -386,7 +387,7 @@ ADAPTERS = {"claude": ClaudeAdapter, "gpt": GptAdapter, "gemini": GeminiAdapter}
 # --------------------------------------------------------------------------- #
 def run_benchmark(
     prompt: str, providers: list[str], workdir: str, timeout_ms: int, skip_unavailable: bool
-) -> dict:
+) -> dict[str, Any]:
     started = time.time()
     entries: list[Entry] = []
 

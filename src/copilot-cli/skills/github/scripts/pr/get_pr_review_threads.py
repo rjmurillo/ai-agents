@@ -22,6 +22,7 @@ import logging
 import os
 import sys
 import warnings
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -162,7 +163,7 @@ def _run_threads_query(
 
 
 def _extract_review_threads(
-    data: dict,
+    data: dict[str, Any],
     owner: str,
     repo: str,
     pr: int,
@@ -213,8 +214,8 @@ def _log_pagination_progress(
     pr: int,
     pages_seen: int,
     cursor_in: str | None,
-    page_info: dict,
-    page_nodes: list,
+    page_info: dict[str, Any],
+    page_nodes: list[Any],
     aggregated_count: int,
 ) -> None:
     """Emit the per-page DEBUG line. Full cursor is logged so adjacent

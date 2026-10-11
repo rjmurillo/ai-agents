@@ -10,6 +10,7 @@ Grounded in:
 
 import argparse
 import sys
+from typing import Any
 
 
 def get_phase_name(step: int) -> str:
@@ -26,7 +27,7 @@ def get_phase_name(step: int) -> str:
 
 def get_step_guidance(
     step: int, total_steps: int, decision: str | None, context: str | None
-) -> dict:
+) -> dict[str, Any]:
     """Return step-specific guidance and actions."""
 
     next_step = step + 1 if step < total_steps else None

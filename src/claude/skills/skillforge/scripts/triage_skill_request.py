@@ -540,8 +540,11 @@ def calculate_match_score(query: str, skill: dict) -> tuple[float, list[str]]:
 
 
 def find_matching_skills(
-    query: str, skills: list[dict], limit: int = 5, signals: dict = None
-) -> list[dict]:
+    query: str,
+    skills: list[dict[str, Any]],
+    limit: int = 5,
+    signals: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
     """
     Find skills that match the query, sorted by score.
 
@@ -604,8 +607,8 @@ def find_matching_skills(
 
 
 def make_triage_decision(
-    category: str, signals: dict, matches: list[dict], query: str
-) -> tuple[str, dict]:
+    category: str, signals: dict[str, Any], matches: list[dict[str, Any]], query: str
+) -> tuple[str, dict[str, Any]]:
     """
     Make the final triage decision based on input analysis and skill matches.
 

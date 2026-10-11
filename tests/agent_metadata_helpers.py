@@ -286,7 +286,7 @@ _CANONICAL_TREE = _vamr.CANONICAL_TREE.as_posix()
 # it, and the canonical comment was corrected first and re-quoted rather than
 # the copy being patched to differ from its source. `_agent_files()` returns
 # 188 and `_agent_definitions()` returns 186 on this head.
-_NON_AGENT_SIBLINGS = frozenset({})
+_NON_AGENT_SIBLINGS: frozenset[str] = frozenset()
 
 
 def _why_not_an_agent_definition(path: Path) -> str:
