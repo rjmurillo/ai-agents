@@ -38,8 +38,6 @@ from github_core.api import assert_gh_authenticated, gh_graphql, resolve_repo_pa
 
 _MAX_THREAD_PAGES = 50
 _SHA_RE = re.compile(r"\b([0-9a-f]{7,40})\b", re.IGNORECASE)
-# Bots hide hex IDs in HTML comments (CodeRabbit: <!-- cr-comment:v1:<24 hex> -->).
-_HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
 
 _THREADS_QUERY = """\
 query($owner: String!, $repo: String!, $prNumber: Int!, $cursor: String) {
@@ -105,8 +103,24 @@ def _strip_fenced_code(body: str) -> str:
     return "\n".join(kept)
 
 
+def _strip_html_comments(text: str) -> str:
+    # Bots hide hex IDs in HTML comments (CodeRabbit: <!-- cr-comment:v1:<24 hex> -->).
+    # A str.find scan stays linear; an unclosed opener keeps the rest of the text.
+    kept: list[str] = []
+    pos = 0
+    while (start := text.find("<!--", pos)) != -1:
+        end = text.find("-->", start + 4)
+        if end == -1:
+            break
+        kept.append(text[pos:start])
+        kept.append(" ")
+        pos = end + 3
+    kept.append(text[pos:])
+    return "".join(kept)
+
+
 def extract_shas(body: str) -> list[str]:
-    visible = _strip_fenced_code(_HTML_COMMENT_RE.sub("", body))
+    visible = _strip_html_comments(_strip_fenced_code(body))
     return [match.group(1).lower() for match in _SHA_RE.finditer(visible)]
 
 

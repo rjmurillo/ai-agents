@@ -106,6 +106,27 @@ def test_ignores_multiline_html_comment() -> None:
     assert extract_shas(body) == [full]
 
 
+def test_unclosed_html_comment_keeps_following_text() -> None:
+    assert extract_shas("<!-- draft\nFixed in abc1234.") == ["abc1234"]
+
+
+def test_comment_opener_in_fence_does_not_hide_prose() -> None:
+    body = (
+        "```\n<!-- sample\n```\n"
+        "Reverted in fedcba9.\n"
+        "<!-- cr-comment:v1:75f6c599dff6a5b0a7422ab3 -->"
+    )
+    assert extract_shas(body) == ["fedcba9"]
+
+
+def test_html_comment_does_not_join_adjacent_hex() -> None:
+    assert extract_shas("abc<!-- x -->1234567") == ["1234567"]
+
+
+def test_many_unclosed_openers_stay_linear() -> None:
+    assert extract_shas("<!--" * 20000 + " abc1234") == ["abc1234"]
+
+
 def test_ignores_unresolved_threads() -> None:
     with patch("check_review_thread_resolution_shas.check_ancestor") as check:
         report = build_report(
