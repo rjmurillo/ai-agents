@@ -7,9 +7,9 @@ from scripts.validation import testmon_seed_trust as trust
 from tests.workflows.pytest_workflow_helpers import WORKFLOW_PATH, seed_job, seed_step
 
 
-def test_the_build_runs_the_hook_command_with_its_worker_cap_and_own_budget() -> None:
+def test_the_build_step_calls_the_tested_script_with_the_cap_and_own_budget() -> None:
     step = seed_step("Build the testmon database")
-    assert "uv run --frozen python scripts/validation/git_hook_policy.py pytest" in step["run"]
+    assert step["run"] == "uv run --frozen python scripts/validation/testmon_seed_build.py"
     assert "continue-on-error" not in step
     assert step["env"]["AI_AGENTS_PYTEST_WORKER_CAP"] == "4"
     assert step["env"][git_hook_policy.TESTMON_NO_SEED_ENV] == "1"
@@ -19,14 +19,12 @@ def test_the_build_runs_the_hook_command_with_its_worker_cap_and_own_budget() ->
     assert git_hook_policy.TEST_SUITE_TIMEOUT_SECONDS < budget <= cap_seconds - 120
 
 
-def test_a_complete_run_is_recorded_only_when_the_hook_exits_zero() -> None:
-    """A partial database (killed run, failed partition) must never be uploaded."""
-    run = seed_step("Build the testmon database")["run"]
-    assert run.lstrip().startswith("if uv run")
-    assert "; then" in run
-    assert 'echo "complete=true" >> "$GITHUB_OUTPUT"' in run
-    assert "||" not in run
-    assert seed_step("Build the testmon database")["id"] == "build"
+def test_the_workflow_holds_no_branching_for_the_build_outcome() -> None:
+    """The decision lives in testmon_seed_build.py, which has tests (thin workflows)."""
+    step = seed_step("Build the testmon database")
+    assert step["id"] == "build"
+    for fragment in ("if ", "; then", "||", "&&", "GITHUB_OUTPUT"):
+        assert fragment not in step["run"]
 
 
 def test_the_build_never_opts_into_the_full_suite() -> None:

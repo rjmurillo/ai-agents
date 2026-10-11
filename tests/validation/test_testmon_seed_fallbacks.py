@@ -56,7 +56,7 @@ def test_a_failing_gh_falls_back(tmp_path: Path, failure: object, expected: str)
         return failure
 
     result = seed.fetch_seed(
-        tmp_path, runner=runner, gh_available=lambda: True, has_origin_main=lambda _r: True
+        tmp_path, runner=runner, gh_available=lambda: True, has_origin_main=lambda _r, _t: True
     )
     assert not result.seeded
     assert expected.lower() in result.detail.lower()
@@ -80,8 +80,8 @@ def test_the_whole_fetch_shares_one_deadline(
         tmp_path,
         runner=runner,
         gh_available=lambda: True,
-        has_origin_main=lambda _r: True,
-        ancestor=lambda _r, _s: True,
+        has_origin_main=lambda _r, _t: True,
+        ancestor=lambda _r, _s, _t: True,
         timeout_seconds=30.0,
     )
     assert not result.seeded
@@ -141,8 +141,8 @@ def test_a_failed_download_falls_back_and_removes_its_staging_directory(
         runner=gh,
         downloader=downloader,
         gh_available=lambda: True,
-        has_origin_main=lambda _r: True,
-        ancestor=lambda _r, _s: True,
+        has_origin_main=lambda _r, _t: True,
+        ancestor=lambda _r, _s, _t: True,
     )
     assert not result.seeded
     assert not (tmp_path / ".testmondata").exists()

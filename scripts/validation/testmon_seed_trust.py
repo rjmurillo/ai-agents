@@ -49,25 +49,32 @@ def run_is_trusted(run: dict[str, object]) -> bool:
     )
 
 
-def _git_succeeds(repo_root: Path, *args: str) -> bool:
+def _git_succeeds(repo_root: Path, timeout_seconds: float, *args: str) -> bool:
     try:
         result = subprocess.run(
             ["git", "-C", str(repo_root), *args],
             capture_output=True,
             check=False,
-            timeout=GIT_TIMEOUT_SECONDS,
+            timeout=min(GIT_TIMEOUT_SECONDS, timeout_seconds),
         )
     except (OSError, subprocess.TimeoutExpired):
         return False
     return result.returncode == 0
 
 
-def origin_main_present(repo_root: Path) -> bool:
-    """True when the local clone has an ``origin/main`` to check ancestry against."""
-    return _git_succeeds(repo_root, "rev-parse", "--verify", "--quiet", ORIGIN_MAIN_REF)
+def origin_main_present(repo_root: Path, timeout_seconds: float = GIT_TIMEOUT_SECONDS) -> bool:
+    """True when the local clone has an ``origin/main`` to check ancestry against.
+
+    ``timeout_seconds`` is what remains of the caller's shared fetch deadline.
+    """
+    return _git_succeeds(
+        repo_root, timeout_seconds, "rev-parse", "--verify", "--quiet", ORIGIN_MAIN_REF
+    )
 
 
-def is_main_ancestor(repo_root: Path, sha: str) -> bool:
+def is_main_ancestor(
+    repo_root: Path, sha: str, timeout_seconds: float = GIT_TIMEOUT_SECONDS
+) -> bool:
     """True when ``sha`` is an ancestor of local ``origin/main``.
 
     An unknown commit (not fetched yet) and a malformed value are both False, so
@@ -75,7 +82,9 @@ def is_main_ancestor(repo_root: Path, sha: str) -> bool:
     """
     if _FULL_SHA.fullmatch(sha) is None:
         return False
-    return _git_succeeds(repo_root, "merge-base", "--is-ancestor", sha, ORIGIN_MAIN_REF)
+    return _git_succeeds(
+        repo_root, timeout_seconds, "merge-base", "--is-ancestor", sha, ORIGIN_MAIN_REF
+    )
 
 
 def select_artifact_id(artifacts: object, name: str) -> int | None:

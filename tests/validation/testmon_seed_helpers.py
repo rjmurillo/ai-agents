@@ -88,8 +88,8 @@ class FakeGh:
     def fetch(
         self,
         root: Path,
-        ancestor: Callable[[Path, str], bool] = lambda _root, _sha: True,
-        has_origin_main: Callable[[Path], bool] = lambda _root: True,
+        ancestor: Callable[[Path, str, float], bool] = lambda _root, _sha, _t: True,
+        has_origin_main: Callable[[Path, float], bool] = lambda _root, _t: True,
         timeout_seconds: float = 30.0,
     ) -> seed.SeedResult:
         return seed.fetch_seed(

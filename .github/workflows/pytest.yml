@@ -764,24 +764,21 @@ jobs:
         id: seed
         run: echo "name=$(uv run --frozen python scripts/validation/testmon_seed.py .)" >> "$GITHUB_OUTPUT"
 
-      # The hook exits 0 only when every partition ran to completion and
-      # passed. Anything else (a failed partition, a budget kill, a signal) is a
-      # partial database and is never uploaded: the step records `complete`
-      # only on exit 0. The seed run takes about 30 minutes, so it gets its own
-      # budget instead of the hook's 780 s suite budget; 3300 s leaves 5 minutes
-      # of the 60 minute cap for setup and upload.
+      # The build script runs the pre-push pytest step and writes
+      # `complete=true` to this step's output only when the hook exits 0, that
+      # is, every partition ran to completion and passed. Anything else (a
+      # failed partition, a budget kill, a signal) is a partial database and is
+      # never uploaded. The branching lives in the script, which has tests. The
+      # seed run takes about 30 minutes, so it gets its own budget instead of the
+      # hook's 780 s suite budget; 3300 s leaves 5 minutes of the 60 minute cap
+      # for setup and upload.
       - name: Build the testmon database
         id: build
         env:
           AI_AGENTS_PYTEST_WORKER_CAP: "4"
           AI_AGENTS_TESTMON_NO_SEED: "1"
           AI_AGENTS_TESTMON_SEED_BUDGET_SECONDS: "3300"
-        run: |
-          if uv run --frozen python scripts/validation/git_hook_policy.py pytest; then
-            echo "complete=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::warning::the seed run did not finish clean; no database is uploaded"
-          fi
+        run: uv run --frozen python scripts/validation/testmon_seed_build.py
 
       # include-hidden-files: v4 and later skip dotfiles by default, and the
       # database is `.testmondata`.

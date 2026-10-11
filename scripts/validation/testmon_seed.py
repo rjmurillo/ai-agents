@@ -125,8 +125,8 @@ def fetch_seed(
     downloader: Downloader = download_to_file,
     timeout_seconds: float = SEED_FETCH_TIMEOUT_SECONDS,
     gh_available: Callable[[], bool] | None = None,
-    has_origin_main: Callable[[Path], bool] = origin_main_present,
-    ancestor: Callable[[Path, str], bool] = is_main_ancestor,
+    has_origin_main: Callable[[Path, float], bool] = origin_main_present,
+    ancestor: Callable[[Path, str, float], bool] = is_main_ancestor,
 ) -> SeedResult:
     """Fetch main's newest matching database into ``repo_root``, or say why not.
 
@@ -138,11 +138,11 @@ def fetch_seed(
         return SeedResult(False, "a local database already exists")
     if not available():
         return SeedResult(False, "gh is not installed")
-    if not has_origin_main(repo_root):
-        return SeedResult(False, "origin/main is not available locally; run git fetch")
+    budget = Budget(timeout_seconds, runner)
     try:
+        if not has_origin_main(repo_root, budget.remaining()):
+            return SeedResult(False, "origin/main is not available locally; run git fetch")
         name = seed_artifact_name(repo_root)
-        budget = Budget(timeout_seconds, runner)
         artifact_id = find_artifact_id(budget, name, repo_root, ancestor)
         if artifact_id is None:
             return SeedResult(False, f"no main push run has an unexpired {name} artifact")

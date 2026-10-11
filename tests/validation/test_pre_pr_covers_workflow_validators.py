@@ -56,9 +56,10 @@ import workflow_validator_inventory as inventory
 # Validators a pull-request workflow runs that no pre_pr gate runs, with the
 # reason. One place, so a reader can see every gap and why it is allowed.
 EXEMPT: dict[str, str] = {
-    "git_hook_policy:pytest": (
-        "The testmon-seed job runs the pre-push pytest step on a push to main to "
-        "build the testmon database it uploads (issue #6239). It validates "
+    "testmon_seed_build": (
+        "The testmon-seed job runs the pre-push pytest step through this script "
+        "on a push to main to build the testmon database it uploads "
+        "(issue #6239). It validates "
         "nothing for a pull request, and pre_pr deliberately skips the suite: "
         "CI's pytest legs run it."
     ),

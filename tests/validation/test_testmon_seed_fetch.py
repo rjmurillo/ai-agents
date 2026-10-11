@@ -88,7 +88,7 @@ def test_a_run_whose_commit_is_not_in_main_history_is_skipped_for_an_older_one(
     )
     checked: list[str] = []
 
-    def ancestor(_root: Path, sha: str) -> bool:
+    def ancestor(_root: Path, sha: str, _timeout: float) -> bool:
         checked.append(sha)
         return sha == make_run(7)["head_sha"]
 
@@ -100,7 +100,7 @@ def test_a_run_whose_commit_is_not_in_main_history_is_skipped_for_an_older_one(
 def test_a_missing_origin_main_falls_back_before_any_network_call(tmp_path: Path) -> None:
     write_inputs(tmp_path)
     gh = _gh(tmp_path, [make_run(7)])
-    result = gh.fetch(tmp_path, has_origin_main=lambda _root: False)
+    result = gh.fetch(tmp_path, has_origin_main=lambda _root, _t: False)
     assert not result.seeded
     assert "origin/main" in result.detail
     assert gh.calls == []
