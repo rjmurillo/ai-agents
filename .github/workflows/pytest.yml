@@ -355,6 +355,12 @@ jobs:
           RUFF_RATCHET_BASE_REF: ${{ github.event_name == 'pull_request' && 'HEAD^1' || github.event.merge_group.base_sha || github.event.before || 'HEAD~1' }}
         run: python scripts/ci/ruff_ratchet.py
 
+      # Whole-tree formatter gate. Blocking: no continue-on-error. The tree
+      # conforms to `ruff format`; any drift fails this job.
+      - name: Run ruff format check (whole tree)
+        if: matrix.primary
+        run: uv run --frozen --extra dev ruff format --check .
+
       # mypy ran only in the pre-push hook and pre_pr.py, so a push that skipped
       # lefthook merged type errors unchecked. Same diff-line ratchet as the
       # hook: pre-existing errors print, errors on changed lines block.
