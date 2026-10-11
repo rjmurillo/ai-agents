@@ -9,6 +9,8 @@ Input env vars (used as defaults for CLI args):
     TRACE_FINDINGS         - Findings from traceability check
     COMPLETENESS_VERDICT   - Verdict from completeness check
     COMPLETENESS_FINDINGS  - Findings from completeness check
+    TRACE_OUTCOME          - Step outcome of the traceability review
+    COMPLETENESS_OUTCOME   - Step outcome of the completeness review
     TRACE_INFRA_FAILURE        - Whether trace failure was infrastructure-related
     COMPLETENESS_INFRA_FAILURE - Whether completeness failure was infrastructure-related
     GITHUB_REPOSITORY      - Owner/repo slug
@@ -92,6 +94,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Whether completeness failure was infrastructure-related",
     )
     parser.add_argument(
+        "--trace-outcome",
+        default=os.environ.get("TRACE_OUTCOME", ""),
+        help="Step outcome of the traceability review (success, failure, ...)",
+    )
+    parser.add_argument(
+        "--completeness-outcome",
+        default=os.environ.get("COMPLETENESS_OUTCOME", ""),
+        help="Step outcome of the completeness review (success, failure, ...)",
+    )
+    parser.add_argument(
         "--github-repository",
         default=os.environ.get("GITHUB_REPOSITORY", ""),
         help="Owner/repo slug",
@@ -129,6 +141,19 @@ def _is_infra_failure(flag: str) -> bool:
     more review surface than one three-line predicate justifies.
     """
     return flag.lower() in ("true", "1", "yes")
+
+
+def _side_did_not_run(infra_flag: str, verdict: str, outcome: str) -> bool:
+    """True when a review side produced no usable evidence.
+
+    A step that crashed publishes no verdict and no infrastructure flag, so an
+    empty verdict or a step outcome other than ``success`` must count as a side
+    that did not run. An unset outcome (older callers) is not evidence either
+    way. Missing evidence is never PASS.
+    """
+    if _is_infra_failure(infra_flag) or not verdict.strip():
+        return True
+    return bool(outcome) and outcome != "success"
 
 
 def _findings_section(is_infra: bool, findings: str) -> str:
@@ -340,8 +365,14 @@ def main(argv: list[str] | None = None) -> int:
     else:
         trace_verdict: str = args.trace_verdict
         completeness_verdict: str = args.completeness_verdict
-        trace_infra: bool = _is_infra_failure(args.trace_infra_failure)
-        completeness_infra: bool = _is_infra_failure(args.completeness_infra_failure)
+        trace_infra: bool = _side_did_not_run(
+            args.trace_infra_failure, trace_verdict, args.trace_outcome
+        )
+        completeness_infra: bool = _side_did_not_run(
+            args.completeness_infra_failure,
+            completeness_verdict,
+            args.completeness_outcome,
+        )
 
         if trace_infra and completeness_infra:
             # Neither side produced a real verdict; nothing here is PASS,

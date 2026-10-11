@@ -158,6 +158,10 @@ jobs:
           TRACE_FINDINGS: ${{ steps.trace.outputs.findings }}
           COMPLETENESS_VERDICT: ${{ steps.completeness.outputs.verdict }}
           COMPLETENESS_FINDINGS: ${{ steps.completeness.outputs.findings }}
+          # continue-on-error hides a crashed review step. Its outcome is the
+          # only signal left when it published no outputs.
+          TRACE_OUTCOME: ${{ steps.trace.outcome }}
+          COMPLETENESS_OUTCOME: ${{ steps.completeness.outcome }}
           TRACE_INFRA_FAILURE: ${{ steps.trace.outputs['infrastructure-failure'] }}
           COMPLETENESS_INFRA_FAILURE: ${{ steps.completeness.outputs['infrastructure-failure'] }}
           GITHUB_REPOSITORY: ${{ github.repository }}

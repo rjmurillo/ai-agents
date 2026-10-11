@@ -137,3 +137,10 @@ def test_validation_workflow_requests_read_only_pull_request_scope() -> None:
 
 def test_debounce_job_declares_no_environment() -> None:
     assert "environment" not in _load(_VALIDATION)["jobs"]["debounce"]
+
+
+def test_report_step_receives_both_review_outcomes(review_job: dict[str, Any]) -> None:
+    step = next(s for s in review_job["steps"] if s.get("id") == "report")
+
+    assert step["env"]["TRACE_OUTCOME"] == "${{ steps.trace.outcome }}"
+    assert step["env"]["COMPLETENESS_OUTCOME"] == "${{ steps.completeness.outcome }}"
