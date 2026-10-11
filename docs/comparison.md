@@ -56,7 +56,7 @@ These projects can coexist. A plugin catalog and a workflow toolkit solve differ
 
 ### Can one repository be a plugin marketplace for both Claude Code and Copilot CLI?
 
-Yes. AI Agents ships `.claude-plugin/marketplace.json` for Claude Code and `.github/plugin/marketplace.json` for Copilot CLI. The same repository name works in both CLIs. St0nefish/agent-toolkit uses the same two-file layout.
+Yes. AI Agents ships [`.claude-plugin/marketplace.json`](../.claude-plugin/marketplace.json) for Claude Code and [`.github/plugin/marketplace.json`](../.github/plugin/marketplace.json) for Copilot CLI. The same repository name works in both CLIs. St0nefish/agent-toolkit uses the same two-file layout.
 
 ### Do Claude Code plugins work in Copilot CLI unchanged?
 
