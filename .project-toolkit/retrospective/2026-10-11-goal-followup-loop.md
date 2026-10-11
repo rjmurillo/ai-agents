@@ -6,9 +6,25 @@
 - **Task Type**: Bug
 - **Outcome**: Success
 
-Evidence base: this session's transcript, the merged PRs, and the issue #5593 comments. There is no session log under `.project-toolkit/sessions/`, because session log creation is discontinued (`.claude/rules/universal.md` MUST-10). Each claim is marked OBSERVED (tool output in the session), INFERRED (my reading), or UNKNOWN.
+Evidence base: this session's transcript, the merged PRs, and the issue #5593 comments. There is no session log under `.project-toolkit/sessions/`, because session log creation is discontinued (`.claude/rules/universal.md`, MUST NOT item 10). Each claim is marked OBSERVED (tool output in the session), INFERRED (my reading), or UNKNOWN.
 
 ## Phase 0: Data Gathering
+
+### Evidence Links
+
+- PRs: [#6252](https://github.com/rjmurillo/ai-agents/pull/6252), [#6255](https://github.com/rjmurillo/ai-agents/pull/6255), [#6256](https://github.com/rjmurillo/ai-agents/pull/6256), [#6258](https://github.com/rjmurillo/ai-agents/pull/6258) (probe, closed), [#6260](https://github.com/rjmurillo/ai-agents/pull/6260), [#6262](https://github.com/rjmurillo/ai-agents/pull/6262), [#6272](https://github.com/rjmurillo/ai-agents/pull/6272), [#6274](https://github.com/rjmurillo/ai-agents/pull/6274)
+- Issue: [#5593](https://github.com/rjmurillo/ai-agents/issues/5593); gate origin: [#4828](https://github.com/rjmurillo/ai-agents/pull/4828), [#4651](https://github.com/rjmurillo/ai-agents/pull/4651)
+- CI: probe run [38090900276, job 114326942750](https://github.com/rjmurillo/ai-agents/actions/runs/38090900276/job/114326942750)
+- Merge commits: [9ed9dc0b0](https://github.com/rjmurillo/ai-agents/commit/9ed9dc0b00b9b6005b102d9ee157f829d1795864) (#6256), [44bc741e4](https://github.com/rjmurillo/ai-agents/commit/44bc741e460d572c610425a01cd38678e6868ffd) (#6260), [f7629222f](https://github.com/rjmurillo/ai-agents/commit/f7629222f798fd28eb9dd25b149aeed6f403a307) (#6272), [a17d36da1](https://github.com/rjmurillo/ai-agents/commit/a17d36da1ba5ad7c6b80eb312d15238c6f6e6b33) (#6274)
+
+### Failure Mode Classification
+
+Against `.agents/governance/FAILURE-MODES.md`:
+
+| Failure | Class | Why |
+|---------|-------|-----|
+| Review marker committed while `assess.py` exited 11 (#6272) | 4. False completion markers | A PASS marker was recorded for a check that had failed |
+| ADR-114 status, ADR-085 attribution, and "no Python caller" claim (#6274, #6260, #6262) | 9. Confident-incorrectness recurrence | Facts were stated from memory without a primary-source read |
 
 ### 4-Step Debrief
 
@@ -39,7 +55,7 @@ Evidence base: this session's transcript, the merged PRs, and the issue #5593 co
 
 ### Execution Trace
 
-| Time | Agent | Action | Outcome | Energy |
+| Time (UTC) | Agent | Action | Outcome | Energy |
 |------|-------|--------|---------|--------|
 | 2026-10-10 21:27 | orchestrator | Probe push | Copilot policy refusal | Stalled |
 | 21:4x | orchestrator | D6/D7 to owner | Local harness only | High |
@@ -79,7 +95,7 @@ Evidence base: this session's transcript, the merged PRs, and the issue #5593 co
 
 ### Patterns and Shifts
 
-- Pattern: a bot reviewer (Devin) found a factual error in 3 of the 5 later PRs (#6260, #6262, #6274). Each error was a claim I could have checked with one grep.
+- Pattern: Devin found a stale or false factual statement in 3 of the 5 PRs opened after #6255 (#6256, #6260, #6262, #6272, #6274). They were #6260 (thread PRRT_kwDOQoWRls6rIjgd, stale hook counts), #6262 (PRRT_kwDOQoWRls6rIt80, "no Python caller") and #6274 (PRRT_kwDOQoWRls6rNdHB, ADR-114 status). The ADR-097 attribution error in #6260 was found by the author, not Devin. Each error was a claim I could have checked with one grep.
 - Shift: after #6262, every new claim was checked against the repo before it went into a PR body. #6274's second round still caught one miss.
 
 ### Learning Matrix
@@ -143,12 +159,12 @@ Evidence base: this session's transcript, the merged PRs, and the issue #5593 co
 ### Learning 1
 - **Statement**: Check assess.py exit code is 0 before committing a review marker; 11 means failed.
 - **Atomicity Score**: 100%
-- **Evidence**: #6272, marker committed with `cqa=11`; the push was then refused by ratchets
+- **Evidence**: #6272, marker committed while `assess.py` exited 11 (test cohesion 5.3 below the floor of 6). The separate type-ignore refusal is in Near Misses.
 - **Skill Operation**: UPDATE
 - **Target Skill ID**: validation/code-quality-changed-only-regression-gate
 
 ### Learning 2
-- **Statement**: Before fixing a failing gate, read the PR that built it (#4828, #6260).
+- **Statement**: Before fixing a failing gate, read the PR that built it (#4828; #6260 deleted it).
 - **Atomicity Score**: 100%
 - **Evidence**: owner's Chesterton question; the trace showed the bundle never landed
 - **Skill Operation**: ADD
@@ -171,7 +187,7 @@ Evidence base: this session's transcript, the merged PRs, and the issue #5593 co
 ```json
 {
   "skill_id": "process-trace-gate-origin-before-fixing",
-  "statement": "Before fixing a failing gate, read the PR that built it (#4828, #6260).",
+  "statement": "Before fixing a failing gate, read the PR that built it (#4828; #6260 deleted it).",
   "context": "A CI gate or validator fails on paths or inputs that look missing",
   "evidence": "#6258 probe, #4828 and #4651 trace, #6260 deletion",
   "atomicity": 100
@@ -185,6 +201,16 @@ Evidence base: this session's transcript, the merged PRs, and the issue #5593 co
   "context": "Writing a debate log Summary or Final Status line",
   "evidence": "#6274 Devin review thread",
   "atomicity": 100
+}
+```
+
+```json
+{
+  "skill_id": "testing-enumerate-argv-forms-before-guard-review",
+  "statement": "Enumerate launcher, shell, and option-value argv forms before review; #6272 drew six threads.",
+  "context": "Writing code that infers the program a subprocess call starts",
+  "evidence": "#6272 review threads",
+  "atomicity": 85
 }
 ```
 
@@ -209,9 +235,9 @@ Evidence base: this session's transcript, the merged PRs, and the issue #5593 co
 
 | New Skill | Most Similar | Similarity | Decision |
 |-----------|--------------|------------|----------|
-| process-trace-gate-origin-before-fixing | process/process-search-open-issues-before-designing-a-fix | Medium: both say search first, but for different targets | Add |
+| process-trace-gate-origin-before-fixing | knowledge/chestertons-fence | High: same principle; that memory frames it as memory search | Add as a concrete case that links back to it |
 | adr-status-from-frontmatter-in-debate-logs | none found (grep "frontmatter status", "debate log.*status") | None | Add |
-| argv guard enumeration | none found (grep "argv", "launcher") | None | Skip: 85%, specific to one test helper |
+| testing-enumerate-argv-forms-before-guard-review | none found (grep "argv", "launcher") | None | Add |
 
 ## Phase 5: Persist and Close
 
@@ -222,7 +248,7 @@ Evidence base: this session's transcript, the merged PRs, and the issue #5593 co
 | Marker after assess.py exit 0 | 100% | validation/code-quality-changed-only-regression-gate | Updated |
 | Trace gate origin before fixing | 100% | none | Added |
 | ADR status from frontmatter | 100% | none | Added |
-| Enumerate argv forms | 85% | none | Skipped (narrow scope, recorded here) |
+| Enumerate argv forms | 85% | none | Added |
 
 ### +/Delta
 
@@ -246,9 +272,9 @@ Evidence base: this session's transcript, the merged PRs, and the issue #5593 co
 
 | Item | Evidence (path:line) | Proposed action | Class |
 |------|----------------------|-----------------|-------|
-| /goal evaluator loops on items reserved for the owner | this session, about 8 repeated stop-hook turns | Let the evaluator accept "blocked on owner" with named items | Optional enhancement |
-| No reliable PR-checks wait helper; ad hoc loops broke once | `get_pr_checks.py --wait --required-only` returned before Run Python Tests registered; without `--required-only` it waited on approval-gated checks | Make `--wait` treat a missing required check as pending | Optional enhancement |
-| `fetch_workflow_run_logs` falls back to failed steps only | `.claude/skills/github/scripts/pr/get_pr_check_logs.py:337` | Expose a full-log or step-summary mode | Optional enhancement |
+| /goal evaluator loops on items reserved for the owner | this session, about 8 repeated stop-hook turns | Owner: rjmurillo decides whether to file. Let the evaluator accept "blocked on owner" with named items | Optional enhancement |
+| No reliable PR-checks wait helper; ad hoc loops broke once | `get_pr_checks.py --wait --required-only` returned before Run Python Tests registered; without `--required-only` it waited on approval-gated checks | Owner: rjmurillo decides whether to file. Make `--wait` treat a missing required check as pending | Optional enhancement |
+| `fetch_workflow_run_logs` falls back to failed steps only | `.claude/skills/github/scripts/pr/get_pr_check_logs.py:337` | Owner: rjmurillo decides whether to file. Expose a full-log or step-summary mode | Optional enhancement |
 
 ### ROTI Assessment
 

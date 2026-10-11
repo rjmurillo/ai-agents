@@ -8,7 +8,7 @@
 
 ## Statement
 
-Before fixing a failing gate, read the PR that built it (#4828, #6260).
+Before fixing a failing gate, read the PR that built it (#4828; #6260 deleted it).
 
 ## Evidence
 
@@ -16,4 +16,5 @@ Probe PR #6258 showed Validate Vendor Provenance blocking on 5 paths that never 
 
 ## Related
 
-- `process/process-search-open-issues-before-designing-a-fix` has the same search-first shape for issues.
+- `.serena/memories/knowledge/chestertons-fence.md` states the principle; this is a concrete case of it.
+- `.serena/memories/process/process-search-open-issues-before-designing-a-fix.md` has the same search-first shape for issues.
