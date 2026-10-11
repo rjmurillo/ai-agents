@@ -13,7 +13,8 @@ a typo such as ``repo_local`` cannot silently ship a contributor-only skill.
 Every build stage reads this one field through :func:`is_repo_local` or
 :func:`repo_local_names`: the template compile (``skill_templates``), the
 support-file mirror into ``src/claude/skills`` (``skill_support_mirror``),
-and the Copilot mirror (``generate_skills``). A repo-local skill renders
+the Copilot mirror (``generate_skills``), and the plugin-tree copy onto
+``.claude/skills`` (``binplace_manifest``). A repo-local skill renders
 straight to ``.claude/skills/<name>/`` and appears in no plugin tree.
 
 Resolution order for one skill: the template
@@ -60,7 +61,7 @@ def distribution_of_text(text: str, source: str) -> str:
     if not isinstance(metadata, dict) or DISTRIBUTION_KEY not in metadata:
         return SHIPPED
     value = metadata[DISTRIBUTION_KEY]
-    if value not in ALLOWED_VALUES:
+    if not isinstance(value, str) or value not in ALLOWED_VALUES:
         allowed = ", ".join(sorted(ALLOWED_VALUES))
         raise SkillDistributionError(
             f"{source}: metadata.distribution is {value!r}; the only allowed value is "

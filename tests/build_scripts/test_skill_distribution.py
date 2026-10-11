@@ -24,6 +24,7 @@ for _extra_path in (_TEST_DIR, _REPO_ROOT / "build" / "scripts"):
 import binplace_manifest  # noqa: E402
 import generate_skills  # noqa: E402
 import skill_distribution  # noqa: E402
+import skill_support_mirror  # noqa: E402
 import skill_templates  # noqa: E402
 from _skill_template_helpers import (  # noqa: E402
     install_target,
@@ -82,6 +83,12 @@ class TestDistributionOfText:
 
     @pytest.mark.parametrize("value", ["repo_local", "Repo-Local", "shipped", "''", "null", "true"])
     def test_unknown_value_is_a_hard_error(self, value: str) -> None:
+        text = f"---\nname: x\nmetadata:\n  distribution: {value}\n---\n"
+        with pytest.raises(skill_distribution.SkillDistributionError, match="distribution"):
+            skill_distribution.distribution_of_text(text, "x.tmpl")
+
+    @pytest.mark.parametrize("value", ["[repo-local]", "{a: b}", "[1, 2]"])
+    def test_list_or_mapping_value_is_a_hard_error_not_a_type_error(self, value: str) -> None:
         text = f"---\nname: x\nmetadata:\n  distribution: {value}\n---\n"
         with pytest.raises(skill_distribution.SkillDistributionError, match="distribution"):
             skill_distribution.distribution_of_text(text, "x.tmpl")
@@ -232,6 +239,89 @@ class TestMirrors:
         (repo / ".claude" / "skills" / "shipped-skill" / "SKILL.md").write_text("x\n")
 
         assert generate_skills.generate_skills(minimal_platform_config(repo), repo) == 2
+
+
+def seed_vendor_copy(root: Path, name: str) -> Path:
+    skill_dir = root / name
+    (skill_dir / "scripts").mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text("old\n", encoding="utf-8")
+    (skill_dir / "scripts" / "run.py").write_text("print(1)\n", encoding="utf-8")
+    return skill_dir
+
+
+class TestStaleVendorCopies:
+    """A shipped skill that becomes repo-local must not leave a vendor copy behind."""
+
+    def test_sync_removes_the_stale_claude_plugin_copy(self, repo: Path) -> None:
+        tree = repo / "src" / "claude" / "skills"
+        stale = seed_vendor_copy(tree, "local-skill")
+        kept = seed_vendor_copy(tree, "shipped-skill")
+
+        _written, removed, _skipped, errors = generate_skills.sync_claude_plugin_skill_support(repo)
+
+        assert errors == []
+        assert removed == 2
+        assert not stale.exists()
+        assert (kept / "SKILL.md").read_text(encoding="utf-8") == "old\n"
+
+    def test_sync_check_reports_but_keeps_the_stale_copy(self, repo: Path) -> None:
+        stale = seed_vendor_copy(repo / "src" / "claude" / "skills", "local-skill")
+
+        _written, removed, _skipped, _errors = generate_skills.sync_claude_plugin_skill_support(
+            repo, check=True
+        )
+
+        assert removed == 2
+        assert (stale / "scripts" / "run.py").is_file()
+
+    def test_sync_refuses_a_symlinked_stale_copy(self, repo: Path, tmp_path_factory) -> None:
+        outside = tmp_path_factory.mktemp("outside")
+        (outside / "keep.txt").write_text("x\n", encoding="utf-8")
+        tree = repo / "src" / "claude" / "skills"
+        tree.mkdir(parents=True)
+        try:
+            (tree / "local-skill").symlink_to(outside, target_is_directory=True)
+        except OSError:
+            pytest.skip("symlinks unavailable")
+
+        _written, _removed, _skipped, errors = generate_skills.sync_claude_plugin_skill_support(
+            repo
+        )
+
+        assert any("symlink" in err for err in errors)
+        assert (outside / "keep.txt").is_file()
+
+    def test_prune_ignores_names_that_are_not_given(self, tmp_path: Path) -> None:
+        shipped = seed_vendor_copy(tmp_path, "shipped-skill")
+
+        removed, errors = skill_support_mirror.prune_repo_local_vendor_copies(
+            tmp_path, frozenset({"other"})
+        )
+
+        assert (removed, errors) == (0, [])
+        assert shipped.is_dir()
+
+    def test_copilot_mirror_removes_the_stale_copy(self, repo: Path) -> None:
+        for name in ("local-skill", "shipped-skill"):
+            (repo / ".claude" / "skills" / name / "SKILL.md").write_text("x\n", encoding="utf-8")
+        out = repo / "out" / "skills"
+        stale = seed_vendor_copy(out, "local-skill")
+
+        rc = generate_skills.generate_skills(minimal_platform_config(repo), repo)
+
+        assert rc == 0
+        assert not stale.exists()
+        assert (out / "shipped-skill" / "helper.py").is_file()
+
+    def test_copilot_validate_reports_the_stale_copy_as_drift(self, repo: Path) -> None:
+        for name in ("local-skill", "shipped-skill"):
+            (repo / ".claude" / "skills" / name / "SKILL.md").write_text("x\n", encoding="utf-8")
+        stale = seed_vendor_copy(repo / "out" / "skills", "local-skill")
+
+        rc = generate_skills.generate_skills(minimal_platform_config(repo), repo, validate=True)
+
+        assert rc == 1
+        assert stale.is_dir()
 
 
 class TestBinplace:
