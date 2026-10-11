@@ -292,23 +292,12 @@ query($owner: String!, $repo: String!, $number: Int!) {
   }
 }
 """
-result = subprocess.run(
-    [
-        "gh",
-        "api",
-        "graphql",
-        "-f",
-        f"query={query}",
-        "-f",
-        f"owner={owner}",
-        "-f",
-        f"repo={repo}",
-        "-F",
-        f"number={number}",
-    ],
-    capture_output=True,
-    text=True,
-)
+args = ["gh", "api", "graphql"]
+args += ["-f", f"query={query}"]
+args += ["-f", f"owner={owner}"]
+args += ["-f", f"repo={repo}"]
+args += ["-F", f"number={number}"]
+result = subprocess.run(args, capture_output=True, text=True)
 data = json.loads(result.stdout)
 ```
 
