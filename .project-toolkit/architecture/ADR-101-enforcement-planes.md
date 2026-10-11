@@ -474,7 +474,7 @@ So the human decision this design depends on is the one that sets P2 and approve
 
 ## Amendment 2026-10-11: the Vendor Provenance workflow is deleted
 
-Change: PR #6260 (merge commit 44bc741e4) deleted the Vendor Provenance workflow, one of the `pull_request_target` workflows counted above. Three remain on main: `label-pr.yml`, `enforcement-closure.yml`, and `dependabot-approve-and-auto-merge.yml`. PR #6260 did not delete the `vendor-provenance` environment named above, and no workflow references it now. The decision text above is unchanged.
+Change: PR #6260 (merge commit 44bc741e4) deleted the Vendor Provenance workflow, one of the `pull_request_target` workflows counted above. Three remain on main: `label-pr.yml`, `enforcement-closure.yml`, and `dependabot-approve-and-auto-merge.yml`. The set changed in separate work too: PR #5744 retired `auto-assign-reviewer.yml` and `rjmurillo-bot.yml`, and PR #6038 added `enforcement-closure.yml`. PR #6260 did not delete the `vendor-provenance` environment named above, and no workflow references it now. The decision text above is unchanged.
 
 ## Related Decisions
 

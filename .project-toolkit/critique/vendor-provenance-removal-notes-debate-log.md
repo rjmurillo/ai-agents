@@ -5,7 +5,7 @@
 - **Rounds**: 1
 - **Panel**: reduced (architect and critic). The change is prose only and touches no executable enforcement.
 - **Outcome**: Consensus
-- **Final Status**: ADR-097, ADR-101, ADR-109 and ADR-114 stay `accepted`. Each gains one dated amendment. No decision text changes.
+- **Final Status**: ADR-097, ADR-101 and ADR-109 stay `accepted`, and ADR-114 stays `proposed`. Each gains one dated amendment. No decision text changes.
 
 ## Context
 
@@ -25,7 +25,7 @@ The change adds `## Amendment 2026-10-11` sections to ADR-101, ADR-109 and ADR-1
 - **Merge commit cited**: every note now names 44bc741e4 next to PR #6260.
 - **Script wording**: notes say "14 `.py` and `.sh` scripts". Of the 14, only one file has the executable mode bit set.
 - **Growth from 13 to 14**: every note says the extra script came from separate work, not from PR #6260.
-- **ADR-101 count**: the note names the three `pull_request_target` workflows left on main. Those are `label-pr.yml`, `enforcement-closure.yml` and `dependabot-approve-and-auto-merge.yml`.
+- **ADR-101 count**: the note names the three `pull_request_target` workflows left on main. Those are `label-pr.yml`, `enforcement-closure.yml` and `dependabot-approve-and-auto-merge.yml`. The note also says why the set differs from the five ADR-101 lists: PR #5744 retired two of them, and PR #6038 added `enforcement-closure.yml`.
 - **ADR-097 orphan item**: the note settles the config half. It also says `_bootstrap.py` is now a canonical template.
 - **Environment claim**: no seat queried GitHub settings. So the notes say only that PR #6260 did not delete the `vendor-provenance` environment, and that no workflow references it.
 - **ADR-100 (P1, deferred with reason)**: ADR-100 lines 61 and 119 name the Validate Vendor Provenance check only as past evidence about #4846. They make no claim about the current tree, so ADR-100 gets no note.
