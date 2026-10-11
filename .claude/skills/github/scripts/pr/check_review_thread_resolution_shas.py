@@ -38,6 +38,8 @@ from github_core.api import assert_gh_authenticated, gh_graphql, resolve_repo_pa
 
 _MAX_THREAD_PAGES = 50
 _SHA_RE = re.compile(r"\b([0-9a-f]{7,40})\b", re.IGNORECASE)
+# Bots hide hex IDs in HTML comments (CodeRabbit: <!-- cr-comment:v1:<24 hex> -->).
+_HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
 
 _THREADS_QUERY = """\
 query($owner: String!, $repo: String!, $prNumber: Int!, $cursor: String) {
@@ -104,7 +106,8 @@ def _strip_fenced_code(body: str) -> str:
 
 
 def extract_shas(body: str) -> list[str]:
-    return [match.group(1).lower() for match in _SHA_RE.finditer(_strip_fenced_code(body))]
+    visible = _strip_fenced_code(_HTML_COMMENT_RE.sub("", body))
+    return [match.group(1).lower() for match in _SHA_RE.finditer(visible)]
 
 
 def fetch_review_threads(

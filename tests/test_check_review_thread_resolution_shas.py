@@ -95,6 +95,17 @@ def test_ignores_shas_inside_fenced_code() -> None:
     assert extract_shas(body) == ["abc1234"]
 
 
+def test_ignores_coderabbit_comment_marker() -> None:
+    body = "Confirmed in 49f5d79 and 2d9e16f.\n\n<!-- cr-comment:v1:75f6c599dff6a5b0a7422ab3 -->"
+    assert extract_shas(body) == ["49f5d79", "2d9e16f"]
+
+
+def test_ignores_multiline_html_comment() -> None:
+    full = "b" * 40
+    body = f"<!--\nrelated: deadbee\n-->\nFixed in {full}."
+    assert extract_shas(body) == [full]
+
+
 def test_ignores_unresolved_threads() -> None:
     with patch("check_review_thread_resolution_shas.check_ancestor") as check:
         report = build_report(
@@ -233,6 +244,7 @@ def test_check_ancestor_classifies_git_exit_codes() -> None:
         ),
     ):
         assert check_ancestor("abc1234", "b" * 40, ".") == (False, "invalid")
+
 
 def test_main_exits_zero_and_emits_raw_json(capsys) -> None:
     with (
