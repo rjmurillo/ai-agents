@@ -1,8 +1,10 @@
 # Claude Code and Copilot CLI agent toolkits compared
 
-Several open-source projects package agents, skills, and plugins for Claude Code and GitHub Copilot CLI. They differ in scope: large multi-harness catalogs (wshobson/agents), plugin sets for Claude Code and Copilot CLI (St0nefish/agent-toolkit, and dspo/agent-marketplace, which also targets Codex), pipeline orchestrators (AgentMux), git-gate governance tools (Karajan Code), and orchestrated multi-agent workflows (AI Agents, this repo). This page compares them on install route, scope, and workflow, using facts from each project's own repository as of 2026-10-11.
+Several open-source projects package agents, skills, and plugins for Claude Code and GitHub Copilot CLI. A harness is the coding tool that loads and runs agents, such as Claude Code or Copilot CLI.
 
-A harness is the coding tool that loads and runs agents, such as Claude Code or Copilot CLI.
+The projects differ in scope. Some are plugin collections: a multi-harness catalog (wshobson/agents), and plugin sets for Claude Code and Copilot CLI (St0nefish/agent-toolkit, and dspo/agent-marketplace, which also targets Codex). Others run or govern the work: a pipeline orchestrator (AgentMux), a git-gate governance tool (Karajan Code), and an orchestrated multi-agent workflow (AI Agents, this repo).
+
+This page compares them on install route, scope, and workflow, using facts from each project's own repository as of 2026-10-11.
 
 ## At a glance
 
@@ -10,8 +12,8 @@ Every cell comes from files in the project's own repository (README, LICENSE, li
 
 | Project | License | Claude Code install | Copilot CLI install | What it ships | Workflow model | Notes |
 |---------|---------|---------------------|---------------------|---------------|----------------|-------|
-| [AI Agents](https://github.com/rjmurillo/ai-agents) (this repo) | MIT | `/plugin marketplace add rjmurillo/ai-agents`, then `/plugin install project-toolkit@ai-agents` | `/plugin marketplace add rjmurillo/ai-agents`, then `/plugin install project-toolkit@ai-agents` | One `project-toolkit` plugin: 30 agents plus skills, generated for both CLIs from the same sources | An orchestrator routes work to specialist agents. Critic, QA, and security agents review the work before it ships | The six lifecycle steps (`spec` to `ship`) ship as user-invocable skills for both CLIs. The plugin hook files for both CLIs register no hooks as of 2026-10-11 |
-| [wshobson/agents](https://github.com/wshobson/agents) | MIT | `/plugin marketplace add wshobson/agents`, then `/plugin install <plugin>@claude-code-workflows` | Clone the repo, then `make install-copilot` | 94 plugins. The local source holds 202 agents, 184 skills, and 105 commands | A catalog. You install the plugins you want, and the harness loads them by its own rules | Supports seven tools. Its README names GitHub Copilot, and the generated agent profiles and skills install to `~/.copilot/`. Its matrix lists no plugin marketplace and no hooks for Copilot |
+| [AI Agents](https://github.com/rjmurillo/ai-agents) (this repo) | MIT | `/plugin marketplace add rjmurillo/ai-agents`, then `/plugin install project-toolkit@ai-agents` | `/plugin marketplace add rjmurillo/ai-agents`, then `/plugin install project-toolkit@ai-agents` | One `project-toolkit` plugin: 30 agents plus skills, generated for both CLIs from the same sources | An orchestrator routes work to specialist agents. Critic, QA, and security agents review the work before it ships | The six [lifecycle commands](workflow-commands.md) (`/spec` to `/ship`) ship as user-invocable skills for both CLIs. The plugin ships hook scripts but registers none for either CLI as of 2026-10-11. The README also documents `/install-plugin rjmurillo/ai-agents` as a one-step shortcut in Claude Code |
+| [wshobson/agents](https://github.com/wshobson/agents) | MIT | `/plugin marketplace add wshobson/agents`, then `/plugin install <plugin>@claude-code-workflows` | Clone the repo, then `make install-copilot` | 94 plugins. The local source holds 202 agents, 184 skills, and 105 commands | A catalog. You install the plugins you want, and the harness loads them by its own rules | Supports seven harnesses. Its README names GitHub Copilot, and the generated agent profiles and skills install to `~/.copilot/`. Its matrix lists no plugin marketplace and no hooks for Copilot |
 | [St0nefish/agent-toolkit](https://github.com/St0nefish/agent-toolkit) | AGPL-3.0 (LICENSE file) | `claude plugin install St0nefish/agent-toolkit/<plugin>` | `copilot plugin install St0nefish/agent-toolkit/<plugin>` | 16 plugins in five groups (productivity, development, security, gaming, Copilot-only), plus one Copilot extension | A plugin set. Each plugin adds hooks, skills, commands, an agent, or an MCP server | Keeps a Copilot variant of each hook plugin. The README license section says MIT, which differs from the LICENSE file |
 | [dspo/agent-marketplace](https://github.com/dspo/agent-marketplace) | Apache-2.0 | `/plugin marketplace add https://github.com/dspo/agent-marketplace.git`, then `/plugin install <plugin>` | `copilot plugin marketplace add https://github.com/dspo/agent-marketplace.git`, then `copilot plugin install <plugin>` | Five plugins: gitwork, mimo, exam-generator, playwright-cli, remora | A plugin set. One marketplace index serves Claude Code and Copilot CLI | Also targets OpenAI Codex through a second index file |
 | [AgentMux](https://github.com/markuswondrak/AgentMux) | Not stated. No LICENSE file at the repo root and no license field in `pyproject.toml` | Not a plugin. `pipx install git+https://github.com/markuswondrak/AgentMux.git` | Same install. It drives the `copilot` CLI as one of six providers | A Python CLI (`agentmux`) that runs agent CLIs inside tmux sessions | A pipeline: PM (optional), Architect, Plan, Code, Review, Done. A file watcher advances the state machine | Needs Python 3.10 or newer and tmux. Providers: `claude`, `codex`, `gemini`, `opencode`, `copilot`, `qwen` |
@@ -34,9 +36,9 @@ Both CLIs install plugins from a marketplace file in a Git repository. The forma
 
 The vendor docs show a narrower gap than that table. GitHub says hook files "use JSON format with version 1" ([GitHub Copilot hooks reference](https://docs.github.com/en/copilot/reference/hooks-reference)). The same page documents a second, "VS Code compatible" payload format. It uses PascalCase event names and snake_case fields, matching the Claude Code column above. Claude Code defines hooks "in JSON settings files" with three levels of nesting ([Claude Code hooks](https://code.claude.com/docs/en/hooks)). Test a hook in both CLIs before you rely on it.
 
-Projects handle the gap in different ways. St0nefish/agent-toolkit keeps a Copilot copy of each hook plugin. The wshobson/agents capability matrix lists lifecycle hooks as "none emitted" for Copilot. AI Agents registers no plugin hooks for either CLI as of 2026-10-11.
+Projects handle the gap in different ways. St0nefish/agent-toolkit keeps a Copilot copy of each hook plugin. The wshobson/agents capability matrix lists lifecycle hooks as "none emitted" for Copilot. AI Agents ships hook scripts in `src/claude/hooks/` but registers none for either CLI as of 2026-10-11.
 
-**Slash commands and agents.** Command support differs too. The wshobson/agents matrix says its commands are "converted to user-invocable skills" for Copilot. St0nefish/agent-toolkit keeps a `commands/` directory only in its Copilot variants and uses skills in Claude Code. AI Agents ships its six lifecycle steps as user-invocable skills for both CLIs, with no `commands/` directory in either plugin.
+**Slash commands and agents.** Command support differs too. The wshobson/agents matrix says its commands are "converted to user-invocable skills" for Copilot. St0nefish/agent-toolkit keeps a `commands/` directory only in its Copilot variants and uses skills in Claude Code. AI Agents ships its six lifecycle commands (`/spec` to `/ship`) as user-invocable skills for both CLIs, with no `commands/` directory in either plugin.
 
 Copilot CLI custom agents are Markdown files with an `.agent.md` extension. They live in `.github/agents/` for a project or `~/.copilot/agents/` for a user ([Creating and using custom agents for GitHub Copilot CLI](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/create-custom-agents-for-cli)).
 
@@ -44,7 +46,7 @@ Copilot CLI custom agents are Markdown files with an `.agent.md` extension. They
 
 Pick by the job you need done.
 
-- **A plugin catalog (94 plugins) with support for seven tools:** wshobson/agents.
+- **A plugin catalog (94 plugins) with support for seven harnesses:** wshobson/agents.
 - **A few focused plugins for both CLIs:** St0nefish/agent-toolkit, or dspo/agent-marketplace if you also use Codex.
 - **A tmux pipeline across the AI subscriptions you already have:** AgentMux.
 - **Git gates around whatever agent writes the code:** Karajan Code.
@@ -76,7 +78,7 @@ All sources were read on 2026-10-11.
 
 Project sources:
 
-- AI Agents: [README](../README.md) and [LICENSE](../LICENSE) in this repository.
+- AI Agents, all in this repository: [README](../README.md), [LICENSE](../LICENSE), the Claude Code [marketplace file](../.claude-plugin/marketplace.json) and [hook registrations](../src/claude/hooks.json), the Copilot CLI [marketplace file](../.github/plugin/marketplace.json) and [hook registrations](../src/copilot-cli/hooks/hooks.json), and a lifecycle skill, [spec](../src/claude/skills/spec/SKILL.md).
 - wshobson/agents: [README](https://raw.githubusercontent.com/wshobson/agents/main/README.md), [LICENSE](https://raw.githubusercontent.com/wshobson/agents/main/LICENSE), and [capability matrix](https://raw.githubusercontent.com/wshobson/agents/main/docs/harnesses.md).
 - St0nefish/agent-toolkit: [README](https://raw.githubusercontent.com/St0nefish/agent-toolkit/master/README.md) and [LICENSE](https://raw.githubusercontent.com/St0nefish/agent-toolkit/master/LICENSE).
 - dspo/agent-marketplace: [README](https://raw.githubusercontent.com/dspo/agent-marketplace/main/README.md) and [LICENSE](https://raw.githubusercontent.com/dspo/agent-marketplace/main/LICENSE).
