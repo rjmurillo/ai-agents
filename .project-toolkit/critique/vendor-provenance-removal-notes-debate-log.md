@@ -11,7 +11,7 @@
 
 PR #6260 (merge commit 44bc741e4) deleted the Vendor Provenance workflow and its validator. It also deleted every copy of the markdownlint safe config. Eight planning documents still described the gate or the config as current. The owner chose dated notes over rewriting decision records.
 
-The change adds `## Amendment 2026-10-11` sections to ADR-097, ADR-101, ADR-109 and ADR-114. It adds a `## Note 2026-10-11` section to the ADR-109 active plan, DESIGN-025, REQ-026 and TASK-034.
+The change adds `## Amendment 2026-10-11` sections to ADR-101, ADR-109 and ADR-114. ADR-097 gets its amendment inline, in the Impact-table row that flagged the orphan, because a new section would push the file past the 500-line taste limit. It adds a `## Note 2026-10-11` section to the ADR-109 active plan, DESIGN-025, REQ-026 and TASK-034.
 
 ## Agent Positions
 
