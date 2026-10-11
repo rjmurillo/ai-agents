@@ -2,7 +2,7 @@
 name: ai-agents-external-claims
 version: 1.0.0
 license: MIT
-description: Verify external, vendor, and third-party claims (numbers, attributions, structure) against authoritative primary sources before they land in a repo artifact or external deliverable. Covers stake-holding sources, round-number tells, citation-chain drift, and the walk-the-gate-or-file-conservative discipline. Use when you say `verify an external claim`, `check a vendor number`, `is this stat real`, `validate a third-party citation`. Do NOT use for running an experiment (in the ai-agents repository, use `ai-agents-research-methodology`) or command-injection scanning (use `security-scan`).
+description: Verify external, vendor, and third-party claims (numbers, attributions, structure) against authoritative primary sources before they land in a repo artifact or external deliverable. Covers stake-holding sources, round-number tells, citation-chain drift, and the walk-the-gate-or-file-conservative discipline. Use when you say `verify an external claim`, `check a vendor number`, `is this stat real`, `validate a third-party citation`. Do NOT use for running an experiment (use `ai-agents-research-methodology` in the ai-agents repository) or command-injection scanning (use `security-scan`).
 metadata:
   routing:
     role: conditional-adjunct
