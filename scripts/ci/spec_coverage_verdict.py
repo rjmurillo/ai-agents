@@ -26,6 +26,8 @@ ENV:
   EVENT_NAME           - github.event_name
   PR_NUMBER            - pull request number (workflow_dispatch body fetch)
   GITHUB_REPOSITORY    - owner/repo (workflow_dispatch body fetch)
+  GH_TOKEN             - API token for the body fetch (falls back to GITHUB_TOKEN)
+  GITHUB_API_URL       - API base, https only (default https://api.github.com)
   GITHUB_STEP_SUMMARY  - path to the step summary file (optional)
 
 EXIT CODES (ADR-035):
@@ -38,9 +40,11 @@ EXIT CODES (ADR-035):
 
 from __future__ import annotations
 
+import json
 import os
-import subprocess
+import re
 import sys
+import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -56,6 +60,9 @@ CHECK_NAME = "Validate Spec Coverage"
 ACCEPTANCE_HEADING = "## Acceptance criteria"
 _DISPATCH_EVENT = "workflow_dispatch"
 _FETCH_TIMEOUT_SECONDS = 60
+_DEFAULT_API_URL = "https://api.github.com"
+_PR_NUMBER = re.compile(r"[1-9][0-9]*")
+_REPOSITORY = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
 # GitHub shows about ten annotations per step. Leave room for the verdict line.
 _MAX_ITEM_ANNOTATIONS = 8
 
@@ -101,40 +108,52 @@ def _parse_has_specs(raw: str) -> bool | None:
     return None
 
 
-def _fetch_body(pr_number: str, repository: str) -> str | None:
-    """Read the pull request body through gh. None means the fetch failed."""
-    if not pr_number or not repository:
-        print(
-            "::error::workflow_dispatch needs PR_NUMBER and GITHUB_REPOSITORY "
-            "to read the pull request body.",
-            file=sys.stderr,
-        )
-        return None
-    command = [
-        "gh", "pr", "view", pr_number, "--repo", repository,
-        "--json", "body", "-q", ".body",
-    ]
+def _fetch_error(message: str) -> None:
+    print(f"::error::{_escape_annotation(message)}", file=sys.stderr)
+
+
+def _pull_request_url(pr_number: str, repository: str) -> str | None:
+    """Build the pull request API URL from validated inputs, or None."""
+    api_url = os.environ.get("GITHUB_API_URL", "") or _DEFAULT_API_URL
+    if not _PR_NUMBER.fullmatch(pr_number):
+        _fetch_error(f"PR_NUMBER must be a positive integer, got {pr_number!r}.")
+    elif not _REPOSITORY.fullmatch(repository) or {".", ".."} & set(repository.split("/")):
+        _fetch_error(f"GITHUB_REPOSITORY must be owner/repo, got {repository!r}.")
+    elif not api_url.startswith("https://"):
+        _fetch_error("GITHUB_API_URL must start with https://.")
+    else:
+        return f"{api_url.rstrip('/')}/repos/{repository}/pulls/{pr_number}"
+    return None
+
+
+def _read_body_field(url: str) -> str | None:
+    """GET the pull request and return its body ('' when null), or None on failure."""
+    headers = {"Accept": "application/vnd.github+json"}
+    token = os.environ.get("GH_TOKEN", "") or os.environ.get("GITHUB_TOKEN", "")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    request = urllib.request.Request(url, headers=headers, method="GET")
     try:
-        result = subprocess.run(
-            command,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            check=False,
-            timeout=_FETCH_TIMEOUT_SECONDS,
-        )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        print(f"::error::gh pr view could not run: {exc}", file=sys.stderr)
+        with urllib.request.urlopen(request, timeout=_FETCH_TIMEOUT_SECONDS) as response:
+            payload = json.loads(response.read())
+    except (OSError, ValueError) as exc:
+        # HTTPError and URLError are OSError; bad JSON or bytes are ValueError.
+        _fetch_error(f"reading the pull request failed: {exc}")
         return None
-    if result.returncode != 0:
-        print(
-            f"::error::gh pr view failed (exit {result.returncode}): "
-            f"{result.stderr.strip()}",
-            file=sys.stderr,
-        )
+    if not isinstance(payload, dict) or "body" not in payload:
+        _fetch_error("the pull request response has no body field.")
         return None
-    return result.stdout.strip()
+    body = payload["body"]
+    if body is not None and not isinstance(body, str):
+        _fetch_error("the pull request body field is not text.")
+        return None
+    return body or ""
+
+
+def _fetch_body(pr_number: str, repository: str) -> str | None:
+    """Read the pull request body over the GitHub REST API. None means failure."""
+    url = _pull_request_url(pr_number, repository)
+    return None if url is None else _read_body_field(url)
 
 
 def _format_summary(verdict: Verdict) -> str:
@@ -205,7 +224,7 @@ def run() -> int:
         if fetched is None:
             return _config_error(
                 "Could not read the pull request body for this workflow_dispatch "
-                "run; see the log for the gh error."
+                "run; see the log for the error."
             )
         body = fetched
     verdict = decide(has_specs, body)
