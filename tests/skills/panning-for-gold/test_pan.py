@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size (ruff format pushed this file past 500 lines)
 """Tests for panning-for-gold skill scripts."""
 
 from __future__ import annotations

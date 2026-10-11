@@ -1221,27 +1221,32 @@ Do not create new ones; see `.claude/rules/session-logs.md`.
 
 All agents access memory via cloudmcp-manager tools:
 
+<!-- fmt:off -->
 ```python
 # Search for context (before work)
-mcp__cloudmcp - manager__memory - search_nodes
+mcp__cloudmcp-manager__memory-search_nodes
 Query: "[topic] [keywords]"
 
 # Store learnings (after work)
-mcp__cloudmcp - manager__memory - add_observations
-{"observations": [{"entityName": "[Entity-Name]", "contents": ["[Observation with source]"]}]}
+mcp__cloudmcp-manager__memory-add_observations
+{
+  "observations": [{
+    "entityName": "[Entity-Name]",
+    "contents": ["[Observation with source]"]
+  }]
+}
 
 # Create new entities
-mcp__cloudmcp - manager__memory - create_entities
+mcp__cloudmcp-manager__memory-create_entities
 {
-    "entities": [
-        {
-            "name": "[Entity-Name]",
-            "entityType": "[Type]",
-            "observations": ["[Initial observations]"],
-        }
-    ]
+  "entities": [{
+    "name": "[Entity-Name]",
+    "entityType": "[Type]",
+    "observations": ["[Initial observations]"]
+  }]
 }
 ```
+<!-- fmt:on -->
 
 ### 5.3 Skill Persistence
 

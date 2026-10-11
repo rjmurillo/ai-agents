@@ -1459,7 +1459,7 @@ def _documented_recipe() -> str:
 def _accepted_ids_via_recipe(adr_dir: Path) -> list[str]:
     """Run the documented recipe against `adr_dir` and collect what it prints."""
     printed: list[str] = []
-    source = _documented_recipe().replace("'.project-toolkit/architecture'", repr(str(adr_dir)))
+    source = _documented_recipe().replace('".project-toolkit/architecture"', repr(str(adr_dir)))
     # exec is the point: the contract under test is that the shipped recipe
     # RUNS and agrees with the generator. Asserting on its text would pin the
     # recipe to a copy of itself. Input is our own module constant, never

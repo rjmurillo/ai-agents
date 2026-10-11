@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size (ruff format pushed this file past 500 lines)
 """Tests for post_issue_comment.py consumer script."""
 
 from __future__ import annotations

@@ -1,3 +1,4 @@
+# taste-lint: ignore complexity (the line-based branch counter crossed the limit after ruff format)
 # taste-lint: ignore file-size
 #
 # file-size suppression rationale: this module is the single owner of the

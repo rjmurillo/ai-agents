@@ -10,11 +10,12 @@ session_stats = {
         "cursor[bot]": {"comments": N, "actionable": N, "rate": "100%"},
         "copilot-pull-request-reviewer": {"comments": N, "actionable": N, "rate": "XX%"},
         # ... other reviewers
-    }
+    },
 }
 ```
 
 #### Step 9.2: Update pr-review/pr-comment-responder-skills Memory
 
+<!-- fmt:off -->
 ```python
 # Read current memory to get existing statistics

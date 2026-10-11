@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size (ruff format pushed this file past 500 lines)
 """Update a pull request's head branch with its base, server side.
 
 Calls ``PUT /repos/{owner}/{repo}/pulls/{pull_number}/update-branch``, the API

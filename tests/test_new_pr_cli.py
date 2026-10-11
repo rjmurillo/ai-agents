@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size (ruff format pushed this file past 500 lines)
 """CLI orchestration tests for ``new_pr.py``."""
 
 from __future__ import annotations

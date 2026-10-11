@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size (ruff format pushed this file past 500 lines)
 """Deterministic long-tail route resolver for the autoplan skill (DESIGN-037).
 
 The `autoplan` high-traffic table is prose a model reads; this script is the

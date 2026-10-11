@@ -1718,6 +1718,7 @@ session_stats = {
 
 #### Step 9.2: Update pr-review/pr-comment-responder-skills Memory
 
+<!-- fmt:off -->
 ```python
 # Read current memory to get existing statistics
 current = mcp__serena__read_memory(memory_file_name="pr-review/pr-comment-responder-skills")
@@ -1754,6 +1755,7 @@ mcp__serena__edit_memory(
     mode="literal",
 )
 ```
+<!-- fmt:on -->
 
 #### Step 9.3: Update Required Fields
 

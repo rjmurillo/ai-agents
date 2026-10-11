@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size (ruff format pushed this file past 500 lines)
 """Tests for the check_pr_round_cap.py wall-clock reset (issue #5477).
 
 The budget restarts on head SHA advance, human reopen, or operator reset, and a

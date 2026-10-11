@@ -1881,9 +1881,10 @@ session_stats = {
 
 #### Step 9.2: Update pr-review/pr-comment-responder-skills Memory
 
+<!-- fmt:off -->
 ```python
 # Read current memory to get existing statistics
-current = Read.serena / memories / pr - review / pr - comment - responder - skills.md
+current = Read .serena/memories/pr-review/pr-comment-responder-skills.md
 
 # Calculate new cumulative totals from session_stats
 # Example: If cursor[bot] had 9 comments (100%) and this PR adds 2 more (100%)
@@ -1917,6 +1918,7 @@ mcp__serena__edit_memory(
     mode="literal",
 )
 ```
+<!-- fmt:on -->
 
 #### Step 9.3: Update Required Fields
 

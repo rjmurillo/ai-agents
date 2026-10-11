@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size (ruff format pushed this file past 500 lines)
 """
 discover_skills.py - Scan all skill sources and build a searchable index
 

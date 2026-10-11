@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore complexity (the line-based branch counter crossed the limit after ruff format)
 """Validate memory index consistency for tiered memory architecture (ADR-017).
 
 Implements multi-tier validation for the tiered memory index architecture:

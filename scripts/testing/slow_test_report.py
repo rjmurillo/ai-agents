@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size (ruff format pushed this file past 500 lines)
 """Slow-test telemetry and report (issue #5382).
 
 Recorder (a pytest plugin), records per test item the duration, the number of

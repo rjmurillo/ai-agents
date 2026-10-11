@@ -56,11 +56,13 @@ runSubagent(agentName: "analyst", description: "3-5 words", prompt: "...")
 
 **Claude:**
 
+<!-- fmt:off -->
 ```python
-mcp__cloudmcp - manager__memory - search_nodes(query="[topic]")
-mcp__cloudmcp - manager__memory - add_observations(...)
-mcp__cloudmcp - manager__memory - create_entities(...)
+mcp__cloudmcp-manager__memory-search_nodes(query="[topic]")
+mcp__cloudmcp-manager__memory-add_observations(...)
+mcp__cloudmcp-manager__memory-create_entities(...)
 ```
+<!-- fmt:on -->
 
 **Templates:**
 

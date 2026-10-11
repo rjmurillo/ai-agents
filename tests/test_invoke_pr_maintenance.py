@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size (ruff format pushed this file past 500 lines)
 """Tests for invoke_pr_maintenance.py consumer script."""
 
 from __future__ import annotations

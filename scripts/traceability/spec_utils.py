@@ -1,3 +1,4 @@
+# taste-lint: ignore complexity (the line-based branch counter crossed the limit after ruff format)
 """Shared utilities for traceability spec operations.
 
 Provides YAML frontmatter parsing, spec file location, path validation,

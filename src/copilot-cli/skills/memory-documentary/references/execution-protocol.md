@@ -25,20 +25,18 @@ Create an explicit search plan BEFORE executing queries:
 
 **Claude-Mem MCP** (timeline-based):
 
+<!-- fmt:off -->
 ```python
 # Step 1: Search for index
-mcp__plugin_claude - mem_mcp - search__search(query="[topic]")
+mcp__plugin_claude-mem_mcp-search__search(query="[topic]")
 
 # Step 2: Get context around results
-(
-    mcp__plugin_claude
-    - mem_mcp
-    - search__timeline(anchor=[observation_id], depth_before=3, depth_after=3)
-)
+mcp__plugin_claude-mem_mcp-search__timeline(anchor=[observation_id], depth_before=3, depth_after=3)
 
 # Step 3: Fetch full details
-mcp__plugin_claude - mem_mcp - search__get_observations(ids=[filtered_ids])
+mcp__plugin_claude-mem_mcp-search__get_observations(ids=[filtered_ids])
 ```
+<!-- fmt:on -->
 
 **Serena MCP** (project-specific):
 
