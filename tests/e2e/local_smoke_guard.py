@@ -11,13 +11,19 @@ the test before the process starts.
 from __future__ import annotations
 
 import os
+import re
+import shlex
 import subprocess
 from collections.abc import Callable, Mapping
 from pathlib import PurePath, PureWindowsPath
 from typing import Any
 
 LOCAL_SMOKE_ENV = "AI_AGENTS_LOCAL_CLI_SMOKE"
-_COPILOT_NAMES = frozenset({"copilot", "copilot.exe", "copilot.cmd"})
+_COPILOT_NAMES = frozenset({"copilot", "copilot.exe", "copilot.cmd", "copilot.bat"})
+# Launchers that run the next word as the program. ``gh copilot`` is a gh
+# extension, not the Copilot CLI, so ``gh`` is not listed.
+_ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+_LAUNCHERS = frozenset({"env", "npx", "exec", "command", "nohup", "sudo"})
 
 
 class CopilotCallRefusedError(AssertionError):
@@ -30,16 +36,39 @@ def guard_active(environ: Mapping[str, str] | None = None) -> bool:
     return source.get(LOCAL_SMOKE_ENV) == "1"
 
 
-def program_name(args: object) -> str:
-    """Return the lowercased basename of the program a subprocess call starts."""
+def _words(args: object) -> list[str]:
+    """Split a subprocess ``args`` value into words."""
     if isinstance(args, (str, bytes, os.PathLike)):
-        words = os.fsdecode(args).split()
-        first = words[0] if words else ""
-    elif isinstance(args, (list, tuple)) and args:
-        first = os.fsdecode(args[0])
-    else:
-        return ""
-    return PureWindowsPath(PurePath(first).name).name.lower()
+        text = os.fsdecode(args)
+        if "\\" in text:
+            return text.split()
+        try:
+            return shlex.split(text)
+        except ValueError:
+            return text.split()
+    if isinstance(args, (list, tuple)):
+        return [os.fsdecode(word) for word in args]
+    return []
+
+
+def _basename(word: str) -> str:
+    return PureWindowsPath(PurePath(word).name).name.lower()
+
+
+def program_name(args: object) -> str:
+    """Return the lowercased basename of the program a subprocess call starts.
+
+    Leading ``NAME=VALUE`` assignments are skipped, and so is a launcher such as
+    ``env`` or ``npx`` together with its own options and assignments.
+    """
+    for word in _words(args):
+        if _ASSIGNMENT.match(word):
+            continue
+        name = _basename(word)
+        if name in _LAUNCHERS or word.startswith("-"):
+            continue
+        return name
+    return ""
 
 
 def refuse_copilot(args: object) -> None:
@@ -61,8 +90,10 @@ class GuardedPopen(subprocess.Popen):  # type: ignore[type-arg]
 
     def __init__(self, args: Any, *rest: Any, **kwargs: Any) -> None:
         refuse_copilot(args)
-        if kwargs.get("executable") is not None:
-            refuse_copilot([kwargs["executable"]])
+        # Popen's positional order is (args, bufsize, executable, ...).
+        executable = kwargs.get("executable", rest[1] if len(rest) > 1 else None)
+        if executable is not None:
+            refuse_copilot([executable])
         super().__init__(args, *rest, **kwargs)
 
 

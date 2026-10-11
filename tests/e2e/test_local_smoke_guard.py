@@ -28,6 +28,13 @@ from scripts.validation import git_hook_policy
         [r"C:\tools\Copilot.EXE"],
         [r"C:\npm\copilot.cmd", "skill", "list"],
         [Path("/opt/bin/copilot")],
+        ["copilot.bat"],
+        "COPILOT_MODEL=x copilot -p hi",
+        "env FOO=1 copilot",
+        ["env", "-i", "copilot"],
+        ["npx", "-y", "@github/copilot"],
+        "'/opt/my tools/copilot' --version",
+        r"C:\npm\copilot.cmd --version",
     ],
 )
 def test_refuses_every_spelling_of_the_copilot_program(args: object) -> None:
@@ -43,6 +50,8 @@ def test_refuses_every_spelling_of_the_copilot_program(args: object) -> None:
         "python -c 'print(1)'",
         ["copilot-language-server"],
         ["/usr/bin/copilotx"],
+        ["gh", "copilot", "suggest"],
+        "FOO=copilot claude -p hi",
         [],
         "",
         None,
@@ -75,6 +84,16 @@ def test_installed_guard_checks_the_executable_override(
 
     with pytest.raises(guard.CopilotCallRefusedError):
         subprocess.run(["harmless"], executable="/usr/bin/copilot", check=False)
+
+
+def test_installed_guard_checks_a_positional_executable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Edge: Popen's third positional argument is ``executable``."""
+    guard.install(monkeypatch.setattr)
+
+    with pytest.raises(guard.CopilotCallRefusedError):
+        subprocess.Popen(["harmless"], -1, "/usr/bin/copilot")
 
 
 def test_installed_guard_still_starts_other_programs(
@@ -121,7 +140,6 @@ def _run_unmarked_copilot_test(tmp_path: Path, *, armed: bool) -> subprocess.Com
     )
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="the fake copilot is a shebang script")
 def test_conftest_fails_an_unmarked_copilot_call_under_the_gate_flag(tmp_path: Path) -> None:
     result = _run_unmarked_copilot_test(tmp_path, armed=True)
 
@@ -139,3 +157,21 @@ def test_conftest_leaves_copilot_alone_without_the_gate_flag(tmp_path: Path) -> 
 
 def test_gate_flag_name_matches_the_guard() -> None:
     assert git_hook_policy.CLI_E2E_LOCAL_SMOKE_ENV == guard.LOCAL_SMOKE_ENV
+
+
+def test_run_cli_e2e_arms_the_guard(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The gate must set the flag, or the guard never arms."""
+    monkeypatch.delenv("SKIP_CLI_E2E", raising=False)
+    monkeypatch.setattr(git_hook_policy.shutil, "which", lambda name: name)
+    seen: dict[str, object] = {}
+
+    def fake_run_command(_command: object, *_args: object, **kwargs: object) -> object:
+        seen.update(kwargs)
+        return subprocess.CompletedProcess([], 0, "", "")
+
+    monkeypatch.setattr(git_hook_policy, "_run_command", fake_run_command)
+
+    assert git_hook_policy.run_cli_e2e("tests/e2e/test.py", tmp_path) == 0
+    env = seen["process_env"]
+    assert isinstance(env, dict)
+    assert env[guard.LOCAL_SMOKE_ENV] == "1"
