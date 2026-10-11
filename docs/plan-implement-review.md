@@ -1,6 +1,6 @@
 # Plan, implement, and review code with a team of AI agents in Claude Code and Copilot CLI
 
-In Claude Code, you can use built-in subagents or the experimental Agent Teams feature, or install a toolkit that defines planner, implementer, and reviewer roles for you. In GitHub Copilot CLI, you define custom agents as `.agent.md` files and pick them with `/agent` or `--agent`. AI Agents packages both: an orchestrator routes work from analyst and architect through implementer to critic, QA, and security, in both CLIs.
+In Claude Code, you can use built-in subagents or the experimental Agent Teams feature, or install a toolkit that defines planner, implementer, and reviewer roles for you. In GitHub Copilot CLI, you define custom agents as `.agent.md` files and pick them with `/agent` or `--agent`. AI Agents ships a ready-made team for both CLIs: an orchestrator routes work from analyst and architect through implementer to critic, QA, and security.
 
 This page shows three ways to set that up. Pick one with the [comparison table](#which-to-use).
 
@@ -10,11 +10,11 @@ Facts on this page were checked on 2026-10-11 against the linked vendor docs, Cl
 
 An agent team is several Claude Code sessions that work together. One session is the lead. The others are teammates. Each teammate has its own context window, and teammates message each other directly. The [Agent Teams documentation](https://code.claude.com/docs/en/agent-teams) is the authority for everything in this section.
 
-Agent Teams differ from [subagents](https://code.claude.com/docs/en/sub-agents). By default, a subagent does a task in its own context and returns the result to the caller, and the main agent manages all the work. Teammates message each other directly and coordinate through a shared task list.
+Agent Teams is not the same as [subagents](https://code.claude.com/docs/en/sub-agents). By default, a subagent does a task in its own context and returns the result to the caller, and the main agent manages all the work. Teammates message each other directly and coordinate through a shared task list.
 
 ### Enable it
 
-Agent Teams are off by default. Set one environment variable in your shell or in `settings.json`:
+Agent Teams is off by default. Set one environment variable in your shell or in `settings.json`:
 
 ```json
 {
@@ -49,13 +49,13 @@ You cannot set a permission mode per teammate at spawn time. You can change one 
 
 ### Add review gates
 
-Three [hooks](https://code.claude.com/docs/en/hooks) let you block work that is not done. Each one blocks when your script exits with code 2.
+Three [hooks](https://code.claude.com/docs/en/hooks) let you hold work that is not done. Each one acts when your script exits with code 2.
 
-| Hook | Fires when |
-|------|------------|
-| `TeammateIdle` | A teammate is about to go idle |
-| `TaskCreated` | A task is being created |
-| `TaskCompleted` | A task is being marked complete |
+| Hook | Fires when | Exit code 2 |
+|------|------------|-------------|
+| `TeammateIdle` | A teammate is about to go idle | Sends feedback and keeps the teammate working |
+| `TaskCreated` | A task is being created | Prevents the creation and sends feedback |
+| `TaskCompleted` | A task is being marked complete | Prevents the completion and sends feedback |
 
 ### Limits
 
@@ -154,29 +154,30 @@ Run these inside the CLI session.
 /plugin install project-toolkit@ai-agents
 ```
 
-The same commands work from a regular shell as `claude plugin ...` and `copilot plugin ...`. The plugin's hooks need Python 3.10 or newer. Without it, hooks are skipped with a warning. See the [installation guide](installation.md) for other install paths.
+The same commands work from a regular shell as `claude plugin ...` and `copilot plugin ...`. See the [installation guide](installation.md) for other install paths.
 
 ### The flow in Claude Code
 
 Six lifecycle skills cover the path from idea to pull request: spec, plan, build, test, review, and ship. Claude Code [namespaces a plugin's skills](https://code.claude.com/docs/en/plugins) with the plugin name. After a marketplace install, type the full form:
 
 ```text
-/project-toolkit:plan Add rate limiting to the API
+/project-toolkit:spec Add rate limiting to the API
+/project-toolkit:plan
 /project-toolkit:build
 /project-toolkit:review
 ```
 
-`plan` writes milestones, sized tasks, a dependency graph, and a risk register. `build` works test-first and commits in small slices. `review` returns a final verdict, a verdict per review axis, and findings with file and line locations. The [workflow commands reference](workflow-commands.md) covers all six.
+`plan` expects a spec. For new work, run `spec` first. `plan` writes milestones, sized tasks, a dependency graph, and a risk register. `build` works test-first and commits in small slices. `review` returns a final verdict, a verdict per review axis, and findings with file and line locations. The [workflow commands reference](workflow-commands.md) covers all six.
 
 ### The flow in Copilot CLI
 
-The same six skills ship in the Copilot bundle. The [README](../README.md#what-you-get) documents the lifecycle slash commands for Claude Code only. In Copilot CLI, select agents by name. The README lists three ways: the `--agent` flag, `/agent`, or the agent's name in your prompt. Start with the orchestrator and let it route:
+The same six skills ship in the Copilot bundle. The [README](../README.md#what-you-get) documents the lifecycle slash commands for Claude Code only. In Copilot CLI, select agents by name. The README lists three ways: the `--agent` flag, `/agent`, or the agent's name in your prompt. Run `/agent` to see the installed agents and pick one, such as the milestone-planner, the implementer, or the critic.
+
+Or start with the orchestrator and let it route. This uses the name-in-prompt form from the README:
 
 ```shell
-copilot --agent orchestrator --prompt "Implement rate limiting on the API, with tests and a security review"
+copilot -p "orchestrator: implement rate limiting on the API, with tests and a security review"
 ```
-
-Or run `/agent` and pick `milestone-planner`, `implementer`, or `critic` for one step at a time.
 
 ### How the agents hand off
 
@@ -199,9 +200,9 @@ The loop in step 6 depends on who rejects. A failed QA run returns to the orches
 | Works in Claude Code | Yes | Not documented. Claude Code's documented subagent locations are `.claude/agents/`, `~/.claude/agents/`, and plugins | Yes |
 | Works in Copilot CLI | Not documented. Agent Teams is a Claude Code feature | Yes | Yes |
 | Reusable roles | Yes, through subagent definitions | Yes, one file per role | Yes, 30 roles included |
-| Plan before code | A teammate spawned from a lead in plan mode stays read-only until its plan is ready | Plan mode, with `Shift`+`Tab` or `--plan` | The plan skill in Claude Code. The milestone-planner and critic agents in both CLIs |
-| Parallel work | Yes. Teammates run as separate sessions | Yes, with `/fleet` or the `--fleet` flag | The orchestrator delegates to specialists |
-| Review gates | Hooks you write: `TeammateIdle`, `TaskCreated`, `TaskCompleted` | A reviewer agent you write. Copilot CLI also has a built-in code review agent | Critic, QA, and security agents, plus hooks that need Python 3.10 or newer |
+| Plan before code | A teammate spawned from a lead in plan mode stays read-only until its plan is ready. The plan is auto-approved. Permission prompts are the gate | Plan mode, with `Shift`+`Tab` or `--plan` | The plan skill in Claude Code. The milestone-planner and critic agents in both CLIs |
+| Parallel work | Yes. Teammates run as separate sessions | Yes, with `/fleet` or the `--fleet` flag | Yes, where the work is independent. The orchestrator routes in parallel where possible and combines the results |
+| Review gates | Hooks you write: `TeammateIdle`, `TaskCreated`, `TaskCompleted` | A reviewer agent you write. Copilot CLI also has a built-in code review agent | Critic, QA, and security agents, plus the review skill |
 | Status | Experimental and off by default | The `--agent`, `--plan`, and `--fleet` flags are in Copilot CLI 1.0.95 | MIT licensed. Both installs ran clean on 2026-10-11 |
 
 Sources, by column:
@@ -210,7 +211,7 @@ Sources, by column:
 - **Copilot custom agents:** [Using Copilot CLI](https://docs.github.com/en/copilot/how-tos/use-copilot-agents/use-copilot-cli), [Creating custom agents for Copilot CLI](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/create-custom-agents-for-cli), [fleet](https://docs.github.com/en/copilot/concepts/agents/copilot-cli/fleet), [About Copilot CLI](https://docs.github.com/en/copilot/concepts/agents/copilot-cli/about-copilot-cli), and `copilot --help` on version 1.0.95. The Claude Code row cites the [subagents documentation](https://code.claude.com/docs/en/sub-agents).
 - **AI Agents:** the [README](../README.md), the agent templates under `templates/agents/`, and an install of `project-toolkit@ai-agents` in each CLI.
 
-The options are not exclusive. AI Agents installs as subagents in Claude Code and as custom agents in Copilot CLI.
+The options are not exclusive. AI Agents installs as subagents in Claude Code and as custom agents in Copilot CLI. One interaction matters: while Agent Teams is enabled, a subagent that Claude names launches as a teammate. Toolkit agents can then spawn as teammates, at a higher token cost. See [Claude spawns teammates instead of subagents](https://code.claude.com/docs/en/agent-teams#claude-spawns-teammates-instead-of-subagents).
 
 ## Tips that apply to all three
 
@@ -218,7 +219,7 @@ The first three draw on the [Agent Teams documentation](https://code.claude.com/
 
 - **Give each agent its own files.** Two agents editing one file overwrite each other. Split the work so each agent owns a different set of files.
 - **Plan read-only first.** Let the planner finish before any agent can edit.
-- **Give each reviewer one lens.** One reviewer for security, one for tests, one for performance. A single reviewer tends to fix on one kind of problem.
+- **Give each reviewer one lens.** One reviewer for security, one for tests, one for performance. A single reviewer tends to fixate on one kind of problem.
 - **Keep the reviewer out of the author's context.** In AI Agents, the critic sees the diff, the plan, and the spec. QA sees the diff and the spec. Neither sees the implementer's reasoning. The templates give the reason: a reviewer that shares the author's context tends to confirm the author's framing.
 - **Start small.** The Agent Teams documentation suggests 3 to 5 teammates for most work. Every extra agent adds token cost and coordination.
 
@@ -243,3 +244,5 @@ Give the reviewer its own role and a read-only tool list. Hand it the diff, not 
 ### Does AI Agents need Agent Teams enabled?
 
 No. The agents are Claude Code subagents and Copilot CLI custom agents. No file under `src/` or `templates/` reads `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS`. The plan, build, and review skills ran on 2026-10-11 with the variable unset.
+
+If you do enable Agent Teams, a subagent that Claude names launches as a teammate. Toolkit agents may then run as teammates, and each teammate is a separate Claude instance.
