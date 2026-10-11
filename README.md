@@ -16,9 +16,9 @@ Built for platform teams, engineering managers, and organizations that want AI-a
 
 ## Why AI Agents
 
-- **Orchestrated specialists.** An orchestrator routes work to specialist agents (analyst, architect, milestone-planner, implementer, critic, qa, security, devops) with explicit handoffs.
+- **Orchestrated specialists.** An orchestrator routes work to specialist agents (`analyst`, `architect`, `milestone-planner`, `implementer`, `critic`, `qa`, `security`, `devops`) with explicit handoffs.
 - **Plan-to-ship lifecycle.** Six commands cover the path in Claude Code: `/spec`, `/plan`, `/build`, `/test`, `/review`, `/ship`.
-- **Review gates that loop back.** The critic returns APPROVED, APPROVED_WITH_CONCERNS, NEEDS_REVISION, or BLOCKED. NEEDS_REVISION sends the plan back to the planner. A QA failure sends the work back to the implementer.
+- **Review gates that loop back.** The critic returns APPROVED, APPROVED_WITH_CONCERNS, NEEDS_REVISION, or BLOCKED. NEEDS_REVISION sends the plan back to the agent that produced it. A QA failure sends the work back to the implementer.
 - **One marketplace URL, two CLIs.** The same repository URL installs as a plugin marketplace in Claude Code and in GitHub Copilot CLI.
 - **VS Code Copilot Chat support.** Agents also load in VS Code Copilot Chat from `.github/agents/`.
 - **MIT licensed.**
@@ -399,8 +399,8 @@ flowchart LR
     Code --> QA
     QA --> |pass| Done([Done])
     QA --> |fail| Implementer
-    Critic --> |approve| Done
-    Critic --> |reject| Implementer
+    Critic --> |APPROVED| Implementer
+    Critic --> |NEEDS_REVISION| Planner
 ```
 
 **Typical flow:**

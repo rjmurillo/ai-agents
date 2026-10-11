@@ -14,7 +14,7 @@ AI Agents is an open-source multi-agent toolkit for software development. It run
 
 ### How do agents review each other's work?
 
-The critic stress-tests plans and returns APPROVED, APPROVED_WITH_CONCERNS, NEEDS_REVISION, or BLOCKED. NEEDS_REVISION sends the plan back to the planner. QA verifies the tests and security models the threats. A QA failure sends the work back to the implementer.
+The critic stress-tests plans and returns APPROVED, APPROVED_WITH_CONCERNS, NEEDS_REVISION, or BLOCKED. NEEDS_REVISION sends the plan back to the agent that produced it. QA verifies the tests and security models the threats. A QA failure sends the work back to the implementer.
 
 ## Install and platforms
 
@@ -43,7 +43,7 @@ Not as slash commands. The README [What You Get](../README.md#what-you-get) tabl
 
 ### What does it require?
 
-Python 3.10 or later for the `project-toolkit` hooks. Without it, the hooks skip with a warning and your session still works. The security gates and review checks that run as hooks do not run in that mode.
+Python 3.10 or later for the `project-toolkit` hooks. On Windows, the Python launcher (`py`) must be on PATH. Without Python, or with a version below 3.10, the hooks skip with a warning and your session still works. The security gates and review checks that run as hooks do not run in that mode.
 
 ### Is it free?
 
