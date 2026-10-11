@@ -113,6 +113,10 @@ skips = []
 # which the 3.10 floor gate rejects. See issue #3126.
 target-version = "py310"
 line-length = 100
+# Apply [tool.ruff.format] exclude to files passed explicitly, so the lefthook
+# `ruff format --check -- {staged_files}` hook skips the two excluded paths the
+# way the whole-tree CI step does.
+force-exclude = true
 
 [tool.ruff.format]
 # test_git_hook_policy_causal_restore.py uses intentionally-split string

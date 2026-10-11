@@ -90,6 +90,23 @@ def test_required_enforcement_surface_invokes_ruff_format(surface: str) -> None:
     )
 
 
+def test_ci_format_step_is_blocking() -> None:
+    """The CI step must not be advisory: no `continue-on-error` inside its block."""
+    text = (REPO_ROOT / ".github/workflows/pytest.yml").read_text(encoding="utf-8")
+    steps = re.split(r"(?m)^      - ", text)
+    format_steps = [step for step in steps if _invocations(step)]
+
+    assert format_steps, "pytest.yml has no step that invokes `ruff format`"
+    assert all("continue-on-error" not in step for step in format_steps)
+
+
+def test_force_exclude_keeps_staged_excludes_out_of_the_hook() -> None:
+    """The lefthook hook passes explicit paths; ruff skips excludes for those unless forced."""
+    pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+
+    assert re.search(r"(?m)^force-exclude\s*=\s*true\s*$", pyproject)
+
+
 def test_scanner_flags_a_shell_invocation_negative_control() -> None:
     surface = "      - name: format\n        run: uv run --frozen ruff format --check .\n"
 
