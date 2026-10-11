@@ -113,11 +113,12 @@ def extract_acceptance_section(body: str) -> str:
 
     The section ends at the next heading of the same or higher level (equal or
     fewer ``#``), so ``###`` sub-headings under a ``##`` heading stay inside it.
-    Fenced code blocks and HTML comments are blanked first, so a heading or a
-    checkbox inside either is not part of the section.
+    HTML comments are blanked first, then fenced code blocks, so a fence opener
+    inside a comment cannot hide the boxes after it. A heading or a checkbox
+    inside either is not part of the section.
     """
 
-    visible = _blank_html_comments(_blank_fenced_lines(body))
+    visible = _blank_fenced_lines(_blank_html_comments(body))
     match = _ACCEPTANCE_HEADING.search(visible)
     if not match:
         return ""

@@ -228,6 +228,14 @@ def test_checkboxes_in_html_comments_are_ignored() -> None:
     assert [c.text for c in ac.parse_criteria(body)] == ["real"]
 
 
+def test_fence_opener_inside_a_comment_does_not_hide_later_boxes() -> None:
+    body = "## Acceptance\n<!--\n```python\nexample()\n-->\n- [x] real\n- [ ] open\n"
+    assert [(c.text, c.checked) for c in ac.parse_criteria(body)] == [
+        ("real", True),
+        ("open", False),
+    ]
+
+
 def test_acceptance_heading_inside_a_comment_or_fence_is_not_a_section() -> None:
     assert ac.parse_criteria("<!--\n## Acceptance\n- [ ] x\n-->\n") == []
     assert ac.parse_criteria("```\n## Acceptance\n- [ ] x\n```\n") == []
