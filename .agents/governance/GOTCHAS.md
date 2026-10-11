@@ -596,6 +596,8 @@ The cause is the PR body, not the linked issue. Parsing rules, all in
   parse**, so copying an issue's `1.` through `5.` criteria verbatim still
   counts as no section.
 - Boxes inside HTML comments or fenced code blocks are ignored.
+- An HTML comment (`<!--`) or code fence that never closes fails the check.
+  It could hide boxes, so the check fails closed and names the open construct.
 - The section ends at the next heading of the same or higher level, so `###`
   groups inside `## Acceptance criteria` keep their boxes.
 

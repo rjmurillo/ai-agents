@@ -102,6 +102,16 @@ def _code_span_end(text: str, tick: int) -> int:
     return run.end()
 
 
+def _unescaped_tick(text: str, stop: int) -> int:
+    """Index of the first backtick before ``stop`` not escaped by a backslash, or -1."""
+
+    for match in _TICKS.finditer(text, 0, stop):
+        slashes = len(text[: match.start()]) - len(text[: match.start()].rstrip("\\"))
+        if slashes % 2 == 0:
+            return match.start()
+    return -1
+
+
 def _strip_comments(line: str, in_comment: bool) -> tuple[str, bool]:
     """Drop ``<!-- -->`` spans from one line, carrying an open comment across lines.
 
@@ -121,7 +131,7 @@ def _strip_comments(line: str, in_comment: bool) -> tuple[str, bool]:
         if start < 0:
             kept.append(rest)
             break
-        tick = rest.find("`", 0, start)
+        tick = _unescaped_tick(rest, start)
         if tick >= 0:
             skip = _code_span_end(rest, tick)
             kept.append(rest[:skip])
@@ -132,13 +142,14 @@ def _strip_comments(line: str, in_comment: bool) -> tuple[str, bool]:
     return "".join(kept), in_comment
 
 
-def _blank_hidden(body: str) -> str:
+def _scan_hidden(body: str) -> tuple[str, str | None]:
     """Blank fenced code and HTML comments in one pass, keeping the line count.
 
     Whichever construct opens first wins, as Markdown renders it: ``<!--``
     inside a fence is literal text, and a fence line inside a comment is hidden.
-    A closing fence is a bare run (```python opens, never closes). An unclosed
-    fence or comment hides the rest of the body.
+    A closing fence is a bare run (```python opens, never closes). Returns the
+    visible text and ``"comment"`` or ``"fence"`` when one is still open at the
+    end, which ``unclosed_construct`` reports so callers can fail closed.
     """
 
     out: list[str] = []
@@ -157,7 +168,19 @@ def _blank_hidden(body: str) -> str:
             continue
         visible, in_comment = _strip_comments(line, in_comment)
         out.append(visible)
-    return "\n".join(out)
+    unclosed = "fence" if fence else "comment" if in_comment else None
+    return "\n".join(out), unclosed
+
+
+def unclosed_construct(body: str) -> str | None:
+    """Return ``"comment"`` or ``"fence"`` when one is never closed, else None.
+
+    An unclosed construct hides the rest of the body, and a line-based scan
+    cannot tell every such case from what GitHub renders. Callers that gate on
+    the checkboxes fail closed on it rather than trust what stays visible.
+    """
+
+    return _scan_hidden(body)[1]
 
 
 def extract_acceptance_section(body: str) -> str:
@@ -165,11 +188,11 @@ def extract_acceptance_section(body: str) -> str:
 
     The section ends at the next heading of the same or higher level (equal or
     fewer ``#``), so ``###`` sub-headings under a ``##`` heading stay inside it.
-    Fenced code and HTML comments are blanked first (``_blank_hidden``), so a
+    Fenced code and HTML comments are blanked first (``_scan_hidden``), so a
     heading or a checkbox inside either is not part of the section.
     """
 
-    visible = _blank_hidden(body)
+    visible = _scan_hidden(body)[0]
     match = _ACCEPTANCE_HEADING.search(visible)
     if not match:
         return ""

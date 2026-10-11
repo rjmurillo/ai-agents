@@ -431,3 +431,20 @@ class TestCli:
         )
         assert proc.returncode == code, proc.stderr
         assert "ModuleNotFoundError" not in proc.stderr
+
+
+@pytest.mark.parametrize(
+    ("body", "word"),
+    [
+        ("## Acceptance criteria\n- [x] a\n<!-- stray\n- [ ] b\n", "comment"),
+        ("## Acceptance criteria\n- [x] a\n```\n- [ ] b\n", "fence"),
+    ],
+)
+def test_unclosed_construct_fails_closed_and_names_it(body: str, word: str) -> None:
+    result = decide(True, body)
+    assert not result.passed
+    assert word in result.reason
+
+
+def test_unclosed_construct_does_not_matter_without_a_spec() -> None:
+    assert decide(False, "<!-- stray\n").passed

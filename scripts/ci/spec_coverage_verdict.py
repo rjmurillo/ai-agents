@@ -50,7 +50,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from scripts.external_signals.acceptance_criteria import parse_criteria
+from scripts.external_signals.acceptance_criteria import parse_criteria, unclosed_construct
 
 EXIT_OK = 0
 EXIT_FAIL = 1
@@ -60,6 +60,16 @@ CHECK_NAME = "Validate Spec Coverage"
 ACCEPTANCE_HEADING = "## Acceptance criteria"
 _DISPATCH_EVENT = "workflow_dispatch"
 _FETCH_TIMEOUT_SECONDS = 60
+_UNCLOSED_REASONS = {
+    "comment": (
+        "The pull request body has an HTML comment (`<!--`) with no closing `-->`. "
+        "It can hide acceptance boxes, so the check fails closed. Close the comment."
+    ),
+    "fence": (
+        "The pull request body has a code fence with no closing fence. It can hide "
+        "acceptance boxes, so the check fails closed. Close the fence."
+    ),
+}
 
 
 class _RefuseRedirect(urllib.request.HTTPRedirectHandler):
@@ -102,6 +112,9 @@ def decide(has_specs: bool, body: str) -> Verdict:
     """Return the verdict for a pull request. Pure: same inputs, same output."""
     if not has_specs:
         return Verdict(True, "No linked spec, nothing to cover.")
+    unclosed = unclosed_construct(body)
+    if unclosed:
+        return Verdict(False, _UNCLOSED_REASONS[unclosed])
     criteria = parse_criteria(body)
     if not criteria:
         return Verdict(
