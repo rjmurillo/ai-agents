@@ -13,6 +13,8 @@ Issue #6182 asked for a deterministic `Validate Spec Coverage` check. The owner 
 
 ADR-114 names `ai-spec-validation.yml` as a model caller gated by `agent-claude`. After the change, `ai-spec-review.yml` is that caller. PR #6274 set the form: dated notes, not rewritten decisions.
 
+The owner set aside the alternatives before this panel sat. One was keeping the model call with a fallback when a credential fails. Another was deleting the model review from CI. The panel reviewed the note, not that choice.
+
 The first draft was one paragraph. Both seats read it before the workflow files existed in the worktree, so they judged it against the spec.
 
 ## Agent Positions
@@ -33,6 +35,10 @@ The first draft was one paragraph. Both seats read it before the workflow files 
 - **Rollback**: the note adds a revert step.
 - **Line 150 doc table (critic)**: deferred with reason. That table lists the docs the original change edited. It is history, and the amendment covers the current facts.
 - **PR number (architect)**: deferred with reason. The pull request does not exist when the note is written. The pull request body links the note.
+
+## Post-implementation check
+
+A later `/review` decision-rigor seat checked the final tree. `review-spec` exists behind `agent-claude`. `validate-spec` declares no environment. Both workflows are listed. That review also found the `debounce` job still on `bot-secrets`. The change removed that environment, and the note says so.
 
 ## Decision
 

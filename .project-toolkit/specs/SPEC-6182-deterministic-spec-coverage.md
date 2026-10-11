@@ -67,6 +67,8 @@ Verdict inputs: `has_specs` (bool), PR body text. Verdict output: `PASS` or `FAI
 
 - PR body edited: `pull_request: edited` reruns the check. Same body gives same verdict.
 - Model secret missing or out of credit: SpecReview logs a typed advisory line and posts no verdict. SpecCoverageCheck is unaffected.
+- Parser false FAIL: an unusual checkbox format or a heading that does not match `acceptance( criteria)?`. Escape: edit the PR body to the template form. The edit re-runs the check.
+- "Re-run jobs" replays the old event payload, so it sees the old body. A fresh `edited` event is the supported path.
 - Reviewer never approves SpecReview: its run waits. It is listed in `advisory_agent_workflows`, so readiness does not block on it.
 
 ## Security
@@ -98,7 +100,7 @@ The check writes the verdict, reason, and each unchecked criterion to the step s
 
 ## Deferred
 
-- Whether to remove `ai-spec-validation.yml` from `advisory_agent_workflows`. Owner: rjmurillo.
+- Whether to remove `ai-spec-validation.yml` from `advisory_agent_workflows`. Owner: rjmurillo. Revisit after 30 days with no false FAIL reported.
 
 ## Open questions
 

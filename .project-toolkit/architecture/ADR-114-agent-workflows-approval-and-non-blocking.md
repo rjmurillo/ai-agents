@@ -166,11 +166,11 @@ Change: PR #6260 (merge commit 44bc741e4) deleted the Vendor Provenance workflow
 
 Change: issue #6182 and SPEC-6182 removed the model calls from `ai-spec-validation.yml`. The decision text above is unchanged. Read it with these facts:
 
-- **Decision 2 table.** The `ai-spec-validation.yml` row now belongs to `ai-spec-review.yml`, gated job `review-spec`, environment `agent-claude`. `validate-spec` declares no environment and reads no secret, including `BOT_PAT` (Decision 11 item 5). The workflow counts in Context and Decision 2 are unchanged: one model caller left the set and one joined it.
+- **Decision 2 table.** The `ai-spec-validation.yml` row now belongs to `ai-spec-review.yml`, gated job `review-spec`, environment `agent-claude`. `validate-spec` declares no environment and reads no secret, including `BOT_PAT` (Decision 11 item 5). Its optional `debounce` dependency also declares no environment now, so no approval can hold the check. The workflow counts in Context and Decision 2 are unchanged: one model caller left the set and one joined it.
 - **Decision 5 list.** The list now holds six entries. Five are gated. `ai-spec-validation.yml` is listed without a gate, by owner decision D3 on #6182.
-- **Decision 8 rationale.** `Validate Spec Coverage` is now a deterministic verdict from the pull request body. A FAIL stays non-blocking because the owner kept it listed (D3), not because an agent decides it. `review-spec` can still fail on a rejected approval, a timeout, or an outage. Its listing covers those, and the job never fails on a model verdict.
+- **Decision 8 rationale.** `Validate Spec Coverage` is now a deterministic verdict from the pull request body. A FAIL stays non-blocking because the owner kept it listed (D3), not because an agent decides it. `review-spec` can still fail on a rejected approval, a timeout, or an outage. Its listing covers those, and the job never fails on a model verdict. An author clears a deterministic FAIL by fixing the acceptance checkboxes in the pull request body. The edit re-runs the check. No disposition is needed.
 - **Decision 9.** `merge_group` stays out of both workflows. `review-spec` needs approval, so it cannot run in a queue. Adding the deterministic check to the queue is out of scope.
-- **Rollback.** Revert the #6182 pull request. That deletes `ai-spec-review.yml`, restores the model steps to `validate-spec`, and removes the new `advisory_agent_workflows` entry. Re-add the `Validate Spec Coverage` disposition only if the restored model check fails again.
+- **Rollback.** Revert the #6182 pull request. That deletes `ai-spec-review.yml`, restores the model steps to `validate-spec`, removes the new `advisory_agent_workflows` entry, and restores the `bypass-allowlist.json` entries. Re-add the `Validate Spec Coverage` disposition only if the restored model check fails again.
 
 ## Related Decisions
 
