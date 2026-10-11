@@ -77,3 +77,7 @@ Positive: every hook script byte-identical to its template, rendered first into 
 ## Dependencies
 
 TASK-031, TASK-032, TASK-033 merged. ADR-109 section 7 places hooks and settings after the remaining skills batch, before lib.
+
+## Note 2026-10-11
+
+PR #6260 (merge commit 44bc741e4) deleted the markdownlint safe config from `templates/hooks/PreToolUse/` and from every rendered copy. The hooks-class counts above include it and record the state when this document was written. The hooks class now holds 14 `.py` and `.sh` scripts, `hooks.json`, and `dispatch_groups.json`. The script count grew from 13 to 14 in separate work, not through PR #6260.

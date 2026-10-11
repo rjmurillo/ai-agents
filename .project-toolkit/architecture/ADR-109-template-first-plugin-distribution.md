@@ -211,6 +211,10 @@ Conformance: each of B1 through B5 ships positive, negative, and edge tests for 
 
 Rollback: revert B6, then B5 through B1 in reverse, then move this record to `rejected`. After each revert, run `build_all.py` at that commit and `build_all.py --check`; a green check is the proof that the four trees again match the templates byte for byte, which a bare PR revert does not establish when template-only commits landed in between. Reverting B6 fixes future installs only: a consumer who updated `project-toolkit` from `./src/claude` during the window keeps that copy until their next update, so B6 is a one-way door for that window, which is why it is last. Every rejection path, before or after B1, also reverts the B0 edits, so no accepted document keeps a clause pointing at a rejected record: ADR-052's Status note and frontmatter (now `superseded`, `superseded-by: ADR-109`) revert to `accepted`, `superseded-by: null`, the ADR-107 property 1 clause and Related Decisions bullet, the REQ-003 D4, D9, and REQ-003-010 clauses revert to naming this record as proposed, and the ADR-109 row in `.project-toolkit/architecture/README.md`, which the index generator moves to the Retired table on its own once this record reads `rejected`.
 
+## Amendment 2026-10-11: the hooks class no longer includes the markdownlint config
+
+Change: PR #6260 (merge commit 44bc741e4) deleted the markdownlint safe config from `templates/hooks/PreToolUse/` and from every rendered copy. The hooks class in Context and in B4 now holds 14 `.py` and `.sh` scripts, `hooks.json`, and `dispatch_groups.json`. The script count grew from 13 to 14 in separate work after this decision, not through PR #6260. The decision text above is unchanged.
+
 ## Related Decisions
 
 - ADR-002 (agent model selection): unaffected by this record; agents' model-selection content is untouched, only their canonical location moves.

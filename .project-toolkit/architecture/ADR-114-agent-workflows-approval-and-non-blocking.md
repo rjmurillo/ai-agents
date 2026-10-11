@@ -158,6 +158,10 @@ Required precedence follows ADR-101: a required context is matched by name in th
 | Partial rollback | Remove one entry to make that workflow's check blocking again, or remove its `environment` line. |
 | Decision 13 rollback | Remove `CLI Smoke Result` from the branch ruleset first, or every pull request waits on a check with no producer. Then add `plugin-cli-smoke.yml` to `advisory_agent_workflows` to make it non-blocking, or revert its pull request to restore the nightly schedule. |
 
+## Amendment 2026-10-11: the vendor-provenance environment is unused
+
+Change: PR #6260 (merge commit 44bc741e4) deleted the Vendor Provenance workflow. It did not delete the `vendor-provenance` environment listed above, and no workflow references that environment now. The decision text above is unchanged.
+
 ## Related Decisions
 
 - ADR-101: Enforcement Planes. Required contexts match by name. Line 269 rejects environment reviewers as a fix, and this ADR overrides that for spend control.

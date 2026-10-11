@@ -161,3 +161,7 @@ B1 must land before B2 through B5, because each of those adds a row to the binpl
 - ADR: ADR-109 (supersedes ADR-052 at acceptance; amends ADR-107 property 1 and REQ-003 D4, D9, REQ-003-010)
 - Prior art: ADR-108, REQ-025, DESIGN-024, TASK-030, TASK-025, and the completed plan `.project-toolkit/plans/completed/5706-skill-guidance-excerpts.md`, whose compile-and-drift-gate shape this plan generalizes
 - Issues named in ADR-109 References: #5282, #5307, #5686, #5688, #5689, #5294, #5298, #4871, #1918, #2267, #5706
+
+## Note 2026-10-11
+
+PR #6260 (merge commit 44bc741e4) deleted the markdownlint safe config from `templates/hooks/PreToolUse/` and from every rendered copy. The hooks-class counts above include it and record the state when this document was written. The hooks class now holds 14 `.py` and `.sh` scripts, `hooks.json`, and `dispatch_groups.json`. The script count grew from 13 to 14 in separate work, not through PR #6260.

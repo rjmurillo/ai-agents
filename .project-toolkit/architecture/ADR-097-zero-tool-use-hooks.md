@@ -449,6 +449,10 @@ dependent components above, run `uv run python scripts/validation/pre_pr.py`,
 commit atomically (5 files or fewer per commit, per `.claude/rules/universal.md`
 rule 6), push, and confirm the draft PR.
 
+## Amendment 2026-10-11: the orphaned markdownlint config is deleted
+
+Change: PR #6260 (merge commit 44bc741e4) deleted every copy of the markdownlint safe config, along with the Vendor Provenance gate that pinned it. That settles the config half of the orphan item in the Impact table. The other half, `_bootstrap.py`, is now a canonical template at `templates/hooks/PreToolUse/_bootstrap.py`. The decision text above is unchanged.
+
 ## Related Decisions
 
 - ADR-082 (Claude-Side Consolidated Hook Group Dispatch). The consolidation
