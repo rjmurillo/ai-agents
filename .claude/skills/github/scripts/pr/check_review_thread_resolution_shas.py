@@ -116,6 +116,10 @@ class _HtmlText(HTMLParser):
     def handle_data(self, data: str) -> None:
         self.parts.append(data)
 
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        # <a href> and <img src> cite a commit the same way a markdown link does.
+        self.parts.extend(value for name, value in attrs if name in ("href", "src") and value)
+
 
 def _html_block_text(html: str) -> str:
     parser = _HtmlText()
@@ -139,10 +143,12 @@ def _inline_text(token: Token) -> str:
             parts.append(child.content)
         elif child.type in ("softbreak", "hardbreak"):
             parts.append("\n")
-        elif child.type == "link_open":
-            parts.append(f" {child.attrs.get('href', '')} ")
+        elif child.type in ("link_open", "image"):
+            parts.append(f" {child.attrs.get('href') or child.attrs.get('src') or ''} ")
         elif child.type == "html_inline" and child.content.startswith("<!--"):
             parts.append(" " if _is_gfm_comment(child.content) else child.content)
+        elif child.type == "html_inline":
+            parts.append(f" {_html_block_text(child.content)} ")
         else:
             parts.append(" ")
     return "".join(parts)
@@ -340,7 +346,7 @@ def main(argv: list[str] | None = None) -> int:
     if _MARKDOWN is None:
         print(
             "markdown-it-py not installed; scanning raw comment bodies. "
-            "Hidden bot IDs may report as invalid.",
+            "Hidden bot IDs may report as invalid. Install markdown-it-py to fix.",
             file=sys.stderr,
         )
 
