@@ -242,9 +242,10 @@ After report completion, update systems:
 > `.serena/memories/` files, or return it to the parent session
 > (`universal.md` MUST NOT 11, issue #5061).
 
-```python
+```text
 mcp__serena__write_memory(
-    memory_file_name="documentary-[topic]-[date]", content="[Key findings summary]"
+    memory_file_name="documentary-[topic]-[date]",
+    content="[Key findings summary]"
 )
 ```
 
