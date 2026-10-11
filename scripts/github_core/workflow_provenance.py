@@ -135,9 +135,7 @@ def resolve_run_subscriptions(
             continue
         key = (merge_ref(run.pr_number), run.workflow_path)
         if key not in documents:
-            documents[key] = _parse_at_ref(
-                client, repository, key, base_subscriptions
-            )
+            documents[key] = _parse_at_ref(client, repository, key, base_subscriptions)
         resolved[run.run_id] = documents[key]
     return resolved
 

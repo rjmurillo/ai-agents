@@ -138,9 +138,7 @@ _COMMAND_TRUST_HALT = "HALT: completion-gate verifier files"
 # `true` (YAML/Python) is not a pass_when literal; the evaluator wants `true`
 # lowercase, and `True` raises "Unrecognized literal in pass_when".
 _GATE_RAN_PROGRAM = 'import json,sys;sys.stdout.write(json.dumps({"gate_ran": True}))'
-_CRITERION_COMMAND = (
-    f"{shlex.quote(sys.executable)} -c {shlex.quote(_GATE_RAN_PROGRAM)}"
-)
+_CRITERION_COMMAND = f"{shlex.quote(sys.executable)} -c {shlex.quote(_GATE_RAN_PROGRAM)}"
 _CONFIG_BODY = f"""completion_criteria:
   - name: placeholder
     verification: command
@@ -163,9 +161,14 @@ def _git_init(path: Path) -> None:
     review, PR #5329). A fixture that satisfies a guard only when the guard
     is absent is not a fixture, it is the defect wearing a costume.
     """
+
     def run(*a: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
-            ["git", *a], cwd=path, check=True, capture_output=True, text=True,
+            ["git", *a],
+            cwd=path,
+            check=True,
+            capture_output=True,
+            text=True,
         )
 
     run("init", "--quiet")
@@ -173,8 +176,11 @@ def _git_init(path: Path) -> None:
     run("config", "user.name", "test")
     run("commit", "--quiet", "--allow-empty", "-m", "base")
     head = subprocess.run(
-        ["git", "rev-parse", "HEAD"], cwd=path, check=True,
-        capture_output=True, text=True,
+        ["git", "rev-parse", "HEAD"],
+        cwd=path,
+        check=True,
+        capture_output=True,
+        text=True,
     ).stdout.strip()
     run("update-ref", "refs/remotes/origin/main", head)
 
@@ -289,7 +295,10 @@ def test_claude_plugin_root_admits_the_bundled_config(tmp_path: Path) -> None:
     plugin_root, config, user_repo = _install_plugin(tmp_path)
 
     result = _run_gate(
-        plugin_root, config, user_repo, env_var="CLAUDE_PLUGIN_ROOT",
+        plugin_root,
+        config,
+        user_repo,
+        env_var="CLAUDE_PLUGIN_ROOT",
     )
 
     assert _CONTAINMENT_REFUSAL not in result.stderr, result.stderr
@@ -308,10 +317,7 @@ def test_install_trust_exits_3_when_git_is_not_on_path(tmp_path: Path) -> None:
     old code produced 2.
     """
     plugin_root, config, user_repo = _install_plugin(tmp_path)
-    script = (
-        plugin_root / "skills" / "github" / "scripts" / "pr"
-        / "run_completion_gate.py"
-    )
+    script = plugin_root / "skills" / "github" / "scripts" / "pr" / "run_completion_gate.py"
     env = dict(os.environ)
     env.pop("COPILOT_PLUGIN_ROOT", None)
     env["CLAUDE_PLUGIN_ROOT"] = str(plugin_root)
@@ -322,10 +328,13 @@ def test_install_trust_exits_3_when_git_is_not_on_path(tmp_path: Path) -> None:
     env["PATH"] = str(empty_bin)
 
     result = subprocess.run(
-        [sys.executable, str(script), "--pull-request", "1",
-         "--config", str(config)],
-        cwd=user_repo, capture_output=True, encoding="utf-8",
-        errors="replace", env=env, check=False,
+        [sys.executable, str(script), "--pull-request", "1", "--config", str(config)],
+        cwd=user_repo,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
+        check=False,
     )
 
     assert result.returncode == 3, (result.returncode, result.stderr)
@@ -347,8 +356,11 @@ def test_a_local_trusted_ref_is_refused_for_an_installed_config(
     plugin_root, config, user_repo = _install_plugin(tmp_path)
 
     result = _run_gate(
-        plugin_root, config, user_repo,
-        env_var="CLAUDE_PLUGIN_ROOT", trusted_ref="HEAD",
+        plugin_root,
+        config,
+        user_repo,
+        env_var="CLAUDE_PLUGIN_ROOT",
+        trusted_ref="HEAD",
     )
 
     assert result.returncode == 3, (result.returncode, result.stderr)
@@ -368,7 +380,9 @@ def test_an_option_shaped_trusted_ref_is_refused_for_an_installed_config(
     plugin_root, config, user_repo = _install_plugin(tmp_path)
 
     result = _run_gate(
-        plugin_root, config, user_repo,
+        plugin_root,
+        config,
+        user_repo,
         env_var="CLAUDE_PLUGIN_ROOT",
         trusted_ref="--upload-pack=touch /tmp/should-not-exist",
     )
@@ -414,20 +428,20 @@ def test_a_foreign_plugin_root_is_not_install_trusted(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    script = (
-        plugin_root / "skills" / "github" / "scripts" / "pr"
-        / "run_completion_gate.py"
-    )
+    script = plugin_root / "skills" / "github" / "scripts" / "pr" / "run_completion_gate.py"
     env = dict(os.environ)
     env.pop("CLAUDE_PLUGIN_ROOT", None)
     # The foreign root, not the one shipping this dispatcher.
     env["COPILOT_PLUGIN_ROOT"] = str(foreign)
 
     result = subprocess.run(
-        [sys.executable, str(script), "--pull-request", "1",
-         "--config", str(foreign_config)],
-        cwd=user_repo, capture_output=True, encoding="utf-8",
-        errors="replace", env=env, check=False,
+        [sys.executable, str(script), "--pull-request", "1", "--config", str(foreign_config)],
+        cwd=user_repo,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
+        check=False,
     )
 
     assert "FOREIGN-PLUGIN-EXECUTION" not in result.stderr, result.stderr
@@ -452,8 +466,11 @@ def test_the_bundled_config_runs_its_criteria_end_to_end(tmp_path: Path) -> None
     plugin_root, config, user_repo = _install_plugin(tmp_path)
 
     result = _run_gate(
-        plugin_root, config, user_repo,
-        env_var="CLAUDE_PLUGIN_ROOT", json_output=True,
+        plugin_root,
+        config,
+        user_repo,
+        env_var="CLAUDE_PLUGIN_ROOT",
+        json_output=True,
     )
 
     assert result.returncode == 0, (result.returncode, result.stderr)
@@ -490,7 +507,10 @@ def test_copilot_plugin_root_admits_the_bundled_config(tmp_path: Path) -> None:
     plugin_root, config, user_repo = _install_plugin(tmp_path)
 
     result = _run_gate(
-        plugin_root, config, user_repo, env_var="COPILOT_PLUGIN_ROOT",
+        plugin_root,
+        config,
+        user_repo,
+        env_var="COPILOT_PLUGIN_ROOT",
     )
 
     assert _CONTAINMENT_REFUSAL not in result.stderr, result.stderr
@@ -582,7 +602,10 @@ def test_symlink_out_of_the_plugin_root_is_not_install_trusted(
     link.symlink_to(attacker_config)
 
     result = _run_gate(
-        plugin_root, link, user_repo, env_var="CLAUDE_PLUGIN_ROOT",
+        plugin_root,
+        link,
+        user_repo,
+        env_var="CLAUDE_PLUGIN_ROOT",
     )
 
     assert _CONFIG_TRUST_HALT in result.stderr, result.stderr
@@ -687,7 +710,10 @@ def test_install_trust_fails_closed_outside_a_git_work_tree(
     # a reason unrelated to the fail-closed branch under test.
     probe = subprocess.run(
         ["git", "rev-parse", "--show-toplevel"],
-        cwd=user_repo, capture_output=True, text=True, check=False,
+        cwd=user_repo,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     assert probe.returncode != 0, (
         f"cwd is inside a work tree at {probe.stdout.strip()!r}; "
@@ -695,7 +721,10 @@ def test_install_trust_fails_closed_outside_a_git_work_tree(
     )
 
     result = _run_gate(
-        plugin_root, config, user_repo, env_var="CLAUDE_PLUGIN_ROOT",
+        plugin_root,
+        config,
+        user_repo,
+        env_var="CLAUDE_PLUGIN_ROOT",
     )
 
     assert result.returncode == 3, (result.returncode, result.stderr)
@@ -721,7 +750,8 @@ def _without_pyyaml(tmp_path: Path) -> dict[str, str]:
     blocker = tmp_path / "no_pyyaml"
     blocker.mkdir()
     (blocker / "sitecustomize.py").write_text(
-        "import sys\nsys.modules['yaml'] = None\n", encoding="utf-8",
+        "import sys\nsys.modules['yaml'] = None\n",
+        encoding="utf-8",
     )
     existing = os.environ.get("PYTHONPATH")
     path = str(blocker) if not existing else f"{blocker}{os.pathsep}{existing}"
@@ -754,7 +784,9 @@ def test_a_consumer_without_pyyaml_exits_2_rather_than_crashing(
     plugin_root, config, user_repo = _install_plugin(tmp_path)
 
     result = _run_gate(
-        plugin_root, config, user_repo,
+        plugin_root,
+        config,
+        user_repo,
         env_var="CLAUDE_PLUGIN_ROOT",
         extra_env=_without_pyyaml(tmp_path),
     )

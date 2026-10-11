@@ -92,10 +92,12 @@ def get_pr_changed_files(pr_number: int, pattern: str = ".*") -> list[str]:
     try:
         result = subprocess.run(
             [
-                "gh", "api",
+                "gh",
+                "api",
                 f"repos/{repo}/pulls/{pr_number}/files",
                 "--paginate",
-                "--jq", ".[].filename",
+                "--jq",
+                ".[].filename",
             ],
             capture_output=True,
             text=True,
@@ -104,9 +106,7 @@ def get_pr_changed_files(pr_number: int, pattern: str = ".*") -> list[str]:
             timeout=30,
         )
     except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
-        raise RuntimeError(
-            f"Failed to get changed files for PR #{pr_number}: {exc}"
-        ) from exc
+        raise RuntimeError(f"Failed to get changed files for PR #{pr_number}: {exc}") from exc
     if result.returncode != 0:
         raise RuntimeError(
             f"Failed to get changed files for PR #{pr_number}: {result.stderr.strip()}"
@@ -157,10 +157,12 @@ def get_workflow_runs_by_pr(
     try:
         result = subprocess.run(
             [
-                "gh", "api",
+                "gh",
+                "api",
                 f"/repos/{repository}/actions/runs?event=pull_request&per_page=100",
                 "--paginate",
-                "--jq", ".workflow_runs[]",
+                "--jq",
+                ".workflow_runs[]",
             ],
             capture_output=True,
             text=True,
@@ -170,9 +172,7 @@ def get_workflow_runs_by_pr(
             check=True,
         )
     except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
-        raise RuntimeError(
-            f"Failed to get workflow runs for PR #{pr_number}: {exc}"
-        ) from exc
+        raise RuntimeError(f"Failed to get workflow runs for PR #{pr_number}: {exc}") from exc
     except subprocess.CalledProcessError as exc:
         raise RuntimeError(
             f"Failed to get workflow runs for PR #{pr_number}: {(exc.stderr or '').strip()}"
@@ -183,9 +183,7 @@ def get_workflow_runs_by_pr(
             json.loads(line) for line in result.stdout.splitlines() if line.strip()
         ]
     except json.JSONDecodeError as exc:
-        raise RuntimeError(
-            f"Invalid JSON from workflow runs for PR #{pr_number}: {exc}"
-        ) from exc
+        raise RuntimeError(f"Invalid JSON from workflow runs for PR #{pr_number}: {exc}") from exc
     pr_runs = [
         run
         for run in all_runs

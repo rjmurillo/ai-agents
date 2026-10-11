@@ -177,6 +177,7 @@ class TestLoadHistorySchema:
 
     def test_dict_payload_returns_empty(self, history_path: Path) -> None:
         from claude_skills_import import import_skill_script
+
         load_history = import_skill_script(
             ".claude/skills/stuck-detection/stuck_detection.py"
         ).load_history
@@ -185,6 +186,7 @@ class TestLoadHistorySchema:
 
     def test_non_dict_entries_returns_empty(self, history_path: Path) -> None:
         from claude_skills_import import import_skill_script
+
         load_history = import_skill_script(
             ".claude/skills/stuck-detection/stuck_detection.py"
         ).load_history
@@ -193,6 +195,7 @@ class TestLoadHistorySchema:
 
     def test_missing_keys_returns_empty(self, history_path: Path) -> None:
         from claude_skills_import import import_skill_script
+
         load_history = import_skill_script(
             ".claude/skills/stuck-detection/stuck_detection.py"
         ).load_history
@@ -201,6 +204,7 @@ class TestLoadHistorySchema:
 
     def test_non_string_values_returns_empty(self, history_path: Path) -> None:
         from claude_skills_import import import_skill_script
+
         load_history = import_skill_script(
             ".claude/skills/stuck-detection/stuck_detection.py"
         ).load_history
@@ -223,6 +227,7 @@ class TestSaveHistoryAtomicity:
 
     def test_no_temp_files_after_write(self, history_path: Path) -> None:
         from claude_skills_import import import_skill_script
+
         save_history = import_skill_script(
             ".claude/skills/stuck-detection/stuck_detection.py"
         ).save_history
@@ -232,6 +237,7 @@ class TestSaveHistoryAtomicity:
 
     def test_overwrite_preserves_prior_on_replace(self, history_path: Path) -> None:
         from claude_skills_import import import_skill_script
+
         save_history = import_skill_script(
             ".claude/skills/stuck-detection/stuck_detection.py"
         ).save_history
@@ -300,9 +306,7 @@ class TestDefaultHistoryPath:
         result = default_history_path()
         assert result == tmp_path / "claude-stuck-detection" / "history.json"
 
-    def test_session_scoped_path(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-    ) -> None:
+    def test_session_scoped_path(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         monkeypatch.delenv("STUCK_DETECTION_HISTORY", raising=False)
         monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
         monkeypatch.setenv("STUCK_DETECTION_SESSION", "session-A/42")
@@ -338,9 +342,7 @@ class TestBuildNudge:
 class TestMain:
     """Tests for main CLI entry point."""
 
-    def test_check_command(
-        self, capsys: pytest.CaptureFixture[str], history_path: Path
-    ) -> None:
+    def test_check_command(self, capsys: pytest.CaptureFixture[str], history_path: Path) -> None:
         text = (
             "The deployment pipeline failed during the canary rollout. "
             "Pipeline errors keep blocking the deployment retries today."
@@ -352,26 +354,20 @@ class TestMain:
         assert "stuck" in result
         assert "signature" in result
 
-    def test_status_command(
-        self, capsys: pytest.CaptureFixture[str], history_path: Path
-    ) -> None:
+    def test_status_command(self, capsys: pytest.CaptureFixture[str], history_path: Path) -> None:
         exit_code = main(["--history", str(history_path), "status"])
         assert exit_code == 0
         captured = capsys.readouterr()
         result = json.loads(captured.out)
         assert result["history_length"] == 0
 
-    def test_reset_command(
-        self, capsys: pytest.CaptureFixture[str], history_path: Path
-    ) -> None:
+    def test_reset_command(self, capsys: pytest.CaptureFixture[str], history_path: Path) -> None:
         exit_code = main(["--history", str(history_path), "reset"])
         assert exit_code == 0
         captured = capsys.readouterr()
         assert json.loads(captured.out) == {"reset": True}
 
-    def test_extract_command(
-        self, capsys: pytest.CaptureFixture[str], history_path: Path
-    ) -> None:
+    def test_extract_command(self, capsys: pytest.CaptureFixture[str], history_path: Path) -> None:
         text = (
             "The deployment pipeline failed during the canary rollout. "
             "Pipeline errors keep blocking the deployment retries today."

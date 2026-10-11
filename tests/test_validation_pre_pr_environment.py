@@ -84,9 +84,7 @@ class TestValidateLefthookInstalled:
             return None if tool == "uv" else "/bin/lefthook"
 
         with patch.dict("os.environ", {"CI": "false", "GITHUB_ACTIONS": "false"}):
-            with patch(
-                "checks_plugin.shutil.which", side_effect=locate_tool
-            ) as mock_which:
+            with patch("checks_plugin.shutil.which", side_effect=locate_tool) as mock_which:
                 with patch("checks_plugin._run_subprocess") as mock_run:
                     assert validate_lefthook_installed(tmp_path) is False
 
@@ -99,9 +97,7 @@ class TestValidateLefthookInstalled:
         self._write_config(tmp_path)
         with patch.dict("os.environ", {"CI": "false", "GITHUB_ACTIONS": "false"}):
             with patch("checks_plugin.shutil.which", return_value="/bin/uv") as mock_which:
-                with patch(
-                    "checks_plugin._run_subprocess", return_value=(0, "OK", "")
-                ) as mock_run:
+                with patch("checks_plugin._run_subprocess", return_value=(0, "OK", "")) as mock_run:
                     assert validate_lefthook_installed(tmp_path) is True
 
         assert mock_which.call_args_list == [call("uv")]
@@ -124,9 +120,7 @@ class TestValidateLefthookInstalled:
             cwd=tmp_path,
         )
 
-    def test_fails_when_the_runtime_cannot_start(
-        self, tmp_path: Path, capsys: Any
-    ) -> None:
+    def test_fails_when_the_runtime_cannot_start(self, tmp_path: Path, capsys: Any) -> None:
         from scripts.validation.pre_pr import validate_lefthook_installed
 
         self._write_config(tmp_path)
@@ -196,9 +190,7 @@ class TestValidateWorkflowYaml:
         wf_dir.mkdir(parents=True)
         (wf_dir / "ci.yml").write_text("name: ci\non: push\n")
         with patch.dict(os.environ, {"SHELLCHECK_OPTS": "--exclude=SC1091"}, clear=False):
-            with patch(
-                "checks_tooling.shutil.which", return_value="actionlint"
-            ):
+            with patch("checks_tooling.shutil.which", return_value="actionlint"):
                 with patch("checks_tooling._run_subprocess") as mock_run:
                     mock_run.return_value = (0, "", "")
                     assert validate_workflow_yaml(tmp_path).state is EvidenceState.PASS

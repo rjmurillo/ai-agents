@@ -108,7 +108,6 @@ query($owner: String!, $name: String!, $limit: Int!) {
 }"""
 
 
-
 def _fetch_status_context_page(
     owner: str,
     repo: str,
@@ -230,7 +229,9 @@ def has_unresolved_threads(pr: dict[str, Any]) -> bool:
     if total > len(nodes):
         logging.warning(
             "PR #%s has %d review threads but only %d fetched",
-            pr.get("number", "?"), total, len(nodes),
+            pr.get("number", "?"),
+            total,
+            len(nodes),
         )
     for node in nodes:
         if not node:
@@ -344,10 +345,7 @@ def discover_and_classify(owner: str, repo: str, max_prs: int) -> dict[str, Any]
             pr_has_unresolved = has_unresolved_threads(pr)
 
             needs_action = (
-                pr_has_changes_requested
-                or pr_has_conflicts
-                or pr_has_failing
-                or pr_has_unresolved
+                pr_has_changes_requested or pr_has_conflicts or pr_has_failing or pr_has_unresolved
             )
             if not needs_action:
                 continue

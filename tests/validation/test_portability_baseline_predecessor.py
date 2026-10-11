@@ -55,9 +55,7 @@ class TestTheCommittedCopyIsTheFloor:
     can reach. The committed object is what has to decide the outcome.
     """
 
-    def test_an_emptied_worktree_copy_does_not_forgive_a_shrink(
-        self, tmp_path: Path
-    ) -> None:
+    def test_an_emptied_worktree_copy_does_not_forgive_a_shrink(self, tmp_path: Path) -> None:
         root = _repo(tmp_path)
         path = _commit_baseline(root, {"files": {"a.md": 4, "b.md": 3}})
         path.write_text("{}", encoding="utf-8")
@@ -81,9 +79,7 @@ class TestTheCommittedCopyIsTheFloor:
         assert rc == 2
         assert path.read_text(encoding="utf-8") == "{}"
 
-    def test_a_lowered_worktree_copy_loses_to_the_committed_counts(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_lowered_worktree_copy_loses_to_the_committed_counts(self, tmp_path: Path) -> None:
         root = _repo(tmp_path)
         path = _commit_baseline(root, {"files": {"a.md": 9}})
         path.write_text(json.dumps({"files": {"a.md": 1}}), encoding="utf-8")
@@ -93,9 +89,7 @@ class TestTheCommittedCopyIsTheFloor:
         assert problem is None
         assert previous == {"files": {"a.md": 9}}
 
-    def test_honest_progress_on_disk_still_outranks_a_stale_commit(
-        self, tmp_path: Path
-    ) -> None:
+    def test_honest_progress_on_disk_still_outranks_a_stale_commit(self, tmp_path: Path) -> None:
         """The floor raises the count, it never lowers one.
 
         A contributor who genuinely recorded more debt since the last commit
@@ -125,9 +119,7 @@ class TestTheCommittedCopyIsTheFloor:
         assert rc == 0
         assert json.loads(path.read_text(encoding="utf-8")) == {"files": {"a.md": 1}}
 
-    def test_a_baseline_with_no_commit_behind_it_is_still_writable(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_baseline_with_no_commit_behind_it_is_still_writable(self, tmp_path: Path) -> None:
         """A genuinely new baseline has no floor, and must not be refused."""
         root = _repo(tmp_path)
         _commit_baseline(root, {"files": {"a.md": 1}})
@@ -162,9 +154,7 @@ class TestSectionsNobodyGuardsAreRefusedByName:
 
     def test_an_unknown_count_section_refuses_the_read(self, tmp_path: Path) -> None:
         root = _repo(tmp_path)
-        path = _commit_baseline(
-            root, {"files": {"a.md": 1}, "ghost_files": {"g.md": 4}}
-        )
+        path = _commit_baseline(root, {"files": {"a.md": 1}, "ghost_files": {"g.md": 4}})
 
         previous, problem = read_previous_sections(root, path)
 
@@ -172,13 +162,9 @@ class TestSectionsNobodyGuardsAreRefusedByName:
         assert problem is not None
         assert "ghost_files" in problem
 
-    def test_an_unknown_count_section_is_not_silently_overwritten(
-        self, tmp_path: Path
-    ) -> None:
+    def test_an_unknown_count_section_is_not_silently_overwritten(self, tmp_path: Path) -> None:
         root = _repo(tmp_path)
-        path = _commit_baseline(
-            root, {"files": {"a.md": 1}, "ghost_files": {"g.md": 4}}
-        )
+        path = _commit_baseline(root, {"files": {"a.md": 1}, "ghost_files": {"g.md": 4}})
 
         rc = write_baseline_json(
             root, path, {"files": {"a.md": 1}}, {"files": {"a.md": 1}}, UNIT, False
@@ -187,14 +173,10 @@ class TestSectionsNobodyGuardsAreRefusedByName:
         assert rc == 2
         assert json.loads(path.read_text(encoding="utf-8"))["ghost_files"] == {"g.md": 4}
 
-    def test_the_escape_hatch_does_not_authorise_deleting_a_section(
-        self, tmp_path: Path
-    ) -> None:
+    def test_the_escape_hatch_does_not_authorise_deleting_a_section(self, tmp_path: Path) -> None:
         """`--allow-baseline-shrink` forgives a smaller count, not a lost section."""
         root = _repo(tmp_path)
-        path = _commit_baseline(
-            root, {"files": {"a.md": 1}, "ghost_files": {"g.md": 4}}
-        )
+        path = _commit_baseline(root, {"files": {"a.md": 1}, "ghost_files": {"g.md": 4}})
 
         rc = write_baseline_json(
             root, path, {"files": {"a.md": 1}}, {"files": {"a.md": 1}}, UNIT, True
@@ -203,22 +185,16 @@ class TestSectionsNobodyGuardsAreRefusedByName:
         assert rc == 2
         assert json.loads(path.read_text(encoding="utf-8"))["ghost_files"] == {"g.md": 4}
 
-    def test_a_known_section_is_not_mistaken_for_an_unknown_one(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_known_section_is_not_mistaken_for_an_unknown_one(self, tmp_path: Path) -> None:
         root = _repo(tmp_path)
-        path = _commit_baseline(
-            root, {"files": {"a.md": 1}, "marker_files": {"m.md": 2}}
-        )
+        path = _commit_baseline(root, {"files": {"a.md": 1}, "marker_files": {"m.md": 2}})
 
         previous, problem = read_previous_sections(root, path)
 
         assert problem is None
         assert previous == {"files": {"a.md": 1}, "marker_files": {"m.md": 2}}
 
-    def test_metadata_that_is_not_a_count_does_not_trip_the_refusal(
-        self, tmp_path: Path
-    ) -> None:
+    def test_metadata_that_is_not_a_count_does_not_trip_the_refusal(self, tmp_path: Path) -> None:
         """`_comment` is a string and every real baseline carries one."""
         root = _repo(tmp_path)
         path = _commit_baseline(root, {"_comment": "why", "files": {"a.md": 1}})
@@ -255,12 +231,8 @@ class TestSectionsNobodyGuardsAreRefusedByName:
         assert "_meta" in problem
 
 
-
-
 @pytest.mark.parametrize("allow_shrink", [False, True])
-def test_a_healthy_rewrite_is_unaffected_by_any_of_it(
-    tmp_path: Path, allow_shrink: bool
-) -> None:
+def test_a_healthy_rewrite_is_unaffected_by_any_of_it(tmp_path: Path, allow_shrink: bool) -> None:
     """None of the new refusals may cost an honest regeneration."""
     root = _repo(tmp_path)
     path = _commit_baseline(root, {"files": {"a.md": 2, "b.md": 3}})
@@ -280,9 +252,7 @@ class TestALookupThatFailsIsNotAnAbsentFloor:
     be proven by git answering, not inferred from git failing.
     """
 
-    def test_a_repository_with_no_git_directory_is_refused(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_repository_with_no_git_directory_is_refused(self, tmp_path: Path) -> None:
         """The cheapest way to silence the floor is to make git itself fail."""
         root = _repo(tmp_path)
         path = _commit_baseline(root, {"files": {"a.md": 4}})
@@ -309,25 +279,19 @@ class TestALookupThatFailsIsNotAnAbsentFloor:
         assert previous is None
         assert problem is not None
 
-    def test_a_baseline_git_tracks_under_another_case_is_refused(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_baseline_git_tracks_under_another_case_is_refused(self, tmp_path: Path) -> None:
         """On a case-insensitive filesystem the pathspec misses and the floor
         would vanish, even though the same bytes are on disk."""
         root = _repo(tmp_path)
         _commit_baseline(root, {"files": {"a.md": 4}})
 
-        previous, problem = read_previous_sections(
-            root, root / "scripts" / "validation" / "B.json"
-        )
+        previous, problem = read_previous_sections(root, root / "scripts" / "validation" / "B.json")
 
         assert previous is None
         assert problem is not None
         assert "case" in problem
 
-    def test_a_directory_where_the_baseline_should_be_is_refused(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_directory_where_the_baseline_should_be_is_refused(self, tmp_path: Path) -> None:
         root = _repo(tmp_path)
         nested = root / "scripts" / "validation" / "b.json"
         nested.mkdir()
@@ -340,9 +304,7 @@ class TestALookupThatFailsIsNotAnAbsentFloor:
         assert previous is None
         assert problem is not None
 
-    def test_a_genuinely_new_baseline_still_has_no_floor(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_genuinely_new_baseline_still_has_no_floor(self, tmp_path: Path) -> None:
         """The refusals above are only correct if this stays permitted."""
         root = _repo(tmp_path)
         _commit_baseline(root, {"files": {"a.md": 4}})
@@ -365,9 +327,7 @@ class TestALookupThatFailsIsNotAnAbsentFloor:
         assert problem is None
         assert previous == {"files": {"a.md": 1}}
 
-    def test_a_baseline_outside_the_repository_has_no_floor(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_baseline_outside_the_repository_has_no_floor(self, tmp_path: Path) -> None:
         """A direct library call can still reach this; no checker CLI can.
 
         All three checkers reject an out-of-root `--baseline` before they get
@@ -385,9 +345,7 @@ class TestALookupThatFailsIsNotAnAbsentFloor:
         assert problem is None
         assert previous == {"files": {"z.md": 1}}
 
-    def test_a_listed_blob_that_cannot_be_read_is_refused(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_listed_blob_that_cannot_be_read_is_refused(self, tmp_path: Path) -> None:
         """Deleting every object makes the listing fail first, which leaves the
         read itself unproven. Removing only the blob keeps the tree intact, so
         git still names the baseline and then cannot hand it over."""

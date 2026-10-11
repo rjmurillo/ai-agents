@@ -52,8 +52,18 @@ def _init_git_repo(repo: Path) -> None:
     repo.mkdir()
     subprocess.run(["git", "init", "--quiet", "-b", "main"], cwd=repo, check=True, timeout=10)
     subprocess.run(
-        ["git", "-c", "user.name=pytest", "-c", "user.email=pytest@example.invalid", "commit",
-         "--allow-empty", "--quiet", "-m", "initial"],
+        [
+            "git",
+            "-c",
+            "user.name=pytest",
+            "-c",
+            "user.email=pytest@example.invalid",
+            "commit",
+            "--allow-empty",
+            "--quiet",
+            "-m",
+            "initial",
+        ],
         cwd=repo,
         check=True,
         timeout=10,
@@ -317,9 +327,7 @@ def test_main_exits_zero_when_repo_root_is_not_a_git_repository(tmp_path):
 
 
 @_posix_only
-def test_main_exits_zero_and_skips_the_lock_check_when_bypass_env_is_set(
-    monkeypatch, tmp_path
-):
+def test_main_exits_zero_and_skips_the_lock_check_when_bypass_env_is_set(monkeypatch, tmp_path):
     """F1: SKIP_PUSH_LOCK_COMMIT_GUARD=1 bypasses the guard even while the
     lock is genuinely held, for a stuck lock from a crashed holder."""
     repo = tmp_path / "repo"

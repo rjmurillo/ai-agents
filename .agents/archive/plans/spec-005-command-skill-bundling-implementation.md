@@ -57,21 +57,21 @@
 
 ```python
 BUNDLE_REGISTRY = [
-    ("spec.md",      "session-init"),
-    ("ship.md",      "session-end"),
-    ("ship.md",      "reflect"),
-    ("plan.md",      "pre-mortem"),
-    ("plan.md",      "decision-critic"),
-    ("build.md",     "context-gather"),
-    ("build.md",     "steering-matcher"),
-    ("build.md",     "chestertons-fence"),
-    ("test.md",      "threat-modeling"),
-    ("test.md",      "slo-designer"),
-    ("test.md",      "observability"),
-    ("review.md",    "doc-accuracy"),
-    ("review.md",    "chestertons-fence"),
+    ("spec.md", "session-init"),
+    ("ship.md", "session-end"),
+    ("ship.md", "reflect"),
+    ("plan.md", "pre-mortem"),
+    ("plan.md", "decision-critic"),
+    ("build.md", "context-gather"),
+    ("build.md", "steering-matcher"),
+    ("build.md", "chestertons-fence"),
+    ("test.md", "threat-modeling"),
+    ("test.md", "slo-designer"),
+    ("test.md", "observability"),
+    ("review.md", "doc-accuracy"),
+    ("review.md", "chestertons-fence"),
     ("pr-review.md", "merge-resolver"),
-    ("research.md",  "context-gather"),
+    ("research.md", "context-gather"),
 ]
 ```
 
@@ -85,6 +85,7 @@ BUNDLE_REGISTRY = [
 ```python
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts" / "validation"))
 from bundle_registry import BUNDLE_REGISTRY  # noqa: E402
 ```

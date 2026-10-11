@@ -255,10 +255,7 @@ def test_auth_protocol_error_maps_to_fixed_redacted_category(
     secret = "ghp_" + "Q" * 36
     broken = _FAKE_ACP.replace(
         '"result": {"stopReason": "end_turn"}',
-        (
-            '"error": {"code": -32000, '
-            f'"message": "Authentication required token {secret}"}}'
-        ),
+        (f'"error": {{"code": -32000, "message": "Authentication required token {secret}"}}'),
     )
     fake.write_text(broken, encoding="utf-8")
 
@@ -273,8 +270,7 @@ def test_auth_protocol_error_maps_to_fixed_redacted_category(
 
     assert secret not in str(exc_info.value)
     assert str(exc_info.value) == (
-        "Copilot ACP provider error: error=authentication failed; "
-        "provider details redacted"
+        "Copilot ACP provider error: error=authentication failed; provider details redacted"
     )
 
 
@@ -483,7 +479,7 @@ def test_parent_exit_during_request_kills_pipe_holding_descendant(
                 "import sys",
                 "sys.stdin.readline()",
                 "subprocess.Popen(",
-                '    [sys.executable, \"-c\", \"import time; time.sleep(60)\"],',
+                '    [sys.executable, "-c", "import time; time.sleep(60)"],',
                 "    stdout=sys.stdout,",
                 "    stderr=sys.stderr,",
                 ")",
@@ -954,9 +950,7 @@ def test_stdin_parent_exit_bounds_the_stderr_join(
         def has_exited(self) -> bool:
             return True
 
-    stderr_thread = threading.Thread(
-        target=lambda: release_stderr.wait(timeout=2.0)
-    )
+    stderr_thread = threading.Thread(target=lambda: release_stderr.wait(timeout=2.0))
     stderr_thread.start()
     streams = cast(
         Any,

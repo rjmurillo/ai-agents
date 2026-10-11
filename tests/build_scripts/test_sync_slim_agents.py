@@ -123,8 +123,7 @@ def tree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 def test_check_flag_is_accepted_and_matches_the_default(tree: Path) -> None:
     """The docs spell the default mode `--check`, so the parser must take it."""
-    _write(tree / "templates" / "agents" / f"{AGENT}.shared.md",
-           TEMPLATE_FRONTMATTER + STALE_BODY)
+    _write(tree / "templates" / "agents" / f"{AGENT}.shared.md", TEMPLATE_FRONTMATTER + STALE_BODY)
 
     assert sync_slim_agents.main(["--check"]) == sync_slim_agents.EXIT_DRIFT
     assert sync_slim_agents.main([]) == sync_slim_agents.EXIT_DRIFT
@@ -138,9 +137,7 @@ def test_check_and_write_are_mutually_exclusive(tree: Path) -> None:
 
 
 def test_relative_paths_use_forward_slashes(tree: Path) -> None:
-    reported = sync_slim_agents._relative(
-        tree / "templates" / "agents" / f"{AGENT}.shared.md"
-    )
+    reported = sync_slim_agents._relative(tree / "templates" / "agents" / f"{AGENT}.shared.md")
 
     assert reported == "templates/agents/analyst.shared.md"
 
@@ -181,9 +178,7 @@ def test_installed_claude_copy_is_neither_read_nor_written(tree: Path) -> None:
     installed = tree / ".claude" / "agents" / f"{AGENT}.md"
     template = tree / "templates" / "agents" / f"{AGENT}.shared.md"
 
-    assert installed not in set(
-        sync_slim_agents.declared_paths(sync_slim_agents.SLIMMED_AGENTS)
-    )
+    assert installed not in set(sync_slim_agents.declared_paths(sync_slim_agents.SLIMMED_AGENTS))
     assert sync_slim_agents.main(["--write"]) == sync_slim_agents.EXIT_OK
 
     assert installed.read_text(encoding="utf-8") == CLAUDE_FRONTMATTER + STALE_BODY
@@ -203,8 +198,7 @@ def test_write_replaces_body_and_preserves_each_frontmatter(tree: Path) -> None:
 
 
 def test_write_is_idempotent(tree: Path, capsys) -> None:
-    _write(tree / "templates" / "agents" / f"{AGENT}.shared.md",
-           TEMPLATE_FRONTMATTER + STALE_BODY)
+    _write(tree / "templates" / "agents" / f"{AGENT}.shared.md", TEMPLATE_FRONTMATTER + STALE_BODY)
 
     sync_slim_agents.main(["--write"])
     capsys.readouterr()
@@ -214,16 +208,14 @@ def test_write_is_idempotent(tree: Path, capsys) -> None:
 
 
 def test_write_then_check_is_clean(tree: Path) -> None:
-    _write(tree / "templates" / "agents" / f"{AGENT}.shared.md",
-           TEMPLATE_FRONTMATTER + STALE_BODY)
+    _write(tree / "templates" / "agents" / f"{AGENT}.shared.md", TEMPLATE_FRONTMATTER + STALE_BODY)
 
     sync_slim_agents.main(["--write"])
 
     assert sync_slim_agents.main([]) == sync_slim_agents.EXIT_OK
 
 
-def test_write_from_a_subdirectory_of_the_root_proceeds(tree: Path,
-                                                        monkeypatch) -> None:
+def test_write_from_a_subdirectory_of_the_root_proceeds(tree: Path, monkeypatch) -> None:
     target = tree / "templates" / "agents" / f"{AGENT}.shared.md"
     _write(target, TEMPLATE_FRONTMATTER + STALE_BODY)
     monkeypatch.chdir(tree / "templates" / "agents")
@@ -232,8 +224,7 @@ def test_write_from_a_subdirectory_of_the_root_proceeds(tree: Path,
     assert target.read_text(encoding="utf-8") == TEMPLATE_FRONTMATTER + SOURCE_BODY
 
 
-def test_write_from_outside_the_root_is_a_config_error(tree: Path, monkeypatch,
-                                                       capsys) -> None:
+def test_write_from_outside_the_root_is_a_config_error(tree: Path, monkeypatch, capsys) -> None:
     """MUST 7: the write must not land in a checkout the caller is not in."""
     target = tree / "templates" / "agents" / f"{AGENT}.shared.md"
     _write(target, TEMPLATE_FRONTMATTER + STALE_BODY)
@@ -247,15 +238,13 @@ def test_write_from_outside_the_root_is_a_config_error(tree: Path, monkeypatch,
 
 def test_check_from_outside_the_root_still_runs(tree: Path, monkeypatch) -> None:
     """The guard is scoped to --write; a read-only run has nothing to protect."""
-    _write(tree / "templates" / "agents" / f"{AGENT}.shared.md",
-           TEMPLATE_FRONTMATTER + STALE_BODY)
+    _write(tree / "templates" / "agents" / f"{AGENT}.shared.md", TEMPLATE_FRONTMATTER + STALE_BODY)
     monkeypatch.chdir(tree.parent)
 
     assert sync_slim_agents.main([]) == sync_slim_agents.EXIT_DRIFT
 
 
-def test_unterminated_source_frontmatter_is_a_config_error(tree: Path,
-                                                           capsys) -> None:
+def test_unterminated_source_frontmatter_is_a_config_error(tree: Path, capsys) -> None:
     """A broken source must not copy its open `---` block into every mirror."""
     _write(tree / "src" / "claude" / f"{AGENT}.md", UNTERMINATED_FRONTMATTER)
     template = tree / "templates" / "agents" / f"{AGENT}.shared.md"
@@ -268,8 +257,7 @@ def test_unterminated_source_frontmatter_is_a_config_error(tree: Path,
     assert template.read_text(encoding="utf-8") == TEMPLATE_FRONTMATTER + SOURCE_BODY
 
 
-def test_unterminated_mirror_frontmatter_is_a_config_error(tree: Path,
-                                                           capsys) -> None:
+def test_unterminated_mirror_frontmatter_is_a_config_error(tree: Path, capsys) -> None:
     """A broken mirror must not have its metadata deleted by a successful run."""
     template = tree / "templates" / "agents" / f"{AGENT}.shared.md"
     github = tree / ".github" / "agents" / f"{AGENT}.agent.md"
@@ -283,8 +271,7 @@ def test_unterminated_mirror_frontmatter_is_a_config_error(tree: Path,
     assert github.read_text(encoding="utf-8") == GITHUB_FRONTMATTER + STALE_BODY
 
 
-def test_symlinked_mirror_outside_the_root_is_a_config_error(tree: Path,
-                                                             capsys) -> None:
+def test_symlinked_mirror_outside_the_root_is_a_config_error(tree: Path, capsys) -> None:
     """write_text follows symlinks, so an escaping mirror must be refused."""
     external = tree.parent / f"{tree.name}-external.md"
     external.write_text(TEMPLATE_FRONTMATTER + STALE_BODY, encoding="utf-8")
@@ -299,8 +286,7 @@ def test_symlinked_mirror_outside_the_root_is_a_config_error(tree: Path,
     assert external.read_text(encoding="utf-8") == TEMPLATE_FRONTMATTER + STALE_BODY
 
 
-def test_symlinked_source_outside_the_root_is_a_config_error(tree: Path,
-                                                             capsys) -> None:
+def test_symlinked_source_outside_the_root_is_a_config_error(tree: Path, capsys) -> None:
     """read_text follows symlinks too, so an escaping source is refused."""
     external = tree.parent / f"{tree.name}-external-source.md"
     external.write_text(CLAUDE_FRONTMATTER + STALE_BODY, encoding="utf-8")
@@ -350,8 +336,7 @@ def test_write_preserves_the_destination_mode(tree: Path) -> None:
     assert target.read_text(encoding="utf-8") == TEMPLATE_FRONTMATTER + SOURCE_BODY
 
 
-def test_failed_write_leaves_the_destination_intact(tree: Path,
-                                                    monkeypatch) -> None:
+def test_failed_write_leaves_the_destination_intact(tree: Path, monkeypatch) -> None:
     """A partial write must not publish. os.replace is the all-or-nothing step."""
     target = tree / "templates" / "agents" / f"{AGENT}.shared.md"
     _write(target, TEMPLATE_FRONTMATTER + STALE_BODY)
@@ -383,8 +368,7 @@ def test_undecodable_file_is_an_external_failure(tree: Path, capsys) -> None:
 
 def test_write_names_both_follow_up_steps(tree: Path, capsys) -> None:
     """The installed copy is not synced here, so the output must say so."""
-    _write(tree / "templates" / "agents" / f"{AGENT}.shared.md",
-           TEMPLATE_FRONTMATTER + STALE_BODY)
+    _write(tree / "templates" / "agents" / f"{AGENT}.shared.md", TEMPLATE_FRONTMATTER + STALE_BODY)
 
     assert sync_slim_agents.main(["--write"]) == sync_slim_agents.EXIT_OK
 
@@ -394,8 +378,7 @@ def test_write_names_both_follow_up_steps(tree: Path, capsys) -> None:
     assert "check_agent_content_parity.py" in out
 
 
-def test_mirror_that_is_only_a_bare_delimiter_is_a_config_error(tree: Path,
-                                                                capsys) -> None:
+def test_mirror_that_is_only_a_bare_delimiter_is_a_config_error(tree: Path, capsys) -> None:
     """A file that is exactly `---` opens a block with no newline after it."""
     target = tree / "templates" / "agents" / f"{AGENT}.shared.md"
     _write(target, "---")
@@ -419,8 +402,7 @@ def test_mirror_whose_frontmatter_ends_the_file_keeps_a_separator(tree: Path) ->
     assert target.read_text(encoding="utf-8") == "---\nname: analyst\n---\n" + SOURCE_BODY
 
 
-def test_symlinked_mirror_inside_the_root_is_still_refused(tree: Path,
-                                                          capsys) -> None:
+def test_symlinked_mirror_inside_the_root_is_still_refused(tree: Path, capsys) -> None:
     """Isolates the `is_symlink()` clause: this link stays inside the root.
 
     Both escaping-symlink tests above also fail containment, so deleting
@@ -439,8 +421,7 @@ def test_symlinked_mirror_inside_the_root_is_still_refused(tree: Path,
     assert inside.read_text(encoding="utf-8") == TEMPLATE_FRONTMATTER + STALE_BODY
 
 
-def test_mirror_under_a_symlinked_directory_is_refused(tree: Path,
-                                                       capsys) -> None:
+def test_mirror_under_a_symlinked_directory_is_refused(tree: Path, capsys) -> None:
     """Isolates the containment clause: the leaf here is a real file.
 
     `path.is_symlink()` is false because the link is the parent directory, so
@@ -480,8 +461,7 @@ def test_non_ascii_body_survives_the_round_trip(tree: Path) -> None:
     # Both mirrors have to trail the new source rather than reword it, or the
     # guard refuses the run and this stops testing the encoding at all.
     _write(target, TEMPLATE_FRONTMATTER + STALE_BODY)
-    _write(tree / ".github" / "agents" / f"{AGENT}.agent.md",
-           GITHUB_FRONTMATTER + STALE_BODY)
+    _write(tree / ".github" / "agents" / f"{AGENT}.agent.md", GITHUB_FRONTMATTER + STALE_BODY)
 
     assert sync_slim_agents.main(["--write"]) == sync_slim_agents.EXIT_OK
     assert target.read_text(encoding="utf-8") == TEMPLATE_FRONTMATTER + body

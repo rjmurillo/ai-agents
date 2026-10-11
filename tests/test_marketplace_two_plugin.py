@@ -19,9 +19,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 CLAUDE_MARKETPLACE = REPO_ROOT / ".claude-plugin" / "marketplace.json"
 COPILOT_MARKETPLACE = REPO_ROOT / ".github" / "plugin" / "marketplace.json"
 CLAUDE_TOOLKIT_PLUGIN = REPO_ROOT / "src" / "claude" / ".claude-plugin" / "plugin.json"
-COPILOT_TOOLKIT_PLUGIN = (
-    REPO_ROOT / "src" / "copilot-cli" / ".claude-plugin" / "plugin.json"
-)
+COPILOT_TOOLKIT_PLUGIN = REPO_ROOT / "src" / "copilot-cli" / ".claude-plugin" / "plugin.json"
 
 CLAUDE_PLUGIN_NAMES = {"project-toolkit"}
 COPILOT_PLUGIN_NAMES = {"project-toolkit"}
@@ -30,9 +28,7 @@ COPILOT_PLUGIN_NAMES = {"project-toolkit"}
 # Copilot-only bundles. Kept as an explicit denylist so the marketplace-
 # honesty rule (issue #1840) has a named target the test can guard against
 # regression even after both names were dropped from every shipped manifest.
-CLAUDE_REJECTED_PLUGIN_NAMES = frozenset(
-    {"copilot-cli-agents", "copilot-cli-toolkit"}
-)
+CLAUDE_REJECTED_PLUGIN_NAMES = frozenset({"copilot-cli-agents", "copilot-cli-toolkit"})
 
 
 def _load_marketplace(path: Path) -> dict:
@@ -50,10 +46,7 @@ def _is_valid_claude_marketplace_shape(plugins: list[dict]) -> bool:
     fail both tests at once.
     """
     names = {p["name"] for p in plugins}
-    return (
-        names == CLAUDE_PLUGIN_NAMES
-        and names.isdisjoint(CLAUDE_REJECTED_PLUGIN_NAMES)
-    )
+    return names == CLAUDE_PLUGIN_NAMES and names.isdisjoint(CLAUDE_REJECTED_PLUGIN_NAMES)
 
 
 class TestMarketplaceShape:
@@ -74,9 +67,7 @@ class TestMarketplaceShape:
     def test_all_plugin_names_unique(self, path: Path) -> None:
         data = _load_marketplace(path)
         names = [p["name"] for p in data["plugins"]]
-        assert len(names) == len(set(names)), (
-            f"Duplicate plugin names detected in {path}: {names}"
-        )
+        assert len(names) == len(set(names)), f"Duplicate plugin names detected in {path}: {names}"
 
     def test_claude_marketplace_contains_only_claude_plugins(self) -> None:
         data = _load_marketplace(CLAUDE_MARKETPLACE)
@@ -115,9 +106,7 @@ class TestMarketplaceSourceManifestParity:
     ) -> None:
         marketplace = _load_marketplace(marketplace_path)
         plugin_manifest = _load_marketplace(manifest_path)
-        entry = next(
-            plugin for plugin in marketplace["plugins"] if plugin["name"] == plugin_name
-        )
+        entry = next(plugin for plugin in marketplace["plugins"] if plugin["name"] == plugin_name)
 
         assert entry["description"] == plugin_manifest["description"]
 
@@ -131,17 +120,13 @@ class TestSourceDirsExist:
         for plugin in data["plugins"]:
             source = plugin["source"]
             assert source.startswith("./"), (
-                f"plugin {plugin['name']!r}: source must start with './' "
-                f"(got {source!r})"
+                f"plugin {plugin['name']!r}: source must start with './' (got {source!r})"
             )
             resolved = (REPO_ROOT / source[2:]).resolve()
             assert resolved.exists(), (
-                f"plugin {plugin['name']!r}: source dir {resolved} "
-                f"does not exist"
+                f"plugin {plugin['name']!r}: source dir {resolved} does not exist"
             )
-            assert resolved.is_dir(), (
-                f"plugin {plugin['name']!r}: source {resolved} is not a dir"
-            )
+            assert resolved.is_dir(), f"plugin {plugin['name']!r}: source {resolved} is not a dir"
 
 
 class TestManifestValidatorGreen:
@@ -154,7 +139,8 @@ class TestManifestValidatorGreen:
                 str(REPO_ROOT / "build" / "scripts" / "validate_plugin_manifests.py"),
             ],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
             cwd=REPO_ROOT,
         )
@@ -173,9 +159,7 @@ class TestUniquenessAssertionDetectsCollision:
             {"name": "project-toolkit", "source": "./other"},
         ]
         names = [p["name"] for p in plugins]
-        assert len(names) != len(set(names)), (
-            "Test fixture must trigger the uniqueness assertion"
-        )
+        assert len(names) != len(set(names)), "Test fixture must trigger the uniqueness assertion"
 
 
 class TestClaudeMarketplaceRejectsCopilotAgentBundle:
@@ -191,6 +175,5 @@ class TestClaudeMarketplaceRejectsCopilotAgentBundle:
         # the production test starts failing AND this test stops failing,
         # so the regression cannot land silently.
         assert not _is_valid_claude_marketplace_shape(synthetic_plugins), (
-            "Claude marketplace must reject any shape that contains a "
-            "Copilot-only plugin name"
+            "Claude marketplace must reject any shape that contains a Copilot-only plugin name"
         )

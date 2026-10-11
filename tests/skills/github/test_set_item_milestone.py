@@ -47,9 +47,9 @@ class TestGetItemMilestone:
     def test_has_milestone(self, _import_module):
         mod = _import_module
         item_data = {"milestone": {"title": "v1.0.0"}}
-        with patch("subprocess.run", return_value=make_completed_process(
-            stdout=json.dumps(item_data)
-        )) as run:
+        with patch(
+            "subprocess.run", return_value=make_completed_process(stdout=json.dumps(item_data))
+        ) as run:
             result = mod._get_item_milestone("o", "r", 1)
         assert result == "v1.0.0"
         assert run.call_args.kwargs["timeout"] == mod.GH_TIMEOUT_SECONDS
@@ -57,9 +57,9 @@ class TestGetItemMilestone:
     def test_no_milestone(self, _import_module):
         mod = _import_module
         item_data = {"milestone": None}
-        with patch("subprocess.run", return_value=make_completed_process(
-            stdout=json.dumps(item_data)
-        )):
+        with patch(
+            "subprocess.run", return_value=make_completed_process(stdout=json.dumps(item_data))
+        ):
             result = mod._get_item_milestone("o", "r", 1)
         assert result is None
 
@@ -73,9 +73,9 @@ class TestSetItemMilestone:
         with (
             patch("set_item_milestone.assert_gh_authenticated"),
             patch("set_item_milestone.resolve_repo_params", return_value=_mock_repo()),
-            patch("subprocess.run", return_value=make_completed_process(
-                stdout=json.dumps(item_data)
-            )),
+            patch(
+                "subprocess.run", return_value=make_completed_process(stdout=json.dumps(item_data))
+            ),
         ):
             rc = mod.main(["--item-type", "pr", "--item-number", "1"])
         assert rc == 0
@@ -89,14 +89,20 @@ class TestSetItemMilestone:
         with (
             patch("set_item_milestone.assert_gh_authenticated"),
             patch("set_item_milestone.resolve_repo_params", return_value=_mock_repo()),
-            patch("subprocess.run", return_value=make_completed_process(
-                stdout=json.dumps(item_data)
-            )),
+            patch(
+                "subprocess.run", return_value=make_completed_process(stdout=json.dumps(item_data))
+            ),
         ):
-            rc = mod.main([
-                "--item-type", "pr", "--item-number", "1",
-                "--output-format", "human",
-            ])
+            rc = mod.main(
+                [
+                    "--item-type",
+                    "pr",
+                    "--item-number",
+                    "1",
+                    "--output-format",
+                    "human",
+                ]
+            )
         assert rc == 0
         lines = [line for line in capsys.readouterr().out.splitlines() if line.strip()]
         assert len(lines) == 1
@@ -108,15 +114,26 @@ class TestSetItemMilestone:
         with (
             patch("set_item_milestone.assert_gh_authenticated"),
             patch("set_item_milestone.resolve_repo_params", return_value=_mock_repo()),
-            patch("subprocess.run", side_effect=[
-                make_completed_process(stdout=json.dumps(item_data)),  # _get_item_milestone
-                make_completed_process(),                               # _assign_milestone
-            ]),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    make_completed_process(stdout=json.dumps(item_data)),  # _get_item_milestone
+                    make_completed_process(),  # _assign_milestone
+                ],
+            ),
         ):
-            rc = mod.main([
-                "--item-type", "issue", "--item-number", "42",
-                "--milestone-title", "v1.0.0", "--output-format", "json",
-            ])
+            rc = mod.main(
+                [
+                    "--item-type",
+                    "issue",
+                    "--item-number",
+                    "42",
+                    "--milestone-title",
+                    "v1.0.0",
+                    "--output-format",
+                    "json",
+                ]
+            )
         assert rc == 0
         captured = capsys.readouterr()
         result = json.loads(captured.out)
@@ -136,9 +153,10 @@ class TestSetItemMilestone:
         with (
             patch("set_item_milestone.assert_gh_authenticated"),
             patch("set_item_milestone.resolve_repo_params", return_value=_mock_repo()),
-            patch("subprocess.run", return_value=make_completed_process(
-                returncode=1, stderr="api error"
-            )),
+            patch(
+                "subprocess.run",
+                return_value=make_completed_process(returncode=1, stderr="api error"),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 mod.main(["--item-type", "pr", "--item-number", "1", "--milestone-title", "v1.0.0"])
@@ -146,9 +164,9 @@ class TestSetItemMilestone:
 
     def test_query_failure_exits_3(self, _import_module):
         mod = _import_module
-        with patch("subprocess.run", return_value=make_completed_process(
-            returncode=1, stderr="fail"
-        )):
+        with patch(
+            "subprocess.run", return_value=make_completed_process(returncode=1, stderr="fail")
+        ):
             with pytest.raises(SystemExit) as exc:
                 mod._get_item_milestone("o", "r", 999)
         assert exc.value.code == 3

@@ -60,9 +60,7 @@ _NUMBERED_ITEM_RE = re.compile(r"^\d+\. ", re.MULTILINE)
 _HOST_BULLET_RE = re.compile(r"^ {3}- (?P<body>.*)$", re.MULTILINE)
 # Claude: Invoke Skill(skill="pipeline-validator"). Copilot: Invoke `skill: "pipeline-validator"`.
 _INVOKE_VALIDATOR_RE = re.compile(r'(?:Skill\(skill=|skill:\s*)"pipeline-validator"')
-_DISCHARGES_CI_RE = re.compile(
-    r'(?:Skill\(skill=|skill:\s*)"pipeline-validator"|get_pr_checks\.py'
-)
+_DISCHARGES_CI_RE = re.compile(r'(?:Skill\(skill=|skill:\s*)"pipeline-validator"|get_pr_checks\.py')
 _NO_PR_DECISION_RE = re.compile(r"^- (\*\*No PR found:\*\* .+)$", re.MULTILINE)
 
 
@@ -212,13 +210,13 @@ class TestProcessDischargesTheDeferral:
         assert "get_pr_checks.py" in discharge
         assert "--pull-request" in discharge
 
-
     def test_discharge_requires_allpassing_not_just_exit_code(self, ship_text: str) -> None:
         """Exit code 0 alone is insufficient; discharge must check Data.AllPassing."""
         discharge = numbered_item(section(ship_text, "Process"), "Discharge a deferred")
         assert "AllPassing" in discharge, "discharge must gate on Data.AllPassing"
-        assert "exit code" in discharge.lower(), \
+        assert "exit code" in discharge.lower(), (
             "discharge must mention exit code is insufficient alone"
+        )
 
     def test_contributor_mode_still_creates_no_pr(self, ship_text: str) -> None:
         """Inverse guard: the deferral must not leak PR creation into contributor mode."""
@@ -291,4 +289,3 @@ class TestPreFixControl:
 
     def test_pre_fix_report_omits_pr_presence(self) -> None:
         assert "PR-AT-PREFLIGHT" not in _PRE_FIX_SHIP_MD
-

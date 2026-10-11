@@ -123,7 +123,10 @@ def _load_synthesis_config(config_path: str) -> dict[str, Any]:
         try:
             result = subprocess.run(
                 ["git", "rev-parse", "--git-common-dir"],
-                capture_output=True, encoding="utf-8", errors="replace", timeout=10,
+                capture_output=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=10,
             )
             if result.returncode == 0:
                 git_common = Path(result.stdout.strip())
@@ -133,7 +136,11 @@ def _load_synthesis_config(config_path: str) -> dict[str, Any]:
                     git_common = git_common.resolve()
                 repo_root = str(git_common.parent)
                 config_path = os.path.join(
-                    repo_root, ".claude", "skills", "github", "copilot-synthesis.yml",
+                    repo_root,
+                    ".claude",
+                    "skills",
+                    "github",
+                    "copilot-synthesis.yml",
                 )
         except (subprocess.TimeoutExpired, FileNotFoundError):
             pass
@@ -147,9 +154,7 @@ def _load_synthesis_config(config_path: str) -> dict[str, Any]:
 
         # Extract maintainers (line-by-line to avoid ReDoS)
         config["trusted_sources"]["maintainers"] = [
-            v.split()[0]
-            for v in _extract_yaml_list(content, "maintainers")
-            if v.strip()
+            v.split()[0] for v in _extract_yaml_list(content, "maintainers") if v.strip()
         ]
 
         # Extract ai_agents (line-by-line to avoid ReDoS, strip inline comments)
@@ -180,7 +185,8 @@ def _load_synthesis_config(config_path: str) -> dict[str, Any]:
 
 
 def _get_maintainer_guidance(
-    comments: list[dict[str, Any]], maintainers: list[str],
+    comments: list[dict[str, Any]],
+    maintainers: list[str],
 ) -> list[str]:
     """Extract key decisions from maintainer comments.
 
@@ -188,9 +194,7 @@ def _get_maintainer_guidance(
     1. Extract explicit bullet points and numbered items
     2. If none found, extract sentences with RFC 2119 keywords (MUST, SHOULD, etc.)
     """
-    maintainer_comments = [
-        c for c in comments if c.get("user", {}).get("login") in maintainers
-    ]
+    maintainer_comments = [c for c in comments if c.get("user", {}).get("login") in maintainers]
     if not maintainer_comments:
         return []
 
@@ -213,17 +217,15 @@ def _get_maintainer_guidance(
             for sentence in sentences:
                 cleaned = re.sub(r"[\r\n]+", " ", sentence.strip())
                 pattern = r"\b(MUST|SHOULD|SHALL|REQUIRED|RECOMMENDED)\b"
-                if (
-                    re.search(pattern, cleaned, re.IGNORECASE)
-                    and len(cleaned) > 15
-                ):
+                if re.search(pattern, cleaned, re.IGNORECASE) and len(cleaned) > 15:
                     guidance.append(cleaned)
 
     return guidance
 
 
 def _get_coderabbit_plan(
-    comments: list[dict[str, Any]], patterns: dict[str, Any],
+    comments: list[dict[str, Any]],
+    patterns: dict[str, Any],
 ) -> dict[str, Any] | None:
     """Extract implementation plan from CodeRabbit comments."""
     rabbit_comments = [
@@ -255,9 +257,7 @@ def _get_coderabbit_plan(
         )
         if m:
             issue_matches = re.findall(r"/issues/(\d+)|#(\d+)", m.group(1))
-            plan["related_issues"] = list({
-                f"#{g1 or g2}" for g1, g2 in issue_matches
-            })
+            plan["related_issues"] = list({f"#{g1 or g2}" for g1, g2 in issue_matches})
 
         m = re.search(  # nosemgrep: skill-ldap-injection
             f"{prs_pattern}([\\s\\S]*?)(?=</details>|<details>|##|$)",
@@ -265,15 +265,14 @@ def _get_coderabbit_plan(
         )
         if m:
             pr_matches = re.findall(r"/pull/(\d+)|#(\d+)", m.group(1))
-            plan["related_prs"] = list({
-                f"#{g1 or g2}" for g1, g2 in pr_matches
-            })
+            plan["related_prs"] = list({f"#{g1 or g2}" for g1, g2 in pr_matches})
 
     return plan
 
 
 def _get_ai_triage_info(
-    comments: list[dict[str, Any]], triage_marker: str,
+    comments: list[dict[str, Any]],
+    triage_marker: str,
 ) -> dict[str, Any] | None:
     """Extract triage information from AI Triage comments."""
     escaped_marker = re.escape(triage_marker)
@@ -374,7 +373,7 @@ def _build_synthesis_comment(
             if coderabbit_plan.get("related_prs"):
                 body += f"- **Related PRs**: {', '.join(coderabbit_plan['related_prs'])}\n"
             if coderabbit_plan.get("implementation"):
-                impl = coderabbit_plan['implementation']
+                impl = coderabbit_plan["implementation"]
                 body += f"\n**CodeRabbit Implementation Plan**:\n{impl}\n"
 
     body += f"\n---\n*Generated: {timestamp}*"
@@ -382,7 +381,8 @@ def _build_synthesis_comment(
 
 
 def _find_existing_synthesis(
-    comments: list[dict[str, Any]], marker: str,
+    comments: list[dict[str, Any]],
+    marker: str,
 ) -> dict[str, Any] | None:
     """Find existing synthesis comment by marker."""
     escaped = re.escape(marker)
@@ -402,11 +402,19 @@ def _assign_copilot(
     try:
         result = subprocess.run(
             [
-                "gh", "issue", "edit", str(issue_number),
-                "--repo", f"{owner}/{repo}",
-                "--add-assignee", "copilot-swe-agent",
+                "gh",
+                "issue",
+                "edit",
+                str(issue_number),
+                "--repo",
+                f"{owner}/{repo}",
+                "--add-assignee",
+                "copilot-swe-agent",
             ],
-            capture_output=True, encoding="utf-8", errors="replace", timeout=GH_TIMEOUT_SECONDS,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=GH_TIMEOUT_SECONDS,
             check=False,
         )
     except subprocess.TimeoutExpired as err:
@@ -425,7 +433,9 @@ def _assign_copilot(
 
 
 def _create_context_file(
-    issue: dict[str, Any], trusted_comments: list[dict[str, Any]], issue_number: int,
+    issue: dict[str, Any],
+    trusted_comments: list[dict[str, Any]],
+    issue_number: int,
 ) -> str:
     """Create a context file for AI synthesis."""
     context_file = os.path.join(tempfile.gettempdir(), f"issue-{issue_number}-context.md")
@@ -435,12 +445,12 @@ def _create_context_file(
 
 ## Issue Details
 
-**Title**: {issue.get('title', '')}
+**Title**: {issue.get("title", "")}
 **Labels**: {labels_str}
 
 ### Description
 
-{issue.get('body', '')}
+{issue.get("body", "")}
 
 ## Comments from Trusted Sources
 
@@ -542,7 +552,10 @@ def main(argv: list[str] | None = None) -> int:
     try:
         issue_result = subprocess.run(
             ["gh", "api", f"repos/{owner}/{repo}/issues/{issue_number}"],
-            capture_output=True, encoding="utf-8", errors="replace", timeout=GH_TIMEOUT_SECONDS,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=GH_TIMEOUT_SECONDS,
             check=False,
         )
     except subprocess.TimeoutExpired as err:
@@ -570,8 +583,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Found {len(comments)} comments", file=sys.stderr)
 
     trusted_users = (
-        config["trusted_sources"]["maintainers"]
-        + config["trusted_sources"]["ai_agents"]
+        config["trusted_sources"]["maintainers"] + config["trusted_sources"]["ai_agents"]
     )
     trusted_comments = get_trusted_source_comments(comments, trusted_users)
     print(f"Found {len(trusted_comments)} comments from trusted sources", file=sys.stderr)
@@ -596,11 +608,13 @@ def main(argv: list[str] | None = None) -> int:
             script_name="invoke_copilot_assignment.py",
         )
 
-        _write_github_output({
-            "context_file": context_file,
-            "existing_synthesis_id": str(output["existing_synthesis_id"] or ""),
-            "marker": config["synthesis"]["marker"],
-        })
+        _write_github_output(
+            {
+                "context_file": context_file,
+                "existing_synthesis_id": str(output["existing_synthesis_id"] or ""),
+                "marker": config["synthesis"]["marker"],
+            }
+        )
         return 0
 
     # Extract context

@@ -42,7 +42,6 @@ class Evidence(str, Enum):
     UNVERIFIED = "UNVERIFIED"
 
 
-
 # ---------------------------------------------------------------------------
 # Record shape
 # ---------------------------------------------------------------------------
@@ -276,9 +275,7 @@ def _parse_capability(data: object, path: str) -> Capability:
 
 def _parse_execution(data: object, path: str) -> Execution:
     section = _require_dict(data, path)
-    _require_keys_with_optional(
-        section, _EXECUTION_REQUIRED_KEYS, _EXECUTION_OPTIONAL_KEYS, path
-    )
+    _require_keys_with_optional(section, _EXECUTION_REQUIRED_KEYS, _EXECUTION_OPTIONAL_KEYS, path)
     return Execution(
         deterministic_acceptance=_require_evidence(
             section["deterministic_acceptance"], f"{path}.deterministic_acceptance"

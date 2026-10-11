@@ -14,6 +14,7 @@ def log(message: str) -> None:
     """Log message to stderr (fail-safe logging)."""
     try:
         from semantic_hooks.logging import log as _log
+
         _log(message)
     except Exception:
         pass  # Fail silently if logging unavailable

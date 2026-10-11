@@ -182,10 +182,7 @@ def test_unknown_artifact_type_rejected(tmp_path: Path) -> None:
 
 
 def test_unknown_artifact_key_rejected(tmp_path: Path) -> None:
-    body = (
-        MINIMAL_VALID
-        + "artifacts:\n  agents:\n    sourceDir: a\n    bogus: true\n"
-    )
+    body = MINIMAL_VALID + "artifacts:\n  agents:\n    sourceDir: a\n    bogus: true\n"
     target = _write(tmp_path, body)
     errors, _ = vts.validate_file(target)
     assert any("unknown keys" in e.lower() for e in errors)
@@ -194,8 +191,8 @@ def test_unknown_artifact_key_rejected(tmp_path: Path) -> None:
 def test_commands_exclude_filenames_is_allowed(tmp_path: Path) -> None:
     body = (
         MINIMAL_VALID
-        + 'artifacts:\n'
-        + '  commands:\n'
+        + "artifacts:\n"
+        + "  commands:\n"
         + '    sourceDir: ".claude/commands"\n'
         + '    outputDir: "src/copilot-cli/skills"\n'
         + '    excludeFilenames: ["AGENTS.md"]\n'
@@ -208,8 +205,8 @@ def test_commands_exclude_filenames_is_allowed(tmp_path: Path) -> None:
 def test_commands_exclude_filenames_bare_string_rejected(tmp_path: Path) -> None:
     body = (
         MINIMAL_VALID
-        + 'artifacts:\n'
-        + '  commands:\n'
+        + "artifacts:\n"
+        + "  commands:\n"
         + '    sourceDir: ".claude/commands"\n'
         + '    outputDir: "src/copilot-cli/skills"\n'
         + '    excludeFilenames: "AGENTS.md"\n'
@@ -222,11 +219,11 @@ def test_commands_exclude_filenames_bare_string_rejected(tmp_path: Path) -> None
 def test_commands_exclude_filenames_null_rejected(tmp_path: Path) -> None:
     body = (
         MINIMAL_VALID
-        + 'artifacts:\n'
-        + '  commands:\n'
+        + "artifacts:\n"
+        + "  commands:\n"
         + '    sourceDir: ".claude/commands"\n'
         + '    outputDir: "src/copilot-cli/skills"\n'
-        + '    excludeFilenames: null\n'
+        + "    excludeFilenames: null\n"
     )
     target = _write(tmp_path, body)
     errors, _ = vts.validate_file(target)
@@ -236,8 +233,8 @@ def test_commands_exclude_filenames_null_rejected(tmp_path: Path) -> None:
 def test_dot_only_command_resource_suffix_rejected(tmp_path: Path) -> None:
     body = (
         MINIMAL_VALID
-        + 'artifacts:\n'
-        + '  commands:\n'
+        + "artifacts:\n"
+        + "  commands:\n"
         + '    sourceDir: ".claude/commands"\n'
         + '    outputDir: "src/copilot-cli/skills"\n'
         + '    resourceOutputDir: "src/copilot-cli/commands"\n'
@@ -369,10 +366,7 @@ def test_main_returns_one_on_logic_error(
     on a non-config-flagged validator: an unknown artifact key is a
     schema-validation failure but not a parse/version/path/anchor failure.
     """
-    body = (
-        MINIMAL_VALID
-        + "artifacts:\n  agents:\n    sourceDir: a\n    bogus: true\n"
-    )
+    body = MINIMAL_VALID + "artifacts:\n  agents:\n    sourceDir: a\n    bogus: true\n"
     bad = _write(tmp_path, body)
     rc = vts.main(["--platform", str(bad)])
     assert rc == 1

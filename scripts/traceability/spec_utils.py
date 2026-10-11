@@ -51,9 +51,7 @@ def find_spec_file(spec_id: str, base_path: Path) -> Path | None:
     return None
 
 
-def parse_yaml_frontmatter(
-    file_path: Path, use_cache: bool = True
-) -> dict[str, Any] | None:
+def parse_yaml_frontmatter(file_path: Path, use_cache: bool = True) -> dict[str, Any] | None:
     """Parse YAML frontmatter from a spec markdown file.
 
     Returns a dict with keys: type, id, status, related, filePath.
@@ -99,9 +97,7 @@ def parse_yaml_frontmatter(
     if status_match:
         result["status"] = status_match.group(1).strip()
 
-    related_match = re.search(
-        r"(?s)related:\s*\r?\n((?:\s+-\s+.+\r?\n?)+)", yaml_block
-    )
+    related_match = re.search(r"(?s)related:\s*\r?\n((?:\s+-\s+.+\r?\n?)+)", yaml_block)
     if related_match:
         related_block = related_match.group(1)
         result["related"] = re.findall(r"-\s+([A-Z]+-[A-Z0-9]+)", related_block)
@@ -141,9 +137,7 @@ def parse_frontmatter_with_content(
     yaml_block = re.sub(r"\r?\n---\r?\n$", "", yaml_block)
 
     related: list[str] = []
-    related_match = re.search(
-        r"(?s)related:\s*\r?\n((?:\s+-\s+.+\r?\n?)+)", yaml_block
-    )
+    related_match = re.search(r"(?s)related:\s*\r?\n((?:\s+-\s+.+\r?\n?)+)", yaml_block)
     if related_match:
         related = re.findall(r"-\s+([A-Z]+-[A-Z0-9]+)", related_match.group(1))
 

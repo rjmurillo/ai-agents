@@ -29,6 +29,7 @@ mod = import_skill_script(".claude/skills/merge-resolver/scripts/resolve_pr_conf
 
 resolve_plugin_manifest_conflict = mod.resolve_plugin_manifest_conflict
 
+
 class TestResolvePluginManifestConflict:
     """Version-only conflicts resolve to one patch bump above the higher side."""
 

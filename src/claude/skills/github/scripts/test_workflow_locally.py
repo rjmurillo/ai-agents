@@ -145,7 +145,9 @@ def _resolve_act_runner() -> tuple[list[str], str] | None:
     if _check_command_exists("gh"):
         probe = subprocess.run(
             ["gh", "act", "--version"],
-            capture_output=True, text=True, check=False,
+            capture_output=True,
+            text=True,
+            check=False,
         )
         if probe.returncode == 0:
             return (["gh", "act"], "gh act")
@@ -363,7 +365,10 @@ def main(argv: list[str] | None = None) -> int:
 
     act_argv, act_name = runner
     act_version = subprocess.run(
-        [*act_argv, "--version"], capture_output=True, text=True, check=False,
+        [*act_argv, "--version"],
+        capture_output=True,
+        text=True,
+        check=False,
     )
     print(f"[SUCCESS] {act_name} found: {act_version.stdout.strip()}")
 
@@ -378,7 +383,10 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     docker_result = subprocess.run(
-        ["docker", "info"], capture_output=True, text=True, check=False,
+        ["docker", "info"],
+        capture_output=True,
+        text=True,
+        check=False,
     )
     if docker_result.returncode != 0:
         print("[ERROR] Docker daemon is not running. Start Docker and try again.")
@@ -478,7 +486,9 @@ def main(argv: list[str] | None = None) -> int:
         if gh_path:
             token_result = subprocess.run(
                 ["gh", "auth", "token"],
-                capture_output=True, text=True, check=False,
+                capture_output=True,
+                text=True,
+                check=False,
             )
             if token_result.returncode == 0 and token_result.stdout.strip():
                 act_args.extend(["-s", f"GITHUB_TOKEN={token_result.stdout.strip()}"])

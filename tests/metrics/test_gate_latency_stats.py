@@ -55,8 +55,6 @@ def test_negative_percentile_note_absent_at_or_above_20(n: int) -> None:
     assert gls._percentile_note(n) is None
 
 
-
-
 def test_positive_a_group_row_is_flagged_by_its_deeper_successor() -> None:
     """lefthook prints a group's own row above its members, indented less."""
     from scripts.metrics import lefthook_summary as ls
@@ -114,6 +112,7 @@ def test_positive_a_group_total_can_exceed_the_hook_wall_clock_and_is_labelled()
     assert by_scope["group (7)"].is_group is True
     assert by_scope["child-a"].is_group is False
 
+
 def test_positive_build_summaries_includes_reserved_hook_scope(
     monkeypatch: pytest.MonkeyPatch, repo: Path
 ) -> None:
@@ -134,6 +133,7 @@ def test_positive_build_summaries_includes_reserved_hook_scope(
     hook_summary = next(s for s in summaries if s.scope == "__hook__")
     assert hook_summary.n == 3
 
+
 def test_positive_smallest_scope_n_drives_the_percentile_note() -> None:
     """A 20-run report with one under-sampled job still needs the note (AC-05)."""
     summaries = [
@@ -143,4 +143,3 @@ def test_positive_smallest_scope_n_drives_the_percentile_note() -> None:
 
     assert gls._smallest_scope_n(summaries, 20) == 3
     assert gls._percentile_note(gls._smallest_scope_n(summaries, 20)) is not None
-

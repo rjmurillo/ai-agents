@@ -191,9 +191,7 @@ def test_run_ruff_separates_options_from_dash_prefixed_paths(
     ]
 
 
-def test_blocks_finding_on_an_added_line(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_blocks_finding_on_an_added_line(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     payload = json.dumps([finding("scripts/dirty.py", 12)])
     recorder = RunRecorder([completed(1, payload)])
     monkeypatch.setattr(ruff_ratchet.subprocess, "run", recorder)

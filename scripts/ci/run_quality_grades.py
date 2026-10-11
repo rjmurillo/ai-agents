@@ -75,9 +75,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--grader", required=True, help="Path to grade_domains.py.")
     parser.add_argument("--json-out", required=True, help="Path for the JSON report.")
-    parser.add_argument(
-        "--markdown-out", required=True, help="Path for the markdown report."
-    )
+    parser.add_argument("--markdown-out", required=True, help="Path for the markdown report.")
     parser.add_argument(
         "--top-n", default="", help="Raw workflow input; empty or 0 means unlimited."
     )

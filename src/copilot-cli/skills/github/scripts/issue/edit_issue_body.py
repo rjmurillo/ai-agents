@@ -56,9 +56,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
-    parser.add_argument(
-        "--issue", required=True, type=int, help="Issue number to edit"
-    )
+    parser.add_argument("--issue", required=True, type=int, help="Issue number to edit")
     parser.add_argument(
         "--body",
         default=None,
@@ -88,9 +86,7 @@ def main(argv: list[str] | None = None) -> int:
     # which would crash subprocess.run with a TypeError. PR #1965 cursor
     # 6mMA: align truthiness with None validation.
     if args.body == "" or args.body_file == "":
-        error_and_exit(
-            "--body and --body-file must not be empty strings", 1
-        )
+        error_and_exit("--body and --body-file must not be empty strings", 1)
 
     body_error = escaped_newline_body_error(args.body)
     if body_error:
@@ -126,9 +122,7 @@ def main(argv: list[str] | None = None) -> int:
         gh_args.extend(["--body", args.body])
 
     try:
-        result = subprocess.run(
-            gh_args, capture_output=True, text=True, check=False, timeout=30
-        )
+        result = subprocess.run(gh_args, capture_output=True, text=True, check=False, timeout=30)
     except FileNotFoundError:
         # gh CLI binary missing: environment failure per ADR-035 exit 2.
         # PR #1965 cluster Q.

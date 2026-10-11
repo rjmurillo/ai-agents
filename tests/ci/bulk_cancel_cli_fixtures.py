@@ -27,9 +27,7 @@ HEALTHY_TYPES = {
     SECOND_REQUIRED_WORKFLOW: ["opened", "synchronize", "reopened"],
     OPTIONAL_WORKFLOW: ["opened", "synchronize", "reopened"],
 }
-REOPEN_OMITTED_TYPES = dict(
-    HEALTHY_TYPES, **{REQUIRED_WORKFLOW: ["opened", "synchronize"]}
-)
+REOPEN_OMITTED_TYPES = dict(HEALTHY_TYPES, **{REQUIRED_WORKFLOW: ["opened", "synchronize"]})
 
 
 def write_workflows(

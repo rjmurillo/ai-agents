@@ -84,6 +84,7 @@ def is_blank(text: str) -> bool:
     """
     return not text.strip(" \t")
 
+
 def container_closed(line: str, base: int) -> bool:
     """Return True when *line* dedents out of the container holding a block.
 
@@ -493,9 +494,9 @@ class ListContainers:
             or dest_line is not None
         )
         self._awaiting_link_destination = label_only
-        self._awaiting_link_title = (
-            definition is not None and definition.awaiting_title
-        ) or (dest_line is not None and dest_line.awaiting_title)
+        self._awaiting_link_title = (definition is not None and definition.awaiting_title) or (
+            dest_line is not None and dest_line.awaiting_title
+        )
         # A title may open on this line and close lines later, so record the
         # delimiter it is waiting for rather than rejecting the definition.
         self._open_title = (
@@ -582,9 +583,7 @@ class ListContainers:
             return True
         return self._list_item(line, interrupting=False) is not None
 
-    def _list_item(
-        self, line: str, *, interrupting: bool | None = None
-    ) -> tuple[int, bool] | None:
+    def _list_item(self, line: str, *, interrupting: bool | None = None) -> tuple[int, bool] | None:
         """Return *line*'s content column and whether its item has content.
 
         None when the line opens no list item. Returning both from the one

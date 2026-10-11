@@ -36,6 +36,7 @@ class TestGlobToRegex:
     def test_globstar_slash(self) -> None:
         regex = glob_to_regex("**/*.md")
         import re
+
         assert re.match(regex, "file.md")
         assert re.match(regex, "docs/file.md")
         assert re.match(regex, "a/b/c/file.md")
@@ -47,23 +48,27 @@ class TestGlobToRegex:
     def test_question_mark(self) -> None:
         regex = glob_to_regex("file?.md")
         import re
+
         assert re.match(regex, "file1.md")
         assert not re.match(regex, "file12.md")
 
     def test_dot_escaped(self) -> None:
         regex = glob_to_regex("*.ts")
         import re
+
         assert re.match(regex, "app.ts")
         assert not re.match(regex, "appts")
 
     def test_slash_globstar(self) -> None:
         regex = glob_to_regex("src/**")
         import re
+
         assert re.match(regex, "src/a/b/c")
 
     def test_exact_match(self) -> None:
         regex = glob_to_regex("Makefile")
         import re
+
         assert re.match(regex, "Makefile")
         assert not re.match(regex, "NotMakefile")
 
@@ -79,12 +84,14 @@ class TestFileMatchesPattern:
 
     def test_nested_globstar_rejects_non_matching_path(self) -> None:
         pattern = "wiki/entities/people/Directs/**/1-1s/**"
-        assert file_matches_pattern(
-            "wiki/entities/people/Directs/Alice/1-1s/2026-01.md", [pattern]
-        ) is True
-        assert file_matches_pattern(
-            "wiki/entities/people/Peers/Alice/1-1s/2026-01.md", [pattern]
-        ) is False
+        assert (
+            file_matches_pattern("wiki/entities/people/Directs/Alice/1-1s/2026-01.md", [pattern])
+            is True
+        )
+        assert (
+            file_matches_pattern("wiki/entities/people/Peers/Alice/1-1s/2026-01.md", [pattern])
+            is False
+        )
 
     def test_no_match(self) -> None:
         assert file_matches_pattern("src/app.ts", ["*.py"]) is False
@@ -126,16 +133,12 @@ class TestGetApplicableSteering:
         assert result[0]["Priority"] == 10
 
     def test_excludes_readme(self, steering_dir: Path) -> None:
-        (steering_dir / "README.md").write_text(
-            '---\napplyTo: "**"\npriority: 1\n---\n\nReadme.\n'
-        )
+        (steering_dir / "README.md").write_text('---\napplyTo: "**"\npriority: 1\n---\n\nReadme.\n')
         result = get_applicable_steering(["anything.py"], str(steering_dir))
         assert len(result) == 0
 
     def test_excludes_skill_md(self, steering_dir: Path) -> None:
-        (steering_dir / "SKILL.md").write_text(
-            '---\napplyTo: "**"\npriority: 1\n---\n\nSkill.\n'
-        )
+        (steering_dir / "SKILL.md").write_text('---\napplyTo: "**"\npriority: 1\n---\n\nSkill.\n')
         result = get_applicable_steering(["anything.py"], str(steering_dir))
         assert len(result) == 0
 
@@ -150,9 +153,7 @@ class TestGetApplicableSteering:
         assert len(result) == 1
 
     def test_sorts_by_priority_descending(self, steering_dir: Path) -> None:
-        (steering_dir / "low.md").write_text(
-            '---\napplyTo: "**/*.py"\npriority: 1\n---\n\nLow.\n'
-        )
+        (steering_dir / "low.md").write_text('---\napplyTo: "**/*.py"\npriority: 1\n---\n\nLow.\n')
         (steering_dir / "high.md").write_text(
             '---\napplyTo: "**/*.py"\npriority: 10\n---\n\nHigh.\n'
         )
@@ -178,9 +179,7 @@ class TestGetApplicableSteering:
         assert result[0]["Priority"] == 7
 
     def test_skips_files_without_apply_to(self, steering_dir: Path) -> None:
-        (steering_dir / "no-apply.md").write_text(
-            "---\npriority: 5\n---\n\nNo apply.\n"
-        )
+        (steering_dir / "no-apply.md").write_text("---\npriority: 5\n---\n\nNo apply.\n")
         result = get_applicable_steering(["anything.py"], str(steering_dir))
         assert len(result) == 0
 
@@ -196,15 +195,18 @@ class TestMain:
     def test_json_output(self, tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
         sdir = tmp_path / "steering"
         sdir.mkdir()
-        (sdir / "test.md").write_text(
-            '---\napplyTo: "**/*.py"\npriority: 5\n---\n\nTest.\n'
-        )
-        with patch("sys.argv", [
-            "get_applicable_steering.py",
-            "--files", "src/app.py",
-            "--steering-path", str(sdir),
-            "--json",
-        ]):
+        (sdir / "test.md").write_text('---\napplyTo: "**/*.py"\npriority: 5\n---\n\nTest.\n')
+        with patch(
+            "sys.argv",
+            [
+                "get_applicable_steering.py",
+                "--files",
+                "src/app.py",
+                "--steering-path",
+                str(sdir),
+                "--json",
+            ],
+        ):
             result = main()
         assert result == 0
         captured = capsys.readouterr()
@@ -213,11 +215,16 @@ class TestMain:
     def test_human_output_no_matches(self, tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
         sdir = tmp_path / "steering"
         sdir.mkdir()
-        with patch("sys.argv", [
-            "get_applicable_steering.py",
-            "--files", "src/app.py",
-            "--steering-path", str(sdir),
-        ]):
+        with patch(
+            "sys.argv",
+            [
+                "get_applicable_steering.py",
+                "--files",
+                "src/app.py",
+                "--steering-path",
+                str(sdir),
+            ],
+        ):
             result = main()
         assert result == 0
         captured = capsys.readouterr()
@@ -226,9 +233,7 @@ class TestMain:
     def test_script_json_cli_executes_documented_entrypoint(self, tmp_path: Path) -> None:
         sdir = tmp_path / "steering"
         sdir.mkdir()
-        (sdir / "universal.md").write_text(
-            '---\napplyTo: "**"\npriority: 9\n---\n\nUniversal.\n'
-        )
+        (sdir / "universal.md").write_text('---\napplyTo: "**"\npriority: 9\n---\n\nUniversal.\n')
         completed = subprocess.run(
             [
                 sys.executable,

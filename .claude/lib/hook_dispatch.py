@@ -150,8 +150,7 @@ def _run_shim(
     except Exception as exc:
         # Execution failure: affects one call, no uninstall pressure. Deny.
         print(
-            f"hook-dispatch: shim {name} raised {type(exc).__name__}: "
-            f"{exc}; denying (fail-closed)",
+            f"hook-dispatch: shim {name} raised {type(exc).__name__}: {exc}; denying (fail-closed)",
             file=sys.stderr,
         )
         return BLOCK_EXIT
@@ -220,9 +219,7 @@ def run_permission_dispatch(
         code = _validate_timeout(name, timeout_sec)
         if code is not None:
             return code
-        code, raw_stdout = _run_shim_capturing_stdout(
-            shim_path, name, raw_stdin, timeout_sec
-        )
+        code, raw_stdout = _run_shim_capturing_stdout(shim_path, name, raw_stdin, timeout_sec)
         if code != ALLOW_EXIT:
             return code
         response = _copilot_permission_response(raw_stdout, name)

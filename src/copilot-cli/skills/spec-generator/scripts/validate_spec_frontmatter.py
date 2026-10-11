@@ -47,7 +47,17 @@ _ID_PATTERN: dict[str, re.Pattern[str]] = {
 _REQUIRED: dict[str, tuple[str, ...]] = {
     "requirement": ("type", "id", "title", "status", "priority", "category", "created", "updated"),
     "design": ("type", "id", "title", "status", "priority", "related", "created", "updated"),
-    "task": ("type", "id", "title", "status", "priority", "complexity", "related", "created", "updated"),
+    "task": (
+        "type",
+        "id",
+        "title",
+        "status",
+        "priority",
+        "complexity",
+        "related",
+        "created",
+        "updated",
+    ),
 }
 
 _VALID_TYPES = frozenset(_STATUS_BY_TYPE)
@@ -115,12 +125,16 @@ def extract_frontmatter(text: str) -> dict[str, str] | None:
     return None
 
 
-def _check_enum(result: SpecValidation, fields: dict[str, str], key: str, allowed: frozenset[str]) -> None:
+def _check_enum(
+    result: SpecValidation, fields: dict[str, str], key: str, allowed: frozenset[str]
+) -> None:
     value = fields.get(key, "")
     if not value or value == "[]":
         return  # presence handled by required-field check
     if value == "[present]":
-        result.errors.append(f"{key} must be a scalar value, not a list; allowed: {', '.join(sorted(allowed))}")
+        result.errors.append(
+            f"{key} must be a scalar value, not a list; allowed: {', '.join(sorted(allowed))}"
+        )
         return
     if value not in allowed:
         result.errors.append(

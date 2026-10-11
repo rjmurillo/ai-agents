@@ -167,8 +167,12 @@ _PENDING_STATUSES = {"QUEUED", "IN_PROGRESS", "WAITING", "PENDING", "REQUESTED"}
 _PASSING_CONCLUSIONS = {"SUCCESS", "NEUTRAL", "SKIPPED"}
 # Failing conclusions for CheckRun
 _FAILING_CONCLUSIONS = {
-    "FAILURE", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED",
-    "STALE", "STARTUP_FAILURE",
+    "FAILURE",
+    "CANCELLED",
+    "TIMED_OUT",
+    "ACTION_REQUIRED",
+    "STALE",
+    "STARTUP_FAILURE",
 }
 
 
@@ -184,7 +188,7 @@ def normalize_check(ctx: dict) -> dict | None:
     if typename == "CheckRun":
         status = ctx.get("status", "")
         conclusion = ctx.get("conclusion", "")
-        workflow_run = ((ctx.get("checkSuite") or {}).get("workflowRun") or {})
+        workflow_run = (ctx.get("checkSuite") or {}).get("workflowRun") or {}
         return {
             "Name": ctx.get("name", ""),
             "Type": "CheckRun",
@@ -285,14 +289,9 @@ def _select_cross_run_winner(candidates: list[dict[Any, Any]]) -> dict[Any, Any]
         for check in candidates
         if check.get("Type") == "CheckRun"
     ]
-    if check_run_pairs and all(
-        run_key is not None for _, run_key in check_run_pairs
-    ):
+    if check_run_pairs and all(run_key is not None for _, run_key in check_run_pairs):
         latest_run = max(run_key for _, run_key in check_run_pairs)
-        latest_candidates = [
-            check for check, run_key in check_run_pairs
-            if run_key == latest_run
-        ]
+        latest_candidates = [check for check, run_key in check_run_pairs if run_key == latest_run]
         return sorted(latest_candidates, key=_dedupe_rank)[0]
     return sorted(candidates, key=_dedupe_rank)[0]
 
@@ -314,17 +313,21 @@ def _collapse_same_run_siblings(rows: list[dict[Any, Any]]) -> list[dict[Any, An
         "WorkflowRunAttempt",
     ):
         if len(group) == 1:
-            representatives.append({
-                **group[0],
-                "_RunIsRequired": bool(group[0].get("IsRequired")),
-            })
+            representatives.append(
+                {
+                    **group[0],
+                    "_RunIsRequired": bool(group[0].get("IsRequired")),
+                }
+            )
             continue
         failing = [row for row in group if row.get("IsFailing")]
         pool = failing if failing else group
-        representatives.append({
-            **sorted(pool, key=_dedupe_rank)[0],
-            "_RunIsRequired": any(row.get("IsRequired") for row in group),
-        })
+        representatives.append(
+            {
+                **sorted(pool, key=_dedupe_rank)[0],
+                "_RunIsRequired": any(row.get("IsRequired") for row in group),
+            }
+        )
     return representatives
 
 
@@ -348,12 +351,8 @@ def dedupe_checks(checks: list[dict]) -> list[dict]:
     for check in checks:
         name_value = check.get("Name")
         name = "" if name_value is None else name_value
-        required_by_name[name] = required_by_name.get(name, False) or bool(
-            check.get("IsRequired")
-        )
-        pending_by_name[name] = pending_by_name.get(name, False) or bool(
-            check.get("IsPending")
-        )
+        required_by_name[name] = required_by_name.get(name, False) or bool(check.get("IsRequired"))
+        pending_by_name[name] = pending_by_name.get(name, False) or bool(check.get("IsPending"))
         if name not in rows_by_name:
             rows_by_name[name] = []
             order.append(name)
@@ -363,10 +362,7 @@ def dedupe_checks(checks: list[dict]) -> list[dict]:
     for name in order:
         candidates = _collapse_same_run_siblings(rows_by_name[name])
         if required_by_name[name]:
-            candidates = [
-                check for check in candidates
-                if check.get("_RunIsRequired")
-            ]
+            candidates = [check for check in candidates if check.get("_RunIsRequired")]
         best = _select_cross_run_winner(candidates)
         winner = {
             **best,
@@ -425,7 +421,9 @@ def _paginate_contexts(
 
 
 def fetch_checks(
-    owner: str, repo: str, pr_number: int,
+    owner: str,
+    repo: str,
+    pr_number: int,
 ) -> dict:
     """Execute GraphQL query and return parsed result."""
     try:
@@ -544,7 +542,8 @@ def build_output(
     # name has isRequired=true.
     if required_only:
         checks_by_name = {
-            name: check for name, check in checks_by_name.items()
+            name: check
+            for name, check in checks_by_name.items()
             if is_required_by_name.get(name, False)
         }
 
@@ -617,11 +616,7 @@ def build_output(
     # Issue #4359: required checks that never triggered any run are invisible
     # to isRequired-based logic. Cross-reference against the branch ruleset to
     # surface them as a distinct MISSING state.
-    reported_names = {
-        c.get("Name", "")
-        for c in checks
-        if c.get("IsRequired")
-    }
+    reported_names = {c.get("Name", "") for c in checks if c.get("IsRequired")}
     missing_required: list[str] | None
     if ruleset_contexts is not None:
         missing_required = find_missing_required(ruleset_contexts, reported_names)
@@ -684,25 +679,32 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument(
-        "--pull-request", type=int, required=True,
+        "--pull-request",
+        type=int,
+        required=True,
         help="PR number",
     )
     parser.add_argument(
-        "--wait", action="store_true",
+        "--wait",
+        action="store_true",
         help="Poll until all checks complete or timeout",
     )
     parser.add_argument(
-        "--timeout-seconds", type=int, default=300,
+        "--timeout-seconds",
+        type=int,
+        default=300,
         help="Maximum wait time in seconds (default: 300)",
     )
     parser.add_argument(
-        "--required-only", action="store_true",
+        "--required-only",
+        action="store_true",
         help="Filter output to required checks only",
     )
     parser.add_argument(
-        "--base-branch", default=None,
+        "--base-branch",
+        default=None,
         help="Base branch to read the ruleset from for missing-check detection "
-             "(default: PR base branch). Pass empty string to skip ruleset fetch.",
+        "(default: PR base branch). Pass empty string to skip ruleset fetch.",
     )
     add_output_format_arg(parser)
     return parser
@@ -831,12 +833,8 @@ def main(argv: list[str] | None = None) -> int:
     while True:
         iteration += 1
 
-        output = build_output(
-            check_data, owner, repo, args.required_only, ruleset_contexts
-        )
-        checks_incomplete = checks_incomplete or bool(
-            output.get("ChecksIncomplete", False)
-        )
+        output = build_output(check_data, owner, repo, args.required_only, ruleset_contexts)
+        checks_incomplete = checks_incomplete or bool(output.get("ChecksIncomplete", False))
 
         # Under --wait, an empty present rollup is usually a transient GraphQL
         # race, not "no checks configured". Keep polling only when GitHub

@@ -115,9 +115,7 @@ def scan_all(base_path: Path) -> tuple[list[Path], list[Violation]]:
     return files, all_violations
 
 
-def format_console(
-    files: list[Path], violations: list[Violation]
-) -> tuple[str, int]:
+def format_console(files: list[Path], violations: list[Violation]) -> tuple[str, int]:
     """Format results for console output. Returns (output, exit_code_modifier).
 
     exit_code_modifier: 0 if pass, 1 if violations found.
@@ -125,29 +123,20 @@ def format_console(
     lines: list[str] = []
 
     if not violations:
-        lines.append(
-            f"{_COLOR_GREEN}All GitHub Actions are SHA-pinned{_COLOR_RESET}"
-        )
-        lines.append(
-            f"{_COLOR_CYAN}   Scanned {len(files)} workflow file(s){_COLOR_RESET}"
-        )
+        lines.append(f"{_COLOR_GREEN}All GitHub Actions are SHA-pinned{_COLOR_RESET}")
+        lines.append(f"{_COLOR_CYAN}   Scanned {len(files)} workflow file(s){_COLOR_RESET}")
         return "\n".join(lines), 0
 
     lines.append(
-        f"{_COLOR_RED}GitHub Actions MUST be pinned to SHA, "
-        f"not version tags{_COLOR_RESET}"
+        f"{_COLOR_RED}GitHub Actions MUST be pinned to SHA, not version tags{_COLOR_RESET}"
     )
     lines.append("")
-    lines.append(
-        f"{_COLOR_YELLOW}Found {len(violations)} violation(s):{_COLOR_RESET}"
-    )
+    lines.append(f"{_COLOR_YELLOW}Found {len(violations)} violation(s):{_COLOR_RESET}")
     lines.append("")
 
     for v in violations:
         lines.append(f"  {_COLOR_RED}{v.file}:{v.line}{_COLOR_RESET}")
-        lines.append(
-            f"    {_COLOR_YELLOW}uses: {v.action}@{v.tag}{_COLOR_RESET}"
-        )
+        lines.append(f"    {_COLOR_YELLOW}uses: {v.action}@{v.tag}{_COLOR_RESET}")
 
     lines.append("")
     lines.append(f"{_COLOR_CYAN}Required pattern:{_COLOR_RESET}")
@@ -165,9 +154,7 @@ def format_console(
     return "\n".join(lines), 1
 
 
-def format_markdown(
-    files: list[Path], violations: list[Violation]
-) -> tuple[str, int]:
+def format_markdown(files: list[Path], violations: list[Violation]) -> tuple[str, int]:
     """Format results as markdown. Returns (output, exit_code_modifier)."""
     lines: list[str] = []
     lines.append("## GitHub Actions SHA Pinning Validation")
@@ -199,26 +186,20 @@ def format_markdown(
     lines.append("### Required Pattern")
     lines.append("")
     lines.append("```yaml")
-    lines.append(
-        "uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2"
-    )
+    lines.append("uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2")
     lines.append("```")
     lines.append("")
     lines.append("### How to Fix")
     lines.append("")
     lines.append("Find SHA for version tag:")
     lines.append("```bash")
-    lines.append(
-        "gh api repos/<owner>/<repo>/git/ref/tags/<tag> --jq '.object.sha'"
-    )
+    lines.append("gh api repos/<owner>/<repo>/git/ref/tags/<tag> --jq '.object.sha'")
     lines.append("```")
 
     return "\n".join(lines), 1
 
 
-def format_json(
-    files: list[Path], violations: list[Violation]
-) -> tuple[str, int]:
+def format_json(files: list[Path], violations: list[Violation]) -> tuple[str, int]:
     """Format results as JSON. Returns (output, exit_code_modifier)."""
     if not violations:
         data = {
@@ -297,10 +278,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if not files:
         if args.output_format == "console":
-            print(
-                f"No .github/workflows or .github/actions directories "
-                f"found at {base_path}"
-            )
+            print(f"No .github/workflows or .github/actions directories found at {base_path}")
         elif args.output_format == "json":
             print(
                 json.dumps(

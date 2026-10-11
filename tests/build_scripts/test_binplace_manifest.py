@@ -58,7 +58,7 @@ def test_load_parses_valid_manifest(tmp_path: Path) -> None:
         "  - class: agents\n"
         "    source: templates/agents\n"
         "    plugin_tree: src/claude/agents\n"
-        "    install_tree: .claude/agents\n"
+        "    install_tree: .claude/agents\n",
     )
 
     rows = binplace_manifest.load(root)
@@ -79,7 +79,7 @@ def test_load_rejects_path_with_double_dot(tmp_path: Path) -> None:
         "  - class: bad\n"
         "    source: templates/../bad\n"
         "    plugin_tree: null\n"
-        "    install_tree: .claude/bad\n"
+        "    install_tree: .claude/bad\n",
     )
 
     with pytest.raises(binplace_manifest.BinplaceConfigError):
@@ -95,7 +95,7 @@ def test_load_rejects_absolute_path(tmp_path: Path) -> None:
         "  - class: bad\n"
         "    source: /absolute/path\n"
         "    plugin_tree: null\n"
-        "    install_tree: .claude/bad\n"
+        "    install_tree: .claude/bad\n",
     )
 
     with pytest.raises(binplace_manifest.BinplaceConfigError):
@@ -119,7 +119,7 @@ def test_load_rejects_path_resolving_outside_repo(tmp_path: Path) -> None:
         "  - class: bad\n"
         "    source: link-to-outside\n"
         "    plugin_tree: null\n"
-        "    install_tree: .claude/bad\n"
+        "    install_tree: .claude/bad\n",
     )
 
     with pytest.raises(binplace_manifest.BinplaceConfigError):
@@ -143,7 +143,7 @@ def test_load_rejects_symlinked_path(tmp_path: Path) -> None:
         "  - class: bad\n"
         "    source: link\n"
         "    plugin_tree: null\n"
-        "    install_tree: .claude/bad\n"
+        "    install_tree: .claude/bad\n",
     )
 
     with pytest.raises(binplace_manifest.BinplaceConfigError):
@@ -159,7 +159,7 @@ def test_load_rejects_install_tree_not_under_prefix(tmp_path: Path) -> None:
         "  - class: bad\n"
         "    source: templates\n"
         "    plugin_tree: null\n"
-        "    install_tree: random/path\n"
+        "    install_tree: random/path\n",
     )
 
     with pytest.raises(binplace_manifest.BinplaceConfigError):
@@ -176,11 +176,7 @@ def test_load_rejects_row_missing_install_tree_key(tmp_path: Path) -> None:
     """
     root = fake_repo(tmp_path)
     write_manifest(
-        root,
-        "rows:\n"
-        "  - class: bad\n"
-        "    source: templates\n"
-        "    plugin_tree: src/claude/agents\n"
+        root, "rows:\n  - class: bad\n    source: templates\n    plugin_tree: src/claude/agents\n"
     )
 
     with pytest.raises(binplace_manifest.BinplaceConfigError, match="install_tree"):
@@ -191,11 +187,7 @@ def test_load_rejects_row_missing_plugin_tree_key(tmp_path: Path) -> None:
     """load: a row that omits `plugin_tree` entirely is a config error, not a null."""
     root = fake_repo(tmp_path)
     write_manifest(
-        root,
-        "rows:\n"
-        "  - class: bad\n"
-        "    source: templates\n"
-        "    install_tree: .claude/agents\n"
+        root, "rows:\n  - class: bad\n    source: templates\n    install_tree: .claude/agents\n"
     )
 
     with pytest.raises(binplace_manifest.BinplaceConfigError, match="plugin_tree"):
@@ -211,7 +203,7 @@ def test_claude_allowlist_empty_for_manifest_without_claude_rows(tmp_path: Path)
         "  - class: github\n"
         "    source: templates/github\n"
         "    plugin_tree: src/copilot/github\n"
-        "    install_tree: .github/github\n"
+        "    install_tree: .github/github\n",
     )
 
     allow = binplace_manifest.claude_allowlist(root)
@@ -233,7 +225,7 @@ def test_claude_allowlist_includes_plugin_tree_files(tmp_path: Path) -> None:
         "  - class: agents\n"
         "    source: templates/agents\n"
         "    plugin_tree: src/claude/agents\n"
-        "    install_tree: .claude/agents\n"
+        "    install_tree: .claude/agents\n",
     )
 
     allow = binplace_manifest.claude_allowlist(root)
@@ -255,7 +247,7 @@ def test_binplace_write_mode_copies_files(tmp_path: Path) -> None:
         "  - class: agents\n"
         "    source: templates/agents\n"
         "    plugin_tree: src/claude/agents\n"
-        "    install_tree: .claude/agents\n"
+        "    install_tree: .claude/agents\n",
     )
 
     result = binplace_manifest.binplace(root, check=False)
@@ -279,7 +271,7 @@ def test_binplace_idempotent_second_run(tmp_path: Path) -> None:
         "  - class: agents\n"
         "    source: templates/agents\n"
         "    plugin_tree: src/claude/agents\n"
-        "    install_tree: .claude/agents\n"
+        "    install_tree: .claude/agents\n",
     )
 
     result1 = binplace_manifest.binplace(root, check=False)
@@ -308,7 +300,7 @@ def test_binplace_check_mode_reports_drift(tmp_path: Path) -> None:
         "  - class: agents\n"
         "    source: templates/agents\n"
         "    plugin_tree: src/claude/agents\n"
-        "    install_tree: .claude/agents\n"
+        "    install_tree: .claude/agents\n",
     )
 
     result = binplace_manifest.binplace(root, check=True)
@@ -335,7 +327,7 @@ def test_binplace_leaves_extra_file_unowned(tmp_path: Path) -> None:
         "  - class: agents\n"
         "    source: templates/agents\n"
         "    plugin_tree: src/claude/agents\n"
-        "    install_tree: .claude/agents\n"
+        "    install_tree: .claude/agents\n",
     )
 
     result = binplace_manifest.binplace(root, check=False)
@@ -360,7 +352,7 @@ def test_binplace_skip_row_with_null_plugin_tree(tmp_path: Path) -> None:
         "    source: templates/skills\n"
         "    plugin_tree: null\n"
         "    install_tree: .claude/skills\n"
-        "    compile: skill_templates\n"
+        "    compile: skill_templates\n",
     )
 
     result = binplace_manifest.binplace(root, check=False)
@@ -397,7 +389,7 @@ def test_binplace_replaces_symlinked_destination(tmp_path: Path) -> None:
         "  - class: agents\n"
         "    source: templates/agents\n"
         "    plugin_tree: src/claude/agents\n"
-        "    install_tree: .claude/agents\n"
+        "    install_tree: .claude/agents\n",
     )
 
     binplace_manifest.binplace(root, check=False)
@@ -420,7 +412,7 @@ def test_load_accepts_null_install_tree(tmp_path: Path) -> None:
         "  - class: lib-hook_utilities-copilot\n"
         "    source: scripts/hook_utilities\n"
         "    plugin_tree: src/copilot-cli/lib/hook_utilities\n"
-        "    install_tree: null\n"
+        "    install_tree: null\n",
     )
 
     rows = binplace_manifest.load(root)
@@ -442,7 +434,7 @@ def test_binplace_skips_row_with_null_install_tree(tmp_path: Path) -> None:
         "  - class: lib-hook_utilities-copilot\n"
         "    source: scripts/hook_utilities\n"
         "    plugin_tree: src/copilot-cli/lib/hook_utilities\n"
-        "    install_tree: null\n"
+        "    install_tree: null\n",
     )
 
     result = binplace_manifest.binplace(root, check=False)
@@ -464,7 +456,7 @@ def test_claude_allowlist_excludes_row_with_null_install_tree(tmp_path: Path) ->
         "  - class: lib-hook_utilities-copilot\n"
         "    source: scripts/hook_utilities\n"
         "    plugin_tree: src/copilot-cli/lib/hook_utilities\n"
-        "    install_tree: null\n"
+        "    install_tree: null\n",
     )
 
     assert binplace_manifest.claude_allowlist(root) == set()
@@ -479,7 +471,7 @@ def test_load_null_install_tree_skips_prefix_validation(tmp_path: Path) -> None:
         "  - class: lib-hook_utilities-copilot\n"
         "    source: scripts/hook_utilities\n"
         "    plugin_tree: src/copilot-cli/lib/hook_utilities\n"
-        "    install_tree: null\n"
+        "    install_tree: null\n",
     )
 
     rows = binplace_manifest.load(root)  # must not raise BinplaceConfigError
@@ -500,7 +492,7 @@ def test_binplace_copies_file_shaped_plugin_tree(tmp_path: Path) -> None:
         "  - class: lib-bootstrap\n"
         "    source: scripts/hook_utilities/bootstrap.py\n"
         "    plugin_tree: src/claude/lib/bootstrap.py\n"
-        "    install_tree: .claude/lib/bootstrap.py\n"
+        "    install_tree: .claude/lib/bootstrap.py\n",
     )
 
     result = binplace_manifest.binplace(root, check=False)
@@ -523,7 +515,7 @@ def test_claude_allowlist_includes_file_shaped_plugin_tree(tmp_path: Path) -> No
         "  - class: lib-bootstrap\n"
         "    source: scripts/hook_utilities/bootstrap.py\n"
         "    plugin_tree: src/claude/lib/bootstrap.py\n"
-        "    install_tree: .claude/lib/bootstrap.py\n"
+        "    install_tree: .claude/lib/bootstrap.py\n",
     )
 
     allow = binplace_manifest.claude_allowlist(root)
@@ -547,7 +539,7 @@ def _write_hooks_manifest(root: Path) -> None:
         "    source: templates/hooks/settings.tmpl\n"
         "    plugin_tree: null\n"
         "    install_tree: .claude/settings.json\n"
-        "    compile: hook_templates\n"
+        "    compile: hook_templates\n",
     )
 
 

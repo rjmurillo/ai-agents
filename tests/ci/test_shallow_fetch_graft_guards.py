@@ -190,5 +190,3 @@ def test_a_depth_limited_fetch_really_does_graft_a_complete_clone(
 
     assert _git(clone, "fetch", "--unshallow", str(origin)).returncode == 0
     assert not (clone / ".git" / "shallow").exists()
-
-

@@ -12,6 +12,7 @@ changed files using the push range spec from resolve_push_update, avoiding the
 _any_glob_match() is a lightweight fnmatch filter that decides whether any file
 in a set matches any of the job's globs.
 """
+
 from __future__ import annotations
 
 import io
@@ -34,34 +35,61 @@ def _init_repo(root: Path) -> str:
     """Initialise a bare git repo; return the initial commit SHA."""
     for args in (
         ("init", "-q", "-b", "main"),
-        ("-c", "user.email=t@t", "-c", "user.name=t",
-         "commit", "-q", "--allow-empty", "-m", "init"),
+        (
+            "-c",
+            "user.email=t@t",
+            "-c",
+            "user.name=t",
+            "commit",
+            "-q",
+            "--allow-empty",
+            "-m",
+            "init",
+        ),
     ):
         subprocess.run(
             ["git", "-c", "user.email=t@t", "-c", "user.name=t", "-C", str(root), *args],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
     return subprocess.run(
         ["git", "-C", str(root), "rev-parse", "HEAD"],
-        check=True, capture_output=True, text=True, encoding="utf-8",
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
     ).stdout.strip()
 
 
 def _commit(root: Path, filename: str, content: str = "x") -> str:
     (root / filename).write_text(content, encoding="utf-8")
     subprocess.run(
-        ["git", "-c", "user.email=t@t", "-c", "user.name=t", "-C", str(root),
-         "add", filename],
-        check=True, capture_output=True,
+        ["git", "-c", "user.email=t@t", "-c", "user.name=t", "-C", str(root), "add", filename],
+        check=True,
+        capture_output=True,
     )
     subprocess.run(
-        ["git", "-c", "user.email=t@t", "-c", "user.name=t", "-C", str(root),
-         "commit", "-qm", f"add {filename}"],
-        check=True, capture_output=True,
+        [
+            "git",
+            "-c",
+            "user.email=t@t",
+            "-c",
+            "user.name=t",
+            "-C",
+            str(root),
+            "commit",
+            "-qm",
+            f"add {filename}",
+        ],
+        check=True,
+        capture_output=True,
     )
     return subprocess.run(
         ["git", "-C", str(root), "rev-parse", "HEAD"],
-        check=True, capture_output=True, text=True, encoding="utf-8",
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
     ).stdout.strip()
 
 
@@ -74,9 +102,7 @@ class TestPushRangeChangedFiles:
         head_sha = _commit(tmp_path, "branch_file.py")
 
         # Simulate git pre-push stdin: local_ref local_sha remote_ref remote_sha
-        stdin = io.StringIO(
-            f"refs/heads/feature {head_sha} refs/heads/feature {base_sha}\n"
-        )
+        stdin = io.StringIO(f"refs/heads/feature {head_sha} refs/heads/feature {base_sha}\n")
         result = git_hook_policy._push_range_changed_files(stdin, tmp_path)
 
         assert result is not None
@@ -93,7 +119,8 @@ class TestPushRangeChangedFiles:
         # 'Feature' branch diverges from merge_base_sha, not main_head.
         subprocess.run(
             ["git", "-C", str(tmp_path), "checkout", "-b", "feature", merge_base_sha],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
         branch_head = _commit(tmp_path, "branch_file.py")
 
@@ -125,9 +152,7 @@ class TestPushRangeChangedFiles:
         """Edge: a deletion push (local_sha = all zeros) is skipped, not errored."""
         base_sha = _init_repo(tmp_path)
         zero_sha = "0" * 40
-        stdin = io.StringIO(
-            f"refs/heads/feature {zero_sha} refs/heads/feature {base_sha}\n"
-        )
+        stdin = io.StringIO(f"refs/heads/feature {zero_sha} refs/heads/feature {base_sha}\n")
         # A deletion ref has no range to diff; the function skips it.
         # With only deletion refs, the result is an empty set (no changes found).
         # Callers treat an empty set as "no relevant files": the job is skipped.
@@ -140,9 +165,7 @@ class TestPushRangeChangedFiles:
         base_sha = _init_repo(tmp_path)
         filename = "branch\tfile.py"
         head_sha = _commit(tmp_path, filename)
-        stdin = io.StringIO(
-            f"refs/heads/feature {head_sha} refs/heads/feature {base_sha}\n"
-        )
+        stdin = io.StringIO(f"refs/heads/feature {head_sha} refs/heads/feature {base_sha}\n")
 
         result = git_hook_policy._push_range_changed_files(stdin, tmp_path)
 
@@ -244,16 +267,12 @@ class TestHandleSessions:
 
         assert git_hook_policy._handle_sessions(args) == 2
 
-    def test_off_head_push_blocks(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_off_head_push_blocks(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(sys, "stdin", io.StringIO("push refs\n"))
         monkeypatch.setattr(
             git_hook_policy,
             "_push_range_changed_files",
-            lambda _stream, _root: {
-                ".project-toolkit/sessions/2026-08-10-session-1-branch.json"
-            },
+            lambda _stream, _root: {".project-toolkit/sessions/2026-08-10-session-1-branch.json"},
         )
         monkeypatch.setattr(
             git_hook_policy,
@@ -271,9 +290,7 @@ class TestHandleSessions:
         monkeypatch.setattr(
             git_hook_policy,
             "_push_range_changed_files",
-            lambda _stream, _root: {
-                ".project-toolkit/sessions/2026-08-10-session-1-branch.json"
-            },
+            lambda _stream, _root: {".project-toolkit/sessions/2026-08-10-session-1-branch.json"},
         )
         monkeypatch.setattr(
             git_hook_policy,
@@ -304,8 +321,16 @@ class TestHandleSessions:
         )
         subprocess.run(
             [
-                "git", "-c", "user.email=t@t", "-c", "user.name=t",
-                "-C", str(tmp_path), "commit", "-qm", "add session link",
+                "git",
+                "-c",
+                "user.email=t@t",
+                "-c",
+                "user.name=t",
+                "-C",
+                str(tmp_path),
+                "commit",
+                "-qm",
+                "add session link",
             ],
             check=True,
             capture_output=True,
@@ -324,36 +349,70 @@ class TestHandleCliPluginE2eSkip:
         """Return a stdin stream for a push that changed exactly one file."""
         for args in (
             ("init", "-q", "-b", "main"),
-            ("-c", "user.email=t@t", "-c", "user.name=t",
-             "commit", "-q", "--allow-empty", "-m", "init"),
+            (
+                "-c",
+                "user.email=t@t",
+                "-c",
+                "user.name=t",
+                "commit",
+                "-q",
+                "--allow-empty",
+                "-m",
+                "init",
+            ),
         ):
             subprocess.run(
-                ["git", "-c", "user.email=t@t", "-c", "user.name=t",
-                 "-C", str(tmp_path), *args],
-                check=True, capture_output=True,
+                ["git", "-c", "user.email=t@t", "-c", "user.name=t", "-C", str(tmp_path), *args],
+                check=True,
+                capture_output=True,
             )
         (tmp_path / filename).write_text("x\n", encoding="utf-8")
         subprocess.run(
-            ["git", "-c", "user.email=t@t", "-c", "user.name=t",
-             "-C", str(tmp_path), "add", filename],
-            check=True, capture_output=True,
+            [
+                "git",
+                "-c",
+                "user.email=t@t",
+                "-c",
+                "user.name=t",
+                "-C",
+                str(tmp_path),
+                "add",
+                filename,
+            ],
+            check=True,
+            capture_output=True,
         )
         subprocess.run(
-            ["git", "-c", "user.email=t@t", "-c", "user.name=t",
-             "-C", str(tmp_path), "commit", "-qm", "add file"],
-            check=True, capture_output=True,
+            [
+                "git",
+                "-c",
+                "user.email=t@t",
+                "-c",
+                "user.name=t",
+                "-C",
+                str(tmp_path),
+                "commit",
+                "-qm",
+                "add file",
+            ],
+            check=True,
+            capture_output=True,
         )
         head = subprocess.run(
             ["git", "-C", str(tmp_path), "rev-parse", "HEAD"],
-            check=True, capture_output=True, text=True, encoding="utf-8",
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
         ).stdout.strip()
         parent = subprocess.run(
             ["git", "-C", str(tmp_path), "rev-parse", "HEAD~1"],
-            check=True, capture_output=True, text=True, encoding="utf-8",
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
         ).stdout.strip()
-        return io.StringIO(
-            f"refs/heads/feature {head} refs/heads/feature {parent}\n"
-        )
+        return io.StringIO(f"refs/heads/feature {head} refs/heads/feature {parent}\n")
 
     def test_skips_when_no_relevant_files(
         self,
@@ -373,6 +432,7 @@ class TestHandleCliPluginE2eSkip:
         monkeypatch.setattr("sys.stdin", stdin_data)
 
         import argparse
+
         args = argparse.Namespace(repo_root=str(tmp_path))
         rc = git_hook_policy._handle_cli_plugin_e2e(args)
 
@@ -400,9 +460,9 @@ class TestHandleCliPluginE2eSkip:
         monkeypatch.setattr("sys.stdin", stdin_data)
 
         import argparse
+
         args = argparse.Namespace(repo_root=str(tmp_path))
         rc = git_hook_policy._handle_cli_plugin_e2e(args)
 
         assert rc == 0
         assert run_called["n"] == 1
-

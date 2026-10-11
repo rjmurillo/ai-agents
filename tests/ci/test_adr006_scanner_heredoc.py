@@ -41,7 +41,7 @@ class TestQuotedHeredocBodies:
     def test_the_opening_line_is_still_scanned(self) -> None:
         """Negative: only the body is inert; the command itself is not."""
         block = _run_block(
-            'cat <<\'EOF\' > "$(mktemp)"',
+            "cat <<'EOF' > \"$(mktemp)\"",
             "plain text",
             "EOF",
         )
@@ -84,7 +84,7 @@ class TestQuotedHeredocBodies:
             "cat <<'EOF' > out.md",
             "plain text",
             "EOF",
-            'if [ -s out.md ]; then exit 1; fi',
+            "if [ -s out.md ]; then exit 1; fi",
         )
         assert block.has_logic is True
 
@@ -97,7 +97,7 @@ class TestQuotedHeredocBodies:
         block = _run_block(
             "cat <<'EOF' > out.md",
             "plain text",
-            'if [ -s out.md ]; then exit 1; fi',
+            "if [ -s out.md ]; then exit 1; fi",
         )
         assert block.has_logic is False
 

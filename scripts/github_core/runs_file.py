@@ -48,9 +48,7 @@ def string_list(value: object, field: str) -> list[str]:
     validated: list[str] = []
     for item in value:
         if not isinstance(item, str):
-            raise ValueError(
-                f"{field} must hold only strings; got {item!r} in {value!r}"
-            )
+            raise ValueError(f"{field} must hold only strings; got {item!r} in {value!r}")
         validated.append(item)
     return validated
 
@@ -137,8 +135,7 @@ def run_from_mapping(payload: Mapping[str, Any]) -> WorkflowRun:
         run_id_raw = payload["run_id"]
         if not isinstance(run_id_raw, int) or isinstance(run_id_raw, bool):
             raise ValueError(
-                f"run_id must be a JSON integer, got {type(run_id_raw).__name__}: "
-                f"{run_id_raw!r}"
+                f"run_id must be a JSON integer, got {type(run_id_raw).__name__}: {run_id_raw!r}"
             )
         pr_number_raw = payload["pr_number"]
         if not isinstance(pr_number_raw, int) or isinstance(pr_number_raw, bool):

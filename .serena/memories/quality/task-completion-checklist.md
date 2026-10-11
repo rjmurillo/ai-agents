@@ -74,8 +74,8 @@ Save artifacts to appropriate directories in `.agents/`:
 Store learnings using cloudmcp-manager:
 
 ```python
-mcp__cloudmcp-manager__memory-add_observations(...)
-mcp__cloudmcp-manager__memory-create_entities(...)
+mcp__cloudmcp - manager__memory - add_observations(...)
+mcp__cloudmcp - manager__memory - create_entities(...)
 ```
 
 ### Skill Citation

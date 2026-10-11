@@ -52,10 +52,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument(
-        "--pull-request", type=int, required=True, help="Pull request number",
+        "--pull-request",
+        type=int,
+        required=True,
+        help="Pull request number",
     )
     parser.add_argument(
-        "--comment-id", type=int, default=0,
+        "--comment-id",
+        type=int,
+        default=0,
         help="Review comment ID to reply to. Omit for top-level comment.",
     )
 

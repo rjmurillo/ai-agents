@@ -28,14 +28,14 @@ if TESTS_SKILLS_DIR not in sys.path:
 
 from claude_skills_import import import_skill_script
 
-mod = import_skill_script(
-    ".claude/skills/github/scripts/issue/edit_issue_body.py"
-)
+mod = import_skill_script(".claude/skills/github/scripts/issue/edit_issue_body.py")
 main = mod.main
 
 
 def _make_proc(
-    returncode: int = 0, stdout: str = "", stderr: str = "",
+    returncode: int = 0,
+    stdout: str = "",
+    stderr: str = "",
 ) -> MagicMock:
     proc = MagicMock()
     proc.returncode = returncode
@@ -121,12 +121,11 @@ class TestEditIssueBodySuccess:
             captured_args.extend(args)
             return _make_proc(returncode=0)
 
-        with patch("subprocess.run", side_effect=fake_run), patch.object(
-            mod, "assert_valid_body_file"
+        with (
+            patch("subprocess.run", side_effect=fake_run),
+            patch.object(mod, "assert_valid_body_file"),
         ):
-            result = main(
-                ["--issue", "42", "--body-file", str(body_file)]
-            )
+            result = main(["--issue", "42", "--body-file", str(body_file)])
         assert result == 0
         assert "--body-file" in captured_args
         # The argument after --body-file should be the resolved path

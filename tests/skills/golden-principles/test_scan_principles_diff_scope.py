@@ -103,10 +103,14 @@ class TestGetDiffFiles:
 
     def test_drops_traversal_paths(self) -> None:
         completed = subprocess.CompletedProcess(
-            args=[], returncode=0, stdout="changed.py\n../escape.py\nfoo/../bar.py\n",
+            args=[],
+            returncode=0,
+            stdout="changed.py\n../escape.py\nfoo/../bar.py\n",
         )
-        with patch.object(core, "_git_root", return_value="/repo"), \
-                patch.object(core.subprocess, "run", return_value=completed):
+        with (
+            patch.object(core, "_git_root", return_value="/repo"),
+            patch.object(core.subprocess, "run", return_value=completed),
+        ):
             result = get_diff_files("main")
         assert result == ["/repo/changed.py"]
 

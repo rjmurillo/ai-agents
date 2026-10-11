@@ -112,11 +112,7 @@ def test_ratchet_steps_are_gone_from_the_test_job(script: str) -> None:
 
 @pytest.mark.parametrize("script", RATCHETS)
 def test_each_ratchet_runs_in_exactly_one_job(script: str) -> None:
-    owners = [
-        key
-        for key, job in _jobs().items()
-        if any(script in run for run in _run_lines(job))
-    ]
+    owners = [key for key, job in _jobs().items() if any(script in run for run in _run_lines(job))]
     assert owners == [GUARD]
 
 

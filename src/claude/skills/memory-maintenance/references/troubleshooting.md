@@ -66,6 +66,7 @@ outage.
 ```python
 import os
 import sys
+
 _root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT") or ".claude"
 sys.path.insert(0, f"{_root}/skills/memory")
 from memory_core.memory_router import get_memory_router_status

@@ -13,7 +13,6 @@ import re
 MODEL_ID_RE = re.compile(r"^claude-(opus|sonnet|haiku)-\d")
 
 
-
 # Hyphenated skill names that are genuinely absent from the live catalog but
 # existed as skills in repository history. This is the kebab counterpart of
 # KNOWN_SINGLE_WORD_SKILLS below and is governed by the same contract: the set
@@ -48,23 +47,25 @@ MODEL_ID_RE = re.compile(r"^claude-(opus|sonnet|haiku)-\d")
 #
 # Add a name here when a hyphenated skill is retired or renamed, so lingering
 # references keep surfacing instead of going silent.
-KNOWN_RETIRED_KEBAB_SKILLS: frozenset[str] = frozenset({
-    "book-to-skill",
-    "doc-coverage",
-    "doc-sync",
-    "encode-repo-serena",
-    "exploring-knowledge-graph",
-    "github-pr-reply",
-    "guard-maturity",
-    "research-and-incorporate",
-    "session-end",
-    "session-init",
-    "session-log-fixer",
-    "serena-code-architecture",
-    "session-migration",
-    "session-qa-eligibility",
-    "using-forgetful-memory",
-})
+KNOWN_RETIRED_KEBAB_SKILLS: frozenset[str] = frozenset(
+    {
+        "book-to-skill",
+        "doc-coverage",
+        "doc-sync",
+        "encode-repo-serena",
+        "exploring-knowledge-graph",
+        "github-pr-reply",
+        "guard-maturity",
+        "research-and-incorporate",
+        "session-end",
+        "session-init",
+        "session-log-fixer",
+        "serena-code-architecture",
+        "session-migration",
+        "session-qa-eligibility",
+        "using-forgetful-memory",
+    }
+)
 
 
 # Single-word (no-hyphen) skill names the validator treats as skill-reference
@@ -83,19 +84,30 @@ KNOWN_RETIRED_KEBAB_SKILLS: frozenset[str] = frozenset({
 # still resolves to a live catalog directory is a valid reference and produces
 # no finding (same resolution path as a hyphenated skill name). The set only
 # widens *detection*; the catalog still decides *validity*.
-KNOWN_SINGLE_WORD_SKILLS: frozenset[str] = frozenset({
-    # Retired / renamed single-word skills. Keep entries until every scanned
-    # surface (specs, evals, plugin manifests) has dropped the backticked ref.
-    "incoherence",  # DEPRECATED 2026-05-29, absorbed by doc-accuracy; retired #2662
-})
+KNOWN_SINGLE_WORD_SKILLS: frozenset[str] = frozenset(
+    {
+        # Retired / renamed single-word skills. Keep entries until every scanned
+        # surface (specs, evals, plugin manifests) has dropped the backticked ref.
+        "incoherence",  # DEPRECATED 2026-05-29, absorbed by doc-accuracy; retired #2662
+    }
+)
 
 
-METASYNTACTIC_PLACEHOLDERS: frozenset[str] = frozenset({
-    # Conventional placeholder names used while documenting scanner syntax.
-    # They remain non-candidates even when nearby prose says "skill" because
-    # `Skill: `x`` describes the route grammar, not a real skill reference.
-    "x", "y", "foo", "bar", "baz", "name",
-})
+METASYNTACTIC_PLACEHOLDERS: frozenset[str] = frozenset(
+    {
+        # Conventional placeholder names used while documenting scanner syntax.
+        # They remain non-candidates even when nearby prose says "skill" because
+        # `Skill: `x`` describes the route grammar, not a real skill reference.
+        "x",
+        "y",
+        "foo",
+        "bar",
+        "baz",
+        "name",
+    }
+)
+
+
 def is_known_retired_kebab_skill(token: str) -> bool:
     """Return True if a hyphenated token names a retired or renamed skill.
 
@@ -206,14 +218,16 @@ def is_known_kebab_word(token: str) -> bool:
 # a category of skill, not a skill called ``front-door``, so the scanner must
 # not read it as a catalog reference (issue #5872). A real skill with one of
 # these names still resolves through the live catalog.
-ROUTING_ROLE_VALUES: frozenset[str] = frozenset({
-    "conditional-adjunct",
-    "deprecated",
-    "explicit-only",
-    "front-door",
-    "lifecycle",
-    "nested-helper",
-})
+ROUTING_ROLE_VALUES: frozenset[str] = frozenset(
+    {
+        "conditional-adjunct",
+        "deprecated",
+        "explicit-only",
+        "front-door",
+        "lifecycle",
+        "nested-helper",
+    }
+)
 
 
 def is_routing_role_value(token: str) -> bool:

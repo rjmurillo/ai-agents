@@ -170,10 +170,7 @@ def _prose_context(text: str, match: re.Match[str]) -> str:
 def _sentence_context(text: str, start_offset: int, end_offset: int) -> str:
     starts = [marker.start() for marker in re.finditer(r"[.?!](?=\s|$)", text[:start_offset])]
     start = starts[-1] if starts else -1
-    end_candidates = [
-        marker.start()
-        for marker in re.finditer(r"[.?!](?=\s|$)", text[end_offset:])
-    ]
+    end_candidates = [marker.start() for marker in re.finditer(r"[.?!](?=\s|$)", text[end_offset:])]
     end_candidates = [end_offset + position for position in end_candidates]
     end = min(end_candidates) + 1 if end_candidates else len(text)
     sentence = text[start + 1 : end]
@@ -205,13 +202,11 @@ def _has_retirement_marker(context: str) -> bool:
 def _documented_governance_gap_tokens(text: str) -> set[str]:
     tokens: set[str] = set()
     for context in text.split("\n\n"):
-        if (
-            "governance gap" in context.lower()
-            and re.search(r"\b(?:absent|absence|missing)\b", context, re.IGNORECASE)
+        if "governance gap" in context.lower() and re.search(
+            r"\b(?:absent|absence|missing)\b", context, re.IGNORECASE
         ):
             tokens.update(
-                _normal_hook_token(match.group(1))
-                for match in _HOOK_TOKEN_RE.finditer(context)
+                _normal_hook_token(match.group(1)) for match in _HOOK_TOKEN_RE.finditer(context)
             )
     return tokens
 
@@ -237,9 +232,7 @@ def _resolves(hook_path: str) -> bool:
         if "/" not in candidate and (
             any(root.joinpath(candidate).is_file() for root in HOOK_SEARCH_ROOTS)
             or any(
-                path.is_file()
-                for root in HOOK_SEARCH_ROOTS
-                for path in root.glob(f"*/{candidate}")
+                path.is_file() for root in HOOK_SEARCH_ROOTS for path in root.glob(f"*/{candidate}")
             )
         ):
             return True
@@ -249,9 +242,9 @@ def _resolves(hook_path: str) -> bool:
 def _repo_relative_hook_path_exists(candidate: str) -> bool:
     path = Path(candidate)
     allowed_roots = (Path(".claude") / "hooks", Path("src") / "copilot-cli" / "hooks")
-    return any(path.is_relative_to(root) for root in allowed_roots) and (
-        PROJECT_ROOT / path
-    ).is_file()
+    return (
+        any(path.is_relative_to(root) for root in allowed_roots) and (PROJECT_ROOT / path).is_file()
+    )
 
 
 def _candidate_hook_paths(hook_path: str) -> list[str]:
@@ -410,23 +403,17 @@ class TestWhatCountsAsAProseClaim:
         assert _prose_claims(text) == [(1, "invoke_deleted_gate")]
 
     def test_an_unresolved_token_with_same_sentence_retirement_marker_is_suppressed(self):
-        text = (
-            "The retired hook `invoke_deleted_gate.py` used to enforce this policy.\n"
-        )
+        text = "The retired hook `invoke_deleted_gate.py` used to enforce this policy.\n"
         assert _prose_claims(text) == []
 
     def test_an_unresolved_token_with_only_nearby_retirement_marker_is_a_claim(self):
         text = (
-            "The hook was retired by #3184.\n"
-            "This paragraph still names `invoke_deleted_gate.py`.\n"
+            "The hook was retired by #3184.\nThis paragraph still names `invoke_deleted_gate.py`.\n"
         )
         assert _prose_claims(text) == [(2, "invoke_deleted_gate.py")]
 
     def test_a_removed_heading_does_not_suppress_a_later_stale_claim(self):
-        text = (
-            "## Removed\n\n"
-            "The `invoke_deleted_gate.py` hook still enforces this policy.\n"
-        )
+        text = "## Removed\n\nThe `invoke_deleted_gate.py` hook still enforces this policy.\n"
         assert _prose_claims(text) == [(3, "invoke_deleted_gate.py")]
 
     def test_a_negated_retirement_marker_does_not_suppress_a_stale_claim(self):
@@ -435,8 +422,7 @@ class TestWhatCountsAsAProseClaim:
 
     def test_a_retired_token_does_not_suppress_a_live_token_in_the_same_sentence(self):
         text = (
-            "The retired `invoke_old_gate.py` is gone; "
-            "`invoke_deleted_gate.py` remains active.\n"
+            "The retired `invoke_old_gate.py` is gone; `invoke_deleted_gate.py` remains active.\n"
         )
         assert _prose_claims(text) == [(1, "invoke_deleted_gate.py")]
 

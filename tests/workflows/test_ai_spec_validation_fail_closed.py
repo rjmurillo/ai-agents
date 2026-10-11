@@ -15,9 +15,7 @@ from typing import Any
 import pytest
 import yaml
 
-_WORKFLOW = (
-    Path(__file__).resolve().parents[2] / ".github" / "workflows" / "ai-spec-validation.yml"
-)
+_WORKFLOW = Path(__file__).resolve().parents[2] / ".github" / "workflows" / "ai-spec-validation.yml"
 _REVIEW_STEP_IDS = ("trace", "completeness")
 
 
@@ -33,10 +31,7 @@ def _step_by_id(step_id: str) -> dict[str, Any]:
 
 
 def _gate_step() -> dict[str, Any]:
-    matches = [
-        step for step in _steps()
-        if "check_spec_failures.py" in str(step.get("run", ""))
-    ]
+    matches = [step for step in _steps() if "check_spec_failures.py" in str(step.get("run", ""))]
     assert len(matches) == 1, "expected exactly one check_spec_failures.py step"
     return matches[0]
 

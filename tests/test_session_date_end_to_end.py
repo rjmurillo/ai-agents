@@ -127,20 +127,22 @@ def _create_then_scan_across_timezones(
 
     os.environ["TZ"] = scanner_timezone
     time.tzset()
-    scanner_yesterday = (
-        date.fromisoformat(scanner_today) - timedelta(days=1)
-    ).isoformat()
+    scanner_yesterday = (date.fromisoformat(scanner_today) - timedelta(days=1)).isoformat()
+
     class _FrozenDateTime(datetime):
         @classmethod
         def now(cls, tz=None):
             return cls.fromtimestamp(scanner_instant.timestamp(), tz)
 
-    with patch(
-        "scripts.validation.git_hook_policy.recent_host_session_dates",
-        return_value=(scanner_today, scanner_yesterday),
-    ), patch(
-        "scripts.validation.git_hook_policy.datetime",
-        _FrozenDateTime,
+    with (
+        patch(
+            "scripts.validation.git_hook_policy.recent_host_session_dates",
+            return_value=(scanner_today, scanner_yesterday),
+        ),
+        patch(
+            "scripts.validation.git_hook_policy.datetime",
+            _FrozenDateTime,
+        ),
     ):
         candidates = _recent_session_candidates(created.parent)
 
@@ -222,12 +224,15 @@ def test_git_hook_policy_rejects_stale_same_branch_log(tmp_path):
             instant = datetime(2026, 3, 15, 0, 30, tzinfo=UTC)
             return cls.fromtimestamp(instant.timestamp(), tz)
 
-    with patch(
-        "scripts.validation.git_hook_policy.recent_host_session_dates",
-        return_value=("2026-03-15", "2026-03-14"),
-    ), patch(
-        "scripts.validation.git_hook_policy.datetime",
-        _FrozenDateTime,
+    with (
+        patch(
+            "scripts.validation.git_hook_policy.recent_host_session_dates",
+            return_value=("2026-03-15", "2026-03-14"),
+        ),
+        patch(
+            "scripts.validation.git_hook_policy.datetime",
+            _FrozenDateTime,
+        ),
     ):
         assert _session_log_for_branch(sessions, "fix/current") is None
 
@@ -237,9 +242,7 @@ def test_checkpoint_fallback_consumer_finds_host_dated_log(host_timezone, tmp_pa
     created = _create_session_log(tmp_path)
     sessions_dir = created.parent
 
-    result = invoke_compact_checkpoint._fallback_get_recent_session_log(
-        str(sessions_dir)
-    )
+    result = invoke_compact_checkpoint._fallback_get_recent_session_log(str(sessions_dir))
 
     assert result is not None, f"fallback missed the log under TZ={host_timezone}"
     assert Path(result).name == created.name

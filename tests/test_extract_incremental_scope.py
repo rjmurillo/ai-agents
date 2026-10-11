@@ -6,10 +6,7 @@ from pathlib import Path
 import pytest
 
 _SCRIPT = (
-    Path(__file__).resolve().parents[1]
-    / ".github"
-    / "scripts"
-    / "extract_incremental_scope.py"
+    Path(__file__).resolve().parents[1] / ".github" / "scripts" / "extract_incremental_scope.py"
 )
 
 

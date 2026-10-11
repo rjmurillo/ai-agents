@@ -240,9 +240,7 @@ def resolve_manifest_path(args: argparse.Namespace) -> Path | None:
 def write_manifest(path: Path, manifest: RecoveryManifest) -> None:
     """Serialize the manifest to ``path``."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(manifest_to_dict(manifest), indent=2) + "\n", encoding="utf-8"
-    )
+    path.write_text(json.dumps(manifest_to_dict(manifest), indent=2) + "\n", encoding="utf-8")
 
 
 def _execute(
@@ -377,9 +375,7 @@ def main(argv: Sequence[str] | None = None, client: GitHubClient | None = None) 
         subscriptions=subscriptions,
         recovery_event=args.recovery_event,
         repository=args.repository,
-        subscriptions_by_run=_resolve_live_subscriptions(
-            args, client, runs, subscriptions
-        ),
+        subscriptions_by_run=_resolve_live_subscriptions(args, client, runs, subscriptions),
     )
 
     print(format_report(manifest))
@@ -411,9 +407,7 @@ def main(argv: Sequence[str] | None = None, client: GitHubClient | None = None) 
     # resolve_manifest_path always yields a path under --confirm; restating the
     # default keeps the retry instruction _execute prints pointing at a real
     # file without asking the reader to trace the branch above.
-    confirmed_manifest_path = (
-        manifest_path if manifest_path is not None else _DEFAULT_MANIFEST_PATH
-    )
+    confirmed_manifest_path = manifest_path if manifest_path is not None else _DEFAULT_MANIFEST_PATH
     return _execute(client, manifest, args.repository, confirmed_manifest_path)
 
 

@@ -125,7 +125,7 @@ def _final_path(kernel32: _Kernel32, handle: _WindowsHandle) -> str:
             buffer,
             len(buffer),
             0,
-        )
+        ),
     )
     if written <= 0:
         raise OSError(_last_error(), "GetFinalPathNameByHandleW failed")
@@ -156,14 +156,10 @@ def _validate_handle(
     is_directory = bool(attributes & _FILE_ATTRIBUTE_DIRECTORY)
     if attributes & _FILE_ATTRIBUTE_REPARSE_POINT or is_directory != directory:
         kind = "directory" if directory else "transcript"
-        raise RuntimeError(
-            f"{provider_label} session {kind} is not a regular {kind}"
-        )
+        raise RuntimeError(f"{provider_label} session {kind} is not a regular {kind}")
     final_path = _final_path(kernel32, handle)
     if parent_path is not None and not _is_child(parent_path, final_path):
-        raise RuntimeError(
-            f"{provider_label} session transcript escaped the session root"
-        )
+        raise RuntimeError(f"{provider_label} session transcript escaped the session root")
     return final_path
 
 

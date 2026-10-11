@@ -22,11 +22,7 @@ def test_strips_hooks_path_from_parameters() -> None:
 
 
 def test_strips_hooks_path_keeps_other_parameters() -> None:
-    env = {
-        "GIT_CONFIG_PARAMETERS": (
-            "'core.hooksPath'='/abs/.githooks' 'user.name'='Jane Doe'"
-        )
-    }
+    env = {"GIT_CONFIG_PARAMETERS": ("'core.hooksPath'='/abs/.githooks' 'user.name'='Jane Doe'")}
     strip_git_config_hooks_path(env)
     assert env["GIT_CONFIG_PARAMETERS"] == "'user.name'='Jane Doe'"
 
@@ -46,9 +42,7 @@ def test_parameters_bool_key_without_value() -> None:
 
 def test_parameters_value_with_embedded_space() -> None:
     env = {
-        "GIT_CONFIG_PARAMETERS": (
-            "'core.hooksPath'='/path with space/.githooks' 'user.name'='x'"
-        )
+        "GIT_CONFIG_PARAMETERS": ("'core.hooksPath'='/path with space/.githooks' 'user.name'='x'")
     }
     strip_git_config_hooks_path(env)
     assert env["GIT_CONFIG_PARAMETERS"] == "'user.name'='x'"

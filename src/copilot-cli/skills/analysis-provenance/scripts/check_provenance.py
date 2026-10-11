@@ -296,16 +296,13 @@ def determine_provenance(target: Path, project_root: Path) -> ProvenanceResult:
         "git_submodule",
         "generated_marker",
     )
-    upstream_score = sum(
-        e.weight for e in all_evidence if e.signal in upstream_signals
-    )
+    upstream_score = sum(e.weight for e in all_evidence if e.signal in upstream_signals)
 
     vendor_score = sum(e.weight for e in all_evidence if e.signal == "vendor_directory")
 
     local_signals = ("project_root", "git_tracked")
     local_score = sum(
-        e.weight for e in all_evidence
-        if e.signal in local_signals and e.value is True
+        e.weight for e in all_evidence if e.signal in local_signals and e.value is True
     )
 
     total_weight = sum(abs(e.weight) for e in all_evidence)

@@ -75,7 +75,8 @@ def _list_commits(push_range: str, repo_root: Path) -> list[_CommitIdentity]:
         env.pop(var, None)
     result = subprocess.run(
         [
-            "git", "log",
+            "git",
+            "log",
             "--format=%H|%an|%ae|%cn|%ce",
             push_range,
         ],

@@ -18,21 +18,13 @@ def test_skill_usage_matches_cli_contract() -> None:
 
     assert "--git-staged" not in text
     assert "detect_infrastructure.py --use-git-staged" in text
-    assert (
-        "detect_infrastructure.py --files .github/workflows/ci.yml "
-        "src/auth/login.cs"
-        in text
-    )
+    assert "detect_infrastructure.py --files .github/workflows/ci.yml src/auth/login.cs" in text
     ci_section = text.split("### CI Integration", maxsplit=1)[1]
     assert "--use-git-staged" not in ci_section
     assert "fetch-depth: 0" in ci_section
-    assert (
-        'git diff --no-renames --name-only -z "$BASE_SHA" "$HEAD_SHA"'
-        in ci_section
-    )
+    assert 'git diff --no-renames --name-only -z "$BASE_SHA" "$HEAD_SHA"' in ci_section
     normalized_ci = " ".join(ci_section.split())
     assert (
         "| python .claude/skills/security-detection/detect_infrastructure.py "
-        "--files-from-stdin"
-        in normalized_ci
+        "--files-from-stdin" in normalized_ci
     )

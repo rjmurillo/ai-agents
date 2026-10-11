@@ -130,9 +130,7 @@ class TestTheFlagsWeAskFor:
 
 
 class TestTheWindowsBranch:
-    def test_a_successful_move_publishes_the_new_content(
-        self, tmp_path, as_windows, monkeypatch
-    ):
+    def test_a_successful_move_publishes_the_new_content(self, tmp_path, as_windows, monkeypatch):
         mover = Mover()
         monkeypatch.setattr(oa, "_win32_move_file_ex", lambda: mover)
         source, destination = _pair(tmp_path)

@@ -127,9 +127,14 @@ class TestComputeDirectoryHash:
 
 class TestCheckDatabaseCache:
     def test_no_database_dir(self, tmp_path: Path) -> None:
-        assert check_database_cache(
-            str(tmp_path / "nonexistent"), "config.yml", str(tmp_path),
-        ) is False
+        assert (
+            check_database_cache(
+                str(tmp_path / "nonexistent"),
+                "config.yml",
+                str(tmp_path),
+            )
+            is False
+        )
 
     def test_no_metadata_file(self, tmp_path: Path) -> None:
         db = tmp_path / "db"
@@ -154,7 +159,8 @@ class TestCheckDatabaseCache:
 
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(
-                returncode=0, stdout="abc123\n",
+                returncode=0,
+                stdout="abc123\n",
             )
             result = check_database_cache(str(db), str(config), str(tmp_path))
             assert result is True
@@ -173,7 +179,8 @@ class TestCheckDatabaseCache:
 
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(
-                returncode=0, stdout="new_head\n",
+                returncode=0,
+                stdout="new_head\n",
             )
             result = check_database_cache(str(db), "config.yml", str(tmp_path))
             assert result is False
@@ -260,7 +267,11 @@ class TestAnalyzeDatabaseSarifParsing:
     """Tests for SARIF parse failure behavior in analyze_database (Issue #1160)."""
 
     def _run_analyze(
-        self, tmp_path: Path, sarif_content: str | None, *, ci: bool = False,
+        self,
+        tmp_path: Path,
+        sarif_content: str | None,
+        *,
+        ci: bool = False,
     ) -> Any:
         """Run analyze_database with mocked subprocess and optional SARIF file."""
         results_path = str(tmp_path / "results")
@@ -283,9 +294,11 @@ class TestAnalyzeDatabaseSarifParsing:
             )
 
     def test_valid_sarif_returns_findings(self, tmp_path: Path) -> None:
-        sarif = json.dumps({
-            "runs": [{"results": [{"ruleId": "py/sql-injection"}]}],
-        })
+        sarif = json.dumps(
+            {
+                "runs": [{"results": [{"ruleId": "py/sql-injection"}]}],
+            }
+        )
         result = self._run_analyze(tmp_path, sarif)
         assert result["findings_count"] == 1
         assert result["findings"][0]["ruleId"] == "py/sql-injection"

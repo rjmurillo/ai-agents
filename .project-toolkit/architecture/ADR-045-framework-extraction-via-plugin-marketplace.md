@@ -113,14 +113,14 @@ Internal plugin paths use `${CLAUDE_PLUGIN_ROOT}` which Claude Code resolves at 
 ```python
 import os
 
+
 def safe_resolve(path: str, project_root: str) -> str:
     """Resolve path and verify it stays within project root."""
     resolved = os.path.realpath(path)
     root = os.path.realpath(project_root)
     if not resolved.startswith(root + os.sep) and resolved != root:
         raise ValueError(
-            f"Path '{path}' resolves to '{resolved}', "
-            f"which is outside project root '{root}'"
+            f"Path '{path}' resolves to '{resolved}', which is outside project root '{root}'"
         )
     return resolved
 ```

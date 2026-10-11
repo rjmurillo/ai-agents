@@ -108,9 +108,12 @@ class TestGetLatestSemanticMilestone:
             {"title": "0.3.0", "number": 2},
             {"title": "0.1.0", "number": 3},
         ]
-        with patch("subprocess.run", return_value=_completed(
-            stdout=json.dumps(milestones),
-        )):
+        with patch(
+            "subprocess.run",
+            return_value=_completed(
+                stdout=json.dumps(milestones),
+            ),
+        ):
             result = get_latest_semantic_milestone("o", "r")
         assert result["found"] is True
         assert result["title"] == "0.3.0"
@@ -123,9 +126,12 @@ class TestGetLatestSemanticMilestone:
 
     def test_no_semantic_milestones(self):
         milestones = [{"title": "Backlog", "number": 1}]
-        with patch("subprocess.run", return_value=_completed(
-            stdout=json.dumps(milestones),
-        )):
+        with patch(
+            "subprocess.run",
+            return_value=_completed(
+                stdout=json.dumps(milestones),
+            ),
+        ):
             result = get_latest_semantic_milestone("o", "r")
         assert result["found"] is False
 
@@ -135,9 +141,12 @@ class TestGetLatestSemanticMilestone:
             {"title": "1.0.0", "number": 2},
             {"title": "Sprint 5", "number": 3},
         ]
-        with patch("subprocess.run", return_value=_completed(
-            stdout=json.dumps(milestones),
-        )):
+        with patch(
+            "subprocess.run",
+            return_value=_completed(
+                stdout=json.dumps(milestones),
+            ),
+        ):
             result = get_latest_semantic_milestone("o", "r")
         assert result["found"] is True
         assert result["title"] == "1.0.0"
@@ -147,9 +156,12 @@ class TestGetLatestSemanticMilestone:
             {"title": "v0.4.0", "number": 1},
             {"title": "v0.5.0", "number": 2},
         ]
-        with patch("subprocess.run", return_value=_completed(
-            stdout=json.dumps(milestones),
-        )):
+        with patch(
+            "subprocess.run",
+            return_value=_completed(
+                stdout=json.dumps(milestones),
+            ),
+        ):
             result = get_latest_semantic_milestone("o", "r")
         assert result["found"] is True
         assert result["title"] == "v0.5.0"
@@ -161,9 +173,12 @@ class TestGetLatestSemanticMilestone:
             {"title": "v0.7.0", "number": 2},
             {"title": "v0.6.x close-out", "number": 3},
         ]
-        with patch("subprocess.run", return_value=_completed(
-            stdout=json.dumps(milestones),
-        )):
+        with patch(
+            "subprocess.run",
+            return_value=_completed(
+                stdout=json.dumps(milestones),
+            ),
+        ):
             result = get_latest_semantic_milestone("o", "r")
         assert result["found"] is True
         assert result["title"] == "v0.7.0"
@@ -225,10 +240,14 @@ class TestAssignMilestone:
 
 class TestBuildParser:
     def test_required_args(self):
-        args = build_parser().parse_args([
-            "--item-type", "pr",
-            "--item-number", "42",
-        ])
+        args = build_parser().parse_args(
+            [
+                "--item-type",
+                "pr",
+                "--item-number",
+                "42",
+            ]
+        )
         assert args.item_type == "pr"
         assert args.item_number == 42
 
@@ -237,13 +256,20 @@ class TestBuildParser:
             build_parser().parse_args(["--item-type", "invalid", "--item-number", "1"])
 
     def test_optional_args(self):
-        args = build_parser().parse_args([
-            "--item-type", "issue",
-            "--item-number", "1",
-            "--owner", "myowner",
-            "--repo", "myrepo",
-            "--milestone-title", "v1.0.0",
-        ])
+        args = build_parser().parse_args(
+            [
+                "--item-type",
+                "issue",
+                "--item-number",
+                "1",
+                "--owner",
+                "myowner",
+                "--repo",
+                "myrepo",
+                "--milestone-title",
+                "v1.0.0",
+            ]
+        )
         assert args.owner == "myowner"
         assert args.milestone_title == "v1.0.0"
 
@@ -263,12 +289,16 @@ class TestMain:
     def test_already_has_milestone_skips(self, tmp_path, monkeypatch):
         output_file = _setup_output(tmp_path, monkeypatch)
         _setup_summary(tmp_path, monkeypatch)
-        with patch("subprocess.run", return_value=_completed(rc=0)), patch(
-            f"{_MODULE_NAME}.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            f"{_MODULE_NAME}.get_item_milestone",
-            return_value="0.2.0",
+        with (
+            patch("subprocess.run", return_value=_completed(rc=0)),
+            patch(
+                f"{_MODULE_NAME}.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                f"{_MODULE_NAME}.get_item_milestone",
+                return_value="0.2.0",
+            ),
         ):
             rc = main(["--item-type", "pr", "--item-number", "1"])
         assert rc == 0
@@ -279,18 +309,24 @@ class TestMain:
     def test_auto_detects_milestone_and_assigns(self, tmp_path, monkeypatch):
         output_file = _setup_output(tmp_path, monkeypatch)
         _setup_summary(tmp_path, monkeypatch)
-        with patch("subprocess.run", return_value=_completed(rc=0)), patch(
-            f"{_MODULE_NAME}.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            f"{_MODULE_NAME}.get_item_milestone",
-            return_value=None,
-        ), patch(
-            f"{_MODULE_NAME}.get_latest_semantic_milestone",
-            return_value={"title": "0.3.0", "number": 5, "found": True},
-        ), patch(
-            f"{_MODULE_NAME}.assign_milestone",
-        ) as mock_assign:
+        with (
+            patch("subprocess.run", return_value=_completed(rc=0)),
+            patch(
+                f"{_MODULE_NAME}.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                f"{_MODULE_NAME}.get_item_milestone",
+                return_value=None,
+            ),
+            patch(
+                f"{_MODULE_NAME}.get_latest_semantic_milestone",
+                return_value={"title": "0.3.0", "number": 5, "found": True},
+            ),
+            patch(
+                f"{_MODULE_NAME}.assign_milestone",
+            ) as mock_assign,
+        ):
             rc = main(["--item-type", "pr", "--item-number", "42"])
         assert rc == 0
         mock_assign.assert_called_once_with("o", "r", 42, "0.3.0")
@@ -301,15 +337,20 @@ class TestMain:
     def test_no_milestone_found_exits_2(self, tmp_path, monkeypatch):
         output_file = _setup_output(tmp_path, monkeypatch)
         _setup_summary(tmp_path, monkeypatch)
-        with patch("subprocess.run", return_value=_completed(rc=0)), patch(
-            f"{_MODULE_NAME}.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            f"{_MODULE_NAME}.get_item_milestone",
-            return_value=None,
-        ), patch(
-            f"{_MODULE_NAME}.get_latest_semantic_milestone",
-            return_value={"title": "", "number": 0, "found": False},
+        with (
+            patch("subprocess.run", return_value=_completed(rc=0)),
+            patch(
+                f"{_MODULE_NAME}.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                f"{_MODULE_NAME}.get_item_milestone",
+                return_value=None,
+            ),
+            patch(
+                f"{_MODULE_NAME}.get_latest_semantic_milestone",
+                return_value={"title": "", "number": 0, "found": False},
+            ),
         ):
             rc = main(["--item-type", "issue", "--item-number", "1"])
         assert rc == 2
@@ -326,15 +367,20 @@ class TestMain:
         """
         output_file = _setup_output(tmp_path, monkeypatch)
         _setup_summary(tmp_path, monkeypatch)
-        with patch("subprocess.run", return_value=_completed(rc=0)), patch(
-            f"{_MODULE_NAME}.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            f"{_MODULE_NAME}.get_item_milestone",
-            return_value=None,
-        ), patch(
-            f"{_MODULE_NAME}.get_latest_semantic_milestone",
-            return_value={"title": "", "number": 0, "found": False},
+        with (
+            patch("subprocess.run", return_value=_completed(rc=0)),
+            patch(
+                f"{_MODULE_NAME}.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                f"{_MODULE_NAME}.get_item_milestone",
+                return_value=None,
+            ),
+            patch(
+                f"{_MODULE_NAME}.get_latest_semantic_milestone",
+                return_value={"title": "", "number": 0, "found": False},
+            ),
         ):
             rc = main(["--item-type", "issue", "--item-number", "1", "--missing-milestone-ok"])
         assert rc == 0, "the flag must keep run_with_retry.py off the exit-2 branch"
@@ -348,18 +394,24 @@ class TestMain:
         """Edge: the flag must not short-circuit the normal assignment path."""
         output_file = _setup_output(tmp_path, monkeypatch)
         _setup_summary(tmp_path, monkeypatch)
-        with patch("subprocess.run", return_value=_completed(rc=0)), patch(
-            f"{_MODULE_NAME}.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            f"{_MODULE_NAME}.get_item_milestone",
-            return_value=None,
-        ), patch(
-            f"{_MODULE_NAME}.get_latest_semantic_milestone",
-            return_value={"title": "0.3.0", "number": 5, "found": True},
-        ), patch(
-            f"{_MODULE_NAME}.assign_milestone",
-        ) as mock_assign:
+        with (
+            patch("subprocess.run", return_value=_completed(rc=0)),
+            patch(
+                f"{_MODULE_NAME}.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                f"{_MODULE_NAME}.get_item_milestone",
+                return_value=None,
+            ),
+            patch(
+                f"{_MODULE_NAME}.get_latest_semantic_milestone",
+                return_value={"title": "0.3.0", "number": 5, "found": True},
+            ),
+            patch(
+                f"{_MODULE_NAME}.assign_milestone",
+            ) as mock_assign,
+        ):
             rc = main(["--item-type", "pr", "--item-number", "42", "--missing-milestone-ok"])
         assert rc == 0
         mock_assign.assert_called_once_with("o", "r", 42, "0.3.0")
@@ -368,19 +420,29 @@ class TestMain:
     def test_explicit_milestone_title(self, tmp_path, monkeypatch):
         _setup_output(tmp_path, monkeypatch)
         _setup_summary(tmp_path, monkeypatch)
-        with patch("subprocess.run", return_value=_completed(rc=0)), patch(
-            f"{_MODULE_NAME}.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            f"{_MODULE_NAME}.get_item_milestone",
-            return_value=None,
-        ), patch(
-            f"{_MODULE_NAME}.assign_milestone",
-        ) as mock_assign:
-            rc = main([
-                "--item-type", "pr",
-                "--item-number", "1",
-                "--milestone-title", "1.0.0",
-            ])
+        with (
+            patch("subprocess.run", return_value=_completed(rc=0)),
+            patch(
+                f"{_MODULE_NAME}.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                f"{_MODULE_NAME}.get_item_milestone",
+                return_value=None,
+            ),
+            patch(
+                f"{_MODULE_NAME}.assign_milestone",
+            ) as mock_assign,
+        ):
+            rc = main(
+                [
+                    "--item-type",
+                    "pr",
+                    "--item-number",
+                    "1",
+                    "--milestone-title",
+                    "1.0.0",
+                ]
+            )
         assert rc == 0
         mock_assign.assert_called_once_with("o", "r", 1, "1.0.0")

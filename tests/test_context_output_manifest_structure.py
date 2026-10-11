@@ -8,13 +8,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent))
 sys.path.insert(
     0,
-    str(
-        Path(__file__).parent.parent
-        / ".claude"
-        / "skills"
-        / "context-optimizer"
-        / "scripts"
-    ),
+    str(Path(__file__).parent.parent / ".claude" / "skills" / "context-optimizer" / "scripts"),
 )
 
 from context_output_manifest_test_support import write_manifest

@@ -72,14 +72,11 @@ _ASYMMETRY_BODIES = [
     "The model tier wording contradicts the opus assignment.",
     "Reviewer model_tier opus contradicts the cheaper-tier claim. The model "
     "tier asymmetry framing is wrong.",
-    "opus model_tier here contradicts the template's cheaper model tier "
-    "reviewer framing.",
-    "The model tier (opus) contradicts the cheaper reviewer model tier this "
-    "template asserts.",
+    "opus model_tier here contradicts the template's cheaper model tier reviewer framing.",
+    "The model tier (opus) contradicts the cheaper reviewer model tier this template asserts.",
     "model_tier opus assignment contradicts cheaper model tier reviewer "
     "wording, an asymmetry framing problem.",
-    "This opus model_tier contradicts the cheaper-tier reviewer model "
-    "framing described nearby.",
+    "This opus model_tier contradicts the cheaper-tier reviewer model framing described nearby.",
 ]
 
 _HARMFUL_BODIES = [
@@ -260,10 +257,7 @@ class TestClusterThreadsThreshold:
         mod = _load_module()
         # Bodies whose only words are stopwords/short: each gist is empty, so no
         # two can reach the similarity threshold and no cluster forms.
-        threads = [
-            _thread(f"t{index}", "a.py", "this should change here")
-            for index in range(6)
-        ]
+        threads = [_thread(f"t{index}", "a.py", "this should change here") for index in range(6)]
         report = mod.cluster_threads(threads)
         assert report["warning"] is False
 
@@ -333,7 +327,8 @@ class TestCli:
 
     def test_threads_file_path_produces_report(self):
         relative_path, absolute_path = _write_repo_threads_file(
-            "object", {"threads": PR_1897_ROUND7_THREADS},
+            "object",
+            {"threads": PR_1897_ROUND7_THREADS},
         )
         try:
             result = self._run(
@@ -349,7 +344,8 @@ class TestCli:
 
     def test_bare_list_threads_file_is_accepted(self):
         relative_path, absolute_path = _write_repo_threads_file(
-            "list", PR_1897_ROUND7_THREADS,
+            "list",
+            PR_1897_ROUND7_THREADS,
         )
         try:
             result = self._run(
@@ -396,7 +392,8 @@ class TestCli:
 
     def test_threads_file_wrong_shape_exits_2(self):
         relative_path, absolute_path = _write_repo_threads_file(
-            "wrong-shape", {"threads": 42},
+            "wrong-shape",
+            {"threads": 42},
         )
         try:
             result = self._run(
@@ -458,7 +455,12 @@ class TestFetchUnresolvedThreads:
             }
 
         threads = mod._fetch_unresolved_threads_with_clients(
-            "owner", "repo", 1, fake_graphql, fake_filter, fake_transform,
+            "owner",
+            "repo",
+            1,
+            fake_graphql,
+            fake_filter,
+            fake_transform,
         )
 
         query = queries[0][0]
@@ -480,7 +482,12 @@ class TestFetchUnresolvedThreads:
 
         try:
             mod._fetch_unresolved_threads_with_clients(
-                "owner", "repo", 1, fake_graphql, lambda nodes: nodes, lambda node: node,
+                "owner",
+                "repo",
+                1,
+                fake_graphql,
+                lambda nodes: nodes,
+                lambda node: node,
             )
         except SystemExit as exc:
             assert exc.code == 3
@@ -495,7 +502,12 @@ class TestFetchUnresolvedThreads:
 
         try:
             mod._fetch_unresolved_threads_with_clients(
-                "owner", "repo", 1, fake_graphql, lambda nodes: nodes, lambda node: node,
+                "owner",
+                "repo",
+                1,
+                fake_graphql,
+                lambda nodes: nodes,
+                lambda node: node,
             )
         except SystemExit as exc:
             assert exc.code == 3
@@ -540,7 +552,12 @@ class TestResolveLibDir:
 
         try:
             mod._fetch_unresolved_threads_with_clients(
-                "owner", "repo", 1, fake_graphql, lambda nodes: nodes, lambda node: node,
+                "owner",
+                "repo",
+                1,
+                fake_graphql,
+                lambda nodes: nodes,
+                lambda node: node,
             )
         except SystemExit as exc:
             assert exc.code == 3
@@ -555,7 +572,12 @@ class TestResolveLibDir:
 
         try:
             mod._fetch_unresolved_threads_with_clients(
-                "owner", "repo", 1, fake_graphql, lambda nodes: nodes, lambda node: node,
+                "owner",
+                "repo",
+                1,
+                fake_graphql,
+                lambda nodes: nodes,
+                lambda node: node,
             )
         except SystemExit as exc:
             assert exc.code == 3
@@ -576,7 +598,12 @@ class TestResolveLibDir:
 
         try:
             mod._fetch_unresolved_threads_with_clients(
-                "owner", "repo", 1, fake_graphql, lambda nodes: nodes, lambda node: node,
+                "owner",
+                "repo",
+                1,
+                fake_graphql,
+                lambda nodes: nodes,
+                lambda node: node,
             )
         except SystemExit as exc:
             assert exc.code == 3
@@ -602,9 +629,7 @@ class TestResolveLibDir:
         )
         assert mod._resolve_lib_dir() == "claude-root/lib"
 
-    def test_falls_through_to_relative_path_when_all_env_vars_missing(
-        self, monkeypatch, tmp_path
-    ):
+    def test_falls_through_to_relative_path_when_all_env_vars_missing(self, monkeypatch, tmp_path):
         """Falls through to relative-path candidate when no env vars are set."""
         mod = _load_module()
         monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
@@ -614,15 +639,16 @@ class TestResolveLibDir:
         import importlib.util as ilu
 
         script_path = (
-            Path(__file__).resolve().parents[3] / ".claude" / "skills" / "pr-comment-responder"
+            Path(__file__).resolve().parents[3]
+            / ".claude"
+            / "skills"
+            / "pr-comment-responder"
             / "scripts"
             / "cluster_threads.py"
         )
         spec = ilu.spec_from_file_location("_ct_fresh", script_path)
         _unused_mod = ilu.module_from_spec(spec)
-        expected = os.path.abspath(
-            os.path.join(str(script_path.parent), "..", "..", "..", "lib")
-        )
+        expected = os.path.abspath(os.path.join(str(script_path.parent), "..", "..", "..", "lib"))
         monkeypatch.setattr(os.path, "isdir", lambda path: path == expected)
         assert mod._resolve_lib_dir() == expected
 

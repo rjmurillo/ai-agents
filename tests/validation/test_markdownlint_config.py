@@ -234,9 +234,7 @@ def test_all_worktree_roots_are_ignored(config: dict[str, object]) -> None:
     """
     ignores: list[str] = cast("list[str]", config.get("ignores", []))
     missing = [p for p in _REQUIRED_WORKTREE_IGNORES if p not in ignores]
-    assert not missing, (
-        f"Missing worktree ignore patterns in .markdownlint-cli2.yaml: {missing}"
-    )
+    assert not missing, f"Missing worktree ignore patterns in .markdownlint-cli2.yaml: {missing}"
 
 
 def test_wt_star_is_in_gitignore() -> None:

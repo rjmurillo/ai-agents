@@ -264,6 +264,7 @@ def _fence_in_item(
         column = deeper
     return None
 
+
 # Real line terminators only. `str.splitlines` also splits on \x0b, \x0c,
 # \x1c-\x1e, U+0085, U+2028 and U+2029, none of which CommonMark treats as a
 # line ending. Splitting there turned one prose line into two, and the halves

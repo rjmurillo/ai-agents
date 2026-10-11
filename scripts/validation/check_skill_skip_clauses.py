@@ -87,9 +87,7 @@ def load_skills(skills_dir: Path) -> list[Skill]:
         raise NotADirectoryError(f"skills path is not a directory: {skills_dir}")
 
     return [
-        parse_skill_file(path)
-        for path in sorted(skills_dir.glob("*/SKILL.md"))
-        if path.is_file()
+        parse_skill_file(path) for path in sorted(skills_dir.glob("*/SKILL.md")) if path.is_file()
     ]
 
 
@@ -106,9 +104,7 @@ def group_families(skills: list[Skill]) -> dict[str, list[Skill]]:
 
 
 def _skill_name_pattern(skill_name: str) -> re.Pattern[str]:
-    return re.compile(
-        rf"(?<![A-Za-z0-9-])`?{re.escape(skill_name)}`?(?![A-Za-z0-9-])"
-    )
+    return re.compile(rf"(?<![A-Za-z0-9-])`?{re.escape(skill_name)}`?(?![A-Za-z0-9-])")
 
 
 def _targets_in_text(text: str, known_skill_names: set[str]) -> set[str]:
@@ -257,8 +253,7 @@ def main(argv: list[str] | None = None) -> int:
         print("Skill SKIP-clause violations:")
         for violation in violations:
             print(
-                f"  [{violation.code}] {violation.family}: "
-                f"{violation.skill}: {violation.message}"
+                f"  [{violation.code}] {violation.family}: {violation.skill}: {violation.message}"
             )
         print(f"Found {len(violations)} violation(s) across {len(skills)} skill(s).")
         return 1

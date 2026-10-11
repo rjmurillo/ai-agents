@@ -35,7 +35,8 @@ class TestValidateSkillOutputScript:
             [sys.executable, str(SCRIPTS_DIR / "validate_skill_output.py")],
             input=json_input,
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -98,7 +99,8 @@ class TestValidateSkillOutputScript:
                 traversal,
             ],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
         assert result.returncode == 1
@@ -122,7 +124,8 @@ class TestValidateSkillOutputScript:
                     str(symlink_path),
                 ],
                 capture_output=True,
-                text=True, encoding="utf-8",
+                text=True,
+                encoding="utf-8",
                 timeout=30,
             )
             assert result.returncode == 1

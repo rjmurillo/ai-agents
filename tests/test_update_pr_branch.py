@@ -76,11 +76,13 @@ class TestUpdateRequested:
 class TestHeadMoved:
     def test_422_head_moved_exits_1_typed(self, capsys):
         """AC3: GitHub 422 on a head that moved after the read maps to exit 1."""
-        fake = FakeGh(put=completed(
-            stdout=HEAD_MOVED_BODY,
-            stderr=f"gh: {HEAD_MOVED_MESSAGE} (HTTP 422)",
-            rc=1,
-        ))
+        fake = FakeGh(
+            put=completed(
+                stdout=HEAD_MOVED_BODY,
+                stderr=f"gh: {HEAD_MOVED_MESSAGE} (HTTP 422)",
+                rc=1,
+            )
+        )
         rc = run_main(["--pull-request", "50", "--expected-head-sha", OLD_HEAD], fake)
         env = envelope(capsys)
         assert rc == 1
@@ -110,11 +112,13 @@ class TestHeadMoved:
 
     def test_other_422_exits_3(self, capsys):
         """AC9: a 422 that is neither head-moved nor up-to-date is external."""
-        fake = FakeGh(put=completed(
-            stdout=json.dumps({"message": "merge conflict between base and head"}),
-            stderr="gh: merge conflict between base and head (HTTP 422)",
-            rc=1,
-        ))
+        fake = FakeGh(
+            put=completed(
+                stdout=json.dumps({"message": "merge conflict between base and head"}),
+                stderr="gh: merge conflict between base and head (HTTP 422)",
+                rc=1,
+            )
+        )
         rc = run_main(["--pull-request", "50"], fake)
         env = envelope(capsys)
         assert rc == 3
@@ -154,6 +158,7 @@ class TestRefusedStates:
 
     def test_pr_not_found_exits_2(self, capsys):
         """AC9: GraphQL's could-not-resolve text maps to not found."""
+
         def _missing(cmd, **kwargs):
             return completed(
                 stderr="GraphQL: Could not resolve to a PullRequest with the number of 50.",
@@ -179,11 +184,13 @@ class TestAlreadyUpToDate:
 
     def test_422_no_new_commits_race_is_success(self, capsys):
         """AC5: the base caught up between compare and PUT."""
-        fake = FakeGh(put=completed(
-            stdout=json.dumps({"message": "There are no new commits on the base branch."}),
-            stderr="gh: There are no new commits on the base branch. (HTTP 422)",
-            rc=1,
-        ))
+        fake = FakeGh(
+            put=completed(
+                stdout=json.dumps({"message": "There are no new commits on the base branch."}),
+                stderr="gh: There are no new commits on the base branch. (HTTP 422)",
+                rc=1,
+            )
+        )
         rc = run_main(["--pull-request", "50"], fake)
         env = envelope(capsys)
         assert rc == 0
@@ -235,6 +242,7 @@ class TestSkillDoc:
 class TestErrorPaths:
     def test_gh_timeout_exits_3(self, capsys):
         """AC9: a hung gh call becomes an exit-3 Timeout envelope."""
+
         def _hangs(cmd, **kwargs):
             raise subprocess.TimeoutExpired(cmd, 30)
 
@@ -260,6 +268,7 @@ class TestErrorPaths:
     )
     def test_pr_lookup_failure_maps_exit_code(self, capsys, stderr, code, error_type):
         """AC6, AC9: lookup failures split into auth (4) and external (3)."""
+
         def _fails(cmd, **kwargs):
             return completed(stderr=stderr, rc=1)
 
@@ -292,9 +301,13 @@ class TestErrorPaths:
 
     def test_base_ref_is_url_quoted_in_compare(self, capsys):
         """A base ref with '#' cannot truncate the compare path."""
-        fake = FakeGh(pr_views=[json.dumps(
-            {"state": "OPEN", "headRefOid": OLD_HEAD, "baseRefName": "rel/v1#x"},
-        )])
+        fake = FakeGh(
+            pr_views=[
+                json.dumps(
+                    {"state": "OPEN", "headRefOid": OLD_HEAD, "baseRefName": "rel/v1#x"},
+                )
+            ]
+        )
         assert run_main(["--pull-request", "50"], fake) == 0
         compare = next(c for c in fake.calls if "/compare/" in " ".join(c))
         assert f"compare/rel/v1%23x...{OLD_HEAD}" in compare[2]

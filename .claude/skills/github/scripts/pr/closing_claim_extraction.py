@@ -209,25 +209,25 @@ def extract_claims(
 
         target_state = closing_refs.get(target_key, "unknown")
         will_close = (
-            context_cls == "active"
-            and base_branch == default_branch
-            and target_key in closing_refs
+            context_cls == "active" and base_branch == default_branch and target_key in closing_refs
         )
 
-        claims.append({
-            "pr_number": pr_number,
-            "claim_text": m.group(0),
-            "target_number": target_num,
-            "target_owner": target_owner,
-            "target_repo": target_repo_name,
-            "target_state": target_state,
-            "base_branch": base_branch,
-            "context_class": context_cls,
-            "github_will_close": will_close,
-            "source": "body",
-            "reaches_squash": will_close,
-            "unsupported": False,
-        })
+        claims.append(
+            {
+                "pr_number": pr_number,
+                "claim_text": m.group(0),
+                "target_number": target_num,
+                "target_owner": target_owner,
+                "target_repo": target_repo_name,
+                "target_state": target_state,
+                "base_branch": base_branch,
+                "context_class": context_cls,
+                "github_will_close": will_close,
+                "source": "body",
+                "reaches_squash": will_close,
+                "unsupported": False,
+            }
+        )
     return claims
 
 
@@ -263,19 +263,21 @@ def extract_reachable_claims(
         target_key = (target_owner.casefold(), target_repo_name.casefold(), target_num)
         target_state = closing_refs.get(target_key, "unknown")
 
-        claims.append({
-            "pr_number": pr_number,
-            "claim_text": m.group(0),
-            "target_number": target_num,
-            "target_owner": target_owner,
-            "target_repo": target_repo_name,
-            "target_state": target_state,
-            "context_class": context_cls,
-            "github_will_close": False,
-            "source": source,
-            "reaches_squash": reaches_squash and context_cls == "active",
-            "unsupported": False,
-        })
+        claims.append(
+            {
+                "pr_number": pr_number,
+                "claim_text": m.group(0),
+                "target_number": target_num,
+                "target_owner": target_owner,
+                "target_repo": target_repo_name,
+                "target_state": target_state,
+                "context_class": context_cls,
+                "github_will_close": False,
+                "source": source,
+                "reaches_squash": reaches_squash and context_cls == "active",
+                "unsupported": False,
+            }
+        )
     return claims
 
 

@@ -24,6 +24,7 @@ from pathlib import Path
 @dataclass
 class PackageResult:
     """Result of packaging a skill."""
+
     success: bool
     message: str
     output_path: Path | None = None
@@ -58,12 +59,14 @@ def is_ignored(file_path: Path, skill_path: Path, patterns: list[str]) -> bool:
             return True
     return False
 
+
 # Import validation from quick_validate
 try:
     from quick_validate import validate_skill
 except ImportError:
     # If running from different directory, try relative import
     import os
+
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     from quick_validate import validate_skill
 
@@ -124,12 +127,12 @@ def package_skill(skill_path, output_dir=None) -> PackageResult:
 
     # Create the .skill file (zip format)
     try:
-        with zipfile.ZipFile(skill_filename, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        with zipfile.ZipFile(skill_filename, "w", zipfile.ZIP_DEFLATED) as zipf:
             # Walk through the skill directory
-            for file_path in skill_path.rglob('*'):
+            for file_path in skill_path.rglob("*"):
                 if file_path.is_file():
                     # Skip common exclusions
-                    if file_path.name.startswith('.') or '__pycache__' in str(file_path):
+                    if file_path.name.startswith(".") or "__pycache__" in str(file_path):
                         continue
                     # Apply explicit .skillignore patterns
                     if is_ignored(file_path, skill_path, ignore_patterns):
@@ -139,7 +142,9 @@ def package_skill(skill_path, output_dir=None) -> PackageResult:
                     zipf.write(file_path, arcname)
                     print(f"  Added: {arcname}")
 
-        return PackageResult(True, f"Successfully packaged skill to: {skill_filename}", skill_filename)
+        return PackageResult(
+            True, f"Successfully packaged skill to: {skill_filename}", skill_filename
+        )
 
     except Exception as e:
         return PackageResult(False, f"Error creating .skill file: {e}")

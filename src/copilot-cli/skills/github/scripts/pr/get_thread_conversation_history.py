@@ -97,10 +97,15 @@ def fetch_thread_comments(thread_id: str) -> tuple[dict, list[dict]]:
     while True:
         # Build gh api graphql command
         gh_args = [
-            "gh", "api", "graphql",
-            "-f", f"query={_THREAD_QUERY}",
-            "-f", f"threadId={thread_id}",
-            "-F", f"first={page_size}",
+            "gh",
+            "api",
+            "graphql",
+            "-f",
+            f"query={_THREAD_QUERY}",
+            "-f",
+            f"threadId={thread_id}",
+            "-F",
+            f"first={page_size}",
         ]
         if cursor:
             gh_args.extend(["-f", f"after={cursor}"])
@@ -126,7 +131,8 @@ def fetch_thread_comments(thread_id: str) -> tuple[dict, list[dict]]:
         node = parsed.get("data", {}).get("node")
         if node is None or node.get("id") is None:
             error_and_exit(
-                f"Thread {thread_id} not found or is not a review thread.", 2,
+                f"Thread {thread_id} not found or is not a review thread.",
+                2,
             )
 
         # Store thread info from first page
@@ -167,11 +173,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument(
-        "--thread-id", required=True,
+        "--thread-id",
+        required=True,
         help="GraphQL node ID of the review thread (PRRT_... format)",
     )
     parser.add_argument(
-        "--include-minimized", action="store_true",
+        "--include-minimized",
+        action="store_true",
         help="Include minimized (hidden) comments in output",
     )
     return parser
@@ -202,21 +210,22 @@ def main(argv: list[str] | None = None) -> int:
     # Transform to output format with sequence numbers
     output_comments: list[dict] = []
     for seq, comment in enumerate(filtered, 1):
-        output_comments.append({
-            "Sequence": seq,
-            "Id": comment.get("databaseId"),
-            "NodeId": comment.get("id"),
-            "Author": comment.get("author", {}).get("login") if comment.get("author") else None,
-            "Body": comment.get("body", ""),
-            "CreatedAt": comment.get("createdAt"),
-            "UpdatedAt": comment.get("updatedAt"),
-            "IsMinimized": comment.get("isMinimized", False),
-            "MinimizedReason": comment.get("minimizedReason"),
-            "ReplyToId": (
-                comment.get("replyTo", {}).get("databaseId")
-                if comment.get("replyTo") else None
-            ),
-        })
+        output_comments.append(
+            {
+                "Sequence": seq,
+                "Id": comment.get("databaseId"),
+                "NodeId": comment.get("id"),
+                "Author": comment.get("author", {}).get("login") if comment.get("author") else None,
+                "Body": comment.get("body", ""),
+                "CreatedAt": comment.get("createdAt"),
+                "UpdatedAt": comment.get("updatedAt"),
+                "IsMinimized": comment.get("isMinimized", False),
+                "MinimizedReason": comment.get("minimizedReason"),
+                "ReplyToId": (
+                    comment.get("replyTo", {}).get("databaseId") if comment.get("replyTo") else None
+                ),
+            }
+        )
 
     # Console summary
     status = "Resolved" if thread_info.get("IsResolved") else "Unresolved"
@@ -231,8 +240,7 @@ def main(argv: list[str] | None = None) -> int:
         minimized_count = len(all_comments) - len(output_comments)
         if minimized_count > 0:
             print(
-                f"  Hidden (minimized): {minimized_count} "
-                f"(use --include-minimized to show)",
+                f"  Hidden (minimized): {minimized_count} (use --include-minimized to show)",
                 file=sys.stderr,
             )
 
@@ -263,8 +271,7 @@ def main(argv: list[str] | None = None) -> int:
         "TotalComments": thread_info.get("TotalComments", 0),
         "ReturnedComments": len(output_comments),
         "MinimizedExcluded": (
-            len(all_comments) - len(output_comments)
-            if not args.include_minimized else 0
+            len(all_comments) - len(output_comments) if not args.include_minimized else 0
         ),
         "Comments": output_comments,
     }

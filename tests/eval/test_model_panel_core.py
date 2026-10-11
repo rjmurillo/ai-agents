@@ -54,35 +54,47 @@ def test_parse_panel_missing_field_raises():
 
 def test_parse_panel_bad_role_raises():
     with pytest.raises(core.PanelConfigError, match="role"):
-        core.parse_panel({"tiers": [
-            {"label": "x", "role": "gate", "provider": "a", "model": "m"},
-        ]})
+        core.parse_panel(
+            {
+                "tiers": [
+                    {"label": "x", "role": "gate", "provider": "a", "model": "m"},
+                ]
+            }
+        )
 
 
 @pytest.mark.parametrize("threshold", [float("nan"), float("inf"), -0.1])
 def test_parse_panel_rejects_non_finite_or_negative_threshold(threshold):
     with pytest.raises(core.PanelConfigError, match="drop_threshold"):
-        core.parse_panel({
-            "drop_threshold": threshold,
-            "tiers": [
-                {"label": "opus", "role": "reference", "provider": "anthropic", "model": "m1"},
-            ],
-        })
+        core.parse_panel(
+            {
+                "drop_threshold": threshold,
+                "tiers": [
+                    {"label": "opus", "role": "reference", "provider": "anthropic", "model": "m1"},
+                ],
+            }
+        )
 
 
 def test_parse_panel_no_reference_raises():
     with pytest.raises(core.PanelConfigError, match="reference"):
-        core.parse_panel({"tiers": [
-            {"label": "x", "role": "probe", "provider": "a", "model": "m"},
-        ]})
+        core.parse_panel(
+            {
+                "tiers": [
+                    {"label": "x", "role": "probe", "provider": "a", "model": "m"},
+                ]
+            }
+        )
 
 
 def test_parse_panel_unknown_provider_raises():
     with pytest.raises(core.PanelConfigError, match="unknown provider"):
         core.parse_panel(
-            {"tiers": [
-                {"label": "x", "role": "reference", "provider": "nope", "model": "m"},
-            ]},
+            {
+                "tiers": [
+                    {"label": "x", "role": "reference", "provider": "nope", "model": "m"},
+                ]
+            },
             known_providers={"anthropic", "openai"},
         )
 
@@ -102,11 +114,15 @@ def test_default_panel_shape():
 
 
 def test_cell_from_report_extracts_delta_and_ci():
-    cell = core.cell_from_report("qa", "opus", {
-        "error_count": 0,
-        "recall_delta": 0.42,
-        "bootstrap_ci_95": [0.3, 0.5],
-    })
+    cell = core.cell_from_report(
+        "qa",
+        "opus",
+        {
+            "error_count": 0,
+            "recall_delta": 0.42,
+            "bootstrap_ci_95": [0.3, 0.5],
+        },
+    )
     assert cell.ok
     assert cell.recall_delta == 0.42
     assert cell.ci_low == 0.3 and cell.ci_high == 0.5
@@ -144,10 +160,7 @@ def test_cell_from_report_rejects_degraded_or_invalid_measurements(report, messa
 
 
 def _cells(**deltas):
-    return [
-        core.CellResult(unit="qa", tier=t, recall_delta=d)
-        for t, d in deltas.items()
-    ]
+    return [core.CellResult(unit="qa", tier=t, recall_delta=d) for t, d in deltas.items()]
 
 
 def test_robust_when_probe_matches_reference():

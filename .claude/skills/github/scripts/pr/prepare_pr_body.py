@@ -69,9 +69,7 @@ def _open_scratch(repo_root: Path) -> tuple[Path, int | None]:
     scratch_dir = toolkit_dir / "scratch"
     if not _HAS_DIRECTORY_FDS:
         if os.name == "nt":
-            raise PreparePrBodyError(
-                "secure PR body files are not supported on Windows"
-            )
+            raise PreparePrBodyError("secure PR body files are not supported on Windows")
         _ensure_plain_directory(toolkit_dir, owner_only=False)
         _ensure_plain_directory(scratch_dir, owner_only=True)
         return scratch_dir, None
@@ -84,18 +82,14 @@ def _open_scratch(repo_root: Path) -> tuple[Path, int | None]:
             pass
         before = os.stat("scratch", dir_fd=toolkit_fd, follow_symlinks=False)
         if stat.S_ISLNK(before.st_mode) or not stat.S_ISDIR(before.st_mode):
-            raise PreparePrBodyError(
-                f"path must be a plain directory: {scratch_dir}"
-            )
+            raise PreparePrBodyError(f"path must be a plain directory: {scratch_dir}")
         _require_owned(scratch_dir, before)
         flags = os.O_RDONLY | os.O_DIRECTORY | getattr(os, "O_NOFOLLOW", 0)
         scratch_fd = os.open("scratch", flags, dir_fd=toolkit_fd)
         opened = os.fstat(scratch_fd)
         if not stat.S_ISDIR(opened.st_mode) or not _same_object(before, opened):
             os.close(scratch_fd)
-            raise PreparePrBodyError(
-                f"directory changed before open: {scratch_dir}"
-            )
+            raise PreparePrBodyError(f"directory changed before open: {scratch_dir}")
         os.fchmod(scratch_fd, stat.S_IRWXU)
         return scratch_dir, scratch_fd
     finally:
@@ -128,10 +122,7 @@ def prepare_pr_body(repo_root: Path) -> Path:
                 try:
                     descriptor = os.open(
                         name,
-                        os.O_WRONLY
-                        | os.O_CREAT
-                        | os.O_EXCL
-                        | getattr(os, "O_NOFOLLOW", 0),
+                        os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
                         0o600,
                         dir_fd=scratch_fd,
                     )
@@ -155,9 +146,7 @@ def _validate_body_path(relative_path: str) -> Path:
         or len(path.parts) != 3
         or not _BODY_NAME_RE.fullmatch(path.name)
     ):
-        raise PreparePrBodyError(
-            "body file must match .project-toolkit/scratch/pr-body-*.md"
-        )
+        raise PreparePrBodyError("body file must match .project-toolkit/scratch/pr-body-*.md")
     return path
 
 
@@ -194,15 +183,11 @@ def read_prepared_pr_body(repo_root: Path, relative_path: str) -> str:
         if scratch_fd is None:
             body_path = scratch_dir / path.name
             before = body_path.lstat()
-            descriptor = os.open(
-                body_path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
-            )
+            descriptor = os.open(body_path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
         else:
             before = os.stat(path.name, dir_fd=scratch_fd, follow_symlinks=False)
             if stat.S_ISLNK(before.st_mode) or not stat.S_ISREG(before.st_mode):
-                raise PreparePrBodyError(
-                    f"body file must be a plain file: {relative_path}"
-                )
+                raise PreparePrBodyError(f"body file must be a plain file: {relative_path}")
             descriptor = os.open(
                 path.name,
                 os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0),
@@ -225,9 +210,7 @@ def read_prepared_pr_body(repo_root: Path, relative_path: str) -> str:
             os.close(scratch_fd)
 
 
-def write_prepared_pr_body(
-    repo_root: Path, relative_path: str, content: str
-) -> None:
+def write_prepared_pr_body(repo_root: Path, relative_path: str, content: str) -> None:
     """Replace one allocated placeholder without following path substitutions."""
     path = _validate_body_path(relative_path)
     scratch_dir, scratch_fd = _open_scratch(repo_root)

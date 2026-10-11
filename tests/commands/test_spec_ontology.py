@@ -51,10 +51,9 @@ def _spec_surface() -> str:
     )
     return "\n".join(parts)
 
+
 GENERATOR_PATH = REPO_ROOT / ".claude" / "skills" / "spec-generator" / "SKILL.md"
-INTERVIEW_PATH = (
-    REPO_ROOT / ".claude" / "skills" / "requirements-interview" / "SKILL.md"
-)
+INTERVIEW_PATH = REPO_ROOT / ".claude" / "skills" / "requirements-interview" / "SKILL.md"
 GENERATOR_SCHEMA_PATH = (
     REPO_ROOT / ".claude" / "skills" / "spec-generator" / "references" / "spec-schemas.md"
 )
@@ -299,9 +298,7 @@ def test_ontology_coverage_not_mislabeled_as_step_7(spec_corpus: str) -> None:
 def test_ontology_in_prd_output_schema(spec_text: str) -> None:
     """The PRD output schema lists an Ontology section."""
     # The output schema is a bulleted list near the end of the file.
-    assert "- **Ontology**" in spec_text, (
-        "PRD output schema must include an `- **Ontology**` entry"
-    )
+    assert "- **Ontology**" in spec_text, "PRD output schema must include an `- **Ontology**` entry"
 
 
 # --- Positive: spec-generator accepts the fragment and renders the section ---
@@ -328,8 +325,7 @@ def test_generator_requirement_body_includes_ontology(generator_text: str) -> No
     ontology_pos = region.find("Ontology")
     ac_pos = region.find("Acceptance Criteria")
     assert -1 < context_pos < ontology_pos < ac_pos, (
-        "Requirement body must order: Context, then Ontology, then "
-        "Acceptance Criteria"
+        "Requirement body must order: Context, then Ontology, then Acceptance Criteria"
     )
 
 
@@ -441,12 +437,8 @@ def test_completeness_check_folds_ontology_into_verdict(completeness_text: str) 
     assert "ontology coverage" in lowered, (
         "completeness check must document an ontology-coverage check"
     )
-    assert "entity coverage" in lowered, (
-        "completeness check must document entity coverage"
-    )
-    assert "traceability" in lowered, (
-        "completeness check must document decision-rule traceability"
-    )
+    assert "entity coverage" in lowered, "completeness check must document entity coverage"
+    assert "traceability" in lowered, "completeness check must document decision-rule traceability"
     # The unnamed-primary-entity case must lean FAIL.
     fail_idx = lowered.find("`fail`: critical")
     assert fail_idx != -1, "FAIL verdict guideline not found"
@@ -471,9 +463,7 @@ def test_completeness_check_treats_fragment_as_canonical_source(
     assert (
         "run entity coverage and decision-rule traceability only when an ontologyfragment exists"
         in normalized
-    ), (
-        "ontology checks must not fail degraded runs that lack a fragment"
-    )
+    ), "ontology checks must not fail degraded runs that lack a fragment"
     assert "referenced anywhere in generated spec artifacts" in normalized, (
         "entity coverage must apply to all generated spec artifacts"
     )
@@ -522,9 +512,7 @@ def test_completeness_check_no_spurious_fail_when_no_ontology(
     assert "vacuously satisfied" in lowered, (
         "completeness check must mark empty-entity coverage as vacuously satisfied"
     )
-    assert "n/a" in lowered, (
-        "completeness check must mark a missing ontology as N/A, not a gap"
-    )
+    assert "n/a" in lowered, "completeness check must mark a missing ontology as N/A, not a gap"
 
 
 def test_empty_entity_vacuous_coverage_requires_no_requirement_entities(
@@ -533,11 +521,8 @@ def test_empty_entity_vacuous_coverage_requires_no_requirement_entities(
     """Empty ontology coverage is vacuous only when REQs name no entities."""
     lowered = " ".join(completeness_text.lower().split())
     assert (
-        "generated req, design, and task artifacts also reference no domain entities"
-        in lowered
-    ), (
-        "empty-entity ontology must require generated spec artifacts name no entities"
-    )
+        "generated req, design, and task artifacts also reference no domain entities" in lowered
+    ), "empty-entity ontology must require generated spec artifacts name no entities"
     assert "critical entity-coverage gap" in lowered, (
         "requirements naming entities against O1=none must fail closed"
     )
@@ -572,11 +557,8 @@ def test_reference_fragment_empty_entity_rule_matches_fail_closed_prompt() -> No
     """The reference ontology records the same empty-entity guard as CI."""
     text = " ".join(REFERENCE_FRAGMENT.read_text(encoding="utf-8").lower().split())
     assert (
-        "only when generated req, design, and task artifacts reference zero domain entities"
-        in text
-    ), (
-        "reference fragment must not allow O1=none to mask spec-artifact entities"
-    )
+        "only when generated req, design, and task artifacts reference zero domain entities" in text
+    ), "reference fragment must not allow O1=none to mask spec-artifact entities"
     assert "ci completeness check" in text, (
         "reference fragment must name the CI completeness check, not /spec Step 7"
     )
@@ -585,9 +567,9 @@ def test_reference_fragment_empty_entity_rule_matches_fail_closed_prompt() -> No
 def test_reference_fragment_slug_matches_directory_convention() -> None:
     """The reference fragment lives under the canonical ontology directory with
     a kebab-case slug (the same slug convention spec-generator uses)."""
-    assert REFERENCE_FRAGMENT.parent == (
-        REPO_ROOT / ".project-toolkit" / "specs" / "ontology"
-    ), "reference fragment must live under .project-toolkit/specs/ontology/"
+    assert REFERENCE_FRAGMENT.parent == (REPO_ROOT / ".project-toolkit" / "specs" / "ontology"), (
+        "reference fragment must live under .project-toolkit/specs/ontology/"
+    )
     assert re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", REFERENCE_FRAGMENT.stem), (
         f"reference fragment slug {REFERENCE_FRAGMENT.stem!r} must be kebab-case"
     )

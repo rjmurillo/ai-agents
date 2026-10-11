@@ -91,17 +91,13 @@ class TestUnreadableFiles:
         assert rc == 1
         assert "UNREADABLE" in capsys.readouterr().out
 
-    def test_unreadable_file_warns_but_passes_local(
-        self, tmp_path: Path, capsys
-    ) -> None:
+    def test_unreadable_file_warns_but_passes_local(self, tmp_path: Path, capsys) -> None:
         (tmp_path / "weird.md").mkdir()
         rc = main(["--path", str(tmp_path)])
         assert rc == 0
         assert "UNREADABLE" in capsys.readouterr().out
 
-    def test_readable_files_alongside_unreadable_still_flag(
-        self, tmp_path: Path
-    ) -> None:
+    def test_readable_files_alongside_unreadable_still_flag(self, tmp_path: Path) -> None:
         (tmp_path / "weird.md").mkdir()
         (tmp_path / "testing-001-ok.md").write_text(
             "# Testing\n\nSingle skill.",
@@ -118,5 +114,6 @@ class TestUnreadableFiles:
             if self == target:
                 raise PermissionError("denied")
             return "# Content"
+
         monkeypatch.setattr(Path, "read_text", unreadable)
         assert main(["--path", str(tmp_path), "--ci"]) == 1

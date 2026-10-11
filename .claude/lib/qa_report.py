@@ -13,9 +13,7 @@ from ai_review_common.verdict import extract_verdict
 
 _FULL_COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 _SHORT_COMMIT_PATTERN = re.compile(r"^[0-9a-f]{7,40}$")
-_QA_FIELD_PATTERN = re.compile(
-    r"^(qaVerdict|qaSessionLog|qaCommit):[ \t]*(.*?)$"
-)
+_QA_FIELD_PATTERN = re.compile(r"^(qaVerdict|qaSessionLog|qaCommit):[ \t]*(.*?)$")
 _REQUIRED_FIELDS = frozenset({"qaVerdict", "qaSessionLog", "qaCommit"})
 _SESSION_LOG_ROOT = PurePosixPath(".project-toolkit/sessions")
 QA_EVIDENCE_PREFIXES = (
@@ -75,9 +73,7 @@ def session_log_identity(path: Path, *, sessions_root: Path) -> str:
     try:
         relative = path.resolve().relative_to(sessions_root.resolve())
     except ValueError as exc:
-        raise ValueError(
-            f"Session log is outside the configured sessions root: {path}"
-        ) from exc
+        raise ValueError(f"Session log is outside the configured sessions root: {path}") from exc
     identity = (_SESSION_LOG_ROOT / PurePosixPath(relative.as_posix())).as_posix()
     _session_log_relative(identity)
     return identity
@@ -154,11 +150,7 @@ def session_qa_binding(
 ) -> QaBinding:
     """Extract the exact session-log path and validation commit."""
     episode_metrics = data.get("episodeMetrics")
-    comparison = (
-        episode_metrics.get("comparison")
-        if isinstance(episode_metrics, Mapping)
-        else None
-    )
+    comparison = episode_metrics.get("comparison") if isinstance(episode_metrics, Mapping) else None
     comparison_head = comparison.get("head") if isinstance(comparison, Mapping) else None
     ending_commit = data.get("endingCommit")
     resolved_ending: str | None = None
@@ -174,9 +166,7 @@ def session_qa_binding(
         if isinstance(resolved, str) and _FULL_COMMIT_PATTERN.fullmatch(resolved):
             resolved_ending = resolved
 
-    if isinstance(comparison_head, str) and _FULL_COMMIT_PATTERN.fullmatch(
-        comparison_head
-    ):
+    if isinstance(comparison_head, str) and _FULL_COMMIT_PATTERN.fullmatch(comparison_head):
         # comparison.head wins when both fields resolve, and a disagreement is
         # reported rather than rejected (ADR-102, issue #5217). This is not
         # because the two fields naturally diverge: PR #4954 independently
@@ -213,9 +203,7 @@ def session_qa_binding(
     raise ValueError("Session log must resolve a full 40-character QA commit")
 
 
-def validate_qa_report(
-    path: Path, expected: QaBinding, *, head: str, repo_root: Path
-) -> QaReport:
+def validate_qa_report(path: Path, expected: QaBinding, *, head: str, repo_root: Path) -> QaReport:
     """Require a passing QA report bound to the expected session, and not stale.
 
     ``head`` is the commit to check staleness against (ADR-096). A real
@@ -235,19 +223,13 @@ def validate_qa_report(
         )
     changed = post_qa_code_changes(report.commit, head, repo_root=repo_root)
     if changed:
-        raise ValueError(
-            "QA report is stale; code changed after its commit: " + ", ".join(changed)
-        )
+        raise ValueError("QA report is stale; code changed after its commit: " + ", ".join(changed))
     return report
 
 
 def non_evidence_paths(paths: list[str]) -> list[str]:
     """Return paths that represent work performed after QA completed."""
-    return [
-        path
-        for path in paths
-        if path and not path.startswith(QA_EVIDENCE_PREFIXES)
-    ]
+    return [path for path in paths if path and not path.startswith(QA_EVIDENCE_PREFIXES)]
 
 
 def _qa_commit_on_first_parent_chain(

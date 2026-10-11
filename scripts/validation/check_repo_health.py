@@ -160,9 +160,7 @@ class UnreadableCoreBareError(RuntimeError):
     """core.bare holds a value git refuses to parse, so no git command runs."""
 
 
-def _git(
-    repo_root: Path, budget: GitBudget, *args: str, missing_ok: bool = False
-) -> str | None:
+def _git(repo_root: Path, budget: GitBudget, *args: str, missing_ok: bool = False) -> str | None:
     """Return stdout, preserving each failure mode as its own exception.
 
     The per-call watchdog is clamped by what the shared budget has left, so slow
@@ -364,9 +362,7 @@ def _main_work_tree(repo_root: Path, common_dir: Path, budget: GitBudget) -> Pat
     ``.git`` passes the content read, and a bare repository someone ran ``git
     read-tree`` inside passes the metadata read.
     """
-    candidate = _work_tree_root(repo_root, common_dir) or _reported_main_worktree(
-        repo_root, budget
-    )
+    candidate = _work_tree_root(repo_root, common_dir) or _reported_main_worktree(repo_root, budget)
     if candidate is None or candidate.resolve() == common_dir:
         return None
     if not _has_main_work_tree_index(common_dir):

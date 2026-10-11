@@ -143,9 +143,7 @@ class TestMcpCall:
     @patch("shutil.which", return_value="/usr/bin/mcporter")
     @patch("subprocess.run")
     def test_raises_on_nonzero_exit(self, mock_run: MagicMock, _which: MagicMock) -> None:
-        mock_run.return_value = self._make_result(
-            returncode=1, stderr="Error: server not found"
-        )
+        mock_run.return_value = self._make_result(returncode=1, stderr="Error: server not found")
         with pytest.raises(McpCliError, match="mcporter call failed"):
             mcp_call("serena", "list_memories")
 
@@ -180,13 +178,15 @@ class TestMcpListTools:
     @patch("subprocess.run")
     def test_returns_tools_for_server(self, mock_run: MagicMock, _which: MagicMock) -> None:
         server_data = {
-            "servers": [{
-                "name": "serena",
-                "tools": [
-                    {"name": "list_memories", "description": "List memories"},
-                    {"name": "read_memory", "description": "Read a memory"},
-                ],
-            }],
+            "servers": [
+                {
+                    "name": "serena",
+                    "tools": [
+                        {"name": "list_memories", "description": "List memories"},
+                        {"name": "read_memory", "description": "Read a memory"},
+                    ],
+                }
+            ],
         }
         mock_run.return_value = subprocess.CompletedProcess(
             args=[], returncode=0, stdout=json.dumps(server_data), stderr=""

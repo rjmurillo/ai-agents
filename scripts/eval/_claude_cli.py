@@ -172,9 +172,7 @@ class _ClaudeCLIProvider:
             "--no-session-persistence",
         ]
 
-    def _build_env(
-        self, config_dir: Path, credential: ResolvedCredential
-    ) -> dict[str, str]:
+    def _build_env(self, config_dir: Path, credential: ResolvedCredential) -> dict[str, str]:
         """Build the child environment for the resolved credential step.
 
         An injected token runs under a relocated, empty config directory. The
@@ -234,8 +232,7 @@ class _ClaudeCLIProvider:
             ) from None
         if not isinstance(payload, dict):
             raise RuntimeError(
-                f"{PROVIDER_LABEL} returned a JSON value that is not an "
-                "object; response redacted"
+                f"{PROVIDER_LABEL} returned a JSON value that is not an object; response redacted"
             )
         if payload.get("is_error"):
             raise RuntimeError(
@@ -246,8 +243,7 @@ class _ClaudeCLIProvider:
         answer = payload.get("result")
         if not isinstance(answer, str) or not answer.strip():
             raise RuntimeError(
-                f"{PROVIDER_LABEL} API returned no choices; "
-                "model identifier redacted"
+                f"{PROVIDER_LABEL} API returned no choices; model identifier redacted"
             )
         model_used = self._confirm_model(payload, model)
         return answer, model_used
@@ -274,8 +270,7 @@ class _ClaudeCLIProvider:
         served = sorted((str(key) for key in usage), key=len, reverse=True)
         if not all(self._model_matches(key, model) for key in served):
             raise RuntimeError(
-                f"{PROVIDER_LABEL} model attribution mismatch; "
-                "model identifiers redacted"
+                f"{PROVIDER_LABEL} model attribution mismatch; model identifiers redacted"
             )
         # The longest id is the most specific one the CLI resolved, which is
         # what an archived run should record rather than the alias typed in.

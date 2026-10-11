@@ -41,13 +41,16 @@ def test_a_module_over_both_thresholds_regresses(tmp_path: Path) -> None:
     result = compare(_alpha(tmp_path, [15.0, 15.0]), history, DEFAULT_LIMITS)
 
     assert [(r.name, r.seconds, r.baseline, r.samples) for r in result.modules] == [
-        ("tests/test_alpha.py", 30.0, 10.0, 2)]
+        ("tests/test_alpha.py", 30.0, 10.0, 2)
+    ]
 
 
 @pytest.mark.parametrize(
     ("baseline", "seconds", "why"),
-    [(5.0, [4.0, 4.0], "1.6x but only 3s slower"),
-     (100.0, [60.0, 60.0], "20s slower but only 1.2x")],
+    [
+        (5.0, [4.0, 4.0], "1.6x but only 3s slower"),
+        (100.0, [60.0, 60.0], "20s slower but only 1.2x"),
+    ],
 )
 def test_crossing_one_threshold_alone_is_not_a_regression(
     tmp_path: Path, baseline: float, seconds: list[float], why: str
@@ -59,8 +62,9 @@ def test_crossing_one_threshold_alone_is_not_a_regression(
 
 def test_a_module_without_a_baseline_stays_out_of_the_suite_sum(tmp_path: Path) -> None:
     history, _ = load_history(write_history(tmp_path, [10.0, 20.0]))
-    report = write_junit(tmp_path, "p",
-                         {"tests.test_alpha": [6.0, 6.0], "tests.test_new": [900.0]}, 912.0)
+    report = write_junit(
+        tmp_path, "p", {"tests.test_alpha": [6.0, 6.0], "tests.test_new": [900.0]}, 912.0
+    )
 
     result = compare(build_snapshot([report], "now", NOW), history, DEFAULT_LIMITS)
 
@@ -71,8 +75,9 @@ def test_a_module_without_a_baseline_stays_out_of_the_suite_sum(tmp_path: Path) 
 
 def test_the_suite_regresses_on_the_comparable_sum(tmp_path: Path) -> None:
     history, _ = load_history(write_history(tmp_path, [100.0]))
-    lax_modules = Thresholds(module_ratio=10.0, module_min_delta=1000.0,
-                             suite_ratio=1.25, suite_min_delta=60.0)
+    lax_modules = Thresholds(
+        module_ratio=10.0, module_min_delta=1000.0, suite_ratio=1.25, suite_min_delta=60.0
+    )
 
     result = compare(_alpha(tmp_path, [80.0, 90.0]), history, lax_modules)
 
@@ -88,7 +93,9 @@ def test_a_replaced_test_with_the_same_count_is_not_compared(tmp_path: Path) -> 
     report.write_text(
         '<testsuites><testsuite time="60"><testcase classname="tests.test_alpha" name="t0" '
         'time="10" /><testcase classname="tests.test_alpha" name="t_new" time="50" />'
-        "</testsuite></testsuites>", encoding="utf-8")
+        "</testsuite></testsuites>",
+        encoding="utf-8",
+    )
 
     result = compare(build_snapshot([report], "now", NOW), history, DEFAULT_LIMITS)
 
@@ -124,4 +131,5 @@ def test_a_run_past_the_upper_quartile_by_both_thresholds_still_regresses(
     result = compare(_alpha(tmp_path, [20.0, 20.0]), history, DEFAULT_LIMITS)
 
     assert [(r.name, r.seconds, r.baseline) for r in result.modules] == [
-        ("tests/test_alpha.py", 40.0, 18.5)]
+        ("tests/test_alpha.py", 40.0, 18.5)
+    ]

@@ -30,9 +30,7 @@ def test_sync_pair_creates_missing_destination(tmp_path: Path) -> None:
     src.mkdir(parents=True)
     (src / "mod.py").write_text("X = 1\n", encoding="utf-8")
 
-    changes, had_errors = lib_mirror.sync_pair(
-        tmp_path, "scripts/pkg", "dst/pkg", check_only=False
-    )
+    changes, had_errors = lib_mirror.sync_pair(tmp_path, "scripts/pkg", "dst/pkg", check_only=False)
 
     assert had_errors is False, changes
     assert (tmp_path / "dst" / "pkg" / "mod.py").read_text(encoding="utf-8") == "X = 1\n"
@@ -66,9 +64,7 @@ def test_sync_pair_check_mode_detects_drift_without_writing(tmp_path: Path) -> N
     dst.mkdir(parents=True)
     (dst / "mod.py").write_text("X = 2\n", encoding="utf-8")
 
-    changes, had_errors = lib_mirror.sync_pair(
-        tmp_path, "scripts/pkg", "dst/pkg", check_only=True
-    )
+    changes, had_errors = lib_mirror.sync_pair(tmp_path, "scripts/pkg", "dst/pkg", check_only=True)
 
     assert had_errors is False
     assert any("updated" in c for c in changes)
@@ -84,9 +80,7 @@ def test_sync_pair_removes_stale_py_but_keeps_non_py(tmp_path: Path) -> None:
     (dst / "stale.py").write_text("STALE = 1\n", encoding="utf-8")
     (dst / "CLAUDE.md").write_text("hand-maintained sidecar\n", encoding="utf-8")
 
-    changes, had_errors = lib_mirror.sync_pair(
-        tmp_path, "scripts/pkg", "dst/pkg", check_only=False
-    )
+    changes, had_errors = lib_mirror.sync_pair(tmp_path, "scripts/pkg", "dst/pkg", check_only=False)
 
     assert had_errors is False, changes
     assert not (dst / "stale.py").exists()
@@ -109,9 +103,7 @@ def test_sync_pair_missing_source_dir_fails_closed(tmp_path: Path) -> None:
 
 
 def test_sync_pair_rejects_source_escaping_repo_root(tmp_path: Path) -> None:
-    changes, had_errors = lib_mirror.sync_pair(
-        tmp_path, "../outside", "dst/pkg", check_only=False
-    )
+    changes, had_errors = lib_mirror.sync_pair(tmp_path, "../outside", "dst/pkg", check_only=False)
     assert had_errors is True
     assert any("escapes repo root" in c for c in changes)
 

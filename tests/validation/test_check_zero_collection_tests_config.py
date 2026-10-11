@@ -92,9 +92,7 @@ def test_a_non_utf8_source_is_reported_as_external(tmp_path: Path) -> None:
     """
     tests = _make_repo(tmp_path)
     (tests / "test_latin1.py").write_bytes(
-        b"# -*- coding: latin-1 -*-\n"
-        b'NAME = "R\xe9sum\xe9"\n\n'
-        b"def test_x():\n    assert NAME\n"
+        b'# -*- coding: latin-1 -*-\nNAME = "R\xe9sum\xe9"\n\ndef test_x():\n    assert NAME\n'
     )
 
     assert _run(tmp_path) == 3
@@ -350,9 +348,7 @@ def test_invalid_testpaths_and_python_files_entries_are_configuration_errors(
 ) -> None:
     """Non-string and empty-string config entries are configuration errors."""
     pyproject = (
-        "[tool.pytest.ini_options]\n"
-        f"testpaths = {testpaths!r}\n"
-        f"python_files = {python_files!r}\n"
+        f"[tool.pytest.ini_options]\ntestpaths = {testpaths!r}\npython_files = {python_files!r}\n"
     )
     _make_repo(tmp_path, pyproject)
 
@@ -383,9 +379,7 @@ def test_configured_norecursedirs_globs_are_honoured(tmp_path: Path) -> None:
 def test_collect_ignore_is_honoured(tmp_path: Path) -> None:
     """A conftest exclusion must not become a zero-collection violation."""
     tests = _make_repo(tmp_path)
-    (tests / "conftest.py").write_text(
-        'collect_ignore = ["test_ignored.py"]\n', encoding="utf-8"
-    )
+    (tests / "conftest.py").write_text('collect_ignore = ["test_ignored.py"]\n', encoding="utf-8")
     (tests / "test_ignored.py").write_text(_NO_TESTS, encoding="utf-8")
 
     assert _run(tmp_path) == 0

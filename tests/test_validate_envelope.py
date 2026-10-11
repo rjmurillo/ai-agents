@@ -203,9 +203,7 @@ class TestValidateEnvelope:
         assert any("Error.Type must be a string" in e for e in errors)
 
     @pytest.mark.parametrize("top_level", [None, 1, "a string", ["an", "array"]])
-    def test_non_dict_top_level_is_rejected_without_crashing(
-        self, top_level: object
-    ) -> None:
+    def test_non_dict_top_level_is_rejected_without_crashing(self, top_level: object) -> None:
         """skill-output.schema.json's top level is "type": "object". The CLI
         passes json.loads()'s result straight through, and valid JSON such
         as null, a number, a string, or an array reaches validate_envelope

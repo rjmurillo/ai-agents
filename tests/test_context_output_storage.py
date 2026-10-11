@@ -8,13 +8,7 @@ import pytest
 
 sys.path.insert(
     0,
-    str(
-        Path(__file__).parent.parent
-        / ".claude"
-        / "skills"
-        / "context-optimizer"
-        / "scripts"
-    ),
+    str(Path(__file__).parent.parent / ".claude" / "skills" / "context-optimizer" / "scripts"),
 )
 
 import context_output_storage as storage

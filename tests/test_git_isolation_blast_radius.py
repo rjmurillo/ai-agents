@@ -75,8 +75,7 @@ def test_pointer_vars_are_unset_without_tmp_path() -> None:
     """
     leaked = [name for name in _GIT_POINTER_VARS if name in os.environ]
     assert not leaked, (
-        f"git pointer vars leaked into a test that did not request tmp_path: "
-        f"{leaked}"
+        f"git pointer vars leaked into a test that did not request tmp_path: {leaked}"
     )
 
 
@@ -176,6 +175,4 @@ def test_hostile_environment_at_startup_cannot_reach_the_decoy(
         text=True,
         check=False,
     ).stdout.strip()
-    assert bare != "true", (
-        "injected core.bare=true reached the decoy config; this is #4698"
-    )
+    assert bare != "true", "injected core.bare=true reached the decoy config; this is #4698"

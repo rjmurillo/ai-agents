@@ -112,8 +112,8 @@ def group_checks_by_name(
 
         # OR the required flag: if any row for this name is required, the name
         # is treated as required.
-        is_required_by_name[name] = (
-            is_required_by_name.get(name, False) or bool(check.get("IsRequired"))
+        is_required_by_name[name] = is_required_by_name.get(name, False) or bool(
+            check.get("IsRequired")
         )
 
         # Keep the first check of each name (caller has already deduplicated by

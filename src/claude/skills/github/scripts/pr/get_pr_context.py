@@ -234,9 +234,7 @@ def _review_thread_counts(
             )
         total_count = page_total
         page_thread_ids = {cast(str, node["id"]) for node in page_nodes}
-        if len(page_thread_ids) != len(page_nodes) or seen_thread_ids.intersection(
-            page_thread_ids
-        ):
+        if len(page_thread_ids) != len(page_nodes) or seen_thread_ids.intersection(page_thread_ids):
             error_and_exit(
                 f"Failed to get review threads for PR #{pr}: duplicate thread",
                 3,
@@ -363,7 +361,9 @@ def main(argv: list[str] | None = None) -> int:
     repo_flag = f"{owner}/{repo}"
     fmt = get_output_format(args.output_format)
 
-    pr_data = _load_pr_data(repo_flag, pr, requested_json_fields(selected_fields, _FULL_JSON_FIELDS))
+    pr_data = _load_pr_data(
+        repo_flag, pr, requested_json_fields(selected_fields, _FULL_JSON_FIELDS)
+    )
     if selected_fields:
         write_skill_output(
             focused_context(pr_data, selected_fields),

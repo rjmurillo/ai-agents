@@ -30,23 +30,28 @@ def build_parser() -> argparse.ArgumentParser:
         description="Install all CodeQL integration components.",
     )
     parser.add_argument(
-        "--skip-cli", action="store_true",
+        "--skip-cli",
+        action="store_true",
         help="Skip CodeQL CLI installation.",
     )
     parser.add_argument(
-        "--skip-vscode", action="store_true",
+        "--skip-vscode",
+        action="store_true",
         help="Skip VSCode configuration files creation.",
     )
     parser.add_argument(
-        "--skip-claude-skill", action="store_true",
+        "--skip-claude-skill",
+        action="store_true",
         help="Skip Claude Code skill installation.",
     )
     parser.add_argument(
-        "--skip-pre-commit", action="store_true",
+        "--skip-pre-commit",
+        action="store_true",
         help="Skip pre-commit hook verification.",
     )
     parser.add_argument(
-        "--ci", action="store_true",
+        "--ci",
+        action="store_true",
         help="CI mode (non-interactive).",
     )
     return parser
@@ -70,7 +75,10 @@ def write_status(message: str, status_type: str = "info") -> None:
 def get_repo_root() -> str | None:
     result = subprocess.run(
         ["git", "rev-parse", "--git-common-dir"],
-        capture_output=True, text=True, timeout=10, check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
     )
     if result.returncode != 0:
         return None
@@ -139,7 +147,9 @@ def step_verify_claude_skill(repo_root: str) -> str:
     # This verified the removed Invoke-CodeQLScanSkill.ps1 until Issue #4921, so
     # the step reported the skill missing even when it was correctly installed.
     skill_script = os.path.join(
-        skill_dir, "scripts", "invoke_codeql_scan.py",
+        skill_dir,
+        "scripts",
+        "invoke_codeql_scan.py",
     )
 
     if os.path.isfile(skill_file) and os.path.isfile(skill_script):
@@ -186,13 +196,18 @@ def step_verify_pre_commit(repo_root: str) -> str:
 def step_validate(repo_root: str) -> None:
     write_status("Validating installation...", "info")
     config_script = os.path.join(
-        repo_root, ".codeql", "scripts", "test_codeql_config.py",
+        repo_root,
+        ".codeql",
+        "scripts",
+        "test_codeql_config.py",
     )
 
     if os.path.isfile(config_script):
         result = subprocess.run(
             [sys.executable, config_script],
-            capture_output=True, timeout=60, check=False,
+            capture_output=True,
+            timeout=60,
+            check=False,
         )
         if result.returncode == 0:
             write_status("Configuration validation passed", "success")

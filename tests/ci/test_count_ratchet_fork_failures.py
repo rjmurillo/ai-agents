@@ -90,8 +90,7 @@ def test_a_shallow_clone_is_told_to_unshallow(tmp_path, capsys) -> None:
 
     clone = tmp_path / "shallow"
     subprocess.run(
-        ["git", "clone", "-q", "--depth=1", "--branch", "detached-work",
-         origin_uri, str(clone)],
+        ["git", "clone", "-q", "--depth=1", "--branch", "detached-work", origin_uri, str(clone)],
         check=True,
     )
     assert (clone / ".git" / "shallow").exists(), "clone was not shallow"
@@ -141,9 +140,7 @@ def _fork_without_a_readable_baseline(
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git not on PATH")
-def test_a_fork_point_with_no_baseline_is_not_reported_as_unreachable(
-    tmp_path, capsys
-) -> None:
+def test_a_fork_point_with_no_baseline_is_not_reported_as_unreachable(tmp_path, capsys) -> None:
     """``_fork_point`` succeeded; only the second read failed. Say so.
 
     Here git names the fork point on the first try and the baseline was simply

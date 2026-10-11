@@ -50,7 +50,7 @@ OLD_PATTERN = re.compile(
     re.MULTILINE,
 )
 
-NEW_TEMPLATE = '''# Bootstrap: find lib directory via env var or manifest walk-up.
+NEW_TEMPLATE = """# Bootstrap: find lib directory via env var or manifest walk-up.
 # CLAUDE_PLUGIN_ROOT honored when set; otherwise walk up from __file__
 # looking for .claude-plugin/plugin.json (the plugin marker). Sibling
 # lib/ is the plugin's lib dir. Layout-independent: works in source
@@ -76,7 +76,7 @@ if _lib_dir is None or not os.path.isdir(_lib_dir):
     )
     sys.exit({exit_code})
 if _lib_dir not in sys.path:
-    sys.path.insert(0, _lib_dir)'''
+    sys.path.insert(0, _lib_dir)"""
 
 ALREADY_MIGRATED_MARKER = 'os.environ.get("CLAUDE_PLUGIN_ROOT")'
 

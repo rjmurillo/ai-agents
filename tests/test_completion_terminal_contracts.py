@@ -107,9 +107,7 @@ SCENARIO_CATALOG: dict[int, tuple[tuple[Path, str, str], ...]] = {
     ),
     8: ((ORCHESTRATOR_SCENARIOS_PATH, "scenarios", "S8"),),
     9: ((RUNTIME_FIXTURES_PATH, "fixtures", "completion-no-continuation-offer"),),
-    10: (
-        (RUNTIME_FIXTURES_PATH, "fixtures", "optional-finding-declarative-not-solicited"),
-    ),
+    10: ((RUNTIME_FIXTURES_PATH, "fixtures", "optional-finding-declarative-not-solicited"),),
     11: ((RUNTIME_FIXTURES_PATH, "fixtures", "blocking-decision-question-allowed"),),
     12: ((RUNTIME_FIXTURES_PATH, "fixtures", "requested-next-steps-allowed"),),
     13: ((RUNTIME_FIXTURES_PATH, "fixtures", "voice-conflict-terminal-wins-over-offer"),),
@@ -187,18 +185,14 @@ def test_planted_defect_scenarios_still_expect_challenge() -> None:
     fixture, would let the suite pass for a reviewer that approves everything.
     """
     payload = json.loads((REPO_ROOT / CRITIC_SCENARIOS_PATH).read_text(encoding="utf-8"))
-    approving = {
-        s["id"] for s in payload["scenarios"] if s["expected_verdict"] != "CHALLENGE"
-    }
+    approving = {s["id"] for s in payload["scenarios"] if s["expected_verdict"] != "CHALLENGE"}
     assert approving == set(CRITIC_APPROVE_SCENARIO_IDS), (
         f"{CRITIC_SCENARIOS_PATH} must expect CHALLENGE on every scenario except "
         f"{sorted(CRITIC_APPROVE_SCENARIO_IDS)}; found non-CHALLENGE on "
         f"{sorted(approving)}. A new passing fixture weakens the reviewer-"
         "asymmetry experiment that TC-1 completes."
     )
-    challenging = {
-        s["id"] for s in payload["scenarios"] if s["expected_verdict"] == "CHALLENGE"
-    }
+    challenging = {s["id"] for s in payload["scenarios"] if s["expected_verdict"] == "CHALLENGE"}
     assert challenging, (
         f"{CRITIC_SCENARIOS_PATH} carries no planted-defect scenario; the "
         "zero-finding case would then be the whole experiment."

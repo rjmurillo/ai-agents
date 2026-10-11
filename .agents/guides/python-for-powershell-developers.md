@@ -313,12 +313,7 @@ if ($LASTEXITCODE -ne 0) {
 ```python
 import subprocess
 
-result = subprocess.run(
-    ["git", "status"],
-    capture_output=True,
-    text=True,
-    check=False
-)
+result = subprocess.run(["git", "status"], capture_output=True, text=True, check=False)
 
 if result.returncode != 0:
     print(f"Git failed: {result.stderr}", file=sys.stderr)
@@ -350,22 +345,9 @@ import argparse
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Process session")
-    parser.add_argument(
-        "--session-path",
-        required=True,
-        help="Path to session file"
-    )
-    parser.add_argument(
-        "--strict",
-        action="store_true",
-        help="Enable strict mode"
-    )
-    parser.add_argument(
-        "--timeout",
-        type=int,
-        default=30,
-        help="Timeout in seconds"
-    )
+    parser.add_argument("--session-path", required=True, help="Path to session file")
+    parser.add_argument("--strict", action="store_true", help="Enable strict mode")
+    parser.add_argument("--timeout", type=int, default=30, help="Timeout in seconds")
     return parser.parse_args()
 ```
 
@@ -477,12 +459,7 @@ from pathlib import Path
 def parse_args() -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--input-path",
-        type=Path,
-        required=True,
-        help="Path to input file"
-    )
+    parser.add_argument("--input-path", type=Path, required=True, help="Path to input file")
     return parser.parse_args()
 
 

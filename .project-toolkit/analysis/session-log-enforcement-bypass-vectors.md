@@ -162,7 +162,7 @@ pwsh .claude/skills/session-init/scripts/New-SessionLog.ps1
 ```python
 Write(
     file_path=".project-toolkit/sessions/2026-02-07-session-999.json",
-    content='{"schemaVersion": "1.0", ...}'
+    content='{"schemaVersion": "1.0", ...}',
 )
 ```
 

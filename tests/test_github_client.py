@@ -41,9 +41,7 @@ class FakeGitHubClient:
         self.calls.append(("PATCH", endpoint, payload))
         return self.responses.get(("PATCH", endpoint), {})  # type: ignore[no-any-return]
 
-    def graphql(
-        self, query: str, variables: dict[str, Any] | None = None
-    ) -> dict[str, Any]:
+    def graphql(self, query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
         self.calls.append(("GRAPHQL", query, variables))
         return self.responses.get(("GRAPHQL", query), {})  # type: ignore[no-any-return]
 
@@ -110,9 +108,7 @@ class TestGhCliClientRestPost:
             "subprocess.run",
             return_value=_completed(stdout=json.dumps(response)),
         ) as mock:
-            result = GhCliClient().rest_post(
-                "repos/o/r/issues/1/comments", {"body": "new"}
-            )
+            result = GhCliClient().rest_post("repos/o/r/issues/1/comments", {"body": "new"})
         assert result == response
         assert mock.call_args.kwargs.get("input") == json.dumps({"body": "new"})
 
@@ -169,9 +165,7 @@ class TestGhCliClientRestPatch:
             "subprocess.run",
             return_value=_completed(stdout=json.dumps(response)),
         ) as mock:
-            result = GhCliClient().rest_patch(
-                "repos/o/r/issues/comments/1", {"body": "updated"}
-            )
+            result = GhCliClient().rest_patch("repos/o/r/issues/comments/1", {"body": "updated"})
         assert result == response
         assert mock.call_args.kwargs.get("input") == json.dumps({"body": "updated"})
 
@@ -181,9 +175,7 @@ class TestGhCliClientRestPatch:
             return_value=_completed(rc=1, stderr="Server Error"),
         ):
             with pytest.raises(RuntimeError, match="gh api PATCH.*failed"):
-                GhCliClient().rest_patch(
-                    "repos/o/r/issues/comments/1", {"body": "x"}
-                )
+                GhCliClient().rest_patch("repos/o/r/issues/comments/1", {"body": "x"})
 
 
 # ---------------------------------------------------------------------------
@@ -220,9 +212,7 @@ class TestGhCliClientGraphql:
                 GhCliClient().graphql("query { viewer { login } }")
 
     def test_graphql_level_errors_raise(self):
-        response = json.dumps(
-            {"data": None, "errors": [{"message": "Not found"}]}
-        )
+        response = json.dumps({"data": None, "errors": [{"message": "Not found"}]})
         with patch("subprocess.run", return_value=_completed(stdout=response)):
             with pytest.raises(RuntimeError, match="GraphQL errors.*Not found"):
                 GhCliClient().graphql("query { ... }")

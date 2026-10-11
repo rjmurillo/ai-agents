@@ -71,8 +71,12 @@ def test_labels_apply_before_milestone(label_edit, code, milestone_edits):
         (_make_proc(returncode=1, stderr="edit boom"), 3, "ApiError", "failed: edit boom"),
         (_make_proc(returncode=1, stdout="from stdout"), 3, "ApiError", "failed: from stdout"),
         (subprocess.TimeoutExpired(cmd="gh", timeout=30), 3, "Timeout", "timed out after"),
-        (_make_proc(returncode=1, stderr="authentication required"), 4, "AuthError",
-         "failed: authentication required"),
+        (
+            _make_proc(returncode=1, stderr="authentication required"),
+            4,
+            "AuthError",
+            "failed: authentication required",
+        ),
     ],
     ids=["edit-fails", "edit-fails-stdout-only", "edit-times-out", "edit-auth-fails"],
 )

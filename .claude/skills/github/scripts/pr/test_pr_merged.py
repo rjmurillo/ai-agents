@@ -78,7 +78,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument(
-        "--pull-request", type=int, required=True, help="Pull request number",
+        "--pull-request",
+        type=int,
+        required=True,
+        help="Pull request number",
     )
     parser.add_argument(
         "--exit-zero-on-merged",
@@ -116,7 +119,8 @@ def main(argv: list[str] | None = None) -> int:
         error_and_exit(f"GraphQL query failed: {state.detail}", state.exit_code)
     if state.status is PrMergeStatus.NOT_FOUND:
         error_and_exit(
-            f"PR #{args.pull_request} not found in {owner}/{repo}.", 2,
+            f"PR #{args.pull_request} not found in {owner}/{repo}.",
+            2,
         )
 
     output = {

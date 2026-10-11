@@ -258,20 +258,21 @@ resolved_path = validate_path_within_repo(path)
 def _line_is_protected(line: str, in_yaml_frontmatter: bool) -> bool:
     if in_yaml_frontmatter:
         return True
-    if '`' in line:  # Inline code
+    if "`" in line:  # Inline code
         return True
-    if 'http://' in line or 'https://' in line:  # URLs
+    if "http://" in line or "https://" in line:  # URLs
         return True
     return False
 
+
 def remove_redundant_words(content: str, level: CompressionLevel) -> str:
-    lines = content.split('\n')
+    lines = content.split("\n")
     result_lines = []
     in_yaml_frontmatter = False
     frontmatter_seen = False
 
     for line in lines:
-        if stripped == '---':  # Track YAML boundaries
+        if stripped == "---":  # Track YAML boundaries
             if not frontmatter_seen:
                 in_yaml_frontmatter = True
                 frontmatter_seen = True

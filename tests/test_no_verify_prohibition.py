@@ -121,7 +121,7 @@ def _find_no_verify_violations() -> list[tuple[Path, int, str]]:
             # Find line number of --no-verify within the match.
             start = match.start()
             nv_offset = matched.index("--no-verify")
-            lineno = text[:start + nv_offset].count("\n") + 1
+            lineno = text[: start + nv_offset].count("\n") + 1
             line = text.splitlines()[lineno - 1].strip()
             # Avoid duplicate with per-line check.
             key = (path, lineno, line)
@@ -134,7 +134,7 @@ class TestTheDetectorItself:
     """Isolating controls: fire on violations, silent on allowed content."""
 
     def test_git_push_no_verify_same_line_is_caught(self) -> None:
-        text = 'git push origin main --no-verify'
+        text = "git push origin main --no-verify"
         assert _SHELL_NO_VERIFY.search(text) or _CONTINUATION_NO_VERIFY.search(text)
 
     def test_git_push_no_verify_continuation_is_caught(self) -> None:
@@ -142,9 +142,7 @@ class TestTheDetectorItself:
             'git push origin "${SHA}:refs/heads/${BRANCH}" \\\n'
             '  --force-with-lease="refs/heads/${BRANCH}:${SHA}" --no-verify'
         )
-        assert _CONTINUATION_NO_VERIFY.search(text), (
-            "continuation-line --no-verify not caught"
-        )
+        assert _CONTINUATION_NO_VERIFY.search(text), "continuation-line --no-verify not caught"
 
     def test_git_commit_no_verify_is_caught(self) -> None:
         assert _SHELL_NO_VERIFY.search('git commit -m "msg" --no-verify')
@@ -197,8 +195,7 @@ def test_no_instruction_doc_recommends_no_verify() -> None:
         return
 
     lines = "\n".join(
-        f"  {path.relative_to(REPO_ROOT)}:{lineno}: {line}"
-        for path, lineno, line in offenders
+        f"  {path.relative_to(REPO_ROOT)}:{lineno}: {line}" for path, lineno, line in offenders
     )
     raise AssertionError(
         f"Found {len(offenders)} git --no-verify command(s) in agent-facing "

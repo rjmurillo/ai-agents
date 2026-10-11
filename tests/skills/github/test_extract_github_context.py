@@ -1,6 +1,5 @@
 """Tests for extract_github_context.py."""
 
-
 import pytest
 
 
@@ -8,6 +7,7 @@ import pytest
 def _import_module():
     import importlib
     import sys
+
     mod_name = "extract_github_context"
     if mod_name in sys.modules:
         del sys.modules[mod_name]
@@ -17,18 +17,14 @@ def _import_module():
 class TestExtractGitHubContext:
     def test_pr_url(self, _import_module):
         mod = _import_module
-        result = mod._extract_context(
-            "Check https://github.com/owner/repo/pull/123"
-        )
+        result = mod._extract_context("Check https://github.com/owner/repo/pull/123")
         assert 123 in result["pr_numbers"]
         assert result["owner"] == "owner"
         assert result["repo"] == "repo"
 
     def test_issue_url(self, _import_module):
         mod = _import_module
-        result = mod._extract_context(
-            "See https://github.com/org/project/issues/456"
-        )
+        result = mod._extract_context("See https://github.com/org/project/issues/456")
         assert 456 in result["issue_numbers"]
         assert result["owner"] == "org"
         assert result["repo"] == "project"
@@ -65,10 +61,7 @@ class TestExtractGitHubContext:
 
     def test_multiple_urls(self, _import_module):
         mod = _import_module
-        text = (
-            "https://github.com/a/b/pull/1 and "
-            "https://github.com/a/b/issues/2"
-        )
+        text = "https://github.com/a/b/pull/1 and https://github.com/a/b/issues/2"
         result = mod._extract_context(text)
         assert 1 in result["pr_numbers"]
         assert 2 in result["issue_numbers"]

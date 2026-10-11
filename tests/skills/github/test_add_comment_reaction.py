@@ -34,6 +34,7 @@ _UNRESOLVED_STATE = {
 @pytest.fixture
 def _import_module():
     import importlib
+
     mod_name = "add_comment_reaction"
     if mod_name in sys.modules:
         del sys.modules[mod_name]
@@ -52,9 +53,9 @@ class TestAddCommentReaction:
                 "add_comment_reaction.query_review_comment_thread_state",
                 return_value=_UNRESOLVED_STATE,
             ),
-            patch("subprocess.run", return_value=make_completed_process(
-                stdout=json.dumps({"id": 1})
-            )) as run,
+            patch(
+                "subprocess.run", return_value=make_completed_process(stdout=json.dumps({"id": 1}))
+            ) as run,
         ):
             rc = mod.main(["--comment-id", "123", "--reaction", "eyes"])
         assert rc == 0
@@ -97,10 +98,18 @@ class TestAddCommentReaction:
             patch("add_comment_reaction.resolve_repo_params", return_value=_mock_repo()),
             patch("subprocess.run", side_effect=side_effect),
         ):
-            rc = mod.main([
-                "--comment-id", "1", "2", "3",
-                "--comment-type", "issue", "--reaction", "rocket",
-            ])
+            rc = mod.main(
+                [
+                    "--comment-id",
+                    "1",
+                    "2",
+                    "3",
+                    "--comment-type",
+                    "issue",
+                    "--reaction",
+                    "rocket",
+                ]
+            )
         assert rc == 3
         result = json.loads(capsys.readouterr().out)
         assert result["Success"] is False
@@ -152,11 +161,17 @@ class TestAddCommentReaction:
                 ],
             ),
         ):
-            rc = mod.main([
-                "--comment-id", "1", "2",
-                "--reaction", "eyes",
-                "--output-format", "json",
-            ])
+            rc = mod.main(
+                [
+                    "--comment-id",
+                    "1",
+                    "2",
+                    "--reaction",
+                    "eyes",
+                    "--output-format",
+                    "json",
+                ]
+            )
 
         assert rc == 3
         result = json.loads(capsys.readouterr().out)
@@ -172,9 +187,10 @@ class TestAddCommentReaction:
                 "add_comment_reaction.query_review_comment_thread_state",
                 return_value=_UNRESOLVED_STATE,
             ),
-            patch("subprocess.run", return_value=make_completed_process(
-                returncode=1, stdout="already reacted"
-            )),
+            patch(
+                "subprocess.run",
+                return_value=make_completed_process(returncode=1, stdout="already reacted"),
+            ),
         ):
             rc = mod.main(["--comment-id", "1", "--reaction", "+1"])
         assert rc == 0
@@ -218,14 +234,16 @@ class TestAddCommentReaction:
             ),
             patch("subprocess.run") as run,
         ):
-            rc = mod.main([
-                "--comment-id",
-                "99",
-                "--pull-request",
-                "42",
-                "--reaction",
-                "eyes",
-            ])
+            rc = mod.main(
+                [
+                    "--comment-id",
+                    "99",
+                    "--pull-request",
+                    "42",
+                    "--reaction",
+                    "eyes",
+                ]
+            )
         assert rc == 0
         run.assert_not_called()
         result = json.loads(capsys.readouterr().out)
@@ -243,14 +261,16 @@ class TestAddCommentReaction:
             ),
             patch("subprocess.run") as run,
         ):
-            rc = mod.main([
-                "--comment-id",
-                "99",
-                "--pull-request",
-                "7",
-                "--reaction",
-                "eyes",
-            ])
+            rc = mod.main(
+                [
+                    "--comment-id",
+                    "99",
+                    "--pull-request",
+                    "7",
+                    "--reaction",
+                    "eyes",
+                ]
+            )
         assert rc == 0
         run.assert_not_called()
         result = json.loads(capsys.readouterr().out)
@@ -267,14 +287,16 @@ class TestAddCommentReaction:
             ),
             patch("subprocess.run") as run,
         ):
-            rc = mod.main([
-                "--comment-id",
-                "99",
-                "--pull-request",
-                "42",
-                "--reaction",
-                "eyes",
-            ])
+            rc = mod.main(
+                [
+                    "--comment-id",
+                    "99",
+                    "--pull-request",
+                    "42",
+                    "--reaction",
+                    "eyes",
+                ]
+            )
         assert rc == 0
         run.assert_not_called()
         result = json.loads(capsys.readouterr().out)
@@ -295,14 +317,16 @@ class TestAddCommentReaction:
             ),
             patch("subprocess.run") as run,
         ):
-            rc = mod.main([
-                "--comment-id",
-                "99",
-                "--pull-request",
-                "42",
-                "--reaction",
-                "eyes",
-            ])
+            rc = mod.main(
+                [
+                    "--comment-id",
+                    "99",
+                    "--pull-request",
+                    "42",
+                    "--reaction",
+                    "eyes",
+                ]
+            )
         assert rc == 3
         run.assert_not_called()
         result = json.loads(capsys.readouterr().out)
@@ -330,14 +354,16 @@ class TestAddCommentReaction:
             patch("subprocess.run") as run,
         ):
             assert cached_triage_state["is_resolved"] is False
-            rc = mod.main([
-                "--comment-id",
-                "99",
-                "--pull-request",
-                "42",
-                "--reaction",
-                "eyes",
-            ])
+            rc = mod.main(
+                [
+                    "--comment-id",
+                    "99",
+                    "--pull-request",
+                    "42",
+                    "--reaction",
+                    "eyes",
+                ]
+            )
         assert rc == 0
         query_state.assert_called_once_with("o", "r", 99, 42)
         run.assert_not_called()

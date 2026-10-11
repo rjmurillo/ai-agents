@@ -18,12 +18,13 @@ from scripts.validation.checks_common import _resolve_default_base_ref
 
 class TestResolveDefaultBaseRef:
     def test_uses_gh_pr_base_when_verifiable(self) -> None:
-        with patch(
-            "scripts.validation.checks_common._gh_base_ref", return_value="main"
-        ), patch(
-            "scripts.validation.checks_common._run_subprocess",
-            return_value=(0, "", ""),
-        ) as mock_run:
+        with (
+            patch("scripts.validation.checks_common._gh_base_ref", return_value="main"),
+            patch(
+                "scripts.validation.checks_common._run_subprocess",
+                return_value=(0, "", ""),
+            ) as mock_run,
+        ):
             result = _resolve_default_base_ref(Path("/repo"))
         assert result == "main"
         # The first verify call targets the gh PR base.
@@ -36,21 +37,23 @@ class TestResolveDefaultBaseRef:
             ref = cmd[-1]
             return (0, "", "") if ref == "origin/main" else (1, "", "")
 
-        with patch(
-            "scripts.validation.checks_common._gh_base_ref", return_value=None
-        ), patch(
-            "scripts.validation.checks_common._run_subprocess", side_effect=fake_run
-        ) as mock_run:
+        with (
+            patch("scripts.validation.checks_common._gh_base_ref", return_value=None),
+            patch(
+                "scripts.validation.checks_common._run_subprocess", side_effect=fake_run
+            ) as mock_run,
+        ):
             result = _resolve_default_base_ref(Path("/repo"))
         assert result == "origin/main"
         requested = [c[0][0][-1] for c in mock_run.call_args_list]
         assert "@{u}" not in requested
 
     def test_returns_none_when_nothing_resolves(self) -> None:
-        with patch(
-            "scripts.validation.checks_common._gh_base_ref", return_value=None
-        ), patch(
-            "scripts.validation.checks_common._run_subprocess",
-            return_value=(1, "", ""),
+        with (
+            patch("scripts.validation.checks_common._gh_base_ref", return_value=None),
+            patch(
+                "scripts.validation.checks_common._run_subprocess",
+                return_value=(1, "", ""),
+            ),
         ):
             assert _resolve_default_base_ref(Path("/repo")) is None

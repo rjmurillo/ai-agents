@@ -141,11 +141,16 @@ def test_cli_returns_one_when_a_learning_is_weak(tmp_path):
     _write_session(tmp_path, {"workLog": ["did work"]})
 
     # Act
-    rc = main([
-        "--project-dir", str(tmp_path),
-        "--scope", "weak",
-        "--learning", "The thing was generally good",
-    ])
+    rc = main(
+        [
+            "--project-dir",
+            str(tmp_path),
+            "--scope",
+            "weak",
+            "--learning",
+            "The thing was generally good",
+        ]
+    )
 
     # Assert
     assert rc == 1
@@ -178,11 +183,16 @@ def test_integration_run_writes_conformant_artifact(tmp_path):
     _write_session(tmp_path, {"workLog": [{"step": 1, "action": "Shipped X", "outcome": "ok"}]})
 
     # Act
-    rc = main([
-        "--project-dir", str(tmp_path),
-        "--scope", "integration",
-        "--learning", "Pin git Actions to a SHA to block tag-hijack supply attacks",
-    ])
+    rc = main(
+        [
+            "--project-dir",
+            str(tmp_path),
+            "--scope",
+            "integration",
+            "--learning",
+            "Pin git Actions to a SHA to block tag-hijack supply attacks",
+        ]
+    )
 
     # Assert: exit zero, file written at the canonical path, headings present.
     assert rc == 0
@@ -219,11 +229,16 @@ def test_fill_mode_overwrites_skeleton(tmp_path):
     (tmp_path / ("." + "project-toolkit") / "sessions").mkdir(parents=True)
 
     # Act
-    rc = main([
-        "--project-dir", str(tmp_path),
-        "--scope", "2026-06-03",
-        "--fill", str(skeleton),
-    ])
+    rc = main(
+        [
+            "--project-dir",
+            str(tmp_path),
+            "--scope",
+            "2026-06-03",
+            "--fill",
+            str(skeleton),
+        ]
+    )
 
     # Assert: filled content replaces the skeleton per SKILL.md.
     assert rc == 0
@@ -243,11 +258,16 @@ def test_fill_mode_resolves_relative_path_from_project_dir(tmp_path):
     (tmp_path / ("." + "project-toolkit") / "sessions").mkdir(parents=True)
 
     # Act
-    rc = main([
-        "--project-dir", str(tmp_path),
-        "--scope", "2026-06-03",
-        "--fill", _artifact_relpath("retrospective", "2026-06-03-auto-retro.md"),
-    ])
+    rc = main(
+        [
+            "--project-dir",
+            str(tmp_path),
+            "--scope",
+            "2026-06-03",
+            "--fill",
+            _artifact_relpath("retrospective", "2026-06-03-auto-retro.md"),
+        ]
+    )
 
     # Assert
     assert rc == 0
@@ -264,11 +284,16 @@ def test_fill_mode_resolves_basename_from_retrospective_dir(tmp_path):
     (tmp_path / ("." + "project-toolkit") / "sessions").mkdir(parents=True)
 
     # Act
-    rc = main([
-        "--project-dir", str(tmp_path),
-        "--scope", "2026-06-03",
-        "--fill", "2026-06-03-auto-retro.md",
-    ])
+    rc = main(
+        [
+            "--project-dir",
+            str(tmp_path),
+            "--scope",
+            "2026-06-03",
+            "--fill",
+            "2026-06-03-auto-retro.md",
+        ]
+    )
 
     # Assert
     assert rc == 0
@@ -285,11 +310,16 @@ def test_fill_mode_rejects_filled_retrospective(tmp_path):
     (tmp_path / ("." + "project-toolkit") / "sessions").mkdir(parents=True)
 
     # Act
-    rc = main([
-        "--project-dir", str(tmp_path),
-        "--scope", "2026-06-03",
-        "--fill", _artifact_relpath("retrospective", "2026-06-03-auto-retro.md"),
-    ])
+    rc = main(
+        [
+            "--project-dir",
+            str(tmp_path),
+            "--scope",
+            "2026-06-03",
+            "--fill",
+            _artifact_relpath("retrospective", "2026-06-03-auto-retro.md"),
+        ]
+    )
 
     # Assert
     assert rc == 2
@@ -301,11 +331,16 @@ def test_fill_mode_rejects_missing_skeleton(tmp_path):
     _write_session(tmp_path, {"workLog": ["work"]})
 
     # Act
-    rc = main([
-        "--project-dir", str(tmp_path),
-        "--scope", "2026-06-03",
-        "--fill", _artifact_relpath("retrospective", "missing-auto-retro.md"),
-    ])
+    rc = main(
+        [
+            "--project-dir",
+            str(tmp_path),
+            "--scope",
+            "2026-06-03",
+            "--fill",
+            _artifact_relpath("retrospective", "missing-auto-retro.md"),
+        ]
+    )
 
     # Assert
     assert rc == 2
@@ -395,11 +430,16 @@ def test_cli_output_override_writes_to_explicit_path(tmp_path):
     target = tmp_path / "custom" / "my-retro.md"
 
     # Act
-    rc = main([
-        "--project-dir", str(tmp_path),
-        "--scope", "custom",
-        "--output", str(target),
-    ])
+    rc = main(
+        [
+            "--project-dir",
+            str(tmp_path),
+            "--scope",
+            "custom",
+            "--output",
+            str(target),
+        ]
+    )
 
     # Assert
     assert rc == 0
@@ -443,11 +483,16 @@ def test_fill_mode_artifact_root_accepts_project_style_relative_path(tmp_path, m
     skeleton.write_text("# Retrospective\n\n> UNFILLED SKELETON\n", encoding="utf-8")
 
     # Act
-    rc = main([
-        "--project-dir", str(tmp_path),
-        "--scope", "2026-06-03",
-        "--fill", _artifact_relpath("retrospective", "2026-06-03-auto-retro.md"),
-    ])
+    rc = main(
+        [
+            "--project-dir",
+            str(tmp_path),
+            "--scope",
+            "2026-06-03",
+            "--fill",
+            _artifact_relpath("retrospective", "2026-06-03-auto-retro.md"),
+        ]
+    )
 
     # Assert
     assert rc == 0
@@ -460,11 +505,16 @@ def test_cli_rejects_output_override_outside_project(tmp_path):
     target = tmp_path.parent / "outside-retro.md"
 
     # Act
-    rc = main([
-        "--project-dir", str(tmp_path),
-        "--scope", "escape",
-        "--output", str(target),
-    ])
+    rc = main(
+        [
+            "--project-dir",
+            str(tmp_path),
+            "--scope",
+            "escape",
+            "--output",
+            str(target),
+        ]
+    )
 
     # Assert
     assert rc == 2
@@ -477,11 +527,16 @@ def test_cli_rejects_relative_output_traversal(tmp_path):
     target = tmp_path.parent / "escape.md"
 
     # Act
-    rc = main([
-        "--project-dir", str(tmp_path),
-        "--scope", "escape",
-        "--output", "../escape.md",
-    ])
+    rc = main(
+        [
+            "--project-dir",
+            str(tmp_path),
+            "--scope",
+            "escape",
+            "--output",
+            "../escape.md",
+        ]
+    )
 
     # Assert
     assert rc == 2
@@ -495,11 +550,16 @@ def test_cli_rejects_fill_path_outside_project(tmp_path):
     outside.write_text("# Retrospective\n", encoding="utf-8")
 
     # Act
-    rc = main([
-        "--project-dir", str(tmp_path),
-        "--scope", "escape",
-        "--fill", str(outside),
-    ])
+    rc = main(
+        [
+            "--project-dir",
+            str(tmp_path),
+            "--scope",
+            "escape",
+            "--fill",
+            str(outside),
+        ]
+    )
 
     # Assert
     assert rc == 2
@@ -513,11 +573,16 @@ def test_cli_rejects_fill_path_inside_project_but_outside_retrospective(tmp_path
     target.write_text("# Existing project file\n", encoding="utf-8")
 
     # Act
-    rc = main([
-        "--project-dir", str(tmp_path),
-        "--scope", "escape",
-        "--fill", "README.md",
-    ])
+    rc = main(
+        [
+            "--project-dir",
+            str(tmp_path),
+            "--scope",
+            "escape",
+            "--fill",
+            "README.md",
+        ]
+    )
 
     # Assert
     assert rc == 2

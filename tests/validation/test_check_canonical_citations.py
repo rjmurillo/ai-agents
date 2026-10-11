@@ -80,9 +80,7 @@ def test_mirror_claim_with_path_passes(fake_repo: Path) -> None:
     _write_file(
         fake_repo,
         ".claude/hooks/cited.py",
-        '"""Pre-push guard.\n\n'
-        "Matches the regex in scripts/validate_session_json.py.\n"
-        '"""\n',
+        '"""Pre-push guard.\n\nMatches the regex in scripts/validate_session_json.py.\n"""\n',
     )
     violations = ccc.collect_violations(fake_repo)
     assert violations == [], f"unexpected: {violations}"
@@ -150,9 +148,7 @@ def test_bare_matches_claim_flagged(fake_repo: Path) -> None:
     _write_file(
         fake_repo,
         ".claude/hooks/bare.py",
-        '"""Pre-push guard.\n\n'
-        "Matches the canonical validator regex.\n"
-        '"""\n',
+        '"""Pre-push guard.\n\nMatches the canonical validator regex.\n"""\n',
     )
     violations = ccc.collect_violations(fake_repo)
     assert len(violations) == 1
@@ -242,8 +238,7 @@ def test_syntax_error_file_does_not_crash(fake_repo: Path) -> None:
     _write_file(
         fake_repo,
         ".claude/hooks/broken.py",
-        "# matches the something with a syntax error\n"
-        "def (((:\n",
+        "# matches the something with a syntax error\ndef (((:\n",
     )
     violations = ccc.collect_violations(fake_repo)
     # The top-of-file comment contains a mirror-claim with no path; the
@@ -360,9 +355,7 @@ def test_main_missing_repo_root_returns_two(
     assert rc == 2
 
 
-def test_main_no_scan_roots_skips(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_main_no_scan_roots_skips(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     """A repo-root without any of the scan roots emits SKIP and exits 0."""
     rc = ccc.main(["--repo-root", str(tmp_path)])
     assert rc == 0
@@ -462,8 +455,7 @@ def test_syntax_error_docstring_mirror_claim_flagged(fake_repo: Path) -> None:
     _write_file(
         fake_repo,
         ".claude/hooks/brokendoc.py",
-        '"""Matches the validator with no path here."""\n'
-        "def (((:\n",
+        '"""Matches the validator with no path here."""\ndef (((:\n',
     )
     violations = ccc.collect_violations(fake_repo)
     assert len(violations) == 1
@@ -476,8 +468,7 @@ def test_syntax_error_docstring_with_path_not_flagged(fake_repo: Path) -> None:
     _write_file(
         fake_repo,
         ".claude/hooks/okdoc.py",
-        '"""Matches scripts/validation/hook_contracts.py exactly."""\n'
-        "def (((:\n",
+        '"""Matches scripts/validation/hook_contracts.py exactly."""\ndef (((:\n',
     )
     violations = ccc.collect_violations(fake_repo)
     assert violations == []

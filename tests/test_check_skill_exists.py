@@ -71,9 +71,7 @@ class TestCheckSkillExists:
         result = check_skill_exists(skill_dir, "pr", "pr_context")
         assert result is True
 
-    def test_finds_existing_skill_substring_match(
-        self, skill_dir: Path
-    ) -> None:
+    def test_finds_existing_skill_substring_match(self, skill_dir: Path) -> None:
         """Returns True when skill with substring match exists."""
         result = check_skill_exists(skill_dir, "pr", "comment")
         assert result is True
@@ -88,9 +86,7 @@ class TestCheckSkillExists:
         result = check_skill_exists(skill_dir, "pr", "NonExistent")
         assert result is False
 
-    def test_returns_false_for_missing_operation_dir(
-        self, skill_dir: Path
-    ) -> None:
+    def test_returns_false_for_missing_operation_dir(self, skill_dir: Path) -> None:
         """Returns False when operation directory does not exist."""
         result = check_skill_exists(skill_dir, "milestone", "Create")
         assert result is False
@@ -116,9 +112,7 @@ class TestCheckSkillExists:
         result = check_skill_exists(skill_dir, "issue", "issue_context")
         assert result is True
 
-    def test_finds_skill_in_reactions_directory(
-        self, skill_dir: Path
-    ) -> None:
+    def test_finds_skill_in_reactions_directory(self, skill_dir: Path) -> None:
         """Can find skills in reactions directory."""
         result = check_skill_exists(skill_dir, "reactions", "reaction")
         assert result is True
@@ -194,22 +188,20 @@ class TestScriptIntegration:
         assert result.returncode == 0
         assert "===" in result.stdout or result.stdout == ""
 
-    def test_check_existing_skill(
-        self, script_path: Path, project_root: Path
-    ) -> None:
+    def test_check_existing_skill(self, script_path: Path, project_root: Path) -> None:
         """Checking for existing skill returns true."""
-        skill_path = (
-            project_root
-            / ".claude" / "skills" / "github" / "scripts" / "pr"
-        )
+        skill_path = project_root / ".claude" / "skills" / "github" / "scripts" / "pr"
         if not skill_path.exists():
             pytest.skip("Skill directory does not exist")
 
         result = subprocess.run(
             [
-                sys.executable, str(script_path),
-                "--operation", "pr",
-                "--action", "pr_context",
+                sys.executable,
+                str(script_path),
+                "--operation",
+                "pr",
+                "--action",
+                "pr_context",
             ],
             capture_output=True,
             text=True,
@@ -224,9 +216,12 @@ class TestScriptIntegration:
         """Checking for missing skill returns false with exit code 1."""
         result = subprocess.run(
             [
-                sys.executable, str(script_path),
-                "--operation", "pr",
-                "--action", "NonExistentSkillXYZ123",
+                sys.executable,
+                str(script_path),
+                "--operation",
+                "pr",
+                "--action",
+                "NonExistentSkillXYZ123",
             ],
             capture_output=True,
             text=True,
@@ -254,9 +249,11 @@ class TestScriptIntegration:
         """--list-available and --operation are mutually exclusive."""
         result = subprocess.run(
             [
-                sys.executable, str(script_path),
+                sys.executable,
+                str(script_path),
                 "--list-available",
-                "--operation", "pr",
+                "--operation",
+                "pr",
             ],
             capture_output=True,
             text=True,
@@ -306,7 +303,8 @@ class TestMainFunction:
 
         monkeypatch.setattr(check_skill_exists, "_PROJECT_ROOT", skill_dir)
         monkeypatch.setattr(
-            "sys.argv", ["check_skill_exists.py", "--list-available"],
+            "sys.argv",
+            ["check_skill_exists.py", "--list-available"],
         )
         result = check_skill_exists.main()
         assert result == 0
@@ -327,8 +325,10 @@ class TestMainFunction:
             "sys.argv",
             [
                 "check_skill_exists.py",
-                "--operation", "pr",
-                "--action", "pr_context",
+                "--operation",
+                "pr",
+                "--action",
+                "pr_context",
             ],
         )
         result = check_skill_exists.main()
@@ -350,8 +350,10 @@ class TestMainFunction:
             "sys.argv",
             [
                 "check_skill_exists.py",
-                "--operation", "pr",
-                "--action", "NonExistent",
+                "--operation",
+                "pr",
+                "--action",
+                "NonExistent",
             ],
         )
         result = check_skill_exists.main()
@@ -370,7 +372,8 @@ class TestMainFunction:
 
         monkeypatch.setattr(check_skill_exists, "_PROJECT_ROOT", skill_dir)
         monkeypatch.setattr(
-            "sys.argv", ["check_skill_exists.py", "--operation", "pr"],
+            "sys.argv",
+            ["check_skill_exists.py", "--operation", "pr"],
         )
         result = check_skill_exists.main()
         assert result == 1
@@ -389,7 +392,8 @@ class TestMainFunction:
         fake_root = tmp_path / "nonexistent"
         monkeypatch.setattr(check_skill_exists, "_PROJECT_ROOT", fake_root)
         monkeypatch.setattr(
-            "sys.argv", ["check_skill_exists.py", "--list-available"],
+            "sys.argv",
+            ["check_skill_exists.py", "--list-available"],
         )
         result = check_skill_exists.main()
         assert result == 1
@@ -407,7 +411,8 @@ class TestMainFunction:
 
         monkeypatch.setattr(check_skill_exists, "_PROJECT_ROOT", tmp_path)
         monkeypatch.setattr(
-            "sys.argv", ["check_skill_exists.py", "--list-available"],
+            "sys.argv",
+            ["check_skill_exists.py", "--list-available"],
         )
         result = check_skill_exists.main()
         assert result == 1
@@ -427,9 +432,12 @@ class TestMainFunction:
             "sys.argv",
             [
                 "check_skill_exists.py",
-                "--operation", "pr",
-                "--action", "pr_context",
-                "--project-root", str(skill_dir),
+                "--operation",
+                "pr",
+                "--action",
+                "pr_context",
+                "--project-root",
+                str(skill_dir),
             ],
         )
         result = check_skill_exists.main()

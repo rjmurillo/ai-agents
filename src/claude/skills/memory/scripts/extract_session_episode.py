@@ -1473,11 +1473,7 @@ def _dedupe_events(
             sha = match.group(1) if match else None
             if sha is not None:
                 dup_index = next(
-                    (
-                        idx
-                        for existing_sha, idx in commit_shas
-                        if _same_commit(sha, existing_sha)
-                    ),
+                    (idx for existing_sha, idx in commit_shas if _same_commit(sha, existing_sha)),
                     None,
                 )
                 if dup_index is not None:

@@ -242,9 +242,7 @@ def _run_security_review_direct(output_path: Path) -> int:
         return 0
     print("\nRunning security review...")
     sys.stdout.flush()
-    result = subprocess.run(
-        [sys.executable, str(security_script), "--", str(output_path)]
-    )
+    result = subprocess.run([sys.executable, str(security_script), "--", str(output_path)])
     if result.returncode != 0:
         print("ERROR: Security review FAILED.", file=sys.stderr)
         return 1

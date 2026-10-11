@@ -14,10 +14,7 @@ import sys
 from pathlib import Path
 
 # Add skill scripts to path for import
-_skill_scripts = (
-    Path(__file__).resolve().parent.parent.parent
-    / ".claude/skills/memory/scripts"
-)
+_skill_scripts = Path(__file__).resolve().parent.parent.parent / ".claude/skills/memory/scripts"
 sys.path.insert(0, str(_skill_scripts))
 
 from test_memory_size import main  # noqa: E402

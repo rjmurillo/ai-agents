@@ -393,7 +393,6 @@ def lint_payload(
     )
 
 
-
 def _scored(value: float = 8.0, confidence: float = 0.9) -> dict:
     return {"value": value, "confidence": confidence, "reasons": []}
 
@@ -417,9 +416,7 @@ def cq_file(path: str = "a.py", category: str = "authored", *, scored: bool = Tr
 
 
 def cq_payload(files: list[dict]) -> str:
-    return json.dumps(
-        {"files": files, "summary": {"file_count": len(files)}, "comparisons": []}
-    )
+    return json.dumps({"files": files, "summary": {"file_count": len(files)}, "comparisons": []})
 
 
 class TestAdaptLocalAxisVerdict:
@@ -446,9 +443,7 @@ class TestAdaptLocalAxisVerdict:
 
     def test_one_authored_file_beside_generated_ones_still_passes(self):
         """Negative control: the gate needs one scored file, not all of them."""
-        payload = cq_payload(
-            [cq_file("gen.ts", "generated", scored=False), cq_file()]
-        )
+        payload = cq_payload([cq_file("gen.ts", "generated", scored=False), cq_file()])
         assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "PASS"
 
     def test_missing_category_field_stays_unknown(self):
@@ -470,18 +465,12 @@ class TestAdaptLocalAxisVerdict:
         assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "UNKNOWN"
 
     def test_code_quality_non_integer_file_count_is_unknown(self):
-        payload = (
-            '{"files": [{"path": "a.py"}], "summary": {"file_count": "1"},'
-            ' "comparisons": []}'
-        )
+        payload = '{"files": [{"path": "a.py"}], "summary": {"file_count": "1"}, "comparisons": []}'
         assert adapt_local_axis_verdict("code-qualities-assessment", payload, 0) == "UNKNOWN"
 
     def test_code_quality_regressed_comparable_maps_to_fail(self):
         """SKILL.md:377 documents exit 10 as a gate failure that fails the PR."""
-        payload = (
-            '{"files": [{"path": "a.py"}], "summary": {"file_count": 1},'
-            ' "comparisons": []}'
-        )
+        payload = '{"files": [{"path": "a.py"}], "summary": {"file_count": 1}, "comparisons": []}'
         assert adapt_local_axis_verdict("code-qualities-assessment", payload, 10) == "FAIL"
 
     def test_code_quality_threshold_breach_maps_to_fail(self):
@@ -667,10 +656,7 @@ class TestAdaptLocalAxisVerdict:
         that it found no docs. A deletion-only Markdown diff, or one under an
         EXCLUDE_DIRS path, reaches that state without opening a changed file.
         """
-        payload = (
-            '{"gate_result": {"verdict": "PASS"},'
-            ' "assessment": {"documentation_files": []}}'
-        )
+        payload = '{"gate_result": {"verdict": "PASS"}, "assessment": {"documentation_files": []}}'
         assert adapt_local_axis_verdict("doc-accuracy", payload, 0) == "UNKNOWN"
 
     def test_doc_accuracy_pass_without_an_assessment_block_is_unknown(self):
@@ -836,9 +822,7 @@ class TestAdaptLocalAxisVerdict:
         assert adapt_local_axis_verdict("taste-lints", payload, 0) == "PASS"
 
     def test_taste_lints_missing_category_map_stays_unknown(self):
-        payload = json.dumps(
-            {"files_scanned": 3, "error_count": 0, "warning_count": 0}
-        )
+        payload = json.dumps({"files_scanned": 3, "error_count": 0, "warning_count": 0})
         assert adapt_local_axis_verdict("taste-lints", payload, 0) == "UNKNOWN"
 
     def test_golden_principles_needs_no_category_map(self):

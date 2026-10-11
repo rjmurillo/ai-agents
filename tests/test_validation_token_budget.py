@@ -79,7 +79,7 @@ class TestEstimateTokenCount:
 
     def test_code_like_text_increases_estimate(self) -> None:
         prose = "This is a simple sentence about testing."
-        code = 'Get-Content -Path $file | Where-Object {$_.Length -gt 0}'
+        code = "Get-Content -Path $file | Where-Object {$_.Length -gt 0}"
         prose_count = estimate_token_count(prose)
         code_count = estimate_token_count(code)
         # Code should have higher token density
@@ -191,13 +191,15 @@ class TestMain:
         assert result == 2
 
     def test_valid_empty_repo(
-        self, tmp_path: Path,
+        self,
+        tmp_path: Path,
     ) -> None:
         result = main(["--path", str(tmp_path)])
         assert result == 0
 
     def test_within_budget(
-        self, tmp_path: Path,
+        self,
+        tmp_path: Path,
     ) -> None:
         agents_dir = tmp_path / ".agents"
         agents_dir.mkdir()

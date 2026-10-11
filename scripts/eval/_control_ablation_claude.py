@@ -29,7 +29,6 @@ class HarnessFailureError(RuntimeError):
     """A live run's Claude invocation could not produce a usable record (AC-8)."""
 
 
-
 # ---------------------------------------------------------------------------
 # Claude invocation (DESIGN-044 "Run sequence (live)", step 2)
 # ---------------------------------------------------------------------------

@@ -71,9 +71,7 @@ class StyleConfig:
 class ScanResult:
     """Scan result container."""
 
-    scan_timestamp: str = field(
-        default_factory=lambda: datetime.now(UTC).isoformat()
-    )
+    scan_timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     files_scanned: int = 0
     violations: list = field(default_factory=list)
     suppressed: list = field(default_factory=list)
@@ -153,8 +151,7 @@ def match_pattern(pattern: str, file_path: str) -> bool:
             alternatives = match.group(1).split(",")
             base = pattern[: match.start()] + "{}" + pattern[match.end() :]
             return any(
-                match_pattern(base.replace("{}", alt.strip()), file_path)
-                for alt in alternatives
+                match_pattern(base.replace("{}", alt.strip()), file_path) for alt in alternatives
             )
 
     return fnmatch.fnmatch(file_name, pattern) or fnmatch.fnmatch(file_path, pattern)
@@ -182,9 +179,7 @@ def get_config_for_file(file_path: Path, editorconfigs: list) -> StyleConfig:
                 if "charset" in props:
                     config.charset = props["charset"]
                 if "trim_trailing_whitespace" in props:
-                    config.trim_trailing_whitespace = props[
-                        "trim_trailing_whitespace"
-                    ] == "true"
+                    config.trim_trailing_whitespace = props["trim_trailing_whitespace"] == "true"
                 if "insert_final_newline" in props:
                     config.insert_final_newline = props["insert_final_newline"] == "true"
 
@@ -214,9 +209,7 @@ def detect_line_ending(content: bytes) -> str:
         return "lf"
 
 
-def check_line_endings(
-    file_path: Path, content: bytes, config: StyleConfig
-) -> list:
+def check_line_endings(file_path: Path, content: bytes, config: StyleConfig) -> list:
     """Check line endings against config."""
     violations: list[Violation] = []
 
@@ -241,9 +234,7 @@ def check_line_endings(
     return violations
 
 
-def check_indentation(
-    file_path: Path, lines: list, config: StyleConfig
-) -> list:
+def check_indentation(file_path: Path, lines: list, config: StyleConfig) -> list:
     """Check indentation style and size."""
     violations: list[Violation] = []
 
@@ -324,9 +315,7 @@ def check_charset(file_path: Path, content: bytes, config: StyleConfig) -> list:
     return violations
 
 
-def check_trailing_whitespace(
-    file_path: Path, lines: list, config: StyleConfig
-) -> list:
+def check_trailing_whitespace(file_path: Path, lines: list, config: StyleConfig) -> list:
     """Check for trailing whitespace."""
     violations: list[Violation] = []
 
@@ -349,9 +338,7 @@ def check_trailing_whitespace(
     return violations
 
 
-def check_final_newline(
-    file_path: Path, content: str, config: StyleConfig
-) -> list:
+def check_final_newline(file_path: Path, content: str, config: StyleConfig) -> list:
     """Check for final newline."""
     violations: list[Violation] = []
 
@@ -375,9 +362,7 @@ def check_final_newline(
     return violations
 
 
-def check_csharp_async_naming(
-    file_path: Path, content: str, config: StyleConfig
-) -> list:
+def check_csharp_async_naming(file_path: Path, content: str, config: StyleConfig) -> list:
     """Check C# async method naming conventions."""
     violations: list[Violation] = []
 
@@ -613,16 +598,12 @@ def format_sarif_output(result: ScanResult) -> str:
                             {
                                 "id": "STYLE-001",
                                 "name": "LineEndingViolation",
-                                "shortDescription": {
-                                    "text": "Line ending mismatch"
-                                },
+                                "shortDescription": {"text": "Line ending mismatch"},
                             },
                             {
                                 "id": "STYLE-002",
                                 "name": "IndentationViolation",
-                                "shortDescription": {
-                                    "text": "Indentation style mismatch"
-                                },
+                                "shortDescription": {"text": "Indentation style mismatch"},
                             },
                             {
                                 "id": "STYLE-003",
@@ -632,23 +613,17 @@ def format_sarif_output(result: ScanResult) -> str:
                             {
                                 "id": "STYLE-004",
                                 "name": "TrailingWhitespace",
-                                "shortDescription": {
-                                    "text": "Trailing whitespace"
-                                },
+                                "shortDescription": {"text": "Trailing whitespace"},
                             },
                             {
                                 "id": "STYLE-005",
                                 "name": "FinalNewline",
-                                "shortDescription": {
-                                    "text": "Missing final newline"
-                                },
+                                "shortDescription": {"text": "Missing final newline"},
                             },
                             {
                                 "id": "STYLE-010",
                                 "name": "AsyncNamingConvention",
-                                "shortDescription": {
-                                    "text": "Async method naming"
-                                },
+                                "shortDescription": {"text": "Async method naming"},
                             },
                         ],
                     }
@@ -680,9 +655,7 @@ def format_sarif_output(result: ScanResult) -> str:
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Check code style against editorconfig rules"
-    )
+    parser = argparse.ArgumentParser(description="Check code style against editorconfig rules")
     parser.add_argument(
         "--target",
         default=".",
@@ -724,27 +697,20 @@ def main():
         # Validate --target
         target_path = os.path.abspath(args.target)
         if not target_path.startswith(allowed_base):
-            raise ValueError(
-                f"Path traversal attempt detected in --target: {args.target}"
-            )
+            raise ValueError(f"Path traversal attempt detected in --target: {args.target}")
 
         # Validate --output if provided
         if args.output:
             output_path = os.path.abspath(args.output)
             if not output_path.startswith(allowed_base):
-                raise ValueError(
-                    f"Path traversal attempt detected in --output: "
-                    f"{args.output}"
-                )
+                raise ValueError(f"Path traversal attempt detected in --output: {args.output}")
 
         # Validate positional files
         if args.files:
             for file in args.files:
                 file_path = os.path.abspath(file)
                 if not file_path.startswith(allowed_base):
-                    raise ValueError(
-                        f"Path traversal attempt detected in file: {file}"
-                    )
+                    raise ValueError(f"Path traversal attempt detected in file: {file}")
     except ValueError as e:
         print(f"ERROR: {e}", file=sys.stderr)
         sys.exit(EXIT_ERROR)

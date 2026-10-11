@@ -69,9 +69,7 @@ class Recorder:
             self._on_call(record)
         if self._side_effect is not None:
             raise self._side_effect
-        return subprocess.CompletedProcess(
-            argv, self._returncode, self._stdout, self._stderr
-        )
+        return subprocess.CompletedProcess(argv, self._returncode, self._stdout, self._stderr)
 
     @property
     def argv(self) -> list[str]:
@@ -83,9 +81,7 @@ def install_runner(monkeypatch: pytest.MonkeyPatch, recorder: Recorder) -> None:
     monkeypatch.setattr(_cli_transport.subprocess, "run", recorder)
 
 
-def claude_payload(
-    model: str = "claude-haiku-4-5-20251001", result: str = "PONG"
-) -> str:
+def claude_payload(model: str = "claude-haiku-4-5-20251001", result: str = "PONG") -> str:
     """Build the `--output-format json` envelope the Claude CLI emits."""
     return json.dumps(
         {
@@ -103,8 +99,6 @@ def write_last_message(text: str) -> Callable[[dict[str, Any]], None]:
 
     def _on_call(record: dict[str, Any]) -> None:
         argv = record["argv"]
-        Path(argv[argv.index("--output-last-message") + 1]).write_text(
-            text, encoding="utf-8"
-        )
+        Path(argv[argv.index("--output-last-message") + 1]).write_text(text, encoding="utf-8")
 
     return _on_call

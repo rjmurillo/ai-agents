@@ -60,9 +60,7 @@ class ClassificationCache:
         self._cache.move_to_end(key)
         return entry.result
 
-    def put(
-        self, comment_body: str, result: LLMClassificationResult
-    ) -> None:
+    def put(self, comment_body: str, result: LLMClassificationResult) -> None:
         """Store a classification result in cache."""
         key = self._fingerprint(comment_body)
 

@@ -160,9 +160,7 @@ class TestAnUnresolvableHeadIsNotProofOfAnEmptyRepository:
         assert problem is None
         assert previous == {"files": {"a.md": 1}}
 
-    def test_a_healthy_repository_still_reads_the_committed_floor(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_healthy_repository_still_reads_the_committed_floor(self, tmp_path: Path) -> None:
         """The control. Without it the two tests above pass on a guard that
         refuses everything, which would prove nothing about the attack."""
         root = _repo(tmp_path)
@@ -300,9 +298,7 @@ class TestAFloorIsBuiltOnlyFromJsonIntegers:
         assert sections is None
         assert problem is not None and "not an integer" in problem
 
-    def test_a_fractional_count_is_refused_rather_than_truncated(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_fractional_count_is_refused_rather_than_truncated(self, tmp_path: Path) -> None:
         root = _repo(tmp_path)
 
         sections, problem = self._floor(root, {"files": {"a.md": 4.9}})

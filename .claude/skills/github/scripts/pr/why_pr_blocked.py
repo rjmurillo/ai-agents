@@ -238,7 +238,7 @@ def _check_name(node: dict) -> str:
 def _workflow_key(node: dict) -> tuple[int, int] | None:
     if node.get("__typename") != "CheckRun":
         return None
-    workflow_run = ((node.get("checkSuite") or {}).get("workflowRun") or {})
+    workflow_run = (node.get("checkSuite") or {}).get("workflowRun") or {}
     run_number = workflow_run.get("databaseId")
     if run_number is None:
         run_number = extract_workflow_run_number(node.get("detailsUrl"))
@@ -296,19 +296,9 @@ def _classify_same_name_rows(nodes: list[dict]) -> str:
         )
     ]
     if any(is_required for _, _, is_required in candidates):
-        candidates = [
-            candidate for candidate in candidates
-            if candidate[2]
-        ]
-    known = [
-        (key, state)
-        for key, state, _ in candidates
-        if key is not None
-    ]
-    unknown_states = [
-        state for key, state, _ in candidates
-        if key is None
-    ]
+        candidates = [candidate for candidate in candidates if candidate[2]]
+    known = [(key, state) for key, state, _ in candidates if key is not None]
+    unknown_states = [state for key, state, _ in candidates if key is None]
     if known:
         latest_key = max(key for key, _ in known)
         current_states = [state for key, state in known if key == latest_key]
@@ -344,11 +334,7 @@ def _fetch_remaining_contexts(
         )
         repository = data.get("repository")
         commit_obj = repository.get("object") if isinstance(repository, dict) else None
-        rollup = (
-            commit_obj.get("statusCheckRollup")
-            if isinstance(commit_obj, dict)
-            else None
-        )
+        rollup = commit_obj.get("statusCheckRollup") if isinstance(commit_obj, dict) else None
         contexts = rollup.get("contexts") if isinstance(rollup, dict) else None
         if not isinstance(contexts, dict) or "pageInfo" not in contexts:
             return nodes, False
@@ -382,11 +368,7 @@ def _fetch_remaining_threads(
             },
         )
         repository = data.get("repository")
-        pr = (
-            repository.get("pullRequest")
-            if isinstance(repository, dict)
-            else None
-        )
+        pr = repository.get("pullRequest") if isinstance(repository, dict) else None
         threads = pr.get("reviewThreads") if isinstance(pr, dict) else None
         if not isinstance(threads, dict) or "pageInfo" not in threads:
             return nodes, False
@@ -416,7 +398,7 @@ def fetch_pr_data(owner: str, repo: str, pr_number: int) -> dict:
     rollup_nodes: list[dict] = []
     overall_state = "UNKNOWN"
     if commits:
-        commit_obj = (commits[0].get("commit") or {})
+        commit_obj = commits[0].get("commit") or {}
         rollup = commit_obj.get("statusCheckRollup") or {}
         overall_state = rollup.get("state", "UNKNOWN")
         contexts = rollup.get("contexts") or {}
@@ -490,12 +472,8 @@ def diagnose(
         for name, name_nodes in nodes_by_name.items()
         if name in required_names
     }
-    failing_required = sorted(
-        name for name, state in states_by_name.items() if state == "failing"
-    )
-    pending_required = sorted(
-        name for name, state in states_by_name.items() if state == "pending"
-    )
+    failing_required = sorted(name for name, state in states_by_name.items() if state == "failing")
+    pending_required = sorted(name for name, state in states_by_name.items() if state == "pending")
     indeterminate_required = sorted(
         name for name, state in states_by_name.items() if state == "unknown"
     )
@@ -507,8 +485,7 @@ def diagnose(
 
     thread_nodes = pr_data.get("ThreadNodes") or []
     unresolved_count = sum(
-        1 for t in thread_nodes
-        if not t.get("isResolved") and not t.get("isOutdated")
+        1 for t in thread_nodes if not t.get("isResolved") and not t.get("isOutdated")
     )
 
     return {
@@ -531,13 +508,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument(
-        "--pull-request", type=int, required=True,
+        "--pull-request",
+        type=int,
+        required=True,
         help="PR number",
     )
     parser.add_argument(
-        "--base-branch", default=None,
+        "--base-branch",
+        default=None,
         help="Base branch to read the ruleset from (default: PR base branch). "
-             "Pass empty string to skip ruleset fetch.",
+        "Pass empty string to skip ruleset fetch.",
     )
     add_output_format_arg(parser)
     return parser
@@ -606,11 +586,7 @@ def main(argv: list[str] | None = None) -> int:
     unresolved = result["UnresolvedThreads"]
 
     has_hard_blocker = bool(
-        missing
-        or failing
-        or indeterminate
-        or unresolved
-        or result["MergeStateStatus"] == "DIRTY"
+        missing or failing or indeterminate or unresolved or result["MergeStateStatus"] == "DIRTY"
     )
     has_blocker = has_hard_blocker or bool(pending)
     number = args.pull_request

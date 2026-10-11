@@ -152,4 +152,3 @@ def test_tool_grep_skips_unreadable_file(tmp_path: Path) -> None:
         pytest.skip("running as root; chmod 0 does not deny root read access")
     assert "readable.py:1:needle too" in result
     assert "denied.py" not in result
-

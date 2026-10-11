@@ -42,9 +42,7 @@ def _git(repo_root: Path, args: list[str]) -> tuple[int, str, str]:
 
 def _head_tracked_paths(repo_root: Path) -> set[str] | None:
     """Return the set of paths tracked at HEAD, or None on git failure."""
-    exit_code, stdout, _stderr = _git(
-        repo_root, ["ls-tree", "-r", "-z", "--name-only", "HEAD"]
-    )
+    exit_code, stdout, _stderr = _git(repo_root, ["ls-tree", "-r", "-z", "--name-only", "HEAD"])
     if exit_code != 0:
         return None
     return {path for path in stdout.split("\0") if path}

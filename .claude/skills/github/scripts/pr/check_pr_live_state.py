@@ -189,9 +189,11 @@ def _query_live_pr(
         duration_ms = int((time.monotonic() - op_start) * 1000)
         if "Could not resolve" in msg:
             logger.warning(
-                "op=live_state_failed pr=%d owner=%s repo=%s "
-                "reason=pr_not_found duration_ms=%d",
-                pr_number, owner, repo, duration_ms,
+                "op=live_state_failed pr=%d owner=%s repo=%s reason=pr_not_found duration_ms=%d",
+                pr_number,
+                owner,
+                repo,
+                duration_ms,
             )
             _emit_error(
                 f"PR #{pr_number} not found in {owner}/{repo}",
@@ -205,7 +207,11 @@ def _query_live_pr(
         logger.warning(
             "op=live_state_failed pr=%d owner=%s repo=%s "
             "reason=graphql_error duration_ms=%d error=%s",
-            pr_number, owner, repo, duration_ms, safe_log_str(msg),
+            pr_number,
+            owner,
+            repo,
+            duration_ms,
+            safe_log_str(msg),
         )
         _emit_error(
             f"Failed to query PR live state: {msg}",
@@ -221,9 +227,11 @@ def _query_live_pr(
     if pr is None:
         duration_ms = int((time.monotonic() - op_start) * 1000)
         logger.warning(
-            "op=live_state_failed pr=%d owner=%s repo=%s "
-            "reason=pr_not_found duration_ms=%d",
-            pr_number, owner, repo, duration_ms,
+            "op=live_state_failed pr=%d owner=%s repo=%s reason=pr_not_found duration_ms=%d",
+            pr_number,
+            owner,
+            repo,
+            duration_ms,
         )
         _emit_error(
             f"PR #{pr_number} not found in {owner}/{repo}",
@@ -249,11 +257,7 @@ def _identity_mismatches(
         ("base ref", expected_base_ref, pr.get("baseRefName")),
         ("base SHA", expected_base_sha, pr.get("baseRefOid")),
     )
-    return [
-        label
-        for label, expected, actual in comparisons
-        if expected and expected != actual
-    ]
+    return [label for label, expected, actual in comparisons if expected and expected != actual]
 
 
 def parse_git_cherry(stdout: str) -> dict[str, Any]:
@@ -321,14 +325,20 @@ def _fetch_base(base_branch: str) -> None:
     """
     remote_base_ref = f"refs/remotes/origin/{base_branch}"
     try:
-        _run_git([
-            "git", "fetch", "--quiet", "origin",
-            f"+refs/heads/{base_branch}:{remote_base_ref}",
-        ])
+        _run_git(
+            [
+                "git",
+                "fetch",
+                "--quiet",
+                "origin",
+                f"+refs/heads/{base_branch}:{remote_base_ref}",
+            ]
+        )
     except (subprocess.SubprocessError, OSError) as exc:
         logger.warning(
             "op=live_state_fetch_failed base=%s err=%s",
-            base_branch, safe_log_str(str(exc)),
+            base_branch,
+            safe_log_str(str(exc)),
         )
         # Continue: cherry against whatever origin/<base> we have.
 
@@ -351,13 +361,15 @@ def _fetch_pr_head(pr_number: int) -> str | None:
     except (subprocess.SubprocessError, OSError) as exc:
         logger.warning(
             "op=live_state_head_fetch_failed pr=%d err=%s",
-            pr_number, safe_log_str(str(exc)),
+            pr_number,
+            safe_log_str(str(exc)),
         )
         return None
     if result.returncode != 0:
         logger.warning(
             "op=live_state_head_fetch_nonzero rc=%d pr=%d stderr=%s",
-            result.returncode, pr_number,
+            result.returncode,
+            pr_number,
             safe_log_str((result.stderr or "")[:200]),
         )
         return None
@@ -399,7 +411,8 @@ def is_superseded_by_base(
     if head_ref is None:
         logger.warning(
             "op=live_state_head_unresolved base=%s pr=%d",
-            base_branch, pr_number,
+            base_branch,
+            pr_number,
         )
         return _probe_inconclusive(head_unresolved=True)
 
@@ -410,14 +423,18 @@ def is_superseded_by_base(
     except (subprocess.SubprocessError, OSError) as exc:
         logger.warning(
             "op=live_state_cherry_failed base=%s pr=%d err=%s",
-            base_branch, pr_number, safe_log_str(str(exc)),
+            base_branch,
+            pr_number,
+            safe_log_str(str(exc)),
         )
         return _probe_inconclusive()
 
     if result.returncode != 0:
         logger.warning(
             "op=live_state_cherry_nonzero rc=%d base=%s pr=%d stderr=%s",
-            result.returncode, base_branch, pr_number,
+            result.returncode,
+            base_branch,
+            pr_number,
             safe_log_str((result.stderr or "")[:200]),
         )
         return _probe_inconclusive()
@@ -522,7 +539,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument(
-        "--pull-request", type=int, required=True, help="Pull request number",
+        "--pull-request",
+        type=int,
+        required=True,
+        help="Pull request number",
     )
     parser.add_argument(
         "--skip-fetch",
@@ -640,7 +660,8 @@ def main(argv: list[str] | None = None) -> int:
         "head_sha": pr.get("headRefOid"),
         "base_ref": pr.get("baseRefName"),
         "base_sha": pr.get("baseRefOid"),
-        "superseded_by_base": supersession or {
+        "superseded_by_base": supersession
+        or {
             "pr_commits": 0,
             "superseded_commits": 0,
             "fully_superseded": False,
@@ -653,16 +674,20 @@ def main(argv: list[str] | None = None) -> int:
     logger.info(
         "op=live_state pr=%d owner=%s repo=%s state=%s action=%s "
         "fully_superseded=%s duration_ms=%d",
-        args.pull_request, owner, repo, pr.get("state"), verdict["action"],
-        (supersession or {}).get("fully_superseded"), duration_ms,
+        args.pull_request,
+        owner,
+        repo,
+        pr.get("state"),
+        verdict["action"],
+        (supersession or {}).get("fully_superseded"),
+        duration_ms,
     )
 
     write_skill_output(
         output,
         output_format=output_format,
         human_summary=(
-            f"PR #{args.pull_request} live-state: "
-            f"{verdict['action']} ({verdict['reason']})"
+            f"PR #{args.pull_request} live-state: {verdict['action']} ({verdict['reason']})"
         ),
         status="PASS" if verdict["action"] == "ACT" else "WARNING",
         script_name=_SCRIPT_NAME,

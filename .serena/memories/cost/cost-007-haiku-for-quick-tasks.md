@@ -57,9 +57,5 @@
 **Pattern**:
 ```python
 # For simple tasks
-Task(
-    subagent_type="implementer",
-    prompt="Run markdownlint --fix on all .md files",
-    model="haiku"
-)
+Task(subagent_type="implementer", prompt="Run markdownlint --fix on all .md files", model="haiku")
 ```

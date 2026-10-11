@@ -48,9 +48,7 @@ finally:
     if _path_added and str(EVAL_DIR) in sys.path:
         sys.path.remove(str(EVAL_DIR))
 
-MalformedProviderMetadataError = sys.modules[
-    "_eval_common"
-].MalformedProviderMetadataError
+MalformedProviderMetadataError = sys.modules["_eval_common"].MalformedProviderMetadataError
 
 
 # ---------------------------------------------------------------------------
@@ -259,6 +257,7 @@ class TestAggregateVerdicts:
         ]
         summary = eval_mod.aggregate(scenarios)
         assert summary["per_mechanism"]["description"]["graded_count"] == 1
+
 
 class TestRunProvenance:
     def test_build_run_provenance_contains_required_keys(self, tmp_path):
@@ -1263,9 +1262,7 @@ class TestJudgeSampleReduction:
 
         monkeypatch.setattr(eval_mod, "_call_api", fake_call_api)
 
-        with pytest.raises(
-            MalformedProviderMetadataError, match="malformed response fingerprint"
-        ):
+        with pytest.raises(MalformedProviderMetadataError, match="malformed response fingerprint"):
             eval_mod.eval_one_scenario(
                 "key",
                 self._rule(),
@@ -1300,9 +1297,7 @@ class TestJudgeSampleReduction:
         monkeypatch.setattr(eval_mod, "_call_api", fake_call_api)
         monkeypatch.setattr(eval_mod, "score_response", fake_score)
 
-        with pytest.raises(
-            MalformedProviderMetadataError, match="malformed judge fingerprint"
-        ):
+        with pytest.raises(MalformedProviderMetadataError, match="malformed judge fingerprint"):
             eval_mod.eval_one_scenario(
                 "key",
                 self._rule(),
@@ -1353,10 +1348,7 @@ class TestJudgeSampleReduction:
             judge_reducer="median",
         )
 
-        assert {
-            data["system_fingerprint"]
-            for data in result["mechanisms"].values()
-        } == {"fp-4123"}
+        assert {data["system_fingerprint"] for data in result["mechanisms"].values()} == {"fp-4123"}
 
     def test_eval_one_scenario_persists_failed_sample_without_reducing_it(self, monkeypatch):
         monkeypatch.setattr(eval_mod, "RATE_LIMIT_SLEEP_SEC", 0)
@@ -1408,7 +1400,6 @@ class TestJudgeSampleReduction:
         assert full["scores"]["judge_failed"] is True
         assert full["scores"]["graded_sample_count"] == 2
         assert full["scores"]["failed_sample_count"] == 1
-
 
     def test_dry_run_counts_repeated_judge_calls(self, tmp_path, capsys):
         rule_path = REPO_ROOT / ".claude" / "rules" / "working-with-legacy-code.md"
@@ -1609,9 +1600,7 @@ class TestJudgeFingerprintPolicy:
         with pytest.raises(RuntimeError, match="non-string system_fingerprint"):
             self._score(monkeypatch, malformed)
 
-    def test_a_string_judge_fingerprint_is_recorded(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_a_string_judge_fingerprint_is_recorded(self, monkeypatch: pytest.MonkeyPatch) -> None:
         result = self._score(monkeypatch, "fp-4123")
         assert result["judge_system_fingerprint"] == "fp-4123"
 
@@ -2842,9 +2831,7 @@ class TestDryRunCostBasis:
         assert "Total calls planned: 36" in usd
 
     @pytest.mark.parametrize("value", ["GitHub-Models", "  github  ", "GITHUB"])
-    def test_the_basis_follows_the_transport_s_own_normalization(
-        self, monkeypatch, capsys, value
-    ):
+    def test_the_basis_follows_the_transport_s_own_normalization(self, monkeypatch, capsys, value):
         """These all route to GitHub Models, so none of them bills in dollars.
 
         Deferring to cost_basis() is what makes this true without a second
@@ -2869,6 +2856,8 @@ class TestDryRunCostBasis:
         out = capsys.readouterr().out
         assert "Total calls planned: 0" in out
         assert "$" not in out
+
+
 _ARCHIVE_DIR = (
     REPO_ROOT
     / ".project-toolkit"
@@ -4655,9 +4644,7 @@ class TestRawJudgeResponseNoTruncation:
         assert result["raw_judge_response"].startswith("  ")
         assert result["raw_judge_response"].endswith("  ")
 
-    def test_non_dict_path_preserves_raw_whitespace(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_non_dict_path_preserves_raw_whitespace(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Non-dict branch stores raw, not stripped text."""
         payload_with_ws = "  [1, 2, 3]  "
         result = _score_response_with(monkeypatch, payload_with_ws)

@@ -230,7 +230,6 @@ class TestResolveImporter:
         assert resolution.is_configured is False
 
 
-
 class TestImporterReachesSubprocess:
     """Prove the resolved path is what gets executed, not just what gets resolved.
 
@@ -341,4 +340,3 @@ class TestVanishedImporterUsesStoredClassification:
         result = _import_mem.main([], env={}, home=tmp_path)
 
         assert result == 1
-

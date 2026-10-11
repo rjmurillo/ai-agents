@@ -65,7 +65,7 @@ def run_mutants(repo_root: Path) -> None:
     mutants = [
         (
             "break type-ignore regex to never match",
-            b'_TYPE_IGNORE_RE = re.compile(r"#\\s*type:\\s*ignore(?:\\[[^\\]]*\\])?")' ,
+            b'_TYPE_IGNORE_RE = re.compile(r"#\\s*type:\\s*ignore(?:\\[[^\\]]*\\])?")',
             b'_TYPE_IGNORE_RE = re.compile(r"MUTANT_WILL_NEVER_MATCH_XYZZY")',
         ),
         (
@@ -104,9 +104,7 @@ def run_mutants(repo_root: Path) -> None:
         try:
             rc = _run_tests(repo_root)
             if rc == 0:
-                failures.append(
-                    f"SURVIVING MUTANT: '{name}' - tests passed, mutation undetected"
-                )
+                failures.append(f"SURVIVING MUTANT: '{name}' - tests passed, mutation undetected")
                 print("  FAIL: tests did not detect the mutation")
             else:
                 print(f"  PASS: tests caught the mutation (exit {rc})")

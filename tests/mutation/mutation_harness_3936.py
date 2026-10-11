@@ -14,6 +14,7 @@ Rules:
 - Restore byte-identically and assert after every mutant.
 - Outcomes: DEAD (tests caught it), SURVIVED (tests missed it), DID-NOT-APPLY (pattern absent).
 """
+
 # taste-lint: ignore file-size
 from __future__ import annotations
 
@@ -29,11 +30,7 @@ from scripts.testing.mutation_workspace import (
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _TARGET_REL = (
-    Path(".claude")
-    / "skills"
-    / "context-optimizer"
-    / "scripts"
-    / "analyze_skill_placement.py"
+    Path(".claude") / "skills" / "context-optimizer" / "scripts" / "analyze_skill_placement.py"
 )
 _TESTS = [
     "tests/context-optimizer/test_analyze_skill_placement.py",
@@ -128,7 +125,7 @@ def run_mutants(repo_root: Path) -> None:
         restored = target.read_bytes()
         assert restored == original_bytes, f"Restore was not byte-identical for: {name}"
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"DEAD:          {len(dead)}")
     print(f"SURVIVED:      {len(survived)}")
     print(f"DID-NOT-APPLY: {len(did_not_apply)}")

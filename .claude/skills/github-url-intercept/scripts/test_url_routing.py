@@ -323,15 +323,10 @@ def get_recommended_route(parsed: dict[str, Any]) -> dict[str, Any]:
 
         cmd_map = {
             "pullrequestreview": (
-                f'gh api "repos/{owner}/{repo}/pulls/{resource_id}'
-                f'/reviews/{frag_id}"'
+                f'gh api "repos/{owner}/{repo}/pulls/{resource_id}/reviews/{frag_id}"'
             ),
-            "discussion_r": (
-                f'gh api "repos/{owner}/{repo}/pulls/comments/{frag_id}"'
-            ),
-            "issuecomment": (
-                f'gh api "repos/{owner}/{repo}/issues/comments/{frag_id}"'
-            ),
+            "discussion_r": (f'gh api "repos/{owner}/{repo}/pulls/comments/{frag_id}"'),
+            "issuecomment": (f'gh api "repos/{owner}/{repo}/issues/comments/{frag_id}"'),
         }
 
         cmd = cmd_map.get(frag_type, "unknown")
@@ -403,9 +398,7 @@ def get_recommended_route(parsed: dict[str, Any]) -> dict[str, Any]:
 
     fallback_map: dict[UrlType, str] = {
         UrlType.GIST: build_gist_command(parsed),
-        UrlType.DISCUSSION: (
-            f'gh api "repos/{owner}/{repo}/discussions/{resource_id}"'
-        ),
+        UrlType.DISCUSSION: (f'gh api "repos/{owner}/{repo}/discussions/{resource_id}"'),
         UrlType.ACTIONS: (
             f'gh api "repos/{owner}/{repo}/actions/jobs/{resource_id}"'
             if parsed.get("secondary_id")
@@ -431,7 +424,9 @@ def build_parser() -> argparse.ArgumentParser:
         description="Parse a GitHub URL and return routing recommendation.",
     )
     parser.add_argument(
-        "--url", required=True, help="The GitHub URL to route",
+        "--url",
+        required=True,
+        help="The GitHub URL to route",
     )
     return parser
 

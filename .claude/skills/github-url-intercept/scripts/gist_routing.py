@@ -19,17 +19,14 @@ from url_validation import (
 GIST_SUFFIXES = {"revisions"}
 GIST_HOSTS = {"gist.github.com", "gist.githubusercontent.com"}
 PERCENT_ESCAPE_RE = re.compile(r"%[0-9A-Fa-f]{2}")
-FILE_FRAGMENT_RE = re.compile(
-    r"[A-Za-z0-9_](?:[A-Za-z0-9_-]*[A-Za-z0-9_])?"
-)
+FILE_FRAGMENT_RE = re.compile(r"[A-Za-z0-9_](?:[A-Za-z0-9_-]*[A-Za-z0-9_])?")
 LINE_FRAGMENT_RE = re.compile(r"-L[1-9][0-9]*(?:-L[1-9][0-9]*)?$")
 LINE_FRAGMENT_CANDIDATE_RE = re.compile(r"-L[0-9]")
 
 
 def _is_valid_file_selector(selector: str) -> bool:
     return bool(selector) and all(
-        ord(character) >= 32 and ord(character) != 127
-        for character in selector
+        ord(character) >= 32 and ord(character) != 127 for character in selector
     )
 
 
@@ -79,10 +76,7 @@ def _classify_path(
     ownerless_with_suffix = (
         len(segments) > 1
         and is_safe_input(segments[0], SAFE_GIST_ID_RE)
-        and (
-            segments[1] in GIST_SUFFIXES
-            or is_safe_input(segments[1], SAFE_GIST_REVISION_RE)
-        )
+        and (segments[1] in GIST_SUFFIXES or is_safe_input(segments[1], SAFE_GIST_REVISION_RE))
     )
     if len(segments) == 1 or ownerless_with_suffix:
         return None, segments[0], segments[1:]
@@ -112,9 +106,7 @@ def _parse_page_file_selector(
             parsed_url.query,
             keep_blank_values=True,
         ).get("file", [])
-        if len(query_files) > 1 or (
-            query_files and not _is_valid_file_selector(query_files[0])
-        ):
+        if len(query_files) > 1 or (query_files and not _is_valid_file_selector(query_files[0])):
             return None
         if query_files:
             # Reject ambiguous selector: ?file= and #file- both present.
@@ -176,9 +168,7 @@ def _parse_content_selector(
             return None
         if not is_safe_raw_path(selector_segments[1:]):
             return None
-        raw_url = urlunsplit(
-            ("https", parsed_url.netloc, parsed_url.path, "", "")
-        )
+        raw_url = urlunsplit(("https", parsed_url.netloc, parsed_url.path, "", ""))
         return raw_url, None, None, None, None
 
     revision, valid_selector = _parse_non_raw_selector(selector_segments)
@@ -239,7 +229,7 @@ def _file_slug_query(requested_file_slug: str, requested_file_base_slug: str) ->
         'def slug: ascii_downcase | gsub("[^a-z0-9_-]+"; "-") '
         '| sub("^-+"; "") | sub("-+$"; ""); '
         ".files | to_entries | "
-        f'map(select((.key | slug) == {selected_slug})) | '
+        f"map(select((.key | slug) == {selected_slug})) | "
         'if length == 1 then .[0].value else error("ambiguous or missing file selector") end'
     )
 

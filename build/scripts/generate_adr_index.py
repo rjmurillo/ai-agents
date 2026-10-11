@@ -179,8 +179,6 @@ class _DuplicateKeyError(yaml.YAMLError):
     """Raised when a mapping declares the same key twice."""
 
 
-
-
 @dataclass(frozen=True, slots=True)
 class AdrRecord:
     """One ADR reduced to its index row. ``status`` is ``None`` for a record with
@@ -765,8 +763,8 @@ _INTRO = (
     "distinction matters.\n\n"
     "**One fence contract, shared, and it is the library's.** Issue #5275 found\n"
     "three ADR parsers disagreeing on which closing fences they accept: a\n"
-    "closing line padded with one trailing space (`\"--- \\n\"` instead of\n"
-    "`\"---\\n\"`, a plausible editor artifact) parsed cleanly in\n"
+    'closing line padded with one trailing space (`"--- \\n"` instead of\n'
+    '`"---\\n"`, a plausible editor artifact) parsed cleanly in\n'
     "`check_adr_lifecycle.py` and crashed this generator, so the same corpus\n"
     "could pass the lifecycle gate and break the index build. A repo-wide sweep\n"
     "found at least 11 distinct fence contracts. Both now delegate to\n"

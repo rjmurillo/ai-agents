@@ -42,8 +42,7 @@ _SECTION_HEADER = "## Context Mode Enforcement (REQUIRED)"
 _FORBID_PASS = "you MUST NOT emit `PASS`"
 _HEADER_LINE_PREFIX = "<!-- CONTEXT_MODE: ${CONTEXT_MODE}"
 _LOCAL_INPUT_HEADER = (
-    "Every Task input for a canonical axis MUST begin with "
-    "`CONTEXT_MODE: $CONTEXT_MODE`"
+    "Every Task input for a canonical axis MUST begin with `CONTEXT_MODE: $CONTEXT_MODE`"
 )
 _LOCAL_UNKNOWN_MODE = "If context completeness is unknown, use `partial`."
 
@@ -91,12 +90,8 @@ def test_canonical_dir_has_expected_role_count() -> None:
 @pytest.mark.parametrize("role", _canonical_roles())
 def test_canonical_ref_has_enforcement_section(role: str) -> None:
     text = (CANONICAL_DIR / f"{role}.md").read_text(encoding="utf-8")
-    assert _SECTION_HEADER in text, (
-        f"{role}.md is missing the Context Mode Enforcement section"
-    )
-    assert _FORBID_PASS in text, (
-        f"{role}.md does not forbid PASS when context is not full"
-    )
+    assert _SECTION_HEADER in text, f"{role}.md is missing the Context Mode Enforcement section"
+    assert _FORBID_PASS in text, f"{role}.md does not forbid PASS when context is not full"
 
 
 @pytest.mark.parametrize("role", _canonical_roles())
@@ -108,15 +103,9 @@ def test_committed_prompt_has_header_and_section(role: str) -> None:
     prompt = _prompt_path(role)
     assert prompt.is_file(), f"missing generated prompt for role {role}"
     text = prompt.read_text(encoding="utf-8")
-    assert _HEADER_LINE_PREFIX in text, (
-        f"{prompt.name} is missing the CONTEXT_MODE header line"
-    )
-    assert _SECTION_HEADER in text, (
-        f"{prompt.name} is missing the Context Mode Enforcement section"
-    )
-    assert _FORBID_PASS in text, (
-        f"{prompt.name} does not forbid PASS when context is not full"
-    )
+    assert _HEADER_LINE_PREFIX in text, f"{prompt.name} is missing the CONTEXT_MODE header line"
+    assert _SECTION_HEADER in text, f"{prompt.name} is missing the Context Mode Enforcement section"
+    assert _FORBID_PASS in text, f"{prompt.name} does not forbid PASS when context is not full"
 
 
 # ---------------------------------------------------------------------------

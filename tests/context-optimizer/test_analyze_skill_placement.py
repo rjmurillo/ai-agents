@@ -100,9 +100,7 @@ class TestGetSkillContent:
             # Path is idempotent and keeps the annotation honest.
             return Path(_orig(path, repo_root=root))
 
-        monkeypatch.setattr(
-            "analyze_skill_placement.validate_path_within_repo", _validate_in_tmp
-        )
+        monkeypatch.setattr("analyze_skill_placement.validate_path_within_repo", _validate_in_tmp)
 
     def test_reads_skill_md_from_directory(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

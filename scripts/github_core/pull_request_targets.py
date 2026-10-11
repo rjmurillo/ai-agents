@@ -56,9 +56,7 @@ def target_from_pull_request(payload: Mapping[str, Any]) -> PullRequestTarget:
             f"pull request #{number} has no head repository, so its runs cannot "
             "be told apart from another fork's runs on the same branch name"
         )
-    return PullRequestTarget(
-        pr_number=number, branch=ref, head_repository=full_name
-    )
+    return PullRequestTarget(pr_number=number, branch=ref, head_repository=full_name)
 
 
 def open_pull_request_targets(
@@ -73,14 +71,8 @@ def open_pull_request_targets(
     # Same reason as workflow_runs._query_value: a base ref carrying `&`, `?`,
     # `#`, or `+` would otherwise inject or corrupt query parameters and return
     # a different PR set than the operator named.
-    endpoint = (
-        f"repos/{quote(repository, safe='/')}/pulls"
-        f"?state=open&base={quote(base, safe='')}"
-    )
-    return [
-        target_from_pull_request(payload)
-        for payload in iter_paginated_list(client, endpoint)
-    ]
+    endpoint = f"repos/{quote(repository, safe='/')}/pulls?state=open&base={quote(base, safe='')}"
+    return [target_from_pull_request(payload) for payload in iter_paginated_list(client, endpoint)]
 
 
 def iter_paginated_list(client: GitHubClient, endpoint: str) -> list[dict[str, Any]]:
@@ -117,8 +109,6 @@ def pull_request_targets(
         # cover list endpoints (CodeRabbit, PR #5787 review), so this
         # call site narrows back to the dict it always gets in practice.
         if not isinstance(payload, dict):
-            raise TypeError(
-                f"expected a JSON object from {endpoint}, got {type(payload).__name__}"
-            )
+            raise TypeError(f"expected a JSON object from {endpoint}, got {type(payload).__name__}")
         targets.append(target_from_pull_request(payload))
     return targets

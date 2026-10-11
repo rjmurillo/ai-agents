@@ -66,6 +66,7 @@
 - **Remediation**: The hook MUST normalize paths before validation:
   ```python
   import os
+
   resolved = os.path.realpath(file_path)
   sessions_dir = os.path.realpath(".project-toolkit/sessions")
   if not resolved.startswith(sessions_dir + os.sep):

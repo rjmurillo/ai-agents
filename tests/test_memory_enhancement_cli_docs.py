@@ -83,9 +83,7 @@ _INT_OPTIONS = frozenset({"--depth", "--top"})
 # invocation test reports the file and line instead of dropping it silently.
 _UNPARSEABLE = "<<unparseable>>"
 
-VALID_SUBCOMMANDS = frozenset(
-    {"verify", "verify-all", "health", "graph", "confidence", "search"}
-)
+VALID_SUBCOMMANDS = frozenset({"verify", "verify-all", "health", "graph", "confidence", "search"})
 
 # Global options that consume the token after them, which must not be mistaken
 # for a subcommand name.
@@ -158,9 +156,7 @@ def parse_error(argv: list[str]) -> str | None:
     """Return the argparse error for argv, or None when argv is valid."""
     stderr = io.StringIO()
     try:
-        with contextlib.redirect_stderr(stderr), contextlib.redirect_stdout(
-            io.StringIO()
-        ):
+        with contextlib.redirect_stderr(stderr), contextlib.redirect_stdout(io.StringIO()):
             _build_parser().parse_args(argv)
     except SystemExit as exit_signal:
         if exit_signal.code:
@@ -290,9 +286,7 @@ def documented_invocations() -> list[tuple[str, int, str, list[str], bool]]:
                 continue
             pending = ""
             for argv, in_shell in _line_invocations(line, runnable):
-                collected.append(
-                    (relative_path, pending_number, line.strip(), argv, in_shell)
-                )
+                collected.append((relative_path, pending_number, line.strip(), argv, in_shell))
     return collected
 
 
@@ -359,6 +353,4 @@ class TestDocumentedInvocations:
             error = invocation_error(argv, runnable)
             if error is not None:
                 failures.append(f"{relative_path}:{number}\n    {raw}\n    {error}")
-        assert not failures, "documented commands the CLI rejects:\n" + "\n".join(
-            failures
-        )
+        assert not failures, "documented commands the CLI rejects:\n" + "\n".join(failures)

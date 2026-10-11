@@ -73,8 +73,7 @@ def _validate_file_path(file_path: str, allowed_dir: Path) -> Path:
             real_path.relative_to(allowed_dir)
         except ValueError:
             print(
-                "[FAIL] Path traversal attempt detected. "
-                "Input file must be within the repository."
+                "[FAIL] Path traversal attempt detected. Input file must be within the repository."
             )
             sys.exit(1)
 
@@ -87,9 +86,7 @@ def _validate_success_field(data: dict) -> list[str]:
     if "Success" not in data:
         errors.append("Missing required field: Success")
     elif not isinstance(data["Success"], bool):
-        errors.append(
-            f"Field 'Success' must be a boolean, got: {type(data['Success']).__name__}"
-        )
+        errors.append(f"Field 'Success' must be a boolean, got: {type(data['Success']).__name__}")
     return errors
 
 
@@ -157,9 +154,7 @@ def _validate_metadata_field(data: dict) -> list[str]:
     else:
         metadata = data["Metadata"]
         if not isinstance(metadata, dict):
-            errors.append(
-                f"Metadata must be an object, got: {type(metadata).__name__}"
-            )
+            errors.append(f"Metadata must be an object, got: {type(metadata).__name__}")
         else:
             errors.extend(_validate_metadata_string_field(metadata, "Script"))
             errors.extend(_validate_metadata_string_field(metadata, "Timestamp"))
@@ -181,14 +176,10 @@ def _validate_error_type(error_type: object) -> list[str]:
     if error_type is None or error_type == "":
         errors.append("Error.Type is required")
     elif not isinstance(error_type, str):
-        errors.append(
-            f"Error.Type must be a string, got: {type(error_type).__name__}"
-        )
+        errors.append(f"Error.Type must be a string, got: {type(error_type).__name__}")
     elif error_type not in VALID_ERROR_TYPES:
         valid_str = ", ".join(sorted(VALID_ERROR_TYPES))
-        errors.append(
-            f"Error.Type '{error_type}' is not valid. Must be one of: {valid_str}"
-        )
+        errors.append(f"Error.Type '{error_type}' is not valid. Must be one of: {valid_str}")
     return errors
 
 
@@ -251,9 +242,7 @@ def _validate_error_field(data: dict) -> list[str]:
         errors.append("Error field is required when Success is false")
 
     if error_field is not None and not isinstance(error_field, dict):
-        errors.append(
-            f"Error must be null or an object, got: {type(error_field).__name__}"
-        )
+        errors.append(f"Error must be null or an object, got: {type(error_field).__name__}")
     elif isinstance(error_field, dict):
         errors.extend(_validate_error_message_and_code(error_field))
         errors.extend(_validate_error_type(error_field.get("Type")))

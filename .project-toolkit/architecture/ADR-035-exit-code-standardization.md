@@ -390,13 +390,18 @@ A PreToolUse hook has two ways to deny. They are mutually exclusive; pick one pe
 
 ```python
 import json, sys
-print(json.dumps({
-    "hookSpecificOutput": {
-        "hookEventName": "PreToolUse",
-        "permissionDecision": "deny",
-        "permissionDecisionReason": "Blocked: no session log for this branch. Run session-init first.",
-    }
-}))
+
+print(
+    json.dumps(
+        {
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "deny",
+                "permissionDecisionReason": "Blocked: no session log for this branch. Run session-init first.",
+            }
+        }
+    )
+)
 sys.exit(0)  # the nested permissionDecision carries the block at exit 0
 ```
 

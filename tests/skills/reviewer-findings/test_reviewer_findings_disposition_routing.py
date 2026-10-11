@@ -209,10 +209,7 @@ class TestPremiseDispositionRouting:
     def test_bounded_section_excludes_a_later_heading(self) -> None:
         """Edge: a field belonging to the next template must not satisfy this one's check."""
         doc = (
-            "### Premise Refuted\n"
-            "- File: `a.py`\n"
-            "### Another Template\n"
-            "- Line: `not this one's`\n"
+            "### Premise Refuted\n- File: `a.py`\n### Another Template\n- Line: `not this one's`\n"
         )
         section = _bounded_section(doc, "### Premise Refuted")
         assert section is not None

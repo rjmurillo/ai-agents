@@ -44,9 +44,14 @@ class TestBuildParser:
 
     def test_skip_flags(self) -> None:
         parser = build_parser()
-        args = parser.parse_args([
-            "--skip-cli", "--skip-vscode", "--skip-claude-skill", "--skip-pre-commit",
-        ])
+        args = parser.parse_args(
+            [
+                "--skip-cli",
+                "--skip-vscode",
+                "--skip-claude-skill",
+                "--skip-pre-commit",
+            ]
+        )
         assert args.skip_cli is True
         assert args.skip_vscode is True
         assert args.skip_claude_skill is True
@@ -57,7 +62,8 @@ class TestGetRepoRoot:
     def test_returns_path_in_repo(self) -> None:
         with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(
-                returncode=0, stdout="/path/to/repo/.git\n",
+                returncode=0,
+                stdout="/path/to/repo/.git\n",
             )
             result = get_repo_root()
             assert result == "/path/to/repo"
@@ -126,7 +132,9 @@ class TestStepVerifyPreCommit:
 
 class TestStepVerifyClaudeSkill:
     def test_chmod_failure_logs_warning(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str],
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
     ) -> None:
         skill_dir = tmp_path / ".claude" / "skills" / "codeql-scan"
         scripts_dir = skill_dir / "scripts"
@@ -161,10 +169,14 @@ class TestStepVerifyClaudeSkill:
 class TestMain:
     def test_not_in_repo_returns_error(self) -> None:
         with patch.object(_mod, "get_repo_root", return_value=None):
-            result = main([
-                "--skip-cli", "--skip-vscode",
-                "--skip-claude-skill", "--skip-pre-commit",
-            ])
+            result = main(
+                [
+                    "--skip-cli",
+                    "--skip-vscode",
+                    "--skip-claude-skill",
+                    "--skip-pre-commit",
+                ]
+            )
             assert result == 1
 
     def test_skip_all_succeeds(self, tmp_path: Path) -> None:
@@ -172,8 +184,13 @@ class TestMain:
             patch.object(_mod, "get_repo_root", return_value=str(tmp_path)),
             patch.object(_mod, "step_validate"),
         ):
-            result = main([
-                "--skip-cli", "--skip-vscode", "--skip-claude-skill",
-                "--skip-pre-commit", "--ci",
-            ])
+            result = main(
+                [
+                    "--skip-cli",
+                    "--skip-vscode",
+                    "--skip-claude-skill",
+                    "--skip-pre-commit",
+                    "--ci",
+                ]
+            )
             assert result == 0

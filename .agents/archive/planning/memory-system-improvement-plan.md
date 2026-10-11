@@ -102,6 +102,7 @@ Using RICE framework (Reach × Impact × Confidence / Effort):
 def count_memory_tokens(memory_path: str) -> int:
     """Count tokens in memory file using tiktoken."""
     import tiktoken
+
     enc = tiktoken.get_encoding("cl100k_base")
     with open(memory_path) as f:
         return len(enc.encode(f.read()))
@@ -174,11 +175,8 @@ Expected token savings:
    - Fails commit if exceeded, suggests decomposition
 
 ```python
-THRESHOLDS = {
-    "max_chars": 10_000,
-    "max_skills": 15,
-    "max_categories": 5
-}
+THRESHOLDS = {"max_chars": 10_000, "max_skills": 15, "max_categories": 5}
+
 
 def validate_memory_size(memory_path: str) -> tuple[bool, str]:
     """Returns (is_valid, message)"""

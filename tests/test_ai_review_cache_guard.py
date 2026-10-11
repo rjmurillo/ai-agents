@@ -72,9 +72,7 @@ def test_populate_cache_writes_valid_review(scratch_dir: Path) -> None:
 
     assert populated is True
     assert (cache_root / "qa" / "verdict.txt").read_text(encoding="utf-8") == "PASS"
-    assert (
-        cache_root / "qa" / "findings.txt"
-    ).read_text(encoding="utf-8") == "No issues found."
+    assert (cache_root / "qa" / "findings.txt").read_text(encoding="utf-8") == "No issues found."
     assert github_output.read_text(encoding="utf-8") == "cache_populated=true\n"
 
 
@@ -134,7 +132,7 @@ def test_default_cache_root_anchors_to_repo_not_cwd(
     )
 
     assert populated is True
-    assert (
-        anchored_root / "ai-review-cache" / "qa" / "verdict.txt"
-    ).read_text(encoding="utf-8") == "PASS"
+    assert (anchored_root / "ai-review-cache" / "qa" / "verdict.txt").read_text(
+        encoding="utf-8"
+    ) == "PASS"
     assert not (elsewhere / "ai-review-cache").exists()

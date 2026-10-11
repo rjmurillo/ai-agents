@@ -184,7 +184,9 @@ class TestGetRepoInfo:
         return proc
 
     def test_parses_https_remote(self) -> None:
-        with patch("subprocess.run", return_value=self._make_proc("https://github.com/owner/repo.git")):
+        with patch(
+            "subprocess.run", return_value=self._make_proc("https://github.com/owner/repo.git")
+        ):
             result = get_repo_info()
         assert result.owner == "owner"
         assert result.repo == "repo"
@@ -196,7 +198,9 @@ class TestGetRepoInfo:
         assert result.repo == "repo"
 
     def test_raises_for_non_github(self) -> None:
-        with patch("subprocess.run", return_value=self._make_proc("https://gitlab.com/owner/repo.git")):
+        with patch(
+            "subprocess.run", return_value=self._make_proc("https://gitlab.com/owner/repo.git")
+        ):
             with pytest.raises(RuntimeError, match="Could not parse"):
                 get_repo_info()
 

@@ -35,6 +35,7 @@ DEFAULT_QUERIES = [
     "memory-first architecture",
 ]
 
+
 def measure_serena_search(
     query: str,
     memory_path: Path,
@@ -58,9 +59,7 @@ def measure_serena_search(
         result["Error"] = f"Memory path not found: {memory_path}"
         return result
 
-    keywords = [
-        kw for kw in query.lower().split() if len(kw) > 2
-    ]
+    keywords = [kw for kw in query.lower().split() if len(kw) > 2]
 
     # Warmup iterations
     for _ in range(warmup_iterations):
@@ -165,24 +164,34 @@ def build_parser() -> argparse.ArgumentParser:
         description="Benchmark memory search performance.",
     )
     parser.add_argument(
-        "--queries", nargs="*", default=None,
+        "--queries",
+        nargs="*",
+        default=None,
         help="Test queries to benchmark (default: built-in set)",
     )
     parser.add_argument(
-        "--iterations", type=int, default=5,
+        "--iterations",
+        type=int,
+        default=5,
         help="Number of iterations per query (default: 5)",
     )
     parser.add_argument(
-        "--warmup", type=int, default=2,
+        "--warmup",
+        type=int,
+        default=2,
         help="Number of warmup iterations (default: 2)",
     )
     parser.add_argument(
-        "--format", choices=["console", "markdown", "json"],
-        default="console", dest="output_format",
+        "--format",
+        choices=["console", "markdown", "json"],
+        default="console",
+        dest="output_format",
         help="Output format (default: console)",
     )
     parser.add_argument(
-        "--serena-path", type=Path, default=None,
+        "--serena-path",
+        type=Path,
+        default=None,
         help="Path to Serena memories directory",
     )
     return parser
@@ -215,8 +224,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.output_format == "console":
         print("=== Memory Performance Benchmark (M-008) ===")
         print(
-            f"Queries: {len(queries)}, Iterations: {args.iterations}, "
-            f"Warmup: {args.warmup}",
+            f"Queries: {len(queries)}, Iterations: {args.iterations}, Warmup: {args.warmup}",
         )
         print()
 
@@ -229,7 +237,10 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  Query: '{query}'")
 
         serena_result = measure_serena_search(
-            query, serena_path, args.iterations, args.warmup,
+            query,
+            serena_path,
+            args.iterations,
+            args.warmup,
         )
         benchmark["SerenaResults"].append(serena_result)
 
@@ -249,9 +260,7 @@ def main(argv: list[str] | None = None) -> int:
                 )
 
     # Calculate Serena average
-    valid_serena = [
-        r for r in benchmark["SerenaResults"] if not r.get("Error")
-    ]
+    valid_serena = [r for r in benchmark["SerenaResults"] if not r.get("Error")]
     if valid_serena:
         avg = sum(r["TotalTimeMs"] for r in valid_serena) / len(valid_serena)
         benchmark["Summary"]["SerenaAvgMs"] = round(avg, 2)

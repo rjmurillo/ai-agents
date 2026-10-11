@@ -27,15 +27,14 @@ import run_plugin_version_bump_ci as runner
 def _stub_happy_path(monkeypatch) -> list[str]:
     """Wire fetch/resolve/run to a clean pass; return the fetch-call log."""
     fetch_calls: list[str] = []
+
     def _record_fetch(ref: str) -> int:
         fetch_calls.append(ref)
         return 0
 
     monkeypatch.setattr(runner, "fetch_base_ref", _record_fetch)
     monkeypatch.setattr(runner, "resolve_base", lambda ref: f"origin/{ref}")
-    monkeypatch.setattr(
-        runner, "run", lambda *a, **k: (0, "plugin-version-bump: OK\n", "")
-    )
+    monkeypatch.setattr(runner, "run", lambda *a, **k: (0, "plugin-version-bump: OK\n", ""))
     return fetch_calls
 
 
@@ -116,9 +115,7 @@ def test_main_forwards_validator_violation_exit(monkeypatch, capsys) -> None:
     monkeypatch.setenv("PR_BASE_REF", "main")
     monkeypatch.setattr(runner, "fetch_base_ref", lambda ref: 0)
     monkeypatch.setattr(runner, "resolve_base", lambda ref: "origin/main")
-    monkeypatch.setattr(
-        runner, "run", lambda *a, **k: (1, "plugin-version-bump: NOT BUMPED\n", "")
-    )
+    monkeypatch.setattr(runner, "run", lambda *a, **k: (1, "plugin-version-bump: NOT BUMPED\n", ""))
 
     rc = runner.main()
 

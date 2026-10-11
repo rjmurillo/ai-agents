@@ -17,9 +17,7 @@ from conftest import VulnerablePattern
 class TestCWE77Detection:
     """Test cases for CWE-77 Command Injection detection in Python."""
 
-    def test_ci001_shell_true_subprocess(
-        self, cwe77_patterns: list[VulnerablePattern]
-    ) -> None:
+    def test_ci001_shell_true_subprocess(self, cwe77_patterns: list[VulnerablePattern]) -> None:
         """
         CI-001: shell=True with user input in subprocess.
 
@@ -40,9 +38,7 @@ class TestCWE77Detection:
         assert "subprocess" in pattern.code or "shell=True" in pattern.code
         assert "; rm -rf /" in pattern.code
 
-    def test_ci002_dynamic_code_execution(
-        self, cwe77_patterns: list[VulnerablePattern]
-    ) -> None:
+    def test_ci002_dynamic_code_execution(self, cwe77_patterns: list[VulnerablePattern]) -> None:
         """
         CI-002: Dynamic code execution with user input.
 
@@ -58,9 +54,7 @@ class TestCWE77Detection:
         assert pattern.expected_severity == "CRITICAL"
         assert "user_command" in pattern.code.lower() or "input" in pattern.code
 
-    def test_ci003_dynamic_code_with_config(
-        self, cwe77_patterns: list[VulnerablePattern]
-    ) -> None:
+    def test_ci003_dynamic_code_with_config(self, cwe77_patterns: list[VulnerablePattern]) -> None:
         """
         CI-003: Dynamic code execution with configuration value.
 
@@ -76,9 +70,7 @@ class TestCWE77Detection:
         assert pattern.expected_severity == "HIGH"
         assert "config" in pattern.code.lower() or "template" in pattern.code.lower()
 
-    def test_ci004_shell_metacharacters_git(
-        self, cwe77_patterns: list[VulnerablePattern]
-    ) -> None:
+    def test_ci004_shell_metacharacters_git(self, cwe77_patterns: list[VulnerablePattern]) -> None:
         """
         CI-004: Shell metacharacters in git command.
 
@@ -94,9 +86,7 @@ class TestCWE77Detection:
         assert "git" in pattern.code
         assert "branch_name" in pattern.code.lower() or "environ" in pattern.code.lower()
 
-    def test_ci005_safe_list_args_pattern(
-        self, cwe77_patterns: list[VulnerablePattern]
-    ) -> None:
+    def test_ci005_safe_list_args_pattern(self, cwe77_patterns: list[VulnerablePattern]) -> None:
         """
         CI-005: Safe pattern with list arguments (false positive test).
 
@@ -136,10 +126,7 @@ class TestCommandInjectionPatterns:
             "subprocess.call",
         ]
 
-        found = any(
-            p in dangerous_construct.lower()
-            for p in dangerous_patterns
-        )
+        found = any(p in dangerous_construct.lower() for p in dangerous_patterns)
 
         assert found, f"Construct {dangerous_construct} should be recognized as dangerous"
 
@@ -182,10 +169,7 @@ class TestPR752Patterns:
         cwe77_patterns: list[VulnerablePattern],
     ) -> None:
         """Verify patterns from PR #752 are included in benchmarks."""
-        pr752_patterns = [
-            p for p in cwe22_patterns + cwe77_patterns
-            if "PR #752" in p.source
-        ]
+        pr752_patterns = [p for p in cwe22_patterns + cwe77_patterns if "PR #752" in p.source]
 
         assert len(pr752_patterns) >= 2, (
             "Expected at least 2 patterns from PR #752 "
@@ -205,10 +189,7 @@ class TestPR752Patterns:
         cwe77_patterns: list[VulnerablePattern],
     ) -> None:
         """Verify PR #752 patterns have correct severity ratings."""
-        pr752_patterns = [
-            p for p in cwe22_patterns + cwe77_patterns
-            if "PR #752" in p.source
-        ]
+        pr752_patterns = [p for p in cwe22_patterns + cwe77_patterns if "PR #752" in p.source]
 
         for pattern in pr752_patterns:
             if pattern.cwe_id == "CWE-77":

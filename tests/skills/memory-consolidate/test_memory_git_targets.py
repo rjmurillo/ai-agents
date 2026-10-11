@@ -16,8 +16,7 @@ import pytest
 
 # Make the script importable
 SKILL_SCRIPTS = (
-    Path(__file__).resolve().parents[3]
-    / ".claude" / "skills" / "memory-consolidate" / "scripts"
+    Path(__file__).resolve().parents[3] / ".claude" / "skills" / "memory-consolidate" / "scripts"
 )
 sys.path.insert(0, str(SKILL_SCRIPTS))
 
@@ -67,10 +66,13 @@ class TestCheckPositive:
     def test_valid_manifest(self, tmp_path: Path) -> None:
         repo = _init_repo(tmp_path)
         sha = _head_sha(repo)
-        _write_manifest(repo, {
-            "startingCommit": sha,
-            "targets": [".serena/memories/test-memory.md"],
-        })
+        _write_manifest(
+            repo,
+            {
+                "startingCommit": sha,
+                "targets": [".serena/memories/test-memory.md"],
+            },
+        )
         assert mgt.check(cwd=repo) == mgt.EXIT_OK
 
 
@@ -78,51 +80,69 @@ class TestPathTraversal:
     def test_dotdot_in_target(self, tmp_path: Path) -> None:
         repo = _init_repo(tmp_path)
         sha = _head_sha(repo)
-        _write_manifest(repo, {
-            "startingCommit": sha,
-            "targets": [".serena/memories/../../etc/passwd"],
-        })
+        _write_manifest(
+            repo,
+            {
+                "startingCommit": sha,
+                "targets": [".serena/memories/../../etc/passwd"],
+            },
+        )
         assert mgt.check(cwd=repo) == mgt.EXIT_LOGIC
 
     def test_memory_root_directory_rejected(self, tmp_path: Path) -> None:
         repo = _init_repo(tmp_path)
-        _write_manifest(repo, {
-            "startingCommit": _head_sha(repo),
-            "targets": [".serena/memories"],
-        })
+        _write_manifest(
+            repo,
+            {
+                "startingCommit": _head_sha(repo),
+                "targets": [".serena/memories"],
+            },
+        )
         assert mgt.check(cwd=repo) == mgt.EXIT_LOGIC
 
     def test_wildcard_is_literal_not_a_pattern(self, tmp_path: Path) -> None:
         repo = _init_repo(tmp_path)
-        _write_manifest(repo, {
-            "startingCommit": _head_sha(repo),
-            "targets": [".serena/memories/*.md"],
-        })
+        _write_manifest(
+            repo,
+            {
+                "startingCommit": _head_sha(repo),
+                "targets": [".serena/memories/*.md"],
+            },
+        )
         assert mgt.check(cwd=repo) == mgt.EXIT_LOGIC
 
     def test_dotdot_normalized(self, tmp_path: Path) -> None:
         repo = _init_repo(tmp_path)
         sha = _head_sha(repo)
-        _write_manifest(repo, {
-            "startingCommit": sha,
-            "targets": [".serena/memories/topic/../../../secrets.md"],
-        })
+        _write_manifest(
+            repo,
+            {
+                "startingCommit": sha,
+                "targets": [".serena/memories/topic/../../../secrets.md"],
+            },
+        )
         assert mgt.check(cwd=repo) == mgt.EXIT_LOGIC
 
     def test_backslash_dotdot_rejected(self, tmp_path: Path) -> None:
         repo = _init_repo(tmp_path)
-        _write_manifest(repo, {
-            "startingCommit": _head_sha(repo),
-            "targets": [".serena\\memories\\..\\..\\secrets.md"],
-        })
+        _write_manifest(
+            repo,
+            {
+                "startingCommit": _head_sha(repo),
+                "targets": [".serena\\memories\\..\\..\\secrets.md"],
+            },
+        )
         assert mgt.check(cwd=repo) == mgt.EXIT_LOGIC
 
     def test_non_traversal_backslash_rejected(self, tmp_path: Path) -> None:
         repo = _init_repo(tmp_path)
-        _write_manifest(repo, {
-            "startingCommit": _head_sha(repo),
-            "targets": [".serena\\memories\\test-memory.md"],
-        })
+        _write_manifest(
+            repo,
+            {
+                "startingCommit": _head_sha(repo),
+                "targets": [".serena\\memories\\test-memory.md"],
+            },
+        )
         assert mgt.check(cwd=repo) == mgt.EXIT_LOGIC
 
 
@@ -130,19 +150,25 @@ class TestAbsolutePath:
     def test_unix_absolute(self, tmp_path: Path) -> None:
         repo = _init_repo(tmp_path)
         sha = _head_sha(repo)
-        _write_manifest(repo, {
-            "startingCommit": sha,
-            "targets": ["/etc/passwd"],
-        })
+        _write_manifest(
+            repo,
+            {
+                "startingCommit": sha,
+                "targets": ["/etc/passwd"],
+            },
+        )
         assert mgt.check(cwd=repo) == mgt.EXIT_LOGIC
 
     def test_windows_absolute(self, tmp_path: Path) -> None:
         repo = _init_repo(tmp_path)
         sha = _head_sha(repo)
-        _write_manifest(repo, {
-            "startingCommit": sha,
-            "targets": ["C:\\Windows\\System32\\config"],
-        })
+        _write_manifest(
+            repo,
+            {
+                "startingCommit": sha,
+                "targets": ["C:\\Windows\\System32\\config"],
+            },
+        )
         assert mgt.check(cwd=repo) == mgt.EXIT_LOGIC
 
 
@@ -160,10 +186,13 @@ class TestSymlinkEscape:
         except OSError:
             pytest.skip("Cannot create symlinks on this platform")
 
-        _write_manifest(repo, {
-            "startingCommit": sha,
-            "targets": [".serena/memories/escape-link.md"],
-        })
+        _write_manifest(
+            repo,
+            {
+                "startingCommit": sha,
+                "targets": [".serena/memories/escape-link.md"],
+            },
+        )
         assert mgt.check(cwd=repo) == mgt.EXIT_LOGIC
 
 
@@ -176,10 +205,13 @@ class TestUntrackedTarget:
         untracked = repo / ".serena" / "memories" / "untracked.md"
         untracked.write_text("not tracked", encoding="utf-8")
 
-        _write_manifest(repo, {
-            "startingCommit": sha,
-            "targets": [".serena/memories/untracked.md"],
-        })
+        _write_manifest(
+            repo,
+            {
+                "startingCommit": sha,
+                "targets": [".serena/memories/untracked.md"],
+            },
+        )
         assert mgt.check(cwd=repo) == mgt.EXIT_LOGIC
 
 
@@ -187,13 +219,16 @@ class TestDuplicateTarget:
     def test_duplicate_entry_rejected(self, tmp_path: Path) -> None:
         repo = _init_repo(tmp_path)
         sha = _head_sha(repo)
-        _write_manifest(repo, {
-            "startingCommit": sha,
-            "targets": [
-                ".serena/memories/test-memory.md",
-                ".serena/memories/test-memory.md",
-            ],
-        })
+        _write_manifest(
+            repo,
+            {
+                "startingCommit": sha,
+                "targets": [
+                    ".serena/memories/test-memory.md",
+                    ".serena/memories/test-memory.md",
+                ],
+            },
+        )
         assert mgt.check(cwd=repo) == mgt.EXIT_LOGIC
 
 
@@ -218,43 +253,58 @@ class TestMalformedManifest:
     def test_targets_not_a_list(self, tmp_path: Path) -> None:
         repo = _init_repo(tmp_path)
         sha = _head_sha(repo)
-        _write_manifest(repo, {
-            "startingCommit": sha,
-            "targets": "not-a-list",
-        })
+        _write_manifest(
+            repo,
+            {
+                "startingCommit": sha,
+                "targets": "not-a-list",
+            },
+        )
         assert mgt.check(cwd=repo) == mgt.EXIT_LOGIC
 
     def test_empty_targets_rejected(self, tmp_path: Path) -> None:
         repo = _init_repo(tmp_path)
-        _write_manifest(repo, {
-            "startingCommit": _head_sha(repo),
-            "targets": [],
-        })
+        _write_manifest(
+            repo,
+            {
+                "startingCommit": _head_sha(repo),
+                "targets": [],
+            },
+        )
         assert mgt.check(cwd=repo) == mgt.EXIT_LOGIC
 
     def test_bad_commit_hash(self, tmp_path: Path) -> None:
         repo = _init_repo(tmp_path)
-        _write_manifest(repo, {
-            "startingCommit": "not-a-sha",
-            "targets": [".serena/memories/test-memory.md"],
-        })
+        _write_manifest(
+            repo,
+            {
+                "startingCommit": "not-a-sha",
+                "targets": [".serena/memories/test-memory.md"],
+            },
+        )
         assert mgt.check(cwd=repo) == mgt.EXIT_LOGIC
 
     def test_nonexistent_canonical_sha_rejected(self, tmp_path: Path) -> None:
         repo = _init_repo(tmp_path)
-        _write_manifest(repo, {
-            "startingCommit": "0" * 40,
-            "targets": [".serena/memories/test-memory.md"],
-        })
+        _write_manifest(
+            repo,
+            {
+                "startingCommit": "0" * 40,
+                "targets": [".serena/memories/test-memory.md"],
+            },
+        )
         assert mgt.check(cwd=repo) == mgt.EXIT_LOGIC
 
     def test_target_not_string(self, tmp_path: Path) -> None:
         repo = _init_repo(tmp_path)
         sha = _head_sha(repo)
-        _write_manifest(repo, {
-            "startingCommit": sha,
-            "targets": [123],
-        })
+        _write_manifest(
+            repo,
+            {
+                "startingCommit": sha,
+                "targets": [123],
+            },
+        )
         assert mgt.check(cwd=repo) == mgt.EXIT_LOGIC
 
     def test_not_under_memories(self, tmp_path: Path) -> None:
@@ -267,10 +317,13 @@ class TestMalformedManifest:
         _run_git(repo, "add", "README.md")
         _run_git(repo, "commit", "-m", "add readme")
         sha = _head_sha(repo)
-        _write_manifest(repo, {
-            "startingCommit": sha,
-            "targets": ["README.md"],
-        })
+        _write_manifest(
+            repo,
+            {
+                "startingCommit": sha,
+                "targets": ["README.md"],
+            },
+        )
         assert mgt.check(cwd=repo) == mgt.EXIT_LOGIC
 
 
@@ -288,10 +341,13 @@ class TestRestore:
         _run_git(repo, "commit", "-m", "modify")
 
         # Manifest points to original commit
-        _write_manifest(repo, {
-            "startingCommit": original_sha,
-            "targets": [".serena/memories/test-memory.md"],
-        })
+        _write_manifest(
+            repo,
+            {
+                "startingCommit": original_sha,
+                "targets": [".serena/memories/test-memory.md"],
+            },
+        )
 
         result = mgt.restore(cwd=repo)
         assert result == mgt.EXIT_OK
@@ -302,10 +358,13 @@ class TestRestore:
 
     def test_restore_fails_on_invalid_manifest(self, tmp_path: Path) -> None:
         repo = _init_repo(tmp_path)
-        _write_manifest(repo, {
-            "startingCommit": "bad",
-            "targets": [".serena/memories/test-memory.md"],
-        })
+        _write_manifest(
+            repo,
+            {
+                "startingCommit": "bad",
+                "targets": [".serena/memories/test-memory.md"],
+            },
+        )
         assert mgt.restore(cwd=repo) == mgt.EXIT_LOGIC
 
     def test_restore_uses_one_call_for_multiple_targets(
@@ -324,10 +383,13 @@ class TestRestore:
         ]
         for target in targets:
             (repo / target).write_text("changed", encoding="utf-8")
-        _write_manifest(repo, {
-            "startingCommit": starting_commit,
-            "targets": targets,
-        })
+        _write_manifest(
+            repo,
+            {
+                "startingCommit": starting_commit,
+                "targets": targets,
+            },
+        )
 
         real_run = subprocess.run
         restore_calls: list[list[str]] = []
@@ -340,15 +402,17 @@ class TestRestore:
 
         monkeypatch.setattr(mgt.subprocess, "run", spy_run)
         assert mgt.restore(cwd=repo) == mgt.EXIT_OK
-        assert restore_calls == [[
-            "git",
-            "--literal-pathspecs",
-            "restore",
-            f"--source={starting_commit}",
-            "--worktree",
-            "--",
-            *targets,
-        ]]
+        assert restore_calls == [
+            [
+                "git",
+                "--literal-pathspecs",
+                "restore",
+                f"--source={starting_commit}",
+                "--worktree",
+                "--",
+                *targets,
+            ]
+        ]
         assert (repo / targets[0]).read_text(encoding="utf-8") == "original content"
         assert (repo / targets[1]).read_text(encoding="utf-8") == "second original"
 
@@ -357,10 +421,13 @@ class TestCleanup:
     def test_cleanup_removes_manifest(self, tmp_path: Path) -> None:
         repo = _init_repo(tmp_path)
         sha = _head_sha(repo)
-        _write_manifest(repo, {
-            "startingCommit": sha,
-            "targets": [".serena/memories/test-memory.md"],
-        })
+        _write_manifest(
+            repo,
+            {
+                "startingCommit": sha,
+                "targets": [".serena/memories/test-memory.md"],
+            },
+        )
         manifest = mgt._manifest_path(repo)
         assert manifest.is_file()
         assert mgt.cleanup(cwd=repo) == mgt.EXIT_OK

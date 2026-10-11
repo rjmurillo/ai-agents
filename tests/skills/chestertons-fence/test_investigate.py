@@ -28,7 +28,7 @@ def test_find_related_adrs_reads_utf8_explicitly(tmp_path: Path, monkeypatch) ->
     adr_dir.mkdir(parents=True)
     adr_file = adr_dir / "ADR-999-utf8.md"
     adr_file.write_text(
-        '# ADR-999: UTF-8 ”quote”\n\nReferences target_component.py.\n',
+        "# ADR-999: UTF-8 ”quote”\n\nReferences target_component.py.\n",
         encoding="utf-8",
     )
     original_read_text = Path.read_text
@@ -44,9 +44,7 @@ def test_find_related_adrs_reads_utf8_explicitly(tmp_path: Path, monkeypatch) ->
     assert related_adrs == ["ADR-999-utf8.md: ADR-999: UTF-8 ”quote”"]
 
 
-def test_generate_report_reads_template_utf8_explicitly(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_generate_report_reads_template_utf8_explicitly(tmp_path: Path, monkeypatch) -> None:
     skill_dir = tmp_path / "chestertons-fence"
     template_dir = skill_dir / "templates"
     template_dir.mkdir(parents=True)
@@ -72,9 +70,7 @@ def test_generate_report_reads_template_utf8_explicitly(
     assert "# Report for target.py: café “quote”" in report
 
 
-def test_main_reports_invalid_utf8_adr_path(
-    tmp_path: Path, monkeypatch, capsys
-) -> None:
+def test_main_reports_invalid_utf8_adr_path(tmp_path: Path, monkeypatch, capsys) -> None:
     adr_dir = tmp_path / ".project-toolkit" / "architecture"
     adr_dir.mkdir(parents=True)
     adr_file = adr_dir / "ADR-999-invalid.md"
@@ -107,9 +103,7 @@ def test_main_reports_invalid_utf8_adr_path(
     assert str(expected_error.value) in captured.err
 
 
-def test_main_reports_invalid_utf8_template_path(
-    tmp_path: Path, monkeypatch, capsys
-) -> None:
+def test_main_reports_invalid_utf8_template_path(tmp_path: Path, monkeypatch, capsys) -> None:
     skill_dir = tmp_path / "chestertons-fence"
     template_dir = skill_dir / "templates"
     template_dir.mkdir(parents=True)
@@ -144,9 +138,7 @@ def test_main_reports_invalid_utf8_template_path(
     assert "UTF-8" in captured.err
 
 
-def test_find_related_adrs_returns_empty_without_adr_directory(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_find_related_adrs_returns_empty_without_adr_directory(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
 
     assert investigate.find_related_adrs("target.py") == []

@@ -68,6 +68,7 @@ def marker_error(source: str, body: str) -> str | None:
         return f"body carries {HUMAN_MARKER}, which only --source human may write"
     return None
 
+
 # Phrase column of the canonical hedge phrase list, copied verbatim and in order
 # from skills/spec-generator/references/spec-step0-gates.md (the table that ends
 # at the <!-- step0:hedge-table-end --> marker). Match rule, quoted from that
@@ -119,7 +120,11 @@ _STEP0_KEYS = ("Q3", "Q5")
 # "### Q3" but not "### Q3.5"; precompiled so no search call builds a pattern.
 _STEP0_ANSWERS = {
     key: re.compile(
-        r"^[ \t]{0,3}###[ \t]+" + key + r"(?![.\w])[^\n]*\n(.*?)(?=" + _ANSWER_END_HEADING + r"|\Z)",
+        r"^[ \t]{0,3}###[ \t]+"
+        + key
+        + r"(?![.\w])[^\n]*\n(.*?)(?="
+        + _ANSWER_END_HEADING
+        + r"|\Z)",
         re.MULTILINE | re.DOTALL | re.IGNORECASE,
     )
     for key in _STEP0_KEYS
@@ -138,6 +143,7 @@ _HIDDEN_MARKDOWN = re.compile(
 )
 # Text after a hedge match that is inspected for the technical-term suffix.
 _SUFFIX_WINDOW = 64
+
 
 def _is_technical_term(phrase: str, text_after: str) -> bool:
     words = text_after.lstrip(" \t-").split(maxsplit=1)

@@ -30,7 +30,11 @@ import pytest
 # Path to script (tests moved to root tests/, scripts remain in skill)
 REPO_ROOT = Path(__file__).parent.parent.parent
 SCRIPT_PATH = (
-    REPO_ROOT / ".claude" / "skills" / "context-optimizer" / "scripts"
+    REPO_ROOT
+    / ".claude"
+    / "skills"
+    / "context-optimizer"
+    / "scripts"
     / "compress_markdown_content.py"
 )
 
@@ -55,7 +59,7 @@ def run_compression(content: str, level: str = "medium") -> dict:
     tmp_dir.mkdir(exist_ok=True)
 
     with tempfile.NamedTemporaryFile(
-        mode='w', suffix='.md', delete=False, encoding='utf-8', dir=str(tmp_dir)
+        mode="w", suffix=".md", delete=False, encoding="utf-8", dir=str(tmp_dir)
     ) as f:
         f.write(content)
         input_path = f.name
@@ -64,8 +68,9 @@ def run_compression(content: str, level: str = "medium") -> dict:
         result = subprocess.run(
             [sys.executable, str(SCRIPT_PATH), "-i", input_path, "-l", level],
             capture_output=True,
-            text=True, encoding="utf-8",
-            check=True
+            text=True,
+            encoding="utf-8",
+            check=True,
         )
         return dict(json.loads(result.stdout))
     finally:
@@ -75,6 +80,7 @@ def run_compression(content: str, level: str = "medium") -> dict:
 def get_token_count(text: str) -> int:
     """Count tokens using tiktoken."""
     import tiktoken
+
     encoding = tiktoken.get_encoding("cl100k_base")
     return len(encoding.encode(text))
 
@@ -89,8 +95,7 @@ class TestParameterValidation:
     def test_missing_input_file(self):
         """Should fail with exit code 1 when input file not found."""
         result = subprocess.run(
-            [sys.executable, str(SCRIPT_PATH), "-i", "/nonexistent/file.md"],
-            capture_output=True
+            [sys.executable, str(SCRIPT_PATH), "-i", "/nonexistent/file.md"], capture_output=True
         )
         assert result.returncode == 1
 
@@ -98,7 +103,7 @@ class TestParameterValidation:
         """Should reject invalid compression levels."""
         result = subprocess.run(
             [sys.executable, str(SCRIPT_PATH), "-i", "test.md", "-l", "invalid"],
-            capture_output=True
+            capture_output=True,
         )
         assert result.returncode != 0
 
@@ -423,8 +428,9 @@ class TestTokenReductionTargets:
         result = run_compression(input_md, "aggressive")
 
         # Critical requirement: hit 60%+ reduction
-        assert result["metrics"]["reduction_percent"] >= expected_min, \
+        assert result["metrics"]["reduction_percent"] >= expected_min, (
             f"Expected >= {expected_min}%, got {result['metrics']['reduction_percent']}%"
+        )
 
 
 class TestBeforeAfterExamples:
@@ -511,19 +517,25 @@ class TestOutputFormat:
         input_file = tmp_dir / "input_write_test.md"
         output_file = tmp_dir / "output_write_test.txt"
 
-        input_file.write_text(input_md, encoding='utf-8')
+        input_file.write_text(input_md, encoding="utf-8")
 
         try:
             subprocess.run(
                 [
-                    sys.executable, str(SCRIPT_PATH),
-                    "-i", str(input_file), "-o", str(output_file), "-l", "medium"
+                    sys.executable,
+                    str(SCRIPT_PATH),
+                    "-i",
+                    str(input_file),
+                    "-o",
+                    str(output_file),
+                    "-l",
+                    "medium",
                 ],
-                check=True
+                check=True,
             )
 
             assert output_file.exists()
-            assert len(output_file.read_text(encoding='utf-8')) <= len(input_md)
+            assert len(output_file.read_text(encoding="utf-8")) <= len(input_md)
         finally:
             input_file.unlink(missing_ok=True)
             output_file.unlink(missing_ok=True)
@@ -683,8 +695,8 @@ class TestContentProtection:
         # URL line preserved
         assert "https://example.com/api" in result["compressed_content"]
         # Normal lines should have words removed (fewer "the" occurrences)
-        lines = result["compressed_content"].split('\n')
-        normal_lines = [line for line in lines if 'http' not in line]
+        lines = result["compressed_content"].split("\n")
+        normal_lines = [line for line in lines if "http" not in line]
         for line in normal_lines:
             # "The" should be removed from non-protected lines
             assert not line.startswith("The ")

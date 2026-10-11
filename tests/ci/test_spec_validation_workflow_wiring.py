@@ -73,8 +73,7 @@ class TestPrBodyIsWiredToTheContextBuilder:
         run_body = prepare_context_step.get("run", "")
 
         assert _runs_builder(run_body), (
-            f"The {_STEP_NAME!r} step does not run {_BUILDER}. Its run body is "
-            f"{run_body!r}."
+            f"The {_STEP_NAME!r} step does not run {_BUILDER}. Its run body is {run_body!r}."
         )
 
     def test_a_path_echo_does_not_count_as_running_the_builder(self) -> None:

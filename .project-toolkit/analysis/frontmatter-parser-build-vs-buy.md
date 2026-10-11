@@ -189,7 +189,7 @@ one-line mitigation for H5 is exactly H4.** The correct pin is a handler subclas
 ```python
 class _PinnedYAMLHandler(YAMLHandler):
     def load(self, fm, **kw):
-        kw["Loader"] = yaml.SafeLoader   # match yaml.safe_load exactly, per ADR-073
+        kw["Loader"] = yaml.SafeLoader  # match yaml.safe_load exactly, per ADR-073
         return yaml.load(fm, **kw)
 ```
 

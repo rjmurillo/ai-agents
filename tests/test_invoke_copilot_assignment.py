@@ -12,8 +12,7 @@ from unittest.mock import patch
 import pytest
 
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1]
-    / ".claude" / "skills" / "github" / "scripts" / "issue"
+    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "issue"
 )
 
 
@@ -42,11 +41,13 @@ def _completed(stdout: str = "", stderr: str = "", rc: int = 0):
 
 
 def _issue_json():
-    return json.dumps({
-        "title": "Test Issue",
-        "body": "Description",
-        "labels": [{"name": "bug"}],
-    })
+    return json.dumps(
+        {
+            "title": "Test Issue",
+            "body": "Description",
+            "labels": [{"name": "bug"}],
+        }
+    )
 
 
 def _comments_json(marker: str | None = None, maintainer: str | None = None):
@@ -149,16 +150,12 @@ class TestGetMaintainerGuidance:
         assert "Fix the login flow" in result[0]
 
     def test_extract_rfc_keywords(self):
-        comments = [
-            {"body": "This MUST be done before release.", "user": {"login": "testuser"}}
-        ]
+        comments = [{"body": "This MUST be done before release.", "user": {"login": "testuser"}}]
         result = _get_guidance(comments, ["testuser"])
         assert len(result) == 1
 
     def test_no_maintainer_comments(self):
-        comments = [
-            {"body": "Some text", "user": {"login": "random"}}
-        ]
+        comments = [{"body": "Some text", "user": {"login": "random"}}]
         result = _get_guidance(comments, ["testuser"])
         assert result == []
 
@@ -183,9 +180,7 @@ class TestGetAITriageInfo:
         comments = [
             {
                 "body": (
-                    "<!-- AI-ISSUE-TRIAGE -->\n"
-                    "| **Priority** | `P1` |\n"
-                    "| **Category** | `bug` |"
+                    "<!-- AI-ISSUE-TRIAGE -->\n| **Priority** | `P1` |\n| **Category** | `bug` |"
                 ),
                 "user": {"login": "bot"},
             }
@@ -238,9 +233,15 @@ def test_dry_run_no_content(mock_run, capsys):
     with patch.object(_mod, "_load_synthesis_config", return_value=_test_config()):
         with patch.object(_mod, "get_issue_comments", return_value=[]):
             with patch.object(_mod, "get_trusted_source_comments", return_value=[]):
-                rc = main([
-                    "--issue-number", "1", "--dry-run", "--output-format", "human",
-                ])
+                rc = main(
+                    [
+                        "--issue-number",
+                        "1",
+                        "--dry-run",
+                        "--output-format",
+                        "human",
+                    ]
+                )
 
     assert rc == 0
     out = capsys.readouterr().out
@@ -258,9 +259,15 @@ def test_dry_run_json_outputs_single_envelope(mock_run, capsys):
     with patch.object(_mod, "_load_synthesis_config", return_value=_test_config()):
         with patch.object(_mod, "get_issue_comments", return_value=[]):
             with patch.object(_mod, "get_trusted_source_comments", return_value=[]):
-                rc = main([
-                    "--issue-number", "1", "--dry-run", "--output-format", "json",
-                ])
+                rc = main(
+                    [
+                        "--issue-number",
+                        "1",
+                        "--dry-run",
+                        "--output-format",
+                        "json",
+                    ]
+                )
 
     assert rc == 0
     output = json.loads(capsys.readouterr().out)
@@ -281,10 +288,16 @@ def test_dry_run_json_honors_skip_assignment(mock_run, capsys):
     with patch.object(_mod, "_load_synthesis_config", return_value=_test_config()):
         with patch.object(_mod, "get_issue_comments", return_value=[]):
             with patch.object(_mod, "get_trusted_source_comments", return_value=[]):
-                rc = main([
-                    "--issue-number", "1", "--dry-run", "--skip-assignment",
-                    "--output-format", "json",
-                ])
+                rc = main(
+                    [
+                        "--issue-number",
+                        "1",
+                        "--dry-run",
+                        "--skip-assignment",
+                        "--output-format",
+                        "json",
+                    ]
+                )
 
     assert rc == 0
     output = json.loads(capsys.readouterr().out)
@@ -304,9 +317,15 @@ def test_issue_json_null_payload_does_not_crash(mock_run, capsys):
     with patch.object(_mod, "_load_synthesis_config", return_value=_test_config()):
         with patch.object(_mod, "get_issue_comments", return_value=[]):
             with patch.object(_mod, "get_trusted_source_comments", return_value=[]):
-                rc = main([
-                    "--issue-number", "1", "--dry-run", "--output-format", "json",
-                ])
+                rc = main(
+                    [
+                        "--issue-number",
+                        "1",
+                        "--dry-run",
+                        "--output-format",
+                        "json",
+                    ]
+                )
 
     assert rc == 0
     output = json.loads(capsys.readouterr().out)

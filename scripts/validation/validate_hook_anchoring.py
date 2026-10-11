@@ -155,7 +155,7 @@ def _script_name(command: str) -> str | None:
     if len(parts) == 3:
         return parts[1].rsplit("/", 1)[-1]
     # Guarded form: look for the dispatch .py invocation pattern
-    m = re.search(r'/hooks/\w+/([\w.]+\.py)', command)
+    m = re.search(r"/hooks/\w+/([\w.]+\.py)", command)
     if m:
         return m.group(1)
     return None
@@ -338,8 +338,7 @@ def validate(repo_root: Path) -> tuple[int, list[str]]:
         violations.extend(results)
     else:
         messages.append(
-            f"claude: {checked} hook "
-            f"{'entry' if checked == 1 else 'entries'} anchored correctly"
+            f"claude: {checked} hook {'entry' if checked == 1 else 'entries'} anchored correctly"
         )
 
     if has_config_error:
@@ -347,9 +346,7 @@ def validate(repo_root: Path) -> tuple[int, list[str]]:
     if has_violation:
         return 1, violations
     entry_word = "entry" if total_checked == 1 else "entries"
-    return 0, [
-        f"{total_checked} hook {entry_word} anchored correctly across all plugins"
-    ]
+    return 0, [f"{total_checked} hook {entry_word} anchored correctly across all plugins"]
 
 
 def build_parser() -> argparse.ArgumentParser:

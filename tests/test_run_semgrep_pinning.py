@@ -157,7 +157,7 @@ class TestSemgrepPinnedVersion:
             _semgrep_pinned_version(tmp_path / "nonexistent")
 
     def test_raises_when_no_pin(self, tmp_path: Path) -> None:
-        _pyproject(tmp_path, '[project]\ndependencies = []\n')
+        _pyproject(tmp_path, "[project]\ndependencies = []\n")
         with pytest.raises(_SemgrepExecutableError, match="must declare exactly one semgrep pin"):
             _semgrep_pinned_version(tmp_path)
 
@@ -376,9 +376,7 @@ class TestRunExitCode:
             assert scanner.run() == 2
 
     @_posix_shim_only
-    def test_run_exits_2_as_subprocess_when_path_semgrep_mismatches(
-        self, tmp_path: Path
-    ) -> None:
+    def test_run_exits_2_as_subprocess_when_path_semgrep_mismatches(self, tmp_path: Path) -> None:
         """A PATH semgrep off the pin exits 2 from a real process.
 
         Hermetic: a throwaway git repo carrying its own pin, a fresh venv with
@@ -397,9 +395,7 @@ class TestRunExitCode:
         assert _INSTALL_HINT in result.stderr
 
     @_posix_shim_only
-    def test_run_exits_2_as_subprocess_when_venv_sibling_mismatches(
-        self, tmp_path: Path
-    ) -> None:
+    def test_run_exits_2_as_subprocess_when_venv_sibling_mismatches(self, tmp_path: Path) -> None:
         """A stale venv sibling exits 2 instead of reporting a clean pass.
 
         Discriminating input: with the sibling returned unverified, the scan
@@ -426,9 +422,7 @@ class TestRunExitCode:
             ) as mock_resolve,
             patch("scripts.security.run_semgrep.subprocess.run") as mock_run,
         ):
-            mock_run.return_value = MagicMock(
-                returncode=0, stdout='{"results": []}', stderr=""
-            )
+            mock_run.return_value = MagicMock(returncode=0, stdout='{"results": []}', stderr="")
             scanner._run_semgrep([Path("/repo/a.py")])
 
         mock_resolve.assert_called_once()

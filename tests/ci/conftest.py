@@ -62,9 +62,7 @@ def workflows_missing_reopened(tmp_path: Path) -> Path:
 
 
 @pytest.fixture(autouse=True)
-def _bulk_cancel_default_manifest_path(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> Path:
+def _bulk_cancel_default_manifest_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Redirect the guard's default manifest path into tmp_path.
 
     ``scripts/bulk_cancel_guard.py:_DEFAULT_MANIFEST_PATH`` resolves under this

@@ -115,14 +115,14 @@ def _build_f_paths(root: Path) -> Fixture:
         repo_dir,
         new_name,
         "def find_user(username):\n"
-        "    query = \"SELECT * FROM users WHERE name = '\" + username + \"'\"\n"
+        '    query = "SELECT * FROM users WHERE name = \'" + username + "\'"\n'
         "    return db.execute(query)\n",
     )
     _write_repo_file(
         repo_dir,
         preexisting_path,
         "def find_order(order_id):\n"
-        "    query = \"SELECT * FROM orders WHERE id = '\" + order_id + \"'\"  # pre-existing\n"
+        '    query = "SELECT * FROM orders WHERE id = \'" + order_id + "\'"  # pre-existing\n'
         "    return db.execute(query)\n",
     )
     head = _commit_all(repo_dir, "seed fixture")
@@ -131,15 +131,15 @@ def _build_f_paths(root: Path) -> Fixture:
         (
             new_name,
             "+def find_user(username):\n"
-            "+    query = \"SELECT * FROM users WHERE name = '\" + username + \"'\"\n"
+            '+    query = "SELECT * FROM users WHERE name = \'" + username + "\'"\n'
             "+    return db.execute(query)\n",
         ),
         (deleted_path, "-def obsolete():\n-    pass\n"),
         (
             preexisting_path,
             " def find_order(order_id):\n"
-            "     query = \"SELECT * FROM orders WHERE id = '\" + order_id"
-            " + \"'\"  # pre-existing\n"
+            '     query = "SELECT * FROM orders WHERE id = \'" + order_id'
+            ' + "\'"  # pre-existing\n'
             "     return db.execute(query)\n",
         ),
     ]

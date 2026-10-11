@@ -323,19 +323,13 @@ def evaluate_commit_rows(rows: list[dict]) -> tuple[str | None, dict | None, boo
     and reporting the red one with its URL is the conservative direction:
     green is only claimed when every evidencing run is green.
     """
-    groups = partition_rows_by_run(
-        rows, "DetailsUrl", "WorkflowRunId", "WorkflowRunAttempt"
-    )
+    groups = partition_rows_by_run(rows, "DetailsUrl", "WorkflowRunId", "WorkflowRunAttempt")
     red_row: dict | None = None
     green_row: dict | None = None
     evidencing_runs = 0
     for group in _latest_attempt_groups(groups):
-        group_red = next(
-            (row for row in group if _row_evidence(row) == "red"), None
-        )
-        group_green = next(
-            (row for row in group if _row_evidence(row) == "green"), None
-        )
+        group_red = next((row for row in group if _row_evidence(row) == "red"), None)
+        group_green = next((row for row in group if _row_evidence(row) == "green"), None)
         if group_red is None and group_green is None:
             continue
         evidencing_runs += 1
@@ -377,11 +371,7 @@ def _fetch_remaining_contexts(
         )
         repository = data.get("repository")
         commit_obj = repository.get("object") if isinstance(repository, dict) else None
-        rollup = (
-            commit_obj.get("statusCheckRollup")
-            if isinstance(commit_obj, dict)
-            else None
-        )
+        rollup = commit_obj.get("statusCheckRollup") if isinstance(commit_obj, dict) else None
         contexts = rollup.get("contexts") if isinstance(rollup, dict) else None
         if not isinstance(contexts, dict) or "pageInfo" not in contexts:
             return nodes, False
@@ -548,22 +538,28 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument(
-        "--check-name", required=True,
+        "--check-name",
+        required=True,
         help="Check name exactly as reported on the PR (job display name)",
     )
     parser.add_argument(
-        "--branch", default="main",
+        "--branch",
+        default="main",
         help="Base branch to measure (default: main)",
     )
     parser.add_argument(
-        "--history-depth", type=int, default=15,
+        "--history-depth",
+        type=int,
+        default=15,
         help="How many recent base-branch commits to search for the latest "
-             "run of the check (1-50, default: 15)",
+        "run of the check (1-50, default: 15)",
     )
     parser.add_argument(
-        "--pull-request", type=int, default=None,
+        "--pull-request",
+        type=int,
+        default=None,
         help="PR number the failing check was observed on (reporting context "
-             "only; the probe reads the base branch, not the PR)",
+        "only; the probe reads the base branch, not the PR)",
     )
     add_output_format_arg(parser)
     return parser
@@ -641,8 +637,7 @@ def main(argv: list[str] | None = None) -> int:
     # the evidence run, so construct the run URL rather than losing it.
     if not result["EvidenceUrl"] and result.get("EvidenceRunId") is not None:
         result["EvidenceUrl"] = (
-            f"https://github.com/{owner}/{repo}/actions/runs/"
-            f"{result['EvidenceRunId']}"
+            f"https://github.com/{owner}/{repo}/actions/runs/{result['EvidenceRunId']}"
         )
 
     output = {

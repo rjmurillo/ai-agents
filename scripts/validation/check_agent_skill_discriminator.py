@@ -334,11 +334,7 @@ def _skill_invocations(text: str) -> set[str]:
 
 def _pipeline_dirs(repo_root: Path) -> list[Path]:
     """Pipeline source directories that exist in this repository."""
-    return [
-        base
-        for rel, _ in PIPELINE_SOURCES
-        if (base := repo_root / rel).is_dir()
-    ]
+    return [base for rel, _ in PIPELINE_SOURCES if (base := repo_root / rel).is_dir()]
 
 
 def _command_files(repo_root: Path) -> list[Path]:
@@ -477,9 +473,7 @@ def filter_agent_paths(changed_files: list[str]) -> list[str]:
     return out
 
 
-def run_check(
-    repo_root: Path, changed_files: list[str], pr_body: str
-) -> CheckResult:
+def run_check(repo_root: Path, changed_files: list[str], pr_body: str) -> CheckResult:
     """Score every changed agent and resolve the PR-description override."""
     index = build_pipeline_index(repo_root)
     result = CheckResult()
@@ -550,10 +544,7 @@ def print_report(result: CheckResult) -> None:
     print()
     if not failing:
         if result.baseline is not None:
-            print(
-                f"PASS: no agent regressed above its recorded baseline score "
-                f"({scored} scored)."
-            )
+            print(f"PASS: no agent regressed above its recorded baseline score ({scored} scored).")
         else:
             print(f"PASS: no agent fails the discriminator ({scored} scored).")
         return
@@ -735,9 +726,7 @@ def _resolve_baseline_scope(
     if args.baseline is None and not args.update_baseline:
         return changed_override, None, None
 
-    baseline_path = resolve_checked_baseline(
-        repo_root, args.baseline, DEFAULT_BASELINE_NAME
-    )
+    baseline_path = resolve_checked_baseline(repo_root, args.baseline, DEFAULT_BASELINE_NAME)
     if baseline_path is None:
         # resolve_checked_baseline already explained the refusal.
         return changed_override, None, 2
@@ -827,9 +816,7 @@ def _update_baseline(
         # is_regression() gate that would catch them as new paths. Reject
         # them so --update-baseline cannot grandfather a candidate.
         new_candidates = {
-            path: score
-            for path, score in proposed.items()
-            if path not in existing and score >= 2
+            path: score for path, score in proposed.items() if path not in existing and score >= 2
         }
         if new_candidates:
             for path, score in sorted(new_candidates.items()):
@@ -885,9 +872,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
-    changed = _split_changed_arg(
-        args.changed_files, os.environ.get("CHANGED_FILES")
-    )
+    changed = _split_changed_arg(args.changed_files, os.environ.get("CHANGED_FILES"))
 
     changed_override, baseline_path, error = _resolve_baseline_scope(args, repo_root)
     if error is not None:

@@ -279,10 +279,7 @@ def _print_recommendation_group(
         if result.rating == "error":
             print(f"  {result.name}: {result.file_path}")
         else:
-            print(
-                f"  {result.name}: {result.line_count} lines, "
-                f"score={result.modularity_score}"
-            )
+            print(f"  {result.name}: {result.line_count} lines, score={result.modularity_score}")
         for recommendation in result.recommendations:
             print(f"    -> {recommendation}")
     print()

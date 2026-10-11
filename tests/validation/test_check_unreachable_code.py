@@ -313,9 +313,7 @@ def test_cli_exits_two_on_empty_python_scope(
     assert "zero tracked Python files" in capsys.readouterr().err
 
 
-def test_cli_exits_two_on_invalid_root(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_cli_exits_two_on_invalid_root(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     result = main([str(tmp_path / "does_not_exist")])
 
     assert result == 2

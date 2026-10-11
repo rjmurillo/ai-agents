@@ -264,7 +264,6 @@ def test_write_artifact_no_follow_open_blocks_a_symlink_swapped_in_after_the_che
     assert list(outside.iterdir()) == []
 
 
-
 def test_write_artifact_raises_oserror_where_no_follow_writes_are_unsupported(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

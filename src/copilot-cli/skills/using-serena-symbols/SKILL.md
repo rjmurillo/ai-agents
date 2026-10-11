@@ -34,10 +34,12 @@ Serena provides LSP-powered code intelligence for accurate symbol extraction, re
 Get high-level view of symbols in a file. **Start here** when exploring a new file.
 
 ```python
-mcp__plugin_serena_serena__get_symbols_overview({
-  "relative_path": "src/services/auth.py",
-  "depth": 1  # 0=top-level only, 1=include methods
-})
+mcp__plugin_serena_serena__get_symbols_overview(
+    {
+        "relative_path": "src/services/auth.py",
+        "depth": 1,  # 0=top-level only, 1=include methods
+    }
+)
 ```
 
 **Returns**: Classes, functions, variables with their kind and location.
@@ -54,11 +56,13 @@ Find symbols by name pattern. Supports flexible matching.
 - `Service` with `substring_matching: true` - Matches "UserService", "AuthService", etc.
 
 ```python
-mcp__plugin_serena_serena__find_symbol({
-  "name_path_pattern": "UserService/authenticate",
-  "include_body": true,  # Get source code
-  "depth": 0  # 0=just this symbol, 1=include children
-})
+mcp__plugin_serena_serena__find_symbol(
+    {
+        "name_path_pattern": "UserService/authenticate",
+        "include_body": true,  # Get source code
+        "depth": 0,  # 0=just this symbol, 1=include children
+    }
+)
 ```
 
 **Key parameters**:
@@ -73,10 +77,9 @@ mcp__plugin_serena_serena__find_symbol({
 Find all references to a symbol. Essential for understanding impact.
 
 ```python
-mcp__plugin_serena_serena__find_referencing_symbols({
-  "name_path": "UserService/authenticate",
-  "relative_path": "src/services/auth.py"
-})
+mcp__plugin_serena_serena__find_referencing_symbols(
+    {"name_path": "UserService/authenticate", "relative_path": "src/services/auth.py"}
+)
 ```
 
 **Returns**: Code snippets showing each reference with context.
@@ -86,12 +89,14 @@ mcp__plugin_serena_serena__find_referencing_symbols({
 Regex search when you need flexibility (like grep, but smarter file filtering).
 
 ```python
-mcp__plugin_serena_serena__search_for_pattern({
-  "substring_pattern": "def.*async.*:",
-  "restrict_search_to_code_files": true,
-  "context_lines_before": 2,
-  "context_lines_after": 2
-})
+mcp__plugin_serena_serena__search_for_pattern(
+    {
+        "substring_pattern": "def.*async.*:",
+        "restrict_search_to_code_files": true,
+        "context_lines_before": 2,
+        "context_lines_after": 2,
+    }
+)
 ```
 
 ## Process
@@ -101,29 +106,21 @@ mcp__plugin_serena_serena__search_for_pattern({
 1. **Directory structure** - Understand layout
 
    ```python
-   mcp__plugin_serena_serena__list_dir({
-     "relative_path": ".",
-     "recursive": false
-   })
+   mcp__plugin_serena_serena__list_dir({"relative_path": ".", "recursive": false})
    ```
 
 2. **Entry points** - Find main files
 
    ```python
-   mcp__plugin_serena_serena__get_symbols_overview({
-     "relative_path": "src/main.py",
-     "depth": 1
-   })
+   mcp__plugin_serena_serena__get_symbols_overview({"relative_path": "src/main.py", "depth": 1})
    ```
 
 3. **Trace key classes** - Understand structure
 
    ```python
-   mcp__plugin_serena_serena__find_symbol({
-     "name_path_pattern": "App",
-     "include_body": false,
-     "depth": 1
-   })
+   mcp__plugin_serena_serena__find_symbol(
+       {"name_path_pattern": "App", "include_body": false, "depth": 1}
+   )
    ```
 
 ### Understanding a Specific Class
@@ -131,29 +128,25 @@ mcp__plugin_serena_serena__search_for_pattern({
 1. **Find the class** with children
 
    ```python
-   mcp__plugin_serena_serena__find_symbol({
-     "name_path_pattern": "AuthService",
-     "depth": 1,
-     "include_body": false
-   })
+   mcp__plugin_serena_serena__find_symbol(
+       {"name_path_pattern": "AuthService", "depth": 1, "include_body": false}
+   )
    ```
 
 2. **Read specific methods** you need
 
    ```python
-   mcp__plugin_serena_serena__find_symbol({
-     "name_path_pattern": "AuthService/validate_token",
-     "include_body": true
-   })
+   mcp__plugin_serena_serena__find_symbol(
+       {"name_path_pattern": "AuthService/validate_token", "include_body": true}
+   )
    ```
 
 3. **Find who calls it**
 
    ```python
-   mcp__plugin_serena_serena__find_referencing_symbols({
-     "name_path": "AuthService/validate_token",
-     "relative_path": "src/services/auth.py"
-   })
+   mcp__plugin_serena_serena__find_referencing_symbols(
+       {"name_path": "AuthService/validate_token", "relative_path": "src/services/auth.py"}
+   )
    ```
 
 ### Tracing Dependencies
@@ -161,19 +154,17 @@ mcp__plugin_serena_serena__search_for_pattern({
 1. **Find all imports of a module**
 
    ```python
-   mcp__plugin_serena_serena__search_for_pattern({
-     "substring_pattern": "from.*auth.*import|import.*auth",
-     "restrict_search_to_code_files": true
-   })
+   mcp__plugin_serena_serena__search_for_pattern(
+       {"substring_pattern": "from.*auth.*import|import.*auth", "restrict_search_to_code_files": true}
+   )
    ```
 
 2. **Find references to trace usage**
 
    ```python
-   mcp__plugin_serena_serena__find_referencing_symbols({
-     "name_path": "AuthService",
-     "relative_path": "src/services/auth.py"
-   })
+   mcp__plugin_serena_serena__find_referencing_symbols(
+       {"name_path": "AuthService", "relative_path": "src/services/auth.py"}
+   )
    ```
 
 ## Symbol Kinds Reference
@@ -200,11 +191,13 @@ LSP symbol kinds (for `include_kinds`/`exclude_kinds` filtering):
 Example - find only classes:
 
 ```python
-mcp__plugin_serena_serena__find_symbol({
-  "name_path_pattern": "Service",
-  "substring_matching": true,
-  "include_kinds": [5]  # Class only
-})
+mcp__plugin_serena_serena__find_symbol(
+    {
+        "name_path_pattern": "Service",
+        "substring_matching": true,
+        "include_kinds": [5],  # Class only
+    }
+)
 ```
 
 ## Efficiency Tips

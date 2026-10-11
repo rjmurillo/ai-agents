@@ -261,9 +261,7 @@ _CELLS: tuple[MatrixCell, ...] = (
     ),
 )
 
-_BY_PAIR: dict[tuple[str, str], MatrixCell] = {
-    (cell.harness, cell.payer): cell for cell in _CELLS
-}
+_BY_PAIR: dict[tuple[str, str], MatrixCell] = {(cell.harness, cell.payer): cell for cell in _CELLS}
 
 
 def _build_alias_index() -> dict[str, MatrixCell]:
@@ -434,9 +432,7 @@ def apply_selection(
         cell = cell_for_provider(provider)
         env["EVAL_PROVIDER"] = provider.strip()
         return cell
-    cell = resolve_selection(
-        provider=provider, harness=harness, billing=billing, environ=env
-    )
+    cell = resolve_selection(provider=provider, harness=harness, billing=billing, environ=env)
     env["EVAL_PROVIDER"] = provider.strip() if provider else cell.provider
     return cell
 

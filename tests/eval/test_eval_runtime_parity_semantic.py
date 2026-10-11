@@ -57,9 +57,7 @@ def _semantic_corpus(
     if instructions is not None:
         fixture["instructions"] = instructions
     path = tmp_path / "fixtures.json"
-    path.write_text(
-        json.dumps({"schema_version": 1, "fixtures": [fixture]}), encoding="utf-8"
-    )
+    path.write_text(json.dumps({"schema_version": 1, "fixtures": [fixture]}), encoding="utf-8")
     return path
 
 
@@ -239,9 +237,9 @@ def test_prepare_workspace_copilot_without_instructions_keeps_the_sentinel(
     assert parity.SENTINEL in (
         workspace / ".parity-profile" / "copilot" / "copilot-instructions.md"
     ).read_text(encoding="utf-8")
-    assert parity.SENTINEL in (
-        workspace / ".github" / "copilot-instructions.md"
-    ).read_text(encoding="utf-8")
+    assert parity.SENTINEL in (workspace / ".github" / "copilot-instructions.md").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_prepare_workspace_without_instructions_is_unchanged(tmp_path: Path) -> None:
@@ -268,9 +266,7 @@ def test_resolve_instructions_missing_working_tree_file_is_a_config_error() -> N
 
 
 def test_resolve_instructions_reads_a_git_ref() -> None:
-    resolved = runtime_parity.resolve_instructions(
-        [".claude/rules/voice.md"], "HEAD"
-    )
+    resolved = runtime_parity.resolve_instructions([".claude/rules/voice.md"], "HEAD")
 
     target = runtime_parity.REPO_ROOT / ".claude" / "rules" / "voice.md"
     assert resolved[".claude/rules/voice.md"] == target.read_bytes()

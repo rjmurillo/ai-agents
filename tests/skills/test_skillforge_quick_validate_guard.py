@@ -157,9 +157,7 @@ def test_symlink_within_cwd_is_allowed(script: Path, tmp_path: Path) -> None:
 
 def _load_module(script: Path):
     """Import a quick_validate copy as a module to unit-test its helpers."""
-    spec = importlib.util.spec_from_file_location(
-        f"quick_validate_{script.parts[-5]}", script
-    )
+    spec = importlib.util.spec_from_file_location(f"quick_validate_{script.parts[-5]}", script)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

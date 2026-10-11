@@ -57,9 +57,7 @@ def parse_filter_keys(raw_filter_keys: str) -> list[str]:
 
 
 def parse_force_run_events(raw_force_run_events: str) -> frozenset[str]:
-    return frozenset(
-        event.strip() for event in raw_force_run_events.split(",") if event.strip()
-    )
+    return frozenset(event.strip() for event in raw_force_run_events.split(",") if event.strip())
 
 
 def parse_filter_outputs(raw_filter_outputs: str) -> dict[str, object]:

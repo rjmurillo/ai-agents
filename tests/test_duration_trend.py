@@ -24,8 +24,19 @@ def test_no_regression_exits_zero_and_writes_summary_and_snapshot(
     report = write_junit(tmp_path, "pytest-results", {"tests.test_alpha": [5.0, 5.0]}, 10.0)
     summary, snap = tmp_path / "summary.md", tmp_path / "snap.json"
 
-    rc = trend.main([str(report), "--history", str(write_history(tmp_path, [10.0])),
-                     "--summary", str(summary), "--snapshot-out", str(snap), "--sha", "c0ffee"])
+    rc = trend.main(
+        [
+            str(report),
+            "--history",
+            str(write_history(tmp_path, [10.0])),
+            "--summary",
+            str(summary),
+            "--snapshot-out",
+            str(snap),
+            "--sha",
+            "c0ffee",
+        ]
+    )
 
     assert rc == 0
     text = summary.read_text(encoding="utf-8")
@@ -41,13 +52,22 @@ def test_a_regression_exits_one_annotates_it_and_still_writes_history(
     report = write_junit(tmp_path, "p", {"tests.test_alpha": [20.0, 20.0]}, 40.0)
     out = tmp_path / "out.json"
 
-    rc = trend.main([str(report), "--history", str(write_history(tmp_path, [10.0, 12.0])),
-                     "--write-history", str(out)])
+    rc = trend.main(
+        [
+            str(report),
+            "--history",
+            str(write_history(tmp_path, [10.0, 12.0])),
+            "--write-history",
+            str(out),
+        ]
+    )
 
     assert rc == 1
     captured = capsys.readouterr()
-    assert ("::warning title=Test duration regression::tests/test_alpha.py took 40.0s "
-            "against a 11.0s median baseline (3.64x, 2 samples)") in captured.out
+    assert (
+        "::warning title=Test duration regression::tests/test_alpha.py took 40.0s "
+        "against a 11.0s median baseline (3.64x, 2 samples)"
+    ) in captured.out
     assert "duration: 1 regressions in 1 comparable modules" in captured.err
     assert len(json.loads(out.read_text(encoding="utf-8"))["snapshots"]) == 3
 
@@ -77,8 +97,12 @@ def test_a_lower_custom_threshold_turns_a_slowdown_into_a_regression(tmp_path: P
     history = str(write_history(tmp_path, [10.0]))
 
     assert trend.main([str(report), "--history", history]) == 0
-    assert trend.main([str(report), "--history", history, "--module-ratio", "1.1",
-                       "--module-min-delta", "1"]) == 1
+    assert (
+        trend.main(
+            [str(report), "--history", history, "--module-ratio", "1.1", "--module-min-delta", "1"]
+        )
+        == 1
+    )
 
 
 def test_the_script_runs_under_a_bare_interpreter_from_another_directory(tmp_path: Path) -> None:
@@ -88,8 +112,13 @@ def test_the_script_runs_under_a_bare_interpreter_from_another_directory(tmp_pat
 
     result = subprocess.run(
         [sys.executable, "-I", str(Path(trend.__file__).resolve()), str(report)],
-        cwd=tmp_path, capture_output=True, text=True, encoding="utf-8", errors="replace",
-        env=env, check=False,
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
+        check=False,
     )
 
     assert result.returncode == 0, result.stderr
@@ -98,10 +127,12 @@ def test_the_script_runs_under_a_bare_interpreter_from_another_directory(tmp_pat
 
 @pytest.mark.parametrize(
     ("event", "ref"),
-    [("pull_request", "refs/pull/6244/merge"),
-     ("push", "refs/heads/feature"),
-     ("merge_group", "refs/heads/main"),
-     ("workflow_dispatch", "refs/heads/main")],
+    [
+        ("pull_request", "refs/pull/6244/merge"),
+        ("push", "refs/heads/feature"),
+        ("merge_group", "refs/heads/main"),
+        ("workflow_dispatch", "refs/heads/main"),
+    ],
 )
 def test_a_regression_outside_a_push_to_main_warns_and_exits_zero(
     tmp_path: Path, capsys: pytest.CaptureFixture[str], event: str, ref: str
@@ -111,8 +142,19 @@ def test_a_regression_outside_a_push_to_main_warns_and_exits_zero(
 
     summary = tmp_path / "summary.md"
 
-    rc = trend.main([str(report), "--history", history, "--event", event, "--ref", ref,
-                     "--summary", str(summary)])
+    rc = trend.main(
+        [
+            str(report),
+            "--history",
+            history,
+            "--event",
+            event,
+            "--ref",
+            ref,
+            "--summary",
+            str(summary),
+        ]
+    )
 
     assert rc == 0
     assert f"Advisory run ({event} on {ref})" in summary.read_text(encoding="utf-8")
@@ -129,8 +171,19 @@ def test_a_regression_on_a_push_to_main_exits_one(
 
     summary = tmp_path / "summary.md"
 
-    rc = trend.main([str(report), "--history", history, "--summary", str(summary),
-                     "--event", "push", "--ref", "refs/heads/main"])
+    rc = trend.main(
+        [
+            str(report),
+            "--history",
+            history,
+            "--summary",
+            str(summary),
+            "--event",
+            "push",
+            "--ref",
+            "refs/heads/main",
+        ]
+    )
 
     assert rc == 1
     assert "Advisory run" not in summary.read_text(encoding="utf-8")
@@ -139,11 +192,13 @@ def test_a_regression_on_a_push_to_main_exits_one(
 
 @pytest.mark.parametrize(
     ("event", "ref", "enforced"),
-    [(None, None, True),
-     ("push", "refs/heads/main", True),
-     ("push", None, False),
-     (None, "refs/heads/main", False),
-     ("pull_request", "refs/heads/main", False)],
+    [
+        (None, None, True),
+        ("push", "refs/heads/main", True),
+        ("push", None, False),
+        (None, "refs/heads/main", False),
+        ("pull_request", "refs/heads/main", False),
+    ],
 )
 def test_only_a_push_to_main_or_an_unnamed_run_is_enforced(
     event: str | None, ref: str | None, enforced: bool

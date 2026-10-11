@@ -22,9 +22,12 @@ def _retrospective(tmp_path: Path) -> SecurityRetrospective:
 def test_fetch_comments_includes_timeout(tmp_path: Path) -> None:
     retro = _retrospective(tmp_path)
 
-    with patch.object(retro, "_get_owner_repo", return_value="o/r"), patch(
-        "scripts.security.invoke_security_retrospective.subprocess.run",
-    ) as run:
+    with (
+        patch.object(retro, "_get_owner_repo", return_value="o/r"),
+        patch(
+            "scripts.security.invoke_security_retrospective.subprocess.run",
+        ) as run,
+    ):
         run.return_value = MagicMock(returncode=0, stdout=json.dumps([]), stderr="")
         assert retro._fetch_external_review_comments() == []
 

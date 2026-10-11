@@ -139,9 +139,7 @@ class TestTheVerdictTracksGitsOwnBooleanReading:
     """The expected exit code is derived from git, never from a spelling list."""
 
     @pytest.mark.parametrize("spelling", _BOOLEAN_SPELLINGS)
-    def test_a_written_value_exits_as_git_reads_it(
-        self, spelling: str, tmp_path: Path
-    ) -> None:
+    def test_a_written_value_exits_as_git_reads_it(self, spelling: str, tmp_path: Path) -> None:
         repo = _make_repo(tmp_path)
         _git(repo, "config", "core.bare", spelling)
 
@@ -177,9 +175,7 @@ class TestTheVerdictTracksGitsOwnBooleanReading:
         assert code == 0
         assert "none set true" in capsys.readouterr().out
 
-    def test_a_valueless_variable_is_bare_to_git_and_to_the_gate(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_valueless_variable_is_bare_to_git_and_to_the_gate(self, tmp_path: Path) -> None:
         """The control for the case above: same empty field, opposite verdict."""
         repo = _make_repo(tmp_path)
         _rewrite_bare_line(repo, "bare")

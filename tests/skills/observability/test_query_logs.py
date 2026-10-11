@@ -358,15 +358,19 @@ class TestMainCLI:
         mod = _load_module()
         path = _write_jsonl(_sample_events())
         try:
-            monkeypatch.setattr(sys, "argv", [
-                "query_logs.py",
-                str(path),
-                "--event-type",
-                "error",
-                "--errors-only",
-                "--output",
-                "json",
-            ])
+            monkeypatch.setattr(
+                sys,
+                "argv",
+                [
+                    "query_logs.py",
+                    str(path),
+                    "--event-type",
+                    "error",
+                    "--errors-only",
+                    "--output",
+                    "json",
+                ],
+            )
             assert mod.main() == 0
         finally:
             os.unlink(path)

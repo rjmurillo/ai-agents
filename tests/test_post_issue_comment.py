@@ -93,9 +93,13 @@ class TestPrependMarker:
 
 class TestSaveFailedCommentArtifact:
     def test_saves_artifact(self, tmp_path):
-        with patch("subprocess.run", return_value=_completed(
-            stdout=str(tmp_path), rc=0,
-        )):
+        with patch(
+            "subprocess.run",
+            return_value=_completed(
+                stdout=str(tmp_path),
+                rc=0,
+            ),
+        ):
             path = save_failed_comment_artifact("o", "r", 1, "body", "error")
         assert path is not None
         content = json.loads(Path(path).read_text())
@@ -103,9 +107,16 @@ class TestSaveFailedCommentArtifact:
         assert content["issue"] == 1
 
     def test_returns_none_on_write_failure(self, tmp_path):
-        with patch("subprocess.run", return_value=_completed(
-            stdout="/nonexistent/path", rc=0,
-        )), patch("pathlib.Path.mkdir", side_effect=OSError("denied")):
+        with (
+            patch(
+                "subprocess.run",
+                return_value=_completed(
+                    stdout="/nonexistent/path",
+                    rc=0,
+                ),
+            ),
+            patch("pathlib.Path.mkdir", side_effect=OSError("denied")),
+        ):
             path = save_failed_comment_artifact("o", "r", 1, "body", "error")
         assert path is None
 
@@ -122,11 +133,16 @@ class TestBuildParser:
 
     def test_body_and_body_file_mutually_exclusive(self):
         with pytest.raises(SystemExit):
-            build_parser().parse_args([
-                "--issue", "1",
-                "--body", "text",
-                "--body-file", "file.md",
-            ])
+            build_parser().parse_args(
+                [
+                    "--issue",
+                    "1",
+                    "--body",
+                    "text",
+                    "--body-file",
+                    "file.md",
+                ]
+            )
 
     def test_valid_args(self):
         args = build_parser().parse_args(["--issue", "42", "--body", "hello"])
@@ -156,9 +172,12 @@ class TestMainAuth:
 class TestMainBody:
     def test_empty_body_exits_2(self, tmp_path, monkeypatch):
         _setup_output(tmp_path, monkeypatch)
-        with patch("subprocess.run", return_value=_completed(rc=0)), patch(
-            f"{_MODULE_NAME}.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
+        with (
+            patch("subprocess.run", return_value=_completed(rc=0)),
+            patch(
+                f"{_MODULE_NAME}.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--issue", "1", "--body", ""])
@@ -176,18 +195,24 @@ class TestMainBody:
             call_count += 1
             return _completed(rc=0, stdout=response)
 
-        with patch("subprocess.run", side_effect=_side_effect), patch(
-            f"{_MODULE_NAME}.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
+        with (
+            patch("subprocess.run", side_effect=_side_effect),
+            patch(
+                f"{_MODULE_NAME}.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
         ):
             rc = main(["--issue", "1", "--body-file", str(body_file)])
         assert rc == 0
 
     def test_body_file_not_found_exits_2(self, tmp_path, monkeypatch):
         _setup_output(tmp_path, monkeypatch)
-        with patch("subprocess.run", return_value=_completed(rc=0)), patch(
-            f"{_MODULE_NAME}.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
+        with (
+            patch("subprocess.run", return_value=_completed(rc=0)),
+            patch(
+                f"{_MODULE_NAME}.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--issue", "1", "--body-file", "/nonexistent/body.md"])
@@ -204,18 +229,27 @@ class TestMainIdempotency:
         output_file = _setup_output(tmp_path, monkeypatch)
         existing_comments = [{"id": 99, "body": "<!-- test-marker -->\nold body"}]
 
-        with patch("subprocess.run", return_value=_completed(rc=0)), patch(
-            f"{_MODULE_NAME}.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            f"{_MODULE_NAME}.get_issue_comments",
-            return_value=existing_comments,
+        with (
+            patch("subprocess.run", return_value=_completed(rc=0)),
+            patch(
+                f"{_MODULE_NAME}.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                f"{_MODULE_NAME}.get_issue_comments",
+                return_value=existing_comments,
+            ),
         ):
-            rc = main([
-                "--issue", "1",
-                "--body", "new body",
-                "--marker", "test-marker",
-            ])
+            rc = main(
+                [
+                    "--issue",
+                    "1",
+                    "--body",
+                    "new body",
+                    "--marker",
+                    "test-marker",
+                ]
+            )
         assert rc == 0
         outputs = _read_outputs(output_file)
         assert outputs["skipped"] == "true"
@@ -225,22 +259,32 @@ class TestMainIdempotency:
         existing_comments = [{"id": 99, "body": "<!-- test-marker -->\nold body"}]
         update_response = {"id": 99, "html_url": "https://ex.com", "updated_at": "now"}
 
-        with patch("subprocess.run", return_value=_completed(rc=0)), patch(
-            f"{_MODULE_NAME}.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            f"{_MODULE_NAME}.get_issue_comments",
-            return_value=existing_comments,
-        ), patch(
-            f"{_MODULE_NAME}.update_issue_comment",
-            return_value=update_response,
+        with (
+            patch("subprocess.run", return_value=_completed(rc=0)),
+            patch(
+                f"{_MODULE_NAME}.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                f"{_MODULE_NAME}.get_issue_comments",
+                return_value=existing_comments,
+            ),
+            patch(
+                f"{_MODULE_NAME}.update_issue_comment",
+                return_value=update_response,
+            ),
         ):
-            rc = main([
-                "--issue", "1",
-                "--body", "updated body",
-                "--marker", "test-marker",
-                "--update-if-exists",
-            ])
+            rc = main(
+                [
+                    "--issue",
+                    "1",
+                    "--body",
+                    "updated body",
+                    "--marker",
+                    "test-marker",
+                    "--update-if-exists",
+                ]
+            )
         assert rc == 0
         outputs = _read_outputs(output_file)
         assert outputs["updated"] == "true"
@@ -255,39 +299,45 @@ class TestMainIdempotency:
         actually sent to ``update_issue_comment``.
         """
         _setup_output(tmp_path, monkeypatch)
-        existing_comments = [
-            {"id": 99, "body": "<!-- test-marker -->\nOLD REPORT: FAIL"}
-        ]
+        existing_comments = [{"id": 99, "body": "<!-- test-marker -->\nOLD REPORT: FAIL"}]
         captured: dict[str, str] = {}
 
         def fake_update(owner, repo, comment_id, body):
             captured["body"] = body
             return {"id": comment_id, "html_url": "https://ex.com", "updated_at": "now"}
 
-        with patch("subprocess.run", return_value=_completed(rc=0)), patch(
-            f"{_MODULE_NAME}.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            f"{_MODULE_NAME}.get_issue_comments",
-            return_value=existing_comments,
-        ), patch(
-            f"{_MODULE_NAME}.update_issue_comment",
-            side_effect=fake_update,
+        with (
+            patch("subprocess.run", return_value=_completed(rc=0)),
+            patch(
+                f"{_MODULE_NAME}.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                f"{_MODULE_NAME}.get_issue_comments",
+                return_value=existing_comments,
+            ),
+            patch(
+                f"{_MODULE_NAME}.update_issue_comment",
+                side_effect=fake_update,
+            ),
         ):
-            rc = main([
-                "--issue", "1",
-                "--body", "NEW REPORT: PASS",
-                "--marker", "test-marker",
-                "--update-if-exists",
-            ])
+            rc = main(
+                [
+                    "--issue",
+                    "1",
+                    "--body",
+                    "NEW REPORT: PASS",
+                    "--marker",
+                    "test-marker",
+                    "--update-if-exists",
+                ]
+            )
 
         assert rc == 0
         assert "NEW REPORT: PASS" in captured["body"]
         assert "OLD REPORT: FAIL" not in captured["body"]
 
-    def test_byte_identical_rerun_updates_in_place_not_a_duplicate(
-        self, tmp_path, monkeypatch
-    ):
+    def test_byte_identical_rerun_updates_in_place_not_a_duplicate(self, tmp_path, monkeypatch):
         """Negative/edge: an unchanged report must not create a second comment.
 
         A re-run whose recomputed report is byte-identical to the existing
@@ -307,22 +357,32 @@ class TestMainIdempotency:
         def fake_update(owner, repo, comment_id, body):
             return {"id": comment_id, "html_url": "https://ex.com", "updated_at": "now"}
 
-        with patch("subprocess.run", side_effect=fake_run), patch(
-            f"{_MODULE_NAME}.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            f"{_MODULE_NAME}.get_issue_comments",
-            return_value=existing_comments,
-        ), patch(
-            f"{_MODULE_NAME}.update_issue_comment",
-            side_effect=fake_update,
-        ) as update_mock:
-            rc = main([
-                "--issue", "1",
-                "--body", "SAME REPORT: PASS",
-                "--marker", "test-marker",
-                "--update-if-exists",
-            ])
+        with (
+            patch("subprocess.run", side_effect=fake_run),
+            patch(
+                f"{_MODULE_NAME}.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                f"{_MODULE_NAME}.get_issue_comments",
+                return_value=existing_comments,
+            ),
+            patch(
+                f"{_MODULE_NAME}.update_issue_comment",
+                side_effect=fake_update,
+            ) as update_mock,
+        ):
+            rc = main(
+                [
+                    "--issue",
+                    "1",
+                    "--body",
+                    "SAME REPORT: PASS",
+                    "--marker",
+                    "test-marker",
+                    "--update-if-exists",
+                ]
+            )
 
         assert rc == 0
         update_mock.assert_called_once_with("o", "r", 99, existing_body)
@@ -340,9 +400,13 @@ class TestMainIdempotency:
 
     def test_marker_not_found_posts_new(self, tmp_path, monkeypatch):
         output_file = _setup_output(tmp_path, monkeypatch)
-        response = json.dumps({
-            "id": 1, "html_url": "https://ex.com", "created_at": "now",
-        })
+        response = json.dumps(
+            {
+                "id": 1,
+                "html_url": "https://ex.com",
+                "created_at": "now",
+            }
+        )
 
         call_count = 0
 
@@ -351,18 +415,27 @@ class TestMainIdempotency:
             call_count += 1
             return _completed(rc=0, stdout=response)
 
-        with patch("subprocess.run", side_effect=_side_effect), patch(
-            f"{_MODULE_NAME}.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            f"{_MODULE_NAME}.get_issue_comments",
-            return_value=[],
+        with (
+            patch("subprocess.run", side_effect=_side_effect),
+            patch(
+                f"{_MODULE_NAME}.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                f"{_MODULE_NAME}.get_issue_comments",
+                return_value=[],
+            ),
         ):
-            rc = main([
-                "--issue", "1",
-                "--body", "new comment",
-                "--marker", "new-marker",
-            ])
+            rc = main(
+                [
+                    "--issue",
+                    "1",
+                    "--body",
+                    "new comment",
+                    "--marker",
+                    "new-marker",
+                ]
+            )
         assert rc == 0
         outputs = _read_outputs(output_file)
         assert outputs["skipped"] == "false"
@@ -386,12 +459,16 @@ class TestMainPostErrors:
                 return _completed(rc=0)  # auth
             return _completed(rc=1, stderr="HTTP 403: Forbidden")
 
-        with patch("subprocess.run", side_effect=_side_effect), patch(
-            f"{_MODULE_NAME}.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            f"{_MODULE_NAME}.save_failed_comment_artifact", return_value=None
-        ) as save_artifact:
+        with (
+            patch("subprocess.run", side_effect=_side_effect),
+            patch(
+                f"{_MODULE_NAME}.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                f"{_MODULE_NAME}.save_failed_comment_artifact", return_value=None
+            ) as save_artifact,
+        ):
             with pytest.raises(SystemExit) as exc:
                 main(["--issue", "1", "--body", "test body"])
             assert exc.value.code == 4
@@ -413,9 +490,12 @@ class TestMainPostErrors:
                 return _completed(rc=0)  # auth
             return _completed(rc=1, stderr="HTTP 500: Internal Server Error")
 
-        with patch("subprocess.run", side_effect=_side_effect), patch(
-            f"{_MODULE_NAME}.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
+        with (
+            patch("subprocess.run", side_effect=_side_effect),
+            patch(
+                f"{_MODULE_NAME}.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--issue", "1", "--body", "test body"])
@@ -432,9 +512,12 @@ class TestMainPostErrors:
                 return _completed(rc=0)  # auth
             raise subprocess.TimeoutExpired(cmd="gh", timeout=30)
 
-        with patch("subprocess.run", side_effect=_side_effect), patch(
-            f"{_MODULE_NAME}.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
+        with (
+            patch("subprocess.run", side_effect=_side_effect),
+            patch(
+                f"{_MODULE_NAME}.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--issue", "1", "--body", "test body"])
@@ -451,9 +534,12 @@ class TestMainPostErrors:
                 return _completed(rc=0)  # auth
             return _completed(rc=0, stdout="not json")
 
-        with patch("subprocess.run", side_effect=_side_effect), patch(
-            f"{_MODULE_NAME}.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
+        with (
+            patch("subprocess.run", side_effect=_side_effect),
+            patch(
+                f"{_MODULE_NAME}.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
         ):
             rc = main(["--issue", "1", "--body", "test body"])
         assert rc == 0

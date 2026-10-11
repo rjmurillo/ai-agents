@@ -193,14 +193,15 @@ def test_main_passes_vacuously_when_no_pretooluse_hooks_are_registered(
     """
     install_root = tmp_path / "install"
     (install_root / "hooks").mkdir(parents=True)
-    (install_root / "hooks" / "hooks.json").write_text(
-        '{"hooks": {}}', encoding="utf-8"
-    )
+    (install_root / "hooks" / "hooks.json").write_text('{"hooks": {}}', encoding="utf-8")
     code = guard.main(
         [
-            "--mode", "windows-path",
-            "--install-root", str(install_root),
-            "--consumer-cwd", str(tmp_path),
+            "--mode",
+            "windows-path",
+            "--install-root",
+            str(install_root),
+            "--consumer-cwd",
+            str(tmp_path),
         ]
     )
     assert code == 0
@@ -212,9 +213,12 @@ def test_main_fails_when_the_manifest_is_missing(guard, tmp_path: Path) -> None:
     (install_root / "hooks").mkdir(parents=True)
     code = guard.main(
         [
-            "--mode", "windows-path",
-            "--install-root", str(install_root),
-            "--consumer-cwd", str(tmp_path),
+            "--mode",
+            "windows-path",
+            "--install-root",
+            str(install_root),
+            "--consumer-cwd",
+            str(tmp_path),
         ]
     )
     assert code == 1
@@ -223,9 +227,12 @@ def test_main_fails_when_the_manifest_is_missing(guard, tmp_path: Path) -> None:
 def test_main_rejects_linux_container_mode_without_an_image(guard, tmp_path: Path) -> None:
     code = guard.main(
         [
-            "--mode", "linux-container",
-            "--install-root", str(tmp_path),
-            "--consumer-cwd", str(tmp_path),
+            "--mode",
+            "linux-container",
+            "--install-root",
+            str(tmp_path),
+            "--consumer-cwd",
+            str(tmp_path),
         ]
     )
     assert code == 2
@@ -247,12 +254,18 @@ def test_materialize_installed_plugin_cli_exits_nonzero_on_a_bad_source(tmp_path
     script = _REPO_ROOT / "scripts" / "ci" / "materialize_installed_plugin.py"
     proc = subprocess.run(
         [
-            sys.executable, str(script),
-            "--plugin-source", str(tmp_path / "does-not-exist"),
-            "--install-root", str(tmp_path / "install"),
-            "--consumer-cwd", str(tmp_path / "consumer"),
+            sys.executable,
+            str(script),
+            "--plugin-source",
+            str(tmp_path / "does-not-exist"),
+            "--install-root",
+            str(tmp_path / "install"),
+            "--consumer-cwd",
+            str(tmp_path / "consumer"),
         ],
-        capture_output=True, text=True, check=False,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     assert proc.returncode != 0
     assert "not a directory" in (proc.stdout + proc.stderr)
@@ -264,12 +277,18 @@ def test_materialize_installed_plugin_cli_exits_nonzero_without_a_manifest(tmp_p
     script = _REPO_ROOT / "scripts" / "ci" / "materialize_installed_plugin.py"
     proc = subprocess.run(
         [
-            sys.executable, str(script),
-            "--plugin-source", str(source),
-            "--install-root", str(tmp_path / "install"),
-            "--consumer-cwd", str(tmp_path / "consumer"),
+            sys.executable,
+            str(script),
+            "--plugin-source",
+            str(source),
+            "--install-root",
+            str(tmp_path / "install"),
+            "--consumer-cwd",
+            str(tmp_path / "consumer"),
         ],
-        capture_output=True, text=True, check=False,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     assert proc.returncode != 0
     assert "manifest" in (proc.stdout + proc.stderr)
@@ -279,12 +298,18 @@ def test_vanilla_hook_guard_cli_exits_nonzero_without_an_image(tmp_path: Path) -
     script = _REPO_ROOT / "scripts" / "ci" / "vanilla_hook_guard.py"
     proc = subprocess.run(
         [
-            sys.executable, str(script),
-            "--mode", "linux-container",
-            "--install-root", str(tmp_path),
-            "--consumer-cwd", str(tmp_path),
+            sys.executable,
+            str(script),
+            "--mode",
+            "linux-container",
+            "--install-root",
+            str(tmp_path),
+            "--consumer-cwd",
+            str(tmp_path),
         ],
-        capture_output=True, text=True, check=False,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     assert proc.returncode != 0
 

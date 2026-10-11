@@ -119,8 +119,10 @@ def _phase_section(text: str, phase: str) -> str:
             continue
         body_end = starts[index + 1][1] if index + 1 < len(starts) else len(text)
         return text[body_start:body_end]
-    pytest.fail(f"no '### Phase {phase}' heading found; phases present: "
-                f"{[n for n, _, _ in starts] or 'none'}")
+    pytest.fail(
+        f"no '### Phase {phase}' heading found; phases present: "
+        f"{[n for n, _, _ in starts] or 'none'}"
+    )
 
 
 # workflow.md uses "## Phase N" (h2), one level shallower than the SKILL.md
@@ -132,16 +134,17 @@ def _workflow_phase_section(text: str, phase: str) -> str:
     """Return the body of one workflow.md ``## Phase N`` section."""
     scannable = _blank_fences(text)
     starts = [
-        (m.group(1), m.start(), m.end())
-        for m in WORKFLOW_PHASE_HEADING_RE.finditer(scannable)
+        (m.group(1), m.start(), m.end()) for m in WORKFLOW_PHASE_HEADING_RE.finditer(scannable)
     ]
     for index, (number, _, body_start) in enumerate(starts):
         if number != phase:
             continue
         body_end = starts[index + 1][1] if index + 1 < len(starts) else len(text)
         return text[body_start:body_end]
-    pytest.fail(f"no '## Phase {phase}' heading found in workflow.md; phases present: "
-                f"{[n for n, _, _ in starts] or 'none'}")
+    pytest.fail(
+        f"no '## Phase {phase}' heading found in workflow.md; phases present: "
+        f"{[n for n, _, _ in starts] or 'none'}"
+    )
 
 
 # Premise verification: a finding can be internally consistent with a pre-fix

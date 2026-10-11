@@ -54,6 +54,7 @@ def recent_host_session_dates(now: Callable[[], datetime] = datetime.now) -> tup
     yesterday = (current - timedelta(days=1)).strftime(_ISO_DATE)
     return today, yesterday
 
+
 # Cross-platform file locking
 # Windows: msvcrt.locking is byte-position-aware and only locks 1 byte at the
 # CURRENT file position. For files opened in append mode, each process has its
@@ -247,9 +248,7 @@ def get_recent_session_log(sessions_dir: str) -> Path | None:
         now_utc.strftime(_ISO_DATE),
         (now_utc - timedelta(days=1)).strftime(_ISO_DATE),
     )
-    prefixes = tuple(
-        dict.fromkeys((host_dates[0], utc_dates[0], host_dates[1], utc_dates[1]))
-    )
+    prefixes = tuple(dict.fromkeys((host_dates[0], utc_dates[0], host_dates[1], utc_dates[1])))
 
     for index, prefix in enumerate(prefixes):
         try:

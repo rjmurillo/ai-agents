@@ -105,9 +105,7 @@ def test_state_increments_consecutive_failures_and_reports_threshold():
 def test_judge_errors_do_not_increment_activation_failure_streak():
     gate = _load_gate_module()
     results = _passing_results()
-    results["rules"]["clean-architecture"] = {
-        "summary": {"verdict": "FAIL_JUDGE_ERRORS"}
-    }
+    results["rules"]["clean-architecture"] = {"summary": {"verdict": "FAIL_JUDGE_ERRORS"}}
 
     state = gate.update_state(
         {"references": {"clean-architecture": {"consecutive_activation_failures": 1}}},
@@ -169,9 +167,7 @@ def test_workflow_does_not_add_adr006_run_block_violations():
 
 
 def test_documentation_names_owner_cadence_state_and_restoration_pr_policy():
-    readme = (REPO_ROOT / "scripts" / "eval" / "README.md").read_text(
-        encoding="utf-8"
-    )
+    readme = (REPO_ROOT / "scripts" / "eval" / "README.md").read_text(encoding="utf-8")
 
     assert "Owner: `agent-qa`" in readme
     assert "Cadence: weekly Monday 06:30 UTC" in readme
@@ -242,9 +238,7 @@ class TestValuesThatBecomeArgvAreNumericByContract:
         commands: list[list[str]] = []
         monkeypatch.chdir(tmp_path)
         monkeypatch.setattr(ci, "open_issue_number", lambda: "--body-file")
-        monkeypatch.setattr(
-            ci, "run", lambda command, **kwargs: _record(commands, list(command))
-        )
+        monkeypatch.setattr(ci, "run", lambda command, **kwargs: _record(commands, list(command)))
 
         ci.alert_issue()
 
@@ -257,9 +251,7 @@ class TestValuesThatBecomeArgvAreNumericByContract:
         commands: list[list[str]] = []
         monkeypatch.chdir(tmp_path)
         monkeypatch.setattr(ci, "open_issue_number", lambda: "3701")
-        monkeypatch.setattr(
-            ci, "run", lambda command, **kwargs: _record(commands, list(command))
-        )
+        monkeypatch.setattr(ci, "run", lambda command, **kwargs: _record(commands, list(command)))
 
         ci.alert_issue()
 
@@ -388,4 +380,3 @@ class TestAMeasurementFailureDoesNotCountAsRuleUnderperformance:
         """Guard against a fix that empties the set instead of scoping it."""
         gate = _load_gate_module()
         assert {"FAIL_THRESHOLD", "FAIL_NO_DELTA"} <= gate.ROLLBACK_VERDICTS
-

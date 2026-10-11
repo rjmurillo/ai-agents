@@ -1712,7 +1712,7 @@ session_stats = {
         "cursor[bot]": {"comments": N, "actionable": N, "rate": "100%"},
         "copilot-pull-request-reviewer": {"comments": N, "actionable": N, "rate": "XX%"},
         # ... other reviewers
-    }
+    },
 }
 ```
 
@@ -1732,7 +1732,7 @@ mcp__serena__edit_memory(
     memory_file_name="pr-review/pr-comment-responder-skills",
     needle=r"\| cursor\[bot\] \| \d+ \| \d+ \| \*\*\d+%\*\* \|",
     repl=f"| cursor[bot] | {new_total_comments} | {new_actionable} | **{new_rate}%** |",
-    mode="regex"
+    mode="regex",
 )
 
 # Add new Per-PR Breakdown entry (prepend to existing entries)
@@ -1751,7 +1751,7 @@ mcp__serena__edit_memory(
     memory_file_name="pr-review/pr-comment-responder-skills",
     needle="### Per-PR Breakdown",
     repl=new_pr_section,
-    mode="literal"
+    mode="literal",
 )
 ```
 

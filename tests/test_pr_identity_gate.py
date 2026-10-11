@@ -54,9 +54,7 @@ class TestGitHubURLRoutingRule:
 
     def test_no_web_access_stated(self) -> None:
         text = _analyst_text()
-        assert re.search(
-            r"no\s+web\s+access", text, re.IGNORECASE
-        ), (
+        assert re.search(r"no\s+web\s+access", text, re.IGNORECASE), (
             "analyst.md must state the analyst has 'no web access' "
             "(issue #4229: web_fetch is not available for GitHub URLs)"
         )
@@ -126,9 +124,7 @@ class TestPRIdentityGate:
         text = _analyst_text(agent_path)
         label = _agent_label(agent_path)
         # The fix instruction must explicitly prohibit substituting local content.
-        assert re.search(
-            r"[Dd]o not substitute\s+local", text
-        ), (
+        assert re.search(r"[Dd]o not substitute\s+local", text), (
             f"{label} must explicitly forbid substituting local checkout "
             "content for the requested PR (issue #4221)"
         )

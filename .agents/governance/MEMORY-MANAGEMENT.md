@@ -65,10 +65,7 @@ This document describes the unified memory management workflow across two memory
 Update Serena project memories for cross-session context.
 
 ```python
-mcp__serena__write_memory(
-    memory_file_name="topic-name",
-    content="# Topic\n\n[Markdown content]"
-)
+mcp__serena__write_memory(memory_file_name="topic-name", content="# Topic\n\n[Markdown content]")
 ```
 
 ### Session End

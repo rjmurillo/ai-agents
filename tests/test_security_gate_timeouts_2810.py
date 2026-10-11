@@ -88,9 +88,7 @@ def test_run_semgrep_nonzero_exit_fails_closed() -> None:
 def test_run_semgrep_empty_stdout_fails_closed() -> None:
     """A 0/1 exit with no JSON output means the scan did not really run."""
     scanner = SemgrepScanner()
-    silent = subprocess.CompletedProcess(
-        args=["semgrep"], returncode=0, stdout="", stderr=""
-    )
+    silent = subprocess.CompletedProcess(args=["semgrep"], returncode=0, stdout="", stderr="")
     with patch("subprocess.run", return_value=silent):
         findings = scanner._run_semgrep([Path("example.py")])
     assert len(findings) == 1

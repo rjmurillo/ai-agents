@@ -53,6 +53,8 @@ def _spec_surface(skill_md: Path) -> str:
         for ref in sorted((skill_md.parent / "references").glob("*.md"))
     )
     return "\n".join(parts)
+
+
 # The Copilot mirror lives under `.../skills/spec/SKILL.md`; the skills output
 # tree is two levels up. Translation needs it to resolve the agent_type plugin
 # namespace from the tree's plugin.json.
@@ -61,22 +63,34 @@ SKILLS_DIR = SKILL_MD.parent.parent
 # Reference files extracted by issue #3632 (progressive disclosure split).
 # Agents read both spec.md and these files during a /spec invocation.
 SPEC_STEP0_GATES = (
-    PROJECT_ROOT
-    / ".claude" / "skills" / "spec-generator" / "references" / "spec-step0-gates.md"
+    PROJECT_ROOT / ".claude" / "skills" / "spec-generator" / "references" / "spec-step0-gates.md"
 )
 SPEC_PRIOR_ART_SCHEMA = (
     PROJECT_ROOT
-    / ".claude" / "skills" / "spec-generator" / "references" / "spec-prior-art-schema.md"
+    / ".claude"
+    / "skills"
+    / "spec-generator"
+    / "references"
+    / "spec-prior-art-schema.md"
 )
 
 # Copilot mirrors of the reference files (verbatim copies, not translated)
 SKILL_STEP0_GATES = (
     PROJECT_ROOT
-    / "src" / "copilot-cli" / "skills" / "spec-generator" / "references" / "spec-step0-gates.md"
+    / "src"
+    / "copilot-cli"
+    / "skills"
+    / "spec-generator"
+    / "references"
+    / "spec-step0-gates.md"
 )
 SKILL_PRIOR_ART_SCHEMA = (
     PROJECT_ROOT
-    / "src" / "copilot-cli" / "skills" / "spec-generator" / "references"
+    / "src"
+    / "copilot-cli"
+    / "skills"
+    / "spec-generator"
+    / "references"
     / "spec-prior-art-schema.md"
 )
 
@@ -239,9 +253,9 @@ def test_ac6_q1_to_q6_subhead_directive_in_spec_md(spec_text: str) -> None:
     """AC-6 (static): spec.md instructs the agent to emit `### Q1..Q6`
     subheads under the Step 0 PRD block. The instruction must reference
     each label so the model produces the canonical structure."""
-    assert "### Q1..Q6" in spec_text or all(
-        f"### Q{n}" in spec_text for n in range(1, 7)
-    ), "spec.md must reference Q1..Q6 subhead directives for the PRD block"
+    assert "### Q1..Q6" in spec_text or all(f"### Q{n}" in spec_text for n in range(1, 7)), (
+        "spec.md must reference Q1..Q6 subhead directives for the PRD block"
+    )
 
 
 def test_halt_emission_format_present(spec_step0_gates_text: str) -> None:
@@ -316,8 +330,6 @@ def test_q1_q5_differentiation_in_spec_md(spec_text: str) -> None:
     )
 
 
-
-
 # ---------------------------------------------------------------------------
 # Static-2: edited sections match between spec.md and SKILL.md after translation
 # ---------------------------------------------------------------------------
@@ -344,9 +356,7 @@ def test_step0_block_identical(spec_text: str, skill_text: str) -> None:
     assert extract_step0_block(skill_text) == _translated(extract_step0_block(spec_text))
 
 
-def test_step1_paragraph_identical(
-    spec_prior_art_text: str, skill_prior_art_text: str
-) -> None:
+def test_step1_paragraph_identical(spec_prior_art_text: str, skill_prior_art_text: str) -> None:
     """AC-10: Step 1 paragraph is verbatim-identical in both reference files.
 
     After issue #3632, Step 1 lives in spec-prior-art-schema.md, which is
@@ -360,9 +370,7 @@ def test_step1_paragraph_identical(
     assert src == dst, "Step 1 paragraph differs between spec and skill reference files"
 
 
-def test_tier5_bullet_identical(
-    spec_prior_art_text: str, skill_prior_art_text: str
-) -> None:
+def test_tier5_bullet_identical(spec_prior_art_text: str, skill_prior_art_text: str) -> None:
     """AC-10: Tier 5 bullet is verbatim-identical in both reference files."""
     src = extract_tier5_bullet(spec_prior_art_text)
     dst = extract_tier5_bullet(skill_prior_art_text)
@@ -371,9 +379,7 @@ def test_tier5_bullet_identical(
     assert src == dst, "Tier 5 bullet differs between spec and skill reference files"
 
 
-def test_step9_block_identical(
-    spec_prior_art_text: str, skill_prior_art_text: str
-) -> None:
+def test_step9_block_identical(spec_prior_art_text: str, skill_prior_art_text: str) -> None:
     """AC-10: Step 9 block is verbatim-identical in both reference files."""
     src = extract_step9_block(spec_prior_art_text)
     dst = extract_step9_block(skill_prior_art_text)
@@ -600,9 +606,7 @@ class TestQ1Aspirational:
 
     def test_two_named_requesters_fails(self) -> None:
         """Two named requesters still under the >= 3 threshold."""
-        assert q1_aspirational(
-            "Bleu team and Delos team escalated KeyVault deploy failures"
-        )
+        assert q1_aspirational("Bleu team and Delos team escalated KeyVault deploy failures")
 
     def test_three_or_more_named_requesters_passes(self) -> None:
         """Three named requesters satisfies the threshold."""

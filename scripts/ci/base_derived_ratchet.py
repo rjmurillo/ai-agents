@@ -192,9 +192,7 @@ def branch_registry() -> RegistryEntries:
     return {r.label: r.script_path for r in registry.RATCHETS}
 
 
-def fork_registry_verdict(
-    repo_root: Path, fork: str
-) -> tuple[RegistryEntries | None, list[str]]:
+def fork_registry_verdict(repo_root: Path, fork: str) -> tuple[RegistryEntries | None, list[str]]:
     """Read the registry at ``fork`` and compare it with the branch's.
 
     Returns the fork's entries (None when unreadable) and one message per label
@@ -324,8 +322,7 @@ def run(
         return EXIT_REGRESSION
     if count < ceiling:
         print(
-            f"{label}: OK. {count} violations, {ceiling - count} below the "
-            f"merge base ({ceiling})."
+            f"{label}: OK. {count} violations, {ceiling - count} below the merge base ({ceiling})."
         )
         return EXIT_OK
     print(f"{label}: OK (count == merge base {ceiling}).")

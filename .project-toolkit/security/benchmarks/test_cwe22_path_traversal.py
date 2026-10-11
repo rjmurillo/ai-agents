@@ -59,9 +59,7 @@ class TestCWE22Detection:
         assert pattern.expected_severity == "HIGH"
         assert "os.path.join" in pattern.code
 
-    def test_pt003_symlink_bypass(
-        self, cwe22_patterns: list[VulnerablePattern]
-    ) -> None:
+    def test_pt003_symlink_bypass(self, cwe22_patterns: list[VulnerablePattern]) -> None:
         """
         PT-003: Symlink bypass (TOCTOU race condition).
 
@@ -77,9 +75,7 @@ class TestCWE22Detection:
         assert "os.path.isfile" in pattern.code
         assert "open" in pattern.code
 
-    def test_pt004_null_byte_injection(
-        self, cwe22_patterns: list[VulnerablePattern]
-    ) -> None:
+    def test_pt004_null_byte_injection(self, cwe22_patterns: list[VulnerablePattern]) -> None:
         """
         PT-004: Null byte injection.
 
@@ -94,9 +90,7 @@ class TestCWE22Detection:
         assert pattern.expected_severity == "CRITICAL"
         assert "\\x00" in pattern.code or "\\0" in pattern.code
 
-    def test_pt005_safe_pattern_no_flag(
-        self, cwe22_patterns: list[VulnerablePattern]
-    ) -> None:
+    def test_pt005_safe_pattern_no_flag(self, cwe22_patterns: list[VulnerablePattern]) -> None:
         """
         PT-005: Safe pattern (false positive test).
 
@@ -140,8 +134,7 @@ class TestPathTraversalPatterns:
 
         # Verify our attack sequences contain recognizable patterns
         found_indicator = any(
-            indicator.lower() in attack_sequence.lower()
-            for indicator in traversal_indicators
+            indicator.lower() in attack_sequence.lower() for indicator in traversal_indicators
         )
         assert found_indicator, f"Sequence {attack_sequence} should contain traversal indicator"
 

@@ -108,9 +108,7 @@ def tool_use_response(
     name: str, tool_input: dict[str, Any], usage: dict[str, int] | None = None
 ) -> dict[str, Any]:
     return {
-        "content": [
-            {"type": "tool_use", "id": f"tool_{name}", "name": name, "input": tool_input}
-        ],
+        "content": [{"type": "tool_use", "id": f"tool_{name}", "name": name, "input": tool_input}],
         "usage": usage or {"input_tokens": 50, "output_tokens": 10},
     }
 
@@ -132,7 +130,7 @@ def write_stub_plugin(root: Path, *, with_version: bool = True, valid: bool = Tr
     if valid:
         review_api_body = (
             'AGENTIC_INVESTIGATE_SYSTEM = "system prompt for tests"\n'
-            'FINDINGS_SCHEMA = {\n'
+            "FINDINGS_SCHEMA = {\n"
             '    "type": "object",\n'
             '    "properties": {"findings": {"type": "array"}},\n'
             '    "required": ["findings"],\n'

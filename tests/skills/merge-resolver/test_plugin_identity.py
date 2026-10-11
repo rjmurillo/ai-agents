@@ -23,9 +23,7 @@ _SCRIPT = (
 _CORE_PACKAGE_NAME = "github_core"
 _CORE_MODULE_FILE_NAME = "api.py"
 _PLUGIN_IDENTITY_NAME = "project-toolkit"
-_PLUGIN_ROOT_ENV_VARS = frozenset(
-    {"COPILOT_PLUGIN_ROOT", "CLAUDE_PLUGIN_ROOT", "GITHUB_WORKSPACE"}
-)
+_PLUGIN_ROOT_ENV_VARS = frozenset({"COPILOT_PLUGIN_ROOT", "CLAUDE_PLUGIN_ROOT", "GITHUB_WORKSPACE"})
 
 
 def _add_plugin_manifest(root: Path) -> None:
@@ -43,9 +41,7 @@ def _make_plugin_root(base: Path, name: str) -> Path:
     package = root / "lib" / _CORE_PACKAGE_NAME
     package.mkdir(parents=True)
     (package / "__init__.py").write_text("", encoding="utf-8")
-    (package / _CORE_MODULE_FILE_NAME).write_text(
-        "class RepoInfo:\n    pass\n", encoding="utf-8"
-    )
+    (package / _CORE_MODULE_FILE_NAME).write_text("class RepoInfo:\n    pass\n", encoding="utf-8")
     _add_plugin_manifest(root)
     return root
 
@@ -56,9 +52,7 @@ def _make_impostor_plugin_root(base: Path, name: str) -> Path:
     package = root / "lib" / _CORE_PACKAGE_NAME
     package.mkdir(parents=True)
     (package / "__init__.py").write_text("", encoding="utf-8")
-    (package / _CORE_MODULE_FILE_NAME).write_text(
-        "class RepoInfo:\n    pass\n", encoding="utf-8"
-    )
+    (package / _CORE_MODULE_FILE_NAME).write_text("class RepoInfo:\n    pass\n", encoding="utf-8")
     manifest_dir = root / ".claude-plugin"
     manifest_dir.mkdir(parents=True, exist_ok=True)
     (manifest_dir / "plugin.json").write_text(
@@ -88,18 +82,14 @@ class TestPluginIdentity:
 
         import importlib.util
 
-        spec = importlib.util.spec_from_file_location(
-            "resolve_pr_conflicts_identity_test", _SCRIPT
-        )
+        spec = importlib.util.spec_from_file_location("resolve_pr_conflicts_identity_test", _SCRIPT)
         assert spec is not None and spec.loader is not None
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
 
         assert mod._LIB_DIR == str(valid / "lib")
 
-    def test_no_manifest_rejected(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_no_manifest_rejected(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """A candidate with no plugin.json at all is rejected."""
         _clear_plugin_env(monkeypatch)
         root = tmp_path / "no-manifest"

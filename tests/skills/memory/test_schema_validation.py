@@ -92,9 +92,7 @@ class TestGetSchemaPath:
         with pytest.raises(FileNotFoundError, match="Schema file not found"):
             get_schema_path("nonexistent", schema_dir)
 
-    def test_throws_when_not_in_git_repo_and_no_directory(
-        self, test_dir: Path
-    ) -> None:
+    def test_throws_when_not_in_git_repo_and_no_directory(self, test_dir: Path) -> None:
         original_dir = os.getcwd()
         try:
             os.chdir(test_dir)
@@ -115,9 +113,7 @@ class TestTestSchemaValid:
     class TestValidData:
         """Tests for valid data validation."""
 
-        def test_validates_valid_data_successfully(
-            self, schema_dir: Path
-        ) -> None:
+        def test_validates_valid_data_successfully(self, schema_dir: Path) -> None:
             data = {"id": "test-123", "name": "Test Item", "items": []}
             result = test_schema_valid(data, "test", schema_dir)
             assert result.valid is True
@@ -156,9 +152,7 @@ class TestTestSchemaValid:
             assert result.valid is False
             assert "Missing required field: 'items'" in result.errors
 
-        def test_reports_multiple_missing_fields(
-            self, schema_dir: Path
-        ) -> None:
+        def test_reports_multiple_missing_fields(self, schema_dir: Path) -> None:
             data = {"name": "Only Name"}
             result = test_schema_valid(data, "test", schema_dir)
             assert result.valid is False
@@ -167,17 +161,13 @@ class TestTestSchemaValid:
     class TestTypeValidation:
         """Tests for type validation."""
 
-        def test_detects_incorrect_string_type(
-            self, schema_dir: Path
-        ) -> None:
+        def test_detects_incorrect_string_type(self, schema_dir: Path) -> None:
             data = {"id": 999, "name": "Test", "items": []}
             result = test_schema_valid(data, "test", schema_dir)
             assert result.valid is False
             assert len(result.errors) > 0
 
-        def test_detects_incorrect_integer_type(
-            self, schema_dir: Path
-        ) -> None:
+        def test_detects_incorrect_integer_type(self, schema_dir: Path) -> None:
             data = {
                 "id": "test-123",
                 "name": "Test",
@@ -186,13 +176,9 @@ class TestTestSchemaValid:
             }
             result = test_schema_valid(data, "test", schema_dir)
             assert result.valid is False
-            assert any(
-                "Field 'count' should be integer" in e for e in result.errors
-            )
+            assert any("Field 'count' should be integer" in e for e in result.errors)
 
-        def test_detects_incorrect_boolean_type(
-            self, schema_dir: Path
-        ) -> None:
+        def test_detects_incorrect_boolean_type(self, schema_dir: Path) -> None:
             data = {
                 "id": "test-123",
                 "name": "Test",
@@ -201,27 +187,19 @@ class TestTestSchemaValid:
             }
             result = test_schema_valid(data, "test", schema_dir)
             assert result.valid is False
-            assert any(
-                "Field 'active' should be boolean" in e for e in result.errors
-            )
+            assert any("Field 'active' should be boolean" in e for e in result.errors)
 
-        def test_detects_null_instead_of_array(
-            self, schema_dir: Path
-        ) -> None:
+        def test_detects_null_instead_of_array(self, schema_dir: Path) -> None:
             data = {"id": "test-123", "name": "Test", "items": None}
             result = test_schema_valid(data, "test", schema_dir)
             assert result.valid is False
             assert any("Field 'items' is null" in e for e in result.errors)
 
-        def test_detects_scalar_instead_of_array(
-            self, schema_dir: Path
-        ) -> None:
+        def test_detects_scalar_instead_of_array(self, schema_dir: Path) -> None:
             data = {"id": "test-123", "name": "Test", "items": "single-item"}
             result = test_schema_valid(data, "test", schema_dir)
             assert result.valid is False
-            assert any(
-                "Field 'items' should be array" in e for e in result.errors
-            )
+            assert any("Field 'items' should be array" in e for e in result.errors)
 
     class TestConstraintValidation:
         """Tests for enum and pattern constraints."""
@@ -250,16 +228,10 @@ class TestTestSchemaValid:
     class TestErrorHandling:
         """Tests for error handling."""
 
-        def test_handles_invalid_json_string_gracefully(
-            self, schema_dir: Path
-        ) -> None:
-            result = test_schema_valid(
-                '{"id":invalid json}', "test", schema_dir
-            )
+        def test_handles_invalid_json_string_gracefully(self, schema_dir: Path) -> None:
+            result = test_schema_valid('{"id":invalid json}', "test", schema_dir)
             assert result.valid is False
-            assert any(
-                "Failed to parse JSON content" in e for e in result.errors
-            )
+            assert any("Failed to parse JSON content" in e for e in result.errors)
 
         def test_handles_missing_schema_file(self, schema_dir: Path) -> None:
             data = {"id": "test-123", "name": "Test", "items": []}
@@ -279,23 +251,17 @@ class TestWriteValidatedJson:
     class TestSuccessfulWrites:
         """Tests for successful write operations."""
 
-        def test_writes_valid_data_to_file(
-            self, test_dir: Path, schema_dir: Path
-        ) -> None:
+        def test_writes_valid_data_to_file(self, test_dir: Path, schema_dir: Path) -> None:
             output_file = test_dir / "output.json"
             data = {"id": "test-123", "name": "Test Item", "items": []}
 
-            result = write_validated_json(
-                data, output_file, "test", schema_dir
-            )
+            result = write_validated_json(data, output_file, "test", schema_dir)
 
             assert result.success is True
             assert result.file_path == str(output_file)
             assert output_file.exists()
 
-        def test_creates_valid_json_file(
-            self, test_dir: Path, schema_dir: Path
-        ) -> None:
+        def test_creates_valid_json_file(self, test_dir: Path, schema_dir: Path) -> None:
             output_file = test_dir / "output.json"
             data = {"id": "test-456", "name": "Valid JSON", "items": [1, 2, 3]}
 
@@ -305,17 +271,13 @@ class TestWriteValidatedJson:
             assert content["id"] == "test-456"
             assert len(content["items"]) == 3
 
-        def test_overwrites_file_with_force(
-            self, test_dir: Path, schema_dir: Path
-        ) -> None:
+        def test_overwrites_file_with_force(self, test_dir: Path, schema_dir: Path) -> None:
             output_file = test_dir / "output.json"
             data1 = {"id": "test-111", "name": "First", "items": []}
             write_validated_json(data1, output_file, "test", schema_dir)
 
             data2 = {"id": "test-222", "name": "Second", "items": []}
-            result = write_validated_json(
-                data2, output_file, "test", schema_dir, force=True
-            )
+            result = write_validated_json(data2, output_file, "test", schema_dir, force=True)
 
             assert result.success is True
             content = json.loads(output_file.read_text(encoding="utf-8"))
@@ -330,24 +292,18 @@ class TestWriteValidatedJson:
             output_file = test_dir / "output.json"
             data = {"name": "Missing ID and items"}
 
-            result = write_validated_json(
-                data, output_file, "test", schema_dir
-            )
+            result = write_validated_json(data, output_file, "test", schema_dir)
 
             assert result.success is False
             assert result.validation_result.valid is False
             assert len(result.validation_result.errors) > 0
             assert not output_file.exists()
 
-        def test_fails_when_data_has_wrong_types(
-            self, test_dir: Path, schema_dir: Path
-        ) -> None:
+        def test_fails_when_data_has_wrong_types(self, test_dir: Path, schema_dir: Path) -> None:
             output_file = test_dir / "output.json"
             data = {"id": 123, "name": "Test", "items": []}
 
-            result = write_validated_json(
-                data, output_file, "test", schema_dir
-            )
+            result = write_validated_json(data, output_file, "test", schema_dir)
 
             assert result.success is False
             assert not output_file.exists()
@@ -359,28 +315,19 @@ class TestWriteValidatedJson:
             data = {"id": "test-111", "name": "First", "items": []}
             write_validated_json(data, output_file, "test", schema_dir)
 
-            result = write_validated_json(
-                data, output_file, "test", schema_dir
-            )
+            result = write_validated_json(data, output_file, "test", schema_dir)
 
             assert result.success is False
-            assert any(
-                "File already exists" in e
-                for e in result.validation_result.errors
-            )
+            assert any("File already exists" in e for e in result.validation_result.errors)
 
     class TestRegressions821:
         """Regression tests for #821: array handling."""
 
-        def test_preserves_empty_arrays_in_output(
-            self, test_dir: Path, schema_dir: Path
-        ) -> None:
+        def test_preserves_empty_arrays_in_output(self, test_dir: Path, schema_dir: Path) -> None:
             output_file = test_dir / "output.json"
             data = {"id": "test-999", "name": "Empty Arrays", "items": []}
 
-            result = write_validated_json(
-                data, output_file, "test", schema_dir
-            )
+            result = write_validated_json(data, output_file, "test", schema_dir)
 
             assert result.success is True
             content = json.loads(output_file.read_text(encoding="utf-8"))
@@ -396,9 +343,7 @@ class TestWriteValidatedJson:
                 "items": ["one-item"],
             }
 
-            result = write_validated_json(
-                data, output_file, "test", schema_dir
-            )
+            result = write_validated_json(data, output_file, "test", schema_dir)
 
             assert result.success is True
             content = json.loads(output_file.read_text(encoding="utf-8"))
@@ -434,9 +379,7 @@ class TestClearSchemaCache:
 class TestIntegration:
     """End-to-end integration tests."""
 
-    def test_validate_and_write_episode_like_data(
-        self, test_dir: Path, schema_dir: Path
-    ) -> None:
+    def test_validate_and_write_episode_like_data(self, test_dir: Path, schema_dir: Path) -> None:
         output_file = test_dir / "episode-integration-test.json"
 
         data = {

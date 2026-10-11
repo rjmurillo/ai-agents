@@ -33,7 +33,7 @@ def test_guidance_uses_unique_per_run_paths():
                 "tempfile.mktemp",
                 "tempfile.mkstemp",
                 "tempfile.TemporaryDirectory",
-                "new_pr.py\" --prepare-body-file",
+                'new_pr.py" --prepare-body-file',
             )
         )
 

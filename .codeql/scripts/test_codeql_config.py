@@ -37,16 +37,20 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--config-path",
         default=os.environ.get(
-            "CODEQL_CONFIG_PATH", ".github/codeql/codeql-config.yml",
+            "CODEQL_CONFIG_PATH",
+            ".github/codeql/codeql-config.yml",
         ),
         help="Path to the CodeQL configuration YAML file.",
     )
     parser.add_argument(
-        "--ci", action="store_true",
+        "--ci",
+        action="store_true",
         help="CI mode with non-interactive behavior.",
     )
     parser.add_argument(
-        "--format", choices=["console", "json"], default="console",
+        "--format",
+        choices=["console", "json"],
+        default="console",
         dest="output_format",
         help="Output format for validation results.",
     )
@@ -64,6 +68,7 @@ def validate_yaml_syntax(config_path: str) -> dict[str, Any]:
 
     try:
         import yaml
+
         yaml.safe_load(content)
         return {"valid": True, "content": content}
     except ImportError:
@@ -78,8 +83,7 @@ def validate_yaml_syntax(config_path: str) -> dict[str, Any]:
             return {
                 "valid": False,
                 "error": (
-                    f"YAML parse error at line {line_num}: "
-                    "Tabs are not allowed for indentation"
+                    f"YAML parse error at line {line_num}: Tabs are not allowed for indentation"
                 ),
                 "content": None,
             }
@@ -112,25 +116,21 @@ def validate_config_schema(content: str) -> dict[str, Any]:
     packs_match = re.search(r"packs\s*:(.*?)(?=\n\w|\n#|\Z)", content, re.DOTALL)
     if packs_match:
         packs_section = packs_match.group(1)
-        packs = [
-            m.group(1).strip()
-            for m in re.finditer(r"-\s*([^\n]+)", packs_section)
-        ]
+        packs = [m.group(1).strip() for m in re.finditer(r"-\s*([^\n]+)", packs_section)]
 
     paths: list[str] = []
     paths_match = re.search(r"paths\s*:(.*?)(?=\n\w|\n#|\Z)", content, re.DOTALL)
     if paths_match:
         paths_section = paths_match.group(1)
-        paths = [
-            m.group(1).strip()
-            for m in re.finditer(r"-\s*([^\n]+)", paths_section)
-        ]
+        paths = [m.group(1).strip() for m in re.finditer(r"-\s*([^\n]+)", paths_section)]
 
     return {"errors": errors, "packs": packs, "paths": paths}
 
 
 def validate_query_packs(
-    codeql_path: str, packs: list[str], ci: bool,
+    codeql_path: str,
+    packs: list[str],
+    ci: bool,
 ) -> list[dict]:
     missing: list[dict] = []
 
@@ -140,25 +140,31 @@ def validate_query_packs(
             continue
 
         if not re.match(r"^[\w\-]+/[\w\-]+(:|@)", pack):
-            missing.append({
-                "pack": pack,
-                "error": (
-                    "Invalid pack format. Expected 'owner/repo:path' "
-                    "or 'owner/repo@version'"
-                ),
-            })
+            missing.append(
+                {
+                    "pack": pack,
+                    "error": (
+                        "Invalid pack format. Expected 'owner/repo:path' or 'owner/repo@version'"
+                    ),
+                }
+            )
             continue
 
         if codeql_path and os.path.isfile(codeql_path):
             result = subprocess.run(
                 [codeql_path, "resolve", "queries", pack],
-                capture_output=True, text=True, timeout=60, check=False,
+                capture_output=True,
+                text=True,
+                timeout=60,
+                check=False,
             )
             if result.returncode != 0:
-                missing.append({
-                    "pack": pack,
-                    "error": f"Failed to resolve pack (exit code {result.returncode})",
-                })
+                missing.append(
+                    {
+                        "pack": pack,
+                        "error": f"Failed to resolve pack (exit code {result.returncode})",
+                    }
+                )
 
     return missing
 
@@ -172,6 +178,7 @@ def validate_paths_exist(paths: list[str], repo_root: str) -> list[dict]:
             pattern = os.path.basename(full_path)
             if os.path.isdir(parent):
                 from glob import glob
+
                 matches = glob(os.path.join(parent, pattern))
                 if not matches:
                     missing.append({"path": path, "warning": "No files match pattern"})
@@ -234,7 +241,9 @@ def main(argv: list[str] | None = None) -> int:
         codeql_path = find_codeql_executable()
         if codeql_path and schema_result["packs"]:
             missing_packs = validate_query_packs(
-                codeql_path, schema_result["packs"], args.ci,
+                codeql_path,
+                schema_result["packs"],
+                args.ci,
             )
             if missing_packs:
                 for pack in missing_packs:
@@ -250,18 +259,14 @@ def main(argv: list[str] | None = None) -> int:
                     file=sys.stderr,
                 )
         elif not codeql_path:
-            validation["warnings"].append(
-                "CodeQL CLI not found - skipping query pack validation"
-            )
+            validation["warnings"].append("CodeQL CLI not found - skipping query pack validation")
 
         if schema_result["paths"]:
             repo_root = str(Path(config_path).parent.parent)
             missing_paths = validate_paths_exist(schema_result["paths"], repo_root)
             if missing_paths:
                 for p in missing_paths:
-                    validation["warnings"].append(
-                        f"Path '{p['path']}': {p['warning']}"
-                    )
+                    validation["warnings"].append(f"Path '{p['path']}': {p['warning']}")
             elif not args.ci and args.output_format == "console":
                 print(
                     f"[PASS] All paths exist ({len(schema_result['paths'])} paths)",

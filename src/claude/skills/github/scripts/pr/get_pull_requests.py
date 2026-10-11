@@ -63,26 +63,33 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument(
-        "--state", choices=["open", "closed", "merged", "all"], default="open",
+        "--state",
+        choices=["open", "closed", "merged", "all"],
+        default="open",
         help="PR state filter (default: open)",
     )
     parser.add_argument(
-        "--label", default="",
+        "--label",
+        default="",
         help="Filter by label(s). Comma-separated for multiple.",
     )
     parser.add_argument("--author", default="", help="Filter by PR author username")
     parser.add_argument("--base", default="", help="Filter by base (target) branch")
     parser.add_argument(
-        "--head", default="",
+        "--head",
+        default="",
         help="Filter by head (source) branch. Format: OWNER:branch or branch.",
     )
     parser.add_argument(
-        "--search", default="",
+        "--search",
+        default="",
         help="GitHub search query (e.g. 'fix auth is:open'). "
-             "When used, --state/--label/--author/--base/--head are ignored.",
+        "When used, --state/--label/--author/--base/--head are ignored.",
     )
     parser.add_argument(
-        "--limit", type=int, default=30,
+        "--limit",
+        type=int,
+        default=30,
         help="Max number of PRs to return (1-1000, default: 30)",
     )
     add_output_format_arg(parser)
@@ -123,10 +130,15 @@ def main(argv: list[str] | None = None) -> int:
     repo_flag = f"{owner}/{repo}"
 
     list_args = [
-        "gh", "pr", "list",
-        "--repo", repo_flag,
-        "--limit", str(args.limit),
-        "--json", "number,title,headRefName,baseRefName,state",
+        "gh",
+        "pr",
+        "list",
+        "--repo",
+        repo_flag,
+        "--limit",
+        str(args.limit),
+        "--json",
+        "number,title,headRefName,baseRefName,state",
     ]
 
     if args.search:
@@ -154,7 +166,11 @@ def main(argv: list[str] | None = None) -> int:
             list_args.extend(["--head", args.head])
 
     result = subprocess.run(
-        list_args, capture_output=True, text=True, timeout=30, check=False,
+        list_args,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
     )
 
     if result.returncode != 0:

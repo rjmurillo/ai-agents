@@ -138,11 +138,18 @@ old `"escalate_to": "manager"`, which is what PR #5127 got wrong. Reproduce:
 
 ```python
 from pathlib import Path
+
 adr = Path(".project-toolkit/architecture/ADR-009-parallel-safe-multi-agent-design.md").read_text()
-table = adr[adr.index("| Strategy | Use Case | Behavior |"):
-            adr.index("Route to high-level-advisor |") + len("Route to high-level-advisor |")]
-proto = adr[adr.index("1. Orchestrator dispatches to N agents in parallel"):
-            adr.index("4. Final decision applied") + len("4. Final decision applied")]
+table = adr[
+    adr.index("| Strategy | Use Case | Behavior |") : adr.index("Route to high-level-advisor |")
+    + len("Route to high-level-advisor |")
+]
+proto = adr[
+    adr.index("1. Orchestrator dispatches to N agents in parallel") : adr.index(
+        "4. Final decision applied"
+    )
+    + len("4. Final decision applied")
+]
 for f in (".agents/AGENT-SYSTEM.md", "docs/orchestrator-routing-algorithm.md"):
     s = Path(f).read_text()
     print(f, "table:", table in s, "protocol:", proto in s, "hla:", "high-level-advisor" in s)

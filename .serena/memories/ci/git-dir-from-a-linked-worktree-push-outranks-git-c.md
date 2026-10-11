@@ -89,7 +89,7 @@ environment (rc 1). Against a real checkout, strip `GIT_*` and nothing else.
 While diagnosing #4914 a scratch harness ran
 
 ```python
-subprocess.run(["git", "-C", scratch, "add", "-A"])   # GIT_DIR still exported
+subprocess.run(["git", "-C", scratch, "add", "-A"])  # GIT_DIR still exported
 subprocess.run(["git", "-C", scratch, "commit", "-qm", "snap"])
 ```
 

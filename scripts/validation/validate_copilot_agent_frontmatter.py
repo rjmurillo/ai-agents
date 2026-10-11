@@ -173,8 +173,7 @@ def main(argv: list[str] | None = None) -> int:
     total = len(sorted(agents_dir.glob("*.agent.md")))
     if offenders:
         print(
-            f"[FAIL] {len(offenders)} of {total} Copilot agent file(s) "
-            "have malformed frontmatter:"
+            f"[FAIL] {len(offenders)} of {total} Copilot agent file(s) have malformed frontmatter:"
         )
         for path, err in offenders:
             print(f"  - {path}: {err}")

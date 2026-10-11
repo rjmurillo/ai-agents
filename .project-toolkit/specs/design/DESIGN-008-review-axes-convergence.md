@@ -122,6 +122,7 @@ from typing import Sequence
 VERDICT_TOKENS = {"PASS", "WARN", "CRITICAL_FAIL", "REJECTED", "FAIL", "UNKNOWN"}
 CRITICAL_TOKENS = {"CRITICAL_FAIL", "REJECTED", "FAIL"}
 
+
 def merge_verdicts(verdicts: Sequence[str]) -> str:
     """
     Merge rule (in priority order):
@@ -132,6 +133,7 @@ def merge_verdicts(verdicts: Sequence[str]) -> str:
     Unknown tokens are treated as UNKNOWN and logged as WARN.
     """
     ...
+
 
 def get_verdict_emoji(verdict: str) -> str:
     """Return display emoji for a verdict token. Unknown tokens return a fallback."""

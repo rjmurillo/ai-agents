@@ -86,9 +86,9 @@ def test_the_filter_covers_the_episode_store():
 
 def test_the_entry_matches_the_directory_the_pin_reads():
     """A filter naming a path the pin does not read protects nothing."""
-    source = (
-        REPO_ROOT / "tests/skills/memory/test_extract_session_episode.py"
-    ).read_text(encoding="utf-8")
+    source = (REPO_ROOT / "tests/skills/memory/test_extract_session_episode.py").read_text(
+        encoding="utf-8"
+    )
     assert '"memory" / "episodes"' in source
     assert EPISODE_STORE.is_dir()
 

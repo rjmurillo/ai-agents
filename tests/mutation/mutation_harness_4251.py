@@ -132,10 +132,7 @@ def _run_mutants(repo_root: Path) -> int:
             f"{TEST}::TestAggregateLefthookDelegation::test_aggregate_job_exists",
         ),
     ]
-    snapshots = {
-        path: path.read_text(encoding="utf-8")
-        for path in (sequence, ratchet, lefthook)
-    }
+    snapshots = {path: path.read_text(encoding="utf-8") for path in (sequence, ratchet, lefthook)}
     results: list[tuple[str, str]] = []
     try:
         return_code, out = run_tests(repo_root, TEST)

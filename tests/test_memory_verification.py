@@ -67,9 +67,7 @@ class TestVerifyFileCitation:
         c = Citation(source_type=SourceType.FILE, target="drift.py:5", context="")
         assert verify_citation(c, tmp_path).is_valid is True
 
-        target.write_text(
-            "new\nnew\nnew\n" + "".join(f"line{i}\n" for i in range(1, 11))
-        )
+        target.write_text("new\nnew\nnew\n" + "".join(f"line{i}\n" for i in range(1, 11)))
         assert target.read_text().splitlines()[4] == "line2"
         assert verify_citation(c, tmp_path).is_valid is True
 

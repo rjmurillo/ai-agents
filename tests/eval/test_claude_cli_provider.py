@@ -4,6 +4,7 @@ Offline: no CLI is launched, and the fixtures assert the two properties that
 decide whether the cell measures what it claims, that the metered credentials
 never reach the child and that an unattributed model never scores.
 """
+
 from __future__ import annotations
 
 import json
@@ -48,9 +49,7 @@ def test_claude_cli_argv_disables_tools_mcp_and_ambient_settings(
     recorder = Recorder(stdout=claude_payload())
     install_runner(claude_env, recorder)
 
-    _claude_cli._ClaudeCLIProvider().complete(
-        messages=MESSAGES, model="claude-haiku-4-5-20251001"
-    )
+    _claude_cli._ClaudeCLIProvider().complete(messages=MESSAGES, model="claude-haiku-4-5-20251001")
 
     argv = recorder.argv
     assert argv[:2] == ["claude", "--print"]
@@ -87,9 +86,7 @@ def test_claude_cli_strips_metered_credentials_from_the_child(
     recorder = Recorder(stdout=claude_payload())
     install_runner(claude_env, recorder)
 
-    _claude_cli._ClaudeCLIProvider().complete(
-        messages=MESSAGES, model="claude-haiku-4-5-20251001"
-    )
+    _claude_cli._ClaudeCLIProvider().complete(messages=MESSAGES, model="claude-haiku-4-5-20251001")
 
     env = recorder.calls[-1]["env"]
     assert "ANTHROPIC_API_KEY" not in env
@@ -153,9 +150,7 @@ def test_claude_cli_refuses_a_reply_from_another_model(
     install_runner(claude_env, Recorder(stdout=claude_payload(model="claude-opus-5")))
 
     with pytest.raises(RuntimeError, match="model attribution mismatch"):
-        _claude_cli._ClaudeCLIProvider().complete(
-            messages=MESSAGES, model="claude-haiku-4-5"
-        )
+        _claude_cli._ClaudeCLIProvider().complete(messages=MESSAGES, model="claude-haiku-4-5")
 
 
 def test_claude_cli_reports_no_fingerprint_when_usage_is_absent(
@@ -186,22 +181,16 @@ def test_claude_cli_refuses_an_unreadable_envelope(
     install_runner(claude_env, Recorder(stdout=stdout))
 
     with pytest.raises(RuntimeError, match=expected):
-        _claude_cli._ClaudeCLIProvider().complete(
-            messages=MESSAGES, model="claude-haiku-4-5"
-        )
+        _claude_cli._ClaudeCLIProvider().complete(messages=MESSAGES, model="claude-haiku-4-5")
 
 
 def test_claude_cli_reports_a_nonzero_exit_without_leaking_stderr(
     claude_env: pytest.MonkeyPatch,
 ) -> None:
-    install_runner(
-        claude_env, Recorder(returncode=2, stderr="Invalid API key sk-leaked-value")
-    )
+    install_runner(claude_env, Recorder(returncode=2, stderr="Invalid API key sk-leaked-value"))
 
     with pytest.raises(RuntimeError) as excinfo:
-        _claude_cli._ClaudeCLIProvider().complete(
-            messages=MESSAGES, model="claude-haiku-4-5"
-        )
+        _claude_cli._ClaudeCLIProvider().complete(messages=MESSAGES, model="claude-haiku-4-5")
 
     assert "sk-leaked-value" not in str(excinfo.value)
     assert "authentication failed" in str(excinfo.value)

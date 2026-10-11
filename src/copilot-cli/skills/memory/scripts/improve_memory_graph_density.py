@@ -54,9 +54,7 @@ def _find_project_root(fallback_dir: Path | None = None) -> Path:
     raise SystemExit("Could not find project root (no .git directory found)")
 
 
-def _validate_path_within_project(
-    memories_path: str, project_root: Path
-) -> Path:
+def _validate_path_within_project(memories_path: str, project_root: Path) -> Path:
     """Validate that a path is within the project root (CWE-22 mitigation)."""
     resolved = Path(memories_path).resolve()
     root_resolved = project_root.resolve()
@@ -70,56 +68,58 @@ def _validate_path_within_project(
 
 # Domain patterns for grouping related memories.
 # More specific prefixes MUST come before shorter ones (first-match-wins).
-DOMAIN_PATTERNS: OrderedDict[str, str] = OrderedDict([
-    ("adr-", "Architecture Decision Records"),
-    ("agent-workflow-", "Agent Workflow"),
-    ("analysis-", "Analysis Patterns"),
-    ("architecture-", "Architecture"),
-    ("autonomous-", "Autonomous Execution"),
-    ("bash-integration-", "Bash Integration"),
-    ("ci-infrastructure-", "CI Infrastructure"),
-    ("claude-", "Claude Code"),
-    ("coderabbit-", "CodeRabbit"),
-    ("copilot-", "GitHub Copilot"),
-    ("creator-", "Skill Creator"),
-    ("design-", "Design Patterns"),
-    ("devops-", "DevOps"),
-    ("documentation-", "Documentation"),
-    ("gh-extensions-", "GitHub Extensions"),
-    ("git-hooks-", "Git Hooks"),
-    ("git-", "Git Operations"),
-    ("github-cli-", "GitHub CLI"),
-    ("github-", "GitHub"),
-    ("graphql-", "GraphQL"),
-    ("implementation-", "Implementation"),
-    ("jq-", "JQ"),
-    ("labeler-", "GitHub Labeler"),
-    ("linting-", "Linting"),
-    ("memory-", "Memory Management"),
-    ("merge-resolver-", "Merge Resolution"),
-    ("orchestration-", "Orchestration"),
-    ("parallel-", "Parallel Execution"),
-    ("pattern-", "Patterns"),
-    ("pester-", "Pester Testing"),
-    ("planning-", "Planning"),
-    ("powershell-", "PowerShell"),
-    ("pr-comment-", "PR Comments"),
-    ("pr-review-", "PR Review"),
-    ("pr-", "Pull Request"),
-    ("protocol-", "Session Protocol"),
-    ("qa-", "Quality Assurance"),
-    ("quality-", "Quality"),
-    ("retrospective-", "Retrospective"),
-    ("security-", "Security"),
-    ("session-init-", "Session Initialization"),
-    ("session-", "Session"),
-    ("skills-", "Skills Index"),
-    ("testing-", "Testing"),
-    ("triage-", "Triage"),
-    ("utilities-", "Utilities"),
-    ("validation-", "Validation"),
-    ("workflow-", "Workflow Patterns"),
-])
+DOMAIN_PATTERNS: OrderedDict[str, str] = OrderedDict(
+    [
+        ("adr-", "Architecture Decision Records"),
+        ("agent-workflow-", "Agent Workflow"),
+        ("analysis-", "Analysis Patterns"),
+        ("architecture-", "Architecture"),
+        ("autonomous-", "Autonomous Execution"),
+        ("bash-integration-", "Bash Integration"),
+        ("ci-infrastructure-", "CI Infrastructure"),
+        ("claude-", "Claude Code"),
+        ("coderabbit-", "CodeRabbit"),
+        ("copilot-", "GitHub Copilot"),
+        ("creator-", "Skill Creator"),
+        ("design-", "Design Patterns"),
+        ("devops-", "DevOps"),
+        ("documentation-", "Documentation"),
+        ("gh-extensions-", "GitHub Extensions"),
+        ("git-hooks-", "Git Hooks"),
+        ("git-", "Git Operations"),
+        ("github-cli-", "GitHub CLI"),
+        ("github-", "GitHub"),
+        ("graphql-", "GraphQL"),
+        ("implementation-", "Implementation"),
+        ("jq-", "JQ"),
+        ("labeler-", "GitHub Labeler"),
+        ("linting-", "Linting"),
+        ("memory-", "Memory Management"),
+        ("merge-resolver-", "Merge Resolution"),
+        ("orchestration-", "Orchestration"),
+        ("parallel-", "Parallel Execution"),
+        ("pattern-", "Patterns"),
+        ("pester-", "Pester Testing"),
+        ("planning-", "Planning"),
+        ("powershell-", "PowerShell"),
+        ("pr-comment-", "PR Comments"),
+        ("pr-review-", "PR Review"),
+        ("pr-", "Pull Request"),
+        ("protocol-", "Session Protocol"),
+        ("qa-", "Quality Assurance"),
+        ("quality-", "Quality"),
+        ("retrospective-", "Retrospective"),
+        ("security-", "Security"),
+        ("session-init-", "Session Initialization"),
+        ("session-", "Session"),
+        ("skills-", "Skills Index"),
+        ("testing-", "Testing"),
+        ("triage-", "Triage"),
+        ("utilities-", "Utilities"),
+        ("validation-", "Validation"),
+        ("workflow-", "Workflow Patterns"),
+    ]
+)
 
 
 def _find_related_files(
@@ -203,9 +203,7 @@ def process_files(
 
             has_related = bool(re.search(r"^## Related", content, re.MULTILINE))
 
-            related_files = _find_related_files(
-                base_name, all_memory_files, memory_names
-            )
+            related_files = _find_related_files(base_name, all_memory_files, memory_names)
 
             if not has_related and related_files:
                 related_section = "\n## Related\n\n"
@@ -220,9 +218,7 @@ def process_files(
                         print(f"Added Related section to: {file_path.name}")
                 else:
                     if not output_json:
-                        print(
-                            f"[DRY RUN] Would add Related section to: {file_path.name}"
-                        )
+                        print(f"[DRY RUN] Would add Related section to: {file_path.name}")
 
                 stats["FilesModified"] += 1
                 stats["RelationshipsAdded"] += len(related_files)
@@ -276,9 +272,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.skip_path_validation:
             memories_path = Path(args.memories_path).resolve()
         else:
-            memories_path = _validate_path_within_project(
-                args.memories_path, project_root
-            )
+            memories_path = _validate_path_within_project(args.memories_path, project_root)
     else:
         memories_path = project_root / ".serena" / "memories"
 

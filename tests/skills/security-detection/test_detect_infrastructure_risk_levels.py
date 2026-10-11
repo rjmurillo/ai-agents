@@ -32,9 +32,7 @@ class TestGetSecurityRiskLevel:
             pytest.param("infra/main.tf", "high", id="terraform"),
             pytest.param("certs/server.pem", "critical", id="pem-file"),
             pytest.param("config/database.json", "high", id="config-json"),
-            pytest.param(
-                "scripts/validation/git_hook_policy.py", "critical", id="git-hook-policy"
-            ),
+            pytest.param("scripts/validation/git_hook_policy.py", "critical", id="git-hook-policy"),
             pytest.param("scripts/validation/pre_pr.py", "none", id="pre-pr-not-policy"),
             pytest.param(".githooks/pre-commit", "none", id="githooks-not-policy"),
         ],
@@ -55,9 +53,7 @@ class TestLefthookRiskLevel:
             for extension in (".yml", ".yaml", ".json", ".jsonc", ".toml")
         ],
     )
-    def test_auto_discovered_lefthook_configs_are_critical(
-        self, config_path: str
-    ) -> None:
+    def test_auto_discovered_lefthook_configs_are_critical(self, config_path: str) -> None:
         assert get_security_risk_level(config_path) == "critical"
 
     @pytest.mark.parametrize(
@@ -68,7 +64,5 @@ class TestLefthookRiskLevel:
             "nested/.config/lefthook-local.jsonc",
         ],
     )
-    def test_non_discovered_lefthook_lookalikes_are_not_critical(
-        self, config_path: str
-    ) -> None:
+    def test_non_discovered_lefthook_lookalikes_are_not_critical(self, config_path: str) -> None:
         assert get_security_risk_level(config_path) != "critical"

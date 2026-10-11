@@ -113,7 +113,7 @@ For glob matching, `.claude/skills/*/SKILL.md` cannot be matched with `fnmatch` 
 
 ```python
 def _matches_skill_pattern(path: str) -> bool:
-    return path.startswith('.claude/skills/') and path.endswith('/SKILL.md')
+    return path.startswith(".claude/skills/") and path.endswith("/SKILL.md")
 ```
 
 Apply the same prefix+suffix shape to other multi-segment patterns. Document the helper inline

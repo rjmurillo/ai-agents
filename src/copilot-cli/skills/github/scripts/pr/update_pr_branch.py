@@ -104,21 +104,28 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument(
-        "--pull-request", type=int, required=True, help="Pull request number",
+        "--pull-request",
+        type=int,
+        required=True,
+        help="Pull request number",
     )
     parser.add_argument(
-        "--expected-head-sha", default="",
+        "--expected-head-sha",
+        default="",
         help=(
             "Head commit SHA (40 hex) you expect the PR to have. GitHub refuses "
             "the update when the head differs."
         ),
     )
     parser.add_argument(
-        "--wait", action="store_true",
+        "--wait",
+        action="store_true",
         help="Poll until compare shows the PR is no longer behind its base.",
     )
     parser.add_argument(
-        "--timeout-seconds", type=int, default=None,
+        "--timeout-seconds",
+        type=int,
+        default=None,
         help=f"Wait bound in seconds, with --wait (default {_DEFAULT_WAIT_SECONDS}).",
     )
     add_output_format_arg(parser)
@@ -178,8 +185,7 @@ def _run_gh(
         if budget is not None:
             raise _WaitBudgetSpentError(f"{what} timed out") from None
         _emit_error(
-            f"{what} for PR #{ctx.pr} timed out after {_GH_TIMEOUT_SECONDS}s; "
-            "outcome unknown",
+            f"{what} for PR #{ctx.pr} timed out after {_GH_TIMEOUT_SECONDS}s; outcome unknown",
             3,
             "Timeout",
             ctx.output_format,
@@ -200,8 +206,14 @@ def _fetch_pr(ctx: _Context, budget: float | None = None) -> _PrSnapshot:
     """Read state, head SHA, and base ref; emit an envelope on failure."""
     result = _run_gh(
         [
-            "gh", "pr", "view", str(ctx.pr), "--repo", ctx.repo_flag,
-            "--json", "state,headRefOid,baseRefName",
+            "gh",
+            "pr",
+            "view",
+            str(ctx.pr),
+            "--repo",
+            ctx.repo_flag,
+            "--json",
+            "state,headRefOid,baseRefName",
         ],
         ctx,
         "Reading PR state",
@@ -216,7 +228,10 @@ def _fetch_pr(ctx: _Context, budget: float | None = None) -> _PrSnapshot:
     if not isinstance(data, dict):
         _emit_error(
             f"PR #{ctx.pr} state response was not a JSON object",
-            3, "ApiError", ctx.output_format, ctx.pr,
+            3,
+            "ApiError",
+            ctx.output_format,
+            ctx.pr,
         )
     return _PrSnapshot(
         state=str(data.get("state") or ""),
@@ -231,21 +246,32 @@ def _fail_lookup(result: subprocess.CompletedProcess[str], ctx: _Context) -> NoR
     if is_auth_failure_text(text):
         _emit_error(
             f"Not authorized to read PR #{ctx.pr}: {detail}",
-            4, "AuthError", ctx.output_format, ctx.pr,
+            4,
+            "AuthError",
+            ctx.output_format,
+            ctx.pr,
         )
     if _has_marker(text, _NOT_FOUND_MARKERS):
         _emit_error(
             f"PR #{ctx.pr} not found in {ctx.repo_flag}",
-            2, "NotFound", ctx.output_format, ctx.pr,
+            2,
+            "NotFound",
+            ctx.output_format,
+            ctx.pr,
         )
     _emit_error(
         f"Failed to read PR #{ctx.pr}: {detail}",
-        3, "ApiError", ctx.output_format, ctx.pr,
+        3,
+        "ApiError",
+        ctx.output_format,
+        ctx.pr,
     )
 
 
 def _behind_by(
-    ctx: _Context, snap: _PrSnapshot, budget: float | None = None,
+    ctx: _Context,
+    snap: _PrSnapshot,
+    budget: float | None = None,
 ) -> tuple[int | None, str]:
     """Return (commits the head is behind its base, precheck note).
 
@@ -255,9 +281,11 @@ def _behind_by(
         return None, "unavailable: PR head SHA or base ref missing"
     result = _run_gh(
         [
-            "gh", "api",
+            "gh",
+            "api",
             f"repos/{ctx.repo_flag}/compare/{quote(snap.base_ref, safe='/')}...{snap.head_sha}",
-            "--jq", ".behind_by",
+            "--jq",
+            ".behind_by",
         ],
         ctx,
         "Comparing head with base",
@@ -318,27 +346,43 @@ def _fail_update(
     if is_auth_failure_text(text):
         _emit_error(
             f"Not authorized to update PR #{ctx.pr}: {detail}",
-            4, "AuthError", ctx.output_format, ctx.pr,
+            4,
+            "AuthError",
+            ctx.output_format,
+            ctx.pr,
         )
     if _has_marker(text, _NOT_FOUND_MARKERS):
         _emit_error(
             f"PR #{ctx.pr} not found in {ctx.repo_flag} when updating",
-            2, "NotFound", ctx.output_format, ctx.pr,
+            2,
+            "NotFound",
+            ctx.output_format,
+            ctx.pr,
         )
     _emit_error(
         f"Update-branch for PR #{ctx.pr} failed: {detail}",
-        3, "ApiError", ctx.output_format, ctx.pr,
+        3,
+        "ApiError",
+        ctx.output_format,
+        ctx.pr,
     )
 
 
 def _wait_timeout(
-    ctx: _Context, old_head: str, timeout: int, last_head: str, precheck: str,
+    ctx: _Context,
+    old_head: str,
+    timeout: int,
+    last_head: str,
+    precheck: str,
 ) -> NoReturn:
     _emit_error(
         f"PR #{ctx.pr} was not confirmed up to date within {timeout}s "
         f"(last precheck: {precheck}). The update was requested (202); "
         "re-run with --wait to request and poll again.",
-        3, "Timeout", ctx.output_format, ctx.pr,
+        3,
+        "Timeout",
+        ctx.output_format,
+        ctx.pr,
         old_head_sha=old_head,
         last_head_sha=last_head or None,
         last_precheck=precheck,
@@ -391,7 +435,10 @@ def _validate_args(args: argparse.Namespace) -> None:
     if args.expected_head_sha and not _SHA_PATTERN.match(args.expected_head_sha):
         _emit_error(
             "--expected-head-sha must be a 40-character hex commit SHA",
-            1, "InvalidParams", fmt, pr,
+            1,
+            "InvalidParams",
+            fmt,
+            pr,
         )
     if args.timeout_seconds is not None and not args.wait:
         _emit_error("--timeout-seconds requires --wait", 1, "InvalidParams", fmt, pr)
@@ -411,7 +458,10 @@ def _require_open(ctx: _Context, snap: _PrSnapshot) -> None:
         shown = snap.state.lower() or "in an unknown state"
         _emit_error(
             f"PR #{ctx.pr} is {shown}; only an open PR can be updated",
-            1, "InvalidParams", ctx.output_format, ctx.pr,
+            1,
+            "InvalidParams",
+            ctx.output_format,
+            ctx.pr,
             state=snap.state or None,
         )
 
@@ -421,7 +471,10 @@ def _head_moved(ctx: _Context, current_head: str, source: str) -> NoReturn:
     when GitHub refused the PUT, since the head read before it is stale."""
     _emit_error(
         f"PR #{ctx.pr} head moved: {source}. Re-read the head and retry.",
-        1, "VerificationFailed", ctx.output_format, ctx.pr,
+        1,
+        "VerificationFailed",
+        ctx.output_format,
+        ctx.pr,
         reason="head_moved",
         expected_head_sha=ctx.expected_head_sha,
         current_head_sha=current_head or None,

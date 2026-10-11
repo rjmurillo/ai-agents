@@ -62,9 +62,7 @@ SIGNAL_WAIT_WORST_CASE_SECONDS = SIGNAL_EXIT_TIMEOUT_SECONDS + SIGNAL_REAP_TIMEO
 # carry their own budget.
 SIGNAL_TEST_TIMEOUT_MARGIN_SECONDS = 60
 # One wait: the tests that signal a single child.
-SIGNAL_TEST_TIMEOUT_SECONDS = (
-    SIGNAL_WAIT_WORST_CASE_SECONDS + SIGNAL_TEST_TIMEOUT_MARGIN_SECONDS
-)
+SIGNAL_TEST_TIMEOUT_SECONDS = SIGNAL_WAIT_WORST_CASE_SECONDS + SIGNAL_TEST_TIMEOUT_MARGIN_SECONDS
 # Three waits: test_concurrent_runs_use_distinct_markers_and_worktrees signals
 # one child, waits for it, signals the second, and can reach a third wait in
 # its finally block. A smaller budget would let pytest-timeout preempt a later
@@ -356,10 +354,7 @@ def test_signal_during_cleanup_is_deferred_until_cleanup_completes() -> None:
     marker, scratch = (Path(value) for value in ready.split("|", maxsplit=1))
 
     try:
-        assert (
-            _wait_for_exit(process, "the child signalled during cleanup")
-            == 128 + signal.SIGTERM
-        )
+        assert _wait_for_exit(process, "the child signalled during cleanup") == 128 + signal.SIGTERM
         assert not marker.exists()
         assert not scratch.exists()
     finally:
@@ -588,9 +583,7 @@ def test_wait_for_exit_reports_a_child_that_cannot_be_reaped(
     # Both waits must carry a bound. An unbounded reap can outlive the
     # per-test budget, and pytest-timeout would then preempt the message
     # below instead of it printing.
-    assert child.wait_timeouts == [1, 1], (
-        f"both waits must be bounded, saw {child.wait_timeouts}"
-    )
+    assert child.wait_timeouts == [1, 1], f"both waits must be bounded, saw {child.wait_timeouts}"
 
     message = str(failure.value)
     assert "#5108" in message
@@ -654,14 +647,11 @@ def test_every_test_that_waits_on_a_signalled_child_raises_its_budget() -> None:
     undersized = []
     for node in _tests_that_wait_on_a_signalled_child():
         waits = _blocking_wait_count(node)
-        required = (
-            waits * SIGNAL_WAIT_WORST_CASE_SECONDS + SIGNAL_TEST_TIMEOUT_MARGIN_SECONDS
-        )
+        required = waits * SIGNAL_WAIT_WORST_CASE_SECONDS + SIGNAL_TEST_TIMEOUT_MARGIN_SECONDS
         budget = _declared_budget(node)
         if budget is None or budget < required:
             undersized.append(
-                f"{node.name}: {waits} sequential wait(s) need >= {required}s, "
-                f"declared {budget}"
+                f"{node.name}: {waits} sequential wait(s) need >= {required}s, declared {budget}"
             )
 
     assert not undersized, (

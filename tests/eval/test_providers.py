@@ -1680,9 +1680,7 @@ def test_copilot_home_selects_one_child_and_reader_session_root(
     copilot_home = tmp_path / "copilot-home"
     expected_root = copilot_home / "session-state"
 
-    def fake_run(
-        argv: list[str], prompt: str, **kwargs: object
-    ) -> _FakeCompleted:
+    def fake_run(argv: list[str], prompt: str, **kwargs: object) -> _FakeCompleted:
         env = kwargs["env"]
         assert isinstance(env, dict)
         assert env["COPILOT_HOME"] == str(copilot_home)

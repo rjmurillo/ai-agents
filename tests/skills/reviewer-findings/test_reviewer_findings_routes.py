@@ -130,8 +130,7 @@ def test_every_on_disk_root_shipping_this_skill_is_covered() -> None:
     # is parametrized over that dict too.
     for root in SKILL_MD_ONLY_ROOTS:
         assert (REPO_ROOT / root / "skills" / SKILL_NAME / "SKILL.md").is_file(), (
-            f"{SKILL_NAME}/SKILL.md is missing from the declared "
-            f"SKILL.md-only root {root}"
+            f"{SKILL_NAME}/SKILL.md is missing from the declared SKILL.md-only root {root}"
         )
     shipping -= SKILL_MD_ONLY_ROOTS
     covered = {path.relative_to(REPO_ROOT).as_posix() for path in PLUGIN_ROOTS.values()}

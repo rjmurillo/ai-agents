@@ -41,20 +41,13 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCANNER_PATH = (
-    REPO_ROOT
-    / ".claude"
-    / "skills"
-    / "security-scan"
-    / "scripts"
-    / "scan_vulnerabilities.py"
+    REPO_ROOT / ".claude" / "skills" / "security-scan" / "scripts" / "scan_vulnerabilities.py"
 )
 
 
 def _load_scanner() -> ModuleType:
     """Load the scanner module by path (it is not on the package tree)."""
-    spec = importlib.util.spec_from_file_location(
-        "scan_vulnerabilities", SCANNER_PATH
-    )
+    spec = importlib.util.spec_from_file_location("scan_vulnerabilities", SCANNER_PATH)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -193,15 +186,9 @@ def test_get_language_ignores_extensionless_non_bash_shebang(tmp_path: Path) -> 
         ),
     ],
 )
-def test_python_patterns_match(
-    line: str, description: str, severity: str
-) -> None:
+def test_python_patterns_match(line: str, description: str, severity: str) -> None:
     assert description in _descriptions_for("python", line)
-    info = next(
-        i
-        for i in scanner.CWE78_PATTERNS["python"]
-        if i["description"] == description
-    )
+    info = next(i for i in scanner.CWE78_PATTERNS["python"] if i["description"] == description)
     assert info["severity"] == severity
 
 
@@ -230,15 +217,9 @@ def test_python_patterns_match(
         ),
     ],
 )
-def test_powershell_patterns_match(
-    line: str, description: str, severity: str
-) -> None:
+def test_powershell_patterns_match(line: str, description: str, severity: str) -> None:
     assert description in _descriptions_for("powershell", line)
-    info = next(
-        i
-        for i in scanner.CWE78_PATTERNS["powershell"]
-        if i["description"] == description
-    )
+    info = next(i for i in scanner.CWE78_PATTERNS["powershell"] if i["description"] == description)
     assert info["severity"] == severity
 
 
@@ -265,11 +246,7 @@ def test_powershell_patterns_match(
 )
 def test_bash_patterns_match(line: str, description: str, severity: str) -> None:
     assert description in _descriptions_for("bash", line)
-    info = next(
-        i
-        for i in scanner.CWE78_PATTERNS["bash"]
-        if i["description"] == description
-    )
+    info = next(i for i in scanner.CWE78_PATTERNS["bash"] if i["description"] == description)
     assert info["severity"] == severity
 
 
@@ -293,15 +270,9 @@ def test_bash_patterns_match(line: str, description: str, severity: str) -> None
         ),
     ],
 )
-def test_csharp_patterns_match(
-    line: str, description: str, severity: str
-) -> None:
+def test_csharp_patterns_match(line: str, description: str, severity: str) -> None:
     assert description in _descriptions_for("csharp", line)
-    info = next(
-        i
-        for i in scanner.CWE78_PATTERNS["csharp"]
-        if i["description"] == description
-    )
+    info = next(i for i in scanner.CWE78_PATTERNS["csharp"] if i["description"] == description)
     assert info["severity"] == severity
 
 
@@ -363,13 +334,11 @@ def test_python_string_concat_pattern_requires_plus_inside_literal() -> None:
     weakness of the detector. The test pins the current behavior so a future
     regex change is a deliberate, reviewed decision rather than a silent one.
     """
-    assert (
-        "Subprocess with string concatenation"
-        in _descriptions_for("python", 'subprocess.run("a + b")')
+    assert "Subprocess with string concatenation" in _descriptions_for(
+        "python", 'subprocess.run("a + b")'
     )
-    assert (
-        "Subprocess with string concatenation"
-        not in _descriptions_for("python", 'subprocess.run("cmd " + arg)')
+    assert "Subprocess with string concatenation" not in _descriptions_for(
+        "python", 'subprocess.run("cmd " + arg)'
     )
 
 
@@ -502,7 +471,8 @@ def _run_cli(*args: str, cwd: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, str(SCANNER_PATH), *args],
         capture_output=True,
-        text=True, encoding="utf-8",
+        text=True,
+        encoding="utf-8",
         cwd=cwd,
         check=False,
     )
@@ -609,7 +579,7 @@ def test_cli_directory_scan_finds_extensionless_bash_hook(tmp_path: Path) -> Non
     hooks = tmp_path / "scripts" / "hooks"
     hooks.mkdir(parents=True)
     (hooks / "pre-push").write_text(
-        "#!/usr/bin/env bash\neval \"$cmd\"\n",
+        '#!/usr/bin/env bash\neval "$cmd"\n',
         encoding="utf-8",
     )
 
@@ -624,7 +594,7 @@ def test_cli_explicit_extensionless_bash_hook_is_scanned(tmp_path: Path) -> None
     name = _write(
         tmp_path,
         "pre-commit",
-        "#!/bin/bash\neval \"$cmd\"\n",
+        '#!/bin/bash\neval "$cmd"\n',
     )
 
     result = _run_cli(name, cwd=tmp_path)
@@ -654,9 +624,7 @@ def test_cli_output_file_written(tmp_path: Path) -> None:
 # each case asserts on the raised `SystemExit`.
 
 
-def _run_main_in_process(
-    monkeypatch: pytest.MonkeyPatch, *args: str, cwd: Path
-) -> int:
+def _run_main_in_process(monkeypatch: pytest.MonkeyPatch, *args: str, cwd: Path) -> int:
     """Invoke scanner.main() in-process under cwd with argv=args; return exit code."""
     monkeypatch.chdir(cwd)
     monkeypatch.setattr(sys, "argv", ["scan_vulnerabilities.py", *args])
@@ -741,9 +709,7 @@ def test_main_directory_missing_exits_error(
     # explicit is_dir() guard this fails OPEN (exits 0, "all clean"). Pin the
     # fail-closed contract: missing --directory exits EXIT_ERROR before walking.
     missing = tmp_path / "does-not-exist"
-    code = _run_main_in_process(
-        monkeypatch, "--directory", str(missing), cwd=tmp_path
-    )
+    code = _run_main_in_process(monkeypatch, "--directory", str(missing), cwd=tmp_path)
     captured = capsys.readouterr()
     assert code == scanner.EXIT_ERROR
     assert "not found or not a directory" in captured.err
@@ -755,9 +721,7 @@ def test_main_git_staged_failure_exits_external(
     monkeypatch.setattr(
         scanner,
         "get_staged_files",
-        lambda: (_ for _ in ()).throw(
-            scanner.GitEnumerationError("git diff failed: fatal")
-        ),
+        lambda: (_ for _ in ()).throw(scanner.GitEnumerationError("git diff failed: fatal")),
     )
     code = _run_main_in_process(monkeypatch, "--git-staged", cwd=tmp_path)
     captured = capsys.readouterr()
@@ -795,9 +759,7 @@ def test_main_json_format_in_process(
     # Arrange: a vulnerable file so the JSON envelope carries a finding.
     name = _write(tmp_path, "vuln.py", "subprocess.run(cmd, shell=True)\n")
     # Act: exercise format_json_output() in-process (subprocess-only before).
-    code = _run_main_in_process(
-        monkeypatch, "--format", "json", name, cwd=tmp_path
-    )
+    code = _run_main_in_process(monkeypatch, "--format", "json", name, cwd=tmp_path)
     captured = capsys.readouterr()
     # Assert: pinned envelope shape, a CWE-78 finding, and the delegated-CWE map.
     assert code == scanner.EXIT_VULNERABILITIES
@@ -819,14 +781,10 @@ def test_main_directory_scan_in_process(
     # get_directory_files() walk is exercised in-process (subprocess-only before).
     proj = tmp_path / "proj"
     (proj / "pkg").mkdir(parents=True)
-    (proj / "pkg" / "vuln.py").write_text(
-        "subprocess.run(cmd, shell=True)\n", encoding="utf-8"
-    )
+    (proj / "pkg" / "vuln.py").write_text("subprocess.run(cmd, shell=True)\n", encoding="utf-8")
     (proj / "notes.txt").write_text("not scannable\n", encoding="utf-8")
     # Act: cwd is tmp_path so the relative --directory passes the containment guard.
-    code = _run_main_in_process(
-        monkeypatch, "--directory", "proj", cwd=tmp_path
-    )
+    code = _run_main_in_process(monkeypatch, "--directory", "proj", cwd=tmp_path)
     captured = capsys.readouterr()
     # Assert: the directory walk found and scanned only the supported file and
     # reported the CWE-78 finding.
@@ -862,9 +820,7 @@ def test_main_directory_scan_in_process(
         ("", None),
     ],
 )
-def test_get_language_shebang_fallback(
-    tmp_path: Path, shebang: str, expected: str | None
-) -> None:
+def test_get_language_shebang_fallback(tmp_path: Path, shebang: str, expected: str | None) -> None:
     """Extensionless files classify by shebang interpreter; non-shell shebangs reject."""
     f = tmp_path / "pre-push"
     f.write_text(shebang + "echo hi\n", encoding="utf-8")
@@ -921,9 +877,7 @@ def test_get_directory_files_prunes_noisy_directories(tmp_path: Path) -> None:
     mixed_case = tmp_path / "Node_Modules" / ".bin"
     mixed_case.mkdir(parents=True)
     mixed_case_script = mixed_case / "tool"
-    mixed_case_script.write_text(
-        "#!/usr/bin/env bash\neval $payload\n", encoding="utf-8"
-    )
+    mixed_case_script.write_text("#!/usr/bin/env bash\neval $payload\n", encoding="utf-8")
 
     hooks = tmp_path / "scripts" / "hooks"
     hooks.mkdir(parents=True)
@@ -942,10 +896,7 @@ def test_scan_extensionless_bash_hook_emits_cwe78(tmp_path: Path) -> None:
     """End-to-end: an extensionless bash hook with a CWE-78 pattern is detected."""
     hook = tmp_path / "pre-push"
     hook.write_text(
-        "#!/usr/bin/env bash\n"
-        "FILE=$1\n"
-        'echo "running $FILE"\n'
-        "eval $FILE\n",
+        '#!/usr/bin/env bash\nFILE=$1\necho "running $FILE"\neval $FILE\n',
         encoding="utf-8",
     )
     vulns, _suppressed = scanner.scan_file(str(hook))

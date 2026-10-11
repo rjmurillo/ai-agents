@@ -36,11 +36,7 @@ class ScanError(RuntimeError):
 
 def _clean_git_env() -> dict[str, str]:
     """Return the process environment without ambient Git repository pointers."""
-    return {
-        key: value
-        for key, value in os.environ.items()
-        if not key.upper().startswith("GIT_")
-    }
+    return {key: value for key, value in os.environ.items() if not key.upper().startswith("GIT_")}
 
 
 def _tracked_python_files(repo_root: Path) -> list[Path]:

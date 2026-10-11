@@ -540,9 +540,7 @@ def test_stripping_wrapping_punctuation_does_not_mask_drift(repo: Path) -> None:
         ("all-openers", "((("),
     ],
 )
-def test_an_unmatched_opening_wrapper_is_malformed(
-    repo: Path, label: str, name: str
-) -> None:
+def test_an_unmatched_opening_wrapper_is_malformed(repo: Path, label: str, name: str) -> None:
     """Unwrapping must be balanced or it invents a legal name from a broken one.
 
     Stripping any leading bracket unconditionally made ``Skill: ((autoplan``
@@ -640,9 +638,7 @@ def test_a_bare_keyword_span_is_not_saved_by_a_later_documented_route(
         "Skill: {merge-resolver)}",
     ],
 )
-def test_a_mismatched_wrapper_never_reduces_to_an_installed_name(
-    repo: Path, cell: str
-) -> None:
+def test_a_mismatched_wrapper_never_reduces_to_an_installed_name(repo: Path, cell: str) -> None:
     """Balanced stripping followed by a blind one is still fail-open.
 
     The outer pair reduces, then the stray closer is taken for sentence
@@ -669,9 +665,7 @@ def test_a_mismatched_wrapper_never_reduces_to_an_installed_name(
         "[a (b {Skill: merge-resolver})]",
     ],
 )
-def test_a_closer_owed_by_an_earlier_opener_is_stripped(
-    repo: Path, cell: str
-) -> None:
+def test_a_closer_owed_by_an_earlier_opener_is_stripped(repo: Path, cell: str) -> None:
     """A cell can carry only the closing half of every wrapper it opened.
 
     Nesting arrives outermost first when the captured name is stripped from
@@ -748,8 +742,7 @@ def test_two_keywords_around_ambiguous_text_read_the_same_either_way(
         repo,
         "src/copilot-cli",
         "styled.md",
-        "| I | R |\n| --- | --- |\n"
-        "| M | `Skill:` (some text) `Skill:` merge-resolver |\n",
+        "| I | R |\n| --- | --- |\n| M | `Skill:` (some text) `Skill:` merge-resolver |\n",
     )
     second = run_gate(repo)
     assert first.returncode == EXIT_DRIFT, first.stdout + first.stderr

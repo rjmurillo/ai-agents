@@ -289,9 +289,7 @@ def declaration_kind(text: str) -> str:
 
     docstring = ast.get_docstring(module, clean=False)
     found_permanent = bool(docstring and _contains_marker(docstring, EXEMPTION_MARKER))
-    found_conditional = bool(
-        docstring and _contains_marker(docstring, CONDITIONAL_SKIP_MARKER)
-    )
+    found_conditional = bool(docstring and _contains_marker(docstring, CONDITIONAL_SKIP_MARKER))
 
     try:
         tokens = tokenize.generate_tokens(io.StringIO(text).readline)
@@ -330,9 +328,7 @@ def collect_files(repo_root: Path, testpaths: Sequence[str]) -> CollectionResult
 
 def _write_collection_report_plugin(scratch_root: Path) -> Path:
     """Write the temporary plugin and return the report path it will populate."""
-    (scratch_root / f"{_REPORT_PLUGIN_NAME}.py").write_text(
-        _REPORT_PLUGIN_SOURCE, encoding="utf-8"
-    )
+    (scratch_root / f"{_REPORT_PLUGIN_NAME}.py").write_text(_REPORT_PLUGIN_SOURCE, encoding="utf-8")
     return scratch_root / "report.json"
 
 

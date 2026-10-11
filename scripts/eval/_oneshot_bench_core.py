@@ -66,28 +66,20 @@ class Fixture:
     def from_dict(payload: dict[str, Any], *, source: str = "<dict>") -> Fixture:
         missing = [f for f in REQUIRED_FIXTURE_FIELDS if payload.get(f) in (None, "")]
         if missing:
-            raise FixtureError(
-                f"{source}: missing required field(s): {', '.join(missing)}"
-            )
+            raise FixtureError(f"{source}: missing required field(s): {', '.join(missing)}")
         try:
             issue_number = int(payload["issue_number"])
             raw_difficulty = payload.get("difficulty")
             difficulty = 3 if raw_difficulty is None else int(raw_difficulty)
         except (TypeError, ValueError) as exc:
-            raise FixtureError(
-                f"{source}: issue_number and difficulty must be integers"
-            ) from exc
+            raise FixtureError(f"{source}: issue_number and difficulty must be integers") from exc
         if not 1 <= difficulty <= 5:
-            raise FixtureError(
-                f"{source}: difficulty must be in 1..5, got {difficulty}"
-            )
+            raise FixtureError(f"{source}: difficulty must be in 1..5, got {difficulty}")
         edges_raw = payload.get("edges_named_in_discourse")
         if edges_raw is None:
             edges_raw = []
         if not isinstance(edges_raw, list):
-            raise FixtureError(
-                f"{source}: edges_named_in_discourse must be a list"
-            )
+            raise FixtureError(f"{source}: edges_named_in_discourse must be a list")
         return Fixture(
             id=str(payload["id"]),
             source_repo=str(payload["source_repo"]),
@@ -157,8 +149,7 @@ def build_judge_prompt(fixture: Fixture, agent_fix: str) -> str:
     parser never has to guess.
     """
     edges = (
-        "\n".join(f"- {e}" for e in fixture.edges_named_in_discourse)
-        or "- (none explicitly named)"
+        "\n".join(f"- {e}" for e in fixture.edges_named_in_discourse) or "- (none explicitly named)"
     )
     return (
         "You are grading whether a proposed bug fix is as good as the fix that "
@@ -211,9 +202,7 @@ def parse_judge_response(raw: str) -> JudgeVerdict:
     raw_grade = payload.get("grade")
     grade = str(raw_grade).strip().upper() if raw_grade is not None else ""
     if grade not in GRADES:
-        return JudgeVerdict(
-            "NONE", (), (), f"judge returned unknown grade {grade!r}", True
-        )
+        return JudgeVerdict("NONE", (), (), f"judge returned unknown grade {grade!r}", True)
     return JudgeVerdict(
         grade=grade,
         edges_caught=_as_str_tuple(payload.get("edges_caught")),
@@ -273,9 +262,7 @@ class BenchmarkSummary:
         return "SCORED"
 
 
-def aggregate(
-    fixtures: list[Fixture], results: list[FixtureResult]
-) -> BenchmarkSummary:
+def aggregate(fixtures: list[Fixture], results: list[FixtureResult]) -> BenchmarkSummary:
     """Roll graded fixtures into a summary.
 
     `edges_named` counts the edges the discourse named across the graded

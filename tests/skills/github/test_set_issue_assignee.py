@@ -26,6 +26,7 @@ def _mock_repo():
 @pytest.fixture
 def _import_module():
     import importlib
+
     mod_name = "set_issue_assignee"
     if mod_name in sys.modules:
         del sys.modules[mod_name]
@@ -83,9 +84,9 @@ class TestSetIssueAssignee:
         with (
             patch("set_issue_assignee.assert_gh_authenticated"),
             patch("set_issue_assignee.resolve_repo_params", return_value=_mock_repo()),
-            patch("subprocess.run", return_value=make_completed_process(
-                returncode=1, stderr="fail"
-            )),
+            patch(
+                "subprocess.run", return_value=make_completed_process(returncode=1, stderr="fail")
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 mod.main(["--issue", "1", "--assignees", "x", "y"])

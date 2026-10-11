@@ -112,6 +112,7 @@ The chosen option allows a second representation only where it earns its place: 
 
   ```python
   import pathlib, frontmatter
+
   for p in pathlib.Path(".project-toolkit/architecture").glob("ADR-*.md"):
       post = frontmatter.load(p)
       if post.get("status") == "accepted":

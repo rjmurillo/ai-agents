@@ -54,12 +54,7 @@ def test_find_deferral_blocks_ignores_indented_local_variable() -> None:
 
 def test_find_deferral_blocks_matches_staleness_blocklist() -> None:
     """A STALENESS_* constant with an exemption marker is a deferral registry."""
-    source = (
-        "STALENESS_BLOCKLIST = {\n"
-        "    # broken upstream, see #1234\n"
-        '    "x": "broken",\n'
-        "}\n"
-    )
+    source = 'STALENESS_BLOCKLIST = {\n    # broken upstream, see #1234\n    "x": "broken",\n}\n'
     blocks = mod.find_deferral_blocks(source)
     assert len(blocks) == 1
     assert blocks[0].name == "STALENESS_BLOCKLIST"
@@ -74,13 +69,7 @@ def test_find_deferral_blocks_ignores_plain_staleness_threshold() -> None:
 
 def test_block_extent_stops_at_next_top_level_statement() -> None:
     """A multi-line block ends at the next column-0 code line, not mid-literal."""
-    source = (
-        "STALENESS_EXEMPTIONS = [\n"
-        "    # issue 4321\n"
-        '    "a",\n'
-        "]\n"
-        "NEXT = 2\n"
-    )
+    source = 'STALENESS_EXEMPTIONS = [\n    # issue 4321\n    "a",\n]\nNEXT = 2\n'
     blocks = mod.find_deferral_blocks(source)
     assert len(blocks) == 1
     assert blocks[0].issues == [4321]
@@ -98,24 +87,18 @@ def _fake_runner(stdout: str, returncode: int = 0):
 
 
 def test_lookup_issue_state_open() -> None:
-    state = mod.lookup_issue_state(
-        7, "owner/repo", runner=_fake_runner('{"state": "open"}')
-    )
+    state = mod.lookup_issue_state(7, "owner/repo", runner=_fake_runner('{"state": "open"}'))
     assert state == "OPEN"
 
 
 def test_lookup_issue_state_closed() -> None:
-    state = mod.lookup_issue_state(
-        7, "owner/repo", runner=_fake_runner('{"state": "CLOSED"}')
-    )
+    state = mod.lookup_issue_state(7, "owner/repo", runner=_fake_runner('{"state": "CLOSED"}'))
     assert state == "CLOSED"
 
 
 def test_lookup_issue_state_none_on_gh_failure() -> None:
     """A non-zero gh return (not found, auth, offline) yields None."""
-    state = mod.lookup_issue_state(
-        7, "owner/repo", runner=_fake_runner("", returncode=1)
-    )
+    state = mod.lookup_issue_state(7, "owner/repo", runner=_fake_runner("", returncode=1))
     assert state is None
 
 
@@ -129,25 +112,19 @@ def test_lookup_issue_state_none_on_subprocess_error() -> None:
 
 
 def test_lookup_issue_state_none_on_bad_json() -> None:
-    state = mod.lookup_issue_state(
-        7, "owner/repo", runner=_fake_runner("not json")
-    )
+    state = mod.lookup_issue_state(7, "owner/repo", runner=_fake_runner("not json"))
     assert state is None
 
 
 def test_lookup_issue_state_none_on_explicit_json_null() -> None:
     """An explicit JSON null state resolves to None, not a crash."""
-    state = mod.lookup_issue_state(
-        7, "owner/repo", runner=_fake_runner('{"state": null}')
-    )
+    state = mod.lookup_issue_state(7, "owner/repo", runner=_fake_runner('{"state": null}'))
     assert state is None
 
 
 def test_lookup_issue_state_none_on_non_dict_json() -> None:
     """A non-object JSON payload (e.g. a bare number) yields None, never raises."""
-    state = mod.lookup_issue_state(
-        7, "owner/repo", runner=_fake_runner("123")
-    )
+    state = mod.lookup_issue_state(7, "owner/repo", runner=_fake_runner("123"))
     assert state is None
 
 
@@ -167,9 +144,7 @@ def test_validate_empty_registry_passes(tmp_path: Path) -> None:
     def fail_if_called(issue: int, repo: str) -> str | None:
         raise AssertionError("lookup must not run when there are no deferrals")
 
-    assert mod.validate_no_orphaned_build_deferrals(
-        path, "owner/repo", lookup=fail_if_called
-    )
+    assert mod.validate_no_orphaned_build_deferrals(path, "owner/repo", lookup=fail_if_called)
 
 
 def test_validate_open_issue_deferral_passes(tmp_path: Path) -> None:

@@ -95,9 +95,7 @@ class TestClassificationCache:
         assert cache.get("first") is not None
         assert cache.get("second") is None
 
-    def test_len(
-        self, cache: ClassificationCache, sample_result: LLMClassificationResult
-    ) -> None:
+    def test_len(self, cache: ClassificationCache, sample_result: LLMClassificationResult) -> None:
         assert len(cache) == 0
         cache.put("first", sample_result)
         assert len(cache) == 1
@@ -113,15 +111,9 @@ class TestClassificationCache:
         assert len(cache) == 0
         assert cache.get("first") is None
 
-    def test_update_existing_entry(
-        self, cache: ClassificationCache
-    ) -> None:
-        result1 = LLMClassificationResult(
-            is_actionable=True, confidence=0.9, reason="First"
-        )
-        result2 = LLMClassificationResult(
-            is_actionable=False, confidence=0.8, reason="Second"
-        )
+    def test_update_existing_entry(self, cache: ClassificationCache) -> None:
+        result1 = LLMClassificationResult(is_actionable=True, confidence=0.9, reason="First")
+        result2 = LLMClassificationResult(is_actionable=False, confidence=0.8, reason="Second")
 
         cache.put("same comment", result1)
         cache.put("same comment", result2)

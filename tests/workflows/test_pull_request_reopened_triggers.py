@@ -34,8 +34,7 @@ def _pull_request_types(workflow: Path) -> frozenset[str] | None:
         return None
 
     assert isinstance(event_types, list), (
-        f"{workflow.name}: pull_request.types must be a list, "
-        f"got {type(event_types).__name__}"
+        f"{workflow.name}: pull_request.types must be a list, got {type(event_types).__name__}"
     )
     return frozenset(event_types)
 
@@ -72,9 +71,7 @@ def test_contract_detects_missing_reopened(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    assert _workflows_missing_reopened([workflow]) == {
-        "active.yml": ["opened", "synchronize"]
-    }
+    assert _workflows_missing_reopened([workflow]) == {"active.yml": ["opened", "synchronize"]}
 
 
 def test_contract_accepts_default_pull_request_events(tmp_path: Path) -> None:

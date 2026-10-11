@@ -179,9 +179,7 @@ def _find_latest_retrospective(retro_dir: Path, root: Path) -> Path | None:
         # Exclude the co-located INDEX.md: it lives alongside the retro files
         # but is a meta-index, not a retrospective. See
         # .claude/hooks/Stop/invoke_auto_retrospective.py::update_retro_index.
-        retro_paths = [
-            p for p in retro_dir.glob("*.md") if p.name != "INDEX.md"
-        ]
+        retro_paths = [p for p in retro_dir.glob("*.md") if p.name != "INDEX.md"]
     except OSError:
         return None
 
@@ -220,9 +218,7 @@ def _count_pending_skeletons(
         # Exclude the co-located INDEX.md: it lives alongside the retro files
         # but is a meta-index, not a retrospective. See
         # .claude/hooks/Stop/invoke_auto_retrospective.py::update_retro_index.
-        retro_paths = [
-            p for p in retro_dir.glob("*.md") if p.name != "INDEX.md"
-        ]
+        retro_paths = [p for p in retro_dir.glob("*.md") if p.name != "INDEX.md"]
     except OSError:
         return 0, []
 
@@ -247,9 +243,7 @@ def _count_pending_skeletons(
 _RETRO_DATE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})")
 
 
-def _is_pending_skeleton_recent(
-    path: Path, cutoff_date: date, cutoff_mtime: float
-) -> bool:
+def _is_pending_skeleton_recent(path: Path, cutoff_date: date, cutoff_mtime: float) -> bool:
     filename_date = _filename_date(path.name)
     if filename_date is not None:
         return filename_date >= cutoff_date
@@ -375,8 +369,7 @@ def main() -> None:
         retro_content = _read_file_truncated(latest_retro, MAX_RETRO_CHARS)
         if retro_content:
             output_parts.append(
-                f"## 📝 Auto-loaded: Latest Retrospective ({latest_retro.name})\n\n"
-                f"{retro_content}"
+                f"## 📝 Auto-loaded: Latest Retrospective ({latest_retro.name})\n\n{retro_content}"
             )
             loaded_files.append(f"retrospective/{latest_retro.name}")
 
@@ -388,9 +381,7 @@ def main() -> None:
         dates = _skeleton_dates(pending_names)
         fill_hint = dates[0] if dates else "<date>"
         other_dates = (
-            f"\n\nOther available dates: {', '.join(dates[1:])}."
-            if len(dates) > 1
-            else ""
+            f"\n\nOther available dates: {', '.join(dates[1:])}." if len(dates) > 1 else ""
         )
         output_parts.append(
             f"## ⏳ {pending_count} retro(s) need completion\n\n"

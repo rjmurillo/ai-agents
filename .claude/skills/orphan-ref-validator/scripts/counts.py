@@ -64,11 +64,7 @@ def enumerate_skills(repo_root: Path) -> set[str] | None:
     catalog = skills_dir(repo_root)
     if not catalog.exists() or not catalog.is_dir():
         return None
-    return {
-        d.name
-        for d in catalog.iterdir()
-        if d.is_dir() and (d / "SKILL.md").exists()
-    }
+    return {d.name for d in catalog.iterdir() if d.is_dir() and (d / "SKILL.md").exists()}
 
 
 def enumerate_sibling_artifacts(repo_root: Path) -> frozenset[str]:

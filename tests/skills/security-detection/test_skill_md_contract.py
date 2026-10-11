@@ -24,12 +24,12 @@ def test_security_detection_uses_the_literal_brace_escape() -> None:
     tests/build_scripts/test_rule_templates_lossless.py's
     ``test_testing_rule_uses_the_literal_brace_escape``.
     """
-    template = (
-        _REPO_ROOT / "templates" / "skills" / "security-detection.SKILL.md.tmpl"
-    ).read_text(encoding="utf-8")
-    rendered = (
-        _REPO_ROOT / ".claude" / "skills" / "security-detection" / "SKILL.md"
-    ).read_text(encoding="utf-8")
+    template = (_REPO_ROOT / "templates" / "skills" / "security-detection.SKILL.md.tmpl").read_text(
+        encoding="utf-8"
+    )
+    rendered = (_REPO_ROOT / ".claude" / "skills" / "security-detection" / "SKILL.md").read_text(
+        encoding="utf-8"
+    )
     assert template.count("\\{{") == 2
     assert rendered.count("${{") == 2
     assert "\\{{" not in rendered

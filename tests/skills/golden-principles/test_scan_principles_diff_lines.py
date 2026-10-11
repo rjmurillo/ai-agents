@@ -19,10 +19,7 @@ if TESTS_SKILLS_DIR not in sys.path:
 
 from claude_skills_import import import_skill_script
 
-_SCRIPTS_DIR = str(
-    Path(__file__).resolve().parents[3]
-    / ".claude/skills/golden-principles/scripts"
-)
+_SCRIPTS_DIR = str(Path(__file__).resolve().parents[3] / ".claude/skills/golden-principles/scripts")
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
 
@@ -288,9 +285,9 @@ class TestDiffScopeLineFiltering:
         # without filtering, so the violation must appear.
         result_no_filter = run_scan(files + [str(tmp_path / "legacy.sh")], ALL_RULES, None)
         legacy = str(tmp_path / "legacy.sh")
-        assert any(
-            v.file == legacy for v in result_no_filter.violations
-        ), "without filtering, legacy.sh violation must be present"
+        assert any(v.file == legacy for v in result_no_filter.violations), (
+            "without filtering, legacy.sh violation must be present"
+        )
 
     def test_file_not_in_diff_lines_is_suppressed_when_explicitly_scanned(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -315,6 +312,6 @@ class TestDiffScopeLineFiltering:
         diff_lines_with_other: dict[str, set[int]] = {other_file: {1, 2}}
         result = run_scan([str(tmp_path / "legacy.sh")], ALL_RULES, diff_lines_with_other)
         legacy = str(tmp_path / "legacy.sh")
-        assert not any(
-            v.file == legacy for v in result.violations
-        ), "legacy.sh not in diff_lines must be suppressed even when explicitly scanned"
+        assert not any(v.file == legacy for v in result.violations), (
+            "legacy.sh not in diff_lines must be suppressed even when explicitly scanned"
+        )

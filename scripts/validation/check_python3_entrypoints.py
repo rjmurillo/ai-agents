@@ -90,8 +90,7 @@ def _candidate_module_files(
     resolved_leaf = {
         candidate.resolve()
         for candidate in leaf_candidates
-        if candidate.resolve().is_relative_to(repo_root)
-        and candidate.resolve().is_file()
+        if candidate.resolve().is_relative_to(repo_root) and candidate.resolve().is_file()
     }
     if not resolved_leaf:
         return set()
@@ -102,9 +101,7 @@ def _candidate_module_files(
         for index in range(1, len(relative_parts))
     }
     return resolved_leaf | {
-        initializer
-        for initializer in package_initializers
-        if initializer.is_file()
+        initializer for initializer in package_initializers if initializer.is_file()
     }
 
 
@@ -150,34 +147,23 @@ def _local_import_paths(
     bases: list[Path] = []
     if isinstance(node, ast.Import):
         for alias in node.names:
-            bases.extend(
-                _absolute_import_bases(alias.name, script_path, repo_root)
-            )
+            bases.extend(_absolute_import_bases(alias.name, script_path, repo_root))
     elif node.level:
         relative_base = _relative_import_base(node, script_path, repo_root)
         if relative_base is not None:
             bases.append(relative_base)
-            bases.extend(
-                relative_base.joinpath(*alias.name.split("."))
-                for alias in node.names
-            )
+            bases.extend(relative_base.joinpath(*alias.name.split(".")) for alias in node.names)
     elif node.module:
+        bases.extend(_absolute_import_bases(node.module, script_path, repo_root))
         bases.extend(
-            _absolute_import_bases(node.module, script_path, repo_root)
-        )
-        bases.extend(
-            base.joinpath(*alias.name.split("."))
-            for base in list(bases)
-            for alias in node.names
+            base.joinpath(*alias.name.split(".")) for base in list(bases) for alias in node.names
         )
 
     local_paths: set[Path] = set()
     for base in bases:
         resolved_base = base.resolve()
         if resolved_base.is_relative_to(repo_root):
-            local_paths.update(
-                _candidate_module_files(resolved_base, repo_root)
-            )
+            local_paths.update(_candidate_module_files(resolved_base, repo_root))
     return local_paths
 
 
@@ -215,9 +201,7 @@ def _collect_imports_recursive(
                 resolved_script,
                 repo_root,
             ):
-                found.update(
-                    _collect_imports_recursive(local_path, repo_root, visited)
-                )
+                found.update(_collect_imports_recursive(local_path, repo_root, visited))
     return found
 
 

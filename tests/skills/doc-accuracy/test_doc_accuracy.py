@@ -57,10 +57,7 @@ def test_exit_code_documentation_covers_the_cli_contract() -> None:
     skill_path = Path(mod.__file__).resolve().parents[1] / "SKILL.md"
     skill_docs = skill_path.read_text(encoding="utf-8")
     source_citation = (
-        "Canonical source bundled with this skill:\n\n"
-        "```text\n"
-        "scripts/doc_accuracy.py\n"
-        "```"
+        "Canonical source bundled with this skill:\n\n```text\nscripts/doc_accuracy.py\n```"
     )
 
     assert contract in (mod.__doc__ or "")
@@ -193,7 +190,10 @@ class TestExtractCsharpSymbols:
 class TestSourceSymbol:
     def test_to_dict(self) -> None:
         sym = SourceSymbol(
-            name="Foo", kind="class", file="a.py", line=1,
+            name="Foo",
+            kind="class",
+            file="a.py",
+            line=1,
             signature="class Foo:",
         )
         d = sym.to_dict()
@@ -214,9 +214,7 @@ class TestRunAssessment:
         assert "coverage_summary" in result
         assert result["changed_files"] is None
 
-    def test_diff_base_scopes_doc_inventory_to_changed_files(
-        self, tmp_path: Path
-    ) -> None:
+    def test_diff_base_scopes_doc_inventory_to_changed_files(self, tmp_path: Path) -> None:
         """diff_base must restrict assessed docs to files changed since that ref.
 
         Regression for issue #4520: changed_files was computed but never used
@@ -287,9 +285,7 @@ class TestRunAssessment:
         # Source files are always indexed regardless of diff_base.
         assert any(s["name"] == "foo" for s in result["source_symbols"])
 
-    def test_diff_base_no_changed_docs_yields_empty_inventory(
-        self, tmp_path: Path
-    ) -> None:
+    def test_diff_base_no_changed_docs_yields_empty_inventory(self, tmp_path: Path) -> None:
         """When only non-doc files changed, the doc inventory is empty."""
         import subprocess
 
@@ -362,24 +358,27 @@ class TestRunAssessment:
         (tmp_path / "code.py").write_text("def PublicThing():\n    pass\n")
         subprocess.run(["git", "init", str(tmp_path)], check=True, capture_output=True)
         subprocess.run(
-            ["git", "-C", str(tmp_path), "add", "."], check=True, capture_output=True,
+            ["git", "-C", str(tmp_path), "add", "."],
+            check=True,
+            capture_output=True,
         )
         subprocess.run(
             ["git", "-C", str(tmp_path), "config", "user.name", "t"],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
         subprocess.run(
             ["git", "-C", str(tmp_path), "config", "user.email", "t@t"],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
         subprocess.run(
             ["git", "-C", str(tmp_path), "commit", "-m", "init"],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
 
-        with patch.object(
-            mod, "_get_changed_diff", return_value=({"changed.md"}, {})
-        ):
+        with patch.object(mod, "_get_changed_diff", return_value=({"changed.md"}, {})):
             result = run_assessment(
                 tmp_path,
                 doc_globs=["*.md"],
@@ -396,19 +395,24 @@ class TestRunAssessment:
         (tmp_path / "unchanged.md").write_text("# Unchanged\n")
         subprocess.run(["git", "init", str(tmp_path)], check=True, capture_output=True)
         subprocess.run(
-            ["git", "-C", str(tmp_path), "add", "."], check=True, capture_output=True,
+            ["git", "-C", str(tmp_path), "add", "."],
+            check=True,
+            capture_output=True,
         )
         subprocess.run(
             ["git", "-C", str(tmp_path), "config", "user.name", "t"],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
         subprocess.run(
             ["git", "-C", str(tmp_path), "config", "user.email", "t@t"],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
         subprocess.run(
             ["git", "-C", str(tmp_path), "commit", "-m", "init"],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
 
         with patch.object(mod, "_get_changed_diff", return_value=(set(), {})):
@@ -429,31 +433,44 @@ class TestGetChangedFiles:
     def _init_repo(path: Path) -> None:
         """Create a minimal git repo with one empty commit."""
         import os
+
         subprocess.run(["git", "init", str(path)], check=True, capture_output=True)
         subprocess.run(
             ["git", "-C", str(path), "config", "user.name", "t"],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
         subprocess.run(
             ["git", "-C", str(path), "config", "user.email", "t@t"],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
         subprocess.run(
             ["git", "-C", str(path), "commit", "--allow-empty", "-m", "init"],
-            check=True, capture_output=True,
-            env={**os.environ, "GIT_AUTHOR_NAME": "t",
-                 "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t",
-                 "GIT_COMMITTER_EMAIL": "t@t"},
+            check=True,
+            capture_output=True,
+            env={
+                **os.environ,
+                "GIT_AUTHOR_NAME": "t",
+                "GIT_AUTHOR_EMAIL": "t@t",
+                "GIT_COMMITTER_NAME": "t",
+                "GIT_COMMITTER_EMAIL": "t@t",
+            },
         )
 
     def test_invalid_ref_exits_2(self, tmp_path: Path) -> None:
         """Invalid --diff-base is config error => exit 2 (ADR-035)."""
         self._init_repo(tmp_path)
-        exit_code = main([
-            "--target", str(tmp_path),
-            "--diff-base", "no-such-ref",
-            "--phases", "1",
-        ])
+        exit_code = main(
+            [
+                "--target",
+                str(tmp_path),
+                "--diff-base",
+                "no-such-ref",
+                "--phases",
+                "1",
+            ]
+        )
         assert exit_code == 2
 
     def test_corrupt_object_db_exits_3(self, tmp_path: Path) -> None:
@@ -465,17 +482,23 @@ class TestGetChangedFiles:
             cmd = args[0] if args else kwargs.get("args", [])
             if "--verify" in cmd:
                 raise subprocess.CalledProcessError(
-                    128, cmd,
+                    128,
+                    cmd,
                     stderr="fatal: unable to read object: permission denied",
                 )
             return real_run(*args, **kwargs)  # subprocess-encoding: strict-ok
 
         with patch.object(subprocess, "run", side_effect=corrupt_verify):
-            exit_code = main([
-                "--target", str(tmp_path),
-                "--diff-base", "HEAD",
-                "--phases", "1",
-            ])
+            exit_code = main(
+                [
+                    "--target",
+                    str(tmp_path),
+                    "--diff-base",
+                    "HEAD",
+                    "--phases",
+                    "1",
+                ]
+            )
         assert exit_code == 3
 
     def test_ref_to_missing_object_exits_3(self, tmp_path: Path) -> None:
@@ -485,11 +508,16 @@ class TestGetChangedFiles:
         ref = tmp_path / ".git" / "refs" / "heads" / "missing-object"
         ref.write_text(f"{missing_oid}\n")
 
-        exit_code = main([
-            "--target", str(tmp_path),
-            "--diff-base", "missing-object",
-            "--phases", "1",
-        ])
+        exit_code = main(
+            [
+                "--target",
+                str(tmp_path),
+                "--diff-base",
+                "missing-object",
+                "--phases",
+                "1",
+            ]
+        )
 
         assert exit_code == 3
 
@@ -503,17 +531,23 @@ class TestGetChangedFiles:
             if "--verify" in cmd:
                 # Non-English stderr, but rc 1 signals unresolved ref
                 raise subprocess.CalledProcessError(
-                    1, cmd,
+                    1,
+                    cmd,
                     stderr="fatale: unbekannte Revision 'no-such-ref'",
                 )
             return real_run(*args, **kwargs)  # subprocess-encoding: strict-ok
 
         with patch.object(subprocess, "run", side_effect=localized_verify):
-            exit_code = main([
-                "--target", str(tmp_path),
-                "--diff-base", "no-such-ref",
-                "--phases", "1",
-            ])
+            exit_code = main(
+                [
+                    "--target",
+                    str(tmp_path),
+                    "--diff-base",
+                    "no-such-ref",
+                    "--phases",
+                    "1",
+                ]
+            )
         assert exit_code == 2
 
     def test_invalid_git_directory_exits_3(self, tmp_path: Path) -> None:
@@ -522,24 +556,35 @@ class TestGetChangedFiles:
         repo.mkdir()
         (repo / ".git").write_text("gitdir: missing\n")
 
-        exit_code = main([
-            "--target", str(repo),
-            "--diff-base", "HEAD",
-            "--phases", "1",
-        ])
+        exit_code = main(
+            [
+                "--target",
+                str(repo),
+                "--diff-base",
+                "HEAD",
+                "--phases",
+                "1",
+            ]
+        )
         assert exit_code == 3
 
     def test_bare_repo_exits_3(self, tmp_path: Path) -> None:
         """Bare repo returns rc0 with stdout 'false'; must still exit 3."""
         subprocess.run(
             ["git", "init", "--bare", str(tmp_path / "bare.git")],
-            capture_output=True, check=True,
+            capture_output=True,
+            check=True,
         )
-        exit_code = main([
-            "--target", str(tmp_path / "bare.git"),
-            "--diff-base", "HEAD",
-            "--phases", "1",
-        ])
+        exit_code = main(
+            [
+                "--target",
+                str(tmp_path / "bare.git"),
+                "--diff-base",
+                "HEAD",
+                "--phases",
+                "1",
+            ]
+        )
         assert exit_code == 3
 
     def test_worktree_false_stdout_exits_3(self, tmp_path: Path) -> None:
@@ -557,37 +602,54 @@ class TestGetChangedFiles:
 
         self._init_repo(tmp_path)
         with patch.object(subprocess, "run", side_effect=mock_worktree_false):
-            exit_code = main([
-                "--target", str(tmp_path),
-                "--diff-base", "HEAD",
-                "--phases", "1",
-            ])
+            exit_code = main(
+                [
+                    "--target",
+                    str(tmp_path),
+                    "--diff-base",
+                    "HEAD",
+                    "--phases",
+                    "1",
+                ]
+            )
         assert exit_code == 3
 
     def test_missing_git_exits_3(self, tmp_path: Path) -> None:
         """Missing git binary is an environment error => exit 3."""
         with patch.object(
-            subprocess, "run",
+            subprocess,
+            "run",
             side_effect=FileNotFoundError("git not found"),
         ):
-            exit_code = main([
-                "--target", str(tmp_path),
-                "--diff-base", "HEAD",
-                "--phases", "1",
-            ])
+            exit_code = main(
+                [
+                    "--target",
+                    str(tmp_path),
+                    "--diff-base",
+                    "HEAD",
+                    "--phases",
+                    "1",
+                ]
+            )
         assert exit_code == 3
 
     def test_rev_parse_timeout_exits_3(self, tmp_path: Path) -> None:
         """Timeout during rev-parse is an environment error => exit 3."""
         with patch.object(
-            subprocess, "run",
+            subprocess,
+            "run",
             side_effect=subprocess.TimeoutExpired("git", 60),
         ):
-            exit_code = main([
-                "--target", str(tmp_path),
-                "--diff-base", "HEAD",
-                "--phases", "1",
-            ])
+            exit_code = main(
+                [
+                    "--target",
+                    str(tmp_path),
+                    "--diff-base",
+                    "HEAD",
+                    "--phases",
+                    "1",
+                ]
+            )
         assert exit_code == 3
 
     def test_ls_files_timeout_exits_3(self, tmp_path: Path) -> None:
@@ -604,11 +666,16 @@ class TestGetChangedFiles:
             return real_run(*args, **kwargs)  # subprocess-encoding: strict-ok
 
         with patch.object(subprocess, "run", side_effect=selective_timeout):
-            exit_code = main([
-                "--target", str(tmp_path),
-                "--diff-base", "HEAD",
-                "--phases", "1",
-            ])
+            exit_code = main(
+                [
+                    "--target",
+                    str(tmp_path),
+                    "--diff-base",
+                    "HEAD",
+                    "--phases",
+                    "1",
+                ]
+            )
         assert exit_code == 3
         # Verify timeout kwarg was actually passed to ls-files subprocess call
         assert ls_files_timeout_seen, "ls-files was never called"
@@ -625,16 +692,23 @@ class TestGetChangedFiles:
             cmd = args[0] if args else kwargs.get("args", [])
             if "ls-files" in cmd:
                 raise subprocess.CalledProcessError(
-                    128, cmd, stderr="fatal: index corrupted",
+                    128,
+                    cmd,
+                    stderr="fatal: index corrupted",
                 )
             return real_run(*args, **kwargs)  # subprocess-encoding: strict-ok
 
         with patch.object(subprocess, "run", side_effect=fail_ls_files):
-            exit_code = main([
-                "--target", str(tmp_path),
-                "--diff-base", "HEAD",
-                "--phases", "1",
-            ])
+            exit_code = main(
+                [
+                    "--target",
+                    str(tmp_path),
+                    "--diff-base",
+                    "HEAD",
+                    "--phases",
+                    "1",
+                ]
+            )
         assert exit_code == 3
 
     def test_no_diff_base_ls_files_fallback_works(self, tmp_path: Path) -> None:
@@ -646,48 +720,71 @@ class TestGetChangedFiles:
             cmd = args[0] if args else kwargs.get("args", [])
             if "ls-files" in cmd:
                 raise subprocess.CalledProcessError(
-                    128, cmd, stderr="fatal: index corrupted",
+                    128,
+                    cmd,
+                    stderr="fatal: index corrupted",
                 )
             return real_run(*args, **kwargs)  # subprocess-encoding: strict-ok
 
         with patch.object(subprocess, "run", side_effect=fail_ls_files):
-            exit_code = main([
-                "--target", str(tmp_path),
-                "--phases", "1",
-            ])
+            exit_code = main(
+                [
+                    "--target",
+                    str(tmp_path),
+                    "--phases",
+                    "1",
+                ]
+            )
         assert exit_code == 0
 
     def test_valid_empty_diff_exits_0(self, tmp_path: Path) -> None:
         """Valid diff-base with no changed files passes (exit 0)."""
         self._init_repo(tmp_path)
-        exit_code = main([
-            "--target", str(tmp_path),
-            "--diff-base", "HEAD",
-            "--phases", "1",
-        ])
+        exit_code = main(
+            [
+                "--target",
+                str(tmp_path),
+                "--diff-base",
+                "HEAD",
+                "--phases",
+                "1",
+            ]
+        )
         assert exit_code == 0
 
     def test_changed_diff_exits_0(self, tmp_path: Path) -> None:
         """Valid diff-base with actual changes still passes."""
         import os
+
         self._init_repo(tmp_path)
         (tmp_path / "README.md").write_text("# Hello\n")
         subprocess.run(
             ["git", "-C", str(tmp_path), "add", "README.md"],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
         subprocess.run(
             ["git", "-C", str(tmp_path), "commit", "-m", "add readme"],
-            check=True, capture_output=True,
-            env={**os.environ, "GIT_AUTHOR_NAME": "t",
-                 "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t",
-                 "GIT_COMMITTER_EMAIL": "t@t"},
+            check=True,
+            capture_output=True,
+            env={
+                **os.environ,
+                "GIT_AUTHOR_NAME": "t",
+                "GIT_AUTHOR_EMAIL": "t@t",
+                "GIT_COMMITTER_NAME": "t",
+                "GIT_COMMITTER_EMAIL": "t@t",
+            },
         )
-        exit_code = main([
-            "--target", str(tmp_path),
-            "--diff-base", "HEAD~1",
-            "--phases", "1",
-        ])
+        exit_code = main(
+            [
+                "--target",
+                str(tmp_path),
+                "--diff-base",
+                "HEAD~1",
+                "--phases",
+                "1",
+            ]
+        )
         assert exit_code == 0
 
     def test_ignores_blank_diff_lines(self, tmp_path: Path) -> None:
@@ -717,25 +814,30 @@ class TestGetChangedFiles:
         newline_file.write_text("# Newline\n")
         subprocess.run(
             ["git", "-C", str(tmp_path), "add", "."],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
         subprocess.run(
             ["git", "-C", str(tmp_path), "commit", "-m", "unicode"],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
         changed = _get_changed_files("HEAD~1", tmp_path)
         assert "\u00e9l\u00e8ve.md" in changed
         assert "line\nbreak.md" in changed
-        exit_code = main([
-            "--target", str(tmp_path),
-            "--diff-base", "HEAD~1",
-            "--phases", "1",
-        ])
+        exit_code = main(
+            [
+                "--target",
+                str(tmp_path),
+                "--diff-base",
+                "HEAD~1",
+                "--phases",
+                "1",
+            ]
+        )
         assert exit_code == 0
 
-    def test_non_utf8_path_round_trips_through_nul_output(
-        self, tmp_path: Path
-    ) -> None:
+    def test_non_utf8_path_round_trips_through_nul_output(self, tmp_path: Path) -> None:
         """NUL-delimited Git bytes use filesystem surrogate decoding."""
         import os
 
@@ -751,18 +853,19 @@ class TestGetChangedFiles:
             os.close(fd)
         subprocess.run(
             [b"git", b"-C", os.fsencode(tmp_path), b"add", b"."],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
         subprocess.run(
             [b"git", b"-C", os.fsencode(tmp_path), b"commit", b"-m", b"bytes"],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
 
         expected = os.fsdecode(raw_name)
         assert expected in _get_changed_files("HEAD~1", tmp_path)
         tracked = {
-            _repo_relative(path, tmp_path)
-            for path in _iter_git_files(tmp_path, require_git=True)
+            _repo_relative(path, tmp_path) for path in _iter_git_files(tmp_path, require_git=True)
         }
         assert expected in tracked
 
@@ -772,22 +875,30 @@ class TestGetChangedFiles:
         (tmp_path / "a.md").write_text("# A\n")
         subprocess.run(
             ["git", "-C", str(tmp_path), "add", "."],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
         subprocess.run(
             ["git", "-C", str(tmp_path), "commit", "-m", "add a"],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
         # Set GIT_DIR to a bogus location; should be sanitized
         import os as _os
+
         old = _os.environ.get("GIT_DIR")
         _os.environ["GIT_DIR"] = "/nonexistent/.git"
         try:
-            exit_code = main([
-                "--target", str(tmp_path),
-                "--diff-base", "HEAD~1",
-                "--phases", "1",
-            ])
+            exit_code = main(
+                [
+                    "--target",
+                    str(tmp_path),
+                    "--diff-base",
+                    "HEAD~1",
+                    "--phases",
+                    "1",
+                ]
+            )
         finally:
             if old is None:
                 _os.environ.pop("GIT_DIR", None)
@@ -801,15 +912,18 @@ class TestGetChangedFiles:
         (tmp_path / "a.md").write_text("# A\n")
         subprocess.run(
             ["git", "-C", str(tmp_path), "add", "."],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
         subprocess.run(
             ["git", "-C", str(tmp_path), "commit", "-m", "init"],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
         sentinel = tmp_path / "pwned_sentinel"
         sentinel.unlink(missing_ok=True)
         import os as _os
+
         injections = {
             "GIT_CONFIG_COUNT": "1",
             "GIT_CONFIG_KEY_0": "core.fsmonitor",
@@ -822,15 +936,21 @@ class TestGetChangedFiles:
         try:
             subprocess.run(
                 ["git", "-C", str(tmp_path), "status", "--porcelain"],
-                check=True, capture_output=True,
+                check=True,
+                capture_output=True,
             )
             assert sentinel.exists(), "config-count fsmonitor probe did not execute"
             sentinel.unlink()
-            exit_code = main([
-                "--target", str(tmp_path),
-                "--diff-base", "HEAD~1",
-                "--phases", "1",
-            ])
+            exit_code = main(
+                [
+                    "--target",
+                    str(tmp_path),
+                    "--diff-base",
+                    "HEAD~1",
+                    "--phases",
+                    "1",
+                ]
+            )
         finally:
             for k in injections:
                 old_value = old_vals[k]
@@ -851,11 +971,13 @@ class TestGetChangedFiles:
         (repo / "a.md").write_text("# A\n")
         subprocess.run(
             ["git", "-C", str(repo), "add", "."],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
         subprocess.run(
             ["git", "-C", str(repo), "commit", "-m", "add a"],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
 
         sentinel = tmp_path / "global-fsmonitor-ran"
@@ -870,10 +992,15 @@ class TestGetChangedFiles:
         home.mkdir()
         subprocess.run(
             [
-                "git", "config", "--file", str(home / ".gitconfig"),
-                "core.fsmonitor", str(hook),
+                "git",
+                "config",
+                "--file",
+                str(home / ".gitconfig"),
+                "core.fsmonitor",
+                str(hook),
             ],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
         inherited_env = os.environ.copy()
         inherited_env["HOME"] = str(home)
@@ -881,18 +1008,24 @@ class TestGetChangedFiles:
         inherited_env.pop("GIT_CONFIG_NOSYSTEM", None)
         subprocess.run(
             ["git", "-C", str(repo), "status", "--porcelain"],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
             env=inherited_env,
         )
         assert sentinel.exists(), "global fsmonitor probe did not execute"
         sentinel.unlink()
 
         with patch.dict(os.environ, inherited_env, clear=True):
-            exit_code = main([
-                "--target", str(repo),
-                "--diff-base", "HEAD~1",
-                "--phases", "1",
-            ])
+            exit_code = main(
+                [
+                    "--target",
+                    str(repo),
+                    "--diff-base",
+                    "HEAD~1",
+                    "--phases",
+                    "1",
+                ]
+            )
         assert exit_code == 0
         assert not sentinel.exists()
 
@@ -906,11 +1039,13 @@ class TestGetChangedFiles:
         (repo / "a.md").write_text("# A\n")
         subprocess.run(
             ["git", "-C", str(repo), "add", "."],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
         subprocess.run(
             ["git", "-C", str(repo), "commit", "-m", "add a"],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
 
         sentinel = tmp_path / "system-fsmonitor-ran"
@@ -924,10 +1059,15 @@ class TestGetChangedFiles:
         system_config = tmp_path / "system.gitconfig"
         subprocess.run(
             [
-                "git", "config", "--file", str(system_config),
-                "core.fsmonitor", str(hook),
+                "git",
+                "config",
+                "--file",
+                str(system_config),
+                "core.fsmonitor",
+                str(hook),
             ],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
         inherited_env = {
             **os.environ,
@@ -937,18 +1077,24 @@ class TestGetChangedFiles:
         inherited_env.pop("GIT_CONFIG_NOSYSTEM", None)
         subprocess.run(
             ["git", "-C", str(repo), "status", "--porcelain"],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
             env=inherited_env,
         )
         assert sentinel.exists(), "system fsmonitor probe did not execute"
         sentinel.unlink()
 
         with patch.dict(os.environ, inherited_env, clear=True):
-            exit_code = main([
-                "--target", str(repo),
-                "--diff-base", "HEAD~1",
-                "--phases", "1",
-            ])
+            exit_code = main(
+                [
+                    "--target",
+                    str(repo),
+                    "--diff-base",
+                    "HEAD~1",
+                    "--phases",
+                    "1",
+                ]
+            )
         assert exit_code == 0
         assert not sentinel.exists()
 
@@ -960,11 +1106,13 @@ class TestGetChangedFiles:
         (repo / "a.md").write_text("# A\n")
         subprocess.run(
             ["git", "-C", str(repo), "add", "."],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
         subprocess.run(
             ["git", "-C", str(repo), "commit", "-m", "add a"],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
 
         sentinel = tmp_path / "local-fsmonitor-ran"
@@ -977,20 +1125,27 @@ class TestGetChangedFiles:
         hook.chmod(0o755)
         subprocess.run(
             ["git", "-C", str(repo), "config", "core.fsmonitor", str(hook)],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
         subprocess.run(
             ["git", "-C", str(repo), "status", "--porcelain"],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
         assert sentinel.exists(), "repository fsmonitor probe did not execute"
         sentinel.unlink()
 
-        exit_code = main([
-            "--target", str(repo),
-            "--diff-base", "HEAD~1",
-            "--phases", "1",
-        ])
+        exit_code = main(
+            [
+                "--target",
+                str(repo),
+                "--diff-base",
+                "HEAD~1",
+                "--phases",
+                "1",
+            ]
+        )
         assert exit_code == 0
         assert not sentinel.exists()
 
@@ -1000,13 +1155,16 @@ class TestGetChangedFiles:
         (tmp_path / "a.md").write_text("# A\n")
         subprocess.run(
             ["git", "-C", str(tmp_path), "add", "."],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
         subprocess.run(
             ["git", "-C", str(tmp_path), "commit", "-m", "init"],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
         import os as _os
+
         overrides = {
             "GIT_GRAFT_FILE": "/nonexistent/grafts",
             "GIT_REPLACE_REF_BASE": "refs/replace-evil/",
@@ -1017,11 +1175,16 @@ class TestGetChangedFiles:
             old_vals[k] = _os.environ.get(k)
             _os.environ[k] = v
         try:
-            exit_code = main([
-                "--target", str(tmp_path),
-                "--diff-base", "HEAD~1",
-                "--phases", "1",
-            ])
+            exit_code = main(
+                [
+                    "--target",
+                    str(tmp_path),
+                    "--diff-base",
+                    "HEAD~1",
+                    "--phases",
+                    "1",
+                ]
+            )
         finally:
             for k in overrides:
                 old_value = old_vals[k]
@@ -1038,17 +1201,33 @@ class TestGetChangedFiles:
         import os as _os
 
         local_vars = [
-            "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_CONFIG",
-            "GIT_CONFIG_PARAMETERS", "GIT_CONFIG_COUNT",
-            "GIT_OBJECT_DIRECTORY", "GIT_DIR", "GIT_WORK_TREE",
-            "GIT_IMPLICIT_WORK_TREE", "GIT_GRAFT_FILE", "GIT_INDEX_FILE",
-            "GIT_NO_REPLACE_OBJECTS", "GIT_REPLACE_REF_BASE", "GIT_PREFIX",
-            "GIT_SHALLOW_FILE", "GIT_COMMON_DIR",
-            "git_dir", "Git_Work_Tree", "git_object_directory",
+            "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+            "GIT_CONFIG",
+            "GIT_CONFIG_PARAMETERS",
+            "GIT_CONFIG_COUNT",
+            "GIT_OBJECT_DIRECTORY",
+            "GIT_DIR",
+            "GIT_WORK_TREE",
+            "GIT_IMPLICIT_WORK_TREE",
+            "GIT_GRAFT_FILE",
+            "GIT_INDEX_FILE",
+            "GIT_NO_REPLACE_OBJECTS",
+            "GIT_REPLACE_REF_BASE",
+            "GIT_PREFIX",
+            "GIT_SHALLOW_FILE",
+            "GIT_COMMON_DIR",
+            "git_dir",
+            "Git_Work_Tree",
+            "git_object_directory",
         ]
-        prefix_vars = ["GIT_CONFIG_KEY_0", "GIT_CONFIG_VALUE_0",
-                       "GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM",
-                       "Git_Config_Arbitrary", "git_config_key_99"]
+        prefix_vars = [
+            "GIT_CONFIG_KEY_0",
+            "GIT_CONFIG_VALUE_0",
+            "GIT_CONFIG_GLOBAL",
+            "GIT_CONFIG_SYSTEM",
+            "Git_Config_Arbitrary",
+            "git_config_key_99",
+        ]
         all_test = local_vars + prefix_vars
         saved: dict[str, str | None] = {k: _os.environ.get(k) for k in all_test}
         for k in all_test:
@@ -1063,8 +1242,12 @@ class TestGetChangedFiles:
                 else:
                     _os.environ[k] = saved_value
         forced = {
-            "GIT_CONFIG_NOSYSTEM", "GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM",
-            "GIT_GRAFT_FILE", "GIT_NO_REPLACE_OBJECTS", "GIT_SHALLOW_FILE",
+            "GIT_CONFIG_NOSYSTEM",
+            "GIT_CONFIG_GLOBAL",
+            "GIT_CONFIG_SYSTEM",
+            "GIT_GRAFT_FILE",
+            "GIT_NO_REPLACE_OBJECTS",
+            "GIT_SHALLOW_FILE",
         }
         for key in env:
             normalized = key.upper()
@@ -1074,124 +1257,155 @@ class TestGetChangedFiles:
         assert env["GIT_GRAFT_FILE"] == _os.devnull
         assert env["GIT_SHALLOW_FILE"] == _os.devnull
 
-    def test_repository_replace_ref_cannot_hide_changed_file(
-        self, tmp_path: Path
-    ) -> None:
+    def test_repository_replace_ref_cannot_hide_changed_file(self, tmp_path: Path) -> None:
         """A repository replace ref cannot rewrite the diff-base tree."""
         self._init_repo(tmp_path)
         base = subprocess.run(
             ["git", "-C", str(tmp_path), "rev-parse", "HEAD"],
-            check=True, capture_output=True, text=True,
+            check=True,
+            capture_output=True,
+            text=True,
         ).stdout.strip()
         (tmp_path / "changed.md").write_text("# Changed\n")
         subprocess.run(
             ["git", "-C", str(tmp_path), "add", "."],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
         subprocess.run(
             ["git", "-C", str(tmp_path), "commit", "-m", "changed"],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
         head_tree = subprocess.run(
             ["git", "-C", str(tmp_path), "rev-parse", "HEAD^{tree}"],
-            check=True, capture_output=True, text=True,
+            check=True,
+            capture_output=True,
+            text=True,
         ).stdout.strip()
         replacement = subprocess.run(
             ["git", "-C", str(tmp_path), "commit-tree", head_tree],
-            check=True, capture_output=True, text=True,
+            check=True,
+            capture_output=True,
+            text=True,
             input="replacement\n",
         ).stdout.strip()
         subprocess.run(
             ["git", "-C", str(tmp_path), "replace", base, replacement],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
         unsanitized = subprocess.run(
             [
-                "git", "-C", str(tmp_path),
-                "diff", "--name-only", base, "HEAD", "--",
+                "git",
+                "-C",
+                str(tmp_path),
+                "diff",
+                "--name-only",
+                base,
+                "HEAD",
+                "--",
             ],
-            check=True, capture_output=True, text=True,
+            check=True,
+            capture_output=True,
+            text=True,
         )
         assert unsanitized.stdout == "", "replace ref probe did not hide the file"
 
         assert "changed.md" in _get_changed_files(base, tmp_path)
 
-    def test_repository_graft_and_shallow_files_are_ignored(
-        self, tmp_path: Path
-    ) -> None:
+    def test_repository_graft_and_shallow_files_are_ignored(self, tmp_path: Path) -> None:
         """Repository graft and shallow metadata cannot hide HEAD's parent."""
         self._init_repo(tmp_path)
         (tmp_path / "changed.md").write_text("# Changed\n")
         subprocess.run(
             ["git", "-C", str(tmp_path), "add", "."],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
         subprocess.run(
             ["git", "-C", str(tmp_path), "commit", "-m", "changed"],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
         head = subprocess.run(
             ["git", "-C", str(tmp_path), "rev-parse", "HEAD"],
-            check=True, capture_output=True, text=True,
+            check=True,
+            capture_output=True,
+            text=True,
         ).stdout.strip()
         git_dir = tmp_path / ".git"
         (git_dir / "info" / "grafts").write_text(f"{head}\n")
         (git_dir / "shallow").write_text(f"{head}\n")
         unsanitized = subprocess.run(
             [
-                "git", "-C", str(tmp_path),
-                "rev-parse", "--verify", "--quiet", "HEAD~1^{commit}",
+                "git",
+                "-C",
+                str(tmp_path),
+                "rev-parse",
+                "--verify",
+                "--quiet",
+                "HEAD~1^{commit}",
             ],
             capture_output=True,
         )
-        assert unsanitized.returncode != 0, (
-            "graft/shallow probe did not hide HEAD's parent"
-        )
+        assert unsanitized.returncode != 0, "graft/shallow probe did not hide HEAD's parent"
 
         assert "changed.md" in _get_changed_files("HEAD~1", tmp_path)
 
-    def test_blob_and_tree_revision_expressions_exit_2(
-        self, tmp_path: Path
-    ) -> None:
+    def test_blob_and_tree_revision_expressions_exit_2(self, tmp_path: Path) -> None:
         """Valid non-commit revisions are invalid diff-base configuration."""
         self._init_repo(tmp_path)
         (tmp_path / "README.md").write_text("# Readme\n")
         subprocess.run(
             ["git", "-C", str(tmp_path), "add", "README.md"],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
         subprocess.run(
             ["git", "-C", str(tmp_path), "commit", "-m", "add readme"],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
 
         for revision in ("HEAD^{tree}", "HEAD:README.md"):
-            exit_code = main([
-                "--target", str(tmp_path),
-                "--diff-base", revision,
-                "--phases", "1",
-            ])
+            exit_code = main(
+                [
+                    "--target",
+                    str(tmp_path),
+                    "--diff-base",
+                    revision,
+                    "--phases",
+                    "1",
+                ]
+            )
             assert exit_code == 2
 
-    def test_annotated_tag_and_symbolic_ref_are_accepted(
-        self, tmp_path: Path
-    ) -> None:
+    def test_annotated_tag_and_symbolic_ref_are_accepted(self, tmp_path: Path) -> None:
         """Commitish tags and symbolic refs resolve to immutable commit IDs."""
         self._init_repo(tmp_path)
         subprocess.run(
             ["git", "-C", str(tmp_path), "tag", "-a", "base", "-m", "base"],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
         branch = subprocess.run(
             ["git", "-C", str(tmp_path), "symbolic-ref", "--short", "HEAD"],
-            check=True, capture_output=True, text=True,
+            check=True,
+            capture_output=True,
+            text=True,
         ).stdout.strip()
         subprocess.run(
             [
-                "git", "-C", str(tmp_path), "symbolic-ref",
-                "refs/heads/base-symbolic", f"refs/heads/{branch}",
+                "git",
+                "-C",
+                str(tmp_path),
+                "symbolic-ref",
+                "refs/heads/base-symbolic",
+                f"refs/heads/{branch}",
             ],
-            check=True, capture_output=True,
+            check=True,
+            capture_output=True,
         )
 
         assert _get_changed_files("base", tmp_path) == set()
@@ -1201,7 +1415,9 @@ class TestGetChangedFiles:
     def _git(path: Path, *args: str) -> str:
         return subprocess.run(
             ["git", "-C", str(path), *args],
-            check=True, capture_output=True, text=True,
+            check=True,
+            capture_output=True,
+            text=True,
         ).stdout.strip()
 
     def _commit_file(self, path: Path, name: str) -> None:
@@ -1209,9 +1425,7 @@ class TestGetChangedFiles:
         self._git(path, "add", name)
         self._git(path, "commit", "-m", name)
 
-    def test_base_that_advanced_after_fork_is_not_counted(
-        self, tmp_path: Path
-    ) -> None:
+    def test_base_that_advanced_after_fork_is_not_counted(self, tmp_path: Path) -> None:
         """Commits on the base after the fork are not this branch's changes."""
         self._init_repo(tmp_path)
         base = self._git(tmp_path, "symbolic-ref", "--short", "HEAD")
@@ -1223,9 +1437,7 @@ class TestGetChangedFiles:
 
         assert _get_changed_files(base, tmp_path) == {"feature.md"}
 
-    def test_base_that_advanced_after_fork_scopes_cli_inventory(
-        self, tmp_path: Path
-    ) -> None:
+    def test_base_that_advanced_after_fork_scopes_cli_inventory(self, tmp_path: Path) -> None:
         """main() reports only the branch's doc when the base moved on."""
         self._init_repo(tmp_path)
         base = self._git(tmp_path, "symbolic-ref", "--short", "HEAD")
@@ -1236,12 +1448,18 @@ class TestGetChangedFiles:
         self._git(tmp_path, "switch", "feature")
         out_dir = tmp_path / "out"
 
-        exit_code = main([
-            "--target", str(tmp_path),
-            "--diff-base", base,
-            "--phases", "1",
-            "--output-dir", str(out_dir),
-        ])
+        exit_code = main(
+            [
+                "--target",
+                str(tmp_path),
+                "--diff-base",
+                base,
+                "--phases",
+                "1",
+                "--output-dir",
+                str(out_dir),
+            ]
+        )
 
         assert exit_code == 0
         assessment = json.loads((out_dir / "assessment.json").read_text())
@@ -1254,11 +1472,16 @@ class TestGetChangedFiles:
         self._git(tmp_path, "switch", "--orphan", "island")
         self._commit_file(tmp_path, "island.md")
 
-        exit_code = main([
-            "--target", str(tmp_path),
-            "--diff-base", base,
-            "--phases", "1",
-        ])
+        exit_code = main(
+            [
+                "--target",
+                str(tmp_path),
+                "--diff-base",
+                base,
+                "--phases",
+                "1",
+            ]
+        )
 
         assert exit_code == 2
 
@@ -1271,16 +1494,24 @@ class TestGetChangedFiles:
             cmd = args[0] if args else kwargs.get("args", [])
             if "merge-base" in cmd:
                 raise subprocess.CalledProcessError(
-                    128, cmd, output=b"", stderr=b"fatal: bad object",
+                    128,
+                    cmd,
+                    output=b"",
+                    stderr=b"fatal: bad object",
                 )
             return real_run(*args, **kwargs)  # subprocess-encoding: strict-ok
 
         with patch.object(subprocess, "run", side_effect=failing_merge_base):
-            exit_code = main([
-                "--target", str(tmp_path),
-                "--diff-base", "HEAD",
-                "--phases", "1",
-            ])
+            exit_code = main(
+                [
+                    "--target",
+                    str(tmp_path),
+                    "--diff-base",
+                    "HEAD",
+                    "--phases",
+                    "1",
+                ]
+            )
 
         assert exit_code == 3
 
@@ -1296,22 +1527,31 @@ class TestGetChangedFiles:
             return real_run(*args, **kwargs)  # subprocess-encoding: strict-ok
 
         with patch.object(subprocess, "run", side_effect=malformed):
-            exit_code = main([
-                "--target", str(tmp_path),
-                "--diff-base", "HEAD",
-                "--phases", "1",
-            ])
+            exit_code = main(
+                [
+                    "--target",
+                    str(tmp_path),
+                    "--diff-base",
+                    "HEAD",
+                    "--phases",
+                    "1",
+                ]
+            )
 
         assert exit_code == 3
 
     def test_option_like_revision_exits_2(self, tmp_path: Path) -> None:
         """An option-like diff base remains data after --end-of-options."""
         self._init_repo(tmp_path)
-        exit_code = main([
-            "--target", str(tmp_path),
-            "--diff-base=--help",
-            "--phases", "1",
-        ])
+        exit_code = main(
+            [
+                "--target",
+                str(tmp_path),
+                "--diff-base=--help",
+                "--phases",
+                "1",
+            ]
+        )
         assert exit_code == 2
 
     def test_malformed_rev_parse_stdout_exits_3(self, tmp_path: Path) -> None:
@@ -1326,16 +1566,19 @@ class TestGetChangedFiles:
             return real_run(*args, **kwargs)  # subprocess-encoding: strict-ok
 
         with patch.object(subprocess, "run", side_effect=malformed):
-            exit_code = main([
-                "--target", str(tmp_path),
-                "--diff-base", "HEAD",
-                "--phases", "1",
-            ])
+            exit_code = main(
+                [
+                    "--target",
+                    str(tmp_path),
+                    "--diff-base",
+                    "HEAD",
+                    "--phases",
+                    "1",
+                ]
+            )
         assert exit_code == 3
 
-    def test_every_git_boundary_call_is_isolated_and_timed(
-        self, tmp_path: Path
-    ) -> None:
+    def test_every_git_boundary_call_is_isolated_and_timed(self, tmp_path: Path) -> None:
         """Every scanner-owned Git subprocess disables inherited execution."""
         import os
 
@@ -1382,16 +1625,23 @@ class TestGetChangedFiles:
             cmd = args[0] if args else kwargs.get("args", [])
             if "cat-file" in cmd:
                 raise subprocess.CalledProcessError(
-                    1, cmd, stderr=b"fatal: Not a valid object name",
+                    1,
+                    cmd,
+                    stderr=b"fatal: Not a valid object name",
                 )
             return real_run(*args, **kwargs)  # subprocess-encoding: strict-ok
 
         with patch.object(subprocess, "run", side_effect=fail_cat_file):
-            exit_code = main([
-                "--target", str(tmp_path),
-                "--diff-base", "HEAD",
-                "--phases", "1",
-            ])
+            exit_code = main(
+                [
+                    "--target",
+                    str(tmp_path),
+                    "--diff-base",
+                    "HEAD",
+                    "--phases",
+                    "1",
+                ]
+            )
         assert exit_code == 3
 
 
@@ -1401,11 +1651,13 @@ class TestRunClaimExtraction:
         (tmp_path / "doc.md").write_text(md)
 
         assessment = {
-            "documentation_files": [{
-                "path": "doc.md",
-                "mapped_source_files": [],
-                "referenced_symbols": [],
-            }],
+            "documentation_files": [
+                {
+                    "path": "doc.md",
+                    "mapped_source_files": [],
+                    "referenced_symbols": [],
+                }
+            ],
             "source_symbols": [],
         }
         result = run_claim_extraction(tmp_path, assessment)
@@ -1418,11 +1670,13 @@ class TestRunClaimExtraction:
         (tmp_path / "perf.md").write_text(md)
 
         assessment = {
-            "documentation_files": [{
-                "path": "perf.md",
-                "mapped_source_files": [],
-                "referenced_symbols": [],
-            }],
+            "documentation_files": [
+                {
+                    "path": "perf.md",
+                    "mapped_source_files": [],
+                    "referenced_symbols": [],
+                }
+            ],
             "source_symbols": [],
         }
         result = run_claim_extraction(tmp_path, assessment)
@@ -1435,11 +1689,13 @@ class TestRunClaimExtraction:
         (tmp_path / "doc.md").write_text(md)
 
         assessment = {
-            "documentation_files": [{
-                "path": "doc.md",
-                "mapped_source_files": [],
-                "referenced_symbols": [],
-            }],
+            "documentation_files": [
+                {
+                    "path": "doc.md",
+                    "mapped_source_files": [],
+                    "referenced_symbols": [],
+                }
+            ],
             "source_symbols": [],
         }
         result = run_claim_extraction(tmp_path, assessment)
@@ -1451,20 +1707,30 @@ class TestRunClaimExtraction:
 class TestRunCompilabilityCheck:
     def test_no_findings_when_symbol_exists(self) -> None:
         assessment = {
-            "source_symbols": [{
-                "name": "MyClass", "kind": "class",
-                "file": "a.py", "line": 1,
-                "signature": "class MyClass:", "visibility": "public",
-            }],
+            "source_symbols": [
+                {
+                    "name": "MyClass",
+                    "kind": "class",
+                    "file": "a.py",
+                    "line": 1,
+                    "signature": "class MyClass:",
+                    "visibility": "public",
+                }
+            ],
         }
         claims = {
-            "claims": [{
-                "id": "claim-0001", "file": "doc.md", "line": 1,
-                "type": "code_example", "language": "python",
-                "content": "x = MyClass()",
-                "symbols_referenced": ["MyClass"],
-                "mapped_source": "a.py",
-            }],
+            "claims": [
+                {
+                    "id": "claim-0001",
+                    "file": "doc.md",
+                    "line": 1,
+                    "type": "code_example",
+                    "language": "python",
+                    "content": "x = MyClass()",
+                    "symbols_referenced": ["MyClass"],
+                    "mapped_source": "a.py",
+                }
+            ],
         }
         result = run_compilability_check(assessment, claims)
         assert result["status"] == "COMPLETED"
@@ -1472,20 +1738,30 @@ class TestRunCompilabilityCheck:
 
     def test_finds_unresolved_symbol(self) -> None:
         assessment = {
-            "source_symbols": [{
-                "name": "ExistingWidget", "kind": "class",
-                "file": "a.py", "line": 1,
-                "signature": "class ExistingWidget:", "visibility": "public",
-            }],
+            "source_symbols": [
+                {
+                    "name": "ExistingWidget",
+                    "kind": "class",
+                    "file": "a.py",
+                    "line": 1,
+                    "signature": "class ExistingWidget:",
+                    "visibility": "public",
+                }
+            ],
         }
         claims = {
-            "claims": [{
-                "id": "claim-0001", "file": "doc.md", "line": 1,
-                "type": "method_signature", "language": "",
-                "content": "MyWidget does things",
-                "symbols_referenced": ["MyWidget"],
-                "mapped_source": "",
-            }],
+            "claims": [
+                {
+                    "id": "claim-0001",
+                    "file": "doc.md",
+                    "line": 1,
+                    "type": "method_signature",
+                    "language": "",
+                    "content": "MyWidget does things",
+                    "symbols_referenced": ["MyWidget"],
+                    "mapped_source": "",
+                }
+            ],
         }
         result = run_compilability_check(assessment, claims)
         assert result["status"] == "COMPLETED"
@@ -1494,20 +1770,30 @@ class TestRunCompilabilityCheck:
 
     def test_skips_framework_types(self) -> None:
         assessment = {
-            "source_symbols": [{
-                "name": "ExistingWidget", "kind": "class",
-                "file": "a.py", "line": 1,
-                "signature": "class ExistingWidget:", "visibility": "public",
-            }],
+            "source_symbols": [
+                {
+                    "name": "ExistingWidget",
+                    "kind": "class",
+                    "file": "a.py",
+                    "line": 1,
+                    "signature": "class ExistingWidget:",
+                    "visibility": "public",
+                }
+            ],
         }
         claims = {
-            "claims": [{
-                "id": "claim-0001", "file": "doc.md", "line": 1,
-                "type": "method_signature", "language": "",
-                "content": "Returns a List",
-                "symbols_referenced": ["List"],
-                "mapped_source": "",
-            }],
+            "claims": [
+                {
+                    "id": "claim-0001",
+                    "file": "doc.md",
+                    "line": 1,
+                    "type": "method_signature",
+                    "language": "",
+                    "content": "Returns a List",
+                    "symbols_referenced": ["List"],
+                    "mapped_source": "",
+                }
+            ],
         }
         result = run_compilability_check(assessment, claims)
         assert result["status"] == "COMPLETED"
@@ -1515,13 +1801,18 @@ class TestRunCompilabilityCheck:
 
     def test_does_not_run_without_source_symbols(self) -> None:
         claims = {
-            "claims": [{
-                "id": "claim-0001", "file": "doc.md", "line": 1,
-                "type": "method_signature", "language": "",
-                "content": "MyWidget does things",
-                "symbols_referenced": ["MyWidget"],
-                "mapped_source": "",
-            }],
+            "claims": [
+                {
+                    "id": "claim-0001",
+                    "file": "doc.md",
+                    "line": 1,
+                    "type": "method_signature",
+                    "language": "",
+                    "content": "MyWidget does things",
+                    "symbols_referenced": ["MyWidget"],
+                    "mapped_source": "",
+                }
+            ],
         }
 
         result = run_compilability_check({"source_symbols": []}, claims)
@@ -1542,20 +1833,30 @@ class TestRunCompilabilityCheck:
     def test_skips_text_fence_ascii_diagram(self) -> None:
         """text fences (ASCII diagrams) must not produce unresolved-symbol findings."""
         assessment = {
-            "source_symbols": [{
-                "name": "ExistingClass", "kind": "class",
-                "file": "a.cs", "line": 1,
-                "signature": "class ExistingClass", "visibility": "public",
-            }],
+            "source_symbols": [
+                {
+                    "name": "ExistingClass",
+                    "kind": "class",
+                    "file": "a.cs",
+                    "line": 1,
+                    "signature": "class ExistingClass",
+                    "visibility": "public",
+                }
+            ],
         }
         claims = {
-            "claims": [{
-                "id": "claim-0001", "file": "workflow.md", "line": 5,
-                "type": "code_example", "language": "text",
-                "content": "P1 --> P2 --> P3\nEvaluation\nREADY",
-                "symbols_referenced": ["Evaluation", "READY"],
-                "mapped_source": "a.cs",
-            }],
+            "claims": [
+                {
+                    "id": "claim-0001",
+                    "file": "workflow.md",
+                    "line": 5,
+                    "type": "code_example",
+                    "language": "text",
+                    "content": "P1 --> P2 --> P3\nEvaluation\nREADY",
+                    "symbols_referenced": ["Evaluation", "READY"],
+                    "mapped_source": "a.cs",
+                }
+            ],
         }
         result = run_compilability_check(assessment, claims)
         assert result["findings"] == []
@@ -1563,20 +1864,30 @@ class TestRunCompilabilityCheck:
     def test_skips_powershell_code_example(self) -> None:
         """PowerShell examples must not resolve against the C# symbol index."""
         assessment = {
-            "source_symbols": [{
-                "name": "ExistingClass", "kind": "class",
-                "file": "a.cs", "line": 1,
-                "signature": "class ExistingClass", "visibility": "public",
-            }],
+            "source_symbols": [
+                {
+                    "name": "ExistingClass",
+                    "kind": "class",
+                    "file": "a.cs",
+                    "line": 1,
+                    "signature": "class ExistingClass",
+                    "visibility": "public",
+                }
+            ],
         }
         claims = {
-            "claims": [{
-                "id": "claim-0001", "file": "ops.md", "line": 10,
-                "type": "code_example", "language": "powershell",
-                "content": "Search-WorkItems.ps1 -FailOnTruncation -SearchText foo",
-                "symbols_referenced": ["FailOnTruncation", "SearchText"],
-                "mapped_source": "a.cs",
-            }],
+            "claims": [
+                {
+                    "id": "claim-0001",
+                    "file": "ops.md",
+                    "line": 10,
+                    "type": "code_example",
+                    "language": "powershell",
+                    "content": "Search-WorkItems.ps1 -FailOnTruncation -SearchText foo",
+                    "symbols_referenced": ["FailOnTruncation", "SearchText"],
+                    "mapped_source": "a.cs",
+                }
+            ],
         }
         result = run_compilability_check(assessment, claims)
         assert result["findings"] == []
@@ -1584,20 +1895,30 @@ class TestRunCompilabilityCheck:
     def test_still_checks_csharp_code_example(self) -> None:
         """C# code examples must still be verified (positive control)."""
         assessment = {
-            "source_symbols": [{
-                "name": "RealClass", "kind": "class",
-                "file": "a.cs", "line": 1,
-                "signature": "class RealClass", "visibility": "public",
-            }],
+            "source_symbols": [
+                {
+                    "name": "RealClass",
+                    "kind": "class",
+                    "file": "a.cs",
+                    "line": 1,
+                    "signature": "class RealClass",
+                    "visibility": "public",
+                }
+            ],
         }
         claims = {
-            "claims": [{
-                "id": "claim-0001", "file": "api.md", "line": 3,
-                "type": "code_example", "language": "csharp",
-                "content": "var x = new FakeWidget();",
-                "symbols_referenced": ["FakeWidget"],
-                "mapped_source": "a.cs",
-            }],
+            "claims": [
+                {
+                    "id": "claim-0001",
+                    "file": "api.md",
+                    "line": 3,
+                    "type": "code_example",
+                    "language": "csharp",
+                    "content": "var x = new FakeWidget();",
+                    "symbols_referenced": ["FakeWidget"],
+                    "mapped_source": "a.cs",
+                }
+            ],
         }
         result = run_compilability_check(assessment, claims)
         assert len(result["findings"]) == 1
@@ -1606,20 +1927,30 @@ class TestRunCompilabilityCheck:
     def test_skips_unlabeled_fence_code_example(self) -> None:
         """Fences with no language label (empty string) are skipped."""
         assessment = {
-            "source_symbols": [{
-                "name": "ExistingClass", "kind": "class",
-                "file": "a.cs", "line": 1,
-                "signature": "class ExistingClass", "visibility": "public",
-            }],
+            "source_symbols": [
+                {
+                    "name": "ExistingClass",
+                    "kind": "class",
+                    "file": "a.cs",
+                    "line": 1,
+                    "signature": "class ExistingClass",
+                    "visibility": "public",
+                }
+            ],
         }
         claims = {
-            "claims": [{
-                "id": "claim-0001", "file": "doc.md", "line": 1,
-                "type": "code_example", "language": "",
-                "content": "SomeIdentifier here",
-                "symbols_referenced": ["SomeIdentifier"],
-                "mapped_source": "a.cs",
-            }],
+            "claims": [
+                {
+                    "id": "claim-0001",
+                    "file": "doc.md",
+                    "line": 1,
+                    "type": "code_example",
+                    "language": "",
+                    "content": "SomeIdentifier here",
+                    "symbols_referenced": ["SomeIdentifier"],
+                    "mapped_source": "a.cs",
+                }
+            ],
         }
         result = run_compilability_check(assessment, claims)
         assert result["findings"] == []
@@ -1636,37 +1967,52 @@ class TestCheckGate:
         assert result["verdict"] == "PASS"
 
     def test_did_not_run_is_inconclusive(self) -> None:
-        result = check_gate({
-            "status": "DID_NOT_RUN",
-            "reason": "No source symbols found.",
-            "findings": [],
-        }, "high")
+        result = check_gate(
+            {
+                "status": "DID_NOT_RUN",
+                "reason": "No source symbols found.",
+                "findings": [],
+            },
+            "high",
+        )
 
         assert result["verdict"] == "DID_NOT_RUN"
         assert result["reason"] == "No source symbols found."
         assert result["total_findings"] == 0
 
     def test_fail_critical(self) -> None:
-        findings = {"findings": [{
-            "severity": "critical", "id": "f1",
-        }]}
+        findings = {
+            "findings": [
+                {
+                    "severity": "critical",
+                    "id": "f1",
+                }
+            ]
+        }
         result = check_gate(findings, "high")
         assert result["verdict"] == "FAIL"
         assert result["blocking_findings"] == 1
 
     def test_pass_below_threshold(self) -> None:
-        findings = {"findings": [{
-            "severity": "low", "id": "f1",
-        }]}
+        findings = {
+            "findings": [
+                {
+                    "severity": "low",
+                    "id": "f1",
+                }
+            ]
+        }
         result = check_gate(findings, "high")
         assert result["verdict"] == "PASS"
 
     def test_severity_counts(self) -> None:
-        findings = {"findings": [
-            {"severity": "critical", "id": "f1"},
-            {"severity": "critical", "id": "f2"},
-            {"severity": "medium", "id": "f3"},
-        ]}
+        findings = {
+            "findings": [
+                {"severity": "critical", "id": "f1"},
+                {"severity": "critical", "id": "f2"},
+                {"severity": "medium", "id": "f3"},
+            ]
+        }
         result = check_gate(findings, "critical")
         assert result["by_severity"]["critical"] == 2
         assert result["by_severity"]["medium"] == 1
@@ -1676,8 +2022,10 @@ class TestCheckGate:
 class TestGenerateMarkdownReport:
     def test_writes_report(self, tmp_path: Path) -> None:
         gate = {
-            "verdict": "PASS", "threshold": "high",
-            "blocking_findings": 0, "total_findings": 0,
+            "verdict": "PASS",
+            "threshold": "high",
+            "blocking_findings": 0,
+            "total_findings": 0,
             "by_severity": {},
         }
         report_path = tmp_path / "report.md"
@@ -1689,14 +2037,22 @@ class TestGenerateMarkdownReport:
 
     def test_includes_findings(self, tmp_path: Path) -> None:
         gate = {
-            "verdict": "FAIL", "threshold": "high",
-            "blocking_findings": 1, "total_findings": 1,
+            "verdict": "FAIL",
+            "threshold": "high",
+            "blocking_findings": 1,
+            "total_findings": 1,
             "by_severity": {"critical": 1},
         }
-        comp = {"findings": [{
-            "severity": "critical", "file": "doc.md",
-            "line": 10, "description": "Bad symbol reference",
-        }]}
+        comp = {
+            "findings": [
+                {
+                    "severity": "critical",
+                    "file": "doc.md",
+                    "line": 10,
+                    "description": "Bad symbol reference",
+                }
+            ]
+        }
         report_path = tmp_path / "report.md"
         generate_markdown_report(None, None, comp, gate, report_path)
 
@@ -1706,9 +2062,11 @@ class TestGenerateMarkdownReport:
 
     def test_includes_did_not_run_reason(self, tmp_path: Path) -> None:
         gate = {
-            "verdict": "DID_NOT_RUN", "threshold": "high",
+            "verdict": "DID_NOT_RUN",
+            "threshold": "high",
             "reason": "No source symbols found.",
-            "blocking_findings": 0, "total_findings": 0,
+            "blocking_findings": 0,
+            "total_findings": 0,
             "by_severity": {},
         }
         report_path = tmp_path / "report.md"
@@ -1832,10 +2190,14 @@ class TestMain:
 
     def test_custom_output_dir(self, tmp_path: Path) -> None:
         out = tmp_path / "custom-output"
-        rc = main([
-            "--target", str(tmp_path),
-            "--output-dir", str(out),
-        ])
+        rc = main(
+            [
+                "--target",
+                str(tmp_path),
+                "--output-dir",
+                str(out),
+            ]
+        )
         assert rc == 1
         assert (out / "gate-result.json").exists()
 
@@ -1889,8 +2251,7 @@ class TestGateFormatDropsTheSymbolIndex:
         gate = json.loads(capsys.readouterr().out)
         assert gate["gate_result"] == full["gate_result"]
         assert (
-            gate["assessment"]["documentation_files"]
-            == full["assessment"]["documentation_files"]
+            gate["assessment"]["documentation_files"] == full["assessment"]["documentation_files"]
         )
 
     def test_json_still_carries_the_symbol_index(self, tmp_path: Path, capsys) -> None:

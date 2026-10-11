@@ -24,9 +24,7 @@ _DIVIDER = "\x1b[38;2;56;56;56m" + "─" * 40 + "\x1b[0m"
 # Real captured output, this session (see test_gate_latency.py's fixture of
 # the same name for the full provenance note).
 REAL_CAPTURED_STDOUT = (
-    f"{_DIVIDER}\n"
-    "summary: (done in 0.20 seconds)\n"
-    "✓ security-suppressions-staged (0.20 seconds)\n"
+    f"{_DIVIDER}\nsummary: (done in 0.20 seconds)\n✓ security-suppressions-staged (0.20 seconds)\n"
 )
 
 _LEFTHOOK_YML = """\
@@ -110,4 +108,3 @@ def test_positive_dirty_tree_with_allow_dirty_proceeds(
         ["--repo", str(repo), "--hook", "pre-commit", "--repetitions", "1", "--allow-dirty"]
     )
     assert rc == 0
-

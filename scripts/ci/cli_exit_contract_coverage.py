@@ -96,9 +96,7 @@ _MODULE_FROM_SPEC_ALIAS = re.compile(
 )
 # A hand-rolled spec_from_file_location block registers the module by name:
 #   sys.modules["check_ai_review_infra_gate"] = mod
-_SYS_MODULES_ALIAS = re.compile(
-    r"^[ \t]*sys\.modules\[[\"'](\w+)[\"']\]\s*=\s*(\w+)", re.MULTILINE
-)
+_SYS_MODULES_ALIAS = re.compile(r"^[ \t]*sys\.modules\[[\"'](\w+)[\"']\]\s*=\s*(\w+)", re.MULTILINE)
 
 # A subprocess-driven CLI names the script by file name instead of importing it.
 # The match is intersected with the tracked stems, so a bare `<name>.py` is only
@@ -244,7 +242,6 @@ def _compute_main_credit(
     return compute_bare_credit(tree, stems, aliases, referenced)
 
 
-
 def _test_functions(tree: ast.Module) -> list[ast.FunctionDef | ast.AsyncFunctionDef]:
     """Every function body in the file, method or not.
 
@@ -254,9 +251,7 @@ def _test_functions(tree: ast.Module) -> list[ast.FunctionDef | ast.AsyncFunctio
     class called ``main``, which returns 0 on that very failure.
     """
     return [
-        node
-        for node in ast.walk(tree)
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        node for node in ast.walk(tree) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
     ]
 
 
@@ -292,9 +287,7 @@ def _stems_in_text(text: str, stems: frozenset[str]) -> set[str]:
     return set(_SCRIPT_FILE_NAME.findall(text)) & stems
 
 
-def _expression_stems(
-    node: ast.AST, paths: dict[str, set[str]], stems: frozenset[str]
-) -> set[str]:
+def _expression_stems(node: ast.AST, paths: dict[str, set[str]], stems: frozenset[str]) -> set[str]:
     """Script stems an expression names, by literal path or by a bound name."""
     found: set[str] = set()
     for inner in ast.walk(node):
@@ -326,9 +319,7 @@ def _path_names(tree: ast.Module, stems: frozenset[str]) -> dict[str, set[str]]:
     return paths
 
 
-def _main_target(
-    func: ast.expr, binding: _Bindings, bare_credit: frozenset[str]
-) -> set[str]:
+def _main_target(func: ast.expr, binding: _Bindings, bare_credit: frozenset[str]) -> set[str]:
     """Stems a ``main`` call belongs to.
 
     Qualified calls (``widget.main()``) resolve through aliases.  Bare

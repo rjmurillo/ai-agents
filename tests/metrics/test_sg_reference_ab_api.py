@@ -85,7 +85,7 @@ def test_load_api_key_reads_repo_root_env_file(
 ) -> None:
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     (tmp_path / ".env").write_text(
-        "# comment\n\nOTHER_VAR=1\nANTHROPIC_API_KEY=\"from-env-file\"\n", encoding="utf-8"
+        '# comment\n\nOTHER_VAR=1\nANTHROPIC_API_KEY="from-env-file"\n', encoding="utf-8"
     )
 
     assert api.load_api_key(tmp_path) == "from-env-file"
@@ -110,9 +110,7 @@ def test_load_api_key_returns_none_when_env_file_is_symlink(
     assert api.load_api_key(tmp_path) is None
 
 
-def test_load_api_key_reads_unquoted_value(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_load_api_key_reads_unquoted_value(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     (tmp_path / ".env").write_text("ANTHROPIC_API_KEY=unquoted-value\n", encoding="utf-8")
 

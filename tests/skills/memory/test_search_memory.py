@@ -70,6 +70,7 @@ class TestSearchEpisodes:
     @staticmethod
     def _episode(directory, name, task="", lessons=None):
         import json as _json
+
         (directory / f"{name}.json").write_text(
             _json.dumps({"id": name, "task": task, "lessons": lessons or []}),
         )

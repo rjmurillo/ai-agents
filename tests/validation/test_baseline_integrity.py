@@ -83,6 +83,7 @@ class TestRefuseOversizedBaseline:
     @pytest.fixture(autouse=True)
     def _import(self):
         from scripts.validation.portability_baseline import refuse_oversized_baseline
+
         self.guard = refuse_oversized_baseline
 
     def test_normal_sized_baseline_is_allowed(self, tmp_path: Path) -> None:
@@ -103,6 +104,7 @@ class TestRefuseOversizedBaseline:
 
     def test_exactly_at_ceiling_is_allowed(self, tmp_path: Path) -> None:
         from scripts.validation.portability_baseline import _BASELINE_SIZE_CEILING
+
         p = tmp_path / "ceiling.json"
         # Write exactly the ceiling (not above).
         p.write_bytes(b"x" * _BASELINE_SIZE_CEILING)
@@ -110,6 +112,7 @@ class TestRefuseOversizedBaseline:
 
     def test_one_byte_over_ceiling_is_refused(self, tmp_path: Path) -> None:
         from scripts.validation.portability_baseline import _BASELINE_SIZE_CEILING
+
         p = tmp_path / "over.json"
         p.write_bytes(b"x" * (_BASELINE_SIZE_CEILING + 1))
         assert self.guard(p) is True
@@ -125,6 +128,7 @@ class TestRefuseOversizedBaseline:
         _commit(repo)
 
         from scripts.validation.portability_common import resolve_checked_baseline
+
         result = resolve_checked_baseline(repo, bpath, "baseline.json")
         assert result is None
 
@@ -138,6 +142,7 @@ class TestRefuseOversizedBaseline:
         _commit(repo)
 
         from scripts.validation.portability_common import resolve_checked_baseline
+
         result = resolve_checked_baseline(repo, bpath, "baseline.json")
         assert result == bpath
 
@@ -224,9 +229,7 @@ class TestCheckModelPinsDiffability:
         rc = self._mod.main([])
         assert rc == 2
 
-    def test_control_guards_do_not_fire_normally(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_control_guards_do_not_fire_normally(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Negative control: when both guards pass, main() does not return 2 from them."""
         monkeypatch.setattr(self._mod, "refuse_symlinked_baseline", lambda repo, path: False)
         monkeypatch.setattr(self._mod, "refuse_undiffable_baseline", lambda repo, path: False)
@@ -250,17 +253,13 @@ class _MonkeypatchCheckerDiffabilityBase:
     def _load_mod(self):
         raise NotImplementedError
 
-    def test_refuses_when_undiffable_baseline_fires(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_refuses_when_undiffable_baseline_fires(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(self._mod, "refuse_symlinked_baseline", lambda r, p: False)
         monkeypatch.setattr(self._mod, "refuse_undiffable_baseline", lambda r, p: True)
         rc = self._run_main()
         assert rc == 2
 
-    def test_refuses_when_symlinked_baseline_fires(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_refuses_when_symlinked_baseline_fires(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(self._mod, "refuse_symlinked_baseline", lambda r, p: True)
         rc = self._run_main()
         assert rc == 2
@@ -385,6 +384,7 @@ class TestMarkerFilesGrowthGuard:
         from scripts.validation.check_skill_md_portability import (
             _refuse_marker_files_growth,
         )
+
         self.guard = _refuse_marker_files_growth
 
     @pytest.fixture
@@ -402,13 +402,12 @@ class TestMarkerFilesGrowthGuard:
         _commit(repo)
         return repo, bpath
 
-    def test_growth_is_refused(
-        self, repo_with_committed_baseline: tuple[Path, Path]
-    ) -> None:
+    def test_growth_is_refused(self, repo_with_committed_baseline: tuple[Path, Path]) -> None:
         repo, bpath = repo_with_committed_baseline
         # current total (3) > committed total (2)
         result = self.guard(
-            repo, bpath,
+            repo,
+            bpath,
             {".claude/skills/foo/SKILL.md": 3},
             allow_marker_grow=False,
         )
@@ -419,29 +418,28 @@ class TestMarkerFilesGrowthGuard:
     ) -> None:
         repo, bpath = repo_with_committed_baseline
         result = self.guard(
-            repo, bpath,
+            repo,
+            bpath,
             {".claude/skills/foo/SKILL.md": 3},
             allow_marker_grow=True,
         )
         assert result is False
 
-    def test_stable_count_is_allowed(
-        self, repo_with_committed_baseline: tuple[Path, Path]
-    ) -> None:
+    def test_stable_count_is_allowed(self, repo_with_committed_baseline: tuple[Path, Path]) -> None:
         repo, bpath = repo_with_committed_baseline
         result = self.guard(
-            repo, bpath,
+            repo,
+            bpath,
             {".claude/skills/foo/SKILL.md": 2},
             allow_marker_grow=False,
         )
         assert result is False
 
-    def test_decrease_is_allowed(
-        self, repo_with_committed_baseline: tuple[Path, Path]
-    ) -> None:
+    def test_decrease_is_allowed(self, repo_with_committed_baseline: tuple[Path, Path]) -> None:
         repo, bpath = repo_with_committed_baseline
         result = self.guard(
-            repo, bpath,
+            repo,
+            bpath,
             {".claude/skills/foo/SKILL.md": 1},
             allow_marker_grow=False,
         )
@@ -453,7 +451,8 @@ class TestMarkerFilesGrowthGuard:
         """Adding a new marked file grows the total and must be refused."""
         repo, bpath = repo_with_committed_baseline
         result = self.guard(
-            repo, bpath,
+            repo,
+            bpath,
             {
                 ".claude/skills/foo/SKILL.md": 2,
                 ".claude/skills/bar/SKILL.md": 5,
@@ -469,7 +468,8 @@ class TestMarkerFilesGrowthGuard:
         bpath.parent.mkdir(parents=True, exist_ok=True)
         # No file on disk, no git history.
         result = self.guard(
-            repo, bpath,
+            repo,
+            bpath,
             {".claude/skills/bar/SKILL.md": 10},
             allow_marker_grow=False,
         )
@@ -486,7 +486,8 @@ class TestMarkerFilesGrowthGuard:
         )
         # Current total (5) > disk total (2): growth is refused.
         result = self.guard(
-            repo, bpath,
+            repo,
+            bpath,
             {".claude/skills/foo/SKILL.md": 5},
             allow_marker_grow=False,
         )
@@ -505,6 +506,7 @@ class TestSkillsMdPortabilitySymlinkGuard:
     @pytest.fixture(autouse=True)
     def _import(self):
         import scripts.validation.check_skill_md_portability as cmp
+
         self.mod = cmp
 
     def test_skills_dirs_normal_directory_accepted(self, tmp_path: Path) -> None:
@@ -580,6 +582,7 @@ class TestExecPortabilitySymlinkGuard:
     @pytest.fixture(autouse=True)
     def _import(self):
         import scripts.validation.check_skill_md_exec_portability as cep
+
         self.mod = cep
 
     def test_scan_all_normal_root_accepted(self, tmp_path: Path) -> None:
@@ -625,11 +628,10 @@ class TestSkillPortabilitySymlinkGuard:
     @pytest.fixture(autouse=True)
     def _import(self):
         import scripts.validation.check_skill_portability as csp
+
         self.mod = csp
 
-    def test_main_returns_2_when_skills_dir_symlinks_outside(
-        self, tmp_path: Path
-    ) -> None:
+    def test_main_returns_2_when_skills_dir_symlinks_outside(self, tmp_path: Path) -> None:
         repo = tmp_path / "repo"
         outside = tmp_path / "outside"
         outside.mkdir()
@@ -693,14 +695,13 @@ class TestExecMarkerFilesGrowthGuard:
         from scripts.validation.check_skill_md_exec_portability import (
             _refuse_marker_files_growth,
         )
+
         self.guard = _refuse_marker_files_growth
 
     @pytest.fixture
     def repo_with_committed_baseline(self, tmp_path: Path) -> tuple[Path, Path]:
         repo = _init_repo(tmp_path)
-        bpath = (
-            repo / "scripts" / "validation" / "skill_md_exec_portability_baseline.json"
-        )
+        bpath = repo / "scripts" / "validation" / "skill_md_exec_portability_baseline.json"
         bpath.parent.mkdir(parents=True, exist_ok=True)
         committed = {
             "_comment": "test",
@@ -711,12 +712,11 @@ class TestExecMarkerFilesGrowthGuard:
         _commit(repo)
         return repo, bpath
 
-    def test_growth_is_refused(
-        self, repo_with_committed_baseline: tuple[Path, Path]
-    ) -> None:
+    def test_growth_is_refused(self, repo_with_committed_baseline: tuple[Path, Path]) -> None:
         repo, bpath = repo_with_committed_baseline
         result = self.guard(
-            repo, bpath,
+            repo,
+            bpath,
             {".claude/skills/foo/SKILL.md": 5},
             allow_marker_grow=False,
         )
@@ -727,29 +727,28 @@ class TestExecMarkerFilesGrowthGuard:
     ) -> None:
         repo, bpath = repo_with_committed_baseline
         result = self.guard(
-            repo, bpath,
+            repo,
+            bpath,
             {".claude/skills/foo/SKILL.md": 5},
             allow_marker_grow=True,
         )
         assert result is False
 
-    def test_stable_count_is_allowed(
-        self, repo_with_committed_baseline: tuple[Path, Path]
-    ) -> None:
+    def test_stable_count_is_allowed(self, repo_with_committed_baseline: tuple[Path, Path]) -> None:
         repo, bpath = repo_with_committed_baseline
         result = self.guard(
-            repo, bpath,
+            repo,
+            bpath,
             {".claude/skills/foo/SKILL.md": 3},
             allow_marker_grow=False,
         )
         assert result is False
 
-    def test_decrease_is_allowed(
-        self, repo_with_committed_baseline: tuple[Path, Path]
-    ) -> None:
+    def test_decrease_is_allowed(self, repo_with_committed_baseline: tuple[Path, Path]) -> None:
         repo, bpath = repo_with_committed_baseline
         result = self.guard(
-            repo, bpath,
+            repo,
+            bpath,
             {".claude/skills/foo/SKILL.md": 1},
             allow_marker_grow=False,
         )
@@ -757,11 +756,10 @@ class TestExecMarkerFilesGrowthGuard:
 
     def test_no_baseline_allows_write(self, tmp_path: Path) -> None:
         repo = _init_repo(tmp_path)
-        bpath = (
-            repo / "scripts" / "validation" / "skill_md_exec_portability_baseline.json"
-        )
+        bpath = repo / "scripts" / "validation" / "skill_md_exec_portability_baseline.json"
         result = self.guard(
-            repo, bpath,
+            repo,
+            bpath,
             {".claude/skills/foo/SKILL.md": 10},
             allow_marker_grow=False,
         )
@@ -772,7 +770,8 @@ class TestExecMarkerFilesGrowthGuard:
     ) -> None:
         repo, bpath = repo_with_committed_baseline
         result = self.guard(
-            repo, bpath,
+            repo,
+            bpath,
             {
                 ".claude/skills/foo/SKILL.md": 3,
                 ".claude/skills/bar/SKILL.md": 2,

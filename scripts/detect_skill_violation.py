@@ -210,10 +210,7 @@ def get_all_files(repo_root: Path) -> list[str]:
             encoding="utf-8",
             errors="replace",
         )
-        return [
-            p for p in result.stdout.splitlines()
-            if p and Path(p).suffix in VALID_EXTENSIONS
-        ]
+        return [p for p in result.stdout.splitlines() if p and Path(p).suffix in VALID_EXTENSIONS]
     except (subprocess.CalledProcessError, FileNotFoundError):
         pass
 

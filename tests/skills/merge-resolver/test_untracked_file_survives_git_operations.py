@@ -70,7 +70,8 @@ def _drop_sentinel(sandbox: GitSandbox, content: str = _SENTINEL_CONTENT) -> Pat
 
 
 def test_clean_merge_preserves_untracked_sentinel_through_push(
-    git_sandbox: GitSandbox, monkeypatch: pytest.MonkeyPatch,
+    git_sandbox: GitSandbox,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Checkout + a clean auto-merge + push must not touch an untracked file."""
     _make_feature_branch(git_sandbox)
@@ -97,7 +98,8 @@ def test_clean_merge_preserves_untracked_sentinel_through_push(
 
 
 def test_conflicting_merge_aborts_and_preserves_untracked_sentinel(
-    git_sandbox: GitSandbox, monkeypatch: pytest.MonkeyPatch,
+    git_sandbox: GitSandbox,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A blocked, non-auto-resolvable conflict runs `merge --abort` cleanly."""
     git(git_sandbox.main, "checkout", "-b", "feature")
@@ -122,7 +124,8 @@ def test_conflicting_merge_aborts_and_preserves_untracked_sentinel(
 
 
 def test_checkout_refuses_rather_than_overwrites_a_colliding_untracked_file(
-    git_sandbox: GitSandbox, monkeypatch: pytest.MonkeyPatch,
+    git_sandbox: GitSandbox,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Reproduces the collision case from the #4790 investigation comment.
 

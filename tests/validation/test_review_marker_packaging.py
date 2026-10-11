@@ -8,8 +8,13 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 SOURCE_SCRIPT = REPO_ROOT / "scripts" / "validation" / "validate_review_marker.py"
 SKILL_SCRIPT = REPO_ROOT / ".claude" / "skills" / "review" / "scripts" / "validate_review_marker.py"
 COPILOT_SCRIPT = (
-    REPO_ROOT / "src" / "copilot-cli" / "skills" / "review"
-    / "scripts" / "validate_review_marker.py"
+    REPO_ROOT
+    / "src"
+    / "copilot-cli"
+    / "skills"
+    / "review"
+    / "scripts"
+    / "validate_review_marker.py"
 )
 SHIP_COMMAND = REPO_ROOT / ".claude" / "skills" / "ship" / "SKILL.md"
 COPILOT_SHIP_SKILL = REPO_ROOT / "src" / "copilot-cli" / "skills" / "ship" / "SKILL.md"
@@ -18,11 +23,15 @@ COPILOT_SHIP_SKILL = REPO_ROOT / "src" / "copilot-cli" / "skills" / "ship" / "SK
 # exemption had been hiding. The contract is unchanged; it now spans two files,
 # so "the ship docs" is the body plus its reference.
 SHIP_REFERENCE = (
-    REPO_ROOT / ".claude" / "skills" / "ship" / "references"
-    / "review-marker-resolution.md"
+    REPO_ROOT / ".claude" / "skills" / "ship" / "references" / "review-marker-resolution.md"
 )
 COPILOT_SHIP_REFERENCE = (
-    REPO_ROOT / "src" / "copilot-cli" / "skills" / "ship" / "references"
+    REPO_ROOT
+    / "src"
+    / "copilot-cli"
+    / "skills"
+    / "ship"
+    / "references"
     / "review-marker-resolution.md"
 )
 SHIP_DOC_SETS = (

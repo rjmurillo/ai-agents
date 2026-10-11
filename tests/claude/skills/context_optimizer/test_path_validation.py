@@ -37,7 +37,8 @@ def repo_root() -> Path:
     result = subprocess.run(
         ["git", "rev-parse", "--show-toplevel"],
         capture_output=True,
-        text=True, encoding="utf-8",
+        text=True,
+        encoding="utf-8",
         check=True,
     )
     root = Path(result.stdout.strip())
@@ -100,9 +101,7 @@ class TestValidatePathWithinRepo:
     def test_accepts_dotdot_resolving_within_repo(self, repo_root: Path) -> None:
         """Paths with .. that still resolve within repo are accepted."""
         # .claude/../CLAUDE.md resolves to CLAUDE.md in repo root
-        result = validate_path_within_repo(
-            Path(".claude/../CLAUDE.md"), repo_root=repo_root
-        )
+        result = validate_path_within_repo(Path(".claude/../CLAUDE.md"), repo_root=repo_root)
         assert result.is_relative_to(repo_root)
         assert result == repo_root / "CLAUDE.md"
 
@@ -189,22 +188,16 @@ class TestEdgeCases:
 
     def test_path_with_multiple_slashes(self, repo_root: Path) -> None:
         """Paths with redundant slashes are normalized and accepted."""
-        result = validate_path_within_repo(
-            Path(".claude///skills"), repo_root=repo_root
-        )
+        result = validate_path_within_repo(Path(".claude///skills"), repo_root=repo_root)
         assert result.is_relative_to(repo_root)
 
     def test_path_with_dot_segments(self, repo_root: Path) -> None:
         """Paths with . segments are normalized and accepted."""
-        result = validate_path_within_repo(
-            Path("./.claude/./skills"), repo_root=repo_root
-        )
+        result = validate_path_within_repo(Path("./.claude/./skills"), repo_root=repo_root)
         assert result.is_relative_to(repo_root)
 
     def test_deeply_nested_dotdot_within_repo(self, repo_root: Path) -> None:
         """Deep .. navigation that stays within repo is accepted."""
         # Go into .claude/skills then back to .claude
-        result = validate_path_within_repo(
-            Path(".claude/skills/../CLAUDE.md"), repo_root=repo_root
-        )
+        result = validate_path_within_repo(Path(".claude/skills/../CLAUDE.md"), repo_root=repo_root)
         assert result.is_relative_to(repo_root)

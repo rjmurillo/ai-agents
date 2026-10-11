@@ -60,8 +60,6 @@ class Reset:
     restart_rounds: bool = False
 
 
-
-
 def parse_marker(body: str, prefix: str) -> dict[str, Any] | None:
     """Extract the JSON payload from a hidden marker comment, or None.
 
@@ -85,7 +83,8 @@ def parse_marker(body: str, prefix: str) -> dict[str, Any] | None:
 
 
 def select_latest_state(
-    comments: list[dict[str, Any]], prefix: str,
+    comments: list[dict[str, Any]],
+    prefix: str,
 ) -> dict[str, Any] | None:
     """Return the most recent marker payload matching *prefix*, or None.
 
@@ -101,7 +100,8 @@ def select_latest_state(
 
 
 def _latest_marker_comment(
-    comments: list[dict[str, Any]], prefix: str,
+    comments: list[dict[str, Any]],
+    prefix: str,
 ) -> tuple[int, dict[str, Any]] | None:
     """Return (index into *comments*, payload) of the newest matching marker."""
     latest: tuple[int, dict[str, Any]] | None = None
@@ -113,7 +113,9 @@ def _latest_marker_comment(
 
 
 def escalation_already_posted(
-    comments: list[dict[str, Any]], first_seen: str, allow_legacy: bool = True,
+    comments: list[dict[str, Any]],
+    first_seen: str,
+    allow_legacy: bool = True,
 ) -> bool:
     """True when an escalation notice already exists for this state.
 
@@ -152,12 +154,14 @@ def detect_reset(
     if latest is None:
         return None
     index, _ = latest
-    for comment in comments[index + 1:]:
+    for comment in comments[index + 1 :]:
         if _is_operator_continue(comment):
             return Reset("operator comment /pr-autofix continue", restart_rounds=True)
     marker_time = comments[index].get("created_at")
     if isinstance(marker_time, str) and _reopened_after(
-        events, marker_time, can_reopen_reset,
+        events,
+        marker_time,
+        can_reopen_reset,
     ):
         return Reset("human reopen")
     return None
@@ -296,7 +300,8 @@ def evaluate_round_cap(
 
 
 def _carry_forward(
-    prior_state: dict[str, Any] | None, now: datetime,
+    prior_state: dict[str, Any] | None,
+    now: datetime,
 ) -> tuple[str, datetime, int]:
     """Return (first_seen ISO string, first_seen, round count) for this call."""
     if prior_state and isinstance(prior_state.get("first_seen"), str):
@@ -315,7 +320,10 @@ def _carry_forward(
 
 
 def _classify(
-    round_count: int, elapsed_hours: float, max_rounds: int, max_hours: float,
+    round_count: int,
+    elapsed_hours: float,
+    max_rounds: int,
+    max_hours: float,
 ) -> tuple[str, str]:
     """Return (action, reason). Round cap and wall-clock arm are independent."""
     if round_count >= max_rounds:
@@ -333,4 +341,3 @@ def _classify(
 def _stored_head_sha(prior_state: dict[str, Any] | None) -> str | None:
     sha = (prior_state or {}).get("head_sha")
     return sha if isinstance(sha, str) and sha else None
-

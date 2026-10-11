@@ -59,9 +59,7 @@ def _update(head: str) -> policy.PushUpdate:
     return policy.PushUpdate(source, "base", head, f"base..{head}", "a")
 
 
-def _arrange(
-    monkeypatch: pytest.MonkeyPatch, heads: list[str], *, clamp: Any
-) -> None:
+def _arrange(monkeypatch: pytest.MonkeyPatch, heads: list[str], *, clamp: Any) -> None:
     """Point `scan_pushed_heads` at `heads` with one scannable path each."""
     monkeypatch.setattr(policy, "_push_updates", lambda *_a: [_update(h) for h in heads])
     monkeypatch.setattr(policy, "_changed_commit_paths", lambda *_a: ["source.py"])
@@ -91,9 +89,7 @@ def _record_deadlines(monkeypatch: pytest.MonkeyPatch) -> list[float]:
     return seen
 
 
-def test_the_job_carries_a_deadline_at_all(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_the_job_carries_a_deadline_at_all(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Wiring: a bound the caller never passes down bounds nothing.
 
     `_scan_pushed_head` accepts `deadline=None` so direct unit callers keep

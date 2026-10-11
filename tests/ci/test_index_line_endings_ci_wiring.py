@@ -116,9 +116,7 @@ def test_the_workflow_still_triggers_on_the_events_that_matter(event: str) -> No
 def _required_check_jobs() -> dict[str, dict]:
     """Every job reporting the required status check, by id."""
     jobs = {
-        job_id: job
-        for job_id, job in _jobs().items()
-        if job.get("name") == REQUIRED_CHECK_NAME
+        job_id: job for job_id, job in _jobs().items() if job.get("name") == REQUIRED_CHECK_NAME
     }
     assert jobs, f"no job renders as {REQUIRED_CHECK_NAME!r} in {WORKFLOW.name}"
     return jobs
@@ -138,9 +136,7 @@ def test_every_required_check_leg_requires_the_gate_job(job_id: str) -> None:
     gate_ids = set(_gate_jobs())
     job = _required_check_jobs()[job_id]
 
-    assert gate_ids <= set(job["needs"]), (
-        f"{job_id} needs {job['needs']}, missing {gate_ids}"
-    )
+    assert gate_ids <= set(job["needs"]), f"{job_id} needs {job['needs']}, missing {gate_ids}"
 
 
 @pytest.mark.parametrize("job_id", sorted(_required_check_jobs()))
@@ -154,9 +150,7 @@ def test_every_required_check_leg_asserts_the_gate_result(job_id: str) -> None:
     gate_ids = set(_gate_jobs())
     job = _required_check_jobs()[job_id]
 
-    step = next(
-        s for s in job["steps"] if "require_job_results.py" in str(s.get("run", ""))
-    )
+    step = next(s for s in job["steps"] if "require_job_results.py" in str(s.get("run", "")))
     env = step["env"]
     result_vars = [
         name

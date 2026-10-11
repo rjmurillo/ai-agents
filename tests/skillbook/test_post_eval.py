@@ -31,9 +31,7 @@ def _write_fixtures(tmp_path: Path, mapping: dict[str, str | None]) -> Path:
         fixture: dict[str, Any] = {"schemaVersion": 1, "id": fixture_id}
         if policy_id is not None:
             fixture["policy_id"] = policy_id
-        (fixtures_dir / f"{fixture_id}.json").write_text(
-            json.dumps(fixture), encoding="utf-8"
-        )
+        (fixtures_dir / f"{fixture_id}.json").write_text(json.dumps(fixture), encoding="utf-8")
     return fixtures_dir
 
 
@@ -95,9 +93,9 @@ class TestApplyEvalRun:
             run_dir / "runs.jsonl", fixtures, skillbook, "run-1", now=9000
         )
         assert summary["confirmed"] == ["pol-a"]
-        policy = json.loads(
-            (skillbook / "policies.json").read_text(encoding="utf-8")
-        )["policies"][0]
+        policy = json.loads((skillbook / "policies.json").read_text(encoding="utf-8"))["policies"][
+            0
+        ]
         assert policy["confirms"] == 1.0
         assert policy["evidence"][0]["eval_id"] == "run-1::F0"
 
@@ -153,9 +151,7 @@ class TestApplyEvalRun:
         write_skillbook: Callable[..., Path],
         tmp_path: Path,
     ) -> None:
-        skillbook = write_skillbook(
-            policies=[make_policy("pol-a", tier="hypothesis")]
-        )
+        skillbook = write_skillbook(policies=[make_policy("pol-a", tier="hypothesis")])
         records = [{"fixture_id": f"F{i}", "passed": True} for i in range(5)]
         run_dir = _write_run(tmp_path, "run-1", records)
         fixtures = _write_fixtures(tmp_path, {f"F{i}": "pol-a" for i in range(5)})
@@ -164,9 +160,9 @@ class TestApplyEvalRun:
             run_dir / "runs.jsonl", fixtures, skillbook, "run-1", now=9000
         )
         assert summary["promoted"] == ["pol-a"]
-        policy = json.loads(
-            (skillbook / "policies.json").read_text(encoding="utf-8")
-        )["policies"][0]
+        policy = json.loads((skillbook / "policies.json").read_text(encoding="utf-8"))["policies"][
+            0
+        ]
         assert policy["tier"] == "validated"
 
     def test_reapplying_same_run_is_idempotent(
@@ -186,9 +182,9 @@ class TestApplyEvalRun:
             run_dir / "runs.jsonl", fixtures, skillbook, "run-1", now=9100
         )
         assert second["confirmed"] == []
-        policy = json.loads(
-            (skillbook / "policies.json").read_text(encoding="utf-8")
-        )["policies"][0]
+        policy = json.loads((skillbook / "policies.json").read_text(encoding="utf-8"))["policies"][
+            0
+        ]
         assert policy["application_count"] == 1
 
 

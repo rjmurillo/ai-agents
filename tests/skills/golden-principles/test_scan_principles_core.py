@@ -13,10 +13,7 @@ from pathlib import Path
 
 # Add scripts directory to sys.path so sibling import works when running
 # pytest directly from the project root.
-_SCRIPTS_DIR = str(
-    Path(__file__).resolve().parents[3]
-    / ".claude/skills/golden-principles/scripts"
-)
+_SCRIPTS_DIR = str(Path(__file__).resolve().parents[3] / ".claude/skills/golden-principles/scripts")
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
 

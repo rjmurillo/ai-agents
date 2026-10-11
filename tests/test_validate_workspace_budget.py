@@ -141,9 +141,7 @@ class TestCustomCeilingDisplay:
             FileMetric(path="special.md", size_bytes=4000, exists=True),
         ]
         # Custom ceiling of 5000 > 4000 > generic 3000
-        result = validate_budget(
-            metrics, per_file_budget=3000, file_ceilings={"special.md": 5000}
-        )
+        result = validate_budget(metrics, per_file_budget=3000, file_ceilings={"special.md": 5000})
         assert result.is_valid
 
     def test_custom_ceiling_file_above_ratchet_fails(self) -> None:
@@ -151,9 +149,7 @@ class TestCustomCeilingDisplay:
         metrics = [
             FileMetric(path="special.md", size_bytes=6000, exists=True),
         ]
-        result = validate_budget(
-            metrics, per_file_budget=3000, file_ceilings={"special.md": 5000}
-        )
+        result = validate_budget(metrics, per_file_budget=3000, file_ceilings={"special.md": 5000})
         assert not result.is_valid
 
     def test_custom_ceiling_file_excluded_from_pool_total(self) -> None:
@@ -201,9 +197,7 @@ class TestMainDisplayOutput:
         (tmp_path / ".claude").mkdir()
         (tmp_path / ".claude" / "CLAUDE.md").write_text("x" * 100, encoding="utf-8")
         (tmp_path / ".github").mkdir()
-        (tmp_path / ".github" / "copilot-instructions.md").write_text(
-            "x" * 4000, encoding="utf-8"
-        )
+        (tmp_path / ".github" / "copilot-instructions.md").write_text("x" * 4000, encoding="utf-8")
         rc = main(["--path", str(tmp_path)])
         out = capsys.readouterr().out
         assert rc == 0, out
@@ -212,25 +206,22 @@ class TestMainDisplayOutput:
         # the custom-ceiling file must show its own limit, and a regression
         # to the generic per-file label must fail here, not pass vacuously.
         copilot_line = next(
-            line for line in out.splitlines()
+            line
+            for line in out.splitlines()
             if line.strip().startswith(".github/copilot-instructions.md:")
         )
         custom_ceiling = FILE_CEILING_BYTES[".github/copilot-instructions.md"]
         assert f"(limit {custom_ceiling:,})" in copilot_line
         assert "(limit 3,000)" not in copilot_line
 
-    def test_pool_total_excludes_custom_ceiling_files(
-        self, tmp_path: Path, capsys
-    ) -> None:
+    def test_pool_total_excludes_custom_ceiling_files(self, tmp_path: Path, capsys) -> None:
         """AC: displayed aggregate uses same membership as pass/fail."""
         (tmp_path / "CLAUDE.md").write_text("x" * 2000, encoding="utf-8")
         (tmp_path / "AGENTS.md").write_text("x" * 2000, encoding="utf-8")
         (tmp_path / ".claude").mkdir()
         (tmp_path / ".claude" / "CLAUDE.md").write_text("x" * 100, encoding="utf-8")
         (tmp_path / ".github").mkdir()
-        (tmp_path / ".github" / "copilot-instructions.md").write_text(
-            "x" * 5000, encoding="utf-8"
-        )
+        (tmp_path / ".github" / "copilot-instructions.md").write_text("x" * 5000, encoding="utf-8")
         rc = main(["--path", str(tmp_path)])
         out = capsys.readouterr().out
         assert rc == 0

@@ -37,13 +37,14 @@ def run_git(
         return subprocess.run(
             ["git", *args],
             capture_output=True,
-            encoding="utf-8", errors="replace",
+            encoding="utf-8",
+            errors="replace",
             cwd=cwd,
             timeout=timeout,
         )
     except subprocess.TimeoutExpired:
         return subprocess.CompletedProcess(
-            args=['git', *args],
+            args=["git", *args],
             returncode=124,
             stdout="",
             stderr=f"git command timed out after {timeout}s",
@@ -57,12 +58,13 @@ def run_gh(
         return subprocess.run(
             ["gh", *args],
             capture_output=True,
-            encoding="utf-8", errors="replace",
+            encoding="utf-8",
+            errors="replace",
             timeout=timeout,
         )
     except subprocess.TimeoutExpired:
         return subprocess.CompletedProcess(
-            args=['gh', *args],
+            args=["gh", *args],
             returncode=124,
             stdout="",
             stderr=f"gh command timed out after {timeout}s",
@@ -238,7 +240,11 @@ def print_status_table(statuses: list[WorktreeStatus]) -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Manage git worktrees for batch PR review")
     parser.add_argument(
-        "--pr-numbers", type=int, nargs="+", required=True, help="PR numbers to process",
+        "--pr-numbers",
+        type=int,
+        nargs="+",
+        required=True,
+        help="PR numbers to process",
     )
     parser.add_argument(
         "--operation",

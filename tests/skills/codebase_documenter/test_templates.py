@@ -65,9 +65,7 @@ class TestSkillFrontmatter:
         description = fm["description"]
         assert isinstance(description, str)
         assert description, "description must be non-empty"
-        assert len(description) <= 200, (
-            f"description must be <= 200 chars, got {len(description)}"
-        )
+        assert len(description) <= 200, f"description must be <= 200 chars, got {len(description)}"
         first_word = description.split()[0]
         assert first_word in VALID_DESCRIPTION_VERBS, (
             f"description must start with an action verb; got '{first_word}'"
@@ -122,9 +120,7 @@ class TestContent:
     def test_no_forbidden_strings_in_skill_files(self, path: Path) -> None:
         text = path.read_text(encoding="utf-8")
         for needle in FORBIDDEN_SUBSTRINGS:
-            assert needle not in text, (
-                f"{path.name} contains forbidden substring: {needle!r}"
-            )
+            assert needle not in text, f"{path.name} contains forbidden substring: {needle!r}"
 
     @pytest.mark.parametrize("path", ALL_SKILL_FILES)
     def test_skill_files_have_unicode_safe_content(self, path: Path) -> None:

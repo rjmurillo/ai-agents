@@ -69,7 +69,8 @@ def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
             *args,
         ],
         capture_output=True,
-        text=True, encoding="utf-8",
+        text=True,
+        encoding="utf-8",
         check=True,
     )
 
@@ -134,7 +135,8 @@ def _run(repo: Path, *extra: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, str(SCRIPT), "--repo-root", str(repo), *extra],
         capture_output=True,
-        text=True, encoding="utf-8",
+        text=True,
+        encoding="utf-8",
         check=False,
     )
 

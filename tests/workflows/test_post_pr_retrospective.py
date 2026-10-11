@@ -40,8 +40,7 @@ def _load_workflow() -> dict[str, Any]:
         loaded = yaml.safe_load(handle)
     if not isinstance(loaded, dict):
         raise ValueError(
-            f"Expected {_WORKFLOW_PATH} to parse as a mapping, "
-            f"got {type(loaded).__name__}"
+            f"Expected {_WORKFLOW_PATH} to parse as a mapping, got {type(loaded).__name__}"
         )
     return loaded
 
@@ -106,8 +105,7 @@ class TestAgentStepFailureIsolation:
         # and the ref is a full 40-hex commit SHA (a floating tag is caught).
         # The specific SHA is owned by the workflow + Renovate, not this test.
         assert _SHA_PINNED_ACTION_RE.fullmatch(uses), (
-            f"agent step 'uses' is {uses!r}; expected "
-            f"'{_ACTION_PATH}@<40-hex-sha>'"
+            f"agent step 'uses' is {uses!r}; expected '{_ACTION_PATH}@<40-hex-sha>'"
         )
 
     def test_agent_step_still_wires_oauth_token(self) -> None:
@@ -214,9 +212,7 @@ class TestShaPinPredicateNegative:
 class TestStepLookupEdgeCases:
     def test_find_step_returns_none_when_absent(self) -> None:
         # Arrange
-        workflow: dict[str, Any] = {
-            "jobs": {"only": {"steps": [{"name": "something else"}]}}
-        }
+        workflow: dict[str, Any] = {"jobs": {"only": {"steps": [{"name": "something else"}]}}}
         # Act
         step = _find_step(workflow, _AGENT_STEP_NAME)
         # Assert

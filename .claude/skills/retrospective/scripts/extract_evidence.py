@@ -39,10 +39,7 @@ from pathlib import Path
 def _resolve_paths_lib_dir() -> Path:
     """Return the lib directory that contains the portability helper."""
     # ADR-047 keeps this bootstrap inline because imports need sys.path first.
-    plugin_root = (
-        os.environ.get("COPILOT_PLUGIN_ROOT")
-        or os.environ.get("CLAUDE_PLUGIN_ROOT")
-    )
+    plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
     if plugin_root:
         lib_dir = Path(plugin_root) / "lib"
     elif workspace := os.environ.get("GITHUB_WORKSPACE"):
@@ -82,6 +79,7 @@ def _artifact_dir(project_dir: Path, subdir: str) -> Path:
     if _artifact_root_is_set() or project_dir.resolve() == Path.cwd().resolve():
         return Path(_resolve_artifact_dir(subdir))
     return project_dir / ".project-toolkit" / subdir
+
 
 # Bound the git call so a wedged repo cannot hang the retrospective.
 _GIT_TIMEOUT_SECONDS = 15
@@ -353,8 +351,7 @@ def gather_evidence(
         if parsed_session.error is not None:
             session_log_available = False
             notes.append(
-                f"Session log {session_log.name} could not be parsed: "
-                f"{parsed_session.error}."
+                f"Session log {session_log.name} could not be parsed: {parsed_session.error}."
             )
         elif not work_items and not outcomes:
             session_log_available = False

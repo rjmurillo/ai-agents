@@ -86,14 +86,8 @@ _IMPORT_OR_SKIP_MARKED = (
     "@pytest.mark.windows_path\n"
     "def test_needs_the_dependency():\n    assert True\n"
 )
-_SKIP_ONLY = (
-    "import pytest\n\n"
-    'pytest.skip("nothing to collect", allow_module_level=True)\n'
-)
-_IMPORT_OR_SKIP_ONLY = (
-    "import pytest\n\n"
-    'pytest.importorskip("a_module_that_does_not_exist")\n'
-)
+_SKIP_ONLY = 'import pytest\n\npytest.skip("nothing to collect", allow_module_level=True)\n'
+_IMPORT_OR_SKIP_ONLY = 'import pytest\n\npytest.importorskip("a_module_that_does_not_exist")\n'
 _CONDITIONAL_PLATFORM_SKIP_MARKED = (
     "import sys\n"
     "import pytest\n\n"

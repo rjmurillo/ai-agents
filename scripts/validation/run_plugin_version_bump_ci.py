@@ -72,9 +72,7 @@ def main() -> int:
         return 2
 
     print(f"Running validate_plugin_version_bump.py against {base}...", flush=True)
-    rc, out, err = run(
-        [sys.executable, str(validator), "--base", base], timeout=120
-    )
+    rc, out, err = run([sys.executable, str(validator), "--base", base], timeout=120)
     if out:
         sys.stdout.write(out)
     if err:

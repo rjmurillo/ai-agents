@@ -28,15 +28,12 @@ This document mixes two citation vintages and does not mark each one, which a re
 `session_qa_binding()` (`.claude/lib/qa_report.py:142-182`) turns a session log into the `QaBinding` that QA-report validation is checked against. Lines 170-178 read verbatim:
 
 ```python
-    if isinstance(comparison_head, str) and _FULL_COMMIT_PATTERN.fullmatch(
-        comparison_head
-    ):
-        if resolved_ending is not None and comparison_head != resolved_ending:
-            raise ValueError(
-                "Session log comparison head and endingCommit resolve to "
-                "different commits"
-            )
-        return QaBinding(session_log=session_log, commit=comparison_head)
+if isinstance(comparison_head, str) and _FULL_COMMIT_PATTERN.fullmatch(comparison_head):
+    if resolved_ending is not None and comparison_head != resolved_ending:
+        raise ValueError(
+            "Session log comparison head and endingCommit resolve to different commits"
+        )
+    return QaBinding(session_log=session_log, commit=comparison_head)
 ```
 
 The raise fires whenever a session log's `episodeMetrics.comparison.head` and its resolved `endingCommit` are both full 40-character SHAs and differ. It is a plain field-equality check with no fallback, the same shape `validate_qa_report()` (`:185`) carried before ADR-096 replaced it with a code-change-aware check.
@@ -153,36 +150,34 @@ class QaBinding:
 `session_qa_binding()`'s selection block becomes:
 
 ```python
-    if isinstance(comparison_head, str) and _FULL_COMMIT_PATTERN.fullmatch(
-        comparison_head
-    ):
-        # comparison.head wins when both fields resolve, and a disagreement is
-        # reported rather than rejected (ADR-102, issue #5217). This is not
-        # because the two fields naturally diverge: PR #4954 independently
-        # documented the endingCommit-follows-comparison.head hand-sync
-        # pattern, though that finding was never fixed by a commit, so it
-        # does not appear in a HEAD-scoped corpus walk (ADR-102 Measured
-        # Incidence: 44 edits, 32 commits, 36 agreeing, all either
-        # first-commit creations or unrelated field backfills). That's why
-        # the raise is replaced with a diagnostic rather than kept:
-        # comparison.head is the field QA rebinding advances past the
-        # session's own last authored commit
-        # (session-log.schema.json's commitHead field exists to preserve that
-        # ownership), while endingCommit advances on its own schedule, a
-        # follow-up commit re-pointed after a rebase (.claude/rules/
-        # session-logs.md MUST 2 and MUST 3).
-        inconsistency = None
-        if resolved_ending is not None and comparison_head != resolved_ending:
-            inconsistency = (
-                "Session log comparison head and endingCommit are different "
-                f"full commit SHAs ({comparison_head} != {resolved_ending}); "
-                "binding QA evidence to comparison head"
-            )
-        return QaBinding(
-            session_log=session_log,
-            commit=comparison_head,
-            inconsistency=inconsistency,
+if isinstance(comparison_head, str) and _FULL_COMMIT_PATTERN.fullmatch(comparison_head):
+    # comparison.head wins when both fields resolve, and a disagreement is
+    # reported rather than rejected (ADR-102, issue #5217). This is not
+    # because the two fields naturally diverge: PR #4954 independently
+    # documented the endingCommit-follows-comparison.head hand-sync
+    # pattern, though that finding was never fixed by a commit, so it
+    # does not appear in a HEAD-scoped corpus walk (ADR-102 Measured
+    # Incidence: 44 edits, 32 commits, 36 agreeing, all either
+    # first-commit creations or unrelated field backfills). That's why
+    # the raise is replaced with a diagnostic rather than kept:
+    # comparison.head is the field QA rebinding advances past the
+    # session's own last authored commit
+    # (session-log.schema.json's commitHead field exists to preserve that
+    # ownership), while endingCommit advances on its own schedule, a
+    # follow-up commit re-pointed after a rebase (.claude/rules/
+    # session-logs.md MUST 2 and MUST 3).
+    inconsistency = None
+    if resolved_ending is not None and comparison_head != resolved_ending:
+        inconsistency = (
+            "Session log comparison head and endingCommit are different "
+            f"full commit SHAs ({comparison_head} != {resolved_ending}); "
+            "binding QA evidence to comparison head"
         )
+    return QaBinding(
+        session_log=session_log,
+        commit=comparison_head,
+        inconsistency=inconsistency,
+    )
 ```
 
 `scripts/validate_session_json.py`'s `validate_qa_report_evidence()` surfaces it as a warning after the binding is computed and before the report is validated:

@@ -58,21 +58,13 @@ class TestAcceptanceVerdict:
 
 class TestAcceptanceSignal:
     def test_prefixes_external_acceptance_criteria(self) -> None:
-        assert (
-            acceptance_signal(_BODY_ALL_CHECKED)
-            == "external:acceptance-criteria=PASS"
-        )
+        assert acceptance_signal(_BODY_ALL_CHECKED) == "external:acceptance-criteria=PASS"
 
     def test_unchecked_signal_is_fail(self) -> None:
-        assert (
-            acceptance_signal(_BODY_UNCHECKED) == "external:acceptance-criteria=FAIL"
-        )
+        assert acceptance_signal(_BODY_UNCHECKED) == "external:acceptance-criteria=FAIL"
 
     def test_no_criteria_signal_is_unknown(self) -> None:
-        assert (
-            acceptance_signal(_BODY_NO_CRITERIA)
-            == "external:acceptance-criteria=UNKNOWN"
-        )
+        assert acceptance_signal(_BODY_NO_CRITERIA) == "external:acceptance-criteria=UNKNOWN"
 
 
 # ---------------------------------------------------------------------------
@@ -176,9 +168,7 @@ def _write_body(tmp_path, body: str) -> str:
 
 
 class TestMain:
-    def test_pass_with_external_acceptance_pass(
-        self, monkeypatch, capsys, tmp_path
-    ) -> None:
+    def test_pass_with_external_acceptance_pass(self, monkeypatch, capsys, tmp_path) -> None:
         monkeypatch.setenv("PR_BODY_FILE", _write_body(tmp_path, _BODY_ALL_CHECKED))
         monkeypatch.setenv("TRACE_VERDICT", "COMPLIANT")
         monkeypatch.setenv("COMPLETENESS_VERDICT", "COMPLIANT")
@@ -217,9 +207,7 @@ class TestMain:
         assert rc == 0
         assert "WARN" in capsys.readouterr().out
 
-    def test_closed_loop_refused_when_no_criteria(
-        self, monkeypatch, capsys, tmp_path
-    ) -> None:
+    def test_closed_loop_refused_when_no_criteria(self, monkeypatch, capsys, tmp_path) -> None:
         # No acceptance criteria -> external:acceptance-criteria=UNKNOWN, so no
         # usable external signal; the aggregator must refuse PASS (#1855).
         monkeypatch.setenv("PR_BODY_FILE", _write_body(tmp_path, _BODY_NO_CRITERIA))
@@ -229,9 +217,7 @@ class TestMain:
         assert rc == 1
         assert "NEEDS_REVIEW" in capsys.readouterr().out
 
-    def test_closed_loop_refused_when_body_missing(
-        self, monkeypatch, capsys
-    ) -> None:
+    def test_closed_loop_refused_when_body_missing(self, monkeypatch, capsys) -> None:
         monkeypatch.delenv("PR_BODY_FILE", raising=False)
         monkeypatch.setenv("TRACE_VERDICT", "COMPLIANT")
         monkeypatch.setenv("COMPLETENESS_VERDICT", "COMPLIANT")

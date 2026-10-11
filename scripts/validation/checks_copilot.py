@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Copilot-specific validation wrappers for the pre-PR runner."""
+
 from __future__ import annotations
 
 import sys

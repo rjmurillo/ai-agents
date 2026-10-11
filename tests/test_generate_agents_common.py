@@ -194,7 +194,7 @@ class TestParseSimpleFrontmatter:
     def test_escaped_quote_keeps_hash_inside_double_quoted_value(self) -> None:
         raw = r'description: "true \" # still data" # trailing comment'
         result = parse_simple_frontmatter(raw)
-        assert result["description"] == r'true \" # still data'
+        assert result["description"] == r"true \" # still data"
 
     def test_comment_only_value_is_null(self) -> None:
         raw = "model: # rationale"
@@ -439,30 +439,28 @@ class TestConvertFrontmatterForPlatform:
             default_model = entry.get("default_model")
             unit = entry.get("unit")
             winner_id = model if isinstance(model, str) else "claude-opus-4-6"
-            default_id = (
-                default_model
-                if isinstance(default_model, str)
-                else "claude-sonnet-4-6"
-            )
+            default_id = default_model if isinstance(default_model, str) else "claude-sonnet-4-6"
             # Matches build/generate_agents.py:303's agent_name derivation
             # verbatim; see model_pin_sweep_evidence.py:_agent_name_from_unit.
             agent = Path(str(unit)).stem.replace(".shared", "")
             artifact_path.write_text(
-                json.dumps({
-                    "schemaVersion": "1",
-                    "agent": agent,
-                    "decision": "KEEP_PIN",
-                    "winner": winner_id,
-                    "fixtures_sha": entry.get("fixtures_sha"),
-                    "default_model": default_id,
-                    "models": [
-                        {"model_id": winner_id},
-                        {"model_id": default_id},
-                    ],
-                    "n_shared_fixtures": 8,
-                    "recall_delta": 0.05,
-                    "ci95": [0.01, 0.09],
-                }),
+                json.dumps(
+                    {
+                        "schemaVersion": "1",
+                        "agent": agent,
+                        "decision": "KEEP_PIN",
+                        "winner": winner_id,
+                        "fixtures_sha": entry.get("fixtures_sha"),
+                        "default_model": default_id,
+                        "models": [
+                            {"model_id": winner_id},
+                            {"model_id": default_id},
+                        ],
+                        "n_shared_fixtures": 8,
+                        "recall_delta": 0.05,
+                        "ci95": [0.01, 0.09],
+                    }
+                ),
                 encoding="utf-8",
             )
         return {self._UNIT: entry}
@@ -472,8 +470,11 @@ class TestConvertFrontmatterForPlatform:
         manifest resolution is step 1, haiku-tier fallback is step 2."""
         fm: dict[str, str | None] = {"description": "test", "model_tier": "haiku"}
         result = convert_frontmatter_for_platform(
-            fm, self._COPILOT_CONFIG, "architect",
-            manifest=self._keep_pin_manifest(tmp_path), source_unit=self._UNIT,
+            fm,
+            self._COPILOT_CONFIG,
+            "architect",
+            manifest=self._keep_pin_manifest(tmp_path),
+            source_unit=self._UNIT,
             repo_root=tmp_path,
         )
         assert result["model"] == "claude-opus-4.6"
@@ -482,12 +483,20 @@ class TestConvertFrontmatterForPlatform:
         fm: dict[str, str | None] = {"description": "test"}
         manifest = self._keep_pin_manifest(tmp_path)
         copilot_result = convert_frontmatter_for_platform(
-            fm, self._COPILOT_CONFIG, "architect",
-            manifest=manifest, source_unit=self._UNIT, repo_root=tmp_path,
+            fm,
+            self._COPILOT_CONFIG,
+            "architect",
+            manifest=manifest,
+            source_unit=self._UNIT,
+            repo_root=tmp_path,
         )
         vscode_result = convert_frontmatter_for_platform(
-            fm, self._VSCODE_CONFIG, "architect",
-            manifest=manifest, source_unit=self._UNIT, repo_root=tmp_path,
+            fm,
+            self._VSCODE_CONFIG,
+            "architect",
+            manifest=manifest,
+            source_unit=self._UNIT,
+            repo_root=tmp_path,
         )
         assert copilot_result["model"] == "claude-opus-4.6"
         assert vscode_result["model"] == "Claude Opus 4.6 (copilot)"
@@ -497,7 +506,9 @@ class TestConvertFrontmatterForPlatform:
         unit, so generation must fall back to the (empty) tier logic."""
         fm: dict[str, str | None] = {"description": "test"}
         result = convert_frontmatter_for_platform(
-            fm, self._COPILOT_CONFIG, "architect",
+            fm,
+            self._COPILOT_CONFIG,
+            "architect",
             manifest=self._keep_pin_manifest(tmp_path),
             source_unit="templates/agents/other.shared.md",
             repo_root=tmp_path,
@@ -507,7 +518,9 @@ class TestConvertFrontmatterForPlatform:
     def test_manifest_decision_not_keep_pin_falls_back(self, tmp_path: Path) -> None:
         fm: dict[str, str | None] = {"description": "test", "model_tier": "haiku"}
         result = convert_frontmatter_for_platform(
-            fm, self._COPILOT_CONFIG, "architect",
+            fm,
+            self._COPILOT_CONFIG,
+            "architect",
             manifest=self._keep_pin_manifest(tmp_path, decision="RETIRE_PIN"),
             source_unit=self._UNIT,
             repo_root=tmp_path,
@@ -521,8 +534,11 @@ class TestConvertFrontmatterForPlatform:
         that omits it gets the pre-wiring fallback rather than a crash."""
         fm: dict[str, str | None] = {"description": "test", "model_tier": "haiku"}
         result = convert_frontmatter_for_platform(
-            fm, self._COPILOT_CONFIG, "architect",
-            manifest=self._keep_pin_manifest(), source_unit=self._UNIT,
+            fm,
+            self._COPILOT_CONFIG,
+            "architect",
+            manifest=self._keep_pin_manifest(),
+            source_unit=self._UNIT,
         )
         assert result["model"] == "claude-haiku-4.5"
 
@@ -575,10 +591,7 @@ class TestFormatFrontmatterYaml:
         mapping at the unquoted colon."""
         fm = {"description": "Debug bugs. Phases: assessment, fix, verify."}
         result = format_frontmatter_yaml(fm)
-        assert (
-            "description: 'Debug bugs. Phases: assessment, fix, verify.'"
-            in result
-        )
+        assert "description: 'Debug bugs. Phases: assessment, fix, verify.'" in result
 
     def test_description_with_embedded_single_quote_is_escaped(self) -> None:
         """Single quotes inside a single-quoted YAML scalar must be doubled."""
@@ -591,10 +604,7 @@ class TestFormatFrontmatterYaml:
         wrapped to avoid being parsed as alias references."""
         fm = {"description": "* leading asterisk is a YAML alias indicator"}
         result = format_frontmatter_yaml(fm)
-        assert (
-            "description: '* leading asterisk is a YAML alias indicator'"
-            in result
-        )
+        assert "description: '* leading asterisk is a YAML alias indicator'" in result
 
     def test_plain_value_is_not_quoted(self) -> None:
         fm = {"description": "Simple description with no special chars"}

@@ -611,10 +611,7 @@ class TestApplyPatches:
             apply_patches(doc, [Patch("append", None, "x")], budget=1)
 
     def test_protects_a_second_fence_block(self):
-        doc = (
-            f"a\n{FENCE_START}\nfirst\n{FENCE_END}\n"
-            f"b\n{FENCE_START}\nsecond\n{FENCE_END}\nc\n"
-        )
+        doc = f"a\n{FENCE_START}\nfirst\n{FENCE_END}\nb\n{FENCE_START}\nsecond\n{FENCE_END}\nc\n"
         with pytest.raises(ProtectedSectionError, match="second"):
             apply_patches(doc, [Patch("replace", "second", "x")], budget=1)
 
@@ -1152,10 +1149,7 @@ class TestSplitFingerprint:
     def test_matches_what_split_tasks_recorded(self):
         ids = _ids(10)
         split = split_tasks(ids, seed="s", sel_ratio=0.4, test_ratio=0.2)
-        assert (
-            split_fingerprint(ids, seed="s", sel_ratio=0.4, test_ratio=0.2)
-            == split.fingerprint
-        )
+        assert split_fingerprint(ids, seed="s", sel_ratio=0.4, test_ratio=0.2) == split.fingerprint
 
     def test_numeric_and_string_ratios_fingerprint_identically(self):
         ids = _ids(10)
@@ -1253,9 +1247,7 @@ class TestSignificanceCanBeEnforcedNotJustReported:
         assert gate_(0.8, 0.6, p_value=0.25).decision == "ACCEPT"
 
     def test_a_gain_whose_tail_clears_the_bar_is_accepted(self):
-        assert (
-            gate_(0.8, 0.6, p_value=0.002, max_p=0.05, max_consultations=5).decision == "ACCEPT"
-        )
+        assert gate_(0.8, 0.6, p_value=0.002, max_p=0.05, max_consultations=5).decision == "ACCEPT"
 
     def test_p_equal_to_the_corrected_bar_passes(self):
         """The bar is a maximum, so equality is inside it, not outside."""
@@ -1268,9 +1260,7 @@ class TestSignificanceCanBeEnforcedNotJustReported:
 
     def test_a_regression_still_outranks_the_significance_bar(self):
         """Both refuse; the broken task is the one worth naming first."""
-        result = gate_(
-            0.8, 0.6, discordant_loss=1, p_value=0.9, max_p=0.05, max_consultations=1
-        )
+        result = gate_(0.8, 0.6, discordant_loss=1, p_value=0.9, max_p=0.05, max_consultations=1)
         assert result.decision == "REJECT"
         assert "regressed" in result.reason
 
@@ -1296,12 +1286,8 @@ class TestSignificanceCanBeEnforcedNotJustReported:
 
     def test_a_bar_of_zero_refuses_every_nonzero_tail(self):
         """0.0 is a legal bar and means only a certain result passes."""
-        assert (
-            gate_(0.8, 0.6, p_value=0.001, max_p=0.0, max_consultations=1).decision == "REJECT"
-        )
-        assert (
-            gate_(0.8, 0.6, p_value=0.0, max_p=0.0, max_consultations=1).decision == "ACCEPT"
-        )
+        assert gate_(0.8, 0.6, p_value=0.001, max_p=0.0, max_consultations=1).decision == "REJECT"
+        assert gate_(0.8, 0.6, p_value=0.0, max_p=0.0, max_consultations=1).decision == "ACCEPT"
 
     def test_the_bar_never_rescues_a_guard_refusal(self):
         """A moved fingerprint is not comparable, significant or not."""
@@ -1338,9 +1324,7 @@ class TestOneBarSpentFiveTimesIsNotThatBar:
 
     def test_the_bar_is_divided_across_the_declared_budget(self):
         """0.05 over five consultations is 0.01 per comparison."""
-        assert (
-            gate_(0.8, 0.6, p_value=0.02, max_p=0.05, max_consultations=5).decision == "REJECT"
-        )
+        assert gate_(0.8, 0.6, p_value=0.02, max_p=0.05, max_consultations=5).decision == "REJECT"
         assert gate_(0.8, 0.6, p_value=0.02, max_p=0.05, max_consultations=2).decision == "ACCEPT"
 
     def test_the_refusal_names_both_the_family_bar_and_the_corrected_one(self):
@@ -1351,9 +1335,7 @@ class TestOneBarSpentFiveTimesIsNotThatBar:
     def test_a_single_consultation_budget_leaves_the_bar_alone(self):
         """With a family of one there is nothing to correct."""
         assert gate_(0.8, 0.6, p_value=0.05, max_p=0.05, max_consultations=1).decision == "ACCEPT"
-        assert (
-            gate_(0.8, 0.6, p_value=0.051, max_p=0.05, max_consultations=1).decision == "REJECT"
-        )
+        assert gate_(0.8, 0.6, p_value=0.051, max_p=0.05, max_consultations=1).decision == "REJECT"
 
     def test_a_bar_without_a_declared_budget_refuses_to_run(self):
         """An undeclared family size cannot be corrected for, so fail closed."""

@@ -109,20 +109,17 @@ def validate_config(config: dict) -> list[str]:
                 continue
             for script_key in REQUIRED_SCRIPT_KEYS:
                 if script_key not in scripts[section]:
-                    errors.append(
-                        f"Missing script in scripts.{section}: {script_key}"
-                    )
+                    errors.append(f"Missing script in scripts.{section}: {script_key}")
             # Check claude_code-specific keys
             if section == "claude_code":
                 for script_key in CLAUDE_CODE_ONLY_KEYS:
                     if script_key not in scripts[section]:
-                        errors.append(
-                            f"Missing script in scripts.{section}: {script_key}"
-                        )
+                        errors.append(f"Missing script in scripts.{section}: {script_key}")
 
     completion_criteria = config.get("completion_criteria")
     if completion_criteria is not None and not isinstance(
-        completion_criteria, list,
+        completion_criteria,
+        list,
     ):
         # Per Copilot review: if YAML parses ``completion_criteria`` as
         # a mapping or string, the per-element loop would iterate
@@ -132,21 +129,16 @@ def validate_config(config: dict) -> list[str]:
         # the config still get validated below. Mirrors the
         # dispatcher's behavior.
         errors.append(
-            f"completion_criteria must be a list "
-            f"(got {type(completion_criteria).__name__})"
+            f"completion_criteria must be a list (got {type(completion_criteria).__name__})"
         )
     elif "completion_criteria" in config:
         for i, item in enumerate(config["completion_criteria"]):
             if not isinstance(item, dict):
-                errors.append(
-                    f"completion_criteria[{i}] must be a mapping"
-                )
+                errors.append(f"completion_criteria[{i}] must be a mapping")
                 continue
             for field in COMPLETION_CRITERIA_REQUIRED_FIELDS:
                 if field not in item:
-                    errors.append(
-                        f"completion_criteria[{i}] missing field: {field}"
-                    )
+                    errors.append(f"completion_criteria[{i}] missing field: {field}")
             # Exactly one of pass_when / pass_when_python must be set.
             # Both-set is ambiguous because the dispatcher silently picks
             # pass_when_python first; reject it at validation time so
@@ -155,13 +147,10 @@ def validate_config(config: dict) -> list[str]:
             # passes `f in item` but fails the dispatcher's `if not pass_when`
             # check at runtime. Matching truthiness here ensures the validator
             # rejects configs that would fail at dispatch time.
-            present = [
-                f for f in COMPLETION_CRITERIA_PASS_FIELDS if item.get(f)
-            ]
+            present = [f for f in COMPLETION_CRITERIA_PASS_FIELDS if item.get(f)]
             if not present:
                 errors.append(
-                    f"completion_criteria[{i}] missing field: pass_when "
-                    f"(or pass_when_python)"
+                    f"completion_criteria[{i}] missing field: pass_when (or pass_when_python)"
                 )
             elif len(present) > 1:
                 errors.append(
@@ -176,34 +165,19 @@ def validate_config(config: dict) -> list[str]:
                 )
             fail_open = item.get("fail_open")
             if fail_open is not None and not isinstance(fail_open, bool):
-                errors.append(
-                    f"completion_criteria[{i}].fail_open must be a boolean"
-                )
+                errors.append(f"completion_criteria[{i}].fail_open must be a boolean")
             # Per Copilot review: presence is not enough; reject empty
             # or wrong-typed values that would slip past the dispatcher
             # only to crash later.
-            if "name" in item and (
-                not isinstance(item["name"], str) or not item["name"].strip()
-            ):
-                errors.append(
-                    f"completion_criteria[{i}].name must be a non-empty string"
-                )
+            if "name" in item and (not isinstance(item["name"], str) or not item["name"].strip()):
+                errors.append(f"completion_criteria[{i}].name must be a non-empty string")
             if "command" in item and (
-                not isinstance(item["command"], str)
-                or not item["command"].strip()
+                not isinstance(item["command"], str) or not item["command"].strip()
             ):
-                errors.append(
-                    f"completion_criteria[{i}].command must be a non-empty string"
-                )
+                errors.append(f"completion_criteria[{i}].command must be a non-empty string")
             for field in ("pass_when", "pass_when_python"):
-                if field in item and (
-                    not isinstance(item[field], str)
-                    or not item[field].strip()
-                ):
-                    errors.append(
-                        f"completion_criteria[{i}].{field} must be a "
-                        f"non-empty string"
-                    )
+                if field in item and (not isinstance(item[field], str) or not item[field].strip()):
+                    errors.append(f"completion_criteria[{i}].{field} must be a non-empty string")
 
     if "error_recovery" in config:
         for i, item in enumerate(config["error_recovery"]):
@@ -215,25 +189,19 @@ def validate_config(config: dict) -> list[str]:
         for i, item in enumerate(config["check_failure_actions"]):
             for field in CHECK_FAILURE_FIELDS:
                 if field not in item:
-                    errors.append(
-                        f"check_failure_actions[{i}] missing field: {field}"
-                    )
+                    errors.append(f"check_failure_actions[{i}] missing field: {field}")
 
     if "failure_handling" in config:
         for i, item in enumerate(config["failure_handling"]):
             for field in FAILURE_HANDLING_FIELDS:
                 if field not in item:
-                    errors.append(
-                        f"failure_handling[{i}] missing field: {field}"
-                    )
+                    errors.append(f"failure_handling[{i}] missing field: {field}")
 
     if "related_memories" in config:
         for i, item in enumerate(config["related_memories"]):
             for field in RELATED_MEMORY_FIELDS:
                 if field not in item:
-                    errors.append(
-                        f"related_memories[{i}] missing field: {field}"
-                    )
+                    errors.append(f"related_memories[{i}] missing field: {field}")
 
     if "worktree_constraints" in config:
         if not isinstance(config["worktree_constraints"], list):
@@ -246,9 +214,7 @@ def validate_config(config: dict) -> list[str]:
         if "note" not in tr:
             errors.append("thread_resolution missing field: note")
         if "batch_graphql_template" not in tr:
-            errors.append(
-                "thread_resolution missing field: batch_graphql_template"
-            )
+            errors.append("thread_resolution missing field: batch_graphql_template")
 
     if "invocation_limits" in config:
         _validate_invocation_limits(config["invocation_limits"], errors)
@@ -277,24 +243,18 @@ def _validate_invocation_limits(il: object, errors: list[str]) -> None:
     if max_prs is not None and (
         not isinstance(max_prs, int) or isinstance(max_prs, bool) or max_prs < 1
     ):
-        errors.append(
-            "invocation_limits.all_open_max_prs must be an integer >= 1"
-        )
+        errors.append("invocation_limits.all_open_max_prs must be an integer >= 1")
 
     retries = il.get("completion_gate_max_retries")
     if retries is not None and (
         not isinstance(retries, int) or isinstance(retries, bool) or retries < 0
     ):
-        errors.append(
-            "invocation_limits.completion_gate_max_retries must be an integer >= 0"
-        )
+        errors.append("invocation_limits.completion_gate_max_retries must be an integer >= 0")
 
     for field in ("all_open_overflow_action", "completion_gate_overflow_action"):
         value = il.get(field)
         if value is not None and (not isinstance(value, str) or not value.strip()):
-            errors.append(
-                f"invocation_limits.{field} must be a non-empty string"
-            )
+            errors.append(f"invocation_limits.{field} must be a non-empty string")
 
 
 def _validate_output_constraints(oc: object, errors: list[str]) -> None:
@@ -315,17 +275,13 @@ def _validate_output_constraints(oc: object, errors: list[str]) -> None:
     if max_tokens is not None and (
         not isinstance(max_tokens, int) or isinstance(max_tokens, bool) or max_tokens < 1
     ):
-        errors.append(
-            "output_constraints.per_pr_max_response_tokens must be an integer >= 1"
-        )
+        errors.append("output_constraints.per_pr_max_response_tokens must be an integer >= 1")
 
     summary_format = oc.get("summary_format")
     if summary_format is not None and (
         not isinstance(summary_format, str) or not summary_format.strip()
     ):
-        errors.append(
-            "output_constraints.summary_format must be a non-empty string"
-        )
+        errors.append("output_constraints.summary_format must be a non-empty string")
 
     allowed = oc.get("summary_format_allowed_values")
     if allowed is not None and (
@@ -361,9 +317,7 @@ def _validate_output_constraints(oc: object, errors: list[str]) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Validate pr-review-config.yaml schema"
-    )
+    parser = argparse.ArgumentParser(description="Validate pr-review-config.yaml schema")
     parser.add_argument(
         "config_path",
         nargs="?",

@@ -25,6 +25,7 @@ def _mock_repo():
 @pytest.fixture
 def _import_module():
     import importlib
+
     mod_name = "get_latest_semantic_milestone"
     if mod_name in sys.modules:
         del sys.modules[mod_name]

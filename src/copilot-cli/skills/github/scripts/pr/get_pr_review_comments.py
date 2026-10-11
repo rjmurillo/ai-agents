@@ -115,9 +115,7 @@ def _group_comments_by_reviewer_priority(
         for tier in _REVIEWER_TIERS
     }
     for comment in comments:
-        tier = classify_reviewer_priority(
-            comment.get("Author", ""), comment.get("AuthorType", "")
-        )
+        tier = classify_reviewer_priority(comment.get("Author", ""), comment.get("AuthorType", ""))
         if include_domain:
             domain = (comment.get("Domain") or "general").capitalize()
             bucket = domain if domain in _DOMAIN_GROUPS else "General"
@@ -125,6 +123,7 @@ def _group_comments_by_reviewer_priority(
         else:
             grouped[tier].append(comment)
     return grouped
+
 
 # ---------------------------------------------------------------------------
 # Stale detection helpers
@@ -135,9 +134,11 @@ def get_pr_head_sha(owner: str, repo: str, pr_number: int) -> str | None:
     """Fetch the PR's head commit SHA."""
     result = subprocess.run(
         [
-            "gh", "api",
+            "gh",
+            "api",
             f"repos/{owner}/{repo}/pulls/{pr_number}",
-            "--jq", ".head.sha",
+            "--jq",
+            ".head.sha",
         ],
         capture_output=True,
         text=True,
@@ -159,7 +160,8 @@ def get_pr_file_tree(owner: str, repo: str, head_sha: str | None) -> list[str]:
 
     result = subprocess.run(
         [
-            "gh", "api",
+            "gh",
+            "api",
             f"repos/{owner}/{repo}/git/trees/{head_sha}?recursive=1",
         ],
         capture_output=True,
@@ -181,11 +183,7 @@ def get_pr_file_tree(owner: str, repo: str, head_sha: str | None) -> list[str]:
     if not tree_data or not tree_data.get("tree"):
         return []
 
-    return [
-        item["path"]
-        for item in tree_data["tree"]
-        if item.get("type") == "blob"
-    ]
+    return [item["path"] for item in tree_data["tree"] if item.get("type") == "blob"]
 
 
 def get_file_content(
@@ -206,7 +204,8 @@ def get_file_content(
     encoded_path = urllib.parse.quote(path, safe="")
     result = subprocess.run(
         [
-            "gh", "api",
+            "gh",
+            "api",
             f"repos/{owner}/{repo}/contents/{encoded_path}?ref={head_sha}",
         ],
         capture_output=True,
@@ -360,9 +359,7 @@ def get_pr_review_comments(
 
     # Fetch review comments
     try:
-        review_comments = gh_api_paginated(
-            f"repos/{owner}/{repo}/pulls/{pr_number}/comments"
-        )
+        review_comments = gh_api_paginated(f"repos/{owner}/{repo}/pulls/{pr_number}/comments")
     except SystemExit:
         raise
     except Exception as exc:
@@ -390,38 +387,42 @@ def get_pr_review_comments(
                     "Line": line,
                     "DiffHunk": diff_hunk,
                 },
-                owner, repo, file_tree, content_cache, head_sha,
+                owner,
+                repo,
+                file_tree,
+                content_cache,
+                head_sha,
             )
 
-        processed_review.append({
-            "Id": comment.get("id"),
-            "CommentType": "Review",
-            "Author": login,
-            "AuthorType": user.get("type", ""),
-            "Path": comment.get("path"),
-            "Line": line,
-            "Side": comment.get("side"),
-            "Body": comment.get("body", ""),
-            "Domain": classify_domain(comment.get("body", "")),
-            "CreatedAt": comment.get("created_at"),
-            "UpdatedAt": comment.get("updated_at"),
-            "InReplyToId": comment.get("in_reply_to_id"),
-            "IsReply": comment.get("in_reply_to_id") is not None,
-            "DiffHunk": diff_hunk if include_diff_hunk else None,
-            "HtmlUrl": comment.get("html_url"),
-            "CommitId": comment.get("commit_id"),
-            "Stale": stale_info["Stale"],
-            "StaleReason": stale_info["StaleReason"],
-            "EyesCount": comment.get("reactions", {}).get("eyes", 0) or 0,
-        })
+        processed_review.append(
+            {
+                "Id": comment.get("id"),
+                "CommentType": "Review",
+                "Author": login,
+                "AuthorType": user.get("type", ""),
+                "Path": comment.get("path"),
+                "Line": line,
+                "Side": comment.get("side"),
+                "Body": comment.get("body", ""),
+                "Domain": classify_domain(comment.get("body", "")),
+                "CreatedAt": comment.get("created_at"),
+                "UpdatedAt": comment.get("updated_at"),
+                "InReplyToId": comment.get("in_reply_to_id"),
+                "IsReply": comment.get("in_reply_to_id") is not None,
+                "DiffHunk": diff_hunk if include_diff_hunk else None,
+                "HtmlUrl": comment.get("html_url"),
+                "CommitId": comment.get("commit_id"),
+                "Stale": stale_info["Stale"],
+                "StaleReason": stale_info["StaleReason"],
+                "EyesCount": comment.get("reactions", {}).get("eyes", 0) or 0,
+            }
+        )
 
     # Fetch issue comments if requested
     processed_issue: list[dict[str, Any]] = []
     if include_issue_comments:
         try:
-            issue_comments = gh_api_paginated(
-                f"repos/{owner}/{repo}/issues/{pr_number}/comments"
-            )
+            issue_comments = gh_api_paginated(f"repos/{owner}/{repo}/issues/{pr_number}/comments")
         except SystemExit:
             raise
         except Exception as exc:
@@ -436,27 +437,29 @@ def get_pr_review_comments(
             if author and login != author:
                 continue
 
-            processed_issue.append({
-                "Id": comment.get("id"),
-                "CommentType": "Issue",
-                "Author": login,
-                "AuthorType": user.get("type", ""),
-                "Path": None,
-                "Line": None,
-                "Side": None,
-                "Body": comment.get("body", ""),
-                "Domain": classify_domain(comment.get("body", "")),
-                "CreatedAt": comment.get("created_at"),
-                "UpdatedAt": comment.get("updated_at"),
-                "InReplyToId": None,
-                "IsReply": False,
-                "DiffHunk": None,
-                "HtmlUrl": comment.get("html_url"),
-                "CommitId": None,
-                "Stale": False if detect_stale else None,
-                "StaleReason": None,
-                "EyesCount": comment.get("reactions", {}).get("eyes", 0) or 0,
-            })
+            processed_issue.append(
+                {
+                    "Id": comment.get("id"),
+                    "CommentType": "Issue",
+                    "Author": login,
+                    "AuthorType": user.get("type", ""),
+                    "Path": None,
+                    "Line": None,
+                    "Side": None,
+                    "Body": comment.get("body", ""),
+                    "Domain": classify_domain(comment.get("body", "")),
+                    "CreatedAt": comment.get("created_at"),
+                    "UpdatedAt": comment.get("updated_at"),
+                    "InReplyToId": None,
+                    "IsReply": False,
+                    "DiffHunk": None,
+                    "HtmlUrl": comment.get("html_url"),
+                    "CommitId": None,
+                    "Stale": False if detect_stale else None,
+                    "StaleReason": None,
+                    "EyesCount": comment.get("reactions", {}).get("eyes", 0) or 0,
+                }
+            )
 
     # Combine
     all_comments = processed_review + processed_issue
@@ -513,16 +516,12 @@ def get_pr_review_comments(
     for c in all_comments:
         if c.get("Author"):
             author_counter[c["Author"]] += 1
-    author_summary = [
-        {"Author": a, "Count": cnt} for a, cnt in author_counter.items()
-    ]
+    author_summary = [{"Author": a, "Count": cnt} for a, cnt in author_counter.items()]
 
     # Handle GroupByReviewerPriority output mode (composes with domain: reviewer
     # priority is the outer key, domain the inner tiebreaker).
     if group_by_reviewer_priority:
-        reviewer_grouped = _group_comments_by_reviewer_priority(
-            all_comments, group_by_domain
-        )
+        reviewer_grouped = _group_comments_by_reviewer_priority(all_comments, group_by_domain)
         reviewer_counts: dict[str, int] = {}
         for tier in _REVIEWER_TIERS:
             value = reviewer_grouped[tier]
@@ -533,9 +532,7 @@ def get_pr_review_comments(
         reviewer_grouped["TotalComments"] = len(all_comments)
         reviewer_grouped["ReviewerPriorityCounts"] = reviewer_counts
         if group_by_domain:
-            reviewer_grouped["DomainCounts"] = {
-                k.capitalize(): v for k, v in domain_counts.items()
-            }
+            reviewer_grouped["DomainCounts"] = {k.capitalize(): v for k, v in domain_counts.items()}
         reviewer_grouped["StaleCount"] = stale_count
 
         tiers_summary = ", ".join(f"{t}({reviewer_counts[t]})" for t in _REVIEWER_TIERS)
@@ -548,7 +545,11 @@ def get_pr_review_comments(
     # Handle GroupByDomain output mode
     if group_by_domain:
         grouped: dict[str, Any] = {
-            "Security": [], "Bug": [], "Style": [], "Summary": [], "General": [],
+            "Security": [],
+            "Bug": [],
+            "Style": [],
+            "Summary": [],
+            "General": [],
         }
         for c in all_comments:
             domain = c.get("Domain", "general")
@@ -564,9 +565,7 @@ def get_pr_review_comments(
 
         # Console summary
         domains = ("Security", "Bug", "Style", "Summary", "General")
-        parts = [
-            f"{d}({cap_domain_counts.get(d, 0)})" for d in domains
-        ]
+        parts = [f"{d}({cap_domain_counts.get(d, 0)})" for d in domains]
         print(
             f"PR #{pr_number}: Grouped by domain: {', '.join(parts)}",
             file=sys.stderr,
@@ -629,39 +628,49 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument(
-        "--pull-request", type=int, required=True,
+        "--pull-request",
+        type=int,
+        required=True,
         help="PR number",
     )
     parser.add_argument(
-        "--author", default="",
+        "--author",
+        default="",
         help="Filter by author login name",
     )
     parser.add_argument(
-        "--include-diff-hunk", action="store_true",
+        "--include-diff-hunk",
+        action="store_true",
         help="Include diff context for each review comment",
     )
     parser.add_argument(
-        "--include-issue-comments", action="store_true",
+        "--include-issue-comments",
+        action="store_true",
         help="Also fetch issue comments (top-level PR comments)",
     )
     parser.add_argument(
-        "--detect-stale", action="store_true",
+        "--detect-stale",
+        action="store_true",
         help="Analyze comments for staleness (deleted files, changed code)",
     )
     parser.add_argument(
-        "--exclude-stale", action="store_true",
+        "--exclude-stale",
+        action="store_true",
         help="Filter out stale comments (requires --detect-stale)",
     )
     parser.add_argument(
-        "--only-stale", action="store_true",
+        "--only-stale",
+        action="store_true",
         help="Return only stale comments (requires --detect-stale)",
     )
     parser.add_argument(
-        "--group-by-domain", action="store_true",
+        "--group-by-domain",
+        action="store_true",
         help="Group comments by domain instead of flat array",
     )
     parser.add_argument(
-        "--group-by-reviewer-priority", action="store_true",
+        "--group-by-reviewer-priority",
+        action="store_true",
         help=(
             "Group comments by reviewer priority (P0 cursor[bot], P1 human, "
             "P2 CodeRabbit/Copilot, then Unknown); composes with "
@@ -669,15 +678,19 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
-        "--only-unaddressed", action="store_true",
+        "--only-unaddressed",
+        action="store_true",
         help="Filter to comments needing attention",
     )
     parser.add_argument(
-        "--bot-only", action="store_true",
+        "--bot-only",
+        action="store_true",
         help="With --only-unaddressed, filter to bot comments only",
     )
     parser.add_argument(
-        "--output-format", choices=("json", "human", "auto"), default="auto",
+        "--output-format",
+        choices=("json", "human", "auto"),
+        default="auto",
         help="Output format for parity with sibling scripts (#3092). "
         "json and auto emit the classified JSON; human emits a one-line count.",
     )

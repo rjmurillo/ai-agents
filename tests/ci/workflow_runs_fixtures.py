@@ -73,9 +73,7 @@ def target(
     branch: str, pr_number: int, head_repository: str = BASE_REPOSITORY
 ) -> PullRequestTarget:
     """Build the pull-request target ``collect_runs_for_targets`` enumerates."""
-    return PullRequestTarget(
-        pr_number=pr_number, branch=branch, head_repository=head_repository
-    )
+    return PullRequestTarget(pr_number=pr_number, branch=branch, head_repository=head_repository)
 
 
 def contents_endpoint(repository: str, path: str, ref: str) -> str:
@@ -92,9 +90,7 @@ def contents_endpoint(repository: str, path: str, ref: str) -> str:
 
 def contents_payload(document: object) -> dict[str, Any]:
     """A contents response carrying ``document`` the way GitHub returns it."""
-    encoded = base64.b64encode(
-        json.dumps(document).encode("utf-8")
-    ).decode("ascii")
+    encoded = base64.b64encode(json.dumps(document).encode("utf-8")).decode("ascii")
     return {"encoding": "base64", "content": encoded}
 
 
@@ -128,5 +124,3 @@ def run_payload(
     if path is not None:
         payload["path"] = path
     return payload
-
-

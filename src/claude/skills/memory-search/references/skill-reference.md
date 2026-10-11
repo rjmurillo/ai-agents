@@ -248,11 +248,7 @@ try:
     results = search_memory(search_params)
     # ... output results
 except Exception as e:
-    error_output = {
-        "Error": str(e),
-        "Query": query,
-        "Details": traceback.format_exc()
-    }
+    error_output = {"Error": str(e), "Query": query, "Details": traceback.format_exc()}
     print(json.dumps(error_output, indent=2))
     sys.exit(1)
 ```

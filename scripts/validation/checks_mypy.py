@@ -57,14 +57,19 @@ def validate_mypy_changed_files(repo_root: Path) -> CheckOutcome:
         )
 
     exit_code, stdout, diff_stderr = _run_subprocess(
-        ["git", "-C", str(repo_root), "diff", "--name-only",
-         "--diff-filter=ACMR", f"{base_ref}...HEAD"],
+        [
+            "git",
+            "-C",
+            str(repo_root),
+            "diff",
+            "--name-only",
+            "--diff-filter=ACMR",
+            f"{base_ref}...HEAD",
+        ],
         timeout=30,
     )
     if exit_code != 0:
-        reason = classify_subprocess_failure(
-            exit_code, diff_stderr, default=REASON_DIFF_FAILED
-        )
+        reason = classify_subprocess_failure(exit_code, diff_stderr, default=REASON_DIFF_FAILED)
         print(f"[UNKNOWN] Mypy gate: git diff failed ({reason})")
         return CheckOutcome.unknown(
             _MYPY_GATE,
@@ -74,10 +79,7 @@ def validate_mypy_changed_files(repo_root: Path) -> CheckOutcome:
             detail=f"git diff exited {exit_code}, so the changed-file set is unknown",
         )
 
-    py_files = [
-        p for p in stdout.splitlines()
-        if p.endswith(".py") and (repo_root / p).is_file()
-    ]
+    py_files = [p for p in stdout.splitlines() if p.endswith(".py") and (repo_root / p).is_file()]
     scope = f"Python files changed against {base_ref}"
     if not py_files:
         print("[PASS] Mypy (0 Python files changed on branch)")

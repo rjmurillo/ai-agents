@@ -293,10 +293,7 @@ def run(*, alert: bool) -> int:
 
     pinned = set(REQUIRED_CONTEXTS)
     added, removed = compare_contexts(live, pinned)
-    print(
-        f"Compared {len(live)} live contexts with "
-        f"{len(pinned)} pinned contexts."
-    )
+    print(f"Compared {len(live)} live contexts with {len(pinned)} pinned contexts.")
     if not added and not removed:
         print("No required-context drift detected.")
         return EXIT_OK

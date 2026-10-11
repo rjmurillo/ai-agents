@@ -68,9 +68,7 @@ class TestValidateLefthookInstalled:
             return None if tool == "uv" else "/bin/lefthook"
 
         with patch.dict("os.environ", {"CI": "false", "GITHUB_ACTIONS": "false"}):
-            with patch(
-                "checks_plugin.shutil.which", side_effect=locate_tool
-            ) as mock_which:
+            with patch("checks_plugin.shutil.which", side_effect=locate_tool) as mock_which:
                 with patch("checks_plugin._run_subprocess") as mock_run:
                     assert validate_lefthook_installed(tmp_path) is False
 
@@ -83,9 +81,7 @@ class TestValidateLefthookInstalled:
         self._write_config(tmp_path)
         with patch.dict("os.environ", {"CI": "false", "GITHUB_ACTIONS": "false"}):
             with patch("checks_plugin.shutil.which", return_value="/bin/uv") as mock_which:
-                with patch(
-                    "checks_plugin._run_subprocess", return_value=(0, "OK", "")
-                ) as mock_run:
+                with patch("checks_plugin._run_subprocess", return_value=(0, "OK", "")) as mock_run:
                     assert validate_lefthook_installed(tmp_path) is True
 
         assert mock_which.call_args_list == [call("uv")]
@@ -108,9 +104,7 @@ class TestValidateLefthookInstalled:
             cwd=tmp_path,
         )
 
-    def test_fails_when_the_runtime_cannot_start(
-        self, tmp_path: Path, capsys: Any
-    ) -> None:
+    def test_fails_when_the_runtime_cannot_start(self, tmp_path: Path, capsys: Any) -> None:
         from scripts.validation.pre_pr import validate_lefthook_installed
 
         self._write_config(tmp_path)

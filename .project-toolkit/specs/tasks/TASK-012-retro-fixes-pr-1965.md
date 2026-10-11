@@ -212,17 +212,21 @@ All tasks reference DESIGN-012 for interface contracts and REQ-009 for acceptanc
 
   REWORK_THRESHOLD = 6  # named constant for tunability
 
+
   def check_rework_warning(base_branch: str = "main") -> list[tuple[str, int]]:
       try:
           result = subprocess.run(
               ["git", "log", "--name-only", "--format=", f"{base_branch}...HEAD"],
-              capture_output=True, text=True, timeout=30
+              capture_output=True,
+              text=True,
+              timeout=30,
           )
           files = [line for line in result.stdout.splitlines() if line.strip()]
           counts = Counter(files)
           return sorted(
               [(f, c) for f, c in counts.items() if c >= REWORK_THRESHOLD],
-              key=lambda x: x[1], reverse=True
+              key=lambda x: x[1],
+              reverse=True,
           )
       except FileNotFoundError:
           return []  # git not available; caller handles gracefully

@@ -131,10 +131,7 @@ def get_unresolved_threads(pr_number: int) -> list[dict[str, Any]]:
     )
 
     threads = (
-        data.get("repository", {})
-        .get("pullRequest", {})
-        .get("reviewThreads", {})
-        .get("nodes", [])
+        data.get("repository", {}).get("pullRequest", {}).get("reviewThreads", {}).get("nodes", [])
     )
     return [t for t in threads if not t.get("isResolved", True)]
 
@@ -153,15 +150,8 @@ def _thread_decision(
     if thread is None:
         return "SKIP", "not_found"
     pull_request = thread.get("pullRequest")
-    actual_pull_request = (
-        pull_request.get("number")
-        if isinstance(pull_request, dict)
-        else None
-    )
-    if (
-        expected_pull_request is not None
-        and actual_pull_request != expected_pull_request
-    ):
+    actual_pull_request = pull_request.get("number") if isinstance(pull_request, dict) else None
+    if expected_pull_request is not None and actual_pull_request != expected_pull_request:
         return "SKIP", "wrong_pull_request"
     if thread.get("isResolved"):
         return "SKIP", "already_resolved"
@@ -285,18 +275,18 @@ def _resolve_cached_thread(
     try:
         action, reason = _thread_decision(thread_id, expected_pull_request)
     except RuntimeError as exc:
-        result.update({
-            "action": "SKIP",
-            "reason": "thread_state_query_failed",
-            "error": str(exc),
-        })
+        result.update(
+            {
+                "action": "SKIP",
+                "reason": "thread_state_query_failed",
+                "error": str(exc),
+            }
+        )
         return result
     result.update({"action": action, "reason": reason})
     if action == "ACT":
         result["reason"] = (
-            "thread_resolved"
-            if resolve_review_thread(thread_id)
-            else "resolve_failed"
+            "thread_resolved" if resolve_review_thread(thread_id) else "resolve_failed"
         )
     return result
 
@@ -305,24 +295,14 @@ def _batch_summary(
     unresolved: list[dict[str, Any]],
     pull_request: int,
 ) -> tuple[dict[str, object], int]:
-    results = [
-        _resolve_cached_thread(thread, pull_request)
-        for thread in unresolved
-    ]
+    results = [_resolve_cached_thread(thread, pull_request) for thread in unresolved]
     resolved = sum(result["reason"] == "thread_resolved" for result in results)
     skipped = sum(
-        result["action"] == "SKIP"
-        and result["reason"] != "thread_state_query_failed"
+        result["action"] == "SKIP" and result["reason"] != "thread_state_query_failed"
         for result in results
     )
-    external_failures = sum(
-        result["reason"] == "thread_state_query_failed"
-        for result in results
-    )
-    mutation_failures = sum(
-        result["reason"] == "resolve_failed"
-        for result in results
-    )
+    external_failures = sum(result["reason"] == "thread_state_query_failed" for result in results)
+    mutation_failures = sum(result["reason"] == "resolve_failed" for result in results)
     failed = external_failures + mutation_failures
     action = "ACT" if resolved > 0 else "SKIP"
     summary: dict[str, object] = {

@@ -84,6 +84,4 @@ def test_path_normalization_matches_git_and_claim_spellings() -> None:
     assert mod._norm_path("./docs//a.md") == "docs/a.md"
     expected = "docs/a.md" if os.sep == "\\" else "docs\\a.md"
     assert mod._norm_path("docs\\a.md") == expected
-    assert mod._parse_unified_zero("+++ b/./a.md\n@@ -1 +1 @@\n-a\n+b\n") == {
-        "a.md": [[1, 1]]
-    }
+    assert mod._parse_unified_zero("+++ b/./a.md\n@@ -1 +1 @@\n-a\n+b\n") == {"a.md": [[1, 1]]}

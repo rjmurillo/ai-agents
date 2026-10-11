@@ -271,4 +271,3 @@ class TestCommandTrustIntegration:
         assert rc == 2
         assert "unresolvable dynamic load" in err
         assert "verify.py:2:" in err
-

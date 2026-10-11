@@ -191,9 +191,7 @@ class TestControls:
         )
 
         scenario = next(
-            s
-            for s in scenario_mod.load_extension_corpus(extension)
-            if s.scenario_id == TOP_SCORES
+            s for s in scenario_mod.load_extension_corpus(extension) if s.scenario_id == TOP_SCORES
         )
         report = grader.verify_controls(scenario)
 

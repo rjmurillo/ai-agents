@@ -19,9 +19,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-SCRIPT = (
-    REPO_ROOT / ".claude" / "skills" / "memory" / "scripts" / "repair_episode_causal_links.py"
-)
+SCRIPT = REPO_ROOT / ".claude" / "skills" / "memory" / "scripts" / "repair_episode_causal_links.py"
 MIDNIGHT = "2026-07-30T00:00:00+00:00"
 UNRESOLVABLE_SHA = "303c6d2aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
@@ -198,10 +196,7 @@ class TestFalseEdgeRemoval:
             check=True,
         ).stdout.strip()
         commit_date = (
-            datetime.fromisoformat(commit_timestamp)
-            .astimezone(timezone.utc)
-            .date()
-            .isoformat()
+            datetime.fromisoformat(commit_timestamp).astimezone(timezone.utc).date().isoformat()
         )
         midnight = f"{commit_date}T00:00:00+00:00"
         episode = _flat_episode(sha)
@@ -222,9 +217,7 @@ class TestFalseEdgeRemoval:
         )
         assert "e002" not in by_id["e003"]["caused_by"]
 
-    def test_curated_edge_between_comparable_events_refuses_the_write(
-        self, tmp_path
-    ):
+    def test_curated_edge_between_comparable_events_refuses_the_write(self, tmp_path):
         # Control: a hand-authored skip-level edge joins two milestones the
         # order relation still ranks (distinct real timestamps). The rebuild
         # would drop it, so the guard must refuse and leave the file

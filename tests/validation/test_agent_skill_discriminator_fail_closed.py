@@ -46,17 +46,14 @@ def _shaped_repo(tmp_path: Path, *, commit: bool = True) -> tuple[Path, str]:
     _write_command(
         repo,
         "build",
-        'Task(subagent_type="shaped"): do work.\n'
-        'Invoke Skill(skill="pre-mortem") first.\n',
+        'Task(subagent_type="shaped"): do work.\nInvoke Skill(skill="pre-mortem") first.\n',
     )
     if commit:
         seed_repo(repo)
     return repo, rel
 
 
-def _run(
-    repo: Path, *args: str, cwd: Path | None = None
-) -> subprocess.CompletedProcess[str]:
+def _run(repo: Path, *args: str, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, str(SCRIPT), "--repo-root", str(repo), *args],
         cwd=str(cwd if cwd is not None else repo),
@@ -105,8 +102,7 @@ class TestFullCorpusRefusals:
         assert proc.returncode == 2, proc.stdout + proc.stderr
         assert "tracked at HEAD" in proc.stderr
         assert not baseline_path.exists(), (
-            "A baseline was written from a scan that never established what "
-            "the commit contains."
+            "A baseline was written from a scan that never established what the commit contains."
         )
 
     def test_update_baseline_refuses_an_empty_corpus(self, tmp_path: Path) -> None:
@@ -122,9 +118,7 @@ class TestFullCorpusRefusals:
         assert "examined 0" in proc.stderr
         assert not baseline_path.exists()
 
-    def test_an_untracked_agent_is_not_recorded_in_the_baseline(
-        self, tmp_path: Path
-    ) -> None:
+    def test_an_untracked_agent_is_not_recorded_in_the_baseline(self, tmp_path: Path) -> None:
         """Two checkouts of one commit must record the same baseline.
 
         The dirty-state guard (refuse_dirty_scoring_inputs) rejects the write
@@ -200,9 +194,7 @@ class TestBaselineModeReport:
         seed_repo(repo)
         return repo, rel
 
-    def test_a_rise_from_zero_to_one_fails_and_is_not_labelled_ok(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_rise_from_zero_to_one_fails_and_is_not_labelled_ok(self, tmp_path: Path) -> None:
         repo, rel = self._low_scoring_repo(tmp_path)
         baseline_path = repo / "baseline.json"
         baseline_path.write_text(json.dumps({"files": {rel: 0}}), encoding="utf-8")
@@ -212,13 +204,9 @@ class TestBaselineModeReport:
         assert proc.returncode == 1, proc.stdout + proc.stderr
         assert "score 1/3" in proc.stdout, proc.stdout
         assert "[REGRESSION] mild" in proc.stdout, proc.stdout
-        assert "[ok] mild" not in proc.stdout, (
-            "The agent that made the run exit 1 was labelled ok."
-        )
+        assert "[ok] mild" not in proc.stdout, "The agent that made the run exit 1 was labelled ok."
 
-    def test_the_failure_guidance_does_not_claim_score_two_plus(
-        self, tmp_path: Path
-    ) -> None:
+    def test_the_failure_guidance_does_not_claim_score_two_plus(self, tmp_path: Path) -> None:
         repo, rel = self._low_scoring_repo(tmp_path)
         baseline_path = repo / "baseline.json"
         baseline_path.write_text(json.dumps({"files": {rel: 0}}), encoding="utf-8")
@@ -232,9 +220,7 @@ class TestBaselineModeReport:
         assert "baseline ratchet" in proc.stdout
         assert "at any score" in proc.stdout
 
-    def test_threshold_mode_still_says_candidate_and_score_two_plus(
-        self, tmp_path: Path
-    ) -> None:
+    def test_threshold_mode_still_says_candidate_and_score_two_plus(self, tmp_path: Path) -> None:
         """Control: the wording only changes where a baseline is in force."""
         repo, rel = _shaped_repo(tmp_path)
 
@@ -245,9 +231,7 @@ class TestBaselineModeReport:
         assert "skill-shape candidates (score 2+)" in proc.stdout
         assert "REGRESSION" not in proc.stdout
 
-    def test_an_agent_at_its_recorded_floor_is_labelled_ok(
-        self, tmp_path: Path
-    ) -> None:
+    def test_an_agent_at_its_recorded_floor_is_labelled_ok(self, tmp_path: Path) -> None:
         """Control: baseline mode does not label every agent a regression."""
         repo, rel = _shaped_repo(tmp_path)
         baseline_path = repo / "baseline.json"
@@ -263,9 +247,7 @@ class TestBaselineModeReport:
 class TestUpdateBaselineWorktreeIdentity:
     """MUST-7: confirm the process is inside the root before the first write."""
 
-    def test_a_run_from_outside_the_repo_root_exits_two(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_run_from_outside_the_repo_root_exits_two(self, tmp_path: Path) -> None:
         repo, _rel = _shaped_repo(tmp_path)
         elsewhere = tmp_path / "elsewhere"
         elsewhere.mkdir()
@@ -276,13 +258,9 @@ class TestUpdateBaselineWorktreeIdentity:
 
         assert proc.returncode == 2, proc.stdout + proc.stderr
         assert "MUST-7" in proc.stderr
-        assert not baseline_path.exists(), (
-            "The guard raised after the write instead of before it."
-        )
+        assert not baseline_path.exists(), "The guard raised after the write instead of before it."
 
-    def test_the_same_run_from_inside_the_repo_root_succeeds(
-        self, tmp_path: Path
-    ) -> None:
+    def test_the_same_run_from_inside_the_repo_root_succeeds(self, tmp_path: Path) -> None:
         """Control: the refusal is about the cwd and nothing else."""
         repo, _rel = _shaped_repo(tmp_path)
         baseline_path = repo / "scripts" / "validation" / "baseline.json"
@@ -292,9 +270,7 @@ class TestUpdateBaselineWorktreeIdentity:
         assert proc.returncode == 0, proc.stdout + proc.stderr
         assert baseline_path.is_file()
 
-    def test_a_subdirectory_of_the_repo_root_is_inside_it(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_subdirectory_of_the_repo_root_is_inside_it(self, tmp_path: Path) -> None:
         """``is_relative_to`` accepts a descendant, not only the root itself."""
         repo, _rel = _shaped_repo(tmp_path)
         baseline_path = repo / "scripts" / "validation" / "baseline.json"

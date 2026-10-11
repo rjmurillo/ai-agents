@@ -226,10 +226,7 @@ def test_a_successful_lookup_prints_no_typed_line(monkeypatch, capsys) -> None:
 
 
 def test_issue_refs_captures_pull_request_urls() -> None:
-    markdown = (
-        "Tracked by https://github.com/rjmurillo/ai-agents/pull/1633 "
-        "and #1574."
-    )
+    markdown = "Tracked by https://github.com/rjmurillo/ai-agents/pull/1633 and #1574."
 
     assert issue_refs(markdown) == (1574, 1633)
 

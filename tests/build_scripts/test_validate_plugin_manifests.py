@@ -164,11 +164,7 @@ def test_hooks_string_ref_rejects_invalid_referenced_file(tmp_path: Path) -> Non
     plugin_dir.mkdir(parents=True)
     manifest = plugin_dir / "plugin.json"
     manifest.write_text(json.dumps({"name": "p", "hooks": "./hooks.json"}), encoding="utf-8")
-    invalid_hooks = {
-        "hooks": {
-            "NotARealEvent": [{"hooks": [{"type": "command", "command": "x"}]}]
-        }
-    }
+    invalid_hooks = {"hooks": {"NotARealEvent": [{"hooks": [{"type": "command", "command": "x"}]}]}}
     (plugin_root / "hooks.json").write_text(
         json.dumps(invalid_hooks),
         encoding="utf-8",
@@ -342,9 +338,7 @@ def test_hook_type_must_be_command(tmp_path: Path) -> None:
         tmp_path,
         {
             "name": "p",
-            "hooks": {
-                "PreToolUse": [{"hooks": [{"type": "script", "command": "x"}]}]
-            },
+            "hooks": {"PreToolUse": [{"hooks": [{"type": "script", "command": "x"}]}]},
         },
     )
     errors = vpm.validate_manifest(target)

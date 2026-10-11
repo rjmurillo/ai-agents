@@ -4,6 +4,7 @@
 Deterministic: sorts by byte size and samples evenly across the range, so the
 sample spans 271 bytes to ~30 KB. Run from anywhere with MOQ_REPO set.
 """
+
 import json
 from pathlib import Path
 

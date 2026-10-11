@@ -40,9 +40,7 @@ _COUNTED_HEADING = re.compile(r"^## (?P<name>.+?) \((?P<count>\d+)(?:,[^)]*)?\)\
 _ALIGNMENT_ROW = re.compile(r"^\|[\s|:-]*-[\s|:-]*\|?\s*$")
 
 # "| Already covered | 12 | ... |", and the bold "| **Total** | **68** | |".
-_CLASSIFICATION_ROW = re.compile(
-    r"^\|\s*(?P<name>[^|]+?)\s*\|\s*\*{0,2}(?P<count>\d+)\*{0,2}\s*\|"
-)
+_CLASSIFICATION_ROW = re.compile(r"^\|\s*(?P<name>[^|]+?)\s*\|\s*\*{0,2}(?P<count>\d+)\*{0,2}\s*\|")
 
 CLASSIFICATION_HEADING = "Classification"
 TOTAL_LABEL = "Total"

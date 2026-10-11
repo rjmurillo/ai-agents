@@ -216,9 +216,7 @@ class TestPublishJob:
 
         assert "always()" in publish["if"]
 
-    def test_the_token_reaches_only_the_publish_step(
-        self, jobs: dict[str, dict[str, Any]]
-    ) -> None:
+    def test_the_token_reaches_only_the_publish_step(self, jobs: dict[str, dict[str, Any]]) -> None:
         holders = [
             s.get("name")
             for s in steps_of(jobs["publish"])
@@ -288,9 +286,7 @@ class TestNoHeadControlledInput:
         for name in HEAD_CONTROLLED:
             assert name not in rendered, name
 
-    def test_no_run_line_interpolates_an_expression(
-        self, jobs: dict[str, dict[str, Any]]
-    ) -> None:
+    def test_no_run_line_interpolates_an_expression(self, jobs: dict[str, dict[str, Any]]) -> None:
         for name, job in jobs.items():
             for step in steps_of(job):
                 assert "${{" not in step.get("run", ""), (name, step)

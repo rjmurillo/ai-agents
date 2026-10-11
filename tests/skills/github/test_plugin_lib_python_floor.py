@@ -136,9 +136,7 @@ def _module_bindings(tree: ast.AST) -> dict[str, str]:
     return bindings
 
 
-def _attribute_violation(
-    path: Path, node: ast.Attribute, bindings: dict[str, str]
-) -> list[str]:
+def _attribute_violation(path: Path, node: ast.Attribute, bindings: dict[str, str]) -> list[str]:
     """Report a too-new name reached as ``<module>.<attr>``.
 
     `from datetime import UTC` was the only shape either table saw, so
@@ -168,9 +166,7 @@ def _violations(path: Path) -> list[str]:
                 if alias.name in _TOO_NEW_MODULES
             ]
         if isinstance(node, ast.ImportFrom) and node.module in _TOO_NEW_MODULES:
-            found.append(
-                f"{path.name}: from {node.module} ({_TOO_NEW_MODULES[node.module]})"
-            )
+            found.append(f"{path.name}: from {node.module} ({_TOO_NEW_MODULES[node.module]})")
         if isinstance(node, ast.ImportFrom) and node.module in _TOO_NEW_FROM_IMPORT:
             table = _TOO_NEW_FROM_IMPORT[node.module]
             found += [
@@ -188,9 +184,7 @@ def _violations(path: Path) -> list[str]:
 class TestBundledLibStaysAtTheFloor:
     def test_the_preflight_import_closure_is_floor_clean(self):
         files = _closure_files(_LIB)
-        assert len(files) > 5, (
-            f"closure walk found only {len(files)} modules; the scan is inert"
-        )
+        assert len(files) > 5, f"closure walk found only {len(files)} modules; the scan is inert"
         offenders = sorted({v for f in files for v in _violations(f)})
         assert not offenders, (
             "3.11-only stdlib in the bundled import closure; a 3.10 host "
@@ -200,9 +194,7 @@ class TestBundledLibStaysAtTheFloor:
     @pytest.mark.parametrize("lib", [_LIB, _COPILOT_LIB])
     def test_both_shipped_mirrors_are_floor_clean(self, lib):
         """The mirrors are what consumers actually install."""
-        offenders = sorted(
-            {v for f in lib.rglob("github_core/*.py") for v in _violations(f)}
-        )
+        offenders = sorted({v for f in lib.rglob("github_core/*.py") for v in _violations(f)})
         assert not offenders, f"{lib.name} mirror is not floor-clean: {offenders}"
 
     @pytest.mark.parametrize(
@@ -271,9 +263,7 @@ class TestBundledLibStaysAtTheFloor:
             "import os\nx = os.timeout\n",
         ],
     )
-    def test_a_qualified_name_without_a_module_binding_is_not_reported(
-        self, tmp_path, source
-    ):
+    def test_a_qualified_name_without_a_module_binding_is_not_reported(self, tmp_path, source):
         """Control on the qualified arm: precision, not just recall.
 
         A gate that fails a push for the wrong reason teaches people to bypass

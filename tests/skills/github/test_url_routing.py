@@ -10,12 +10,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SCRIPT_PATH = (
-    REPO_ROOT
-    / ".claude"
-    / "skills"
-    / "github-url-intercept"
-    / "scripts"
-    / "test_url_routing.py"
+    REPO_ROOT / ".claude" / "skills" / "github-url-intercept" / "scripts" / "test_url_routing.py"
 )
 PLUGIN_ROOT_EXPR = "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
 

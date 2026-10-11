@@ -312,7 +312,12 @@ class TestAnalyzePr:
     @patch("scripts.analyze_pr_failure.fetch_pr_comments", return_value=[])
     @patch("scripts.analyze_pr_failure.fetch_pr_metadata")
     def test_produces_complete_output(
-        self, mock_meta, mock_comments, mock_reviews, mock_files, mock_panels,
+        self,
+        mock_meta,
+        mock_comments,
+        mock_reviews,
+        mock_files,
+        mock_panels,
     ):
         mock_meta.return_value = _pr_json()
         result = mod.analyze_pr("owner", "repo", 908)
@@ -347,13 +352,14 @@ class TestFormatMarkdown:
             "labels": ["bug"],
             "metrics": {"commits": 3, "files_changed": 5, "additions": 100, "deletions": 20},
             "comment_distribution": {
-                "total": 2, "bot_count": 1,
-                "human_count": 1, "authors": {"alice": 1},
+                "total": 2,
+                "bot_count": 1,
+                "human_count": 1,
+                "authors": {"alice": 1},
             },
             "file_distribution": {"src": 3, "tests": 2},
             "review_timeline": [
-                {"author": "bob", "state": "APPROVED",
-                 "submitted_at": "2026-01-11"},
+                {"author": "bob", "state": "APPROVED", "submitted_at": "2026-01-11"},
             ],
             "synthesis_panels": [".project-toolkit/retrospective/pr-908-retro.md"],
         }
@@ -444,9 +450,18 @@ class TestBuildParser:
 
     def test_all_args(self):
         parser = mod.build_parser()
-        args = parser.parse_args([
-            "--pr", "42", "--owner", "myorg", "--repo", "myrepo", "--format", "markdown",
-        ])
+        args = parser.parse_args(
+            [
+                "--pr",
+                "42",
+                "--owner",
+                "myorg",
+                "--repo",
+                "myrepo",
+                "--format",
+                "markdown",
+            ]
+        )
         assert args.owner == "myorg"
         assert args.repo == "myrepo"
         assert args.output_format == "markdown"
@@ -512,18 +527,14 @@ class TestResolveRepoShape:
 
     @patch("scripts.analyze_pr_failure._run_gh")
     def test_missing_owner_login_exits_3(self, mock_gh):
-        mock_gh.return_value = _completed(
-            stdout=json.dumps({"owner": {}, "name": "repo"})
-        )
+        mock_gh.return_value = _completed(stdout=json.dumps({"owner": {}, "name": "repo"}))
         with pytest.raises(SystemExit) as exc:
             mod._resolve_repo("", "")
         assert exc.value.code == 3
 
     @patch("scripts.analyze_pr_failure._run_gh")
     def test_missing_name_exits_3(self, mock_gh):
-        mock_gh.return_value = _completed(
-            stdout=json.dumps({"owner": {"login": "octo"}})
-        )
+        mock_gh.return_value = _completed(stdout=json.dumps({"owner": {"login": "octo"}}))
         with pytest.raises(SystemExit) as exc:
             mod._resolve_repo("", "")
         assert exc.value.code == 3

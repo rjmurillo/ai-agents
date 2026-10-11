@@ -24,20 +24,15 @@ try:
     _scripts = Path(__file__).resolve().parent.parent / ".claude/skills/memory/scripts"
     sys.path.insert(0, str(_scripts))
     from count_memory_tokens import _HAS_TIKTOKEN, get_memory_token_count
+
     HAS_TIKTOKEN = _HAS_TIKTOKEN
 except ImportError:
     HAS_TIKTOKEN = False
 
 
-LINK_WITH_COUNT = re.compile(
-    r'\[([^\]]+)\]\(([^)]+\.md)\)\s*\((\d+)\)'
-)
-LINK_WITHOUT_COUNT = re.compile(
-    r'\[([^\]]+)\]\(([^)]+\.md)\)(?!\s*\(\d+\))'
-)
-MEMORY_LINK_TARGET = re.compile(
-    r'\[[^\]]+\]\(([^)]+\.md)\)(?:\s*\(\d+\))?'
-)
+LINK_WITH_COUNT = re.compile(r"\[([^\]]+)\]\(([^)]+\.md)\)\s*\((\d+)\)")
+LINK_WITHOUT_COUNT = re.compile(r"\[([^\]]+)\]\(([^)]+\.md)\)(?!\s*\(\d+\))")
+MEMORY_LINK_TARGET = re.compile(r"\[[^\]]+\]\(([^)]+\.md)\)(?:\s*\(\d+\))?")
 
 
 class DuplicateMemoryIndexEntryError(ValueError):
@@ -107,9 +102,7 @@ def collapse_duplicate_rows(lines: list[str]) -> tuple[list[str], bool]:
             continue
 
         if len(targets) != len(unique_targets):
-            repeated = sorted({
-                target for target in unique_targets if targets.count(target) > 1
-            })
+            repeated = sorted({target for target in unique_targets if targets.count(target) > 1})
             raise DuplicateMemoryIndexEntryError(
                 f"Line {line_number} repeats memory link(s): {', '.join(repeated)}"
             )
@@ -151,9 +144,7 @@ def check_memory_index(index_path: Path, memories_dir: Path) -> list[str]:
             except (ImportError, OSError):
                 continue
             if actual != recorded:
-                drifted.append(
-                    f"  {link_target}: recorded {recorded}, actual {actual}"
-                )
+                drifted.append(f"  {link_target}: recorded {recorded}, actual {actual}")
     return drifted
 
 
@@ -188,9 +179,7 @@ def update_memory_index(index_path: Path, memories_dir: Path) -> bool:
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description="Update or check token counts in memory-index.md."
-    )
+    parser = argparse.ArgumentParser(description="Update or check token counts in memory-index.md.")
     parser.add_argument(
         "--check",
         action="store_true",
@@ -229,9 +218,7 @@ def main(argv: list[str] | None = None) -> int:
             print("memory-index.md token counts are stale:")
             for line in drifted:
                 print(line)
-            print(
-                "Run `uv run python scripts/update_memory_index_tokens.py` to fix."
-            )
+            print("Run `uv run python scripts/update_memory_index_tokens.py` to fix.")
             return 1
         print("memory-index.md token counts are current")
         return 0

@@ -128,8 +128,7 @@ class SecurityRetrospective:
 
         if not self.false_negatives:
             logger.info(
-                "[PASS] No false negatives detected. Security agent findings "
-                "match external review."
+                "[PASS] No false negatives detected. Security agent findings match external review."
             )
             return 0
 
@@ -160,13 +159,11 @@ class SecurityRetrospective:
         self._generate_rca_report()
 
         logger.info(
-            "[COMPLETE] Security retrospective finished. %d false negative(s) "
-            "documented.",
+            "[COMPLETE] Security retrospective finished. %d false negative(s) documented.",
             len(self.false_negatives),
         )
         logger.info(
-            "ACTION REQUIRED: PR #%d merge blocked until security.md updated "
-            "and re-review passes.",
+            "ACTION REQUIRED: PR #%d merge blocked until security.md updated and re-review passes.",
             self.pr_number,
         )
 
@@ -223,8 +220,7 @@ class SecurityRetrospective:
                 self.external_review_fetch_failed = True
                 if "rate limit" in result.stderr.lower():
                     logger.error(
-                        "[FAIL] GitHub API rate limit exceeded. "
-                        "Retry after rate limit resets."
+                        "[FAIL] GitHub API rate limit exceeded. Retry after rate limit resets."
                     )
                 else:
                     logger.warning(
@@ -237,9 +233,7 @@ class SecurityRetrospective:
 
             # Filter for security-related comments
             security_comments = [
-                c
-                for c in comments
-                if self._is_security_comment(c.get("body", ""))
+                c for c in comments if self._is_security_comment(c.get("body", ""))
             ]
 
             logger.info(
@@ -426,13 +420,9 @@ class SecurityRetrospective:
 
         return True
 
-    def _write_local_fallback(
-        self, fn: FalseNegative, memory_data: dict[str, Any]
-    ) -> None:
+    def _write_local_fallback(self, fn: FalseNegative, memory_data: dict[str, Any]) -> None:
         """Write to local JSON fallback for audit trail."""
-        fallback_path = (
-            self.repo_root / ".project-toolkit" / "security" / "false-negatives.json"
-        )
+        fallback_path = self.repo_root / ".project-toolkit" / "security" / "false-negatives.json"
 
         existing = []
         if fallback_path.exists():
@@ -471,9 +461,7 @@ class SecurityRetrospective:
         logger.info("Storing %d false negative(s) in Serena memory", len(self.false_negatives))
 
         for fn in self.false_negatives:
-            memory_filename = (
-                f"security-false-negative-{fn.cwe_id.lower()}-pr{fn.pr_number}.md"
-            )
+            memory_filename = f"security-false-negative-{fn.cwe_id.lower()}-pr{fn.pr_number}.md"
             memory_path = self.repo_root / ".serena" / "memories" / memory_filename
 
             content = f"""# Security False Negative: {fn.cwe_id} (PR #{fn.pr_number})

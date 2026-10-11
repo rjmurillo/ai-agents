@@ -13,10 +13,7 @@ import pytest
 def _clean_stdout(count: int) -> str:
     """Return real cli2 stdout for a run that selected ``count`` clean files."""
     unit = "file" if count == 1 else "files"
-    return (
-        f"Linting: {count} {unit}\n"
-        "Summary: 0 issues in 0 files\n"
-    )
+    return f"Linting: {count} {unit}\nSummary: 0 issues in 0 files\n"
 
 
 class TestValidateMarkdownLint:
@@ -111,9 +108,7 @@ class TestValidateMarkdownLint:
         assert mock_run.call_args_list[0].args[0][-100:] == targets[:100]
         assert mock_run.call_args_list[1].args[0][-1:] == targets[100:]
 
-    def test_batches_rendered_windows_command_before_limit(
-        self, tmp_path: Path
-    ) -> None:
+    def test_batches_rendered_windows_command_before_limit(self, tmp_path: Path) -> None:
         from scripts.validation.pre_pr import validate_markdown_lint
 
         targets = [f"docs/{character} {character * 3_720}.md" for character in ("a", "b")]
@@ -195,9 +190,7 @@ class TestValidateMarkdownLint:
         assert "produced no stdout or stderr" in output
         assert "Common issues" not in output
 
-    def test_failed_batch_does_not_skip_later_autofix_targets(
-        self, tmp_path: Path
-    ) -> None:
+    def test_failed_batch_does_not_skip_later_autofix_targets(self, tmp_path: Path) -> None:
         from scripts.validation.pre_pr import validate_markdown_lint
 
         targets = [f"docs/{character * 4_000}.md" for character in ("a", "b")]
@@ -213,9 +206,7 @@ class TestValidateMarkdownLint:
         assert mock_run.call_count == 2
         assert mock_run.call_args_list[1].args[0][-1] == targets[1]
 
-    def test_falls_back_to_full_repo_when_scope_is_unknown(
-        self, tmp_path: Path
-    ) -> None:
+    def test_falls_back_to_full_repo_when_scope_is_unknown(self, tmp_path: Path) -> None:
         from scripts.validation.pre_pr import validate_markdown_lint
 
         with patch("checks_tooling.shutil.which", return_value="npx"):
@@ -251,9 +242,9 @@ class TestMarkdownLintTargets:
         from scripts.validation.pre_pr import _markdown_lint_targets
 
         with patch("checks_tooling._filtered_targets") as mock_filtered:
-            mock_filtered.side_effect = lambda _root, _label, predicate: [
-                path
-            ] if predicate(path) else []
+            mock_filtered.side_effect = lambda _root, _label, predicate: (
+                [path] if predicate(path) else []
+            )
 
             result = _markdown_lint_targets(tmp_path)
 

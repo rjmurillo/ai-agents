@@ -108,8 +108,7 @@ def _assert_verbatim_substring(
     )
     stripped = body[:-1]
     assert stripped in rule_text, (
-        f"{partial_name}: not a verbatim contiguous substring of "
-        f".claude/rules/{rule_source}"
+        f"{partial_name}: not a verbatim contiguous substring of .claude/rules/{rule_source}"
     )
 
 

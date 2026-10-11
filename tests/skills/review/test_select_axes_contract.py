@@ -228,12 +228,12 @@ class TestAgentArtifactMatchingIsSegmentShaped:
     @pytest.mark.parametrize(
         "path",
         [
-            "scripts/install.sh",               # GP-001, anywhere in the tree
-            "tools/nested/setup.bash",          # GP-001, .bash spelling
-            ".claude/skills/review/SKILL.md",   # GP-003
-            ".claude/agents/architect.md",      # GP-004
-            ".github/workflows/ci.yml",         # GP-005 / GP-006
-            ".github/workflows/ci.yaml",        # GP-005 / GP-006, .yaml spelling
+            "scripts/install.sh",  # GP-001, anywhere in the tree
+            "tools/nested/setup.bash",  # GP-001, .bash spelling
+            ".claude/skills/review/SKILL.md",  # GP-003
+            ".claude/agents/architect.md",  # GP-004
+            ".github/workflows/ci.yml",  # GP-005 / GP-006
+            ".github/workflows/ci.yaml",  # GP-005 / GP-006, .yaml spelling
         ],
     )
     def test_scanner_applicable_paths_select_golden_principles(self, path: str) -> None:
@@ -243,18 +243,19 @@ class TestAgentArtifactMatchingIsSegmentShaped:
     @pytest.mark.parametrize(
         "path",
         [
-            "scripts/install.py",                 # not a shell script
-            ".claude/skills/review/README.md",    # not SKILL.md
-            ".claude/agents/CLAUDE.md",           # explicitly excluded by GP-004
+            "scripts/install.py",  # not a shell script
+            ".claude/skills/review/README.md",  # not SKILL.md
+            ".claude/agents/CLAUDE.md",  # explicitly excluded by GP-004
             ".claude/hooks/PreToolUse/guard.py",  # hooks dir, no applicable rule
-            ".claude/commands/ship.md",           # commands dir, no applicable rule
-            ".claude/prompts/review.md",          # prompts dir, no applicable rule
-            ".github/actions/setup/action.yml",   # actions, not workflows
-            "config/deploy.yml",                  # YAML outside .github/workflows
+            ".claude/commands/ship.md",  # commands dir, no applicable rule
+            ".claude/prompts/review.md",  # prompts dir, no applicable rule
+            ".github/actions/setup/action.yml",  # actions, not workflows
+            "config/deploy.yml",  # YAML outside .github/workflows
         ],
     )
     def test_scanner_inapplicable_paths_do_not_select_golden_principles(
-        self, path: str,
+        self,
+        path: str,
     ) -> None:
         """A path no rule can fire on must not buy an empty scan."""
         assert "golden-principles" not in select([path])["local_selected"], path
@@ -381,9 +382,7 @@ class TestPathPredicatesMatchSegmentsNotSubstrings:
             ("architecture/overview.md", "decision-rigor"),
         ],
     )
-    def test_a_repo_root_doc_directory_selects_its_specialist(
-        self, path: str, axis: str
-    ) -> None:
+    def test_a_repo_root_doc_directory_selects_its_specialist(self, path: str, axis: str) -> None:
         result = select([path])
         assert axis in result["canonical_selected"], result["matched_categories"]
         assert result["fail_closed"] is False, path

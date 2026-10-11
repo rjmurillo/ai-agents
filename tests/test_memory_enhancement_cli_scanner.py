@@ -158,9 +158,7 @@ class TestDetector:
             " search query --top --bogus",
         ],
     )
-    def test_int_substitution_does_not_swallow_a_following_flag(
-        self, fragment: str
-    ) -> None:
+    def test_int_substitution_does_not_swallow_a_following_flag(self, fragment: str) -> None:
         """A flag after a bare int option is not that option's value.
 
         Consuming it hid a phantom flag from argparse entirely, which is the
@@ -264,9 +262,7 @@ class TestDetector:
             ["health", "--format", "json"],
         ],
     )
-    def test_prose_mode_still_checks_arguments_when_present(
-        self, argv: list[str]
-    ) -> None:
+    def test_prose_mode_still_checks_arguments_when_present(self, argv: list[str]) -> None:
         """Exempting bare names must not exempt a real invocation in prose."""
         assert invocation_error(argv, runnable=False) is not None
 
@@ -293,8 +289,7 @@ class TestLineContinuation:
         rows = self._scan(
             monkeypatch,
             tmp_path,
-            "```bash\npython -m memory_enhancement graph --start id \\\n"
-            "  --bogus\n```\n",
+            "```bash\npython -m memory_enhancement graph --start id \\\n  --bogus\n```\n",
         )
         assert len(rows) == 1
         _, number, _, argv, runnable = rows[0]
@@ -309,7 +304,6 @@ class TestLineContinuation:
         rows = self._scan(
             monkeypatch,
             tmp_path,
-            "About memory_enhancement, note this break \\\n"
-            "See `health --json` for details.\n",
+            "About memory_enhancement, note this break \\\nSee `health --json` for details.\n",
         )
         assert [(row[1], row[3]) for row in rows] == [(2, ["health", "--json"])]

@@ -71,9 +71,7 @@ class TestAuthorizationDecision:
     def test_an_actor_with_spaces_stays_one_argument(self, tmp_path: Path, monkeypatch) -> None:
         """Edge: argv passing must not word-split a hostile value."""
         out = _outputs(tmp_path, monkeypatch)
-        checker = _checker(
-            tmp_path, "print('true' if 'a b' in sys.argv else 'false')\n"
-        )
+        checker = _checker(tmp_path, "print('true' if 'a b' in sys.argv else 'false')\n")
         assert _run(checker, ["--actor", "a b"]) == 0
         assert "authorized=true" in out.read_text(encoding="utf-8")
 

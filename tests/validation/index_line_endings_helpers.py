@@ -91,9 +91,7 @@ def _repo_with_crlf_blob(tmp_path: Path, name: str = "handoff.md") -> Path:
     # `*.md text` matches this repository: an explicit `text` always applies
     # the clean filter, while `text=auto` alone leaves an already-CRLF blob
     # untouched and the defect never surfaces.
-    (repo / ".gitattributes").write_text(
-        "* text=auto eol=lf\n*.md text\n", newline="\n"
-    )
+    (repo / ".gitattributes").write_text("* text=auto eol=lf\n*.md text\n", newline="\n")
     _git(repo, "add", ".gitattributes")
 
     crlf = repo / name
@@ -117,10 +115,17 @@ def _commit(repo: Path, message: str) -> None:
     """
     _git(
         repo,
-        "-c", "user.email=test@example.invalid",
-        "-c", "user.name=Test",
-        "-c", "commit.gpgsign=false",
-        "commit", "--quiet", "--no-verify", "-m", message,
+        "-c",
+        "user.email=test@example.invalid",
+        "-c",
+        "user.name=Test",
+        "-c",
+        "commit.gpgsign=false",
+        "commit",
+        "--quiet",
+        "--no-verify",
+        "-m",
+        message,
     )
 
 
@@ -170,9 +175,7 @@ def _repo_with_undecodable_crlf_blob(tmp_path: Path) -> tuple[Path, bytes]:
 
     raw_name = b"bad\xff.md"
     (repo / os.fsdecode(raw_name)).write_bytes(b"line one\r\nline two\r\n")
-    blob = _git(
-        repo, "hash-object", "-w", "--no-filters", os.fsdecode(raw_name)
-    ).stdout.strip()
+    blob = _git(repo, "hash-object", "-w", "--no-filters", os.fsdecode(raw_name)).stdout.strip()
     _git(
         repo,
         "update-index",

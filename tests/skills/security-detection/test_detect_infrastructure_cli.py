@@ -78,8 +78,10 @@ class TestMain:
 
     def test_json_output(self, capsys: pytest.CaptureFixture[str]) -> None:
         argv = [
-            "detect_infrastructure.py", "--files",
-            ".github/workflows/ci.yml", "--json",
+            "detect_infrastructure.py",
+            "--files",
+            ".github/workflows/ci.yml",
+            "--json",
         ]
         with patch("sys.argv", argv):
             result = main()

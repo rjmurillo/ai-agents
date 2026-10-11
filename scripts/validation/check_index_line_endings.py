@@ -211,9 +211,7 @@ def check_repository(repo_root: Path) -> tuple[list[Violation], int]:
         # read-tree rejects as a malformed index, so reserve a name instead.
         with tempfile.TemporaryDirectory() as scratch:
             env = _head_env(repo_root, Path(scratch))
-            violations, examined = parse_violations(
-                _ls_files_eol(repo_root, env=env), scope="HEAD"
-            )
+            violations, examined = parse_violations(_ls_files_eol(repo_root, env=env), scope="HEAD")
 
     seen = {violation.path for violation in violations}
     staged, staged_examined = index_violations(repo_root)
@@ -439,9 +437,7 @@ def renormalize(repo_root: Path) -> None:
 
 
 def validate_index_line_endings(repo_root: Path) -> bool:
-    """Blocking pre-PR gate. Returns False when any blob contradicts its attrs.
-
-    """
+    """Blocking pre-PR gate. Returns False when any blob contradicts its attrs."""
     try:
         violations, examined = check_repository(repo_root)
         resolved_root = top_level(repo_root)

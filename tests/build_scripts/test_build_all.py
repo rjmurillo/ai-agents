@@ -108,7 +108,7 @@ def _write_platform_with_skills(
     platforms.mkdir(parents=True, exist_ok=True)
     blockyaml = ""
     if blocklist:
-        items = "\n".join(f"    - \"{p}\"" for p in blocklist)
+        items = "\n".join(f'    - "{p}"' for p in blocklist)
         blockyaml = f"\nauditPolicy:\n  pathBlocklist:\n{items}\n"
     cfg = platforms / f"{provider}.yaml"
     cfg.write_text(
@@ -131,9 +131,7 @@ artifacts:
 def test_format_audit_md_has_table_and_summary() -> None:
     audit = build_all.BuildAudit(started_at=0.0, duration_s=1.5, overall_exit=0)
     audit.results.append(
-        build_all.GeneratorResult(
-            artifact="skills", platform="copilot-cli", inputs=2, outputs=2
-        )
+        build_all.GeneratorResult(artifact="skills", platform="copilot-cli", inputs=2, outputs=2)
     )
     md = build_all._format_audit_md(audit)
     assert "# Generation Audit" in md
@@ -143,9 +141,7 @@ def test_format_audit_md_has_table_and_summary() -> None:
 
 def test_format_audit_json_round_trip() -> None:
     audit = build_all.BuildAudit(started_at=0.0, duration_s=0.1, overall_exit=0)
-    audit.results.append(
-        build_all.GeneratorResult(artifact="agents", platform="*", outputs=72)
-    )
+    audit.results.append(build_all.GeneratorResult(artifact="agents", platform="*", outputs=72))
     payload = json.loads(build_all._format_audit_json(audit))
     assert payload["overall_exit"] == 0
     assert payload["results"][0]["outputs"] == 72
@@ -200,17 +196,13 @@ def test_format_audit_md_no_hook_subsection_when_no_hook_entries() -> None:
     """A hooks generator with no hook_entries omits the subsection."""
     audit = build_all.BuildAudit(started_at=0.0, duration_s=0.0, overall_exit=0)
     audit.results.append(
-        build_all.GeneratorResult(
-            artifact="skills", platform="copilot-cli", outputs=1
-        )
+        build_all.GeneratorResult(artifact="skills", platform="copilot-cli", outputs=1)
     )
     md = build_all._format_audit_md(audit)
     assert "### Hooks" not in md
 
 
-def test_build_hooks_preserves_drop_reason(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_build_hooks_preserves_drop_reason(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     config = tmp_path / "platform.yaml"
     config.write_text(
         """
@@ -248,12 +240,9 @@ artifacts:
     result = build_all._build_hooks(tmp_path, config, "copilot-cli")
 
     assert result.notices == [
-        "copilot-cli: dropped 1 hook entry "
-        "(only Python hook commands can be generated)"
+        "copilot-cli: dropped 1 hook entry (only Python hook commands can be generated)"
     ]
-    assert result.hook_entries[0]["reason"] == (
-        "only Python hook commands can be generated"
-    )
+    assert result.hook_entries[0]["reason"] == ("only Python hook commands can be generated")
 
 
 # Blocklist enforcement (REQ-003-011) ---------------------------------------
@@ -298,9 +287,7 @@ def test_write_audit_returns_violations_and_skips_write(tmp_path: Path) -> None:
 
 def test_write_audit_writes_when_clean(tmp_path: Path) -> None:
     audit = build_all.BuildAudit(started_at=0.0, duration_s=0.1, overall_exit=0)
-    audit.results.append(
-        build_all.GeneratorResult(artifact="skills", platform="x", outputs=1)
-    )
+    audit.results.append(build_all.GeneratorResult(artifact="skills", platform="x", outputs=1))
     audit_path = tmp_path / "GENERATION-AUDIT.md"
     assert build_all.write_audit(audit, audit_path, []) == []
     assert audit_path.is_file()
@@ -314,9 +301,7 @@ def test_assert_no_claude_writes_flags_generator_created_path(tmp_path: Path) ->
     """A .claude/ file created AFTER the snapshot is a generator write."""
     claude = tmp_path / ".claude" / "agents"
     claude.mkdir(parents=True)
-    baseline = build_all._snapshot_owned_prefixes(
-        tmp_path, build_all.CLAUDE_GUARD_PREFIX
-    )
+    baseline = build_all._snapshot_owned_prefixes(tmp_path, build_all.CLAUDE_GUARD_PREFIX)
     # Generator writes a new file after the snapshot.
     (claude / "leak.md").write_text("generated", encoding="utf-8")
     bad = build_all.assert_no_claude_writes(tmp_path, baseline)
@@ -329,13 +314,9 @@ def test_assert_no_claude_writes_flags_generator_modified_path(tmp_path: Path) -
     claude.mkdir(parents=True)
     target = claude / "x.md"
     target.write_text("original", encoding="utf-8")
-    baseline = build_all._snapshot_owned_prefixes(
-        tmp_path, build_all.CLAUDE_GUARD_PREFIX
-    )
+    baseline = build_all._snapshot_owned_prefixes(tmp_path, build_all.CLAUDE_GUARD_PREFIX)
     target.write_text("mutated by generator", encoding="utf-8")
-    assert build_all.assert_no_claude_writes(tmp_path, baseline) == [
-        ".claude/agents/x.md"
-    ]
+    assert build_all.assert_no_claude_writes(tmp_path, baseline) == [".claude/agents/x.md"]
 
 
 def test_assert_no_claude_writes_ignores_presync_dirty_lib(tmp_path: Path) -> None:
@@ -350,9 +331,7 @@ def test_assert_no_claude_writes_ignores_presync_dirty_lib(tmp_path: Path) -> No
     lib.mkdir(parents=True)
     # Pre-build sync already wrote the file before the snapshot is taken.
     (lib / "guards.py").write_text("def synced(): ...\n", encoding="utf-8")
-    baseline = build_all._snapshot_owned_prefixes(
-        tmp_path, build_all.CLAUDE_GUARD_PREFIX
-    )
+    baseline = build_all._snapshot_owned_prefixes(tmp_path, build_all.CLAUDE_GUARD_PREFIX)
     # Generators run and touch nothing under .claude/.
     assert build_all.assert_no_claude_writes(tmp_path, baseline) == []
 
@@ -361,9 +340,7 @@ def test_assert_no_claude_writes_clean_when_unchanged(tmp_path: Path) -> None:
     claude = tmp_path / ".claude" / "skills"
     claude.mkdir(parents=True)
     (claude / "a.md").write_text("a", encoding="utf-8")
-    baseline = build_all._snapshot_owned_prefixes(
-        tmp_path, build_all.CLAUDE_GUARD_PREFIX
-    )
+    baseline = build_all._snapshot_owned_prefixes(tmp_path, build_all.CLAUDE_GUARD_PREFIX)
     assert build_all.assert_no_claude_writes(tmp_path, baseline) == []
 
 
@@ -382,9 +359,7 @@ def test_assert_no_claude_writes_allows_allowlisted_template_owned_write(
 
     target.write_text("rendered by the compile step\n", encoding="utf-8")
 
-    assert (
-        build_all.assert_no_claude_writes(tmp_path, baseline, allowed_paths={target}) == []
-    )
+    assert build_all.assert_no_claude_writes(tmp_path, baseline, allowed_paths={target}) == []
 
 
 def test_assert_no_claude_writes_still_flags_a_write_outside_the_allowlist(
@@ -417,9 +392,9 @@ def test_assert_no_claude_writes_empty_allowed_paths_behaves_like_none(
     baseline = build_all._snapshot_owned_prefixes(tmp_path, build_all.CLAUDE_GUARD_PREFIX)
     (claude / "leak.md").write_text("generated", encoding="utf-8")
 
-    assert build_all.assert_no_claude_writes(
-        tmp_path, baseline, allowed_paths=set()
-    ) == [".claude/agents/leak.md"]
+    assert build_all.assert_no_claude_writes(tmp_path, baseline, allowed_paths=set()) == [
+        ".claude/agents/leak.md"
+    ]
 
 
 def test_assert_no_claude_writes_still_flags_a_deleted_allowlisted_path(
@@ -438,9 +413,9 @@ def test_assert_no_claude_writes_still_flags_a_deleted_allowlisted_path(
 
     target.unlink()
 
-    assert build_all.assert_no_claude_writes(
-        tmp_path, baseline, allowed_paths={target}
-    ) == [".claude/skills/sync/SKILL.md"]
+    assert build_all.assert_no_claude_writes(tmp_path, baseline, allowed_paths={target}) == [
+        ".claude/skills/sync/SKILL.md"
+    ]
 
 
 # _build_skills missing-stanza handling --------------------------------------
@@ -472,18 +447,16 @@ def test_build_skills_check_mode_catches_drift_even_when_stanza_absent(
     )
     skill_dir = tmp_path / ".claude" / "skills" / "sync"
     skill_dir.mkdir(parents=True)
-    (skill_dir / "SKILL.md").write_text(
-        "hand edited, not the template render\n", encoding="utf-8"
-    )
+    (skill_dir / "SKILL.md").write_text("hand edited, not the template render\n", encoding="utf-8")
     cfg = tmp_path / "p.yaml"
     cfg.write_text('schemaVersion: "1.0"\nprovider: "p"\n')  # no artifacts.skills stanza
 
     result = build_all._build_skills(tmp_path, cfg, "vscode", check=True)
 
     assert result.exit_code == 2
-    assert (
-        skill_dir / "SKILL.md"
-    ).read_text(encoding="utf-8") == "hand edited, not the template render\n"
+    assert (skill_dir / "SKILL.md").read_text(
+        encoding="utf-8"
+    ) == "hand edited, not the template render\n"
 
 
 def _skills_platform_config(tmp_path: Path) -> Path:
@@ -657,8 +630,7 @@ def test_build_lib_fails_closed_when_package_source_missing(tmp_path: Path) -> N
     result = build_all._build_lib(tmp_path, cfg, "copilot-cli")
     assert result.exit_code == 2
     assert any(
-        "Registered source directory missing: scripts/github_core" in n
-        for n in result.notices
+        "Registered source directory missing: scripts/github_core" in n for n in result.notices
     )
 
 
@@ -724,9 +696,7 @@ def test_run_platform_filter_still_compiles_lib(
         ),
     )
 
-    rc = build_all.run(
-        repo, platform="vscode", check=False, clean=False, audit_format="md"
-    )
+    rc = build_all.run(repo, platform="vscode", check=False, clean=False, audit_format="md")
 
     assert rc == 0
     assert (repo / "src" / "claude" / "lib" / "hook_utilities" / "__init__.py").is_file()
@@ -758,9 +728,7 @@ def test_run_emits_audit_and_returns_zero_on_clean_state(
         ),
     )
 
-    rc = build_all.run(
-        repo, platform=None, check=False, clean=False, audit_format="md"
-    )
+    rc = build_all.run(repo, platform=None, check=False, clean=False, audit_format="md")
     assert rc == 0
     audit = repo / "build" / "audit" / "GENERATION-AUDIT.md"
     assert audit.is_file()
@@ -787,9 +755,7 @@ def test_run_returns_2_when_check_finds_drift(
         ),
     )
 
-    rc = build_all.run(
-        repo, platform=None, check=True, clean=False, audit_format="md"
-    )
+    rc = build_all.run(repo, platform=None, check=True, clean=False, audit_format="md")
     assert rc == 2
 
 
@@ -801,9 +767,7 @@ def test_no_staleness_deferrals_constant() -> None:
     would only hide future regen drift. It must not come back.
     """
     assert not hasattr(build_all, "STALENESS_DEFERRALS")
-    assert "STALENESS_DEFERRALS" not in Path(build_all.__file__).read_text(
-        encoding="utf-8"
-    )
+    assert "STALENESS_DEFERRALS" not in Path(build_all.__file__).read_text(encoding="utf-8")
 
 
 def test_run_returns_2_when_formerly_deferred_mirror_drifts(
@@ -832,9 +796,7 @@ def test_run_returns_2_when_formerly_deferred_mirror_drifts(
         ),
     )
 
-    rc = build_all.run(
-        repo, platform=None, check=True, clean=False, audit_format="md"
-    )
+    rc = build_all.run(repo, platform=None, check=True, clean=False, audit_format="md")
     assert rc == 2
 
 
@@ -862,9 +824,7 @@ def test_run_returns_2_when_multiple_skill_mirrors_drift(
         ),
     )
 
-    rc = build_all.run(
-        repo, platform=None, check=True, clean=False, audit_format="md"
-    )
+    rc = build_all.run(repo, platform=None, check=True, clean=False, audit_format="md")
     assert rc == 2
 
 
@@ -885,14 +845,10 @@ def test_run_returns_2_when_generator_writes_claude(
         leak = Path(repo_root) / ".claude" / "agents" / "leak.md"
         leak.parent.mkdir(parents=True, exist_ok=True)
         leak.write_text("generated\n", encoding="utf-8")
-        return build_all.GeneratorResult(
-            artifact="agents", platform="*", exit_code=0
-        )
+        return build_all.GeneratorResult(artifact="agents", platform="*", exit_code=0)
 
     monkeypatch.setattr(build_all, "_build_agents", _leaky_agents)
-    rc = build_all.run(
-        repo, platform=None, check=False, clean=False, audit_format="md"
-    )
+    rc = build_all.run(repo, platform=None, check=False, clean=False, audit_format="md")
     assert rc == 2
 
 
@@ -922,9 +878,7 @@ def test_run_returns_0_when_claude_lib_synced_before_build(
             artifact="agents", platform="*", exit_code=0
         ),
     )
-    rc = build_all.run(
-        repo, platform=None, check=False, clean=False, audit_format="md"
-    )
+    rc = build_all.run(repo, platform=None, check=False, clean=False, audit_format="md")
     assert rc == 0
 
 
@@ -938,9 +892,7 @@ def test_run_clean_purges_only_skill_outputs(tmp_path: Path) -> None:
     skill_out.mkdir(parents=True)
     (skill_out / "SKILL.md").write_text("stale\n")
 
-    rc = build_all.run(
-        repo, platform=None, check=False, clean=True, audit_format="md"
-    )
+    rc = build_all.run(repo, platform=None, check=False, clean=True, audit_format="md")
     assert rc == 0
     assert not (repo / "src" / "copilot-cli" / "skills").exists()
 
@@ -948,9 +900,7 @@ def test_run_clean_purges_only_skill_outputs(tmp_path: Path) -> None:
 def test_run_no_platforms_returns_2(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
-    rc = build_all.run(
-        repo, platform=None, check=False, clean=False, audit_format="md"
-    )
+    rc = build_all.run(repo, platform=None, check=False, clean=False, audit_format="md")
     assert rc == 2
 
 
@@ -969,9 +919,7 @@ def test_audit_blocklist_in_real_config_blocks_absolute_path(
     repo = tmp_path / "repo"
     (repo / ".claude" / "skills").mkdir(parents=True)
     _write_skill(repo / ".claude" / "skills", "alpha")
-    _write_platform_with_skills(
-        repo, provider="copilot-cli", blocklist=[r"^/home/"]
-    )
+    _write_platform_with_skills(repo, provider="copilot-cli", blocklist=[r"^/home/"])
     monkeypatch.setattr(
         build_all,
         "_build_agents",
@@ -982,9 +930,7 @@ def test_audit_blocklist_in_real_config_blocks_absolute_path(
             exit_code=0,
         ),
     )
-    rc = build_all.run(
-        repo, platform=None, check=False, clean=False, audit_format="md"
-    )
+    rc = build_all.run(repo, platform=None, check=False, clean=False, audit_format="md")
     # Notice line is "- leaked /home/runner/..." — leading "- " then path.
     # Pattern ^/home/ won't match because it's not at start of line.
     # Use a permissive blocklist instead to demonstrate the gate end-to-end.
@@ -1060,9 +1006,7 @@ def test_snapshot_owned_prefixes_handles_catalog_file(tmp_path: Path) -> None:
     catalog.parent.mkdir(parents=True)
     catalog.write_text("catalog\n", encoding="utf-8")
 
-    snapshot = build_all._snapshot_owned_prefixes(
-        tmp_path, ("docs/agent-catalog.md",)
-    )
+    snapshot = build_all._snapshot_owned_prefixes(tmp_path, ("docs/agent-catalog.md",))
 
     assert snapshot[catalog] == b"catalog\n"
 
@@ -1316,12 +1260,8 @@ def test_restore_owned_prefixes_prunes_a_generated_repo_shaped_tree(
 
     generated_tree = owned / "out"
     (generated_tree / ".git").mkdir(parents=True)
-    (generated_tree / ".git" / "HEAD").write_text(
-        "ref: refs/heads/main\n", encoding="utf-8"
-    )
-    (generated_tree / "generated.txt").write_text(
-        "generator output\n", encoding="utf-8"
-    )
+    (generated_tree / ".git" / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
+    (generated_tree / "generated.txt").write_text("generator output\n", encoding="utf-8")
 
     build_all._restore_owned_prefixes(
         tmp_path, prefixes, snapshot, preexisting_boundaries=boundaries
@@ -1437,12 +1377,8 @@ def _init_git_repo(repo: Path) -> None:
         ["git", "-C", str(repo), "config", "user.email", "t@example.com"],
         check=True,
     )
-    subprocess.run(
-        ["git", "-C", str(repo), "config", "user.name", "Test"], check=True
-    )
-    subprocess.run(
-        ["git", "-C", str(repo), "config", "commit.gpgsign", "false"], check=True
-    )
+    subprocess.run(["git", "-C", str(repo), "config", "user.name", "Test"], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "commit.gpgsign", "false"], check=True)
     # Mirror the real repo's gitignore policy: build/audit/ is transient
     # and never committed. Without this, every test that runs build_all.run()
     # sees `?? build/` in `git status --porcelain` and the #2440 read-only
@@ -1463,9 +1399,7 @@ def test_git_diff_paths_includes_untracked_files(tmp_path: Path) -> None:
     # One committed file (so the repo has a HEAD), plus one untracked.
     (repo / "kept.txt").write_text("kept\n")
     subprocess.run(["git", "-C", str(repo), "add", "kept.txt"], check=True)
-    subprocess.run(
-        ["git", "-C", str(repo), "commit", "-q", "-m", "init"], check=True
-    )
+    subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "init"], check=True)
     untracked = repo / "src" / "copilot-cli" / "lib" / "regenerated.py"
     untracked.parent.mkdir(parents=True)
     untracked.write_text("# regenerated\n")
@@ -1484,9 +1418,7 @@ def test_git_diff_paths_honors_gitignore(tmp_path: Path) -> None:
     _init_git_repo(repo)
     (repo / ".gitignore").write_text("*.log\n__pycache__/\n")
     subprocess.run(["git", "-C", str(repo), "add", ".gitignore"], check=True)
-    subprocess.run(
-        ["git", "-C", str(repo), "commit", "-q", "-m", "ignore"], check=True
-    )
+    subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "ignore"], check=True)
     (repo / "noisy.log").write_text("noise\n")
     (repo / "src").mkdir()
     (repo / "src" / "real.py").write_text("# real\n")
@@ -1508,9 +1440,7 @@ def test_git_diff_paths_dedups_when_path_appears_in_both(
     _init_git_repo(repo)
     (repo / "a.txt").write_text("v1\n")
     subprocess.run(["git", "-C", str(repo), "add", "a.txt"], check=True)
-    subprocess.run(
-        ["git", "-C", str(repo), "commit", "-q", "-m", "init"], check=True
-    )
+    subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "init"], check=True)
     (repo / "a.txt").write_text("v2\n")  # tracked + modified
     (repo / "b.txt").write_text("new\n")  # untracked
 
@@ -1538,9 +1468,7 @@ def test_run_check_returns_2_when_untracked_owned_file_present(
     _write_platform_with_skills(repo, provider="copilot-cli")
     # Commit the source skill so the repo has a HEAD.
     subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
-    subprocess.run(
-        ["git", "-C", str(repo), "commit", "-q", "-m", "seed"], check=True
-    )
+    subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "seed"], check=True)
     # Simulate a regenerated-but-untracked owned file (the #2222 leak).
     leaked = repo / "src" / "copilot-cli" / "lib" / "cache_guard.py"
     leaked.parent.mkdir(parents=True)
@@ -1553,9 +1481,7 @@ def test_run_check_returns_2_when_untracked_owned_file_present(
             artifact="agents", platform="*", exit_code=0
         ),
     )
-    rc = build_all.run(
-        repo, platform=None, check=True, clean=False, audit_format="md"
-    )
+    rc = build_all.run(repo, platform=None, check=True, clean=False, audit_format="md")
     assert rc == 2, (
         f"expected exit 2 from untracked owned-prefix drift, got {rc}. "
         "If this regresses, #2222 is leaking again."
@@ -1584,9 +1510,7 @@ def test_run_check_clean_when_untracked_outside_owned_prefix(
     # about scratch.md, which sits outside every owned prefix.
     build_all._build_adr_index(repo, tmp_path / "unused.yaml", "*")
     subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
-    subprocess.run(
-        ["git", "-C", str(repo), "commit", "-q", "-m", "seed"], check=True
-    )
+    subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "seed"], check=True)
     (repo / "scratch.md").write_text("notes\n")  # untracked, outside owned
 
     # Stub the agents and lib generators (both called by name in the
@@ -1608,12 +1532,8 @@ def test_run_check_clean_when_untracked_outside_owned_prefix(
         ),
     )
     monkeypatch.setattr(build_all, "GENERATORS", [("agents", build_all._build_agents)])
-    rc = build_all.run(
-        repo, platform=None, check=True, clean=False, audit_format="md"
-    )
-    assert rc == 0, (
-        f"expected exit 0 from non-owned untracked drift, got {rc}"
-    )
+    rc = build_all.run(repo, platform=None, check=True, clean=False, audit_format="md")
+    assert rc == 0, f"expected exit 0 from non-owned untracked drift, got {rc}"
 
 
 # Regression: #2440 — --check must be read-only ----------------------------
@@ -1634,7 +1554,8 @@ def _git_porcelain(repo: Path) -> str:
     proc = subprocess.run(
         ["git", "-C", str(repo), "status", "--porcelain", "-uall"],
         capture_output=True,
-        text=True, encoding="utf-8",
+        text=True,
+        encoding="utf-8",
         check=True,
     )
     return proc.stdout
@@ -1682,9 +1603,7 @@ def test_run_check_leaves_clean_tree_unchanged_when_committed_outputs_stale(
         ),
     )
 
-    rc = build_all.run(
-        repo, platform=None, check=True, clean=False, audit_format="md"
-    )
+    rc = build_all.run(repo, platform=None, check=True, clean=False, audit_format="md")
     # Staleness MUST be reported (source has "# alpha\n", committed output
     # has "# stale\n" so the generator-written content differs from index).
     assert rc == 2, (
@@ -1721,9 +1640,7 @@ def test_run_check_leaves_untracked_owned_path_untouched(
     _write_skill(repo / ".claude" / "skills", "alpha")
     _write_platform_with_skills(repo, provider="copilot-cli")
     subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
-    subprocess.run(
-        ["git", "-C", str(repo), "commit", "-q", "-m", "seed"], check=True
-    )
+    subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "seed"], check=True)
     # Untracked contributor scratch file under an owned prefix.
     scratch = repo / "src" / "copilot-cli" / "scratch_notes.md"
     scratch.parent.mkdir(parents=True, exist_ok=True)
@@ -1739,19 +1656,14 @@ def test_run_check_leaves_untracked_owned_path_untouched(
         ),
     )
 
-    build_all.run(
-        repo, platform=None, check=True, clean=False, audit_format="md"
-    )
+    build_all.run(repo, platform=None, check=True, clean=False, audit_format="md")
     # The untracked contributor file MUST still exist with its original content.
     assert scratch.is_file(), "--check deleted an untracked contributor file"
-    assert scratch.read_text() == "WIP notes\n", (
-        "--check modified an untracked contributor file"
-    )
+    assert scratch.read_text() == "WIP notes\n", "--check modified an untracked contributor file"
     # AND the git status must still show exactly the same dirty set.
     porcelain_after = _git_porcelain(repo)
     assert porcelain_after == porcelain_before, (
-        f"--check changed git status. before:\n{porcelain_before}\n"
-        f"after:\n{porcelain_after}"
+        f"--check changed git status. before:\n{porcelain_before}\nafter:\n{porcelain_after}"
     )
 
 
@@ -1785,18 +1697,12 @@ def test_run_check_restores_owned_prefix_after_generator_writes(
 
     def _overwriting_agent(repo_root, cfg, platform, **_kw):
         # Simulate what generate_rules does: write under owned prefix.
-        (repo_root / ".github" / "instructions" / "rule-x.md").write_text(
-            "regenerated B\n"
-        )
-        return build_all.GeneratorResult(
-            artifact="agents", platform="*", exit_code=0
-        )
+        (repo_root / ".github" / "instructions" / "rule-x.md").write_text("regenerated B\n")
+        return build_all.GeneratorResult(artifact="agents", platform="*", exit_code=0)
 
     monkeypatch.setattr(build_all, "_build_agents", _overwriting_agent)
 
-    build_all.run(
-        repo, platform=None, check=True, clean=False, audit_format="md"
-    )
+    build_all.run(repo, platform=None, check=True, clean=False, audit_format="md")
     # Post-check: file content MUST match the committed snapshot, not the
     # generator's overwrite.
     assert tracked.read_text() == "committed A\n", (
@@ -1820,9 +1726,7 @@ def test_restore_owned_prefixes_returns_true_on_a_clean_restore(
     assert build_all._restore_owned_prefixes(repo, ("owned/",), snapshot) is True
 
 
-@pytest.mark.skipif(
-    os.name == "nt", reason="POSIX permission bits are not meaningful on Windows"
-)
+@pytest.mark.skipif(os.name == "nt", reason="POSIX permission bits are not meaningful on Windows")
 def test_restore_owned_prefixes_preserves_the_files_original_mode(
     tmp_path: Path,
 ) -> None:
@@ -1964,9 +1868,9 @@ def test_guard_snapshot_still_excludes_bytecode(tmp_path: Path) -> None:
         repo, build_all.CLAUDE_GUARD_PREFIX, exclude_ignored=True
     )
 
-    assert not any(
-        "__pycache__" in p.parts for p in snapshot
-    ), "guard snapshot captured bytecode; #3856 race reopens"
+    assert not any("__pycache__" in p.parts for p in snapshot), (
+        "guard snapshot captured bytecode; #3856 race reopens"
+    )
     assert any(p.name == "mod.py" for p in snapshot)
 
 
@@ -2011,15 +1915,11 @@ def test_run_check_uses_resolved_repo_root_when_generator_changes_cwd(
 
     def _changing_cwd_agent(repo_root, cfg, platform, **_kw):
         os.chdir(repo_root / ".claude")
-        return build_all.GeneratorResult(
-            artifact="agents", platform="*", exit_code=0
-        )
+        return build_all.GeneratorResult(artifact="agents", platform="*", exit_code=0)
 
     monkeypatch.setattr(build_all, "_build_agents", _changing_cwd_agent)
 
-    rc = build_all.run(
-        Path("repo"), platform=None, check=True, clean=False, audit_format="md"
-    )
+    rc = build_all.run(Path("repo"), platform=None, check=True, clean=False, audit_format="md")
 
     assert rc == 2
     assert _git_porcelain(repo) == porcelain_before
@@ -2044,9 +1944,7 @@ def test_run_check_removes_new_untracked_files_generators_created(
     _write_skill(repo / ".claude" / "skills", "alpha")
     _write_platform_with_skills(repo, provider="copilot-cli")
     subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
-    subprocess.run(
-        ["git", "-C", str(repo), "commit", "-q", "-m", "seed"], check=True
-    )
+    subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "seed"], check=True)
     assert _git_porcelain(repo) == ""
 
     new_path = repo / "src" / "copilot-cli" / "skills" / "alpha" / "SKILL.md"
@@ -2054,15 +1952,11 @@ def test_run_check_removes_new_untracked_files_generators_created(
     def _creating_agent(repo_root, cfg, platform, **_kw):
         new_path.parent.mkdir(parents=True, exist_ok=True)
         new_path.write_text("# alpha\n")
-        return build_all.GeneratorResult(
-            artifact="agents", platform="*", exit_code=0
-        )
+        return build_all.GeneratorResult(artifact="agents", platform="*", exit_code=0)
 
     monkeypatch.setattr(build_all, "_build_agents", _creating_agent)
 
-    build_all.run(
-        repo, platform=None, check=True, clean=False, audit_format="md"
-    )
+    build_all.run(repo, platform=None, check=True, clean=False, audit_format="md")
     # The new file MUST have been cleaned up by the restore pass.
     assert not new_path.exists(), (
         "--check left a generator-created file behind; "
@@ -2089,9 +1983,7 @@ def test_run_without_check_does_not_snapshot_or_restore(
     _write_skill(repo / ".claude" / "skills", "alpha")
     _write_platform_with_skills(repo, provider="copilot-cli")
     subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
-    subprocess.run(
-        ["git", "-C", str(repo), "commit", "-q", "-m", "seed"], check=True
-    )
+    subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "seed"], check=True)
 
     monkeypatch.setattr(
         build_all,
@@ -2101,14 +1993,11 @@ def test_run_without_check_does_not_snapshot_or_restore(
         ),
     )
 
-    build_all.run(
-        repo, platform=None, check=False, clean=False, audit_format="md"
-    )
+    build_all.run(repo, platform=None, check=False, clean=False, audit_format="md")
     # The real skills generator wrote src/copilot-cli/skills/alpha/SKILL.md.
     out = repo / "src" / "copilot-cli" / "skills" / "alpha" / "SKILL.md"
     assert out.is_file(), (
-        "non-check run must leave generator output in place "
-        "(snapshot/restore must be --check-only)"
+        "non-check run must leave generator output in place (snapshot/restore must be --check-only)"
     )
 
 
@@ -2120,9 +2009,7 @@ def test_run_without_check_does_not_snapshot_or_restore(
 # clean committed mirror exits 0, a mirror left stale by a source edit exits 2.
 
 
-def _seed_repo_with_committed_skill_mirror(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> Path:
+def _seed_repo_with_committed_skill_mirror(repo: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Init a git repo, generate the skill mirror, and commit the clean state.
 
     Returns the committed mirror path (src/copilot-cli/skills/alpha/SKILL.md).
@@ -2144,9 +2031,7 @@ def _seed_repo_with_committed_skill_mirror(
         ),
     )
     # Generate the mirror (non-check) and commit it so the tree is clean.
-    build_all.run(
-        repo, platform=None, check=False, clean=False, audit_format="md"
-    )
+    build_all.run(repo, platform=None, check=False, clean=False, audit_format="md")
     mirror = repo / "src" / "copilot-cli" / "skills" / "alpha" / "SKILL.md"
     assert mirror.is_file(), "fixture failed to generate the skill mirror"
     subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
@@ -2165,12 +2050,8 @@ def test_run_check_returns_0_when_skill_mirror_is_clean(
     repo = tmp_path / "repo"
     _seed_repo_with_committed_skill_mirror(repo, monkeypatch)
 
-    rc = build_all.run(
-        repo, platform=None, check=True, clean=False, audit_format="md"
-    )
-    assert rc == 0, (
-        f"clean skill mirror should pass --check, got {rc}"
-    )
+    rc = build_all.run(repo, platform=None, check=True, clean=False, audit_format="md")
+    assert rc == 0, f"clean skill mirror should pass --check, got {rc}"
 
 
 def test_run_check_returns_2_when_skill_mirror_is_stale(
@@ -2191,9 +2072,7 @@ def test_run_check_returns_2_when_skill_mirror_is_stale(
     source = repo / ".claude" / "skills" / "alpha" / "SKILL.md"
     source.write_text("# alpha\n\nNew source content not yet mirrored.\n", encoding="utf-8")
 
-    rc = build_all.run(
-        repo, platform=None, check=True, clean=False, audit_format="md"
-    )
+    rc = build_all.run(repo, platform=None, check=True, clean=False, audit_format="md")
     assert rc == 2, (
         f"stale skill mirror should fail --check, got {rc}. "
         "If this regresses, #2775 is leaking: --check no longer covers "
@@ -2393,13 +2272,9 @@ def test_ignored_paths_lists_gitignored_files(tmp_path: Path) -> None:
 
     repo = tmp_path / "repo"
     _init_git_repo(repo)
-    (repo / ".gitignore").write_text(
-        ".claude/hooks/audit.log\n__pycache__/\n", encoding="utf-8"
-    )
+    (repo / ".gitignore").write_text(".claude/hooks/audit.log\n__pycache__/\n", encoding="utf-8")
     subprocess.run(["git", "-C", str(repo), "add", ".gitignore"], check=True)
-    subprocess.run(
-        ["git", "-C", str(repo), "commit", "-q", "-m", "ignore"], check=True
-    )
+    subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "ignore"], check=True)
     hooks = repo / ".claude" / "hooks"
     hooks.mkdir(parents=True)
     audit = hooks / "audit.log"
@@ -2423,12 +2298,8 @@ def test_ignored_paths_excludes_tracked_files(tmp_path: Path) -> None:
     tracked = repo / ".claude" / "agents" / "real.md"
     tracked.parent.mkdir(parents=True)
     tracked.write_text("# real agent\n", encoding="utf-8")
-    subprocess.run(
-        ["git", "-C", str(repo), "add", ".claude/agents/real.md"], check=True
-    )
-    subprocess.run(
-        ["git", "-C", str(repo), "commit", "-q", "-m", "add"], check=True
-    )
+    subprocess.run(["git", "-C", str(repo), "add", ".claude/agents/real.md"], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "add"], check=True)
 
     ignored = build_all._ignored_paths(repo, build_all.CLAUDE_GUARD_PREFIX)
     assert tracked not in ignored
@@ -2508,13 +2379,9 @@ def test_ignored_paths_ignores_inherited_git_dir_env(
 
     repo = tmp_path / "repo"
     _init_git_repo(repo)
-    (repo / ".gitignore").write_text(
-        ".claude/hooks/audit.log\n", encoding="utf-8"
-    )
+    (repo / ".gitignore").write_text(".claude/hooks/audit.log\n", encoding="utf-8")
     subprocess.run(["git", "-C", str(repo), "add", ".gitignore"], check=True)
-    subprocess.run(
-        ["git", "-C", str(repo), "commit", "-q", "-m", "ignore"], check=True
-    )
+    subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "ignore"], check=True)
     hooks = repo / ".claude" / "hooks"
     hooks.mkdir(parents=True)
     audit = hooks / "audit.log"
@@ -2552,9 +2419,7 @@ def test_git_diff_paths_ignores_inherited_git_dir_env(
     _init_git_repo(repo)
     (repo / "tracked.txt").write_text("v1\n", encoding="utf-8")
     subprocess.run(["git", "-C", str(repo), "add", "tracked.txt"], check=True)
-    subprocess.run(
-        ["git", "-C", str(repo), "commit", "-q", "-m", "init"], check=True
-    )
+    subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "init"], check=True)
     # An untracked file in repo must be reported by ls-files --others.
     (repo / "new.txt").write_text("new\n", encoding="utf-8")
 
@@ -2577,13 +2442,9 @@ def test_snapshot_excludes_ignored_runtime_artifacts(tmp_path: Path) -> None:
 
     repo = tmp_path / "repo"
     _init_git_repo(repo)
-    (repo / ".gitignore").write_text(
-        ".claude/hooks/audit.log\n", encoding="utf-8"
-    )
+    (repo / ".gitignore").write_text(".claude/hooks/audit.log\n", encoding="utf-8")
     subprocess.run(["git", "-C", str(repo), "add", ".gitignore"], check=True)
-    subprocess.run(
-        ["git", "-C", str(repo), "commit", "-q", "-m", "ignore"], check=True
-    )
+    subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "ignore"], check=True)
     hooks = repo / ".claude" / "hooks"
     hooks.mkdir(parents=True)
     audit = hooks / "audit.log"
@@ -2608,9 +2469,7 @@ def test_is_ignored_path_treats_directory_entries_as_prefixes() -> None:
     shares a string prefix without being a real path ancestor, must not.
     """
     ignored = {Path("/repo/.claude/worktrees/wt-1")}
-    assert build_all._is_ignored_path(
-        Path("/repo/.claude/worktrees/wt-1"), ignored
-    )  # exact match
+    assert build_all._is_ignored_path(Path("/repo/.claude/worktrees/wt-1"), ignored)  # exact match
     assert build_all._is_ignored_path(
         Path("/repo/.claude/worktrees/wt-1/sub/file.txt"), ignored
     )  # nested under the ignored directory
@@ -2644,15 +2503,9 @@ def test_snapshot_owned_prefixes_excludes_every_file_under_ignored_worktree(
 
     repo = tmp_path / "repo"
     _init_git_repo(repo)
-    (repo / ".gitignore").write_text(
-        ".claude/worktrees/\n", encoding="utf-8"
-    )
-    subprocess.run(
-        ["git", "-C", str(repo), "add", ".gitignore"], check=True
-    )
-    subprocess.run(
-        ["git", "-C", str(repo), "commit", "-q", "-m", "ignore"], check=True
-    )
+    (repo / ".gitignore").write_text(".claude/worktrees/\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", ".gitignore"], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "ignore"], check=True)
 
     worktrees = repo / ".claude" / "worktrees"
     worktrees.mkdir(parents=True)
@@ -2688,10 +2541,7 @@ def test_snapshot_owned_prefixes_excludes_every_file_under_ignored_worktree(
 
     assert nested_file not in snapshot
     assert nested_subdir_file not in snapshot
-    assert not any(
-        nested_worktree in path.parents or path == nested_worktree
-        for path in snapshot
-    )
+    assert not any(nested_worktree in path.parents or path == nested_worktree for path in snapshot)
     assert sibling in snapshot
 
 
@@ -2762,13 +2612,9 @@ def test_assert_no_claude_writes_ignores_audit_log_churn(tmp_path: Path) -> None
 
     repo = tmp_path / "repo"
     _init_git_repo(repo)
-    (repo / ".gitignore").write_text(
-        ".claude/hooks/audit.log\n__pycache__/\n", encoding="utf-8"
-    )
+    (repo / ".gitignore").write_text(".claude/hooks/audit.log\n__pycache__/\n", encoding="utf-8")
     subprocess.run(["git", "-C", str(repo), "add", ".gitignore"], check=True)
-    subprocess.run(
-        ["git", "-C", str(repo), "commit", "-q", "-m", "ignore"], check=True
-    )
+    subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "ignore"], check=True)
     hooks = repo / ".claude" / "hooks"
     hooks.mkdir(parents=True)
     audit = hooks / "audit.log"
@@ -2792,26 +2638,18 @@ def test_assert_no_claude_writes_still_flags_real_write_in_git_repo(
 
     repo = tmp_path / "repo"
     _init_git_repo(repo)
-    (repo / ".gitignore").write_text(
-        ".claude/hooks/audit.log\n", encoding="utf-8"
-    )
+    (repo / ".gitignore").write_text(".claude/hooks/audit.log\n", encoding="utf-8")
     subprocess.run(["git", "-C", str(repo), "add", ".gitignore"], check=True)
-    subprocess.run(
-        ["git", "-C", str(repo), "commit", "-q", "-m", "ignore"], check=True
-    )
+    subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "ignore"], check=True)
     (repo / ".claude" / "agents").mkdir(parents=True)
 
     baseline = build_all._snapshot_owned_prefixes(
         repo, build_all.CLAUDE_GUARD_PREFIX, exclude_ignored=True
     )
     # Generator writes a NON-ignored file after the snapshot.
-    (repo / ".claude" / "agents" / "leak.md").write_text(
-        "generated", encoding="utf-8"
-    )
+    (repo / ".claude" / "agents" / "leak.md").write_text("generated", encoding="utf-8")
 
-    assert build_all.assert_no_claude_writes(repo, baseline) == [
-        ".claude/agents/leak.md"
-    ]
+    assert build_all.assert_no_claude_writes(repo, baseline) == [".claude/agents/leak.md"]
 
 
 def test_assert_no_claude_writes_flags_a_write_behind_a_generated_git_marker(
@@ -2853,9 +2691,7 @@ def test_assert_no_claude_writes_flags_a_write_behind_a_generated_git_marker(
     live_file = live_worktree / "live.txt"
     live_file.write_text("before the build\n", encoding="utf-8")
 
-    boundaries = build_all._git_boundaries_under(
-        repo, build_all.CLAUDE_GUARD_PREFIX
-    )
+    boundaries = build_all._git_boundaries_under(repo, build_all.CLAUDE_GUARD_PREFIX)
     assert boundaries == {live_worktree}
     baseline = build_all._snapshot_owned_prefixes(
         repo,
@@ -2868,9 +2704,7 @@ def test_assert_no_claude_writes_flags_a_write_behind_a_generated_git_marker(
     generated_tree = repo / ".claude" / "out"
     generated_tree.mkdir()
     (generated_tree / ".git").write_text("gitdir: /elsewhere\n", encoding="utf-8")
-    (generated_tree / "leaked.md").write_text(
-        "generator wrote this\n", encoding="utf-8"
-    )
+    (generated_tree / "leaked.md").write_text("generator wrote this\n", encoding="utf-8")
     # The live worktree's own owner edits a file mid-build.
     live_file.write_text("edited by the worktree owner\n", encoding="utf-8")
 
@@ -2913,15 +2747,11 @@ def test_run_flags_a_generator_write_hidden_behind_a_git_marker(
         hidden.mkdir(parents=True, exist_ok=True)
         (hidden / ".git").write_text("gitdir: /elsewhere\n", encoding="utf-8")
         (hidden / "leaked.md").write_text("generator wrote this\n", encoding="utf-8")
-        return build_all.GeneratorResult(
-            artifact="agents", platform="*", outputs=0, exit_code=0
-        )
+        return build_all.GeneratorResult(artifact="agents", platform="*", outputs=0, exit_code=0)
 
     monkeypatch.setattr(build_all, "_build_agents", leaking_agents)
 
-    rc = build_all.run(
-        repo, platform=None, check=False, clean=False, audit_format="md"
-    )
+    rc = build_all.run(repo, platform=None, check=False, clean=False, audit_format="md")
 
     assert rc == 2
     assert "REQ-003-010 VIOLATION: generator wrote to .claude/out/leaked.md" in (
@@ -2960,15 +2790,11 @@ def test_run_check_removes_a_generated_tree_behind_a_git_marker(
         hidden.mkdir(parents=True, exist_ok=True)
         (hidden / ".git").write_text("gitdir: /elsewhere\n", encoding="utf-8")
         (hidden / "generated.txt").write_text("output\n", encoding="utf-8")
-        return build_all.GeneratorResult(
-            artifact="agents", platform="*", outputs=0, exit_code=0
-        )
+        return build_all.GeneratorResult(artifact="agents", platform="*", outputs=0, exit_code=0)
 
     monkeypatch.setattr(build_all, "_build_agents", boundary_writing_agents)
 
-    build_all.run(
-        repo, platform=None, check=True, clean=False, audit_format="md"
-    )
+    build_all.run(repo, platform=None, check=True, clean=False, audit_format="md")
 
     assert not (repo / "src" / "out" / "generated.txt").exists()
     assert not (repo / "src" / "out" / ".git").exists()
@@ -3085,16 +2911,12 @@ def test_bytecode_filter_does_not_mask_a_concurrent_real_write(
     def _racing(root: Path, prefixes: tuple[str, ...]) -> set[Path]:
         result = real_ignored_paths(root, prefixes)
         _write_bytecode(pkg)
-        (repo / ".claude" / "lib" / "leak.md").write_text(
-            "generated", encoding="utf-8"
-        )
+        (repo / ".claude" / "lib" / "leak.md").write_text("generated", encoding="utf-8")
         return result
 
     monkeypatch.setattr(build_all, "_ignored_paths", _racing)
 
-    assert build_all.assert_no_claude_writes(repo, baseline) == [
-        ".claude/lib/leak.md"
-    ]
+    assert build_all.assert_no_claude_writes(repo, baseline) == [".claude/lib/leak.md"]
 
 
 # _confirm_ignored: report-time race closure (issue #3773) -------------------
@@ -3242,9 +3064,7 @@ def test_confirm_ignored_is_fail_closed_on_git_error(
         returncode = 128
         stdout = str(pyc).encode()
 
-    monkeypatch.setattr(
-        build_all, "subprocess", _subprocess_stub(lambda *a, **k: _Result())
-    )
+    monkeypatch.setattr(build_all, "subprocess", _subprocess_stub(lambda *a, **k: _Result()))
 
     assert build_all._confirm_ignored(tmp_path, {pyc}) == set()
 
@@ -3261,9 +3081,7 @@ def test_confirm_ignored_survives_non_ascii_paths(
         returncode = 0
         stdout = _os.fsencode(str(raw))
 
-    monkeypatch.setattr(
-        build_all, "subprocess", _subprocess_stub(lambda *a, **k: _Result())
-    )
+    monkeypatch.setattr(build_all, "subprocess", _subprocess_stub(lambda *a, **k: _Result()))
 
     assert build_all._confirm_ignored(tmp_path, {raw}) == {raw}
 
@@ -3317,9 +3135,7 @@ def _subprocess_stub(run: Callable[..., object]) -> object:
     return _Stub
 
 
-def _fail_read_bytes_for(
-    monkeypatch: pytest.MonkeyPatch, target: Path, exc: OSError
-) -> None:
+def _fail_read_bytes_for(monkeypatch: pytest.MonkeyPatch, target: Path, exc: OSError) -> None:
     """Make reading ``target`` raise ``exc``; every other path stays real.
 
     Patches ``os.open`` rather than ``Path.read_bytes()``: production code
@@ -3368,7 +3184,6 @@ def test_git_diff_paths_raises_when_git_times_out(
         build_all._git_diff_paths(tmp_path)
 
 
-
 def test_git_diff_paths_decodes_non_ascii_git_output_bytes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -3399,9 +3214,7 @@ def test_git_diff_paths_decodes_non_ascii_git_output_bytes(
 
     monkeypatch.setattr(build_all, "subprocess", _subprocess_stub(record))
 
-    assert build_all._git_diff_paths(tmp_path) == [
-        "src/copilot-cli/skills/ā/SKILL.md"
-    ]
+    assert build_all._git_diff_paths(tmp_path) == ["src/copilot-cli/skills/ā/SKILL.md"]
     assert len(calls) == 2
     for _args, kwargs in calls:
         for decoding_kwarg in ("text", "encoding", "universal_newlines"):
@@ -3427,9 +3240,7 @@ def test_git_diff_paths_raises_when_git_exits_nonzero(
         stdout = b"src/copilot-cli/skills/alpha/SKILL.md\x00"
         stderr = b"fatal: not a git repository\n"
 
-    monkeypatch.setattr(
-        build_all, "subprocess", _subprocess_stub(lambda *a, **k: _Result())
-    )
+    monkeypatch.setattr(build_all, "subprocess", _subprocess_stub(lambda *a, **k: _Result()))
 
     with pytest.raises(build_all.GitStateUnreadableError) as excinfo:
         build_all._git_diff_paths(tmp_path)
@@ -3455,9 +3266,7 @@ def test_git_diff_paths_error_keeps_gits_stderr_to_one_line(
         stdout = b""
         stderr = "\n".join([diagnosis] + [f"    --flag-{i}" for i in range(199)]).encode()
 
-    monkeypatch.setattr(
-        build_all, "subprocess", _subprocess_stub(lambda *a, **k: _Result())
-    )
+    monkeypatch.setattr(build_all, "subprocess", _subprocess_stub(lambda *a, **k: _Result()))
 
     with pytest.raises(build_all.GitStateUnreadableError) as excinfo:
         build_all._git_diff_paths(tmp_path)
@@ -3475,10 +3284,7 @@ def test_first_stderr_line_caps_a_single_unbroken_line() -> None:
     line longer than the terminal, and splitting on newlines alone would pass
     it through whole.
     """
-    assert (
-        len(build_all._first_stderr_line("x" * 5000))
-        == build_all._GIT_STDERR_DETAIL_CHARS
-    )
+    assert len(build_all._first_stderr_line("x" * 5000)) == build_all._GIT_STDERR_DETAIL_CHARS
 
 
 def test_first_stderr_line_reports_absent_stderr() -> None:
@@ -3494,9 +3300,7 @@ def test_git_diff_paths_returns_paths_on_a_healthy_repo(tmp_path: Path) -> None:
     _init_git_repo(repo)
     (repo / "seed.txt").write_text("seed\n")
     subprocess.run(["git", "-C", str(repo), "add", "seed.txt"], check=True)
-    subprocess.run(
-        ["git", "-C", str(repo), "commit", "-q", "-m", "init"], check=True
-    )
+    subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "init"], check=True)
     (repo / "seed.txt").write_text("changed\n")
 
     assert "seed.txt" in build_all._git_diff_paths(repo)
@@ -3534,9 +3338,7 @@ def test_run_check_returns_3_when_git_state_is_unreadable(
     stale.parent.mkdir(parents=True)
     stale.write_text(stale_text)
     subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
-    subprocess.run(
-        ["git", "-C", str(repo), "commit", "-q", "-m", "seed"], check=True
-    )
+    subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "seed"], check=True)
 
     monkeypatch.setattr(
         build_all,
@@ -3547,16 +3349,12 @@ def test_run_check_returns_3_when_git_state_is_unreadable(
     )
     monkeypatch.setattr(build_all, "subprocess", _NoGit)
 
-    rc = build_all.run(
-        repo, platform=None, check=True, clean=False, audit_format="md"
-    )
+    rc = build_all.run(repo, platform=None, check=True, clean=False, audit_format="md")
 
     assert rc == 3, f"expected exit 3 when git state is unreadable, got {rc}"
     err = capsys.readouterr().err
     assert "cannot read git state" in err, err
-    assert stale.read_text() == stale_text, (
-        "--check must stay read-only on the git-unreadable path"
-    )
+    assert stale.read_text() == stale_text, "--check must stay read-only on the git-unreadable path"
 
 
 def test_cli_exits_3_when_git_state_read_times_out(
@@ -3585,7 +3383,6 @@ def test_cli_exits_3_when_git_state_read_times_out(
 
     assert rc == 3, f"expected CLI exit 3 when git times out, got {rc}"
     assert "cannot read git state" in capsys.readouterr().err
-
 
 
 def test_cli_exits_3_when_git_state_is_unreadable(
@@ -3635,9 +3432,7 @@ def test_snapshot_strict_raises_on_unreadable_owned_file(
     _fail_read_bytes_for(monkeypatch, owned, PermissionError(13, "denied"))
 
     with pytest.raises(build_all.SnapshotIncompleteError) as excinfo:
-        build_all._snapshot_owned_prefixes(
-            tmp_path, build_all.OWNED_PREFIXES, strict=True
-        )
+        build_all._snapshot_owned_prefixes(tmp_path, build_all.OWNED_PREFIXES, strict=True)
     assert "frozen.py" in str(excinfo.value)
 
 
@@ -3657,9 +3452,7 @@ def test_snapshot_strict_raises_on_unreadable_single_file_prefix(
     _fail_read_bytes_for(monkeypatch, catalog, PermissionError(13, "denied"))
 
     with pytest.raises(build_all.SnapshotIncompleteError):
-        build_all._snapshot_owned_prefixes(
-            tmp_path, build_all.OWNED_PREFIXES, strict=True
-        )
+        build_all._snapshot_owned_prefixes(tmp_path, build_all.OWNED_PREFIXES, strict=True)
 
 
 def test_snapshot_non_strict_skips_unreadable_owned_file(
@@ -3678,9 +3471,7 @@ def test_snapshot_non_strict_skips_unreadable_owned_file(
     readable.write_text("y = 2\n")
     _fail_read_bytes_for(monkeypatch, owned, PermissionError(13, "denied"))
 
-    snapshot = build_all._snapshot_owned_prefixes(
-        tmp_path, build_all.OWNED_PREFIXES
-    )
+    snapshot = build_all._snapshot_owned_prefixes(tmp_path, build_all.OWNED_PREFIXES)
 
     assert owned not in snapshot
     assert snapshot[readable] == b"y = 2\n"
@@ -3691,10 +3482,7 @@ def test_read_into_snapshot_raises_when_a_discovered_path_vanishes(
 ) -> None:
     """Strict mode must abort if a discovered path vanishes before its read."""
     with pytest.raises(build_all.SnapshotIncompleteError):
-        build_all._read_into_snapshot(
-            {}, tmp_path / "never-existed.py", strict=True
-        )
-
+        build_all._read_into_snapshot({}, tmp_path / "never-existed.py", strict=True)
 
 
 def test_read_into_snapshot_non_strict_skips_a_path_that_vanished(
@@ -3703,9 +3491,7 @@ def test_read_into_snapshot_non_strict_skips_a_path_that_vanished(
     """The comparison-only caller still skips a vanished path."""
     snapshot: dict[Path, bytes] = {}
 
-    build_all._read_into_snapshot(
-        snapshot, tmp_path / "never-existed.py", strict=False
-    )
+    build_all._read_into_snapshot(snapshot, tmp_path / "never-existed.py", strict=False)
 
     assert snapshot == {}
 
@@ -3947,9 +3733,7 @@ def test_write_bytes_no_redirect_creates_a_new_file(tmp_path: Path) -> None:
     assert not dest.is_symlink()
 
 
-@pytest.mark.skipif(
-    os.name == "nt", reason="POSIX permission bits are not meaningful on Windows"
-)
+@pytest.mark.skipif(os.name == "nt", reason="POSIX permission bits are not meaningful on Windows")
 def test_write_bytes_no_redirect_creates_with_no_group_or_world_access(
     tmp_path: Path,
 ) -> None:
@@ -4216,9 +4000,7 @@ def test_snapshot_non_strict_still_skips_a_special_file(tmp_path: Path) -> None:
     kept = owned / "real.py"
     kept.write_bytes(b"y = 2\n")
 
-    assert build_all._snapshot_owned_prefixes(repo, ("owned/",)) == {
-        kept: b"y = 2\n"
-    }
+    assert build_all._snapshot_owned_prefixes(repo, ("owned/",)) == {kept: b"y = 2\n"}
 
 
 def test_snapshot_strict_rejects_a_prefix_root_that_is_a_checkout(
@@ -4267,17 +4049,13 @@ def test_snapshot_strict_skips_files_under_an_ignored_directory(
     (ignored_dir / "cache.bin").write_bytes(b"noise\n")
     kept = owned / "real.py"
     kept.write_bytes(b"y = 2\n")
-    monkeypatch.setattr(
-        build_all, "_ignored_paths", lambda _root, _prefixes: {ignored_dir}
-    )
+    monkeypatch.setattr(build_all, "_ignored_paths", lambda _root, _prefixes: {ignored_dir})
 
     snapshot = build_all._snapshot_owned_prefixes(
         repo, ("owned/",), exclude_ignored=True, strict=True
     )
 
-    assert set(snapshot) == {kept}, (
-        "strict discovery read a file nested under an ignored directory"
-    )
+    assert set(snapshot) == {kept}, "strict discovery read a file nested under an ignored directory"
 
 
 def test_snapshot_strict_rejects_a_redirecting_ancestor(tmp_path: Path) -> None:
@@ -4298,9 +4076,7 @@ def test_snapshot_strict_rejects_a_redirecting_ancestor(tmp_path: Path) -> None:
     _directory_symlink_or_skip(repo / "docs", external)
 
     with pytest.raises(build_all.SnapshotIncompleteError) as excinfo:
-        build_all._snapshot_owned_prefixes(
-            repo, ("docs/agent-catalog.md",), strict=True
-        )
+        build_all._snapshot_owned_prefixes(repo, ("docs/agent-catalog.md",), strict=True)
 
     assert "owned path ancestor redirects" in str(excinfo.value)
     assert protected.read_text() == "# catalog\n"
@@ -4323,9 +4099,7 @@ def test_snapshot_strict_aborts_when_an_ancestor_cannot_be_stat_ed(
 
     real_stat = Path.stat
 
-    def ancestor_denied(
-        self: Path, *, follow_symlinks: bool = True
-    ) -> os.stat_result:
+    def ancestor_denied(self: Path, *, follow_symlinks: bool = True) -> os.stat_result:
         if self == docs:
             raise PermissionError(13, "denied")
         return real_stat(self, follow_symlinks=follow_symlinks)
@@ -4333,9 +4107,7 @@ def test_snapshot_strict_aborts_when_an_ancestor_cannot_be_stat_ed(
     monkeypatch.setattr(Path, "stat", ancestor_denied)
 
     with pytest.raises(build_all.SnapshotIncompleteError) as excinfo:
-        build_all._snapshot_owned_prefixes(
-            repo, ("docs/agent-catalog.md",), strict=True
-        )
+        build_all._snapshot_owned_prefixes(repo, ("docs/agent-catalog.md",), strict=True)
 
     assert "cannot inspect owned path ancestor" in str(excinfo.value)
 
@@ -4350,9 +4122,7 @@ def test_snapshot_strict_tolerates_a_missing_ancestor(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
 
-    assert build_all._snapshot_owned_prefixes(
-        repo, ("docs/agent-catalog.md",), strict=True
-    ) == {}
+    assert build_all._snapshot_owned_prefixes(repo, ("docs/agent-catalog.md",), strict=True) == {}
 
 
 def test_is_redirecting_flags_a_windows_junction(tmp_path: Path) -> None:
@@ -4403,9 +4173,7 @@ def test_snapshot_strict_aborts_when_the_git_marker_cannot_be_stat_ed(
 
     real_stat = Path.stat
 
-    def marker_stat_denied(
-        self: Path, *, follow_symlinks: bool = True
-    ) -> os.stat_result:
+    def marker_stat_denied(self: Path, *, follow_symlinks: bool = True) -> os.stat_result:
         if self == marker:
             raise PermissionError(13, "denied")
         return real_stat(self, follow_symlinks=follow_symlinks)
@@ -4438,6 +4206,7 @@ def test_snapshot_strict_rejects_a_symlinked_git_marker(tmp_path: Path) -> None:
 
     assert "git boundary marker redirects" in str(excinfo.value)
 
+
 def test_snapshot_non_strict_skips_owned_path_when_stat_fails(
     tmp_path: Path,
 ) -> None:
@@ -4448,13 +4217,10 @@ def test_snapshot_non_strict_skips_owned_path_when_stat_fails(
     readable.write_bytes(b"y = 2\n")
     loop = _unstattable_unreadable_path(owned)
 
-    snapshot = build_all._snapshot_owned_prefixes(
-        tmp_path, build_all.OWNED_PREFIXES
-    )
+    snapshot = build_all._snapshot_owned_prefixes(tmp_path, build_all.OWNED_PREFIXES)
 
     assert loop not in snapshot
     assert snapshot[readable] == b"y = 2\n"
-
 
 
 def test_run_check_aborts_before_generation_when_owned_file_stat_fails(
@@ -4490,15 +4256,12 @@ def test_run_check_aborts_before_generation_when_owned_file_stat_fails(
     monkeypatch.setattr(Path, "stat", flaky_stat)
     monkeypatch.setattr(build_all, "_run_generators", record_generation)
 
-    rc = build_all.run(
-        repo, platform=None, check=True, clean=False, audit_format="md"
-    )
+    rc = build_all.run(repo, platform=None, check=True, clean=False, audit_format="md")
 
     assert rc == 2
     assert not generation_called
     assert protected.read_text() == "x = 1\n"
     assert "cannot inspect owned path" in capsys.readouterr().err
-
 
 
 def test_run_check_preserves_owned_root_after_transient_enoent_stat(
@@ -4528,9 +4291,7 @@ def test_run_check_preserves_owned_root_after_transient_enoent_stat(
     real_stat = Path.stat
     failed = False
 
-    def vanishes_once(
-        self: Path, *, follow_symlinks: bool = True
-    ) -> os.stat_result:
+    def vanishes_once(self: Path, *, follow_symlinks: bool = True) -> os.stat_result:
         nonlocal failed
         if self == protected and not failed:
             failed = True
@@ -4547,15 +4308,12 @@ def test_run_check_preserves_owned_root_after_transient_enoent_stat(
     monkeypatch.setattr(Path, "stat", vanishes_once)
     monkeypatch.setattr(build_all, "_run_generators", record_generation)
 
-    rc = build_all.run(
-        repo, platform=None, check=True, clean=False, audit_format="md"
-    )
+    rc = build_all.run(repo, platform=None, check=True, clean=False, audit_format="md")
 
     assert rc == 2
     assert not generation_called
     assert protected.read_text() == "x = 1\n"
     assert "owned path disappeared during snapshot" in capsys.readouterr().err
-
 
 
 def test_run_check_aborts_when_a_missing_root_cannot_be_verified(
@@ -4583,9 +4341,7 @@ def test_run_check_aborts_when_a_missing_root_cannot_be_verified(
 
     real_stat = Path.stat
 
-    def root_vanished(
-        self: Path, *, follow_symlinks: bool = True
-    ) -> os.stat_result:
+    def root_vanished(self: Path, *, follow_symlinks: bool = True) -> os.stat_result:
         if self == protected:
             raise FileNotFoundError(2, "vanished", str(self))
         return real_stat(self, follow_symlinks=follow_symlinks)
@@ -4610,9 +4366,7 @@ def test_run_check_aborts_when_a_missing_root_cannot_be_verified(
     monkeypatch.setattr(build_all.os, "scandir", parent_scan_denied)
     monkeypatch.setattr(build_all, "_run_generators", record_generation)
 
-    rc = build_all.run(
-        repo, platform=None, check=True, clean=False, audit_format="md"
-    )
+    rc = build_all.run(repo, platform=None, check=True, clean=False, audit_format="md")
 
     assert rc == 2
     assert not generation_called
@@ -4659,15 +4413,12 @@ def test_run_check_preserves_file_after_transient_enoent_read(
     monkeypatch.setattr(os, "open", flaky_open)
     monkeypatch.setattr(build_all, "_run_generators", record_generation)
 
-    rc = build_all.run(
-        repo, platform=None, check=True, clean=False, audit_format="md"
-    )
+    rc = build_all.run(repo, platform=None, check=True, clean=False, audit_format="md")
 
     assert rc == 2
     assert not generation_called
     assert protected.read_text() == "x = 1\n"
     assert "cannot read owned file" in capsys.readouterr().err
-
 
 
 def test_run_check_aborts_before_generation_when_owned_directory_scan_fails(
@@ -4714,15 +4465,12 @@ def test_run_check_aborts_before_generation_when_owned_directory_scan_fails(
     monkeypatch.setattr(build_all.os, "scandir", failing_scandir)
     monkeypatch.setattr(build_all, "_run_generators", record_generation)
 
-    rc = build_all.run(
-        repo, platform=None, check=True, clean=False, audit_format="md"
-    )
+    rc = build_all.run(repo, platform=None, check=True, clean=False, audit_format="md")
 
     assert rc == 2
     assert not generation_called
     assert protected.read_text() == "x = 1\n"
     assert "cannot enumerate owned directory" in capsys.readouterr().err
-
 
 
 def test_run_check_aborts_before_a_generator_writes_through_a_symlink(
@@ -4759,9 +4507,7 @@ def test_run_check_aborts_before_a_generator_writes_through_a_symlink(
 
     monkeypatch.setattr(build_all, "_run_generators", leaky_generation)
 
-    rc = build_all.run(
-        repo, platform=None, check=True, clean=False, audit_format="md"
-    )
+    rc = build_all.run(repo, platform=None, check=True, clean=False, audit_format="md")
 
     assert rc == 2
     assert not (external / "leaked.md").exists(), (
@@ -4771,7 +4517,6 @@ def test_run_check_aborts_before_a_generator_writes_through_a_symlink(
         "--check let a generator overwrite a file outside the repository"
     )
     assert "owned path redirects" in capsys.readouterr().err
-
 
 
 def test_run_check_aborts_before_the_real_generator_writes_into_a_checkout(
@@ -4804,9 +4549,7 @@ def test_run_check_aborts_before_the_real_generator_writes_into_a_checkout(
     protected = nested / "SKILL.md"
     protected.write_text("# someone else's checkout\n")
 
-    rc = build_all.run(
-        repo, platform=None, check=True, clean=False, audit_format="md"
-    )
+    rc = build_all.run(repo, platform=None, check=True, clean=False, audit_format="md")
 
     assert protected.read_text() == "# someone else's checkout\n", (
         "--check let a generator overwrite a file inside a nested checkout"
@@ -4842,9 +4585,7 @@ def test_run_check_aborts_without_deleting_an_unreadable_owned_file(
     protected.parent.mkdir(parents=True)
     protected.write_text("x = 1\n")
     subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
-    subprocess.run(
-        ["git", "-C", str(repo), "commit", "-q", "-m", "seed"], check=True
-    )
+    subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "seed"], check=True)
 
     monkeypatch.setattr(
         build_all,
@@ -4855,16 +4596,12 @@ def test_run_check_aborts_without_deleting_an_unreadable_owned_file(
     )
     _fail_read_bytes_for(monkeypatch, protected, PermissionError(13, "denied"))
 
-    rc = build_all.run(
-        repo, platform=None, check=True, clean=False, audit_format="md"
-    )
+    rc = build_all.run(repo, platform=None, check=True, clean=False, audit_format="md")
 
     assert rc == 2, f"expected exit 2 when an owned file is unreadable, got {rc}"
     err = capsys.readouterr().err
     assert "aborted before generation" in err, err
-    assert protected.is_file(), (
-        "--check deleted a pre-existing owned file it could not read"
-    )
+    assert protected.is_file(), "--check deleted a pre-existing owned file it could not read"
 
 
 def test_run_without_check_still_builds_when_an_owned_file_is_unreadable(
@@ -4893,9 +4630,7 @@ def test_run_without_check_still_builds_when_an_owned_file_is_unreadable(
     )
     _fail_read_bytes_for(monkeypatch, protected, PermissionError(13, "denied"))
 
-    rc = build_all.run(
-        repo, platform=None, check=False, clean=False, audit_format="md"
-    )
+    rc = build_all.run(repo, platform=None, check=False, clean=False, audit_format="md")
 
     assert rc == 0, f"plain build must not fail closed on an owned file, got {rc}"
 
@@ -4950,9 +4685,7 @@ def test_plain_build_reads_git_and_survives_because_that_read_fails_open(
     )
     monkeypatch.setattr(build_all, "subprocess", _RecordingNoGit)
 
-    rc = build_all.run(
-        repo, platform=None, check=False, clean=False, audit_format="md"
-    )
+    rc = build_all.run(repo, platform=None, check=False, clean=False, audit_format="md")
 
     assert rc == 0, f"a plain build must survive a broken git, got {rc}"
     assert any("ls-files" in argv for argv in seen_argv), (
@@ -4999,17 +4732,10 @@ def test_select_platform_configs_filters_binplace_manifest(tmp_path: Path) -> No
     platforms.mkdir(parents=True)
 
     # Write platform config
-    (platforms / "copilot-cli.yaml").write_text(
-        'schemaVersion: "1.0"\n'
-        'provider: "copilot-cli"\n'
-    )
+    (platforms / "copilot-cli.yaml").write_text('schemaVersion: "1.0"\nprovider: "copilot-cli"\n')
 
     # Write binplace manifest (not a platform)
-    (platforms / "binplace.yaml").write_text(
-        'schemaVersion: "1.0"\n'
-        "rows:\n"
-        "  - class: agents\n"
-    )
+    (platforms / "binplace.yaml").write_text('schemaVersion: "1.0"\nrows:\n  - class: agents\n')
 
     result = build_all._select_platform_configs(platforms, requested=None)
 
@@ -5055,8 +4781,8 @@ def test_binplace_check_mode_reports_drift_and_writes_nothing(tmp_path: Path) ->
     manifest.parent.mkdir(parents=True)
     manifest.write_text(
         'schemaVersion: "1.0"\n'
-        'rows:\n'
-        '  - class: agents\n'
+        "rows:\n"
+        "  - class: agents\n"
         '    source: "templates/agents"\n'
         '    plugin_tree: "src/claude/agents"\n'
         '    install_tree: ".claude/agents"\n'
@@ -5088,8 +4814,8 @@ def test_binplace_write_mode_updates_files(tmp_path: Path) -> None:
     manifest.parent.mkdir(parents=True)
     manifest.write_text(
         'schemaVersion: "1.0"\n'
-        'rows:\n'
-        '  - class: agents\n'
+        "rows:\n"
+        "  - class: agents\n"
         '    source: "templates/agents"\n'
         '    plugin_tree: "src/claude/agents"\n'
         '    install_tree: ".claude/agents"\n'
@@ -5119,8 +4845,8 @@ def test_binplace_second_check_clean_after_write(tmp_path: Path) -> None:
     manifest.parent.mkdir(parents=True)
     manifest.write_text(
         'schemaVersion: "1.0"\n'
-        'rows:\n'
-        '  - class: agents\n'
+        "rows:\n"
+        "  - class: agents\n"
         '    source: "templates/agents"\n'
         '    plugin_tree: "src/claude/agents"\n'
         '    install_tree: ".claude/agents"\n'
@@ -5155,8 +4881,8 @@ def test_binplace_reports_unowned_files(tmp_path: Path) -> None:
     manifest.parent.mkdir(parents=True)
     manifest.write_text(
         'schemaVersion: "1.0"\n'
-        'rows:\n'
-        '  - class: agents\n'
+        "rows:\n"
+        "  - class: agents\n"
         '    source: "templates/agents"\n'
         '    plugin_tree: "src/claude/agents"\n'
         '    install_tree: ".claude/agents"\n'
@@ -5178,8 +4904,8 @@ def test_binplace_rejects_install_tree_outside_repo(tmp_path: Path) -> None:
     manifest = repo / "templates" / "platforms" / "binplace.yaml"
     manifest.parent.mkdir(parents=True)
     manifest.write_text(
-        'rows:\n'
-        '  - class: agents\n'
+        "rows:\n"
+        "  - class: agents\n"
         '    source: "templates/agents"\n'
         '    plugin_tree: "src/claude/agents"\n'
         '    install_tree: "src/copilot-cli/agents"\n'

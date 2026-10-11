@@ -95,9 +95,7 @@ class TestHelpers:
         (artifact / "bin.py").write_bytes(b"\xff\xfe")
         (tmp_path / ".gitignore").write_text("tests/tmp/\n", encoding="utf-8")
         subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
-        subprocess.run(
-            ["git", "add", ".gitignore", "tests/clean.py"], cwd=tmp_path, check=True
-        )
+        subprocess.run(["git", "add", ".gitignore", "tests/clean.py"], cwd=tmp_path, check=True)
 
         assert collect_duplicates(tmp_path) == []
 
@@ -113,9 +111,7 @@ class TestHelpers:
     def test_collect_duplicates_finds_intra_file_dup(self, tmp_path: Path) -> None:
         tests = tmp_path / "tests"
         tests.mkdir()
-        (tests / "bad.py").write_text(
-            "def foo(): pass\ndef foo(): pass\n", encoding="utf-8"
-        )
+        (tests / "bad.py").write_text("def foo(): pass\ndef foo(): pass\n", encoding="utf-8")
         dups = collect_duplicates(tmp_path)
         assert len(dups) == 1
         assert dups[0][1] == "foo"

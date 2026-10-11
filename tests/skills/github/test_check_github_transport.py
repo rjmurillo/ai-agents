@@ -38,9 +38,7 @@ def _auth(status: GhAuthStatus, detail: str = "") -> GhAuthResult:
 def _completed(stdout: str, stderr: str, rc: int):
     import subprocess
 
-    return subprocess.CompletedProcess(
-        args=["gh"], returncode=rc, stdout=stdout, stderr=stderr
-    )
+    return subprocess.CompletedProcess(args=["gh"], returncode=rc, stdout=stdout, stderr=stderr)
 
 
 def _run(
@@ -57,22 +55,16 @@ def _run(
     class of coupling that made the classifier's own fixtures misleading.
     """
     with patch.object(mod, "check_gh_auth", return_value=_auth(status, detail)):
-        with patch.object(
-            mod, "_repository_capability_probe", return_value=repo_capability
-        ):
+        with patch.object(mod, "_repository_capability_probe", return_value=repo_capability):
             with patch("sys.stdout") as stdout:
-                code = mod.main(
-                    argv if argv is not None else ["--output-format", "json"]
-                )
+                code = mod.main(argv if argv is not None else ["--output-format", "json"])
     written = "".join(call.args[0] for call in stdout.write.call_args_list if call.args)
     return code, written
 
 
 class TestTransportRouting:
     def test_working_credential_routes_to_gh(self):
-        with patch.object(
-            mod, "check_gh_auth", return_value=_auth(GhAuthStatus.AUTHENTICATED)
-        ):
+        with patch.object(mod, "check_gh_auth", return_value=_auth(GhAuthStatus.AUTHENTICATED)):
             with patch.object(
                 mod,
                 "_repository_capability_probe",
@@ -95,9 +87,7 @@ class TestTransportRouting:
         AUTHENTICATED, and inheriting that verdict selected gh for a workflow
         whose first call is a 403 (Copilot review on PR #5509).
         """
-        with patch.object(
-            mod, "check_gh_auth", return_value=_auth(GhAuthStatus.AUTHENTICATED)
-        ):
+        with patch.object(mod, "check_gh_auth", return_value=_auth(GhAuthStatus.AUTHENTICATED)):
             with patch.object(
                 mod,
                 "_repository_capability_probe",
@@ -129,12 +119,8 @@ class TestTransportRouting:
         charged to the token, not to the transport, and it has a reset
         (Copilot review on PR #5509).
         """
-        with patch.object(
-            mod, "check_gh_auth", return_value=_auth(GhAuthStatus.AUTHENTICATED)
-        ):
-            with patch.object(
-                mod, "_repository_capability_probe", return_value=_auth(status, "x")
-            ):
+        with patch.object(mod, "check_gh_auth", return_value=_auth(GhAuthStatus.AUTHENTICATED)):
+            with patch.object(mod, "_repository_capability_probe", return_value=_auth(status, "x")):
                 transport, code, reported, _ = mod.resolve_transport()
         assert transport == ""
         assert code == 3
@@ -150,9 +136,7 @@ class TestTransportRouting:
         to end. This is the one place the probe deliberately does not follow
         the classifier.
         """
-        with patch.object(
-            mod, "check_gh_auth", return_value=_auth(GhAuthStatus.AUTHENTICATED)
-        ):
+        with patch.object(mod, "check_gh_auth", return_value=_auth(GhAuthStatus.AUTHENTICATED)):
             with patch.object(
                 mod,
                 "_repository_capability_probe",
@@ -164,21 +148,15 @@ class TestTransportRouting:
 
     def test_an_unanswerable_probe_still_selects_gh(self):
         """None is not evidence; failing closed takes a working session off gh."""
-        with patch.object(
-            mod, "check_gh_auth", return_value=_auth(GhAuthStatus.AUTHENTICATED)
-        ):
-            with patch.object(
-                mod, "_repository_capability_probe", return_value=None
-            ):
+        with patch.object(mod, "check_gh_auth", return_value=_auth(GhAuthStatus.AUTHENTICATED)):
+            with patch.object(mod, "_repository_capability_probe", return_value=None):
                 transport, code, _, _ = mod.resolve_transport()
         assert transport == mod.TRANSPORT_GH
         assert code == 0
 
     def test_session_refusal_routes_to_mcp(self):
         """The whole point: a refused session still has a usable transport."""
-        with patch.object(
-            mod, "check_gh_auth", return_value=_auth(GhAuthStatus.TRANSPORT_BLOCKED)
-        ):
+        with patch.object(mod, "check_gh_auth", return_value=_auth(GhAuthStatus.TRANSPORT_BLOCKED)):
             transport, code, status, detail = mod.resolve_transport()
         assert transport == mod.TRANSPORT_MCP
         assert code == 0
@@ -187,9 +165,7 @@ class TestTransportRouting:
 
     def test_missing_gh_routes_to_mcp(self):
         """Different cause, same consequence: gh is not an option."""
-        with patch.object(
-            mod, "check_gh_auth", return_value=_auth(GhAuthStatus.MISSING_GH)
-        ):
+        with patch.object(mod, "check_gh_auth", return_value=_auth(GhAuthStatus.MISSING_GH)):
             transport, code, _, _ = mod.resolve_transport()
         assert transport == mod.TRANSPORT_MCP
         assert code == 0
@@ -202,9 +178,7 @@ class TestTransportRouting:
         install a binary. Routing on that text reproduces the misdiagnosis this
         script exists to end, one status over (Copilot review on PR #5509).
         """
-        with patch.object(
-            mod, "check_gh_auth", return_value=_auth(GhAuthStatus.MISSING_GH)
-        ):
+        with patch.object(mod, "check_gh_auth", return_value=_auth(GhAuthStatus.MISSING_GH)):
             _, _, _, detail = mod.resolve_transport()
 
         assert "gh auth login" not in detail
@@ -292,9 +266,7 @@ class TestCliContract:
         assert payload["Error"]["Type"] == "AuthError"
 
     def test_human_format_names_the_transport(self):
-        code, out = _run(
-            GhAuthStatus.TRANSPORT_BLOCKED, argv=["--output-format", "human"]
-        )
+        code, out = _run(GhAuthStatus.TRANSPORT_BLOCKED, argv=["--output-format", "human"])
         assert code == 0
         assert "Transport: gh_unusable" in out
 
@@ -352,9 +324,7 @@ class TestRepositoryCapabilityProbe:
                 return mod._repository_capability_probe(), run
 
     def test_a_session_denial_on_the_repository_call_is_reported(self):
-        capability, run = self._probe(
-            _completed(stdout="", stderr=REPO_DENIAL_BODY, rc=1)
-        )
+        capability, run = self._probe(_completed(stdout="", stderr=REPO_DENIAL_BODY, rc=1))
         assert capability.status is GhAuthStatus.TRANSPORT_BLOCKED
         assert "not enabled for this session" in capability.detail
         assert run.call_args.args[0][:2] == ["gh", "api"]
@@ -388,9 +358,7 @@ class TestRepositoryCapabilityProbe:
         capability, _ = self._probe(_completed(stdout="", stderr=body, rc=1))
         assert capability.status is expected
 
-    @pytest.mark.parametrize(
-        "body", ["gh: Not Found (HTTP 404)", AUTH_STATUS_INVALID_BODY]
-    )
+    @pytest.mark.parametrize("body", ["gh: Not Found (HTTP 404)", AUTH_STATUS_INVALID_BODY])
     def test_a_non_retryable_failure_is_reported_as_classified(self, body):
         """Control on the split: these must NOT read as retryable.
 
@@ -522,9 +490,7 @@ class TestShippedArtifactRuntimeContract:
         )
         self._assert_reached_the_body(result)
 
-    def test_bare_relative_path_from_a_foreign_cwd_is_the_failing_control(
-        self, tmp_path
-    ):
+    def test_bare_relative_path_from_a_foreign_cwd_is_the_failing_control(self, tmp_path):
         """Negative control: without a root, a relative invocation cannot resolve.
 
         This is what the bare `.claude/skills/...` form the review flagged
@@ -574,9 +540,7 @@ class TestConfiguredLaunchersRun:
     def _command(harness):
         import yaml
 
-        config = yaml.safe_load(
-            TestConfiguredLaunchersRun.CONFIG.read_text(encoding="utf-8")
-        )
+        config = yaml.safe_load(TestConfiguredLaunchersRun.CONFIG.read_text(encoding="utf-8"))
         return config["scripts"][harness]["check_transport"]
 
     def _env(self, tmp_path, **extra):
@@ -616,21 +580,15 @@ class TestConfiguredLaunchersRun:
         if harness == "copilot" and shutil.which("pwsh") is None:
             pytest.skip("pwsh is not installed on this runner")
 
-        result = self._run(
-            harness, tmp_path, COPILOT_PLUGIN_ROOT=str(self.PLUGIN_ROOT)
-        )
+        result = self._run(harness, tmp_path, COPILOT_PLUGIN_ROOT=str(self.PLUGIN_ROOT))
 
-        assert result.returncode == 0, (
-            f"{harness} launcher failed: {result.stdout}{result.stderr}"
-        )
+        assert result.returncode == 0, f"{harness} launcher failed: {result.stdout}{result.stderr}"
         payload = json.loads(result.stdout)
         assert payload["Data"]["Transport"] == "gh"
         assert payload["Metadata"]["Script"] == "check_github_transport.py"
 
     @pytest.mark.parametrize("harness", ["claude_code", "copilot"])
-    def test_the_configured_command_fails_without_a_plugin_root(
-        self, harness, tmp_path
-    ):
+    def test_the_configured_command_fails_without_a_plugin_root(self, harness, tmp_path):
         """Negative control: the same command, minus the only thing that resolves it.
 
         Both launchers fall back to a bare `.claude`, which does not exist in a

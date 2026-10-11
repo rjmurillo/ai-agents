@@ -133,8 +133,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         scan_error="check_subprocess_encoding.py failed to run",
         regression_advice=(
             "New subprocess calls that use text= or encoding= must also pass "
-            "errors= (issue #4261). Add errors=\"replace\" to the call, or "
-            "errors=\"strict\" if a decode failure is an error condition."
+            'errors= (issue #4261). Add errors="replace" to the call, or '
+            'errors="strict" if a decode failure is an error condition.'
         ),
         merge_tree_backed=MERGE_TREE_BACKED,
     )

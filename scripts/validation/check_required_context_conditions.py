@@ -143,7 +143,6 @@ EXIT_CONFIG = 2
 _EXPRESSION_MARKER = "${{"
 
 
-
 def load_workflows(workflow_dir: Path) -> dict[str, Mapping[str, Any]]:
     """Parse every workflow file under ``workflow_dir``, failing closed.
 

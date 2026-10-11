@@ -90,9 +90,7 @@ class TestStatus:
 class TestConfirmContradict:
     """confirm and contradict append eval-grounded evidence."""
 
-    def test_confirm_appends_confirmed_evidence(
-        self, write_skillbook: Callable[..., Path]
-    ) -> None:
+    def test_confirm_appends_confirmed_evidence(self, write_skillbook: Callable[..., Path]) -> None:
         skillbook = write_skillbook(policies=[make_policy("pol-a")])
         assert _run(skillbook, "confirm", "pol-a", "--eval", "run::F0") == EXIT_OK
         policy = _load_policies(skillbook)[0]
@@ -123,9 +121,7 @@ class TestConfirmContradict:
         skillbook = write_skillbook(policies=[make_policy("pol-a")])
         assert _run(skillbook, "confirm", "pol-missing", "--eval", "e1") == EXIT_LOGIC
 
-    def test_confirm_is_idempotent_on_eval_id(
-        self, write_skillbook: Callable[..., Path]
-    ) -> None:
+    def test_confirm_is_idempotent_on_eval_id(self, write_skillbook: Callable[..., Path]) -> None:
         skillbook = write_skillbook(policies=[make_policy("pol-a")])
         _run(skillbook, "confirm", "pol-a", "--eval", "run::F0")
         _run(skillbook, "confirm", "pol-a", "--eval", "run::F0")
@@ -200,13 +196,17 @@ class TestTension:
         assert _run(skillbook, "tension", "list") == EXIT_OK
         assert "No tensions" in capsys.readouterr().out
 
-    def test_prefer_records_context_resolution(
-        self, write_skillbook: Callable[..., Path]
-    ) -> None:
+    def test_prefer_records_context_resolution(self, write_skillbook: Callable[..., Path]) -> None:
         skillbook = self._tension_skillbook(write_skillbook)
         exit_code = _run(
-            skillbook, "tension", "prefer", "ten-a-b", "bug_repro", "pol-b",
-            "--eval", "run::F0",
+            skillbook,
+            "tension",
+            "prefer",
+            "ten-a-b",
+            "bug_repro",
+            "pol-b",
+            "--eval",
+            "run::F0",
         )
         assert exit_code == EXIT_OK
         data = json.loads((skillbook / "tensions.json").read_text(encoding="utf-8"))
@@ -219,8 +219,14 @@ class TestTension:
     ) -> None:
         skillbook = self._tension_skillbook(write_skillbook)
         exit_code = _run(
-            skillbook, "tension", "prefer", "ten-missing", "ctx", "pol-a",
-            "--eval", "e1",
+            skillbook,
+            "tension",
+            "prefer",
+            "ten-missing",
+            "ctx",
+            "pol-a",
+            "--eval",
+            "e1",
         )
         assert exit_code == EXIT_LOGIC
 
@@ -230,8 +236,14 @@ class TestTension:
         skillbook = self._tension_skillbook(write_skillbook)
         # pol-c is not part of ten-a-b.
         exit_code = _run(
-            skillbook, "tension", "prefer", "ten-a-b", "ctx", "pol-c",
-            "--eval", "e1",
+            skillbook,
+            "tension",
+            "prefer",
+            "ten-a-b",
+            "ctx",
+            "pol-c",
+            "--eval",
+            "e1",
         )
         assert exit_code == EXIT_LOGIC
 
@@ -241,10 +253,11 @@ class TestTension:
         # Re-running prefer with the same --eval but a different policy
         # re-points the winner without double-counting the evidence.
         skillbook = self._tension_skillbook(write_skillbook)
-        _run(skillbook, "tension", "prefer", "ten-a-b", "ctx", "pol-a",
-             "--eval", "e1")
-        assert _run(skillbook, "tension", "prefer", "ten-a-b", "ctx", "pol-b",
-                    "--eval", "e1") == EXIT_OK
+        _run(skillbook, "tension", "prefer", "ten-a-b", "ctx", "pol-a", "--eval", "e1")
+        assert (
+            _run(skillbook, "tension", "prefer", "ten-a-b", "ctx", "pol-b", "--eval", "e1")
+            == EXIT_OK
+        )
         data = json.loads((skillbook / "tensions.json").read_text(encoding="utf-8"))
         resolution = data["tensions"][0]["preferred_in_context"]["ctx"]
         assert resolution["preferred"] == "pol-b"
@@ -290,8 +303,7 @@ class TestSelect:
     ) -> None:
         skillbook = write_skillbook(
             policies=[
-                make_policy("pol-q", owner_agent="qa", tier="validated",
-                            status="questioning"),
+                make_policy("pol-q", owner_agent="qa", tier="validated", status="questioning"),
                 make_policy("pol-ok", owner_agent="qa", status="active"),
             ]
         )
@@ -302,8 +314,7 @@ class TestSelect:
     ) -> None:
         skillbook = write_skillbook(
             policies=[
-                make_policy("pol-q", owner_agent="qa", tier="validated",
-                            status="questioning"),
+                make_policy("pol-q", owner_agent="qa", tier="validated", status="questioning"),
                 make_policy("pol-ok", owner_agent="qa", status="active"),
             ]
         )

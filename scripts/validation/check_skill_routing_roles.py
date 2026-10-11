@@ -79,8 +79,6 @@ class TreeError(Exception):
     """The canonical skill tree cannot answer the question this gate asks."""
 
 
-
-
 def _frontmatter(text: str) -> dict[str, object]:
     """Parse frontmatter, rejecting duplicate top-level keys."""
     match = _FRONTMATTER_RE.match(text)
@@ -339,8 +337,7 @@ def _role_invoker_contradiction(role: str, invoker: str, name: str) -> str | Non
         invoker in RESERVED_INVOKERS or invoker == name
     ):
         return (
-            f"role `{role}` must not be invoked by `user`, `harness`, "
-            f"or itself (got `{invoker}`)"
+            f"role `{role}` must not be invoked by `user`, `harness`, or itself (got `{invoker}`)"
         )
     if role == "explicit-only" and invoker != "user":
         return f"role `explicit-only` must be invoked by `user`, not `{invoker}`"
@@ -355,8 +352,7 @@ def _invoker_legality_defect(
     if invoker in skill_names or invoker in agent_names or invoker in RESERVED_INVOKERS:
         return None
     return (
-        f"{skill.path}: invoker `{invoker}` is not a canonical skill, "
-        "agent, `user`, or `harness`"
+        f"{skill.path}: invoker `{invoker}` is not a canonical skill, agent, `user`, or `harness`"
     )
 
 

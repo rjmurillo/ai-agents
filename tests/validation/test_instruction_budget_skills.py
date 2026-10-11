@@ -49,6 +49,7 @@ def _result(total: int, ceiling: int, reserve: int = 0) -> ib.ExtensionResult:
         reserve_bytes=reserve,
     )
 
+
 # --------------------------------------------------------------------------
 # always-on skill accounting (issue #4871)
 #
@@ -205,9 +206,7 @@ def test_json_output_defaults_activation_when_not_supplied() -> None:
     # A result built before issue #4871 (or by hand, as `_result()` does above)
     # carries no matched_activation. format_json must not crash on the gap.
     payload = json.loads(ib.format_json([_result(900, 1000)]))
-    assert payload[0]["matched_sources"] == [
-        {"name": "a.instructions.md", "activation": "applyTo"}
-    ]
+    assert payload[0]["matched_sources"] == [{"name": "a.instructions.md", "activation": "applyTo"}]
 
 
 def test_main_json_output_reports_skill_source_end_to_end(

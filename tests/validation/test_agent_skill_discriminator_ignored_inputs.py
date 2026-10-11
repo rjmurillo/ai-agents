@@ -50,9 +50,7 @@ class TestIgnoredPipelineFiles:
 
         assert bmod.refuse_dirty_scoring_inputs(repo) is True
 
-    def test_ignored_bytecode_and_non_matching_files_are_accepted(
-        self, tmp_path: Path
-    ) -> None:
+    def test_ignored_bytecode_and_non_matching_files_are_accepted(self, tmp_path: Path) -> None:
         repo = _scaffold(tmp_path)
         _write_agent(repo, "alpha", _prose_body())
         _ignore(repo, "__pycache__/", "*.pyc", "notes.txt")

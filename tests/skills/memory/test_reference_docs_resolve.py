@@ -75,9 +75,7 @@ MEMORY_CORE_RE = re.compile(r"\bmemory_core\.([a-z_]+)\.([a-z_][a-z0-9_]*)\b")
 # portable ``${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/...``
 # expansion. Anchoring on ``.claude`` checked only the first, which left 28 of
 # the 68 references in these docs unverified.
-SKILL_SCRIPT_RE = re.compile(
-    r"\bskills/memory/(?:scripts|memory_core)/[a-z_]+\.py\b"
-)
+SKILL_SCRIPT_RE = re.compile(r"\bskills/memory/(?:scripts|memory_core)/[a-z_]+\.py\b")
 
 
 def _docs() -> list[Path]:
@@ -161,9 +159,7 @@ def test_skill_script_re_matches_both_documented_path_shapes() -> None:
     from 40 to 68.
     """
     tail = "skills/memory/scripts/search_memory.py"
-    portable = (
-        "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/" + tail
-    )
+    portable = "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/" + tail
     assert SKILL_SCRIPT_RE.findall(portable) == [tail]
     assert SKILL_SCRIPT_RE.findall(".claude/" + tail) == [tail]
     assert SKILL_SCRIPT_RE.findall("src/copilot-cli/" + tail) == [tail]
@@ -210,11 +206,7 @@ def test_docs_do_not_hard_code_a_tree_specific_sys_path() -> None:
     offenders = []
     for doc in DOCS:
         for block in _fenced_code_blocks(doc.read_text(encoding="utf-8")):
-            if (
-                "sys.path" in block
-                and "skills/memory" in block
-                and "PLUGIN_ROOT" not in block
-            ):
+            if "sys.path" in block and "skills/memory" in block and "PLUGIN_ROOT" not in block:
                 offenders.append(_doc_id(doc))
                 break
     assert not offenders, f"docs hard-code a tree-specific path: {offenders}"
@@ -228,7 +220,6 @@ def test_named_skill_scripts_exist(doc: Path) -> None:
     # making a claim about its own tree.
     tree_root = SKILLS_ROOT.parent
     missing = [
-        rel for rel in sorted(set(SKILL_SCRIPT_RE.findall(text)))
-        if not (tree_root / rel).is_file()
+        rel for rel in sorted(set(SKILL_SCRIPT_RE.findall(text))) if not (tree_root / rel).is_file()
     ]
     assert not missing, f"{_doc_id(doc)} names scripts that do not exist: {missing}"

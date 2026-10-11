@@ -30,17 +30,20 @@ logger = logging.getLogger(__name__)
 
 def build_parser() -> Any:  # noqa: ANN401
     import argparse
+
     parser = argparse.ArgumentParser(
         description="Run CodeQL diagnostics and health checks.",
     )
     parser.add_argument(
-        "--repo-path", default=os.environ.get("CODEQL_REPO_PATH", "."),
+        "--repo-path",
+        default=os.environ.get("CODEQL_REPO_PATH", "."),
         help="Path to the repository root directory.",
     )
     parser.add_argument(
         "--config-path",
         default=os.environ.get(
-            "CODEQL_CONFIG_PATH", ".github/codeql/codeql-config.yml",
+            "CODEQL_CONFIG_PATH",
+            ".github/codeql/codeql-config.yml",
         ),
         help="Path to the CodeQL configuration YAML file.",
     )
@@ -55,7 +58,8 @@ def build_parser() -> Any:  # noqa: ANN401
         help="Path where SARIF result files are stored.",
     )
     parser.add_argument(
-        "--output-format", choices=["console", "json", "markdown"],
+        "--output-format",
+        choices=["console", "json", "markdown"],
         default="console",
         help="Output format for diagnostics results.",
     )
@@ -92,14 +96,15 @@ def check_cli() -> dict[str, Any]:
     try:
         proc = subprocess.run(
             [result["path"], "version"],
-            capture_output=True, text=True, timeout=30, check=False,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
         )
         if proc.returncode == 0:
             result["version"] = proc.stdout.strip().split("\n")[0]
     except (OSError, subprocess.TimeoutExpired):
-        result["recommendations"].append(
-            "Unable to execute CLI. Check permissions or reinstall"
-        )
+        result["recommendations"].append("Unable to execute CLI. Check permissions or reinstall")
 
     return result
 
@@ -135,16 +140,15 @@ def check_config(config_path: str, codeql_path: str | None) -> dict[str, Any]:
         if re.match(r"^\s*(#|$)", line):
             continue
         if line.startswith("\t"):
-            result["recommendations"].append(
-                f"Config invalid YAML syntax: tabs at line {line_num}"
-            )
+            result["recommendations"].append(f"Config invalid YAML syntax: tabs at line {line_num}")
             return result
 
     result["valid_yaml"] = True
 
     if codeql_path:
         packs_match = re.search(
-            r"packs:\s*\n((?:\s+-\s+.+\n?)+)", content,
+            r"packs:\s*\n((?:\s+-\s+.+\n?)+)",
+            content,
         )
         if packs_match:
             packs_section = packs_match.group(1)
@@ -179,7 +183,9 @@ def compute_directory_hash(directory: str) -> str:
 
 
 def check_database_cache(
-    database_path: str, config_path: str, repo_path: str,
+    database_path: str,
+    config_path: str,
+    repo_path: str,
 ) -> bool:
     metadata_path = os.path.join(database_path, ".cache-metadata.json")
     if not os.path.isfile(metadata_path):
@@ -191,7 +197,10 @@ def check_database_cache(
 
         proc = subprocess.run(
             ["git", "-C", repo_path, "rev-parse", "HEAD"],
-            capture_output=True, text=True, timeout=10, check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
         )
         if proc.returncode == 0 and proc.stdout.strip() != metadata.get("git_head"):
             return False
@@ -220,7 +229,9 @@ def check_database_cache(
 
 
 def check_database(
-    database_path: str, config_path: str, repo_path: str,
+    database_path: str,
+    config_path: str,
+    repo_path: str,
 ) -> dict[str, Any]:
     result: dict[str, Any] = {
         "exists": False,
@@ -240,17 +251,11 @@ def check_database(
     result["exists"] = True
 
     lang_dirs = [
-        d.name
-        for d in Path(database_path).iterdir()
-        if d.is_dir() and not d.name.startswith(".")
+        d.name for d in Path(database_path).iterdir() if d.is_dir() and not d.name.startswith(".")
     ]
     result["languages"] = lang_dirs
 
-    total_size = sum(
-        f.stat().st_size
-        for f in Path(database_path).rglob("*")
-        if f.is_file()
-    )
+    total_size = sum(f.stat().st_size for f in Path(database_path).rglob("*") if f.is_file())
     result["size_mb"] = round(total_size / (1024 * 1024), 2)
 
     if lang_dirs:
@@ -261,13 +266,16 @@ def check_database(
         if timestamps:
             oldest = min(timestamps)
             result["created_timestamp"] = datetime.fromtimestamp(
-                oldest, tz=UTC,
+                oldest,
+                tz=UTC,
             ).isoformat()
 
     metadata_path = os.path.join(database_path, ".cache-metadata.json")
     if os.path.isfile(metadata_path):
         result["cache_valid"] = check_database_cache(
-            database_path, config_path, repo_path,
+            database_path,
+            config_path,
+            repo_path,
         )
     else:
         result["recommendations"].append(
@@ -297,15 +305,14 @@ def check_results(results_path: str) -> dict[str, Any]:
 
     sarif_files = list(Path(results_path).glob("*.sarif"))
     if not sarif_files:
-        result["recommendations"].append(
-            "No SARIF files found. Run scan to generate results"
-        )
+        result["recommendations"].append("No SARIF files found. Run scan to generate results")
         return result
 
     result["sarif_files"] = [f.name for f in sarif_files]
     newest = max(sarif_files, key=lambda f: f.stat().st_mtime)
     result["last_scan_timestamp"] = datetime.fromtimestamp(
-        newest.stat().st_mtime, tz=UTC,
+        newest.stat().st_mtime,
+        tz=UTC,
     ).isoformat()
 
     for sarif_file in sarif_files:
@@ -361,9 +368,7 @@ def format_console(diagnostics: dict[str, Any]) -> None:
         print(f"  Size: {db['size_mb']} MB")
         print(f"  Created: {db['created_timestamp']}")
         cache_status = (
-            "[PASS] VALID"
-            if db["cache_valid"]
-            else "[WARNING] INVALID (will rebuild on next scan)"
+            "[PASS] VALID" if db["cache_valid"] else "[WARNING] INVALID (will rebuild on next scan)"
         )
         print(f"  Cache: {cache_status}")
     else:

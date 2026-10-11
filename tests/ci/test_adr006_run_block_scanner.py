@@ -13,15 +13,19 @@ from scripts.ci import adr006_run_block_scanner as scanner
 
 def _big_logic_run() -> str:
     body = "\n".join(f"          echo line {i}" for i in range(12))
-    return textwrap.dedent(
-        """\
+    return (
+        textwrap.dedent(
+            """\
         jobs:
           build:
             steps:
               - run: |
                   if [ -n "$X" ]; then
         """
-    ) + body + "\n"
+        )
+        + body
+        + "\n"
+    )
 
 
 def test_detects_large_logic_block_as_violation():
@@ -194,10 +198,7 @@ class TestProseInOutputCommandsIsNotLogic:
     def test_prose_containing_shell_keywords_is_not_logic(self) -> None:
         """Positive: the bug. Every keyword appears only as English."""
         block = _run_block(
-            *(
-                f'echo "  {i}. Use forward slashes for cross-platform work"'
-                for i in range(8)
-            ),
+            *(f'echo "  {i}. Use forward slashes for cross-platform work"' for i in range(8)),
             'echo "Check if the file exists, then retry while it is locked"',
             'echo "Handle the case where the path is absolute"',
             'echo "Review each violation for correctness"',
@@ -211,7 +212,7 @@ class TestProseInOutputCommandsIsNotLogic:
         """Negative: blanking the message must not hide adjacent shell."""
         block = _run_block(
             *(f'echo "line {i} for the reader"' for i in range(11)),
-            'if [ -f out.txt ]; then exit 1; fi',
+            "if [ -f out.txt ]; then exit 1; fi",
         )
         assert block.has_logic is True
 
@@ -238,10 +239,7 @@ class TestProseInOutputCommandsIsNotLogic:
 
     def test_plain_quoted_operand_is_blanked(self) -> None:
         """Control: an operand with no expansion is blanked away."""
-        assert (
-            scanner._blank_static_operands('echo "issue 42 needs triage"')
-            == 'echo ""'
-        )
+        assert scanner._blank_static_operands('echo "issue 42 needs triage"') == 'echo ""'
 
     @pytest.mark.parametrize(
         "operand",
@@ -343,10 +341,7 @@ class TestContinuedMessageLists:
         """Positive: operands of a continued printf are message text."""
         block = _run_block(
             _PRINTF + _CONT,
-            *(
-                f'  "Renumber {i} if a collision is found for it."' + _CONT
-                for i in range(11)
-            ),
+            *(f'  "Renumber {i} if a collision is found for it."' + _CONT for i in range(11)),
             '  "Numbers are assigned for each ADR."',
         )
         assert block.code_lines > scanner._DEFAULT_THRESHOLD

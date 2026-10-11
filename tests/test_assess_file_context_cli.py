@@ -1,5 +1,4 @@
-"""Per-file threshold context through the assess.py CLI (issue #6166).
-"""
+"""Per-file threshold context through the assess.py CLI (issue #6166)."""
 
 from __future__ import annotations
 

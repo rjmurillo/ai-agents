@@ -114,7 +114,7 @@ def _run_mutants(repo_root: Path) -> None:
         _NEW_PR_TESTS,
         "#4324: remove origin/ prefix from candidate",
         b'    remote_ref = f"origin/{pr_base}"',
-        b'    remote_ref = pr_base',
+        b"    remote_ref = pr_base",
     )
 
     # Mutant 2: remove the returncode check (always use bare base)

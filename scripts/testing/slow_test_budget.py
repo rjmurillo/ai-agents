@@ -90,8 +90,7 @@ def report(groups: Sequence[ModuleGroup], budget: dict[str, float]) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Fail when a validator suite exceeds its seconds budget "
-        "(issue #5382)."
+        description="Fail when a validator suite exceeds its seconds budget (issue #5382)."
     )
     parser.add_argument(
         "inputs", nargs="+", type=Path, help="Recorder JSON and/or JUnit XML files."

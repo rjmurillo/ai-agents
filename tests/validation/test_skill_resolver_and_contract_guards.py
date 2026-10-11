@@ -141,9 +141,7 @@ class TestResolverAnchoringPositiveControl:
         Skipped rather than failed once the underlying skills are fixed, so
         the test does not become an obstacle to the fix it is asking for.
         """
-        target = (
-            REPO_ROOT / "src" / "copilot-cli" / "skills" / "pr-autofix" / "SKILL.md"
-        )
+        target = REPO_ROOT / "src" / "copilot-cli" / "skills" / "pr-autofix" / "SKILL.md"
         if not target.is_file():
             pytest.skip("pr-autofix SKILL.md not present in this tree")
         violations = resolver_guard.check_file(target)
@@ -164,9 +162,7 @@ class TestResolverAnchoringNegativeControl:
 
 
 class TestContractBindingPositiveControl:
-    def test_documented_contract_without_test_is_rejected(
-        self, tmp_path: Path
-    ) -> None:
+    def test_documented_contract_without_test_is_rejected(self, tmp_path: Path) -> None:
         _write_skill(tmp_path, "demo", CONTRACT_SKILL)
         _write_test(tmp_path, "test_unrelated.py", "def test_x():\n    assert True\n")
         assert contract_guard.main(["--repo-root", str(tmp_path)]) == 1
@@ -200,9 +196,7 @@ class TestContractBindingNegativeControl:
     def test_empty_scan_does_not_report_success(self, tmp_path: Path) -> None:
         assert contract_guard.main(["--repo-root", str(tmp_path)]) == 2
 
-    def test_missing_tests_directory_does_not_report_success(
-        self, tmp_path: Path
-    ) -> None:
+    def test_missing_tests_directory_does_not_report_success(self, tmp_path: Path) -> None:
         _write_skill(tmp_path, "demo", CONTRACT_SKILL)
         assert contract_guard.main(["--repo-root", str(tmp_path)]) == 2
 
@@ -221,12 +215,7 @@ class TestBaselineRatchet:
     """The checked-in baseline file must be well-formed and non-empty."""
 
     def test_baseline_entries_are_still_unbound(self) -> None:
-        baseline_path = (
-            REPO_ROOT
-            / "scripts"
-            / "validation"
-            / "skill_contract_test_baseline.txt"
-        )
+        baseline_path = REPO_ROOT / "scripts" / "validation" / "skill_contract_test_baseline.txt"
         if not baseline_path.is_file():
             pytest.skip("baseline not present")
         entries = [

@@ -41,17 +41,19 @@ GENERATED_SURFACE = (
 # ``validate_agent_catalog.py``. Every sibling entry outside this set must
 # appear in the drift filter, so a path the sibling gains cannot be skipped
 # here without a test failing.
-SIBLING_ONLY = frozenset({
-    "build/generate_agent_catalog.py",
-    "build/scripts/**",
-    "scripts/validation/**",
-    "lefthook.yml",
-    ".config/lefthook.yml",
-    ".githooks/**",
-    ".github/actions/**",
-    "tests/ci/test_validation_scripts_are_reachable.py",
-    "tests/ci/test_frontmatter_gate_paths_filter.py",
-})
+SIBLING_ONLY = frozenset(
+    {
+        "build/generate_agent_catalog.py",
+        "build/scripts/**",
+        "scripts/validation/**",
+        "lefthook.yml",
+        ".config/lefthook.yml",
+        ".githooks/**",
+        ".github/actions/**",
+        "tests/ci/test_validation_scripts_are_reachable.py",
+        "tests/ci/test_frontmatter_gate_paths_filter.py",
+    }
+)
 
 
 def _agents_filter(workflow: Path) -> list[str]:

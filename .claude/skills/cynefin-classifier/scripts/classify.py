@@ -133,25 +133,19 @@ STRATEGIES = {
 
 # Domain-specific pitfalls
 PITFALLS = {
-    Domain.CLEAR: (
-        "Over-complicating simple problems. "
-        "Creating abstractions where none needed."
-    ),
+    Domain.CLEAR: ("Over-complicating simple problems. Creating abstractions where none needed."),
     Domain.COMPLICATED: (
         "Analysis paralysis OR acting without sufficient expertise. "
         "Balance thoroughness with timely action."
     ),
     Domain.COMPLEX: (
-        "Trying to fully analyze before acting. "
-        "Expecting predictable outcomes from experiments."
+        "Trying to fully analyze before acting. Expecting predictable outcomes from experiments."
     ),
     Domain.CHAOTIC: (
-        "Forming committees. Waiting for consensus. "
-        "Deep analysis during active crisis."
+        "Forming committees. Waiting for consensus. Deep analysis during active crisis."
     ),
     Domain.CONFUSION: (
-        "Assuming a domain without evidence. "
-        "Acting before gathering sufficient information."
+        "Assuming a domain without evidence. Acting before gathering sufficient information."
     ),
 }
 
@@ -238,9 +232,7 @@ def count_keyword_matches(text: str, domain: Domain) -> int:
     return sum(1 for kw in DOMAIN_KEYWORDS[domain] if kw in text_lower)
 
 
-def classify_problem(
-    problem: str, context: str | None = None
-) -> ClassificationResult:
+def classify_problem(problem: str, context: str | None = None) -> ClassificationResult:
     """Classify a problem into a Cynefin domain.
 
     Args:
@@ -255,9 +247,7 @@ def classify_problem(
         combined_text = f"{problem} {context}"
 
     # Count keyword matches for each domain
-    scores = {
-        domain: count_keyword_matches(combined_text, domain) for domain in Domain
-    }
+    scores = {domain: count_keyword_matches(combined_text, domain) for domain in Domain}
 
     # Find domain with highest score
     max_score = max(scores.values())
@@ -389,12 +379,10 @@ def _generate_temporal_note(domain: Domain) -> str:
             "or to Chaotic if situation destabilizes."
         ),
         Domain.CHAOTIC: (
-            "Should transition to Complex after stabilization. "
-            "Do not linger in Chaotic."
+            "Should transition to Complex after stabilization. Do not linger in Chaotic."
         ),
         Domain.CONFUSION: (
-            "Temporary state. Should resolve to another domain "
-            "once information is gathered."
+            "Temporary state. Should resolve to another domain once information is gathered."
         ),
     }
     return notes[domain]
@@ -407,9 +395,7 @@ def _generate_boundary_note(domain: Domain, scores: dict[Domain, int]) -> str | 
         return None
 
     # Check for close scores
-    close_domains = [
-        d for d, s in scores.items() if s > 0 and s >= max_score - 1 and d != domain
-    ]
+    close_domains = [d for d, s in scores.items() if s > 0 and s >= max_score - 1 and d != domain]
     if close_domains:
         return (
             f"Near boundary with {', '.join(d.value for d in close_domains)}. "
@@ -420,9 +406,7 @@ def _generate_boundary_note(domain: Domain, scores: dict[Domain, int]) -> str | 
 
 def main() -> int:
     """Main entry point."""
-    parser = argparse.ArgumentParser(
-        description="Classify problems into Cynefin Framework domains"
-    )
+    parser = argparse.ArgumentParser(description="Classify problems into Cynefin Framework domains")
     parser.add_argument(
         "--problem",
         required=True,

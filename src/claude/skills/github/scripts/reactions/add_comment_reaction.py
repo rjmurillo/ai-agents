@@ -133,9 +133,7 @@ def _query_review_comment(
     try:
         comment = json.loads(result.stdout)
     except json.JSONDecodeError as exc:
-        raise RuntimeError(
-            f"Invalid JSON while querying review comment {comment_id}"
-        ) from exc
+        raise RuntimeError(f"Invalid JSON while querying review comment {comment_id}") from exc
     if not isinstance(comment, dict):
         raise RuntimeError(f"Unexpected review comment payload for {comment_id}")
     return comment
@@ -179,13 +177,9 @@ def _find_review_thread(
             return None
         cursor_value = page_info.get("endCursor")
         if not isinstance(cursor_value, str) or not cursor_value:
-            raise RuntimeError(
-                f"Review thread pagination cursor missing for PR #{pull_request}"
-            )
+            raise RuntimeError(f"Review thread pagination cursor missing for PR #{pull_request}")
         cursor = cursor_value
-    raise RuntimeError(
-        f"Review thread pagination exceeded {_MAX_THREAD_PAGES} pages"
-    )
+    raise RuntimeError(f"Review thread pagination exceeded {_MAX_THREAD_PAGES} pages")
 
 
 def query_review_comment_thread_state(
@@ -198,21 +192,14 @@ def query_review_comment_thread_state(
     if comment is None:
         return None
     pull_request = _pull_request_number(comment)
-    if (
-        expected_pull_request is not None
-        and pull_request != expected_pull_request
-    ):
+    if expected_pull_request is not None and pull_request != expected_pull_request:
         return {
             "pull_request": pull_request,
             "thread_id": None,
             "is_resolved": None,
         }
     in_reply_to_id = comment.get("in_reply_to_id")
-    root_comment_id = (
-        in_reply_to_id
-        if isinstance(in_reply_to_id, int)
-        else comment_id
-    )
+    root_comment_id = in_reply_to_id if isinstance(in_reply_to_id, int) else comment_id
     thread = _find_review_thread(
         owner,
         repo,
@@ -240,10 +227,7 @@ def _review_comment_decision(
     )
     if state is None:
         return "SKIP", "comment_not_found", None
-    if (
-        expected_pull_request is not None
-        and state.get("pull_request") != expected_pull_request
-    ):
+    if expected_pull_request is not None and state.get("pull_request") != expected_pull_request:
         return "SKIP", "wrong_pull_request", state
     if state.get("thread_id") is None:
         return "SKIP", "thread_not_found", state
@@ -361,10 +345,7 @@ def _reaction_summary(
     results: list[dict[str, object]],
 ) -> tuple[dict[str, object], int, int]:
     succeeded = sum(result["reason"] == "reaction_added" for result in results)
-    skipped = sum(
-        result["action"] == "SKIP" and bool(result["success"])
-        for result in results
-    )
+    skipped = sum(result["action"] == "SKIP" and bool(result["success"]) for result in results)
     failed = sum(not bool(result["success"]) for result in results)
     attempted = sum(result["action"] == "ACT" for result in results)
     summary = {
@@ -392,10 +373,7 @@ def _write_reaction_result(
     failed = cast(int, summary["failed"])
     if failed > 0:
         results = cast(list[dict[str, object]], summary["results"])
-        timeout_failures = sum(
-            result["reason"] == "reaction_timeout"
-            for result in results
-        )
+        timeout_failures = sum(result["reason"] == "reaction_timeout" for result in results)
         write_skill_error(
             (
                 f"Applied '{args.reaction}' to {succeeded}/{len(args.comment_id)} "

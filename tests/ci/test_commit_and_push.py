@@ -25,11 +25,16 @@ finally:
     sys.path[:] = _original_path
 
 _ARGS = [
-    "--path", "a.md",
-    "--user-name", "bot",
-    "--user-email", "bot@example.com",
-    "--message", "subject",
-    "--message", "body",
+    "--path",
+    "a.md",
+    "--user-name",
+    "bot",
+    "--user-email",
+    "bot@example.com",
+    "--message",
+    "subject",
+    "--message",
+    "body",
 ]
 
 

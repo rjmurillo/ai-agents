@@ -286,9 +286,7 @@ class TestMainExitCodes:
             assert main(["--check"]) == 1
 
     def test_default_repair_clears_stale_returns_0(self, tmp_path: Path) -> None:
-        launcher = _make_launcher(
-            tmp_path / ".venv" / "bin", "ruff", "/old/root/.venv/bin/python"
-        )
+        launcher = _make_launcher(tmp_path / ".venv" / "bin", "ruff", "/old/root/.venv/bin/python")
 
         def fake_repair(root: Path) -> None:
             # Simulate a successful reinstall that rewrites the shebang in place.

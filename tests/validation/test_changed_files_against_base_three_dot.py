@@ -10,6 +10,7 @@ The fix changes the command to ``git diff --name-only base_ref...HEAD``
 (three-dot), which always diffs from the merge-base to HEAD regardless of how
 far base_ref has advanced.
 """
+
 from __future__ import annotations
 
 import subprocess
@@ -26,8 +27,17 @@ def _init_repo(root: Path) -> None:
     """Initialise an empty git repo with a first commit."""
     for args in (
         ("init", "-q", "-b", "main"),
-        ("-c", "user.email=t@t", "-c", "user.name=t",
-         "commit", "-q", "--allow-empty", "-m", "init"),
+        (
+            "-c",
+            "user.email=t@t",
+            "-c",
+            "user.name=t",
+            "commit",
+            "-q",
+            "--allow-empty",
+            "-m",
+            "init",
+        ),
     ):
         subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True)
 
@@ -79,13 +89,19 @@ class TestChangedFilesAgainstBaseThreeDot:
         _git(tmp_path, "commit", "-m", "main advance")
         main_advanced = subprocess.run(
             ["git", "-C", str(tmp_path), "rev-parse", "HEAD"],
-            check=True, capture_output=True, text=True, encoding="utf-8",
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
         ).stdout.strip()
 
         # Create a branch diverging from the commit BEFORE main advanced.
         merge_base = subprocess.run(
             ["git", "-C", str(tmp_path), "rev-parse", "HEAD~1"],
-            check=True, capture_output=True, text=True, encoding="utf-8",
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
         ).stdout.strip()
         _git(tmp_path, "checkout", "-b", "feature", merge_base)
         (tmp_path / "branch_file.md").write_text("branch content\n", encoding="utf-8")
@@ -114,7 +130,10 @@ class TestChangedFilesAgainstBaseThreeDot:
         _init_repo(tmp_path)
         base_ref = subprocess.run(
             ["git", "-C", str(tmp_path), "rev-parse", "HEAD"],
-            check=True, capture_output=True, text=True, encoding="utf-8",
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
         ).stdout.strip()
 
         result = cmp._changed_files_against_base(tmp_path, base_ref)

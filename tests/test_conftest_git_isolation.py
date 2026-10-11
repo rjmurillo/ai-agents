@@ -98,9 +98,7 @@ class TestHostileGitDirIsUnsetByFixture:
         ceiling = setenvs.get("GIT_CEILING_DIRECTORIES", "")
         assert str(tmp_path.parent) in ceiling
 
-    def test_no_ceiling_without_tmp_path_but_still_sanitized(
-        self, tmp_path: Path
-    ) -> None:
+    def test_no_ceiling_without_tmp_path_but_still_sanitized(self, tmp_path: Path) -> None:
         """No ceiling without tmp_path, but the environment is still sanitized.
 
         The ceiling needs a path, so it stays conditional. Unsetting an
@@ -123,9 +121,7 @@ class TestHostileGitDirIsUnsetByFixture:
 
         fixture_fn(request, mp)
 
-        assert "GIT_DIR" in deleted, (
-            "pointer vars must be unset even when the test has no tmp_path"
-        )
+        assert "GIT_DIR" in deleted, "pointer vars must be unset even when the test has no tmp_path"
         assert "GIT_CONFIG_PARAMETERS" in deleted, (
             "inherited config injection must be unset even without tmp_path"
         )
@@ -160,9 +156,7 @@ class TestNegativeControl:
             "GIT_DIR or GIT_WORK_TREE may be leaking into the subprocess environment."
         )
 
-    def test_hostile_git_dir_without_isolation_redirects_operations(
-        self, tmp_path: Path
-    ) -> None:
+    def test_hostile_git_dir_without_isolation_redirects_operations(self, tmp_path: Path) -> None:
         """Prove the failure mode: GIT_DIR in env redirects git init away from cwd.
 
         This test does NOT rely on the fixture to clear GIT_DIR; it manually

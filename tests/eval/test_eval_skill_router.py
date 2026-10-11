@@ -29,6 +29,7 @@ import eval_skill_router as router  # noqa: E402
 # BEFORE_REF is a fixed SHA (not a branch name)
 # ---------------------------------------------------------------------------
 
+
 class TestBeforeRefIsImmutable:
     def test_before_ref_is_a_full_sha(self) -> None:
         """BEFORE_REF must be a 40-hex-char commit SHA, not a branch/tag name."""
@@ -61,6 +62,7 @@ class TestBeforeRefIsImmutable:
 # check_identical_arms
 # ---------------------------------------------------------------------------
 
+
 def _make_plan_item(
     fx_id: str,
     candidates: list[str],
@@ -79,26 +81,26 @@ def _make_plan_item(
 class TestCheckIdenticalArms:
     def test_all_identical_returns_all_pairs(self) -> None:
         plan = [
-            _make_plan_item("f1", ["a", "b"],
-                            {"a": "desc-a", "b": "desc-b"},
-                            {"a": "desc-a", "b": "desc-b"}),
+            _make_plan_item(
+                "f1", ["a", "b"], {"a": "desc-a", "b": "desc-b"}, {"a": "desc-a", "b": "desc-b"}
+            ),
         ]
         result = router.check_identical_arms(plan)
         assert set(result) == {"f1/a", "f1/b"}
 
     def test_all_differ_returns_empty(self) -> None:
         plan = [
-            _make_plan_item("f1", ["a", "b"],
-                            {"a": "old-a", "b": "old-b"},
-                            {"a": "new-a", "b": "new-b"}),
+            _make_plan_item(
+                "f1", ["a", "b"], {"a": "old-a", "b": "old-b"}, {"a": "new-a", "b": "new-b"}
+            ),
         ]
         assert router.check_identical_arms(plan) == []
 
     def test_partial_identical_returns_only_identical(self) -> None:
         plan = [
-            _make_plan_item("f1", ["a", "b"],
-                            {"a": "same", "b": "old-b"},
-                            {"a": "same", "b": "new-b"}),
+            _make_plan_item(
+                "f1", ["a", "b"], {"a": "same", "b": "old-b"}, {"a": "same", "b": "new-b"}
+            ),
         ]
         result = router.check_identical_arms(plan)
         assert result == ["f1/a"]
@@ -120,6 +122,7 @@ class TestCheckIdenticalArms:
 # main() exits 1 when all arms are identical
 # ---------------------------------------------------------------------------
 
+
 def _write_fixture(tmp_path: Path, candidates: list[str]) -> str:
     fx = [{"id": "f1", "query": "what", "candidates": candidates, "correct": candidates[0]}]
     p = tmp_path / "fx.json"
@@ -132,9 +135,7 @@ def _make_skill_files(repo: Path, names: list[str], content: str) -> None:
     for name in names:
         d = repo / ".claude" / "skills" / name
         d.mkdir(parents=True, exist_ok=True)
-        (d / "SKILL.md").write_text(
-            f"---\ndescription: {content}\n---\n# {name}\n"
-        )
+        (d / "SKILL.md").write_text(f"---\ndescription: {content}\n---\n# {name}\n")
 
 
 class TestMainIdenticalArmsExits1:
@@ -157,10 +158,17 @@ class TestMainIdenticalArmsExits1:
             return m
 
         with patch("subprocess.run", side_effect=fake_git_show):
-            with patch("sys.argv", ["eval_skill_router.py",
-                                    "--fixtures", fx_path,
-                                    "--repo-root", str(repo),
-                                    "--dry-run"]):
+            with patch(
+                "sys.argv",
+                [
+                    "eval_skill_router.py",
+                    "--fixtures",
+                    fx_path,
+                    "--repo-root",
+                    str(repo),
+                    "--dry-run",
+                ],
+            ):
                 rc = router.main()
 
         assert rc == 1, f"Expected exit 1 (identical arms), got {rc}"
@@ -180,10 +188,17 @@ class TestMainIdenticalArmsExits1:
             return m
 
         with patch("subprocess.run", side_effect=fake_git_show):
-            with patch("sys.argv", ["eval_skill_router.py",
-                                    "--fixtures", fx_path,
-                                    "--repo-root", str(repo),
-                                    "--dry-run"]):
+            with patch(
+                "sys.argv",
+                [
+                    "eval_skill_router.py",
+                    "--fixtures",
+                    fx_path,
+                    "--repo-root",
+                    str(repo),
+                    "--dry-run",
+                ],
+            ):
                 rc = router.main()
 
         assert rc == 0, f"Expected exit 0 (arms differ, dry-run), got {rc}"
@@ -214,10 +229,17 @@ class TestMainIdenticalArmsExits1:
             return m
 
         with patch("subprocess.run", side_effect=fake_git_show):
-            with patch("sys.argv", ["eval_skill_router.py",
-                                    "--fixtures", fx_path,
-                                    "--repo-root", str(repo),
-                                    "--dry-run"]):
+            with patch(
+                "sys.argv",
+                [
+                    "eval_skill_router.py",
+                    "--fixtures",
+                    fx_path,
+                    "--repo-root",
+                    str(repo),
+                    "--dry-run",
+                ],
+            ):
                 rc = router.main()
 
         assert rc == 0, f"Partial identical should not abort; got rc={rc}"
@@ -229,6 +251,7 @@ class TestMainIdenticalArmsExits1:
 # ---------------------------------------------------------------------------
 # Negative control: the old BEFORE_REF="origin/main" would trigger exit 1
 # ---------------------------------------------------------------------------
+
 
 class TestOldBehaviorWouldFail:
     def test_origin_main_triggers_identical_arms_detection(self, tmp_path: Path) -> None:
@@ -251,10 +274,17 @@ class TestOldBehaviorWouldFail:
 
         with patch.object(router, "BEFORE_REF", "origin/main"):
             with patch("subprocess.run", side_effect=fake_git_show_same):
-                with patch("sys.argv", ["eval_skill_router.py",
-                                        "--fixtures", fx_path,
-                                        "--repo-root", str(repo),
-                                        "--dry-run"]):
+                with patch(
+                    "sys.argv",
+                    [
+                        "eval_skill_router.py",
+                        "--fixtures",
+                        fx_path,
+                        "--repo-root",
+                        str(repo),
+                        "--dry-run",
+                    ],
+                ):
                     rc = router.main()
 
         assert rc == 1, (

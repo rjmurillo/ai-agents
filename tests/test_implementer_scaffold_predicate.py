@@ -67,7 +67,6 @@ def test_implementer_prompt_drops_the_handoff_blocking_gate() -> None:
         text = _prompt_text(path)
 
         assert (
-            "If `.agents/AGENT-INSTRUCTIONS.md` exists but `.agents/HANDOFF.md` "
-            "is missing"
+            "If `.agents/AGENT-INSTRUCTIONS.md` exists but `.agents/HANDOFF.md` is missing"
         ) not in text, path
         assert "[BLOCKED] No prior session context available" not in text, path

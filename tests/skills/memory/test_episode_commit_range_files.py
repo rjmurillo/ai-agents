@@ -230,9 +230,7 @@ class TestExtractorUsesTheCommitRange:
         episode = json.loads((out / "episode-2026-08-03-session-1.json").read_text())
         assert episode["metrics"]["files_changed"] == 3
 
-    def test_valid_empty_range_beats_the_prose_number(
-        self, repo: Path, tmp_path: Path
-    ) -> None:
+    def test_valid_empty_range_beats_the_prose_number(self, repo: Path, tmp_path: Path) -> None:
         log, _start, _end = self._build(repo, tmp_path, changed=3)
         out = tmp_path / "episodes"
 
@@ -296,9 +294,7 @@ class TestExtractorUsesTheCommitRange:
         preserved = json.loads(episode_file.read_text(encoding="utf-8"))
         assert preserved["metrics"]["files_changed"] == 10
 
-    def test_range_count_replaces_larger_preserved_metric(
-        self, repo: Path, tmp_path: Path
-    ) -> None:
+    def test_range_count_replaces_larger_preserved_metric(self, repo: Path, tmp_path: Path) -> None:
         log, _start, _end = self._build(repo, tmp_path, changed=3)
         out = tmp_path / "episodes"
         assert ese.main([str(log), "--output-path", str(out), "--force"]) == 0

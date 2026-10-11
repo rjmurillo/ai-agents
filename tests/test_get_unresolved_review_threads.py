@@ -28,8 +28,7 @@ from scripts.github_core.api import RepoInfo
 # Import the script via importlib (not a package)
 # ---------------------------------------------------------------------------
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1]
-    / ".claude" / "skills" / "github" / "scripts" / "pr"
+    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "pr"
 )
 
 
@@ -49,7 +48,10 @@ build_parser = _mod.build_parser
 
 
 def _page(
-    *, nodes: list[dict], has_next: bool, end_cursor: str | None = None,
+    *,
+    nodes: list[dict],
+    has_next: bool,
+    end_cursor: str | None = None,
 ) -> dict:
     """Build a synthetic GraphQL response page for the reviewThreads query."""
     return {
@@ -82,9 +84,16 @@ class TestBuildParser:
         assert args.pull_request == 42
 
     def test_owner_repo_optional(self):
-        args = build_parser().parse_args([
-            "--owner", "myorg", "--repo", "myrepo", "--pull-request", "1",
-        ])
+        args = build_parser().parse_args(
+            [
+                "--owner",
+                "myorg",
+                "--repo",
+                "myrepo",
+                "--pull-request",
+                "1",
+            ]
+        )
         assert args.owner == "myorg"
         assert args.repo == "myrepo"
 
@@ -115,11 +124,14 @@ class TestMain:
             assert exc.value.code == 4
 
     def test_negative_pr_exits_2(self):
-        with patch(
-            "get_unresolved_review_threads.assert_gh_authenticated",
-        ), patch(
-            "get_unresolved_review_threads.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
+        with (
+            patch(
+                "get_unresolved_review_threads.assert_gh_authenticated",
+            ),
+            patch(
+                "get_unresolved_review_threads.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "-1"])
@@ -127,14 +139,18 @@ class TestMain:
 
     def test_single_page_complete(self, capsys):
         nodes = [{"id": "t1", "isResolved": False}]
-        with patch(
-            "get_unresolved_review_threads.assert_gh_authenticated",
-        ), patch(
-            "get_unresolved_review_threads.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_unresolved_review_threads.gh_graphql",
-            return_value=_page(nodes=nodes, has_next=False),
+        with (
+            patch(
+                "get_unresolved_review_threads.assert_gh_authenticated",
+            ),
+            patch(
+                "get_unresolved_review_threads.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_unresolved_review_threads.gh_graphql",
+                return_value=_page(nodes=nodes, has_next=False),
+            ),
         ):
             rc = main(["--pull-request", "42"])
         assert rc == 0
@@ -146,14 +162,18 @@ class TestMain:
         assert output["threads"][0]["thread_id"] == "t1"
 
     def test_zero_threads_complete(self, capsys):
-        with patch(
-            "get_unresolved_review_threads.assert_gh_authenticated",
-        ), patch(
-            "get_unresolved_review_threads.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_unresolved_review_threads.gh_graphql",
-            return_value=_page(nodes=[], has_next=False),
+        with (
+            patch(
+                "get_unresolved_review_threads.assert_gh_authenticated",
+            ),
+            patch(
+                "get_unresolved_review_threads.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_unresolved_review_threads.gh_graphql",
+                return_value=_page(nodes=[], has_next=False),
+            ),
         ):
             rc = main(["--pull-request", "1"])
         assert rc == 0
@@ -178,14 +198,18 @@ class TestMain:
             ],
             has_next=False,
         )
-        with patch(
-            "get_unresolved_review_threads.assert_gh_authenticated",
-        ), patch(
-            "get_unresolved_review_threads.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_unresolved_review_threads.gh_graphql",
-            side_effect=[page1, page2],
+        with (
+            patch(
+                "get_unresolved_review_threads.assert_gh_authenticated",
+            ),
+            patch(
+                "get_unresolved_review_threads.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_unresolved_review_threads.gh_graphql",
+                side_effect=[page1, page2],
+            ),
         ):
             rc = main(["--pull-request", "42"])
         assert rc == 0
@@ -195,14 +219,18 @@ class TestMain:
         assert output["fetched_pages_complete"] is True
 
     def test_graphql_error_marks_incomplete(self, capsys):
-        with patch(
-            "get_unresolved_review_threads.assert_gh_authenticated",
-        ), patch(
-            "get_unresolved_review_threads.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_unresolved_review_threads.gh_graphql",
-            side_effect=RuntimeError("transport failed"),
+        with (
+            patch(
+                "get_unresolved_review_threads.assert_gh_authenticated",
+            ),
+            patch(
+                "get_unresolved_review_threads.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_unresolved_review_threads.gh_graphql",
+                side_effect=RuntimeError("transport failed"),
+            ),
         ):
             rc = main(["--pull-request", "42"])
         assert rc == 0
@@ -224,14 +252,18 @@ class TestMain:
             has_next=True,
             end_cursor=None,
         )
-        with patch(
-            "get_unresolved_review_threads.assert_gh_authenticated",
-        ), patch(
-            "get_unresolved_review_threads.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_unresolved_review_threads.gh_graphql",
-            return_value=page1,
+        with (
+            patch(
+                "get_unresolved_review_threads.assert_gh_authenticated",
+            ),
+            patch(
+                "get_unresolved_review_threads.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_unresolved_review_threads.gh_graphql",
+                return_value=page1,
+            ),
         ):
             rc = main(["--pull-request", "42"])
         assert rc == 0
@@ -275,14 +307,18 @@ _RICH_NODE = {
 
 def _run_with_node(node: dict, argv: list[str], capsys) -> dict:
     """Run main() with a single-page response containing ``node``."""
-    with patch(
-        "get_unresolved_review_threads.assert_gh_authenticated",
-    ), patch(
-        "get_unresolved_review_threads.resolve_repo_params",
-        return_value=RepoInfo(owner="o", repo="r"),
-    ), patch(
-        "get_unresolved_review_threads.gh_graphql",
-        return_value=_page(nodes=[node], has_next=False),
+    with (
+        patch(
+            "get_unresolved_review_threads.assert_gh_authenticated",
+        ),
+        patch(
+            "get_unresolved_review_threads.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ),
+        patch(
+            "get_unresolved_review_threads.gh_graphql",
+            return_value=_page(nodes=[node], has_next=False),
+        ),
     ):
         rc = main(argv)
     assert rc == 0
@@ -325,7 +361,9 @@ class TestThreadShape:
 
     def test_include_comments_materializes_flat_list(self, capsys):
         output = _run_with_node(
-            _RICH_NODE, ["--pull-request", "42", "--include-comments"], capsys,
+            _RICH_NODE,
+            ["--pull-request", "42", "--include-comments"],
+            capsys,
         )
         thread = output["threads"][0]
         assert isinstance(thread["comments"], list)
@@ -341,7 +379,9 @@ class TestThreadShape:
         from scripts.github_core.api import transform_review_thread
 
         output = _run_with_node(
-            _RICH_NODE, ["--pull-request", "42", "--include-comments"], capsys,
+            _RICH_NODE,
+            ["--pull-request", "42", "--include-comments"],
+            capsys,
         )
         expected = transform_review_thread(_RICH_NODE, include_comments=True)
         assert output["threads"][0] == expected

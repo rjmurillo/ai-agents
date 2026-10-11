@@ -55,16 +55,12 @@ def script_rel(request: pytest.FixtureRequest) -> str:
 
 
 def test_plugin_root_with_lib_runs(script_rel: str, tmp_path: Path) -> None:
-    result = _run(
-        PLUGIN_TREE / script_rel, tmp_path, {"CLAUDE_PLUGIN_ROOT": str(PLUGIN_TREE)}
-    )
+    result = _run(PLUGIN_TREE / script_rel, tmp_path, {"CLAUDE_PLUGIN_ROOT": str(PLUGIN_TREE)})
     assert result.returncode == 0, result.stderr
 
 
 def test_copilot_plugin_root_with_lib_runs(script_rel: str, tmp_path: Path) -> None:
-    result = _run(
-        PLUGIN_TREE / script_rel, tmp_path, {"COPILOT_PLUGIN_ROOT": str(PLUGIN_TREE)}
-    )
+    result = _run(PLUGIN_TREE / script_rel, tmp_path, {"COPILOT_PLUGIN_ROOT": str(PLUGIN_TREE)})
     assert result.returncode == 0, result.stderr
 
 

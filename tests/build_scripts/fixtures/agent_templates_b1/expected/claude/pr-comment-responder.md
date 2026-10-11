@@ -1053,7 +1053,9 @@ Analyze this PR comment and determine:
 #### Step 3.2: Delegate to Orchestrator
 
 ```python
-Task(subagent_type="orchestrator", prompt="""
+Task(
+    subagent_type="orchestrator",
+    prompt="""
 [Context from Step 3.1]
 
 After analysis, save plan to: `.project-toolkit/pr-comments/PR-[number]/[comment_id]-plan.md`
@@ -1063,7 +1065,8 @@ Return:
 - Priority: [Critical / Major / Minor / Won't Fix / Question]
 - Action: [Implement / Reply Only / Defer / Clarify]
 - Rationale: [Why this classification]
-""")
+""",
+)
 ```
 
 #### Step 3.3: Update Comment Map
@@ -1336,7 +1339,9 @@ Implement tasks in priority order. For each task:
 #### Step 6.1: Delegate to Orchestrator
 
 ```python
-Task(subagent_type="orchestrator", prompt="""
+Task(
+    subagent_type="orchestrator",
+    prompt="""
 Implement this PR comment fix:
 
 ## Task
@@ -1353,7 +1358,8 @@ Implement this PR comment fix:
 2. Write tests if applicable
 3. Verify the fix works
 4. DO NOT commit yet - return the changes for batch commit
-""")
+""",
+)
 ```
 
 #### Step 6.2: Batch Commit
@@ -1869,7 +1875,7 @@ session_stats = {
         "cursor[bot]": {"comments": N, "actionable": N, "rate": "100%"},
         "copilot-pull-request-reviewer": {"comments": N, "actionable": N, "rate": "XX%"},
         # ... other reviewers
-    }
+    },
 }
 ```
 
@@ -1877,7 +1883,7 @@ session_stats = {
 
 ```python
 # Read current memory to get existing statistics
-current = Read .serena/memories/pr-review/pr-comment-responder-skills.md
+current = Read.serena / memories / pr - review / pr - comment - responder - skills.md
 
 # Calculate new cumulative totals from session_stats
 # Example: If cursor[bot] had 9 comments (100%) and this PR adds 2 more (100%)
@@ -1889,7 +1895,7 @@ mcp__serena__edit_memory(
     memory_file_name="pr-review/pr-comment-responder-skills",
     needle=r"\| cursor\[bot\] \| \d+ \| \d+ \| \*\*\d+%\*\* \|",
     repl=f"| cursor[bot] | {new_total_comments} | {new_actionable} | **{new_rate}%** |",
-    mode="regex"
+    mode="regex",
 )
 
 # Add new Per-PR Breakdown entry (prepend to existing entries)
@@ -1908,7 +1914,7 @@ mcp__serena__edit_memory(
     memory_file_name="pr-review/pr-comment-responder-skills",
     needle="### Per-PR Breakdown",
     repl=new_pr_section,
-    mode="literal"
+    mode="literal",
 )
 ```
 

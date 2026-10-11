@@ -195,14 +195,7 @@ def test_repo_identity_stable_across_repeated_calls(tmp_path: Path) -> None:
 
 
 def test_diff_line_semantics_excludes_file_headers_counts_multiset() -> None:
-    diff_text = (
-        "=== DIFF: a.py ===\n"
-        "--- a/a.py\n"
-        "+++ b/a.py\n"
-        "+added once\n"
-        "+added once\n"
-        "-removed\n"
-    )
+    diff_text = "=== DIFF: a.py ===\n--- a/a.py\n+++ b/a.py\n+added once\n+added once\n-removed\n"
 
     semantics = sgd.diff_line_semantics(diff_text)
 

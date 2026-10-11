@@ -184,8 +184,7 @@ def report(
 
     if pre_existing:
         print(
-            f"Pre-existing ruff findings outside this change "
-            f"({len(pre_existing)}, not blocking):"
+            f"Pre-existing ruff findings outside this change ({len(pre_existing)}, not blocking):"
         )
         for line in pre_existing:
             print(f"  {line}")
@@ -252,9 +251,7 @@ def run_ruff(
 
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Run ruff only on lines changed since a base ref."
-    )
+    parser = argparse.ArgumentParser(description="Run ruff only on lines changed since a base ref.")
     parser.add_argument(
         "--base-ref",
         default=default_base_ref(),

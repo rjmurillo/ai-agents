@@ -520,7 +520,6 @@ def test_every_powershell_command_resolves_under_pwsh(tmp_path: Path) -> None:
             assert line.startswith("OK:"), f"unresolved powershell path: {line}"
 
 
-
 class TestSubprocessDecoding:
     """Captured launcher output must be decoded explicitly, not by locale.
 

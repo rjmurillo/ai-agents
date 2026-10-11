@@ -145,7 +145,6 @@ def _resolve_body(args: argparse.Namespace) -> tuple[str, int | None]:
     return path.read_text(encoding="utf-8"), None
 
 
-
 def _collect_messages(
     conventional_commit: dict[str, Any],
     issue_keywords: dict[str, Any],
@@ -161,14 +160,10 @@ def _collect_messages(
         warnings.append(issue_keywords["Message"])
     if template_compliance["Status"] == "WARN":
         warning_sections = [
-            name
-            for name, status in template_compliance["Sections"].items()
-            if status == "WARN"
+            name for name, status in template_compliance["Sections"].items() if status == "WARN"
         ]
         if warning_sections:
-            warnings.append(
-                f"Incomplete template sections: {', '.join(warning_sections)}"
-            )
+            warnings.append(f"Incomplete template sections: {', '.join(warning_sections)}")
     return warnings, errors
 
 
@@ -247,18 +242,15 @@ def _print_human_summary(result: dict[str, Any]) -> None:
     print("\nPR Description Validation Results", file=sys.stderr)
     print("=================================", file=sys.stderr)
     print(
-        f"Conventional Commit: {conventional_commit['Status']} - "
-        f"{conventional_commit['Message']}",
+        f"Conventional Commit: {conventional_commit['Status']} - {conventional_commit['Message']}",
         file=sys.stderr,
     )
     print(
-        f"Issue Keywords:      {issue_keywords['Status']} - "
-        f"{issue_keywords['Message']}",
+        f"Issue Keywords:      {issue_keywords['Status']} - {issue_keywords['Message']}",
         file=sys.stderr,
     )
     print(
-        f"Template Compliance: {template_compliance['Status']} - "
-        f"{template_compliance['Message']}",
+        f"Template Compliance: {template_compliance['Status']} - {template_compliance['Message']}",
         file=sys.stderr,
     )
     fatality_policy = (
@@ -277,7 +269,6 @@ def _exit_code(result: dict[str, Any]) -> int:
     if result["FailOnViolation"] and not result["EffectiveSuccess"]:
         return 1
     return 0
-
 
 
 def validate_no_escaped_newlines(body_content: str) -> None:
@@ -330,8 +321,7 @@ def validate_no_escaped_newlines(body_content: str) -> None:
         file=sys.stderr,
     )
     print(
-        "  Write the body to a file and pass --body-file, which cannot"
-        " express this error.",
+        "  Write the body to a file and pass --body-file, which cannot express this error.",
         file=sys.stderr,
     )
     raise SystemExit(1)

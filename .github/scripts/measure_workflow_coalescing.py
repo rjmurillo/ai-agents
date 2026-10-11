@@ -264,10 +264,7 @@ def get_workflow_runs(
             break
 
         # Filter by workflow name (substring match)
-        filtered = [
-            r for r in response
-            if any(wn in r.get("name", "") for wn in workflow_names)
-        ]
+        filtered = [r for r in response if any(wn in r.get("name", "") for wn in workflow_names)]
 
         for run_data in filtered:
             run = WorkflowRun.from_api(run_data)
@@ -365,8 +362,7 @@ def get_overlapping_runs(runs: list[WorkflowRun]) -> list[RunOverlap]:
                         run1_cancelled=r1.conclusion == "cancelled",
                         run2_cancelled=r2.conclusion == "cancelled",
                         is_race_condition=(
-                            r1.conclusion != "cancelled"
-                            and r2.conclusion != "cancelled"
+                            r1.conclusion != "cancelled" and r2.conclusion != "cancelled"
                         ),
                     )
                     overlaps.append(overlap)
@@ -411,16 +407,13 @@ def get_coalescing_metrics(
         (successful_coalescing / denominator) * 100.0 if denominator > 0 else 0.0
     )
 
-    race_condition_rate = (
-        (race_condition_count / total_runs) * 100.0 if total_runs > 0 else 0.0
-    )
+    race_condition_rate = (race_condition_count / total_runs) * 100.0 if total_runs > 0 else 0.0
 
     # Average cancellation time
     cancelled_overlaps = [o for o in overlaps if o.run1_cancelled]
     if cancelled_overlaps:
         times = [
-            (o.run1.updated_dt - o.run1.created_dt).total_seconds()
-            for o in cancelled_overlaps
+            (o.run1.updated_dt - o.run1.created_dt).total_seconds() for o in cancelled_overlaps
         ]
         avg_cancellation_time = sum(times) / len(times)
     else:
@@ -455,13 +448,9 @@ def format_markdown_report(
     start_str = start_date.strftime("%Y-%m-%d")
     end_str = end_date.strftime("%Y-%m-%d")
 
-    effectiveness_status = (
-        "[On Track]" if metrics.coalescing_effectiveness >= 90 else "[Behind]"
-    )
+    effectiveness_status = "[On Track]" if metrics.coalescing_effectiveness >= 90 else "[Behind]"
     race_status = "[On Track]" if metrics.race_condition_rate <= 10 else "[Behind]"
-    cancel_status = (
-        "[On Track]" if metrics.avg_cancellation_time <= 5 else "[Behind]"
-    )
+    cancel_status = "[On Track]" if metrics.avg_cancellation_time <= 5 else "[Behind]"
 
     lines: list[str] = [
         "# Workflow Run Coalescing Metrics",
@@ -478,8 +467,7 @@ def format_markdown_report(
         "|--------|-------|--------|--------|",
         f"| Coalescing Effectiveness | {metrics.coalescing_effectiveness}% "
         f"| 90% | {effectiveness_status} |",
-        f"| Race Condition Rate | {metrics.race_condition_rate}% "
-        f"| <10% | {race_status} |",
+        f"| Race Condition Rate | {metrics.race_condition_rate}% | <10% | {race_status} |",
         f"| Average Cancellation Time | {metrics.avg_cancellation_time} seconds "
         f"| <5s | {cancel_status} |",
         "",
@@ -510,13 +498,15 @@ def format_markdown_report(
         pct = round((cancelled / total) * 100.0, 1) if total > 0 else 0.0
         lines.append(f"| {wf_name} | {total} | {cancelled} | {pct}% |")
 
-    lines.extend([
-        "",
-        "### Concurrency Group Analysis",
-        "",
-        "| Concurrency Group | Total Runs | Overlaps Detected |",
-        "|-------------------|------------|-------------------|",
-    ])
+    lines.extend(
+        [
+            "",
+            "### Concurrency Group Analysis",
+            "",
+            "| Concurrency Group | Total Runs | Overlaps Detected |",
+            "|-------------------|------------|-------------------|",
+        ]
+    )
 
     # Group runs by concurrency group
     cg_groups: dict[str, list[WorkflowRun]] = {}
@@ -530,22 +520,22 @@ def format_markdown_report(
         lines.append(f"| {cg_name} | {len(cg_runs)} | {group_overlaps} |")
 
     if metrics.race_conditions > 0:
-        lines.extend([
-            "",
-            "",
-            "## Race Condition Details",
-            "",
-            "### Detected Race Conditions",
-            "",
-            "| Concurrency Group | Run 1 ID | Run 2 ID | Both Completed |",
-            "|-------------------|----------|----------|----------------|",
-        ])
+        lines.extend(
+            [
+                "",
+                "",
+                "## Race Condition Details",
+                "",
+                "### Detected Race Conditions",
+                "",
+                "| Concurrency Group | Run 1 ID | Run 2 ID | Both Completed |",
+                "|-------------------|----------|----------|----------------|",
+            ]
+        )
 
         race_overlaps = [o for o in overlaps if o.is_race_condition][:10]
         for rc in race_overlaps:
-            lines.append(
-                f"| {rc.concurrency_group} | {rc.run1.id} | {rc.run2.id} | Yes |"
-            )
+            lines.append(f"| {rc.concurrency_group} | {rc.run1.id} | {rc.run2.id} | Yes |")
 
     lines.extend(["", "", "## Recommendations", ""])
 
@@ -576,22 +566,22 @@ def format_markdown_report(
         )
 
     if metrics.coalescing_effectiveness >= 90 and metrics.race_condition_rate <= 10:
-        lines.append(
-            "- **STATUS**: All metrics are within target thresholds. Continue monitoring."
-        )
+        lines.append("- **STATUS**: All metrics are within target thresholds. Continue monitoring.")
 
-    lines.extend([
-        "",
-        "## Data Sources",
-        "",
-        "- **GitHub Actions API**: `/repos/{owner}/{repo}/actions/runs`",
-        f"- **Collection Period**: {start_str} to {end_str}",
-        f"- **Workflows Analyzed**: {', '.join(workflows)}",
-        "",
-        "---",
-        "",
-        "*Generated by measure_workflow_coalescing.py*",
-    ])
+    lines.extend(
+        [
+            "",
+            "## Data Sources",
+            "",
+            "- **GitHub Actions API**: `/repos/{owner}/{repo}/actions/runs`",
+            f"- **Collection Period**: {start_str} to {end_str}",
+            f"- **Workflows Analyzed**: {', '.join(workflows)}",
+            "",
+            "---",
+            "",
+            "*Generated by measure_workflow_coalescing.py*",
+        ]
+    )
 
     return "\n".join(lines)
 
@@ -602,9 +592,7 @@ def format_markdown_report(
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description="Measure workflow run coalescing effectiveness."
-    )
+    parser = argparse.ArgumentParser(description="Measure workflow run coalescing effectiveness.")
     parser.add_argument(
         "--since",
         type=int,
@@ -726,7 +714,12 @@ def main(argv: list[str] | None = None) -> int:
 
         else:  # markdown
             report = format_markdown_report(
-                metrics, runs, overlaps, start_date, end_date, workflows,
+                metrics,
+                runs,
+                overlaps,
+                start_date,
+                end_date,
+                workflows,
             )
             if args.output_path:
                 _write_output(args.output_path, report)

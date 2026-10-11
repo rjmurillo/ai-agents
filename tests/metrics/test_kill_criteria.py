@@ -170,9 +170,7 @@ def test_cli_returns_three_when_write_fails(
     monkeypatch.setattr(kill_criteria, "_append_line", boom)
     monkeypatch.setattr(kill_criteria, "_repo_root", lambda: tmp_path)
 
-    rc = kill_criteria.main(
-        ["--kind", "K1", "--detail", "x", "--events-path", "e.jsonl"]
-    )
+    rc = kill_criteria.main(["--kind", "K1", "--detail", "x", "--events-path", "e.jsonl"])
 
     assert rc == 3
 

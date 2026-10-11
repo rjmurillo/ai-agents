@@ -110,38 +110,73 @@ class TestExtractBody:
 
     def test_issue_comment_returns_comment_body(self) -> None:
         result = extract_body(
-            "issue_comment", "comment text", "", "", "", "", "",
+            "issue_comment",
+            "comment text",
+            "",
+            "",
+            "",
+            "",
+            "",
         )
         assert result == "comment text"
 
     def test_pr_review_comment_returns_comment_body(self) -> None:
         result = extract_body(
-            "pull_request_review_comment", "review comment", "", "", "", "", "",
+            "pull_request_review_comment",
+            "review comment",
+            "",
+            "",
+            "",
+            "",
+            "",
         )
         assert result == "review comment"
 
     def test_pr_review_returns_review_body(self) -> None:
         result = extract_body(
-            "pull_request_review", "", "review body", "", "", "", "",
+            "pull_request_review",
+            "",
+            "review body",
+            "",
+            "",
+            "",
+            "",
         )
         assert result == "review body"
 
     def test_issues_combines_body_and_title(self) -> None:
         result = extract_body(
-            "issues", "", "", "issue body", "issue title", "", "",
+            "issues",
+            "",
+            "",
+            "issue body",
+            "issue title",
+            "",
+            "",
         )
         assert result == "issue body issue title"
 
     def test_pull_request_combines_body_and_title(self) -> None:
         result = extract_body(
-            "pull_request", "", "", "", "", "pr body", "pr title",
+            "pull_request",
+            "",
+            "",
+            "",
+            "",
+            "pr body",
+            "pr title",
         )
         assert result == "pr body pr title"
 
     def test_workflow_dispatch_returns_empty(self) -> None:
         result = extract_body(
-            "workflow_dispatch", "ignored", "ignored", "ignored",
-            "ignored", "ignored", "ignored",
+            "workflow_dispatch",
+            "ignored",
+            "ignored",
+            "ignored",
+            "ignored",
+            "ignored",
+            "ignored",
         )
         assert result == ""
 
@@ -222,7 +257,10 @@ class TestCheckAuthorization:
 
     def test_workflow_dispatch_member_authorized(self) -> None:
         authorized, reason = check_authorization(
-            "workflow_dispatch", "octocat", "MEMBER", False,
+            "workflow_dispatch",
+            "octocat",
+            "MEMBER",
+            False,
         )
         assert authorized is True
         assert "workflow_dispatch" in reason
@@ -230,26 +268,38 @@ class TestCheckAuthorization:
 
     def test_workflow_dispatch_owner_authorized(self) -> None:
         authorized, _ = check_authorization(
-            "workflow_dispatch", "octocat", "OWNER", False,
+            "workflow_dispatch",
+            "octocat",
+            "OWNER",
+            False,
         )
         assert authorized is True
 
     def test_workflow_dispatch_collaborator_authorized(self) -> None:
         authorized, _ = check_authorization(
-            "workflow_dispatch", "octocat", "COLLABORATOR", False,
+            "workflow_dispatch",
+            "octocat",
+            "COLLABORATOR",
+            False,
         )
         assert authorized is True
 
     def test_workflow_dispatch_contributor_denied(self) -> None:
         authorized, reason = check_authorization(
-            "workflow_dispatch", "external", "CONTRIBUTOR", False,
+            "workflow_dispatch",
+            "external",
+            "CONTRIBUTOR",
+            False,
         )
         assert authorized is False
         assert "Access denied" in reason
 
     def test_workflow_dispatch_none_association_denied(self) -> None:
         authorized, reason = check_authorization(
-            "workflow_dispatch", "stranger", "NONE", False,
+            "workflow_dispatch",
+            "stranger",
+            "NONE",
+            False,
         )
         assert authorized is False
         assert "Access denied" in reason
@@ -257,7 +307,10 @@ class TestCheckAuthorization:
     def test_workflow_dispatch_no_mention_needed(self) -> None:
         """workflow_dispatch authorizes by association alone, no mention needed."""
         authorized, _ = check_authorization(
-            "workflow_dispatch", "octocat", "MEMBER", False,
+            "workflow_dispatch",
+            "octocat",
+            "MEMBER",
+            False,
         )
         assert authorized is True
 
@@ -266,28 +319,40 @@ class TestCheckAuthorization:
     def test_pr_bot_authorized_without_mention(self) -> None:
         for bot in ALLOWED_BOTS:
             authorized, reason = check_authorization(
-                "pull_request", bot, "", False,
+                "pull_request",
+                bot,
+                "",
+                False,
             )
             assert authorized is True, f"Bot {bot} should be authorized"
             assert "bot allowlist" in reason
 
     def test_pr_human_with_mention_and_association_authorized(self) -> None:
         authorized, reason = check_authorization(
-            "pull_request", "octocat", "MEMBER", True,
+            "pull_request",
+            "octocat",
+            "MEMBER",
+            True,
         )
         assert authorized is True
         assert "@claude mention" in reason
 
     def test_pr_human_without_mention_denied(self) -> None:
         authorized, reason = check_authorization(
-            "pull_request", "octocat", "MEMBER", False,
+            "pull_request",
+            "octocat",
+            "MEMBER",
+            False,
         )
         assert authorized is False
         assert "Access denied" in reason
 
     def test_pr_human_with_mention_but_wrong_association_denied(self) -> None:
         authorized, reason = check_authorization(
-            "pull_request", "external", "CONTRIBUTOR", True,
+            "pull_request",
+            "external",
+            "CONTRIBUTOR",
+            True,
         )
         assert authorized is False
         assert "Access denied" in reason
@@ -296,35 +361,50 @@ class TestCheckAuthorization:
 
     def test_issue_comment_member_with_mention_authorized(self) -> None:
         authorized, reason = check_authorization(
-            "issue_comment", "octocat", "MEMBER", True,
+            "issue_comment",
+            "octocat",
+            "MEMBER",
+            True,
         )
         assert authorized is True
         assert "author association" in reason
 
     def test_issue_comment_no_mention_denied(self) -> None:
         authorized, reason = check_authorization(
-            "issue_comment", "octocat", "MEMBER", False,
+            "issue_comment",
+            "octocat",
+            "MEMBER",
+            False,
         )
         assert authorized is False
         assert "No @claude mention" in reason
 
     def test_issue_comment_bot_with_mention_authorized(self) -> None:
         authorized, reason = check_authorization(
-            "issue_comment", "dependabot[bot]", "", True,
+            "issue_comment",
+            "dependabot[bot]",
+            "",
+            True,
         )
         assert authorized is True
         assert "bot allowlist" in reason
 
     def test_issue_comment_wrong_association_denied(self) -> None:
         authorized, reason = check_authorization(
-            "issue_comment", "external", "CONTRIBUTOR", True,
+            "issue_comment",
+            "external",
+            "CONTRIBUTOR",
+            True,
         )
         assert authorized is False
         assert "not in bot allowlist" in reason
 
     def test_issue_comment_none_association_denied(self) -> None:
         authorized, reason = check_authorization(
-            "issue_comment", "stranger", "NONE", True,
+            "issue_comment",
+            "stranger",
+            "NONE",
+            True,
         )
         assert authorized is False
         assert "not in allowed list" in reason
@@ -333,13 +413,19 @@ class TestCheckAuthorization:
 
     def test_pr_review_member_with_mention_authorized(self) -> None:
         authorized, _ = check_authorization(
-            "pull_request_review", "octocat", "OWNER", True,
+            "pull_request_review",
+            "octocat",
+            "OWNER",
+            True,
         )
         assert authorized is True
 
     def test_pr_review_comment_member_with_mention_authorized(self) -> None:
         authorized, _ = check_authorization(
-            "pull_request_review_comment", "octocat", "COLLABORATOR", True,
+            "pull_request_review_comment",
+            "octocat",
+            "COLLABORATOR",
+            True,
         )
         assert authorized is True
 
@@ -347,7 +433,10 @@ class TestCheckAuthorization:
 
     def test_issues_member_with_mention_authorized(self) -> None:
         authorized, _ = check_authorization(
-            "issues", "octocat", "MEMBER", True,
+            "issues",
+            "octocat",
+            "MEMBER",
+            True,
         )
         assert authorized is True
 
@@ -385,7 +474,13 @@ class TestWriteAuditLog:
         summary_file = tmp_path / "summary.md"
         summary_file.touch()
         write_audit_log(
-            str(summary_file), "issues", "actor", "OWNER", False, False, "denied",
+            str(summary_file),
+            "issues",
+            "actor",
+            "OWNER",
+            False,
+            False,
+            "denied",
         )
         content = summary_file.read_text()
         assert "Authorization Rules" in content
@@ -396,7 +491,10 @@ class TestWriteAuditLog:
         summary_file = tmp_path / "summary.md"
         summary_file.touch()
         write_oversize_audit_log(
-            str(summary_file), "issue_comment", "octocat", 2_000_000,
+            str(summary_file),
+            "issue_comment",
+            "octocat",
+            2_000_000,
         )
         content = summary_file.read_text()
         assert "Event Body Too Large" in content
@@ -408,7 +506,11 @@ class TestWriteAuditLog:
         summary_file = tmp_path / "summary.md"
         summary_file.touch()
         write_error_audit_log(
-            str(summary_file), "something broke", "issues", "actor", "MEMBER",
+            str(summary_file),
+            "something broke",
+            "issues",
+            "actor",
+            "MEMBER",
         )
         content = summary_file.read_text()
         assert "ERROR" in content
@@ -424,138 +526,215 @@ class TestMain:
     """Tests for main() function via CLI arguments."""
 
     def test_authorized_member_with_mention(
-        self, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch,
+        self,
+        capsys: CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
-        exit_code = main([
-            "--event-name", "issue_comment",
-            "--actor", "octocat",
-            "--author-association", "MEMBER",
-            "--comment-body", "Hey @claude, help me",
-        ])
+        exit_code = main(
+            [
+                "--event-name",
+                "issue_comment",
+                "--actor",
+                "octocat",
+                "--author-association",
+                "MEMBER",
+                "--comment-body",
+                "Hey @claude, help me",
+            ]
+        )
         assert exit_code == 0
         captured = capsys.readouterr()
         assert captured.out.strip() == "true"
 
     def test_denied_no_mention(
-        self, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch,
+        self,
+        capsys: CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
-        exit_code = main([
-            "--event-name", "issue_comment",
-            "--actor", "octocat",
-            "--author-association", "MEMBER",
-            "--comment-body", "No mention here",
-        ])
+        exit_code = main(
+            [
+                "--event-name",
+                "issue_comment",
+                "--actor",
+                "octocat",
+                "--author-association",
+                "MEMBER",
+                "--comment-body",
+                "No mention here",
+            ]
+        )
         assert exit_code == 0
         captured = capsys.readouterr()
         assert captured.out.strip() == "false"
 
     def test_denied_wrong_association(
-        self, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch,
+        self,
+        capsys: CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
-        exit_code = main([
-            "--event-name", "issue_comment",
-            "--actor", "external",
-            "--author-association", "CONTRIBUTOR",
-            "--comment-body", "Hey @claude",
-        ])
+        exit_code = main(
+            [
+                "--event-name",
+                "issue_comment",
+                "--actor",
+                "external",
+                "--author-association",
+                "CONTRIBUTOR",
+                "--comment-body",
+                "Hey @claude",
+            ]
+        )
         assert exit_code == 0
         captured = capsys.readouterr()
         assert captured.out.strip() == "false"
 
     def test_denied_none_association(
-        self, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch,
+        self,
+        capsys: CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
-        exit_code = main([
-            "--event-name", "issue_comment",
-            "--actor", "stranger",
-            "--author-association", "NONE",
-            "--comment-body", "@claude help",
-        ])
+        exit_code = main(
+            [
+                "--event-name",
+                "issue_comment",
+                "--actor",
+                "stranger",
+                "--author-association",
+                "NONE",
+                "--comment-body",
+                "@claude help",
+            ]
+        )
         assert exit_code == 0
         captured = capsys.readouterr()
         assert captured.out.strip() == "false"
 
     def test_workflow_dispatch_member_authorized(
-        self, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch,
+        self,
+        capsys: CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
-        exit_code = main([
-            "--event-name", "workflow_dispatch",
-            "--actor", "octocat",
-            "--author-association", "MEMBER",
-        ])
+        exit_code = main(
+            [
+                "--event-name",
+                "workflow_dispatch",
+                "--actor",
+                "octocat",
+                "--author-association",
+                "MEMBER",
+            ]
+        )
         assert exit_code == 0
         captured = capsys.readouterr()
         assert captured.out.strip() == "true"
 
     def test_workflow_dispatch_nonmember_denied(
-        self, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch,
+        self,
+        capsys: CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
-        exit_code = main([
-            "--event-name", "workflow_dispatch",
-            "--actor", "external",
-            "--author-association", "CONTRIBUTOR",
-        ])
+        exit_code = main(
+            [
+                "--event-name",
+                "workflow_dispatch",
+                "--actor",
+                "external",
+                "--author-association",
+                "CONTRIBUTOR",
+            ]
+        )
         assert exit_code == 0
         captured = capsys.readouterr()
         assert captured.out.strip() == "false"
 
     def test_pr_bot_authorized_without_mention(
-        self, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch,
+        self,
+        capsys: CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
-        exit_code = main([
-            "--event-name", "pull_request",
-            "--actor", "dependabot[bot]",
-            "--author-association", "",
-        ])
+        exit_code = main(
+            [
+                "--event-name",
+                "pull_request",
+                "--actor",
+                "dependabot[bot]",
+                "--author-association",
+                "",
+            ]
+        )
         assert exit_code == 0
         captured = capsys.readouterr()
         assert captured.out.strip() == "true"
 
     def test_pr_human_with_mention_authorized(
-        self, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch,
+        self,
+        capsys: CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
-        exit_code = main([
-            "--event-name", "pull_request",
-            "--actor", "octocat",
-            "--author-association", "MEMBER",
-            "--pr-body", "@claude please review",
-        ])
+        exit_code = main(
+            [
+                "--event-name",
+                "pull_request",
+                "--actor",
+                "octocat",
+                "--author-association",
+                "MEMBER",
+                "--pr-body",
+                "@claude please review",
+            ]
+        )
         assert exit_code == 0
         captured = capsys.readouterr()
         assert captured.out.strip() == "true"
 
     def test_pr_human_without_mention_denied(
-        self, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch,
+        self,
+        capsys: CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
-        exit_code = main([
-            "--event-name", "pull_request",
-            "--actor", "octocat",
-            "--author-association", "MEMBER",
-            "--pr-body", "No mention",
-        ])
+        exit_code = main(
+            [
+                "--event-name",
+                "pull_request",
+                "--actor",
+                "octocat",
+                "--author-association",
+                "MEMBER",
+                "--pr-body",
+                "No mention",
+            ]
+        )
         assert exit_code == 0
         captured = capsys.readouterr()
         assert captured.out.strip() == "false"
 
     def test_empty_body_denied(
-        self, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch,
+        self,
+        capsys: CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
-        exit_code = main([
-            "--event-name", "issue_comment",
-            "--actor", "octocat",
-            "--author-association", "MEMBER",
-            "--comment-body", "",
-        ])
+        exit_code = main(
+            [
+                "--event-name",
+                "issue_comment",
+                "--actor",
+                "octocat",
+                "--author-association",
+                "MEMBER",
+                "--comment-body",
+                "",
+            ]
+        )
         assert exit_code == 0
         captured = capsys.readouterr()
         assert captured.out.strip() == "false"
@@ -572,11 +751,16 @@ class TestMainBotAllowlist:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
-        exit_code = main([
-            "--event-name", "issue_comment",
-            "--actor", bot,
-            "--comment-body", "Hey @claude",
-        ])
+        exit_code = main(
+            [
+                "--event-name",
+                "issue_comment",
+                "--actor",
+                bot,
+                "--comment-body",
+                "Hey @claude",
+            ]
+        )
         assert exit_code == 0
         captured = capsys.readouterr()
         assert captured.out.strip() == "true", f"Bot {bot} should be authorized"
@@ -586,16 +770,24 @@ class TestMainOversizedBody:
     """Tests for oversized body handling."""
 
     def test_oversized_body_denied_not_error(
-        self, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch,
+        self,
+        capsys: CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
         big_body = "x" * (MAX_BODY_LENGTH + 1)
-        exit_code = main([
-            "--event-name", "issue_comment",
-            "--actor", "octocat",
-            "--author-association", "MEMBER",
-            "--comment-body", big_body,
-        ])
+        exit_code = main(
+            [
+                "--event-name",
+                "issue_comment",
+                "--actor",
+                "octocat",
+                "--author-association",
+                "MEMBER",
+                "--comment-body",
+                big_body,
+            ]
+        )
         assert exit_code == 0
         captured = capsys.readouterr()
         assert captured.out.strip() == "false"
@@ -610,29 +802,43 @@ class TestMainOversizedBody:
         summary_file.touch()
         monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary_file))
         big_body = "x" * (MAX_BODY_LENGTH + 1)
-        exit_code = main([
-            "--event-name", "issue_comment",
-            "--actor", "octocat",
-            "--author-association", "MEMBER",
-            "--comment-body", big_body,
-        ])
+        exit_code = main(
+            [
+                "--event-name",
+                "issue_comment",
+                "--actor",
+                "octocat",
+                "--author-association",
+                "MEMBER",
+                "--comment-body",
+                big_body,
+            ]
+        )
         assert exit_code == 0
         content = summary_file.read_text()
         assert "Event Body Too Large" in content
 
     def test_body_at_exact_limit_not_denied(
-        self, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch,
+        self,
+        capsys: CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Body at exactly MAX_BODY_LENGTH should not trigger oversize denial."""
         monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
         # Body at exact limit with @claude mention
         body = "@claude " + "x" * (MAX_BODY_LENGTH - len("@claude "))
-        exit_code = main([
-            "--event-name", "issue_comment",
-            "--actor", "octocat",
-            "--author-association", "MEMBER",
-            "--comment-body", body,
-        ])
+        exit_code = main(
+            [
+                "--event-name",
+                "issue_comment",
+                "--actor",
+                "octocat",
+                "--author-association",
+                "MEMBER",
+                "--comment-body",
+                body,
+            ]
+        )
         assert exit_code == 0
         captured = capsys.readouterr()
         assert captured.out.strip() == "true"
@@ -650,12 +856,18 @@ class TestMainAuditLogging:
         summary_file = tmp_path / "summary.md"
         summary_file.touch()
         monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary_file))
-        exit_code = main([
-            "--event-name", "issue_comment",
-            "--actor", "octocat",
-            "--author-association", "MEMBER",
-            "--comment-body", "@claude help",
-        ])
+        exit_code = main(
+            [
+                "--event-name",
+                "issue_comment",
+                "--actor",
+                "octocat",
+                "--author-association",
+                "MEMBER",
+                "--comment-body",
+                "@claude help",
+            ]
+        )
         assert exit_code == 0
         content = summary_file.read_text()
         assert "Claude Authorization Check" in content
@@ -671,12 +883,18 @@ class TestMainAuditLogging:
         summary_file = tmp_path / "summary.md"
         summary_file.touch()
         monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary_file))
-        exit_code = main([
-            "--event-name", "issue_comment",
-            "--actor", "external",
-            "--author-association", "NONE",
-            "--comment-body", "no mention",
-        ])
+        exit_code = main(
+            [
+                "--event-name",
+                "issue_comment",
+                "--actor",
+                "external",
+                "--author-association",
+                "NONE",
+                "--comment-body",
+                "no mention",
+            ]
+        )
         assert exit_code == 0
         content = summary_file.read_text()
         assert "Claude Authorization Check" in content
@@ -689,12 +907,18 @@ class TestMainAuditLogging:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
-        exit_code = main([
-            "--event-name", "issue_comment",
-            "--actor", "octocat",
-            "--author-association", "MEMBER",
-            "--comment-body", "@claude help",
-        ])
+        exit_code = main(
+            [
+                "--event-name",
+                "issue_comment",
+                "--actor",
+                "octocat",
+                "--author-association",
+                "MEMBER",
+                "--comment-body",
+                "@claude help",
+            ]
+        )
         assert exit_code == 0
         # No file created, no error
 
@@ -709,12 +933,18 @@ class TestMainAuditFailure:
     ) -> None:
         # Point to a non-writable path
         monkeypatch.setenv("GITHUB_STEP_SUMMARY", "/nonexistent/dir/summary.md")
-        exit_code = main([
-            "--event-name", "issue_comment",
-            "--actor", "octocat",
-            "--author-association", "MEMBER",
-            "--comment-body", "@claude help",
-        ])
+        exit_code = main(
+            [
+                "--event-name",
+                "issue_comment",
+                "--actor",
+                "octocat",
+                "--author-association",
+                "MEMBER",
+                "--comment-body",
+                "@claude help",
+            ]
+        )
         assert exit_code == 1
 
     def test_oversize_audit_failure_returns_exit_1(
@@ -724,12 +954,18 @@ class TestMainAuditFailure:
     ) -> None:
         monkeypatch.setenv("GITHUB_STEP_SUMMARY", "/nonexistent/dir/summary.md")
         big_body = "x" * (MAX_BODY_LENGTH + 1)
-        exit_code = main([
-            "--event-name", "issue_comment",
-            "--actor", "octocat",
-            "--author-association", "MEMBER",
-            "--comment-body", big_body,
-        ])
+        exit_code = main(
+            [
+                "--event-name",
+                "issue_comment",
+                "--actor",
+                "octocat",
+                "--author-association",
+                "MEMBER",
+                "--comment-body",
+                big_body,
+            ]
+        )
         assert exit_code == 1
 
     def test_double_fault_returns_exit_2(
@@ -745,12 +981,18 @@ class TestMainAuditFailure:
             "tests.workflows.test_claude_authorization.extract_body",
             side_effect=RuntimeError("simulated auth failure"),
         ):
-            exit_code = main([
-                "--event-name", "issue_comment",
-                "--actor", "octocat",
-                "--author-association", "MEMBER",
-                "--comment-body", "@claude help",
-            ])
+            exit_code = main(
+                [
+                    "--event-name",
+                    "issue_comment",
+                    "--actor",
+                    "octocat",
+                    "--author-association",
+                    "MEMBER",
+                    "--comment-body",
+                    "@claude help",
+                ]
+            )
         assert exit_code == 2
         captured = capsys.readouterr()
         assert captured.out.strip() == "false"
@@ -770,12 +1012,18 @@ class TestMainAuditFailure:
             "tests.workflows.test_claude_authorization.extract_body",
             side_effect=RuntimeError("simulated auth failure"),
         ):
-            exit_code = main([
-                "--event-name", "issue_comment",
-                "--actor", "octocat",
-                "--author-association", "MEMBER",
-                "--comment-body", "@claude help",
-            ])
+            exit_code = main(
+                [
+                    "--event-name",
+                    "issue_comment",
+                    "--actor",
+                    "octocat",
+                    "--author-association",
+                    "MEMBER",
+                    "--comment-body",
+                    "@claude help",
+                ]
+            )
         assert exit_code == 1
         content = summary_file.read_text()
         assert "ERROR" in content
@@ -793,12 +1041,18 @@ class TestMainAuditFailure:
             "tests.workflows.test_claude_authorization.extract_body",
             side_effect=RuntimeError("simulated failure"),
         ):
-            exit_code = main([
-                "--event-name", "issue_comment",
-                "--actor", "octocat",
-                "--author-association", "MEMBER",
-                "--comment-body", "@claude help",
-            ])
+            exit_code = main(
+                [
+                    "--event-name",
+                    "issue_comment",
+                    "--actor",
+                    "octocat",
+                    "--author-association",
+                    "MEMBER",
+                    "--comment-body",
+                    "@claude help",
+                ]
+            )
         assert exit_code == 1
 
 
@@ -806,32 +1060,46 @@ class TestMainEnvVarDefaults:
     """Tests that CLI args fall back to environment variables."""
 
     def test_author_association_from_env(
-        self, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch,
+        self,
+        capsys: CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
         monkeypatch.setenv("AUTHOR_ASSOCIATION", "MEMBER")
         # Don't pass --author-association; the env default triggers
         # but argparse evaluates defaults at parse time, so we need
         # to rebuild the parser. Use main() directly.
-        exit_code = main([
-            "--event-name", "issue_comment",
-            "--actor", "octocat",
-            "--comment-body", "@claude help",
-        ])
+        exit_code = main(
+            [
+                "--event-name",
+                "issue_comment",
+                "--actor",
+                "octocat",
+                "--comment-body",
+                "@claude help",
+            ]
+        )
         assert exit_code == 0
         captured = capsys.readouterr()
         assert captured.out.strip() == "true"
 
     def test_comment_body_from_env(
-        self, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch,
+        self,
+        capsys: CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
         monkeypatch.setenv("COMMENT_BODY", "@claude help")
-        exit_code = main([
-            "--event-name", "issue_comment",
-            "--actor", "octocat",
-            "--author-association", "MEMBER",
-        ])
+        exit_code = main(
+            [
+                "--event-name",
+                "issue_comment",
+                "--actor",
+                "octocat",
+                "--author-association",
+                "MEMBER",
+            ]
+        )
         assert exit_code == 0
         captured = capsys.readouterr()
         assert captured.out.strip() == "true"

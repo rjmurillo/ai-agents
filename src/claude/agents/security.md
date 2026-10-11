@@ -375,16 +375,23 @@ When any changed file matches security trigger patterns, orchestrator MUST route
 ```python
 # Mandatory routing for security-relevant changes
 SECURITY_TRIGGERS = [
-    "**/Auth/**", "**/Security/**", "*.env*",
+    "**/Auth/**",
+    "**/Security/**",
+    "*.env*",
     "{lefthook,.lefthook,lefthook-local,.lefthook-local}.{yml,yaml,json,jsonc,toml}",
     ".config/{lefthook,lefthook-local}.{yml,yaml,json,jsonc,toml}",
     "scripts/validation/git_hook_policy.py",
-    "**/secrets/**", "*password*",
-    "**/token*", "**/oauth/**", "**/jwt/**"
+    "**/secrets/**",
+    "*password*",
+    "**/token*",
+    "**/oauth/**",
+    "**/jwt/**",
 ]
 
 if any(trigger_matches(changed_path, pattern) for pattern in SECURITY_TRIGGERS):
-    Task(subagent_type="security", prompt="""
+    Task(
+        subagent_type="security",
+        prompt="""
     Run Post-Implementation Verification for [feature].
 
     Implementation completed by implementer.
@@ -392,7 +399,8 @@ if any(trigger_matches(changed_path, pattern) for pattern in SECURITY_TRIGGERS):
 
     Verify all security controls from pre-implementation plan.
     This is a BLOCKING gate - see PIV Verdict Gate below.
-    """)
+    """,
+    )
 ```
 
 **PIV Verdict Gate**: Orchestrator MUST NOT proceed to PR creation while the security agent returns BLOCKED. APPROVED clears the gate. CONDITIONAL clears the gate only when the verdict names each remaining MEDIUM finding and its mitigation and flags them to the owner, per the Completion Trigger Taxonomy.

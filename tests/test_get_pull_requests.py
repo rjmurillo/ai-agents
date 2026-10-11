@@ -15,8 +15,7 @@ from scripts.github_core.api import RepoInfo
 # Import the script via importlib (not a package)
 # ---------------------------------------------------------------------------
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1]
-    / ".claude" / "skills" / "github" / "scripts" / "pr"
+    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "pr"
 )
 
 
@@ -101,11 +100,22 @@ class TestBuildParser:
         assert args.output_format == "auto"
 
     def test_all_filters(self):
-        args = build_parser().parse_args([
-            "--state", "merged", "--label", "bug,P1",
-            "--author", "alice", "--base", "main", "--head", "feature",
-            "--limit", "100",
-        ])
+        args = build_parser().parse_args(
+            [
+                "--state",
+                "merged",
+                "--label",
+                "bug,P1",
+                "--author",
+                "alice",
+                "--base",
+                "main",
+                "--head",
+                "feature",
+                "--limit",
+                "100",
+            ]
+        )
         assert args.state == "merged"
         assert args.label == "bug,P1"
         assert args.author == "alice"
@@ -142,13 +152,16 @@ class TestMain:
         to False, so during the #4344 window every pr-autofix gate reported an
         AuthError with exit 4 while the token was valid.
         """
-        with patch(
-            "get_pull_requests.check_gh_auth",
-            return_value=GhAuthResult(
-                GhAuthStatus.RATE_LIMITED,
-                "gh: API rate limit exceeded for user ID 6811113 (HTTP 403)",
+        with (
+            patch(
+                "get_pull_requests.check_gh_auth",
+                return_value=GhAuthResult(
+                    GhAuthStatus.RATE_LIMITED,
+                    "gh: API rate limit exceeded for user ID 6811113 (HTTP 403)",
+                ),
             ),
-        ), patch("subprocess.run", return_value=_completed(stdout="{}", rc=0)):
+            patch("subprocess.run", return_value=_completed(stdout="{}", rc=0)),
+        ):
             rc = main(["--output-format", "json"])
 
         assert rc == 3
@@ -176,15 +189,19 @@ class TestMain:
 
     def test_success_open_prs(self, capsys):
         prs = [_pr(1, "First"), _pr(2, "Second")]
-        with patch(
-            "get_pull_requests.check_gh_auth",
-            return_value=GhAuthResult(GhAuthStatus.AUTHENTICATED),
-        ), patch(
-            "get_pull_requests.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout=_prs_json(prs), rc=0),
+        with (
+            patch(
+                "get_pull_requests.check_gh_auth",
+                return_value=GhAuthResult(GhAuthStatus.AUTHENTICATED),
+            ),
+            patch(
+                "get_pull_requests.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=_prs_json(prs), rc=0),
+            ),
         ):
             rc = main(["--output-format", "json"])
         assert rc == 0
@@ -202,15 +219,19 @@ class TestMain:
             _pr(1, "Merged", state="MERGED"),
             _pr(2, "Closed", state="CLOSED"),
         ]
-        with patch(
-            "get_pull_requests.check_gh_auth",
-            return_value=GhAuthResult(GhAuthStatus.AUTHENTICATED),
-        ), patch(
-            "get_pull_requests.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout=_prs_json(prs), rc=0),
+        with (
+            patch(
+                "get_pull_requests.check_gh_auth",
+                return_value=GhAuthResult(GhAuthStatus.AUTHENTICATED),
+            ),
+            patch(
+                "get_pull_requests.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=_prs_json(prs), rc=0),
+            ),
         ):
             rc = main(["--state", "merged", "--output-format", "json"])
         assert rc == 0
@@ -221,15 +242,19 @@ class TestMain:
         assert pull_requests[0]["state"] == "MERGED"
 
     def test_api_error_returns_envelope_with_error(self, capsys):
-        with patch(
-            "get_pull_requests.check_gh_auth",
-            return_value=GhAuthResult(GhAuthStatus.AUTHENTICATED),
-        ), patch(
-            "get_pull_requests.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(rc=1, stderr="API error"),
+        with (
+            patch(
+                "get_pull_requests.check_gh_auth",
+                return_value=GhAuthResult(GhAuthStatus.AUTHENTICATED),
+            ),
+            patch(
+                "get_pull_requests.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(rc=1, stderr="API error"),
+            ),
         ):
             rc = main(["--output-format", "json"])
         assert rc == 3
@@ -240,15 +265,19 @@ class TestMain:
         assert "API error" in envelope["Error"]["Message"]
 
     def test_empty_results(self, capsys):
-        with patch(
-            "get_pull_requests.check_gh_auth",
-            return_value=GhAuthResult(GhAuthStatus.AUTHENTICATED),
-        ), patch(
-            "get_pull_requests.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout="[]", rc=0),
+        with (
+            patch(
+                "get_pull_requests.check_gh_auth",
+                return_value=GhAuthResult(GhAuthStatus.AUTHENTICATED),
+            ),
+            patch(
+                "get_pull_requests.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout="[]", rc=0),
+            ),
         ):
             rc = main(["--output-format", "json"])
         assert rc == 0
@@ -258,16 +287,20 @@ class TestMain:
 
     def test_search_filter(self, capsys):
         prs = [_pr(5, "Fix auth bug")]
-        with patch(
-            "get_pull_requests.check_gh_auth",
-            return_value=GhAuthResult(GhAuthStatus.AUTHENTICATED),
-        ), patch(
-            "get_pull_requests.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout=_prs_json(prs), rc=0),
-        ) as mock_run:
+        with (
+            patch(
+                "get_pull_requests.check_gh_auth",
+                return_value=GhAuthResult(GhAuthStatus.AUTHENTICATED),
+            ),
+            patch(
+                "get_pull_requests.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=_prs_json(prs), rc=0),
+            ) as mock_run,
+        ):
             rc = main(["--search", "fix auth", "--output-format", "json"])
         assert rc == 0
         cmd = mock_run.call_args[0][0]
@@ -282,12 +315,15 @@ class TestMain:
         assert len(envelope["Data"]["PullRequests"]) == 1
 
     def test_invalid_limit_returns_envelope_with_error(self, capsys):
-        with patch(
-            "get_pull_requests.check_gh_auth",
-            return_value=GhAuthResult(GhAuthStatus.AUTHENTICATED),
-        ), patch(
-            "get_pull_requests.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
+        with (
+            patch(
+                "get_pull_requests.check_gh_auth",
+                return_value=GhAuthResult(GhAuthStatus.AUTHENTICATED),
+            ),
+            patch(
+                "get_pull_requests.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
         ):
             rc = main(["--limit", "0", "--output-format", "json"])
         assert rc == 2
@@ -301,15 +337,19 @@ class TestMain:
     # documented ADR-056 envelope. Lock in the envelope shape.
     def test_issue_2312_output_is_envelope_not_bare_list(self, capsys):
         prs = [_pr(2305, "PR A"), _pr(2274, "PR B")]
-        with patch(
-            "get_pull_requests.check_gh_auth",
-            return_value=GhAuthResult(GhAuthStatus.AUTHENTICATED),
-        ), patch(
-            "get_pull_requests.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout=_prs_json(prs), rc=0),
+        with (
+            patch(
+                "get_pull_requests.check_gh_auth",
+                return_value=GhAuthResult(GhAuthStatus.AUTHENTICATED),
+            ),
+            patch(
+                "get_pull_requests.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=_prs_json(prs), rc=0),
+            ),
         ):
             rc = main(["--state", "open", "--limit", "5", "--output-format", "json"])
         assert rc == 0

@@ -82,9 +82,7 @@ def _strip_comment_lines(text: str) -> str:
     about quoting in both YAML and Python, and guessing wrong there would hide a
     real invocation, which is the one failure this module must not have.
     """
-    return "\n".join(
-        line for line in text.splitlines() if not line.lstrip().startswith("#")
-    )
+    return "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("#"))
 
 
 def _invocations(text: str) -> list[str]:

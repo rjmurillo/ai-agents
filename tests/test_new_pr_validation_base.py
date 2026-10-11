@@ -77,9 +77,9 @@ class TestMainUsesResolvedValidationBase:
 
     def _base_calls(self, branch: str = "feat/x"):
         return [
-            _completed(rc=0),        # gh --version
+            _completed(rc=0),  # gh --version
             _completed(stdout=branch + "\n"),  # git branch --show-current
-            _completed(rc=0),        # git rev-parse --verify origin/main
+            _completed(rc=0),  # git rev-parse --verify origin/main
         ]
 
     def test_validation_base_uses_origin_ref_not_local(self, tmp_path):
@@ -120,19 +120,24 @@ class TestMainUsesResolvedValidationBase:
     def test_explicit_validation_base_overrides_auto_resolve(self, tmp_path):
         """--validation-base bypasses origin/ resolution entirely."""
         calls = [
-            _completed(rc=0),         # gh --version
+            _completed(rc=0),  # gh --version
             _completed(stdout="feat/x\n"),  # git branch --show-current
-            _completed(rc=0),         # gh pr create
+            _completed(rc=0),  # gh pr create
         ]
 
         with patch("subprocess.run", side_effect=calls):
             with patch.object(_mod, "get_repo_root", return_value=str(tmp_path)):
                 with patch.object(_mod, "run_validations") as mock_val:
-                    main([
-                        "--title", "feat: test",
-                        "--base", "main",
-                        "--validation-base", "refs/remotes/upstream/main",
-                    ])
+                    main(
+                        [
+                            "--title",
+                            "feat: test",
+                            "--base",
+                            "main",
+                            "--validation-base",
+                            "refs/remotes/upstream/main",
+                        ]
+                    )
 
         mock_val.assert_called_once()
         assert mock_val.call_args[0][1] == "refs/remotes/upstream/main"
@@ -140,10 +145,10 @@ class TestMainUsesResolvedValidationBase:
     def test_validation_base_falls_back_when_no_remote(self, tmp_path):
         """When origin/<base> does not resolve, validation uses bare base name."""
         calls = [
-            _completed(rc=0),         # gh --version
+            _completed(rc=0),  # gh --version
             _completed(stdout="feat/x\n"),  # git branch --show-current
-            _completed(rc=1),         # git rev-parse --verify origin/main: absent
-            _completed(rc=0),         # gh pr create
+            _completed(rc=1),  # git rev-parse --verify origin/main: absent
+            _completed(rc=0),  # gh pr create
         ]
 
         with patch("subprocess.run", side_effect=calls):
@@ -155,11 +160,16 @@ class TestMainUsesResolvedValidationBase:
         assert mock_val.call_args[0][1] == "main"
 
     def test_build_parser_accepts_validation_base(self):
-        args = build_parser().parse_args([
-            "--title", "feat: test",
-            "--base", "main",
-            "--validation-base", "origin/main",
-        ])
+        args = build_parser().parse_args(
+            [
+                "--title",
+                "feat: test",
+                "--base",
+                "main",
+                "--validation-base",
+                "origin/main",
+            ]
+        )
         assert args.validation_base == "origin/main"
 
     def test_build_parser_validation_base_defaults_to_empty(self):

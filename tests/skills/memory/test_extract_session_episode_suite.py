@@ -301,10 +301,13 @@ class TestMainFunction:
 
         output_dir = tmp_path / "episodes"
 
-        result = main([
-            str(session_file),
-            "--output-path", str(output_dir),
-        ])
+        result = main(
+            [
+                str(session_file),
+                "--output-path",
+                str(output_dir),
+            ]
+        )
         assert result == 0
 
         episode_file = output_dir / "episode-2026-01-15-session-001.json"
@@ -329,11 +332,14 @@ class TestMainFunction:
         episode_file = output_dir / "episode-2026-01-15-session-001.json"
         episode_file.write_text("{}")
 
-        result = main([
-            str(session_file),
-            "--output-path", str(output_dir),
-            "--force",
-        ])
+        result = main(
+            [
+                str(session_file),
+                "--output-path",
+                str(output_dir),
+                "--force",
+            ]
+        )
         assert result == 0
 
     def test_no_overwrite_without_force(self, tmp_path: Path) -> None:
@@ -345,10 +351,13 @@ class TestMainFunction:
         episode_file = output_dir / "episode-2026-01-15-session-001.json"
         episode_file.write_text("{}")
 
-        result = main([
-            str(session_file),
-            "--output-path", str(output_dir),
-        ])
+        result = main(
+            [
+                str(session_file),
+                "--output-path",
+                str(output_dir),
+            ]
+        )
         assert result == 1
 
     def test_preserve_merges_existing_episode(self, tmp_path: Path) -> None:
@@ -379,11 +388,14 @@ class TestMainFunction:
         }
         episode_file.write_text(json.dumps(existing, indent=2) + "\n")
 
-        result = main([
-            str(session_file),
-            "--output-path", str(output_dir),
-            "--preserve",
-        ])
+        result = main(
+            [
+                str(session_file),
+                "--output-path",
+                str(output_dir),
+                "--preserve",
+            ]
+        )
         assert result == 0
 
         merged = json.loads(episode_file.read_text())
@@ -404,22 +416,28 @@ class TestMainFunction:
         session_file = tmp_path / "2026-01-15-session-002.md"
         session_file.write_text(SAMPLE_SESSION_LOG)
         with pytest.raises(SystemExit):
-            main([
-                str(session_file),
-                "--output-path", str(tmp_path / "episodes"),
-                "--force",
-                "--preserve",
-            ])
+            main(
+                [
+                    str(session_file),
+                    "--output-path",
+                    str(tmp_path / "episodes"),
+                    "--force",
+                    "--preserve",
+                ]
+            )
 
     def test_stdout_contains_json(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         session_file = tmp_path / "session-001.md"
         session_file.write_text("# Simple session\n**Status**: Done\n")
 
         output_dir = tmp_path / "episodes"
-        result = main([
-            str(session_file),
-            "--output-path", str(output_dir),
-        ])
+        result = main(
+            [
+                str(session_file),
+                "--output-path",
+                str(output_dir),
+            ]
+        )
         assert result == 0
 
         captured = capsys.readouterr()
@@ -554,10 +572,12 @@ class TestJsonOutcome:
     def test_regression_2036_substring_fail_does_not_force_failure(self):
         # The exact #2036 corruption: prose "test still fails" and "0 errors"
         # must NOT be read as failures when the session-end gates are complete.
-        data = _json_log([
-            {"action": "compress", "outcome": "compression insufficient; test still fails"},
-            {"action": "verify", "outcome": "AGENTS.md 2791 B; markdownlint 0 errors"},
-        ])
+        data = _json_log(
+            [
+                {"action": "compress", "outcome": "compression insufficient; test still fails"},
+                {"action": "verify", "outcome": "AGENTS.md 2791 B; markdownlint 0 errors"},
+            ]
+        )
         assert json_outcome(data) == "success"
 
 
@@ -625,13 +645,17 @@ class TestCausalEventLinks:
         assert commit["leads_to"] != [pre_code["id"]]
 
     def test_commit_is_not_caused_by_later_review_milestone(self):
-        bundle = extract_from_json(_json_log([
-            {
-                "phase": "Review",
-                "actions": ["Addressed PR review feedback"],
-                "outcome": "PR review round complete",
-            }
-        ]))
+        bundle = extract_from_json(
+            _json_log(
+                [
+                    {
+                        "phase": "Review",
+                        "actions": ["Addressed PR review feedback"],
+                        "outcome": "PR review round complete",
+                    }
+                ]
+            )
+        )
         _link_sequential_events(bundle["events"])
 
         commit = next(e for e in bundle["events"] if e["type"] == "commit")
@@ -640,20 +664,24 @@ class TestCausalEventLinks:
         assert review["leads_to"] != [commit["id"]]
 
     def test_pre_and_post_code_milestones_in_same_log_use_observed_order(self):
-        bundle = extract_from_json(_json_log([
-            {
-                "timestamp": "2026-05-30T23:00:00+00:00",
-                "phase": "Reproduce",
-                "actions": ["Filed the issue before code changed"],
-                "outcome": "Filed issue #3464 before writing code",
-            },
-            {
-                "timestamp": "2026-05-31T01:00:00+00:00",
-                "phase": "Review",
-                "actions": ["Reviewed the completed branch"],
-                "outcome": "PR review round complete",
-            },
-        ]))
+        bundle = extract_from_json(
+            _json_log(
+                [
+                    {
+                        "timestamp": "2026-05-30T23:00:00+00:00",
+                        "phase": "Reproduce",
+                        "actions": ["Filed the issue before code changed"],
+                        "outcome": "Filed issue #3464 before writing code",
+                    },
+                    {
+                        "timestamp": "2026-05-31T01:00:00+00:00",
+                        "phase": "Review",
+                        "actions": ["Reviewed the completed branch"],
+                        "outcome": "PR review round complete",
+                    },
+                ]
+            )
+        )
         _link_sequential_events(bundle["events"])
 
         commit = next(e for e in bundle["events"] if e["type"] == "commit")
@@ -817,9 +845,7 @@ class TestJsonMetricsDuration:
         assert m["duration_minutes"] is None
 
     def test_duration_none_when_timestamps_unparseable(self):
-        m = json_metrics(
-            _json_log([{"time": "not-a-date"}, {"timestamp": "also-not-a-date"}])
-        )
+        m = json_metrics(_json_log([{"time": "not-a-date"}, {"timestamp": "also-not-a-date"}]))
         assert m["duration_minutes"] is None
 
     def test_duration_falls_back_to_metrics_block_text(self):
@@ -905,9 +931,10 @@ class TestEpisodeSchemaAcceptsUnmeasuredMetrics:
             / "episode.schema.json"
         )
         schema = json.loads(schema_path.read_text(encoding="utf-8"))
-        assert "string" not in schema["properties"]["metrics"]["properties"]["duration_minutes"][
-            "type"
-        ]
+        assert (
+            "string"
+            not in schema["properties"]["metrics"]["properties"]["duration_minutes"]["type"]
+        )
 
 
 class TestExtractFromJsonEndToEnd:
@@ -1010,9 +1037,7 @@ def _clear_commit_date_cache():
 
 
 class TestCommitEventsFollowChronology:
-    def test_episode_comparison_head_excludes_later_qa_rebind(
-        self, tmp_path, monkeypatch
-    ) -> None:
+    def test_episode_comparison_head_excludes_later_qa_rebind(self, tmp_path, monkeypatch) -> None:
         shas = _repo_with_commits(
             tmp_path,
             [
@@ -1038,9 +1063,7 @@ class TestCommitEventsFollowChronology:
 
         assert commits == [f"Commit: {sha}" for sha in shas[:2]]
 
-    def test_comparison_head_fallback_excludes_later_qa_rebind(
-        self, tmp_path, monkeypatch
-    ) -> None:
+    def test_comparison_head_fallback_excludes_later_qa_rebind(self, tmp_path, monkeypatch) -> None:
         shas = _repo_with_commits(
             tmp_path,
             [
@@ -1151,9 +1174,7 @@ class TestOrderingRefusesToGuess:
 
 
 class TestTheSharedLookupStillGatesProseShas:
-    def test_a_commit_predating_the_session_is_still_rejected(
-        self, tmp_path, monkeypatch
-    ) -> None:
+    def test_a_commit_predating_the_session_is_still_rejected(self, tmp_path, monkeypatch) -> None:
         shas = _repo_with_commits(tmp_path, ["2020-01-01T10:00:00+00:00"])
         monkeypatch.chdir(tmp_path / "repo")
         assert _prose_sha_predates_session(shas[0], "2026-07-29") is True

@@ -24,9 +24,7 @@ from _report_aggregator import AggregateResult, FormFactorComparison
 
 def _atomic_write(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp_path = tempfile.mkstemp(
-        prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent)
-    )
+    fd, tmp_path = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent))
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write(content)
@@ -109,9 +107,7 @@ def _build_report_json(
         "total_tokens_out": aggregate.total_tokens_out,
         "wall_clock_seconds": round(wall_clock_seconds, 2),
         "cost_estimate_usd": (
-            None
-            if aggregate.cost_estimate_usd is None
-            else round(aggregate.cost_estimate_usd, 4)
+            None if aggregate.cost_estimate_usd is None else round(aggregate.cost_estimate_usd, 4)
         ),
         "cost_basis": aggregate.cost_basis,
         "tokens_estimated": aggregate.tokens_estimated,
@@ -127,9 +123,7 @@ def _build_report_json(
     return payload
 
 
-def _report_fixture_ids(
-    aggregate: AggregateResult, fixture_ids: list[str] | None
-) -> list[str]:
+def _report_fixture_ids(aggregate: AggregateResult, fixture_ids: list[str] | None) -> list[str]:
     if fixture_ids is not None:
         return sorted(fixture_ids)
     return sorted(str(fixture_id) for fixture_id in aggregate.per_fixture_pass_rates)
@@ -241,7 +235,7 @@ def _render_ci_section(aggregate: AggregateResult) -> str:
     elif flaky_no_halt and aggregate.flaky_halt_threshold_crossed:
         caveat = (
             "**Warning**: the flaky-fixture count crossed AC-10's "
-            "\"more than 30%\" halt threshold, but flag-and-continue mode "
+            '"more than 30%" halt threshold, but flag-and-continue mode '
             "suppressed the halt. Treat the delta below as provisional: the "
             "methodology is near the instability boundary. Investigate the "
             "variance source before relying on this verdict.\n\n"
@@ -277,10 +271,7 @@ def _render_recommendation_section(recommendation: str | None = None) -> str:
             "keep-as-audit, scrap, or halt-due-to-flakiness) with at "
             "least two pieces of evidence drawn from the data above._\n"
         )
-    return (
-        "## Recommendation\n\n"
-        f"**Verdict**: `{recommendation}`\n"
-    )
+    return f"## Recommendation\n\n**Verdict**: `{recommendation}`\n"
 
 
 def _render_cost_line(aggregate: AggregateResult) -> str:
@@ -302,9 +293,7 @@ def _render_cost_line(aggregate: AggregateResult) -> str:
     )
 
 
-def _render_cost_section(
-    aggregate: AggregateResult, wall_clock_seconds: float
-) -> str:
+def _render_cost_section(aggregate: AggregateResult, wall_clock_seconds: float) -> str:
     estimate_caveat = (
         "\n\n_Token counts are estimated from a text-length heuristic "
         "(~4 chars per token); cost is not authoritative. Replace with "
