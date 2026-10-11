@@ -106,8 +106,8 @@ def build_parser() -> argparse.ArgumentParser:
 # hide hex IDs in HTML comments (CodeRabbit: <!-- cr-comment:v1:<24 hex> -->).
 # markdown-it-py parses the body; html.parser reads raw HTML blocks. Fenced and
 # indented code blocks are skipped on purpose, since they quote commands, not fix
-# references. Link targets and reference definitions are scanned: a link to a
-# commit, or a footnote naming one, cites that commit.
+# references. Link targets are scanned: a link to a commit, or a used footnote
+# naming one, cites that commit. Unused definitions do not render, so they are not.
 class _HtmlText(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
@@ -158,12 +158,10 @@ def _reached_nesting_limit(tokens: list[Token], max_nesting: int) -> bool:
 def _visible_text(body: str) -> str:
     if _MARKDOWN is None:
         return body
-    env: dict[str, Any] = {}
-    tokens = _MARKDOWN.parse(body, env)
+    tokens = _MARKDOWN.parse(body)
     if _reached_nesting_limit(tokens, _MARKDOWN.options["maxNesting"]):
         return body
-    references = env.get("references", {}).values()
-    parts = [f"{ref.get('href', '')} {ref.get('title', '')}" for ref in references]
+    parts: list[str] = []
     for token in tokens:
         if token.type == "inline":
             parts.append(_inline_text(token))

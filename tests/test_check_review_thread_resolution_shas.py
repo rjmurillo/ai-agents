@@ -391,8 +391,8 @@ def test_pr_review_config_contains_resolution_sha_gate() -> None:
         if item["name"] == "Resolved thread commit references are reachable"
     )
     assert (
-        sha_gate["command"] == 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}'
-        '/skills/github/scripts/pr/check_review_thread_resolution_shas.py" --pull-request {pr}'
+        sha_gate["command"] == "python3 .claude/skills/github/scripts/pr/"
+        "check_review_thread_resolution_shas.py --pull-request {pr}"
     )
     assert sha_gate["pass_when"] == (
         "stdout-json.unreachable_count == 0 AND "
@@ -473,8 +473,8 @@ def test_commit_link_target_is_checked() -> None:
     assert extract_shas(body) == ["abc1234"]
 
 
-def test_reference_link_definition_is_checked() -> None:
-    body = "Fixed in [the fix][r].\n\n[r]: https://github.com/o/r/commit/abc1234"
+def test_used_reference_definition_is_checked_and_unused_is_not() -> None:
+    body = "Fixed in [the fix][r].\n\n[r]: https://x/commit/abc1234\n[u]: https://x/commit/deadbee"
     assert extract_shas(body) == ["abc1234"]
 
 
