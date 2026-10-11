@@ -61,7 +61,7 @@ Each AI tool has its own native marketplace flow. This repo ships a Claude Code 
 
 A Claude install lands the full set of agents and skills, including the six lifecycle skills. A Copilot install lands the same capabilities generated from the same canonical sources. See [Verify Installation](#verify-installation) for the per-tool check that confirms your install, or [More Installation Options](#alternative-full-installation) for component-level installs (agents only, etc.).
 
-> **No registered hooks.** The `project-toolkit@ai-agents` plugin registers no hooks for either CLI (ADR-097), so no hook runtime runs at install or in your session. Some skills run Python scripts, and those skills need Python on PATH. The plugin's declared floor is Python 3.10 (`build/scripts/generate_dispatcher.py`). Python 3.14.x is a contributor requirement for this repository (see [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites)).
+> **No registered hooks.** The `project-toolkit@ai-agents` plugin registers no hooks for either CLI (ADR-097), so no hook runtime runs at install or in your session. Some skills run Python scripts, and those skills need Python on PATH. The hook dispatcher scripts still ship unregistered and declare a Python 3.10 floor (`build/scripts/generate_dispatcher.py`); that floor covers the dispatcher, not the skills. Python 3.14.x is a contributor requirement for this repository (see [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites)).
 
 ### What You Get
 
