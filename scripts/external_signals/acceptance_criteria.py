@@ -162,7 +162,7 @@ def _scan_hidden(body: str) -> tuple[str, str | None]:
                 fence = ""
             out.append("")
             continue
-        match = None if in_comment else _FENCE.match(line)
+        match = None if in_comment else _fence_opener(line)
         if match:
             fence = match.group("run")
             out.append("")
@@ -171,6 +171,15 @@ def _scan_hidden(body: str) -> tuple[str, str | None]:
         out.append(visible)
     unclosed = "fence" if fence else "comment" if in_comment else None
     return "\n".join(out), unclosed
+
+
+def _fence_opener(line: str) -> re.Match[str] | None:
+    """Match a fence opener. A backtick fence's info string may not hold a backtick."""
+
+    match = _FENCE.match(line)
+    if match and match.group("run")[0] == "`" and "`" in match.group("info"):
+        return None
+    return match
 
 
 def unclosed_construct(body: str) -> str | None:
@@ -211,6 +220,16 @@ def extract_acceptance_section(body: str) -> str:
     visible = _scan_hidden(body)[0]
     bounds = _section_bounds(visible)
     return "" if bounds is None else visible[bounds[0] : bounds[1]]
+
+
+def acceptance_heading_count(body: str) -> int:
+    """Count acceptance headings in the raw body, hidden or not.
+
+    A scan that hides one heading can make a second one the graded section.
+    Callers that gate on the boxes fail closed when this is above one.
+    """
+
+    return len(_ACCEPTANCE_HEADING.findall(body))
 
 
 def hidden_unchecked(body: str) -> list[str]:

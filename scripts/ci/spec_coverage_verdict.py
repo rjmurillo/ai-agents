@@ -51,6 +51,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from scripts.external_signals.acceptance_criteria import (
+    acceptance_heading_count,
     hidden_unchecked,
     parse_criteria,
     unclosed_construct,
@@ -119,6 +120,12 @@ def decide(has_specs: bool, body: str) -> Verdict:
     unclosed = unclosed_construct(body)
     if unclosed:
         return Verdict(False, _UNCLOSED_REASONS[unclosed])
+    if acceptance_heading_count(body) > 1:
+        return Verdict(
+            False,
+            "The pull request body has more than one acceptance heading. Keep one "
+            f"`{ACCEPTANCE_HEADING}` section so the check grades the one GitHub shows.",
+        )
     hidden = hidden_unchecked(body)
     if hidden:
         return Verdict(

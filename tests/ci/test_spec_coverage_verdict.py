@@ -456,3 +456,10 @@ def test_hidden_unchecked_box_fails_closed_and_lists_it() -> None:
     assert not result.passed
     assert "hidden" in result.reason
     assert result.unchecked == ["later"]
+
+
+def test_two_acceptance_headings_fail_closed() -> None:
+    body = "    <!-- x\n## Acceptance\n- [ ] x\n    -->\n## Acceptance\n- [x] y\n"
+    result = decide(True, body)
+    assert not result.passed
+    assert "more than one" in result.reason

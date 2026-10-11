@@ -351,3 +351,18 @@ def test_minimal_comment_closes_on_its_own_line() -> None:
         ("a", True),
         ("pending", False),
     ]
+
+
+def test_backtick_fence_info_with_a_backtick_is_not_a_fence() -> None:
+    body = "``` a`b\n## Acceptance\n- [ ] x\n"
+    assert [(c.text, c.checked) for c in ac.parse_criteria(body)] == [("x", False)]
+
+
+def test_tilde_fence_info_may_hold_a_backtick() -> None:
+    assert ac.parse_criteria("~~~ a`b\n## Acceptance\n- [ ] x\n~~~\n") == []
+
+
+def test_acceptance_headings_are_counted_in_the_raw_body() -> None:
+    body = "```\n## Acceptance\n- [ ] x\n```\n## Acceptance criteria\n- [x] y\n"
+    assert ac.acceptance_heading_count(body) == 2
+    assert ac.acceptance_heading_count("## Acceptance\n- [x] y\n") == 1

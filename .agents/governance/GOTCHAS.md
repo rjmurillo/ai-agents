@@ -601,6 +601,12 @@ The cause is the PR body, not the linked issue. Parsing rules, all in
 - An unchecked box inside a comment or code block in the acceptance section
   also fails the check. The scan may not match what GitHub shows, so a hidden
   unchecked box is treated as unchecked. Move it out or delete it.
+- Keep one acceptance heading. Two or more fail the check, even when one sits
+  in a code block.
+- Known parser limits, unchanged from the earlier parser: a setext heading
+  (`Acceptance` over `===`) is not a section, `+ [ ]` and `1. [ ]` items are
+  not boxes, and a `#` line inside a raw HTML block or indented code ends the
+  section early. Use the template form to stay clear of them.
 - The section ends at the next heading of the same or higher level, so `###`
   groups inside `## Acceptance criteria` keep their boxes.
 
