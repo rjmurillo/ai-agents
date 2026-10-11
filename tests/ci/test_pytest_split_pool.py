@@ -12,8 +12,6 @@ tree, so a group that drops or doubles a test fails here and not on a CI leg.
 
 from __future__ import annotations
 
-import json
-import zlib
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 
@@ -25,16 +23,8 @@ from tests.ci.pytest_split_collect_helpers import (
     pool_args,
     with_durations_path,
     without_parallel_flags,
+    write_fixture_durations,
 )
-
-
-def _fixture_durations(pool: list[str]) -> dict[str, float]:
-    """Deterministic timings for two thirds of the pool; the rest exercise the unknown path."""
-    return {
-        node_id: (zlib.crc32(node_id.encode()) % 900) / 10 + 0.1
-        for index, node_id in enumerate(pool)
-        if index % 3
-    }
 
 
 @pytest.fixture(scope="module")
@@ -48,7 +38,7 @@ def collected(tmp_path_factory: pytest.TempPathFactory) -> dict[str, list[str]]:
     """
     pool = collect(pool_args())
     durations = tmp_path_factory.mktemp("split-durations") / "durations.json"
-    durations.write_text(json.dumps(_fixture_durations(pool)), encoding="utf-8")
+    write_fixture_durations(pool, durations)
     jobs = {
         name: with_durations_path(
             without_parallel_flags(runner._PARTITION_FULL_ARGS[name]), str(durations)
