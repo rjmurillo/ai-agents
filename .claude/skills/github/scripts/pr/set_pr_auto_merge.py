@@ -23,6 +23,7 @@ import os
 import shlex
 import sys
 from pathlib import Path
+from typing import Any
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
@@ -131,7 +132,7 @@ def disable_auto_merge(
     repo: str,
     pr_number: int,
     pr_id: str,
-    pr_data: dict,
+    pr_data: dict[str, Any],
 ) -> int:
     """Disable auto-merge. Returns exit code."""
     if pr_data.get("autoMergeRequest") is None:

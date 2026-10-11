@@ -763,7 +763,7 @@ def stale_dirty_suspected(mergeable: str | None, merge_state_status: str | None)
 
 
 def _evaluate_review_threads(
-    pr: dict,
+    pr: dict[str, Any],
     ignore_threads: bool,
     reasons: list[str],
     owner: str,

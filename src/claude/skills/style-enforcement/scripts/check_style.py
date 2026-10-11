@@ -27,6 +27,7 @@ import sys
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 # Exit codes (consistent with other skills)
 EXIT_SUCCESS = 0
@@ -209,7 +210,7 @@ def detect_line_ending(content: bytes) -> str:
         return "lf"
 
 
-def check_line_endings(file_path: Path, content: bytes, config: StyleConfig) -> list:
+def check_line_endings(file_path: Path, content: bytes, config: StyleConfig) -> list[Any]:
     """Check line endings against config."""
     violations: list[Violation] = []
 
@@ -234,7 +235,7 @@ def check_line_endings(file_path: Path, content: bytes, config: StyleConfig) -> 
     return violations
 
 
-def check_indentation(file_path: Path, lines: list, config: StyleConfig) -> list:
+def check_indentation(file_path: Path, lines: list[Any], config: StyleConfig) -> list[Any]:
     """Check indentation style and size."""
     violations: list[Violation] = []
 
@@ -315,7 +316,7 @@ def check_charset(file_path: Path, content: bytes, config: StyleConfig) -> list:
     return violations
 
 
-def check_trailing_whitespace(file_path: Path, lines: list, config: StyleConfig) -> list:
+def check_trailing_whitespace(file_path: Path, lines: list[Any], config: StyleConfig) -> list[Any]:
     """Check for trailing whitespace."""
     violations: list[Violation] = []
 
@@ -338,7 +339,7 @@ def check_trailing_whitespace(file_path: Path, lines: list, config: StyleConfig)
     return violations
 
 
-def check_final_newline(file_path: Path, content: str, config: StyleConfig) -> list:
+def check_final_newline(file_path: Path, content: str, config: StyleConfig) -> list[Any]:
     """Check for final newline."""
     violations: list[Violation] = []
 
@@ -362,7 +363,7 @@ def check_final_newline(file_path: Path, content: str, config: StyleConfig) -> l
     return violations
 
 
-def check_csharp_async_naming(file_path: Path, content: str, config: StyleConfig) -> list:
+def check_csharp_async_naming(file_path: Path, content: str, config: StyleConfig) -> list[Any]:
     """Check C# async method naming conventions."""
     violations: list[Violation] = []
 

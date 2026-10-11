@@ -30,6 +30,7 @@ import sys
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 _EVAL_DIR = Path(__file__).resolve().parent
@@ -109,7 +110,9 @@ def normalized_levenshtein(a: str, b: str) -> float:
     return 0.0 if longest == 0 else levenshtein(a, b) / longest
 
 
-def response_text_variance(responses: list[str], run_indices: list[int] | None = None) -> dict:
+def response_text_variance(
+    responses: list[str], run_indices: list[int] | None = None
+) -> dict[str, Any]:
     """Text-level variance across responses.
 
     ``all_identical`` answers the issue's first branch (variance not from the
