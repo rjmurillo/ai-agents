@@ -43,12 +43,9 @@ try:
 
     _MARKDOWN: MarkdownIt | None = MarkdownIt("commonmark").enable("table")
 except ImportError:  # pragma: no cover - exercised when markdown-it-py is missing
+    # Plugin scripts run under bare python3 (plugin-self-containment MUST 4), so
+    # the parser is optional. Without it the raw body is scanned, which fails closed.
     _MARKDOWN = None
-    print(
-        "markdown-it-py not installed; scanning raw comment bodies. "
-        "Hidden bot IDs may report as invalid. Run with: uv run --frozen python",
-        file=sys.stderr,
-    )
 
 _MAX_THREAD_PAGES = 50
 _SHA_RE = re.compile(r"\b([0-9a-f]{7,40})\b", re.IGNORECASE)
@@ -107,8 +104,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 # Markdown that GitHub hides or shows as code must not feed the SHA regex. Bots
 # hide hex IDs in HTML comments (CodeRabbit: <!-- cr-comment:v1:<24 hex> -->).
-# markdown-it-py parses the body; html.parser reads raw HTML blocks. Code blocks
-# are skipped on purpose, since they quote commands, not fix references.
+# markdown-it-py parses the body; html.parser reads raw HTML blocks. Fenced and
+# indented code blocks are skipped on purpose, since they quote commands, not fix
+# references. Link targets and reference definitions are scanned: a link to a
+# commit, or a footnote naming one, cites that commit.
 class _HtmlText(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
@@ -140,6 +139,8 @@ def _inline_text(token: Token) -> str:
             parts.append(child.content)
         elif child.type in ("softbreak", "hardbreak"):
             parts.append("\n")
+        elif child.type == "link_open":
+            parts.append(f" {child.attrs.get('href', '')} ")
         elif child.type == "html_inline" and child.content.startswith("<!--"):
             parts.append(" " if _is_gfm_comment(child.content) else child.content)
         else:
@@ -157,10 +158,12 @@ def _reached_nesting_limit(tokens: list[Token], max_nesting: int) -> bool:
 def _visible_text(body: str) -> str:
     if _MARKDOWN is None:
         return body
-    tokens = _MARKDOWN.parse(body)
+    env: dict[str, Any] = {}
+    tokens = _MARKDOWN.parse(body, env)
     if _reached_nesting_limit(tokens, _MARKDOWN.options["maxNesting"]):
         return body
-    parts: list[str] = []
+    references = env.get("references", {}).values()
+    parts = [f"{ref.get('href', '')} {ref.get('title', '')}" for ref in references]
     for token in tokens:
         if token.type == "inline":
             parts.append(_inline_text(token))
@@ -171,7 +174,8 @@ def _visible_text(body: str) -> str:
 
 def extract_shas(body: str) -> list[str]:
     visible = _visible_text(body)
-    return [match.group(1).lower() for match in _SHA_RE.finditer(visible)]
+    # A link and its definition name the same commit; check each SHA once.
+    return list(dict.fromkeys(match.group(1).lower() for match in _SHA_RE.finditer(visible)))
 
 
 def fetch_review_threads(
@@ -335,6 +339,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.pull_request <= 0:
         print("Pull request number must be positive.", file=sys.stderr)
         return 2
+    if _MARKDOWN is None:
+        print(
+            "markdown-it-py not installed; scanning raw comment bodies. "
+            "Hidden bot IDs may report as invalid.",
+            file=sys.stderr,
+        )
 
     assert_gh_authenticated()
     resolved = resolve_repo_params(args.owner, args.repo)

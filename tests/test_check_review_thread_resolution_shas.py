@@ -391,8 +391,8 @@ def test_pr_review_config_contains_resolution_sha_gate() -> None:
         if item["name"] == "Resolved thread commit references are reachable"
     )
     assert (
-        sha_gate["command"] == "uv run --frozen python .claude/skills/github/scripts/pr/"
-        "check_review_thread_resolution_shas.py --pull-request {pr}"
+        sha_gate["command"] == 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}'
+        '/skills/github/scripts/pr/check_review_thread_resolution_shas.py" --pull-request {pr}'
     )
     assert sha_gate["pass_when"] == (
         "stdout-json.unreachable_count == 0 AND "
@@ -466,3 +466,34 @@ def test_nesting_past_parser_limit_scans_raw_body() -> None:
 def test_nesting_below_parser_limit_uses_parser() -> None:
     body = ">" * 10 + f" Fixed in abc1234 {_MARKER}"
     assert extract_shas(body) == ["abc1234"]
+
+
+def test_commit_link_target_is_checked() -> None:
+    body = "Fixed in [the fix](https://github.com/o/r/commit/abc1234)."
+    assert extract_shas(body) == ["abc1234"]
+
+
+def test_reference_link_definition_is_checked() -> None:
+    body = "Fixed in [the fix][r].\n\n[r]: https://github.com/o/r/commit/abc1234"
+    assert extract_shas(body) == ["abc1234"]
+
+
+def test_footnote_definition_is_checked() -> None:
+    assert extract_shas("Fixed.[^1]\n\n[^1]: abc1234") == ["abc1234"]
+
+
+def test_main_warns_when_parser_missing(capsys) -> None:
+    with (
+        patch.object(_mod, "_MARKDOWN", None),
+        patch.object(_mod, "assert_gh_authenticated"),
+        patch.object(_mod, "resolve_repo_params", side_effect=SystemExit(9)),
+    ):
+        try:
+            main(["--pull-request", "1"])
+        except SystemExit as exc:
+            assert exc.code == 9
+    assert "markdown-it-py not installed" in capsys.readouterr().err
+
+
+def test_repeated_sha_is_reported_once() -> None:
+    assert extract_shas("abc1234 then ABC1234 and def5678") == ["abc1234", "def5678"]
