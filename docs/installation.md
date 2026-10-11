@@ -22,7 +22,8 @@ Use the built-in marketplace support in the CLI you are actually running.
 Run this inside Claude Code:
 
 ```text
-/install-plugin rjmurillo/ai-agents
+/plugin marketplace add rjmurillo/ai-agents
+/plugin install project-toolkit@ai-agents
 ```
 
 That installs the full Claude toolkit from `.claude-plugin/marketplace.json`.
@@ -62,7 +63,7 @@ If you want a partial install instead of the full toolkit, use the marketplace c
 
 ### Claude Code
 
-Register the marketplace once if you want explicit component installs instead of `/install-plugin`:
+Register the marketplace once if you want explicit component installs instead of the full install above:
 
 ```text
 /plugin marketplace add rjmurillo/ai-agents
@@ -70,7 +71,7 @@ Register the marketplace once if you want explicit component installs instead of
 
 | Component | Install Command | What You Get |
 |-----------|----------------|--------------|
-| Project toolkit | `/plugin install project-toolkit@ai-agents` | Agents, hooks, and reusable skills from `src/claude/` |
+| Project toolkit | `/plugin install project-toolkit@ai-agents` | Agents and reusable skills from `src/claude/` |
 
 ### GitHub Copilot CLI
 
@@ -82,7 +83,7 @@ Register the marketplace once:
 
 | Component | Install Command | What You Get |
 |-----------|----------------|--------------|
-| Copilot full toolkit | `/plugin install project-toolkit@ai-agents` | Agents, hooks, and skills from `src/copilot-cli/` |
+| Copilot full toolkit | `/plugin install project-toolkit@ai-agents` | Agents and skills from `src/copilot-cli/` |
 
 ## Installation Paths
 
@@ -164,8 +165,8 @@ Use your tool's native uninstall support.
 
 ### Claude Code
 
-- Restart Claude Code after install so the new agents, hooks, commands, and skills load.
-- If `/install-plugin` is not recognized, update Claude Code to a build that supports plugin marketplaces.
+- Restart Claude Code after install so the new agents and skills load.
+- If `/plugin` is not recognized, update Claude Code to a build that supports plugin marketplaces.
 
 ### GitHub Copilot CLI
 

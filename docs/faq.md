@@ -20,10 +20,11 @@ The critic stress-tests plans and returns APPROVED, APPROVED_WITH_CONCERNS, NEED
 
 ### How do I install it in Claude Code?
 
-Run the command below inside Claude Code, then restart Claude Code.
+Run the two commands below inside Claude Code, then restart Claude Code.
 
 ```text
-/install-plugin rjmurillo/ai-agents
+/plugin marketplace add rjmurillo/ai-agents
+/plugin install project-toolkit@ai-agents
 ```
 
 ### Does it work with GitHub Copilot CLI?
@@ -35,15 +36,15 @@ Yes. Run these two commands inside Copilot CLI. No restart is needed. See [insta
 /plugin install project-toolkit@ai-agents
 ```
 
-### Are the lifecycle slash commands available in Copilot CLI?
+### Are the lifecycle skills available in Copilot CLI?
 
-Not as slash commands. The README [What You Get](../README.md#what-you-get) table lists slash commands as n/a for Copilot CLI. The six lifecycle skills (`spec`, `plan`, `build`, `test`, `review`, `ship`) ship in both bundles, along with agents, hooks, the session protocol, and review gates. [when-to-use.md](when-to-use.md) maps task shapes to lifecycle phases.
+They ship as skills. The six lifecycle skills (`spec`, `plan`, `build`, `test`, `review`, `ship`) are in both bundles, along with agents, the session protocol, and review gates. Claude Code runs them as slash commands (`/spec` to `/ship`). The README [What You Get](../README.md#what-you-get) table lists them as skills for Copilot CLI. [when-to-use.md](when-to-use.md) maps task shapes to lifecycle phases.
 
 ## Requirements and cost
 
 ### What does it require?
 
-Python 3.10 or later for the `project-toolkit` hooks. On Windows, the Python launcher (`py`) must be on PATH. Without Python, or with a version below 3.10, the hooks skip with a warning and your session still works. The security gates and review checks that run as hooks do not run in that mode.
+Claude Code or GitHub Copilot CLI with plugin marketplace support. The `project-toolkit` plugin registers no hooks for either CLI (ADR-097), so no hook runtime runs in your session. Some skills run Python scripts, and those skills need Python on PATH. Python 3.14.x is a contributor requirement for this repository.
 
 ### Is it free?
 

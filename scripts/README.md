@@ -25,8 +25,7 @@ See [ADR-019](../.project-toolkit/architecture/ADR-019-script-organization.md) f
 
 For installing agents to Claude Code, Copilot CLI, VS Code, or Visual Studio, use each tool's native marketplace or repository-level integration.
 
-- Claude Code: `/install-plugin rjmurillo/ai-agents`
-- Copilot CLI: `/plugin marketplace add rjmurillo/ai-agents` then `/plugin install project-toolkit@ai-agents`
+- Claude Code and Copilot CLI: `/plugin marketplace add rjmurillo/ai-agents` then `/plugin install project-toolkit@ai-agents`
 - VS Code / Visual Studio: open the repository so `.github/agents/` and `.github/copilot-instructions.md` load automatically
 
 See [docs/installation.md](../docs/installation.md) for complete installation documentation.

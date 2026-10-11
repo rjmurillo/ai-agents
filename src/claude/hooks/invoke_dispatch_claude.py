@@ -63,7 +63,7 @@ except (Exception, SystemExit) as exc:
             "project-toolkit@ai-agents WARNING: hooks DISABLED "
             "(your session is unaffected). "
             f"{type(exc).__name__}: {exc}. "
-            "Reinstall: /install-plugin rjmurillo/ai-agents",
+            "Reinstall: /plugin install project-toolkit@ai-agents",
             file=sys.stderr,
         )
         raise SystemExit(0) from None

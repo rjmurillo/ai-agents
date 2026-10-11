@@ -6,10 +6,11 @@ This guide walks you through installing and using the AI Agents system in your p
 
 Each AI tool has its own native marketplace flow. This repo ships a Claude Code marketplace at `.claude-plugin/marketplace.json` and a Copilot CLI marketplace at `.github/plugin/marketplace.json`, so the same repository URL works in both CLIs. Pick yours and paste the command(s) inside the CLI session.
 
-**Claude Code.** Use the one-step shortcut to register the marketplace and install the full Claude toolkit; restart Claude Code when it finishes.
+**Claude Code.** Register the marketplace, then install the full Claude toolkit; restart Claude Code when it finishes.
 
 ```text
-/install-plugin rjmurillo/ai-agents
+/plugin marketplace add rjmurillo/ai-agents
+/plugin install project-toolkit@ai-agents
 ```
 
 **GitHub Copilot CLI.** Two steps: register the marketplace, then install the Copilot-targeted toolkit. No restart needed afterward.
@@ -48,7 +49,8 @@ The fastest method uses the built-in plugin marketplace. Run the commands below 
 **Claude Code:**
 
 ```text
-/install-plugin rjmurillo/ai-agents
+/plugin marketplace add rjmurillo/ai-agents
+/plugin install project-toolkit@ai-agents
 ```
 
 **GitHub Copilot CLI:**

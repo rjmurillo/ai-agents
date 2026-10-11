@@ -2,7 +2,7 @@
 
 AI Agents is an open-source multi-agent toolkit for software development with Claude Code, GitHub Copilot CLI, and VS Code Copilot Chat. An orchestrator routes work across 30 specialized agents, including analyst, architect, code-reviewer, dependency-auditor, implementer, critic, QA, security, and DevOps, to plan, build, review, and ship code with explicit handoffs and quality gates at each stage.
 
-Built for platform teams, engineering managers, and organizations that want AI-assisted development with real governance: plan-to-ship lifecycle commands (`/spec`, `/plan`, `/build`, `/test`, `/review`, `/ship`) in Claude Code, review gates and a session protocol in both CLIs, and ADR-steered agent behavior. Optional cross-session memory is available via Serena. Install from the plugin marketplace with `/install-plugin rjmurillo/ai-agents` in Claude Code, or `/plugin marketplace add rjmurillo/ai-agents` then `/plugin install project-toolkit@ai-agents` in Copilot CLI. MIT licensed.
+Built for platform teams, engineering managers, and organizations that want AI-assisted development with real governance: plan-to-ship lifecycle skills (`/spec`, `/plan`, `/build`, `/test`, `/review`, `/ship`) in Claude Code, review gates and a session protocol in both CLIs, and ADR-steered agent behavior. Optional cross-session memory is available via Serena. Install from the plugin marketplace with `/plugin marketplace add rjmurillo/ai-agents` then `/plugin install project-toolkit@ai-agents`, in Claude Code or Copilot CLI. MIT licensed.
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/rjmurillo/ai-agents)
 
@@ -45,26 +45,23 @@ More answers: [FAQ](docs/faq.md). Copilot CLI install: [docs/installation.md](do
 
 Each AI tool has its own native marketplace flow. This repo ships a Claude Code marketplace at `.claude-plugin/marketplace.json` and a Copilot CLI marketplace at `.github/plugin/marketplace.json`, so the same repository URL works in both CLIs. Pick yours and paste the command(s) inside the CLI session.
 
-**Claude Code.** One command installs the full set; restart Claude Code when it finishes.
-
-```text
-/install-plugin rjmurillo/ai-agents
-```
-
-**GitHub Copilot CLI.** Two steps: register the marketplace, then install the Copilot-targeted toolkit. No restart needed afterward; Copilot CLI picks agents up automatically.
+**Claude Code.** Two steps: register the marketplace, then install the toolkit. Restart Claude Code when it finishes.
 
 ```text
 /plugin marketplace add rjmurillo/ai-agents
 /plugin install project-toolkit@ai-agents
 ```
 
-A Claude install lands the full set of agents, commands, hooks, and skills. A Copilot install lands the same capabilities generated from the same canonical sources. See [Verify Installation](#verify-installation) for the per-tool check that confirms your install, or [More Installation Options](#alternative-full-installation) for component-level installs (agents only, etc.).
+**GitHub Copilot CLI.** The same two steps. No restart needed afterward; Copilot CLI picks agents up automatically.
 
-> **Python requirement for `project-toolkit@ai-agents` hooks.** The project-toolkit plugin ships PreToolUse and PostToolUse hooks that run Python. Minimum version: **Python 3.10**. On Windows, the [Python launcher](https://docs.python.org/3/using/windows.html#launcher) (`py`) must be on PATH.
->
-> Without Python (or with a version below 3.10), hooks are **skipped** rather than blocking: your session works normally, but hook-based guards (security gates, review checks) do not run. A warning is printed naming the cause and the install step. This is the degraded mode, not an error.
->
-> Install Python: <https://www.python.org/downloads/> (3.10 or newer).
+```text
+/plugin marketplace add rjmurillo/ai-agents
+/plugin install project-toolkit@ai-agents
+```
+
+A Claude install lands the full set of agents and skills, including the six lifecycle skills. A Copilot install lands the same capabilities generated from the same canonical sources. See [Verify Installation](#verify-installation) for the per-tool check that confirms your install, or [More Installation Options](#alternative-full-installation) for component-level installs (agents only, etc.).
+
+> **No registered hooks.** The `project-toolkit@ai-agents` plugin registers no hooks for either CLI (ADR-097), so no hook runtime runs at install or in your session. Some skills run Python scripts, and those skills need Python on PATH. The plugin's declared floor is Python 3.10 (`build/scripts/generate_dispatcher.py`). Python 3.14.x is a contributor requirement for this repository (see [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites)).
 
 ### What You Get
 
@@ -72,8 +69,8 @@ A Claude install lands the full set of agents, commands, hooks, and skills. A Co
 |-----------|-------------|-------------|
 | Agents | Included | Included |
 | Skills | Included | Included |
-| Slash commands | Included | n/a (interactive only) |
-| Lifecycle hooks | Included | Included |
+| Lifecycle skills (`/spec` to `/ship`) | Included, run as slash commands | Included, as skills |
+| Hooks | Not registered (ADR-097) | Not registered (ADR-097) |
 | Session protocol | Included | Included |
 | Review gates | Included | Included |
 
@@ -81,10 +78,9 @@ Specialized agent roles include analyst, architect, implementer, QA, security, d
 
 ### Troubleshooting
 
-- **`/install-plugin` not recognized:** That command is Claude Code only. In Copilot CLI use the two-step flow (`/plugin marketplace add rjmurillo/ai-agents` then `/plugin install project-toolkit@ai-agents`).
 - **Copilot CLI install fails with "No plugin.json found in repository":** This repo is a marketplace, not a single plugin. Run `/plugin marketplace add rjmurillo/ai-agents` first, then `/plugin install project-toolkit@ai-agents`.
-- **`/plugin` not recognized in Copilot CLI:** Update Copilot CLI to a recent stable release; plugin support is required. Run `copilot --version` in a regular terminal to check.
-- **`Denied by preToolUse hook from "project-toolkit@ai-agents"`:** On plugin versions after this fix, this cannot happen: missing or too-old Python causes hooks to skip (exit 0) with a warning rather than deny. If you see this message, your installed plugin predates the fix. Upgrade: `/plugin install project-toolkit@ai-agents` (reinstalls at the latest version). If the denial persists, install or upgrade Python to 3.10+ and ensure it is on PATH (`py -3` on Windows, `python3` on Linux/macOS).
+- **`/plugin` not recognized:** Update your CLI to a recent stable release with plugin marketplace support. Check the version with `/version` in Claude Code, or `copilot --version` in a regular terminal for Copilot CLI.
+- **`Denied by preToolUse hook from "project-toolkit@ai-agents"`:** Current plugin versions register no hooks (ADR-097), so this message cannot come from them. If you see it, your installed plugin predates that change. Reinstall with `/plugin install project-toolkit@ai-agents`.
 - **Plugin install fails or hangs:** Confirm your AI tool is on a recent stable release that supports the install command, then retry. Check the version per tool: in Claude Code use `/version` or the title bar; for Copilot CLI run `copilot --version` in a regular terminal.
 - **Agents not responding after install:** Restart Claude Code (Copilot CLI does not need a restart). Then verify with `Task(subagent_type="analyst", prompt="Hello, are you available?")` in Claude Code, `copilot plugin list` in Copilot CLI to confirm `project-toolkit@ai-agents` is installed, or `@orchestrator Hello, are you available?` in VS Code Copilot Chat.
 
@@ -157,7 +153,7 @@ The agents themselves use the platform specific handoffs to invoke subagents, ke
 - **Self-improvement system** with skill tracking and retrospectives
 - **Quality gates** with pre-PR validation, session protocol enforcement, and automated CI checks
 - **Reusable skills** for common development workflows (git, PR management, testing, linting)
-- **One-step plugin install** through Claude Code's `/install-plugin` or Copilot CLI's `/plugin marketplace add` flow
+- **Two-step plugin install** through the `/plugin marketplace add` and `/plugin install` flow, identical in Claude Code and Copilot CLI
 - **CI/CD safeguards** with CodeQL, deterministic validators, and spec validation
 
 ### Key Concepts
@@ -178,11 +174,11 @@ The agents themselves use the platform specific handoffs to invoke subagents, ke
 
 The [Fastest Start](#fastest-start) above is the recommended path. Use the commands below when you want component-level control (agents only, no skills, etc.).
 
-> See [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites) for development setup including Python 3.14.x, pre-commit hooks, and test dependencies. The `project-toolkit@ai-agents` plugin requires Python 3.10+ for its hooks; without it, hooks are skipped with a warning (see [Fastest Start](#fastest-start)).
+> See [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites) for development setup including Python 3.14.x, pre-commit hooks, and test dependencies. The `project-toolkit@ai-agents` plugin registers no hooks (ADR-097). Skills that run Python scripts need Python on PATH.
 
 ### Quick Install (CLI marketplace)
 
-The [Fastest Start](#fastest-start) commands install the full toolkit. For component-level installs, register the marketplace once in the CLI you are using and then install just the parts you want. Claude Code resolves that repository to `.claude-plugin/marketplace.json`; Copilot CLI resolves it to `.github/plugin/marketplace.json`. In Claude Code you can also use `/install-plugin rjmurillo/ai-agents` as a one-step shortcut that registers the marketplace and prompts for plugin selection.
+The [Fastest Start](#fastest-start) commands install the full toolkit. For component-level installs, register the marketplace once in the CLI you are using and then install just the parts you want. Claude Code resolves that repository to `.claude-plugin/marketplace.json`; Copilot CLI resolves it to `.github/plugin/marketplace.json`.
 
 **Claude Code:**
 
@@ -192,7 +188,7 @@ The [Fastest Start](#fastest-start) commands install the full toolkit. For compo
 
 | Component | Install Command | What You Get |
 |-----------|----------------|--------------|
-| Project toolkit | `/plugin install project-toolkit@ai-agents` | Agents, hooks, and reusable skills from `src/claude/` |
+| Project toolkit | `/plugin install project-toolkit@ai-agents` | Agents and reusable skills from `src/claude/` |
 
 **GitHub Copilot CLI:**
 
@@ -202,7 +198,7 @@ The [Fastest Start](#fastest-start) commands install the full toolkit. For compo
 
 | Component | Install Command | What You Get |
 |-----------|----------------|--------------|
-| Copilot full toolkit | `/plugin install project-toolkit@ai-agents` | Agents, hooks, and skills from `src/copilot-cli/` (Copilot CLI) |
+| Copilot full toolkit | `/plugin install project-toolkit@ai-agents` | Agents and skills from `src/copilot-cli/` (Copilot CLI) |
 
 Claude Code installs ship a single `project-toolkit` plugin from `src/claude/` (the separate agents-only `claude-agents` bundle was retired; ADR-109). Copilot CLI installs ship a single `project-toolkit` plugin from `src/copilot-cli/` because that directory's `plugin.json` declares one identity; an agents-only Copilot install would silently register as `project-toolkit` and is therefore not advertised (issue #1840).
 
@@ -324,7 +320,7 @@ The orchestrator runs the same evaluation pipeline across all candidates, produc
 
 ## Lifecycle Commands
 
-Six slash commands that map to the development lifecycle. Each one activates the right agents and quality gates automatically.
+Six lifecycle skills that map to the development lifecycle. Claude Code runs them as slash commands. Each one activates the right agents and quality gates automatically.
 
 ```text
   DEFINE          PLAN           BUILD          VERIFY         REVIEW          SHIP
@@ -484,9 +480,9 @@ ai-agents/
 </details>
 
 <details>
-<summary><strong>/install-plugin command not recognized</strong></summary>
+<summary><strong>/plugin command not recognized</strong></summary>
 
-- `/install-plugin` is a Claude Code CLI shortcut. In Copilot CLI use the explicit two-step flow:
+- Update Claude Code or Copilot CLI to a build with plugin marketplace support, then run the two-step flow:
   1. `/plugin marketplace add rjmurillo/ai-agents`
   2. `/plugin install project-toolkit@ai-agents`
 - Ensure you're running inside Claude Code CLI or Copilot CLI, not a regular shell. The command is built into the AI tool.
@@ -496,7 +492,7 @@ ai-agents/
 <details>
 <summary><strong>Python version errors when running tests</strong></summary>
 
-- This project requires **Python 3.14.x** for development (running tests, linters, build scripts). The `project-toolkit@ai-agents` plugin requires **Python 3.10+** at runtime for its hooks. Without Python 3.10+, hooks degrade (skip with a warning) rather than block.
+- This project requires **Python 3.14.x** for development (running tests, linters, build scripts). The `project-toolkit@ai-agents` plugin registers no hooks (ADR-097). Skills that run Python scripts need Python on PATH.
 - The `.python-version` file pins the exact version (currently 3.14.4)
 - See [CONTRIBUTING.md](CONTRIBUTING.md#prerequisites) for detailed setup
 

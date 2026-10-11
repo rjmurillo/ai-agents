@@ -95,7 +95,7 @@ Copilot CLI marketplace (`.github/plugin/marketplace.json`):
   "plugins": [
     {
       "name": "project-toolkit",
-      "description": "Agents, hooks, and skills for GitHub Copilot CLI",
+      "description": "Specialized agent definitions and reusable skills for GitHub Copilot CLI, generated from repository templates and maintained plugin resources",
       "source": "./src/copilot-cli"
     }
   ]
