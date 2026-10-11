@@ -51,7 +51,10 @@ gate and no dashboard can count it.
 ## How this inventory was produced
 
 Enumerated against `main` at `16ed125` by four independent scans, one per
-surface, each required to cite a line it had actually opened:
+surface, each required to cite a line it had actually opened. The three
+`ai-spec-review.yml` rows are the exception: they were read later, at the
+commit their dated update names.
+
 
 1. `.github/workflows/**` for `continue-on-error`, shell suppressions
    (`|| true`, `|| :`, `|| echo`, `2>/dev/null` on a check command, `set +e`),

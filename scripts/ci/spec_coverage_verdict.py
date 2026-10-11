@@ -60,6 +60,28 @@ CHECK_NAME = "Validate Spec Coverage"
 ACCEPTANCE_HEADING = "## Acceptance criteria"
 _DISPATCH_EVENT = "workflow_dispatch"
 _FETCH_TIMEOUT_SECONDS = 60
+
+
+class _RefuseRedirect(urllib.request.HTTPRedirectHandler):
+    """Refuse every redirect, so the bearer token never reaches another URL.
+
+    The default handler forwards the Authorization header to the redirect
+    target. Returning None makes urllib raise HTTPError on the 3xx instead.
+    """
+
+    def redirect_request(
+        self,
+        req: urllib.request.Request,
+        fp: object,
+        code: int,
+        msg: str,
+        headers: object,
+        newurl: str,
+    ) -> urllib.request.Request | None:
+        return None
+
+
+_OPENER = urllib.request.build_opener(_RefuseRedirect)
 _DEFAULT_API_URL = "https://api.github.com"
 _PR_NUMBER = re.compile(r"[1-9][0-9]*")
 _REPOSITORY = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
@@ -134,7 +156,7 @@ def _read_body_field(url: str) -> str | None:
         headers["Authorization"] = f"Bearer {token}"
     request = urllib.request.Request(url, headers=headers, method="GET")
     try:
-        with urllib.request.urlopen(request, timeout=_FETCH_TIMEOUT_SECONDS) as response:
+        with _OPENER.open(request, timeout=_FETCH_TIMEOUT_SECONDS) as response:
             payload = json.loads(response.read())
     except (OSError, ValueError) as exc:
         # HTTPError and URLError are OSError; bad JSON or bytes are ValueError.
@@ -213,8 +235,7 @@ def run() -> int:
     has_specs = _parse_has_specs(os.environ.get("HAS_SPECS", ""))
     if has_specs is None:
         return _config_error(
-            'HAS_SPECS must be "true" or "false"; the Extract Spec '
-            "References step did not emit it."
+            'HAS_SPECS must be "true" or "false"; the Extract Spec References step did not emit it.'
         )
     body = os.environ.get("PR_BODY", "")
     if not body and os.environ.get("EVENT_NAME", "") == _DISPATCH_EVENT:

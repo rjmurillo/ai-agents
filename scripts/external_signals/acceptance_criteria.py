@@ -39,8 +39,6 @@ _ACCEPTANCE_HEADING = re.compile(
 _ANY_HEADING = re.compile(r"^(?P<hashes>#{1,6})\s+\S", re.MULTILINE)
 _CHECKBOX = re.compile(r"^\s*[-*]\s*\[(?P<mark>[ xX])\]\s+(?P<text>.+?)\s*$")
 _FENCE = re.compile(r"^ {0,3}(?P<run>`{3,}|~{3,})(?P<info>.*)$")
-# An unclosed comment runs to the end of the text, as Markdown renders it.
-_HTML_COMMENT = re.compile(r"<!--.*?(?:-->|\Z)", re.DOTALL)
 
 
 @dataclass(frozen=True)
@@ -75,44 +73,65 @@ class Report:
         }
 
 
-def _blank_fenced_lines(body: str) -> str:
-    """Replace lines inside ``` or ~~~ fences (and the fences) with empty lines.
+def _closes_fence(line: str, opener: str) -> bool:
+    """True when ``line`` is a bare run of the opener's character, as long or longer."""
 
-    A fence closes on a run of the same character at least as long as the
-    opener, followed only by whitespace: a line such as ```python is an opening
-    fence, never a closer. An unclosed fence hides the rest of the body, as
-    Markdown renders it.
+    match = _FENCE.match(line)
+    return (
+        match is not None
+        and match.group("run")[0] == opener[0]
+        and len(match.group("run")) >= len(opener)
+        and not match.group("info").strip()
+    )
+
+
+def _strip_comments(line: str, in_comment: bool) -> tuple[str, bool]:
+    """Drop ``<!-- -->`` spans from one line, carrying an open comment across lines."""
+
+    kept: list[str] = []
+    rest = line
+    while rest:
+        if in_comment:
+            end = rest.find("-->")
+            if end < 0:
+                return "".join(kept), True
+            rest, in_comment = rest[end + 3 :], False
+        else:
+            start = rest.find("<!--")
+            if start < 0:
+                kept.append(rest)
+                break
+            kept.append(rest[:start])
+            rest, in_comment = rest[start + 4 :], True
+    return "".join(kept), in_comment
+
+
+def _blank_hidden(body: str) -> str:
+    """Blank fenced code and HTML comments in one pass, keeping the line count.
+
+    Whichever construct opens first wins, as Markdown renders it: ``<!--``
+    inside a fence is literal text, and a fence line inside a comment is hidden.
+    A closing fence is a bare run (```python opens, never closes). An unclosed
+    fence or comment hides the rest of the body.
     """
 
     out: list[str] = []
-    opener = ""
+    fence = ""
+    in_comment = False
     for line in body.split("\n"):
-        match = _FENCE.match(line)
-        if opener:
-            closes = (
-                match is not None
-                and match.group("run")[0] == opener[0]
-                and len(match.group("run")) >= len(opener)
-                and not match.group("info").strip()
-            )
-            if closes:
-                opener = ""
+        if fence:
+            if _closes_fence(line, fence):
+                fence = ""
             out.append("")
-        elif match:
-            opener = match.group("run")
+            continue
+        match = None if in_comment else _FENCE.match(line)
+        if match:
+            fence = match.group("run")
             out.append("")
-        else:
-            out.append(line)
+            continue
+        visible, in_comment = _strip_comments(line, in_comment)
+        out.append(visible)
     return "\n".join(out)
-
-
-def _blank_html_comments(text: str) -> str:
-    """Remove ``<!-- -->`` comments, keeping their newlines so line count holds.
-
-    An unclosed ``<!--`` hides the rest of the text.
-    """
-
-    return _HTML_COMMENT.sub(lambda m: "\n" * m.group(0).count("\n"), text)
 
 
 def extract_acceptance_section(body: str) -> str:
@@ -120,12 +139,11 @@ def extract_acceptance_section(body: str) -> str:
 
     The section ends at the next heading of the same or higher level (equal or
     fewer ``#``), so ``###`` sub-headings under a ``##`` heading stay inside it.
-    HTML comments are blanked first, then fenced code blocks, so a fence opener
-    inside a comment cannot hide the boxes after it. A heading or a checkbox
-    inside either is not part of the section.
+    Fenced code and HTML comments are blanked first (``_blank_hidden``), so a
+    heading or a checkbox inside either is not part of the section.
     """
 
-    visible = _blank_fenced_lines(_blank_html_comments(body))
+    visible = _blank_hidden(body)
     match = _ACCEPTANCE_HEADING.search(visible)
     if not match:
         return ""

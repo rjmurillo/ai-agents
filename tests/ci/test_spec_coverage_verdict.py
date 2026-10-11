@@ -6,6 +6,7 @@ import json
 import subprocess
 import sys
 import urllib.error
+import urllib.request
 from email.message import Message
 from pathlib import Path
 from unittest.mock import patch
@@ -35,8 +36,12 @@ NUMBERED_ONLY = "## Acceptance criteria\n\n1. one\n2. two\n"
 @pytest.fixture(autouse=True)
 def _clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
     for name in (
-        "HAS_SPECS", "PR_BODY", "EVENT_NAME", "PR_NUMBER",
-        "GITHUB_REPOSITORY", "GITHUB_STEP_SUMMARY",
+        "HAS_SPECS",
+        "PR_BODY",
+        "EVENT_NAME",
+        "PR_NUMBER",
+        "GITHUB_REPOSITORY",
+        "GITHUB_STEP_SUMMARY",
     ):
         monkeypatch.delenv(name, raising=False)
 
@@ -79,17 +84,13 @@ class TestRun:
         monkeypatch.setenv("HAS_SPECS", "false")
         assert run() == EXIT_OK
 
-    def test_has_specs_is_case_and_space_tolerant(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_has_specs_is_case_and_space_tolerant(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("HAS_SPECS", " TRUE ")
         monkeypatch.setenv("PR_BODY", ALL_CHECKED)
         assert run() == EXIT_OK
 
     @pytest.mark.parametrize("raw", ["", "yes", "1", "null"])
-    def test_bad_has_specs_is_config_error(
-        self, monkeypatch: pytest.MonkeyPatch, raw: str
-    ) -> None:
+    def test_bad_has_specs_is_config_error(self, monkeypatch: pytest.MonkeyPatch, raw: str) -> None:
         monkeypatch.setenv("HAS_SPECS", raw)
         assert run() == EXIT_CONFIG
 
@@ -124,16 +125,12 @@ class TestRun:
         assert run() == EXIT_OK
         assert "::error::" not in capsys.readouterr().out
 
-    def test_repeat_runs_return_same_exit_code(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_repeat_runs_return_same_exit_code(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("HAS_SPECS", "true")
         monkeypatch.setenv("PR_BODY", ONE_UNCHECKED)
         assert run() == run() == EXIT_FAIL
 
-    def test_summary_written_on_fail(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-    ) -> None:
+    def test_summary_written_on_fail(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         summary = tmp_path / "summary.md"
         monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
         monkeypatch.setenv("HAS_SPECS", "true")
@@ -144,18 +141,14 @@ class TestRun:
         assert "- [ ] two" in text
         assert "- [ ] three" in text
 
-    def test_summary_written_on_pass(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-    ) -> None:
+    def test_summary_written_on_pass(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         summary = tmp_path / "summary.md"
         monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
         monkeypatch.setenv("HAS_SPECS", "false")
         assert run() == EXIT_OK
         assert "Validate Spec Coverage: PASS" in summary.read_text(encoding="utf-8")
 
-    def test_pull_request_event_never_fetches(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_pull_request_event_never_fetches(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("HAS_SPECS", "true")
         monkeypatch.setenv("EVENT_NAME", "pull_request")
         with patch(_URLOPEN) as mock_open:
@@ -262,7 +255,7 @@ def _json_response(body: object) -> _FakeResponse:
     return _FakeResponse(json.dumps({"body": body}).encode("utf-8"))
 
 
-_URLOPEN = "scripts.ci.spec_coverage_verdict.urllib.request.urlopen"
+_URLOPEN = "scripts.ci.spec_coverage_verdict._OPENER.open"
 
 
 class TestDispatchFetch:
@@ -299,9 +292,7 @@ class TestDispatchFetch:
         assert request.full_url == "https://ghe.example/api/v3/repos/o/r.x-y_z/pulls/42"
         assert request.get_header("Authorization") == "Bearer alt"
 
-    def test_no_token_omits_the_authorization_header(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_no_token_omits_the_authorization_header(self, monkeypatch: pytest.MonkeyPatch) -> None:
         self._env(monkeypatch)
         monkeypatch.delenv("GH_TOKEN")
         with patch(_URLOPEN, return_value=_json_response(ALL_CHECKED)) as mock_open:
@@ -392,6 +383,21 @@ class TestDispatchFetch:
         with patch(_URLOPEN) as mock_open:
             assert run() == EXIT_CONFIG
         mock_open.assert_not_called()
+
+    def test_redirects_are_refused_so_the_token_stays_put(self) -> None:
+        handler = verdict_module._RefuseRedirect()
+        request = urllib.request.Request("https://api.github.com/repos/o/r/pulls/1")
+        assert handler.redirect_request(request, None, 302, "Found", Message(), "https://x") is None
+        assert any(
+            isinstance(h, verdict_module._RefuseRedirect)
+            for h in vars(verdict_module._OPENER)["handlers"]
+        )
+
+    def test_a_refused_redirect_is_a_config_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        self._env(monkeypatch)
+        error = urllib.error.HTTPError("https://x", 302, "Found", Message(), None)
+        with patch(_URLOPEN, side_effect=error):
+            assert run() == EXIT_CONFIG
 
     def test_script_does_not_import_subprocess(self) -> None:
         assert "subprocess" not in SCRIPT.read_text(encoding="utf-8")
