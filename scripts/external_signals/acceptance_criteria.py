@@ -138,7 +138,8 @@ def _strip_comments(line: str, in_comment: bool) -> tuple[str, bool]:
             rest = rest[skip:]
             continue
         kept.append(rest[:start])
-        rest, in_comment = rest[start + 4 :], True
+        # Search for --> from the second dash, so <!--> and <!---> close at once.
+        rest, in_comment = rest[start + 2 :], True
     return "".join(kept), in_comment
 
 
@@ -183,25 +184,58 @@ def unclosed_construct(body: str) -> str | None:
     return _scan_hidden(body)[1]
 
 
+def _section_bounds(visible: str) -> tuple[int, int] | None:
+    """Return the character span of the acceptance section in ``visible``, or None.
+
+    The span starts after the heading and ends at the next heading of the same
+    or higher level (equal or fewer ``#``), so ``###`` sub-headings stay inside.
+    """
+
+    match = _ACCEPTANCE_HEADING.search(visible)
+    if not match:
+        return None
+    level = len(match.group("hashes"))
+    for heading in _ANY_HEADING.finditer(visible, match.end()):
+        if len(heading.group("hashes")) <= level:
+            return match.end(), heading.start()
+    return match.end(), len(visible)
+
+
 def extract_acceptance_section(body: str) -> str:
     """Return the text under an ``Acceptance`` heading, up to its end.
 
-    The section ends at the next heading of the same or higher level (equal or
-    fewer ``#``), so ``###`` sub-headings under a ``##`` heading stay inside it.
     Fenced code and HTML comments are blanked first (``_scan_hidden``), so a
     heading or a checkbox inside either is not part of the section.
     """
 
     visible = _scan_hidden(body)[0]
-    match = _ACCEPTANCE_HEADING.search(visible)
-    if not match:
-        return ""
-    level = len(match.group("hashes"))
-    tail = visible[match.end():]
-    for heading in _ANY_HEADING.finditer(tail):
-        if len(heading.group("hashes")) <= level:
-            return tail[: heading.start()]
-    return tail
+    bounds = _section_bounds(visible)
+    return "" if bounds is None else visible[bounds[0] : bounds[1]]
+
+
+def hidden_unchecked(body: str) -> list[str]:
+    """Return unchecked boxes in the acceptance section that the scan blanked.
+
+    The scan is line based and cannot match every case GitHub renders, so a box
+    it hides may still show on GitHub. Only an unchecked one could turn a FAIL
+    into a PASS, so callers that gate on the boxes fail closed on this list. The
+    scan keeps the line count, so raw and visible lines align by index.
+    """
+
+    visible = _scan_hidden(body)[0]
+    bounds = _section_bounds(visible)
+    if bounds is None:
+        return []
+    first = visible.count("\n", 0, bounds[0])
+    last = visible.count("\n", 0, bounds[1])
+    raw_lines = body.split("\n")
+    shown = visible.split("\n")
+    hidden: list[str] = []
+    for index in range(first, last + 1):
+        match = _CHECKBOX.match(raw_lines[index])
+        if match and match.group("mark") == " " and not _CHECKBOX.match(shown[index]):
+            hidden.append(match.group("text"))
+    return hidden
 
 
 def parse_criteria(body: str) -> list[Criterion]:

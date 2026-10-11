@@ -318,3 +318,36 @@ def test_comment_hidden_by_a_multiline_span_is_reported_unclosed() -> None:
 def test_escaped_backtick_does_not_open_a_code_span() -> None:
     body = "## Acceptance\n\\`<!-- `\n- [x] hid\n-->\n- [ ] v\n"
     assert [(c.text, c.checked) for c in ac.parse_criteria(body)] == [("v", False)]
+
+
+def test_hidden_unchecked_box_in_the_section_is_reported() -> None:
+    body = "## Acceptance\n- [x] a\n<!--\n- [ ] commented out\n-->\n"
+    assert ac.hidden_unchecked(body) == ["commented out"]
+
+
+def test_closed_span_differential_is_reported_not_passed() -> None:
+    body = "## Acceptance\n- [x] done `code\n  continued <!-- note` here\n- [ ] pending\n-->\n"
+    assert ac.hidden_unchecked(body) == ["pending"]
+
+
+def test_hidden_checked_box_is_not_reported() -> None:
+    body = "## Acceptance\n- [x] a\n<!-- - [x] b -->\n```\n- [x] c\n```\n"
+    assert ac.hidden_unchecked(body) == []
+
+
+def test_hidden_box_outside_the_section_is_not_reported() -> None:
+    body = "## Notes\n```\n- [ ] example\n```\n## Acceptance\n- [x] a\n## Other\n<!-- - [ ] x -->\n"
+    assert ac.hidden_unchecked(body) == []
+
+
+def test_prose_mentioning_a_checkbox_inside_a_comment_is_not_a_box() -> None:
+    body = "## Acceptance\n<!--\nUse `- [ ]` checkboxes here.\n-->\n- [x] a\n"
+    assert ac.hidden_unchecked(body) == []
+
+
+def test_minimal_comment_closes_on_its_own_line() -> None:
+    body = "## Acceptance\n- [x] a\n<!-->\n- [ ] pending\n"
+    assert [(c.text, c.checked) for c in ac.parse_criteria(body)] == [
+        ("a", True),
+        ("pending", False),
+    ]

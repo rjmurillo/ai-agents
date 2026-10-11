@@ -448,3 +448,11 @@ def test_unclosed_construct_fails_closed_and_names_it(body: str, word: str) -> N
 
 def test_unclosed_construct_does_not_matter_without_a_spec() -> None:
     assert decide(False, "<!-- stray\n").passed
+
+
+def test_hidden_unchecked_box_fails_closed_and_lists_it() -> None:
+    body = "## Acceptance criteria\n- [x] a\n<!--\n- [ ] later\n-->\n"
+    result = decide(True, body)
+    assert not result.passed
+    assert "hidden" in result.reason
+    assert result.unchecked == ["later"]

@@ -50,7 +50,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from scripts.external_signals.acceptance_criteria import parse_criteria, unclosed_construct
+from scripts.external_signals.acceptance_criteria import (
+    hidden_unchecked,
+    parse_criteria,
+    unclosed_construct,
+)
 
 EXIT_OK = 0
 EXIT_FAIL = 1
@@ -115,6 +119,15 @@ def decide(has_specs: bool, body: str) -> Verdict:
     unclosed = unclosed_construct(body)
     if unclosed:
         return Verdict(False, _UNCLOSED_REASONS[unclosed])
+    hidden = hidden_unchecked(body)
+    if hidden:
+        return Verdict(
+            False,
+            f"{len(hidden)} unchecked acceptance box(es) are hidden inside an HTML "
+            "comment or code block, where GitHub may still show them. Move them out "
+            "of the comment or block, or delete them.",
+            hidden,
+        )
     criteria = parse_criteria(body)
     if not criteria:
         return Verdict(

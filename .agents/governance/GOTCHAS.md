@@ -598,6 +598,9 @@ The cause is the PR body, not the linked issue. Parsing rules, all in
 - Boxes inside HTML comments or fenced code blocks are ignored.
 - An HTML comment (`<!--`) or code fence that never closes fails the check.
   It could hide boxes, so the check fails closed and names the open construct.
+- An unchecked box inside a comment or code block in the acceptance section
+  also fails the check. The scan may not match what GitHub shows, so a hidden
+  unchecked box is treated as unchecked. Move it out or delete it.
 - The section ends at the next heading of the same or higher level, so `###`
   groups inside `## Acceptance criteria` keep their boxes.
 
