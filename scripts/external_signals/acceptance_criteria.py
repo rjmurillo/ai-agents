@@ -38,6 +38,7 @@ _ACCEPTANCE_HEADING = re.compile(
 )
 _ANY_HEADING = re.compile(r"^(?P<hashes>#{1,6})\s+\S", re.MULTILINE)
 _CHECKBOX = re.compile(r"^\s*[-*]\s*\[(?P<mark>[ xX])\]\s+(?P<text>.+?)\s*$")
+_TICKS = re.compile(r"`+")
 _FENCE = re.compile(r"^ {0,3}(?P<run>`{3,}|~{3,})(?P<info>.*)$")
 
 
@@ -85,8 +86,27 @@ def _closes_fence(line: str, opener: str) -> bool:
     )
 
 
+def _code_span_end(text: str, tick: int) -> int:
+    """Return where the backtick run at ``tick`` stops hiding ``<!--``.
+
+    A run of N backticks opens a code span that closes at the next run of
+    exactly N. Text inside the span is literal. An unmatched run is literal
+    backticks, so only the run itself is skipped.
+    """
+
+    run = _TICKS.match(text, tick)
+    assert run is not None  # caller passes the index of a backtick
+    for closer in _TICKS.finditer(text, run.end()):
+        if len(closer.group()) == len(run.group()):
+            return closer.end()
+    return run.end()
+
+
 def _strip_comments(line: str, in_comment: bool) -> tuple[str, bool]:
-    """Drop ``<!-- -->`` spans from one line, carrying an open comment across lines."""
+    """Drop ``<!-- -->`` spans from one line, carrying an open comment across lines.
+
+    ``<!--`` inside an inline code span is literal text, as GitHub renders it.
+    """
 
     kept: list[str] = []
     rest = line
@@ -96,13 +116,19 @@ def _strip_comments(line: str, in_comment: bool) -> tuple[str, bool]:
             if end < 0:
                 return "".join(kept), True
             rest, in_comment = rest[end + 3 :], False
-        else:
-            start = rest.find("<!--")
-            if start < 0:
-                kept.append(rest)
-                break
-            kept.append(rest[:start])
-            rest, in_comment = rest[start + 4 :], True
+            continue
+        start = rest.find("<!--")
+        if start < 0:
+            kept.append(rest)
+            break
+        tick = rest.find("`", 0, start)
+        if tick >= 0:
+            skip = _code_span_end(rest, tick)
+            kept.append(rest[:skip])
+            rest = rest[skip:]
+            continue
+        kept.append(rest[:start])
+        rest, in_comment = rest[start + 4 :], True
     return "".join(kept), in_comment
 
 

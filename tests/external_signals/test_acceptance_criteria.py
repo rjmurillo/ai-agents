@@ -236,6 +236,19 @@ def test_comment_opener_inside_a_fence_does_not_hide_later_boxes() -> None:
     ]
 
 
+def test_comment_opener_inside_a_code_span_is_literal() -> None:
+    body = "## Acceptance\n- [x] see `<!--` and ``a ` <!-- b``\n- [ ] later\n"
+    assert [(c.text, c.checked) for c in ac.parse_criteria(body)] == [
+        ("see `<!--` and ``a ` <!-- b``", True),
+        ("later", False),
+    ]
+
+
+def test_unmatched_backtick_does_not_hide_a_real_comment() -> None:
+    body = "## Acceptance\n- [x] a ` b <!-- - [ ] gone --> c\n- [ ] kept\n"
+    assert [c.text for c in ac.parse_criteria(body)] == ["a ` b  c", "kept"]
+
+
 def test_text_after_a_closed_inline_comment_stays_visible() -> None:
     body = "## Acceptance\n- [ ] a <!-- b --> c\n"
     assert [c.text for c in ac.parse_criteria(body)] == ["a  c"]
