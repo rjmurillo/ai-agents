@@ -8,6 +8,7 @@ a change to either matcher fails here instead of leaving the rule stale.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -84,4 +85,4 @@ class TestRuleTemplate:
 
     def test_rule_names_symbols_that_exist(self) -> None:
         assert hasattr(freshness, "_IGNORE_WITH_REASON")
-        assert _CITATION.pattern
+        assert isinstance(_CITATION, re.Pattern)
