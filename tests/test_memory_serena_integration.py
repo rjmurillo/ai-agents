@@ -65,6 +65,44 @@ class TestParseCitationBlock:
     def test_parse_empty_text(self):
         assert parse_citation_block("") == []
 
+    @pytest.mark.unit
+    def test_citation_inside_backtick_fence_is_ignored(self):
+        text = "```\n[cite:file](does/not/exist.py) - control\n```\n"
+        assert parse_citation_block(text) == []
+
+    @pytest.mark.unit
+    def test_citation_inside_tilde_fence_is_ignored(self):
+        assert parse_citation_block("~~~\n[cite:file](a.py)\n~~~\n") == []
+
+    @pytest.mark.unit
+    def test_citation_inside_indented_fence_is_ignored(self):
+        assert parse_citation_block("  ```\n  [cite:file](a.py)\n  ```\n") == []
+
+    @pytest.mark.unit
+    def test_citation_inside_unterminated_fence_is_ignored(self):
+        assert parse_citation_block("```\n[cite:file](a.py)\n") == []
+
+    @pytest.mark.unit
+    def test_citation_inside_inline_code_span_is_ignored(self):
+        assert parse_citation_block("Write `[cite:file](a.py)` to cite.") == []
+
+    @pytest.mark.unit
+    def test_citation_outside_fence_still_parsed(self):
+        text = "```\n[cite:file](ignored.py)\n```\n\n[cite:file](kept.py) - real\n"
+        result = parse_citation_block(text)
+        assert [c.target for c in result] == ["kept.py"]
+        assert result[0].context == "real"
+
+    @pytest.mark.unit
+    def test_citation_after_unmatched_backtick_still_parsed(self):
+        result = parse_citation_block("a ` stray\n[cite:file](kept.py)\n")
+        assert [c.target for c in result] == ["kept.py"]
+
+    @pytest.mark.unit
+    def test_unrecognized_type_inside_fence_prints_no_warning(self, capsys):
+        parse_citation_block("```\n[cite:bogus](x)\n```\n")
+        assert capsys.readouterr().err == ""
+
 
 class TestParseLinkBlock:
     """Link block parsing from markdown text."""

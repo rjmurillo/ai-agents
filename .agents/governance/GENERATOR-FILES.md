@@ -40,11 +40,22 @@ source template exists at run time is generated output, not hand-maintained,
 and the exceptions are scoped to exactly those sets. The seven doc files
 under `.claude/hooks/` (`AGENTS.md`, five `CLAUDE.md` files, one `README.md`)
 are outside the hooks class and stay hand-maintained.
-Every other file below is kept in sync by hand and guarded by the install-parity
-validator, which fails CI when a sibling drifts from its source.
+Every other file below is kept in sync by hand and guarded by `check_surface_parity.py`
+(driven by `templates/platforms/surface-parity.yaml`), which fails CI when a sibling drifts from its source.
 
 | Path | Role | Guard |
 |------|------|-------|
+| `.github/agents/security/references/*.md` | Byte copy of `src/claude/security/references/` | `check_surface_parity.py` (`STALE`, `MISSING`, `EXTRA`) |
+| `src/copilot-cli/lib/*.py` (top-level modules) | Hand-maintained translation of the `.claude/lib/*.py` top-level modules (`translated`; `paths.py` is listed in `divergent` for the `.agents` root) | `check_surface_parity.py` (`STALE`, `MISSING`, `EXTRA`) |
+
+`templates/platforms/surface-parity.yaml` is the machine-readable inventory of
+every surface in this file and the ones it leaves out. Each row names the
+surface path, its authority, its generator, the gate that validates it, and a
+relation: `generated`, `binplaced`, `mirrored`, `translated`, or `independent`.
+`build/scripts/check_surface_parity.py` reads it, and `build_all.py --check`
+runs the same checks. A new output path in `binplace.yaml`, a platform YAML, or
+`OWNED_PREFIXES` with no row fails as `UNMANIFESTED`; a tracked file under
+`src/`, `.claude/`, or `.github/` that no row owns fails as `UNCLASSIFIED`.
 
 ADR-109 B1 moved `.claude/agents/<name>.md`, `.github/agents/<name>.agent.md`, and `src/claude/agents/<stem>.md` into generated output via the agent_templates.py and binplace_manifest.py generators above. ADR-109 B2 moved every `.claude/rules/<name>.md` file (28) the same way via rule_templates.py; `testing.md` is template-owned too, its GitHub Actions example written with the `\{{` escape. ADR-109 B3 gave skills the same two-hop shape: `skill_templates.compile_all` renders `src/claude/skills/<name>/SKILL.md`, and the binplace step copies it onto `.claude/skills/<name>/SKILL.md`; the manifest also gained a `prompts` row (`source: .claude/skills/review/references`, `compile: generate_pr_quality_prompts`, `plugin_tree: null`) that documents the twelve `pr-quality-gate-*.md` files without changing how they are generated. ADR-109 B4 moved the 16-file hooks class (14 executables, `hooks.json`, `dispatch_groups.json`) plus `.claude/settings.json` into generated output via hook_templates.py: `src/claude/hooks/` and `src/claude/hooks.json` render for the first time, `.github/hooks/*.json` is binplaced for the first time, and `.claude/settings.json` renders directly from `templates/hooks/settings.tmpl` with no plugin-tree hop, since it ships in no plugin.
 
@@ -59,6 +70,9 @@ uv run python build/scripts/build_all.py
 
 # Verify generated trees match sources without writing (CI drift gate).
 uv run python build/scripts/build_all.py --check
+
+# Surface parity only (same checks that build_all.py --check also runs).
+uv run python build/scripts/check_surface_parity.py
 
 # Agents only (also runnable standalone).
 uv run python build/generate_agents.py
