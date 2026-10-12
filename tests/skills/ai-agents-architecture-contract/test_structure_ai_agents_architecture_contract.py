@@ -94,3 +94,23 @@ def test_no_unimplemented_generator_claims_survive():
     assert "unimplemented in ADR-052" not in text
     assert "ADR-052 unimplemented" not in text
     assert "is itself canonical, hand-written" not in text
+
+
+def test_copilot_and_vscode_agent_rows_name_distinct_sources():
+    copilot = _row("| Agents (Copilot CLI)")
+    vscode = _row("| Agents (VS Code)")
+    assert "<stem>.copilot.md.tmpl" in copilot
+    assert "*.shared.md" not in copilot
+    assert "*.shared.md" in vscode
+
+
+def test_rules_skills_hooks_rows_name_templates_as_canonical():
+    assert "templates/rules/" in _row("| Rules |")
+    assert "templates/skills/" in _row("| Skills |")
+    assert "templates/hooks/" in _row("| Hooks |")
+
+
+def test_no_claude_canonical_claim_for_template_classes():
+    text = _text()
+    assert "`.claude/` itself is canonical" not in text
+    assert "They NEVER write `.claude/`" not in text
