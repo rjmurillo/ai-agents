@@ -5,9 +5,13 @@
 # this gate fails them deterministically at PR time and tells the author
 # the exact next free number to use (via --print-next).
 #
-# Uses dorny/paths-filter (Issue #103): fires on all PRs to satisfy the
-# required-check contract, skips with a passing status when no ADR files
-# changed.
+# Runs on every PR and every push to main, with no path filter. ADR id
+# uniqueness is a property of the whole tree, so the diff cannot decide it:
+# two PRs that each pass against their own base can merge into a colliding
+# union, and a skipped job reporting success would hide it (issue #5114,
+# .claude/rules/ci-scripts.md "Path filters gate the diff, never the tree").
+# No required status check names a job here, so no skip-announcer is needed.
+# The validator globs one directory and finishes in well under a second.
 
 name: Validate ADR Number Uniqueness
 
@@ -22,34 +26,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  check-changes:
-    name: Check for ADR Changes
-    runs-on: ubuntu-26.04-arm
-    timeout-minutes: 3
-    permissions:
-      contents: read
-      pull-requests: read
-    outputs:
-      should-run-adrs: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.filter.outputs.adrs }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Check path filters
-        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
-        id: filter
-        if: github.event_name != 'workflow_dispatch'
-        with:
-          filters: |
-            adrs:
-              - '.project-toolkit/architecture/ADR-*.md'
-              - 'scripts/validation/check_adr_uniqueness.py'
-              - '.github/workflows/validate-adr-number-uniqueness.yml'
-
   validate-adr-numbers:
     name: Validate ADR Number Uniqueness
-    needs: check-changes
-    if: needs.check-changes.outputs.should-run-adrs == 'true'
     runs-on: ubuntu-26.04-arm
     timeout-minutes: 3
     permissions:
@@ -88,16 +66,3 @@ jobs:
             "files that collided with canonical ADR-058, ADR-062, and" \
             "ADR-063 were renumbered to ADR-069, ADR-070, and ADR-071;" \
             "the allowlist is empty and the gate has zero exceptions."
-
-  skip-validation:
-    name: Skip Validation (No ADR Changes)
-    needs: check-changes
-    if: needs.check-changes.outputs.should-run-adrs != 'true'
-    runs-on: ubuntu-26.04-arm
-    timeout-minutes: 1
-    permissions:
-      contents: read
-    steps:
-      - name: Skip message
-        run: |
-          echo "ADR number uniqueness validation skipped - no ADR files changed"

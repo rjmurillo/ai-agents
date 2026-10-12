@@ -275,7 +275,7 @@ module, not the workflow YAML alone. 6 defects, 24 legitimate, 0 unclear.
 
 Recorded so a later scan does not re-triage them. Two patterns account for
 most: the filter glob equals the validator's file-type or directory domain
-(`yaml-lint.yml`, `validate-paths.yml`, `validate-adr-number-uniqueness.yml`,
+(`yaml-lint.yml`, `validate-paths.yml`,
 `validate-spec-id-uniqueness.yml`, `validate-planning-artifacts.yml`,
 `validate-artifact-retention.yml`, `validate-plugin-manifests.yml`,
 `skillbook-validation.yml`, `slash-command-quality.yml`,
@@ -290,6 +290,10 @@ Three deserve their reasoning kept, because they are the shapes worth copying:
 
 - `instruction-budget.yml:36` carries no filter at all and runs on every
   trigger. This is the already-fixed precedent `ci-scripts.md` cites.
+- `validate-adr-number-uniqueness.yml` carries no filter either, since issue
+  #5114. Two PRs each green against their own base can merge into a tree with
+  two files sharing one ADR id, so the id check runs on every PR and every push
+  to `main`. `tests/ci/test_adr_uniqueness_workflow_unconditional.py` pins it.
 - `validate-generated-agents.yml:48` gates a whole-tree generator diff behind a
   filter, and a co-located test, `tests/ci/test_frontmatter_gate_paths_filter.py`,
   asserts the filter still covers everything the gate scans. The filter cannot
