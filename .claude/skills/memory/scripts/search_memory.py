@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -268,6 +269,28 @@ def validate_query(query: str) -> str | None:
     return None
 
 
+SERENA_REL = Path(".serena", "memories")
+EPISODES_REL = Path(".project-toolkit", "memory", "episodes")
+
+
+def resolve_repo_root(script_dir: Path) -> Path:
+    """Pick the checkout that owns the memory stores.
+
+    An installed plugin lives outside the consumer checkout, so the path
+    relative to this file points at the plugin directory. Prefer the
+    consumer project (CLAUDE_PROJECT_DIR, then the working directory) when
+    it holds a memory store; fall back to the path relative to this file.
+    """
+    candidates = [os.environ.get("CLAUDE_PROJECT_DIR", ""), str(Path.cwd())]
+    for candidate in candidates:
+        if not candidate:
+            continue
+        root = Path(candidate).resolve()
+        if (root / SERENA_REL).is_dir() or (root / EPISODES_REL.parent).is_dir():
+            return root
+    return script_dir.parent.parent.parent.parent
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
@@ -283,7 +306,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # Determine store paths
     script_dir = Path(__file__).resolve().parent
-    repo_root = script_dir.parent.parent.parent.parent
+    repo_root = resolve_repo_root(script_dir)
 
     if args.serena_path:
         if ".." in args.serena_path.parts:
@@ -292,7 +315,7 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         serena_path = args.serena_path.resolve()
     else:
-        serena_path = repo_root / ".serena" / "memories"
+        serena_path = repo_root / SERENA_REL
 
     if args.episodes_path:
         if ".." in args.episodes_path.parts:
@@ -301,7 +324,7 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         episodes_path = args.episodes_path.resolve()
     else:
-        episodes_path = repo_root / ".project-toolkit" / "memory" / "episodes"
+        episodes_path = repo_root / EPISODES_REL
 
     search_status: dict[str, Any] = {
         "SerenaQueried": True,

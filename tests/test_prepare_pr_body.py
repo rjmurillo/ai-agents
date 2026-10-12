@@ -160,3 +160,63 @@ def test_rejects_symlinked_parent(tmp_path: Path, symlink_name: str) -> None:
         _MODULE.prepare_pr_body(tmp_path)
 
     assert list(outside.iterdir()) == []
+
+
+_BOTH_RULES = (".project-toolkit/scratch/pr-body-*.md", "mode 600", "--prepare-body-file")
+
+
+def _assert_names_every_rule(message: str) -> None:
+    for fragment in _BOTH_RULES:
+        assert fragment in message
+
+
+@pytest.mark.parametrize("operation", ["read", "write"])
+@pytest.mark.parametrize(
+    "bad_path",
+    [
+        "pr-5534.md",
+        ".agents/scratch/pr-body-abc.md",
+        ".project-toolkit/scratch/pr-5534.md",
+        ".project-toolkit/scratch/nested/pr-body-abc.md",
+        "/tmp/pr-body-abc.md",
+    ],
+)
+def test_wrong_body_name_states_name_and_mode_rules(
+    tmp_path: Path, operation: str, bad_path: str
+) -> None:
+    with pytest.raises(_MODULE.PreparePrBodyError) as caught:
+        if operation == "read":
+            _MODULE.read_prepared_pr_body(tmp_path, bad_path)
+        else:
+            _MODULE.write_prepared_pr_body(tmp_path, bad_path, "body")
+
+    _assert_names_every_rule(str(caught.value))
+
+
+@pytest.mark.parametrize("operation", ["read", "write"])
+@pytest.mark.parametrize("mode", [0o644, 0o640, 0o604, 0o666])
+def test_wrong_body_mode_states_name_and_mode_rules(
+    tmp_path: Path, operation: str, mode: int
+) -> None:
+    body = _MODULE.prepare_pr_body(tmp_path)
+    (tmp_path / body).write_text("## Summary\n", encoding="utf-8")
+    (tmp_path / body).chmod(mode)
+
+    with pytest.raises(_MODULE.PreparePrBodyError) as caught:
+        if operation == "read":
+            _MODULE.read_prepared_pr_body(tmp_path, body.as_posix())
+        else:
+            _MODULE.write_prepared_pr_body(tmp_path, body.as_posix(), "body")
+
+    message = str(caught.value)
+    _assert_names_every_rule(message)
+    assert body.as_posix() in message
+
+
+@pytest.mark.parametrize("mode", [0o600, 0o400, 0o700])
+def test_owner_only_body_is_not_rejected_for_mode(tmp_path: Path, mode: int) -> None:
+    body = _MODULE.prepare_pr_body(tmp_path)
+    (tmp_path / body).write_text("## Summary\n", encoding="utf-8")
+    (tmp_path / body).chmod(mode)
+
+    assert _MODULE.read_prepared_pr_body(tmp_path, body.as_posix()) == "## Summary\n"

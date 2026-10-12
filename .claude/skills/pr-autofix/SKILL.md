@@ -435,12 +435,14 @@ fi
 # its return value:
 #   _TIER_ORDER = (
 #       "T1", "T2", "T3", "T4", "T5",
-#       "BEHIND", "BLOCKED", "DIRTY", "SKIP", "UNSUPPORTED",
+#       "BEHIND", "BLOCKED", "DIRTY", "SKIP", "UNSUPPORTED", "STACKED",
 #   )
-# The five beyond the T1-T5 ladder are real: SKIP for a draft, closed, or merged
+# The six beyond the T1-T5 ladder are real: SKIP for a draft, closed, or merged
 # PR, BEHIND/DIRTY from the merge-state lookup, BLOCKED for a PR waiting on an
 # outside gate with no failure or thread (issue #5549), and UNSUPPORTED for a
-# mergeStateStatus this repository has no verified merge path for. Listing only
+# mergeStateStatus this repository has no verified merge path for, and STACKED
+# for a merge-ready PR whose base is not the default branch (issue #6201).
+# Listing only
 # the ladder rejected those as producer failures and silently disabled the
 # documented BEHIND and DIRTY handling.
 # tests/commands/test_pr_autofix_tier_contract.py pins this list against the
@@ -477,6 +479,16 @@ fi
 # threads and zero CI failures: that loop would have no action to take and
 # would terminate only by burning the round cap and posting an escalation
 # comment on a PR with nothing to escalate.
+# STACKED terminates at the same point as UNSUPPORTED, for the same reason, and
+# it is the T1 arm's replacement, not a new kind of work. The producer returns it
+# only for a PR that would otherwise be T1, so every check, thread, and
+# merge-state gate already passed. What remains is the merge step, and the squash
+# merge in the T1 path folds a PR into its base: for a stacked PR that base is
+# the parent PR's branch, so the merge collapses the stack instead of landing
+# work on the default branch (observed on rjmurillo/moq.analyzers #1366 to
+# #1371, where triage reported T1, CLEAN, CanMerge=true for every member). It is
+# "armed but not provably T1", so the disarm gate below runs first. T3 and T4
+# would have no action to take, so it must not enter the round-cap loop.
 TIER_KNOWN=yes
 TIER_TERMINAL=no
 case "$TIER" in
@@ -487,6 +499,12 @@ case "$TIER" in
     UNSUPPORTED)
         MERGE_STATE=$(printf '%s' "$MERGE_READY" | jq -r '.MergeStateStatus // ""')
         echo "Tier UNSUPPORTED for #$PR (mergeStateStatus '${MERGE_STATE:-<missing>}' has no verified merge path); disarming auto-merge if armed, then skipping."
+        TIER_TERMINAL=yes
+        ;;
+    STACKED)
+        BASE_REF=$(printf '%s' "$MERGE_READY" | jq -r '.BaseRef // ""')
+        DEFAULT_BRANCH=$(printf '%s' "$MERGE_READY" | jq -r '.DefaultBranch // ""')
+        echo "Tier STACKED for #$PR (base '${BASE_REF:-<missing>}' is not the default branch '${DEFAULT_BRANCH:-<missing>}'); disarming auto-merge if armed, then handing to a human."
         TIER_TERMINAL=yes
         ;;
     T1|T2|T3|T4|T5|BEHIND|BLOCKED|DIRTY) ;;
@@ -572,9 +590,10 @@ if [ "$AUTO_MERGE" != "null" ] && [ "$TIER_TRUSTED_T1" != "yes" ]; then
         continue
     fi
 fi
-# The unknown-tier and UNSUPPORTED arms resume here, one gate later than SKIP
-# leaves, so both have had auto-merge stripped above. Everything below needs a
-# tier with an action behind it, and neither of these has one, so both stop now.
+# The unknown-tier, UNSUPPORTED, and STACKED arms resume here, one gate later
+# than SKIP leaves, so all three have had auto-merge stripped above. Everything
+# below needs a tier with an action behind it, and none of these has one, so all
+# three stop now.
 if [ "$TIER_KNOWN" = "no" ] || [ "$TIER_TERMINAL" = "yes" ]; then
     continue
 fi
@@ -713,6 +732,17 @@ threads, GitHub reports exactly those two conditions as `BLOCKED`.
 Every other value, `UNKNOWN` and a missing value today plus
 anything GitHub adds later, blocks `CanMerge` and takes the `UNSUPPORTED` row.
 
+A PR that would be `T1` but targets a branch other than the repository default
+branch takes the `STACKED` row instead (issue #6201). `BaseRef` and
+`DefaultBranch` in the readiness output carry the two names; a name the payload
+omits counts as not matching. `CanMerge` stays true, because `merge_pr.py` gates
+each member of a stack through this script and a stacked member is mergeable
+there. Only the unattended squash-merge route is unsafe: it folds the PR into
+its parent branch and collapses the stack. Work tiers and the `BEHIND` and
+`DIRTY` rows are unchanged for a stacked PR, so CI and thread fixes still run.
+A PR aimed at any non-default branch also takes this row, which is deliberate: the
+loop has no verified path that lands work anywhere but the default branch.
+
 `UNSUPPORTED` is a merge-path row rather than a work tier because the work
 tiers name work this loop can do and there is none: such a PR routinely
 carries zero unresolved threads and zero CI failures, and T3 and T4 dispatch
@@ -741,7 +771,7 @@ moves the state to one of the three named states; reclassify after the fix.
 
 | Tier | Criteria | Action |
 |------|----------|--------|
-| T1 | `CanMerge=true` (`CLEAN`, `HAS_HOOKS`, or `UNSTABLE` with all non-required failures disposed); never `BLOCKED` | Merge via the row for that state in "Merge path by `mergeStateStatus`" below; each of the three names its own script |
+| T1 | `CanMerge=true` (`CLEAN`, `HAS_HOOKS`, or `UNSTABLE` with all non-required failures disposed) and `BaseRef == DefaultBranch`; never `BLOCKED` | Merge via the row for that state in "Merge path by `mergeStateStatus`" below; each of the three names its own script |
 | T2 | CI failures only (required or undisposed non-required), no threads; includes `BLOCKED` | Fix CI, verify required checks pass |
 | T3 | Threads only (CI passing); includes `BLOCKED` | Walk full thread lifecycle, then merge. A `BLOCKED` PR that still reports `BLOCKED` after its threads resolve is waiting on an outside gate: run `detect_stale_bot_review.py` and act on its verdict ("Stale bot `CHANGES_REQUESTED` review" below) |
 | T4 | Both CI failures + threads; includes `BLOCKED` | Fix CI first, then lifecycle threads |
@@ -762,6 +792,7 @@ here would re-assert the thing issue #4899 fixed.
 | DIRTY | `MergeStateStatus == "DIRTY"` (merge conflict) | Resolve conflict via the merge-resolver agent, then reclassify |
 | SKIP | Draft, merged, or closed | No action |
 | UNSUPPORTED | `MergeStateStatus` outside `CLEAN`/`HAS_HOOKS`/`UNSTABLE`/`BEHIND`/`BLOCKED`/`DIRTY` (`UNKNOWN`, missing, or a value GitHub adds later) | Disarm auto-merge, then stop and hand the PR to a human. Do not attempt a merge and do not enter the round-cap loop |
+| STACKED | Would be T1 (`CanMerge=true`, `CLEAN`/`HAS_HOOKS`/`UNSTABLE`), but `BaseRef` differs from `DefaultBranch` or either is missing (issue #6201) | Disarm auto-merge, then stop and hand the PR to a human. Do not run any merge script and do not enter the round-cap loop. A human lands the stack: `merge_pr.py` gates every downstack member before it merges one (issue #5473) |
 
 ### Stale bot `CHANGES_REQUESTED` review
 
@@ -812,6 +843,8 @@ returns `ESCALATE`, stop and hand off instead of requesting another review.
   run_pr_mutation_if_live git merge origin/"$BASE" --no-edit
   run_pr_mutation_if_live git push origin "$BRANCH"
   ```
+
+  For a stacked PR (`BaseRef` differs from `DefaultBranch`), `$BASE` is the PR's own base ref, the parent branch, not `main`. `update_pr_branch.py` calls GitHub's update-branch API and does not special-case a stacked PR, so use this local merge, which names the parent branch explicitly, for a stacked PR. Refreshing the branch does not make the PR mergeable here: it reclassifies `STACKED` once it is clean (issue #6201).
 
 - **Stale merge-state cache**: `test_pr_merge_ready.py` sets `StaleDirtySuspected=true` when GitHub reports `mergeable == "CONFLICTING"` or `mergeStateStatus == "DIRTY"`. This is advisory, not authoritative. A PR can merge or close during the review-fix cycle; acting on an earlier ACT result triggers a conflict merge into a deleted branch. In a worktree, use `run_pr_mutation_if_live git fetch origin "$BASE"`, then `git merge-base --is-ancestor "origin/$BASE" HEAD` (exit 0 = ancestor) and a guarded `run_pr_mutation_if_live git merge --no-commit --no-ff "origin/$BASE"` trial merge. Both clean means the conflict is stale. Disable existing auto-merge through the wrapper and verify `autoMergeRequest` is null before the final guarded merge and push (issue #3913). A failing trial merge means the conflict is real: resolve via merge-resolver agent. Evidence required: both live-state verdicts, the ancestry exit code, and the trial-merge result. See doc Stale merge-state cache section (issue #2368).
 - **Stale CI check**: Push a fresh commit to re-trigger. Never pass `--no-verify`; the harness denies it (ADR-112).
@@ -971,6 +1004,7 @@ GitHub refuses auto-merge for `UNSTABLE` PRs (issue #2439) and may also reject a
 | `UNSTABLE` with documented non-required failures | Direct merge (immediate) | Guard `merge_pr.py --strategy squash` |
 | `BEHIND` | Update branch first, then re-classify | Guard the fetch, merge, and push separately |
 | `DIRTY`/`CONFLICTING` | See Stale merge-state cache pattern below | merge-resolver agent if real conflict |
+| Base is not the default branch (`STACKED`) | A squash merge lands on the parent branch and collapses the stack. `test_pr_merge_ready.py` keeps `CanMerge=true` and reports tier `STACKED` | Disarm auto-merge, then hand to a human. No script in this table is run |
 | Anything else (`UNKNOWN`, missing, future) | No verified merge path in this document. `test_pr_merge_ready.py` reports `CanMerge=false` and tier `UNSUPPORTED` | Disarm auto-merge, then hand to a human. Refusing is deliberately conservative: GitHub may well accept the merge, but nothing here has been verified against that state |
 
 `set_pr_auto_merge.py` detects the `UNSTABLE` and already-`CLEAN` rejections from GitHub's GraphQL API and emits the direct-merge fallback command in its error output (exit 3) so the operator never has to translate the generic "GraphQL request failed" message themselves.

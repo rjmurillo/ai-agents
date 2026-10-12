@@ -31,7 +31,8 @@ Record shape (REQ-041 data model)::
             "contract": "<non-empty>",
             "diagnosis": "implementation-defect|local-config-defect|
                           stale-generated-output|baseline-update|
-                          upstream-defect|unknown",
+                          upstream-defect|relocation-no-semantic-change|
+                          unknown",
             "permitted_change_location": "<non-empty>",
             "escalation": "<required when diagnosis is upstream-defect>"
           },
@@ -39,6 +40,11 @@ Record shape (REQ-041 data model)::
             "policy_source": "<path that must exist on disk>",
             "reason": "<non-empty>",
             "added_entries": [{"justification": "<non-empty>", ...}]
+          },
+          "relocation_evidence": {      // required when diagnosis is relocation-no-semantic-change
+            "collect_command": "<non-empty>",
+            "tests_before": ["<collected test id>", ...],
+            "tests_after": ["<collected test id>", ...]
           }
         }
       ]
@@ -64,6 +70,27 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from relocation_evidence import (
+    RELOCATION,
+)
+from relocation_evidence import (
+    is_text as _text,
+)
+from relocation_evidence import (
+    is_text_list as _is_text_list,
+)
+from relocation_evidence import (
+    path_key as _path_key,
+)
+from relocation_evidence import (
+    relocation_defects as _relocation_defects,
+)
+from relocation_evidence import (
+    relocation_scope_defects as _relocation_scope_defects,
+)
+
 CATEGORIES = ("LOCAL", "GENERATED", "VENDOR", "UPSTREAM", "UNKNOWN")
 DIAGNOSES = (
     "implementation-defect",
@@ -71,6 +98,7 @@ DIAGNOSES = (
     "stale-generated-output",
     "baseline-update",
     "upstream-defect",
+    "relocation-no-semantic-change",
     "unknown",
 )
 TOP_LEVEL_KEYS = ("trigger", "targets")
@@ -78,21 +106,6 @@ TARGET_KEYS = ("target", "component", "provenance", "authority")
 
 _UNKNOWN_MESSAGE = "stop semantic edits and request ownership evidence"
 _TRIGGER_RELATIVE = Path("build") / "scripts" / "validation_trigger.py"
-
-
-def _text(value: object) -> bool:
-    """Return True when value is a string with non-space content."""
-    return isinstance(value, str) and bool(value.strip())
-
-
-def _path_key(path: object) -> str:
-    """Return one spelling for a path: forward slashes, no empty or ``.`` segments.
-
-    Matches ``normalize_path`` in the sibling trigger, so ``./a/b.py`` and
-    ``a\\b.py`` name the same target here and there.
-    """
-    parts = str(path).replace("\\", "/").strip().split("/")
-    return "/".join(part for part in parts if part and part != ".")
 
 
 def load_trigger(path: Path | None = None) -> ModuleType:
@@ -246,6 +259,9 @@ def _target_defects(index: int, target: object, repo_root: Path | None) -> list[
         defects += _vendor_or_upstream_defects(where, str(target.get("target")), authority)
     if diagnosis == "baseline-update":
         defects += _baseline_defects(where, target, repo_root)
+    if diagnosis == RELOCATION:
+        defects += _relocation_scope_defects(where, target)
+        defects += _relocation_defects(where, target)
     return defects
 
 
@@ -310,14 +326,34 @@ def _trigger_defects(trigger: object, targets: list[Any]) -> list[str]:
         return []
     if not targets:
         return ["the trigger activated but the record has no targets; record each target"]
+    defects: list[str] = []
+    effects = trigger.get("effects")
+    if effects is not None and not _is_text_list(effects):
+        defects.append("trigger.effects must be a list of non-empty effect strings")
     recorded = {_path_key(t.get("target")) for t in targets if isinstance(t, dict)}
     named = trigger.get("targets")
     named = named if isinstance(named, list) else []
     paths = [_path_key(t["path"]) for t in named if isinstance(t, dict) and _text(t.get("path"))]
-    return [
+    defects += [
         f"trigger target {path!r} has no record target"
         for path in sorted(set(paths))
         if path not in recorded
+    ]
+    return defects
+
+
+def _relocation_effect_defects(trigger: object, targets: list[Any]) -> list[str]:
+    """A relocation cannot coexist with a declared semantic effect on the same change."""
+    effects = trigger.get("effects") if isinstance(trigger, dict) else None
+    if not effects or not _is_text_list(effects):
+        return []
+    return [
+        f"targets[{index}]: {RELOCATION} contradicts trigger effects "
+        f"({', '.join(map(str, effects))}); a change with a semantic effect needs a defect diagnosis"
+        for index, target in enumerate(targets)
+        if isinstance(target, dict)
+        and isinstance(target.get("authority"), dict)
+        and target["authority"].get("diagnosis") == RELOCATION
     ]
 
 
@@ -337,6 +373,7 @@ def validate(
     if not isinstance(targets, list):
         return ["`targets` must be a list"]
     defects = _trigger_defects(record["trigger"], targets)
+    defects += _relocation_effect_defects(record["trigger"], targets)
     valid_targets: list[dict[str, Any]] = []
     for index, target in enumerate(targets):
         target_defects = _target_defects(index, target, repo_root)

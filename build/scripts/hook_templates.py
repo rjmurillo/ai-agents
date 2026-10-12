@@ -91,6 +91,7 @@ if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
 from atomic_write import publish_bytes_atomically, reject_symlinked_ancestors  # noqa: E402
+from binplace_manifest import is_bytecode_artifact  # noqa: E402
 from regen_guard import detect_reason  # noqa: E402
 
 # Names whose content must parse as JSON before being written (DESIGN-025:
@@ -122,12 +123,15 @@ def _iter_template_candidates(repo_root: Path) -> Iterator[tuple[str, Path]]:
     the module docstring), handled by :func:`_compile_settings`, not part
     of the ``src/claude/hooks/`` plugin tree. An absent ``templates/hooks/``
     directory yields nothing (mirrors ``rule_templates._iter_template_candidates``).
+    Bytecode caches (``__pycache__`` contents, ``.pyc``, ``.pyo``) are skipped:
+    running a template hook directly writes them, and copying them into
+    ``src/claude/hooks/`` reports them as drift (issue #5875).
     """
     root = _templates_root(repo_root)
     if not root.is_dir():
         return
     for path in sorted(root.rglob("*")):
-        if path.is_dir():
+        if path.is_dir() or is_bytecode_artifact(path.relative_to(root)):
             continue
         if path.name == _SETTINGS_TEMPLATE_NAME and path.parent == root:
             continue

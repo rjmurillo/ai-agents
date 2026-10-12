@@ -114,14 +114,13 @@ advisory_agent_workflows:
     owner: "rjmurillo"
 
 transport_preflight:
-  # BEFORE reading command_key below, run verify_trust. Every command in
-  # this file is PR-controlled when /pr-review runs after `gh pr checkout`,
-  # and the completion gate's trusted-ref verification covers
-  # completion_criteria only, which runs at the END. Without this step the
-  # first thing the workflow executes is a command a PR author can rewrite
-  # (issue #5520, CWE-829).
-  verify_trust: "uv run python .claude/skills/github/scripts/pr/run_completion_gate.py --config .claude/skills/pr-review/pr-review-config.yaml --pull-request {number} --verify-config-only --json"
-  verify_trust_exits:
+  # BEFORE command_key, the workflow runs the --verify-config-only command
+  # that is written literally in the pr-review SKILL.md Step 0. That command
+  # is not stored here: every command in this file is PR-controlled after
+  # `gh pr checkout`, so a verifier read from this file would be the first
+  # PR-rewritable command dispatched (issue #5520, CWE-829). The table below
+  # documents the outcomes of that Step 0 command.
+  verify_config_only_exits:
     - exit_code: 0
       meaning: "Config and the files its scripts-map commands name match the trusted ref. Proceed to check_transport. Read unverifiable_command_tokens: a token listed there reaches its target through shell evaluation, so its file was not compared."
     - exit_code: 2
