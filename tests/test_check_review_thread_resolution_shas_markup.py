@@ -150,3 +150,12 @@ def test_unclosed_comment_in_html_block_runs_to_end_of_input() -> None:
     parser._at_eof = True
     assert parser.parse_comment(0) == len(parser.rawdata)
     assert _mod.extract_shas("<div>\n<!-- deadbee\n</div>\n\nFixed in abc1234") == ["abc1234"]
+
+
+def test_comment_text_inside_raw_text_element_is_literal() -> None:
+    # 6195-A1: xmp shows "<!--" literally on every parser, so the SHA stays visible.
+    body = "<div>\n<xmp><!-- abc1234 --></xmp>\n</div>"
+    comment_patch, cdata_patch = _pre_fix_html_parser()
+    with comment_patch, cdata_patch:
+        assert _mod.extract_shas(body) == ["abc1234"]
+    assert _mod.extract_shas(body) == ["abc1234"]

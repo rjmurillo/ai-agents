@@ -125,16 +125,13 @@ def build_parser() -> argparse.ArgumentParser:
 # not depend on which python3 runs the gate.
 _COMMENT_ABRUPT_CLOSE_RE = re.compile(r"-?>")
 _COMMENT_CLOSE_RE = re.compile(r"--!?>")
+_RAW_TEXT_ELEMENTS = frozenset({"script", "style", "xmp", "iframe", "noembed", "noframes"})
 # Raw-text elements whose text never renders; GitHub strips them from comments.
 # xmp is raw text too, but its text renders, so it is still read.
-_UNRENDERED_ELEMENTS = frozenset({"script", "style", "iframe", "noembed", "noframes"})
+_UNRENDERED_ELEMENTS = _RAW_TEXT_ELEMENTS - {"xmp"}
 
 
 class _HtmlText(HTMLParser):
-    # typeshed marks this Final, but html.parser reads it through self, so a
-    # subclass value pins the raw-text set on every CPython version.
-    CDATA_CONTENT_ELEMENTS = ("script", "style", "xmp", "iframe", "noembed", "noframes")  # type: ignore[misc]
-
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self.parts: list[str] = []
@@ -167,6 +164,9 @@ class _HtmlText(HTMLParser):
             self.parts.append(data)
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag in _RAW_TEXT_ELEMENTS:
+            # Older CPython reads only script and style as raw text.
+            self.set_cdata_mode(tag)
         if tag in _UNRENDERED_ELEMENTS:
             self._unrendered_tag = tag
         self.parts.extend(_commit_refs(value) for name, value in attrs if name == "href" and value)
