@@ -59,7 +59,7 @@ Windows exceptions:
 ```yaml
 jobs:
   job-name:
-    # ADR-014 Exception: Windows runner required for [specific reason]
+    # ADR-055 Exception: Windows runner required for [specific reason]
     # Issue: [Link to tracking issue or upstream limitation]
     runs-on: windows-latest
 ```
@@ -69,7 +69,7 @@ x64 exceptions (if any):
 ```yaml
 jobs:
   job-name:
-    # ADR-014 Exception: [Tool/dependency name] lacks ARM support
+    # ADR-055 Exception: [Tool/dependency name] lacks ARM support
     # Issue: [Link to tracking issue or upstream limitation]
     runs-on: ubuntu-latest
 ```
@@ -96,7 +96,7 @@ jobs:
 
 When ARM runners cannot be used:
 
-1. **Document the reason** in workflow with ADR-014 exception comment
+1. **Document the reason** in workflow with an `# ADR-055 Exception:` comment
 2. **Link to evidence**:
    - Upstream issue for ARM support
    - Tool documentation stating x64/Windows requirement
