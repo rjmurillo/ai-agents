@@ -103,6 +103,7 @@ from checks_portability import (
     validate_agent_template_drift,
     validate_hook_template_drift,
     validate_plugin_root_interpreter,
+    validate_projection_invariants,
     validate_rule_template_drift,
     validate_skill_contract_tests,
     validate_skill_md_exec_portability,
@@ -453,7 +454,7 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate("Tracked Conflict Markers", _root_only(validate_tracked_conflict_markers)),
     _Gate("Security Suppressions Diff", _root_only(validate_security_suppressions_diff)),
     _Gate("Memory Placement", _root_only(validate_memory_placement)),
-    # The seven gates below are the seven validators the CI job
+    # The eight gates below are the eight validators the CI job
     # "Validate Vendor Portability" runs. They are kept together, and
     # tests/validation/test_pre_pr_covers_vendor_portability.py reads that
     # workflow and fails when the job gains a validator this sequence does not
@@ -475,6 +476,10 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # stdlib-only target; `uv run python` has no lock file to resolve in a
     # vendored install (issue #5949).
     _Gate("Plugin-Root Interpreter", _root_only(validate_plugin_root_interpreter)),
+    # ADR-107 invariants 6 (allowed-tools set) and 8 (Exit Codes table) hold
+    # between the committed Claude skill and its Copilot CLI projection for the
+    # push-pr and security-scan pilots. Issue #5687.
+    _Gate("Projection Invariants (ADR-107)", _root_only(validate_projection_invariants)),
     # A documented exit code with no test binding it is prose, and prose
     # does not go red.
     _Gate("Skill Contract Tests", _root_only(validate_skill_contract_tests)),
