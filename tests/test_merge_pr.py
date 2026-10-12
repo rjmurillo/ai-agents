@@ -104,9 +104,9 @@ class TestBuildParser:
             build_parser().parse_args([])
 
     def test_strategy_default_is_none(self):
-        """Default strategy is now None — main() resolves it against repo policy.
+        """Default strategy is now None: main() resolves it against repo policy.
 
-        Regression: #2449 — hard-coded default of 'merge' violated repo
+        Regression: #2449: hard-coded default of 'merge' violated repo
         policies that only allow squash.
         """
         args = build_parser().parse_args(["--pull-request", "50"])
@@ -270,7 +270,7 @@ class TestMain:
                 side_effect=_side_effect,
             ),
         ):
-            # Explicit --strategy merge — default would resolve to squash now.
+            # Explicit --strategy merge, default would resolve to squash now.
             rc = main(["--pull-request", "50", "--strategy", "merge"])
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
@@ -765,7 +765,7 @@ class TestValidateStrategy:
         assert exc.value.code == 1
 
     def test_disallowed_strategy_emits_json_envelope(self, capsys):
-        """Regression: #2449 — must emit JSON envelope on stdout, not plain text on stderr.
+        """Regression: #2449: must emit JSON envelope on stdout, not plain text on stderr.
 
         Before the fix, validate_strategy called error_and_exit which
         printed to stderr and produced no JSON on stdout, breaking
