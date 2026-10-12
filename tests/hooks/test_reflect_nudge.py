@@ -145,6 +145,7 @@ class TestClassify:
             "I told you to use the skill",
             "like I said, the lock path is fixed",
             "how many times do I need to say this",
+            "how many times have I asked",
             "stop asking and ship it",
             "I didn't ask for a new file",
             "I did not say that",
@@ -153,6 +154,7 @@ class TestClassify:
             "No one asked for that",
             "where did that number come from? you made it up",
             "did you actually run the tests?",
+            "you broke the build again",
             "you pushed to the wrong repo",
             "you broke the build",
             "wtf is this",
@@ -184,6 +186,9 @@ class TestClassify:
             "who made the first release?",
             "did you see the issue",
             "we use the new flag",
+            "how many times does the loop retry?",
+            "did you actually see my last message?",
+            "you broke it down well",
             "",
         ],
     )
@@ -205,6 +210,8 @@ class TestClassify:
             "use `claude -p` instead, it is already authenticated",
             "ask me rather than guessing",
             "prefer logging a hint",
+            "I'd prefer the smaller diff",
+            "log less; prefer a hint",
         ],
     )
     def test_preference(self, text: str) -> None:
@@ -217,6 +224,7 @@ class TestClassify:
             "instead, wait.\nUse it later",
             "preferences file is missing",
             "do I want this?",
+            "which do you prefer, A or B?",
         ],
     )
     def test_not_preference(self, text: str) -> None:

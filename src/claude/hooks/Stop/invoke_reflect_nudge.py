@@ -47,8 +47,9 @@ scripts/acr/patterns.py and behavior.py, at commit 356b7c08f64c. Only the
 fixed phrases were kept; bare words such as "already", "stop", and "again"
 were dropped as too broad. claude-mem carries no praise regexes. The
 transcript-derived HIGH and MED groups come from the same operator's 326
-distinct human turns over 30 days. Every match was read by hand and was a
-real correction or preference. Recall was again not measured. The MED
+distinct human turns over 30 days. Every match in that corpus was read by
+hand and was a real correction or preference. Precision outside that
+corpus and recall were not measured. The MED
 preference phrases follow the reflect skill's MEDIUM trigger table
 ("use X instead of Y", "prefer", "rather than").
 
@@ -102,15 +103,16 @@ HIGH_PATTERNS = tuple(
         r"\bdon(?:'|’)?t ever\b",
         r"\bstop (?:doing|using|adding)\b",
         # Adapted from claude-mem acr/patterns.py and acr/behavior.py.
-        r"\b(?:i told you|like i said|how many times)\b",
+        r"\b(?:i told you|like i said)\b",
+        r"\bhow many times (?:do|did|have|must|should) i\b",
         r"\bstop asking\b",
         r"\bi did(?:n(?:'|’)?t| not) (?:ask|say|tell you)\b",
         r"\bnot what i (?:asked|wanted|meant)\b",
         r"\b(?:no ?one|nobody) (?:said|asked)\b",
         r"\bmade (?:that|it) up\b",
-        r"\bdid you (?:actually|even)\b",
+        r"\bdid you (?:actually|even) (?:run|test|check|read|try|look|verify)\b",
         r"\bwrong (?:repo|branch|file)\b",
-        r"\byou broke\b",
+        r"\byou broke (?:the|this|that|my|it)\b(?!\s+down)",
         r"\bwtf\b",
         r"\bthat(?:'|’)?s (?:dumb|stupid)\b",
         # Observed in operator transcripts: correcting a stated assumption.
@@ -126,7 +128,8 @@ MED_PATTERNS = tuple(
         r"\bi (?:also |really |just )?(?:don(?:'|’)?t|do not) (?:want|like)\b",
         r"\buse\b[^.?!\n]{1,60}\binstead\b",
         r"\brather than\b",
-        r"\bprefer\b",
+        r"\bi(?: would|(?:'|’)d)? prefer\b",
+        r"(?:^|[;:.!]\s*)prefer\b",
     )
 )
 
