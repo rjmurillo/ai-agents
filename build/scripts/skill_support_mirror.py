@@ -33,6 +33,7 @@ from atomic_write import (  # noqa: E402
 )
 from binplace_manifest import is_bytecode_artifact  # noqa: E402
 from copilot_body_translation import translate_skill_file  # noqa: E402
+from lib_mirror import lib_owned_support_files  # noqa: E402
 from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
 from skill_distribution import SkillDistributionError, repo_local_names  # noqa: E402
 
@@ -470,14 +471,19 @@ def sync_claude_plugin_skill_support(
         target_dir, repo_local, check=check, what_if=what_if
     )
     for src in skills:
+        owned = lib_owned_support_files(src.name)
         try:
-            wanted = _iter_support_relpaths(src)
+            wanted = _iter_support_relpaths(src) | owned
         except SkillSupportSyncError as exc:
             errors.append(str(exc))
             continue
         target = target_dir / src.name
         written, skipped = _copy_skill_tree(
-            src, target, what_if=what_if, check=check, skip_filenames=frozenset({_SKILL_MD})
+            src,
+            target,
+            what_if=what_if,
+            check=check,
+            skip_filenames=frozenset({_SKILL_MD}) | owned,
         )
         total_written += written
         total_skipped += skipped
