@@ -144,3 +144,51 @@ def test_successful_lookup_still_merges(capsys):
     assert exit_code == 0
     assert envelope["Success"] is True
     assert any(c[:3] == ["gh", "pr", "merge"] for c in calls)
+
+
+def _drive_default_strategy(settings, capsys) -> tuple[int, dict, list[list[str]]]:
+    """Run main() without --strategy so repository-settings discovery runs first."""
+    calls: list[list[str]] = []
+
+    def fake_run(cmd, **kwargs):
+        argv = list(cmd)
+        calls.append(argv)
+        if argv[:3] == ["gh", "auth", "status"]:
+            return _OK
+        if argv[:2] == ["gh", "api"] and argv[2].startswith("repos/"):
+            return settings
+        raise AssertionError(f"unexpected command: {argv!r}")
+
+    argv = ["--owner", "o", "--repo", "missing", "--pull-request", "42"]
+    with patch("subprocess.run", side_effect=fake_run):
+        try:
+            code = _MOD.main(argv)
+        except SystemExit as exc:
+            code = int(exc.code or 0)
+    out = capsys.readouterr().out
+    return code, (json.loads(out) if out else {}), calls
+
+
+@pytest.mark.parametrize(
+    ("settings", "code", "error_type"),
+    [
+        pytest.param(
+            _failed(stderr="gh: Not Found (HTTP 404)"),
+            2,
+            "NotFound",
+            id="missing-repo-settings-404",
+        ),
+        pytest.param(
+            _failed(stderr="HTTP 502: Bad Gateway"),
+            3,
+            "ApiError",
+            id="settings-gateway-error-stays-retryable",
+        ),
+    ],
+)
+def test_default_strategy_settings_failure_exit_code(settings, code, error_type, capsys):
+    """A 404 on repository settings is a missing repo (exit 2); other failures stay 3."""
+    exit_code, envelope, calls = _drive_default_strategy(settings, capsys)
+    assert exit_code == code
+    assert envelope["Error"]["Type"] == error_type
+    assert not any(c[:3] == ["gh", "pr", "merge"] for c in calls)

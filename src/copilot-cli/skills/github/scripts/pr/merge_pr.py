@@ -864,6 +864,15 @@ def _resolve_strategy(
     try:
         repo_settings = get_allowed_merge_methods(repo_flag)
     except (RuntimeError, ValueError) as exc:
+        if _is_not_found(str(exc)):
+            # repos/<owner>/<repo> answers 404 only when the repository is absent.
+            _emit_error(
+                f"Repository {repo_flag} not found: {sanitize_failure_detail(str(exc))}",
+                2,
+                "NotFound",
+                args.output_format,
+                pr,
+            )
         _emit_error(str(exc), 3, "ApiError", args.output_format, pr)
     chosen = resolve_default_strategy(repo_settings)
     if chosen is None:
