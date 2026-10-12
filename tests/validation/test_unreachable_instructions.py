@@ -96,6 +96,24 @@ def test_explicit_only_skill_is_a_declared_entry_point(tree: Path) -> None:
     assert unreachable_skills(tree) == []
 
 
+def test_explicit_only_role_alone_exempts_a_skill(tree: Path) -> None:
+    """The role clause is load-bearing even when the invoker is not reserved."""
+    _front_door(tree)
+    _skill(
+        tree,
+        "role-only",
+        _routing(
+            role="explicit-only",
+            invoker="autoplan",
+            trigger="t",
+            user_facing=True,
+            rationale="Deliberately never auto-selected.",
+        ),
+    )
+
+    assert unreachable_skills(tree) == []
+
+
 def test_harness_invoked_skill_is_a_declared_entry_point(tree: Path) -> None:
     _front_door(tree)
 
