@@ -3190,6 +3190,179 @@ class TestCommitReachabilityGuard:
         assert "e001 -> e002 runs backwards" in problems[0]
 
 
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
+class TestPreserveDropsDanglingCommitEvents:
+    """`--preserve` must not carry a commit event no ref reaches (issue #5213).
+
+    The reachability test behind ``_commit_event_dates`` (issue #4240) gated
+    only commit-order validation. Event membership had no such gate, so a
+    dangling SHA recorded once was unioned forward on every regeneration and
+    ``metrics.commits`` stayed one above the stream it must equal.
+    """
+
+    SESSION = "2026-07-19-session-999"
+    UNRESOLVABLE = "deadbeef1234567"
+
+    @pytest.fixture
+    def shas(self, tmp_path, monkeypatch):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-q", "-b", "main")
+        _git(repo, "config", "user.email", "t@example.com")
+        _git(repo, "config", "user.name", "T")
+        reachable = _commit(repo, "a.txt", "a", when="2026-07-19T10:00:00+00:00")
+        _git(repo, "checkout", "-q", "-b", "side")
+        dangling = _commit(repo, "b.txt", "b", when="2026-07-19T11:00:00+00:00")
+        _git(repo, "checkout", "-q", "main")
+        _git(repo, "branch", "-D", "side")
+        monkeypatch.chdir(repo)
+        extract_session_episode._sha_is_reachable.cache_clear()
+        extract_session_episode._commit_datetime.cache_clear()
+        yield {"reachable": reachable, "dangling": dangling}
+        extract_session_episode._sha_is_reachable.cache_clear()
+        extract_session_episode._commit_datetime.cache_clear()
+
+    @staticmethod
+    def _event(eid, sha):
+        return {
+            "id": eid,
+            "timestamp": "2026-07-19T00:00:00+00:00",
+            "type": "commit",
+            "content": f"Commit: {sha}",
+            "caused_by": [],
+            "leads_to": [],
+        }
+
+    def _existing(self, shas, metrics_commits):
+        return {
+            "timestamp": "2026-07-19T00:00:00+00:00",
+            "events": [
+                self._event("e001", shas["reachable"]),
+                self._event("e002", shas["dangling"]),
+                self._event("e003", self.UNRESOLVABLE),
+            ],
+            "metrics": {"commits": metrics_commits},
+        }
+
+    @staticmethod
+    def _fresh():
+        return {"timestamp": "2026-07-19T00:00:00+00:00", "events": [], "metrics": {"commits": 0}}
+
+    @staticmethod
+    def _contents(episode):
+        return [e["content"] for e in episode["events"]]
+
+    def test_dangling_event_is_dropped(self, shas):
+        merged = extract_session_episode.merge_preserving(
+            self._fresh(), self._existing(shas, 3), session_id=self.SESSION
+        )
+        contents = self._contents(merged)
+        assert f"Commit: {shas['dangling']}" not in contents
+        assert f"Commit: {shas['reachable']}" in contents
+
+    def test_unresolvable_event_is_kept(self, shas):
+        merged = extract_session_episode.merge_preserving(
+            self._fresh(), self._existing(shas, 3), session_id=self.SESSION
+        )
+        assert f"Commit: {self.UNRESOLVABLE}" in self._contents(merged)
+
+    def test_metrics_commits_falls_with_the_stream(self, shas):
+        # Existing metrics record 12, the ratchet the issue observed.
+        merged = extract_session_episode.merge_preserving(
+            self._fresh(), self._existing(shas, 12), session_id=self.SESSION
+        )
+        assert len(merged["events"]) == 2
+        assert merged["metrics"]["commits"] == 2
+
+    def test_removing_an_event_lowers_metrics_commits(self, shas):
+        # No dangling SHA here: a hand-removed event must not leave the count
+        # ratcheted at the old value (issue #5213 defect 2).
+        existing = self._existing(shas, 12)
+        existing["events"] = [existing["events"][0], existing["events"][2]]
+        merged = extract_session_episode.merge_preserving(
+            self._fresh(), existing, session_id=self.SESSION
+        )
+        assert merged["metrics"]["commits"] == 2
+
+    def test_ids_stay_contiguous(self, shas):
+        merged = extract_session_episode.merge_preserving(
+            self._fresh(), self._existing(shas, 3), session_id=self.SESSION
+        )
+        assert [e["id"] for e in merged["events"]] == ["e001", "e002"]
+
+    def test_preserve_is_idempotent_after_drop(self, shas):
+        once = extract_session_episode.merge_preserving(
+            self._fresh(), self._existing(shas, 3), session_id=self.SESSION
+        )
+        twice = extract_session_episode.merge_preserving(
+            self._fresh(), once, session_id=self.SESSION
+        )
+        assert twice["events"] == once["events"]
+        assert twice["metrics"]["commits"] == once["metrics"]["commits"] == 2
+
+    def test_non_commit_events_are_untouched(self, shas):
+        existing = self._existing(shas, 3)
+        existing["events"].append(
+            {
+                "id": "e004",
+                "timestamp": "2026-07-19T00:00:00+00:00",
+                "type": "milestone",
+                "content": f"Mentions {shas['dangling']} in prose",
+                "caused_by": [],
+                "leads_to": [],
+            }
+        )
+        merged = extract_session_episode.merge_preserving(
+            self._fresh(), existing, session_id=self.SESSION
+        )
+        assert any(e["type"] == "milestone" for e in merged["events"])
+
+    def test_cli_preserve_drops_event_and_keeps_chain_connected(self, shas, tmp_path):
+        out = tmp_path / "episodes"
+        out.mkdir()
+        episode_file = out / f"episode-{self.SESSION}.json"
+        episode_file.write_text(
+            json.dumps(
+                {
+                    "id": f"episode-{self.SESSION}",
+                    "session": self.SESSION,
+                    "outcome": "success",
+                    "task": "prior",
+                    "decisions": [],
+                    "lessons": [],
+                    **self._existing(shas, 12),
+                }
+            ),
+            encoding="utf-8",
+        )
+        log = tmp_path / f"{self.SESSION}.json"
+        log.write_text(
+            json.dumps(
+                {
+                    "session": {"date": "2026-07-19", "number": 999},
+                    "protocolCompliance": {"sessionEnd": {}},
+                    "workLog": [{"task": "Fresh"}],
+                    "endingCommit": shas["reachable"],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        rc = extract_session_episode.main([str(log), "--output-path", str(out), "--preserve"])
+
+        assert rc == 0
+        episode = json.loads(episode_file.read_text(encoding="utf-8"))
+        assert shas["dangling"] not in json.dumps(episode["events"])
+        commit_events = [e for e in episode["events"] if e["type"] == "commit"]
+        assert episode["metrics"]["commits"] == len(commit_events)
+        ids = {e["id"] for e in episode["events"]}
+        assert ids == {f"e{i:03d}" for i in range(1, len(ids) + 1)}
+        for e in episode["events"]:
+            for ref in e["caused_by"] + e["leads_to"]:
+                assert ref in ids
+        assert extract_session_episode.validate_episode_file(episode_file) == []
+
+
 class TestUnreadableEpisodeReportedOnce:
     """`--fix` runs repair then validation, and both read the file the same way.
 
