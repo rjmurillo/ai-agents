@@ -1088,10 +1088,10 @@ def write_baseline(path: Path, counts: dict[str, int]) -> None:
     """Record ``counts`` as the new ceiling. Fixed key order keeps diffs small.
 
     Writes through a temporary sibling file plus ``os.replace()`` rather than
-    truncating ``path`` directly. Mirrors ``scripts/ai_review_common/
-    cache_guard.py``'s ``_atomic_write_text``, which owns the temp-file-then-swap
-    technique, so a crash or two concurrent writers cannot leave the file half-written. A direct ``path.write_text()`` interrupted mid-write (a
-    killed process, a full disk) leaves invalid JSON in place, and this file
+    truncating ``path`` directly. The temp-file-then-swap technique is
+    ``_atomic_write_text`` in ``scripts/ai_review_common/cache_guard.py``, so a
+    crash or two concurrent writers cannot leave the file half-written. A direct
+    ``path.write_text()`` interrupted mid-write (a killed process, a full disk) leaves invalid JSON in place, and this file
     is the ratchet ceiling every subsequent ``pre_pr.py`` run reads: a
     corrupted baseline blocks every push until someone reconstructs it by
     hand (Copilot, PR #5209 round-10 review).
