@@ -40,13 +40,13 @@ source template exists at run time is generated output, not hand-maintained,
 and the exceptions are scoped to exactly those sets. The seven doc files
 under `.claude/hooks/` (`AGENTS.md`, five `CLAUDE.md` files, one `README.md`)
 are outside the hooks class and stay hand-maintained.
-Every other file below is kept in sync by hand and guarded by the install-parity
-validator, which fails CI when a sibling drifts from its source.
+Every other file below is kept in sync by hand and guarded by `check_surface_parity.py`
+(driven by `templates/platforms/surface-parity.yaml`), which fails CI when a sibling drifts from its source.
 
 | Path | Role | Guard |
 |------|------|-------|
-| `.github/agents/security/references/*.md` | Byte copy of `src/claude/security/references/` | `check_surface_parity.py` (`STALE` names the file) |
-| `src/copilot-cli/lib/*.py` (top-level modules) | Copy of the `.claude/lib/*.py` top-level modules; `paths.py` differs on purpose (`.agents` root) | `check_surface_parity.py` (`STALE`, `MISSING`, `EXTRA`) |
+| `.github/agents/security/references/*.md` | Byte copy of `src/claude/security/references/` | `check_surface_parity.py` (`STALE`, `MISSING`, `EXTRA`) |
+| `src/copilot-cli/lib/*.py` (top-level modules) | Hand-maintained translation of the `.claude/lib/*.py` top-level modules (`translated`; `paths.py` is listed in `divergent` for the `.agents` root) | `check_surface_parity.py` (`STALE`, `MISSING`, `EXTRA`) |
 
 `templates/platforms/surface-parity.yaml` is the machine-readable inventory of
 every surface in this file and the ones it leaves out. Each row names the
@@ -71,7 +71,7 @@ uv run python build/scripts/build_all.py
 # Verify generated trees match sources without writing (CI drift gate).
 uv run python build/scripts/build_all.py --check
 
-# Surface parity only (the manifest checks build_all.py --check also runs).
+# Surface parity only (same checks that build_all.py --check also runs).
 uv run python build/scripts/check_surface_parity.py
 
 # Agents only (also runnable standalone).

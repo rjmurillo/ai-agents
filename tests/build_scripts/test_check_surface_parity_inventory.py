@@ -166,6 +166,44 @@ def test_platform_outputs_under_a_surface_pass(repo: Path) -> None:
     assert findings(repo) == []
 
 
+def test_restricted_ancestor_row_does_not_cover_a_new_output(repo: Path) -> None:
+    write_manifest(
+        repo,
+        [
+            generated("src/out", "templates/agents", "build/gen.py"),
+            independent("src", include=["G.md"]),
+            independent("src/notes"),
+        ],
+        roots=["src"],
+    )
+    put_platform(root=repo, body="artifacts:\n  agents:\n    outputDir: src/new-projection\n")
+    assert [(f.kind, f.path) for f in findings(repo)] == [("UNMANIFESTED", "src/new-projection")]
+
+
+def test_unrestricted_ancestor_row_covers_a_new_output(repo: Path) -> None:
+    write_manifest(
+        repo,
+        [generated("src/out", "templates/agents", "build/gen.py"), independent("src")],
+        roots=["src"],
+    )
+    put_platform(root=repo, body="artifacts:\n  agents:\n    outputDir: src/new-projection\n")
+    assert findings(repo) == []
+
+
+def test_owned_prefix_under_only_a_restricted_ancestor_is_unmanifested(repo: Path) -> None:
+    write_manifest(
+        repo,
+        [
+            generated("src/out", "templates/agents", "build/gen.py"),
+            independent("src", include=["G.md"]),
+            independent("src/notes"),
+        ],
+        roots=["src"],
+    )
+    found = findings(repo, prefixes=("src/new/",))
+    assert [(f.kind, f.path) for f in found] == [("UNMANIFESTED", "src/new/")]
+
+
 def test_yaml_without_a_provider_key_is_not_a_platform(repo: Path) -> None:
     put(
         repo,

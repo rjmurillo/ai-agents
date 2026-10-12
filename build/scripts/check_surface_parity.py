@@ -60,6 +60,11 @@ CLI::
     uv run python build/scripts/check_surface_parity.py
     uv run python build/scripts/check_surface_parity.py --format json
 
+The standalone CLI checks declarations, inventory, classification, and
+hand-maintained bytes only. It never runs a generator, so generated-output
+drift is caught by ``build_all.py --check`` and
+``agent-drift-detection.yml``, not here.
+
 ``build_all.py --check`` runs the same checks and also labels its stale-path
 list with :func:`classify_changes`, so CI and local runs share one result.
 
@@ -134,15 +139,21 @@ def _exclusion_findings(repo_root: Path, s: Surface) -> list[Finding]:
 
 
 def _covered(manifest: Manifest, path: str) -> bool:
-    return any(rel_to(path, s.path) is not None for s in manifest.surfaces)
+    """A surface sits at or under ``path``, or an unrestricted ancestor owns it.
+
+    An ancestor row with ``include`` owns only the globbed names, so it cannot
+    vouch for a new output beneath it.
+    """
+    return any(
+        rel_to(s.path, path) is not None or (rel_to(path, s.path) is not None and not s.include)
+        for s in manifest.surfaces
+    )
 
 
 def _prefix_covered(manifest: Manifest, prefix: str) -> bool:
+    """A surface sits at or under the owned prefix."""
     clean = prefix.rstrip("/")
-    return any(
-        rel_to(s.path, clean) is not None or rel_to(clean, s.path) is not None
-        for s in manifest.surfaces
-    )
+    return any(rel_to(s.path, clean) is not None for s in manifest.surfaces)
 
 
 def _surfaces_at(manifest: Manifest, path: str) -> list[Surface]:
