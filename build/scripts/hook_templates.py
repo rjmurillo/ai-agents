@@ -131,7 +131,7 @@ def _iter_template_candidates(repo_root: Path) -> Iterator[tuple[str, Path]]:
     if not root.is_dir():
         return
     for path in sorted(root.rglob("*")):
-        if path.is_dir() or is_bytecode_artifact(path):
+        if path.is_dir() or is_bytecode_artifact(path.relative_to(root)):
             continue
         if path.name == _SETTINGS_TEMPLATE_NAME and path.parent == root:
             continue

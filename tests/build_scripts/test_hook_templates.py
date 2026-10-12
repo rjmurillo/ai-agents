@@ -313,3 +313,13 @@ def test_negative_real_source_beside_cache_still_drifts(tmp_path: Path) -> None:
 
     assert result.exit_code == 1
     assert str(stale) in result.drifted
+
+
+def test_edge_checkout_under_cache_named_dir_still_discovers(tmp_path: Path) -> None:
+    """Review fix: a checkout beneath __pycache__ must not hide every template."""
+    nested = tmp_path / "__pycache__" / "checkout"
+    nested.mkdir(parents=True)
+    root = fake_repo(nested)
+    write_template(root, "SessionStart/probe.py", b"print('ok')\n")
+
+    assert list(hook_templates.discover(root)) == ["SessionStart/probe.py"]
