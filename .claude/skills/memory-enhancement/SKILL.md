@@ -104,6 +104,9 @@ editing the memory file and appending a citation line to its body:
 - `target` - repository-relative path or identifier; must be non-empty
 - `context` - optional prose after ` - `, kept as the citation context
 
+The parser skips fenced code blocks and inline code spans. Show the syntax
+in code to document it. A citation that must count goes in plain text.
+
 An unrecognized `source-type` warns on stderr and the citation is dropped, so
 the memory can still exit 0 with the citation missing. Verify after editing.
 A `citations:` block in YAML frontmatter is **not** read by this tool.
