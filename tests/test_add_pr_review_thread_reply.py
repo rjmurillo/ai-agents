@@ -220,7 +220,7 @@ class TestMain:
                 return resolve_data
             raise AssertionError(query[:80])
 
-        def fake_guard(thread_id: str) -> dict:
+        def fake_guard(thread_id: str, expected_identity=None) -> dict:
             calls.append("guard")
             assert thread_id == "PRRT_abc"
             return {"action": "DISABLED"}
@@ -468,6 +468,153 @@ class TestMain:
                 ]
             )
         assert exc.value.code == 2
+
+
+# ---------------------------------------------------------------------------
+# Tests: expected PR identity (issue #5435)
+# ---------------------------------------------------------------------------
+
+_IDENTITY_ARGS = [
+    "--expected-head-sha",
+    "aaa111",
+    "--expected-base-ref",
+    "main",
+    "--expected-base-sha",
+    "bbb222",
+]
+_REPLY_DATA: dict = {
+    "addPullRequestReviewThreadReply": {
+        "comment": {
+            "id": "node123",
+            "databaseId": 456,
+            "url": "https://example.com",
+            "createdAt": "2025-01-01T00:00:00Z",
+            "author": {"login": "user1"},
+        },
+    },
+}
+
+
+def _live_state(**live: str) -> dict:
+    return {
+        "id": "PRRT_abc",
+        "isResolved": False,
+        "pullRequest": {
+            "number": 42,
+            "state": "OPEN",
+            "headRefOid": "aaa111",
+            "baseRefName": "main",
+            "baseRefOid": "bbb222",
+            **live,
+        },
+    }
+
+
+def _run_with_identity(
+    states: list[dict],
+    extra_args: list[str],
+) -> tuple[int, list[str], list[tuple]]:
+    """Run main() against scripted thread states; return rc, mutations, guard calls."""
+    calls: list[str] = []
+    guard_calls: list[tuple] = []
+
+    def fake_graphql(query: str, variables: dict):
+        if "addPullRequestReviewThreadReply" in query:
+            calls.append("reply")
+            return _REPLY_DATA
+        if "resolveReviewThread" in query:
+            calls.append("resolve")
+            return {"resolveReviewThread": {"thread": {"id": "PRRT_abc", "isResolved": True}}}
+        raise AssertionError(query[:80])
+
+    def fake_guard(thread_id: str, expected_identity=None) -> dict:
+        calls.append("guard")
+        guard_calls.append((thread_id, expected_identity))
+        return _AUTO_MERGE_GUARD_NOOP
+
+    with (
+        patch.object(_mod, "assert_gh_authenticated"),
+        patch.object(_mod, "query_thread_state", side_effect=states),
+        patch.object(
+            _mod, "guard_auto_merge_before_final_thread_resolution", side_effect=fake_guard
+        ),
+        patch.object(_mod, "gh_graphql", side_effect=fake_graphql),
+    ):
+        rc = main(
+            ["--thread-id", "PRRT_abc", "--pull-request", "42", "--body", "Fixed.", *extra_args]
+        )
+    return rc, calls, guard_calls
+
+
+class TestExpectedIdentity:
+    def test_parser_accepts_identity_arguments(self):
+        args = build_parser().parse_args(
+            ["--thread-id", "PRRT_abc", "--body", "x", *_IDENTITY_ARGS]
+        )
+
+        assert (args.expected_head_sha, args.expected_base_ref, args.expected_base_sha) == (
+            "aaa111",
+            "main",
+            "bbb222",
+        )
+
+    def test_matching_identity_replies_guards_and_resolves(self):
+        rc, calls, guard_calls = _run_with_identity(
+            [_live_state(), _live_state()], ["--resolve", *_IDENTITY_ARGS]
+        )
+
+        assert rc == 0
+        assert calls == ["reply", "guard", "resolve"]
+        assert guard_calls == [
+            ("PRRT_abc", {"head_sha": "aaa111", "base_ref": "main", "base_sha": "bbb222"})
+        ]
+
+    @pytest.mark.parametrize(
+        "live",
+        [
+            {"headRefOid": "ccc333"},
+            {"baseRefName": "release"},
+            {"baseRefOid": "ddd444"},
+            {"state": "MERGED"},
+            {"state": "CLOSED"},
+        ],
+    )
+    def test_changed_identity_before_reply_makes_no_mutation(self, live, capsys):
+        rc, calls, guard_calls = _run_with_identity(
+            [_live_state(**live)], ["--resolve", *_IDENTITY_ARGS]
+        )
+
+        assert rc == 1
+        assert calls == []
+        assert guard_calls == []
+        assert "pull_request_identity_changed" in capsys.readouterr().out
+
+    def test_identity_change_after_reply_leaves_thread_unresolved(self, capsys):
+        rc, calls, guard_calls = _run_with_identity(
+            [_live_state(), _live_state(headRefOid="ccc333")], ["--resolve", *_IDENTITY_ARGS]
+        )
+
+        assert rc == 1
+        assert calls == ["reply"]
+        assert guard_calls == []
+        assert "Reply posted but thread left unresolved" in capsys.readouterr().out
+
+    def test_identity_ignored_without_resolve_after_reply_check(self):
+        rc, calls, _ = _run_with_identity([_live_state()], _IDENTITY_ARGS)
+
+        assert rc == 0
+        assert calls == ["reply"]
+
+    def test_moved_head_without_expectation_keeps_existing_behavior(self):
+        """Negative control: no expected arguments means no identity check."""
+        rc, calls, guard_calls = _run_with_identity(
+            [_live_state(headRefOid="ccc333"), _live_state(headRefOid="ccc333")],
+            ["--resolve"],
+        )
+
+        assert rc == 0
+        assert calls == ["reply", "guard", "resolve"]
+        assert guard_calls == [("PRRT_abc", None)]
 
 
 # ---------------------------------------------------------------------------
