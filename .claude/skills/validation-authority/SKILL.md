@@ -79,7 +79,9 @@ upstream validator.
    (only the project's own config needs to change), `stale-generated-output`
    (a generated mirror drifted from its template or source), `baseline-update`
    (a ratchet or baseline needs new entries), `upstream-defect` (the vendored
-   or upstream tool itself is wrong), or `unknown` (evidence is insufficient).
+   or upstream tool itself is wrong), `relocation-no-semantic-change` (a test
+   file moved or split under `tests/` with the same collected tests; see
+   rule 9 below), or `unknown` (evidence is insufficient).
 2. Name the one `permitted_change_location` Phase 3 may edit. `GENERATED`
    always permits only the canonical source, never the mirror. `VENDOR` and
    `UPSTREAM` never permit the target itself; point at the local override or
@@ -124,7 +126,7 @@ checkout); the PR body carries the record's summary instead of a commit.
       },
       "authority": {
         "contract": "<non-empty; the validator's own exit-code or pass/fail contract>",
-        "diagnosis": "implementation-defect | local-config-defect | stale-generated-output | baseline-update | upstream-defect | unknown",
+        "diagnosis": "implementation-defect | local-config-defect | stale-generated-output | baseline-update | upstream-defect | relocation-no-semantic-change | unknown",
         "permitted_change_location": "<non-empty; never the target itself for VENDOR or UPSTREAM>",
         "escalation": "<required, non-empty, when diagnosis is upstream-defect>"
       },
@@ -132,6 +134,11 @@ checkout); the PR body carries the record's summary instead of a commit.
         "policy_source": "<repository-relative path to an existing file; required when diagnosis is baseline-update>",
         "reason": "<non-empty>",
         "added_entries": [{ "justification": "<non-empty per entry>" }]
+      },
+      "relocation_evidence": {
+        "collect_command": "<required when diagnosis is relocation-no-semantic-change; the command that listed the tests>",
+        "tests_before": ["<collected test id at the base, non-empty list>"],
+        "tests_after": ["<collected test id after the move, non-empty list>"]
       }
     }
   ]
@@ -162,6 +169,15 @@ Rules `validation_record.py` enforces:
 7. Paths compare after normalization: `./a/b.py`, `a\\b.py`, and `a/b.py` are
    the same target.
 8. One run reports every defect: field defects and coverage defects together.
+9. `relocation-no-semantic-change` needs `LOCAL` provenance, a target under
+   `tests/`, and a `relocation_evidence` block. List the collected test ids
+   (for example `pytest --collect-only -q`) at the base and after the move.
+   The ids compare without their file path, so the part after the first `::`
+   must match one for one, counts included. A dropped, added, or renamed test
+   is a defect: use a real diagnosis. The names do not show an edited
+   assertion, so declare `--effect fixture-redefines-case` (or the matching
+   effect) to the trigger when an assertion changed. A record that pairs
+   this diagnosis with any trigger effect is a defect.
 
 ## Anti-Patterns
 

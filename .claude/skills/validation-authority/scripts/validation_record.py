@@ -31,7 +31,8 @@ Record shape (REQ-041 data model)::
             "contract": "<non-empty>",
             "diagnosis": "implementation-defect|local-config-defect|
                           stale-generated-output|baseline-update|
-                          upstream-defect|unknown",
+                          upstream-defect|relocation-no-semantic-change|
+                          unknown",
             "permitted_change_location": "<non-empty>",
             "escalation": "<required when diagnosis is upstream-defect>"
           },
@@ -39,6 +40,11 @@ Record shape (REQ-041 data model)::
             "policy_source": "<path that must exist on disk>",
             "reason": "<non-empty>",
             "added_entries": [{"justification": "<non-empty>", ...}]
+          },
+          "relocation_evidence": {      // required when diagnosis is relocation-no-semantic-change
+            "collect_command": "<non-empty>",
+            "tests_before": ["<collected test id>", ...],
+            "tests_after": ["<collected test id>", ...]
           }
         }
       ]
@@ -71,11 +77,14 @@ DIAGNOSES = (
     "stale-generated-output",
     "baseline-update",
     "upstream-defect",
+    "relocation-no-semantic-change",
     "unknown",
 )
 TOP_LEVEL_KEYS = ("trigger", "targets")
 TARGET_KEYS = ("target", "component", "provenance", "authority")
 
+RELOCATION = "relocation-no-semantic-change"
+_RELOCATION_DIFF_LIMIT = 5
 _UNKNOWN_MESSAGE = "stop semantic edits and request ownership evidence"
 _TRIGGER_RELATIVE = Path("build") / "scripts" / "validation_trigger.py"
 
@@ -219,6 +228,63 @@ def _baseline_defects(where: str, target: dict[str, Any], repo_root: Path | None
     return defects
 
 
+def _test_names(where: str, key: str, ids: object) -> tuple[Counter[str], list[str]]:
+    """Return the module-path-free test names in ``ids`` and any shape defects.
+
+    A collected id looks like ``tests/validation/test_a.py::Class::test_x[p]``.
+    A move changes the file path, so only the part after the first ``::``
+    is compared; an id with no ``::`` is compared whole.
+    """
+    label = f"{where}: relocation_evidence.{key}"
+    if not isinstance(ids, list) or not ids:
+        return Counter(), [f"{label} must be a non-empty list of collected test ids"]
+    if not all(_text(item) for item in ids):
+        return Counter(), [f"{label} must contain only non-empty strings"]
+    names = (item.strip().split("::", 1)[-1] for item in ids)
+    return Counter(names), []
+
+
+def _name_diff(before: Counter[str], after: Counter[str]) -> str:
+    """Summarize which test names a relocation lost or gained, capped for readability."""
+    parts: list[str] = []
+    for label, delta in (("lost", before - after), ("gained", after - before)):
+        shown = sorted(delta.elements())[:_RELOCATION_DIFF_LIMIT]
+        if shown:
+            parts.append(f"{label} {sum(delta.values())}: {', '.join(shown)}")
+    return "; ".join(parts)
+
+
+def _relocation_defects(where: str, target: dict[str, Any]) -> list[str]:
+    """Check the `relocation_evidence` block required for a relocation diagnosis."""
+    evidence = target.get("relocation_evidence")
+    if not isinstance(evidence, dict):
+        return [f"{where}: {RELOCATION} diagnosis needs a `relocation_evidence` object"]
+    defects: list[str] = []
+    if not _text(evidence.get("collect_command")):
+        defects.append(f"{where}: relocation_evidence.collect_command must be a non-empty string")
+    before, before_defects = _test_names(where, "tests_before", evidence.get("tests_before"))
+    after, after_defects = _test_names(where, "tests_after", evidence.get("tests_after"))
+    defects += before_defects + after_defects
+    if not (before_defects or after_defects) and before != after:
+        defects.append(
+            f"{where}: relocation changed the collected tests "
+            f"({sum(before.values())} before, {sum(after.values())} after); "
+            f"{_name_diff(before, after)}; use a defect diagnosis"
+        )
+    return defects
+
+
+def _relocation_scope_defects(where: str, target: dict[str, Any]) -> list[str]:
+    """A relocation claim is limited to LOCAL files under ``tests/``."""
+    defects: list[str] = []
+    if target["provenance"].get("category") != "LOCAL":
+        defects.append(f"{where}: {RELOCATION} applies only to LOCAL provenance")
+    segments = _path_key(target.get("target")).split("/")
+    if segments[0] != "tests" or ".." in segments:
+        defects.append(f"{where}: {RELOCATION} applies only to a target under tests/")
+    return defects
+
+
 def _target_defects(index: int, target: object, repo_root: Path | None) -> list[str]:
     """Return every defect for one target entry."""
     where = f"targets[{index}]"
@@ -246,6 +312,9 @@ def _target_defects(index: int, target: object, repo_root: Path | None) -> list[
         defects += _vendor_or_upstream_defects(where, str(target.get("target")), authority)
     if diagnosis == "baseline-update":
         defects += _baseline_defects(where, target, repo_root)
+    if diagnosis == RELOCATION:
+        defects += _relocation_scope_defects(where, target)
+        defects += _relocation_defects(where, target)
     return defects
 
 
@@ -321,6 +390,21 @@ def _trigger_defects(trigger: object, targets: list[Any]) -> list[str]:
     ]
 
 
+def _relocation_effect_defects(trigger: object, targets: list[Any]) -> list[str]:
+    """A relocation cannot coexist with a declared semantic effect on the same change."""
+    effects = trigger.get("effects") if isinstance(trigger, dict) else None
+    if not effects:
+        return []
+    return [
+        f"targets[{index}]: {RELOCATION} contradicts trigger effects "
+        f"({', '.join(map(str, effects))}); a change with a semantic effect needs a defect diagnosis"
+        for index, target in enumerate(targets)
+        if isinstance(target, dict)
+        and isinstance(target.get("authority"), dict)
+        and target["authority"].get("diagnosis") == RELOCATION
+    ]
+
+
 def validate(
     record: Any,
     changed_paths: Sequence[str] = (),
@@ -337,6 +421,7 @@ def validate(
     if not isinstance(targets, list):
         return ["`targets` must be a list"]
     defects = _trigger_defects(record["trigger"], targets)
+    defects += _relocation_effect_defects(record["trigger"], targets)
     valid_targets: list[dict[str, Any]] = []
     for index, target in enumerate(targets):
         target_defects = _target_defects(index, target, repo_root)
