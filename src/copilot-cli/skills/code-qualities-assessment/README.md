@@ -51,9 +51,20 @@ Create `.qualityrc.json` in your project root:
     "testability": { "min": 6 },
     "nonRedundancy": { "min": 8 }
   },
+  "minConfidence": 0.5,
   "ignore": ["**/generated/**", "**/*.pb.py"]
 }
-```text
+```
+
+`minConfidence` is optional and defaults to 0.0, which gates every scored
+quality. A quality whose score confidence is below it prints a warning on stderr
+and cannot fail the absolute gate (exit 11). Cohesion is a size and definition
+proxy at confidence 0.4, so `0.5` stops it from failing normal new files. The
+regression gate (exit 10) still compares cohesion against the merge base.
+
+Files under `src/claude/`, `src/copilot-cli/`, `src/vs-code-agents/`,
+`.claude/hooks/`, and `.github/instructions/` are classified as generated
+mirrors and are not scored. Edit their sources.
 
 ## Language Support
 

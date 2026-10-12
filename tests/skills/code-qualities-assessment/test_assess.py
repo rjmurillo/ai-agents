@@ -1688,3 +1688,132 @@ def test_get_file_at_revision_returns_bytes_it_did_not_decode(
     raw = get_file_at_revision(Path("a.py"), resolve_revision("HEAD"))
 
     assert raw == b"S = 'caf\xc3\xa9'\n"
+
+
+# --------------------------------------------------------------------------- #
+# Issue #5933: render mirrors are generated, low-confidence scores are advisory
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize(
+    "relative",
+    [
+        "src/claude/skills/build/scripts/validation_trigger.py",
+        "src/copilot-cli/skills/build/scripts/validation_trigger.py",
+        "src/vs-code-agents/agent.py",
+        ".claude/hooks/SessionStart/invoke_context_loader.py",
+    ],
+)
+def test_render_mirror_paths_are_generated(
+    relative: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / relative
+    path.parent.mkdir(parents=True)
+    path.write_text("x = 1\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    assert classify_file_category(Path(relative)) == "generated"
+    assert classify_file_category(path) == "generated"
+
+
+@pytest.mark.parametrize(
+    "relative",
+    [
+        ".claude/skills/build/scripts/validation_trigger.py",
+        ".claude/lib/paths.py",
+        "scripts/validation/pre_pr.py",
+        "src/other/module.py",
+    ],
+)
+def test_authored_source_paths_stay_authored(
+    relative: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / relative
+    path.parent.mkdir(parents=True)
+    path.write_text("x = 1\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    assert classify_file_category(Path(relative)) == "authored"
+
+
+def _large_module(tmp_path: Path) -> Path:
+    """A 40-definition module: cohesion lands well under 7 at confidence 0.4."""
+    body = "".join(f"def f{i}():\n    return {i}\n\n" for i in range(40))
+    return _write(tmp_path, "large.py", body)
+
+
+def test_cohesion_gate_fails_without_a_confidence_floor(tmp_path: Path) -> None:
+    assessment = assess_file(_large_module(tmp_path), "production", False)
+    assert assessment.cohesion.value < 7
+    assert assessment.cohesion.confidence == 0.4
+
+    assert check_thresholds([assessment], _default_config(), "production") == 11
+
+
+def test_cohesion_is_advisory_below_the_confidence_floor(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assessment = assess_file(_large_module(tmp_path), "production", False)
+    config = _default_config()
+    config["minConfidence"] = 0.5
+
+    rc = check_thresholds([assessment], config, "production")
+
+    assert rc == 0
+    err = capsys.readouterr().err
+    assert "Cohesion" in err
+    assert "advisory" in err
+    assert "❌" not in err
+
+
+def test_confidence_floor_does_not_excuse_higher_confidence_qualities(tmp_path: Path) -> None:
+    heavy_body = "".join(f"import mod{i}\n" for i in range(9)) + "def f():\n    return 1\n"
+    assessment = assess_file(_write(tmp_path, "heavy.py", heavy_body), "production", False)
+    assert assessment.coupling.confidence >= 0.5
+    config = _default_config()
+    config["minConfidence"] = 0.5
+
+    assert check_thresholds([assessment], config, "production") == 11
+
+
+def test_floor_above_every_confidence_makes_all_qualities_advisory(tmp_path: Path) -> None:
+    heavy_body = "".join(f"import mod{i}\n" for i in range(9)) + "def f():\n    return 1\n"
+    assessment = assess_file(_write(tmp_path, "heavy.py", heavy_body), "production", False)
+    config = _default_config()
+    config["minConfidence"] = 1.0
+
+    assert check_thresholds([assessment], config, "production") == 0
+
+
+def test_floor_never_unlocks_an_unscored_quality(tmp_path: Path) -> None:
+    """Confidence 0.0 stays skipped, not advisory, so it prints no warning."""
+    path = _write(tmp_path, "notes.rb", "def a; end\n" * 80)
+    assessment = assess_file(path, "production", False)
+    assert assessment.cohesion.confidence == 0.0
+    config = _default_config()
+    config["minConfidence"] = 0.5
+
+    assert check_thresholds([assessment], config, "production") == 0
+
+
+def test_markdown_report_marks_advisory_issues(tmp_path: Path) -> None:
+    assessment = assess_file(_large_module(tmp_path), "production", False)
+    config = _default_config()
+
+    assert "**Cohesion Issues**:" in generate_markdown_report([assessment], config)
+
+    config["minConfidence"] = 0.5
+    report = generate_markdown_report([assessment], config)
+    assert "**Cohesion Issues (advisory, low confidence)**:" in report
+
+
+def test_repo_quality_config_passes_a_normal_sized_new_module(tmp_path: Path) -> None:
+    """The repo config must not fail a 289-line, 24-definition module (#5933)."""
+    repo_config = Path(__file__).resolve().parents[3] / ".qualityrc.json"
+    config = load_config(str(repo_config))
+    body = "".join(f"def f{i}():\n    return {i}\n\n" for i in range(24))
+    body += "".join(f"VALUE_{i} = {i}\n" for i in range(150))
+    assessment = assess_file(_write(tmp_path, "validation_trigger.py", body), "production", False)
+    assert assessment.cohesion.value < 7
+
+    assert check_thresholds([assessment], config, "production") == 0
