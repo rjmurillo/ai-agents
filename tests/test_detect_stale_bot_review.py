@@ -106,7 +106,8 @@ class TestStaleClassification:
         assert f"commit {OLD}" in handoff
         assert "gh api -X PUT repos/o/r/pulls/7/reviews/100/dismissals" in handoff
         assert "-f event=DISMISS" in handoff
-        assert "every review thread is resolved and CI is green" in handoff
+        assert "Every review thread is resolved and CI is green" in handoff
+        assert "does not check that the later commits fixed each finding" in handoff
         assert "The agent does not dismiss reviews" in handoff
 
     def test_approved_rereview_at_head_clears_the_block(self):
@@ -297,6 +298,16 @@ class TestMain:
         fake = _siblings(None, (0, {"AllPassing": True}), [], [])
         assert _run_main(fake) == 3
         assert json.loads(capsys.readouterr().out)["Success"] is False
+
+    def test_checks_error_envelope_exits_3(self, capsys):
+        fake = _siblings(_pr(), (3, {"Number": 7}), [_stale_cr()], [])
+        assert _run_main(fake) == 3
+        assert json.loads(capsys.readouterr().out)["Success"] is False
+
+    def test_incomplete_checks_exit_7_is_a_verdict(self, capsys):
+        fake = _siblings(_pr(), (7, {"AllPassing": False}), [_stale_cr()], [])
+        assert _run_main(fake) == 0
+        assert json.loads(capsys.readouterr().out)["Data"]["verdict"] == "NOT_READY"
 
     def test_unreadable_checks_exits_3(self):
         fake = _siblings(_pr(), (3, None), [], [])

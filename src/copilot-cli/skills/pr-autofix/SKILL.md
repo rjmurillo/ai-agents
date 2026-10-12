@@ -743,7 +743,7 @@ moves the state to one of the three named states; reclassify after the fix.
 |------|----------|--------|
 | T1 | `CanMerge=true` (`CLEAN`, `HAS_HOOKS`, or `UNSTABLE` with all non-required failures disposed); never `BLOCKED` | Merge via the row for that state in "Merge path by `mergeStateStatus`" below; each of the three names its own script |
 | T2 | CI failures only (required or undisposed non-required), no threads; includes `BLOCKED` | Fix CI, verify required checks pass |
-| T3 | Threads only (CI passing); includes `BLOCKED` | Walk full thread lifecycle, then merge. A `BLOCKED` PR that still reports `BLOCKED` after its threads resolve is waiting on an outside gate: run `detect_stale_bot_review.py`, then stop |
+| T3 | Threads only (CI passing); includes `BLOCKED` | Walk full thread lifecycle, then merge. A `BLOCKED` PR that still reports `BLOCKED` after its threads resolve is waiting on an outside gate: run `detect_stale_bot_review.py` and act on its verdict ("Stale bot `CHANGES_REQUESTED` review" below) |
 | T4 | Both CI failures + threads; includes `BLOCKED` | Fix CI first, then lifecycle threads |
 | T5 | Bot PR that passes merge-state gates but has failures or threads | Handle individually |
 
@@ -766,7 +766,7 @@ here would re-assert the thing issue #4899 fixed.
 ### Stale bot `CHANGES_REQUESTED` review
 
 A PR can stay `BLOCKED` after every thread is fixed and resolved and CI is green
-(issue #5950). A bot (CodeRabbit, Copilot) left a `CHANGES_REQUESTED` review on an
+(issue #5950). A bot such as CodeRabbit left a `CHANGES_REQUESTED` review on an
 older commit. A later bot pass posts `COMMENTED`, which does not supersede it.
 Only an `APPROVED` review or a dismissal clears it. Dismissal is a human action:
 this skill never dismisses a review.
@@ -779,20 +779,21 @@ python3 "$SCRIPTS_DIR/detect_stale_bot_review.py" --pull-request {pr} --output-f
 ```
 
 It reads `get_pr_context.py`, `get_pr_checks.py`, and `get_pr_reviews.py`,
-posts nothing, and exits 0 with `Data.verdict`:
+posts nothing, and exits 0 with `Data.verdict`. A nonzero exit is an unknown: never treat it as `NO_BOT_CHANGES_REQUESTED`.
 
 | `Data.verdict` | Meaning | Action |
 |----------------|---------|--------|
 | `NO_BOT_CHANGES_REQUESTED` | No bot holds an active `CHANGES_REQUESTED` review | The block is another outside gate: stop |
-| `NOT_READY` | A bot holds one, but `Data.reasons` lists open work (thread, CI, `BEHIND`, `DIRTY`) | Finish that work, then run the detector again |
+| `NOT_READY` | A bot holds one, but `Data.reasons` lists open work (thread, CI, `BEHIND`, `DIRTY`, an incomplete thread count, or an unknown head SHA) | Finish open work. An incomplete count or unknown head SHA is an unknown: re-run the detector, do not fix anything. Then run the detector again |
 | `FRESH_CHANGES_REQUESTED` | The review is on the current head | Address its findings through the thread lifecycle |
-| `REQUEST_REREVIEW` | Stale review, PR ready, no bot review at head yet | Post `Data.bots[].rereview_trigger` as a PR comment once, wait for the bot, run the detector again |
+| `REQUEST_REREVIEW` | Stale review, PR ready, no bot review at head yet | For each `Data.bots[]` entry whose `action` is `REQUEST_REREVIEW`, post its `rereview_trigger` as a PR comment once per head SHA. First read the PR comments: if that trigger was already posted since the last push, wait instead. Then run the detector again. `Data.handoff` stays null on this verdict even when another bot is handoff-ready; the next run produces it |
 | `DISMISSAL_HANDOFF` | Stale review, PR ready, and the bot already reviewed head (or has no known trigger) | Give `Data.handoff` to the human verbatim and stop |
 
 An `APPROVED` bot review at head supersedes the stale one, so the detector reports
 `NO_BOT_CHANGES_REQUESTED`. The handoff carries the review id, the reviewed commit,
-the `PUT .../reviews/{id}/dismissals` command, and why dismissal is safe (every thread
-resolved, CI green). A bot with no verified re-review trigger goes straight to the
+the `PUT .../reviews/{id}/dismissals` command, and what the detector checked (every
+thread resolved, CI green, review older than head). It does not check that later
+commits fixed each finding, so the human confirms that before dismissing. A bot with no verified re-review trigger goes straight to the
 handoff; the script never guesses one.
 
 Do not loop on re-reviews. Each push can start a new bot round on the same lines.
@@ -940,8 +941,9 @@ python3 "$SCRIPTS_DIR/check_pr_round_cap.py" --pull-request {pr} --output-format
 python3 "$SCRIPTS_DIR/triage_red_check.py" --check-name "<failing check name>" --pull-request {pr}
 
 # Stale bot CHANGES_REQUESTED review (issue #5950). Read-only classifier: exit 0
-# with Data.verdict, and Data.handoff holds the human dismissal text. It never
-# dismisses a review or posts a comment.
+# with Data.verdict, and Data.handoff holds the human dismissal text. Exit 2, 3,
+# or 4 (missing lib, sibling failure, auth) is an unknown, never a verdict. It
+# never dismisses a review or posts a comment.
 python3 "$SCRIPTS_DIR/detect_stale_bot_review.py" --pull-request {pr} --output-format json
 
 # Get CI check logs (step 2, only when the check is green on main)

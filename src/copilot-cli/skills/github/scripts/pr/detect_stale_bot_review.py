@@ -2,7 +2,7 @@
 """Detect a stale bot CHANGES_REQUESTED review that blocks merge (issue #5950).
 
 After every thread is fixed and resolved and CI is green, a PR can stay blocked
-because a bot (CodeRabbit, Copilot) left a ``CHANGES_REQUESTED`` review on an
+because a bot such as CodeRabbit left a ``CHANGES_REQUESTED`` review on an
 older commit. A later bot pass posts ``COMMENTED``, which does not supersede it.
 Only an ``APPROVED`` review or a dismissal clears it, and dismissal is a human
 action. This script classifies that state and emits the handoff text. It never
@@ -84,6 +84,9 @@ _VERDICT_STATES = frozenset({"APPROVED", "CHANGES_REQUESTED", "DISMISSED"})
 # Merge states where the branch itself needs work before a review matters.
 _BRANCH_WORK_STATES = frozenset({"BEHIND", "DIRTY"})
 
+# get_pr_checks.py exits that still carry a verdict: pass, failing, incomplete.
+_CHECKS_VERDICT_EXITS = frozenset({0, 1, 7})
+
 # Comment that makes a known bot re-review the current head. A bot absent from
 # this map has no verified trigger, so the script never invents one.
 _REREVIEW_TRIGGERS: dict[str, str] = {
@@ -91,8 +94,7 @@ _REREVIEW_TRIGGERS: dict[str, str] = {
 }
 
 _DISMISS_MESSAGE = (
-    "Every review thread is resolved with a fix commit and CI is green. "
-    "This review predates those commits."
+    "Every review thread is resolved and CI is green. This review is on an older commit than head."
 )
 
 
@@ -225,8 +227,9 @@ def build_handoff(
     """Return the ready-to-run text a human needs to dismiss the stale reviews."""
     lines = [
         f"PR #{pr} is blocked by stale bot CHANGES_REQUESTED review(s). Head is {head_sha}.",
-        "Safe to dismiss: every review thread is resolved and CI is green. "
-        "The review predates the fix commits.",
+        "Every review thread is resolved and CI is green, and the review is on an "
+        "older commit than head. This script does not check that the later commits "
+        "fixed each finding. Confirm that before dismissing.",
         "The agent does not dismiss reviews. A human runs:",
     ]
     for bot in bots:
@@ -313,11 +316,14 @@ def _fetch_inputs(
     code, context = _run_sibling("get_pr_context.py", args)
     if code != 0 or context is None:
         raise RuntimeError(f"get_pr_context.py failed for PR #{pr} (exit {code})")
-    # get_pr_checks.py exits 1 on failing checks and 7 on incomplete data but
-    # still prints its verdict, so only an unreadable result is an error.
-    _, checks = _run_sibling("get_pr_checks.py", args)
-    if checks is None:
-        raise RuntimeError(f"get_pr_checks.py returned no verdict for PR #{pr}")
+    # get_pr_checks.py exits 0 (all pass), 1 (failing), or 7 (incomplete) with a
+    # verdict. Any other exit (2 config, 3 API or ruleset error, 4 auth) carries an
+    # error envelope with no AllPassing, which is an unknown, never failing CI.
+    checks_code, checks = _run_sibling("get_pr_checks.py", args)
+    if checks is None or checks_code not in _CHECKS_VERDICT_EXITS:
+        raise RuntimeError(
+            f"get_pr_checks.py returned no verdict for PR #{pr} (exit {checks_code})"
+        )
     code, review_data = _run_sibling("get_pr_reviews.py", args)
     reviews = review_data.get("reviews") if review_data else None
     if code != 0 or not isinstance(reviews, list):
