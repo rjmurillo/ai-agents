@@ -26,13 +26,14 @@ Two things have to hold for it to be portable:
    this way from inside a vendored install, which has no ``pyproject.toml`` to
    install dependencies from even if it wanted to.
 
-This validator enforces both. It does not carry a baseline: every current
-invocation in the repository was migrated to the canonical form in the same
-change that added this guard (per issue #5949), so any offense at all is a
-regression.
+This validator enforces both. It carries no baseline for Markdown and code:
+every invocation there was migrated to the canonical form in the same change
+that added this guard (per issue #5949), so any offense is a regression. Shipped
+YAML has a short, named allowance list instead (``_YAML_ALLOWANCES``, below).
 
-Scope: tracked ``*.md``, ``*.py``, ``*.tmpl``, and ``*.mustache`` files, minus
-two exclusions:
+Scope: tracked ``*.md``, ``*.py``, ``*.tmpl``, and ``*.mustache`` files, plus
+``*.yaml`` and ``*.yml`` files under a plugin root (``.claude/``,
+``src/claude/``, ``src/copilot-cli/``), minus two exclusions:
 
 * ``tests/`` -- fixtures construct offending invocations on purpose, the same
   carve-out shape as ``tests/hooks/fixtures/`` in ``.claude/rules/universal.md``
@@ -76,6 +77,13 @@ Detection:
     result names the modules a vendored install's ambient interpreter cannot
     resolve.
 
+  **Rule 3 (YAML only, bare path).** In shipped YAML, an interpreter on a bare
+  ``.claude/skills/...py`` operand also invokes a plugin script. ``python3``
+  there is flagged (plugin-self-containment MUST 2); any other interpreter is
+  one rule-1 offense. Markdown bare paths belong to
+  ``check_skill_md_exec_portability.py``. YAML offenses listed in
+  ``plugin_root_interpreter_allowances.py`` are not reported.
+
   A line carrying ``plugin-root-interpreter:`` plus a reason, on the offending
   line or the line directly above it, suppresses that one offense. Same
   line-scoped shape as ``check_doc_interpreter_portability.py``'s
@@ -101,7 +109,7 @@ import argparse
 import re
 import subprocess
 import sys
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -115,6 +123,9 @@ from scripts.validation.check_doc_interpreter_portability import (  # noqa: E402
     ScanError,
     third_party_imports,
     tracked_files,
+)
+from scripts.validation.plugin_root_interpreter_allowances import (  # noqa: E402
+    YAML_ALLOWANCES as _YAML_ALLOWANCES,
 )
 
 # Fixtures construct offending invocations on purpose. Same carve-out shape as
@@ -137,6 +148,13 @@ DECLARATION = "plugin-root-interpreter:"
 _PLUGIN_ROOT_FALLBACK = ".claude"
 _PLUGIN_ROOT_VARS = ("COPILOT_PLUGIN_ROOT", "CLAUDE_PLUGIN_ROOT")
 
+# YAML is read only where it ships; repository CI YAML runs uv on purpose.
+_PLUGIN_ROOTS = (".claude/", "src/claude/", "src/copilot-cli/")
+_YAML_SUFFIXES = (".yaml", ".yml")
+_Key = tuple[str, str, str]
+_MUST_2 = "plugin-self-containment MUST 2"
+_SCAN_PATTERNS = ("*.md", "*.py", "*.tmpl", "*.mustache", "*.yaml", "*.yml")
+
 # One interpreter token: `python`, `python3`, or a pinned `python3.11`-style
 # name. Matched identically inside and outside a `uv run` prefix so both
 # offending shapes (`uv run python`, bare `python3.11`) are recognized by one
@@ -154,7 +172,7 @@ _INTERP_TOKEN = r"python3?(?:\.\d+)?"
 # or `${CLAUDE_PLUGIN_ROOT`. `\b` stops the variable-name match before the
 # `:-` fallback separator so the balanced-brace scan below starts from a known
 # position.
-_INVOCATION_HEAD = re.compile(
+_INTERP_PHRASE = (
     r"(?<![\w./-])"
     r"(?P<interp>"
     rf"uv[ \t]+run(?:[ \t]+[^\s;&|`]+)*?[ \t]+{_INTERP_TOKEN}"
@@ -164,7 +182,14 @@ _INVOCATION_HEAD = re.compile(
     r"(?:[ \t]+-[\w-]+)*"
     r"[ \t]+"
     r'(?P<quote>["\'])?'
-    r"\$\{(?:" + "|".join(_PLUGIN_ROOT_VARS) + r")\b"
+)
+_INVOCATION_HEAD = re.compile(_INTERP_PHRASE + r"\$\{(?:" + "|".join(_PLUGIN_ROOT_VARS) + r")\b")
+
+# Rule 3 (YAML only): the same interpreter phrase on a bare fallback-root path.
+_BARE_INVOCATION = re.compile(
+    _INTERP_PHRASE
+    + re.escape(_PLUGIN_ROOT_FALLBACK)
+    + r"/(?P<tail>skills/[A-Za-z0-9_./-]*\.py)(?![\w./-])"
 )
 
 # The `skills/...py` tail once the plugin-root expansion is behind us.
@@ -178,6 +203,16 @@ class _Invocation:
     start: int
     interp: str
     tail: str  # e.g. "skills/foo/scripts/bar.py" (leading "/" stripped)
+
+
+@dataclass(frozen=True, slots=True)
+class _Offense:
+    """One offense, with the rule and script that key ``_YAML_ALLOWANCES``."""
+
+    lineno: int
+    rule: str
+    tail: str
+    message: str
 
 
 def _match_balanced_braces(line: str, start: int) -> int | None:
@@ -235,6 +270,14 @@ def _find_invocations(line: str) -> Iterator[_Invocation]:
         )
 
 
+def _find_bare_invocations(line: str) -> Iterator[_Invocation]:
+    """Yield every interpreter call on a bare ``.claude/skills/...py`` path."""
+    for match in _BARE_INVOCATION.finditer(line):
+        yield _Invocation(
+            start=match.start(), interp=match.group("interp"), tail=match.group("tail")
+        )
+
+
 def _join_continuations(text: str) -> tuple[list[str], list[list[int]]]:
     """Collapse backslash-newline continuations; keep each char's source line.
 
@@ -280,8 +323,14 @@ def _is_declared(raw_lines: list[str], lineno: int) -> bool:
     return False
 
 
+def _is_yaml(rel_path: str) -> bool:
+    return rel_path.endswith(_YAML_SUFFIXES)
+
+
 def is_in_scope(rel_path: str) -> bool:
     """Return whether a file carries invocations this guard should gate."""
+    if _is_yaml(rel_path) and not rel_path.startswith(_PLUGIN_ROOTS):
+        return False
     return not rel_path.startswith(FIXTURE_ROOTS + HISTORICAL_ROOTS)
 
 
@@ -311,32 +360,78 @@ def _dependency_message(
     )
 
 
+def _undeclared(
+    text: str, finder: Callable[[str], Iterator[_Invocation]]
+) -> Iterator[tuple[int, _Invocation]]:
+    """Yield (line, invocation) for each match no declaration suppresses."""
+    raw_lines = text.splitlines()
+    logical_lines, line_maps = _join_continuations(text)
+    for logical, char_map in zip(logical_lines, line_maps, strict=True):
+        for invocation in finder(logical):
+            lineno = _lineno_at(char_map, invocation.start)
+            if not _is_declared(raw_lines, lineno):
+                yield lineno, invocation
+
+
+def _plugin_root_offenses(
+    text: str, rel: str, repo_root: Path, tracked_py: set[str]
+) -> list[_Offense]:
+    offenses: list[_Offense] = []
+    for lineno, invocation in _undeclared(text, _find_invocations):
+        tail = invocation.tail
+        if invocation.interp != "python3":
+            message = _form_message(rel, lineno, invocation.interp)
+            offenses.append(_Offense(lineno, "form", tail, message))
+            continue
+        dependency = _dependency_message(rel, lineno, tail, repo_root, tracked_py)
+        if dependency is not None:
+            offenses.append(_Offense(lineno, "dependency", tail, dependency))
+    return offenses
+
+
+def _bare_path_offenses(text: str, rel: str) -> list[_Offense]:
+    offenses: list[_Offense] = []
+    for lineno, invocation in _undeclared(text, _find_bare_invocations):
+        tail = invocation.tail
+        if invocation.interp != "python3":
+            message = _form_message(rel, lineno, invocation.interp)
+            offenses.append(_Offense(lineno, "form", tail, message))
+            continue
+        message = f"{rel}:{lineno}: name the bare .claude/{tail} through the plugin root"
+        offenses.append(_Offense(lineno, "bare-path", tail, f"{message} ({_MUST_2})"))
+    return offenses
+
+
 def find_offenses(
     text: str, rel: str, repo_root: Path, tracked_py: set[str]
 ) -> list[tuple[int, str]]:
     """Return (line, message) for every offense in one file's already-read text."""
-    raw_lines = text.splitlines()
-    logical_lines, line_maps = _join_continuations(text)
-    offenses: list[tuple[int, str]] = []
-    for logical, char_map in zip(logical_lines, line_maps, strict=True):
-        for invocation in _find_invocations(logical):
-            lineno = _lineno_at(char_map, invocation.start)
-            if _is_declared(raw_lines, lineno):
-                continue
-            if invocation.interp != "python3":
-                offenses.append((lineno, _form_message(rel, lineno, invocation.interp)))
-                continue
-            message = _dependency_message(rel, lineno, invocation.tail, repo_root, tracked_py)
-            if message is not None:
-                offenses.append((lineno, message))
-    return offenses
+    return [(o.lineno, o.message) for o in _plugin_root_offenses(text, rel, repo_root, tracked_py)]
 
 
-def scan(repo_root: Path) -> list[str]:
-    """Return one message per offense across the whole tracked tree."""
+def find_yaml_offenses(
+    text: str, rel: str, repo_root: Path, tracked_py: set[str], used_allowances: set[_Key]
+) -> list[tuple[int, str]]:
+    """Return rule 1 to 3 offenses minus allowances; record each allowance used."""
+    found = _plugin_root_offenses(text, rel, repo_root, tracked_py)
+    found += _bare_path_offenses(text, rel)
+    root_relative = next((rel[len(r) :] for r in _PLUGIN_ROOTS if rel.startswith(r)), rel)
+    reported: list[tuple[int, str]] = []
+    for offense in sorted(found, key=lambda o: o.lineno):
+        key = (root_relative, offense.rule, offense.tail)
+        if key in _YAML_ALLOWANCES:
+            used_allowances.add(key)
+        else:
+            reported.append((offense.lineno, offense.message))
+    return reported
+
+
+def scan(repo_root: Path, used_allowances: set[_Key] | None = None) -> list[str]:
+    """Return one message per offense across the tree; record allowances used."""
+    used = set() if used_allowances is None else used_allowances
     tracked_py = set(tracked_files(repo_root, "*.py"))
     all_offenses: list[tuple[str, int, str]] = []
-    for rel in tracked_files(repo_root, "*.md", "*.py", "*.tmpl", "*.mustache"):
+    for rel in tracked_files(repo_root, *_SCAN_PATTERNS):
         if not is_in_scope(rel):
             continue
         path = repo_root / rel
@@ -344,8 +439,11 @@ def scan(repo_root: Path) -> list[str]:
             text = path.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError) as exc:
             raise ScanError(f"could not read {rel}: {exc}") from exc
-        for lineno, message in find_offenses(text, rel, repo_root, tracked_py):
-            all_offenses.append((rel, lineno, message))
+        if _is_yaml(rel):
+            found = find_yaml_offenses(text, rel, repo_root, tracked_py, used)
+        else:
+            found = find_offenses(text, rel, repo_root, tracked_py)
+        all_offenses.extend((rel, lineno, message) for lineno, message in found)
     all_offenses.sort(key=lambda item: (item[0], item[1]))
     return [message for _, _, message in all_offenses]
 
@@ -368,20 +466,24 @@ def main(argv: list[str] | None = None) -> int:
     repo_root = (args.repo_root or Path.cwd()).resolve()
 
     try:
-        tracked_count = len(tracked_files(repo_root, "*.md", "*.py", "*.tmpl", "*.mustache"))
+        tracked_count = len(tracked_files(repo_root, *_SCAN_PATTERNS))
         if tracked_count == 0:
             print(
                 "check-plugin-root-interpreter: refusing zero-file scan",
                 file=sys.stderr,
             )
             return 2
-        offenses = scan(repo_root)
+        used_allowances: set[_Key] = set()
+        offenses = scan(repo_root, used_allowances)
     except (OSError, ScanError, subprocess.CalledProcessError) as exc:
         print(f"check-plugin-root-interpreter: {exc}", file=sys.stderr)
         return 2
 
     for message in offenses:
         print(message, file=sys.stderr)
+    for path, rule, tail in sorted(set(_YAML_ALLOWANCES) - used_allowances):
+        note = f"allowance no longer matches: {path} {rule} {tail}"
+        print(f"check-plugin-root-interpreter: note: {note}")
 
     if offenses:
         print(
