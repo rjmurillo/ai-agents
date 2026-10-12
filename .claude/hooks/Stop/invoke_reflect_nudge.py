@@ -41,6 +41,17 @@ start of a turn or are fixed phrases, and were tuned on one operator's
 191 human turns. Recall was not measured. See the pull request that
 introduced this hook for the examined counts and the limits.
 
+The second HIGH group adapts the user-side correction regexes in
+thedotmack/claude-mem (Apache-2.0), plugin/skills/agent-cost-report/
+scripts/acr/patterns.py and behavior.py, at commit 356b7c08f64c. Only the
+fixed phrases were kept; bare words such as "already", "stop", and "again"
+were dropped as too broad. claude-mem carries no praise regexes. The
+transcript-derived HIGH and MED groups come from the same operator's 326
+distinct human turns over 30 days. Every match was read by hand and was a
+real correction or preference. Recall was again not measured. The MED
+preference phrases follow the reflect skill's MEDIUM trigger table
+("use X instead of Y", "prefer", "rather than").
+
 References:
     - Issue #5817 (this hook), #5820 (PRD), #3184 (the no-op it replaces)
 """
@@ -90,14 +101,32 @@ HIGH_PATTERNS = tuple(
         r"\b(?:never|always) do\b",
         r"\bdon(?:'|’)?t ever\b",
         r"\bstop (?:doing|using|adding)\b",
+        # Adapted from claude-mem acr/patterns.py and acr/behavior.py.
+        r"\b(?:i told you|like i said|how many times)\b",
+        r"\bstop asking\b",
+        r"\bi did(?:n(?:'|’)?t| not) (?:ask|say|tell you)\b",
+        r"\bnot what i (?:asked|wanted|meant)\b",
+        r"\b(?:no ?one|nobody) (?:said|asked)\b",
+        r"\bmade (?:that|it) up\b",
+        r"\bdid you (?:actually|even)\b",
+        r"\bwrong (?:repo|branch|file)\b",
+        r"\byou broke\b",
+        r"\bwtf\b",
+        r"\bthat(?:'|’)?s (?:dumb|stupid)\b",
+        # Observed in operator transcripts: correcting a stated assumption.
+        r"\bwe (?:don(?:'|’)?t|do not|never) (?:use|open)\b",
     )
 )
-# MED: praise. Anchored openers only.
+# MED: praise (anchored openers) and stated preferences (fixed phrases).
 MED_PATTERNS = tuple(
     re.compile(p, re.IGNORECASE)
     for p in (
         r"^\s*(?:perfect|exactly|great|nice)\b",
         r"^\s*(?:yes[,.!]?\s+)?that(?:'|’)?s (?:it|exactly)\b",
+        r"\bi (?:also |really |just )?(?:don(?:'|’)?t|do not) (?:want|like)\b",
+        r"\buse\b[^.?!\n]{1,60}\binstead\b",
+        r"\brather than\b",
+        r"\bprefer\b",
     )
 )
 
@@ -153,7 +182,7 @@ def human_text(record: Mapping[str, Any]) -> str:
 
 
 def classify(text: str) -> tuple[bool, bool]:
-    """Return (is_correction, is_praise) for one human turn."""
+    """Return (is_correction, is_praise_or_preference) for one human turn."""
     return (
         any(p.search(text) for p in HIGH_PATTERNS),
         any(p.search(text) for p in MED_PATTERNS),
@@ -336,7 +365,7 @@ def build_message(result: ScanResult) -> str:
     """Counts and the skill name only. Never quotes transcript text."""
     return (
         f"{HOOK_NAME}: detected {result.high} correction and "
-        f"{result.med} praise signal(s) in this session. "
+        f"{result.med} praise or preference signal(s) in this session. "
         "Run the reflect skill to review and approve what to keep."
     )
 
