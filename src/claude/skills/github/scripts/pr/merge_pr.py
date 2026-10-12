@@ -30,11 +30,14 @@ is reported as success with ``recovered: true``. Every envelope carries an
 residual risk).
 
 Stacked PRs (issue #5473): GraphQL and the synchronous REST merge both refuse
-a PR that is part of a stack. The script then gates every open downstack
+a PR that is part of a stack. The script then gates every unmerged downstack
 member with test_pr_merge_ready.py, because merge-async lands the whole stack
-up to the requested PR. It then calls ``PUT pulls/{n}/merge-async`` pinned to
-the head SHA and polls the returned UUID to a terminal status. ``--auto`` never
-takes this path.
+up to the requested PR, and gates the requested PR itself, since merge-async
+runs no branch protection. It pins each downstack head SHA at the gate, re-reads
+the stack before the request, and re-checks the pins after the merge: a push
+that landed unreviewed reports exit 3 instead of success. It then calls
+``PUT pulls/{n}/merge-async`` pinned to the head SHA and polls the returned UUID
+to a terminal status. ``--auto`` never takes this path.
 
 Exit codes follow ADR-035:
     0 - Success
@@ -181,11 +184,23 @@ _RESIDUAL_RISK = (
 class _MergeFailureError(Exception):
     """A merge attempt failed in a way the readback must adjudicate."""
 
-    def __init__(self, message: str, code: int, error_type: str) -> None:
+    def __init__(self, message: str, code: int, error_type: str, *, landed: bool = False) -> None:
         super().__init__(message)
         self.message = message
         self.code = code
         self.error_type = error_type
+        # True when the merge landed but a post-merge check found a problem; the
+        # readback must then report the failure instead of recovering to success.
+        self.landed = landed
+
+
+@dataclass(frozen=True)
+class _StackMember:
+    """One validated entry of a stack listing."""
+
+    number: int
+    state: str
+    head_sha: str
 
 
 @dataclass(frozen=True)
@@ -563,39 +578,100 @@ def _api_get_json(endpoint: str, what: str) -> dict[str, Any]:
     return data
 
 
-def _open_members_below(pr: int, repo_flag: str) -> list[int]:
-    """Return the open stack members stacked below ``pr``.
-
-    Issue #5473: merge-async lands every PR in the stack up to and including
-    the requested one. A merged member stays listed with ``state: closed``, so
-    only open members need a readiness proof. A PR the stack listing omits
-    raises, because the set the call would merge is then unknown.
-    """
+def _stack_number(pr: int, repo_flag: str) -> int:
+    """Return the stack number GitHub reports for ``pr``; raise when it reports none."""
     pr_data = _api_get_json(f"repos/{repo_flag}/pulls/{pr}", f"PR #{pr} lookup")
     stack = pr_data.get("stack")
     number = stack.get("number") if isinstance(stack, dict) else None
-    if not isinstance(number, int):
+    if not isinstance(number, int) or isinstance(number, bool):
         raise _MergeFailureError(
             f"PR #{pr} was refused as part of a stack but GitHub reports no stack "
             "for it; the members a merge would land are unknown, no merge attempted",
             6,
             "General",
         )
-    listing = _api_get_json(f"repos/{repo_flag}/stacks/{number}", f"stack #{number} lookup")
-    raw_members = listing.get("pull_requests")
-    members = (
-        [m for m in raw_members if isinstance(m, dict)] if isinstance(raw_members, list) else []
+    return number
+
+
+def _unreadable_member(stack: int, index: int, problem: str) -> _MergeFailureError:
+    """Build the fail-closed error for a stack member the script cannot interpret."""
+    return _MergeFailureError(
+        f"stack #{stack} member {index} has {problem}; the members a merge would "
+        "land are unknown, no merge attempted",
+        6,
+        "General",
     )
-    numbers = [m.get("number") for m in members]
+
+
+def _parse_member(stack: int, index: int, raw: Any) -> _StackMember:
+    """Validate one stack listing entry strictly; anything unexpected raises."""
+    if not isinstance(raw, dict):
+        raise _unreadable_member(stack, index, "an entry that is not an object")
+    number = raw.get("number")
+    if not isinstance(number, int) or isinstance(number, bool):
+        raise _unreadable_member(stack, index, f"a missing or non-integer number ({number!r})")
+    state = raw.get("state")
+    if not isinstance(state, str):
+        raise _unreadable_member(stack, index, f"a missing or non-string state ({state!r})")
+    head = raw.get("head")
+    sha = head.get("sha") if isinstance(head, dict) else None
+    return _StackMember(number, state, sha if isinstance(sha, str) else "")
+
+
+def _stack_members(stack: int, repo_flag: str) -> list[_StackMember]:
+    """Read and validate the full member list of a stack, bottom first."""
+    listing = _api_get_json(f"repos/{repo_flag}/stacks/{stack}", f"stack #{stack} lookup")
+    raw_members = listing.get("pull_requests")
+    if not isinstance(raw_members, list):
+        raise _MergeFailureError(
+            f"stack #{stack} listing has no member list; the members a merge would "
+            "land are unknown, no merge attempted",
+            6,
+            "General",
+        )
+    return [_parse_member(stack, i, raw) for i, raw in enumerate(raw_members)]
+
+
+def _members_through(members: list[_StackMember], pr: int, stack: int) -> list[_StackMember]:
+    """Return the members merge-async would land: everything up to and including ``pr``."""
+    numbers = [m.number for m in members]
     if pr not in numbers:
         raise _MergeFailureError(
-            f"PR #{pr} is not in the member list of stack #{number}; the members a "
+            f"PR #{pr} is not in the member list of stack #{stack}; the members a "
             "merge would land are unknown, no merge attempted",
             6,
             "General",
         )
-    below = members[: numbers.index(pr)]
-    return [int(m["number"]) for m in below if m.get("state") == "open"]
+    return members[: numbers.index(pr) + 1]
+
+
+def _downstack_pins(landing: list[_StackMember], pr: int) -> dict[int, str]:
+    """Map each unmerged downstack member to its head SHA.
+
+    Issue #5473: merge-async lands every PR in the stack up to and including the
+    requested one. Only a state of exactly ``closed`` (a merged member stays
+    listed that way) skips the gate; any other value is gated, so an unexpected
+    spelling fails closed. An unmerged member with no valid head SHA raises,
+    because without a pin a later push to it could not be detected.
+    """
+    pins: dict[int, str] = {}
+    for member in landing:
+        if member.number == pr or member.state == "closed":
+            continue
+        if not _SHA_PATTERN.match(member.head_sha):
+            raise _MergeFailureError(
+                f"downstack PR #{member.number} has no readable head SHA in the stack "
+                "listing, so its reviewed head cannot be pinned; no merge attempted",
+                6,
+                "General",
+            )
+        pins[member.number] = member.head_sha.lower()
+    return pins
+
+
+def _read_landing(pr: int, repo_flag: str, stack: int) -> list[_StackMember]:
+    """Read the stack and return the members a merge of ``pr`` would land."""
+    return _members_through(_stack_members(stack, repo_flag), pr, stack)
 
 
 def _member_not_ready_reason(member: int, repo_flag: str) -> str | None:
@@ -630,24 +706,78 @@ def _member_not_ready_reason(member: int, repo_flag: str) -> str | None:
     return f"readiness check could not run (exit {result.returncode}): {detail}"
 
 
-def _assert_stack_ready(pr: int, repo_flag: str) -> None:
-    """Refuse the async merge unless every open downstack member is merge-ready.
+def _assert_stack_ready(ctx: _MergeContext, stack: int) -> dict[int, str]:
+    """Refuse the async merge unless the target and every unmerged downstack PR is ready.
 
     merge-async runs no branch protection at request time and merges the whole
-    stack up to ``pr``. A member that never cleared a gate would land
-    unreviewed, so any member that is not provably ready aborts before the call.
+    stack up to the target. The target itself and any member that never cleared
+    a gate would land unreviewed, so anything not provably ready aborts before
+    the call. Returns the downstack head SHAs the gate was run against.
     """
+    landing = _read_landing(ctx.pr, ctx.repo_flag, stack)
+    pins = _downstack_pins(landing, ctx.pr)
     failures = []
-    for member in _open_members_below(pr, repo_flag):
-        reason = _member_not_ready_reason(member, repo_flag)
+    for member in [*pins, ctx.pr]:
+        reason = _member_not_ready_reason(member, ctx.repo_flag)
         if reason:
             failures.append(f"#{member} ({reason})")
     if failures:
         raise _MergeFailureError(
-            f"merging PR #{pr} would also merge downstack PRs that are not "
+            f"merging PR #{ctx.pr} would also merge PRs that are not "
             f"merge-ready: {'; '.join(failures)}. No merge attempted.",
             6,
             "General",
+        )
+    return pins
+
+
+def _assert_pins_unchanged(ctx: _MergeContext, stack: int, pins: dict[int, str]) -> None:
+    """Re-read the stack just before the PUT and refuse when it drifted from the gate.
+
+    The ``sha`` field pins only the target. A push to a downstack PR after its
+    readiness check, or an unmerged member that appeared below the target, would
+    land unreviewed, so any difference from the gated set aborts the request.
+    """
+    current = _downstack_pins(_read_landing(ctx.pr, ctx.repo_flag, stack), ctx.pr)
+    drifted = sorted(n for n in pins.keys() | current.keys() if pins.get(n) != current.get(n))
+    if drifted:
+        listed = ", ".join(f"#{n}" for n in drifted)
+        raise _MergeFailureError(
+            f"downstack PR {listed} head moved or the stack changed after the readiness "
+            f"check; refusing to merge PR #{ctx.pr} on a stale review. No merge attempted.",
+            6,
+            "General",
+        )
+
+
+def _assert_heads_landed_as_gated(ctx: _MergeContext, stack: int, pins: dict[int, str]) -> None:
+    """After the merge, confirm each gated downstack head still matches its pin.
+
+    A PR that merged keeps its final head SHA in the listing, so a difference
+    means commits landed that the readiness check never saw. The merge cannot
+    be undone here, so this raises a failure the readback must not recover from.
+    """
+    try:
+        landing = _read_landing(ctx.pr, ctx.repo_flag, stack)
+    except _MergeFailureError as failure:
+        raise _MergeFailureError(
+            f"merge-async merged PR #{ctx.pr} but the post-merge stack check failed, "
+            f"so the downstack heads are unverified: {failure.message}",
+            3,
+            "ApiError",
+            landed=True,
+        ) from failure
+    heads = {m.number: m.head_sha.lower() for m in landing}
+    moved = sorted(n for n, sha in pins.items() if heads.get(n) != sha)
+    if moved:
+        listed = ", ".join(f"#{n}" for n in moved)
+        raise _MergeFailureError(
+            f"merge-async merged PR #{ctx.pr} but downstack PR {listed} head differs from "
+            "the head that passed the readiness check; unreviewed commits may have landed. "
+            "Review the merge commit and revert if needed.",
+            3,
+            "ApiError",
+            landed=True,
         )
 
 
@@ -811,13 +941,17 @@ def _merge_stack_async(
 ) -> None:
     """Merge a stacked PR through the asynchronous endpoint (issue #5473).
 
-    Gate every open downstack member first, then request the merge pinned to
-    the reviewed head, then poll to a terminal status. Returns when GitHub
-    reports merged. Every failure raises _MergeFailureError carrying the
-    original GraphQL refusal, so the caller's readback can still adjudicate.
+    Gate the target and every unmerged downstack member, pin their heads,
+    re-check the pins just before the request, request the merge pinned to the
+    reviewed head, poll to a terminal status, then confirm the heads that landed.
+    Returns when GitHub reports merged. Every failure raises _MergeFailureError
+    carrying the original GraphQL refusal, so the caller's readback can still
+    adjudicate, except a post-merge head mismatch, which no readback may recover.
     """
     try:
-        _assert_stack_ready(ctx.pr, ctx.repo_flag)
+        stack = _stack_number(ctx.pr, ctx.repo_flag)
+        pins = _assert_stack_ready(ctx, stack)
+        _assert_pins_unchanged(ctx, stack, pins)
         accepted = _request_async_merge(ctx, subject, body)
         _wait_for_async_merge(ctx, accepted)
     except _MergeFailureError as failure:
@@ -827,6 +961,7 @@ def _merge_stack_async(
             failure.code,
             failure.error_type,
         ) from failure
+    _assert_heads_landed_as_gated(ctx, stack, pins)
 
 
 def _handle_merge_failure(
@@ -1115,6 +1250,17 @@ def _recover_or_fail(ctx: _MergeContext, failure: _MergeFailureError) -> int:
     original failure.
     """
     readback = _read_back(ctx.pr, ctx.repo_flag)
+    if failure.landed:
+        _emit_error(
+            failure.message,
+            failure.code,
+            failure.error_type,
+            ctx.output_format,
+            ctx.pr,
+            audit=_build_audit(
+                ctx, "merge", "merged, post-merge check failed", readback, failure.message
+            ),
+        )
     if readback is not None and readback.get("state") == "MERGED":
         return _emit_merge_success(ctx, readback, failure.message)
     if (

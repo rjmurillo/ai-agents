@@ -1634,14 +1634,27 @@ def _async_body(status: str, uuid: str | None = _UUID, message: str = "") -> str
     return json.dumps({"status": status, "details": details})
 
 
-def _member(number: int, state: str = "open") -> dict:
-    return {"number": number, "state": state, "draft": False}
+def _sha(number: int, salt: int = 0) -> str:
+    """A distinct valid 40-hex head SHA per member; salt makes a moved head."""
+    return f"{number + salt * 1000:040x}"
+
+
+def _member(number: int, state: str = "open", salt: int = 0) -> dict:
+    return {
+        "number": number,
+        "state": state,
+        "draft": False,
+        "head": {"ref": f"branch-{number}", "sha": _sha(number, salt)},
+    }
 
 
 class _StackGh:
     """Route subprocess.run for the stacked-PR merge path and record every argv.
 
     members: the stack listing, bottom first. The requested PR is 50.
+    listings: successive stack listings (each a members list); the last repeats.
+        Overrides members. Read 1 is the gate snapshot, read 2 the pre-PUT
+        re-check, read 3 the post-merge check.
     put: the merge-async PUT result (CompletedProcess or exception).
     polls: successive merge-async status GET results; the last repeats.
     readiness: per-member CompletedProcess or exception from the completion gate.
@@ -1652,6 +1665,7 @@ class _StackGh:
         self,
         *,
         members=None,
+        listings=None,
         pr_body=None,
         put=None,
         polls=None,
@@ -1659,7 +1673,8 @@ class _StackGh:
         readback=None,
         api_get=None,
     ):
-        self.members = members if members is not None else [_member(40, "closed"), _member(50)]
+        default = members if members is not None else [_member(40, "closed"), _member(50)]
+        self.listings = list(listings) if listings is not None else [default]
         self.pr_body = (
             pr_body if pr_body is not None else {"stack": {"number": 9, "position": 2, "size": 2}}
         )
@@ -1718,7 +1733,8 @@ class _StackGh:
                 raise outcome
             return outcome
         if "/stacks/" in path:
-            return _completed(stdout=json.dumps({"pull_requests": self.members}))
+            listing = self.listings.pop(0) if len(self.listings) > 1 else self.listings[0]
+            return _completed(stdout=json.dumps({"pull_requests": listing}))
         return _completed(stdout=json.dumps(self.pr_body))
 
     def puts(self) -> list[list[str]]:
@@ -1802,14 +1818,15 @@ class TestAsyncMergeForStack:
     def test_merged_downstack_member_needs_no_readiness_check(self, capsys):
         fake = _StackGh()
         _run_stack(fake, capsys)
-        assert fake.readiness_checked() == []
+        # Only the target is gated; the merged member below it is not.
+        assert fake.readiness_checked() == [50]
 
     def test_ready_open_downstack_member_is_checked_then_merge_proceeds(self, capsys):
         fake = _StackGh(members=[_member(40), _member(50), _member(60)])
         code, _ = _run_stack(fake, capsys)
         assert code == 0
-        # Only the member below PR 50 is gated; PR 60 above it is not merged.
-        assert fake.readiness_checked() == [40]
+        # The member below PR 50 and PR 50 itself are gated; PR 60 above it is not merged.
+        assert sorted(fake.readiness_checked()) == [40, 50]
         assert len(fake.puts()) == 1
 
     def test_readiness_check_targets_the_completion_gate_script(self, capsys):
@@ -1833,6 +1850,191 @@ class TestAsyncMergeForStack:
         assert "#40" not in message
         assert "unresolved review threads" in message
         assert "No merge attempted" in message
+
+    def test_target_alone_in_the_stack_is_gated(self, capsys):
+        fake = _StackGh(members=[_member(50)])
+        code, _ = _run_stack(fake, capsys)
+        assert code == 0
+        assert fake.readiness_checked() == [50]
+        assert len(fake.puts()) == 1
+
+    def test_unready_target_aborts_before_the_put(self, capsys):
+        fake = _StackGh(
+            members=[_member(40, "closed"), _member(50)],
+            readiness={50: _completed(rc=1, stderr="  - 3 failing required checks")},
+        )
+        code, env = _run_stack(fake, capsys)
+        assert code == 6
+        assert fake.puts() == []
+        message = json.dumps(env)
+        assert "#50" in message
+        assert "failing required checks" in message
+        assert "No merge attempted" in message
+
+    def test_target_readiness_that_cannot_run_fails_closed(self, capsys):
+        fake = _StackGh(readiness={50: _completed(rc=3, stderr="API error")})
+        code, env = _run_stack(fake, capsys)
+        assert code == 6
+        assert fake.puts() == []
+        assert "could not run (exit 3)" in json.dumps(env)
+
+    def test_downstack_and_target_failures_are_both_reported(self, capsys):
+        fake = _StackGh(
+            members=[_member(40), _member(50)],
+            readiness={
+                40: _completed(rc=1, stderr="unresolved threads"),
+                50: _completed(rc=1, stderr="failing checks"),
+            },
+        )
+        code, env = _run_stack(fake, capsys)
+        message = json.dumps(env)
+        assert code == 6
+        assert "#40" in message
+        assert "#50" in message
+
+    def test_downstack_head_moved_after_the_gate_aborts_before_the_put(self, capsys):
+        fake = _StackGh(
+            listings=[
+                [_member(40), _member(50)],
+                [_member(40, salt=1), _member(50)],
+            ]
+        )
+        code, env = _run_stack(fake, capsys)
+        assert code == 6
+        assert fake.puts() == []
+        message = json.dumps(env)
+        assert "#40" in message
+        assert "head moved" in message
+        assert "No merge attempted" in message
+
+    def test_downstack_member_added_after_the_gate_aborts_before_the_put(self, capsys):
+        fake = _StackGh(
+            listings=[
+                [_member(40, "closed"), _member(50)],
+                [_member(40), _member(50)],
+            ]
+        )
+        code, env = _run_stack(fake, capsys)
+        assert code == 6
+        assert fake.puts() == []
+        assert "#40" in json.dumps(env)
+
+    def test_unchanged_heads_on_the_recheck_let_the_merge_proceed(self, capsys):
+        fake = _StackGh(listings=[[_member(40), _member(50)]])
+        code, _ = _run_stack(fake, capsys)
+        assert code == 0
+        assert len(fake.puts()) == 1
+
+    def test_head_moved_after_the_merge_is_not_reported_as_success(self, capsys):
+        fake = _StackGh(
+            listings=[
+                [_member(40), _member(50)],
+                [_member(40), _member(50)],
+                [_member(40, "closed", salt=1), _member(50, "closed")],
+            ]
+        )
+        code, env = _run_stack(fake, capsys)
+        assert code == 3
+        assert len(fake.puts()) == 1
+        message = json.dumps(env)
+        assert "#40" in message
+        assert "unreviewed" in message
+        assert env["Data"].get("state") != "MERGED"
+
+    def test_unreadable_listing_after_the_merge_is_not_reported_as_success(self, capsys):
+        fake = _StackGh(members=[_member(40), _member(50)])
+        original_api = fake._api
+        reads = {"stacks": 0}
+
+        def flaky(cmd):
+            path = next(part for part in cmd if part.startswith("repos/"))
+            if "/stacks/" in path:
+                reads["stacks"] += 1
+                if reads["stacks"] >= 3:
+                    return _completed(rc=1, stderr="HTTP 502")
+            return original_api(cmd)
+
+        fake._api = flaky
+        code, env = _run_stack(fake, capsys)
+        assert code == 3
+        assert len(fake.puts()) == 1
+        assert "unverified" in json.dumps(env)
+
+    @pytest.mark.parametrize("head", [None, {}, {"sha": None}, {"sha": "abc"}, {"sha": 7}, "x"])
+    def test_open_downstack_member_without_a_valid_head_sha_fails_closed(self, capsys, head):
+        member = _member(40)
+        if head is None:
+            del member["head"]
+        else:
+            member["head"] = head
+        fake = _StackGh(members=[member, _member(50)])
+        code, env = _run_stack(fake, capsys)
+        assert code == 6
+        assert fake.puts() == []
+        assert fake.readiness_checked() == []
+        assert "#40" in json.dumps(env)
+
+    def test_member_without_a_state_fails_closed(self, capsys):
+        member = _member(40)
+        del member["state"]
+        fake = _StackGh(members=[member, _member(50)])
+        code, env = _run_stack(fake, capsys)
+        assert code == 6
+        assert fake.puts() == []
+        assert "state" in json.dumps(env)
+
+    @pytest.mark.parametrize("state", [None, 1, True, ["open"]])
+    def test_member_with_a_mistyped_state_fails_closed(self, capsys, state):
+        member = _member(40)
+        member["state"] = state
+        fake = _StackGh(members=[member, _member(50)])
+        code, _ = _run_stack(fake, capsys)
+        assert code == 6
+        assert fake.puts() == []
+
+    @pytest.mark.parametrize("number", [None, "40", 4.5, True, [40]])
+    def test_member_with_a_missing_or_mistyped_number_fails_closed(self, capsys, number):
+        member = _member(40)
+        member["number"] = number
+        fake = _StackGh(members=[member, _member(50)])
+        code, env = _run_stack(fake, capsys)
+        assert code == 6
+        assert fake.puts() == []
+        assert "number" in json.dumps(env)
+
+    def test_member_without_a_number_key_fails_closed(self, capsys):
+        member = _member(40)
+        del member["number"]
+        fake = _StackGh(members=[member, _member(50)])
+        code, _ = _run_stack(fake, capsys)
+        assert code == 6
+        assert fake.puts() == []
+
+    def test_non_object_member_fails_closed(self, capsys):
+        fake = _StackGh(members=[_member(40), "garbage", _member(50)])
+        code, _ = _run_stack(fake, capsys)
+        assert code == 6
+        assert fake.puts() == []
+
+    @pytest.mark.parametrize("state", ["OPEN", "Open", "draft", "merged", "CLOSED", ""])
+    def test_any_state_other_than_exactly_closed_is_gated(self, capsys, state):
+        fake = _StackGh(
+            members=[_member(40, state), _member(50)],
+            readiness={40: _completed(rc=1, stderr="not ready")},
+        )
+        code, env = _run_stack(fake, capsys)
+        assert code == 6
+        assert fake.puts() == []
+        assert 40 in fake.readiness_checked()
+        assert "#40" in json.dumps(env)
+
+    def test_malformed_member_above_the_target_fails_closed(self, capsys):
+        member = _member(60)
+        member["number"] = None
+        fake = _StackGh(members=[_member(40, "closed"), _member(50), member])
+        code, _ = _run_stack(fake, capsys)
+        assert code == 6
+        assert fake.puts() == []
 
     def test_readiness_check_that_cannot_run_fails_closed(self, capsys):
         fake = _StackGh(
