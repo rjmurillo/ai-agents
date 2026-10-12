@@ -27,8 +27,8 @@ Workflow, hook, and skill documentation can name an entry point. Once a
 ``SKILL.md`` names a helper script, the graph follows that helper's imports and
 executable string literals.
 
-Under that model the scripts (127 under scripts/validation plus 30 under
-build/scripts at the time of this edit) yield one unreachable, a real decision
+Under that model the scripts (128 under scripts/validation plus 30 under
+build/scripts at the time of this edit) yield two unreachable, real decisions
 recorded in ``_NO_CALLER`` below rather than a bulk exemption.
 
 What this does not do: prove the caller is correct, or that the script would
