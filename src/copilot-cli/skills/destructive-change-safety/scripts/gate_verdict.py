@@ -4,7 +4,7 @@
 Evidence is a JSON object the agent assembles from real command output:
 
     {
-      "sinks": [{"location": "pkg/store.py:42", "trace": ["cli.main", "store.purge"]}],
+      "sinks": [{"location": "scripts/maintenance/_gc_apply.py:53", "trace": ["main", "apply_removals", "remove_worktree"]}],
       "preflight": {"command": "...", "exit_code": 0, "measured": 3},
       "expected": 3,                       # or {"max": 10}
       "rollback": {"kind": "backup", "ref": "...",

@@ -102,7 +102,7 @@ code from this run, not a prediction. Write the evidence file:
 
 ```json
 {
-  "sinks": [{"location": "pkg/store.py:42", "trace": ["main", "run", "purge"]}],
+  "sinks": [{"location": "scripts/maintenance/_gc_apply.py:53", "trace": ["main", "apply_removals", "remove_worktree"]}],
   "preflight": {"command": "preview-sql ...", "exit_code": 0, "measured": 3},
   "expected": 3,
   "rollback": {"kind": "snapshot", "ref": "snap-id"},
