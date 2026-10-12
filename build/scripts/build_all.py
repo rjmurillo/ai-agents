@@ -110,6 +110,9 @@ import skill_templates  # noqa: E402
 from atomic_write import MOUNT_POINT_REPARSE_TAG as _MOUNT_POINT_REPARSE_TAG  # noqa: E402, F401
 from atomic_write import is_redirecting as _is_redirecting  # noqa: E402
 from atomic_write import publish_bytes_atomically as _publish_bytes_atomically  # noqa: E402
+from atomic_write import (  # noqa: E402
+    publish_bytes_preserving_mode as _publish_bytes_preserving_mode,
+)
 from atomic_write import read_bytes_no_redirect as _read_bytes_no_redirect  # noqa: E402
 from atomic_write import write_bytes_no_redirect as _write_bytes_no_redirect  # noqa: E402, F401
 from yaml_loader import ConfigError, load_platform_config  # noqa: E402
@@ -758,7 +761,7 @@ def write_audit(
         for v in violations:
             print(f"AUDIT-BLOCKLIST: {v}", file=sys.stderr)
         return violations
-    audit_path.write_text(text, encoding="utf-8")
+    _publish_bytes_preserving_mode(audit_path, text.encode("utf-8"))
     return []
 
 
