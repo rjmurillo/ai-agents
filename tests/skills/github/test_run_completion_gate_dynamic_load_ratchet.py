@@ -26,12 +26,18 @@ from tests.skills.github.dynamic_load_helpers import (
 )
 from tests.skills.github.dynamic_load_routes import ROUTES, unrecognised_routes
 
-# Reviewed sites: (path, route) -> (expected count, why the site is safe).
+# Reviewed sites: (path, route, detail) -> (expected count, why the site is safe).
 # A site not listed fails the ratchet. A listed site that disappears also
-# fails, so the list can only shrink or be re-reviewed, never go stale.
+# fails, so the list can only shrink or be re-reviewed, never go stale. The
+# detail is part of the key, so turning a reviewed script launch into a
+# `python -c` launch is a new site.
 _PR_DIR = ".claude/skills/github/scripts/pr"
-_REVIEWED: dict[tuple[str, str], tuple[int, str]] = {
-    (f"{_PR_DIR}/wait_for_unresolved_zero.py", "subprocess-python"): (
+_REVIEWED: dict[tuple[str, str, str], tuple[int, str]] = {
+    (
+        f"{_PR_DIR}/wait_for_unresolved_zero.py",
+        "subprocess-python",
+        "python launching a script or module",
+    ): (
         1,
         "launches get_unresolved_review_threads.py, a sibling the config names, so it is "
         "byte-verified (see test_reviewed_launcher_target_is_itself_verified)",
@@ -59,10 +65,10 @@ class TestShippedClosureRatchet:
         scanned, found = _scan(closure_paths)
         assert scanned >= 20, f"only {scanned} python files scanned; the scope shrank"
 
-        counts: dict[tuple[str, str], int] = {}
+        counts: dict[tuple[str, str, str], int] = {}
         unreviewed: list[str] = []
         for path, line, route, detail in found:
-            key = (path, route)
+            key = (path, route, detail)
             counts[key] = counts.get(key, 0) + 1
             if key not in _REVIEWED:
                 unreviewed.append(f"{path}:{line}: {route} ({detail})")
@@ -147,6 +153,7 @@ _ROUTE_FIXTURES: dict[str, list[str]] = {
         "import builtins\nbuiltins.eval('1')\n",
         "__builtins__['exec']('1')\n",
         "import builtins\nbuiltins.__import__('x')\n",
+        "import builtins as b\nb.exec('1')\n",
     ],
     "loader-api": [
         "from importlib.machinery import ExtensionFileLoader\n",
@@ -160,6 +167,8 @@ _ROUTE_FIXTURES: dict[str, list[str]] = {
     "serialization-or-native": [
         "import pickle\n",
         "from pickle import loads\n",
+        "__import__('pickle').loads(data)\n",
+        "import importlib\nimportlib.import_module('ctypes.util')\n",
         "import marshal\n",
         "import ctypes\n",
         "import ctypes.util\n",
@@ -171,12 +180,14 @@ _ROUTE_FIXTURES: dict[str, list[str]] = {
         "import subprocess\nsubprocess.run(['python3', 'other.py'])\n",
         "import subprocess\nsubprocess.run(('python', '-m', 'pkg'))\n",
         "import subprocess\nsubprocess.run(['/usr/bin/python3.14', 'other.py'])\n",
+        "import subprocess\nsubprocess.run(['python3.14t', 'other.py'])\n",
     ],
     "sys-modules": [
         "import sys\nsys.modules['x'] = object()\n",
         "import sys\ndel sys.modules['x']\n",
         "import sys\nsys.modules.update({'x': object()})\n",
         "import sys\nsys.modules.setdefault('x', object())\n",
+        "import sys as s\ns.modules['x'] = object()\n",
     ],
 }
 
@@ -213,6 +224,8 @@ class TestDetectorPositiveControls:
             "getattr(args, name)\n",
             "from importlib import import_module\nimport_module('x')\n",
             "subprocess.run(['git', '-c', 'core.x=y', 'status'])\n",
+            "run_path = repo / 'x'\nimport_module = None\n",
+            "importlib.import_module('json')\n__import__('os')\n",
         ],
     )
     def test_detector_ignores_shapes_the_gate_already_covers_or_that_are_benign(
@@ -221,7 +234,7 @@ class TestDetectorPositiveControls:
         assert unrecognised_routes(source) == []
 
     def test_uncalled_eval_attribute_is_flagged_by_design(self) -> None:
-        assert [hit.route for hit in unrecognised_routes("model.eval = 1\n")] == ["alias"]
+        assert [hit.route for hit in unrecognised_routes("fn = model.eval\n")] == ["alias"]
 
     def test_unparseable_source_raises_instead_of_reading_clean(self) -> None:
         with pytest.raises(SyntaxError):

@@ -6,10 +6,16 @@ denylist omits is dispatched unverified and reads as ``command_trust:
 trusted``. This module names each omitted route and finds it by walking the
 syntax tree, so a ratchet test can fail on the first verifier that adds one.
 
-The detector is deliberately broader than the gate's scanner: it flags a name
-wherever it appears (called, aliased, passed uncalled, imported), because the
-gate resolves only direct literal calls. A hit is a question for a maintainer,
-not proof of a load.
+The detector is deliberately broader than the gate's scanner on the routes the
+gate omits: a recognised load name reached by alias, import-as or an uncalled
+reference, and the unrecognised names wherever they appear. A hit is a
+question for a maintainer, not proof of a load.
+
+Not covered, named so nobody reads this as complete: ``os.system`` and the
+``os.spawn*`` family, ``shell=True`` strings, a Python launcher held in a
+variable (``PY = sys.executable; [PY, "x.py"]``), ``code`` and ``codeop``
+interpreters, ``types.FunctionType(compile(...))``, and a module alias such as
+``import sys as s`` for any route other than ``builtins`` and ``sys.modules``.
 
 Each route lists the shapes it matches in its own function below.
 """
@@ -69,16 +75,27 @@ _LOAD_RECEIVERS = frozenset(
 )
 _BUILTINS_RECEIVERS = frozenset({"builtins", "__builtins__"})
 _BUILTIN_LOADS = frozenset({"exec", "eval", "compile", "__import__"})
-_PYTHON_EXE = re.compile(r"^(?:.*[/\\])?python(?:\d+(?:\.\d+)*)?(?:\.exe)?$", re.IGNORECASE)
+_PYTHON_EXE = re.compile(r"^(?:.*[/\\])?python(?:\d+(?:\.\d+)*)?t?(?:\.exe)?$", re.IGNORECASE)
 _SYS_MODULES_MUTATORS = frozenset({"update", "setdefault", "__setitem__"})
 
 
-def _is_sys_modules(node: ast.AST) -> bool:
+def _names_bound_to(tree: ast.AST, module: str) -> frozenset[str]:
+    """``module`` plus every ``import module as alias`` name in ``tree``."""
+    names = {module}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            names.update(
+                alias.asname for alias in node.names if alias.name == module and alias.asname
+            )
+    return frozenset(names)
+
+
+def _is_sys_modules(node: ast.AST, sys_names: frozenset[str]) -> bool:
     return (
         isinstance(node, ast.Attribute)
         and node.attr == "modules"
         and isinstance(node.value, ast.Name)
-        and node.value.id == "sys"
+        and node.value.id in sys_names
     )
 
 
@@ -110,6 +127,19 @@ def _called_function_ids(tree: ast.AST) -> set[int]:
     return {id(node.func) for node in ast.walk(tree) if isinstance(node, ast.Call)}
 
 
+def _is_load_reference(node: ast.AST, called: set[int]) -> bool:
+    """A Name or Attribute read that is not the target of a call.
+
+    A store or delete is a rebinding of the name, not a reference to the load,
+    so ``run_path = repo / "x"`` is not an alias.
+    """
+    if id(node) in called:
+        return False
+    if isinstance(node, ast.Name):
+        return isinstance(node.ctx, ast.Load)
+    return isinstance(node, ast.Attribute) and isinstance(node.ctx, ast.Load)
+
+
 def _alias_hits(tree: ast.AST) -> Iterator[RouteHit]:
     """A recognised load reached by import-as or an uncalled reference."""
     called = _called_function_ids(tree)
@@ -118,7 +148,7 @@ def _alias_hits(tree: ast.AST) -> Iterator[RouteHit]:
             for alias in node.names:
                 if alias.name in _RECOGNISED_LOADS and alias.asname:
                     yield RouteHit(node.lineno, "alias", f"{alias.name} as {alias.asname}")
-        elif isinstance(node, ast.Name | ast.Attribute) and id(node) not in called:
+        elif isinstance(node, ast.Name | ast.Attribute) and _is_load_reference(node, called):
             name = _reference_name(node)
             if name in _RECOGNISED_LOADS:
                 yield RouteHit(node.lineno, "alias", f"uncalled reference to {name}")
@@ -144,36 +174,50 @@ def _getattr_hits(tree: ast.AST) -> Iterator[RouteHit]:
 
 def _builtins_hits(tree: ast.AST) -> Iterator[RouteHit]:
     """``builtins.exec``, ``builtins.eval`` and ``__builtins__["exec"]``."""
+    receivers = _BUILTINS_RECEIVERS | _names_bound_to(tree, "builtins")
     for node in ast.walk(tree):
         if (
             isinstance(node, ast.Attribute)
             and isinstance(node.value, ast.Name)
-            and node.value.id in _BUILTINS_RECEIVERS
+            and node.value.id in receivers
             and node.attr in _BUILTIN_LOADS
         ):
             yield RouteHit(node.lineno, "builtins", f"{node.value.id}.{node.attr}")
         elif (
             isinstance(node, ast.Subscript)
             and isinstance(node.value, ast.Name)
-            and node.value.id in _BUILTINS_RECEIVERS
+            and node.value.id in receivers
         ):
             yield RouteHit(node.lineno, "builtins", f"{node.value.id}[...]")
 
 
-def _imported_top_level_modules(node: ast.AST) -> list[str]:
+def _imported_top_level_modules(node: ast.AST) -> list[tuple[int, str]]:
+    """``(line, top-level module)`` for each module an import statement names."""
     if isinstance(node, ast.Import):
-        return [alias.name.split(".")[0] for alias in node.names]
+        return [(node.lineno, alias.name.split(".")[0]) for alias in node.names]
     if isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
-        return [node.module.split(".")[0]]
+        return [(node.lineno, node.module.split(".")[0])]
     return []
+
+
+def _literal_module_loads(tree: ast.AST) -> Iterator[tuple[int, str]]:
+    """``(line, module)`` for ``__import__("pickle")`` and ``import_module("ctypes")``."""
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and _reference_name(node.func) in {
+            "__import__",
+            "import_module",
+        }:
+            first = node.args[0] if node.args else None
+            if isinstance(first, ast.Constant) and isinstance(first.value, str):
+                yield node.lineno, first.value.split(".")[0]
 
 
 def _loader_api_hits(tree: ast.AST) -> Iterator[RouteHit]:
     """Loader classes and importers the gate has no entry for."""
     for node in ast.walk(tree):
-        for module in _imported_top_level_modules(node):
+        for line, module in _imported_top_level_modules(node):
             if module in _UNRECOGNISED_LOADER_MODULES:
-                yield RouteHit(node.lineno, "loader-api", f"import {module}")
+                yield RouteHit(line, "loader-api", f"import {module}")
         if isinstance(node, ast.ImportFrom):
             for alias in node.names:
                 if alias.name in _UNRECOGNISED_LOADER_NAMES:
@@ -186,10 +230,14 @@ def _loader_api_hits(tree: ast.AST) -> Iterator[RouteHit]:
 
 def _serialization_hits(tree: ast.AST) -> Iterator[RouteHit]:
     """``pickle``, ``marshal`` and ``ctypes`` run code the closure never parses."""
-    for node in ast.walk(tree):
-        for module in _imported_top_level_modules(node):
-            if module in _SERIALIZATION_OR_NATIVE_MODULES:
-                yield RouteHit(node.lineno, "serialization-or-native", f"import {module}")
+    named = [
+        (line, module, "import")
+        for node in ast.walk(tree)
+        for line, module in _imported_top_level_modules(node)
+    ] + [(line, module, "load of") for line, module in _literal_module_loads(tree)]
+    for line, module, how in named:
+        if module in _SERIALIZATION_OR_NATIVE_MODULES:
+            yield RouteHit(line, "serialization-or-native", f"{how} {module}")
 
 
 def _launches_python(node: ast.List | ast.Tuple) -> bool:
@@ -217,10 +265,11 @@ def _subprocess_python_hits(tree: ast.AST) -> Iterator[RouteHit]:
 
 def _sys_modules_hits(tree: ast.AST) -> Iterator[RouteHit]:
     """Writes to ``sys.modules``, which make a later import resolve to injected code."""
+    sys_names = _names_bound_to(tree, "sys")
     for node in ast.walk(tree):
         if (
             isinstance(node, ast.Subscript)
-            and _is_sys_modules(node.value)
+            and _is_sys_modules(node.value, sys_names)
             and isinstance(node.ctx, ast.Store | ast.Del)
         ):
             yield RouteHit(node.lineno, "sys-modules", "sys.modules[...] write")
@@ -228,7 +277,7 @@ def _sys_modules_hits(tree: ast.AST) -> Iterator[RouteHit]:
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Attribute)
             and node.func.attr in _SYS_MODULES_MUTATORS
-            and _is_sys_modules(node.func.value)
+            and _is_sys_modules(node.func.value, sys_names)
         ):
             yield RouteHit(node.lineno, "sys-modules", f"sys.modules.{node.func.attr}")
 
