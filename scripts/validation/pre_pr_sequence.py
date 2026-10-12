@@ -89,6 +89,7 @@ from checks_dash import validate_dash_prohibition
 from checks_mypy import validate_mypy_changed_files
 from checks_plugin import (
     validate_agent_content_parity,
+    validate_agent_source_parity,
     validate_colocated_skill_tests,
     validate_copilot_agent_frontmatter,
     validate_hook_anchoring,
@@ -556,6 +557,9 @@ _SEQUENCE: tuple[_Gate, ...] = (
         "Agent Content Parity (.claude/agents vs src/claude)",
         _root_only(validate_agent_content_parity),
     ),
+    # Compares the three hand-written agent sources, not the generated trees.
+    # ADR-107 M3, issue #5688; contract in GENERATOR-FILES.md.
+    _Gate("Agent Source Parity", _root_only(validate_agent_source_parity)),
     # The Claude Code plugin loader registers every .md under .claude/agents/ as
     # a dispatchable subagent, frontmatter or not. Issue #4813 answered the same
     # five files by narrowing our own validator globs, which taught CI to look

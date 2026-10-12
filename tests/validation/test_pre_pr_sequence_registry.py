@@ -131,6 +131,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     "Planning Artifacts",
     "Agent Drift Detection",
     "Agent Content Parity (.claude/agents vs src/claude)",
+    "Agent Source Parity",
     "Agent Tree Frontmatter (.claude/agents)",
     "Skill Tree Layout (.claude/skills)",
     "Plugin Version Bump",

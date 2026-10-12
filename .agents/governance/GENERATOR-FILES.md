@@ -48,6 +48,48 @@ validator, which fails CI when a sibling drifts from its source.
 
 ADR-109 B1 moved `.claude/agents/<name>.md`, `.github/agents/<name>.agent.md`, and `src/claude/agents/<stem>.md` into generated output via the agent_templates.py and binplace_manifest.py generators above. ADR-109 B2 moved every `.claude/rules/<name>.md` file (28) the same way via rule_templates.py; `testing.md` is template-owned too, its GitHub Actions example written with the `\{{` escape. ADR-109 B3 gave skills the same two-hop shape: `skill_templates.compile_all` renders `src/claude/skills/<name>/SKILL.md`, and the binplace step copies it onto `.claude/skills/<name>/SKILL.md`; the manifest also gained a `prompts` row (`source: .claude/skills/review/references`, `compile: generate_pr_quality_prompts`, `plugin_tree: null`) that documents the twelve `pr-quality-gate-*.md` files without changing how they are generated. ADR-109 B4 moved the 16-file hooks class (14 executables, `hooks.json`, `dispatch_groups.json`) plus `.claude/settings.json` into generated output via hook_templates.py: `src/claude/hooks/` and `src/claude/hooks.json` render for the first time, `.github/hooks/*.json` is binplaced for the first time, and `.claude/settings.json` renders directly from `templates/hooks/settings.tmpl` with no plugin-tree hop, since it ships in no plugin.
 
+## Agent source equivalence (normalized)
+
+Each agent has three hand-written sources under `templates/agents/`:
+`<stem>.shared.md`, `<stem>.claude.md.tmpl`, and `<stem>.copilot.md.tmpl`.
+The generated trees are covered by regeneration. These three sources are
+covered by the `normalized` predicate of ADR-107 section 4, enforced by
+`build/scripts/check_agent_source_parity.py` (ADR-107 migration step M3,
+issue #5688). It renders both templates and compares each against the shared
+source. It runs as the pre-PR gate `Agent Source Parity` and, through
+`tests/build_scripts/test_check_agent_source_parity.py::TestLiveRepository`, in
+the required `Python Tests` run on every pull request.
+
+| Pair | Compared | Section on one side only |
+|------|----------|--------------------------|
+| `claude-shared` | rendered Claude template against `<stem>.shared.md` | Skipped. `detect_agent_drift.py` owns the section inventory |
+| `copilot-shared` | rendered Copilot template against `<stem>.shared.md` | Fails. Both feed the same platform family |
+
+Tree-specific, dropped from comparison: every frontmatter key except
+`description`, `argument-hint`, and `role`. That covers `name`, `model`,
+`model_tier`, `tools`, `tools_vscode`, `tools_copilot`, `isolation_required`,
+and `metadata` other than `metadata.role` (the Claude spelling of `role`).
+
+Shared, compared exactly: those three frontmatter keys, the preamble before the
+first H2, and the body of every H2 section both sides carry. Before comparing,
+the gate applies `detect_agent_drift.normalize_content` (MCP tool prefixes,
+handoff invocation spelling, fence language tags, trailing whitespace) and then
+ignores blank lines. Nothing else is excused. The normalization never drops a
+text line, reorders a step, or edits a number, so the eight invariants of
+ADR-107 section 5 stay in the compared text: ordered steps, completion
+criteria, evidence requirements, failure states, approval gates, authorization
+and capability statements, idempotence and rollback statements, and the
+exit-code contract. Invariants 1 to 5 and 7 are prose. The gate checks that the
+prose is equal, not what it means.
+
+Divergence that predates the gate is pinned in
+`.agents/governance/agent-source-divergence.json`. Each entry holds a digest of
+both normalized sides. The gate fails when a pinned unit changes on either
+side (re-record after review), when a pinned unit now agrees (delete the pin),
+and when the file grows past `BASELINE_CEILING`. Regenerate with
+`uv run python build/scripts/check_agent_source_parity.py --write-baseline` and
+review the diff. To remove a pin, make the two sources agree.
+
 ## Regenerating
 
 `build/scripts/build_all.py` orchestrates the generators (skills, agents,
@@ -91,6 +133,7 @@ removed after the transaction commits.
   REQ-003-010 and ADR-107 property 1 for exactly that class.
 - `templates/README.md`: template structure.
 - `build/scripts/validate_install_parity.py`: hand-maintained sibling guard.
+- `build/scripts/check_agent_source_parity.py`: agent source equivalence gate (issue #5688).
 - `.claude/rules/canonical-source-mirror.md`: claims of parity must cite and
   quote the canonical source.
 - Issue #1921: this inventory.
