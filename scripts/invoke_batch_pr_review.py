@@ -17,7 +17,7 @@ import argparse
 import json
 import subprocess
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -26,8 +26,11 @@ if str(_REPO_ROOT) not in sys.path:
 
 from scripts.github_core.repo import get_repo_root  # noqa: E402
 from scripts.github_core.worktree_identity import reset_worktree_identity  # noqa: E402
+from scripts.maintenance import removal_audit  # noqa: E402
 
 SUBPROCESS_TIMEOUT_SECONDS = 60
+AUDIT_TOOL = "invoke_batch_pr_review"
+MAX_AUDITED_DIRTY_ENTRIES = 100
 
 
 def run_git(
@@ -125,6 +128,7 @@ class WorktreeStatus:
     branch: str | None = None
     commit: str | None = None
     unpushed: bool | None = None
+    dirty_entries: list[str] = field(default_factory=list)
 
 
 def get_worktree_status(pr_number: int, worktree_root: Path) -> WorktreeStatus:
@@ -137,6 +141,7 @@ def get_worktree_status(pr_number: int, worktree_root: Path) -> WorktreeStatus:
     commit_result = run_git("log", "-1", "--format=%h", cwd=worktree_path)
 
     clean = not status_result.stdout.strip() if status_result.returncode == 0 else None
+    dirty_entries = status_result.stdout.splitlines() if status_result.returncode == 0 else []
     branch = branch_result.stdout.strip() if branch_result.returncode == 0 else None
     commit = commit_result.stdout.strip() if commit_result.returncode == 0 else None
 
@@ -154,6 +159,45 @@ def get_worktree_status(pr_number: int, worktree_root: Path) -> WorktreeStatus:
         branch=branch,
         commit=commit,
         unpushed=unpushed,
+        dirty_entries=dirty_entries,
+    )
+
+
+def main_worktree_of(worktree_path: Path) -> str | None:
+    """The main worktree of the repository ``worktree_path`` belongs to.
+
+    The first entry of ``git worktree list --porcelain`` is the main worktree.
+    """
+    result = run_git("worktree", "list", "--porcelain", cwd=worktree_path)
+    if result.returncode != 0:
+        return None
+    first = result.stdout.splitlines()[0] if result.stdout else ""
+    prefix = "worktree "
+    return first[len(prefix) :] if first.startswith(prefix) else None
+
+
+def record_removal(pr_number: int, status: WorktreeStatus, force: bool, *, log_path: Path) -> None:
+    """Append the durable audit record for a worktree this run removed (Issue #4790).
+
+    ``dirty_entries`` is the ``git status --short`` output taken before removal,
+    which names the untracked and modified paths a forced removal deleted. Git
+    status omits gitignored files, so those are not listed.
+    """
+    entries = status.dirty_entries
+    removal_audit.append_record(
+        AUDIT_TOOL,
+        str(status.path),
+        {
+            "pr": pr_number,
+            "branch": status.branch,
+            "head": status.commit,
+            "force": force,
+            "clean": status.clean,
+            "unpushed": status.unpushed,
+            "dirtyEntryCount": len(entries),
+            "dirtyEntries": entries[:MAX_AUDITED_DIRTY_ENTRIES],
+        },
+        log_path=log_path,
     )
 
 
@@ -171,6 +215,15 @@ def remove_worktree(pr_number: int, worktree_root: Path, force: bool = False) ->
         print(f"WARNING: Worktree for PR #{pr_number} has unpushed commits. Use --force.")
         return False
 
+    main_worktree = main_worktree_of(status.path)
+    if main_worktree is None:
+        print(
+            f"WARNING: Cannot locate the main worktree for PR #{pr_number}, so the "
+            "removal cannot be audited. Not removing."
+        )
+        return False
+    log_path = removal_audit.audit_log_path_for(main_worktree)
+
     print(f"Removing worktree for PR #{pr_number}...")
     args = ["worktree", "remove", str(status.path)]
     if force:
@@ -182,6 +235,14 @@ def remove_worktree(pr_number: int, worktree_root: Path, force: bool = False) ->
         return False
 
     print(f"Removed: {status.path}")
+    try:
+        record_removal(pr_number, status, force, log_path=log_path)
+    except OSError as exc:
+        print(
+            f"WARNING: PR #{pr_number}: removed, but the audit record was not written "
+            f"to {log_path}: {exc}",
+            file=sys.stderr,
+        )
     return True
 
 
