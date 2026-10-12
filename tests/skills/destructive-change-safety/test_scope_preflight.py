@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
+from typing import Any
 
 import pytest
 import scope_preflight
@@ -34,7 +35,7 @@ COUNT_QUERIES = {
 def row_count(path: Path, table: str) -> int:
     conn = sqlite3.connect(path)
     try:
-        return conn.execute(COUNT_QUERIES[table]).fetchone()[0]
+        return int(conn.execute(COUNT_QUERIES[table]).fetchone()[0])
     finally:
         conn.close()
 
@@ -105,7 +106,7 @@ def test_file_preview_selects_only_matching_files(tmp_path: Path) -> None:
 
 def test_file_cleanup_driven_by_the_preview_spares_the_sentinel(tmp_path: Path) -> None:
     make_tree(tmp_path)
-    preview = scope_preflight.preview_files(tmp_path, ["cache/*.tmp"])
+    preview: dict[str, Any] = scope_preflight.preview_files(tmp_path, ["cache/*.tmp"])
     for relative in preview["files"]:
         (tmp_path / relative).unlink()
     assert (tmp_path / "sentinel.txt").read_text(encoding="utf-8") == "keep"

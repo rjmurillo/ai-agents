@@ -1,7 +1,7 @@
 ---
 name: destructive-change-safety
 version: 1.0.0
-description: Prove blast radius and recovery before a change that can delete, overwrite, revoke, or irreversibly mutate state. Finds destructive sinks, traces callers and changed inputs to them, previews affected scope without mutating, and blocks on unknown scope, unexpected cardinality, or missing rollback. Use when you say `is this delete safe`, `blast radius`, or `check this destructive change`, or when a diff reaches a delete, truncate, drop, overwrite, or revoke path. Do NOT use for read-only changes (it skips them), security review (use security-scan), or history archaeology (use chestertons-fence).
+description: Prove blast radius and recovery before a change that deletes, overwrites, drops, or revokes state. Scans for destructive sinks, traces callers and flags, previews scope without mutating, and blocks on unknown scope, bad cardinality, or no rollback. Use when you say `is this delete safe` or `blast radius`. Do NOT use for read-only changes or security review (use security-scan).
 license: MIT
 user-invocable: true
 metadata:

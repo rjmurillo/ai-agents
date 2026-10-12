@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import copy
 from pathlib import Path
+from typing import Any
 
 import gate_verdict
 import pytest
 
 
-def good_evidence() -> dict:
+def good_evidence() -> dict[str, Any]:
     return {
         "sinks": [{"location": "store.py:10", "trace": ["main", "purge"]}],
         "preflight": {"command": "preview-sql ...", "exit_code": 0, "measured": 3},
@@ -19,11 +20,11 @@ def good_evidence() -> dict:
     }
 
 
-def verdict(evidence: dict, scan: dict | None = None) -> dict:
+def verdict(evidence: dict[str, Any], scan: dict[str, Any] | None = None) -> dict[str, Any]:
     return gate_verdict.evaluate(evidence, scan)
 
 
-def reasons(evidence: dict, scan: dict | None = None) -> str:
+def reasons(evidence: dict[str, Any], scan: dict[str, Any] | None = None) -> str:
     return " | ".join(verdict(evidence, scan)["reasons"])
 
 
@@ -81,7 +82,7 @@ def test_missing_preflight_is_unknown_scope() -> None:
         {"exit_code": 0, "measured": "3"},
     ],
 )
-def test_preflight_that_failed_or_measured_nothing_blocks(preflight: dict) -> None:
+def test_preflight_that_failed_or_measured_nothing_blocks(preflight: dict[str, Any]) -> None:
     evidence = good_evidence()
     evidence["preflight"] = preflight
     assert verdict(evidence)["verdict"] == "BLOCK"
@@ -134,7 +135,7 @@ def test_irreversible_with_human_approval_passes() -> None:
     assert verdict(evidence)["verdict"] == "PASS"
 
 
-def backup_evidence(tmp_path: Path, backup_text: str) -> dict:
+def backup_evidence(tmp_path: Path, backup_text: str) -> dict[str, Any]:
     source = tmp_path / "state.json"
     backup = tmp_path / "state.json.bak"
     source.write_text("canonical", encoding="utf-8")

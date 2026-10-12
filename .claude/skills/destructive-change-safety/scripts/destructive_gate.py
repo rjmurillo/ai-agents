@@ -103,7 +103,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        return args.run(args)
+        return int(args.run(args))
     except ConfigError as error:
         print(f"config error: {error}", file=sys.stderr)
         return 2

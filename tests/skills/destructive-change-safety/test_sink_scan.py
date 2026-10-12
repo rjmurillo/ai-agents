@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 import sink_scan
@@ -10,15 +11,15 @@ import sink_scan
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
-def scan_dir(root: Path, changed: list[str] | None = None) -> dict:
+def scan_dir(root: Path, changed: list[str] | None = None) -> dict[str, Any]:
     return sink_scan.scan([root], root, changed or [])
 
 
-def sink_labels(report: dict) -> set[str]:
+def sink_labels(report: dict[str, Any]) -> set[str]:
     return {s["label"] for s in report["sinks"]}
 
 
-def scan_source(tmp_path: Path, source: str) -> dict:
+def scan_source(tmp_path: Path, source: str) -> dict[str, Any]:
     (tmp_path / "mod.py").write_text(source, encoding="utf-8")
     return scan_dir(tmp_path)
 
@@ -163,7 +164,7 @@ def test_scanning_a_single_file_and_a_path_outside_base(tmp_path: Path) -> None:
     target.write_text("import os\ndef f():\n    os.remove('x')\n", encoding="utf-8")
     elsewhere = tmp_path / "base"
     elsewhere.mkdir()
-    report = sink_scan.scan([target], elsewhere, [])
+    report: dict[str, Any] = sink_scan.scan([target], elsewhere, [])
     assert report["sinks"][0]["location"] == f"{target.as_posix()}:3"
 
 
@@ -246,7 +247,7 @@ def test_forward_trace_survives_a_call_cycle(tmp_path: Path) -> None:
 def test_real_repository_gc_path_traces_from_apply_flag() -> None:
     """The #4790 cleanup path: the --apply flag reaches `git worktree remove`."""
     maintenance = REPO_ROOT / "scripts" / "maintenance"
-    report = sink_scan.scan([maintenance], REPO_ROOT, ["apply_removals"])
+    report: dict[str, Any] = sink_scan.scan([maintenance], REPO_ROOT, ["apply_removals"])
     removal = [s for s in report["sinks"] if s["label"] == "worktree remove"]
     assert removal, "git worktree remove sink in scripts/maintenance went undetected"
     assert removal[0]["function"] == "remove_worktree"

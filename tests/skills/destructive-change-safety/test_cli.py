@@ -7,6 +7,7 @@ import sqlite3
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 import destructive_gate
 import pytest
@@ -40,7 +41,7 @@ def make_db(path: Path, rows: int) -> None:
     conn.close()
 
 
-def evidence_for(measured: int, expected: int, location: str) -> dict:
+def evidence_for(measured: int, expected: int, location: str) -> dict[str, Any]:
     return {
         "sinks": [{"location": location, "trace": ["main", "purge"]}],
         "preflight": {"command": "preview-sql", "exit_code": 0, "measured": measured},

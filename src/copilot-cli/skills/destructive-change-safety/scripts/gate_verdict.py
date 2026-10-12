@@ -28,6 +28,7 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Callable
 from pathlib import Path
+from typing import TypeGuard
 
 Evidence = dict[str, object]
 Rule = Callable[[Evidence, "list[str]"], list[str]]
@@ -44,7 +45,7 @@ def as_list(value: object) -> list[object]:
     return value if isinstance(value, list) else []
 
 
-def is_int(value: object) -> bool:
+def is_int(value: object) -> TypeGuard[int]:
     return isinstance(value, int) and not isinstance(value, bool)
 
 
