@@ -129,6 +129,7 @@
 |taste count ratchet pre-push cost twelve minutes python-tests: [ci/run-count-ratchets-before-the-expensive-pre-push](ci/run-count-ratchets-before-the-expensive-pre-push.md) (875)
 |pre-push wall clock duration python-tests partitions mutation contention DORA: [ci/ci-pre-push-wall-clock-is-python-tests](ci/ci-pre-push-wall-clock-is-python-tests.md) (1854)
 |CLAUDE_PLUGIN_ROOT pycache bytecode generated staleness gate python-tests collect only full suite merge_group D9 review marker merge main: [ci/ci-local-push-and-test-environment-contracts](ci/ci-local-push-and-test-environment-contracts.md) (608)
+|required checks nine ruleset main dispatch closure advisory verify_dispatch_closure behind main merge origin/main: [ci/ci-main-required-checks-are-nine-and-dispatch-closure-is-advisory](ci/ci-main-required-checks-are-nine-and-dispatch-closure-is-advisory.md) (378)
 |nl structural debt update-baseline refuses new section growth baseline json seed: [ci/ci-nl-structural-debt-update-baseline-refuses-a-new-section](ci/ci-nl-structural-debt-update-baseline-refuses-a-new-section.md) (294)
 |polling PR checks GraphQL secondary rate limit 3 minutes parallel agents outage: [ci/ci-polling-pr-checks-trips-the-graphql-secondary-limit](ci/ci-polling-pr-checks-trips-the-graphql-secondary-limit.md) (272)
 |tmp tmpfs inode cap ENOSPC parallel pre-push TMPDIR harness output issue 6292: [ci/ci-tmp-inode-cap-stops-every-tool-call-during-parallel-pushes](ci/ci-tmp-inode-cap-stops-every-tool-call-during-parallel-pushes.md) (317)
