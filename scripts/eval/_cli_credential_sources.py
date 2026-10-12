@@ -164,10 +164,11 @@ def _probe_env(environ: Mapping[str, str]) -> dict[str, str]:
 def _probe_output(
     argv: list[str], environ: Mapping[str, str], *, include_stderr: bool = False
 ) -> str | None:
-    """Stdout of a probe that exited 0, or None on any failure.
+    """Output of a probe that exited 0, or None on any failure.
 
-    `include_stderr` appends stderr after stdout, for a CLI that prints its
-    status there. A caller that parses stdout as JSON must leave it off.
+    The output is stdout, plus stderr when `include_stderr` is set. That flag
+    suits a CLI that prints its status on stderr. A caller that parses stdout
+    as JSON must leave it off.
     """
     try:
         completed = subprocess.run(
