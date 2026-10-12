@@ -15,7 +15,7 @@
 # earlier version pinned this suppression's evidence to a specific line
 # count and a specific "eight-check" claim, and both drifted stale on the
 # very next edit, Copilot, PR #5209 round-10 review), and those docstrings
-# carry the verbatim ADR-073 schema quote and the `_split_frontmatter`
+# carry the ADR-073 schema reference and the `_split_frontmatter`
 # divergence section that `.claude/rules/canonical-source-mirror.md`
 # requires. Precedent in this directory: `check_doc_interpreter_portability.py`
 # carries the same suppression for the same reason, "one CLI owns scan,
@@ -37,21 +37,11 @@ eighth check below), and `prose-frontmatter-agree` skips a record with no
 enum authoritative (Copilot, PR #5209 round-7 review).
 
 The schema enforced here is ADR-073 (`ADR-073-adr-lifecycle-frontmatter.md`),
-whose Decision section defines the block verbatim as::
-
-    id: ADR-NNN
-    status: proposed | accepted | rejected | deprecated | superseded   # enum, no prose
-    date: YYYY-MM-DD          # last updated
-    decision-makers: []
-    supersedes: []            # ADR ids this record supersedes
-    superseded-by: null       # ADR id that supersedes this record, or null
-    explainer: null           # link to a living design doc, if paired
-    implemented: false        # flips true at first merged change; gates amend-vs-supersede
-
-That ADR binds one behavior, quoted verbatim: "When the two disagree, the
-frontmatter wins, the gate flags the drift, and the author reconciles by editing
-the prose to match; the gate never silently rewrites prose." This gate is
-read-only. It opens ADR files and never writes one.
+which owns the frontmatter block and the rule that the frontmatter wins over
+prose on disagreement. This module does not copy either. `LIFECYCLE_STATUSES`
+is held to the ADR-073 status enum by
+`test_lifecycle_statuses_conform_to_adr_073`. This gate is read-only. It opens
+ADR files and never writes one.
 
 Stricter/looser/different than canonical: ADR-073 defers enforcement to
 "Phases 3 to 4 (enforce; deferred, consumer-gated)" and warns that a gate
@@ -136,6 +126,8 @@ from checks_common import (  # noqa: E402
 )
 from yaml_utils import _parse_yaml_frontmatter  # noqa: E402
 
+# Imported, not redefined, so the two ADR gates never disagree about which files are ADRs.
+from scripts.validation.check_adr_uniqueness import ADR_FILENAME_RE  # noqa: E402
 from scripts.validation.frontmatter_contract import FrontmatterStatus  # noqa: E402
 from scripts.validation.frontmatter_contract import (  # noqa: E402
     parse_frontmatter as _parse_frontmatter_block,
@@ -156,16 +148,11 @@ CHECKS: tuple[str, ...] = (
     "status-edge-consistency",
 )
 
-# ADR-073 Decision section, verbatim: "status: proposed | accepted | rejected |
-# deprecated | superseded   # enum, no prose".
+# The ADR-073 status enum. `test_lifecycle_statuses_conform_to_adr_073` fails when
+# the ADR and this set disagree.
 LIFECYCLE_STATUSES: frozenset[str] = frozenset(
     {"proposed", "accepted", "rejected", "deprecated", "superseded"}
 )
-
-# Mirrors ADR_FILENAME_RE in scripts/validation/check_adr_uniqueness.py, quoted
-# verbatim: r"^ADR-(\d{2,})-[^/]+\.md$". Identical so the two ADR gates never
-# disagree about which files are ADRs.
-ADR_FILENAME_RE = re.compile(r"^ADR-(\d{2,})-[^/]+\.md$")
 
 # An id reference inside frontmatter: "ADR-091", "adr-91", or a bare integer.
 _ADR_REFERENCE_RE = re.compile(r"^ADR[-_ ]?(\d{1,4})$", re.IGNORECASE)
@@ -225,7 +212,7 @@ def _split_frontmatter(text: str) -> tuple[str | None, str]:
 
     Delegates to ``scripts/validation/frontmatter_contract.parse_frontmatter``,
     which delegates in turn to ``python-frontmatter``. This function used to
-    carry its own boundary arithmetic, quoted verbatim from
+    carry its own boundary arithmetic, taken from
     ``_parse_yaml_frontmatter`` in ``scripts/validation/yaml_utils.py``::
 
         end_index = text.find("\n---", 3)
@@ -314,24 +301,14 @@ class _StrictLoader(yaml.SafeLoader):
 
 
 def _reject_duplicate_keys(loader: yaml.SafeLoader, node: yaml.MappingNode) -> dict[Any, Any]:
-    """Mirror of `_no_duplicate_keys` in build/scripts/generate_adr_index.py.
+    """Raise `_DuplicateKey`, carrying the key, when a mapping repeats a key.
 
-    Quoted verbatim from that file, which is the canonical implementation:
-
-        seen: list[Any] = []
-        for key_node, _ in node.value:
-            key = loader.construct_object(key_node, deep=True)
-            if any(key == earlier for earlier in seen):
-                raise _DuplicateKeyError(f"duplicate key {key!r} in frontmatter mapping")
-            seen.append(key)
-
-    Stricter/looser/different than canonical: identical detection, but this
-    raises an error carrying the key object so `_read_record` can name it in the
-    violation. The index generator only needs to fail the build.
+    `_read_record` names the key in the violation. `build/scripts/generate_adr_index.py`
+    no longer has its own duplicate-key loader: the three ADR parsers share the
+    contract in `frontmatter_contract`, so this loader is the only one here.
 
     A list compared with `==`, not a set: a YAML key need not be hashable
-    (`? [a, b]` builds a list key), and a set raises `TypeError` on it. See the
-    canonical docstring for the escape that shape produced.
+    (`? [a, b]` builds a list key), and a set raises `TypeError` on it.
     """
     seen: list[Any] = []
     for key_node, _ in node.value:
@@ -1079,13 +1056,8 @@ def _fork_point(repo_root: Path, base_ref: str) -> str | None:
 def _counts_at_ref(repo_root: Path, ref: str, baseline_path: Path) -> dict[str, int] | None:
     """Per-check counts recorded at ``ref``, or None when unreadable.
 
-    Mirrors ``scripts/ci/count_ratchet.py``'s ``baseline_at_ref`` verbatim in
-    shape, quoted from that function's body::
-
-        rel = _baseline_rel(repo_root, baseline)
-        proc = _git_run(repo_root, ["show", f"{ref}:{rel}"])
-        ...
-        return int(proc.stdout.strip())
+    Follows ``baseline_at_ref`` in ``scripts/ci/count_ratchet.py``, whose git
+    plumbing is the canonical form; this function does not restate it.
 
     Stricter/looser/different than canonical: that helper parses a bare
     integer because every other count ratchet in this repo baselines a
@@ -1114,15 +1086,13 @@ def write_baseline(path: Path, counts: dict[str, int]) -> None:
     """Record ``counts`` as the new ceiling. Fixed key order keeps diffs small.
 
     Writes through a temporary sibling file plus ``os.replace()`` rather than
-    truncating ``path`` directly. Mirrors ``scripts/ai_review_common/
-    cache_guard.py``'s ``_atomic_write_text`` verbatim: "Writes to a temp
-    file in the same directory, then os.replace swaps it into place, so a
-    crash or two concurrent writers cannot leave the file half-written or
-    truncated." A direct ``path.write_text()`` interrupted mid-write (a
-    killed process, a full disk) leaves invalid JSON in place, and this file
-    is the ratchet ceiling every subsequent ``pre_pr.py`` run reads: a
-    corrupted baseline blocks every push until someone reconstructs it by
-    hand (Copilot, PR #5209 round-10 review).
+    truncating ``path`` directly. The temp-file-then-swap technique is
+    ``_atomic_write_text`` in ``scripts/ai_review_common/cache_guard.py``, so a
+    crash or two concurrent writers cannot leave the file half-written. A direct
+    ``path.write_text()`` interrupted mid-write (a killed process, a full
+    disk) leaves invalid JSON in place, and this file is the ratchet ceiling
+    every subsequent ``pre_pr.py`` run reads: a corrupted baseline blocks every
+    push until someone reconstructs it by hand (Copilot, PR #5209 round-10 review).
     """
     payload = {
         "schema_version": "1",
@@ -1218,12 +1188,8 @@ def run(
     if args.write_baseline:
         # .claude/rules/ci-scripts.md MUST 7: a script that resolves the
         # repository root and then writes to it must confirm the caller's cwd
-        # sits inside that root before the first write. Mirrors
-        # scripts/generate_third_party_notices.py:446-452 verbatim:
-        #   project_root = PROJECT_ROOT
-        #   if not Path.cwd().resolve().is_relative_to(project_root.resolve()):
-        #       print(f"ERROR: current directory is outside project root: {Path.cwd()}", ...)
-        #       return 2
+        # sits inside that root before the first write. Follows the cwd check in
+        # scripts/generate_third_party_notices.py.
         #
         # Stricter/looser/different than canonical: the canonical script's
         # PROJECT_ROOT has no CLI override, so every invocation is the risky
@@ -1246,12 +1212,9 @@ def run(
         # baseline" as the cross-worktree write MUST 7 exists to prevent.
         # It is not: MUST 7's own stated threat is a script's *implicit*
         # resolution being silently redirected by state the caller cannot
-        # see, quoted verbatim from `.claude/rules/ci-scripts.md`: "a local
-        # `core.worktree` value or a `GIT_WORK_TREE` environment variable
-        # redirects it to a directory you are not standing in ... the
-        # redirection is always something a person or a tool set on
-        # purpose, which is exactly why a script that inherits it has no
-        # way to notice." A caller-typed `--repo-root` is the opposite of
+        # see, as `.claude/rules/ci-scripts.md` MUST 7 explains: a redirection set
+        # by `core.worktree` or `GIT_WORK_TREE` is invisible to a script that
+        # inherits it. A caller-typed `--repo-root` is the opposite of
         # that: nothing is inherited or hidden, the target is exactly what
         # was written on the command line. Worktree A/B is a possible
         # *user* mistake, not an undetectable one, and no mechanism here
