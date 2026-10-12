@@ -353,7 +353,13 @@ def _fetch_pr_state(
                 output_format,
                 pr,
             )
-        _emit_error(f"Failed to get PR state: {output}", 3, "ApiError", output_format, pr)
+        _emit_error(
+            f"Failed to get PR state: {sanitize_failure_detail(output)}",
+            3,
+            "ApiError",
+            output_format,
+            pr,
+        )
 
     try:
         data = json.loads(pr_result.stdout)
@@ -597,7 +603,9 @@ def _handle_merge_failure(
             _EXIT_NOT_MERGEABLE,
             "General",
         )
-    raise _MergeFailureError(f"Failed to merge PR #{pr}: {output}", 3, "ApiError")
+    raise _MergeFailureError(
+        f"Failed to merge PR #{pr}: {sanitize_failure_detail(output)}", 3, "ApiError"
+    )
 
 
 def _run_merge(merge_args: list[str], pr: int) -> subprocess.CompletedProcess[str]:
@@ -877,7 +885,7 @@ def _resolve_strategy(
                 args.output_format,
                 pr,
             )
-        _emit_error(str(exc), 3, "ApiError", args.output_format, pr)
+        _emit_error(sanitize_failure_detail(str(exc)), 3, "ApiError", args.output_format, pr)
     chosen = resolve_default_strategy(repo_settings)
     if chosen is None:
         _emit_error(
