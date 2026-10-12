@@ -204,6 +204,7 @@ error_recovery:
 #   command        Command template; {pr} is substituted with the PR number. It is
 #                  split like a shell line and run without a shell; the plugin-root
 #                  form ${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}} is expanded.
+#                  Other $VAR syntax stays literal; nothing else is expanded.
 #   pass_when      DSL expression evaluated against the parsed stdout JSON.
 #   pass_when_python  (Optional) Python lambda escape hatch when DSL is too narrow.
 #   fail_open      (Optional, default false) Treat dispatch errors as a pass.

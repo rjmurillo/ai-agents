@@ -60,6 +60,43 @@ class TestFormatCommandExpandsThePluginRoot:
         monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", "/claude")
         assert gate._format_command(_command(), 7)[1] == f"/claude/{_EMIT}"
 
+    @pytest.mark.parametrize(
+        ("form", "env", "expected"),
+        [
+            (_FORM, {"COPILOT_PLUGIN_ROOT": "/c", "CLAUDE_PLUGIN_ROOT": "/a"}, "/c"),
+            (
+                "${CLAUDE_PLUGIN_ROOT:-${COPILOT_PLUGIN_ROOT:-.claude}}",
+                {"COPILOT_PLUGIN_ROOT": "/c", "CLAUDE_PLUGIN_ROOT": "/a"},
+                "/a",
+            ),
+            (
+                "${CLAUDE_PLUGIN_ROOT:-${COPILOT_PLUGIN_ROOT:-.claude}}",
+                {"COPILOT_PLUGIN_ROOT": "/c"},
+                "/c",
+            ),
+            ("${COPILOT_PLUGIN_ROOT:-.claude}", {"CLAUDE_PLUGIN_ROOT": "/a"}, ".claude"),
+            ("${COPILOT_PLUGIN_ROOT:-.claude}", {"COPILOT_PLUGIN_ROOT": "/c"}, "/c"),
+            ("${CLAUDE_PLUGIN_ROOT:-.claude}", {"COPILOT_PLUGIN_ROOT": "/c"}, ".claude"),
+            ("${CLAUDE_PLUGIN_ROOT:-.claude}", {"CLAUDE_PLUGIN_ROOT": "/a"}, "/a"),
+        ],
+    )
+    def test_each_form_resolves_as_the_shell_would(
+        self, monkeypatch: pytest.MonkeyPatch, form: str, env: dict[str, str], expected: str
+    ) -> None:
+        # Verified and executed paths must both match what a shell resolves.
+        for name, value in env.items():
+            monkeypatch.setenv(name, value)
+        shell = subprocess.run(
+            ["sh", "-c", f'printf %s "{form}"'],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            check=True,
+            env={**os.environ, **env},
+        ).stdout
+        assert shell == expected
+        assert gate._format_command(f'python3 "{form}/x.py"', 7)[1] == f"{expected}/x.py"
+
     def test_other_shell_syntax_stays_literal(self) -> None:
         # Not general shell emulation: anything but the documented forms is
         # left for _unverifiable_argv to report.

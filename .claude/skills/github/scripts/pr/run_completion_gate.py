@@ -1442,31 +1442,37 @@ def _first_symlinked_component(candidate: Path, root: Path) -> Path | None:
 # it literal made the token resolve to no file on disk, so the preflight
 # script the scripts map actually runs was classified as nothing-to-verify
 # and the verdict read "trusted" without ever comparing it (issue #5520).
-_PLUGIN_ROOT_FORMS = (
-    "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}",
-    "${CLAUDE_PLUGIN_ROOT:-${COPILOT_PLUGIN_ROOT:-.claude}}",
-    "${COPILOT_PLUGIN_ROOT:-.claude}",
-    "${CLAUDE_PLUGIN_ROOT:-.claude}",
-)
+# Each form maps to the variables it reads, in the order the shell reads
+# them, so the expansion picks the same root a shell would for every form.
+_PLUGIN_ROOT_FORMS: dict[str, tuple[str, ...]] = {
+    "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}": (
+        "COPILOT_PLUGIN_ROOT",
+        "CLAUDE_PLUGIN_ROOT",
+    ),
+    "${CLAUDE_PLUGIN_ROOT:-${COPILOT_PLUGIN_ROOT:-.claude}}": (
+        "CLAUDE_PLUGIN_ROOT",
+        "COPILOT_PLUGIN_ROOT",
+    ),
+    "${COPILOT_PLUGIN_ROOT:-.claude}": ("COPILOT_PLUGIN_ROOT",),
+    "${CLAUDE_PLUGIN_ROOT:-.claude}": ("CLAUDE_PLUGIN_ROOT",),
+}
 
 
 def _expand_plugin_root(token: str) -> str:
     """Resolve the documented plugin-root indirection, or return as-is.
 
-    Mirrors the shell's ``${VAR:-default}``: the environment wins when
-    set and non-empty, otherwise the literal default. Only the exact
-    forms in :data:`_PLUGIN_ROOT_FORMS` are expanded. Anything else
-    keeps its ``$`` and is reported by :func:`_unverifiable_argv`
-    instead of being quietly resolved to the wrong thing.
+    Mirrors the shell's ``${VAR:-default}``: the first variable the form
+    names that is set and non-empty wins, otherwise the literal default.
+    Only the exact forms in :data:`_PLUGIN_ROOT_FORMS` are expanded.
+    Anything else keeps its ``$`` and is reported by
+    :func:`_unverifiable_argv` instead of being quietly resolved to the
+    wrong thing.
     """
-    for form in _PLUGIN_ROOT_FORMS:
+    for form, variables in _PLUGIN_ROOT_FORMS.items():
         if form not in token:
             continue
-        root = (
-            os.environ.get("COPILOT_PLUGIN_ROOT")
-            or os.environ.get("CLAUDE_PLUGIN_ROOT")
-            or ".claude"
-        )
+        values = (os.environ.get(name) for name in variables)
+        root = next((value for value in values if value), ".claude")
         return token.replace(form, root)
     return token
 
