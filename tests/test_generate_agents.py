@@ -116,10 +116,7 @@ class TestReadPlatformConfig:
     def test_parses_boolean_values(self, tmp_path: Path) -> None:
         config_file = tmp_path / "test.yaml"
         config_file.write_text(
-            "platform: test\n"
-            "settings:\n"
-            "  enabled: true\n"
-            "  disabled: false\n",
+            "platform: test\nsettings:\n  enabled: true\n  disabled: false\n",
             encoding="utf-8",
         )
         result = read_platform_config(config_file)
@@ -132,9 +129,7 @@ class TestReadPlatformConfig:
     def test_parses_quoted_strings(self, tmp_path: Path) -> None:
         config_file = tmp_path / "test.yaml"
         config_file.write_text(
-            'platform: test\n'
-            'frontmatter:\n'
-            '  model: "Claude Opus 4.5 (copilot)"\n',
+            'platform: test\nfrontmatter:\n  model: "Claude Opus 4.5 (copilot)"\n',
             encoding="utf-8",
         )
         result = read_platform_config(config_file)
@@ -146,10 +141,7 @@ class TestReadPlatformConfig:
     def test_skips_comments(self, tmp_path: Path) -> None:
         config_file = tmp_path / "test.yaml"
         config_file.write_text(
-            "# This is a comment\n"
-            "platform: test\n"
-            "# Another comment\n"
-            "outputDir: src/test\n",
+            "# This is a comment\nplatform: test\n# Another comment\noutputDir: src/test\n",
             encoding="utf-8",
         )
         result = read_platform_config(config_file)
@@ -227,9 +219,7 @@ class TestGenerateAgents:
         exit_code = generate_agents(templates_path, output_root, repo_root, validate=True)
         assert exit_code == 1
 
-    def test_output_root_symlink_ancestor_is_still_detected(
-        self, tmp_path: Path
-    ) -> None:
+    def test_output_root_symlink_ancestor_is_still_detected(self, tmp_path: Path) -> None:
         """The generator's own "cannot contain symlinks" contract must not
         go blind at output_root itself: output_root is resolved (symlinks
         dereferenced) before the containment check, and the ancestor scan
@@ -292,11 +282,7 @@ class TestGenerateAgents:
         # Add handoff syntax to the shared template
         agents_dir = templates_path / "agents"
         (agents_dir / "test-agent.shared.md").write_text(
-            "---\n"
-            "description: Test\n"
-            "tools: ['read']\n"
-            "---\n"
-            "Use `/agent analyst` for research.\n",
+            "---\ndescription: Test\ntools: ['read']\n---\nUse `/agent analyst` for research.\n",
             encoding="utf-8",
         )
 
@@ -335,11 +321,7 @@ class TestGenerateAgents:
         # Use toolset reference in shared template
         agents_dir = templates_path / "agents"
         (agents_dir / "test-agent.shared.md").write_text(
-            "---\n"
-            "description: Test\n"
-            "tools: ['$toolset:editor', 'web']\n"
-            "---\n"
-            "# Test Agent\n",
+            "---\ndescription: Test\ntools: ['$toolset:editor', 'web']\n---\n# Test Agent\n",
             encoding="utf-8",
         )
 
@@ -383,15 +365,11 @@ class TestGenerateAgents:
         # output; the fix must drop it instead of ever emitting it.
         assert "model:" not in copilot_content
 
-    def test_rejects_non_allowlisted_agent_output_directory(
-        self, tmp_path: Path
-    ) -> None:
+    def test_rejects_non_allowlisted_agent_output_directory(self, tmp_path: Path) -> None:
         repo_root, templates_path, output_root = _create_test_structure(tmp_path)
         platform = templates_path / "platforms" / "vscode.yaml"
         platform.write_text(
-            "platform: vscode\n"
-            "outputDir: .git/hooks\n"
-            "fileExtension: .agent.md\n",
+            "platform: vscode\noutputDir: .git/hooks\nfileExtension: .agent.md\n",
             encoding="utf-8",
         )
 
@@ -404,9 +382,7 @@ class TestGenerateAgents:
         repo_root, templates_path, output_root = _create_test_structure(tmp_path)
         platform = templates_path / "platforms" / "vscode.yaml"
         platform.write_text(
-            "platform: copilot-cli\n"
-            "outputDir: src/copilot-cli\n"
-            "fileExtension: .agent.md\n",
+            "platform: copilot-cli\noutputDir: src/copilot-cli\nfileExtension: .agent.md\n",
             encoding="utf-8",
         )
 
@@ -415,9 +391,7 @@ class TestGenerateAgents:
         assert exit_code == 1
         assert not (repo_root / "src/copilot-cli/test-agent.agent.md").exists()
 
-    def test_rejects_agent_output_suffix_with_path_traversal(
-        self, tmp_path: Path
-    ) -> None:
+    def test_rejects_agent_output_suffix_with_path_traversal(self, tmp_path: Path) -> None:
         repo_root, templates_path, output_root = _create_test_structure(tmp_path)
         platform = templates_path / "platforms" / "vscode.yaml"
         platform.write_text(

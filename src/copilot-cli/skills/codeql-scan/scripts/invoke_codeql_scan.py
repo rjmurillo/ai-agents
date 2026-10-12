@@ -181,9 +181,7 @@ def _validate_config(repo_root: Path) -> int:
         _color_print(f"Configuration script not found: {config_script}", "error")
         return 3
 
-    returncode = _run_delegate(
-        [_python_executable(), str(config_script)], repo_root
-    )
+    returncode = _run_delegate([_python_executable(), str(config_script)], repo_root)
     if returncode is None:
         return 3
     if returncode == 0:

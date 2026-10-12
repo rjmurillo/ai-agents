@@ -294,9 +294,7 @@ def test_the_sweep_step_leaves_the_job_summary_variable_alone() -> None:
 
     steps = workflow["jobs"]["discover-prs"]["steps"]
     step = next(
-        s
-        for s in steps
-        if "scripts/maintenance/detect_orphan_commits.py" in str(s.get("run", ""))
+        s for s in steps if "scripts/maintenance/detect_orphan_commits.py" in str(s.get("run", ""))
     )
 
     assert "GITHUB_STEP_SUMMARY" not in step.get("env", {})

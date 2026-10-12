@@ -43,9 +43,12 @@ class _Detector:
 
 def _args(tmp_path: Path) -> list[str]:
     return [
-        "--detector", str(tmp_path / "detect.py"),
-        "--base-ref", "origin/main",
-        "--output", str(tmp_path / "audit.json"),
+        "--detector",
+        str(tmp_path / "detect.py"),
+        "--base-ref",
+        "origin/main",
+        "--output",
+        str(tmp_path / "audit.json"),
     ]
 
 
@@ -80,9 +83,7 @@ def test_missing_report_after_a_success_code_fails(
 def test_empty_report_after_a_success_code_fails(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    monkeypatch.setattr(
-        subprocess, "run", _Detector(0, tmp_path / "audit.json", body="")
-    )
+    monkeypatch.setattr(subprocess, "run", _Detector(0, tmp_path / "audit.json", body=""))
     assert main(_args(tmp_path)) == 1
     assert "missing or empty" in capsys.readouterr().out
 

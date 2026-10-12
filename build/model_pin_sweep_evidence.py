@@ -193,9 +193,7 @@ def _report_measurements_qualify(report: dict[str, object]) -> bool:
     return ci_low > 0.0
 
 
-def sweep_report_satisfies_rule2(
-    artifact_path: Path, entry: dict[str, object]
-) -> bool:
+def sweep_report_satisfies_rule2(artifact_path: Path, entry: dict[str, object]) -> bool:
     """Parse the sweep artifact and cross-check its content against ``entry``.
 
     ``(repo_root / artifact).is_file()`` in ``model_pin_manifest.py``'s
@@ -236,9 +234,7 @@ def sweep_report_satisfies_rule2(
         return False
     if report.get("fixtures_sha") != entry.get("fixtures_sha"):
         return False
-    if not _report_model_id_matches(
-        report.get("default_model"), entry.get("default_model")
-    ):
+    if not _report_model_id_matches(report.get("default_model"), entry.get("default_model")):
         return False
     if not _report_models_are_single_candidate(report):
         return False

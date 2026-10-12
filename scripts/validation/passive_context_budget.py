@@ -105,8 +105,7 @@ def validate_passive_context(
 ) -> list[FileResult]:
     """Validate all configured passive context files. Returns results list."""
     return [
-        measure_file(repo_root, rel_path, budget)
-        for rel_path, budget in sorted(budgets.items())
+        measure_file(repo_root, rel_path, budget) for rel_path, budget in sorted(budgets.items())
     ]
 
 

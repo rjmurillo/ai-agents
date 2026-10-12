@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size (ruff format pushed this file past 500 lines)
 """Per-PR round/time circuit breaker for pr-autofix's T3/T4 thread loop (issue #5056).
 
 pr-autofix's thread-lifecycle loop (Phase 2, T3/T4 of the pr-autofix skill in
@@ -133,8 +134,7 @@ def _run_gh_read(gh_args: list[str], what: str) -> str:
         raise RoundCapStoreError(f"{what} failed: {exc}") from exc
     if result.returncode != 0:
         raise RoundCapStoreError(
-            f"{what} exited {result.returncode}: "
-            f"{safe_log_str((result.stderr or '')[:200])}"
+            f"{what} exited {result.returncode}: {safe_log_str((result.stderr or '')[:200])}"
         )
     return result.stdout or ""
 
@@ -184,7 +184,8 @@ def _actor_has_write_access(owner: str, repo: str, login: str) -> bool:
         permission = _run_gh_read([endpoint, "--jq", ".permission"], "permission read")
     except RoundCapStoreError as exc:
         logger.warning(
-            "op=round_cap_permission_failed error=%s", safe_log_str(str(exc)),
+            "op=round_cap_permission_failed error=%s",
+            safe_log_str(str(exc)),
         )
         return False
     return permission.strip() in _WRITE_PERMISSIONS
@@ -229,8 +230,7 @@ def _post_comment(owner: str, repo: str, pr_number: int, body: str) -> None:
         raise RoundCapStoreError(f"comment post failed: {exc}") from exc
     if result.returncode != 0:
         raise RoundCapStoreError(
-            f"comment post exited {result.returncode}: "
-            f"{safe_log_str((result.stderr or '')[:200])}"
+            f"comment post exited {result.returncode}: {safe_log_str((result.stderr or '')[:200])}"
         )
 
 
@@ -263,8 +263,13 @@ __all__ = [
 
 
 def _emit_error(
-    message: str, code: int, error_type: str,
-    output_format: str, pr_number: int, owner: str, repo: str,
+    message: str,
+    code: int,
+    error_type: str,
+    output_format: str,
+    pr_number: int,
+    owner: str,
+    repo: str,
 ) -> NoReturn:
     write_skill_error(
         message,
@@ -289,16 +294,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument(
-        "--pull-request", type=int, required=True, help="Pull request number",
+        "--pull-request",
+        type=int,
+        required=True,
+        help="Pull request number",
     )
     parser.add_argument(
         "--max-rounds",
         type=int,
         default=int(os.environ.get("PR_AUTOFIX_MAX_ROUNDS", _DEFAULT_MAX_ROUNDS)),
-        help=(
-            "Round cap. Default: $PR_AUTOFIX_MAX_ROUNDS or "
-            f"{_DEFAULT_MAX_ROUNDS} if unset."
-        ),
+        help=(f"Round cap. Default: $PR_AUTOFIX_MAX_ROUNDS or {_DEFAULT_MAX_ROUNDS} if unset."),
     )
     parser.add_argument(
         "--max-hours",
@@ -329,14 +334,19 @@ def _optional_head_sha(owner: str, repo: str, pr_number: int) -> str | None:
         return _fetch_head_sha(owner, repo, pr_number)
     except RoundCapStoreError as exc:
         logger.warning(
-            "op=round_cap_head_sha_failed pr=%d error=%s", pr_number, safe_log_str(str(exc)),
+            "op=round_cap_head_sha_failed pr=%d error=%s",
+            pr_number,
+            safe_log_str(str(exc)),
         )
         return None
 
 
 def _optional_events(
-    owner: str, repo: str, pr_number: int,
-    prior_state: dict[str, Any] | None, operator_flag: bool,
+    owner: str,
+    repo: str,
+    pr_number: int,
+    prior_state: dict[str, Any] | None,
+    operator_flag: bool,
 ) -> list[dict[str, Any]]:
     """Timeline events for reopen detection. Skipped when no prior state or the
     operator flag already decides the reset; a fetch failure fails safe (no reset)."""
@@ -346,20 +356,29 @@ def _optional_events(
         return _list_issue_events(owner, repo, pr_number)
     except RoundCapStoreError as exc:
         logger.warning(
-            "op=round_cap_events_failed pr=%d error=%s", pr_number, safe_log_str(str(exc)),
+            "op=round_cap_events_failed pr=%d error=%s",
+            pr_number,
+            safe_log_str(str(exc)),
         )
         return []
 
 
 def _post_escalation_note(
-    owner: str, repo: str, pr_number: int,
-    result: dict[str, Any], args: argparse.Namespace,
+    owner: str,
+    repo: str,
+    pr_number: int,
+    result: dict[str, Any],
+    args: argparse.Namespace,
 ) -> bool:
     """Post the human-readable ESCALATE note. Non-fatal on failure: the state
     marker is already persisted and the ESCALATE verdict still fires."""
     body = render_escalation_comment(
-        pr_number, result["round"], args.max_rounds,
-        result["elapsed_hours"], args.max_hours, result["reason"],
+        pr_number,
+        result["round"],
+        args.max_rounds,
+        result["elapsed_hours"],
+        args.max_hours,
+        result["reason"],
         first_seen=result["state"]["first_seen"],
     )
     try:
@@ -367,14 +386,19 @@ def _post_escalation_note(
     except RoundCapStoreError as exc:
         logger.warning(
             "op=round_cap_escalation_note_failed pr=%d error=%s",
-            pr_number, safe_log_str(str(exc)),
+            pr_number,
+            safe_log_str(str(exc)),
         )
         return False
     return True
 
 
 def _load_comments_or_exit(
-    owner: str, repo: str, pr_number: int, output_format: str, op_start: float,
+    owner: str,
+    repo: str,
+    pr_number: int,
+    output_format: str,
+    op_start: float,
 ) -> list[dict[str, Any]]:
     try:
         return _list_comments(owner, repo, pr_number)
@@ -383,18 +407,32 @@ def _load_comments_or_exit(
         logger.warning(
             "op=round_cap_failed pr=%d owner=%s repo=%s reason=comment_fetch_failed "
             "duration_ms=%d error=%s",
-            pr_number, owner, repo, duration_ms, safe_log_str(str(exc)),
+            pr_number,
+            owner,
+            repo,
+            duration_ms,
+            safe_log_str(str(exc)),
         )
         _emit_error(
-            f"Failed to fetch PR comments: {exc}", 3, "ApiError",
-            output_format, pr_number, owner, repo,
+            f"Failed to fetch PR comments: {exc}",
+            3,
+            "ApiError",
+            output_format,
+            pr_number,
+            owner,
+            repo,
         )
 
 
 def _persist_verdict(
-    owner: str, repo: str, pr_number: int, comments: list[dict[str, Any]],
-    prior_state: dict[str, Any] | None, result: dict[str, Any],
-    args: argparse.Namespace, output_format: str,
+    owner: str,
+    repo: str,
+    pr_number: int,
+    comments: list[dict[str, Any]],
+    prior_state: dict[str, Any] | None,
+    result: dict[str, Any],
+    args: argparse.Namespace,
+    output_format: str,
 ) -> bool:
     """Post the state marker and, when missing, the human escalation note.
 
@@ -408,7 +446,9 @@ def _persist_verdict(
     reset = result["reset_reason"] is not None
     first_seen = result["state"]["first_seen"]
     noted = escalating and escalation_already_posted(
-        comments, first_seen, allow_legacy=not reset,
+        comments,
+        first_seen,
+        allow_legacy=not reset,
     )
     recorded = escalating and (prior_state or {}).get("escalated") is True
     if not (escalating and not reset and (noted or recorded)):
@@ -419,14 +459,23 @@ def _persist_verdict(
 
 
 def _post_state_marker(
-    owner: str, repo: str, pr_number: int, result: dict[str, Any], output_format: str,
+    owner: str,
+    repo: str,
+    pr_number: int,
+    result: dict[str, Any],
+    output_format: str,
 ) -> None:
     try:
         _post_comment(owner, repo, pr_number, render_state_marker(result["state"]))
     except RoundCapStoreError as exc:
         _emit_error(
-            f"Failed to persist round-cap state comment: {exc}", 3, "ApiError",
-            output_format, pr_number, owner, repo,
+            f"Failed to persist round-cap state comment: {exc}",
+            3,
+            "ApiError",
+            output_format,
+            pr_number,
+            owner,
+            repo,
         )
 
 
@@ -447,16 +496,29 @@ def main(argv: list[str] | None = None) -> int:
     head_sha = _optional_head_sha(owner, repo, pr_number)
     events = _optional_events(owner, repo, pr_number, prior_state, args.reset)
     reset = detect_reset(
-        comments, events, args.reset,
+        comments,
+        events,
+        args.reset,
         can_reopen_reset=lambda login: _actor_has_write_access(owner, repo, login),
     )
     result = evaluate_round_cap(
-        prior_state, now, args.max_rounds, args.max_hours,
-        head_sha=head_sha, reset=reset,
+        prior_state,
+        now,
+        args.max_rounds,
+        args.max_hours,
+        head_sha=head_sha,
+        reset=reset,
     )
 
     escalation_posted = _persist_verdict(
-        owner, repo, pr_number, comments, prior_state, result, args, output_format,
+        owner,
+        repo,
+        pr_number,
+        comments,
+        prior_state,
+        result,
+        args,
+        output_format,
     )
 
     output = {
@@ -477,15 +539,18 @@ def main(argv: list[str] | None = None) -> int:
     duration_ms = int((time.monotonic() - op_start) * 1000)
     logger.info(
         "op=round_cap pr=%d owner=%s repo=%s round=%d action=%s duration_ms=%d",
-        pr_number, owner, repo, result["round"], result["action"], duration_ms,
+        pr_number,
+        owner,
+        repo,
+        result["round"],
+        result["action"],
+        duration_ms,
     )
 
     write_skill_output(
         output,
         output_format=output_format,
-        human_summary=(
-            f"PR #{pr_number} round-cap: {result['action']} ({result['reason']})"
-        ),
+        human_summary=(f"PR #{pr_number} round-cap: {result['action']} ({result['reason']})"),
         status="PASS" if result["action"] == "ACT" else "WARNING",
         script_name=_SCRIPT_NAME,
     )

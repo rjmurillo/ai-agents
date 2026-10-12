@@ -56,9 +56,7 @@ def calculate_confidence(
     return max(0.0, min(1.0, raw_score))
 
 
-def update_confidence_scores(
-    memories_dir: Path, repo_root: Path
-) -> dict[str, float]:
+def update_confidence_scores(memories_dir: Path, repo_root: Path) -> dict[str, float]:
     """Recalculate confidence scores for all memories.
 
     Args:

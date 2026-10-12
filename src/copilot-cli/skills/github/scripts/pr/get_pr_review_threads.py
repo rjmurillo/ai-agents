@@ -22,6 +22,7 @@ import logging
 import os
 import sys
 import warnings
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -118,14 +119,19 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument(
-        "--pull-request", type=int, required=True, help="Pull request number",
+        "--pull-request",
+        type=int,
+        required=True,
+        help="Pull request number",
     )
     parser.add_argument(
-        "--unresolved-only", action="store_true",
+        "--unresolved-only",
+        action="store_true",
         help="Return only unresolved threads",
     )
     parser.add_argument(
-        "--include-comments", action="store_true",
+        "--include-comments",
+        action="store_true",
         help="Include all comments in each thread (not just first)",
     )
     add_output_format_arg(parser)
@@ -133,7 +139,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _run_threads_query(
-    owner: str, repo: str, pr: int, comments_limit: int,
+    owner: str,
+    repo: str,
+    pr: int,
+    comments_limit: int,
     cursor: str | None = None,
 ) -> dict:
     """Execute the parameterized GraphQL query for one page of review threads.
@@ -154,7 +163,11 @@ def _run_threads_query(
 
 
 def _extract_review_threads(
-    data: dict, owner: str, repo: str, pr: int, pages_seen: int,
+    data: dict[str, Any],
+    owner: str,
+    repo: str,
+    pr: int,
+    pages_seen: int,
 ) -> dict | None:
     """Pull the reviewThreads dict from a GraphQL response, defensively.
 
@@ -168,32 +181,42 @@ def _extract_review_threads(
     pull_request_obj = repository.get("pullRequest")
     if pull_request_obj is None:
         logger.warning(
-            "op=review_threads_failed pr=%d owner=%s repo=%s page=%d "
-            "reason=pr_not_found",
-            pr, owner, repo, pages_seen,
+            "op=review_threads_failed pr=%d owner=%s repo=%s page=%d reason=pr_not_found",
+            pr,
+            owner,
+            repo,
+            pages_seen,
         )
         return None
     review_threads = pull_request_obj.get("reviewThreads")
     if review_threads is None:
         logger.warning(
-            "op=review_threads_failed pr=%d owner=%s repo=%s page=%d "
-            "reason=field_missing",
-            pr, owner, repo, pages_seen,
+            "op=review_threads_failed pr=%d owner=%s repo=%s page=%d reason=field_missing",
+            pr,
+            owner,
+            repo,
+            pages_seen,
         )
         return None
     if review_threads.get("nodes") is None:
         logger.warning(
-            "op=review_threads_failed pr=%d owner=%s repo=%s page=%d "
-            "reason=nodes_missing",
-            pr, owner, repo, pages_seen,
+            "op=review_threads_failed pr=%d owner=%s repo=%s page=%d reason=nodes_missing",
+            pr,
+            owner,
+            repo,
+            pages_seen,
         )
         return None
     return review_threads
 
 
 def _log_pagination_progress(
-    pr: int, pages_seen: int, cursor_in: str | None,
-    page_info: dict, page_nodes: list, aggregated_count: int,
+    pr: int,
+    pages_seen: int,
+    cursor_in: str | None,
+    page_info: dict[str, Any],
+    page_nodes: list[Any],
+    aggregated_count: int,
 ) -> None:
     """Emit the per-page DEBUG line. Full cursor is logged so adjacent
     pages with shared 8-char prefixes can be distinguished by an operator
@@ -213,7 +236,10 @@ def _log_pagination_progress(
 
 
 def _collect_all_threads(
-    owner: str, repo: str, pr: int, comments_limit: int,
+    owner: str,
+    repo: str,
+    pr: int,
+    comments_limit: int,
 ) -> tuple[list[dict] | None, int, bool]:
     """Page through all reviewThreads for a PR.
 
@@ -256,7 +282,12 @@ def _collect_all_threads(
 
         page_info = review_threads.get("pageInfo") or {}
         _log_pagination_progress(
-            pr, pages_seen, cursor, page_info, page_nodes, len(aggregated),
+            pr,
+            pages_seen,
+            cursor,
+            page_info,
+            page_nodes,
+            len(aggregated),
         )
 
         if not page_info.get("hasNextPage"):
@@ -275,9 +306,10 @@ def _collect_all_threads(
                 stacklevel=2,
             )
             logger.warning(
-                "op=review_threads_failed pr=%d page=%d aggregated=%d "
-                "reason=cursor_missing",
-                pr, pages_seen, len(aggregated),
+                "op=review_threads_failed pr=%d page=%d aggregated=%d reason=cursor_missing",
+                pr,
+                pages_seen,
+                len(aggregated),
             )
             return aggregated, total_count, True
     else:
@@ -319,7 +351,10 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         threads, _total_count, truncated = _collect_all_threads(
-            owner, repo, pr, comments_limit,
+            owner,
+            repo,
+            pr,
+            comments_limit,
         )
     except RuntimeError as exc:
         msg = str(exc)
@@ -381,9 +416,7 @@ def main(argv: list[str] | None = None) -> int:
     write_skill_output(
         data,
         output_format=fmt,
-        human_summary=(
-            f"PR #{pr}: {total} thread(s), {unresolved} unresolved"
-        ),
+        human_summary=(f"PR #{pr}: {total} thread(s), {unresolved} unresolved"),
         status="PASS",
         script_name="get_pr_review_threads.py",
     )

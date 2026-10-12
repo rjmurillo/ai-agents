@@ -164,8 +164,7 @@ class TestScanFile:
     def test_uuid_does_not_hide_other_token(self, tmp_path: Path) -> None:
         export_file = tmp_path / "uuid-with-token.json"
         export_file.write_text(
-            f'{{"id": "550e8400-e29b-41d4-a716-446655440000", '
-            f'"data": "{"t" * 34}"}}',
+            f'{{"id": "550e8400-e29b-41d4-a716-446655440000", "data": "{"t" * 34}"}}',
             encoding="utf-8",
         )
 
@@ -184,8 +183,7 @@ class TestScanFile:
     def test_escaped_id_text_still_returns_1(self, tmp_path: Path) -> None:
         export_file = tmp_path / "escaped-id-text.json"
         export_file.write_text(
-            '{"data": "embedded {\\"id\\": '
-            '\\"550e8400-e29b-41d4-a716-446655440000\\"}"}',
+            '{"data": "embedded {\\"id\\": \\"550e8400-e29b-41d4-a716-446655440000\\"}"}',
             encoding="utf-8",
         )
 

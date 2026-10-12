@@ -114,6 +114,7 @@ ALLOWED_REPO_ROOT_ENTRIES = frozenset(
         ".env.example",
         ".factory",
         ".gemini",
+        ".git-blame-ignore-revs",
         ".gitattributes",
         ".github",
         ".gitignore",

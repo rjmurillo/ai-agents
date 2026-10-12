@@ -31,9 +31,7 @@ _DISCARD_OUTPUT_EVENTS = frozenset(
         "userPromptSubmitted",
     }
 )
-OUTPUT_POLICIES = frozenset(
-    {"additional_context", "discard", "passthrough", "stderr"}
-)
+OUTPUT_POLICIES = frozenset({"additional_context", "discard", "passthrough", "stderr"})
 
 
 def observe_output_policy(event: str) -> str:

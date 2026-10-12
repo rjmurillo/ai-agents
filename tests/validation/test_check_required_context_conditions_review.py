@@ -124,9 +124,7 @@ class TestSecondReviewFindings:
 
         assert findings == []
 
-    def test_an_integer_past_the_digit_limit_does_not_abort_the_scan(
-        self, tmp_path: Path
-    ) -> None:
+    def test_an_integer_past_the_digit_limit_does_not_abort_the_scan(self, tmp_path: Path) -> None:
         huge = "0x" + "f" * 4000
         steps = (
             f"      - id: big\n        run: echo hi\n        with:\n          n: {huge}\n"
@@ -348,9 +346,7 @@ class TestDevinReviewFindings:
         assert kinds(findings) == [KIND_RELOCATED]
         assert "github.actor" in findings[0].detail
 
-    def test_a_step_that_does_not_override_keeps_the_inherited_taint(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_step_that_does_not_override_keeps_the_inherited_taint(self, tmp_path: Path) -> None:
         body = """\
             on: pull_request
             jobs:
@@ -389,8 +385,7 @@ class TestDevinReviewFindings:
         self, tmp_path: Path
     ) -> None:
         body = (
-            "on: push\njobs:\n  a:\n    name: Run Python Tests (${{ matrix.x }})\n"
-            "    steps: []\n"
+            "on: push\njobs:\n  a:\n    name: Run Python Tests (${{ matrix.x }})\n    steps: []\n"
         )
 
         findings, _ = lint_one(tmp_path, body, ("Run Python Tests (a)",))

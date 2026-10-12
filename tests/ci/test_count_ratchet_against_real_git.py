@@ -54,9 +54,7 @@ def test_baseline_absence_is_discriminated_against_real_git(tmp_path):
         ["git", "-C", str(tmp_path), "config", "user.email", "t@example.com"],
         check=True,
     )
-    subprocess.run(
-        ["git", "-C", str(tmp_path), "config", "user.name", "t"], check=True
-    )
+    subprocess.run(["git", "-C", str(tmp_path), "config", "user.name", "t"], check=True)
     (tmp_path / "seed.txt").write_text("seed\n", encoding="utf-8")
     subprocess.run(["git", "-C", str(tmp_path), "add", "seed.txt"], check=True)
     subprocess.run(["git", "-C", str(tmp_path), "commit", "-qm", "seed"], check=True)
@@ -75,6 +73,4 @@ def test_baseline_absence_is_discriminated_against_real_git(tmp_path):
     assert count_ratchet.baseline_at_ref(tmp_path, "HEAD", baseline) == 615
 
     # An unresolvable ref is never bootstrap.
-    assert (
-        count_ratchet.baseline_absent_at_ref(tmp_path, "nosuchref", baseline) is False
-    )
+    assert count_ratchet.baseline_absent_at_ref(tmp_path, "nosuchref", baseline) is False

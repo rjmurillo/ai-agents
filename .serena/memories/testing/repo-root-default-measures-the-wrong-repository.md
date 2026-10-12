@@ -24,8 +24,9 @@ clone. The test built a real clone, grafted it with `git fetch --depth=1`,
 asserted the graft with `rev-parse --is-shallow-repository`, and then ran:
 
 ```python
-subprocess.run([sys.executable, POLICY, "security-suppressions-diff",
-                "--base-ref", "origin/main"], cwd=clone)
+subprocess.run(
+    [sys.executable, POLICY, "security-suppressions-diff", "--base-ref", "origin/main"], cwd=clone
+)
 ```
 
 It returned 0, and the failure read exactly like a missing guard:

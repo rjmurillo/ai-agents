@@ -28,9 +28,7 @@ def test_critic_shared_agent_members_exist_and_delegated() -> None:
     members = vip.group_for_anchor("SHARED_AGENT", "critic").members
     for member_path in members:
         full_path = REPO_ROOT / member_path
-        assert full_path.exists(), (
-            f"critic SHARED_AGENT member missing: {member_path}"
-        )
+        assert full_path.exists(), f"critic SHARED_AGENT member missing: {member_path}"
 
     violations = vip.find_violations(members, repo_root=REPO_ROOT)
     assert violations == [], (

@@ -68,12 +68,7 @@ def _make_run_id(unit: str, tier_label: str) -> str:
 
 def _child_report_path(unit: str, run_id: str) -> Path:
     """Path to the report.json the harness writes for a run."""
-    return (
-        _REPO_ROOT
-        / _REPORTS_DIR_TEMPLATE.format(agent=unit)
-        / run_id
-        / "report.json"
-    )
+    return _REPO_ROOT / _REPORTS_DIR_TEMPLATE.format(agent=unit) / run_id / "report.json"
 
 
 def _has_malformed_metadata_event(stderr: str) -> bool:
@@ -101,13 +96,20 @@ def _default_runner(unit: str, tier: PanelTier, n_runs: int, fixtures: str) -> d
     """
     run_id = _make_run_id(unit, tier.label)
     argv = [
-        sys.executable, str(_HARNESS),
-        "--agent", unit,
-        "--fixtures", fixtures,
-        "--n-runs", str(n_runs),
-        "--provider", tier.provider,
-        "--model", tier.model,
-        "--run-id", run_id,
+        sys.executable,
+        str(_HARNESS),
+        "--agent",
+        unit,
+        "--fixtures",
+        fixtures,
+        "--n-runs",
+        str(n_runs),
+        "--provider",
+        tier.provider,
+        "--model",
+        tier.model,
+        "--run-id",
+        run_id,
     ]
     try:
         completed = subprocess.run(
@@ -127,8 +129,7 @@ def _default_runner(unit: str, tier: PanelTier, n_runs: int, fixtures: str) -> d
                 "child harness refused malformed provider metadata"
             )
         raise RuntimeError(
-            f"harness exited {completed.returncode}: "
-            f"{(completed.stderr or completed.stdout)[:200]}"
+            f"harness exited {completed.returncode}: {(completed.stderr or completed.stdout)[:200]}"
         )
     report_path = _child_report_path(unit, run_id)
     try:
@@ -215,7 +216,9 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         )
     )
     parser.add_argument(
-        "--agents", nargs="+", required=True,
+        "--agents",
+        nargs="+",
+        required=True,
         help="Units (agent names) to sweep.",
     )
     parser.add_argument(
@@ -225,19 +228,25 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     )
     parser.add_argument("--n-runs", type=int, default=3, help="Runs per cell (default: 3).")
     parser.add_argument(
-        "--panel-config", default=None,
+        "--panel-config",
+        default=None,
         help="JSON panel config path; omit to use the documented default panel.",
     )
     parser.add_argument(
-        "--dry-run", action="store_true",
+        "--dry-run",
+        action="store_true",
         help="Validate the panel and print the plan with zero spend.",
     )
     parser.add_argument(
-        "--report", type=Path, default=None,
+        "--report",
+        type=Path,
+        default=None,
         help="Write the JSON summary to this path (accretes a sample log).",
     )
     parser.add_argument(
-        "--output-format", choices=("human", "json"), default="human",
+        "--output-format",
+        choices=("human", "json"),
+        default="human",
     )
     return parser.parse_args(argv)
 
@@ -258,7 +267,8 @@ def main(argv: list[str] | None = None, *, runner: Runner | None = None) -> int:
         return EXIT_OK
 
     results = sweep(
-        panel, args.agents,
+        panel,
+        args.agents,
         fixtures_template=args.fixtures_template,
         n_runs=args.n_runs,
         runner=runner or _default_runner,
@@ -267,7 +277,8 @@ def main(argv: list[str] | None = None, *, runner: Runner | None = None) -> int:
     if args.report is not None:
         args.report.parent.mkdir(parents=True, exist_ok=True)
         args.report.write_text(
-            json.dumps(to_json(panel, verdicts), indent=2), encoding="utf-8",
+            json.dumps(to_json(panel, verdicts), indent=2),
+            encoding="utf-8",
         )
     if args.output_format == "json":
         print(json.dumps(to_json(panel, verdicts), indent=2))

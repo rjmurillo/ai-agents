@@ -136,21 +136,29 @@ class TestGetMetrics:
         subprocess.run(["git", "init"], cwd=str(tmp_path), capture_output=True, check=True)
         subprocess.run(
             ["git", "config", "core.hooksPath", "/dev/null"],
-            cwd=str(tmp_path), capture_output=True, check=True,
+            cwd=str(tmp_path),
+            capture_output=True,
+            check=True,
         )
         subprocess.run(
             ["git", "config", "user.email", "test@test.com"],
-            cwd=str(tmp_path), capture_output=True, check=True,
+            cwd=str(tmp_path),
+            capture_output=True,
+            check=True,
         )
         subprocess.run(
             ["git", "config", "user.name", "Test"],
-            cwd=str(tmp_path), capture_output=True, check=True,
+            cwd=str(tmp_path),
+            capture_output=True,
+            check=True,
         )
         (tmp_path / "README.md").write_text("init")
         subprocess.run(["git", "add", "."], cwd=str(tmp_path), capture_output=True, check=True)
         subprocess.run(
             ["git", "commit", "-m", "feat: initial commit by orchestrator agent"],
-            cwd=str(tmp_path), capture_output=True, check=True,
+            cwd=str(tmp_path),
+            capture_output=True,
+            check=True,
         )
         return tmp_path
 
@@ -177,8 +185,13 @@ class TestGetMetrics:
 
     def test_counts_commits_returned_by_git_log(self, tmp_path: Path) -> None:
         commits = [
-            {"Hash": "abc", "Subject": "feat: impl orchestrator", "Author": "dev",
-             "Email": "d@e.com", "Date": "2024-01-01"},
+            {
+                "Hash": "abc",
+                "Subject": "feat: impl orchestrator",
+                "Author": "dev",
+                "Email": "d@e.com",
+                "Date": "2024-01-01",
+            },
         ]
         with (
             patch.object(mod, "get_commits_since", return_value=commits),

@@ -32,8 +32,7 @@ if TYPE_CHECKING:
 
 # Add script directory to path for imports
 SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1]
-    / ".claude" / "skills" / "slo-designer" / "scripts"
+    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "slo-designer" / "scripts"
 )
 sys.path.insert(0, str(SCRIPTS_DIR))
 
@@ -401,8 +400,12 @@ class TestCalculateErrorBudgetCLI:
     def script_path(self, project_root: Path) -> Path:
         """Return path to the script."""
         return (
-            project_root / ".claude" / "skills"
-            / "slo-designer" / "scripts" / "calculate_error_budget.py"
+            project_root
+            / ".claude"
+            / "skills"
+            / "slo-designer"
+            / "scripts"
+            / "calculate_error_budget.py"
         )
 
     def test_help_flag(self, script_path: Path) -> None:
@@ -415,7 +418,8 @@ class TestCalculateErrorBudgetCLI:
         result = subprocess.run(
             [sys.executable, str(script_path), "--help"],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -423,9 +427,7 @@ class TestCalculateErrorBudgetCLI:
         # If it fails with TypeError, that is a source script issue.
         # We test that at minimum the script tries to parse --help.
         if result.returncode != 0 and "TypeError" in result.stderr:
-            pytest.skip(
-                "Source script has unescaped % in epilog causing argparse error"
-            )
+            pytest.skip("Source script has unescaped % in epilog causing argparse error")
 
         assert result.returncode == 0
         assert "usage" in result.stdout.lower()
@@ -438,7 +440,8 @@ class TestCalculateErrorBudgetCLI:
         result = subprocess.run(
             [sys.executable, str(script_path), "--target", "99.9"],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -450,7 +453,8 @@ class TestCalculateErrorBudgetCLI:
         result = subprocess.run(
             [sys.executable, str(script_path), "--target", "99.9", "--format", "json"],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -463,7 +467,8 @@ class TestCalculateErrorBudgetCLI:
         result = subprocess.run(
             [sys.executable, str(script_path), "--target", "99.9", "--format", "markdown"],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -475,7 +480,8 @@ class TestCalculateErrorBudgetCLI:
         result = subprocess.run(
             [sys.executable, str(script_path), "--target", "99.9", "--period", "weekly"],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -487,7 +493,8 @@ class TestCalculateErrorBudgetCLI:
         result = subprocess.run(
             [sys.executable, str(script_path), "--target", "150"],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -499,7 +506,8 @@ class TestCalculateErrorBudgetCLI:
         result = subprocess.run(
             [sys.executable, str(script_path)],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -525,6 +533,7 @@ try:
         generate_slo_section,
         parse_yaml_config,
     )
+
     GENERATE_SLO_AVAILABLE = True
 except ImportError:
     GENERATE_SLO_AVAILABLE = False
@@ -950,8 +959,12 @@ class TestGenerateSLODocumentCLI:
     def script_path(self, project_root: Path) -> Path:
         """Return path to the script."""
         return (
-            project_root / ".claude" / "skills"
-            / "slo-designer" / "scripts" / "generate_slo_document.py"
+            project_root
+            / ".claude"
+            / "skills"
+            / "slo-designer"
+            / "scripts"
+            / "generate_slo_document.py"
         )
 
     @pytest.fixture
@@ -986,7 +999,8 @@ slos:
         result = subprocess.run(
             [sys.executable, str(script_path), "--help"],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -1001,7 +1015,8 @@ slos:
         result = subprocess.run(
             [sys.executable, str(script_path), "--sample-config"],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -1014,7 +1029,8 @@ slos:
         result = subprocess.run(
             [sys.executable, str(script_path), "--config", str(valid_config_file)],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -1040,7 +1056,8 @@ slos:
                 str(output_file),
             ],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -1058,7 +1075,8 @@ slos:
         result = subprocess.run(
             [sys.executable, str(script_path)],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -1075,7 +1093,8 @@ slos:
                 str(tmp_path / "nonexistent.yaml"),
             ],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -1090,7 +1109,8 @@ slos:
         result = subprocess.run(
             [sys.executable, str(script_path), "--config", str(invalid_config)],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -1139,7 +1159,8 @@ class TestPathTraversalSecurity:
                 "../../etc/passwd",
             ],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
 
@@ -1194,7 +1215,8 @@ slos:
                 "../../etc/malicious.md",
             ],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=30,
         )
 

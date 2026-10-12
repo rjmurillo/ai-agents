@@ -12,13 +12,7 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
-_SCRIPTS = (
-    Path(__file__).resolve().parents[3]
-    / ".claude"
-    / "skills"
-    / "memory"
-    / "scripts"
-)
+_SCRIPTS = Path(__file__).resolve().parents[3] / ".claude" / "skills" / "memory" / "scripts"
 sys.path.insert(0, str(_SCRIPTS))
 
 import extract_session_episode as ese
@@ -49,9 +43,7 @@ class TestStagedFilesChanged:
             assert ese._staged_files_changed() == 0
 
     def test_zero_on_timeout(self) -> None:
-        with patch.object(
-            ese.subprocess, "run", side_effect=subprocess.TimeoutExpired("git", 10)
-        ):
+        with patch.object(ese.subprocess, "run", side_effect=subprocess.TimeoutExpired("git", 10)):
             assert ese._staged_files_changed() == 0
 
     def test_passes_cwd_via_git_c(self) -> None:

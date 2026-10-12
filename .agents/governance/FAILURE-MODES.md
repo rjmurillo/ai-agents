@@ -343,14 +343,14 @@ except Exception:
     pass
 
 # Silent default on falsy
-timeout = config.get("timeout") or 30   # config["timeout"] = 0 silently becomes 30
+timeout = config.get("timeout") or 30  # config["timeout"] = 0 silently becomes 30
 
 # Parser fall-through
-data = json.loads(stdout).get("Data", {})   # script doesn't emit "Data" wrapper -> {}
+data = json.loads(stdout).get("Data", {})  # script doesn't emit "Data" wrapper -> {}
 
 # Verdict laundering
 verdict = re.search(r"VERDICT:\s*(\w+)", output)
-return verdict.group(1) if verdict else "PASS"   # no verdict line -> claim PASS
+return verdict.group(1) if verdict else "PASS"  # no verdict line -> claim PASS
 ```
 
 ### Evidence

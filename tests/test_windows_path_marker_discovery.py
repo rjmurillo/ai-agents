@@ -5,6 +5,7 @@ pytest -m windows_path must collect it automatically, with no workflow edits.
 That is the acceptance criterion: the job is driven by marker, not by a
 hardcoded file list.
 """
+
 from __future__ import annotations
 
 import pytest

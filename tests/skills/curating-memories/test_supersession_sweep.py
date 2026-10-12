@@ -199,9 +199,7 @@ def test_main_missing_root_json_emits_error_payload(
     assert json.loads(out)["error"].startswith("root not found")
 
 
-def test_sweep_skips_unreadable_file(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_sweep_skips_unreadable_file(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     good = tmp_path / "good.md"
     good.write_text("# Live\n\nguidance\n")
     bad = tmp_path / "bad.md"

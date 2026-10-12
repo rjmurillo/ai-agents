@@ -56,7 +56,7 @@ runSubagent(agentName: "analyst", description: "3-5 words", prompt: "...")
 
 **Claude:**
 
-```python
+```text
 mcp__cloudmcp-manager__memory-search_nodes(query="[topic]")
 mcp__cloudmcp-manager__memory-add_observations(...)
 mcp__cloudmcp-manager__memory-create_entities(...)

@@ -44,8 +44,7 @@ def transform_for_vscode(source: dict[str, Any]) -> dict[str, Any]:
     if "serena" in servers and "args" in servers["serena"]:
         args = servers["serena"]["args"]
         servers["serena"]["args"] = [
-            "ide" if a == "claude-code" else ("24283" if a == "24282" else a)
-            for a in args
+            "ide" if a == "claude-code" else ("24283" if a == "24282" else a) for a in args
         ]
 
     result = {"servers": servers}
@@ -122,7 +121,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--source", type=Path, help="Path to .mcp.json source file")
     parser.add_argument("--destination", type=Path, help="Path to destination mcp.json file")
     parser.add_argument(
-        "--target", choices=["factory", "vscode"], default="vscode",
+        "--target",
+        choices=["factory", "vscode"],
+        default="vscode",
         help="Target platform",
     )
     parser.add_argument("--sync-all", action="store_true", help="Sync to both Factory and VS Code")

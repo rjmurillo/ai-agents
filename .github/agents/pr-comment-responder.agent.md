@@ -1698,12 +1698,14 @@ session_stats = {
         "cursor[bot]": {"comments": N, "actionable": N, "rate": "100%"},
         "copilot-pull-request-reviewer": {"comments": N, "actionable": N, "rate": "XX%"},
         # ... other reviewers
-    }
+    },
 }
 ```
 
 #### Step 9.2: Update pr-review/pr-comment-responder-skills Memory
 
+<!-- Formatter off: this block ends in a bare `Read .serena/...` path line in the Claude variant, which ruff would rewrite as a division expression. Both variants keep the original text. -->
+<!-- fmt:off -->
 ```python
 # Read current memory to get existing statistics
 current = mcp__serena__read_memory(memory_file_name="pr-review/pr-comment-responder-skills")
@@ -1740,6 +1742,7 @@ mcp__serena__edit_memory(
     mode="literal"
 )
 ```
+<!-- fmt:on -->
 
 #### Step 9.3: Update Required Fields
 

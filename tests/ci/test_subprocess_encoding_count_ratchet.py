@@ -44,8 +44,7 @@ def test_current_count_counts_checker_findings(tmp_path: Path) -> None:
     script_dir = tmp_path / "scripts"
     script_dir.mkdir()
     (script_dir / "bad.py").write_text(
-        "import subprocess\n"
-        "subprocess.run(['x'], capture_output=True, encoding='utf-8')\n",
+        "import subprocess\nsubprocess.run(['x'], capture_output=True, encoding='utf-8')\n",
         encoding="utf-8",
     )
     (script_dir / "good.py").write_text(
@@ -112,8 +111,7 @@ def test_current_count_counts_pipe_captures_and_aliases(tmp_path: Path) -> None:
     script_dir = tmp_path / "scripts"
     script_dir.mkdir()
     (script_dir / "bad_stdout.py").write_text(
-        "import subprocess\n"
-        "subprocess.run(['x'], stdout=subprocess.PIPE, encoding='utf-8')\n",
+        "import subprocess\nsubprocess.run(['x'], stdout=subprocess.PIPE, encoding='utf-8')\n",
         encoding="utf-8",
     )
     (script_dir / "bad_alias.py").write_text(
@@ -122,19 +120,15 @@ def test_current_count_counts_pipe_captures_and_aliases(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     (script_dir / "bad_module_alias.py").write_text(
-        "import subprocess as sp\n"
-        "sp.run(['x'], stderr=sp.PIPE, encoding='utf-8')\n",
+        "import subprocess as sp\nsp.run(['x'], stderr=sp.PIPE, encoding='utf-8')\n",
         encoding="utf-8",
     )
     (script_dir / "bad_assigned_module_alias.py").write_text(
-        "import subprocess\n"
-        "sp = subprocess\n"
-        "sp.run(['x'], stdout=sp.PIPE, encoding='utf-8')\n",
+        "import subprocess\nsp = subprocess\nsp.run(['x'], stdout=sp.PIPE, encoding='utf-8')\n",
         encoding="utf-8",
     )
     (script_dir / "good_binary.py").write_text(
-        "import subprocess\n"
-        "subprocess.run(['x'], stdout=subprocess.PIPE)\n",
+        "import subprocess\nsubprocess.run(['x'], stdout=subprocess.PIPE)\n",
         encoding="utf-8",
     )
     _git(
@@ -176,13 +170,10 @@ class TestTheSubstringProbeChangesNothingButCost:
 
         assert check_subprocess_encoding.find_all_violations(tmp_path, [source]) == []
 
-    def test_a_violation_is_still_found_when_the_token_is_present(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_violation_is_still_found_when_the_token_is_present(self, tmp_path: Path) -> None:
         source = tmp_path / "loud.py"
         source.write_text(
-            "import subprocess\n\n"
-            "subprocess.run(['true'], text=True, encoding='utf-8')\n",
+            "import subprocess\n\nsubprocess.run(['true'], text=True, encoding='utf-8')\n",
             encoding="utf-8",
         )
 

@@ -14,9 +14,7 @@ MIRROR_MD = REPO_ROOT / "src" / "copilot-cli" / "skills" / "memory-consolidate" 
 MEMORY_ROUTER_MD = SKILL_DIR.parent / "memory" / "SKILL.md"
 MIRROR_ROUTER_MD = REPO_ROOT / "src" / "copilot-cli" / "skills" / "memory" / "SKILL.md"
 CURATING_MD = SKILL_DIR.parent / "curating-memories" / "SKILL.md"
-MIRROR_CURATING_MD = (
-    REPO_ROOT / "src" / "copilot-cli" / "skills" / "curating-memories" / "SKILL.md"
-)
+MIRROR_CURATING_MD = REPO_ROOT / "src" / "copilot-cli" / "skills" / "curating-memories" / "SKILL.md"
 BODY = SKILL_MD.read_text(encoding="utf-8")
 UNWRAPPED = " ".join(BODY.split())
 
@@ -159,8 +157,7 @@ def test_discovery_index_and_output_contract() -> None:
             "overlap merge, index tidy |"
         ) in router
         assert (
-            "- `consolidate memory` for a periodic durable/dated review and "
-            "index tidy"
+            "- `consolidate memory` for a periodic durable/dated review and index tidy"
         ) in router
         assert (
             "| `memory-consolidate` | Periodic durable/dated consolidation, "

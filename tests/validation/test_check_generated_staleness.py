@@ -86,9 +86,7 @@ class TestExitCodes:
 
         assert check_generated_staleness.main([str(root)]) == 1
 
-    def test_an_absent_script_is_a_config_error_not_drift(
-        self, tmp_path: Path
-    ) -> None:
+    def test_an_absent_script_is_a_config_error_not_drift(self, tmp_path: Path) -> None:
         # The module's exit table promises 2 for an absent script: the gate
         # could not run and the script needs restoring, where the drift remedy
         # (regenerate and commit) would be the wrong action.
@@ -97,9 +95,7 @@ class TestExitCodes:
 
         assert check_generated_staleness.main([str(root)]) == 2
 
-    def test_a_root_that_is_not_a_directory_is_a_config_error(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_root_that_is_not_a_directory_is_a_config_error(self, tmp_path: Path) -> None:
         missing = tmp_path / "nope"
 
         assert check_generated_staleness.main([str(missing)]) == 2
@@ -177,9 +173,7 @@ class TestExitCodes:
 
         assert build_all_ran(root)
 
-    def test_the_check_passes_the_check_flag_not_just_the_label(
-        self, tmp_path: Path
-    ) -> None:
+    def test_the_check_passes_the_check_flag_not_just_the_label(self, tmp_path: Path) -> None:
         """The spawned child must actually receive --check, not merely
         carry a "--check"-labeled diagnostic name (CodeRabbit, PR #5787
         review): a stub that always exits 0 regardless of its argv would
@@ -201,18 +195,14 @@ class TestEchoTail:
     ) -> None:
         # build_all writes hundreds of progress lines before the verdict, so
         # the bound must drop the head and say how much it dropped.
-        check_generated_staleness._echo_tail(
-            "\n".join(f"line{i}" for i in range(50))
-        )
+        check_generated_staleness._echo_tail("\n".join(f"line{i}" for i in range(50)))
 
         out = capsys.readouterr().out
         assert "10 earlier line(s) omitted" in out
         assert "line49" in out
         assert "line0\n" not in out
 
-    def test_blank_output_prints_nothing(
-        self, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_blank_output_prints_nothing(self, capsys: pytest.CaptureFixture[str]) -> None:
         check_generated_staleness._echo_tail("  \n  ")
 
         assert capsys.readouterr().out == ""
@@ -257,9 +247,7 @@ def _drive(monkeypatch: pytest.MonkeyPatch) -> tuple[list[str], list[Path]]:
 class TestSequenceWiring:
     """pre_pr.py must reach the validator, not merely be able to."""
 
-    def test_the_sequence_emits_the_staleness_gate(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_the_sequence_emits_the_staleness_gate(self, monkeypatch: pytest.MonkeyPatch) -> None:
         names, _seen = _drive(monkeypatch)
 
         assert GATE_NAME in names
@@ -271,9 +259,7 @@ class TestSequenceWiring:
 
         assert seen == [REPO_ROOT]
 
-    def test_the_gate_runs_after_the_deferral_gate(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_the_gate_runs_after_the_deferral_gate(self, monkeypatch: pytest.MonkeyPatch) -> None:
         # Different questions about the same file, and the deferral gate is the
         # one a reader is likely to mistake for this one. Keeping them adjacent
         # is the documented placement.

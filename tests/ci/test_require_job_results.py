@@ -30,9 +30,16 @@ def test_all_checks_match_returns_success(
     monkeypatch.setenv("B", "true")
     rc = main(
         [
-            "--check", "A", "success", "a failed",
-            "--check", "B", "true", "b failed",
-            "--success-message", "all green",
+            "--check",
+            "A",
+            "success",
+            "a failed",
+            "--check",
+            "B",
+            "true",
+            "b failed",
+            "--success-message",
+            "all green",
         ]
     )
     assert rc == 0
@@ -53,9 +60,7 @@ def test_reports_every_failure_not_just_the_first(
 ) -> None:
     monkeypatch.setenv("A", "failure")
     monkeypatch.setenv("B", "false")
-    rc = main(
-        ["--check", "A", "success", "a bad", "--check", "B", "true", "b bad"]
-    )
+    rc = main(["--check", "A", "success", "a bad", "--check", "B", "true", "b bad"])
     out = capsys.readouterr().out
     assert rc == 1
     assert "::error::a bad" in out

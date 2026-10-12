@@ -238,9 +238,7 @@ def print_result(result: ValidationResult) -> None:
 
 def main() -> int:
     """Main entry point."""
-    parser = argparse.ArgumentParser(
-        description="Validate a pre-mortem risk inventory document"
-    )
+    parser = argparse.ArgumentParser(description="Validate a pre-mortem risk inventory document")
     parser.add_argument(
         "--inventory-path",
         type=str,

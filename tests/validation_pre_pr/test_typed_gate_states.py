@@ -116,9 +116,7 @@ class TestCanonicalCitations:
 
         _check(outcome, EvidenceState.FAIL, REASON_VIOLATIONS_FOUND, blocks=True)
 
-    def test_a_configuration_exit_is_a_script_failure_not_a_violation(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_configuration_exit_is_a_script_failure_not_a_violation(self, tmp_path: Path) -> None:
         """Exit 2 means the repo root was invalid; nothing was measured (PR #6066 review)."""
         outcome = self._run(tmp_path, (2, "", "[FAIL] repo root not found"))
 
@@ -200,9 +198,7 @@ class TestSpecContradiction:
 
         _check(outcome, EvidenceState.BLOCKED, REASON_SCRIPT_FAILED, blocks=False)
 
-    def test_an_unreadable_report_at_exit_zero_is_counted_not_a_pass(
-        self, tmp_path: Path
-    ) -> None:
+    def test_an_unreadable_report_at_exit_zero_is_counted_not_a_pass(self, tmp_path: Path) -> None:
         outcome = self._run(tmp_path, (0, "nothing recognizable", ""))
 
         _check(outcome, EvidenceState.BLOCKED, REASON_MALFORMED_OUTPUT, blocks=False)
@@ -216,9 +212,7 @@ class TestSpecContradiction:
 
         _check(outcome, EvidenceState.SKIP, reason, blocks=False)
 
-    def test_a_skip_with_a_malformed_reason_falls_back_to_tree_absent(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_skip_with_a_malformed_reason_falls_back_to_tree_absent(self, tmp_path: Path) -> None:
         outcome = self._run(tmp_path, (0, "[SKIP] reason=NOT A SLUG\n", ""))
 
         _check(outcome, EvidenceState.SKIP, REASON_TREE_ABSENT, blocks=False)

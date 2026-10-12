@@ -247,9 +247,7 @@ def find_fence_defects(content: str) -> list[Defect]:
         # U+3000, which are exactly the characters that make this line
         # malformed, so the report rendered an invalid closer as a valid
         # looking bare fence and hid its own reason.
-        defects.append(
-            Defect(line=number, kind=MALFORMED_CLOSING, text=line.text.rstrip(" \t"))
-        )
+        defects.append(Defect(line=number, kind=MALFORMED_CLOSING, text=line.text.rstrip(" \t")))
         # The malformed line opens the next block, mirroring the repair. When
         # it cannot open one (a backtick fence carrying a backtick in its info
         # string), the bare fence the repair emits above it has closed the

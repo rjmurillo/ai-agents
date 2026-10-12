@@ -71,10 +71,7 @@ class ACPProviderError(RuntimeError):
     """A fixed, redacted provider failure returned over ACP JSON-RPC."""
 
     def __init__(self, category: ACPErrorCategory) -> None:
-        super().__init__(
-            f"Copilot ACP provider error: error={category}; "
-            "provider details redacted"
-        )
+        super().__init__(f"Copilot ACP provider error: error={category}; provider details redacted")
         self.category = category
 
 
@@ -185,9 +182,7 @@ def _start_process(
         process_tree.terminate(force=True)
         process_tree.close()
         raise RuntimeError("Copilot ACP process pipes were unavailable")
-    stdout_lines: queue.Queue[str | BaseException | None] = queue.Queue(
-        maxsize=_STDOUT_QUEUE_LINES
-    )
+    stdout_lines: queue.Queue[str | BaseException | None] = queue.Queue(maxsize=_STDOUT_QUEUE_LINES)
     stderr_chunks: list[str] = []
     stop_readers = threading.Event()
     protocol_chars = _CharacterCounter()
@@ -278,9 +273,7 @@ def _send_request(
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise subprocess.TimeoutExpired(process.args, timeout) from None
-            returncode = process.wait(
-                timeout=min(remaining, _PROCESS_WAIT_SECONDS)
-            )
+            returncode = process.wait(timeout=min(remaining, _PROCESS_WAIT_SECONDS))
             streams.stderr_thread.join(min(remaining, _READER_JOIN_SECONDS))
             if streams.stderr_thread.is_alive():
                 raise RuntimeError("Copilot ACP stderr reader cleanup timed out")
@@ -375,9 +368,7 @@ def _wait_for_response(
         if remaining <= 0:
             raise subprocess.TimeoutExpired(streams.process.args, timeout) from None
         try:
-            raw_line = streams.stdout_lines.get(
-                timeout=min(remaining, _QUEUE_WAIT_SECONDS)
-            )
+            raw_line = streams.stdout_lines.get(timeout=min(remaining, _QUEUE_WAIT_SECONDS))
         except queue.Empty:
             if streams.process_tree.has_exited() and not terminated_descendants:
                 streams.process_tree.terminate(force=True)
@@ -456,24 +447,16 @@ def _wait_for_process(
     first_wait = _remaining_process_wait(streams, deadline, timeout)
     if streams.process_tree.wait_for_exit_before_reap(first_wait):
         streams.process_tree.terminate(force=True)
-        return process.wait(
-            timeout=_remaining_process_wait(streams, deadline, timeout)
-        )
+        return process.wait(timeout=_remaining_process_wait(streams, deadline, timeout))
     try:
-        return process.wait(
-            timeout=_remaining_process_wait(streams, deadline, timeout)
-        )
+        return process.wait(timeout=_remaining_process_wait(streams, deadline, timeout))
     except subprocess.TimeoutExpired:
         streams.process_tree.terminate(force=False)
     try:
-        return process.wait(
-            timeout=_remaining_process_wait(streams, deadline, timeout)
-        )
+        return process.wait(timeout=_remaining_process_wait(streams, deadline, timeout))
     except subprocess.TimeoutExpired:
         streams.process_tree.terminate(force=True)
-        return process.wait(
-            timeout=_remaining_process_wait(streams, deadline, timeout)
-        )
+        return process.wait(timeout=_remaining_process_wait(streams, deadline, timeout))
 
 
 def _close_process(
@@ -575,9 +558,7 @@ def _drain_stdout_after_close(
         if remaining <= 0:
             raise subprocess.TimeoutExpired(streams.process.args, timeout) from None
         try:
-            raw_line = streams.stdout_lines.get(
-                timeout=min(remaining, _QUEUE_WAIT_SECONDS)
-            )
+            raw_line = streams.stdout_lines.get(timeout=min(remaining, _QUEUE_WAIT_SECONDS))
         except queue.Empty:
             if streams.process_tree.has_exited() and not terminated_descendants:
                 streams.process_tree.terminate(force=True)

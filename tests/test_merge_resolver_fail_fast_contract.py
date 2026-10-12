@@ -73,8 +73,7 @@ def test_carries_execution_capability_precondition(path: Path) -> None:
         "precondition heading (issue #2646)"
     )
     assert phase_1_index >= 0, (
-        f"{path.relative_to(REPO_ROOT)} is missing the Phase 1 context heading "
-        "(issue #2646)"
+        f"{path.relative_to(REPO_ROOT)} is missing the Phase 1 context heading (issue #2646)"
     )
     assert precondition_index < phase_1_index, (
         f"{path.relative_to(REPO_ROOT)} must place the execution-capability "
@@ -105,8 +104,7 @@ def test_no_plan_as_completion(path: Path) -> None:
     """A plan must never be reported as completed execution work."""
     text = _read(path)
     assert NO_PLAN_AS_COMPLETION in text, (
-        f"{path.relative_to(REPO_ROOT)} must state that a plan is not a "
-        "completion (issue #2646)"
+        f"{path.relative_to(REPO_ROOT)} must state that a plan is not a completion (issue #2646)"
     )
 
 

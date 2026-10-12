@@ -81,6 +81,7 @@ Verified against two existing entries, which reproduce exactly:
 
 ```python
 import tiktoken
+
 enc = tiktoken.get_encoding("cl100k_base")
 len(enc.encode(open(path, encoding="utf-8").read()))
 ```

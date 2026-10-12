@@ -81,9 +81,7 @@ class TestRulesDiscovery:
         monkeypatch.chdir(PROJECT_ROOT)
         assert discover_rules_file() == PROJECT_ROOT / ".claude/rules/voice.md"
 
-    def test_claude_plugin_root_wins(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_claude_plugin_root_wins(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         rule = tmp_path / "rules" / "voice.md"
         rule.parent.mkdir(parents=True)
         rule.write_text("## Banned Vocabulary\n\n`zzz`.\n", encoding="utf-8")

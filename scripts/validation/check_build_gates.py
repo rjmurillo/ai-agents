@@ -53,9 +53,7 @@ _REQUIRED_GATES: tuple[tuple[str, re.Pattern[str]], ...] = (
 # The build skill must contain a section heading that frames the gates
 # as mandatory rather than advisory. Layer 2 of the retrospective is
 # explicit: advisory output produced the iteration paradox.
-_MANDATORY_SECTION: re.Pattern[str] = re.compile(
-    r"^##\s+Mandatory Exit Gates\b", re.MULTILINE
-)
+_MANDATORY_SECTION: re.Pattern[str] = re.compile(r"^##\s+Mandatory Exit Gates\b", re.MULTILINE)
 _INLINE_CODE = re.compile(r"`([^`\n]+)`")
 
 _BUILD_MD_RELPATH = Path(".claude/skills/build/SKILL.md")
@@ -75,9 +73,7 @@ def _option_value(arguments: list[str], option: str) -> str | None:
     for index, argument in enumerate(arguments):
         if argument == option:
             value_index = index + 1
-            values.append(
-                arguments[value_index] if value_index < len(arguments) else None
-            )
+            values.append(arguments[value_index] if value_index < len(arguments) else None)
         elif argument.startswith(f"{option}="):
             values.append(argument.partition("=")[2])
     if len(values) != 1:
@@ -142,7 +138,7 @@ def collect_violations(repo_root: Path) -> list[GateViolation]:
                     kind="skill",
                     name=skill_name,
                     message=(
-                        f"build.md must invoke Skill(skill=\"{skill_name}\") as an "
+                        f'build.md must invoke Skill(skill="{skill_name}") as an '
                         f"exit gate. See "
                         f".project-toolkit/retrospective/2026-05-05-pr-1887-iteration-paradox.md "
                         f"Layer 2 for context."
@@ -150,11 +146,7 @@ def collect_violations(repo_root: Path) -> list[GateViolation]:
                 )
             )
 
-    code_quality_lines = [
-        line
-        for line in text.splitlines()
-        if _REQUIRED_GATES[0][1].search(line)
-    ]
+    code_quality_lines = [line for line in text.splitlines() if _REQUIRED_GATES[0][1].search(line)]
     if code_quality_lines and not any(
         _has_regression_arguments(line) for line in code_quality_lines
     ):
@@ -189,7 +181,7 @@ def _build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=None,
         help="Repository root. Defaults to three levels above this script "
-             "(scripts/validation/<script> -> repo root).",
+        "(scripts/validation/<script> -> repo root).",
     )
     return parser
 

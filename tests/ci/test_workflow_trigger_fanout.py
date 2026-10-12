@@ -33,9 +33,7 @@ WORKFLOW_DIR = REPO_ROOT / ".github" / "workflows"
 
 # Branches that only ever exist to carry a pull request. A push to one of
 # these is always followed by the pull_request trigger for the same SHA.
-_PR_ONLY_BRANCH_GLOBS = frozenset(
-    {"feat/**", "fix/**", "chore/**", "copilot/**", "agent/**"}
-)
+_PR_ONLY_BRANCH_GLOBS = frozenset({"feat/**", "fix/**", "chore/**", "copilot/**", "agent/**"})
 
 
 def _triggers(path: pathlib.Path) -> dict | None:
@@ -145,9 +143,7 @@ def test_every_repaired_workflow_still_validates_main() -> None:
         on = _triggers(WORKFLOW_DIR / name)
         assert on is not None, name
         if name == "pytest.yml":
-            assert on["push"] == {
-                "branches-ignore": ["gh-readonly-queue/**"]
-            }, name
+            assert on["push"] == {"branches-ignore": ["gh-readonly-queue/**"]}, name
         else:
             assert on["push"]["branches"] == ["main"], name
         assert on["pull_request"]["branches"] == ["main"], name

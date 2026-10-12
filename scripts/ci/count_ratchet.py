@@ -142,9 +142,7 @@ def git_environment() -> dict[str, str]:
     Returns a fresh dict; ``os.environ`` is never mutated.
     """
     return {
-        name: value
-        for name, value in os.environ.items()
-        if not name.upper().startswith("GIT_")
+        name: value for name, value in os.environ.items() if not name.upper().startswith("GIT_")
     }
 
 
@@ -277,9 +275,7 @@ def tracked_files(
     if proc.returncode != 0:
         sys.stderr.write(proc.stderr)
         return None
-    unique, unmerged = deduplicate_index_entries(
-        [path for path in proc.stdout.split("\0") if path]
-    )
+    unique, unmerged = deduplicate_index_entries([path for path in proc.stdout.split("\0") if path])
     if unmerged and announce_unmerged:
         sys.stderr.write(_unmerged_note(unmerged))
     return unique

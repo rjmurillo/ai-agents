@@ -13,15 +13,22 @@ from tests.duration_test_helpers import NOW, alpha_ids, write_junit
 
 
 def test_cases_group_by_module_and_partition_records_wall_time(tmp_path: Path) -> None:
-    report = write_junit(tmp_path, "pytest-results-bulk",
-                         {"tests.test_alpha": [1.5, 2.5], "tests.test_beta": [4.0]}, wall=3.25)
+    report = write_junit(
+        tmp_path,
+        "pytest-results-bulk",
+        {"tests.test_alpha": [1.5, 2.5], "tests.test_beta": [4.0]},
+        wall=3.25,
+    )
 
     snap = build_snapshot([report], "abc", NOW)
 
     assert snap.modules == {
         "tests/test_alpha.py": {"seconds": 4.0, "tests": 2, "ids": alpha_ids(2)},
-        "tests/test_beta.py": {"seconds": 4.0, "tests": 1,
-                               "ids": ids_digest(["tests/test_beta.py::t0"])},
+        "tests/test_beta.py": {
+            "seconds": 4.0,
+            "tests": 1,
+            "ids": ids_digest(["tests/test_beta.py::t0"]),
+        },
     }
     assert snap.partitions == {"pytest-results-bulk": {"tests": 3, "wall_seconds": 3.25}}
     assert (snap.total_tests, snap.total_seconds) == (3, 8.0)
@@ -29,8 +36,10 @@ def test_cases_group_by_module_and_partition_records_wall_time(tmp_path: Path) -
 
 def test_a_bare_testsuite_root_reports_its_own_time(tmp_path: Path) -> None:
     path = tmp_path / "bare.xml"
-    path.write_text('<testsuite time="7.5"><testcase classname="tests.test_a" '
-                    'name="t" time="1" /></testsuite>', encoding="utf-8")
+    path.write_text(
+        '<testsuite time="7.5"><testcase classname="tests.test_a" name="t" time="1" /></testsuite>',
+        encoding="utf-8",
+    )
 
     assert partition_wall_seconds(path) == 7.5
 
@@ -48,10 +57,16 @@ def test_the_ids_digest_ignores_order_and_changes_with_the_test_set() -> None:
 
 @pytest.mark.parametrize(
     "entry",
-    [{"seconds": "10", "tests": 2, "ids": "d"}, {"seconds": 1.0, "tests": 2.5, "ids": "d"},
-     {"seconds": True, "tests": 2, "ids": "d"}, {"seconds": float("nan"), "tests": 2, "ids": "d"},
-     {"seconds": -1.0, "tests": 2, "ids": "d"}, {"seconds": 1.0, "tests": 2},
-     {"seconds": 1.0, "ids": "d"}, "not an object"],
+    [
+        {"seconds": "10", "tests": 2, "ids": "d"},
+        {"seconds": 1.0, "tests": 2.5, "ids": "d"},
+        {"seconds": True, "tests": 2, "ids": "d"},
+        {"seconds": float("nan"), "tests": 2, "ids": "d"},
+        {"seconds": -1.0, "tests": 2, "ids": "d"},
+        {"seconds": 1.0, "tests": 2},
+        {"seconds": 1.0, "ids": "d"},
+        "not an object",
+    ],
 )
 def test_a_malformed_module_entry_is_refused(entry: object) -> None:
     data = {"sha": "s", "recorded_at": "t", "partitions": {}, "modules": {"m": entry}}

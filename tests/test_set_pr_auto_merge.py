@@ -16,8 +16,7 @@ from scripts.github_core.api import RepoInfo
 # Import the script via importlib (not a package)
 # ---------------------------------------------------------------------------
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1]
-    / ".claude" / "skills" / "github" / "scripts" / "pr"
+    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "pr"
 )
 
 
@@ -154,8 +153,7 @@ class TestEnableAutoMergeErrors:
         caller to fall back to merge_pr.py.
         """
         err = RuntimeError(
-            "GraphQL request failed: gh: Pull request Pull request "
-            "is in unstable status",
+            "GraphQL request failed: gh: Pull request Pull request is in unstable status",
         )
         with patch("set_pr_auto_merge.gh_graphql", side_effect=err):
             with pytest.raises(SystemExit) as exc:
@@ -179,8 +177,7 @@ class TestEnableAutoMergeErrors:
         accidentally swallow it.
         """
         err = RuntimeError(
-            "GraphQL request failed: Auto-merge is not allowed for this "
-            "repository",
+            "GraphQL request failed: Auto-merge is not allowed for this repository",
         )
         with patch("set_pr_auto_merge.gh_graphql", side_effect=err):
             with pytest.raises(SystemExit) as exc:
@@ -223,8 +220,7 @@ class TestEnableAutoMergeErrors:
         leaking the raw GraphQL prefix.
         """
         err = RuntimeError(
-            "GraphQL request failed: gh: Pull request Pull request "
-            "is in clean status",
+            "GraphQL request failed: gh: Pull request Pull request is in clean status",
         )
         with patch("set_pr_auto_merge.gh_graphql", side_effect=err):
             with pytest.raises(SystemExit) as exc:
@@ -265,8 +261,7 @@ class TestEnableAutoMergeErrors:
         because there is nothing for auto-merge to wait on.
         """
         err = RuntimeError(
-            "GraphQL request failed: gh: Pull request Pull request "
-            "is in clean status",
+            "GraphQL request failed: gh: Pull request Pull request is in clean status",
         )
         with patch("set_pr_auto_merge.gh_graphql", side_effect=err):
             with pytest.raises(SystemExit) as exc:
@@ -278,7 +273,8 @@ class TestEnableAutoMergeErrors:
         assert "5359" in stderr
 
     def test_blocked_status_does_not_trigger_clean_or_unstable_fallback(
-        self, capsys,
+        self,
+        capsys,
     ):
         """BLOCKED PRs (required reviews/checks pending) are auto-merge's
         intended use case. GitHub accepts ``enablePullRequestAutoMerge``
@@ -349,14 +345,18 @@ class TestMain:
                 },
             },
         }
-        with patch(
-            "set_pr_auto_merge.assert_gh_authenticated",
-        ), patch(
-            "set_pr_auto_merge.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "set_pr_auto_merge.gh_graphql",
-            side_effect=[pr_query_data, enable_data],
+        with (
+            patch(
+                "set_pr_auto_merge.assert_gh_authenticated",
+            ),
+            patch(
+                "set_pr_auto_merge.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "set_pr_auto_merge.gh_graphql",
+                side_effect=[pr_query_data, enable_data],
+            ),
         ):
             rc = main(["--pull-request", "42", "--enable"])
         assert rc == 0

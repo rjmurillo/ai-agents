@@ -41,9 +41,7 @@ from scripts.security.invoke_precommit_security import (
 @pytest.fixture
 def check() -> PreCommitSecurityCheck:
     """A check instance with a stubbed repo root (no git call at init)."""
-    with patch.object(
-        PreCommitSecurityCheck, "_find_repo_root", return_value=Path("/repo")
-    ):
+    with patch.object(PreCommitSecurityCheck, "_find_repo_root", return_value=Path("/repo")):
         return PreCommitSecurityCheck(skip_codeql=True)
 
 
@@ -78,9 +76,7 @@ def test_generated_report_uses_project_toolkit_root(tmp_path: Path) -> None:
 class TestEnsurePsscriptanalyzerTimeout:
     """pwsh calls must time out rather than hang the commit forever."""
 
-    def test_get_module_check_passes_timeout(
-        self, check: PreCommitSecurityCheck
-    ) -> None:
+    def test_get_module_check_passes_timeout(self, check: PreCommitSecurityCheck) -> None:
         with patch(
             "scripts.security.invoke_precommit_security.subprocess.run",
             return_value=_completed(0),
@@ -88,9 +84,7 @@ class TestEnsurePsscriptanalyzerTimeout:
             assert check._ensure_psscriptanalyzer() is True
         assert run_mock.call_args.kwargs["timeout"] == SUBPROCESS_TIMEOUT_SECONDS
 
-    def test_get_module_timeout_returns_false(
-        self, check: PreCommitSecurityCheck
-    ) -> None:
+    def test_get_module_timeout_returns_false(self, check: PreCommitSecurityCheck) -> None:
         with patch(
             "scripts.security.invoke_precommit_security.subprocess.run",
             side_effect=subprocess.TimeoutExpired(
@@ -100,9 +94,7 @@ class TestEnsurePsscriptanalyzerTimeout:
         ):
             assert check._ensure_psscriptanalyzer() is False
 
-    def test_install_timeout_returns_false(
-        self, check: PreCommitSecurityCheck
-    ) -> None:
+    def test_install_timeout_returns_false(self, check: PreCommitSecurityCheck) -> None:
         # First call (Get-Module) exits 1 because the pinned version is
         # absent; second call (Install-Module) times out.
         side_effects = [
@@ -119,13 +111,10 @@ class TestEnsurePsscriptanalyzerTimeout:
             assert check._ensure_psscriptanalyzer() is False
 
         assert (
-            run_mock.call_args_list[1].kwargs["timeout"]
-            == PSSCRIPTANALYZER_INSTALL_TIMEOUT_SECONDS
+            run_mock.call_args_list[1].kwargs["timeout"] == PSSCRIPTANALYZER_INSTALL_TIMEOUT_SECONDS
         )
 
-    def test_pwsh_not_found_returns_false(
-        self, check: PreCommitSecurityCheck
-    ) -> None:
+    def test_pwsh_not_found_returns_false(self, check: PreCommitSecurityCheck) -> None:
         with patch(
             "scripts.security.invoke_precommit_security.subprocess.run",
             side_effect=FileNotFoundError("pwsh"),
@@ -139,9 +128,7 @@ class TestEnsurePsscriptanalyzerPinnedVersion:
     def test_version_is_exact_semver(self) -> None:
         assert re.fullmatch(r"\d+\.\d+\.\d+", PSSCRIPTANALYZER_VERSION)
 
-    def test_detection_requires_pinned_version(
-        self, check: PreCommitSecurityCheck
-    ) -> None:
+    def test_detection_requires_pinned_version(self, check: PreCommitSecurityCheck) -> None:
         with patch(
             "scripts.security.invoke_precommit_security.subprocess.run",
             return_value=_completed(0),
@@ -167,9 +154,7 @@ class TestEnsurePsscriptanalyzerPinnedVersion:
         assert "Install-Module -Name PSScriptAnalyzer" in install_command
         assert f"-RequiredVersion {PSSCRIPTANALYZER_VERSION}" in install_command
 
-    def test_failed_install_returns_false(
-        self, check: PreCommitSecurityCheck
-    ) -> None:
+    def test_failed_install_returns_false(self, check: PreCommitSecurityCheck) -> None:
         # The install command carries -ErrorAction Stop, so a failed install
         # exits 1 in real pwsh. Without it, pwsh exits 0 on failure.
         with patch(
@@ -181,9 +166,7 @@ class TestEnsurePsscriptanalyzerPinnedVersion:
         install_command = run_mock.call_args_list[1].args[0][3]
         assert install_command.endswith("-ErrorAction Stop")
 
-    def test_analyzer_imports_pinned_version(
-        self, check: PreCommitSecurityCheck
-    ) -> None:
+    def test_analyzer_imports_pinned_version(self, check: PreCommitSecurityCheck) -> None:
         with (
             patch.object(check, "_read_staged_blob", return_value=b"Write-Host test"),
             patch(
@@ -205,17 +188,13 @@ class TestEnsurePsscriptanalyzerPinnedVersion:
 class TestFetchCodeqlAlertsTimeout:
     """The gh api network call must be time-bounded and degrade gracefully."""
 
-    def test_gh_api_timeout_returns_empty(
-        self, check: PreCommitSecurityCheck
-    ) -> None:
+    def test_gh_api_timeout_returns_empty(self, check: PreCommitSecurityCheck) -> None:
         side_effects = [
             _completed(0, stdout="gh version 2.60"),  # gh --version probe
             subprocess.TimeoutExpired(cmd=["gh", "api"], timeout=30),  # gh api
         ]
         with (
-            patch.object(
-                check, "_get_github_context", return_value=("o", "r", "main")
-            ),
+            patch.object(check, "_get_github_context", return_value=("o", "r", "main")),
             patch(
                 "scripts.security.invoke_precommit_security.subprocess.run",
                 side_effect=side_effects,
@@ -305,9 +284,7 @@ class TestRunPsscriptAnalyzer:
         assert _powershell_extension(Path(file_name)) == expected
 
     def test_powershell_single_quoted_literal_escapes_quotes(self) -> None:
-        assert _powershell_single_quoted_literal("O'Brien[1].ps1") == (
-            "'O''Brien[1].ps1'"
-        )
+        assert _powershell_single_quoted_literal("O'Brien[1].ps1") == ("'O''Brien[1].ps1'")
 
     def test_uses_bare_generated_name_from_temp_directory(
         self, check: PreCommitSecurityCheck
@@ -342,9 +319,7 @@ class TestRunPsscriptAnalyzer:
         assert "-ErrorAction Stop" in command
         assert analyzed_content == [staged_content]
 
-    def test_analyzer_failure_blocks_commit(
-        self, check: PreCommitSecurityCheck
-    ) -> None:
+    def test_analyzer_failure_blocks_commit(self, check: PreCommitSecurityCheck) -> None:
         file_path = Path("/repo/script.ps1")
 
         with (
@@ -387,17 +362,13 @@ class TestRunPsscriptAnalyzer:
         assert result.passed is False
         assert "(and 1 more)" in (result.error_message or "")
 
-    def test_non_powershell_input_fails_closed(
-        self, check: PreCommitSecurityCheck
-    ) -> None:
+    def test_non_powershell_input_fails_closed(self, check: PreCommitSecurityCheck) -> None:
         with patch.object(check, "_read_staged_blob", return_value=b"text"):
             result = check._run_psscriptanalyzer([Path("/repo/README.md")])
 
         assert result.passed is False
 
-    def test_invalid_analyzer_json_fails_closed(
-        self, check: PreCommitSecurityCheck
-    ) -> None:
+    def test_invalid_analyzer_json_fails_closed(self, check: PreCommitSecurityCheck) -> None:
         with (
             patch.object(check, "_read_staged_blob", return_value=b"Write-Host test"),
             patch(
@@ -409,9 +380,7 @@ class TestRunPsscriptAnalyzer:
 
         assert result.passed is False
 
-    def test_analyzer_timeout_fails_closed(
-        self, check: PreCommitSecurityCheck
-    ) -> None:
+    def test_analyzer_timeout_fails_closed(self, check: PreCommitSecurityCheck) -> None:
         with (
             patch.object(check, "_read_staged_blob", return_value=b"Write-Host test"),
             patch(
@@ -423,9 +392,7 @@ class TestRunPsscriptAnalyzer:
 
         assert result.passed is False
 
-    def test_staged_copy_write_failure_fails_closed(
-        self, check: PreCommitSecurityCheck
-    ) -> None:
+    def test_staged_copy_write_failure_fails_closed(self, check: PreCommitSecurityCheck) -> None:
         with (
             patch.object(check, "_read_staged_blob", return_value=b"Write-Host test"),
             patch.object(Path, "write_bytes", side_effect=OSError("disk full")),
@@ -464,34 +431,24 @@ class TestRunStagingFailClosed:
     """A staging failure must block the commit, not pass on the on-disk file."""
 
     def _wire_common(self, check: PreCommitSecurityCheck) -> None:
-        check.__dict__["_get_staged_files"] = MagicMock(
-            return_value=[Path("/repo/a.ps1")]
-        )
-        check.__dict__["_get_staged_present_files"] = MagicMock(
-            return_value=[Path("/repo/a.ps1")]
-        )
+        check.__dict__["_get_staged_files"] = MagicMock(return_value=[Path("/repo/a.ps1")])
+        check.__dict__["_get_staged_present_files"] = MagicMock(return_value=[Path("/repo/a.ps1")])
         check.__dict__["_get_unmerged_files"] = MagicMock(return_value=[])
         check.__dict__["_check_critical_patterns"] = MagicMock(return_value=[])
         check.__dict__["_ensure_psscriptanalyzer"] = MagicMock(return_value=True)
         check.__dict__["_run_psscriptanalyzer"] = MagicMock(
-            return_value=PreCommitResult(
-                passed=True, findings=[], report_path=None
-            )
+            return_value=PreCommitResult(passed=True, findings=[], report_path=None)
         )
         check.__dict__["_generate_security_report"] = MagicMock(
             return_value=Path("/repo/.project-toolkit/security/SR-x.md")
         )
 
-    def test_staging_failure_blocks_commit(
-        self, check: PreCommitSecurityCheck
-    ) -> None:
+    def test_staging_failure_blocks_commit(self, check: PreCommitSecurityCheck) -> None:
         self._wire_common(check)
         check.__dict__["_stage_security_report"] = MagicMock(return_value=False)
         assert check.run() == 1
 
-    def test_staging_success_passes(
-        self, check: PreCommitSecurityCheck
-    ) -> None:
+    def test_staging_success_passes(self, check: PreCommitSecurityCheck) -> None:
         self._wire_common(check)
         check.__dict__["_stage_security_report"] = MagicMock(return_value=True)
         check.__dict__["_verify_security_report"] = MagicMock(return_value=True)
@@ -522,9 +479,7 @@ class TestRunStagingFailClosed:
 
         assert check.run() == 0
 
-    def test_noncritical_non_powershell_files_pass(
-        self, check: PreCommitSecurityCheck
-    ) -> None:
+    def test_noncritical_non_powershell_files_pass(self, check: PreCommitSecurityCheck) -> None:
         readme = Path("/repo/README.md")
         check.__dict__["_get_staged_files"] = MagicMock(return_value=[readme])
         check.__dict__["_get_staged_present_files"] = MagicMock(return_value=[readme])
@@ -533,17 +488,13 @@ class TestRunStagingFailClosed:
 
         assert check.run() == 0
 
-    def test_missing_psscriptanalyzer_blocks(
-        self, check: PreCommitSecurityCheck
-    ) -> None:
+    def test_missing_psscriptanalyzer_blocks(self, check: PreCommitSecurityCheck) -> None:
         self._wire_common(check)
         check.__dict__["_ensure_psscriptanalyzer"] = MagicMock(return_value=False)
 
         assert check.run() == 1
 
-    def test_exact_dot_powershell_filename_is_analyzed(
-        self, check: PreCommitSecurityCheck
-    ) -> None:
+    def test_exact_dot_powershell_filename_is_analyzed(self, check: PreCommitSecurityCheck) -> None:
         script = Path("/repo/.ps1")
         self._wire_common(check)
         check.__dict__["_get_staged_files"] = MagicMock(return_value=[script])
@@ -562,9 +513,7 @@ class TestRunStagingFailClosed:
         assert check.run() == 0
         analyzer.assert_called_once_with([script])
 
-    def test_analyzer_findings_block_and_are_logged(
-        self, check: PreCommitSecurityCheck
-    ) -> None:
+    def test_analyzer_findings_block_and_are_logged(self, check: PreCommitSecurityCheck) -> None:
         self._wire_common(check)
         finding = SecurityFinding(
             rule_name="Rule",
@@ -583,9 +532,7 @@ class TestRunStagingFailClosed:
 
         assert check.run() == 1
 
-    def test_dry_run_continues_after_analyzer_findings(
-        self, check: PreCommitSecurityCheck
-    ) -> None:
+    def test_dry_run_continues_after_analyzer_findings(self, check: PreCommitSecurityCheck) -> None:
         check.dry_run = True
         self._wire_common(check)
         check.__dict__["_run_psscriptanalyzer"] = MagicMock(
@@ -600,9 +547,7 @@ class TestRunStagingFailClosed:
 
         assert check.run() == 0
 
-    def test_missing_security_report_blocks(
-        self, check: PreCommitSecurityCheck
-    ) -> None:
+    def test_missing_security_report_blocks(self, check: PreCommitSecurityCheck) -> None:
         self._wire_common(check)
         check.__dict__["_generate_security_report"] = MagicMock(return_value=None)
         check.__dict__["_verify_security_report"] = MagicMock(return_value=False)
@@ -613,18 +558,14 @@ class TestRunStagingFailClosed:
 class TestStageSecurityReport:
     """Direct coverage of the staging helper's success/failure contract."""
 
-    def test_returns_true_on_success(
-        self, check: PreCommitSecurityCheck
-    ) -> None:
+    def test_returns_true_on_success(self, check: PreCommitSecurityCheck) -> None:
         with patch(
             "scripts.security.invoke_precommit_security.subprocess.run",
             return_value=_completed(0),
         ):
             assert check._stage_security_report(Path("/repo/x.md")) is True
 
-    def test_returns_false_on_git_add_failure(
-        self, check: PreCommitSecurityCheck
-    ) -> None:
+    def test_returns_false_on_git_add_failure(self, check: PreCommitSecurityCheck) -> None:
         with patch(
             "scripts.security.invoke_precommit_security.subprocess.run",
             side_effect=subprocess.CalledProcessError(1, "git add"),
@@ -642,27 +583,21 @@ class TestCriticalHookPaths:
             encoding="utf-8",
         )
 
-    def test_staged_path_timeout_returns_none(
-        self, check: PreCommitSecurityCheck
-    ) -> None:
+    def test_staged_path_timeout_returns_none(self, check: PreCommitSecurityCheck) -> None:
         with patch(
             "scripts.security.invoke_precommit_security.subprocess.run",
             side_effect=subprocess.TimeoutExpired(["git", "diff"], 60),
         ):
             assert check._get_staged_files() is None
 
-    def test_staged_path_process_error_returns_none(
-        self, check: PreCommitSecurityCheck
-    ) -> None:
+    def test_staged_path_process_error_returns_none(self, check: PreCommitSecurityCheck) -> None:
         with patch(
             "scripts.security.invoke_precommit_security.subprocess.run",
             side_effect=OSError("git unavailable"),
         ):
             assert check._get_staged_files() is None
 
-    def test_staged_paths_include_rename_sources_and_deletions(
-        self, tmp_path: Path
-    ) -> None:
+    def test_staged_paths_include_rename_sources_and_deletions(self, tmp_path: Path) -> None:
         self._git(tmp_path, "init", "--quiet")
         self._git(tmp_path, "config", "user.email", "test@example.com")
         self._git(tmp_path, "config", "user.name", "Test")
@@ -724,17 +659,13 @@ class TestCriticalHookPaths:
 
         assert check._get_staged_present_files() == [script]
 
-    def test_run_fails_closed_on_unmerged_powershell_index_entry(
-        self, tmp_path: Path
-    ) -> None:
+    def test_run_fails_closed_on_unmerged_powershell_index_entry(self, tmp_path: Path) -> None:
         self._git(tmp_path, "init", "--quiet")
         object_ids = []
         for index, content in enumerate(("base", "ours", "theirs"), start=1):
             blob = tmp_path / f"blob-{index}"
             blob.write_text(content, encoding="utf-8")
-            object_ids.append(
-                self._git(tmp_path, "hash-object", "-w", blob.name).stdout.strip()
-            )
+            object_ids.append(self._git(tmp_path, "hash-object", "-w", blob.name).stdout.strip())
 
         index_info = "".join(
             f"100644 {object_id} {stage}\tconflict.ps1\n"
@@ -756,9 +687,7 @@ class TestCriticalHookPaths:
 
         assert check.run() == 1
 
-    def test_read_staged_blob_ignores_unstaged_worktree_replacement(
-        self, tmp_path: Path
-    ) -> None:
+    def test_read_staged_blob_ignores_unstaged_worktree_replacement(self, tmp_path: Path) -> None:
         self._git(tmp_path, "init", "--quiet")
         script = tmp_path / "script.ps1"
         script.write_bytes(b"Write-Host 'staged'\n")
@@ -774,9 +703,7 @@ class TestCriticalHookPaths:
 
         assert check._read_staged_blob(script) == b"Write-Host 'staged'\n"
 
-    def test_read_staged_blob_treats_stage_like_filename_literally(
-        self, tmp_path: Path
-    ) -> None:
+    def test_read_staged_blob_treats_stage_like_filename_literally(self, tmp_path: Path) -> None:
         self._git(tmp_path, "init", "--quiet")
         script = tmp_path / "0:script.ps1"
         script.write_bytes(b"Write-Host 'staged'\n")
@@ -792,9 +719,7 @@ class TestCriticalHookPaths:
 
         assert check._read_staged_blob(script) == b"Write-Host 'staged'\n"
 
-    def test_read_staged_blob_ignores_replacement_refs(
-        self, tmp_path: Path
-    ) -> None:
+    def test_read_staged_blob_ignores_replacement_refs(self, tmp_path: Path) -> None:
         self._git(tmp_path, "init", "--quiet")
         script = tmp_path / "script.ps1"
         script.write_bytes(b"Write-Host 'indexed'\n")
@@ -824,9 +749,7 @@ class TestCriticalHookPaths:
 
         assert check._read_staged_blob(script) == b"Write-Host 'indexed'\n"
 
-    def test_read_staged_blob_rejects_powershell_symlink(
-        self, tmp_path: Path
-    ) -> None:
+    def test_read_staged_blob_rejects_powershell_symlink(self, tmp_path: Path) -> None:
         self._git(tmp_path, "init", "--quiet")
         link_target = tmp_path / "link-target"
         link_target.write_text("target.ps1", encoding="utf-8")
@@ -902,9 +825,7 @@ class TestCriticalHookPaths:
         assert "--diff-filter=ACMDRT" in run_mock.call_args.args[0]
         assert "--no-renames" in run_mock.call_args.args[0]
 
-    def test_relocated_hook_payload_is_critical(
-        self, check: PreCommitSecurityCheck
-    ) -> None:
+    def test_relocated_hook_payload_is_critical(self, check: PreCommitSecurityCheck) -> None:
         payload = Path("/repo/scripts/hooks/pre-push")
 
         assert check._check_critical_patterns([payload]) == [payload]
@@ -979,9 +900,7 @@ class TestCriticalHookPaths:
 
         assert check._check_critical_patterns([config]) == []
 
-    def test_removed_githooks_path_is_not_critical(
-        self, check: PreCommitSecurityCheck
-    ) -> None:
+    def test_removed_githooks_path_is_not_critical(self, check: PreCommitSecurityCheck) -> None:
         payload = Path("/repo/.githooks/pre-push")
 
         assert check._check_critical_patterns([payload]) == []

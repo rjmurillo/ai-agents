@@ -89,10 +89,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     comment_group = parser.add_mutually_exclusive_group()
     comment_group.add_argument(
-        "--comment", default="", help="Closing comment body text",
+        "--comment",
+        default="",
+        help="Closing comment body text",
     )
     comment_group.add_argument(
-        "--comment-file", default="", help="Path to a file containing the comment body",
+        "--comment-file",
+        default="",
+        help="Path to a file containing the comment body",
     )
 
     parser.add_argument(
@@ -244,9 +248,7 @@ def _probe_detail(result: subprocess.CompletedProcess[str]) -> str:
 def _unverifiable(artifact: str, owner: str, repo: str, detail: str) -> ClaimCheck:
     """Build the "evidence not obtained" outcome for one claim."""
     return ClaimCheck(
-        probe_error=(
-            f"could not verify {artifact} on {owner}/{repo}: {detail}"
-        ),
+        probe_error=(f"could not verify {artifact} on {owner}/{repo}: {detail}"),
         exit_code=4 if is_auth_failure_text(detail) else 3,
     )
 
@@ -267,7 +269,8 @@ def _check_commit(owner: str, repo: str, sha: str) -> ClaimCheck:
     try:
         result = subprocess.run(
             [
-                "gh", "api",
+                "gh",
+                "api",
                 f"repos/{owner}/{repo}/commits/{sha}",
             ],
             capture_output=True,
@@ -279,9 +282,7 @@ def _check_commit(owner: str, repo: str, sha: str) -> ClaimCheck:
     except subprocess.TimeoutExpired as exc:
         # Uncaught this would end the process with Python's exit 1, the code
         # ADR-035 reserves for a verified logic failure.
-        return _unverifiable(
-            f"cited commit {sha}", owner, repo, sanitize_failure_detail(exc)
-        )
+        return _unverifiable(f"cited commit {sha}", owner, repo, sanitize_failure_detail(exc))
     if result.returncode == 0:
         # Validate response body: gh exits 0 for any 2xx, so an empty,
         # non-JSON, or wrong-object payload must not silently verify the
@@ -294,21 +295,23 @@ def _check_commit(owner: str, repo: str, sha: str) -> ClaimCheck:
         returned_sha = payload.get("sha") if isinstance(payload, dict) else None
         if not isinstance(returned_sha, str) or not returned_sha:
             return _unverifiable(
-                f"cited commit {sha}", owner, repo,
+                f"cited commit {sha}",
+                owner,
+                repo,
                 "gh returned 2xx but response body has no valid sha field",
             )
         if not returned_sha.startswith(sha):
             return _unverifiable(
-                f"cited commit {sha}", owner, repo,
+                f"cited commit {sha}",
+                owner,
+                repo,
                 f"gh returned sha {returned_sha!r} which does not match cited prefix",
             )
         return _CLAIM_VERIFIED
 
     detail = _probe_detail(result)
     if _COMMIT_ABSENT_SIGNATURE.search(detail):
-        return ClaimCheck(
-            failure=f"cited commit {sha} does not exist on {owner}/{repo}"
-        )
+        return ClaimCheck(failure=f"cited commit {sha} does not exist on {owner}/{repo}")
     return _unverifiable(f"cited commit {sha}", owner, repo, detail)
 
 
@@ -319,18 +322,11 @@ def _check_pr(owner: str, repo: str, number: int) -> ClaimCheck:
         return _CLAIM_VERIFIED
     if state.status is PrMergeStatus.UNMERGED:
         observed = f" (state {state.state})" if state.state else ""
-        return ClaimCheck(
-            failure=f"cited PR #{number} is not merged on {owner}/{repo}{observed}"
-        )
+        return ClaimCheck(failure=f"cited PR #{number} is not merged on {owner}/{repo}{observed}")
     if state.status is PrMergeStatus.NOT_FOUND:
-        return ClaimCheck(
-            failure=f"cited PR #{number} does not exist on {owner}/{repo}"
-        )
+        return ClaimCheck(failure=f"cited PR #{number} does not exist on {owner}/{repo}")
     return ClaimCheck(
-        probe_error=(
-            f"could not verify cited PR #{number} on {owner}/{repo}: "
-            f"{state.detail}"
-        ),
+        probe_error=(f"could not verify cited PR #{number} on {owner}/{repo}: {state.detail}"),
         exit_code=state.exit_code,
     )
 
@@ -426,9 +422,7 @@ def _resolve_comment(comment: str, comment_file: str, fmt: str) -> str:
     return comment
 
 
-def _write_subprocess_error(
-    message: str, issue: int, fmt: str, *, not_found: bool = False
-) -> int:
+def _write_subprocess_error(message: str, issue: int, fmt: str, *, not_found: bool = False) -> int:
     if not_found:
         code = 2
         error_type = "NotFound"
@@ -453,9 +447,14 @@ def _get_issue_state(owner: str, repo: str, issue: int, fmt: str) -> str:
     """Return the issue state from GitHub, lowercased."""
     result = subprocess.run(
         [
-            "gh", "issue", "view", str(issue),
-            "--repo", f"{owner}/{repo}",
-            "--json", "state",
+            "gh",
+            "issue",
+            "view",
+            str(issue),
+            "--repo",
+            f"{owner}/{repo}",
+            "--json",
+            "state",
         ],
         capture_output=True,
         encoding="utf-8",
@@ -469,10 +468,7 @@ def _get_issue_state(owner: str, repo: str, issue: int, fmt: str) -> str:
             f"Failed to get issue #{issue}: {error_str}",
             issue,
             fmt,
-            not_found=(
-                "Could not resolve" in error_str
-                or "not found" in error_str.lower()
-            ),
+            not_found=("Could not resolve" in error_str or "not found" in error_str.lower()),
         )
         raise SystemExit(code)
     try:
@@ -498,10 +494,13 @@ def _post_comment(owner: str, repo: str, issue: int, body: str, fmt: str) -> Non
     payload = json.dumps({"body": body})
     result = subprocess.run(
         [
-            "gh", "api",
+            "gh",
+            "api",
             f"repos/{owner}/{repo}/issues/{issue}/comments",
-            "-X", "POST",
-            "--input", "-",
+            "-X",
+            "POST",
+            "--input",
+            "-",
         ],
         input=payload,
         capture_output=True,
@@ -537,7 +536,8 @@ def _comment_bodies(payload: object) -> list[str]:
 def _comment_exists(owner: str, repo: str, issue: int, body: str, fmt: str) -> bool:
     result = subprocess.run(
         [
-            "gh", "api",
+            "gh",
+            "api",
             f"repos/{owner}/{repo}/issues/{issue}/comments?per_page=100",
             "--paginate",
             "--slurp",
@@ -577,9 +577,14 @@ def _close_issue(
     """Run gh issue close with the given reason. Returns the completed process."""
     return subprocess.run(
         [
-            "gh", "issue", "close", str(issue),
-            "--repo", f"{owner}/{repo}",
-            "--reason", reason,
+            "gh",
+            "issue",
+            "close",
+            str(issue),
+            "--repo",
+            f"{owner}/{repo}",
+            "--reason",
+            reason,
         ],
         capture_output=True,
         encoding="utf-8",

@@ -18,8 +18,7 @@ from unittest.mock import patch
 import scripts.validation.pr_description as _prdesc
 
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1]
-    / ".claude" / "skills" / "github" / "scripts" / "issue"
+    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "issue"
 )
 
 
@@ -50,6 +49,7 @@ def _gh_dispatch(*, user=None, pulls=None):
     the two calls swap. Dispatching on the command proves which call maps to
     which outcome and rejects any unexpected call.
     """
+
     def _run(cmd, *args, **kwargs):
         argv = list(cmd) if isinstance(cmd, (list, tuple)) else [cmd]
         path = argv[2] if len(argv) > 2 else ""
@@ -247,9 +247,9 @@ class TestSpanPatternsMatchCanonical:
             "See ````\n```\nhidden\n```\nFixes #1 end````\n",
         ]
         for body in bodies:
-            assert _check._fenced_code_block_ranges(
+            assert _check._fenced_code_block_ranges(body) == _prdesc._fenced_code_block_ranges(
                 body
-            ) == _prdesc._fenced_code_block_ranges(body), body
+            ), body
 
     def test_code_spans_outside_fences_behavior_matches_canonical(self):
         bodies = [
@@ -561,24 +561,30 @@ class TestSelfBranchSuppression:
         assert [m["number"] for m in out] == [10]
 
     def test_multiple_candidate_prs_all_surfaced(self):
-        prs = [[
-            _owner_pr(10, "work", "alice"),
-            _owner_pr(11, "other", "bob"),
-        ]]
+        prs = [
+            [
+                _owner_pr(10, "work", "alice"),
+                _owner_pr(11, "other", "bob"),
+            ]
+        ]
         out = _check.filter_prs_for_issue(
             prs, 2477, current_branch_name="", current_user_login="alice"
         )
         assert sorted(m["number"] for m in out) == [10, 11]
 
     def test_no_candidates_returns_empty(self):
-        prs = [[{
-            "number": 12,
-            "title": "chore",
-            "body": "unrelated work",
-            "html_url": "u12",
-            "head": {"ref": "b"},
-            "user": {"login": "alice"},
-        }]]
+        prs = [
+            [
+                {
+                    "number": 12,
+                    "title": "chore",
+                    "body": "unrelated work",
+                    "html_url": "u12",
+                    "head": {"ref": "b"},
+                    "user": {"login": "alice"},
+                }
+            ]
+        ]
         out = _check.filter_prs_for_issue(
             prs, 2477, current_branch_name="", current_user_login="alice"
         )

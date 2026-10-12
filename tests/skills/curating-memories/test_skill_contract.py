@@ -28,9 +28,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
 CANONICAL_SKILL_MD = REPO_ROOT / ".claude" / "skills" / "curating-memories" / "SKILL.md"
-MIRROR_SKILL_MD = (
-    REPO_ROOT / "src" / "copilot-cli" / "skills" / "curating-memories" / "SKILL.md"
-)
+MIRROR_SKILL_MD = REPO_ROOT / "src" / "copilot-cli" / "skills" / "curating-memories" / "SKILL.md"
 
 SKILL_MD_PATHS = [
     pytest.param(CANONICAL_SKILL_MD, id="canonical"),

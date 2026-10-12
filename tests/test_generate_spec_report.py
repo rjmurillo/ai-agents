@@ -87,20 +87,34 @@ def _make_argv(
     ref_name: str = "main",
 ) -> list[str]:
     return [
-        "--has-specs", has_specs,
-        "--trace-verdict", trace_verdict,
-        "--completeness-verdict", completeness_verdict,
-        "--spec-refs", spec_refs,
-        "--issue-refs", issue_refs,
-        "--trace-findings", trace_findings,
-        "--completeness-findings", completeness_findings,
-        "--trace-infra-failure", trace_infra_failure,
-        "--completeness-infra-failure", completeness_infra_failure,
-        "--github-repository", github_repository,
-        "--server-url", server_url,
-        "--run-id", run_id,
-        "--event-name", event_name,
-        "--ref-name", ref_name,
+        "--has-specs",
+        has_specs,
+        "--trace-verdict",
+        trace_verdict,
+        "--completeness-verdict",
+        completeness_verdict,
+        "--spec-refs",
+        spec_refs,
+        "--issue-refs",
+        issue_refs,
+        "--trace-findings",
+        trace_findings,
+        "--completeness-findings",
+        completeness_findings,
+        "--trace-infra-failure",
+        trace_infra_failure,
+        "--completeness-infra-failure",
+        completeness_infra_failure,
+        "--github-repository",
+        github_repository,
+        "--server-url",
+        server_url,
+        "--run-id",
+        run_id,
+        "--event-name",
+        event_name,
+        "--ref-name",
+        ref_name,
     ]
 
 
@@ -144,19 +158,32 @@ class TestBuildParser:
         assert args.completeness_infra_failure == ""
 
     def test_infra_failure_args_parsed(self):
-        args = build_parser().parse_args(_make_argv(
-            trace_infra_failure="true",
-            completeness_infra_failure="true",
-        ))
+        args = build_parser().parse_args(
+            _make_argv(
+                trace_infra_failure="true",
+                completeness_infra_failure="true",
+            )
+        )
         assert args.trace_infra_failure == "true"
         assert args.completeness_infra_failure == "true"
 
     def test_defaults_to_empty(self, monkeypatch):
-        for env in ["HAS_SPECS", "SPEC_REFS", "ISSUE_REFS", "TRACE_VERDICT",
-                     "TRACE_FINDINGS", "COMPLETENESS_VERDICT", "COMPLETENESS_FINDINGS",
-                     "TRACE_INFRA_FAILURE", "COMPLETENESS_INFRA_FAILURE",
-                     "GITHUB_REPOSITORY", "SERVER_URL", "RUN_ID", "EVENT_NAME",
-                     "REF_NAME"]:
+        for env in [
+            "HAS_SPECS",
+            "SPEC_REFS",
+            "ISSUE_REFS",
+            "TRACE_VERDICT",
+            "TRACE_FINDINGS",
+            "COMPLETENESS_VERDICT",
+            "COMPLETENESS_FINDINGS",
+            "TRACE_INFRA_FAILURE",
+            "COMPLETENESS_INFRA_FAILURE",
+            "GITHUB_REPOSITORY",
+            "SERVER_URL",
+            "RUN_ID",
+            "EVENT_NAME",
+            "REF_NAME",
+        ]:
             monkeypatch.delenv(env, raising=False)
         args = build_parser().parse_args([])
         assert args.has_specs == ""
@@ -263,10 +290,12 @@ class TestMainWithSpecs:
             return_value=str(report_dir),
         ):
             report_dir.mkdir(parents=True)
-            rc = main(_make_argv(
-                trace_findings="Trace details here",
-                completeness_findings="Completeness details here",
-            ))
+            rc = main(
+                _make_argv(
+                    trace_findings="Trace details here",
+                    completeness_findings="Completeness details here",
+                )
+            )
         assert rc == 0
         report = (report_dir / "spec-validation-report.md").read_text()
         assert "Trace details here" in report
@@ -309,14 +338,16 @@ class TestMainInfraFailure:
             return_value=str(report_dir),
         ):
             report_dir.mkdir(parents=True)
-            rc = main(_make_argv(
-                trace_verdict="CRITICAL_FAIL",
-                completeness_verdict="CRITICAL_FAIL",
-                trace_infra_failure="true",
-                completeness_infra_failure="true",
-                trace_findings=_INFRA_TRACE_FINDINGS,
-                completeness_findings=_INFRA_COMPLETENESS_FINDINGS,
-            ))
+            rc = main(
+                _make_argv(
+                    trace_verdict="CRITICAL_FAIL",
+                    completeness_verdict="CRITICAL_FAIL",
+                    trace_infra_failure="true",
+                    completeness_infra_failure="true",
+                    trace_findings=_INFRA_TRACE_FINDINGS,
+                    completeness_findings=_INFRA_COMPLETENESS_FINDINGS,
+                )
+            )
         assert rc == 0
         report = (report_dir / "spec-validation-report.md").read_text()
         assert "Final Verdict: INFRA_FAILURE" in report
@@ -341,12 +372,8 @@ class TestMainInfraFailure:
         trace_label_index = report.index("This check did not run (infrastructure failure)")
         trace_raw_index = report.index("rate limited (HTTP 429) on the traceability review")
         assert trace_label_index < trace_raw_index
-        completeness_label_index = report.rindex(
-            "This check did not run (infrastructure failure)"
-        )
-        completeness_raw_index = report.index(
-            "network timeout on the completeness review"
-        )
+        completeness_label_index = report.rindex("This check did not run (infrastructure failure)")
+        completeness_raw_index = report.index("network timeout on the completeness review")
         assert completeness_label_index < completeness_raw_index
 
     def test_real_failure_not_masked_by_infra_on_other_side(self, tmp_path, monkeypatch):
@@ -361,12 +388,14 @@ class TestMainInfraFailure:
             return_value=str(report_dir),
         ):
             report_dir.mkdir(parents=True)
-            rc = main(_make_argv(
-                trace_verdict="CRITICAL_FAIL",
-                completeness_verdict="FAIL",
-                trace_infra_failure="true",
-                trace_findings=_INFRA_TRACE_FINDINGS,
-            ))
+            rc = main(
+                _make_argv(
+                    trace_verdict="CRITICAL_FAIL",
+                    completeness_verdict="FAIL",
+                    trace_infra_failure="true",
+                    trace_findings=_INFRA_TRACE_FINDINGS,
+                )
+            )
         assert rc == 0
         report = (report_dir / "spec-validation-report.md").read_text()
         assert "Final Verdict: FAIL" in report
@@ -374,9 +403,7 @@ class TestMainInfraFailure:
         assert "does not block merge" not in report
         assert "fails `Check for Failures`" in report
 
-    def test_one_sided_infra_failure_yields_infra_failure_not_pass(
-        self, tmp_path, monkeypatch
-    ):
+    def test_one_sided_infra_failure_yields_infra_failure_not_pass(self, tmp_path, monkeypatch):
         """Edge: one side down and the other healthy is INFRA_FAILURE (the
         gate fails closed), not a clean PASS or WARN, and the summary
         table's own cell (not the boilerplate note text) is what proves the
@@ -388,12 +415,14 @@ class TestMainInfraFailure:
             return_value=str(report_dir),
         ):
             report_dir.mkdir(parents=True)
-            rc = main(_make_argv(
-                trace_verdict="CRITICAL_FAIL",
-                completeness_verdict="PASS",
-                trace_infra_failure="true",
-                trace_findings=_INFRA_TRACE_FINDINGS,
-            ))
+            rc = main(
+                _make_argv(
+                    trace_verdict="CRITICAL_FAIL",
+                    completeness_verdict="PASS",
+                    trace_infra_failure="true",
+                    trace_findings=_INFRA_TRACE_FINDINGS,
+                )
+            )
         assert rc == 0
         report = (report_dir / "spec-validation-report.md").read_text()
         assert "Final Verdict: INFRA_FAILURE" in report

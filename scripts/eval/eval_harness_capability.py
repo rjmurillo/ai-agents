@@ -336,7 +336,7 @@ def run(
                 copilot_bin=copilot_bin,
                 timeout=timeout,
                 runner=runner,
-                )
+            )
     report: dict[str, object] = build_report(records)
     if not dry_run:
         write_report(output, report)

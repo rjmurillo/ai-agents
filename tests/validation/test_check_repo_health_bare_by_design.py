@@ -260,9 +260,7 @@ class TestABareRepositoryStoredAtADotGitPath:
         _git(tmp_path, "clone", "-q", "--bare", str(seed), str(holder / ".git"))
         return holder
 
-    def test_git_names_the_holding_directory_as_the_main_worktree(
-        self, tmp_path: Path
-    ) -> None:
+    def test_git_names_the_holding_directory_as_the_main_worktree(self, tmp_path: Path) -> None:
         """The premise: path alone cannot tell this from a poisoned checkout."""
         holder = self._bare_at_dot_git(tmp_path)
 
@@ -312,9 +310,7 @@ class TestABareRepositoryStoredAtADotGitPath:
         assert check_repo_health._holds_checked_out_content(holder) is True
         assert check_repo_health._has_main_work_tree_index(holder / ".git") is False
 
-    def test_a_real_checkout_at_the_same_path_shape_still_exits_one(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_real_checkout_at_the_same_path_shape_still_exits_one(self, tmp_path: Path) -> None:
         """The discriminating control: same reported shape, real staged index.
 
         ``git worktree list`` names ``holder`` for both layouts, so if this
@@ -369,9 +365,7 @@ class TestTheStagedIndexSeparatesACheckoutFromABareRepository:
 class TestContentSeparatesAWorkTreeFromAPhantomOne:
     """Edge: the second condition, for a bare repository that gained an index."""
 
-    def test_a_directory_holding_only_a_git_entry_holds_no_content(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_directory_holding_only_a_git_entry_holds_no_content(self, tmp_path: Path) -> None:
         holder = tmp_path / "dirD"
         (holder / ".git").mkdir(parents=True)
 
@@ -386,9 +380,7 @@ class TestContentSeparatesAWorkTreeFromAPhantomOne:
         """Ambiguity resolves toward bare by design, so an unreadable path is False."""
         assert check_repo_health._holds_checked_out_content(tmp_path / "absent") is False
 
-    def test_a_dotfile_beside_the_git_entry_counts_as_content(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_dotfile_beside_the_git_entry_counts_as_content(self, tmp_path: Path) -> None:
         """``.gitignore`` is tracked content; only ``.git`` itself is excluded."""
         holder = tmp_path / "dirD"
         (holder / ".git").mkdir(parents=True)

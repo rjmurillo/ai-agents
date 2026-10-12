@@ -226,9 +226,7 @@ class TestAHostileGitMarkerIsRefusedRatherThanRead:
         assert marker.stat().st_size == check_repo_health._MAX_MARKER_BYTES
         assert check_repo_health._marker_git_dir(marker) == target.resolve()
 
-    @pytest.mark.skipif(
-        not _CHARACTER_DEVICE.exists(), reason="no /dev/zero on this platform"
-    )
+    @pytest.mark.skipif(not _CHARACTER_DEVICE.exists(), reason="no /dev/zero on this platform")
     def test_a_marker_symlinked_at_a_character_device_resolves_to_nothing(
         self, tmp_path: Path
     ) -> None:
@@ -238,12 +236,8 @@ class TestAHostileGitMarkerIsRefusedRatherThanRead:
 
         assert check_repo_health._marker_git_dir(marker) is None
 
-    @pytest.mark.skipif(
-        not _CHARACTER_DEVICE.exists(), reason="no /dev/zero on this platform"
-    )
-    def test_the_ancestor_walk_survives_a_character_device_marker(
-        self, tmp_path: Path
-    ) -> None:
+    @pytest.mark.skipif(not _CHARACTER_DEVICE.exists(), reason="no /dev/zero on this platform")
+    def test_the_ancestor_walk_survives_a_character_device_marker(self, tmp_path: Path) -> None:
         """The walk is where a real invocation meets an ancestor it does not own."""
         holder = tmp_path / "holder"
         holder.mkdir()
@@ -251,9 +245,7 @@ class TestAHostileGitMarkerIsRefusedRatherThanRead:
 
         assert check_repo_health._work_tree_root(holder, tmp_path / "somewhere") is None
 
-    def test_a_marker_that_is_a_directory_resolves_to_nothing(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_marker_that_is_a_directory_resolves_to_nothing(self, tmp_path: Path) -> None:
         """``_work_tree_root`` resolves a directory itself and never reads it."""
         marker = tmp_path / ".git"
         marker.mkdir()

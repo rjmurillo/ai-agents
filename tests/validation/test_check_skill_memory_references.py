@@ -35,9 +35,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-SCRIPT_PATH = (
-    REPO_ROOT / "scripts" / "validation" / "check_skill_memory_references.py"
-)
+SCRIPT_PATH = REPO_ROOT / "scripts" / "validation" / "check_skill_memory_references.py"
 
 
 def _load_module():
@@ -93,11 +91,7 @@ _AGENT = "templates/agents/example.shared.md"
 
 
 def _call(name: str, operation: str = "read_memory") -> str:
-    return (
-        "```python\n"
-        f'mcp__serena__{operation}(memory_file_name="{name}")\n'
-        "```\n"
-    )
+    return f'```python\nmcp__serena__{operation}(memory_file_name="{name}")\n```\n'
 
 
 # --- Positive --------------------------------------------------------------
@@ -108,15 +102,11 @@ class TestResolvingReferences:
         repo = _make_repo(
             tmp_path,
             memories=("pr-review/pr-comment-responder-skills",),
-            instructions=(
-                (_SKILL, _call("pr-review/pr-comment-responder-skills")),
-            ),
+            instructions=((_SKILL, _call("pr-review/pr-comment-responder-skills")),),
         )
         assert _run(repo) == csmr.EXIT_OK
 
-    def test_a_top_level_name_that_resolves_exits_zero(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_top_level_name_that_resolves_exits_zero(self, tmp_path: Path) -> None:
         repo = _make_repo(
             tmp_path,
             memories=("usage-mandatory",),
@@ -190,9 +180,7 @@ class TestUnresolvedReferences:
         assert "'github/observations'" in out
         assert "'pr-review/observations'" in out
 
-    def test_edit_memory_is_checked_like_read_memory(
-        self, tmp_path: Path
-    ) -> None:
+    def test_edit_memory_is_checked_like_read_memory(self, tmp_path: Path) -> None:
         """edit_memory mutates an existing memory, so its target must exist."""
         repo = _make_repo(
             tmp_path,
@@ -215,18 +203,14 @@ class TestUnresolvedReferences:
         )
         assert _run(repo) == csmr.EXIT_UNRESOLVED
 
-    def test_one_bad_reference_fails_a_file_holding_good_ones(
-        self, tmp_path: Path
-    ) -> None:
+    def test_one_bad_reference_fails_a_file_holding_good_ones(self, tmp_path: Path) -> None:
         repo = _make_repo(
             tmp_path,
             memories=("pr-review/good", "pr-review/also-good"),
             instructions=(
                 (
                     _SKILL,
-                    _call("pr-review/good")
-                    + _call("bad")
-                    + _call("pr-review/also-good"),
+                    _call("pr-review/good") + _call("bad") + _call("pr-review/also-good"),
                 ),
             ),
         )
@@ -254,9 +238,7 @@ class TestReferenceDetection:
             ),
         ],
     )
-    def test_each_call_spelling_is_detected(
-        self, tmp_path: Path, call_text: str
-    ) -> None:
+    def test_each_call_spelling_is_detected(self, tmp_path: Path, call_text: str) -> None:
         repo = _make_repo(
             tmp_path,
             memories=("scope/target",),
@@ -268,27 +250,21 @@ class TestReferenceDetection:
         "name",
         ["<memory-name>", "${MEMORY}", "{name}", "testing/foo[0]", "prefix*"],
     )
-    def test_a_placeholder_name_is_not_a_literal(
-        self, tmp_path: Path, name: str
-    ) -> None:
+    def test_a_placeholder_name_is_not_a_literal(self, tmp_path: Path, name: str) -> None:
         repo = _make_repo(
             tmp_path,
             instructions=((_SKILL, _call(name)),),
         )
         assert _run(repo) == csmr.EXIT_OK
 
-    def test_write_memory_is_a_creation_target_not_a_reference(
-        self, tmp_path: Path
-    ) -> None:
+    def test_write_memory_is_a_creation_target_not_a_reference(self, tmp_path: Path) -> None:
         repo = _make_repo(
             tmp_path,
             instructions=((_SKILL, _call("brand-new-memory", "write_memory")),),
         )
         assert _run(repo) == csmr.EXIT_OK
 
-    def test_a_call_with_no_literal_name_is_skipped(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_call_with_no_literal_name_is_skipped(self, tmp_path: Path) -> None:
         repo = _make_repo(
             tmp_path,
             instructions=(
@@ -300,9 +276,7 @@ class TestReferenceDetection:
         )
         assert _run(repo) == csmr.EXIT_OK
 
-    def test_a_backslash_in_a_name_normalizes_to_a_forward_slash(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_backslash_in_a_name_normalizes_to_a_forward_slash(self, tmp_path: Path) -> None:
         """Mirrors ``memory_index.py``: ``file_name.replace("\\\\", "/")``."""
         repo = _make_repo(
             tmp_path,
@@ -311,9 +285,7 @@ class TestReferenceDetection:
         )
         assert _run(repo) == csmr.EXIT_OK
 
-    def test_a_reference_outside_a_corpus_root_is_ignored(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_reference_outside_a_corpus_root_is_ignored(self, tmp_path: Path) -> None:
         repo = _make_repo(
             tmp_path,
             instructions=(("docs/notes.md", _call("no-such-memory")),),
@@ -339,14 +311,12 @@ class TestContainment:
             tmp_path / "repo",
             instructions=((_SKILL, _call("../../../outside/secret")),),
         )
-        assert (
-            repo / ".serena" / "memories" / "../../../outside/secret.md"
-        ).resolve() == (outside / "secret.md").resolve()
+        assert (repo / ".serena" / "memories" / "../../../outside/secret.md").resolve() == (
+            outside / "secret.md"
+        ).resolve()
         assert _run(repo) == csmr.EXIT_UNRESOLVED
 
-    def test_a_symlinked_component_does_not_resolve(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_symlinked_component_does_not_resolve(self, tmp_path: Path) -> None:
         """Mirrors canonical's per-component ``is_symlink`` refusal."""
         repo = _make_repo(
             tmp_path,
@@ -355,9 +325,7 @@ class TestContainment:
         )
         memories_root = repo / ".serena" / "memories"
         try:
-            (memories_root / "alias").symlink_to(
-                memories_root / "real", target_is_directory=True
-            )
+            (memories_root / "alias").symlink_to(memories_root / "real", target_is_directory=True)
         except (OSError, NotImplementedError):
             pytest.skip("symlink creation unavailable on this platform")
         assert _run(repo) == csmr.EXIT_UNRESOLVED
@@ -384,20 +352,14 @@ class TestAbsentInputs:
         assert "[SKIP]" in out
         assert "0 memory references examined" in out
 
-    def test_a_missing_repo_root_is_a_configuration_error(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_missing_repo_root_is_a_configuration_error(self, tmp_path: Path) -> None:
         assert _run(tmp_path / "does-not-exist") == csmr.EXIT_CONFIG
 
-    def test_an_unreadable_instruction_file_fails_closed(
-        self, tmp_path: Path
-    ) -> None:
+    def test_an_unreadable_instruction_file_fails_closed(self, tmp_path: Path) -> None:
         """Decode errors are configuration failures, not silent skips."""
         repo = _make_repo(tmp_path, memories=("pr-review/target",))
         _write(repo / _SKILL, _call("pr-review/target"))
-        (repo / ".claude" / "skills" / "example" / "binary.md").write_bytes(
-            b"\xff\xfe not utf-8"
-        )
+        (repo / ".claude" / "skills" / "example" / "binary.md").write_bytes(b"\xff\xfe not utf-8")
         with pytest.raises(SystemExit) as exc_info:
             _run(repo)
         assert exc_info.value.code == csmr.EXIT_CONFIG
@@ -418,4 +380,3 @@ class TestShippedCorpus:
         """
         assert csmr.main(["--repo-root", str(REPO_ROOT)]) == csmr.EXIT_OK
         assert "[PASS]" in capsys.readouterr().out
-

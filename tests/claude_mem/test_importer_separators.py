@@ -143,9 +143,7 @@ class TestDriveAnchoredSuffixIsNotExpanded:
         ["~/D:/importer.ts", "~\\D:\\importer.ts", "~/D:importer.ts"],
         ids=["absolute-other-drive", "backslash-other-drive", "drive-relative"],
     )
-    def test_windows_leaves_a_drive_anchored_suffix_literal(
-        self, raw: str, tmp_path: Path
-    ) -> None:
+    def test_windows_leaves_a_drive_anchored_suffix_literal(self, raw: str, tmp_path: Path) -> None:
         result = _import_mem.expand_home(raw, tmp_path, pathmod=ntpath)
 
         assert result == Path(raw)
@@ -177,9 +175,7 @@ class TestDriveAnchoredSuffixIsNotExpanded:
 
     @pytest.mark.windows_path
     @pytest.mark.skipif(sys.platform != "win32", reason="Asserts Windows drive semantics")
-    def test_drive_anchored_suffix_stays_literal_on_a_windows_runner(
-        self, tmp_path: Path
-    ) -> None:
+    def test_drive_anchored_suffix_stays_literal_on_a_windows_runner(self, tmp_path: Path) -> None:
         """Pin the real derivation: home must survive a drive-anchored suffix."""
         result = _import_mem.expand_home("~/D:/importer.ts", tmp_path)
 

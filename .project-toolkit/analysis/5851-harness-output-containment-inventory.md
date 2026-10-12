@@ -92,10 +92,17 @@ Probe A, PostToolUse replacement (settings file registers the hook for matcher `
 
 ```python
 import json, sys
+
 d = json.load(sys.stdin)
 tr = d.get("tool_response")
-new = dict(tr, stdout="CONTAINED-BY-HOOK-PROBE") if isinstance(tr, dict) else "CONTAINED-BY-HOOK-PROBE"
-print(json.dumps({"hookSpecificOutput": {"hookEventName": "PostToolUse", "updatedToolOutput": new}}))
+new = (
+    dict(tr, stdout="CONTAINED-BY-HOOK-PROBE")
+    if isinstance(tr, dict)
+    else "CONTAINED-BY-HOOK-PROBE"
+)
+print(
+    json.dumps({"hookSpecificOutput": {"hookEventName": "PostToolUse", "updatedToolOutput": new}})
+)
 ```
 
 Negative control: replace the `new = ...` line with the bare string and keep the rest unchanged.

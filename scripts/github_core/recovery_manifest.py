@@ -176,9 +176,7 @@ def dedupe_runs(runs: Iterable[WorkflowRun]) -> list[WorkflowRun]:
 
 def summarize_blast_radius(runs: Sequence[WorkflowRun], required: frozenset[str]) -> BlastRadius:
     """Count what a cancellation of ``runs`` would touch."""
-    required_contexts = {
-        context for run in runs for context in run.contexts if context in required
-    }
+    required_contexts = {context for run in runs for context in run.contexts if context in required}
     return BlastRadius(
         run_count=len(runs),
         pr_count=len({run.pr_number for run in runs}),
@@ -233,9 +231,7 @@ def _classify(
     """
     from_api = {context for context in run.contexts if context in required}
     from_definition = (
-        declared_required_contexts(workflow, required)
-        if workflow is not None
-        else frozenset()
+        declared_required_contexts(workflow, required) if workflow is not None else frozenset()
     )
     required_contexts = tuple(sorted(from_api | from_definition))
     other_contexts = tuple(sorted(c for c in run.contexts if c not in required))
@@ -290,9 +286,7 @@ def _classify(
                     "trusted (issue #4835 fail-open guard)"
                 ),
             )
-        return verdict(
-            event=None, verified=True, reason=None, verification="not-required"
-        )
+        return verdict(event=None, verified=True, reason=None, verification="not-required")
 
     if recovery_event is None:
         return verdict(

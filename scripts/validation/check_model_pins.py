@@ -193,9 +193,7 @@ def alias_prices_below_default(
     return alias_price < default_price
 
 
-def _record_bearing_key_pins(
-    path: str, value: object, out: list[tuple[str, str]]
-) -> bool:
+def _record_bearing_key_pins(path: str, value: object, out: list[tuple[str, str]]) -> bool:
     """Record pins for a model-bearing key's value; report whether it was handled.
 
     Preserve model-bearing context through lists and mappings. A generic YAML

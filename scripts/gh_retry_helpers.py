@@ -254,4 +254,3 @@ def run_gh(arguments: list[str], timeout: int = GH_TIMEOUT_SECONDS) -> CommandRe
         time.sleep(delay)
 
     raise RuntimeError("unreachable gh retry loop")
-

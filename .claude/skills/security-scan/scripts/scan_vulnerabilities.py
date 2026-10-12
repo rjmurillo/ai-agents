@@ -101,9 +101,7 @@ class Vulnerability:
 class ScanResult:
     """Scan result container."""
 
-    scan_timestamp: str = field(
-        default_factory=lambda: datetime.now(UTC).isoformat()
-    )
+    scan_timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     files_scanned: int = 0
     vulnerabilities: list[Any] = field(default_factory=list)
     suppressed: list[Any] = field(default_factory=list)
@@ -172,9 +170,7 @@ def get_staged_files() -> list[str]:
         return [f for f in result.stdout.strip().split("\n") if f]
     except subprocess.CalledProcessError as exc:
         detail = (exc.stderr or exc.stdout or str(exc)).strip()
-        raise GitEnumerationError(
-            f"git diff --staged --name-only failed: {detail}"
-        ) from exc
+        raise GitEnumerationError(f"git diff --staged --name-only failed: {detail}") from exc
     except FileNotFoundError as exc:
         raise GitEnumerationError("git executable not found") from exc
 
@@ -195,9 +191,7 @@ def get_directory_files(directory: str) -> list[str]:
     }
     files = []
     for root, dirnames, filenames in os.walk(directory):
-        dirnames[:] = [
-            name for name in dirnames if name.lower() not in pruned_directories
-        ]
+        dirnames[:] = [name for name in dirnames if name.lower() not in pruned_directories]
         for filename in filenames:
             file_path = os.path.join(root, filename)
             suffix = Path(filename).suffix.lower()
@@ -338,7 +332,7 @@ def _build_parser() -> argparse.ArgumentParser:
     """Build the command-line parser."""
     parser = argparse.ArgumentParser(
         description="Scan code for CWE-78 (command injection). CWE-22 path-traversal "
-                    "detection is delegated to CodeQL in CI; see module docstring.",
+        "detection is delegated to CodeQL in CI; see module docstring.",
         epilog=(
             "Exit codes:\n"
             "  0  no vulnerabilities found\n"
@@ -421,9 +415,7 @@ def _validate_path(raw: str, label: str, allowed_base: Path) -> None:
     """Reject paths outside the current working directory."""
     candidate = Path(raw).resolve(strict=False)
     if not candidate.is_relative_to(allowed_base):
-        raise ValueError(
-            f"Path traversal attempt detected in {label}: {raw}"
-        )
+        raise ValueError(f"Path traversal attempt detected in {label}: {raw}")
 
 
 def _validate_input_paths(args: argparse.Namespace) -> None:
@@ -496,9 +488,7 @@ def _filter_supported_files(files_to_scan: list[str]) -> list[str]:
     return supported_files
 
 
-def _scan_supported_files(
-    supported_files: list[str], cwe_filter: list[int] | None
-) -> ScanResult:
+def _scan_supported_files(supported_files: list[str], cwe_filter: list[int] | None) -> ScanResult:
     """Scan supported files and aggregate findings."""
     result = ScanResult()
     result.files_scanned = len(supported_files)
@@ -514,9 +504,7 @@ def _scan_supported_files(
     return result
 
 
-def _format_output(
-    result: ScanResult, cwe_filter: list[int] | None, output_format: str
-) -> str:
+def _format_output(result: ScanResult, cwe_filter: list[int] | None, output_format: str) -> str:
     """Format scan results for stdout or file output."""
     if output_format == "json":
         output = format_json_output(result)
@@ -526,10 +514,7 @@ def _format_output(
         # carries `summary.delegated_cwes`, but a console caller running
         # `--cwe 22` should see the delegation in stdout, not just stderr.
         if cwe_filter and 22 in cwe_filter:
-            output += (
-                "\n\nCWE-22: delegated to CodeQL "
-                "(see .github/workflows/codeql-analysis.yml)"
-            )
+            output += "\n\nCWE-22: delegated to CodeQL (see .github/workflows/codeql-analysis.yml)"
     return output
 
 

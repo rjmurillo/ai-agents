@@ -228,7 +228,9 @@ def test_handmaintained_plus_generated_src_is_still_drift(fake_repo: Path) -> No
 
 
 def test_install_plus_generated_src_partial_is_still_drift(fake_repo: Path) -> None:
-    """A generated src copy is strict; carve-out does not apply. ADR-109 B1: SHARED_AGENT delegated.
+    """A generated src copy is strict; carve-out does not apply.
+
+    ADR-109 B1: SHARED_AGENT delegated.
     """
     touched = [
         "src/vs-code-agents/alpha.agent.md",
@@ -338,12 +340,14 @@ def test_explicit_base_no_silent_fallback(monkeypatch, tmp_path: Path) -> None:
 
     # Pass an explicit (non-default) --base. The validator should attempt
     # ONLY that ref and exit 2 without retrying origin/main.
-    rc = vip.main([
-        "--repo-root",
-        str(tmp_path),
-        "--base",
-        "some/explicit/base",
-    ])
+    rc = vip.main(
+        [
+            "--repo-root",
+            str(tmp_path),
+            "--base",
+            "some/explicit/base",
+        ]
+    )
     assert rc == 2
     assert calls == ["some/explicit/base"]
 
@@ -362,10 +366,12 @@ def test_default_base_falls_back_to_origin_main(monkeypatch, tmp_path: Path) -> 
 
     monkeypatch.setattr(vip, "_git_diff_files", fake_diff)
 
-    rc = vip.main([
-        "--repo-root",
-        str(tmp_path),
-    ])
+    rc = vip.main(
+        [
+            "--repo-root",
+            str(tmp_path),
+        ]
+    )
     assert rc == 0
     assert calls == ["@{push}", "origin/main"]
 
@@ -409,9 +415,7 @@ def test_cli_files_mode_exit_one_on_drift(
     assert "OK" in out
 
 
-def test_cli_json_format(
-    capsys: pytest.CaptureFixture[str], fake_repo: Path
-) -> None:
+def test_cli_json_format(capsys: pytest.CaptureFixture[str], fake_repo: Path) -> None:
     """SHARED_AGENT groups delegated; JSON output for clean diff. ADR-109 B1."""
     argv = [
         "--repo-root",
@@ -440,9 +444,7 @@ def test_cli_repo_root_missing_returns_two(
     assert "repo root not found" in err
 
 
-def test_cli_empty_files_list_passes(
-    capsys: pytest.CaptureFixture[str], fake_repo: Path
-) -> None:
+def test_cli_empty_files_list_passes(capsys: pytest.CaptureFixture[str], fake_repo: Path) -> None:
     argv = ["--repo-root", str(fake_repo), "--files"]
     rc = vip.main(argv)
     out = capsys.readouterr().out

@@ -197,9 +197,7 @@ def test_gate_runs_its_validator(
 
 
 @pytest.mark.parametrize("command", sorted(_EXPECTED))
-def test_gate_invokes_the_same_target_as_ci(
-    command: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_gate_invokes_the_same_target_as_ci(command: str, monkeypatch: pytest.MonkeyPatch) -> None:
     """The validator shells out to the same script or module the CI job runs.
 
     Without this, a gate could carry the right name, call the right wrapper, and

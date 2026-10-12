@@ -208,13 +208,15 @@ def _cmd_verify_all(args: argparse.Namespace) -> int:
             if any(not r.is_valid for r in results):
                 found_issues = True
             for r in results:
-                flat_results.append({
-                    "memory_id": memory.memory_id,
-                    "target": r.citation.target,
-                    "source_type": r.citation.source_type.value,
-                    "valid": r.is_valid,
-                    "reason": r.reason,
-                })
+                flat_results.append(
+                    {
+                        "memory_id": memory.memory_id,
+                        "target": r.citation.target,
+                        "source_type": r.citation.source_type.value,
+                        "valid": r.is_valid,
+                        "reason": r.reason,
+                    }
+                )
 
         print(json.dumps(flat_results, indent=2))
     else:
@@ -238,26 +240,29 @@ def _cmd_health(args: argparse.Namespace) -> int:
 
     output_format = getattr(args, "output_format", "markdown")
     if output_format == "json":
-        print(json.dumps({
-            "total_memories": report.total_memories,
-            "total_citations": report.total_citations,
-            "valid_citations": report.valid_citations,
-            "stale_citations": report.stale_citations,
-            "broken_citations": report.broken_citations,
-            "unverified_citations": report.unverified_citations,
-            "health_score": report.health_score,
-            "stale_memories": list(report.stale_memories),
-            "recommendations": list(report.recommendations),
-        }, indent=2))
+        print(
+            json.dumps(
+                {
+                    "total_memories": report.total_memories,
+                    "total_citations": report.total_citations,
+                    "valid_citations": report.valid_citations,
+                    "stale_citations": report.stale_citations,
+                    "broken_citations": report.broken_citations,
+                    "unverified_citations": report.unverified_citations,
+                    "health_score": report.health_score,
+                    "stale_memories": list(report.stale_memories),
+                    "recommendations": list(report.recommendations),
+                },
+                indent=2,
+            )
+        )
     elif output_format == "text":
         print(format_report_text(report))
     else:
         print(format_report(report))
 
     has_issues = (
-        report.broken_citations > 0
-        or report.stale_citations > 0
-        or len(report.stale_memories) > 0
+        report.broken_citations > 0 or report.stale_citations > 0 or len(report.stale_memories) > 0
     )
     return 1 if has_issues else 0
 
@@ -331,9 +336,7 @@ def _cmd_search(args: argparse.Namespace) -> int:
     return 0
 
 
-def _print_verification_results(
-    memory_id: str, results: list[VerificationResult]
-) -> None:
+def _print_verification_results(memory_id: str, results: list[VerificationResult]) -> None:
     """Print verification results for a single memory."""
     if not results:
         print(f"{memory_id}: no citations")

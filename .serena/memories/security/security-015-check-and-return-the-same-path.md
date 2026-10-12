@@ -24,16 +24,16 @@ wrong and had shipped.
 
 ```python
 # WRONG: the check and the return disagree once a symlink sits above the `..`
-candidate = (root / user_path)
+candidate = root / user_path
 if not _contained(candidate.resolve(), root):
     return None
-return Path(os.path.normpath(candidate))   # different file
+return Path(os.path.normpath(candidate))  # different file
 
 # RIGHT: vet it, then hand back the identical object
-candidate = (root / user_path)
+candidate = root / user_path
 if not _contained(candidate.resolve(), root):
     return None
-return candidate                            # link still visible downstream
+return candidate  # link still visible downstream
 ```
 
 Returning the candidate whole keeps every symlink in the path where a later

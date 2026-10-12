@@ -102,11 +102,7 @@ def parse_library_sentence(text: str) -> tuple[set[str], set[str]]:
     def names(raw: str) -> set[str]:
         if raw.strip().lower() == "none":
             return set()
-        return {
-            name.strip()
-            for name in re.split(r",\s*|\s+and\s+", raw)
-            if name.strip()
-        }
+        return {name.strip() for name in re.split(r",\s*|\s+and\s+", raw) if name.strip()}
 
     return names(match.group("always")), names(match.group("code"))
 

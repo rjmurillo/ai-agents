@@ -222,7 +222,8 @@ def test_vanilla_rows_keep_logic_out_of_the_workflow() -> None:
         for step in document["jobs"][name]["steps"]:
             run = step.get("run", "")
             code_lines = [
-                line for line in str(run).splitlines()
+                line
+                for line in str(run).splitlines()
                 if line.strip() and not line.strip().startswith("#")
             ]
             assert len(code_lines) <= 3, (

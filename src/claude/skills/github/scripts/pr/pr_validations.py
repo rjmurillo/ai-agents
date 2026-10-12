@@ -89,11 +89,11 @@ def validate_no_escaped_newlines(body_content: str) -> None:
         file=sys.stderr,
     )
     print(
-        "  Write the body to a file and pass --body-file, which cannot"
-        " express this error.",
+        "  Write the body to a file and pass --body-file, which cannot express this error.",
         file=sys.stderr,
     )
     raise SystemExit(1)
+
 
 # Em/en-dash detection regex for Validation 5. Inlined here rather than
 # imported from scripts.validation.pr_description because:
@@ -191,9 +191,7 @@ _UNTRUSTED_REPOSITORY_VALIDATORS = (
     "skill violation (scripts/detect_skill_violation.py)",
     "test coverage (scripts/detect_test_coverage_gaps.py)",
 )
-_UNTRUSTED_REPOSITORY_REASON = (
-    "repository-local Python is outside the trusted push-pr boundary"
-)
+_UNTRUSTED_REPOSITORY_REASON = "repository-local Python is outside the trusted push-pr boundary"
 
 
 def _report_not_run(validator: str) -> None:
@@ -295,9 +293,7 @@ def run_validations(
     agents_changed = any(f.startswith(".project-toolkit/") for f in changed_files)
 
     if agents_changed:
-        session_logs, has_legacy_md = _extract_validatable_session_logs(
-            changed_files
-        )
+        session_logs, has_legacy_md = _extract_validatable_session_logs(changed_files)
         if session_logs:
             _report_not_run(_UNTRUSTED_REPOSITORY_VALIDATORS[0])
         elif has_legacy_md:
@@ -403,8 +399,7 @@ def run_validations(
         dash_violations.append(f"body ({sample})")
     if dash_violations:
         print(
-            "ERROR: Em-dash (U+2014) or en-dash (U+2013) found in: "
-            + "; ".join(dash_violations),
+            "ERROR: Em-dash (U+2014) or en-dash (U+2013) found in: " + "; ".join(dash_violations),
             file=sys.stderr,
         )
         print(
@@ -416,8 +411,7 @@ def run_validations(
             file=sys.stderr,
         )
         print(
-            "  Override (NOT RECOMMENDED): re-run with --skip-validation"
-            " --audit-reason \"...\".",
+            '  Override (NOT RECOMMENDED): re-run with --skip-validation --audit-reason "...".',
             file=sys.stderr,
         )
         raise SystemExit(1)

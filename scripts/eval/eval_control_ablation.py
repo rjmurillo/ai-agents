@@ -69,9 +69,6 @@ _HARNESS_ERRORS = (
 )
 
 
-
-
-
 # ---------------------------------------------------------------------------
 # Dry run (REQ-046 AC-2)
 # ---------------------------------------------------------------------------
@@ -302,9 +299,7 @@ def _requested_controls(raw: str) -> list[str]:
     return names
 
 
-def _select_tasks(
-    tasks: list[ablation_tasks.Task], raw: str | None
-) -> list[ablation_tasks.Task]:
+def _select_tasks(tasks: list[ablation_tasks.Task], raw: str | None) -> list[ablation_tasks.Task]:
     """Keep only `--only-tasks` ids, in corpus order; an unknown id refuses."""
     if raw is None:
         return tasks
@@ -334,10 +329,7 @@ def _refuse_recorded_cells(
         path = output_dir / f"records-{name}.jsonl"
         if not path.is_file():
             continue
-        recorded = {
-            (row["task_id"], row["repeat"])
-            for row in _record_rows(path)
-        }
+        recorded = {(row["task_id"], row["repeat"]) for row in _record_rows(path)}
         clash = sorted(planned & recorded)
         if clash:
             raise ablation_tasks.ControlAblationConfigError(
@@ -451,7 +443,7 @@ def main(argv: Sequence[str] | None = None, *, runner: claude_run.Runner = subpr
     args = _parser().parse_args(argv)
     try:
         workspace_root = _resolve_workspace_root(args.workspace_root)
-        output_dir = (args.output_dir.resolve() if args.output_dir else _default_output_dir())
+        output_dir = args.output_dir.resolve() if args.output_dir else _default_output_dir()
         output_dir.mkdir(parents=True, exist_ok=True)
         report, code = _run(args, workspace_root, output_dir, runner)
     except (ablation_tasks.ControlAblationConfigError, ParityConfigError) as exc:

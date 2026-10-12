@@ -24,9 +24,9 @@ def windows_creation_flags() -> int:
     """Start Windows children suspended inside a distinct process group."""
     if os.name != "nt":
         return 0
-    return int(
-        getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", _CREATE_NEW_PROCESS_GROUP)
-    ) | int(getattr(subprocess, "CREATE_SUSPENDED", _CREATE_SUSPENDED))
+    return int(getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", _CREATE_NEW_PROCESS_GROUP)) | int(
+        getattr(subprocess, "CREATE_SUSPENDED", _CREATE_SUSPENDED)
+    )
 
 
 class _BasicLimitInformation(ctypes.Structure):
@@ -81,9 +81,7 @@ class _WindowsJob:
         self._handle: int | None = int(handle)
         try:
             limits = _ExtendedLimitInformation()
-            limits.BasicLimitInformation.LimitFlags = (
-                _JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
-            )
+            limits.BasicLimitInformation.LimitFlags = _JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
             configured = kernel32.SetInformationJobObject(
                 ctypes.c_void_p(self._handle),
                 _JOB_OBJECT_EXTENDED_LIMIT_INFORMATION,

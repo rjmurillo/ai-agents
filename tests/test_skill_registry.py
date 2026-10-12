@@ -360,18 +360,26 @@ class TestPathTraversal:
         outside.mkdir()
         project = tmp_path / "project"
         project.mkdir()
-        exit_code = main([
-            "--project-root", str(project),
-            "--skills-dir", str(outside),
-        ])
+        exit_code = main(
+            [
+                "--project-root",
+                str(project),
+                "--skills-dir",
+                str(outside),
+            ]
+        )
         assert exit_code == 2
 
     def test_rejects_skills_dir_traversal(self, tmp_path: Path) -> None:
         """Returns error code when skills dir uses .. to escape project root."""
         project = tmp_path / "project"
         project.mkdir()
-        exit_code = main([
-            "--project-root", str(project),
-            "--skills-dir", str(project / ".." / "escape"),
-        ])
+        exit_code = main(
+            [
+                "--project-root",
+                str(project),
+                "--skills-dir",
+                str(project / ".." / "escape"),
+            ]
+        )
         assert exit_code == 2

@@ -67,9 +67,7 @@ def test_main_respects_top_flag(tmp_path: Path) -> None:
         write_transcript(tmp_path, "proj-a", f"small{i}.jsonl", small_session)
     output_path = tmp_path / "report.json"
 
-    rc = audit.main(
-        ["--projects-dir", str(tmp_path), "--top", "1", "--output", str(output_path)]
-    )
+    rc = audit.main(["--projects-dir", str(tmp_path), "--top", "1", "--output", str(output_path)])
 
     assert rc == 0
     data = json.loads(output_path.read_text(encoding="utf-8"))

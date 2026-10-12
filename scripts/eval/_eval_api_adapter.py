@@ -430,9 +430,7 @@ class AnthropicAPIAdapter:
         (issue #4121).
         """
         if type(max_retries) is not int or max_retries < 1:
-            raise ValueError(
-                f"max_retries must be an integer >= 1, got {max_retries!r}"
-            )
+            raise ValueError(f"max_retries must be an integer >= 1, got {max_retries!r}")
         resolve_start = self._clock()
         try:
             transport = self._resolve_transport()

@@ -16,7 +16,7 @@ Correct path injection prevention (Python):
 from pathlib import Path
 
 allowed_base = Path("/home/user/files")
-user_input = request.args.get('path')
+user_input = request.args.get("path")
 
 # CORRECT: Anchor first, then resolve
 resolved_path = (allowed_base / user_input).resolve()

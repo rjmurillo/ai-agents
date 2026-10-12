@@ -247,6 +247,7 @@ export AWESOME_AI_SESSIONS_DIR="../../home/user/.ssh"
 import os
 from pathlib import Path
 
+
 def get_safe_path(env_var: str, default: str, base_dir: str = ".") -> Path:
     """
     Get path from environment variable with security validation.
@@ -277,6 +278,7 @@ def get_safe_path(env_var: str, default: str, base_dir: str = ".") -> Path:
         )
 
     return target
+
 
 # Usage in plugin code
 SESSION_DIR = get_safe_path("AWESOME_AI_SESSIONS_DIR", ".project-toolkit/sessions")
@@ -360,21 +362,23 @@ But ADR-045 Phase 3 does not reference this requirement for distributed template
 Validate workflow templates for SHA-pinned actions.
 Blocks commits with mutable version tags.
 """
+
 import re
 import sys
+
 
 def validate_workflow(file_path):
     with open(file_path) as f:
         content = f.read()
 
     # Pattern: uses: owner/repo@SOMETHING
-    pattern = r'uses:\s+[\w-]+/[\w-]+@(\S+)'
+    pattern = r"uses:\s+[\w-]+/[\w-]+@(\S+)"
     matches = re.finditer(pattern, content)
 
     for match in matches:
         ref = match.group(1)
         # Check if ref is 40-char hex (SHA) or mutable tag
-        if not re.match(r'^[a-f0-9]{40}$', ref):
+        if not re.match(r"^[a-f0-9]{40}$", ref):
             print(f"ERROR: Mutable action reference in {file_path}: {match.group(0)}")
             print(f"       Required: SHA-pinned reference (40-char hex)")
             return False
@@ -934,11 +938,13 @@ def test_path_traversal_blocked():
     with pytest.raises(ValueError, match="Path traversal"):
         get_safe_path("AWESOME_AI_SESSIONS_DIR", ".project-toolkit/sessions")
 
+
 def test_symlink_escape_blocked():
     """Verify symlinks cannot escape base directory."""
     os.symlink("/etc/passwd", ".project-toolkit/sessions/escape")
     with pytest.raises(ValueError, match="Symlink escape"):
         get_safe_path("AWESOME_AI_SESSIONS_DIR", ".project-toolkit/sessions/escape")
+
 
 # tests/security/test_secret_masking.py
 def test_environment_variables_masked():
@@ -947,6 +953,7 @@ def test_environment_variables_masked():
     output = run_hook("session-start.py")
     assert "ghp_secret123" not in output
     assert "***GITHUB_TOKEN***" in output
+
 
 # tests/security/test_hook_permissions.py
 def test_hook_cannot_read_env_file():

@@ -64,8 +64,7 @@ FEATURES = [
         "id": "TASK-002",
         "type": "task",
         "desc": (
-            "Refactor the auth module to remove duplication. Currently in "
-            "progress, medium effort."
+            "Refactor the auth module to remove duplication. Currently in progress, medium effort."
         ),
     },
     {
@@ -163,7 +162,9 @@ def main() -> int:
     api_key = load_api_key()
     before = subprocess.run(
         ["git", "show", "origin/main:.claude/agents/spec-generator.md"],
-        capture_output=True, text=True, check=True,
+        capture_output=True,
+        text=True,
+        check=True,
     ).stdout
     after = (REPO / ".claude/skills/spec-generator/SKILL.md").read_text(encoding="utf-8")
 
@@ -184,19 +185,18 @@ def main() -> int:
         )
 
     results["summary"] = {
-        "before_valid": b_valid, "after_valid": a_valid, "total": total,
-        "before_rate": round(b_valid / total, 4), "after_rate": round(a_valid / total, 4),
+        "before_valid": b_valid,
+        "after_valid": a_valid,
+        "total": total,
+        "before_rate": round(b_valid / total, 4),
+        "after_rate": round(a_valid / total, 4),
         "delta": round((a_valid - b_valid) / total, 4),
     }
     Path(args.output).write_text(json.dumps(results, indent=2), encoding="utf-8")
     print(
-        f"\nAGENT  valid frontmatter: {b_valid}/{total} "
-        f"({results['summary']['before_rate']:.0%})"
+        f"\nAGENT  valid frontmatter: {b_valid}/{total} ({results['summary']['before_rate']:.0%})"
     )
-    print(
-        f"SKILL  valid frontmatter: {a_valid}/{total} "
-        f"({results['summary']['after_rate']:.0%})"
-    )
+    print(f"SKILL  valid frontmatter: {a_valid}/{total} ({results['summary']['after_rate']:.0%})")
     print(f"delta: {results['summary']['delta']:+.0%}  -> {args.output}")
     return 0
 

@@ -18,9 +18,7 @@ from memory_enhancement.models import (
 )
 
 
-def _make_memory(
-    memory_id: str, links: list[MemoryLink] | None = None
-) -> MemoryWithCitations:
+def _make_memory(memory_id: str, links: list[MemoryLink] | None = None) -> MemoryWithCitations:
     return MemoryWithCitations(
         memory_id=memory_id,
         title=memory_id,
@@ -29,15 +27,12 @@ def _make_memory(
     )
 
 
-def _make_graph(
-    specs: dict[str, list[tuple[str, str]]]
-) -> dict[str, MemoryWithCitations]:
+def _make_graph(specs: dict[str, list[tuple[str, str]]]) -> dict[str, MemoryWithCitations]:
     """Build a graph from {id: [(link_type, target_id), ...]}."""
     graph: dict[str, MemoryWithCitations] = {}
     for mid, link_specs in specs.items():
         links = [
-            MemoryLink(link_type=LinkType(lt), target_id=tid, context="")
-            for lt, tid in link_specs
+            MemoryLink(link_type=LinkType(lt), target_id=tid, context="") for lt, tid in link_specs
         ]
         graph[mid] = _make_memory(mid, links)
     return graph
@@ -65,11 +60,13 @@ class TestTraverse:
 
     @pytest.mark.unit
     def test_simple_chain(self):
-        graph = _make_graph({
-            "a": [("depends_on", "b")],
-            "b": [("depends_on", "c")],
-            "c": [],
-        })
+        graph = _make_graph(
+            {
+                "a": [("depends_on", "b")],
+                "b": [("depends_on", "c")],
+                "c": [],
+            }
+        )
         results = traverse(graph, "a", max_depth=3)
         ids = [r[0] for r in results]
         assert "b" in ids
@@ -77,12 +74,14 @@ class TestTraverse:
 
     @pytest.mark.unit
     def test_respects_max_depth(self):
-        graph = _make_graph({
-            "a": [("depends_on", "b")],
-            "b": [("depends_on", "c")],
-            "c": [("depends_on", "d")],
-            "d": [],
-        })
+        graph = _make_graph(
+            {
+                "a": [("depends_on", "b")],
+                "b": [("depends_on", "c")],
+                "c": [("depends_on", "d")],
+                "d": [],
+            }
+        )
         results = traverse(graph, "a", max_depth=1)
         ids = [r[0] for r in results]
         assert "b" in ids
@@ -101,10 +100,12 @@ class TestTraverse:
 
     @pytest.mark.unit
     def test_returns_depth_and_link_type(self):
-        graph = _make_graph({
-            "a": [("related_to", "b")],
-            "b": [],
-        })
+        graph = _make_graph(
+            {
+                "a": [("related_to", "b")],
+                "b": [],
+            }
+        )
         results = traverse(graph, "a", max_depth=2)
         assert len(results) == 1
         assert results[0] == ("b", 1, "related_to")
@@ -115,21 +116,25 @@ class TestFindRelated:
 
     @pytest.mark.unit
     def test_find_all_related(self):
-        graph = _make_graph({
-            "a": [("depends_on", "b"), ("related_to", "c")],
-            "b": [],
-            "c": [],
-        })
+        graph = _make_graph(
+            {
+                "a": [("depends_on", "b"), ("related_to", "c")],
+                "b": [],
+                "c": [],
+            }
+        )
         related = find_related(graph, "a")
         assert set(related) == {"b", "c"}
 
     @pytest.mark.unit
     def test_filter_by_link_type(self):
-        graph = _make_graph({
-            "a": [("depends_on", "b"), ("related_to", "c")],
-            "b": [],
-            "c": [],
-        })
+        graph = _make_graph(
+            {
+                "a": [("depends_on", "b"), ("related_to", "c")],
+                "b": [],
+                "c": [],
+            }
+        )
         related = find_related(graph, "a", link_types=[LinkType.DEPENDS_ON])
         assert related == ["b"]
 
@@ -140,9 +145,11 @@ class TestFindRelated:
 
     @pytest.mark.unit
     def test_excludes_targets_not_in_graph(self):
-        graph = _make_graph({
-            "a": [("depends_on", "external")],
-        })
+        graph = _make_graph(
+            {
+                "a": [("depends_on", "external")],
+            }
+        )
         assert find_related(graph, "a") == []
 
 
@@ -151,36 +158,44 @@ class TestDetectCycles:
 
     @pytest.mark.unit
     def test_no_cycles(self):
-        graph = _make_graph({
-            "a": [("depends_on", "b")],
-            "b": [],
-        })
+        graph = _make_graph(
+            {
+                "a": [("depends_on", "b")],
+                "b": [],
+            }
+        )
         assert detect_cycles(graph) == []
 
     @pytest.mark.unit
     def test_simple_cycle(self):
-        graph = _make_graph({
-            "a": [("depends_on", "b")],
-            "b": [("depends_on", "a")],
-        })
+        graph = _make_graph(
+            {
+                "a": [("depends_on", "b")],
+                "b": [("depends_on", "a")],
+            }
+        )
         cycles = detect_cycles(graph)
         assert len(cycles) >= 1
 
     @pytest.mark.unit
     def test_self_loop(self):
-        graph = _make_graph({
-            "a": [("depends_on", "a")],
-        })
+        graph = _make_graph(
+            {
+                "a": [("depends_on", "a")],
+            }
+        )
         cycles = detect_cycles(graph)
         assert len(cycles) >= 1
 
     @pytest.mark.unit
     def test_triangle_cycle(self):
-        graph = _make_graph({
-            "a": [("depends_on", "b")],
-            "b": [("depends_on", "c")],
-            "c": [("depends_on", "a")],
-        })
+        graph = _make_graph(
+            {
+                "a": [("depends_on", "b")],
+                "b": [("depends_on", "c")],
+                "c": [("depends_on", "a")],
+            }
+        )
         cycles = detect_cycles(graph)
         assert len(cycles) >= 1
 
@@ -195,19 +210,23 @@ class TestFindOrphans:
 
     @pytest.mark.unit
     def test_no_orphans(self):
-        graph = _make_graph({
-            "a": [("depends_on", "b")],
-            "b": [("depends_on", "a")],
-        })
+        graph = _make_graph(
+            {
+                "a": [("depends_on", "b")],
+                "b": [("depends_on", "a")],
+            }
+        )
         assert find_orphans(graph) == []
 
     @pytest.mark.unit
     def test_mixed(self):
-        graph = _make_graph({
-            "a": [("depends_on", "b")],
-            "b": [],
-            "c": [],
-        })
+        graph = _make_graph(
+            {
+                "a": [("depends_on", "b")],
+                "b": [],
+                "c": [],
+            }
+        )
         orphans = find_orphans(graph)
         assert "a" in orphans
         assert "c" in orphans

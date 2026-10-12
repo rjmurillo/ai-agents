@@ -114,8 +114,7 @@ def _changed_session_paths(output: str, repo_root: Path) -> list[str]:
     return [
         path
         for path in output.split("\0")
-        if path.startswith(".project-toolkit/sessions/")
-        and path.endswith(".json")
+        if path.startswith(".project-toolkit/sessions/") and path.endswith(".json")
     ]
 
 
@@ -128,21 +127,29 @@ def _pure_rename_destinations(repo_root: Path, base_ref: str) -> set[str]:
     """
     try:
         result = subprocess.run(
-            ["git", "-C", str(repo_root), "diff", "--name-status", "-M", "-z",
-             "--diff-filter=R", f"{base_ref}...HEAD"],
-            capture_output=True, encoding="utf-8", errors="replace",
-            timeout=60, check=False,
+            [
+                "git",
+                "-C",
+                str(repo_root),
+                "diff",
+                "--name-status",
+                "-M",
+                "-z",
+                "--diff-filter=R",
+                f"{base_ref}...HEAD",
+            ],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=60,
+            check=False,
         )
     except (OSError, subprocess.TimeoutExpired):
         return set()
     if result.returncode != 0:
         return set()
     fields = result.stdout.split("\0")
-    return {
-        fields[index + 2]
-        for index in range(0, len(fields) - 2, 3)
-        if fields[index] == "R100"
-    }
+    return {fields[index + 2] for index in range(0, len(fields) - 2, 3) if fields[index] == "R100"}
 
 
 _SESSION_END = "validate_session_end"
@@ -176,14 +183,20 @@ def validate_session_end(repo_root: Path) -> CheckOutcome:
         )
 
     exit_code, stdout, diff_stderr = _run_subprocess(
-        ["git", "-C", str(repo_root), "diff", "--name-only", "-z",
-         "--diff-filter=ACMR", f"{base_ref}...HEAD"],
+        [
+            "git",
+            "-C",
+            str(repo_root),
+            "diff",
+            "--name-only",
+            "-z",
+            "--diff-filter=ACMR",
+            f"{base_ref}...HEAD",
+        ],
         timeout=30,
     )
     if exit_code != 0:
-        reason = classify_subprocess_failure(
-            exit_code, diff_stderr, default=REASON_DIFF_FAILED
-        )
+        reason = classify_subprocess_failure(exit_code, diff_stderr, default=REASON_DIFF_FAILED)
         print(f"[UNKNOWN] Session validation: git diff failed ({reason})")
         return CheckOutcome.unknown(
             _SESSION_END,
@@ -237,9 +250,7 @@ def validate_session_end(repo_root: Path) -> CheckOutcome:
 
     python_script = repo_root / "scripts" / "validate_session_json.py"
     if not python_script.exists():
-        raise MissingScriptSkip(
-            "validate_session_json.py not present (downstream install)"
-        )
+        raise MissingScriptSkip("validate_session_json.py not present (downstream install)")
 
     invalid = 0
     for relative_path in changed_paths:
@@ -252,9 +263,7 @@ def validate_session_end(repo_root: Path) -> CheckOutcome:
             new_logs,
             validation_head,
         )
-        exit_code, stdout, stderr = _run_subprocess(
-            command
-        )
+        exit_code, stdout, stderr = _run_subprocess(command)
         output = (stdout or "") + (stderr or "")
         if output.strip():
             for line in output.strip().splitlines()[:20]:
@@ -361,9 +370,7 @@ def _markdown_lint_target_batches(
             batch = []
 
         candidate = [*batch, target]
-        command_length = _windows_command_length(
-            _markdown_lint_command(candidate, autofix=autofix)
-        )
+        command_length = _windows_command_length(_markdown_lint_command(candidate, autofix=autofix))
         if command_length <= MARKDOWNLINT_COMMAND_LENGTH_LIMIT:
             batch = candidate
             continue
@@ -779,13 +786,9 @@ def validate_agent_drift(repo_root: Path) -> bool:
     """
     python_script = repo_root / "build" / "scripts" / "detect_agent_drift.py"
     if not python_script.exists():
-        raise MissingScriptSkip(
-            "detect_agent_drift.py not present (downstream install)"
-        )
+        raise MissingScriptSkip("detect_agent_drift.py not present (downstream install)")
 
-    exit_code, stdout, stderr = _run_subprocess(
-        [sys.executable, str(python_script)]
-    )
+    exit_code, stdout, stderr = _run_subprocess([sys.executable, str(python_script)])
     output = (stdout or "") + (stderr or "")
     if output.strip():
         for line in output.strip().splitlines()[:100]:

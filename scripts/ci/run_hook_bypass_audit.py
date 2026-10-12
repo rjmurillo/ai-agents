@@ -38,9 +38,7 @@ DETECTOR_CRASH_FLOOR = 2
 def build_parser() -> argparse.ArgumentParser:
     """Build the argument parser for the audit runner."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--detector", required=True, help="Path to detect_hook_bypass.py."
-    )
+    parser.add_argument("--detector", required=True, help="Path to detect_hook_bypass.py.")
     parser.add_argument("--base-ref", required=True, help="Base ref to audit against.")
     parser.add_argument("--output", required=True, help="Path for the audit JSON.")
     return parser
@@ -73,9 +71,7 @@ def main(argv: list[str] | None = None) -> int:
         return EXIT_NO_REPORT
 
     if result.returncode >= DETECTOR_CRASH_FLOOR:
-        print(
-            f"::error::detect_hook_bypass.py failed to run (exit {result.returncode})"
-        )
+        print(f"::error::detect_hook_bypass.py failed to run (exit {result.returncode})")
         return result.returncode
 
     report = Path(args.output)

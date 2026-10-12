@@ -78,9 +78,7 @@ def test_relative_paths_use_forward_slashes_on_windows(monkeypatch) -> None:
     root = PureWindowsPath("C:/repo")
     monkeypatch.setattr(sync_slim_agents, "REPO_ROOT", root)
 
-    reported = sync_slim_agents._relative(
-        root / "templates" / "agents" / f"{AGENT}.shared.md"
-    )
+    reported = sync_slim_agents._relative(root / "templates" / "agents" / f"{AGENT}.shared.md")
 
     assert reported == "templates/agents/analyst.shared.md"
 
@@ -98,9 +96,7 @@ def test_split_frontmatter_returns_whole_text_when_unterminated() -> None:
 
 
 def test_split_frontmatter_keeps_both_delimiters_in_the_frontmatter() -> None:
-    frontmatter, body = sync_slim_agents.split_frontmatter(
-        CLAUDE_FRONTMATTER + SOURCE_BODY
-    )
+    frontmatter, body = sync_slim_agents.split_frontmatter(CLAUDE_FRONTMATTER + SOURCE_BODY)
     assert frontmatter == CLAUDE_FRONTMATTER
     assert body == SOURCE_BODY
 
@@ -154,8 +150,7 @@ def test_shipped_source_is_the_canonical_claude_tree() -> None:
     """
     assert sync_slim_agents.AGENT_SOURCE == _REPO_ROOT / "src" / "claude" / "agents"
     assert {
-        (destination.directory, destination.suffix)
-        for destination in sync_slim_agents.DESTINATIONS
+        (destination.directory, destination.suffix) for destination in sync_slim_agents.DESTINATIONS
     } == {
         (_REPO_ROOT / "templates" / "agents", ".shared.md"),
         (_REPO_ROOT / ".github" / "agents", ".agent.md"),

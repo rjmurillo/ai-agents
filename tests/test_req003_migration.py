@@ -12,15 +12,11 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-MIGRATION_PATH = (
-    REPO_ROOT / "scripts" / "migrations" / "req003_inline_plugin_root_bootstrap.py"
-)
+MIGRATION_PATH = REPO_ROOT / "scripts" / "migrations" / "req003_inline_plugin_root_bootstrap.py"
 
 
 def _load_migration():
-    spec = importlib.util.spec_from_file_location(
-        "req003_migration_under_test", MIGRATION_PATH
-    )
+    spec = importlib.util.spec_from_file_location("req003_migration_under_test", MIGRATION_PATH)
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
     spec.loader.exec_module(module)
@@ -133,9 +129,7 @@ if __name__ == "__main__":
 # -------- Tests -----------------------------------------------------------
 
 
-def test_migrate_file_migrates_old_pattern(
-    migration_module, tmp_path: Path
-) -> None:
+def test_migrate_file_migrates_old_pattern(migration_module, tmp_path: Path) -> None:
     hook_path = tmp_path / "old_hook.py"
     hook_path.write_text(OLD_BOOTSTRAP_HOOK, encoding="utf-8")
 
@@ -188,9 +182,9 @@ def test_migrate_file_error_on_no_op_substitution(
     no_op_template = (
         "# Bootstrap: find lib directory and set up imports (see bootstrap.py for details)\n"
         "_p = Path(__file__).resolve().parent\n"
-        "while _p.parent != _p and not (_p / \".claude-plugin\" / \"plugin.json\").is_file():\n"
+        'while _p.parent != _p and not (_p / ".claude-plugin" / "plugin.json").is_file():\n'
         "    _p = _p.parent\n"
-        "sys.path.insert(0, str(_p / \"lib\"))\n"
+        'sys.path.insert(0, str(_p / "lib"))\n'
         "from bootstrap import setup_hook_lib_path  # noqa: E402\n"
         "setup_hook_lib_path(__file__, fail_exit_code={exit_code})"
     )

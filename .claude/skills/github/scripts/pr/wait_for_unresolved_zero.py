@@ -80,10 +80,14 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Pull request number (positive int).",
     )
     parser.add_argument(
-        "--owner", default="", help="Repository owner (forwarded to underlying script).",
+        "--owner",
+        default="",
+        help="Repository owner (forwarded to underlying script).",
     )
     parser.add_argument(
-        "--repo", default="", help="Repository name (forwarded to underlying script).",
+        "--repo",
+        default="",
+        help="Repository name (forwarded to underlying script).",
     )
     parser.add_argument(
         "--interval-seconds",
@@ -273,7 +277,11 @@ def wait_for_settled_zero(
     while True:
         # Take one snapshot.
         count, complete, exit_code = _invoke_underlying(
-            script_path, pull_request, owner, repo, runner=runner,
+            script_path,
+            pull_request,
+            owner,
+            repo,
+            runner=runner,
         )
         now = clock()  # type: ignore[operator]
         observations.append(
@@ -303,13 +311,8 @@ def wait_for_settled_zero(
                 observations,
             )
 
-        zero_and_complete = (
-            count == 0 and (complete or not strict_pagination)
-        )
-        gap_ok = (
-            last_counted_at is None
-            or (now - last_counted_at) >= interval_seconds
-        )
+        zero_and_complete = count == 0 and (complete or not strict_pagination)
+        gap_ok = last_counted_at is None or (now - last_counted_at) >= interval_seconds
         if zero_and_complete and gap_ok:
             consecutive_zeros += 1
             last_counted_at = now
@@ -392,7 +395,9 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     if args.pull_request <= 0:
         failure = _failure(
-            "pull_request must be positive", args.pull_request, [],
+            "pull_request must be positive",
+            args.pull_request,
+            [],
         )
         print(json.dumps(failure))
         print("error: pull_request must be positive", file=sys.stderr)

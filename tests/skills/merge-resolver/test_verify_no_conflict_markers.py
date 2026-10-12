@@ -56,7 +56,8 @@ def _git(cwd: Path, *args: str, check: bool = True) -> subprocess.CompletedProce
         ["git", *args],
         cwd=str(cwd),
         capture_output=True,
-        text=True, encoding="utf-8",
+        text=True,
+        encoding="utf-8",
         check=check,
     )
 
@@ -442,9 +443,7 @@ class TestRealConflictsFlagged:
 
         # Write markers into the working tree but do NOT stage -- simulates a
         # resolver that started editing but hasn't run git add yet.
-        shared.write_text(
-            "<<<<<<< HEAD\nmain content\n=======\nfeature content\n>>>>>>> feature\n"
-        )
+        shared.write_text("<<<<<<< HEAD\nmain content\n=======\nfeature content\n>>>>>>> feature\n")
         # shared.txt is NOT staged at this point.
 
         markers = find_leftover_markers(empty_repo)

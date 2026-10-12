@@ -30,13 +30,17 @@ def test_session_newness_is_computed_from_head(tmp_path: Path) -> None:
             return 0, f"{'c' * 40}\n", ""
         return 0, "", ""
 
-    with patch(
-        "checks_tooling._resolve_branch_base_ref",
-        return_value="origin/main",
-    ), patch("checks_tooling._run_subprocess", side_effect=fake_run), patch(
-        "checks_tooling.new_session_logs",
-        return_value=set(),
-    ) as new_session_logs_mock:
+    with (
+        patch(
+            "checks_tooling._resolve_branch_base_ref",
+            return_value="origin/main",
+        ),
+        patch("checks_tooling._run_subprocess", side_effect=fake_run),
+        patch(
+            "checks_tooling.new_session_logs",
+            return_value=set(),
+        ) as new_session_logs_mock,
+    ):
         assert validate_session_end(tmp_path).state is EvidenceState.PASS
 
     new_session_logs_mock.assert_called_once_with(
@@ -61,12 +65,16 @@ def test_missing_worktree_copy_of_branch_session_fails_closed(
             return 0, f"{'c' * 40}\n", ""
         return 1, "", "session log does not exist"
 
-    with patch(
-        "checks_tooling._resolve_branch_base_ref",
-        return_value="origin/main",
-    ), patch("checks_tooling._run_subprocess", side_effect=fake_run), patch(
-        "checks_tooling.new_session_logs",
-        return_value={path},
+    with (
+        patch(
+            "checks_tooling._resolve_branch_base_ref",
+            return_value="origin/main",
+        ),
+        patch("checks_tooling._run_subprocess", side_effect=fake_run),
+        patch(
+            "checks_tooling.new_session_logs",
+            return_value={path},
+        ),
     ):
         assert validate_session_end(tmp_path).state is EvidenceState.FAIL
 

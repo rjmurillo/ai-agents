@@ -17,8 +17,7 @@ from scripts.github_core.api import RepoInfo
 # Import the script via importlib (not a package)
 # ---------------------------------------------------------------------------
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1]
-    / ".claude" / "skills" / "github" / "scripts" / "issue"
+    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "issue"
 )
 
 
@@ -93,9 +92,7 @@ class TestBuildParser:
 
     def test_comment_and_comment_file_mutually_exclusive(self):
         with pytest.raises(SystemExit):
-            build_parser().parse_args(
-                ["--issue", "5", "--comment", "x", "--comment-file", "f.txt"]
-            )
+            build_parser().parse_args(["--issue", "5", "--comment", "x", "--comment-file", "f.txt"])
 
 
 # ---------------------------------------------------------------------------
@@ -114,15 +111,19 @@ class TestMain:
             assert exc.value.code == 4
 
     def test_close_success_no_comment(self, capsys):
-        with patch(
-            "close_issue.assert_gh_authenticated",
-        ), patch(
-            "close_issue.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            side_effect=[_state_open(), _completed(stdout="closed", rc=0)],
-        ) as mock_run:
+        with (
+            patch(
+                "close_issue.assert_gh_authenticated",
+            ),
+            patch(
+                "close_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=[_state_open(), _completed(stdout="closed", rc=0)],
+            ) as mock_run,
+        ):
             rc = main(["--issue", "50"])
         assert rc == 0
 
@@ -144,15 +145,19 @@ class TestMain:
         assert close_args[close_args.index("--reason") + 1] == "completed"
 
     def test_close_with_reason_not_planned(self, capsys):
-        with patch(
-            "close_issue.assert_gh_authenticated",
-        ), patch(
-            "close_issue.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            side_effect=[_state_open(), _completed(rc=0)],
-        ) as mock_run:
+        with (
+            patch(
+                "close_issue.assert_gh_authenticated",
+            ),
+            patch(
+                "close_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=[_state_open(), _completed(rc=0)],
+            ) as mock_run,
+        ):
             rc = main(["--issue", "7", "--reason", "not planned"])
         assert rc == 0
         data = _envelope(capsys)["Data"]
@@ -161,19 +166,23 @@ class TestMain:
         assert close_args[close_args.index("--reason") + 1] == "not planned"
 
     def test_close_with_comment_posts_then_closes(self, capsys):
-        with patch(
-            "close_issue.assert_gh_authenticated",
-        ), patch(
-            "close_issue.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            side_effect=[
-                _state_open(),
-                _completed(stdout="{}", rc=0),
-                _completed(stdout="closed", rc=0),
-            ],
-        ) as mock_run:
+        with (
+            patch(
+                "close_issue.assert_gh_authenticated",
+            ),
+            patch(
+                "close_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    _state_open(),
+                    _completed(stdout="{}", rc=0),
+                    _completed(stdout="closed", rc=0),
+                ],
+            ) as mock_run,
+        ):
             rc = main(["--issue", "9", "--comment", "Fixed in PR #10"])
         assert rc == 0
         data = _envelope(capsys)["Data"]
@@ -195,19 +204,23 @@ class TestMain:
         comment_path = tmp_path / "body.md"
         comment_path.write_text("Closing per triage.", encoding="utf-8")
         monkeypatch.setenv("GITHUB_WORKSPACE", str(tmp_path))
-        with patch(
-            "close_issue.assert_gh_authenticated",
-        ), patch(
-            "close_issue.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            side_effect=[
-                _state_open(),
-                _completed(stdout="{}", rc=0),
-                _completed(stdout="closed", rc=0),
-            ],
-        ) as mock_run:
+        with (
+            patch(
+                "close_issue.assert_gh_authenticated",
+            ),
+            patch(
+                "close_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    _state_open(),
+                    _completed(stdout="{}", rc=0),
+                    _completed(stdout="closed", rc=0),
+                ],
+            ) as mock_run,
+        ):
             rc = main(["--issue", "11", "--comment-file", comment_path.name])
         assert rc == 0
         assert _envelope(capsys)["Data"]["commented"] is True
@@ -215,15 +228,19 @@ class TestMain:
         assert json.loads(post_input)["body"] == "Closing per triage."
 
     def test_missing_comment_file_exits_2(self, capsys):
-        with patch(
-            "close_issue.assert_gh_authenticated",
-        ), patch(
-            "close_issue.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_state_open(),
-        ) as mock_run:
+        with (
+            patch(
+                "close_issue.assert_gh_authenticated",
+            ),
+            patch(
+                "close_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_state_open(),
+            ) as mock_run,
+        ):
             with pytest.raises(SystemExit) as exc:
                 main(["--issue", "12", "--comment-file", "missing.md"])
             assert exc.value.code == 2
@@ -238,15 +255,19 @@ class TestMain:
         outside = tmp_path / "outside.md"
         outside.write_text("secret", encoding="utf-8")
         monkeypatch.setenv("GITHUB_WORKSPACE", str(work))
-        with patch(
-            "close_issue.assert_gh_authenticated",
-        ), patch(
-            "close_issue.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_state_open(),
-        ) as mock_run:
+        with (
+            patch(
+                "close_issue.assert_gh_authenticated",
+            ),
+            patch(
+                "close_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_state_open(),
+            ) as mock_run,
+        ):
             with pytest.raises(SystemExit) as exc:
                 main(["--issue", "12", "--comment-file", "../outside.md"])
             assert exc.value.code == 2
@@ -274,9 +295,7 @@ class TestMain:
 
         assert _mod._comment_base_dir() == script_dir.resolve()
 
-    def test_comment_base_ignores_unrelated_parent_claude_dir(
-        self, external_tmp_path, monkeypatch
-    ):
+    def test_comment_base_ignores_unrelated_parent_claude_dir(self, external_tmp_path, monkeypatch):
         parent = external_tmp_path / "parent"
         script_dir = parent / "installed" / "scripts"
         script_dir.mkdir(parents=True)
@@ -297,14 +316,18 @@ class TestMain:
         assert _mod._comment_base_dir() == workspace.resolve()
 
     def test_issue_not_found_exits_2(self, capsys):
-        with patch(
-            "close_issue.assert_gh_authenticated",
-        ), patch(
-            "close_issue.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stderr="Could not resolve to an Issue", rc=1),
+        with (
+            patch(
+                "close_issue.assert_gh_authenticated",
+            ),
+            patch(
+                "close_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(stderr="Could not resolve to an Issue", rc=1),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--issue", "404"])
@@ -315,14 +338,18 @@ class TestMain:
         assert env["Error"]["Type"] == "NotFound"
 
     def test_issue_state_auth_failure_exits_4(self, capsys):
-        with patch(
-            "close_issue.assert_gh_authenticated",
-        ), patch(
-            "close_issue.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stderr="not logged in", rc=1),
+        with (
+            patch(
+                "close_issue.assert_gh_authenticated",
+            ),
+            patch(
+                "close_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(stderr="not logged in", rc=1),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--issue", "401"])
@@ -333,14 +360,18 @@ class TestMain:
         assert env["Error"]["Type"] == "AuthError"
 
     def test_issue_state_author_error_is_api_error(self, capsys):
-        with patch(
-            "close_issue.assert_gh_authenticated",
-        ), patch(
-            "close_issue.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stderr="author is invalid", rc=1),
+        with (
+            patch(
+                "close_issue.assert_gh_authenticated",
+            ),
+            patch(
+                "close_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(stderr="author is invalid", rc=1),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--issue", "401"])
@@ -351,37 +382,45 @@ class TestMain:
         assert env["Error"]["Type"] == "ApiError"
 
     def test_issue_state_non_dict_json_treated_as_open(self, capsys):
-        with patch(
-            "close_issue.assert_gh_authenticated",
-        ), patch(
-            "close_issue.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            side_effect=[
-                _completed(stdout="null", rc=0),
-                _completed(stdout="closed", rc=0),
-            ],
-        ) as mock_run:
+        with (
+            patch(
+                "close_issue.assert_gh_authenticated",
+            ),
+            patch(
+                "close_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    _completed(stdout="null", rc=0),
+                    _completed(stdout="closed", rc=0),
+                ],
+            ) as mock_run,
+        ):
             rc = main(["--issue", "18"])
         assert rc == 0
         assert mock_run.call_count == 2
         assert _envelope(capsys)["Data"]["action"] == "closed"
 
     def test_already_closed_with_missing_comment_posts_once(self, capsys):
-        with patch(
-            "close_issue.assert_gh_authenticated",
-        ), patch(
-            "close_issue.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            side_effect=[
-                _state_closed(),
-                _comments(),
-                _completed(stdout="{}", rc=0),
-            ],
-        ) as mock_run:
+        with (
+            patch(
+                "close_issue.assert_gh_authenticated",
+            ),
+            patch(
+                "close_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    _state_closed(),
+                    _comments(),
+                    _completed(stdout="{}", rc=0),
+                ],
+            ) as mock_run,
+        ):
             rc = main(["--issue", "18", "--comment", "Closing note"])
         assert rc == 0
         assert mock_run.call_count == 3
@@ -393,18 +432,22 @@ class TestMain:
         assert env["Data"]["commentAlreadyPresent"] is False
 
     def test_already_closed_with_existing_comment_skips_duplicate(self, capsys):
-        with patch(
-            "close_issue.assert_gh_authenticated",
-        ), patch(
-            "close_issue.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            side_effect=[
-                _state_closed(),
-                _comments("Closing note"),
-            ],
-        ) as mock_run:
+        with (
+            patch(
+                "close_issue.assert_gh_authenticated",
+            ),
+            patch(
+                "close_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    _state_closed(),
+                    _comments("Closing note"),
+                ],
+            ) as mock_run,
+        ):
             rc = main(["--issue", "18", "--comment", "Closing note"])
         assert rc == 0
         assert mock_run.call_count == 2
@@ -413,18 +456,22 @@ class TestMain:
         assert env["Data"]["commentAlreadyPresent"] is True
 
     def test_already_closed_dedup_checks_all_comment_pages(self, capsys):
-        with patch(
-            "close_issue.assert_gh_authenticated",
-        ), patch(
-            "close_issue.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            side_effect=[
-                _state_closed(),
-                _paginated_comments(["older note"], ["Closing note"]),
-            ],
-        ) as mock_run:
+        with (
+            patch(
+                "close_issue.assert_gh_authenticated",
+            ),
+            patch(
+                "close_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    _state_closed(),
+                    _paginated_comments(["older note"], ["Closing note"]),
+                ],
+            ) as mock_run,
+        ):
             rc = main(["--issue", "18", "--comment", "Closing note"])
         assert rc == 0
         assert mock_run.call_count == 2
@@ -440,15 +487,19 @@ class TestMain:
         comment_path = tmp_path / "body.md"
         comment_path.write_bytes(b"\xff\xfe")
         monkeypatch.setenv("GITHUB_WORKSPACE", str(tmp_path))
-        with patch(
-            "close_issue.assert_gh_authenticated",
-        ), patch(
-            "close_issue.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_state_open(),
-        ) as mock_run:
+        with (
+            patch(
+                "close_issue.assert_gh_authenticated",
+            ),
+            patch(
+                "close_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_state_open(),
+            ) as mock_run,
+        ):
             with pytest.raises(SystemExit) as exc:
                 main(["--issue", "12", "--comment-file", comment_path.name])
             assert exc.value.code == 2
@@ -459,14 +510,18 @@ class TestMain:
         assert env["Error"]["Type"] == "InvalidParams"
 
     def test_close_api_failure_exits_3(self, capsys):
-        with patch(
-            "close_issue.assert_gh_authenticated",
-        ), patch(
-            "close_issue.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            side_effect=[_state_open(), _completed(stderr="HTTP 404", rc=1)],
+        with (
+            patch(
+                "close_issue.assert_gh_authenticated",
+            ),
+            patch(
+                "close_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=[_state_open(), _completed(stderr="HTTP 404", rc=1)],
+            ),
         ):
             rc = main(["--issue", "13"])
         assert rc == 3
@@ -477,19 +532,23 @@ class TestMain:
 
     def test_comment_post_failure_exits_3_after_close(self, capsys):
         """A failed comment POST returns code 3 after a successful close."""
-        with patch(
-            "close_issue.assert_gh_authenticated",
-        ), patch(
-            "close_issue.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            side_effect=[
-                _state_open(),
-                _completed(rc=0),
-                _completed(stderr="HTTP 403", rc=1),
-            ],
-        ) as mock_run:
+        with (
+            patch(
+                "close_issue.assert_gh_authenticated",
+            ),
+            patch(
+                "close_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    _state_open(),
+                    _completed(rc=0),
+                    _completed(stderr="HTTP 403", rc=1),
+                ],
+            ) as mock_run,
+        ):
             with pytest.raises(SystemExit) as exc:
                 main(["--issue", "14", "--comment", "note"])
             assert exc.value.code == 3
@@ -500,18 +559,22 @@ class TestMain:
         assert env["Error"]["Code"] == 3
 
     def test_comment_post_auth_failure_exits_4(self, capsys):
-        with patch(
-            "close_issue.assert_gh_authenticated",
-        ), patch(
-            "close_issue.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            side_effect=[
-                _state_open(),
-                _completed(rc=0),
-                _completed(stderr="HTTP 401: requires authentication", rc=1),
-            ],
+        with (
+            patch(
+                "close_issue.assert_gh_authenticated",
+            ),
+            patch(
+                "close_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    _state_open(),
+                    _completed(rc=0),
+                    _completed(stderr="HTTP 401: requires authentication", rc=1),
+                ],
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--issue", "14", "--comment", "note"])
@@ -522,15 +585,19 @@ class TestMain:
         assert env["Error"]["Type"] == "AuthError"
 
     def test_whitespace_only_comment_is_not_posted(self, capsys):
-        with patch(
-            "close_issue.assert_gh_authenticated",
-        ), patch(
-            "close_issue.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            side_effect=[_state_open(), _completed(rc=0)],
-        ) as mock_run:
+        with (
+            patch(
+                "close_issue.assert_gh_authenticated",
+            ),
+            patch(
+                "close_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=[_state_open(), _completed(rc=0)],
+            ) as mock_run,
+        ):
             rc = main(["--issue", "15", "--comment", "   "])
         assert rc == 0
         # No comment POST; only state check and close call.
@@ -538,17 +605,21 @@ class TestMain:
         assert _envelope(capsys)["Data"]["commented"] is False
 
     def test_close_auth_failure_returns_4(self, capsys):
-        with patch(
-            "close_issue.assert_gh_authenticated",
-        ), patch(
-            "close_issue.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            side_effect=[
-                _state_open(),
-                _completed(stderr="Bad credentials", rc=1),
-            ],
+        with (
+            patch(
+                "close_issue.assert_gh_authenticated",
+            ),
+            patch(
+                "close_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    _state_open(),
+                    _completed(stderr="Bad credentials", rc=1),
+                ],
+            ),
         ):
             rc = main(["--issue", "17"])
         assert rc == 4
@@ -558,19 +629,23 @@ class TestMain:
         assert env["Error"]["Type"] == "AuthError"
 
     def test_already_closed_posts_missing_comment_without_close(self, capsys):
-        with patch(
-            "close_issue.assert_gh_authenticated",
-        ), patch(
-            "close_issue.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            side_effect=[
-                _state_closed(),
-                _comments(),
-                _completed(stdout="{}", rc=0),
-            ],
-        ) as mock_run:
+        with (
+            patch(
+                "close_issue.assert_gh_authenticated",
+            ),
+            patch(
+                "close_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    _state_closed(),
+                    _comments(),
+                    _completed(stdout="{}", rc=0),
+                ],
+            ) as mock_run,
+        ):
             rc = main(["--issue", "16", "--comment", "retry note"])
         assert rc == 0
         data = _envelope(capsys)["Data"]
@@ -831,7 +906,8 @@ class TestVerifyClaims:
 
     def test_pr_probe_reads_the_cited_number(self):
         with patch(
-            "close_issue.read_pr_merge_state", return_value=_pr_merged(4729),
+            "close_issue.read_pr_merge_state",
+            return_value=_pr_merged(4729),
         ) as mock_reader:
             _mod.verify_claims(
                 _mod.Claims(commits=(), prs=(4729,)),
@@ -878,7 +954,8 @@ class TestVerifyClaims:
         # PR #3076 merged 2026-07-16 were both published as "not merged"
         # because their REST probes failed.
         with _patch_pr_reader(
-            _pr_probe_failed(4729), _pr_probe_failed(3076),
+            _pr_probe_failed(4729),
+            _pr_probe_failed(3076),
         ):
             result = _mod.verify_claims(
                 _mod.Claims(commits=(), prs=(4729, 3076)),
@@ -918,9 +995,13 @@ class TestVerifyClaims:
         assert "not a boolean" in result.probe_errors[0]
 
     def test_multiple_failures_collected(self):
-        with patch(
-            "subprocess.run", side_effect=[_commit_missing()],
-        ), _patch_pr_reader(_pr_open()):
+        with (
+            patch(
+                "subprocess.run",
+                side_effect=[_commit_missing()],
+            ),
+            _patch_pr_reader(_pr_open()),
+        ):
             result = _mod.verify_claims(
                 _mod.Claims(commits=("61c56cbe",), prs=(1024,)),
                 owner="o",
@@ -977,19 +1058,23 @@ class TestVerifyClaimsGate:
         # claims a non-existent commit still closes when --verify-claims is
         # absent. This preserves the legacy contract for callers that have
         # not yet adopted the gate.
-        with patch(
-            "close_issue.assert_gh_authenticated",
-        ), patch(
-            "close_issue.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            side_effect=[
-                _state_open(),
-                _completed(rc=0),
-                _completed(stdout="{}", rc=0),
-            ],
-        ) as mock_run:
+        with (
+            patch(
+                "close_issue.assert_gh_authenticated",
+            ),
+            patch(
+                "close_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    _state_open(),
+                    _completed(rc=0),
+                    _completed(stdout="{}", rc=0),
+                ],
+            ) as mock_run,
+        ):
             rc = main(
                 [
                     "--issue",
@@ -1004,15 +1089,19 @@ class TestVerifyClaimsGate:
 
     def test_verify_claims_blocks_missing_commit(self, capsys):
         # The exact failure mode from issue #2481 (#134 audit row).
-        with patch(
-            "close_issue.assert_gh_authenticated",
-        ), patch(
-            "close_issue.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            side_effect=[_state_open(), _commit_missing()],
-        ) as mock_run:
+        with (
+            patch(
+                "close_issue.assert_gh_authenticated",
+            ),
+            patch(
+                "close_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=[_state_open(), _commit_missing()],
+            ) as mock_run,
+        ):
             rc = main(
                 [
                     "--issue",
@@ -1041,15 +1130,20 @@ class TestVerifyClaimsGate:
         assert "61c56cbe" in env["Error"]["Message"]
 
     def test_verify_claims_blocks_unmerged_pr(self, capsys):
-        with patch(
-            "close_issue.assert_gh_authenticated",
-        ), patch(
-            "close_issue.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            side_effect=[_state_open()],
-        ) as mock_run, _patch_pr_reader(_pr_open()):
+        with (
+            patch(
+                "close_issue.assert_gh_authenticated",
+            ),
+            patch(
+                "close_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=[_state_open()],
+            ) as mock_run,
+            _patch_pr_reader(_pr_open()),
+        ):
             rc = main(
                 [
                     "--issue",
@@ -1070,14 +1164,20 @@ class TestVerifyClaimsGate:
     def test_verify_claims_api_failure_exits_3_not_1(self, capsys):
         # Issue #4951: a failed probe used to be published as exit 1 with the
         # sentence "cited PR #N is not merged".
-        with patch(
-            "close_issue.assert_gh_authenticated",
-        ), patch(
-            "close_issue.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run", side_effect=[_state_open()],
-        ) as mock_run, _patch_pr_reader(_pr_probe_failed(4729)):
+        with (
+            patch(
+                "close_issue.assert_gh_authenticated",
+            ),
+            patch(
+                "close_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=[_state_open()],
+            ) as mock_run,
+            _patch_pr_reader(_pr_probe_failed(4729)),
+        ):
             rc = main(
                 [
                     "--issue",
@@ -1098,15 +1198,21 @@ class TestVerifyClaimsGate:
         assert len(env["Data"]["probeErrors"]) == 1
 
     def test_verify_claims_auth_failure_exits_4(self, capsys):
-        with patch(
-            "close_issue.assert_gh_authenticated",
-        ), patch(
-            "close_issue.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run", side_effect=[_state_open()],
-        ), _patch_pr_reader(
-            _pr_probe_failed(1024, detail="Bad credentials", exit_code=4),
+        with (
+            patch(
+                "close_issue.assert_gh_authenticated",
+            ),
+            patch(
+                "close_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=[_state_open()],
+            ),
+            _patch_pr_reader(
+                _pr_probe_failed(1024, detail="Bad credentials", exit_code=4),
+            ),
         ):
             rc = main(
                 [
@@ -1124,16 +1230,23 @@ class TestVerifyClaimsGate:
         assert "not merged" not in env["Error"]["Message"]
 
     def test_verify_claims_malformed_response_exits_3(self, capsys):
-        with patch(
-            "close_issue.assert_gh_authenticated",
-        ), patch(
-            "close_issue.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run", side_effect=[_state_open()],
-        ), _patch_pr_reader(
-            _pr_probe_failed(
-                1024, detail="GraphQL pullRequest.merged was not a boolean",
+        with (
+            patch(
+                "close_issue.assert_gh_authenticated",
+            ),
+            patch(
+                "close_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=[_state_open()],
+            ),
+            _patch_pr_reader(
+                _pr_probe_failed(
+                    1024,
+                    detail="GraphQL pullRequest.merged was not a boolean",
+                ),
             ),
         ):
             rc = main(
@@ -1151,20 +1264,25 @@ class TestVerifyClaimsGate:
         assert "not a boolean" in env["Error"]["Message"]
 
     def test_verify_claims_passes_when_commit_and_pr_resolve(self, capsys):
-        with patch(
-            "close_issue.assert_gh_authenticated",
-        ), patch(
-            "close_issue.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            side_effect=[
-                _state_open(),
-                _commit_found(),
-                _completed(rc=0),
-                _completed(stdout="{}", rc=0),
-            ],
-        ) as mock_run, _patch_pr_reader(_pr_merged(999)):
+        with (
+            patch(
+                "close_issue.assert_gh_authenticated",
+            ),
+            patch(
+                "close_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    _state_open(),
+                    _commit_found(),
+                    _completed(rc=0),
+                    _completed(stdout="{}", rc=0),
+                ],
+            ) as mock_run,
+            _patch_pr_reader(_pr_merged(999)),
+        ):
             rc = main(
                 [
                     "--issue",
@@ -1184,19 +1302,23 @@ class TestVerifyClaimsGate:
     def test_verify_claims_passes_when_comment_has_no_claims(self, capsys):
         # An "I looked and there are none" comment (e.g. #702 row) needs no
         # commit/PR verification; the gate is for cited artifacts only.
-        with patch(
-            "close_issue.assert_gh_authenticated",
-        ), patch(
-            "close_issue.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            side_effect=[
-                _state_open(),
-                _completed(rc=0),
-                _completed(stdout="{}", rc=0),
-            ],
-        ) as mock_run:
+        with (
+            patch(
+                "close_issue.assert_gh_authenticated",
+            ),
+            patch(
+                "close_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    _state_open(),
+                    _completed(rc=0),
+                    _completed(stdout="{}", rc=0),
+                ],
+            ) as mock_run,
+        ):
             rc = main(
                 [
                     "--issue",
@@ -1213,15 +1335,19 @@ class TestVerifyClaimsGate:
     def test_verify_claims_with_no_comment_skips_gate(self, capsys):
         # No comment = no claim to verify. Backwards compatible with bare
         # gh issue close usage; the gate only applies to comment claims.
-        with patch(
-            "close_issue.assert_gh_authenticated",
-        ), patch(
-            "close_issue.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            side_effect=[_state_open(), _completed(rc=0)],
-        ) as mock_run:
+        with (
+            patch(
+                "close_issue.assert_gh_authenticated",
+            ),
+            patch(
+                "close_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=[_state_open(), _completed(rc=0)],
+            ) as mock_run,
+        ):
             rc = main(["--issue", "60", "--verify-claims"])
         assert rc == 0
         assert mock_run.call_count == 2
@@ -1233,14 +1359,20 @@ class TestVerifyClaimsGate:
         quotes this sentence as the thing an operator sees, and callers grep
         for it. Issue #4951 changed which situations reach it, not the words.
         """
-        with patch(
-            "close_issue.assert_gh_authenticated",
-        ), patch(
-            "close_issue.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run", side_effect=[_state_open()],
-        ), _patch_pr_reader(_pr_open()):
+        with (
+            patch(
+                "close_issue.assert_gh_authenticated",
+            ),
+            patch(
+                "close_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=[_state_open()],
+            ),
+            _patch_pr_reader(_pr_open()),
+        ):
             rc = main(
                 [
                     "--issue",
@@ -1252,9 +1384,7 @@ class TestVerifyClaimsGate:
             )
         assert rc == 1
         message = _envelope(capsys)["Error"]["Message"]
-        assert message.startswith(
-            "Closing comment cites unverifiable artifact(s); aborting close."
-        )
+        assert message.startswith("Closing comment cites unverifiable artifact(s); aborting close.")
 
     def test_probe_failure_headline_cannot_be_read_as_a_verdict(self, capsys):
         """Exit 3/4 must not reuse the exit-1 sentence.
@@ -1263,14 +1393,20 @@ class TestVerifyClaimsGate:
         #4951 incident read as a verdict on PR #4729 when the probe had
         simply fallen over.
         """
-        with patch(
-            "close_issue.assert_gh_authenticated",
-        ), patch(
-            "close_issue.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run", side_effect=[_state_open()],
-        ), _patch_pr_reader(_pr_probe_failed(4729)):
+        with (
+            patch(
+                "close_issue.assert_gh_authenticated",
+            ),
+            patch(
+                "close_issue.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=[_state_open()],
+            ),
+            _patch_pr_reader(_pr_probe_failed(4729)),
+        ):
             rc = main(
                 [
                     "--issue",

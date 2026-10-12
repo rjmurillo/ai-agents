@@ -23,9 +23,7 @@ from types import ModuleType
 
 import pytest
 
-_SCRIPT = (
-    Path(__file__).resolve().parents[2] / "scripts" / "ci" / "test_installed_plugin_hooks.py"
-)
+_SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "ci" / "test_installed_plugin_hooks.py"
 
 
 def _load() -> ModuleType:
@@ -197,9 +195,7 @@ def test_registered_events_and_readability_are_separable(tmp_path: Path) -> None
     """
     empty = _plugin_source(tmp_path / "a", json.dumps({"hooks": {}}))
     broken = _plugin_source(tmp_path / "b", "{{{")
-    malformed_event = _plugin_source(
-        tmp_path / "c", json.dumps({"hooks": {"PreToolUse": {}}})
-    )
+    malformed_event = _plugin_source(tmp_path / "c", json.dumps({"hooks": {"PreToolUse": {}}}))
 
     assert _MODULE._registered_events(empty) == []
     assert _MODULE._registered_events(broken) == []

@@ -11,8 +11,9 @@ from scripts.testing.duration_schema import ids_digest
 from scripts.testing.duration_snapshot import Snapshot
 
 NOW = datetime(2026, 10, 7, tzinfo=UTC)
-DEFAULT_LIMITS = Thresholds(module_ratio=1.5, module_min_delta=10.0,
-                            suite_ratio=1.25, suite_min_delta=60.0)
+DEFAULT_LIMITS = Thresholds(
+    module_ratio=1.5, module_min_delta=10.0, suite_ratio=1.25, suite_min_delta=60.0
+)
 
 
 def write_junit(tmp_path: Path, name: str, cases: dict[str, list[float]], wall: float) -> Path:
@@ -43,8 +44,9 @@ def write_history(tmp_path: Path, module_seconds: list[float], tests: int = 2) -
             sha=f"sha{i}",
             recorded_at="2026-10-01T00:00:00+00:00",
             partitions={"pytest-results": {"tests": tests, "wall_seconds": s}},
-            modules={"tests/test_alpha.py": {"seconds": s, "tests": tests,
-                                             "ids": alpha_ids(tests)}},
+            modules={
+                "tests/test_alpha.py": {"seconds": s, "tests": tests, "ids": alpha_ids(tests)}
+            },
         ).to_dict()
         for i, s in enumerate(module_seconds)
     ]

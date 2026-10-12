@@ -13,8 +13,7 @@ from unittest.mock import patch
 # tests/test_check_pr_live_state.py's pattern for the sibling gate script.
 # ---------------------------------------------------------------------------
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[3]
-    / ".claude" / "skills" / "github" / "scripts" / "pr"
+    Path(__file__).resolve().parents[3] / ".claude" / "skills" / "github" / "scripts" / "pr"
 )
 
 
@@ -52,8 +51,11 @@ class MainHarness:
         self._extra = []
 
     def _patch_common(
-        self, list_comments_result=None, list_comments_error=None,
-        head_sha="sha-1", events=None,
+        self,
+        list_comments_result=None,
+        list_comments_error=None,
+        head_sha="sha-1",
+        events=None,
     ):
         self._extra = [
             patch("check_pr_round_cap._fetch_head_sha", return_value=head_sha),
@@ -70,7 +72,8 @@ class MainHarness:
         ]
         if list_comments_error is not None:
             list_patch = patch(
-                "check_pr_round_cap._list_comments", side_effect=list_comments_error,
+                "check_pr_round_cap._list_comments",
+                side_effect=list_comments_error,
             )
         else:
             list_patch = patch(
@@ -79,5 +82,3 @@ class MainHarness:
             )
         patches.append(list_patch)
         return patches
-
-

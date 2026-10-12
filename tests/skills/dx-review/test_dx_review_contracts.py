@@ -12,22 +12,12 @@ from pathlib import Path
 
 import yaml
 
-SKILL_PATH = (
-    Path(__file__).resolve().parents[3]
-    / ".claude"
-    / "skills"
-    / "dx-review"
-    / "SKILL.md"
-)
+SKILL_PATH = Path(__file__).resolve().parents[3] / ".claude" / "skills" / "dx-review" / "SKILL.md"
 
 _skill_text: str | None = None
 EVIDENCE_METHOD_PLACEHOLDERS = frozenset({"[actual]", "TESTED", "PARTIAL", "INFERRED"})
-TTHW_METHOD_PLACEHOLDERS = frozenset(
-    {"[actual/N/A]", "N/A", "TESTED", "PARTIAL", "INFERRED"}
-)
-READ_ONLY_APPROVAL_PATTERN = re.compile(
-    r"(?i)\bread-?only commands?\s+do not need approval\b"
-)
+TTHW_METHOD_PLACEHOLDERS = frozenset({"[actual/N/A]", "N/A", "TESTED", "PARTIAL", "INFERRED"})
+READ_ONLY_APPROVAL_PATTERN = re.compile(r"(?i)\bread-?only commands?\s+do not need approval\b")
 TESTED_FILE_INSPECTION_PATTERN = re.compile(
     r"(?i)\bTESTED\b[^\n]*\b(file inspection|file read|fetched documentation|static inspection)\b"
 )
@@ -125,9 +115,7 @@ def check_no_bash_preapproved(text: str) -> bool:
     if isinstance(tools, str):
         return not any(tool.lower() == "bash" for tool in tools.split())
     if isinstance(tools, list):
-        return not any(
-            str(t).strip().lower() == "bash" for t in tools
-        )
+        return not any(str(t).strip().lower() == "bash" for t in tools)
     return True
 
 
@@ -199,10 +187,7 @@ def check_tthw_not_hardcoded_tested(text: str) -> bool:
     2. The TTHW scorecard row does not contain a literal TESTED label.
     """
     lower = text.lower()
-    has_prohibition = (
-        "never hardcode tested" in lower
-        or "never hardcode tested for tthw" in lower
-    )
+    has_prohibition = "never hardcode tested" in lower or "never hardcode tested for tthw" in lower
     if not has_prohibition:
         return False
     for row in _scorecard_rows(text):
@@ -219,9 +204,7 @@ def check_scorecard_rows_have_methods(text: str) -> bool:
         return False
     for dimension, _score, _summary, method in rows:
         placeholders = (
-            TTHW_METHOD_PLACEHOLDERS
-            if dimension == "TTHW"
-            else EVIDENCE_METHOD_PLACEHOLDERS
+            TTHW_METHOD_PLACEHOLDERS if dimension == "TTHW" else EVIDENCE_METHOD_PLACEHOLDERS
         )
         if method not in placeholders:
             return False
@@ -325,10 +308,8 @@ def _remove_every_command(text: str) -> str:
 def _make_tested_include_file_inspection(text: str) -> str:
     """Redefine TESTED to include file inspection."""
     return text.replace(
-        "The auditor executed the interaction or command "
-        "and observed the result",
-        "The auditor executed the interaction or file inspection "
-        "and observed the result",
+        "The auditor executed the interaction or command and observed the result",
+        "The auditor executed the interaction or file inspection and observed the result",
     )
 
 
@@ -351,9 +332,7 @@ def _hardcode_tthw_scorecard_row(text: str) -> str:
 def _insert_gstack_provenance(text: str) -> str:
     """Re-introduce the removed upstream provenance block."""
     provenance = (
-        "## Provenance\n\n"
-        "Adapted from gstack at "
-        "d078622b73539fc1a7a27e709861e9b6b058ae98.\n\n"
+        "## Provenance\n\nAdapted from gstack at d078622b73539fc1a7a27e709861e9b6b058ae98.\n\n"
     )
     return text.replace("## Triggers", provenance + "## Triggers", 1)
 

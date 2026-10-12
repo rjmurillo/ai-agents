@@ -154,8 +154,7 @@ def _require_same_fixture_set(
     )
     if missing_variants:
         raise ValueError(
-            f"comparison needs records for variants {sorted(variants)}; "
-            f"missing: {missing_variants}"
+            f"comparison needs records for variants {sorted(variants)}; missing: {missing_variants}"
         )
     reference_variant = sorted(variants)[0]
     reference_ids = by_variant[reference_variant]
@@ -348,10 +347,7 @@ def _cost_estimate(
             f"No pricing rate for model_id={model_id!r}. "
             f"Add it to MODEL_PRICING_RATES_USD_PER_1K_TOKENS in _eval_common.py."
         )
-    return float(
-        (total_tokens_in * rates["input"] + total_tokens_out * rates["output"])
-        / 1000.0
-    )
+    return float((total_tokens_in * rates["input"] + total_tokens_out * rates["output"]) / 1000.0)
 
 
 class ReportAggregator:
@@ -414,9 +410,7 @@ class ReportAggregator:
         stable_ids = [fid for fid in all_fixture_ids if fid not in set(excluded)]
 
         agent_recall = _recall_from_grouped(grouped, "agent", fixture_ids=stable_ids)
-        baseline_recall = _recall_from_grouped(
-            grouped, "baseline", fixture_ids=stable_ids
-        )
+        baseline_recall = _recall_from_grouped(grouped, "baseline", fixture_ids=stable_ids)
         recall_delta = agent_recall - baseline_recall
 
         ci_low, ci_high = _paired_bootstrap_ci(
@@ -439,15 +433,11 @@ class ReportAggregator:
 
         total_tokens_in = sum(r.tokens_in for r in self._records)
         total_tokens_out = sum(r.tokens_out for r in self._records)
-        cost = _cost_estimate(
-            self._model_id, total_tokens_in, total_tokens_out, self._provider
-        )
+        cost = _cost_estimate(self._model_id, total_tokens_in, total_tokens_out, self._provider)
         error_count = sum(1 for r in self._records if r.outcome == "error")
         # Cost is only authoritative when every contributing record carries
         # measured token usage. Any estimated record taints the total.
-        tokens_estimated = any(
-            getattr(r, "tokens_estimated", True) for r in self._records
-        )
+        tokens_estimated = any(getattr(r, "tokens_estimated", True) for r in self._records)
 
         return AggregateResult(
             agent_recall=agent_recall,
@@ -519,9 +509,7 @@ class FormFactorComparison:
     schema_version: int = 1
 
 
-def _tokens_for_variant(
-    records: list[RunRecord], variant: str
-) -> tuple[int, int]:
+def _tokens_for_variant(records: list[RunRecord], variant: str) -> tuple[int, int]:
     """Sum (tokens_in, tokens_out) across every record for one variant."""
     tokens_in = sum(r.tokens_in for r in records if r.variant == variant)
     tokens_out = sum(r.tokens_out for r in records if r.variant == variant)
@@ -598,9 +586,7 @@ def compute_form_factor(
         raise ValueError("form-factor comparison has no stable fixtures to compare")
 
     agent_recall = _recall_from_grouped(grouped, "agent", fixture_ids=fixture_ids)
-    baseline_recall = _recall_from_grouped(
-        grouped, "baseline", fixture_ids=fixture_ids
-    )
+    baseline_recall = _recall_from_grouped(grouped, "baseline", fixture_ids=fixture_ids)
     skill_recall = _recall_from_grouped(grouped, "skill", fixture_ids=fixture_ids)
 
     rng = rng or random.Random(42)

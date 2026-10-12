@@ -338,8 +338,7 @@ class TestRunDispatch:
             _write_shim(
                 tmp_path,
                 "slow.py",
-                "import time\n"
-                "time.sleep(10)\n",
+                "import time\ntime.sleep(10)\n",
             ),
             _write_shim(
                 tmp_path,
@@ -592,17 +591,13 @@ class TestObserveOutput:
         }
         assert "sensitive observer warning" not in captured.err
 
-    def test_failed_discard_observer_retains_content_free_stderr_metadata(
-        self, tmp_path, capsys
-    ):
+    def test_failed_discard_observer_retains_content_free_stderr_metadata(self, tmp_path, capsys):
         event_dir = tmp_path / "PreCompact"
         event_dir.mkdir()
         name = _write_shim(
             event_dir,
             "failed.py",
-            "import sys\n"
-            "print('sensitive failure detail', file=sys.stderr)\n"
-            "raise SystemExit(7)\n",
+            "import sys\nprint('sensitive failure detail', file=sys.stderr)\nraise SystemExit(7)\n",
         )
 
         rc = run_dispatch(
@@ -904,8 +899,7 @@ class TestRunPermissionDispatch:
         name = _write_shim(
             tmp_path,
             "decision.py",
-            "import time\n"
-            "time.sleep(10)\n",
+            "import time\ntime.sleep(10)\n",
         )
 
         start = time.monotonic()
@@ -955,14 +949,11 @@ class TestShimImportErrorCannotBypassTheGate:
 
         code = self._run(
             tmp_path,
-            "import sys\n"
-            "sys.stdin.read()\n"
-            "raise ImportError('pretending to be a load failure')\n",
+            "import sys\nsys.stdin.read()\nraise ImportError('pretending to be a load failure')\n",
         )
 
         assert code == BLOCK_EXIT, (
-            "a shim that ran and then raised ImportError was allowed, which "
-            "bypasses the gate"
+            "a shim that ran and then raised ImportError was allowed, which bypasses the gate"
         )
 
     def test_syntax_error_still_degrades(self, tmp_path):

@@ -334,11 +334,8 @@ def test_paired_bootstrap_ci_bonferroni_widens_lower_bound():
     wide = core.paired_bootstrap_ci(
         w, d, ids, lower_percentile=2.5 / 3, upper_percentile=100 - 2.5 / 3
     )
-    narrow = core.paired_bootstrap_ci(
-        w, d, ids, lower_percentile=2.5, upper_percentile=97.5
-    )
+    narrow = core.paired_bootstrap_ci(w, d, ids, lower_percentile=2.5, upper_percentile=97.5)
     assert wide[0] <= narrow[0]
-
 
 
 def test_build_report_renders_null_cost_for_quota_billed_model():

@@ -17,8 +17,7 @@ from scripts.github_core.api import RepoInfo
 # Import the script via importlib (not a package)
 # ---------------------------------------------------------------------------
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1]
-    / ".claude" / "skills" / "github" / "scripts" / "pr"
+    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "pr"
 )
 
 
@@ -58,14 +57,28 @@ class TestBuildParser:
 
     def test_body_and_body_file_mutually_exclusive(self):
         with pytest.raises(SystemExit):
-            build_parser().parse_args([
-                "--pull-request", "1", "--body", "text", "--body-file", "f.md",
-            ])
+            build_parser().parse_args(
+                [
+                    "--pull-request",
+                    "1",
+                    "--body",
+                    "text",
+                    "--body-file",
+                    "f.md",
+                ]
+            )
 
     def test_valid_inline_body(self):
-        args = build_parser().parse_args([
-            "--pull-request", "50", "--comment-id", "123", "--body", "Fixed.",
-        ])
+        args = build_parser().parse_args(
+            [
+                "--pull-request",
+                "50",
+                "--comment-id",
+                "123",
+                "--body",
+                "Fixed.",
+            ]
+        )
         assert args.pull_request == 50
         assert args.comment_id == 123
         assert args.body == "Fixed."
@@ -87,22 +100,28 @@ class TestMain:
             assert exc.value.code == 4
 
     def test_empty_body_exits_1(self):
-        with patch(
-            "post_pr_comment_reply.assert_gh_authenticated",
-        ), patch(
-            "post_pr_comment_reply.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
+        with (
+            patch(
+                "post_pr_comment_reply.assert_gh_authenticated",
+            ),
+            patch(
+                "post_pr_comment_reply.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "1", "--body", ""])
             assert exc.value.code == 2
 
     def test_body_file_not_found_exits_2(self):
-        with patch(
-            "post_pr_comment_reply.assert_gh_authenticated",
-        ), patch(
-            "post_pr_comment_reply.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
+        with (
+            patch(
+                "post_pr_comment_reply.assert_gh_authenticated",
+            ),
+            patch(
+                "post_pr_comment_reply.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "1", "--body-file", "/nonexistent/file.md"])
@@ -110,49 +129,75 @@ class TestMain:
 
     def test_body_file_path_traversal_exits_2(self):
         """CWE-22: Path traversal in body-file is rejected."""
-        with patch(
-            "post_pr_comment_reply.assert_gh_authenticated",
-        ), patch(
-            "post_pr_comment_reply.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
+        with (
+            patch(
+                "post_pr_comment_reply.assert_gh_authenticated",
+            ),
+            patch(
+                "post_pr_comment_reply.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "1", "--body-file", "../../etc/passwd"])
             assert exc.value.code == 2
 
     def test_review_comment_reply_success(self, capsys):
-        response = json.dumps({
-            "id": 999, "html_url": "https://example.com", "created_at": "now",
-        })
-        with patch(
-            "post_pr_comment_reply.assert_gh_authenticated",
-        ), patch(
-            "post_pr_comment_reply.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout=response, rc=0),
+        response = json.dumps(
+            {
+                "id": 999,
+                "html_url": "https://example.com",
+                "created_at": "now",
+            }
+        )
+        with (
+            patch(
+                "post_pr_comment_reply.assert_gh_authenticated",
+            ),
+            patch(
+                "post_pr_comment_reply.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=response, rc=0),
+            ),
         ):
-            rc = main([
-                "--pull-request", "50", "--comment-id", "123", "--body", "Fixed.",
-            ])
+            rc = main(
+                [
+                    "--pull-request",
+                    "50",
+                    "--comment-id",
+                    "123",
+                    "--body",
+                    "Fixed.",
+                ]
+            )
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
         assert output["success"] is True
         assert output["in_reply_to"] == 123
 
     def test_top_level_comment_success(self, capsys):
-        response = json.dumps({
-            "id": 888, "html_url": "https://example.com", "created_at": "now",
-        })
-        with patch(
-            "post_pr_comment_reply.assert_gh_authenticated",
-        ), patch(
-            "post_pr_comment_reply.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout=response, rc=0),
+        response = json.dumps(
+            {
+                "id": 888,
+                "html_url": "https://example.com",
+                "created_at": "now",
+            }
+        )
+        with (
+            patch(
+                "post_pr_comment_reply.assert_gh_authenticated",
+            ),
+            patch(
+                "post_pr_comment_reply.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=response, rc=0),
+            ),
         ):
             rc = main(["--pull-request", "50", "--body", "All addressed."])
         assert rc == 0
@@ -161,14 +206,18 @@ class TestMain:
         assert output["in_reply_to"] is None
 
     def test_api_error_exits_3(self):
-        with patch(
-            "post_pr_comment_reply.assert_gh_authenticated",
-        ), patch(
-            "post_pr_comment_reply.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(rc=1, stderr="API error"),
+        with (
+            patch(
+                "post_pr_comment_reply.assert_gh_authenticated",
+            ),
+            patch(
+                "post_pr_comment_reply.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(rc=1, stderr="API error"),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "1", "--body", "test"])
@@ -177,21 +226,35 @@ class TestMain:
     def test_body_from_file(self, tmp_path, capsys):
         body_file = tmp_path / "body.md"
         body_file.write_text("hello from file")
-        response = json.dumps({
-            "id": 777, "html_url": "https://example.com", "created_at": "now",
-        })
-        with patch(
-            "post_pr_comment_reply.assert_gh_authenticated",
-        ), patch(
-            "post_pr_comment_reply.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout=response, rc=0),
-        ), patch(
-            "github_core.validation.assert_valid_body_file",
+        response = json.dumps(
+            {
+                "id": 777,
+                "html_url": "https://example.com",
+                "created_at": "now",
+            }
+        )
+        with (
+            patch(
+                "post_pr_comment_reply.assert_gh_authenticated",
+            ),
+            patch(
+                "post_pr_comment_reply.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=response, rc=0),
+            ),
+            patch(
+                "github_core.validation.assert_valid_body_file",
+            ),
         ):
-            rc = main([
-                "--pull-request", "1", "--body-file", str(body_file),
-            ])
+            rc = main(
+                [
+                    "--pull-request",
+                    "1",
+                    "--body-file",
+                    str(body_file),
+                ]
+            )
         assert rc == 0

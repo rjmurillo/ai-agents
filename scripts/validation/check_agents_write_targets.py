@@ -84,9 +84,7 @@ _MAX_GAP_WORDS = 6
 # A segment carrying glob or regex syntax is a pattern, not a directory name.
 _PATTERN_CHARS = frozenset("*?[]{}()^$|+")
 _REDIRECT = re.compile(r"(?:>{1,2}|\btee\b)\s*[`'\"]?$")
-_ASSIGN = re.compile(
-    r"(?:export\s+)?[A-Za-z_]\w*\s*=\s*[\"']?$|\$env:[A-Za-z_]\w*\s*=\s*[\"']?$"
-)
+_ASSIGN = re.compile(r"(?:export\s+)?[A-Za-z_]\w*\s*=\s*[\"']?$|\$env:[A-Za-z_]\w*\s*=\s*[\"']?$")
 _READ_CONTEXT = re.compile(
     r"(?:from (?:the )?template at|inventory:|per|see|via)\s*[`'\"]?$",
     re.IGNORECASE,

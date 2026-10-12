@@ -40,6 +40,7 @@ REST transport after it was fixed for GraphQL.
 # Result type
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True, slots=True)
 class FailureClassification:
     """Structured result of classifying a PR-fetch failure detail string.
@@ -62,9 +63,7 @@ class FailureClassification:
 # Public API
 # ---------------------------------------------------------------------------
 
-_FORK_HINT = (
-    " The GH_TOKEN may lack permissions for first-time contributor PRs from forks."
-)
+_FORK_HINT = " The GH_TOKEN may lack permissions for first-time contributor PRs from forks."
 
 
 def classify_pr_fetch_failure(
@@ -88,8 +87,7 @@ def classify_pr_fetch_failure(
     detail = detail.strip() or "GitHub API returned no diagnostic output"
     hint = (
         _FORK_HINT
-        if FORK_PERMISSION_SIGNAL.search(detail)
-        and not RATE_LIMIT_SIGNAL.search(detail)
+        if FORK_PERMISSION_SIGNAL.search(detail) and not RATE_LIMIT_SIGNAL.search(detail)
         else ""
     )
     message = f"Could not fetch PR #{pr_number}: {detail}{hint}"

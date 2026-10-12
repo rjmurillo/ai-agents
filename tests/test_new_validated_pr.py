@@ -90,13 +90,7 @@ def _fake_repo_with_skill(root: Path) -> Path:
     allocator = skill.with_name("prepare_pr_body.py")
     allocator.write_text(
         (
-            REPO_ROOT
-            / ".claude"
-            / "skills"
-            / "github"
-            / "scripts"
-            / "pr"
-            / "prepare_pr_body.py"
+            REPO_ROOT / ".claude" / "skills" / "github" / "scripts" / "pr" / "prepare_pr_body.py"
         ).read_text(encoding="utf-8"),
         encoding="utf-8",
     )
@@ -173,7 +167,12 @@ class TestWebMode:
         mock_run.return_value = MagicMock(returncode=0)
         assert _run_web_mode("develop") == 0
         assert mock_run.call_args[0][0] == [
-            "gh", "pr", "create", "--web", "--base", "develop",
+            "gh",
+            "pr",
+            "create",
+            "--web",
+            "--base",
+            "develop",
         ]
 
     @patch("scripts.new_validated_pr.subprocess.run")
@@ -194,7 +193,10 @@ class TestWebMode:
     @patch("scripts.new_validated_pr.get_repo_root", return_value=Path("/fake"))
     @patch.dict(os.environ, {"DISPLAY": ":0"}, clear=True)
     def test_main_routes_web_without_requiring_a_title(
-        self, _repo: MagicMock, _which: MagicMock, mock_run: MagicMock,
+        self,
+        _repo: MagicMock,
+        _which: MagicMock,
+        mock_run: MagicMock,
     ) -> None:
         mock_run.return_value = MagicMock(returncode=0)
         assert main(["--web"]) == 0
@@ -271,7 +273,12 @@ class TestDispatch:
     ) -> None:
         _, command = self._run(mock_root, tmp_path, ["--title", "fix: t"])
         for flag in (
-            "--base", "--head", "--body", "--body-file", "--draft", "--skip-validation",
+            "--base",
+            "--head",
+            "--body",
+            "--body-file",
+            "--draft",
+            "--skip-validation",
         ):
             assert flag not in command
 
@@ -284,9 +291,18 @@ class TestDispatch:
             mock_root,
             tmp_path,
             [
-                "--title", "fix: t", "--base", "release", "--head", "topic",
-                "--body-file", str(source_body), "--draft",
-                "--skip-validation", "--audit-reason", "hotfix",
+                "--title",
+                "fix: t",
+                "--base",
+                "release",
+                "--head",
+                "topic",
+                "--body-file",
+                str(source_body),
+                "--draft",
+                "--skip-validation",
+                "--audit-reason",
+                "hotfix",
             ],
         )
         assert command[command.index("--base") + 1] == "release"
@@ -301,9 +317,7 @@ class TestDispatch:
     def test_forwards_inline_body(
         self, mock_root: MagicMock, _which: MagicMock, tmp_path: Path
     ) -> None:
-        _, command = self._run(
-            mock_root, tmp_path, ["--title", "fix: t", "--body", "text"]
-        )
+        _, command = self._run(mock_root, tmp_path, ["--title", "fix: t", "--body", "text"])
         assert command[command.index("--body") + 1] == "text"
 
     def test_audit_reason_is_dropped_without_skip_validation(
@@ -356,11 +370,7 @@ class TestFlagContractWithRealTarget:
             cwd=cwd,
         )
         line = next(
-            (
-                one
-                for one in result.stdout.splitlines()
-                if one.startswith(_FLAGS_SENTINEL)
-            ),
+            (one for one in result.stdout.splitlines() if one.startswith(_FLAGS_SENTINEL)),
             None,
         )
         assert line is not None, (
@@ -392,9 +402,20 @@ class TestFlagContractWithRealTarget:
     def test_target_accepts_the_maximal_flag_set(self, tmp_path: Path) -> None:
         emitted = self._emitted_flags(
             [
-                "--title", "fix: t", "--base", "release", "--head", "topic",
-                "--body", "text", "--body-file", "b.md", "--draft",
-                "--skip-validation", "--audit-reason", "hotfix",
+                "--title",
+                "fix: t",
+                "--base",
+                "release",
+                "--head",
+                "topic",
+                "--body",
+                "text",
+                "--body-file",
+                "b.md",
+                "--draft",
+                "--skip-validation",
+                "--audit-reason",
+                "hotfix",
             ],
         )
         self._assert_all_accepted(emitted, self._target_accepted_flags(tmp_path))

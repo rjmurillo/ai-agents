@@ -42,6 +42,7 @@ def _run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[bytes] 
     """Private alias of run_git kept for internal use and test mocking."""
     return run_git(repo_root, *args)
 
+
 __all__ = [
     "COUNTED_SECTIONS",
     "Sections",

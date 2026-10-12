@@ -11,13 +11,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent))
 sys.path.insert(
     0,
-    str(
-        Path(__file__).parent.parent
-        / ".claude"
-        / "skills"
-        / "context-optimizer"
-        / "scripts"
-    ),
+    str(Path(__file__).parent.parent / ".claude" / "skills" / "context-optimizer" / "scripts"),
 )
 
 from extract_and_index import Section, check_generated_files, extract_and_index, summarize_section
@@ -134,9 +128,7 @@ class TestCheckGeneratedFiles:
         assert "(see: .details/config-1.md)" in index
 
     def test_summarize_skips_table_separator(self):
-        section = Section(
-            heading="Table", level=2, content="|---|---|\nMeaning.", slug="table"
-        )
+        section = Section(heading="Table", level=2, content="|---|---|\nMeaning.", slug="table")
 
         assert summarize_section(section) == "Meaning."
 

@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""Tests for plugin manifest detection and strict semver parsing in resolve_pr_conflicts.
-"""
+"""Tests for plugin manifest detection and strict semver parsing in resolve_pr_conflicts."""
 
 from __future__ import annotations
 
@@ -17,6 +16,7 @@ mod = import_skill_script(".claude/skills/merge-resolver/scripts/resolve_pr_conf
 
 is_plugin_manifest = mod.is_plugin_manifest
 _parse_plain_semver = mod._parse_plain_semver
+
 
 class TestIsPluginManifest:
     """Detection of packaged plugin manifests (issue #2543)."""

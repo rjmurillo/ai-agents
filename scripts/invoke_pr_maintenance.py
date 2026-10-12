@@ -87,9 +87,7 @@ class BotInfo:
 def get_bot_author_info(author_login: str) -> BotInfo:
     for category, bots in BOT_CATEGORIES.items():
         for bot in bots:
-            if author_login.lower() == bot.lower() or author_login.lower().startswith(
-                bot.lower()
-            ):
+            if author_login.lower() == bot.lower() or author_login.lower().startswith(bot.lower()):
                 return BotInfo(is_bot=True, category=category, name=author_login)
     return BotInfo(is_bot=False, category="human", name=author_login)
 
@@ -142,7 +140,9 @@ def has_unresolved_threads(pr: dict[str, Any]) -> bool:
     if total > len(nodes):
         logging.warning(
             "PR #%s has %d review threads but only %d fetched",
-            pr.get("number", "?"), total, len(nodes),
+            pr.get("number", "?"),
+            total,
+            len(nodes),
         )
     for node in nodes:
         if node and not node.get("isResolved", True):
@@ -203,7 +203,6 @@ query($owner: String!, $name: String!, $limit: Int!) {
 """
 
 
-
 def _fetch_status_context_page(
     owner: str,
     repo: str,
@@ -234,9 +233,7 @@ def get_open_prs(owner: str, repo: str, limit: int) -> list[dict[str, Any]]:
         complete_status_check_rollups(owner, repo, nodes, _fetch_status_context_page)
         return nodes
     except (json.JSONDecodeError, KeyError) as exc:
-        raise RuntimeError(
-            f"Failed to parse PR response: {exc}"
-        ) from exc
+        raise RuntimeError(f"Failed to parse PR response: {exc}") from exc
 
 
 @dataclass
@@ -249,7 +246,9 @@ class MaintenanceResults:
 
 
 def classify_prs(
-    owner: str, repo: str, prs: list[dict[str, Any]],
+    owner: str,
+    repo: str,
+    prs: list[dict[str, Any]],
 ) -> MaintenanceResults:
     results = MaintenanceResults(total_prs=len(prs))
 
@@ -296,9 +295,7 @@ def classify_prs(
             has_failures = has_failing_checks(pr)
             has_unresolved = has_unresolved_threads(pr)
 
-            needs_action = (
-                has_changes or has_conflicts or has_failures or has_unresolved
-            )
+            needs_action = has_changes or has_conflicts or has_failures or has_unresolved
             if not needs_action:
                 continue
 
@@ -358,17 +355,11 @@ def classify_prs(
                 )
 
         except KeyError as e:
-            results.errors.append(
-                {"PR": pr.get("number") or "Unknown", "Error": str(e)}
-            )
+            results.errors.append({"PR": pr.get("number") or "Unknown", "Error": str(e)})
 
     if results.errors:
-        failed = ", ".join(
-            f"#{e['PR']} (missing {e['Error']})" for e in results.errors
-        )
-        raise RuntimeError(
-            f"Classification failed for PRs: {failed}"
-        )
+        failed = ", ".join(f"#{e['PR']} (missing {e['Error']})" for e in results.errors)
+        raise RuntimeError(f"Classification failed for PRs: {failed}")
 
     return results
 
@@ -423,16 +414,12 @@ def write_step_summary(results: MaintenanceResults) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        description="PR discovery and classification"
-    )
+    parser = argparse.ArgumentParser(description="PR discovery and classification")
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument("--max-prs", type=int, default=20, help="Max PRs to process")
     parser.add_argument("--log-path", default="", help="Path to write log file")
-    parser.add_argument(
-        "--output-json", action="store_true", help="Output JSON for matrix"
-    )
+    parser.add_argument("--output-json", action="store_true", help="Output JSON for matrix")
     args = parser.parse_args(argv)
 
     # Rate limit check (fail-safe: exit 0 if too low or check fails)

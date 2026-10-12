@@ -81,17 +81,10 @@ import argparse
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--count",
-        type=int,
-        choices=range(1, 101),
-        required=True,
-        help="Number of items (1-100)"
+        "--count", type=int, choices=range(1, 101), required=True, help="Number of items (1-100)"
     )
     parser.add_argument(
-        "--format",
-        choices=["json", "yaml", "text"],
-        default="json",
-        help="Output format"
+        "--format", choices=["json", "yaml", "text"], default="json", help="Output format"
     )
     return parser.parse_args()
 ```
@@ -129,11 +122,7 @@ def run_git_command(repo_path: Path, *args: str) -> str:
     """Run git command safely."""
     # Arguments as list, not string
     result = subprocess.run(
-        ["git", "-C", str(repo_path), *args],
-        capture_output=True,
-        text=True,
-        timeout=30,
-        check=True
+        ["git", "-C", str(repo_path), *args], capture_output=True, text=True, timeout=30, check=True
     )
     return result.stdout
 ```
@@ -277,6 +266,7 @@ print(f"Error reading /home/user/secrets/config.yaml: {e}")
 
 # WRONG: Full stack trace to user
 import traceback
+
 traceback.print_exc()
 ```
 
@@ -329,11 +319,7 @@ from pathlib import Path
 
 def process_with_temp(data: str) -> Path:
     """Process data using secure temporary file."""
-    with tempfile.NamedTemporaryFile(
-        mode="w",
-        suffix=".json",
-        delete=False
-    ) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         f.write(data)
         temp_path = Path(f.name)
 

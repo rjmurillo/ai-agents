@@ -16,8 +16,7 @@ from scripts.github_core.api import RepoInfo
 # Import the script via importlib (not a package)
 # ---------------------------------------------------------------------------
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1]
-    / ".claude" / "skills" / "github" / "scripts" / "pr"
+    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "pr"
 )
 
 
@@ -60,9 +59,19 @@ def _default_ruleset_contexts(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-def _check(name: str, *, passing=False, failing=False, pending=False,
-           required=True, state="COMPLETED", conclusion="", details="",
-           run_id=None, run_attempt=None):
+def _check(
+    name: str,
+    *,
+    passing=False,
+    failing=False,
+    pending=False,
+    required=True,
+    state="COMPLETED",
+    conclusion="",
+    details="",
+    run_id=None,
+    run_attempt=None,
+):
     """Build a normalized check dict for dedupe tests."""
     return {
         "Name": name,
@@ -118,10 +127,14 @@ def _rollup_response(
                 "mergeStateStatus": merge_state_status,
                 "commits": {
                     "nodes": [
-                        {"commit": {"statusCheckRollup": {
-                            "state": state,
-                            "contexts": contexts,
-                        }}},
+                        {
+                            "commit": {
+                                "statusCheckRollup": {
+                                    "state": state,
+                                    "contexts": contexts,
+                                }
+                            }
+                        },
                     ],
                 },
             },
@@ -184,9 +197,15 @@ class TestBuildParser:
         assert args.pull_request == 42
 
     def test_wait_and_timeout(self):
-        args = build_parser().parse_args([
-            "--pull-request", "1", "--wait", "--timeout-seconds", "60",
-        ])
+        args = build_parser().parse_args(
+            [
+                "--pull-request",
+                "1",
+                "--wait",
+                "--timeout-seconds",
+                "60",
+            ]
+        )
         assert args.wait is True
         assert args.timeout_seconds == 60
 
@@ -195,16 +214,26 @@ class TestBuildParser:
         assert args.output_format == "auto"
 
     def test_output_format_json(self):
-        args = build_parser().parse_args([
-            "--pull-request", "1", "--output-format", "json",
-        ])
+        args = build_parser().parse_args(
+            [
+                "--pull-request",
+                "1",
+                "--output-format",
+                "json",
+            ]
+        )
         assert args.output_format == "json"
 
     def test_output_format_invalid_rejected(self):
         with pytest.raises(SystemExit):
-            build_parser().parse_args([
-                "--pull-request", "1", "--output-format", "xml",
-            ])
+            build_parser().parse_args(
+                [
+                    "--pull-request",
+                    "1",
+                    "--output-format",
+                    "xml",
+                ]
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -297,10 +326,14 @@ class TestBuildOutput:
             "OverallState": "SUCCESS",
             "Checks": [
                 {
-                    "Name": "build", "IsPassing": True,
-                    "IsFailing": False, "IsPending": False,
-                    "IsRequired": True, "State": "COMPLETED",
-                    "Conclusion": "SUCCESS", "DetailsUrl": "",
+                    "Name": "build",
+                    "IsPassing": True,
+                    "IsFailing": False,
+                    "IsPending": False,
+                    "IsRequired": True,
+                    "State": "COMPLETED",
+                    "Conclusion": "SUCCESS",
+                    "DetailsUrl": "",
                 },
             ],
         }
@@ -315,10 +348,14 @@ class TestBuildOutput:
             "OverallState": "FAILURE",
             "Checks": [
                 {
-                    "Name": "build", "IsPassing": False,
-                    "IsFailing": True, "IsPending": False,
-                    "IsRequired": True, "State": "COMPLETED",
-                    "Conclusion": "FAILURE", "DetailsUrl": "",
+                    "Name": "build",
+                    "IsPassing": False,
+                    "IsFailing": True,
+                    "IsPending": False,
+                    "IsRequired": True,
+                    "State": "COMPLETED",
+                    "Conclusion": "FAILURE",
+                    "DetailsUrl": "",
                 },
             ],
         }
@@ -333,16 +370,24 @@ class TestBuildOutput:
             "OverallState": "SUCCESS",
             "Checks": [
                 {
-                    "Name": "required", "IsPassing": True,
-                    "IsFailing": False, "IsPending": False,
-                    "IsRequired": True, "State": "COMPLETED",
-                    "Conclusion": "SUCCESS", "DetailsUrl": "",
+                    "Name": "required",
+                    "IsPassing": True,
+                    "IsFailing": False,
+                    "IsPending": False,
+                    "IsRequired": True,
+                    "State": "COMPLETED",
+                    "Conclusion": "SUCCESS",
+                    "DetailsUrl": "",
                 },
                 {
-                    "Name": "optional", "IsPassing": False,
-                    "IsFailing": True, "IsPending": False,
-                    "IsRequired": False, "State": "COMPLETED",
-                    "Conclusion": "FAILURE", "DetailsUrl": "",
+                    "Name": "optional",
+                    "IsPassing": False,
+                    "IsFailing": True,
+                    "IsPending": False,
+                    "IsRequired": False,
+                    "State": "COMPLETED",
+                    "Conclusion": "FAILURE",
+                    "DetailsUrl": "",
                 },
             ],
         }
@@ -367,14 +412,18 @@ class TestMain:
             assert exc.value.code == 4
 
     def test_pr_not_found_returns_2(self, capsys):
-        with patch(
-            "get_pr_checks.assert_gh_authenticated",
-        ), patch(
-            "get_pr_checks.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_pr_checks.gh_graphql",
-            side_effect=RuntimeError("Could not resolve PR"),
+        with (
+            patch(
+                "get_pr_checks.assert_gh_authenticated",
+            ),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_pr_checks.gh_graphql",
+                side_effect=RuntimeError("Could not resolve PR"),
+            ),
         ):
             rc = main(["--pull-request", "999"])
         assert rc == 2
@@ -412,14 +461,18 @@ class TestMain:
                 },
             },
         }
-        with patch(
-            "get_pr_checks.assert_gh_authenticated",
-        ), patch(
-            "get_pr_checks.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_pr_checks.gh_graphql",
-            return_value=gql_data,
+        with (
+            patch(
+                "get_pr_checks.assert_gh_authenticated",
+            ),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_pr_checks.gh_graphql",
+                return_value=gql_data,
+            ),
         ):
             rc = main(["--pull-request", "42"])
         assert rc == 0
@@ -459,14 +512,18 @@ class TestMain:
                 },
             },
         }
-        with patch(
-            "get_pr_checks.assert_gh_authenticated",
-        ), patch(
-            "get_pr_checks.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_pr_checks.gh_graphql",
-            return_value=gql_data,
+        with (
+            patch(
+                "get_pr_checks.assert_gh_authenticated",
+            ),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_pr_checks.gh_graphql",
+                return_value=gql_data,
+            ),
         ):
             rc = main(["--pull-request", "42", "--output-format", "json"])
         assert rc == 0
@@ -508,14 +565,18 @@ class TestMain:
                 },
             },
         }
-        with patch(
-            "get_pr_checks.assert_gh_authenticated",
-        ), patch(
-            "get_pr_checks.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_pr_checks.gh_graphql",
-            return_value=gql_data,
+        with (
+            patch(
+                "get_pr_checks.assert_gh_authenticated",
+            ),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_pr_checks.gh_graphql",
+                return_value=gql_data,
+            ),
         ):
             rc = main(["--pull-request", "42", "--output-format", "human"])
         assert rc == 0
@@ -555,14 +616,18 @@ class TestMain:
                 },
             },
         }
-        with patch(
-            "get_pr_checks.assert_gh_authenticated",
-        ), patch(
-            "get_pr_checks.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_pr_checks.gh_graphql",
-            return_value=gql_data,
+        with (
+            patch(
+                "get_pr_checks.assert_gh_authenticated",
+            ),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_pr_checks.gh_graphql",
+                return_value=gql_data,
+            ),
         ):
             rc = main(["--pull-request", "42", "--output-format", "json"])
         assert rc == 1
@@ -604,28 +669,36 @@ class TestMain:
                 },
             },
         }
-        with patch(
-            "get_pr_checks.assert_gh_authenticated",
-        ), patch(
-            "get_pr_checks.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_pr_checks.gh_graphql",
-            return_value=gql_data,
+        with (
+            patch(
+                "get_pr_checks.assert_gh_authenticated",
+            ),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_pr_checks.gh_graphql",
+                return_value=gql_data,
+            ),
         ):
             rc = main(["--pull-request", "42"])
         assert rc == 1
 
     def test_api_error_returns_3(self, capsys):
         """Generic RuntimeError (not 'not found') returns exit code 3."""
-        with patch(
-            "get_pr_checks.assert_gh_authenticated",
-        ), patch(
-            "get_pr_checks.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_pr_checks.gh_graphql",
-            side_effect=RuntimeError("internal server error"),
+        with (
+            patch(
+                "get_pr_checks.assert_gh_authenticated",
+            ),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_pr_checks.gh_graphql",
+                side_effect=RuntimeError("internal server error"),
+            ),
         ):
             rc = main(["--pull-request", "42"])
         assert rc == 3
@@ -645,14 +718,18 @@ class TestMain:
                 },
             },
         }
-        with patch(
-            "get_pr_checks.assert_gh_authenticated",
-        ), patch(
-            "get_pr_checks.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_pr_checks.gh_graphql",
-            return_value=gql_data,
+        with (
+            patch(
+                "get_pr_checks.assert_gh_authenticated",
+            ),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_pr_checks.gh_graphql",
+                return_value=gql_data,
+            ),
         ):
             rc = main(["--pull-request", "42"])
         assert rc == 0
@@ -674,14 +751,18 @@ class TestMain:
                 },
             },
         }
-        with patch(
-            "get_pr_checks.assert_gh_authenticated",
-        ), patch(
-            "get_pr_checks.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_pr_checks.gh_graphql",
-            return_value=gql_data,
+        with (
+            patch(
+                "get_pr_checks.assert_gh_authenticated",
+            ),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_pr_checks.gh_graphql",
+                return_value=gql_data,
+            ),
         ):
             rc = main(["--pull-request", "42"])
         assert rc == 0
@@ -691,14 +772,18 @@ class TestMain:
     def test_pr_not_in_response_returns_2(self, capsys):
         """PR not found in GraphQL response returns exit code 2."""
         gql_data = {"repository": {"pullRequest": None}}
-        with patch(
-            "get_pr_checks.assert_gh_authenticated",
-        ), patch(
-            "get_pr_checks.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_pr_checks.gh_graphql",
-            return_value=gql_data,
+        with (
+            patch(
+                "get_pr_checks.assert_gh_authenticated",
+            ),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_pr_checks.gh_graphql",
+                return_value=gql_data,
+            ),
         ):
             rc = main(["--pull-request", "42"])
         assert rc == 2
@@ -739,14 +824,18 @@ class TestMain:
                 },
             },
         }
-        with patch(
-            "get_pr_checks.assert_gh_authenticated",
-        ), patch(
-            "get_pr_checks.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_pr_checks.gh_graphql",
-            return_value=gql_data,
+        with (
+            patch(
+                "get_pr_checks.assert_gh_authenticated",
+            ),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_pr_checks.gh_graphql",
+                return_value=gql_data,
+            ),
         ):
             rc = main(["--pull-request", "42"])
         assert rc == 0
@@ -787,25 +876,37 @@ class TestMain:
                 },
             },
         }
-        with patch(
-            "get_pr_checks.assert_gh_authenticated",
-        ), patch(
-            "get_pr_checks.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_pr_checks.gh_graphql",
-            return_value=gql_data,
-        ), patch(
-            "get_pr_checks.time.monotonic",
-            side_effect=[0.0, 999.0],
-        ), patch(
-            "get_pr_checks.time.sleep",
+        with (
+            patch(
+                "get_pr_checks.assert_gh_authenticated",
+            ),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_pr_checks.gh_graphql",
+                return_value=gql_data,
+            ),
+            patch(
+                "get_pr_checks.time.monotonic",
+                side_effect=[0.0, 999.0],
+            ),
+            patch(
+                "get_pr_checks.time.sleep",
+            ),
         ):
-            rc = main([
-                "--pull-request", "42",
-                "--wait", "--timeout-seconds", "10",
-                "--output-format", "human",
-            ])
+            rc = main(
+                [
+                    "--pull-request",
+                    "42",
+                    "--wait",
+                    "--timeout-seconds",
+                    "10",
+                    "--output-format",
+                    "human",
+                ]
+            )
         assert rc == 7
         captured = capsys.readouterr()
         assert "Timeout" in captured.out
@@ -844,25 +945,37 @@ class TestMain:
                 },
             },
         }
-        with patch(
-            "get_pr_checks.assert_gh_authenticated",
-        ), patch(
-            "get_pr_checks.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_pr_checks.gh_graphql",
-            return_value=gql_data,
-        ), patch(
-            "get_pr_checks.time.monotonic",
-            side_effect=[0.0, 999.0],
-        ), patch(
-            "get_pr_checks.time.sleep",
+        with (
+            patch(
+                "get_pr_checks.assert_gh_authenticated",
+            ),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_pr_checks.gh_graphql",
+                return_value=gql_data,
+            ),
+            patch(
+                "get_pr_checks.time.monotonic",
+                side_effect=[0.0, 999.0],
+            ),
+            patch(
+                "get_pr_checks.time.sleep",
+            ),
         ):
-            rc = main([
-                "--pull-request", "42",
-                "--wait", "--timeout-seconds", "10",
-                "--output-format", "json",
-            ])
+            rc = main(
+                [
+                    "--pull-request",
+                    "42",
+                    "--wait",
+                    "--timeout-seconds",
+                    "10",
+                    "--output-format",
+                    "json",
+                ]
+            )
         assert rc == 7
         captured = capsys.readouterr()
         assert captured.err == ""
@@ -891,18 +1004,33 @@ class TestMain:
                 },
             },
         }
-        with patch("get_pr_checks.assert_gh_authenticated"), patch(
-            "get_pr_checks.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_pr_checks.gh_graphql", return_value=empty_gql,
-        ), patch(
-            "get_pr_checks.time.monotonic", side_effect=[0.0, 999.0],
-        ), patch("get_pr_checks.time.sleep"):
-            rc = main([
-                "--pull-request", "42", "--wait",
-                "--timeout-seconds", "10", "--output-format", "json",
-            ])
+        with (
+            patch("get_pr_checks.assert_gh_authenticated"),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_pr_checks.gh_graphql",
+                return_value=empty_gql,
+            ),
+            patch(
+                "get_pr_checks.time.monotonic",
+                side_effect=[0.0, 999.0],
+            ),
+            patch("get_pr_checks.time.sleep"),
+        ):
+            rc = main(
+                [
+                    "--pull-request",
+                    "42",
+                    "--wait",
+                    "--timeout-seconds",
+                    "10",
+                    "--output-format",
+                    "json",
+                ]
+            )
         assert rc == 7
         output = json.loads(capsys.readouterr().out)
         assert output["Data"]["ChecksIncomplete"] is True
@@ -919,16 +1047,29 @@ class TestMain:
                 },
             },
         }
-        with patch("get_pr_checks.assert_gh_authenticated"), patch(
-            "get_pr_checks.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_pr_checks.gh_graphql", return_value=no_checks_gql,
-        ), patch("get_pr_checks.time.sleep") as sleep_mock:
-            rc = main([
-                "--pull-request", "42", "--wait",
-                "--timeout-seconds", "10", "--output-format", "json",
-            ])
+        with (
+            patch("get_pr_checks.assert_gh_authenticated"),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_pr_checks.gh_graphql",
+                return_value=no_checks_gql,
+            ),
+            patch("get_pr_checks.time.sleep") as sleep_mock,
+        ):
+            rc = main(
+                [
+                    "--pull-request",
+                    "42",
+                    "--wait",
+                    "--timeout-seconds",
+                    "10",
+                    "--output-format",
+                    "json",
+                ]
+            )
         assert rc == 0
         sleep_mock.assert_not_called()
         output = json.loads(capsys.readouterr().out)["Data"]
@@ -991,18 +1132,33 @@ class TestMain:
                 },
             },
         }
-        with patch("get_pr_checks.assert_gh_authenticated"), patch(
-            "get_pr_checks.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_pr_checks.gh_graphql", side_effect=[empty_gql, passing_gql],
-        ), patch(
-            "get_pr_checks.time.monotonic", side_effect=[0.0, 1.0],
-        ), patch("get_pr_checks.time.sleep"):
-            rc = main([
-                "--pull-request", "42", "--wait",
-                "--timeout-seconds", "60", "--output-format", "json",
-            ])
+        with (
+            patch("get_pr_checks.assert_gh_authenticated"),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_pr_checks.gh_graphql",
+                side_effect=[empty_gql, passing_gql],
+            ),
+            patch(
+                "get_pr_checks.time.monotonic",
+                side_effect=[0.0, 1.0],
+            ),
+            patch("get_pr_checks.time.sleep"),
+        ):
+            rc = main(
+                [
+                    "--pull-request",
+                    "42",
+                    "--wait",
+                    "--timeout-seconds",
+                    "60",
+                    "--output-format",
+                    "json",
+                ]
+            )
         assert rc == 0
         output = json.loads(capsys.readouterr().out)["Data"]
         assert output["ChecksIncomplete"] is False
@@ -1022,10 +1178,14 @@ class TestMain:
                 },
             },
         }
-        with patch("get_pr_checks.assert_gh_authenticated"), patch(
-            "get_pr_checks.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch("get_pr_checks.gh_graphql", return_value=empty_gql):
+        with (
+            patch("get_pr_checks.assert_gh_authenticated"),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("get_pr_checks.gh_graphql", return_value=empty_gql),
+        ):
             rc = main(["--pull-request", "42", "--output-format", "json"])
         assert rc == 0
         output = json.loads(capsys.readouterr().out)["Data"]
@@ -1164,7 +1324,6 @@ class TestFetchChecks:
             result = fetch_checks("o", "r", 1)
         assert result["Error"] == "NotFound"
 
-
     def test_fetch_checks_includes_merge_state(self):
         nodes = [_check_run_node("test", "COMPLETED", "SUCCESS")]
         with patch(
@@ -1218,7 +1377,6 @@ class TestFetchChecks:
 
 
 class TestBuildOutputAdditional:
-
     def test_conflicting_merge_ref_blocks_all_passing(self):
         check_data = {
             "Number": 42,
@@ -1253,7 +1411,6 @@ class TestBuildOutputAdditional:
         assert output["AllPassing"] is False
         assert output["MergeRefUsable"] is False
         assert "unknown" in output["MergeStateWarning"].lower()
-
 
     def test_dirty_merge_state_status_blocks_all_passing(self):
         check_data = {
@@ -1330,10 +1487,14 @@ class TestBuildOutputAdditional:
             "OverallState": "PENDING",
             "Checks": [
                 {
-                    "Name": "build", "IsPassing": False,
-                    "IsFailing": False, "IsPending": True,
-                    "IsRequired": True, "State": "IN_PROGRESS",
-                    "Conclusion": "", "DetailsUrl": "",
+                    "Name": "build",
+                    "IsPassing": False,
+                    "IsFailing": False,
+                    "IsPending": True,
+                    "IsRequired": True,
+                    "State": "IN_PROGRESS",
+                    "Conclusion": "",
+                    "DetailsUrl": "",
                 },
             ],
         }
@@ -1342,10 +1503,12 @@ class TestBuildOutputAdditional:
         assert output["AllPassing"] is False
 
     def test_failed_pending_duplicate_counts_as_failed_and_pending(self):
-        checks = dedupe_checks([
-            _check("build", failing=True, conclusion="FAILURE"),
-            _check("build", pending=True, state="IN_PROGRESS"),
-        ])
+        checks = dedupe_checks(
+            [
+                _check("build", failing=True, conclusion="FAILURE"),
+                _check("build", pending=True, state="IN_PROGRESS"),
+            ]
+        )
         check_data = {
             "Number": 42,
             "HasChecks": True,
@@ -1360,10 +1523,12 @@ class TestBuildOutputAdditional:
         assert output["AllPassing"] is False
 
     def test_passing_pending_duplicate_counts_as_pending_not_all_passing(self):
-        checks = dedupe_checks([
-            _check("build", passing=True, conclusion="SUCCESS"),
-            _check("build", pending=True, state="IN_PROGRESS"),
-        ])
+        checks = dedupe_checks(
+            [
+                _check("build", passing=True, conclusion="SUCCESS"),
+                _check("build", pending=True, state="IN_PROGRESS"),
+            ]
+        )
         check_data = {
             "Number": 42,
             "HasChecks": True,
@@ -1518,16 +1683,26 @@ class TestDedupeChecks:
         """StatusContext entries dedupe by Name like CheckRun entries."""
         checks = [
             {
-                "Name": "ci/travis", "Type": "StatusContext",
-                "State": "FAILURE", "Conclusion": "FAILURE", "DetailsUrl": "",
-                "IsRequired": True, "IsPending": False,
-                "IsPassing": False, "IsFailing": True,
+                "Name": "ci/travis",
+                "Type": "StatusContext",
+                "State": "FAILURE",
+                "Conclusion": "FAILURE",
+                "DetailsUrl": "",
+                "IsRequired": True,
+                "IsPending": False,
+                "IsPassing": False,
+                "IsFailing": True,
             },
             {
-                "Name": "ci/travis", "Type": "StatusContext",
-                "State": "SUCCESS", "Conclusion": "SUCCESS", "DetailsUrl": "",
-                "IsRequired": True, "IsPending": False,
-                "IsPassing": True, "IsFailing": False,
+                "Name": "ci/travis",
+                "Type": "StatusContext",
+                "State": "SUCCESS",
+                "Conclusion": "SUCCESS",
+                "DetailsUrl": "",
+                "IsRequired": True,
+                "IsPending": False,
+                "IsPassing": True,
+                "IsFailing": False,
             },
         ]
         result = dedupe_checks(checks)
@@ -1538,10 +1713,15 @@ class TestDedupeChecks:
         """A StatusContext duplicate cannot mask a failing CheckRun."""
         checks = [
             {
-                "Name": "build", "Type": "StatusContext",
-                "State": "SUCCESS", "Conclusion": "SUCCESS", "DetailsUrl": "",
-                "IsRequired": True, "IsPending": False,
-                "IsPassing": True, "IsFailing": False,
+                "Name": "build",
+                "Type": "StatusContext",
+                "State": "SUCCESS",
+                "Conclusion": "SUCCESS",
+                "DetailsUrl": "",
+                "IsRequired": True,
+                "IsPending": False,
+                "IsPassing": True,
+                "IsFailing": False,
             },
             _check("build", failing=True, conclusion="FAILURE"),
         ]
@@ -1571,17 +1751,20 @@ class TestSupersededCheckRuns:
         assert len(result["Checks"]) == 1
         assert result["Checks"][0]["IsPassing"] is True
 
-
     def test_main_conflicting_merge_ref_returns_1(self, capsys):
         nodes = [_check_run_node("Validate PR", "COMPLETED", "SUCCESS")]
-        with patch(
-            "get_pr_checks.assert_gh_authenticated",
-        ), patch(
-            "get_pr_checks.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_pr_checks.gh_graphql",
-            return_value=_rollup_response(nodes, mergeable="CONFLICTING"),
+        with (
+            patch(
+                "get_pr_checks.assert_gh_authenticated",
+            ),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_pr_checks.gh_graphql",
+                return_value=_rollup_response(nodes, mergeable="CONFLICTING"),
+            ),
         ):
             rc = main(["--pull-request", "3478"])
         assert rc == 1
@@ -1592,14 +1775,18 @@ class TestSupersededCheckRuns:
 
     def test_main_unknown_merge_ref_returns_1(self, capsys):
         nodes = [_check_run_node("Validate PR", "COMPLETED", "SUCCESS")]
-        with patch(
-            "get_pr_checks.assert_gh_authenticated",
-        ), patch(
-            "get_pr_checks.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_pr_checks.gh_graphql",
-            return_value=_rollup_response(nodes, mergeable="UNKNOWN"),
+        with (
+            patch(
+                "get_pr_checks.assert_gh_authenticated",
+            ),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_pr_checks.gh_graphql",
+                return_value=_rollup_response(nodes, mergeable="UNKNOWN"),
+            ),
         ):
             rc = main(["--pull-request", "3478"])
         assert rc == 1
@@ -1619,14 +1806,18 @@ class TestSupersededCheckRuns:
             _check_run_node("Validate PR", "COMPLETED", "FAILURE"),
             _check_run_node("Validate PR", "COMPLETED", "SUCCESS"),
         ]
-        with patch(
-            "get_pr_checks.assert_gh_authenticated",
-        ), patch(
-            "get_pr_checks.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_pr_checks.gh_graphql",
-            return_value=_rollup_response(nodes),
+        with (
+            patch(
+                "get_pr_checks.assert_gh_authenticated",
+            ),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_pr_checks.gh_graphql",
+                return_value=_rollup_response(nodes),
+            ),
         ):
             rc = main(["--pull-request", "2201"])
         assert rc == 0
@@ -1641,14 +1832,18 @@ class TestSupersededCheckRuns:
             _check_run_node("test", "COMPLETED", "FAILURE"),
             _check_run_node("test", "COMPLETED", "FAILURE"),
         ]
-        with patch(
-            "get_pr_checks.assert_gh_authenticated",
-        ), patch(
-            "get_pr_checks.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_pr_checks.gh_graphql",
-            return_value=_rollup_response(nodes),
+        with (
+            patch(
+                "get_pr_checks.assert_gh_authenticated",
+            ),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_pr_checks.gh_graphql",
+                return_value=_rollup_response(nodes),
+            ),
         ):
             rc = main(["--pull-request", "42"])
         assert rc == 1
@@ -1670,14 +1865,18 @@ class TestSupersededCheckRuns:
             _check_run_node("Validate PR title", "COMPLETED", "CANCELLED"),
             _check_run_node("Validate PR title", "COMPLETED", "SUCCESS"),
         ]
-        with patch(
-            "get_pr_checks.assert_gh_authenticated",
-        ), patch(
-            "get_pr_checks.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_pr_checks.gh_graphql",
-            return_value=_rollup_response(nodes),
+        with (
+            patch(
+                "get_pr_checks.assert_gh_authenticated",
+            ),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_pr_checks.gh_graphql",
+                return_value=_rollup_response(nodes),
+            ),
         ):
             rc = main(["--pull-request", "2289", "--required-only"])
         assert rc == 0
@@ -1691,9 +1890,7 @@ class TestSupersededCheckRuns:
         assert names.count("Validate PR") == 1
         assert names.count("Validate PR title") == 1
 
-    def test_skipped_winner_with_pending_sibling_excluded_from_required(
-        self, capsys
-    ):
+    def test_skipped_winner_with_pending_sibling_excluded_from_required(self, capsys):
         """Issue #2614: a required check whose dedupe winner is COMPLETED with
         Conclusion=SKIPPED must be excluded from PendingRequiredChecks, even
         when a stale sibling row for the same name is PENDING.
@@ -1719,14 +1916,18 @@ class TestSupersededCheckRuns:
                 "isRequired": True,
             },
         ]
-        with patch(
-            "get_pr_checks.assert_gh_authenticated",
-        ), patch(
-            "get_pr_checks.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_pr_checks.gh_graphql",
-            return_value=_rollup_response(nodes),
+        with (
+            patch(
+                "get_pr_checks.assert_gh_authenticated",
+            ),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_pr_checks.gh_graphql",
+                return_value=_rollup_response(nodes),
+            ),
         ):
             rc = main(["--pull-request", "2611", "--required-only"])
         output = json.loads(capsys.readouterr().out)
@@ -1747,47 +1948,51 @@ class TestSupersededCheckRuns:
         isRequired=true. The name should be treated as required.
         """
         nodes = [
-           {
-               "__typename": "CheckRun",
-               "name": "Analyst",
-               "status": "IN_PROGRESS",
-               "conclusion": "",
-               "detailsUrl": "",
-               "isRequired": False,
-           },
-           {
-               "__typename": "StatusContext",
-               "context": "Analyst",
-               "state": "PENDING",
-               "targetUrl": "",
-               "isRequired": True,
-           },
-           {
-              "__typename": "CheckRun",
-              "name": "QA",
-              "status": "IN_PROGRESS",
-              "conclusion": "",
-              "detailsUrl": "",
-              "isRequired": False,
-           },
-           {
-              "__typename": "StatusContext",
-              "context": "QA",
-              "state": "PENDING",
-              "targetUrl": "",
-              "isRequired": True,
-           },
+            {
+                "__typename": "CheckRun",
+                "name": "Analyst",
+                "status": "IN_PROGRESS",
+                "conclusion": "",
+                "detailsUrl": "",
+                "isRequired": False,
+            },
+            {
+                "__typename": "StatusContext",
+                "context": "Analyst",
+                "state": "PENDING",
+                "targetUrl": "",
+                "isRequired": True,
+            },
+            {
+                "__typename": "CheckRun",
+                "name": "QA",
+                "status": "IN_PROGRESS",
+                "conclusion": "",
+                "detailsUrl": "",
+                "isRequired": False,
+            },
+            {
+                "__typename": "StatusContext",
+                "context": "QA",
+                "state": "PENDING",
+                "targetUrl": "",
+                "isRequired": True,
+            },
         ]
-        with patch(
-           "get_pr_checks.assert_gh_authenticated",
-        ), patch(
-           "get_pr_checks.resolve_repo_params",
-           return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-           "get_pr_checks.gh_graphql",
-           return_value=_rollup_response(nodes),
+        with (
+            patch(
+                "get_pr_checks.assert_gh_authenticated",
+            ),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_pr_checks.gh_graphql",
+                return_value=_rollup_response(nodes),
+            ),
         ):
-           main(["--pull-request", "2325", "--required-only"])
+            main(["--pull-request", "2325", "--required-only"])
         output = json.loads(capsys.readouterr().out)
         data = output["Data"]
         assert data["PendingCount"] == 2
@@ -1807,33 +2012,41 @@ class TestSupersededCheckRuns:
         FailedRequiredChecks[] (new field).
         """
         nodes = [
-           _check_run_node("CI/lint", "COMPLETED", "FAILURE", required=True),
-           _check_run_node("CI/test", "IN_PROGRESS", "", required=True),
+            _check_run_node("CI/lint", "COMPLETED", "FAILURE", required=True),
+            _check_run_node("CI/test", "IN_PROGRESS", "", required=True),
         ]
-        with patch(
-           "get_pr_checks.assert_gh_authenticated",
-        ), patch(
-           "get_pr_checks.resolve_repo_params",
-           return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-           "get_pr_checks.gh_graphql",
-           return_value=_rollup_response(nodes),
+        with (
+            patch(
+                "get_pr_checks.assert_gh_authenticated",
+            ),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_pr_checks.gh_graphql",
+                return_value=_rollup_response(nodes),
+            ),
         ):
-           main(["--pull-request", "2325", "--required-only"])
+            main(["--pull-request", "2325", "--required-only"])
         output = json.loads(capsys.readouterr().out)
         data = output["Data"]
         # Should have both failed and pending required checks visible.
         assert data["FailedCount"] == 1
         assert data["PendingCount"] == 1
         # New fields for structured output to downstream agents.
-        assert "FailedRequiredChecks" in data, \
-           "Expected FailedRequiredChecks list in --required-only output"
-        assert "PendingRequiredChecks" in data, \
-           "Expected PendingRequiredChecks list in --required-only output"
-        assert "CI/lint" in data["FailedRequiredChecks"], \
-           "Expected failed required check in FailedRequiredChecks list"
-        assert "CI/test" in data["PendingRequiredChecks"], \
-           "Expected pending required check in PendingRequiredChecks list"
+        assert "FailedRequiredChecks" in data, (
+            "Expected FailedRequiredChecks list in --required-only output"
+        )
+        assert "PendingRequiredChecks" in data, (
+            "Expected PendingRequiredChecks list in --required-only output"
+        )
+        assert "CI/lint" in data["FailedRequiredChecks"], (
+            "Expected failed required check in FailedRequiredChecks list"
+        )
+        assert "CI/test" in data["PendingRequiredChecks"], (
+            "Expected pending required check in PendingRequiredChecks list"
+        )
 
     def test_required_only_paginates_pending_review_checks(self, capsys):
         """Issue #2325: required review checks after the first 100 contexts
@@ -1844,34 +2057,40 @@ class TestSupersededCheckRuns:
             page_info={"hasNextPage": True, "endCursor": "cursor-1"},
             total_count=102,
         )
-        second_page = _contexts_page_response([
-            {
-               "__typename": "CheckRun",
-               "name": "Analyst Review",
-               "status": "QUEUED",
-               "conclusion": "",
-               "detailsUrl": "",
-               "isRequired": True,
-            },
-            {
-               "__typename": "CheckRun",
-               "name": "QA Review",
-               "status": "QUEUED",
-               "conclusion": "",
-               "detailsUrl": "",
-               "isRequired": True,
-            },
-        ])
-        with patch(
-           "get_pr_checks.assert_gh_authenticated",
-        ), patch(
-           "get_pr_checks.resolve_repo_params",
-           return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-           "get_pr_checks.gh_graphql",
-           side_effect=[first_page, second_page],
+        second_page = _contexts_page_response(
+            [
+                {
+                    "__typename": "CheckRun",
+                    "name": "Analyst Review",
+                    "status": "QUEUED",
+                    "conclusion": "",
+                    "detailsUrl": "",
+                    "isRequired": True,
+                },
+                {
+                    "__typename": "CheckRun",
+                    "name": "QA Review",
+                    "status": "QUEUED",
+                    "conclusion": "",
+                    "detailsUrl": "",
+                    "isRequired": True,
+                },
+            ]
+        )
+        with (
+            patch(
+                "get_pr_checks.assert_gh_authenticated",
+            ),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_pr_checks.gh_graphql",
+                side_effect=[first_page, second_page],
+            ),
         ):
-           rc = main(["--pull-request", "2325", "--required-only"])
+            rc = main(["--pull-request", "2325", "--required-only"])
 
         output = json.loads(capsys.readouterr().out)
         data = output["Data"]
@@ -1887,16 +2106,20 @@ class TestSupersededCheckRuns:
             page_info={"hasNextPage": True, "endCursor": None},
             total_count=101,
         )
-        with patch(
-           "get_pr_checks.assert_gh_authenticated",
-        ), patch(
-           "get_pr_checks.resolve_repo_params",
-           return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-           "get_pr_checks.gh_graphql",
-           return_value=first_page,
+        with (
+            patch(
+                "get_pr_checks.assert_gh_authenticated",
+            ),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_pr_checks.gh_graphql",
+                return_value=first_page,
+            ),
         ):
-           rc = main(["--pull-request", "2325", "--required-only"])
+            rc = main(["--pull-request", "2325", "--required-only"])
 
         output = json.loads(capsys.readouterr().out)
         data = output["Data"]
@@ -1930,14 +2153,17 @@ class TestMissingRequired:
         rollup = self._green_rollup("Run Python Tests")
         ruleset = ["Run Python Tests", "Validate PR", "PR Validation"]
 
-        with patch("get_pr_checks.assert_gh_authenticated"), patch(
-            "get_pr_checks.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_pr_checks.gh_graphql", return_value=rollup
-        ), patch(
-            "get_pr_checks.fetch_ruleset_required_contexts",
-            return_value=ruleset,
+        with (
+            patch("get_pr_checks.assert_gh_authenticated"),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("get_pr_checks.gh_graphql", return_value=rollup),
+            patch(
+                "get_pr_checks.fetch_ruleset_required_contexts",
+                return_value=ruleset,
+            ),
         ):
             rc = main(["--pull-request", "4009", "--output-format", "json"])
 
@@ -1950,14 +2176,17 @@ class TestMissingRequired:
     def test_ruleset_fetch_failure_exits_3(self, capsys):
         """Ruleset API failure cannot report passing checks."""
         rollup = self._green_rollup()
-        with patch("get_pr_checks.assert_gh_authenticated"), patch(
-            "get_pr_checks.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_pr_checks.gh_graphql", return_value=rollup
-        ), patch(
-            "get_pr_checks.fetch_ruleset_required_contexts",
-            return_value=None,
+        with (
+            patch("get_pr_checks.assert_gh_authenticated"),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("get_pr_checks.gh_graphql", return_value=rollup),
+            patch(
+                "get_pr_checks.fetch_ruleset_required_contexts",
+                return_value=None,
+            ),
         ):
             rc = main(["--pull-request", "4009", "--output-format", "json"])
 
@@ -1970,14 +2199,17 @@ class TestMissingRequired:
         """MissingRequiredChecks is [] when every ruleset check reported."""
         rollup = self._green_rollup("Run Python Tests")
         ruleset = ["Run Python Tests"]
-        with patch("get_pr_checks.assert_gh_authenticated"), patch(
-            "get_pr_checks.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_pr_checks.gh_graphql", return_value=rollup
-        ), patch(
-            "get_pr_checks.fetch_ruleset_required_contexts",
-            return_value=ruleset,
+        with (
+            patch("get_pr_checks.assert_gh_authenticated"),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("get_pr_checks.gh_graphql", return_value=rollup),
+            patch(
+                "get_pr_checks.fetch_ruleset_required_contexts",
+                return_value=ruleset,
+            ),
         ):
             rc = main(["--pull-request", "4009", "--output-format", "json"])
 
@@ -1988,22 +2220,27 @@ class TestMissingRequired:
 
     def test_non_required_same_name_does_not_satisfy_ruleset(self, capsys):
         rollup = _rollup_response(
-            [_check_run_node(
-                "Validate PR",
-                "COMPLETED",
-                "SUCCESS",
-                required=False,
-            )],
+            [
+                _check_run_node(
+                    "Validate PR",
+                    "COMPLETED",
+                    "SUCCESS",
+                    required=False,
+                )
+            ],
             state="SUCCESS",
         )
-        with patch("get_pr_checks.assert_gh_authenticated"), patch(
-            "get_pr_checks.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_pr_checks.gh_graphql", return_value=rollup
-        ), patch(
-            "get_pr_checks.fetch_ruleset_required_contexts",
-            return_value=["Validate PR"],
+        with (
+            patch("get_pr_checks.assert_gh_authenticated"),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("get_pr_checks.gh_graphql", return_value=rollup),
+            patch(
+                "get_pr_checks.fetch_ruleset_required_contexts",
+                return_value=["Validate PR"],
+            ),
         ):
             rc = main(["--pull-request", "4009", "--output-format", "json"])
 
@@ -2013,24 +2250,29 @@ class TestMissingRequired:
 
     def test_uses_pr_base_branch_by_default(self, capsys):
         rollup = _rollup_response(
-            [_check_run_node(
-                "Release Validation",
-                "COMPLETED",
-                "SUCCESS",
-                required=True,
-            )],
+            [
+                _check_run_node(
+                    "Release Validation",
+                    "COMPLETED",
+                    "SUCCESS",
+                    required=True,
+                )
+            ],
             state="SUCCESS",
             base_branch="release/1.0",
         )
-        with patch("get_pr_checks.assert_gh_authenticated"), patch(
-            "get_pr_checks.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_pr_checks.gh_graphql", return_value=rollup
-        ), patch(
-            "get_pr_checks.fetch_ruleset_required_contexts",
-            return_value=["Release Validation"],
-        ) as mock_fetch:
+        with (
+            patch("get_pr_checks.assert_gh_authenticated"),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("get_pr_checks.gh_graphql", return_value=rollup),
+            patch(
+                "get_pr_checks.fetch_ruleset_required_contexts",
+                return_value=["Release Validation"],
+            ) as mock_fetch,
+        ):
             rc = main(["--pull-request", "4009", "--output-format", "json"])
 
         assert rc == 0
@@ -2040,19 +2282,25 @@ class TestMissingRequired:
     def test_base_branch_empty_skips_ruleset_fetch(self, capsys):
         """Passing --base-branch '' skips ruleset fetch entirely."""
         rollup = self._green_rollup()
-        with patch("get_pr_checks.assert_gh_authenticated"), patch(
-            "get_pr_checks.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_pr_checks.gh_graphql", return_value=rollup
-        ), patch(
-            "get_pr_checks.fetch_ruleset_required_contexts"
-        ) as mock_fetch:
-            rc = main([
-                "--pull-request", "4009",
-                "--base-branch", "",
-                "--output-format", "json",
-            ])
+        with (
+            patch("get_pr_checks.assert_gh_authenticated"),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("get_pr_checks.gh_graphql", return_value=rollup),
+            patch("get_pr_checks.fetch_ruleset_required_contexts") as mock_fetch,
+        ):
+            rc = main(
+                [
+                    "--pull-request",
+                    "4009",
+                    "--base-branch",
+                    "",
+                    "--output-format",
+                    "json",
+                ]
+            )
 
         mock_fetch.assert_not_called()
         output = json.loads(capsys.readouterr().out)
@@ -2063,14 +2311,17 @@ class TestMissingRequired:
         """Human summary names the missing checks by count and sample."""
         rollup = self._green_rollup("Run Python Tests")
         ruleset = ["Run Python Tests", "A", "B", "C", "D"]
-        with patch("get_pr_checks.assert_gh_authenticated"), patch(
-            "get_pr_checks.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_pr_checks.gh_graphql", return_value=rollup
-        ), patch(
-            "get_pr_checks.fetch_ruleset_required_contexts",
-            return_value=ruleset,
+        with (
+            patch("get_pr_checks.assert_gh_authenticated"),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("get_pr_checks.gh_graphql", return_value=rollup),
+            patch(
+                "get_pr_checks.fetch_ruleset_required_contexts",
+                return_value=ruleset,
+            ),
         ):
             rc = main(["--pull-request", "4009", "--output-format", "human"])
 
@@ -2108,21 +2359,25 @@ class TestChecksRollupRulesetHelpers:
 
     def test_find_missing_required_all_absent(self):
         from github_core.checks_rollup import find_missing_required
+
         missing = find_missing_required(["A", "B", "C"], set())
         assert missing == ["A", "B", "C"]
 
     def test_find_missing_required_all_reported(self):
         from github_core.checks_rollup import find_missing_required
+
         missing = find_missing_required(["A", "B"], {"A", "B", "C"})
         assert missing == []
 
     def test_find_missing_required_partial(self):
         from github_core.checks_rollup import find_missing_required
+
         missing = find_missing_required(["A", "B", "C"], {"B"})
         assert missing == ["A", "C"]
 
     def test_find_missing_required_returns_sorted(self):
         from github_core.checks_rollup import find_missing_required
+
         missing = find_missing_required(["C", "A", "B"], set())
         assert missing == ["A", "B", "C"]
 
@@ -2167,18 +2422,18 @@ class TestChecksRollupRulesetHelpers:
         from github_core.checks_rollup import fetch_ruleset_required_contexts
 
         pages = [
-            [{
-                "type": "required_status_checks",
-                "parameters": {
-                    "required_status_checks": [{"context": "Validate PR"}]
-                },
-            }],
-            [{
-                "type": "required_status_checks",
-                "parameters": {
-                    "required_status_checks": [{"context": "Run Python Tests"}]
-                },
-            }],
+            [
+                {
+                    "type": "required_status_checks",
+                    "parameters": {"required_status_checks": [{"context": "Validate PR"}]},
+                }
+            ],
+            [
+                {
+                    "type": "required_status_checks",
+                    "parameters": {"required_status_checks": [{"context": "Run Python Tests"}]},
+                }
+            ],
         ]
         mock_result = subprocess.CompletedProcess(
             args=[],
@@ -2260,6 +2515,8 @@ class TestChecksRollupRulesetHelpers:
             contexts = fetch_ruleset_required_contexts("o", "r", "main")
 
         assert contexts == ["Run Python Tests"]
+
+
 _RUN_A = "https://github.com/o/r/actions/runs/30827748904/job/91733674289"
 _RUN_A2 = "https://github.com/o/r/actions/runs/30827748904/job/91733675289"
 _RUN_B = "https://github.com/o/r/actions/runs/30826833314/job/91730700818"
@@ -2318,10 +2575,8 @@ class TestSameRunSiblingAggregation:
 
     def test_failing_sibling_beats_skipped_sibling_in_same_run(self):
         checks = [
-            _check("Run Python Tests", failing=True, conclusion="FAILURE",
-                   details=_RUN_A),
-            _check("Run Python Tests", passing=True, conclusion="SKIPPED",
-                   details=_RUN_A2),
+            _check("Run Python Tests", failing=True, conclusion="FAILURE", details=_RUN_A),
+            _check("Run Python Tests", passing=True, conclusion="SKIPPED", details=_RUN_A2),
         ]
         result = dedupe_checks(checks)
         assert len(result) == 1
@@ -2331,14 +2586,10 @@ class TestSameRunSiblingAggregation:
     def test_pr_4463_shape_two_runs_each_failure_plus_skipped(self):
         """The exact live shape that reported FailedCount=0 on a red PR."""
         checks = [
-            _check("Run Python Tests", failing=True, conclusion="FAILURE",
-                   details=_RUN_A),
-            _check("Run Python Tests", failing=True, conclusion="FAILURE",
-                   details=_RUN_B),
-            _check("Run Python Tests", passing=True, conclusion="SKIPPED",
-                   details=_RUN_A2),
-            _check("Run Python Tests", passing=True, conclusion="SKIPPED",
-                   details=_RUN_B2),
+            _check("Run Python Tests", failing=True, conclusion="FAILURE", details=_RUN_A),
+            _check("Run Python Tests", failing=True, conclusion="FAILURE", details=_RUN_B),
+            _check("Run Python Tests", passing=True, conclusion="SKIPPED", details=_RUN_A2),
+            _check("Run Python Tests", passing=True, conclusion="SKIPPED", details=_RUN_B2),
         ]
         result = dedupe_checks(checks)
         assert len(result) == 1
@@ -2348,10 +2599,8 @@ class TestSameRunSiblingAggregation:
     def test_later_rerun_success_still_supersedes_stale_failure_across_runs(self):
         """Issue #2208 must not regress: a newer run's SUCCESS still wins."""
         checks = [
-            _check("Validate PR", failing=True, conclusion="FAILURE",
-                   details=_RUN_B),
-            _check("Validate PR", passing=True, conclusion="SUCCESS",
-                   details=_RUN_A),
+            _check("Validate PR", failing=True, conclusion="FAILURE", details=_RUN_B),
+            _check("Validate PR", passing=True, conclusion="SUCCESS", details=_RUN_A),
         ]
         result = dedupe_checks(checks)
         assert len(result) == 1
@@ -2359,10 +2608,8 @@ class TestSameRunSiblingAggregation:
 
     def test_later_run_failure_beats_older_success_across_runs(self):
         checks = [
-            _check("Validate PR", passing=True, conclusion="SUCCESS",
-                   details=_RUN_B),
-            _check("Validate PR", failing=True, conclusion="FAILURE",
-                   details=_RUN_A),
+            _check("Validate PR", passing=True, conclusion="SUCCESS", details=_RUN_B),
+            _check("Validate PR", failing=True, conclusion="FAILURE", details=_RUN_A),
         ]
         result = dedupe_checks(checks)
         assert len(result) == 1
@@ -2417,15 +2664,18 @@ class TestSameRunSiblingAggregation:
     def test_status_context_does_not_disable_check_run_recency(self):
         checks = [
             {
-                "Name": "Validate PR", "Type": "StatusContext",
-                "State": "SUCCESS", "Conclusion": "SUCCESS",
-                "DetailsUrl": "", "IsRequired": True,
-                "IsPending": False, "IsPassing": True, "IsFailing": False,
+                "Name": "Validate PR",
+                "Type": "StatusContext",
+                "State": "SUCCESS",
+                "Conclusion": "SUCCESS",
+                "DetailsUrl": "",
+                "IsRequired": True,
+                "IsPending": False,
+                "IsPassing": True,
+                "IsFailing": False,
             },
-            _check("Validate PR", passing=True, conclusion="SUCCESS",
-                   details=_RUN_B),
-            _check("Validate PR", failing=True, conclusion="FAILURE",
-                   details=_RUN_A),
+            _check("Validate PR", passing=True, conclusion="SUCCESS", details=_RUN_B),
+            _check("Validate PR", failing=True, conclusion="FAILURE", details=_RUN_A),
         ]
         result = dedupe_checks(checks)
         assert len(result) == 1
@@ -2435,10 +2685,8 @@ class TestSameRunSiblingAggregation:
 
     def test_all_passing_siblings_in_one_run_stay_passing(self):
         checks = [
-            _check("Run Python Tests", passing=True, conclusion="SUCCESS",
-                   details=_RUN_A),
-            _check("Run Python Tests", passing=True, conclusion="SKIPPED",
-                   details=_RUN_A2),
+            _check("Run Python Tests", passing=True, conclusion="SUCCESS", details=_RUN_A),
+            _check("Run Python Tests", passing=True, conclusion="SKIPPED", details=_RUN_A2),
         ]
         result = dedupe_checks(checks)
         assert result[0]["IsPassing"] is True
@@ -2454,10 +2702,20 @@ class TestSameRunSiblingAggregation:
 
     def test_required_flag_still_ors_across_same_run_siblings(self):
         checks = [
-            _check("Run Python Tests", failing=True, required=False,
-                   conclusion="FAILURE", details=_RUN_A),
-            _check("Run Python Tests", passing=True, required=True,
-                   conclusion="SKIPPED", details=_RUN_A2),
+            _check(
+                "Run Python Tests",
+                failing=True,
+                required=False,
+                conclusion="FAILURE",
+                details=_RUN_A,
+            ),
+            _check(
+                "Run Python Tests",
+                passing=True,
+                required=True,
+                conclusion="SKIPPED",
+                details=_RUN_A2,
+            ),
         ]
         result = dedupe_checks(checks)
         assert result[0]["IsRequired"] is True
@@ -2465,10 +2723,8 @@ class TestSameRunSiblingAggregation:
 
     def test_pending_sibling_does_not_mask_same_run_failure(self):
         checks = [
-            _check("Run Python Tests", failing=True, conclusion="FAILURE",
-                   details=_RUN_A),
-            _check("Run Python Tests", pending=True, state="IN_PROGRESS",
-                   details=_RUN_A2),
+            _check("Run Python Tests", failing=True, conclusion="FAILURE", details=_RUN_A),
+            _check("Run Python Tests", pending=True, state="IN_PROGRESS", details=_RUN_A2),
         ]
         result = dedupe_checks(checks)
         assert result[0]["IsFailing"] is True

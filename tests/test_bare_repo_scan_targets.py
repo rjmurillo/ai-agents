@@ -241,10 +241,7 @@ class TestAModuleLevelCommandIsAViolationOnSight:
 
     def test_an_unbound_module_level_call_is_reported(self) -> None:
         """It binds no name, so following bindings to readers found nothing."""
-        source = (
-            "import subprocess\n"
-            "subprocess.run(['git', 'init', '--bare', 'remote.git'])\n"
-        )
+        source = "import subprocess\nsubprocess.run(['git', 'init', '--bare', 'remote.git'])\n"
 
         result = scan(_module(source))
 

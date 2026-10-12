@@ -85,9 +85,7 @@ def is_safe_file_path(path: str, allowed_base: str | None = None) -> bool:
                 return False
         resolved_path = str(Path(path).resolve())
         resolved_base = str(Path(allowed_base).resolve())
-        return resolved_path == resolved_base or resolved_path.startswith(
-            resolved_base + os.sep
-        )
+        return resolved_path == resolved_base or resolved_path.startswith(resolved_base + os.sep)
     except (OSError, ValueError):
         return False
 

@@ -42,9 +42,7 @@ def _doc(frontmatter: str, body: str) -> bytes:
     return f"---\n{frontmatter}---\n{body}".encode()
 
 
-def _patch_blobs(
-    monkeypatch, old: bytes | None, new: bytes | None
-) -> None:
+def _patch_blobs(monkeypatch, old: bytes | None, new: bytes | None) -> None:
     monkeypatch.setattr(ghp, "_read_head_blob", lambda repo, path: old)
     monkeypatch.setattr(ghp, "_read_index_blob", lambda repo, path: new)
 
@@ -89,9 +87,7 @@ def test_missing_frontmatter_is_not_exempt(monkeypatch, tmp_path):
     assert ghp._is_skill_frontmatter_only_change(_SKILL, tmp_path) is False
 
 
-def test_removing_only_field_leaving_empty_frontmatter_is_not_exempt(
-    monkeypatch, tmp_path
-):
+def test_removing_only_field_leaving_empty_frontmatter_is_not_exempt(monkeypatch, tmp_path):
     # Degenerate: the removed pin was the sole frontmatter field, leaving empty
     # frontmatter. Conservatively validate rather than skip.
     old = _doc("model: claude-sonnet-4-6\n", _BODY)
@@ -132,17 +128,13 @@ def test_run_skillforge_skips_exempt_paths_without_validating(monkeypatch, tmp_p
 
     monkeypatch.setattr(ghp, "_run_command", _fake_run_command)
     monkeypatch.setattr(ghp, "_print_process_output", lambda result: None)
-    monkeypatch.setattr(
-        ghp, "_is_skill_frontmatter_only_change", lambda path, repo_root: True
-    )
+    monkeypatch.setattr(ghp, "_is_skill_frontmatter_only_change", lambda path, repo_root: True)
     rc = ghp.run_skillforge([_SKILL], tmp_path)
     assert rc == 0
     assert calls == []  # validator never invoked for exempt paths
 
 
-def test_run_skillforge_validates_and_propagates_failure_when_not_exempt(
-    monkeypatch, tmp_path
-):
+def test_run_skillforge_validates_and_propagates_failure_when_not_exempt(monkeypatch, tmp_path):
     calls: list[list[str]] = []
 
     def _fake_run_command(cmd, repo_root):
@@ -151,9 +143,7 @@ def test_run_skillforge_validates_and_propagates_failure_when_not_exempt(
 
     monkeypatch.setattr(ghp, "_run_command", _fake_run_command)
     monkeypatch.setattr(ghp, "_print_process_output", lambda result: None)
-    monkeypatch.setattr(
-        ghp, "_is_skill_frontmatter_only_change", lambda path, repo_root: False
-    )
+    monkeypatch.setattr(ghp, "_is_skill_frontmatter_only_change", lambda path, repo_root: False)
     rc = ghp.run_skillforge([_SKILL], tmp_path)
     assert rc == 1
     assert len(calls) == 1  # validator invoked exactly once
@@ -198,9 +188,7 @@ def test_pin_change_mixed_with_other_field_is_not_exempt(monkeypatch, tmp_path):
 _ADR = ".project-toolkit/architecture/ADR-042-example.md"
 
 
-def test_a_body_that_differs_only_in_undecodable_bytes_is_not_unchanged(
-    monkeypatch, tmp_path
-):
+def test_a_body_that_differs_only_in_undecodable_bytes_is_not_unchanged(monkeypatch, tmp_path):
     """Two different bodies must not be one body because neither decodes.
 
     `errors="replace"` maps every byte the decoder cannot read to the same
@@ -215,18 +203,14 @@ def test_a_body_that_differs_only_in_undecodable_bytes_is_not_unchanged(
     assert ghp._is_skill_frontmatter_only_change(_SKILL, tmp_path) is False
 
 
-def test_an_identical_undecodable_body_still_earns_the_pin_exemption(
-    monkeypatch, tmp_path
-):
+def test_an_identical_undecodable_body_still_earns_the_pin_exemption(monkeypatch, tmp_path):
     old = _doc("name: example\ndescription: x\nmodel: haiku\n", "body ")
     new = _doc("name: example\ndescription: x\nmodel: sonnet\n", "body ")
     _patch_blobs(monkeypatch, old + b"\xff", new + b"\xff")
     assert ghp._is_skill_frontmatter_only_change(_SKILL, tmp_path) is True
 
 
-def test_undecodable_bytes_in_skill_frontmatter_refuse_the_exemption(
-    monkeypatch, tmp_path
-):
+def test_undecodable_bytes_in_skill_frontmatter_refuse_the_exemption(monkeypatch, tmp_path):
     """A frontmatter the decoder cannot read is not one this can reason about."""
     old = _doc("name: example\ndescription: x\nmodel: haiku\n", _BODY)
     new = b"---\nname: example\ndescription: x\nmodel: sonnet\n"
@@ -235,9 +219,7 @@ def test_undecodable_bytes_in_skill_frontmatter_refuse_the_exemption(
     assert ghp._is_skill_frontmatter_only_change(_SKILL, tmp_path) is False
 
 
-def test_an_adr_body_differing_only_in_undecodable_bytes_is_not_unchanged(
-    monkeypatch, tmp_path
-):
+def test_an_adr_body_differing_only_in_undecodable_bytes_is_not_unchanged(monkeypatch, tmp_path):
     """The ADR gate carries the same exemption and had the same hole."""
     old = _doc("implemented: false\n", "body ")
     new = _doc("implemented: true\n", "body ")
@@ -252,9 +234,7 @@ def test_an_adr_with_an_identical_undecodable_body_stays_exempt(monkeypatch, tmp
     assert ghp._is_frontmatter_only_metadata_change(_ADR, tmp_path) is True
 
 
-def test_undecodable_bytes_in_adr_frontmatter_refuse_the_exemption(
-    monkeypatch, tmp_path
-):
+def test_undecodable_bytes_in_adr_frontmatter_refuse_the_exemption(monkeypatch, tmp_path):
     old = _doc("implemented: false\n", _BODY)
     new = b"---\nimplemented: true\nnote: \xff\n---\n" + _BODY.encode()
     _patch_blobs(monkeypatch, old, new)
@@ -277,9 +257,7 @@ def test_a_frontmatter_field_hidden_behind_undecodable_bytes_is_not_unchanged(
     assert ghp._is_skill_frontmatter_only_change(_SKILL, tmp_path) is False
 
 
-def test_an_adr_field_hidden_behind_undecodable_bytes_is_not_unchanged(
-    monkeypatch, tmp_path
-):
+def test_an_adr_field_hidden_behind_undecodable_bytes_is_not_unchanged(monkeypatch, tmp_path):
     old = b"---\nimplemented: false\nnote: \xff\n---\n"
     new = b"---\nimplemented: true\nnote: \xfe\n---\n"
     _patch_blobs(monkeypatch, old + _BODY.encode(), new + _BODY.encode())

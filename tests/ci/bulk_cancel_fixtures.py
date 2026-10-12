@@ -153,17 +153,12 @@ def plan_with_pinned_contract(runs, subscriptions, recovery_event):
 def healthy_subscriptions() -> dict[str, WorkflowSubscriptions]:
     """Every incident workflow subscribing to both recovery-capable PR types."""
     return subscriptions_with(
-        {
-            workflow: ["opened", "synchronize", "reopened"]
-            for workflow, _ in _WORKFLOW_CONTEXTS
-        }
+        {workflow: ["opened", "synchronize", "reopened"] for workflow, _ in _WORKFLOW_CONTEXTS}
     )
 
 
 def reopened_omitting_subscriptions() -> dict[str, WorkflowSubscriptions]:
     """The 2026-08-09 shape: one required workflow omits ``reopened``."""
     healthy = healthy_subscriptions()
-    healthy.update(
-        subscriptions_with({REQUIRED_WORKFLOW: ["opened", "synchronize"]})
-    )
+    healthy.update(subscriptions_with({REQUIRED_WORKFLOW: ["opened", "synchronize"]}))
     return healthy

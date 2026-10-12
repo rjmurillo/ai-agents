@@ -274,9 +274,7 @@ class TestMarkdownLinkResolutionHelper:
 
         # Only two `../` (the original memory-enhancement / golden-principles
         # bug), one short of the three needed to reach tmp_path from skill_dir.
-        resolved = _resolve_markdown_link(
-            skill_md, "../../.agents/governance/golden-principles.md"
-        )
+        resolved = _resolve_markdown_link(skill_md, "../../.agents/governance/golden-principles.md")
         assert not resolved.is_file()
 
     def test_missing_target_does_not_resolve(self, tmp_path: Path):

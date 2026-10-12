@@ -68,7 +68,10 @@ class TestParseYamlFrontMatter:
 
     def test_valid_front_matter(self, tmp_path: Path) -> None:
         f = _create_spec_file(
-            tmp_path, "REQ-001.md", "requirement", "REQ-001",
+            tmp_path,
+            "REQ-001.md",
+            "requirement",
+            "REQ-001",
             related=["DESIGN-001"],
         )
         spec = parse_yaml_front_matter(f)
@@ -89,7 +92,10 @@ class TestParseYamlFrontMatter:
 
     def test_multiple_related(self, tmp_path: Path) -> None:
         f = _create_spec_file(
-            tmp_path, "DESIGN-001.md", "design", "DESIGN-001",
+            tmp_path,
+            "DESIGN-001.md",
+            "design",
+            "DESIGN-001",
             related=["REQ-001", "REQ-002"],
         )
         spec = parse_yaml_front_matter(f)
@@ -112,7 +118,10 @@ class TestParseYamlFrontMatter:
 
     def test_lowercase_id_suffixes(self, tmp_path: Path) -> None:
         f = _create_spec_file(
-            tmp_path, "TASK-a02.md", "task", "TASK-a02",
+            tmp_path,
+            "TASK-a02.md",
+            "task",
+            "TASK-a02",
             related=["DESIGN-a02"],
         )
 
@@ -202,11 +211,17 @@ def _build_complete_chain(tmp_path: Path) -> AllSpecs:
 
     _create_spec_file(req_dir, "REQ-001.md", "requirement", "REQ-001")
     _create_spec_file(
-        design_dir, "DESIGN-001.md", "design", "DESIGN-001",
+        design_dir,
+        "DESIGN-001.md",
+        "design",
+        "DESIGN-001",
         related=["REQ-001"],
     )
     _create_spec_file(
-        task_dir, "TASK-001.md", "task", "TASK-001",
+        task_dir,
+        "TASK-001.md",
+        "task",
+        "TASK-001",
         related=["DESIGN-001"],
     )
 
@@ -251,9 +266,7 @@ class TestValidateTraceability:
 
     def test_rule4_broken_reference(self) -> None:
         specs = AllSpecs()
-        specs.tasks["TASK-001"] = SpecInfo(
-            spec_id="TASK-001", related=["DESIGN-999"]
-        )
+        specs.tasks["TASK-001"] = SpecInfo(spec_id="TASK-001", related=["DESIGN-999"])
 
         results = validate_traceability(specs)
         errors = [e for e in results.errors if "Rule 4" in e.rule]
@@ -262,9 +275,7 @@ class TestValidateTraceability:
 
     def test_rule4_broken_design_to_req(self) -> None:
         specs = AllSpecs()
-        specs.designs["DESIGN-001"] = SpecInfo(
-            spec_id="DESIGN-001", related=["REQ-999"]
-        )
+        specs.designs["DESIGN-001"] = SpecInfo(spec_id="DESIGN-001", related=["REQ-999"])
 
         results = validate_traceability(specs)
         errors = [e for e in results.errors if "Rule 4" in e.rule]
@@ -373,9 +384,7 @@ class TestFormatJson:
 
     def test_errors_in_output(self) -> None:
         results = TraceResults()
-        results.errors.append(
-            TraceIssue(rule="Rule 4", source="T1", target="D1", message="test")
-        )
+        results.errors.append(TraceIssue(rule="Rule 4", source="T1", target="D1", message="test"))
         output = format_json(results)
         data = json.loads(output)
         assert len(data["errors"]) == 1
@@ -416,7 +425,8 @@ class TestMain:
     """Integration tests for main entry point."""
 
     def test_valid_empty_specs(
-        self, tmp_path: Path,
+        self,
+        tmp_path: Path,
     ) -> None:
         specs = tmp_path / "specs"
         specs.mkdir()
@@ -433,11 +443,17 @@ class TestMain:
 
         _create_spec_file(req_dir, "REQ-001.md", "requirement", "REQ-001")
         _create_spec_file(
-            design_dir, "DESIGN-001.md", "design", "DESIGN-001",
+            design_dir,
+            "DESIGN-001.md",
+            "design",
+            "DESIGN-001",
             related=["REQ-001"],
         )
         _create_spec_file(
-            task_dir, "TASK-001.md", "task", "TASK-001",
+            task_dir,
+            "TASK-001.md",
+            "task",
+            "TASK-001",
             related=["DESIGN-001"],
         )
 
@@ -474,11 +490,17 @@ class TestMain:
         task_dir.mkdir()
         _create_spec_file(req_dir, "REQ-a02.md", "requirement", "REQ-a02")
         _create_spec_file(
-            design_dir, "DESIGN-a02.md", "design", "DESIGN-a02",
+            design_dir,
+            "DESIGN-a02.md",
+            "design",
+            "DESIGN-a02",
             related=["REQ-a02"],
         )
         _create_spec_file(
-            task_dir, "TASK-a02.md", "task", "TASK-a02",
+            task_dir,
+            "TASK-a02.md",
+            "task",
+            "TASK-a02",
             related=["DESIGN-a02"],
         )
 
@@ -490,7 +512,10 @@ class TestMain:
         task_dir = tmp_path / "tasks"
         task_dir.mkdir()
         _create_spec_file(
-            task_dir, "TASK-001.md", "task", "TASK-001",
+            task_dir,
+            "TASK-001.md",
+            "task",
+            "TASK-001",
             related=["DESIGN-999"],
         )
 
@@ -498,12 +523,16 @@ class TestMain:
         assert result == 1
 
     def test_errors_without_ci_return_zero(
-        self, tmp_path: Path,
+        self,
+        tmp_path: Path,
     ) -> None:
         task_dir = tmp_path / "tasks"
         task_dir.mkdir()
         _create_spec_file(
-            task_dir, "TASK-001.md", "task", "TASK-001",
+            task_dir,
+            "TASK-001.md",
+            "task",
+            "TASK-001",
             related=["DESIGN-999"],
         )
 
@@ -519,7 +548,8 @@ class TestMain:
         assert result == 1
 
     def test_json_output(
-        self, tmp_path: Path,
+        self,
+        tmp_path: Path,
     ) -> None:
         specs = tmp_path / "specs"
         specs.mkdir()

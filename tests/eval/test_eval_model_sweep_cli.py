@@ -418,9 +418,7 @@ def test_run_sweep_keep_pin_end_to_end(tmp_path, capsys):
     # priced id if available, else fabricate results keyed on the same set.
     candidate_id = priced[1] if len(priced) > 1 else None
     if candidate_id is None:
-        pytest.skip(
-            "needs >=2 priced models to exercise the two-model KEEP path"
-        )
+        pytest.skip("needs >=2 priced models to exercise the two-model KEEP path")
     results = {
         default_id: _result(default_id, 0.10),
         candidate_id: _result(candidate_id, 0.90, cost_usd=0.2, error_count=0),
@@ -569,9 +567,7 @@ def test_runner_unreadable_report_raises_external_child_error(tmp_path, monkeypa
 
     monkeypatch.setattr(sweep.subprocess, "run", lambda *a, **k: _Completed())
     # Point at a report path that does not exist -> read_text raises OSError.
-    monkeypatch.setattr(
-        sweep, "child_report_path", lambda agent, run_id: tmp_path / "missing.json"
-    )
+    monkeypatch.setattr(sweep, "child_report_path", lambda agent, run_id: tmp_path / "missing.json")
     with pytest.raises(sweep.ChildRunError) as excinfo:
         runner.run("claude-sonnet-4")
     assert excinfo.value.returncode == sweep.EXIT_EXTERNAL
@@ -592,9 +588,7 @@ def test_runner_honors_explicit_empty_env(tmp_path, monkeypatch):
         return _Completed()
 
     monkeypatch.setattr(sweep.subprocess, "run", _fake_run)
-    monkeypatch.setattr(
-        sweep, "child_report_path", lambda agent, run_id: tmp_path / "missing.json"
-    )
+    monkeypatch.setattr(sweep, "child_report_path", lambda agent, run_id: tmp_path / "missing.json")
     with pytest.raises(sweep.ChildRunError):
         runner.run("claude-sonnet-4")
     # An explicit empty env must NOT be replaced by the parent environment.
@@ -623,12 +617,8 @@ def test_runner_timeout_maps_to_external_child_error(tmp_path, monkeypatch):
     assert "timed out" in str(excinfo.value)
 
 
-@pytest.mark.parametrize(
-    "bad_timeout", [0, -1, -0.5, float("nan"), float("inf"), float("-inf")]
-)
-def test_run_sweep_rejects_nonpositive_or_nonfinite_child_timeout(
-    bad_timeout, capsys
-):
+@pytest.mark.parametrize("bad_timeout", [0, -1, -0.5, float("nan"), float("inf"), float("-inf")])
+def test_run_sweep_rejects_nonpositive_or_nonfinite_child_timeout(bad_timeout, capsys):
     priced = list(sweep.MODEL_PRICING_RATES_USD_PER_1K_TOKENS)[0]
 
     class _NeverRuns:
@@ -643,9 +633,7 @@ def test_run_sweep_rejects_nonpositive_or_nonfinite_child_timeout(
 
 def test_arg_parser_child_timeout_defaults(monkeypatch):
     parser = sweep._build_arg_parser()
-    args = parser.parse_args(
-        ["--agent", "security", "--fixtures", str(EVAL_DIR), "--models", "x"]
-    )
+    args = parser.parse_args(["--agent", "security", "--fixtures", str(EVAL_DIR), "--models", "x"])
     assert args.child_timeout == sweep.DEFAULT_CHILD_TIMEOUT_S
 
 
@@ -709,18 +697,14 @@ def test_parse_report_accepts_null_cost_from_quota_billed_child():
     The sweep runs a paid child evaluation first, so crashing here throws away
     work that was already spent.
     """
-    result = sweep.parse_report(
-        _quota_report(None, "requests"), model_id="openai/gpt-4o-mini"
-    )
+    result = sweep.parse_report(_quota_report(None, "requests"), model_id="openai/gpt-4o-mini")
     assert result.cost_usd is None
     assert result.cost_basis == "requests"
 
 
 def test_parse_report_keeps_usd_cost_from_per_token_child():
     """The USD path is unchanged: a priced child still yields a float."""
-    result = sweep.parse_report(
-        _quota_report(0.05, "usd"), model_id="claude-sonnet-4-6"
-    )
+    result = sweep.parse_report(_quota_report(0.05, "usd"), model_id="claude-sonnet-4-6")
     assert result.cost_usd == 0.05
     assert result.cost_basis == "usd"
 

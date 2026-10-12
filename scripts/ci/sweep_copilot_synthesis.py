@@ -64,8 +64,7 @@ def main() -> int:
     invalid = [issue for issue in issues if not issue.isdecimal()]
     if invalid:
         print(
-            "::error::ISSUES must contain numeric issue numbers: "
-            + ", ".join(invalid),
+            "::error::ISSUES must contain numeric issue numbers: " + ", ".join(invalid),
             file=sys.stderr,
         )
         return EXIT_CONFIG

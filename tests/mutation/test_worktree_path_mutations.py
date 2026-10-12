@@ -144,15 +144,17 @@ def _restore(path: Path, backup: Path) -> None:
     )
 
 
-def _run_tests(
-    repo_root: Path, test_paths: Sequence[str]
-) -> subprocess.CompletedProcess[str]:
+def _run_tests(repo_root: Path, test_paths: Sequence[str]) -> subprocess.CompletedProcess[str]:
     """Run the spec's suite by filesystem path and return the finished process."""
     return _run(
         [
-            sys.executable, "-m", "pytest",
+            sys.executable,
+            "-m",
+            "pytest",
             *test_paths,
-            "-q", "--tb=no", "-x",
+            "-q",
+            "--tb=no",
+            "-x",
         ],
         cwd=repo_root,
     )
@@ -212,8 +214,7 @@ def _mutation(spec: MutationSpec, repo_root: Path) -> str:
     count = _count_occurrences(target_path, spec.original)
     if count == 0:
         print(
-            f"  [{spec.label}] {DID_NOT_APPLY}: "
-            f"'{spec.original}' not found in {target_path.name}"
+            f"  [{spec.label}] {DID_NOT_APPLY}: '{spec.original}' not found in {target_path.name}"
         )
         return DID_NOT_APPLY
     if count > 1:
@@ -280,18 +281,12 @@ def controls(repo_root: Path) -> list[MutationSpec]:
     control runs byte-for-byte the same ``test_paths`` as the mutants it vouches
     for, because a control can only observe the suite it actually runs.
     """
-    ci_docstring = (
-        '"""Every script under scripts/validation and build/scripts must have a caller.'
-    )
+    ci_docstring = '"""Every script under scripts/validation and build/scripts must have a caller.'
     ci_docstring_mutant = (
         '"""Every script under scripts/validation and build/scripts needs a caller.'
     )
-    policy_docstring = (
-        '"""Narrow Git policies that Lefthook cannot express declaratively."""'
-    )
-    policy_docstring_mutant = (
-        '"""Narrow Git policies Lefthook cannot express declaratively."""'
-    )
+    policy_docstring = '"""Narrow Git policies that Lefthook cannot express declaratively."""'
+    policy_docstring_mutant = '"""Narrow Git policies Lefthook cannot express declaratively."""'
     return [
         MutationSpec(
             label="inert-control ci-runner-path",
@@ -333,8 +328,7 @@ def _spec_named(specs: list[MutationSpec], label: str) -> MutationSpec:
     by_label = {spec.label: spec for spec in specs}
     if label not in by_label:
         raise AssertionError(
-            f"no spec named {label} in the worktree copy; "
-            f"worktree labels are {sorted(by_label)}"
+            f"no spec named {label} in the worktree copy; worktree labels are {sorted(by_label)}"
         )
     return by_label[label]
 
@@ -394,12 +388,8 @@ def test_every_runner_path_has_an_inert_control() -> None:
 
 def test_every_control_is_declared_as_an_inverted_control() -> None:
     """``expected`` is the field a reader trusts, so it must match the polarity."""
-    assert [spec.expected for spec in controls(REPO_ROOT)] == [SURVIVED] * len(
-        CONTROL_LABELS
-    )
-    assert [spec.expected for spec in mutation_specs(REPO_ROOT)] == [DEAD] * len(
-        MUTATION_LABELS
-    )
+    assert [spec.expected for spec in controls(REPO_ROOT)] == [SURVIVED] * len(CONTROL_LABELS)
+    assert [spec.expected for spec in mutation_specs(REPO_ROOT)] == [DEAD] * len(MUTATION_LABELS)
 
 
 def _completed(

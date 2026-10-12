@@ -59,7 +59,7 @@ class SkillValidator:
     def parse_frontmatter(self) -> bool:
         """Parse YAML frontmatter from skill file."""
         # Handle both LF and CRLF line endings
-        match = re.match(r'^---\r?\n(.*?)\r?\n---', self.content, re.DOTALL)
+        match = re.match(r"^---\r?\n(.*?)\r?\n---", self.content, re.DOTALL)
         if not match:
             self.errors.append("Missing YAML frontmatter")
             return False
@@ -68,6 +68,7 @@ class SkillValidator:
 
         try:
             import yaml
+
             parsed = yaml.safe_load(frontmatter_text)
             # Guard against None or non-dict returns from yaml.safe_load
             if parsed is None:
@@ -90,7 +91,7 @@ class SkillValidator:
 
     def _parse_frontmatter_fallback(self, frontmatter_text: str) -> None:
         """Fallback YAML parser for when PyYAML is not available."""
-        lines = frontmatter_text.split('\n')
+        lines = frontmatter_text.split("\n")
         current_key = None
         current_value_lines: list[str] = []
         is_folded = False  # Track folded scalar (>)
@@ -98,21 +99,21 @@ class SkillValidator:
 
         for line in lines:
             # Check for top-level key
-            if ':' in line and not line.startswith(' ') and not line.startswith('\t'):
+            if ":" in line and not line.startswith(" ") and not line.startswith("\t"):
                 # Save previous key if exists
                 if current_key and (is_folded or is_literal):
-                    self.frontmatter[current_key] = ' '.join(current_value_lines).strip()
+                    self.frontmatter[current_key] = " ".join(current_value_lines).strip()
 
-                key, value = line.split(':', 1)
+                key, value = line.split(":", 1)
                 current_key = key.strip()
                 value = value.strip()
 
                 # Check for folded (>) or literal (|) scalar
-                if value == '>' or value == '>-':
+                if value == ">" or value == ">-":
                     is_folded = True
                     is_literal = False
                     current_value_lines = []
-                elif value == '|' or value == '|-':
+                elif value == "|" or value == "|-":
                     is_literal = True
                     is_folded = False
                     current_value_lines = []
@@ -122,22 +123,22 @@ class SkillValidator:
                     self.frontmatter[current_key] = value
                     current_value_lines = []
 
-            elif (is_folded or is_literal) and (line.startswith('  ') or line.startswith('\t')):
+            elif (is_folded or is_literal) and (line.startswith("  ") or line.startswith("\t")):
                 # Continuation of folded/literal scalar
                 current_value_lines.append(line.strip())
 
-            elif line.startswith('  ') and current_key == 'metadata':
+            elif line.startswith("  ") and current_key == "metadata":
                 # Basic nested parsing for metadata
-                metadata_val = self.frontmatter.get('metadata')
-                if 'metadata' not in self.frontmatter or not isinstance(metadata_val, dict):
-                    self.frontmatter['metadata'] = {}
-                if ':' in line:
-                    nested_key, nested_value = line.strip().split(':', 1)
-                    self.frontmatter['metadata'][nested_key.strip()] = nested_value.strip()
+                metadata_val = self.frontmatter.get("metadata")
+                if "metadata" not in self.frontmatter or not isinstance(metadata_val, dict):
+                    self.frontmatter["metadata"] = {}
+                if ":" in line:
+                    nested_key, nested_value = line.strip().split(":", 1)
+                    self.frontmatter["metadata"][nested_key.strip()] = nested_value.strip()
 
         # Save final key if it was a folded/literal scalar
         if current_key and (is_folded or is_literal) and current_value_lines:
-            self.frontmatter[current_key] = ' '.join(current_value_lines).strip()
+            self.frontmatter[current_key] = " ".join(current_value_lines).strip()
 
     def check(
         self,
@@ -174,24 +175,34 @@ class SkillValidator:
             )
         except ImportError:
             ALLOWED_PROPERTIES = {  # noqa: N806
-                'name', 'description', 'license', 'allowed-tools', 'metadata',
-                'model', 'context', 'agent', 'hooks', 'user-invocable', 'version',
-                'argument-hint', 'size-exception'
+                "name",
+                "description",
+                "license",
+                "allowed-tools",
+                "metadata",
+                "model",
+                "context",
+                "agent",
+                "hooks",
+                "user-invocable",
+                "version",
+                "argument-hint",
+                "size-exception",
             }
-            REQUIRED_PROPERTIES = {'name', 'description'}  # noqa: N806
-            RECOMMENDED_PROPERTIES = {'license'}  # noqa: N806
-            VALID_AGENT_TYPES = {'Explore', 'Plan', 'general-purpose'}  # noqa: N806
+            REQUIRED_PROPERTIES = {"name", "description"}  # noqa: N806
+            RECOMMENDED_PROPERTIES = {"license"}  # noqa: N806
+            VALID_AGENT_TYPES = {"Explore", "Plan", "general-purpose"}  # noqa: N806
             NAME_MAX_LENGTH = 64  # noqa: N806
             DESCRIPTION_MAX_LENGTH = 1024  # noqa: N806
-            SEMVER_REGEX = r'^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$'  # noqa: N806
-            NAME_REGEX = r'^[a-z][a-z0-9-]*[a-z0-9]$|^[a-z]$'  # noqa: N806
+            SEMVER_REGEX = r"^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$"  # noqa: N806
+            NAME_REGEX = r"^[a-z][a-z0-9-]*[a-z0-9]$|^[a-z]$"  # noqa: N806
 
         # Check required fields
         for field in REQUIRED_PROPERTIES:
             self.check(
                 f"frontmatter.{field}",
                 field in self.frontmatter and self.frontmatter[field],
-                f"Missing required frontmatter field: {field}"
+                f"Missing required frontmatter field: {field}",
             )
 
         # Warn about recommended fields (not required)
@@ -200,7 +211,7 @@ class SkillValidator:
                 f"frontmatter.{field}",
                 field in self.frontmatter,
                 f"Recommended frontmatter field missing: {field}",
-                warning=True
+                warning=True,
             )
 
         # Validate allowed properties
@@ -210,7 +221,7 @@ class SkillValidator:
                 "frontmatter.allowed_properties",
                 False,
                 f"Unexpected frontmatter properties: {', '.join(sorted(unexpected_keys))}. "
-                f"Allowed: {', '.join(sorted(ALLOWED_PROPERTIES))}"
+                f"Allowed: {', '.join(sorted(ALLOWED_PROPERTIES))}",
             )
 
         # Validate name field (format and length)
@@ -218,14 +229,14 @@ class SkillValidator:
             name = str(self.frontmatter["name"])
             self.check(
                 "frontmatter.name.format",
-                re.match(NAME_REGEX, name) and '--' not in name,
+                re.match(NAME_REGEX, name) and "--" not in name,
                 "Skill name should be hyphen-case "
-                f"(start with letter, no consecutive hyphens): {name}"
+                f"(start with letter, no consecutive hyphens): {name}",
             )
             self.check(
                 "frontmatter.name.length",
                 len(name) <= NAME_MAX_LENGTH,
-                f"Skill name too long ({len(name)} chars, max {NAME_MAX_LENGTH})"
+                f"Skill name too long ({len(name)} chars, max {NAME_MAX_LENGTH})",
             )
             # Name must equal the containing directory name (agentskills.io
             # specification, name field). A mismatch breaks tooling that maps a
@@ -234,7 +245,7 @@ class SkillValidator:
             self.check(
                 "frontmatter.name.matches_directory",
                 name == dir_name,
-                f"Skill name {name!r} must match its directory name {dir_name!r}"
+                f"Skill name {name!r} must match its directory name {dir_name!r}",
             )
 
         # Validate description field (no angle brackets, length limit)
@@ -242,20 +253,20 @@ class SkillValidator:
             desc = str(self.frontmatter["description"])
             self.check(
                 "frontmatter.description.characters",
-                '<' not in desc and '>' not in desc,
-                "Description cannot contain angle brackets (< or >)"
+                "<" not in desc and ">" not in desc,
+                "Description cannot contain angle brackets (< or >)",
             )
             self.check(
                 "frontmatter.description.length",
                 len(desc) <= DESCRIPTION_MAX_LENGTH,
                 f"Description too long ({len(desc)} chars, max {DESCRIPTION_MAX_LENGTH})",
-                warning=True
+                warning=True,
             )
             word_count = len(desc.split())
             self.check(
                 "frontmatter.description.word_count",
                 word_count >= 5,
-                f"Description too short ({word_count} words, minimum 5)"
+                f"Description too short ({word_count} words, minimum 5)",
             )
 
         # Validate version format (top-level or in metadata)
@@ -265,7 +276,7 @@ class SkillValidator:
                 "frontmatter.version.format",
                 re.match(SEMVER_REGEX, str(version)),
                 f"Version should be semver format (e.g., 1.0.0 or 1.0.0-beta.1): {version}",
-                warning=True
+                warning=True,
             )
         elif "metadata" in self.frontmatter and isinstance(self.frontmatter["metadata"], dict):
             version = self.frontmatter["metadata"].get("version")
@@ -274,7 +285,7 @@ class SkillValidator:
                     "metadata.version.format",
                     re.match(SEMVER_REGEX, str(version)),
                     f"Version should be semver format (e.g., 1.0.0 or 1.0.0-beta.1): {version}",
-                    warning=True
+                    warning=True,
                 )
 
         # Validate context field - warning not error for future-proofing
@@ -284,7 +295,7 @@ class SkillValidator:
                 "frontmatter.context.value",
                 context == "fork",
                 f"context should be 'fork' (got '{context}'). Other values may be added in future.",
-                warning=True
+                warning=True,
             )
 
         # Validate agent field
@@ -294,7 +305,7 @@ class SkillValidator:
                 "frontmatter.agent.value",
                 agent in VALID_AGENT_TYPES,
                 f"agent should be one of {VALID_AGENT_TYPES} (got '{agent}')",
-                warning=True
+                warning=True,
             )
             # Agent requires context: fork
             if "context" not in self.frontmatter or self.frontmatter.get("context") != "fork":
@@ -302,7 +313,7 @@ class SkillValidator:
                     "frontmatter.agent.requires_context",
                     False,
                     "'agent' field requires 'context: fork' to be set",
-                    warning=True
+                    warning=True,
                 )
 
         # Validate user-invocable field
@@ -311,7 +322,7 @@ class SkillValidator:
             self.check(
                 "frontmatter.user-invocable.type",
                 isinstance(value, bool),
-                f"user-invocable must be a boolean (got {type(value).__name__})"
+                f"user-invocable must be a boolean (got {type(value).__name__})",
             )
 
         # Validate allowed-tools field
@@ -336,7 +347,7 @@ class SkillValidator:
             self.check(
                 "frontmatter.allowed-tools.type",
                 False,
-                f"allowed-tools should be string or list (got {type(tools_value).__name__})"
+                f"allowed-tools should be string or list (got {type(tools_value).__name__})",
             )
             return
 
@@ -345,9 +356,18 @@ class SkillValidator:
             from _constants import KNOWN_TOOLS
         except ImportError:
             KNOWN_TOOLS = {  # noqa: N806
-                'Read', 'Glob', 'Grep', 'Write', 'Edit',
-                'Bash', 'Task', 'WebFetch', 'WebSearch',
-                'TodoWrite', 'NotebookEdit', 'AskUserQuestion'
+                "Read",
+                "Glob",
+                "Grep",
+                "Write",
+                "Edit",
+                "Bash",
+                "Task",
+                "WebFetch",
+                "WebSearch",
+                "TodoWrite",
+                "NotebookEdit",
+                "AskUserQuestion",
             }
 
         # Check for unknown tools (warning only - custom tools may exist)
@@ -358,7 +378,7 @@ class SkillValidator:
                 False,
                 f"Unknown tool(s): {unknown_tools}. Known tools: {sorted(KNOWN_TOOLS)}. "
                 "This may be intentional for custom tools.",
-                warning=True
+                warning=True,
             )
 
     def validate_hooks(self):
@@ -373,7 +393,7 @@ class SkillValidator:
             self.check(
                 "frontmatter.hooks.type",
                 False,
-                f"hooks must be an object/dictionary (got {type(hooks).__name__})"
+                f"hooks must be an object/dictionary (got {type(hooks).__name__})",
             )
             return
 
@@ -381,8 +401,8 @@ class SkillValidator:
         try:
             from _constants import VALID_HOOK_EVENTS, VALID_HOOK_TYPES
         except ImportError:
-            VALID_HOOK_EVENTS = {'PreToolUse', 'PostToolUse', 'Stop'}  # noqa: N806
-            VALID_HOOK_TYPES = {'command', 'prompt'}  # noqa: N806
+            VALID_HOOK_EVENTS = {"PreToolUse", "PostToolUse", "Stop"}  # noqa: N806
+            VALID_HOOK_TYPES = {"command", "prompt"}  # noqa: N806
 
         # Validate each hook event
         for hook_name, hook_config in hooks.items():
@@ -390,7 +410,7 @@ class SkillValidator:
             self.check(
                 f"frontmatter.hooks.{hook_name}.name",
                 hook_name in VALID_HOOK_EVENTS,
-                f"Unknown hook event: '{hook_name}'. Valid events: {VALID_HOOK_EVENTS}"
+                f"Unknown hook event: '{hook_name}'. Valid events: {VALID_HOOK_EVENTS}",
             )
 
             # Hook config should be a list
@@ -398,7 +418,7 @@ class SkillValidator:
                 self.check(
                     f"frontmatter.hooks.{hook_name}.type",
                     False,
-                    f"Hook '{hook_name}' config should be a list of matchers"
+                    f"Hook '{hook_name}' config should be a list of matchers",
                 )
                 continue
 
@@ -408,17 +428,17 @@ class SkillValidator:
                     self.check(
                         f"frontmatter.hooks.{hook_name}[{i}].type",
                         False,
-                        "Hook matcher should be an object with 'matcher' and 'hooks' keys"
+                        "Hook matcher should be an object with 'matcher' and 'hooks' keys",
                     )
                     continue
 
                 # PreToolUse and PostToolUse require matcher field
-                if hook_name in {'PreToolUse', 'PostToolUse'}:
+                if hook_name in {"PreToolUse", "PostToolUse"}:
                     self.check(
                         f"frontmatter.hooks.{hook_name}[{i}].matcher",
                         "matcher" in matcher_config,
                         f"'{hook_name}' hook requires 'matcher' field",
-                        warning=True
+                        warning=True,
                     )
 
                 # Validate inner hooks array
@@ -427,7 +447,7 @@ class SkillValidator:
                     self.check(
                         f"frontmatter.hooks.{hook_name}[{i}].hooks.type",
                         False,
-                        "Inner 'hooks' should be a list"
+                        "Inner 'hooks' should be a list",
                     )
                     continue
 
@@ -441,7 +461,7 @@ class SkillValidator:
                         self.check(
                             f"frontmatter.hooks.{hook_name}[{i}].hooks[{j}].type",
                             hook_type in VALID_HOOK_TYPES,
-                            f"Hook type should be one of {VALID_HOOK_TYPES} (got '{hook_type}')"
+                            f"Hook type should be one of {VALID_HOOK_TYPES} (got '{hook_type}')",
                         )
 
                     # command type requires command field
@@ -449,7 +469,7 @@ class SkillValidator:
                         self.check(
                             f"frontmatter.hooks.{hook_name}[{i}].hooks[{j}].command",
                             "command" in inner_hook and inner_hook["command"],
-                            "Hook with type 'command' requires non-empty 'command' field"
+                            "Hook with type 'command' requires non-empty 'command' field",
                         )
 
                     # Validate 'once' field if present
@@ -457,34 +477,28 @@ class SkillValidator:
                         self.check(
                             f"frontmatter.hooks.{hook_name}[{i}].hooks[{j}].once",
                             isinstance(inner_hook["once"], bool),
-                            "'once' field must be a boolean"
+                            "'once' field must be a boolean",
                         )
 
     def validate_triggers(self):
         """Validate trigger phrases section."""
         # Find triggers section
         triggers_match = re.search(
-            r'##\s*Triggers\s*\n(.*?)(?=\n##|\Z)',
-            self.content,
-            re.DOTALL | re.IGNORECASE
+            r"##\s*Triggers\s*\n(.*?)(?=\n##|\Z)", self.content, re.DOTALL | re.IGNORECASE
         )
 
-        self.check(
-            "section.triggers",
-            triggers_match is not None,
-            "Missing Triggers section"
-        )
+        self.check("section.triggers", triggers_match is not None, "Missing Triggers section")
 
         if triggers_match:
             triggers_section = triggers_match.group(1)
             # Extract trigger phrases (backtick-wrapped)
-            trigger_phrases = re.findall(r'`([^`]+)`', triggers_section)
+            trigger_phrases = re.findall(r"`([^`]+)`", triggers_section)
             trigger_count = len(trigger_phrases)
 
             self.check(
                 "triggers.count",
                 1 <= trigger_count <= 5,
-                f"Should have 1-5 trigger phrases (found {trigger_count})"
+                f"Should have 1-5 trigger phrases (found {trigger_count})",
             )
 
             # Validate trigger phrase characters (CWE-94 mitigation)
@@ -492,106 +506,94 @@ class SkillValidator:
             # ; | & $ < > \ (newline already stripped)
             # Allow common punctuation: {} for templates, # for refs, ! for commands
             safe_pattern = re.compile(r"^[a-zA-Z0-9 \-:,./\'\"(){}#!_=+@*?]+$")
-            unsafe_triggers = [
-                t for t in trigger_phrases if not safe_pattern.match(t)
-            ]
+            unsafe_triggers = [t for t in trigger_phrases if not safe_pattern.match(t)]
             if unsafe_triggers:
                 self.check(
                     "triggers.safe_characters",
                     False,
-                    f"Trigger phrases contain unsafe characters: {unsafe_triggers}"
+                    f"Trigger phrases contain unsafe characters: {unsafe_triggers}",
                 )
 
     def validate_process(self):
         """Validate process/phases section."""
         # Look for Process section or phases
-        has_process = bool(re.search(r'##\s*Process', self.content, re.IGNORECASE))
-        has_phases = bool(re.search(r'###\s*Phase\s*\d', self.content, re.IGNORECASE))
+        has_process = bool(re.search(r"##\s*Process", self.content, re.IGNORECASE))
+        has_phases = bool(re.search(r"###\s*Phase\s*\d", self.content, re.IGNORECASE))
 
         self.check(
             "section.process",
             has_process or has_phases,
-            "Missing Process section or Phase definitions"
+            "Missing Process section or Phase definitions",
         )
 
         # Count phases if present
         if has_phases:
-            phase_count = len(re.findall(r'###\s*Phase\s*\d', self.content, re.IGNORECASE))
+            phase_count = len(re.findall(r"###\s*Phase\s*\d", self.content, re.IGNORECASE))
             self.check(
                 "phases.count",
                 1 <= phase_count <= 3,
                 f"Recommend 1-3 phases, not over-engineered (found {phase_count})",
-                warning=True
+                warning=True,
             )
 
     def validate_verification(self):
         """Validate verification/success criteria section."""
-        has_verification = bool(re.search(
-            r'##\s*(Verification|Success Criteria|Checklist)',
-            self.content,
-            re.IGNORECASE
-        ))
+        has_verification = bool(
+            re.search(
+                r"##\s*(Verification|Success Criteria|Checklist)", self.content, re.IGNORECASE
+            )
+        )
 
         self.check(
             "section.verification",
             has_verification,
-            "Missing Verification/Success Criteria section"
+            "Missing Verification/Success Criteria section",
         )
 
         # Check for checkboxes
-        checkbox_count = len(re.findall(r'\[\s*\]', self.content))
+        checkbox_count = len(re.findall(r"\[\s*\]", self.content))
         self.check(
             "verification.checkboxes",
             checkbox_count >= 2,
             f"Verification should have concrete checkboxes (found {checkbox_count})",
-            warning=True
+            warning=True,
         )
 
     def validate_anti_patterns(self):
         """Validate anti-patterns section."""
-        has_anti_patterns = bool(re.search(
-            r'##\s*Anti[-\s]?Patterns',
-            self.content,
-            re.IGNORECASE
-        ))
+        has_anti_patterns = bool(re.search(r"##\s*Anti[-\s]?Patterns", self.content, re.IGNORECASE))
 
         self.check(
             "section.anti_patterns",
             has_anti_patterns,
             "Missing Anti-Patterns section",
-            warning=True
+            warning=True,
         )
 
     def validate_structure(self):
         """Validate overall document structure."""
         # Check for H1 title
-        has_h1 = bool(re.match(r'---.*?---\s*\n#\s+', self.content, re.DOTALL))
-        self.check(
-            "structure.h1_title",
-            has_h1,
-            "Missing H1 title after frontmatter"
-        )
+        has_h1 = bool(re.match(r"---.*?---\s*\n#\s+", self.content, re.DOTALL))
+        self.check("structure.h1_title", has_h1, "Missing H1 title after frontmatter")
 
         # Check for tables (should prefer tables over prose)
-        table_count = len(re.findall(r'\|.*\|.*\|', self.content))
+        table_count = len(re.findall(r"\|.*\|.*\|", self.content))
         self.check(
             "structure.tables",
             table_count >= 1,
             "Should use tables for structured information",
-            warning=True
+            warning=True,
         )
 
         # Check for extension points
-        has_extensions = bool(re.search(
-            r'##\s*(Extension|Future|Evolution)',
-            self.content,
-            re.IGNORECASE
-        ))
+        has_extensions = bool(
+            re.search(r"##\s*(Extension|Future|Evolution)", self.content, re.IGNORECASE)
+        )
         self.check(
             "section.extension_points",
             has_extensions,
             "Missing Extension Points section",
-            warning=True
+            warning=True,
         )
 
     def validate_references_directory(self):
@@ -599,13 +601,13 @@ class SkillValidator:
         refs_path = self.skill_path / "references"
 
         # Complex skills should have references
-        line_count = len(self.content.split('\n'))
+        line_count = len(self.content.split("\n"))
         if line_count > 200:
             self.check(
                 "structure.references",
                 refs_path.exists() and any(refs_path.iterdir()),
                 "Complex skill (>200 lines) should have references/ directory",
-                warning=True
+                warning=True,
             )
 
     def validate_scripts_directory(self):
@@ -619,22 +621,22 @@ class SkillValidator:
                 return
 
             # Scripts are optional - only warn if skill has bash examples suggesting scripts
-            bash_example_count = len(re.findall(r'```bash', self.content))
-            python_example_count = len(re.findall(r'python\s+scripts/', self.content))
+            bash_example_count = len(re.findall(r"```bash", self.content))
+            python_example_count = len(re.findall(r"python\s+scripts/", self.content))
 
             if python_example_count > 0:
                 self.check(
                     "scripts.presence",
                     False,
                     "SKILL.md references scripts/ but no scripts directory exists",
-                    warning=False
+                    warning=False,
                 )
             elif bash_example_count > 3:
                 self.check(
                     "scripts.presence",
                     False,
                     f"Skill has {bash_example_count} bash examples - consider adding scripts/",
-                    warning=True
+                    warning=True,
                 )
             return
 
@@ -654,7 +656,7 @@ class SkillValidator:
             self.check(
                 f"script.{script_path.name}.readable",
                 False,
-                f"Cannot read script {script_path.name}: {e}"
+                f"Cannot read script {script_path.name}: {e}",
             )
             return
 
@@ -662,16 +664,16 @@ class SkillValidator:
 
         # Skip private modules (starting with _) for CLI-related checks
         # They are helper/config modules, not runnable scripts
-        is_private_module = script_name.startswith('_')
+        is_private_module = script_name.startswith("_")
 
         # Check for shebang and docstring (applies to all Python files)
-        has_shebang = content.strip().startswith('#!/usr/bin/env python3')
+        has_shebang = content.strip().startswith("#!/usr/bin/env python3")
         has_docstring = '"""' in content[:500] or "'''" in content[:500]
         self.check(
             f"script.{script_name}.header",
             has_shebang and has_docstring,
             f"Script {script_name} should have shebang and docstring",
-            warning=True
+            warning=True,
         )
 
         # Skip CLI-related checks for private modules
@@ -679,14 +681,14 @@ class SkillValidator:
             return
 
         # Check for argparse usage (if main function exists)
-        has_main = "def main():" in content or 'if __name__' in content
+        has_main = "def main():" in content or "if __name__" in content
         has_argparse = "argparse" in content or "sys.argv" in content
         if has_main:
             self.check(
                 f"script.{script_name}.argparse",
                 has_argparse,
                 f"Script {script_name} should use argparse for CLI",
-                warning=True
+                warning=True,
             )
 
         # Check for explicit exit codes
@@ -695,7 +697,7 @@ class SkillValidator:
             f"script.{script_name}.exit_codes",
             has_exit,
             f"Script {script_name} should use explicit exit codes",
-            warning=True
+            warning=True,
         )
 
         # Check for error handling
@@ -704,21 +706,21 @@ class SkillValidator:
             f"script.{script_name}.error_handling",
             has_try_except,
             f"Script {script_name} should have error handling",
-            warning=True
+            warning=True,
         )
 
         # Check for result class or validation result pattern
         # Matches: Result, ValidationResult, return (True/False, or return True/False,
         has_result_pattern = (
-            "Result" in content or
-            "ValidationResult" in content or
-            re.search(r'return\s*\(?\s*(True|False)\s*,', content) is not None
+            "Result" in content
+            or "ValidationResult" in content
+            or re.search(r"return\s*\(?\s*(True|False)\s*,", content) is not None
         )
         self.check(
             f"script.{script_name}.result_pattern",
             has_result_pattern,
             f"Script {script_name} should use Result/ValidationResult pattern",
-            warning=True
+            warning=True,
         )
 
     def _validate_script_documentation(self, scripts: list[Path]):
@@ -727,16 +729,12 @@ class SkillValidator:
             return
 
         # Check for Scripts section in SKILL.md
-        has_scripts_section = bool(re.search(
-            r'##\s*Scripts',
-            self.content,
-            re.IGNORECASE
-        ))
+        has_scripts_section = bool(re.search(r"##\s*Scripts", self.content, re.IGNORECASE))
 
         self.check(
             "scripts.documented.section",
             has_scripts_section,
-            "Skills with scripts should have a Scripts section documenting usage"
+            "Skills with scripts should have a Scripts section documenting usage",
         )
 
         # Check that each script is mentioned in SKILL.md
@@ -746,21 +744,19 @@ class SkillValidator:
                 f"scripts.documented.{script.name}",
                 script_mentioned,
                 f"Script {script.name} should be documented in SKILL.md",
-                warning=True
+                warning=True,
             )
 
         # Check for exit code documentation
-        has_exit_docs = bool(re.search(
-            r'Exit\s*Code|exit\s+code|Exit:\s*\d',
-            self.content,
-            re.IGNORECASE
-        ))
+        has_exit_docs = bool(
+            re.search(r"Exit\s*Code|exit\s+code|Exit:\s*\d", self.content, re.IGNORECASE)
+        )
         if len(scripts) > 0:
             self.check(
                 "scripts.documented.exit_codes",
                 has_exit_docs,
                 "Skills with scripts should document exit codes",
-                warning=True
+                warning=True,
             )
 
     def validate(self) -> tuple[bool, str]:
@@ -785,9 +781,9 @@ class SkillValidator:
     def _format_report(self) -> str:
         """Format validation report."""
         lines = [
-            f"\n{'='*60}",
+            f"\n{'=' * 60}",
             f"Skill Validation Report: {self.skill_path.name}",
-            f"{'='*60}",
+            f"{'=' * 60}",
             f"\nFile: {self.skill_md_path}",
             f"Checks: {self.checks_passed}/{self.checks_total} passed",
         ]
@@ -805,9 +801,9 @@ class SkillValidator:
         if not self.errors and not self.warnings:
             lines.append("\n✓ All checks passed!")
 
-        lines.append(f"\n{'='*60}\n")
+        lines.append(f"\n{'=' * 60}\n")
 
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
 
 def main():

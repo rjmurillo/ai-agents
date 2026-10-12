@@ -54,9 +54,7 @@ def _smallest_scope_n(summaries: list[LatencySummary], fallback: int) -> int:
     return min((summary.n for summary in summaries), default=fallback)
 
 
-def _build_summaries(
-    runs: list[HookRun], include_incomplete: bool = False
-) -> list[LatencySummary]:
+def _build_summaries(runs: list[HookRun], include_incomplete: bool = False) -> list[LatencySummary]:
     """Fold every run's samples into one ``LatencySummary`` per scope.
 
     ``__hook__`` is scored on the sampler's own ``wall_clock_seconds``

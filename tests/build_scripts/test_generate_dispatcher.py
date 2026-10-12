@@ -553,9 +553,7 @@ class TestObserveMode:
         assert b"branch-controlled stderr item" not in proc.stderr
         assert b"PreCompact hook output" in proc.stderr
         assert b"SessionStart" not in proc.stderr
-        event_line = next(
-            line for line in proc.stderr.splitlines() if line.startswith(b"EVENT=")
-        )
+        event_line = next(line for line in proc.stderr.splitlines() if line.startswith(b"EVENT="))
         assert json.loads(event_line.removeprefix(b"EVENT=")) == {
             "guard": "hook-dispatch",
             "code": "E_OBSERVER_STDERR",
@@ -585,9 +583,7 @@ class TestObserveMode:
 
         proc = _run_dispatch_entry(root, event_dir)
 
-        event_line = next(
-            line for line in proc.stderr.splitlines() if line.startswith(b"EVENT=")
-        )
+        event_line = next(line for line in proc.stderr.splitlines() if line.startswith(b"EVENT="))
         payload = json.loads(event_line.removeprefix(b"EVENT="))
         assert proc.returncode == 0
         assert proc.stdout == b""

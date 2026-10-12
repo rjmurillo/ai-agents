@@ -19,7 +19,9 @@ uv run python .claude/skills/adr-review/scripts/detect_adr_changes.py
 Invoke analyst to assess deletion impact:
 
 ```python
-Task(subagent_type="analyst", prompt="""
+Task(
+    subagent_type="analyst",
+    prompt="""
 ADR Deletion Impact Assessment
 
 ## Deleted ADR
@@ -44,7 +46,8 @@ Status: {last_known_status}
 - **Archive**: Keep copy in `.project-toolkit/architecture/archive/`
 - **Delete**: No dependencies, safe to remove
 - **Block**: Active dependencies require resolution first
-""")
+""",
+)
 ```
 
 ## Phase D3: Archival Decision

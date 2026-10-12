@@ -303,8 +303,7 @@ def test_canonical_contract_does_not_mandate_session_logs(relative_path: str) ->
 
     for pattern in _MANDATORY_LOG_PATTERNS:
         assert pattern.search(text) is None, (
-            f"{relative_path} contains retired mandatory-log wording: "
-            f"{pattern.pattern}"
+            f"{relative_path} contains retired mandatory-log wording: {pattern.pattern}"
         )
 
 
@@ -423,6 +422,4 @@ def test_orphaned_session_command_helper_remains_absent() -> None:
 def test_opt_in_session_logs_retain_validation() -> None:
     """Hand-written opt-in session logs still use the retained validator."""
     assert (PROJECT_ROOT / "scripts" / "validate_session_json.py").is_file()
-    assert (
-        PROJECT_ROOT / ".agents" / "schemas" / "session-log.schema.json"
-    ).is_file()
+    assert (PROJECT_ROOT / ".agents" / "schemas" / "session-log.schema.json").is_file()

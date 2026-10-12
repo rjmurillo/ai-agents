@@ -9,12 +9,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).parents[3]
 PATTERNS_MD = (
-    REPO_ROOT
-    / ".claude"
-    / "skills"
-    / "github-url-intercept"
-    / "references"
-    / "patterns.md"
+    REPO_ROOT / ".claude" / "skills" / "github-url-intercept" / "references" / "patterns.md"
 )
 GITHUB_SCRIPTS_DIR = REPO_ROOT / ".claude" / "skills" / "github" / "scripts"
 

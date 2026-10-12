@@ -173,7 +173,6 @@ class TestRegularFileProbe:
         assert _gc_files.regular_file(tmp_path / "missing") is False
         assert _gc_files.nothing_at(tmp_path / "missing") is True
 
-
     def test_a_path_under_a_file_is_false(self, tmp_path):
         """Retain the main-side test name while proving its unsafe answer is gone."""
         (tmp_path / "a").write_bytes(b"x")

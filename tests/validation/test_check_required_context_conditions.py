@@ -197,18 +197,14 @@ class TestRelocatedCondition:
 
     def test_reading_an_unknown_step_id_does_not_crash(self, tmp_path: Path) -> None:
         steps = (
-            "      - name: Work\n"
-            "        if: steps.ghost.outputs.x == '1'\n"
-            "        run: pytest\n"
+            "      - name: Work\n        if: steps.ghost.outputs.x == '1'\n        run: pytest\n"
         )
 
         findings, _ = lint_one(tmp_path, job_body(steps=steps))
 
         assert findings == []
 
-    def test_a_direct_reference_and_a_relocation_are_both_reported(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_direct_reference_and_a_relocation_are_both_reported(self, tmp_path: Path) -> None:
         steps = (
             "      - id: g\n        run: echo $GITHUB_EVENT_NAME\n"
             "      - name: Both\n"
@@ -235,9 +231,7 @@ class TestRelocatedCondition:
 
 class TestJobCondition:
     def test_job_gated_on_another_jobs_output_is_flagged(self, tmp_path: Path) -> None:
-        findings, _ = lint_one(
-            tmp_path, job_body(condition="needs.check.outputs.go == 'true'")
-        )
+        findings, _ = lint_one(tmp_path, job_body(condition="needs.check.outputs.go == 'true'"))
 
         assert kinds(findings) == [KIND_JOB]
         assert findings[0].step == ""
@@ -282,9 +276,7 @@ class TestProducerCount:
         assert kinds(findings) == [KIND_PRODUCERS]
         assert "2 jobs" in findings[0].detail
 
-    def test_two_workflows_producing_one_context_are_counted_together(
-        self, tmp_path: Path
-    ) -> None:
+    def test_two_workflows_producing_one_context_are_counted_together(self, tmp_path: Path) -> None:
         workflows = tmp_path / "workflows"
         one = "on: push\njobs:\n  a:\n    name: Run Python Tests\n    steps: []\n"
         write_workflow(workflows, "one.yml", one)
@@ -337,9 +329,7 @@ class TestProducerCount:
 
         assert [p.context for p in producers] == ["Validate PR"]
 
-    def test_an_expression_name_matches_every_context_with_its_prefix(
-        self, tmp_path: Path
-    ) -> None:
+    def test_an_expression_name_matches_every_context_with_its_prefix(self, tmp_path: Path) -> None:
         body = (
             "on: push\njobs:\n  analyze:\n    name: Analyze (${{ matrix.language }})\n"
             "    steps: []\n"

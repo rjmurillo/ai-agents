@@ -143,7 +143,6 @@ class PluginSurface:
     schema: str = CLAUDE_SCHEMA
 
 
-
 def copilot_home(home: Path) -> Path:
     """Copilot CLI's home directory, honoring the ``COPILOT_HOME`` override.
 
@@ -269,6 +268,7 @@ def _describe(triples: set[tuple[str, str, str]]) -> tuple[str, ...]:
 # The error `read_json_object` gives for FileNotFoundError, and only for it.
 _ABSENT_PREFIX = "no hook manifest"
 
+
 def install_registrations(
     root: Path, schema: str
 ) -> tuple[set[tuple[str, str, str]] | None, str | None]:
@@ -392,7 +392,6 @@ def check_installed_plugins(project_dir: Path, home: Path) -> ScanOutcome:
                 token = _opaque_path(search_root)
                 outcome.incomplete.append(f"{surface.label}: {token} ({causes})")
     return outcome
-
 
 
 def _drain_stdin() -> None:

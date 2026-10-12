@@ -98,9 +98,7 @@ def test_unregistered_ai_review_common_child_fails(tmp_path: Path) -> None:
 
     errors = vsr.find_unregistered(tmp_path, sync_pairs)
 
-    assert any(
-        "scripts/ai_review_common/cache_guard" in e for e in errors
-    ), errors
+    assert any("scripts/ai_review_common/cache_guard" in e for e in errors), errors
 
 
 def test_unregistered_source_root_fails(tmp_path: Path) -> None:
@@ -125,9 +123,7 @@ def test_allowlisted_lib_package_passes(tmp_path: Path) -> None:
     _make_package(tmp_path / ".claude" / "lib", "vendored")
     sync_pairs = [("scripts/github_core", ".claude/lib/github_core")]
 
-    errors = vsr.find_unregistered(
-        tmp_path, sync_pairs, allowlist=frozenset({"vendored"})
-    )
+    errors = vsr.find_unregistered(tmp_path, sync_pairs, allowlist=frozenset({"vendored"}))
 
     assert errors == [], errors
 
@@ -166,7 +162,8 @@ def test_missing_repo_root_returns_config_error(tmp_path: Path) -> None:
     result = subprocess.run(
         [sys.executable, str(SCRIPT), "--repo-root", str(missing)],
         capture_output=True,
-        text=True, encoding="utf-8",
+        text=True,
+        encoding="utf-8",
         check=False,
     )
     assert result.returncode == 2, result.stdout + result.stderr
@@ -192,7 +189,8 @@ def test_cli_passes_on_registered_tree(tmp_path: Path) -> None:
     result = subprocess.run(
         [sys.executable, str(SCRIPT), "--repo-root", str(tmp_path)],
         capture_output=True,
-        text=True, encoding="utf-8",
+        text=True,
+        encoding="utf-8",
         check=False,
     )
     assert result.returncode == 0, result.stdout + result.stderr
@@ -208,7 +206,8 @@ def test_cli_fails_on_unregistered_lib(tmp_path: Path) -> None:
     result = subprocess.run(
         [sys.executable, str(SCRIPT), "--repo-root", str(tmp_path)],
         capture_output=True,
-        text=True, encoding="utf-8",
+        text=True,
+        encoding="utf-8",
         check=False,
     )
     assert result.returncode == 1, result.stdout + result.stderr
@@ -223,7 +222,8 @@ def test_real_repo_registry_is_complete() -> None:
     result = subprocess.run(
         [sys.executable, str(SCRIPT), "--repo-root", str(REPO_ROOT)],
         capture_output=True,
-        text=True, encoding="utf-8",
+        text=True,
+        encoding="utf-8",
         check=False,
     )
     assert result.returncode == 0, (

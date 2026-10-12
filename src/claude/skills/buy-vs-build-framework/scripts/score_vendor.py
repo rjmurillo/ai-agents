@@ -17,6 +17,7 @@ from dataclasses import dataclass
 @dataclass
 class VendorScore:
     """Structured result for vendor scoring."""
+
     vendor_score: float
     risk_flags: list[str]
     recommendation: str
@@ -28,7 +29,7 @@ def score_financial_stability(data: dict) -> tuple[float, list[str]]:
     flags = []
 
     # Years in business (0-10 points)
-    years = data.get('years_in_business', 0)
+    years = data.get("years_in_business", 0)
     if years >= 10:
         score += 10
     elif years >= 5:
@@ -40,22 +41,22 @@ def score_financial_stability(data: dict) -> tuple[float, list[str]]:
         score += 0
 
     # Funding/revenue (0-10 points)
-    funding = data.get('funding_status', '')
-    if funding in ['profitable', 'public']:
+    funding = data.get("funding_status", "")
+    if funding in ["profitable", "public"]:
         score += 10
-    elif funding == 'series_c_plus':
+    elif funding == "series_c_plus":
         score += 7
-    elif funding in ['series_a', 'series_b']:
+    elif funding in ["series_a", "series_b"]:
         score += 4
     else:
         flags.append(f"Funding unclear or early stage: {funding}")
         score += 0
 
     # M&A risk (0-5 points)
-    ma_risk = data.get('ma_risk', 'unknown')
-    if ma_risk == 'low':
+    ma_risk = data.get("ma_risk", "unknown")
+    if ma_risk == "low":
         score += 5
-    elif ma_risk == 'medium':
+    elif ma_risk == "medium":
         score += 3
     else:
         flags.append(f"M&A risk: {ma_risk}")
@@ -70,19 +71,19 @@ def score_product_maturity(data: dict) -> tuple[float, list[str]]:
     flags = []
 
     # Market position (0-10 points)
-    position = data.get('market_position', '')
-    if position == 'leader':
+    position = data.get("market_position", "")
+    if position == "leader":
         score += 10
-    elif position == 'challenger':
+    elif position == "challenger":
         score += 7
-    elif position == 'niche':
+    elif position == "niche":
         score += 4
     else:
         flags.append(f"Market position unclear: {position}")
         score += 0
 
     # Customer count (0-10 points)
-    customers = data.get('customer_count', 0)
+    customers = data.get("customer_count", 0)
     if customers >= 1000:
         score += 10
     elif customers >= 100:
@@ -94,7 +95,7 @@ def score_product_maturity(data: dict) -> tuple[float, list[str]]:
         score += 0
 
     # Product roadmap (0-5 points)
-    roadmap = data.get('public_roadmap', False)
+    roadmap = data.get("public_roadmap", False)
     if roadmap:
         score += 5
     else:
@@ -110,30 +111,30 @@ def score_pricing_model(data: dict) -> tuple[float, list[str]]:
     flags = []
 
     # Pricing transparency (0-10 points)
-    transparency = data.get('pricing_transparency', '')
-    if transparency == 'public':
+    transparency = data.get("pricing_transparency", "")
+    if transparency == "public":
         score += 10
-    elif transparency == 'quote_required':
+    elif transparency == "quote_required":
         score += 5
     else:
         flags.append(f"Pricing opaque: {transparency}")
         score += 0
 
     # Predictability (0-10 points)
-    model = data.get('pricing_model', '')
-    if model in ['flat_rate', 'per_seat']:
+    model = data.get("pricing_model", "")
+    if model in ["flat_rate", "per_seat"]:
         score += 10
-    elif model == 'usage_based':
+    elif model == "usage_based":
         score += 7
     else:
         flags.append(f"Pricing model unpredictable: {model}")
         score += 3
 
     # Lock-in cost (0-5 points)
-    lock_in = data.get('lock_in_cost', 'unknown')
-    if lock_in == 'low':
+    lock_in = data.get("lock_in_cost", "unknown")
+    if lock_in == "low":
         score += 5
-    elif lock_in == 'medium':
+    elif lock_in == "medium":
         score += 3
     else:
         flags.append(f"High lock-in cost or unknown: {lock_in}")
@@ -148,7 +149,7 @@ def score_feature_fit(data: dict) -> tuple[float, list[str]]:
     flags = []
 
     # Core features (0-15 points)
-    core_coverage = data.get('core_feature_coverage_percent', 0)
+    core_coverage = data.get("core_feature_coverage_percent", 0)
     if core_coverage >= 90:
         score += 15
     elif core_coverage >= 75:
@@ -160,10 +161,10 @@ def score_feature_fit(data: dict) -> tuple[float, list[str]]:
         score += 0
 
     # Customization (0-10 points)
-    customization = data.get('customization_options', '')
-    if customization in ['api', 'sdk']:
+    customization = data.get("customization_options", "")
+    if customization in ["api", "sdk"]:
         score += 10
-    elif customization == 'config_only':
+    elif customization == "config_only":
         score += 5
     else:
         flags.append(f"Limited customization: {customization}")
@@ -202,9 +203,7 @@ def calculate_vendor_score(data: dict) -> VendorScore:
         recommendation = "RED FLAG - High risk, consider alternatives"
 
     return VendorScore(
-        vendor_score=total_score,
-        risk_flags=all_flags,
-        recommendation=recommendation
+        vendor_score=total_score, risk_flags=all_flags, recommendation=recommendation
     )
 
 
@@ -227,11 +226,12 @@ Example vendor data file format (JSON):
   "core_feature_coverage_percent": 85,
   "customization_options": "api"
 }
-        """
+        """,
     )
 
-    parser.add_argument('--vendor-data', type=str, required=True,
-                       help='JSON file with vendor information')
+    parser.add_argument(
+        "--vendor-data", type=str, required=True, help="JSON file with vendor information"
+    )
 
     args = parser.parse_args()
 
@@ -239,12 +239,12 @@ Example vendor data file format (JSON):
     try:
         # Validate input path to prevent path traversal (CWE-22)
         import os
+
         allowed_base = os.path.abspath(".")
         vendor_data_path = os.path.abspath(args.vendor_data)
         if not vendor_data_path.startswith(allowed_base):
             raise ValueError(
-                f"Path traversal attempt detected in --vendor-data: "
-                f"{args.vendor_data}"
+                f"Path traversal attempt detected in --vendor-data: {args.vendor_data}"
             )
 
         with open(vendor_data_path) as f:
@@ -264,7 +264,7 @@ Example vendor data file format (JSON):
 
     # Output results
     print("Vendor Scorecard")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"Overall Score: {result.vendor_score:.1f}/100")
     print("")
     print(f"Risk Flags ({len(result.risk_flags)}):")
@@ -285,5 +285,5 @@ Example vendor data file format (JSON):
         sys.exit(11)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -169,8 +169,7 @@ def _require_role(frontmatter: dict[str, object], template: Path) -> str:
     if role not in _KNOWN_ROLES:
         known = ", ".join(sorted(_KNOWN_ROLES))
         raise CatalogError(
-            f"frontmatter field 'role' in {template} is {role!r}; "
-            f"expected one of: {known}"
+            f"frontmatter field 'role' in {template} is {role!r}; expected one of: {known}"
         )
     return role
 

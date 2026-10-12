@@ -82,7 +82,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--owner", default="", help="Repository owner")
     parser.add_argument("--repo", default="", help="Repository name")
     parser.add_argument(
-        "--pull-request", type=int, required=True, help="Pull request number",
+        "--pull-request",
+        type=int,
+        required=True,
+        help="Pull request number",
     )
     parser.add_argument(
         "--state",
@@ -107,13 +110,17 @@ def _exit_code_for(message: str, *, not_found: bool) -> tuple[int, str]:
 
 
 def _fetch_reviews(
-    owner: str, repo: str, pr: int, fmt: str,
+    owner: str,
+    repo: str,
+    pr: int,
+    fmt: str,
 ) -> list[dict[str, object]]:
     """Page through the PR's reviews via REST. Raises SystemExit on error."""
     try:
         result = subprocess.run(
             [
-                "gh", "api",
+                "gh",
+                "api",
                 f"repos/{owner}/{repo}/pulls/{pr}/reviews?per_page=100",
                 "--paginate",
                 "--slurp",
@@ -193,9 +200,7 @@ def _normalize(item: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(author_id, int):
         author_id = None
     author, aliases = _canonicalize_login(observed or "")
-    author_canonical = (
-        canonicalize_login(observed, author_id) if observed else None
-    )
+    author_canonical = canonicalize_login(observed, author_id) if observed else None
     return {
         "id": item.get("id"),
         "node_id": item.get("node_id"),

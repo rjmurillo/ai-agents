@@ -36,9 +36,7 @@ from tests.ci.workflow_runs_fixtures import FakeClient
 
 
 @pytest.fixture
-def default_manifest_path(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> Path:
+def default_manifest_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Redirect the production default manifest path into tmp_path.
 
     ``scripts/bulk_cancel_guard.py:_DEFAULT_MANIFEST_PATH`` resolves under
@@ -66,9 +64,7 @@ class TestResolveManifestPath:
 
         assert bulk_cancel_guard.resolve_manifest_path(args) == Path("explicit.json")
 
-    def test_confirm_without_manifest_falls_back_to_the_default(
-        self, default_manifest_path: Path
-    ):
+    def test_confirm_without_manifest_falls_back_to_the_default(self, default_manifest_path: Path):
         args = argparse.Namespace(manifest=None, confirm=True)
 
         assert bulk_cancel_guard.resolve_manifest_path(args) == default_manifest_path
@@ -138,9 +134,7 @@ class TestConfirmEmitsADefaultManifest:
         default manifest either. Only --confirm triggers the fallback."""
         runs_file = write_runs(tmp_path / "runs.json", incident_runs(pr_count=1))
 
-        code = main(
-            argv(runs_file, workflows, "--recovery-event", "reopened"), client=FakeClient()
-        )
+        code = main(argv(runs_file, workflows, "--recovery-event", "reopened"), client=FakeClient())
 
         assert code == EXIT_OK
         assert not default_manifest_path.exists()

@@ -94,9 +94,7 @@ alerts = [
 **Before:**
 ```python
 codeql_status = (
-    "SKIPPED"
-    if self.skip_codeql
-    else ("REVIEW REQUIRED" if codeql_critical > 0 else "PASS")
+    "SKIPPED" if self.skip_codeql else ("REVIEW REQUIRED" if codeql_critical > 0 else "PASS")
 )
 ```
 

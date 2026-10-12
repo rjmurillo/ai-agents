@@ -626,8 +626,7 @@ def _check_log_summary(failing_count: int, logs_found: int, external: int) -> st
             f"{logs_found} with logs, {external} external (logs not accessible)"
         )
     return (
-        f"Analyzed {failing_count} failing check(s) "
-        f"with {logs_found} containing failure snippets"
+        f"Analyzed {failing_count} failing check(s) with {logs_found} containing failure snippets"
     )
 
 
@@ -666,8 +665,8 @@ def main(argv: list[str] | None = None) -> int:
     if payload is None:
         return 1
 
-    failing_checks, merge_ref_unusable, merge_ref_warning, exit_code = (
-        _failing_checks_from_payload(payload, fmt)
+    failing_checks, merge_ref_unusable, merge_ref_warning, exit_code = _failing_checks_from_payload(
+        payload, fmt
     )
     if exit_code:
         return exit_code

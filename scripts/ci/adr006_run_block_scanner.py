@@ -273,8 +273,7 @@ def scan_repo(root: Path, threshold: int) -> list[dict[str, object]]:
                 found.append((rel, block))
     found.sort(key=lambda rb: (-rb[1].code_lines, rb[0], rb[1].line))
     return [
-        {"file": rel, "line": block.line, "code_lines": block.code_lines}
-        for rel, block in found
+        {"file": rel, "line": block.line, "code_lines": block.code_lines} for rel, block in found
     ]
 
 
@@ -282,15 +281,22 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="ADR-006 run-block burn-down scanner (#3084).")
     parser.add_argument("--root", type=Path, default=Path.cwd(), help="Repo root.")
     parser.add_argument(
-        "--threshold", type=int, default=_DEFAULT_THRESHOLD,
+        "--threshold",
+        type=int,
+        default=_DEFAULT_THRESHOLD,
         help=f"Min body code lines to count as a violation (default {_DEFAULT_THRESHOLD}).",
     )
     parser.add_argument(
-        "--max", type=int, default=None, dest="max_allowed",
+        "--max",
+        type=int,
+        default=None,
+        dest="max_allowed",
         help="Slack gate: exit 1 when the violation count exceeds MAX.",
     )
     parser.add_argument(
-        "--exact", type=int, default=None,
+        "--exact",
+        type=int,
+        default=None,
         help="Ratchet gate: exit 1 unless the violation count equals EXACT.",
     )
     parser.add_argument("--format", choices=("json", "human"), default="human")

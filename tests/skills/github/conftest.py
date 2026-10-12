@@ -50,7 +50,9 @@ def mock_subprocess_run():
 
 
 def make_completed_process(
-    stdout: str = "", stderr: str = "", returncode: int = 0,
+    stdout: str = "",
+    stderr: str = "",
+    returncode: int = 0,
 ):
     """Create a mock CompletedProcess.
 
@@ -58,4 +60,5 @@ def make_completed_process(
     Prefer importing from test_helpers directly.
     """
     from test_helpers import make_completed_process as _make
+
     return _make(stdout=stdout, stderr=stderr, returncode=returncode)

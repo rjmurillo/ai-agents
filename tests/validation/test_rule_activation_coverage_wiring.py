@@ -79,9 +79,7 @@ def _build_repo(root: Path, *, with_script: bool = True) -> Path:
         for dep in _RUNTIME_DEPS:
             shutil.copy(_VALIDATION_DIR / dep, validation_dir / dep)
     baseline = validation_dir / gate.DEFAULT_BASELINE_NAME
-    baseline.write_text(
-        json.dumps(gate.build_baseline_payload(set(), set())), encoding="utf-8"
-    )
+    baseline.write_text(json.dumps(gate.build_baseline_payload(set(), set())), encoding="utf-8")
     return baseline
 
 

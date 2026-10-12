@@ -112,8 +112,14 @@ def assign_milestone(
     prefix = f"Issue #{issue_number} created but milestone assignment"
     timeout = _lookup.GH_TIMEOUT_SECONDS
     gh_args = [
-        "gh", "issue", "edit", str(issue_number),
-        "--repo", f"{owner}/{repo}", "--milestone", milestone,
+        "gh",
+        "issue",
+        "edit",
+        str(issue_number),
+        "--repo",
+        f"{owner}/{repo}",
+        "--milestone",
+        milestone,
     ]
     try:
         result = subprocess.run(

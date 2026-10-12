@@ -50,8 +50,7 @@ def _canonical_prose_sources() -> list[Path]:
     if REPO_ROOT is None:
         return []
     sources = [
-        REPO_ROOT.joinpath(*_TEMPLATES_SEGMENTS, f"{name}.shared.md")
-        for name in _PROSE_AGENTS
+        REPO_ROOT.joinpath(*_TEMPLATES_SEGMENTS, f"{name}.shared.md") for name in _PROSE_AGENTS
     ]
     sources.append(REPO_ROOT.joinpath(*_SPEC_GENERATOR_SEGMENTS))
     return sources
@@ -59,9 +58,9 @@ def _canonical_prose_sources() -> list[Path]:
 
 def test_repo_root_resolves() -> None:
     """The marker walk must find the repo root, or every other test is a no-op."""
-    assert (
-        REPO_ROOT is not None
-    ), "could not resolve repo root from templates and canonical skill trees"
+    assert REPO_ROOT is not None, (
+        "could not resolve repo root from templates and canonical skill trees"
+    )
 
 
 @pytest.mark.parametrize("source", _canonical_prose_sources(), ids=lambda p: p.name)

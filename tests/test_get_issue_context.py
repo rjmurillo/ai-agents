@@ -14,8 +14,7 @@ import pytest
 from tests.mock_fidelity import assert_mock_keys_match
 
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1]
-    / ".claude" / "skills" / "github" / "scripts" / "issue"
+    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "issue"
 )
 
 
@@ -104,18 +103,20 @@ def test_issue_not_found(mock_run):
 
 @patch("subprocess.run")
 def test_no_milestone(mock_run, capsys):
-    issue = json.dumps({
-        "number": 10,
-        "title": "No milestone",
-        "body": "",
-        "state": "OPEN",
-        "author": {"login": "u"},
-        "labels": [],
-        "milestone": None,
-        "assignees": [],
-        "createdAt": "2025-01-01T00:00:00Z",
-        "updatedAt": "2025-01-01T00:00:00Z",
-    })
+    issue = json.dumps(
+        {
+            "number": 10,
+            "title": "No milestone",
+            "body": "",
+            "state": "OPEN",
+            "author": {"login": "u"},
+            "labels": [],
+            "milestone": None,
+            "assignees": [],
+            "createdAt": "2025-01-01T00:00:00Z",
+            "updatedAt": "2025-01-01T00:00:00Z",
+        }
+    )
     mock_run.side_effect = [
         _completed(rc=0),
         _completed(stdout="https://github.com/o/r\n"),

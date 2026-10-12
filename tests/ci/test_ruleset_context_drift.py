@@ -17,12 +17,11 @@ def _capture(target: list[str], item: str) -> int:
     target.append(item)
     return 0
 
+
 from scripts.ci import ruleset_context_drift as drift  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-WORKFLOW_PATH = (
-    REPO_ROOT / ".github" / "workflows" / "ruleset-context-drift.yml"
-)
+WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "ruleset-context-drift.yml"
 RETIRED_AI_REVIEW_CONTEXTS = frozenset(
     {
         "Analyst Review",
@@ -280,8 +279,7 @@ def test_workflow_runs_the_detector_on_schedule_and_manual_dispatch() -> None:
     assert job["runs-on"] == "ubuntu-26.04-arm"
     assert drift._format_contexts(()) == "- None"
     assert any(
-        step.get("run")
-        == "PYTHONPATH=. python3 scripts/ci/ruleset_context_drift.py --alert"
+        step.get("run") == "PYTHONPATH=. python3 scripts/ci/ruleset_context_drift.py --alert"
         for step in steps
     )
 

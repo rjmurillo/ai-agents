@@ -502,7 +502,7 @@ def is_safe_filename(filename: str) -> bool:
         return False
     if "/" in filename or "\\" in filename:
         return False
-    if not re.match(r'^[a-zA-Z0-9_.-]+$', filename):
+    if not re.match(r"^[a-zA-Z0-9_.-]+$", filename):
         return False
     return True
 ```

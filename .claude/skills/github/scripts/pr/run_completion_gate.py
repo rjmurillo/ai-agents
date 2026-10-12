@@ -364,16 +364,16 @@ except ModuleNotFoundError:
         try:
             resolved_path.relative_to(resolved_base)
         except ValueError:
-            raise ValueError(
-                f"Path {path} is outside base directory {base_dir}"
-            ) from None
+            raise ValueError(f"Path {path} is outside base directory {base_dir}") from None
         return resolved_path
+
 
 # PyYAML is a hard dependency for this script. The rest of the codebase
 # already requires PyYAML; matching that is simpler than maintaining a
 # stdlib-only loader and avoids the schema-drift risk of a partial parser.
 try:
     import yaml as _yaml_module
+
     yaml: Any = _yaml_module
     _HAVE_YAML = True
 except ImportError:  # pragma: no cover - exercised when PyYAML missing
@@ -399,9 +399,7 @@ except ImportError:  # pragma: no cover - exercised when PyYAML missing
 # which that rule states outright. The reference is not new. It moved here from
 # ``.claude/commands/pr-review-config.yaml`` under ADR-064, a directory the
 # pattern set does not cover, so the count rose without the dependency changing.
-_DEFAULT_CONFIG_PATH = (
-    _PROJECT_ROOT / ".claude" / "skills" / "pr-review" / "pr-review-config.yaml"
-)
+_DEFAULT_CONFIG_PATH = _PROJECT_ROOT / ".claude" / "skills" / "pr-review" / "pr-review-config.yaml"
 
 
 class ConfigError(Exception):
@@ -483,8 +481,6 @@ def _load_config_bytes(raw: bytes, path: Path) -> dict[str, Any]:
     return data
 
 
-
-
 # ---------------------------------------------------------------------------
 # Config trust verification (CWE-829)
 # ---------------------------------------------------------------------------
@@ -561,6 +557,7 @@ _TRUSTED_REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/@^~{}-]*$")
 
 _GIT_TIMEOUT_SECONDS = 30
 
+
 def _one_line(text: str) -> str:
     """Escape the line breaks a file name could use to forge extra listing lines."""
     return (
@@ -586,8 +583,7 @@ def _escape_terminal_controls(text: str) -> str:
     """
     return "".join(
         ch
-        if ch in ("\n", "\t")
-        or unicodedata.category(ch) not in ("Cc", "Cf")
+        if ch in ("\n", "\t") or unicodedata.category(ch) not in ("Cc", "Cf")
         else f"\\u{ord(ch):04x}"
         for ch in text
     )
@@ -648,7 +644,8 @@ def _require_remote_tracking_ref(
     # helper in the first place (Copilot review, PR #5329).
     try:
         proc = _run_git(
-            ["rev-parse", "--symbolic-full-name", trust_anchor_ref], cwd,
+            ["rev-parse", "--symbolic-full-name", trust_anchor_ref],
+            cwd,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         return TrustCheck(
@@ -754,8 +751,7 @@ def _verify_config_trust(
         if proc.returncode != 0:
             return TrustCheck(
                 TRUST_GIT_ERROR,
-                f"trusted ref {trust_anchor_ref!r} not found; fetch it or pass "
-                f"--trusted-ref",
+                f"trusted ref {trust_anchor_ref!r} not found; fetch it or pass --trusted-ref",
             )
 
         spec = f"{trust_anchor_ref}:{rel.as_posix()}"
@@ -767,7 +763,8 @@ def _verify_config_trust(
         # error (never approvable, exit 3); an empty stdout on exit 0
         # is a genuinely absent path.
         proc = _run_git(
-            ["ls-tree", trust_anchor_ref, "--", rel.as_posix()], toplevel,
+            ["ls-tree", trust_anchor_ref, "--", rel.as_posix()],
+            toplevel,
         )
         if proc.returncode != 0:
             return TrustCheck(
@@ -879,7 +876,8 @@ def _enforce_config_trust(
         # it directly, in the work tree the install decision was made
         # against rather than in some other repository.
         anchor_error = _require_remote_tracking_ref(
-            trust_anchor_ref, install.work_tree,
+            trust_anchor_ref,
+            install.work_tree,
         )
         if anchor_error is not None:
             print(anchor_error.detail, file=sys.stderr)
@@ -979,11 +977,7 @@ def _parse_literal(token: str) -> Any:
         return False
     if token == "null":
         return None
-    if (
-        len(token) >= 2
-        and token[0] == '"'
-        and token[-1] == '"'
-    ):
+    if len(token) >= 2 and token[0] == '"' and token[-1] == '"':
         return token[1:-1]
     try:
         return int(token)
@@ -994,9 +988,7 @@ def _parse_literal(token: str) -> Any:
 def _eval_atom(data: dict, atom: list[str]) -> bool:
     """Evaluate a 3-token atom: ``<path> <op> <literal>``."""
     if len(atom) != 3:
-        raise ValueError(
-            f"pass_when atom must have 3 tokens, got {atom!r}"
-        )
+        raise ValueError(f"pass_when atom must have 3 tokens, got {atom!r}")
     path, op, literal_tok = atom
     actual = _resolve_path(data, path)
     expected = _parse_literal(literal_tok)
@@ -1028,7 +1020,7 @@ def _eval_pass_when(data: dict, expr: str) -> bool:
     pending_op: str | None = None
     i = 0
     while i < len(tokens):
-        atom = tokens[i:i + 3]
+        atom = tokens[i : i + 3]
         i += 3
         atom_value = _eval_atom(data, atom)
 
@@ -1039,18 +1031,14 @@ def _eval_pass_when(data: dict, expr: str) -> bool:
         elif pending_op == "OR":
             result = result or atom_value
         else:
-            raise ValueError(
-                f"Missing AND/OR connective before atom {atom!r}"
-            )
+            raise ValueError(f"Missing AND/OR connective before atom {atom!r}")
 
         if i >= len(tokens):
             break
 
         pending_op = tokens[i]
         if pending_op not in ("AND", "OR"):
-            raise ValueError(
-                f"Expected AND/OR, got {pending_op!r}"
-            )
+            raise ValueError(f"Expected AND/OR, got {pending_op!r}")
         i += 1
         # Per Copilot review: a trailing connective with no atom after
         # it (e.g. ``x == 1 AND``) silently passed before because the
@@ -1197,11 +1185,7 @@ def _eval_call(node: ast.Call, param_name: str, data: dict) -> Any:
             "<param>.get(...) takes one or two positional arguments",
         )
     key = _eval_node(node.args[0], param_name, data)
-    default = (
-        _eval_node(node.args[1], param_name, data)
-        if len(node.args) == 2
-        else None
-    )
+    default = _eval_node(node.args[1], param_name, data) if len(node.args) == 2 else None
     if not isinstance(data, dict):
         return default
     return data.get(key, default)
@@ -1284,8 +1268,7 @@ def _validate_criterion_schema(criterion: dict) -> tuple[str, str, str | None, s
     name = criterion["name"]
     if not isinstance(name, str) or not name.strip():
         raise ConfigError(
-            f"criterion: name must be a non-empty string "
-            f"(got {type(name).__name__})",
+            f"criterion: name must be a non-empty string (got {type(name).__name__})",
         )
     if "verification" not in criterion:
         raise ConfigError(
@@ -1319,9 +1302,7 @@ def _validate_criterion_schema(criterion: dict) -> tuple[str, str, str | None, s
         ("pass_when", pass_when),
         ("pass_when_python", pass_when_python),
     ):
-        if field in criterion and (
-            not isinstance(value, str) or not value.strip()
-        ):
+        if field in criterion and (not isinstance(value, str) or not value.strip()):
             raise ConfigError(
                 f"criterion {name!r}: {field} must be a non-empty string "
                 f"(got {type(value).__name__})",
@@ -1563,9 +1544,13 @@ def _classify_argv_token(token: str, toplevel: Path) -> tuple[str, str]:
         resolved = candidate.resolve()
         resolved_is_file = resolved.is_file()
     except OSError:
-        return (_ARGV_ESCAPES, token) if _is_within(literal, toplevel) else (
-            _ARGV_SKIP,
-            "",
+        return (
+            (_ARGV_ESCAPES, token)
+            if _is_within(literal, toplevel)
+            else (
+                _ARGV_SKIP,
+                "",
+            )
         )
 
     if not _is_within(resolved, toplevel):
@@ -1575,9 +1560,13 @@ def _classify_argv_token(token: str, toplevel: Path) -> tuple[str, str]:
         # created between the two calls. Fail closed either way.
         if _is_within(literal, toplevel):
             return _ARGV_ESCAPES, token
-        return (_ARGV_EXTERNAL, str(resolved)) if resolved_is_file else (
-            _ARGV_SKIP,
-            "",
+        return (
+            (_ARGV_EXTERNAL, str(resolved))
+            if resolved_is_file
+            else (
+                _ARGV_SKIP,
+                "",
+            )
         )
 
     if not resolved_is_file:
@@ -1702,7 +1691,9 @@ def _relative_import_root(script: Path, level: int, toplevel: Path) -> list[Path
 
 
 def _resolve_module_root(
-    dotted: str, roots: list[Path], toplevel: Path,
+    dotted: str,
+    roots: list[Path],
+    toplevel: Path,
 ) -> tuple[Path, str] | None:
     """``(root, work-tree-relative path)`` of ``dotted``, or None when not in the tree.
 
@@ -2001,7 +1992,10 @@ class _Scopes:
         while parent is not None and not isinstance(parent, ast.Module):
             if isinstance(parent, ast.ClassDef) and child in parent.body:
                 return True
-            if isinstance(parent, ast.FunctionDef | ast.AsyncFunctionDef) and child not in parent.body:
+            if (
+                isinstance(parent, ast.FunctionDef | ast.AsyncFunctionDef)
+                and child not in parent.body
+            ):
                 return True
             if isinstance(parent, ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda):
                 return False
@@ -2028,7 +2022,10 @@ class _Scopes:
 
 
 def _derive_file_path(
-    node: ast.AST, script: Path, lookup: _Lookup | None, depth: int = 0,
+    node: ast.AST,
+    script: Path,
+    lookup: _Lookup | None,
+    depth: int = 0,
 ) -> Path | None:
     """Evaluate ``node`` when it is built only from ``__file__`` and literals.
 
@@ -2062,7 +2059,10 @@ def _derive_file_path(
 
 
 def _derive_from_parents(
-    node: ast.Subscript, script: Path, lookup: _Lookup | None, depth: int,
+    node: ast.Subscript,
+    script: Path,
+    lookup: _Lookup | None,
+    depth: int,
 ) -> Path | None:
     """``X.parents[N]`` with a literal non-negative ``N``."""
     target = node.value
@@ -2081,7 +2081,10 @@ def _derive_from_parents(
 
 
 def _derive_from_call(
-    node: ast.Call, script: Path, lookup: _Lookup | None, depth: int,
+    node: ast.Call,
+    script: Path,
+    lookup: _Lookup | None,
+    depth: int,
 ) -> Path | None:
     func = node.func
     name = _call_name(node)
@@ -2131,7 +2134,9 @@ def _apply_path_method(base: Path, name: str, args: list[ast.expr]) -> Path | No
 
 
 def _load_from_call(
-    node: ast.Call, script: Path, lookup: _Lookup | None,
+    node: ast.Call,
+    script: Path,
+    lookup: _Lookup | None,
 ) -> _DynamicLoad | None:
     """Classify one call as a dynamic load, or None when it is not one."""
     name = _call_name(node)
@@ -2266,7 +2271,9 @@ def _dynamic_loads(source: bytes, script: Path) -> list[_DynamicLoad]:
 
 
 def _resolve_dynamic_target(
-    load: _DynamicLoad, roots: list[Path], toplevel: Path,
+    load: _DynamicLoad,
+    roots: list[Path],
+    toplevel: Path,
 ) -> list[str]:
     """Work-tree-relative files a resolvable load runs, or [] when it names none."""
     if load.module is not None:
@@ -2350,11 +2357,7 @@ def _expand_import_closure(rel_paths: list[str], toplevel: Path) -> list[str]:
             continue
         absolute_roots = _import_roots(script, toplevel)
         for level, dotted in _imported_module_names(source):
-            roots = (
-                absolute_roots
-                if level == 0
-                else _relative_import_root(script, level, toplevel)
-            )
+            roots = absolute_roots if level == 0 else _relative_import_root(script, level, toplevel)
             for found in _module_files(dotted, roots, toplevel):
                 if found not in seen:
                     seen.append(found)
@@ -2402,10 +2405,7 @@ def _tracked_subset(rel_paths: list[str], toplevel: Path) -> tuple[set[str], str
     pathspecs = [f":(literal){path}" for path in rel_paths]
     proc = _run_git(["ls-files", "-z", "--", *pathspecs], toplevel)
     if proc.returncode != 0:
-        return set(), (
-            f"git ls-files failed: "
-            f"{proc.stderr.decode(errors='replace').strip()}"
-        )
+        return set(), (f"git ls-files failed: {proc.stderr.decode(errors='replace').strip()}")
     listed = proc.stdout.decode(errors="replace").split("\0")
     return {path for path in listed if path}, ""
 
@@ -2437,7 +2437,8 @@ def _verify_worktree_file_trust(
     # unmatched path fails closed (absent at the trusted ref reads as
     # untrusted), so this is defense in depth rather than a live hole.
     proc = _run_git(
-        ["ls-tree", trust_anchor_ref, "--", f":(literal){rel_path}"], toplevel,
+        ["ls-tree", trust_anchor_ref, "--", f":(literal){rel_path}"],
+        toplevel,
     )
     if proc.returncode != 0:
         return False, (
@@ -2450,8 +2451,7 @@ def _verify_worktree_file_trust(
     proc = _run_git(["cat-file", "--filters", spec], toplevel)
     if proc.returncode != 0:
         return False, (
-            f"git cat-file --filters {spec} failed: "
-            f"{proc.stderr.decode(errors='replace').strip()}"
+            f"git cat-file --filters {spec} failed: {proc.stderr.decode(errors='replace').strip()}"
         )
     anchor_bytes = proc.stdout
 
@@ -2509,7 +2509,11 @@ def _verify_command_trust(
         proc = _run_git(["rev-parse", "--show-toplevel"], _PROJECT_ROOT)
         if proc.returncode != 0:
             return CommandTrustCheck(
-                COMMAND_TRUST_GIT_ERROR, [], [], [], [],
+                COMMAND_TRUST_GIT_ERROR,
+                [],
+                [],
+                [],
+                [],
                 f"project root {_PROJECT_ROOT} is not inside a git work "
                 f"tree: {proc.stderr.decode(errors='replace').strip()}",
             )
@@ -2522,19 +2526,30 @@ def _verify_command_trust(
         # be classified external and skipped. Refuse to reason about it.
         if not _is_within(Path.cwd().resolve(), toplevel):
             return CommandTrustCheck(
-                COMMAND_TRUST_GIT_ERROR, [], [], [], [],
+                COMMAND_TRUST_GIT_ERROR,
+                [],
+                [],
+                [],
+                [],
                 f"cwd {Path.cwd()} is outside the git work tree {toplevel}; "
                 f"relative command paths cannot be classified",
             )
 
         named, external, escaping = _collect_command_paths(
-            criteria, pr_number, toplevel,
+            criteria,
+            pr_number,
+            toplevel,
         )
         candidates = _expand_import_closure(named, toplevel)
         tracked, probe_error = _tracked_subset(candidates, toplevel)
         if probe_error:
             return CommandTrustCheck(
-                COMMAND_TRUST_GIT_ERROR, [], [], external, [], probe_error,
+                COMMAND_TRUST_GIT_ERROR,
+                [],
+                [],
+                external,
+                [],
+                probe_error,
             )
         checked = [path for path in candidates if path in tracked]
         # An untracked candidate is skipped only when it is genuinely the
@@ -2545,18 +2560,16 @@ def _verify_command_trust(
             for path in candidates
             if path not in tracked and not _is_in_nested_repository(path, toplevel)
         ]
-        nested = [
-            path
-            for path in candidates
-            if path not in tracked and path not in untracked
-        ]
+        nested = [path for path in candidates if path not in tracked and path not in untracked]
 
         untrusted = list(escaping) + nested
         untrusted.extend(_unresolvable_dynamic_sites(checked, toplevel))
         errors: list[str] = []
         for rel_path in checked:
             is_trusted, error = _verify_worktree_file_trust(
-                rel_path, toplevel, trust_anchor_ref,
+                rel_path,
+                toplevel,
+                trust_anchor_ref,
             )
             if error:
                 errors.append(error)
@@ -2564,21 +2577,39 @@ def _verify_command_trust(
                 untrusted.append(rel_path)
     except (OSError, subprocess.TimeoutExpired) as exc:
         return CommandTrustCheck(
-            COMMAND_TRUST_GIT_ERROR, [], [], [], [],
+            COMMAND_TRUST_GIT_ERROR,
+            [],
+            [],
+            [],
+            [],
             f"command trust verification failed: {exc}",
         )
 
     if errors:
         return CommandTrustCheck(
-            COMMAND_TRUST_GIT_ERROR, checked, untrusted, external, untracked,
+            COMMAND_TRUST_GIT_ERROR,
+            checked,
+            untrusted,
+            external,
+            untracked,
             "\n".join(errors),
         )
     if untrusted:
         return CommandTrustCheck(
-            COMMAND_TRUST_UNTRUSTED, checked, untrusted, external, untracked, "",
+            COMMAND_TRUST_UNTRUSTED,
+            checked,
+            untrusted,
+            external,
+            untracked,
+            "",
         )
     return CommandTrustCheck(
-        COMMAND_TRUST_TRUSTED, checked, [], external, untracked, "",
+        COMMAND_TRUST_TRUSTED,
+        checked,
+        [],
+        external,
+        untracked,
+        "",
     )
 
 
@@ -2718,9 +2749,7 @@ def _evaluate_criterion(criterion: dict, pr_number: int) -> dict:
 
     parsed = _parse_stdout_json(proc.stdout)
     if parsed is None:
-        result["reason"] = (
-            f"command stdout is not a JSON object; fail_open={fail_open}"
-        )
+        result["reason"] = f"command stdout is not a JSON object; fail_open={fail_open}"
         result["passed"] = fail_open
         return result
 
@@ -2750,10 +2779,7 @@ def _evaluate_criterion(criterion: dict, pr_number: int) -> dict:
 
     result["passed"] = verdict
     if not verdict:
-        result["reason"] = (
-            f"pass_when evaluated false; stdout-json keys: "
-            f"{sorted(parsed.keys())}"
-        )
+        result["reason"] = f"pass_when evaluated false; stdout-json keys: {sorted(parsed.keys())}"
     return result
 
 
@@ -3412,12 +3438,8 @@ def _report_verify_only(
                     "trusted_ref": trust_anchor_ref,
                     "checked_files": command_trust.checked_files,
                     "unverifiable_command_tokens": unverifiable,
-                    "skipped_external_files": (
-                        command_trust.skipped_external_files
-                    ),
-                    "skipped_untracked_files": (
-                        command_trust.skipped_untracked_files
-                    ),
+                    "skipped_external_files": (command_trust.skipped_external_files),
+                    "skipped_untracked_files": (command_trust.skipped_untracked_files),
                 },
                 indent=2,
             ),
@@ -3453,8 +3475,7 @@ def _extract_criteria(config: dict[str, Any]) -> list[Any] | None:
     criteria = config.get("completion_criteria")
     if not isinstance(criteria, list):
         print(
-            f"completion_criteria must be a list, got "
-            f"{type(criteria).__name__}",
+            f"completion_criteria must be a list, got {type(criteria).__name__}",
             file=sys.stderr,
         )
         return None
@@ -3536,9 +3557,7 @@ def main(argv: list[str] | None = None) -> int:
             # Expanded first, exactly as _collect_command_paths does, so a
             # token the plugin-root form resolved is not reported as
             # unresolvable when it was in fact compared.
-            for token in _unverifiable_argv(
-                [_expand_plugin_root(t) for t in argv]
-            ):
+            for token in _unverifiable_argv([_expand_plugin_root(t) for t in argv]):
                 if token not in unverifiable:
                     unverifiable.append(token)
         _report_verify_only(

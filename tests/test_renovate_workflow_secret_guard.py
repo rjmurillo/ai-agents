@@ -90,9 +90,7 @@ def _preflight_step(job: dict) -> dict | None:
     for step in steps:
         run_block = _step_string(step, "run")
         env = _step_mapping(step, "env")
-        pat_in_env = any(
-            isinstance(value, str) and PAT_SECRET in value for value in env.values()
-        )
+        pat_in_env = any(isinstance(value, str) and PAT_SECRET in value for value in env.values())
         if not pat_in_env:
             continue
         if "-z" not in run_block:
@@ -161,8 +159,7 @@ def test_preflight_runs_before_any_gh_call(workflow: dict, job_name: str) -> Non
         -1,
     )
     assert guard_index >= 0, (
-        f"Job {job_name!r} missing preflight guard (see other test for "
-        f"details)."
+        f"Job {job_name!r} missing preflight guard (see other test for details)."
     )
     for i, step in enumerate(steps[:guard_index]):
         run_block = _step_string(step, "run")
@@ -192,9 +189,7 @@ def test_preflight_annotation_names_the_secret_and_admin_action(
         f"which secret to rotate. See #2551."
     )
     # Either 'admin' or 'rotate' is fine, both signal "this isn't a code fix".
-    assert any(
-        marker in run_block.lower() for marker in ("admin", "rotate", "settings")
-    ), (
+    assert any(marker in run_block.lower() for marker in ("admin", "rotate", "settings")), (
         "Preflight annotation must mention admin/rotate/settings so the "
         "operator knows this is a repo-settings fix, not a code fix. "
         "See #2551."

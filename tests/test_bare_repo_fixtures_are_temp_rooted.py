@@ -101,9 +101,7 @@ class TestTheTestSuiteRootsEveryBareRepositoryInTemp:
     def result(cls) -> ScanResult:
         return scan_test_suite()
 
-    def test_no_bare_repository_literal_escapes_a_temp_root(
-        self, result: ScanResult
-    ) -> None:
+    def test_no_bare_repository_literal_escapes_a_temp_root(self, result: ScanResult) -> None:
         assert not result.violations, (
             "a test creates a bare repository or sets core.bare outside a temp "
             "root. On a checkout with extensions.worktreeConfig enabled that "
@@ -113,9 +111,7 @@ class TestTheTestSuiteRootsEveryBareRepositoryInTemp:
             + "\n  ".join(str(violation) for violation in result.violations)
         )
 
-    def test_the_scan_examined_the_corpus_it_claims_to_cover(
-        self, result: ScanResult
-    ) -> None:
+    def test_the_scan_examined_the_corpus_it_claims_to_cover(self, result: ScanResult) -> None:
         """A zero-violation result means nothing without the examined count."""
         assert result.sites_examined >= 40, (
             f"the scan found only {result.sites_examined} bare-repository "
@@ -343,9 +339,7 @@ class TestTheScanReachesAcrossModules:
     def _scan_with(self, caller: str) -> ScanResult:
         return scan(
             {"tests.helpers": self._HELPERS},
-            resolve_more=lambda name: (
-                {"tests.caller": caller} if name == "_init_bare" else {}
-            ),
+            resolve_more=lambda name: {"tests.caller": caller} if name == "_init_bare" else {},
         )
 
     def test_a_helper_is_admitted_by_callers_in_another_module(self) -> None:

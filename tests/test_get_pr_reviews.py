@@ -69,12 +69,16 @@ def _envelope(capsys) -> dict:
 
 
 def _run(reviews, argv):
-    with patch(f"{_MODULE}.assert_gh_authenticated"), patch(
-        f"{_MODULE}.resolve_repo_params",
-        return_value=_fake_repo(),
-    ), patch(
-        f"{_MODULE}.subprocess.run",
-        return_value=_slurped(reviews),
+    with (
+        patch(f"{_MODULE}.assert_gh_authenticated"),
+        patch(
+            f"{_MODULE}.resolve_repo_params",
+            return_value=_fake_repo(),
+        ),
+        patch(
+            f"{_MODULE}.subprocess.run",
+            return_value=_slurped(reviews),
+        ),
     ):
         return main(argv)
 
@@ -228,24 +232,32 @@ class TestMain:
         ],
     )
     def test_api_failure_exit_codes(self, stderr, expected):
-        with patch(f"{_MODULE}.assert_gh_authenticated"), patch(
-            f"{_MODULE}.resolve_repo_params",
-            return_value=_fake_repo(),
-        ), patch(
-            f"{_MODULE}.subprocess.run",
-            return_value=_completed(rc=1, stderr=stderr),
+        with (
+            patch(f"{_MODULE}.assert_gh_authenticated"),
+            patch(
+                f"{_MODULE}.resolve_repo_params",
+                return_value=_fake_repo(),
+            ),
+            patch(
+                f"{_MODULE}.subprocess.run",
+                return_value=_completed(rc=1, stderr=stderr),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "10"])
             assert exc.value.code == expected
 
     def test_timeout_exits_3_with_api_error(self, capsys):
-        with patch(f"{_MODULE}.assert_gh_authenticated"), patch(
-            f"{_MODULE}.resolve_repo_params",
-            return_value=_fake_repo(),
-        ), patch(
-            f"{_MODULE}.subprocess.run",
-            side_effect=subprocess.TimeoutExpired("gh", 60),
+        with (
+            patch(f"{_MODULE}.assert_gh_authenticated"),
+            patch(
+                f"{_MODULE}.resolve_repo_params",
+                return_value=_fake_repo(),
+            ),
+            patch(
+                f"{_MODULE}.subprocess.run",
+                side_effect=subprocess.TimeoutExpired("gh", 60),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "10"])
@@ -256,12 +268,16 @@ class TestMain:
         assert output["Error"]["Type"] == "ApiError"
 
     def test_invalid_json_exits_3(self):
-        with patch(f"{_MODULE}.assert_gh_authenticated"), patch(
-            f"{_MODULE}.resolve_repo_params",
-            return_value=_fake_repo(),
-        ), patch(
-            f"{_MODULE}.subprocess.run",
-            return_value=_completed(stdout="not-json"),
+        with (
+            patch(f"{_MODULE}.assert_gh_authenticated"),
+            patch(
+                f"{_MODULE}.resolve_repo_params",
+                return_value=_fake_repo(),
+            ),
+            patch(
+                f"{_MODULE}.subprocess.run",
+                return_value=_completed(stdout="not-json"),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "10"])
@@ -272,24 +288,32 @@ class TestPagination:
     def test_multiple_pages_flattened(self, capsys):
         page1 = [_api_review("alice", "APPROVED", "", review_id=1)]
         page2 = [_api_review("bob", "CHANGES_REQUESTED", "", review_id=2)]
-        with patch(f"{_MODULE}.assert_gh_authenticated"), patch(
-            f"{_MODULE}.resolve_repo_params",
-            return_value=_fake_repo(),
-        ), patch(
-            f"{_MODULE}.subprocess.run",
-            return_value=_slurped(page1, page2),
+        with (
+            patch(f"{_MODULE}.assert_gh_authenticated"),
+            patch(
+                f"{_MODULE}.resolve_repo_params",
+                return_value=_fake_repo(),
+            ),
+            patch(
+                f"{_MODULE}.subprocess.run",
+                return_value=_slurped(page1, page2),
+            ),
         ):
             assert main(["--pull-request", "10"]) == 0
         assert _envelope(capsys)["Data"]["count"] == 2
 
     def test_single_page_not_wrapped(self, capsys):
         page = [_api_review("carol", "COMMENTED", "see inline", review_id=3)]
-        with patch(f"{_MODULE}.assert_gh_authenticated"), patch(
-            f"{_MODULE}.resolve_repo_params",
-            return_value=_fake_repo(),
-        ), patch(
-            f"{_MODULE}.subprocess.run",
-            return_value=_completed(stdout=json.dumps([page])),
+        with (
+            patch(f"{_MODULE}.assert_gh_authenticated"),
+            patch(
+                f"{_MODULE}.resolve_repo_params",
+                return_value=_fake_repo(),
+            ),
+            patch(
+                f"{_MODULE}.subprocess.run",
+                return_value=_completed(stdout=json.dumps([page])),
+            ),
         ):
             assert main(["--pull-request", "10"]) == 0
         reviews = _envelope(capsys)["Data"]["reviews"]

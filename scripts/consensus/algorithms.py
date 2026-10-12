@@ -103,16 +103,12 @@ def majority_consensus(votes: list[Vote]) -> ConsensusResult:
     # Calculate weighted confidence from approvers or rejectors
     if votes_for > votes_against:
         decision = "approved"
-        confidence = (
-            sum(v.confidence for v in approvals) / votes_for if votes_for > 0 else 0.0
-        )
+        confidence = sum(v.confidence for v in approvals) / votes_for if votes_for > 0 else 0.0
         summary = f"Approved by majority ({votes_for} for, {votes_against} against)"
     elif votes_against > votes_for:
         decision = "rejected"
         confidence = (
-            sum(v.confidence for v in rejections) / votes_against
-            if votes_against > 0
-            else 0.0
+            sum(v.confidence for v in rejections) / votes_against if votes_against > 0 else 0.0
         )
         summary = f"Rejected by majority ({votes_against} against, {votes_for} for)"
     else:
@@ -131,9 +127,7 @@ def majority_consensus(votes: list[Vote]) -> ConsensusResult:
     )
 
 
-def weighted_consensus(
-    votes: list[Vote], weights: dict[str, float]
-) -> ConsensusResult:
+def weighted_consensus(votes: list[Vote], weights: dict[str, float]) -> ConsensusResult:
     """Weighted voting based on agent expertise.
 
     Each agent's vote is weighted by their expertise in the decision domain.
@@ -158,36 +152,28 @@ def weighted_consensus(
     abstentions = [v for v in votes if v.position == "abstain"]
 
     # Calculate weighted scores
-    weighted_for = sum(
-        weights.get(v.agent, 1.0) * v.confidence for v in approvals
-    )
-    weighted_against = sum(
-        weights.get(v.agent, 1.0) * v.confidence for v in rejections
-    )
+    weighted_for = sum(weights.get(v.agent, 1.0) * v.confidence for v in approvals)
+    weighted_against = sum(weights.get(v.agent, 1.0) * v.confidence for v in rejections)
 
     votes_for = len(approvals)
     votes_against = len(rejections)
     abstain_count = len(abstentions)
 
     # Total possible weight for participating voters
-    total_weight = sum(
-        weights.get(v.agent, 1.0) for v in votes if v.position != "abstain"
-    )
+    total_weight = sum(weights.get(v.agent, 1.0) for v in votes if v.position != "abstain")
 
     decision: DecisionOutcome
     if weighted_for > weighted_against:
         decision = "approved"
         confidence = weighted_for / total_weight if total_weight > 0 else 0.0
         summary = (
-            f"Approved by weighted vote "
-            f"({weighted_for:.2f} for, {weighted_against:.2f} against)"
+            f"Approved by weighted vote ({weighted_for:.2f} for, {weighted_against:.2f} against)"
         )
     elif weighted_against > weighted_for:
         decision = "rejected"
         confidence = weighted_against / total_weight if total_weight > 0 else 0.0
         summary = (
-            f"Rejected by weighted vote "
-            f"({weighted_against:.2f} against, {weighted_for:.2f} for)"
+            f"Rejected by weighted vote ({weighted_against:.2f} against, {weighted_for:.2f} for)"
         )
     else:
         decision = "no_consensus"
@@ -205,9 +191,7 @@ def weighted_consensus(
     )
 
 
-def quorum_consensus(
-    votes: list[Vote], quorum_threshold: float = 0.67
-) -> ConsensusResult:
+def quorum_consensus(votes: list[Vote], quorum_threshold: float = 0.67) -> ConsensusResult:
     """Quorum-based consensus.
 
     Requires minimum participation before deciding. If quorum is not met,

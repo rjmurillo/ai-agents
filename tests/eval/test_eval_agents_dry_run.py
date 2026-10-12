@@ -82,9 +82,7 @@ def _run_agents(*args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-def _run_suite(
-    *args: str, env: dict[str, str] | None = None
-) -> subprocess.CompletedProcess[str]:
+def _run_suite(*args: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, str(SUITE_SCRIPT), *args],
         capture_output=True,
@@ -102,7 +100,8 @@ def _git(args: list[str], cwd: Path) -> None:
         ["git", *args],
         cwd=str(cwd),
         capture_output=True,
-        text=True, encoding="utf-8",
+        text=True,
+        encoding="utf-8",
         check=True,
         timeout=60,
         env=_clean_subprocess_env(),
@@ -125,10 +124,16 @@ def _temp_git_repo() -> Iterator[Path]:
         _git(["add", "seed.txt"], repo)
         _git(
             [
-                "-c", "user.email=eval@test",
-                "-c", "user.name=eval",
-                "-c", "commit.gpgsign=false",
-                "commit", "-q", "-m", "seed",
+                "-c",
+                "user.email=eval@test",
+                "-c",
+                "user.name=eval",
+                "-c",
+                "commit.gpgsign=false",
+                "commit",
+                "-q",
+                "-m",
+                "seed",
             ],
             repo,
         )
@@ -227,8 +232,7 @@ class TestEvalAgentsCli:
         )
         result = _run_agents("--agent", "architect", "--dry-run")
         assert result.returncode == 0, (
-            f"Expected dry-run exit 0; got {result.returncode}.\n"
-            f"stderr: {result.stderr[-500:]}"
+            f"Expected dry-run exit 0; got {result.returncode}.\nstderr: {result.stderr[-500:]}"
         )
         # Must explicitly signal dry-run completion, not silently exit
         assert "dry-run" in result.stderr.lower() or "dry run" in result.stderr.lower()
@@ -269,7 +273,11 @@ class TestEvalSuiteAgentsDryRun:
         """
         with _temp_git_repo() as repo:
             result = _run_suite(
-                "--scope", "agents", "--dry-run", "--base-ref", "HEAD",
+                "--scope",
+                "agents",
+                "--dry-run",
+                "--base-ref",
+                "HEAD",
                 env=_suite_env(repo),
             )
         assert result.returncode == 0, (
@@ -299,8 +307,13 @@ class TestEvalSuiteAgentsDryRun:
             _git(["add", agent_rel], repo)
             out_file = repo / ".git" / "eval-out.json"
             _run_suite(
-                "--scope", "agents", "--dry-run", "--base-ref", "HEAD",
-                "--output", str(out_file),
+                "--scope",
+                "agents",
+                "--dry-run",
+                "--base-ref",
+                "HEAD",
+                "--output",
+                str(out_file),
                 env=_suite_env(repo),
             )
             output = json.loads(out_file.read_text(encoding="utf-8"))
@@ -312,9 +325,11 @@ class TestEvalSuiteAgentsDryRun:
 
     def test_invalid_base_ref_exits_config(self):
         result = _run_suite(
-            "--scope", "agents",
+            "--scope",
+            "agents",
             "--dry-run",
-            "--base-ref", "definitely-not-a-real-ref",
+            "--base-ref",
+            "definitely-not-a-real-ref",
         )
 
         assert result.returncode == 2
@@ -354,9 +369,7 @@ class TestEvalSuiteAgentsDryRun:
             stderr = ""
 
         monkeypatch.setattr(eval_suite.subprocess, "run", lambda *_args, **_kwargs: _Result())
-        result = eval_suite.run_skill_knowledge(
-            [".claude/skills/demo/SKILL.md"], "model", False
-        )
+        result = eval_suite.run_skill_knowledge([".claude/skills/demo/SKILL.md"], "model", False)
 
         assert result["passed"] is False
         assert result["skills"]["demo"]["passed"] is False

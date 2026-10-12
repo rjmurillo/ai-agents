@@ -17,8 +17,7 @@ from scripts.github_core.api import RepoInfo
 # Import the script via importlib (not a package)
 # ---------------------------------------------------------------------------
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1]
-    / ".claude" / "skills" / "github" / "scripts" / "pr"
+    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "pr"
 )
 
 
@@ -62,9 +61,13 @@ class TestBuildParser:
         assert args.thread_id == "PRRT_abc"
 
     def test_include_minimized_flag(self):
-        args = build_parser().parse_args([
-            "--thread-id", "PRRT_abc", "--include-minimized",
-        ])
+        args = build_parser().parse_args(
+            [
+                "--thread-id",
+                "PRRT_abc",
+                "--include-minimized",
+            ]
+        )
         assert args.include_minimized is True
 
 
@@ -75,66 +78,78 @@ class TestBuildParser:
 
 class TestMain:
     def test_invalid_thread_id_format_exits_2(self):
-        with patch(
-            "get_thread_conversation_history.assert_gh_authenticated",
-        ), patch(
-            "get_thread_conversation_history.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
+        with (
+            patch(
+                "get_thread_conversation_history.assert_gh_authenticated",
+            ),
+            patch(
+                "get_thread_conversation_history.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--thread-id", "INVALID"])
             assert exc.value.code == 2
 
     def test_empty_thread_id_exits_2(self):
-        with patch(
-            "get_thread_conversation_history.assert_gh_authenticated",
-        ), patch(
-            "get_thread_conversation_history.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
+        with (
+            patch(
+                "get_thread_conversation_history.assert_gh_authenticated",
+            ),
+            patch(
+                "get_thread_conversation_history.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--thread-id", "  "])
             assert exc.value.code == 2
 
     def test_successful_thread_fetch(self, capsys):
-        gql_response = json.dumps({
-            "data": {
-                "node": {
-                    "id": "PRRT_abc",
-                    "isResolved": False,
-                    "isOutdated": False,
-                    "path": "src/main.py",
-                    "line": 42,
-                    "startLine": None,
-                    "diffSide": "RIGHT",
-                    "comments": {
-                        "totalCount": 1,
-                        "pageInfo": {"hasNextPage": False, "endCursor": None},
-                        "nodes": [
-                            {
-                                "id": "PRRC_abc",
-                                "databaseId": 100,
-                                "body": "Fix this bug",
-                                "author": {"login": "reviewer"},
-                                "createdAt": "2024-01-01T00:00:00Z",
-                                "updatedAt": "2024-01-01T00:00:00Z",
-                                "isMinimized": False,
-                                "minimizedReason": None,
-                                "replyTo": None,
-                            },
-                        ],
+        gql_response = json.dumps(
+            {
+                "data": {
+                    "node": {
+                        "id": "PRRT_abc",
+                        "isResolved": False,
+                        "isOutdated": False,
+                        "path": "src/main.py",
+                        "line": 42,
+                        "startLine": None,
+                        "diffSide": "RIGHT",
+                        "comments": {
+                            "totalCount": 1,
+                            "pageInfo": {"hasNextPage": False, "endCursor": None},
+                            "nodes": [
+                                {
+                                    "id": "PRRC_abc",
+                                    "databaseId": 100,
+                                    "body": "Fix this bug",
+                                    "author": {"login": "reviewer"},
+                                    "createdAt": "2024-01-01T00:00:00Z",
+                                    "updatedAt": "2024-01-01T00:00:00Z",
+                                    "isMinimized": False,
+                                    "minimizedReason": None,
+                                    "replyTo": None,
+                                },
+                            ],
+                        },
                     },
                 },
-            },
-        })
-        with patch(
-            "get_thread_conversation_history.assert_gh_authenticated",
-        ), patch(
-            "get_thread_conversation_history.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout=gql_response, rc=0),
+            }
+        )
+        with (
+            patch(
+                "get_thread_conversation_history.assert_gh_authenticated",
+            ),
+            patch(
+                "get_thread_conversation_history.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=gql_response, rc=0),
+            ),
         ):
             rc = main(["--thread-id", "PRRT_abc"])
         assert rc == 0
@@ -143,55 +158,61 @@ class TestMain:
         assert output["ReturnedComments"] == 1
 
     def test_minimized_comments_filtered(self, capsys):
-        gql_response = json.dumps({
-            "data": {
-                "node": {
-                    "id": "PRRT_abc",
-                    "isResolved": False,
-                    "isOutdated": False,
-                    "path": "src/main.py",
-                    "line": 42,
-                    "startLine": None,
-                    "diffSide": "RIGHT",
-                    "comments": {
-                        "totalCount": 2,
-                        "pageInfo": {"hasNextPage": False, "endCursor": None},
-                        "nodes": [
-                            {
-                                "id": "PRRC_1",
-                                "databaseId": 100,
-                                "body": "Visible",
-                                "author": {"login": "user"},
-                                "createdAt": "2024-01-01T00:00:00Z",
-                                "updatedAt": "2024-01-01T00:00:00Z",
-                                "isMinimized": False,
-                                "minimizedReason": None,
-                                "replyTo": None,
-                            },
-                            {
-                                "id": "PRRC_2",
-                                "databaseId": 101,
-                                "body": "Hidden",
-                                "author": {"login": "user"},
-                                "createdAt": "2024-01-01T00:00:00Z",
-                                "updatedAt": "2024-01-01T00:00:00Z",
-                                "isMinimized": True,
-                                "minimizedReason": "spam",
-                                "replyTo": None,
-                            },
-                        ],
+        gql_response = json.dumps(
+            {
+                "data": {
+                    "node": {
+                        "id": "PRRT_abc",
+                        "isResolved": False,
+                        "isOutdated": False,
+                        "path": "src/main.py",
+                        "line": 42,
+                        "startLine": None,
+                        "diffSide": "RIGHT",
+                        "comments": {
+                            "totalCount": 2,
+                            "pageInfo": {"hasNextPage": False, "endCursor": None},
+                            "nodes": [
+                                {
+                                    "id": "PRRC_1",
+                                    "databaseId": 100,
+                                    "body": "Visible",
+                                    "author": {"login": "user"},
+                                    "createdAt": "2024-01-01T00:00:00Z",
+                                    "updatedAt": "2024-01-01T00:00:00Z",
+                                    "isMinimized": False,
+                                    "minimizedReason": None,
+                                    "replyTo": None,
+                                },
+                                {
+                                    "id": "PRRC_2",
+                                    "databaseId": 101,
+                                    "body": "Hidden",
+                                    "author": {"login": "user"},
+                                    "createdAt": "2024-01-01T00:00:00Z",
+                                    "updatedAt": "2024-01-01T00:00:00Z",
+                                    "isMinimized": True,
+                                    "minimizedReason": "spam",
+                                    "replyTo": None,
+                                },
+                            ],
+                        },
                     },
                 },
-            },
-        })
-        with patch(
-            "get_thread_conversation_history.assert_gh_authenticated",
-        ), patch(
-            "get_thread_conversation_history.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout=gql_response, rc=0),
+            }
+        )
+        with (
+            patch(
+                "get_thread_conversation_history.assert_gh_authenticated",
+            ),
+            patch(
+                "get_thread_conversation_history.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=gql_response, rc=0),
+            ),
         ):
             rc = main(["--thread-id", "PRRT_abc"])
         assert rc == 0
@@ -201,14 +222,18 @@ class TestMain:
 
     def test_thread_not_found_exits_2(self):
         gql_response = json.dumps({"data": {"node": None}})
-        with patch(
-            "get_thread_conversation_history.assert_gh_authenticated",
-        ), patch(
-            "get_thread_conversation_history.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout=gql_response, rc=0),
+        with (
+            patch(
+                "get_thread_conversation_history.assert_gh_authenticated",
+            ),
+            patch(
+                "get_thread_conversation_history.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=gql_response, rc=0),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--thread-id", "PRRT_nonexistent"])

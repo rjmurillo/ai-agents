@@ -87,9 +87,7 @@ class TestRun:
         assert rc == 0
         assert "artifact_count=0" in out_file.read_text()
 
-    def test_invalid_scan_depth_returns_config_error(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_invalid_scan_depth_returns_config_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("SCAN_DEPTH_DAYS", "not-a-number")
         assert main() == 2
 

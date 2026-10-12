@@ -293,9 +293,7 @@ def _find_containment_root() -> Path:
     if result.returncode == 0 and result.stdout.strip():
         root = Path(result.stdout.strip()).resolve()
         if not cwd.is_relative_to(root):
-            raise BatteryConfigError(
-                f"current directory {cwd} is outside git top-level {root}"
-            )
+            raise BatteryConfigError(f"current directory {cwd} is outside git top-level {root}")
         return root
     return cwd
 

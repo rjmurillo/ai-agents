@@ -46,15 +46,10 @@ class TestExtractLookupReferences:
 | [keyword](other.md) | [target](quality/target.md) |
 """
 
-        assert extract_lookup_references(markdown) == [
-            "quality/target.md"
-        ]
+        assert extract_lookup_references(markdown) == ["quality/target.md"]
 
     def test_extracts_custom_root_lookup_links(self) -> None:
-        markdown = (
-            "| quality routes: [one](quality/one.md), "
-            "[two](quality/two.md)\n"
-        )
+        markdown = "| quality routes: [one](quality/one.md), [two](quality/two.md)\n"
 
         assert extract_lookup_references(markdown) == [
             "quality/one.md",
@@ -80,28 +75,17 @@ class TestExtractLookupReferences:
         assert extract_lookup_references(markdown) == ["quality/live.md"]
 
     def test_comment_marker_inside_fence_does_not_hide_later_route(self) -> None:
-        markdown = (
-            "```\n"
-            "<!--\n"
-            "```\n"
-            "| live: [live](quality/live.md)\n"
-        )
+        markdown = "```\n<!--\n```\n| live: [live](quality/live.md)\n"
 
         assert extract_lookup_references(markdown) == ["quality/live.md"]
 
     def test_adjacent_prose_link_is_not_a_lookup_route(self) -> None:
-        markdown = (
-            "| live: [live](quality/live.md)\n"
-            "ordinary prose [hidden](quality/hidden.md)\n"
-        )
+        markdown = "| live: [live](quality/live.md)\nordinary prose [hidden](quality/hidden.md)\n"
 
         assert extract_lookup_references(markdown) == ["quality/live.md"]
 
     def test_reference_style_root_link_uses_document_definition(self) -> None:
-        markdown = (
-            "| live: [live][quality]\n\n"
-            "[quality]: quality/live.md\n"
-        )
+        markdown = "| live: [live][quality]\n\n[quality]: quality/live.md\n"
 
         assert extract_lookup_references(markdown) == ["quality/live.md"]
 
@@ -116,10 +100,7 @@ class TestExtractLookupReferences:
         assert extract_lookup_references(markdown) == ["quality/live.md"]
 
     def test_pipe_line_nested_in_list_is_not_root_route(self) -> None:
-        markdown = (
-            "- example\n"
-            "  | fake: [hidden](quality/hidden.md)\n"
-        )
+        markdown = "- example\n  | fake: [hidden](quality/hidden.md)\n"
 
         assert extract_lookup_references(markdown) == []
 
@@ -257,7 +238,8 @@ class TestFindChecklistItem:
 
     def test_regex_pattern(self):
         result = find_checklist_item(
-            self.CHECKLIST_TABLE, r"initial_instructions",
+            self.CHECKLIST_TABLE,
+            r"initial_instructions",
         )
         assert result.complete is True
         assert "loaded" in result.evidence.lower() or result.evidence != ""
@@ -794,10 +776,7 @@ class TestBlankNonProseBlockLines:
         # filter never skips a real match. Asserts the decoy's visible
         # "Accepted" survives (it is real prose, not a comment) and the
         # real comment's own hidden "Accepted" is masked.
-        text = (
-            "prose \\<!--\n**Status**: Accepted\n--> more <!--\n"
-            "**Status**: Accepted\n-->\n"
-        )
+        text = "prose \\<!--\n**Status**: Accepted\n--> more <!--\n**Status**: Accepted\n-->\n"
         out = blank_non_prose_block_lines(text)
         assert out.startswith("prose \\<!--\n**Status**: Accepted\n--> more ")
         assert out.count("Accepted") == 1
@@ -841,14 +820,9 @@ class TestBlankNonProseBlockLines:
         # rejected and no later occurrence exists to fall back to); the
         # correct implementation always finds the real comment and masks
         # it, leaving `Accepted` exactly once (the decoy's visible prose).
-        text = (
-            "prose \\<!--\n**Status**: Accepted\n--> more \\\\<!--\n"
-            "**Status**: Accepted\n-->\n"
-        )
+        text = "prose \\<!--\n**Status**: Accepted\n--> more \\\\<!--\n**Status**: Accepted\n-->\n"
         out = blank_non_prose_block_lines(text)
-        assert out.startswith(
-            "prose \\<!--\n**Status**: Accepted\n--> more \\\\"
-        )
+        assert out.startswith("prose \\<!--\n**Status**: Accepted\n--> more \\\\")
         assert out.count("Accepted") == 1
 
     def test_preserves_line_count(self):
@@ -940,9 +914,12 @@ class TestNestingExhaustion:
     def _nested_fence(depth: int) -> str:
         quote = ">" * depth + " "
         return (
-            quote + "```\n"
-            + quote + "<!-- vendor-portability: example -->\n"
-            + quote + "```\n"
+            quote
+            + "```\n"
+            + quote
+            + "<!-- vendor-portability: example -->\n"
+            + quote
+            + "```\n"
             + "Ref .project-toolkit/analysis/foo.md.\n"
         )
 

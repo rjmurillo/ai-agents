@@ -303,9 +303,7 @@ def find_tension(data: dict[str, Any], tension_id: str) -> dict[str, Any] | None
     return None
 
 
-def tension_prefer(
-    tension: dict[str, Any], context: str, policy_id: str, eval_id: str
-) -> bool:
+def tension_prefer(tension: dict[str, Any], context: str, policy_id: str, eval_id: str) -> bool:
     """Record a per-context resolution for a tension. Return True if it changed.
 
     Idempotent on eval_id within the context. policy_id must be one of the two
@@ -343,16 +341,13 @@ def select_policies(
     selected = [
         policy
         for policy in data.get("policies", [])
-        if policy.get("owner_agent") in (agent, "shared")
-        and policy.get("status") != "retired"
+        if policy.get("owner_agent") in (agent, "shared") and policy.get("status") != "retired"
     ]
     selected_ids = {policy["id"] for policy in selected}
 
     results: list[dict[str, Any]] = []
     for policy in selected:
-        annotation = _tension_annotation(
-            policy["id"], selected_ids, tensions_data, context
-        )
+        annotation = _tension_annotation(policy["id"], selected_ids, tensions_data, context)
         results.append(
             {
                 "id": policy["id"],
@@ -539,10 +534,7 @@ def _cmd_tension_prefer(args: argparse.Namespace, paths: dict[str, Path]) -> int
         return EXIT_LOGIC
     if tension_prefer(tension, args.context, args.policy_id, args.eval):
         save_skillbook_file(paths["tensions"], data)
-        print(
-            f"tension {args.tension_id}: in context {args.context!r} "
-            f"prefer {args.policy_id}"
-        )
+        print(f"tension {args.tension_id}: in context {args.context!r} prefer {args.policy_id}")
     else:
         print(f"No-op: eval {args.eval!r} already recorded for that context.")
     return EXIT_OK
@@ -566,10 +558,7 @@ def cmd_select(args: argparse.Namespace, paths: dict[str, Path]) -> int:
     print(f"Active policies for {args.agent!r} in context {args.context!r}:")
     for result in results:
         marker = "  " if result["status"] == "active" else "? "
-        line = (
-            f"{marker}{result['id']} [{result['tier']}/{result['status']}] "
-            f"{result['name']}"
-        )
+        line = f"{marker}{result['id']} [{result['tier']}/{result['status']}] {result['name']}"
         print(line)
         tension = result["tension"]
         if tension and tension["verdict"] != "unresolved":
@@ -608,14 +597,10 @@ def build_parser() -> argparse.ArgumentParser:
     status.add_argument("--json", action="store_true", help="Emit JSON.")
 
     confirm = sub.add_parser("confirm", help="Log an eval-grounded confirmation.")
-    contradict = sub.add_parser(
-        "contradict", help="Log an eval-grounded contradiction."
-    )
+    contradict = sub.add_parser("contradict", help="Log an eval-grounded contradiction.")
     for evidence_parser in (confirm, contradict):
         evidence_parser.add_argument("policy_id", help="Policy id (pol-*).")
-        evidence_parser.add_argument(
-            "--eval", required=True, help="Eval run/fixture identifier."
-        )
+        evidence_parser.add_argument("--eval", required=True, help="Eval run/fixture identifier.")
         evidence_parser.add_argument(
             "--context-type",
             choices=sorted(CONTEXT_WEIGHTS),
@@ -630,9 +615,7 @@ def build_parser() -> argparse.ArgumentParser:
     tension_sub = tension.add_subparsers(dest="tension_command", required=True)
     tension_list = tension_sub.add_parser("list", help="Show all tensions.")
     tension_list.add_argument("--json", action="store_true", help="Emit JSON.")
-    tension_prefer_p = tension_sub.add_parser(
-        "prefer", help="Record a per-context resolution."
-    )
+    tension_prefer_p = tension_sub.add_parser("prefer", help="Record a per-context resolution.")
     tension_prefer_p.add_argument("tension_id", help="Tension id (ten-*).")
     tension_prefer_p.add_argument("context", help="Context name.")
     tension_prefer_p.add_argument("policy_id", help="Preferred policy id (pol-*).")

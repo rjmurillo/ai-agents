@@ -190,9 +190,7 @@ def _validate(env: PublisherEnv) -> CheckOutcome | None:
     )
 
 
-def _run_harness(
-    scratch: Path, environ: Mapping[str, str], runner: Runner
-) -> CheckOutcome | None:
+def _run_harness(scratch: Path, environ: Mapping[str, str], runner: Runner) -> CheckOutcome | None:
     """Run the harness. Return None when it exited 0, else the typed failure."""
     try:
         completed = runner(

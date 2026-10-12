@@ -319,21 +319,21 @@ Create `scripts/validation/bundle_registry.py` as the single source of truth (lo
 
 ```python
 BUNDLE_REGISTRY = [
-    ("spec.md",      "session-init"),
-    ("ship.md",      "session-end"),
-    ("ship.md",      "reflect"),
-    ("plan.md",      "pre-mortem"),
-    ("plan.md",      "decision-critic"),
-    ("build.md",     "context-gather"),
-    ("build.md",     "steering-matcher"),
-    ("build.md",     "chestertons-fence"),
-    ("test.md",      "threat-modeling"),
-    ("test.md",      "slo-designer"),
-    ("test.md",      "observability"),
-    ("review.md",    "doc-accuracy"),
-    ("review.md",    "chestertons-fence"),
+    ("spec.md", "session-init"),
+    ("ship.md", "session-end"),
+    ("ship.md", "reflect"),
+    ("plan.md", "pre-mortem"),
+    ("plan.md", "decision-critic"),
+    ("build.md", "context-gather"),
+    ("build.md", "steering-matcher"),
+    ("build.md", "chestertons-fence"),
+    ("test.md", "threat-modeling"),
+    ("test.md", "slo-designer"),
+    ("test.md", "observability"),
+    ("review.md", "doc-accuracy"),
+    ("review.md", "chestertons-fence"),
     ("pr-review.md", "merge-resolver"),
-    ("research.md",  "context-gather"),
+    ("research.md", "context-gather"),
 ]
 ```
 

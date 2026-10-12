@@ -16,6 +16,7 @@ import eval_durable_outcome as cli  # noqa: E402
 
 __all__ = ["EVAL_DIR", "cli", "durable", "make_config", "make_record", "outcome", "durable_record"]
 
+
 def make_config(**overrides: object) -> dict[str, Any]:
     base: dict[str, Any] = {
         "model": "claude-sonnet-5",

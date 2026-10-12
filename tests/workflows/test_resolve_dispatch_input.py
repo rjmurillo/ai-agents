@@ -9,10 +9,7 @@ from pathlib import Path
 import pytest
 
 _SCRIPT = (
-    Path(__file__).resolve().parents[2]
-    / "scripts"
-    / "workflows"
-    / "resolve_dispatch_input.py"
+    Path(__file__).resolve().parents[2] / "scripts" / "workflows" / "resolve_dispatch_input.py"
 )
 _SPEC = importlib.util.spec_from_file_location("resolve_dispatch_input", _SCRIPT)
 assert _SPEC is not None and _SPEC.loader is not None
@@ -38,9 +35,7 @@ class TestIntegerValues:
     def test_accepts_a_positive_integer(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        code, written = _run(
-            monkeypatch, tmp_path, OUTPUT_NAME="days", INPUT_VALUE="7"
-        )
+        code, written = _run(monkeypatch, tmp_path, OUTPUT_NAME="days", INPUT_VALUE="7")
 
         assert code == 0
         assert written == "days=7\n"
@@ -48,16 +43,12 @@ class TestIntegerValues:
     def test_rejects_a_shell_metacharacter(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        code, written = _run(
-            monkeypatch, tmp_path, OUTPUT_NAME="days", INPUT_VALUE="7; curl evil"
-        )
+        code, written = _run(monkeypatch, tmp_path, OUTPUT_NAME="days", INPUT_VALUE="7; curl evil")
 
         assert code == 1
         assert written == ""
 
-    def test_rejects_an_empty_value(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-    ) -> None:
+    def test_rejects_an_empty_value(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         code, _ = _run(monkeypatch, tmp_path, OUTPUT_NAME="days", INPUT_VALUE="")
 
         assert code == 1
@@ -85,9 +76,7 @@ class TestIntegerValues:
 
 
 class TestChoiceValues:
-    def test_accepts_a_listed_choice(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-    ) -> None:
+    def test_accepts_a_listed_choice(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         code, written = _run(
             monkeypatch,
             tmp_path,
@@ -167,9 +156,7 @@ class TestConfigErrors:
 
         assert resolver.main() == 2
 
-    def test_missing_github_output_is_a_config_error(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_missing_github_output_is_a_config_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
         monkeypatch.setenv("OUTPUT_NAME", "days")
         monkeypatch.setenv("INPUT_VALUE", "7")
@@ -179,9 +166,7 @@ class TestConfigErrors:
     def test_an_injected_output_name_is_refused(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        code, written = _run(
-            monkeypatch, tmp_path, OUTPUT_NAME="days\nevil", INPUT_VALUE="7"
-        )
+        code, written = _run(monkeypatch, tmp_path, OUTPUT_NAME="days\nevil", INPUT_VALUE="7")
 
         assert code == 2
         assert written == ""
@@ -226,17 +211,13 @@ class TestOnlyAsciiDigitsAreAccepted:
     def test_rejects_a_non_ascii_digit(
         self, value: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        code, written = _run(
-            monkeypatch, tmp_path, OUTPUT_NAME="days", INPUT_VALUE=value
-        )
+        code, written = _run(monkeypatch, tmp_path, OUTPUT_NAME="days", INPUT_VALUE=value)
 
         assert code == 1
         assert written == ""
 
     @pytest.mark.parametrize("value", _NON_ASCII_DIGITS)
-    def test_python_would_parse_the_rejected_value_as_an_integer(
-        self, value: str
-    ) -> None:
+    def test_python_would_parse_the_rejected_value_as_an_integer(self, value: str) -> None:
         """Pin why rejection matters: these are not garbage, they are numbers.
 
         A reviewer could reasonably ask whether rejecting them is pedantry. It is
@@ -257,9 +238,7 @@ class TestOnlyAsciiDigitsAreAccepted:
         (`int(value) > 0`), so the family no longer has to go with it. Pinned
         because it is a real behaviour difference from the guard, not an accident.
         """
-        code, written = _run(
-            monkeypatch, tmp_path, OUTPUT_NAME="days", INPUT_VALUE=value
-        )
+        code, written = _run(monkeypatch, tmp_path, OUTPUT_NAME="days", INPUT_VALUE=value)
 
         assert code == 0
         assert written == f"days={value}\n"
@@ -284,9 +263,7 @@ class TestOnlyAsciiDigitsAreAccepted:
         output the workflow never declared. Rejection has to happen here, at
         exit 1, not at the `write_output` guard, which reports a config error.
         """
-        code, written = _run(
-            monkeypatch, tmp_path, OUTPUT_NAME="days", INPUT_VALUE=value
-        )
+        code, written = _run(monkeypatch, tmp_path, OUTPUT_NAME="days", INPUT_VALUE=value)
 
         assert code == 1
         assert written == ""

@@ -70,4 +70,3 @@ class ExtensionResult:
         if self.reserve_bytes <= 0 or self.over_budget:
             return False
         return self.headroom_bytes < self.reserve_bytes
-

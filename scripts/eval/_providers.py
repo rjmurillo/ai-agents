@@ -131,9 +131,7 @@ def _make_copilot_cli() -> EvalProvider:
                 f"COPILOT_CLI_TIMEOUT must be a number of seconds, got {timeout!r}."
             ) from exc
         if not math.isfinite(parsed_timeout) or parsed_timeout <= 0:
-            raise RuntimeError(
-                "COPILOT_CLI_TIMEOUT must be a finite positive number of seconds."
-            )
+            raise RuntimeError("COPILOT_CLI_TIMEOUT must be a finite positive number of seconds.")
         kwargs["timeout"] = parsed_timeout
     executable = os.environ.get("COPILOT_CLI_BIN")
     if executable:
@@ -249,9 +247,7 @@ def _cli_kwargs(timeout_env: str, bin_env: str) -> dict[str, object]:
                 f"{timeout_env} must be a number of seconds, got {timeout!r}."
             ) from exc
         if not math.isfinite(parsed_timeout) or parsed_timeout <= 0:
-            raise RuntimeError(
-                f"{timeout_env} must be a finite positive number of seconds."
-            )
+            raise RuntimeError(f"{timeout_env} must be a finite positive number of seconds.")
         kwargs["timeout"] = parsed_timeout
     executable = os.environ.get(bin_env)
     if executable:

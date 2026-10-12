@@ -26,9 +26,7 @@ from scripts.security.run_semgrep import (
 @pytest.fixture
 def scanner() -> SemgrepScanner:
     """A scanner instance with a stubbed repo root (no git call)."""
-    with patch.object(
-        SemgrepScanner, "_find_repo_root", return_value=Path("/repo")
-    ):
+    with patch.object(SemgrepScanner, "_find_repo_root", return_value=Path("/repo")):
         return SemgrepScanner()
 
 
@@ -75,16 +73,12 @@ class TestRunSemgrepTimeout:
             return_value=_completed(0, stdout='{"results": []}'),
         ) as run_mock:
             scanner._run_semgrep([Path("/repo/a.py")])
-        assert run_mock.call_args.kwargs["timeout"] == (
-            SemgrepScanner.SCAN_TIMEOUT_SECONDS
-        )
+        assert run_mock.call_args.kwargs["timeout"] == (SemgrepScanner.SCAN_TIMEOUT_SECONDS)
 
     def test_run_maps_timeout_to_exit_3(self, scanner: SemgrepScanner) -> None:
         with (
             patch.object(scanner, "_check_semgrep_installed", return_value=True),
-            patch.object(
-                scanner, "_get_changed_files", return_value=[Path("/repo/a.py")]
-            ),
+            patch.object(scanner, "_get_changed_files", return_value=[Path("/repo/a.py")]),
             patch.object(
                 scanner,
                 "_run_semgrep",
@@ -131,9 +125,7 @@ class TestRunSemgrepFailClosed:
             assert scanner._run_semgrep([]) == []
         run_mock.assert_not_called()
 
-    def test_execution_error_returncode_returns_scan_failure(
-        self, scanner: SemgrepScanner
-    ) -> None:
+    def test_execution_error_returncode_returns_scan_failure(self, scanner: SemgrepScanner) -> None:
         with patch(
             "scripts.security.run_semgrep.subprocess.run",
             return_value=_completed(2, stderr="boom"),
@@ -144,9 +136,7 @@ class TestRunSemgrepFailClosed:
         assert findings[0].severity == "ERROR"
         assert "Semgrep exited 2: stderr=boom; stdout=no stdout" in findings[0].message
 
-    def test_execution_error_returncode_truncates_stderr(
-        self, scanner: SemgrepScanner
-    ) -> None:
+    def test_execution_error_returncode_truncates_stderr(self, scanner: SemgrepScanner) -> None:
         stderr = "x" * 600
         with patch(
             "scripts.security.run_semgrep.subprocess.run",
@@ -169,9 +159,7 @@ class TestRunSemgrepFailClosed:
         assert "[output begins with whitespace; truncated]" in findings[0].message
         assert "boom" not in findings[0].message
 
-    def test_generic_subprocess_error_returns_scan_failure(
-        self, scanner: SemgrepScanner
-    ) -> None:
+    def test_generic_subprocess_error_returns_scan_failure(self, scanner: SemgrepScanner) -> None:
         with patch(
             "scripts.security.run_semgrep.subprocess.run",
             side_effect=subprocess.SubprocessError("generic failure"),
@@ -225,9 +213,7 @@ class TestRunSemgrepFailClosed:
         ran. Exit 1 is the only fail-closed answer.
         """
         with (
-            patch.object(
-                scanner, "_get_changed_files", return_value=[Path("/repo/a.py")]
-            ),
+            patch.object(scanner, "_get_changed_files", return_value=[Path("/repo/a.py")]),
             patch(
                 "scripts.security.run_semgrep.subprocess.run",
                 side_effect=PermissionError(13, "Permission denied"),
@@ -258,9 +244,7 @@ class TestCompatibilityRuleExclusion:
     (issue #4223).
     """
 
-    def test_cmd_excludes_python36_compatibility_family(
-        self, scanner: SemgrepScanner
-    ) -> None:
+    def test_cmd_excludes_python36_compatibility_family(self, scanner: SemgrepScanner) -> None:
         with patch(
             "scripts.security.run_semgrep.subprocess.run",
             return_value=_completed(0, stdout='{"results": []}'),
@@ -275,16 +259,12 @@ class TestCompatibilityRuleExclusion:
             for i, flag in enumerate(cmd)
             if flag == "--exclude-rule" and i + 1 < len(cmd)
         ]
-        assert any(
-            e.startswith("python.lang.compatibility.python36") for e in exclusions
-        ), (
+        assert any(e.startswith("python.lang.compatibility.python36") for e in exclusions), (
             f"python36 compatibility family not excluded. Got exclusions: {exclusions}. "
             "The family produces guaranteed false positives on a 3.14+ floor (issue #4223)."
         )
 
-    def test_cmd_excludes_python37_compatibility_family(
-        self, scanner: SemgrepScanner
-    ) -> None:
+    def test_cmd_excludes_python37_compatibility_family(self, scanner: SemgrepScanner) -> None:
         with patch(
             "scripts.security.run_semgrep.subprocess.run",
             return_value=_completed(0, stdout='{"results": []}'),
@@ -297,16 +277,12 @@ class TestCompatibilityRuleExclusion:
             for i, flag in enumerate(cmd)
             if flag == "--exclude-rule" and i + 1 < len(cmd)
         ]
-        assert any(
-            e.startswith("python.lang.compatibility.python37") for e in exclusions
-        ), (
+        assert any(e.startswith("python.lang.compatibility.python37") for e in exclusions), (
             f"python37 compatibility family not excluded. Got exclusions: {exclusions}. "
             "The family produces guaranteed false positives on a 3.14+ floor (issue #4223)."
         )
 
-    def test_exclusions_do_not_remove_security_config(
-        self, scanner: SemgrepScanner
-    ) -> None:
+    def test_exclusions_do_not_remove_security_config(self, scanner: SemgrepScanner) -> None:
         """Excluding compatibility rules must not remove the security config."""
         with patch(
             "scripts.security.run_semgrep.subprocess.run",

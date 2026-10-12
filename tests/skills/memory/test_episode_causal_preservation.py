@@ -56,9 +56,7 @@ def _flat_episode(commit_timestamp=MIDNIGHT):
 
 def _regenerate(existing, monkeypatch, git_timestamp):
     """Run the preserve path with git resolution mocked at the process boundary."""
-    monkeypatch.setattr(
-        extract_session_episode, "_git_commit_timestamp", lambda sha: git_timestamp
-    )
+    monkeypatch.setattr(extract_session_episode, "_git_commit_timestamp", lambda sha: git_timestamp)
     fresh = _flat_episode()
     merged = extract_session_episode.merge_preserving(fresh, existing, session_id=SESSION_ID)
     extract_session_episode._renumber_events(merged["events"])
@@ -199,14 +197,10 @@ class TestPreserveCliEdgeWarning:
     def _write_episode(tmp_path, episode):
         out = tmp_path / "episodes"
         out.mkdir(exist_ok=True)
-        (out / f"episode-{SESSION_ID}.json").write_text(
-            json.dumps(episode), encoding="utf-8"
-        )
+        (out / f"episode-{SESSION_ID}.json").write_text(json.dumps(episode), encoding="utf-8")
         return out
 
-    def test_preserve_cli_exits_zero_and_does_not_reduce_edges(
-        self, tmp_path, monkeypatch, capsys
-    ):
+    def test_preserve_cli_exits_zero_and_does_not_reduce_edges(self, tmp_path, monkeypatch, capsys):
         monkeypatch.setattr(
             extract_session_episode, "_git_commit_timestamp", lambda sha: COMMIT_TIME
         )
@@ -225,9 +219,7 @@ class TestPreserveCliEdgeWarning:
     def test_preserve_cli_warns_on_stderr_when_edge_count_drops(
         self, tmp_path, monkeypatch, capsys
     ):
-        monkeypatch.setattr(
-            extract_session_episode, "_git_commit_timestamp", lambda sha: None
-        )
+        monkeypatch.setattr(extract_session_episode, "_git_commit_timestamp", lambda sha: None)
         inflated = _flat_episode()
         inflated["events"][0]["leads_to"] = ["e004"]
         inflated["events"][3]["caused_by"] = ["e001"]

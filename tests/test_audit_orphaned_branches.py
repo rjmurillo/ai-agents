@@ -136,22 +136,14 @@ class TestListRemoteBranches:
 
     @patch("scripts.audit_orphaned_branches._run_git")
     def test_excludes_patterns(self, mock_git):
-        mock_git.return_value = (
-            "origin/main\n"
-            "origin/renovate/dep-1\n"
-            "origin/feat/real"
-        )
+        mock_git.return_value = "origin/main\norigin/renovate/dep-1\norigin/feat/real"
         result = list_remote_branches(exclude_patterns=["renovate/"])
         assert "renovate/dep-1" not in result
         assert "feat/real" in result
 
     @patch("scripts.audit_orphaned_branches._run_git")
     def test_returns_sorted(self, mock_git):
-        mock_git.return_value = (
-            "origin/feat/z-branch\n"
-            "origin/feat/a-branch\n"
-            "origin/feat/m-branch"
-        )
+        mock_git.return_value = "origin/feat/z-branch\norigin/feat/a-branch\norigin/feat/m-branch"
         result = list_remote_branches(exclude_patterns=[])
         assert result == ["feat/a-branch", "feat/m-branch", "feat/z-branch"]
 

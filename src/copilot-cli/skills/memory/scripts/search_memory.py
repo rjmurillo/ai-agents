@@ -85,7 +85,9 @@ def estimate_tokens(file_path: Path) -> int:
 
 
 def search_serena(
-    query: str, memory_path: Path, max_results: int,
+    query: str,
+    memory_path: Path,
+    max_results: int,
 ) -> list[dict[str, Any]]:
     """Search Serena memories by keyword matching on memory names.
 
@@ -113,13 +115,15 @@ def search_serena(
         except OSError:
             content = ""
         preview = re.sub(r"\s+", " ", content).strip()
-        results.append({
-            "Name": rel.as_posix(),
-            "Source": "Serena",
-            "Score": round(score, 2),
-            "Path": str(md_file),
-            "Content": preview[:200] if preview else "",
-        })
+        results.append(
+            {
+                "Name": rel.as_posix(),
+                "Source": "Serena",
+                "Score": round(score, 2),
+                "Path": str(md_file),
+                "Content": preview[:200] if preview else "",
+            }
+        )
 
     results.sort(key=lambda r: float(r["Score"]), reverse=True)
     return results[:max_results]
@@ -132,7 +136,9 @@ def query_keywords(query: str) -> list[str]:
 
 
 def search_episodes(
-    query: str, episodes_path: Path, max_results: int,
+    query: str,
+    episodes_path: Path,
+    max_results: int,
 ) -> list[dict[str, Any]]:
     """Search Tier 2 episode records by keyword.
 
@@ -156,8 +162,7 @@ def search_episodes(
         task = str(episode.get("task") or "")
         lessons = episode.get("lessons")
         lesson_text = (
-            " ".join(str(lesson) for lesson in lessons)
-            if isinstance(lessons, list) else ""
+            " ".join(str(lesson) for lesson in lessons) if isinstance(lessons, list) else ""
         )
         haystack = f"{slug} {task} {lesson_text}".lower()
 
@@ -166,13 +171,15 @@ def search_episodes(
             continue
         score = len(matching) / len(keywords) if keywords else 0
         preview = re.sub(r"\s+", " ", task or slug).strip()
-        results.append({
-            "Name": episode_file.stem,
-            "Source": "Episodes",
-            "Score": round(score, 2),
-            "Path": str(episode_file),
-            "Content": preview[:200],
-        })
+        results.append(
+            {
+                "Name": episode_file.stem,
+                "Source": "Episodes",
+                "Score": round(score, 2),
+                "Path": str(episode_file),
+                "Content": preview[:200],
+            }
+        )
 
     # Ties are common because scoring is a fraction of matched keywords. Within
     # a score tier the newest episode is the most useful, so order by the date
@@ -225,20 +232,28 @@ def build_parser() -> argparse.ArgumentParser:
         help="Search query (1-500 chars, alphanumeric + common punctuation)",
     )
     parser.add_argument(
-        "--max-results", type=int, default=10,
+        "--max-results",
+        type=int,
+        default=10,
         help="Maximum results to return (1-100, default 10)",
     )
     parser.add_argument(
-        "--format", choices=["json", "table"], default="json",
+        "--format",
+        choices=["json", "table"],
+        default="json",
         dest="output_format",
         help="Output format: json (default) or table",
     )
     parser.add_argument(
-        "--serena-path", type=Path, default=None,
+        "--serena-path",
+        type=Path,
+        default=None,
         help="Path to Serena memories directory",
     )
     parser.add_argument(
-        "--episodes-path", type=Path, default=None,
+        "--episodes-path",
+        type=Path,
+        default=None,
         help="Path to the Tier 2 episode store directory",
     )
     return parser
@@ -248,7 +263,7 @@ def validate_query(query: str) -> str | None:
     """Validate query string. Returns error message or None."""
     if not query or len(query) > 500:
         return "Query must be 1-500 characters"
-    if not re.match(r'^[a-zA-Z0-9\s\-.,_()\&:]+$', query):
+    if not re.match(r"^[a-zA-Z0-9\s\-.,_()\&:]+$", query):
         return "Query contains invalid characters"
     return None
 
@@ -316,8 +331,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         elif estimate >= TOKEN_WARN_THRESHOLD:
             token_budget["Warnings"].append(
-                f"LARGE: {result['Name']} ({estimate} tokens) "
-                f"exceeds {TOKEN_WARN_THRESHOLD}",
+                f"LARGE: {result['Name']} ({estimate} tokens) exceeds {TOKEN_WARN_THRESHOLD}",
             )
 
     if output_format == "table":

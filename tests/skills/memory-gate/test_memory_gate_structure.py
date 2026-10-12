@@ -105,9 +105,7 @@ def test_points_at_canonical_search_script() -> None:
     assert "skills/memory/scripts" in body, (
         "memory-gate must reference the shared memory scripts directory"
     )
-    assert "search_memory.py" in body, (
-        "memory-gate must delegate to the canonical search_memory.py"
-    )
+    assert "search_memory.py" in body, "memory-gate must delegate to the canonical search_memory.py"
 
 
 def test_uses_portable_script_root() -> None:

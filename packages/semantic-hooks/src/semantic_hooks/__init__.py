@@ -17,12 +17,15 @@ def __getattr__(name: str):
     """Lazy import heavy modules to avoid numpy dependency for stuck detection."""
     if name == "SemanticGuard":
         from semantic_hooks.guards import SemanticGuard
+
         return SemanticGuard
     elif name == "SemanticMemory":
         from semantic_hooks.memory import SemanticMemory
+
         return SemanticMemory
     elif name == "SemanticRecorder":
         from semantic_hooks.recorder import SemanticRecorder
+
         return SemanticRecorder
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 

@@ -199,9 +199,7 @@ def test_copilot_exclude_controls_shim_omission(tmp_path, middle_shim, expect_pr
 
     out = _expand_dispatch_groups(_ONE_GROUP_DISPATCHER_HOOKS_MAP, hooks_dir)
 
-    commands = [
-        hook["command"] for group in out["PreToolUse"] for hook in group["hooks"]
-    ]
+    commands = [hook["command"] for group in out["PreToolUse"] for hook in group["hooks"]]
     assert any("b.py" in command for command in commands) == expect_present
     assert any("a.py" in command for command in commands)
     assert any("c.py" in command for command in commands)
@@ -371,9 +369,7 @@ def test_copilot_exclude_true_requires_issue_and_decision_metadata(tmp_path, met
         "decision-lowercase",
     ],
 )
-def test_copilot_exclude_true_requires_traceable_issue_and_decision_formats(
-    tmp_path, metadata
-):
+def test_copilot_exclude_true_requires_traceable_issue_and_decision_formats(tmp_path, metadata):
     """``copilotExclude`` metadata must use traceable issue and ADR formats.
 
     ADR-085 Decision 7, generic field governance items 3-4, require these
@@ -443,9 +439,7 @@ def test_non_dispatcher_groups_pass_through_unchanged(tmp_path):
         "PreToolUse": [
             {
                 "matcher": "Grep",
-                "hooks": [
-                    {"type": "command", "command": "python3 -u .claude/hooks/x.py"}
-                ],
+                "hooks": [{"type": "command", "command": "python3 -u .claude/hooks/x.py"}],
             }
         ]
     }
@@ -463,8 +457,7 @@ def test_unknown_group_raises(tmp_path):
                     {
                         "type": "command",
                         "command": (
-                            "python3 -u .claude/hooks/invoke_dispatch_claude.py "
-                            "--group nope"
+                            "python3 -u .claude/hooks/invoke_dispatch_claude.py --group nope"
                         ),
                     }
                 ],
@@ -520,9 +513,7 @@ def test_dispatcher_mixed_with_sibling_hook_raises(tmp_path):
 
 
 def test_real_settings_expand_cleanly_with_no_dispatcher_residue():
-    settings = json.loads(
-        (REPO_ROOT / ".claude" / "settings.json").read_text(encoding="utf-8")
-    )
+    settings = json.loads((REPO_ROOT / ".claude" / "settings.json").read_text(encoding="utf-8"))
     out = _expand_dispatch_groups(settings["hooks"], HOOKS_DIR)
     commands = [
         hook.get("command", "")

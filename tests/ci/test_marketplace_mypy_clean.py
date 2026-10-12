@@ -36,11 +36,9 @@ def test_marketplace_test_passes_mypy() -> None:
     )
     combined = "\n".join(filter(None, [result.stdout, result.stderr]))
     errors = [
-        line for line in combined.splitlines()
-        if "error:" in line and str(_TARGET.name) in line
+        line for line in combined.splitlines() if "error:" in line and str(_TARGET.name) in line
     ]
     assert result.returncode == 0 and not errors, (
         f"mypy found errors in {_TARGET.relative_to(_REPO_ROOT)}:\n"
         + "\n".join(errors or combined.splitlines())
     )
-

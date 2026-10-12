@@ -44,9 +44,7 @@ class TestForkRecoveryBlocking:
             }
 
         return {
-            name: parse_workflow_subscriptions(
-                _doc(name, ["opened", "synchronize", "reopened"])
-            )
+            name: parse_workflow_subscriptions(_doc(name, ["opened", "synchronize", "reopened"]))
             for name in [REQUIRED_WORKFLOW, OPTIONAL_WORKFLOW]
         }
 
@@ -57,9 +55,7 @@ class TestForkRecoveryBlocking:
             context=REQUIRED_CONTEXT,
             head_repo="contributor/ai-agents",
         )
-        manifest = plan(
-            [run], self._dispatch_subscriptions(), "workflow_dispatch"
-        )
+        manifest = plan([run], self._dispatch_subscriptions(), "workflow_dispatch")
 
         assert manifest.is_safe is False
         assert "fork" in manifest.entries[0].blocked_reason.lower()
@@ -94,9 +90,7 @@ class TestForkRecoveryBlocking:
             context=REQUIRED_CONTEXT,
             head_repo="rjmurillo/ai-agents",
         )
-        manifest = plan(
-            [run], self._dispatch_subscriptions(), "workflow_dispatch"
-        )
+        manifest = plan([run], self._dispatch_subscriptions(), "workflow_dispatch")
 
         assert manifest.is_safe is True
 
@@ -108,9 +102,7 @@ class TestForkRecoveryBlocking:
             context=REQUIRED_CONTEXT,
             head_repo="",
         )
-        manifest = plan(
-            [run], self._dispatch_subscriptions(), "workflow_dispatch"
-        )
+        manifest = plan([run], self._dispatch_subscriptions(), "workflow_dispatch")
 
         assert manifest.is_safe is False
         assert "unknown" in manifest.entries[0].blocked_reason.lower()
@@ -122,9 +114,7 @@ class TestForkRecoveryBlocking:
             context=REQUIRED_CONTEXT,
             head_repo="RJMurillo/AI-Agents",
         )
-        manifest = plan(
-            [run], self._dispatch_subscriptions(), "workflow_dispatch"
-        )
+        manifest = plan([run], self._dispatch_subscriptions(), "workflow_dispatch")
 
         assert manifest.is_safe is True
 

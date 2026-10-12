@@ -60,16 +60,23 @@ tools:
 ```python
 # Mandatory routing for security-relevant changes
 SECURITY_TRIGGERS = [
-    "**/Auth/**", "**/Security/**", "*.env*",
+    "**/Auth/**",
+    "**/Security/**",
+    "*.env*",
     "{lefthook,.lefthook,lefthook-local,.lefthook-local}.{yml,yaml,json,jsonc,toml}",
     ".config/{lefthook,lefthook-local}.{yml,yaml,json,jsonc,toml}",
     "scripts/validation/git_hook_policy.py",
-    "**/secrets/**", "*password*",
-    "**/token*", "**/oauth/**", "**/jwt/**"
+    "**/secrets/**",
+    "*password*",
+    "**/token*",
+    "**/oauth/**",
+    "**/jwt/**",
 ]
 
 if any(trigger_matches(changed_path, pattern) for pattern in SECURITY_TRIGGERS):
-    Task(subagent_type="security", prompt="""
+    Task(
+        subagent_type="security",
+        prompt="""
     Run Post-Implementation Verification for [feature].
 
     Implementation completed by implementer.
@@ -77,7 +84,8 @@ if any(trigger_matches(changed_path, pattern) for pattern in SECURITY_TRIGGERS):
 
     Verify all security controls from pre-implementation plan.
     This is a BLOCKING gate - see PIV Verdict Gate below.
-    """)
+    """,
+    )
 {{> security-mandatory-routing-for-security-relevant}}
 
 Use the Serena memory tools for both retrieval and persistence (ADR-037). The

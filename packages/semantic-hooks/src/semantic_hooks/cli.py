@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size (ruff format pushed this file past 500 lines)
 """CLI for semantic-hooks installation and management."""
 
 import argparse
@@ -13,14 +14,16 @@ CLAUDE_HOOKS_DIR = Path.home() / ".claude" / "hooks"
 CLAUDE_SETTINGS = Path.home() / ".claude" / "settings.json"
 
 # Semantic-hooks hook filenames (used for filtering)
-SEMANTIC_HOOKS_FILENAMES = frozenset({
-    "pre_tool_use.py",
-    "post_tool_use.py",
-    "post_response.py",
-    "session_start.py",
-    "session_end.py",
-    "pre_compact.py",
-})
+SEMANTIC_HOOKS_FILENAMES = frozenset(
+    {
+        "pre_tool_use.py",
+        "post_tool_use.py",
+        "post_response.py",
+        "session_start.py",
+        "session_end.py",
+        "pre_compact.py",
+    }
+)
 
 
 def _find_hooks_dir() -> Path | None:
@@ -42,7 +45,8 @@ def _find_hooks_dir() -> Path | None:
     # Strategy 2: Installed shared data location (varies by platform)
     # Common locations: /usr/share, /usr/local/share, ~/.local/share
     import site
-    for base in [sys.prefix, site.USER_BASE] if hasattr(site, 'USER_BASE') else [sys.prefix]:
+
+    for base in [sys.prefix, site.USER_BASE] if hasattr(site, "USER_BASE") else [sys.prefix]:
         if base:
             shared_hooks = Path(base) / "share" / "semantic-hooks" / "hooks"
             if shared_hooks.is_dir() and (shared_hooks / "pre_tool_use.py").exists():
@@ -147,13 +151,16 @@ def cmd_uninstall(args: argparse.Namespace) -> int:
             if "hooks" in settings:
                 # Remove only our hooks, preserve others
                 for event in [
-                    "SessionStart", "SessionEnd", "PreToolUse",
-                    "PostToolUse", "PostResponse", "PreCompact",
+                    "SessionStart",
+                    "SessionEnd",
+                    "PreToolUse",
+                    "PostToolUse",
+                    "PostResponse",
+                    "PreCompact",
                 ]:
                     if event in settings["hooks"]:
                         settings["hooks"][event] = [
-                            h for h in settings["hooks"][event]
-                            if not _is_semantic_hooks_entry(h)
+                            h for h in settings["hooks"][event] if not _is_semantic_hooks_entry(h)
                         ]
                         if not settings["hooks"][event]:
                             del settings["hooks"][event]
@@ -189,6 +196,7 @@ def cmd_status(args: argparse.Namespace) -> int:
     print(f"  Exists: {'✓' if memory_file.exists() else '✗'}")
     if memory_file.exists():
         import sqlite3
+
         try:
             with sqlite3.connect(memory_file) as conn:
                 count = conn.execute("SELECT COUNT(*) FROM semantic_nodes").fetchone()[0]
@@ -350,51 +358,81 @@ def _update_claude_settings(force: bool = False, installed_hooks: set[str] | Non
 
     # Mapping from hook filename to event name and definition
     hook_file_to_event: dict[str, tuple[str, dict]] = {
-        "session_start.py": ("SessionStart", {
-            "matcher": "*",
-            "hooks": [{
-                "type": "command",
-                "command": _make_hook_command("session_start.py"),
-            }],
-        }),
-        "pre_tool_use.py": ("PreToolUse", {
-            "matcher": "*",
-            "hooks": [{
-                "type": "command",
-                "command": _make_hook_command("pre_tool_use.py"),
-                "timeout": 5000,
-            }],
-        }),
-        "post_tool_use.py": ("PostToolUse", {
-            "matcher": "*",
-            "hooks": [{
-                "type": "command",
-                "command": _make_hook_command("post_tool_use.py"),
-                "timeout": 3000,
-            }],
-        }),
-        "post_response.py": ("PostResponse", {
-            "matcher": "*",
-            "hooks": [{
-                "type": "command",
-                "command": _make_hook_command("post_response.py"),
-                "timeout": 3000,
-            }],
-        }),
-        "pre_compact.py": ("PreCompact", {
-            "matcher": "*",
-            "hooks": [{
-                "type": "command",
-                "command": _make_hook_command("pre_compact.py"),
-            }],
-        }),
-        "session_end.py": ("SessionEnd", {
-            "matcher": "*",
-            "hooks": [{
-                "type": "command",
-                "command": _make_hook_command("session_end.py"),
-            }],
-        }),
+        "session_start.py": (
+            "SessionStart",
+            {
+                "matcher": "*",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": _make_hook_command("session_start.py"),
+                    }
+                ],
+            },
+        ),
+        "pre_tool_use.py": (
+            "PreToolUse",
+            {
+                "matcher": "*",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": _make_hook_command("pre_tool_use.py"),
+                        "timeout": 5000,
+                    }
+                ],
+            },
+        ),
+        "post_tool_use.py": (
+            "PostToolUse",
+            {
+                "matcher": "*",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": _make_hook_command("post_tool_use.py"),
+                        "timeout": 3000,
+                    }
+                ],
+            },
+        ),
+        "post_response.py": (
+            "PostResponse",
+            {
+                "matcher": "*",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": _make_hook_command("post_response.py"),
+                        "timeout": 3000,
+                    }
+                ],
+            },
+        ),
+        "pre_compact.py": (
+            "PreCompact",
+            {
+                "matcher": "*",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": _make_hook_command("pre_compact.py"),
+                    }
+                ],
+            },
+        ),
+        "session_end.py": (
+            "SessionEnd",
+            {
+                "matcher": "*",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": _make_hook_command("session_end.py"),
+                    }
+                ],
+            },
+        ),
     }
 
     # Determine which hooks to register
@@ -406,10 +444,7 @@ def _update_claude_settings(force: bool = False, installed_hooks: set[str] | Non
             hooks_config[event] = []
 
         # Remove only existing semantic-hooks entries (not other hooks in .claude/hooks/)
-        hooks_config[event] = [
-            h for h in hooks_config[event]
-            if not _is_semantic_hooks_entry(h)
-        ]
+        hooks_config[event] = [h for h in hooks_config[event] if not _is_semantic_hooks_entry(h)]
 
         # Only add hook if it was successfully installed
         if hook_file in hooks_to_register:

@@ -156,56 +156,74 @@ class TestRunGate:
         assert "No design review files found" in output.getvalue()
 
     def test_all_passing_reviews(self, tmp_path):
-        base = self._setup_reviews(tmp_path, {
-            "alpha": "**Verdict**: [PASS]\n",
-            "beta": "**Status**: APPROVED\n",
-        })
+        base = self._setup_reviews(
+            tmp_path,
+            {
+                "alpha": "**Verdict**: [PASS]\n",
+                "beta": "**Status**: APPROVED\n",
+            },
+        )
         output = io.StringIO()
         rc = run_gate(base, output=output)
         assert rc == 0
         assert "All design reviews pass" in output.getvalue()
 
     def test_one_blocking_review_fails(self, tmp_path):
-        base = self._setup_reviews(tmp_path, {
-            "alpha": "**Verdict**: [PASS]\n",
-            "beta": "**Verdict**: NEEDS_CHANGES\n",
-        })
+        base = self._setup_reviews(
+            tmp_path,
+            {
+                "alpha": "**Verdict**: [PASS]\n",
+                "beta": "**Verdict**: NEEDS_CHANGES\n",
+            },
+        )
         output = io.StringIO()
         rc = run_gate(base, output=output)
         assert rc == 1
         assert "1 blocking review(s) found" in output.getvalue()
 
     def test_multiple_blocking_reviews(self, tmp_path):
-        base = self._setup_reviews(tmp_path, {
-            "alpha": "**Verdict**: NEEDS_CHANGES\n",
-            "beta": "**Verdict**: REJECTED\n",
-            "gamma": "**Verdict**: [PASS]\n",
-        })
+        base = self._setup_reviews(
+            tmp_path,
+            {
+                "alpha": "**Verdict**: NEEDS_CHANGES\n",
+                "beta": "**Verdict**: REJECTED\n",
+                "gamma": "**Verdict**: [PASS]\n",
+            },
+        )
         output = io.StringIO()
         rc = run_gate(base, output=output)
         assert rc == 1
         assert "2 blocking review(s) found" in output.getvalue()
 
     def test_concerns_verdict_passes(self, tmp_path):
-        base = self._setup_reviews(tmp_path, {
-            "alpha": "**Verdict**: CONCERNS\n",
-        })
+        base = self._setup_reviews(
+            tmp_path,
+            {
+                "alpha": "**Verdict**: CONCERNS\n",
+            },
+        )
         output = io.StringIO()
         rc = run_gate(base, output=output)
         assert rc == 0
 
     def test_yaml_frontmatter_blocking(self, tmp_path):
-        base = self._setup_reviews(tmp_path, {
-            "alpha": "---\nstatus: NEEDS_CHANGES\n---\n# Review\n",
-        })
+        base = self._setup_reviews(
+            tmp_path,
+            {
+                "alpha": "---\nstatus: NEEDS_CHANGES\n---\n# Review\n",
+            },
+        )
         output = io.StringIO()
         rc = run_gate(base, output=output)
         assert rc == 1
 
     def test_yaml_frontmatter_passing(self, tmp_path):
-        base = self._setup_reviews(tmp_path, {
-            "alpha": "---\nstatus: complete\n---\n# Review\n",
-        })
+        base = self._setup_reviews(
+            tmp_path,
+            {
+                "alpha": "---\nstatus: complete\n---\n# Review\n",
+            },
+        )
         output = io.StringIO()
         rc = run_gate(base, output=output)
         assert rc == 0
@@ -215,9 +233,12 @@ class TestRunGate:
         output_file.touch()
         monkeypatch.setenv("GITHUB_OUTPUT", str(output_file))
 
-        base = self._setup_reviews(tmp_path, {
-            "alpha": "**Verdict**: NEEDS_CHANGES\n",
-        })
+        base = self._setup_reviews(
+            tmp_path,
+            {
+                "alpha": "**Verdict**: NEEDS_CHANGES\n",
+            },
+        )
         run_gate(base, output=io.StringIO())
 
         outputs = output_file.read_text()

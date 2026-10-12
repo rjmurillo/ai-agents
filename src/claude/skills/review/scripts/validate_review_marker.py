@@ -465,9 +465,7 @@ def validate_ref(
             message=_with_reason(f"git could not read commit '{ref}'", marker_read_error),
         )
 
-    return evaluate_marker_values(
-        ref, head_sha, parent_sha, values, known_axes, references_dir
-    )
+    return evaluate_marker_values(ref, head_sha, parent_sha, values, known_axes, references_dir)
 
 
 def evaluate_marker_values(

@@ -105,9 +105,7 @@ class CancellationOutcome:
         return not self.failed
 
 
-def iter_paginated(
-    client: GitHubClient, endpoint: str, items_key: str
-) -> Iterator[dict[str, Any]]:
+def iter_paginated(client: GitHubClient, endpoint: str, items_key: str) -> Iterator[dict[str, Any]]:
     """Yield every item across the paginated GitHub REST endpoint.
 
     Stops on the first short page, on an empty page, or at ``_MAX_PAGES``. The
@@ -126,9 +124,7 @@ def iter_paginated(
         # array, so a list response here is a real API-contract break,
         # not a shape this function is meant to accept.
         if not isinstance(payload, dict):
-            raise TypeError(
-                f"expected a JSON object from {url}, got {type(payload).__name__}"
-            )
+            raise TypeError(f"expected a JSON object from {url}, got {type(payload).__name__}")
         items = payload.get(items_key)
         if not isinstance(items, list) or not items:
             return
@@ -176,9 +172,7 @@ def run_contexts(client: GitHubClient, repository: str, run_id: int) -> tuple[st
         if isinstance(name, str) and name and name not in names:
             names.append(name)
     if not saw_any_job:
-        raise JobsNotMaterializedError(
-            f"run {run_id} in {repository!r} returned zero job records"
-        )
+        raise JobsNotMaterializedError(f"run {run_id} in {repository!r} returned zero job records")
     return tuple(names)
 
 

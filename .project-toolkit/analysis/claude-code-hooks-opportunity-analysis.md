@@ -741,7 +741,8 @@ Daem0n uses Python decorators to enforce covenant compliance:
 def scan_todos():
     pass
 
-@requires_counsel    # Blocks if context_check() expired (5 min TTL)
+
+@requires_counsel  # Blocks if context_check() expired (5 min TTL)
 def add_rule():
     pass
 ```

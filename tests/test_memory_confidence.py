@@ -40,9 +40,7 @@ def _make_memory(
     )
 
 
-def _make_results(
-    num_valid: int, num_invalid: int
-) -> list[VerificationResult]:
+def _make_results(num_valid: int, num_invalid: int) -> list[VerificationResult]:
     results: list[VerificationResult] = []
     for i in range(num_valid):
         c = Citation(source_type=SourceType.FILE, target=f"v{i}.py", context="")

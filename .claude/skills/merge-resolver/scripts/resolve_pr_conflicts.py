@@ -82,7 +82,6 @@ def _core_import_error(lib_dir: str) -> str | None:
     return stderr_lines[-1] if stderr_lines else f"process exited {probe.returncode}"
 
 
-
 # The self-relative candidate below, `<this file>/../../../lib`, cannot name a
 # foreign plugin: it is computed from this file's own on-disk location, never
 # from an environment variable that could point anywhere. Trust it without a
@@ -355,7 +354,8 @@ def get_repo_info() -> RepoInfo:
         result = subprocess.run(
             ["git", "remote", "get-url", "origin"],
             capture_output=True,
-            encoding="utf-8", errors="replace",
+            encoding="utf-8",
+            errors="replace",
             check=True,
             timeout=10,
         )
@@ -575,7 +575,8 @@ def _run_git(
         return subprocess.run(
             ["git", *args],
             capture_output=True,
-            encoding="utf-8", errors="replace",
+            encoding="utf-8",
+            errors="replace",
             cwd=cwd,
             timeout=timeout,
         )

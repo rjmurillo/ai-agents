@@ -68,8 +68,7 @@ def parse_args(argv: list[str] | None = None) -> tuple[argparse.Namespace, list[
 
     if not command:
         parser.error(
-            "No command specified. "
-            "Usage: run_with_retry.py [options] -- COMMAND [ARGS...]"
+            "No command specified. Usage: run_with_retry.py [options] -- COMMAND [ARGS...]"
         )
 
     args = parser.parse_args(wrapper_args)
@@ -96,16 +95,14 @@ def run_with_retry(
 
         if code == _EXIT_CONFIG:
             print(
-                "::error::Configuration error (ADR-035 exit 2). "
-                "Check command output for details.",
+                "::error::Configuration error (ADR-035 exit 2). Check command output for details.",
                 flush=True,
             )
             return _EXIT_CONFIG
 
         if code == _EXIT_AUTH:
             print(
-                "::error::Authentication error (ADR-035 exit 4). "
-                "Check token permissions.",
+                "::error::Authentication error (ADR-035 exit 4). Check token permissions.",
                 flush=True,
             )
             return _EXIT_AUTH

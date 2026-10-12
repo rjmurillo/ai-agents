@@ -29,6 +29,7 @@ class ValidationResult(Enum):
 @dataclass
 class CVAMatrix:
     """Represents a CVA matrix extracted from Markdown."""
+
     rows: list[str]  # Commonalities
     columns: list[str]  # Variabilities
     cells: list[list[str]]  # Matrix content
@@ -42,7 +43,7 @@ class CVAMatrix:
     def has_empty_cells(self) -> bool:
         for row in self.cells:
             for cell in row:
-                if not cell or cell.strip() in ['', '-', 'TBD', 'TODO']:
+                if not cell or cell.strip() in ["", "-", "TBD", "TODO"]:
                     return True
         return False
 
@@ -90,24 +91,24 @@ def parse_markdown_table(content: str) -> CVAMatrix | None:
     | Common1     | A1   | B1   | C1   |
     | Common2     | A2   | B2   | C2   |
     """
-    lines = content.split('\n')
+    lines = content.split("\n")
 
     # Find first table
     table_lines = []
     in_table = False
 
     for line in lines:
-        if line.strip().startswith('|'):
+        if line.strip().startswith("|"):
             in_table = True
             table_lines.append(line.strip())
-        elif in_table and not line.strip().startswith('|'):
+        elif in_table and not line.strip().startswith("|"):
             break
 
     if len(table_lines) < 3:  # Header + separator + at least one data row
         return None
 
     # Parse header (columns)
-    header_cells = [cell.strip() for cell in table_lines[0].split('|')[1:-1]]
+    header_cells = [cell.strip() for cell in table_lines[0].split("|")[1:-1]]
     if not header_cells:
         return None
 
@@ -121,7 +122,7 @@ def parse_markdown_table(content: str) -> CVAMatrix | None:
     cells = []
 
     for line in table_lines[2:]:
-        row_cells = [cell.strip() for cell in line.split('|')[1:-1]]
+        row_cells = [cell.strip() for cell in line.split("|")[1:-1]]
         if row_cells:
             rows.append(row_cells[0])  # First cell is commonality name
             cells.append(row_cells[1:])  # Rest are data cells
@@ -154,8 +155,7 @@ def validate_matrix(matrix: CVAMatrix) -> tuple[bool, list[str]]:
     # Check for empty cells
     if matrix.has_empty_cells():
         issues.append(
-            "Matrix has empty cells. "
-            "All cells must be filled with concrete implementations."
+            "Matrix has empty cells. All cells must be filled with concrete implementations."
         )
 
     # Check for dimension mismatch
@@ -192,13 +192,10 @@ def suggest_patterns(matrix: CVAMatrix) -> list[str]:
 
     if row_var >= high_var and col_var < medium_var:
         suggestions.append("✓ PRIMARY PATTERN: Strategy Pattern")
-        suggestions.append(
-            "  Rationale: High row variability (operations vary across use cases)"
-        )
+        suggestions.append("  Rationale: High row variability (operations vary across use cases)")
         suggestions.append(f"  Row variability: {row_var:.2f} (high)")
         suggestions.append(
-            "  Each row (commonality) can be a strategy with multiple "
-            "implementations."
+            "  Each row (commonality) can be a strategy with multiple implementations."
         )
 
     if col_var >= high_var and row_var < medium_var:
@@ -209,12 +206,9 @@ def suggest_patterns(matrix: CVAMatrix) -> list[str]:
 
     if row_var >= high_var and col_var >= high_var:
         suggestions.append("✓ COMBINATION PATTERNS: Strategy + Abstract Factory")
+        suggestions.append("  Rationale: High variability in BOTH dimensions (multidimensional)")
         suggestions.append(
-            "  Rationale: High variability in BOTH dimensions (multidimensional)"
-        )
-        suggestions.append(
-            f"  Row variability: {row_var:.2f} (high), "
-            f"Column variability: {col_var:.2f} (high)"
+            f"  Row variability: {row_var:.2f} (high), Column variability: {col_var:.2f} (high)"
         )
         suggestions.append(
             "  Treat both axes as co-equal first-class abstractions; do not "
@@ -236,29 +230,27 @@ def suggest_patterns(matrix: CVAMatrix) -> list[str]:
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Validate CVA matrix completeness and suggest patterns'
+        description="Validate CVA matrix completeness and suggest patterns"
     )
-    parser.add_argument('matrix_file', help='Path to CVA matrix markdown file')
-    parser.add_argument('--verbose', '-v', action='store_true', help='Verbose output')
+    parser.add_argument("matrix_file", help="Path to CVA matrix markdown file")
+    parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
     args = parser.parse_args()
 
     # Validate input path to prevent path traversal (CWE-22)
     import os
+
     try:
         allowed_base = os.path.abspath(".")
         matrix_file_path = os.path.abspath(args.matrix_file)
         if not matrix_file_path.startswith(allowed_base):
-            raise ValueError(
-                f"Path traversal attempt detected in matrix_file: "
-                f"{args.matrix_file}"
-            )
+            raise ValueError(f"Path traversal attempt detected in matrix_file: {args.matrix_file}")
     except ValueError as e:
         print(f"❌ ERROR: {e}", file=sys.stderr)
         return ValidationResult.ERROR.value
 
     # Read file
     try:
-        with open(matrix_file_path, encoding='utf-8') as f:
+        with open(matrix_file_path, encoding="utf-8") as f:
             content = f.read()
     except FileNotFoundError:
         print(f"❌ ERROR: File not found: {matrix_file_path}", file=sys.stderr)
@@ -305,12 +297,12 @@ def main():
 
     print("\n✓ Next Steps:")
     print("  1. Review pattern recommendations with team")
-    print("  2. Route to decision-critic: /decision-critic \"Validate [pattern] per CVA\"")
+    print('  2. Route to decision-critic: /decision-critic "Validate [pattern] per CVA"')
     print("  3. Create ADR with architect agent")
     print("  4. Document reassessment triggers")
 
     return ValidationResult.VALID.value
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

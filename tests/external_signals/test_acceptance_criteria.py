@@ -159,9 +159,7 @@ def test_pr_template_acceptance_section_parses() -> None:
     renames or drops the section fails here instead of silently reviving
     the drift.
     """
-    template = (
-        Path(__file__).resolve().parents[2] / ".github" / "PULL_REQUEST_TEMPLATE.md"
-    )
+    template = Path(__file__).resolve().parents[2] / ".github" / "PULL_REQUEST_TEMPLATE.md"
     body = template.read_text(encoding="utf-8")
 
     section = ac.extract_acceptance_section(body)

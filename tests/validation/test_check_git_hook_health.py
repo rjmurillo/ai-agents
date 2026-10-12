@@ -125,27 +125,15 @@ def _make_repo(root: Path, name: str, *, lefthook: bool = True) -> Path:
 # nothing, so every "healthy" assertion in this file was satisfied by exactly
 # the fail-open state the gate is meant to refuse (issue #4789).
 DISPATCHING_PREPUSH = (
-    "#!/bin/sh\n"
-    "call_lefthook()\n"
-    "{\n"
-    '  lefthook "$@"\n'
-    "}\n"
-    'call_lefthook run "pre-push" "$@"\n'
+    '#!/bin/sh\ncall_lefthook()\n{\n  lefthook "$@"\n}\ncall_lefthook run "pre-push" "$@"\n'
 )
 # Executable, final command, contains the marker, dispatches nothing. Refused
 # only by matching the complete generated command rather than a substring.
-ECHOED_MARKER_PREPUSH = (
-    "#!/bin/sh\n"
-    "echo 'call_lefthook run \"pre-push\"'\n"
-)
+ECHOED_MARKER_PREPUSH = "#!/bin/sh\necho 'call_lefthook run \"pre-push\"'\n"
 INERT_PREPUSH = "#!/bin/sh\nexit 0\n"
 # Executable, mentions the marker, dispatches nothing. A whole-file substring
 # search accepts this; anchoring to the final command refuses it (CWE-693).
-COMMENTED_MARKER_PREPUSH = (
-    "#!/bin/sh\n"
-    '# call_lefthook run "pre-push" "$@"\n'
-    "exit 0\n"
-)
+COMMENTED_MARKER_PREPUSH = '#!/bin/sh\n# call_lefthook run "pre-push" "$@"\nexit 0\n'
 
 
 def _install_prepush(hooks_dir: Path, body: str = DISPATCHING_PREPUSH) -> None:
@@ -188,9 +176,7 @@ class TestHealthy:
 
         assert _run_cli(repo).returncode == 0
 
-    def test_a_healthy_repo_reports_what_it_probed_and_where(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_healthy_repo_reports_what_it_probed_and_where(self, tmp_path: Path) -> None:
         # MUST 12: "OK" is not verifiable. The examined count and the resolved
         # directory are, and they distinguish a real check from a no-op.
         repo = _make_repo(tmp_path, "healthy")
@@ -211,9 +197,7 @@ class TestHealthy:
 class TestDeadHooks:
     """Each way git skips pre-push exits non-zero and names the fix."""
 
-    def test_hooks_path_pointing_at_a_missing_directory_fails(
-        self, tmp_path: Path
-    ) -> None:
+    def test_hooks_path_pointing_at_a_missing_directory_fails(self, tmp_path: Path) -> None:
         repo = _make_repo(tmp_path, "missing_dir")
         _install_prepush(repo / ".git" / "hooks")
         _git(repo, "config", "core.hooksPath", str(repo / ".githooks"))
@@ -261,9 +245,7 @@ class TestDeadHooks:
         assert "core.hooksPath is unset" in result.stderr
         assert check_git_hook_health.REMEDY in result.stderr
 
-    def test_an_executable_hook_that_dispatches_nothing_fails(
-        self, tmp_path: Path
-    ) -> None:
+    def test_an_executable_hook_that_dispatches_nothing_fails(self, tmp_path: Path) -> None:
         """The fail-open case: executable, readable by git, and inert.
 
         Before this assertion existed, `#!/bin/sh` plus `exit 0` passed here,
@@ -280,9 +262,7 @@ class TestDeadHooks:
         assert "does not dispatch Lefthook" in result.stderr
         assert check_git_hook_health.REMEDY in result.stderr
 
-    def test_a_commented_out_marker_does_not_count_as_dispatch(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_commented_out_marker_does_not_count_as_dispatch(self, tmp_path: Path) -> None:
         """Mentioning the marker is not dispatching it.
 
         The first version of this gate matched the marker anywhere in the file,
@@ -297,9 +277,7 @@ class TestDeadHooks:
         assert result.returncode == 1
         assert "does not dispatch Lefthook" in result.stderr
 
-    def test_an_echoed_marker_does_not_count_as_dispatch(
-        self, tmp_path: Path
-    ) -> None:
+    def test_an_echoed_marker_does_not_count_as_dispatch(self, tmp_path: Path) -> None:
         """Printing the dispatch is not running it.
 
         The prior version anchored to the final command but matched a
@@ -441,9 +419,7 @@ class TestDeadHooks:
         assert result.returncode == 1
         assert "commit-msg" in result.stderr
 
-    def test_a_missing_hook_type_does_not_claim_pre_push_is_dead(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_missing_hook_type_does_not_claim_pre_push_is_dead(self, tmp_path: Path) -> None:
         """The summary must match the condition that was detected.
 
         `_evaluate` used to append "pre-push does not run" to every failure,
@@ -460,9 +436,7 @@ class TestDeadHooks:
         assert check_git_hook_health._POST_PROBE_PREFIX in result.stderr
         assert "pre-push does not run" not in result.stderr
 
-    def test_a_dead_pre_push_still_says_pushes_are_ungated(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_dead_pre_push_still_says_pushes_are_ungated(self, tmp_path: Path) -> None:
         """The positive control for the branch above."""
         repo = _make_repo(tmp_path, "dead_prepush")
 
@@ -471,9 +445,7 @@ class TestDeadHooks:
         assert result.returncode == 1
         assert "pre-push does not run" in result.stderr
 
-    def test_an_unreadable_config_fails_instead_of_degrading(
-        self, tmp_path: Path
-    ) -> None:
+    def test_an_unreadable_config_fails_instead_of_degrading(self, tmp_path: Path) -> None:
         """An inventory the gate cannot obtain is unverifiable, not healthy.
 
         The first version returned None here and fell back to probing only
@@ -564,9 +536,7 @@ class TestDeadHooks:
         assert "remove the command-scoped core.hooksPath override" in remedy
         assert check_git_hook_health.REMEDY in remedy
 
-    def test_the_failure_report_stays_within_the_line_budget(
-        self, tmp_path: Path
-    ) -> None:
+    def test_the_failure_report_stays_within_the_line_budget(self, tmp_path: Path) -> None:
         repo = _make_repo(tmp_path, "missing_dir")
         _git(repo, "config", "core.hooksPath", str(repo / ".githooks"))
 
@@ -586,9 +556,7 @@ class TestLinkedWorktrees:
     would fire on every agent at once.
     """
 
-    def test_a_worktree_with_a_common_dir_pre_push_is_healthy(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_worktree_with_a_common_dir_pre_push_is_healthy(self, tmp_path: Path) -> None:
         repo = _make_repo(tmp_path, "wt_main")
         _install_prepush(repo / ".git" / "hooks")
         worktree = tmp_path / "wt_linked"
@@ -659,9 +627,7 @@ class TestOutOfScope:
         assert result.returncode == 0
         assert "no lefthook config" in result.stdout
 
-    def test_a_directory_that_is_not_a_git_repository_passes(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_directory_that_is_not_a_git_repository_passes(self, tmp_path: Path) -> None:
         plain = tmp_path / "not_a_repo"
         plain.mkdir()
         (plain / "lefthook.yml").write_text(LEFTHOOK_CONFIG, encoding="utf-8")
@@ -680,9 +646,7 @@ class TestOutOfScope:
             "[SKIP] validate_git_hook_health reason=tree.absent scope=git hooks installed"
         )
 
-    def test_a_directory_that_is_not_a_repository_prints_a_typed_skip(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_directory_that_is_not_a_repository_prints_a_typed_skip(self, tmp_path: Path) -> None:
         plain = tmp_path / "not_a_repo_typed"
         plain.mkdir()
         (plain / "lefthook.yml").write_text(LEFTHOOK_CONFIG, encoding="utf-8")
@@ -737,17 +701,13 @@ class TestOutOfScope:
         monkeypatch.setattr(
             check_git_hook_health.subprocess,
             "run",
-            lambda *_args, **_kwargs: (_ for _ in ()).throw(
-                subprocess.TimeoutExpired("git", 5)
-            ),
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(subprocess.TimeoutExpired("git", 5)),
         )
 
         assert check_git_hook_health.validate_git_hook_health(repo) is False
         assert check_git_hook_health.main([str(repo)]) == 3
 
-    def test_a_root_that_is_not_a_directory_is_a_config_error(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_root_that_is_not_a_directory_is_a_config_error(self, tmp_path: Path) -> None:
         assert check_git_hook_health.main([str(tmp_path / "nope")]) == 2
 
 
@@ -849,9 +809,7 @@ class TestInventoryFailures:
             ),
         )
 
-        with pytest.raises(
-            lefthook_inventory.LefthookExecutionError, match="could not run"
-        ):
+        with pytest.raises(lefthook_inventory.LefthookExecutionError, match="could not run"):
             lefthook_inventory.configured_hook_types(tmp_path)
 
     def test_a_launch_failure_falls_back_to_the_next_candidate(
@@ -900,9 +858,7 @@ class TestNegativeControl:
         # and neutering only the first leaves the second still failing this
         # repository, which would make the control pass for the wrong reason.
         target = "    probed = frozenset({PROBE_HOOK})\n"
-        assert original.count(target) == 1, (
-            "mutation target moved; the control did not apply"
-        )
+        assert original.count(target) == 1, "mutation target moved; the control did not apply"
         neutered = tmp_path / "neutered_gate.py"
         neutered.write_text(
             original.replace(target, target + "    return None, probed\n"),

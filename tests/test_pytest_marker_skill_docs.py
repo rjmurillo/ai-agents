@@ -15,9 +15,7 @@ MARKER_DOCS = (
     REPO_ROOT / ".claude/skills/ai-agents-config-catalog/SKILL.md",
     REPO_ROOT / ".claude/skills/ai-agents-validation-and-qa/SKILL.md",
 )
-VALIDATION_DOCS = (
-    REPO_ROOT / ".claude/skills/ai-agents-validation-and-qa/SKILL.md",
-)
+VALIDATION_DOCS = (REPO_ROOT / ".claude/skills/ai-agents-validation-and-qa/SKILL.md",)
 SKILL_DOC_ROOTS = (
     REPO_ROOT / ".claude/skills",
     REPO_ROOT / "src/copilot-cli/skills",

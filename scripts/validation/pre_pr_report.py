@@ -42,11 +42,7 @@ def _licensed_non_pass(summary: AggregateOutcome) -> tuple[CheckOutcome, ...]:
     apply, a BLOCKED whose optional linter is not installed. They are real gaps
     in the run's evidence, and the exit code deliberately ignores them.
     """
-    return tuple(
-        outcome
-        for outcome in summary.outcomes
-        if outcome.state is not EvidenceState.PASS
-    )
+    return tuple(outcome for outcome in summary.outcomes if outcome.state is not EvidenceState.PASS)
 
 
 def print_result_line(summary: AggregateOutcome) -> None:

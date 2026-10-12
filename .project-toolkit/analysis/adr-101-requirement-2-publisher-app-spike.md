@@ -51,11 +51,18 @@ Method (MEASURED 2026-09-30): two failing tests, one candidate-authored `conftes
 
 ```python
 # test_real.py
-def test_a(): assert 1 == 2
-def test_b(): assert False
+def test_a():
+    assert 1 == 2
+
+
+def test_b():
+    assert False
+
 
 # conftest.py (candidate-authored)
 import pytest
+
+
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_makereport(item, call):
     outcome = yield

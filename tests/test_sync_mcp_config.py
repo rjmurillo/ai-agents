@@ -78,12 +78,18 @@ class TestMain:
         source.write_text(json.dumps(SAMPLE_SOURCE), encoding="utf-8")
         dest = tmp_path / ".vscode" / "mcp.json"
 
-        result = main([
-            "--source", str(source),
-            "--destination", str(dest),
-            "--target", "vscode",
-            "--repo-root-override", str(tmp_path),
-        ])
+        result = main(
+            [
+                "--source",
+                str(source),
+                "--destination",
+                str(dest),
+                "--target",
+                "vscode",
+                "--repo-root-override",
+                str(tmp_path),
+            ]
+        )
         assert result == 0
         assert dest.exists()
         data = json.loads(dest.read_text(encoding="utf-8"))

@@ -36,7 +36,6 @@ select_latest_state = _mod.select_latest_state
 RoundCapStoreError = _mod.RoundCapStoreError
 
 
-
 # ---------------------------------------------------------------------------
 # build_parser
 # ---------------------------------------------------------------------------
@@ -194,8 +193,12 @@ class TestMarkerRoundTrip:
 class TestMain(MainHarness):
     def test_first_round_acts_and_exits_zero(self, capsys):
         patches = self._patch_common(list_comments_result=[])
-        with patches[0], patches[1], patches[2], \
-                patch("check_pr_round_cap._post_comment") as post_mock:
+        with (
+            patches[0],
+            patches[1],
+            patches[2],
+            patch("check_pr_round_cap._post_comment") as post_mock,
+        ):
             rc = main(["--pull-request", "7", "--output-format", "json"])
         assert rc == 0
         out = json.loads(capsys.readouterr().out)
@@ -215,8 +218,16 @@ class TestMain(MainHarness):
         out = json.loads(capsys.readouterr().out)
         data = out["Data"]
         expected_keys = {
-            "pull_request", "owner", "repo", "round", "max_rounds",
-            "elapsed_hours", "max_hours", "first_seen", "action", "reason",
+            "pull_request",
+            "owner",
+            "repo",
+            "round",
+            "max_rounds",
+            "elapsed_hours",
+            "max_hours",
+            "first_seen",
+            "action",
+            "reason",
             "escalation_posted",
         }
         assert expected_keys <= data.keys()
@@ -227,12 +238,24 @@ class TestMain(MainHarness):
             {"round": 4, "first_seen": now.isoformat(), "last_round_at": now.isoformat()},
         )
         patches = self._patch_common(list_comments_result=[{"body": prior}])
-        with patches[0], patches[1], patches[2], \
-                patch("check_pr_round_cap._post_comment") as post_mock:
-            rc = main([
-                "--pull-request", "7", "--max-rounds", "5",
-                "--max-hours", "4", "--output-format", "json",
-            ])
+        with (
+            patches[0],
+            patches[1],
+            patches[2],
+            patch("check_pr_round_cap._post_comment") as post_mock,
+        ):
+            rc = main(
+                [
+                    "--pull-request",
+                    "7",
+                    "--max-rounds",
+                    "5",
+                    "--max-hours",
+                    "4",
+                    "--output-format",
+                    "json",
+                ]
+            )
         assert rc == 1
         out = json.loads(capsys.readouterr().out)
         data = out["Data"]
@@ -254,10 +277,18 @@ class TestMain(MainHarness):
         )
         patches = self._patch_common(list_comments_result=[{"body": prior}])
         with patches[0], patches[1], patches[2], patch("check_pr_round_cap._post_comment"):
-            rc = main([
-                "--pull-request", "7", "--max-rounds", "5",
-                "--max-hours", "4", "--output-format", "json",
-            ])
+            rc = main(
+                [
+                    "--pull-request",
+                    "7",
+                    "--max-rounds",
+                    "5",
+                    "--max-hours",
+                    "4",
+                    "--output-format",
+                    "json",
+                ]
+            )
         assert rc == 1
         out = json.loads(capsys.readouterr().out)
         data = out["Data"]
@@ -270,18 +301,28 @@ class TestMain(MainHarness):
         prior_state = render_state_marker(
             {"round": 5, "first_seen": now.isoformat(), "last_round_at": now.isoformat()},
         )
-        prior_escalation = (
-            f"{_mod._ESCALATION_MARKER}{{}}{_mod._MARKER_CLOSE}\nalready escalated"
-        )
+        prior_escalation = f"{_mod._ESCALATION_MARKER}{{}}{_mod._MARKER_CLOSE}\nalready escalated"
         patches = self._patch_common(
             list_comments_result=[{"body": prior_state}, {"body": prior_escalation}],
         )
-        with patches[0], patches[1], patches[2], \
-                patch("check_pr_round_cap._post_comment") as post_mock:
-            rc = main([
-                "--pull-request", "7", "--max-rounds", "5",
-                "--max-hours", "4", "--output-format", "json",
-            ])
+        with (
+            patches[0],
+            patches[1],
+            patches[2],
+            patch("check_pr_round_cap._post_comment") as post_mock,
+        ):
+            rc = main(
+                [
+                    "--pull-request",
+                    "7",
+                    "--max-rounds",
+                    "5",
+                    "--max-hours",
+                    "4",
+                    "--output-format",
+                    "json",
+                ]
+            )
         assert rc == 1
         out = json.loads(capsys.readouterr().out)
         assert out["Data"]["escalation_posted"] is False
@@ -303,9 +344,14 @@ class TestMain(MainHarness):
 
     def test_state_persist_failure_emits_json_error_envelope_and_exits_three(self, capsys):
         patches = self._patch_common(list_comments_result=[])
-        with patches[0], patches[1], patches[2], patch(
-            "check_pr_round_cap._post_comment",
-            side_effect=RoundCapStoreError("comment post exited 1: boom"),
+        with (
+            patches[0],
+            patches[1],
+            patches[2],
+            patch(
+                "check_pr_round_cap._post_comment",
+                side_effect=RoundCapStoreError("comment post exited 1: boom"),
+            ),
         ):
             with pytest.raises(SystemExit) as exc_info:
                 main(["--pull-request", "7", "--output-format", "json"])
@@ -328,13 +374,27 @@ class TestMain(MainHarness):
                 raise RoundCapStoreError("comment post exited 1: rate limited")
             return None
 
-        with patches[0], patches[1], patches[2], patch(
-            "check_pr_round_cap._post_comment", side_effect=_post_side_effect,
+        with (
+            patches[0],
+            patches[1],
+            patches[2],
+            patch(
+                "check_pr_round_cap._post_comment",
+                side_effect=_post_side_effect,
+            ),
         ):
-            rc = main([
-                "--pull-request", "7", "--max-rounds", "5",
-                "--max-hours", "4", "--output-format", "json",
-            ])
+            rc = main(
+                [
+                    "--pull-request",
+                    "7",
+                    "--max-rounds",
+                    "5",
+                    "--max-hours",
+                    "4",
+                    "--output-format",
+                    "json",
+                ]
+            )
         assert rc == 1
         out = json.loads(capsys.readouterr().out)
         assert out["Data"]["action"] == "ESCALATE"

@@ -130,8 +130,12 @@ def _get_milestone_titles(owner: str, repo: str) -> list[str]:
     try:
         result = subprocess.run(
             [
-                "gh", "api", f"repos/{owner}/{repo}/milestones",
-                "--paginate", "--jq", ".[].title",
+                "gh",
+                "api",
+                f"repos/{owner}/{repo}/milestones",
+                "--paginate",
+                "--jq",
+                ".[].title",
             ],
             capture_output=True,
             encoding="utf-8",
@@ -140,9 +144,7 @@ def _get_milestone_titles(owner: str, repo: str) -> list[str]:
             check=False,
         )
     except subprocess.TimeoutExpired as err:
-        raise _MilestoneTimeoutError(
-            f"Timed out listing milestones for {owner}/{repo}"
-        ) from err
+        raise _MilestoneTimeoutError(f"Timed out listing milestones for {owner}/{repo}") from err
     if result.returncode != 0:
         raise _MilestoneQueryError(
             f"Failed to list milestones for {owner}/{repo}: "
@@ -178,9 +180,7 @@ def _emit(output: dict[str, object], fmt: str) -> None:
     write_skill_output(
         output,
         output_format=fmt,
-        human_summary=(
-            f"Issue #{output['issue']} milestone {output['action']}"
-        ),
+        human_summary=(f"Issue #{output['issue']} milestone {output['action']}"),
         script_name="set_issue_milestone.py",
     )
 
@@ -252,19 +252,25 @@ def main(argv: list[str] | None = None) -> int:
         if not current_milestone:
             output["action"] = "no_change"
             _emit(output, fmt)
-            _write_github_output({
-                "success": "true",
-                "issue": str(args.issue),
-                "action": "no_change",
-            })
+            _write_github_output(
+                {
+                    "success": "true",
+                    "issue": str(args.issue),
+                    "action": "no_change",
+                }
+            )
             return 0
 
         try:
             result = subprocess.run(
                 [
-                    "gh", "api",
+                    "gh",
+                    "api",
                     f"repos/{owner}/{repo}/issues/{args.issue}",
-                    "-X", "PATCH", "-f", "milestone=",
+                    "-X",
+                    "PATCH",
+                    "-f",
+                    "milestone=",
                 ],
                 capture_output=True,
                 encoding="utf-8",
@@ -293,24 +299,28 @@ def main(argv: list[str] | None = None) -> int:
 
         output["action"] = "cleared"
         _emit(output, fmt)
-        _write_github_output({
-            "success": "true",
-            "issue": str(args.issue),
-            "action": "cleared",
-            "previous_milestone": current_milestone,
-        })
+        _write_github_output(
+            {
+                "success": "true",
+                "issue": str(args.issue),
+                "action": "cleared",
+                "previous_milestone": current_milestone,
+            }
+        )
         return 0
 
     if current_milestone == args.milestone:
         output["milestone"] = args.milestone
         output["action"] = "no_change"
         _emit(output, fmt)
-        _write_github_output({
-            "success": "true",
-            "issue": str(args.issue),
-            "milestone": args.milestone,
-            "action": "no_change",
-        })
+        _write_github_output(
+            {
+                "success": "true",
+                "issue": str(args.issue),
+                "milestone": args.milestone,
+                "action": "no_change",
+            }
+        )
         return 0
 
     if current_milestone and not args.force:
@@ -357,9 +367,14 @@ def main(argv: list[str] | None = None) -> int:
     try:
         result = subprocess.run(
             [
-                "gh", "issue", "edit", str(args.issue),
-                "--repo", f"{owner}/{repo}",
-                "--milestone", args.milestone,
+                "gh",
+                "issue",
+                "edit",
+                str(args.issue),
+                "--repo",
+                f"{owner}/{repo}",
+                "--milestone",
+                args.milestone,
             ],
             capture_output=True,
             encoding="utf-8",

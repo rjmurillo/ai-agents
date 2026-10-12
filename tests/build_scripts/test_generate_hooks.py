@@ -68,17 +68,13 @@ _MATCHED_SHIM_PAYLOAD_LIMIT_BYTES = MATCHED_SHIM_PAYLOAD_LIMIT_MIB * 1024 * 1024
 # Helpers -------------------------------------------------------------------
 
 
-def _run_shim(
-    transformed_source: str, payload: dict[str, Any]
-) -> subprocess.CompletedProcess[str]:
+def _run_shim(transformed_source: str, payload: dict[str, Any]) -> subprocess.CompletedProcess[str]:
     """Execute a shimmed script with payload on stdin; return CompletedProcess.
 
     Each call writes to a fresh temp file so concurrent test workers do
     not race on a shared path.
     """
-    with tempfile.NamedTemporaryFile(
-        "w", suffix=".py", delete=False
-    ) as handle:
+    with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as handle:
         handle.write(transformed_source)
         path = handle.name
     try:
@@ -86,25 +82,22 @@ def _run_shim(
             ["python3", path],
             input=json.dumps(payload),
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=15,
         )
     finally:
         os.unlink(path)
 
 
-def _run_shim_raw(
-    transformed_source: str, raw_input: bytes
-) -> subprocess.CompletedProcess[bytes]:
+def _run_shim_raw(transformed_source: str, raw_input: bytes) -> subprocess.CompletedProcess[bytes]:
     """Execute a shimmed script with raw bytes on stdin.
 
     Used to exercise stdin-cap behavior where the input is intentionally
     not valid JSON (or simply too large) so the shim's cap path runs
     before any json.loads attempt.
     """
-    with tempfile.NamedTemporaryFile(
-        "w", suffix=".py", delete=False
-    ) as handle:
+    with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as handle:
         handle.write(transformed_source)
         path = handle.name
     try:
@@ -130,9 +123,7 @@ def _write_settings(path: Path, hooks_obj: dict[str, Any]) -> Path:
     return path
 
 
-def _write_config(
-    tmp_path: Path, *, hooks_stanza_overrides: dict[str, Any] | None = None
-) -> Path:
+def _write_config(tmp_path: Path, *, hooks_stanza_overrides: dict[str, Any] | None = None) -> Path:
     cfg = tmp_path / "platform.yaml"
     body = """\
 schemaVersion: "1.0"
@@ -450,9 +441,7 @@ def test_inject_shim_rejects_mixed_top_level_and_toolcalls_selection():
         ({"name": "\tEdit\n"}, "must not have leading or trailing whitespace"),
     ],
 )
-def test_inject_shim_denies_malformed_toolcalls_before_dispatch(
-    invalid_call, expected_error
-):
+def test_inject_shim_denies_malformed_toolcalls_before_dispatch(invalid_call, expected_error):
     transformed = inject_shim(_TRACE_SCRIPT, "^Edit$")
     payload = {
         "toolCalls": [invalid_call],
@@ -687,10 +676,7 @@ def test_inject_shim_toolcalls_candidate_cap_boundary_fires_once():
         {"name": "Read", "args": {"file_path": f"f{i}.txt"}}
         for i in range(_TOOL_CALLS_CANDIDATE_CAP - 1)
     ]
-    payload = {
-        "toolCalls": non_matching
-        + [{"name": "Edit", "args": {"file_path": "README.md"}}]
-    }
+    payload = {"toolCalls": non_matching + [{"name": "Edit", "args": {"file_path": "README.md"}}]}
     assert len(payload["toolCalls"]) == _TOOL_CALLS_CANDIDATE_CAP
 
     proc = _run_shim(transformed, payload)
@@ -716,9 +702,7 @@ def test_inject_shim_toolcalls_candidate_cap_denies_one_above_boundary():
         {"name": "Read", "args": {"file_path": f"f{i}.txt"}}
         for i in range(_TOOL_CALLS_CANDIDATE_CAP)
     ]
-    payload = {
-        "toolCalls": non_matching + [{"name": "Edit", "args": {"marker": marker}}]
-    }
+    payload = {"toolCalls": non_matching + [{"name": "Edit", "args": {"marker": marker}}]}
     assert len(payload["toolCalls"]) == _TOOL_CALLS_CANDIDATE_CAP + 1
 
     proc = _run_shim(transformed, payload)
@@ -873,27 +857,21 @@ def test_inject_shim_fires_on_mcp_namespaced_bare():
 
 def test_inject_shim_multi_pipe_glob_first_branch():
     transformed = inject_shim(_TRACE_SCRIPT, "Bash(npm test*|pytest*)")
-    proc = _run_shim(
-        transformed, {"tool_name": "Bash", "tool_input": {"command": "npm test"}}
-    )
+    proc = _run_shim(transformed, {"tool_name": "Bash", "tool_input": {"command": "npm test"}})
     assert proc.returncode == 0
     assert proc.stdout.startswith("FIRED:Bash")
 
 
 def test_inject_shim_multi_pipe_glob_second_branch():
     transformed = inject_shim(_TRACE_SCRIPT, "Bash(npm test*|pytest*)")
-    proc = _run_shim(
-        transformed, {"tool_name": "Bash", "tool_input": {"command": "pytest -v"}}
-    )
+    proc = _run_shim(transformed, {"tool_name": "Bash", "tool_input": {"command": "pytest -v"}})
     assert proc.returncode == 0
     assert proc.stdout.startswith("FIRED:Bash")
 
 
 def test_inject_shim_multi_pipe_glob_neither_branch():
     transformed = inject_shim(_TRACE_SCRIPT, "Bash(npm test*|pytest*)")
-    proc = _run_shim(
-        transformed, {"tool_name": "Bash", "tool_input": {"command": "cargo build"}}
-    )
+    proc = _run_shim(transformed, {"tool_name": "Bash", "tool_input": {"command": "cargo build"}})
     assert proc.returncode == 0
     assert "FIRED" not in proc.stdout
 
@@ -927,9 +905,7 @@ def _run_shim_with_env(
     Mirrors :func:`_run_shim` but threads through ``env_extra`` so tests
     can flip ``COPILOT_HOOK_DEBUG`` without leaking into other tests.
     """
-    with tempfile.NamedTemporaryFile(
-        "w", suffix=".py", delete=False
-    ) as handle:
+    with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as handle:
         handle.write(transformed_source)
         path = handle.name
     try:
@@ -938,7 +914,8 @@ def _run_shim_with_env(
             ["python3", path],
             input=json.dumps(payload),
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=15,
             env=merged,
         )
@@ -998,7 +975,8 @@ def test_inject_shim_exits_2_on_malformed_json_stdin():
             ["python3", p],
             input="not json {",
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
             timeout=10,
         )
     finally:
@@ -1184,10 +1162,7 @@ def _setup_skill_companion_fixture(
                     "hooks": [
                         {
                             "type": "command",
-                            "command": (
-                                "python3 -u .claude/hooks/Stop/"
-                                "invoke_owner.py"
-                            ),
+                            "command": ("python3 -u .claude/hooks/Stop/invoke_owner.py"),
                         }
                     ]
                 }
@@ -1233,7 +1208,8 @@ def test_generated_skill_owner_imports_companion_portably(
         [sys.executable, str(owner)],
         cwd=tmp_path,
         capture_output=True,
-        text=True, encoding="utf-8",
+        text=True,
+        encoding="utf-8",
         check=False,
         timeout=30,
     )
@@ -1329,9 +1305,7 @@ def test_generator_companion_only_no_regen_preserves_runtime_group(
             "hooks": [
                 {
                     "type": "command",
-                    "command": (
-                        "python3 -u .claude/hooks/PostToolUse/early_owner.py"
-                    ),
+                    "command": ("python3 -u .claude/hooks/PostToolUse/early_owner.py"),
                 }
             ]
         }
@@ -1352,9 +1326,7 @@ def test_generator_companion_only_no_regen_preserves_runtime_group(
     )
     protected_companion = companion.read_bytes()
     early_source.write_text("print('new early owner')\n", encoding="utf-8")
-    source_owner = (
-        tmp_path / "hooks_src" / "Stop" / "invoke_owner.py"
-    )
+    source_owner = tmp_path / "hooks_src" / "Stop" / "invoke_owner.py"
     source_owner.write_text("print('new owner')\n", encoding="utf-8")
 
     rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
@@ -1389,9 +1361,7 @@ def test_generator_companion_copy_failure_restores_earlier_events(
             "hooks": [
                 {
                     "type": "command",
-                    "command": (
-                        "python3 -u .claude/hooks/PostToolUse/early_owner.py"
-                    ),
+                    "command": ("python3 -u .claude/hooks/PostToolUse/early_owner.py"),
                 }
             ]
         }
@@ -1408,12 +1378,8 @@ def test_generator_companion_copy_failure_restores_earlier_events(
     original_companion = companion.read_bytes()
     original_hooks = hooks_json.read_bytes()
     early_source.write_text("print('new early owner')\n", encoding="utf-8")
-    source_owner = (
-        tmp_path / "hooks_src" / "Stop" / "invoke_owner.py"
-    )
-    source_companion = (
-        tmp_path / "hooks_src" / "Stop" / "companion_module.py"
-    )
+    source_owner = tmp_path / "hooks_src" / "Stop" / "invoke_owner.py"
+    source_companion = tmp_path / "hooks_src" / "Stop" / "companion_module.py"
     source_owner.write_text("print('new owner')\n", encoding="utf-8")
     source_companion.write_text("TOKEN = 'new'\n", encoding="utf-8")
     real_copy_script = generate_hooks_events._copy_script
@@ -1573,14 +1539,8 @@ def test_generator_orphan_cleanup_rolls_back_on_later_failure(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     cfg, legacy_dir = _setup_orphan_event_fixture(tmp_path)
-    before = {
-        path.name: path.read_bytes()
-        for path in legacy_dir.iterdir()
-        if path.is_file()
-    }
-    real_publish_many = (
-        generate_hooks_transaction.HookGenerationTransaction.publish_many
-    )
+    before = {path.name: path.read_bytes() for path in legacy_dir.iterdir() if path.is_file()}
+    real_publish_many = generate_hooks_transaction.HookGenerationTransaction.publish_many
 
     def fail_config_publish(
         transaction: generate_hooks_transaction.HookGenerationTransaction,
@@ -1602,9 +1562,7 @@ def test_generator_orphan_cleanup_rolls_back_on_later_failure(
 
     assert rc == 1
     assert {
-        path.name: path.read_bytes()
-        for path in legacy_dir.iterdir()
-        if path.is_file()
+        path.name: path.read_bytes() for path in legacy_dir.iterdir() if path.is_file()
     } == before
 
 
@@ -1701,9 +1659,7 @@ def test_generator_dispatcher_no_regen_fails_before_any_write(
                     "hooks": [
                         {
                             "type": "command",
-                            "command": (
-                                "python3 -u .claude/hooks/PreToolUse/owner.py"
-                            ),
+                            "command": ("python3 -u .claude/hooks/PreToolUse/owner.py"),
                         }
                     ]
                 }
@@ -1782,9 +1738,7 @@ def _setup_dispatcher_matcher_fixture(tmp_path: Path, matcher: str) -> Path:
                     "hooks": [
                         {
                             "type": "command",
-                            "command": (
-                                "python3 -u .claude/hooks/PreToolUse/owner.py"
-                            ),
+                            "command": ("python3 -u .claude/hooks/PreToolUse/owner.py"),
                         }
                     ],
                 }
@@ -1962,10 +1916,7 @@ def test_active_dispatchable_owners_skip_non_list_groups(tmp_path: Path) -> None
                 "hooks": [
                     {
                         "type": "command",
-                        "command": (
-                            "python3 -u "
-                            ".claude/hooks/PreToolUse/invoke_owner.py"
-                        ),
+                        "command": ("python3 -u .claude/hooks/PreToolUse/invoke_owner.py"),
                     }
                 ]
             }
@@ -2547,19 +2498,14 @@ def test_generator_dispatcher_rollback_restores_deleted_stale_shim(
     assert len(stale) == 1
     stale_bytes = stale[0].read_bytes()
     _set_dispatcher_matcher(tmp_path, "Bash(git commit*)")
-    real_publish_many = (
-        generate_hooks_transaction.HookGenerationTransaction.publish_many
-    )
+    real_publish_many = generate_hooks_transaction.HookGenerationTransaction.publish_many
 
     def fail_dispatcher_publish(
         transaction: generate_hooks_transaction.HookGenerationTransaction,
         pairs: Any,
     ) -> None:
         publish_pairs = list(pairs)
-        if any(
-            target.name == "_dispatch.py"
-            for _staged, target in publish_pairs
-        ):
+        if any(target.name == "_dispatch.py" for _staged, target in publish_pairs):
             raise OSError("simulated dispatcher publish failure")
         real_publish_many(transaction, publish_pairs)
 
@@ -2602,9 +2548,7 @@ def test_generator_dispatcher_cleanup_path_failure_is_config_error(
     event_dir = stale[0].parent
     _set_dispatcher_matcher(tmp_path, "Bash(git commit*)")
     real_lstat = Path.lstat
-    symlink_stat = os.stat_result(
-        (stat.S_IFLNK, 0, 0, 0, 0, 0, 0, 0, 0, 0)
-    )
+    symlink_stat = os.stat_result((stat.S_IFLNK, 0, 0, 0, 0, 0, 0, 0, 0, 0))
 
     def fake_lstat(path: Path) -> os.stat_result:
         if path == event_dir:
@@ -2646,9 +2590,7 @@ def test_generator_dispatcher_staging_failure_restores_earlier_owner(
                     "hooks": [
                         {
                             "type": "command",
-                            "command": (
-                                "python3 -u .claude/hooks/PreToolUse/owner.py"
-                            ),
+                            "command": ("python3 -u .claude/hooks/PreToolUse/owner.py"),
                         }
                     ]
                 }
@@ -2663,10 +2605,7 @@ def test_generator_dispatcher_staging_failure_restores_earlier_owner(
         for name in ("_manifest.json", "_dispatch.py", "_bootstrap.py")
     ]
     hooks_json = tmp_path / "out" / "hooks.json"
-    originals = {
-        path: path.read_bytes()
-        for path in [owner, *dispatcher_paths, hooks_json]
-    }
+    originals = {path: path.read_bytes() for path in [owner, *dispatcher_paths, hooks_json]}
     source.write_text("print('new owner')\n", encoding="utf-8")
 
     def fail_entrypoint(_event_dir: Path, _event: str) -> Path:
@@ -2694,6 +2633,7 @@ def test_transaction_lock_directory_is_private(tmp_path: Path) -> None:
     lock_directory = generate_hooks_transaction._lock_path(tmp_path).parent
 
     assert stat.S_IMODE(lock_directory.stat().st_mode) == 0o700
+
 
 def test_transaction_lock_serializes_processes(tmp_path: Path) -> None:
     """A second process waits until the first transaction releases its lock."""
@@ -2859,6 +2799,7 @@ def test_transaction_windows_rollback_preserves_named_stream(
     assert transaction.rollback() == []
     assert target.read_text(encoding="utf-8") == "old\n"
     assert named_stream.read_text(encoding="utf-8") == "preserved\n"
+
 
 def test_transaction_repeated_windows_publish_keeps_original_backup(
     tmp_path: Path,
@@ -3051,6 +2992,7 @@ def test_transaction_rolls_back_partial_windows_replace_failure(
     assert target.read_text(encoding="utf-8") == "old\n"
     assert not list(tmp_path.glob(".hook-stage-*"))
 
+
 def test_generator_failed_rollback_retains_recovery_backup(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -3065,12 +3007,8 @@ def test_generator_failed_rollback_retains_recovery_backup(
     hooks_json = tmp_path / "out" / "hooks.json"
     original_companion = companion.read_bytes()
     original_hooks = hooks_json.read_bytes()
-    source_owner = (
-        tmp_path / "hooks_src" / "Stop" / "invoke_owner.py"
-    )
-    source_companion = (
-        tmp_path / "hooks_src" / "Stop" / "companion_module.py"
-    )
+    source_owner = tmp_path / "hooks_src" / "Stop" / "invoke_owner.py"
+    source_companion = tmp_path / "hooks_src" / "Stop" / "companion_module.py"
     source_owner.write_text("print('new owner')\n", encoding="utf-8")
     source_companion.write_text("TOKEN = 'new'\n", encoding="utf-8")
     real_replace = generate_hooks_transaction._replace_target
@@ -3109,9 +3047,7 @@ def test_generator_failed_rollback_retains_recovery_backup(
     assert "simulated companion rollback failure" in captured.err
     assert "recovery backup retained at" in captured.err
     assert hooks_json.read_bytes() == original_hooks
-    recovery_files = list(
-        (tmp_path / "out" / "Stop").glob(".hook-stage-*.tmp")
-    )
+    recovery_files = list((tmp_path / "out" / "Stop").glob(".hook-stage-*.tmp"))
     assert len(recovery_files) == 1
     assert recovery_files[0].read_bytes() == original_companion
 
@@ -3174,10 +3110,7 @@ def test_generator_two_owner_missing_companion_leaves_no_partial_output(
                     "hooks": [
                         {
                             "type": "command",
-                            "command": (
-                                "python3 -u .claude/hooks/PostToolUse/"
-                                "early_owner.py"
-                            ),
+                            "command": ("python3 -u .claude/hooks/PostToolUse/early_owner.py"),
                         }
                     ]
                 }
@@ -3187,9 +3120,7 @@ def test_generator_two_owner_missing_companion_leaves_no_partial_output(
                     "hooks": [
                         {
                             "type": "command",
-                            "command": (
-                                "python3 -u .claude/hooks/PreToolUse/late_owner.py"
-                            ),
+                            "command": ("python3 -u .claude/hooks/PreToolUse/late_owner.py"),
                         }
                     ]
                 }
@@ -3299,9 +3230,7 @@ def test_generator_emits_version_one_wrapper(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("yaml_value", ["0", '""', "1.5", "true"])
-def test_generator_fails_2_on_invalid_version_field(
-    tmp_path: Path, yaml_value: str
-) -> None:
+def test_generator_fails_2_on_invalid_version_field(tmp_path: Path, yaml_value: str) -> None:
     cfg, _ = _setup_full_fixture(tmp_path)
     text = cfg.read_text(encoding="utf-8")
     cfg.write_text(
@@ -3399,17 +3328,11 @@ def test_generator_multiple_permission_producers_returns_config_error(
                     "hooks": [
                         {
                             "type": "command",
-                            "command": (
-                                "python3 -u "
-                                ".claude/hooks/PermissionRequest/first.py"
-                            ),
+                            "command": ("python3 -u .claude/hooks/PermissionRequest/first.py"),
                         },
                         {
                             "type": "command",
-                            "command": (
-                                "python3 -u "
-                                ".claude/hooks/PermissionRequest/second.py"
-                            ),
+                            "command": ("python3 -u .claude/hooks/PermissionRequest/second.py"),
                         },
                     ]
                 }
@@ -3449,9 +3372,7 @@ def test_generator_emits_python3_and_py3_invocation(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("timeout_value", [0, "", 1.5, True])
-def test_generator_fails_2_on_invalid_timeout(
-    tmp_path: Path, timeout_value: object
-) -> None:
+def test_generator_fails_2_on_invalid_timeout(tmp_path: Path, timeout_value: object) -> None:
     cfg, _ = _setup_full_fixture(tmp_path)
     settings = json.loads((tmp_path / "settings.json").read_text(encoding="utf-8"))
     settings["hooks"]["PreToolUse"][0]["hooks"][0]["timeout"] = timeout_value
@@ -3693,7 +3614,7 @@ def test_generator_no_regen_hooks_config_read_failure_aborts_before_event_proces
     cfg = _setup_single_companion_fixture(tmp_path, monkeypatch)
     output_config = tmp_path / "out" / "hooks.json"
     output_config.parent.mkdir(parents=True, exist_ok=True)
-    output_config.write_text("{\"hooks\": {}}\n", encoding="utf-8")
+    output_config.write_text('{"hooks": {}}\n', encoding="utf-8")
 
     real_open = Path.open
     failed = False
@@ -3733,9 +3654,7 @@ def test_generator_no_regen_hooks_config_rechecks_sidecar_created_mid_run(
         if not created_sidecar:
             created_sidecar = True
             output_config = tmp_path / "out" / "hooks.json"
-            output_config.with_suffix(".json.noregen").write_text(
-                "preserve\n", encoding="utf-8"
-            )
+            output_config.with_suffix(".json.noregen").write_text("preserve\n", encoding="utf-8")
         return emitted
 
     monkeypatch.setattr(generate_hooks_events, "_process_event", create_sidecar_after_event)
@@ -3832,9 +3751,7 @@ def test_generator_distinct_shim_per_matcher(tmp_path: Path) -> None:
     # Each carries a different matcher in its shim header. The matcher is
     # repr-bound in the header comment (CWE-94 hardening), so it appears
     # single-quoted.
-    assert (
-        "Matcher: 'Bash(git commit*)'" in body0
-    ) != ("Matcher: 'Bash(git commit*)'" in body1)
+    assert ("Matcher: 'Bash(git commit*)'" in body0) != ("Matcher: 'Bash(git commit*)'" in body1)
     # And hooks.json points at both distinct filenames.
     out = json.loads((tmp_path / "out" / "hooks.json").read_text())
     bash_paths = {entry["bash"] for entry in out["hooks"]["PreToolUse"]}
@@ -4099,9 +4016,7 @@ def test_main_returns_zero_on_happy_path(tmp_path: Path) -> None:
 def test_main_returns_two_on_missing_config(tmp_path: Path) -> None:
     """``main(argv)`` returns 2 (config error) when --config does not exist."""
     missing = tmp_path / "does_not_exist.yaml"
-    rc = generate_hooks.main(
-        ["--config", str(missing), "--repo-root", str(tmp_path)]
-    )
+    rc = generate_hooks.main(["--config", str(missing), "--repo-root", str(tmp_path)])
     assert rc == 2
 
 
@@ -4133,9 +4048,7 @@ def test_main_compiles_hook_templates_before_generation(tmp_path: Path) -> None:
     """
     tmpl_dir = tmp_path / "templates" / "hooks"
     (tmpl_dir / "PreToolUse").mkdir(parents=True)
-    (tmpl_dir / "PreToolUse" / "fresh.py").write_text(
-        "import sys\nsys.exit(0)\n", encoding="utf-8"
-    )
+    (tmpl_dir / "PreToolUse" / "fresh.py").write_text("import sys\nsys.exit(0)\n", encoding="utf-8")
     (tmpl_dir / "hooks.json").write_text(
         json.dumps(
             {
@@ -4425,16 +4338,9 @@ def test_inject_without_future_import_no_prefix() -> None:
 
 def test_split_future_imports_handles_multiple() -> None:
     """All future imports get hoisted in source order; rest is preserved."""
-    body = (
-        "from __future__ import annotations\n"
-        "from __future__ import division\n"
-        "import os\n"
-    )
+    body = "from __future__ import annotations\nfrom __future__ import division\nimport os\n"
     future_block, rest = generate_hooks._split_future_imports(body)
-    assert future_block == (
-        "from __future__ import annotations\n"
-        "from __future__ import division\n"
-    )
+    assert future_block == ("from __future__ import annotations\nfrom __future__ import division\n")
     assert rest == "import os\n"
 
 
@@ -4445,10 +4351,7 @@ def test_split_future_imports_only_future_yields_empty_rest() -> None:
     Without this, `inject_shim` would wrap an empty body and the
     generated `_original_main()` would be syntactically empty.
     """
-    body = (
-        "from __future__ import annotations\n"
-        "from __future__ import division\n"
-    )
+    body = "from __future__ import annotations\nfrom __future__ import division\n"
     future_block, rest = generate_hooks._split_future_imports(body)
     assert rest == ""
     assert future_block == body
@@ -4498,10 +4401,10 @@ def test_shim_camelcase_tool_glob_match() -> None:
     """
     transformed = generate_hooks.inject_shim("import sys; sys.exit(0)\n", "Bash(git commit*)")
     # Real camelCase payload: toolArgs is a JSON string, not a dict
-    proc = _run_shim(transformed, {
-        "toolName": "Bash",
-        "toolArgs": '{"command":"git commit -m x","description":"Commit"}'
-    })
+    proc = _run_shim(
+        transformed,
+        {"toolName": "Bash", "toolArgs": '{"command":"git commit -m x","description":"Commit"}'},
+    )
     assert proc.returncode == 0, proc.stderr
 
 
@@ -4548,10 +4451,9 @@ def test_shim_camelcase_tool_glob_non_match() -> None:
     where camelCase payloads always fire regardless of args.
     """
     transformed = generate_hooks.inject_shim("import sys; sys.exit(0)\n", "Bash(git commit*)")
-    proc = _run_shim(transformed, {
-        "toolName": "Bash",
-        "toolArgs": '{"command":"git push origin main"}'
-    })
+    proc = _run_shim(
+        transformed, {"toolName": "Bash", "toolArgs": '{"command":"git push origin main"}'}
+    )
     assert proc.returncode == 0, proc.stderr
     # The hook body should NOT have run (no "FIRED" output).
     assert "FIRED" not in proc.stdout
@@ -4564,10 +4466,13 @@ def test_shim_camelcase_malformed_json_toolargs() -> None:
     a command-oriented pattern. The hook should not fire and not crash.
     """
     transformed = generate_hooks.inject_shim("import sys; sys.exit(0)\n", "Bash(git commit*)")
-    proc = _run_shim(transformed, {
-        "toolName": "Bash",
-        "toolArgs": '{"command": "git commit'  # truncated JSON
-    })
+    proc = _run_shim(
+        transformed,
+        {
+            "toolName": "Bash",
+            "toolArgs": '{"command": "git commit',  # truncated JSON
+        },
+    )
     assert proc.returncode == 0, f"should not crash; stderr={proc.stderr}"
     assert "toolArgs is not valid JSON" in proc.stderr
 

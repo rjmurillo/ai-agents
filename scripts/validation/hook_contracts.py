@@ -67,9 +67,7 @@ COPILOT_ROOT = "src/copilot-cli"
 # brace. The shipped copilot-cli registrations use exactly that form; a pattern
 # that allowed { in the default matched only the inner expansion and left a
 # stray } in the extracted path, which reads as a missing script.
-_PLUGIN_ROOT_PATTERN = re.compile(
-    r"\$\{(?:CLAUDE|COPILOT)_PLUGIN_ROOT(?::-[^{}]*)?\}|\$_ptr"
-)
+_PLUGIN_ROOT_PATTERN = re.compile(r"\$\{(?:CLAUDE|COPILOT)_PLUGIN_ROOT(?::-[^{}]*)?\}|\$_ptr")
 
 # A nested default needs more than one pass: the inner expansion resolves
 # first, which turns the outer one into the simple form the pattern matches.
@@ -442,9 +440,7 @@ def parse_copilot_hooks(hooks_path: Path) -> tuple[list[HookEntry], list[Violati
         # #3384 failure mode: the validator reported success over a surface it
         # had never read.
         if not isinstance(data, dict):
-            reason = (
-                f"top-level value is {type(data).__name__}, not an object"
-            )
+            reason = f"top-level value is {type(data).__name__}, not an object"
         else:
             reason = "required 'hooks' key is missing"
         return entries, [

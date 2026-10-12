@@ -44,5 +44,6 @@ def write_history(path: Path, history: list[Snapshot], max_entries: int) -> None
 def write_snapshot(path: Path, snapshot: Snapshot) -> None:
     """Write one snapshot as JSON, creating the directory."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(snapshot.to_dict(), indent=1, sort_keys=True) + "\n",
-                    encoding="utf-8")
+    path.write_text(
+        json.dumps(snapshot.to_dict(), indent=1, sort_keys=True) + "\n", encoding="utf-8"
+    )

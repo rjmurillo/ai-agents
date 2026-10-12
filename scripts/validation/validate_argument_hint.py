@@ -279,9 +279,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _print_violation_report(
-    paths: list[Path], violations: list[ArgumentHintViolation]
-) -> None:
+def _print_violation_report(paths: list[Path], violations: list[ArgumentHintViolation]) -> None:
     """Print the shared PASS/FAIL report for a scan result."""
 
     if violations:

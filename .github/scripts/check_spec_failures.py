@@ -141,20 +141,15 @@ def main(argv: list[str] | None = None) -> int:
 
     trace_gap = "" if trace_infra else _incomplete_reason(args.trace_outcome, trace)
     completeness_gap = (
-        "" if completeness_infra
-        else _incomplete_reason(args.completeness_outcome, completeness)
+        "" if completeness_infra else _incomplete_reason(args.completeness_outcome, completeness)
     )
 
     if trace_infra:
-        print(
-            "::error::Traceability check did not run due to infrastructure failure."
-        )
+        print("::error::Traceability check did not run due to infrastructure failure.")
         trace = ""
 
     if completeness_infra:
-        print(
-            "::error::Completeness check did not run due to infrastructure failure."
-        )
+        print("::error::Completeness check did not run due to infrastructure failure.")
         completeness = ""
 
     if trace_gap:
@@ -165,8 +160,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if spec_validation_failed(trace, completeness):
         print(
-            "::error::Spec validation failed"
-            " - implementation does not fully satisfy requirements"
+            "::error::Spec validation failed - implementation does not fully satisfy requirements"
         )
         return 1
 

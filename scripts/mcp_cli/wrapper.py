@@ -49,13 +49,9 @@ def _validate_arg_value(key: str, value: str) -> None:
     """
     str_value = str(value)
     if str_value.startswith("-"):
-        raise McpCliError(
-            f"Argument value for '{key}' must not start with '-': {str_value}"
-        )
+        raise McpCliError(f"Argument value for '{key}' must not start with '-': {str_value}")
     if str_value and not _SAFE_VALUE_PATTERN.match(str_value):
-        raise McpCliError(
-            f"Argument value for '{key}' contains unsafe characters: {str_value}"
-        )
+        raise McpCliError(f"Argument value for '{key}' contains unsafe characters: {str_value}")
 
 
 def _find_mcporter() -> list[str]:
@@ -70,9 +66,7 @@ def _find_mcporter() -> list[str]:
         return [_MCPORTER_CMD]
     if shutil.which(_NPX_CMD):
         return [_NPX_CMD, _MCPORTER_CMD]
-    raise McpCliError(
-        "mcporter not found. Install via: npm install -g mcporter"
-    )
+    raise McpCliError("mcporter not found. Install via: npm install -g mcporter")
 
 
 def mcp_call(
@@ -130,16 +124,13 @@ def mcp_call(
             cwd=str(cwd) if cwd else None,
         )
     except subprocess.TimeoutExpired as exc:
-        raise McpCliError(
-            f"mcporter call timed out after {timeout}s: {selector}"
-        ) from exc
+        raise McpCliError(f"mcporter call timed out after {timeout}s: {selector}") from exc
     except FileNotFoundError as exc:
         raise McpCliError(f"Command not found: {cmd[0]}") from exc
 
     if result.returncode != 0:
         raise McpCliError(
-            f"mcporter call failed (exit {result.returncode}): "
-            f"{selector}\n{result.stderr.strip()}"
+            f"mcporter call failed (exit {result.returncode}): {selector}\n{result.stderr.strip()}"
         )
 
     stdout = result.stdout.strip()
@@ -188,14 +179,10 @@ def mcp_list_tools(
             cwd=str(cwd) if cwd else None,
         )
     except subprocess.TimeoutExpired as exc:
-        raise McpCliError(
-            f"mcporter list timed out after {timeout}s: {server}"
-        ) from exc
+        raise McpCliError(f"mcporter list timed out after {timeout}s: {server}") from exc
 
     if result.returncode != 0:
-        raise McpCliError(
-            f"mcporter list failed (exit {result.returncode}): {server}"
-        )
+        raise McpCliError(f"mcporter list failed (exit {result.returncode}): {server}")
 
     stdout = result.stdout.strip()
     if not stdout:

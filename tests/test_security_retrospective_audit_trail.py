@@ -23,9 +23,7 @@ _FALLBACK = Path(".project-toolkit") / "security" / "false-negatives.json"
 
 def _retrospective(tmp_path: Path, dry_run: bool = False) -> SecurityRetrospective:
     with patch.object(SecurityRetrospective, "_find_repo_root", return_value=tmp_path):
-        return SecurityRetrospective(
-            7, ExternalReviewSource.MANUAL, dry_run=dry_run
-        )
+        return SecurityRetrospective(7, ExternalReviewSource.MANUAL, dry_run=dry_run)
 
 
 def _false_negative(cwe_id: str = "CWE-78") -> FalseNegative:

@@ -26,9 +26,7 @@ _ECHO_SCRIPT = (
 )
 
 
-def _run_shim_raw(
-    transformed_source: str, raw_input: bytes
-) -> subprocess.CompletedProcess[bytes]:
+def _run_shim_raw(transformed_source: str, raw_input: bytes) -> subprocess.CompletedProcess[bytes]:
     with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as handle:
         handle.write(transformed_source)
         path = handle.name
@@ -186,10 +184,7 @@ def test_conflicting_call_id_aliases_fail_closed():
 
 def test_duplicate_top_level_toolcalls_keys_fail_closed():
     transformed = inject_shim(_ECHO_SCRIPT, "^Edit$")
-    raw = (
-        b'{"toolCalls":[{"name":"Edit","args":{"file_path":"README.md"}}],'
-        b'"toolCalls":[]}'
-    )
+    raw = b'{"toolCalls":[{"name":"Edit","args":{"file_path":"README.md"}}],"toolCalls":[]}'
 
     proc = _run_shim_raw(transformed, raw)
 
@@ -200,10 +195,7 @@ def test_duplicate_top_level_toolcalls_keys_fail_closed():
 
 def test_duplicate_nested_call_keys_fail_closed():
     transformed = inject_shim(_ECHO_SCRIPT, "^Edit$")
-    raw = (
-        b'{"toolCalls":[{"name":"Read","name":"Edit",'
-        b'"args":{"file_path":"README.md"}}]}'
-    )
+    raw = b'{"toolCalls":[{"name":"Read","name":"Edit","args":{"file_path":"README.md"}}]}'
 
     proc = _run_shim_raw(transformed, raw)
 
@@ -216,9 +208,7 @@ def test_duplicate_keys_in_encoded_toolargs_fail_closed():
     transformed = inject_shim(_ECHO_SCRIPT, "Bash(git push*)")
     payload = {
         "toolName": "Bash",
-        "toolArgs": (
-            '{"command":"echo safe","command":"git push origin main"}'
-        ),
+        "toolArgs": ('{"command":"echo safe","command":"git push origin main"}'),
     }
 
     proc = _run_shim(transformed, payload)
@@ -307,9 +297,7 @@ def _nested_json_overflowing_stdin() -> bytes:
 def _run_committed_pretooluse_dispatcher(
     raw_input: bytes,
 ) -> subprocess.CompletedProcess[bytes]:
-    dispatcher = (
-        REPO_ROOT / "src" / "copilot-cli" / "hooks" / "PreToolUse" / "_dispatch.py"
-    )
+    dispatcher = REPO_ROOT / "src" / "copilot-cli" / "hooks" / "PreToolUse" / "_dispatch.py"
     if not dispatcher.exists():
         raise AssertionError(f"committed dispatcher missing: {dispatcher}")
     env = dict(os.environ)
@@ -352,5 +340,3 @@ def test_shallow_json_still_parses_direct_shim():
 
     assert proc.returncode == 0, proc.stderr.decode()
     assert b"nesting too deep" not in proc.stderr
-
-

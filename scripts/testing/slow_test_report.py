@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size (ruff format pushed this file past 500 lines)
 """Slow-test telemetry and report (issue #5382).
 
 Recorder (a pytest plugin), records per test item the duration, the number of
@@ -19,6 +20,7 @@ a CI run that publishes only JUnit still produces a report.
 
 Exit codes: 0 ok, 1 logic, 2 config, 3 external.
 """
+
 from __future__ import annotations
 
 import argparse

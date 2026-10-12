@@ -9,6 +9,7 @@ Rules from TESTING-RIGOR.md:
 - delete bytecode caches before each test run
 - assert byte-identical restore at end
 """
+
 from __future__ import annotations
 
 import os
@@ -46,9 +47,14 @@ def _run_tests(
     if pycache.exists():
         shutil.rmtree(pycache)
     cmd = [
-        sys.executable, "-m", "pytest", "--tb=no", "-q",
+        sys.executable,
+        "-m",
+        "pytest",
+        "--tb=no",
+        "-q",
         "tests/test_validation_pr_description.py",
-        "-k", PYTEST_K,
+        "-k",
+        PYTEST_K,
         *(extra_args or []),
     ]
     return subprocess.run(

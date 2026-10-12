@@ -46,7 +46,7 @@ class TestParseYamlFrontmatter:
         assert result["issue"] == 937
 
     def test_strips_quotes(self) -> None:
-        text = '---\nstatus: "BLOCKED"\nreviewer: \'architect\'\n---\n'
+        text = "---\nstatus: \"BLOCKED\"\nreviewer: 'architect'\n---\n"
         result = _parse_yaml_frontmatter(text)
         assert result is not None
         assert result["status"] == "BLOCKED"
@@ -78,11 +78,7 @@ class TestParseYamlFrontmatter:
         assert result["value"] == "has # in it"
 
     def test_returns_none_for_malformed_yaml(self) -> None:
-        text = (
-            "---\n"
-            "description: Agent examples: Context: user asks\n"
-            "---\n"
-        )
+        text = "---\ndescription: Agent examples: Context: user asks\n---\n"
         assert _parse_yaml_frontmatter(text) is None
 
 
@@ -151,9 +147,7 @@ class TestValidateDesignReviewFrontmatter:
         # Blocking reviews still pass validation (they just warn)
         assert validate_design_review_frontmatter(tmp_path) is True
 
-    def test_blocking_null_does_not_count_as_blocking(
-        self, tmp_path: Path, capsys: Any
-    ) -> None:
+    def test_blocking_null_does_not_count_as_blocking(self, tmp_path: Path, capsys: Any) -> None:
         content = (
             '---\nstatus: "BLOCKED"\npriority: "P0"\n'
             'blocking: null\nreviewer: "architect"\ndate: "2026-03-07"\n'
@@ -219,9 +213,7 @@ class TestDelegatesToTheSharedContract:
             ("crlf", "---\r\nid: A\r\n---\r\nBody.\r\n"),
         ],
     )
-    def test_shapes_this_helper_already_accepted_still_parse(
-        self, label: str, text: str
-    ) -> None:
+    def test_shapes_this_helper_already_accepted_still_parse(self, label: str, text: str) -> None:
         """The substring search accepted all of these; so does the contract.
 
         This is the half of the migration that must NOT change, and it is why

@@ -155,9 +155,7 @@ class TestDriftedLines:
 
         assert [d[0] for d in drifted] == [3]
 
-    def test_every_stale_entry_is_reported_not_just_the_first(
-        self, memories_dir: Path
-    ) -> None:
+    def test_every_stale_entry_is_reported_not_just_the_first(self, memories_dir: Path) -> None:
         """Negative: reporting one drift per run would hide the rest.
 
         Measured on pristine main, two entries were stale at once. A gate that
@@ -171,9 +169,7 @@ class TestDriftedLines:
 
         assert [d[0] for d in ratchet.drifted_lines(index, memories_dir)] == [1, 2]
 
-    def test_several_links_on_one_line_are_all_corrected(
-        self, memories_dir: Path
-    ) -> None:
+    def test_several_links_on_one_line_are_all_corrected(self, memories_dir: Path) -> None:
         """Edge: the real index packs many links per keyword line."""
         a = _memory(memories_dir, "alpha.md", "alpha body\n")
         b = _memory(memories_dir, "beta.md", "beta body that is longer\n")

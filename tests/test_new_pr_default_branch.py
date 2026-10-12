@@ -170,8 +170,7 @@ class TestMainDefaultBranch:
             [
                 (lambda argv: argv == ["gh", "--version"], completed()),
                 (
-                    lambda argv: argv
-                    == ["git", "rev-parse", "--verify", "origin/main"],
+                    lambda argv: argv == ["git", "rev-parse", "--verify", "origin/main"],
                     completed(),
                 ),
                 (create_pr, completed()),
@@ -185,14 +184,16 @@ class TestMainDefaultBranch:
             patch.object(new_pr, "run_validations") as validate,
         ):
             assert (
-                main([
-                    "--title",
-                    "fix: test",
-                    "--head",
-                    "feature/test",
-                    "--base",
-                    "main",
-                ])
+                main(
+                    [
+                        "--title",
+                        "fix: test",
+                        "--head",
+                        "feature/test",
+                        "--base",
+                        "main",
+                    ]
+                )
                 == 0
             )
 

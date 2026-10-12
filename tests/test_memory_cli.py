@@ -14,11 +14,15 @@ class TestCLIVerify:
     def test_verify_no_memories(self, tmp_path):
         mem_dir = tmp_path / "memories"
         mem_dir.mkdir()
-        exit_code = main([
-            "--repo-root", str(tmp_path),
-            "--memories-dir", str(mem_dir),
-            "verify",
-        ])
+        exit_code = main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--memories-dir",
+                str(mem_dir),
+                "verify",
+            ]
+        )
         assert exit_code == 0
 
     @pytest.mark.unit
@@ -26,28 +30,32 @@ class TestCLIVerify:
         (tmp_path / "exists.py").write_text("content\n")
         mem_dir = tmp_path / "memories"
         mem_dir.mkdir()
-        (mem_dir / "m1.md").write_text(
-            "# M1 (2026-01-01)\n\n[cite:file](exists.py) - ref\n"
+        (mem_dir / "m1.md").write_text("# M1 (2026-01-01)\n\n[cite:file](exists.py) - ref\n")
+        exit_code = main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--memories-dir",
+                str(mem_dir),
+                "verify",
+            ]
         )
-        exit_code = main([
-            "--repo-root", str(tmp_path),
-            "--memories-dir", str(mem_dir),
-            "verify",
-        ])
         assert exit_code == 0
 
     @pytest.mark.unit
     def test_verify_with_broken_citation(self, tmp_path):
         mem_dir = tmp_path / "memories"
         mem_dir.mkdir()
-        (mem_dir / "m1.md").write_text(
-            "# M1 (2026-01-01)\n\n[cite:file](missing.py) - ref\n"
+        (mem_dir / "m1.md").write_text("# M1 (2026-01-01)\n\n[cite:file](missing.py) - ref\n")
+        exit_code = main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--memories-dir",
+                str(mem_dir),
+                "verify",
+            ]
         )
-        exit_code = main([
-            "--repo-root", str(tmp_path),
-            "--memories-dir", str(mem_dir),
-            "verify",
-        ])
         assert exit_code == 1
 
     @pytest.mark.unit
@@ -55,22 +63,34 @@ class TestCLIVerify:
         mem_dir = tmp_path / "memories"
         mem_dir.mkdir()
         (mem_dir / "target.md").write_text("# Target (2026-01-01)\n\nContent\n")
-        exit_code = main([
-            "--repo-root", str(tmp_path),
-            "--memories-dir", str(mem_dir),
-            "verify", "--memory-id", "target",
-        ])
+        exit_code = main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--memories-dir",
+                str(mem_dir),
+                "verify",
+                "--memory-id",
+                "target",
+            ]
+        )
         assert exit_code == 0
 
     @pytest.mark.unit
     def test_verify_nonexistent_memory_id(self, tmp_path):
         mem_dir = tmp_path / "memories"
         mem_dir.mkdir()
-        exit_code = main([
-            "--repo-root", str(tmp_path),
-            "--memories-dir", str(mem_dir),
-            "verify", "--memory-id", "nonexistent",
-        ])
+        exit_code = main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--memories-dir",
+                str(mem_dir),
+                "verify",
+                "--memory-id",
+                "nonexistent",
+            ]
+        )
         assert exit_code == 1
 
 
@@ -81,11 +101,15 @@ class TestCLIHealth:
     def test_health_empty(self, tmp_path, capsys):
         mem_dir = tmp_path / "memories"
         mem_dir.mkdir()
-        exit_code = main([
-            "--repo-root", str(tmp_path),
-            "--memories-dir", str(mem_dir),
-            "health",
-        ])
+        exit_code = main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--memories-dir",
+                str(mem_dir),
+                "health",
+            ]
+        )
         assert exit_code == 0
         captured = capsys.readouterr()
         assert "Health Score" in captured.out
@@ -95,11 +119,15 @@ class TestCLIHealth:
         mem_dir = tmp_path / "memories"
         mem_dir.mkdir()
         (mem_dir / "m1.md").write_text("# M1 (2026-01-01)\n\nContent\n")
-        exit_code = main([
-            "--repo-root", str(tmp_path),
-            "--memories-dir", str(mem_dir),
-            "health",
-        ])
+        exit_code = main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--memories-dir",
+                str(mem_dir),
+                "health",
+            ]
+        )
         # Old memory (>30 days) is flagged as stale, exit code 1 for CI gating
         assert exit_code == 1
 
@@ -111,11 +139,17 @@ class TestCLIGraph:
     def test_graph_nonexistent_start(self, tmp_path):
         mem_dir = tmp_path / "memories"
         mem_dir.mkdir()
-        exit_code = main([
-            "--repo-root", str(tmp_path),
-            "--memories-dir", str(mem_dir),
-            "graph", "--start", "nonexistent",
-        ])
+        exit_code = main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--memories-dir",
+                str(mem_dir),
+                "graph",
+                "--start",
+                "nonexistent",
+            ]
+        )
         assert exit_code == 1
 
     @pytest.mark.unit
@@ -123,11 +157,17 @@ class TestCLIGraph:
         mem_dir = tmp_path / "memories"
         mem_dir.mkdir()
         (mem_dir / "solo.md").write_text("# Solo (2026-01-01)\n\nContent\n")
-        exit_code = main([
-            "--repo-root", str(tmp_path),
-            "--memories-dir", str(mem_dir),
-            "graph", "--start", "solo",
-        ])
+        exit_code = main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--memories-dir",
+                str(mem_dir),
+                "graph",
+                "--start",
+                "solo",
+            ]
+        )
         assert exit_code == 0
         captured = capsys.readouterr()
         assert "No linked memories" in captured.out
@@ -136,15 +176,19 @@ class TestCLIGraph:
     def test_graph_with_links(self, tmp_path, capsys):
         mem_dir = tmp_path / "memories"
         mem_dir.mkdir()
-        (mem_dir / "a.md").write_text(
-            "# A (2026-01-01)\n\n[link:depends_on](b) - needs b\n"
-        )
+        (mem_dir / "a.md").write_text("# A (2026-01-01)\n\n[link:depends_on](b) - needs b\n")
         (mem_dir / "b.md").write_text("# B (2026-01-01)\n\nContent\n")
-        exit_code = main([
-            "--repo-root", str(tmp_path),
-            "--memories-dir", str(mem_dir),
-            "graph", "--start", "a",
-        ])
+        exit_code = main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--memories-dir",
+                str(mem_dir),
+                "graph",
+                "--start",
+                "a",
+            ]
+        )
         assert exit_code == 0
         captured = capsys.readouterr()
         assert "b" in captured.out
@@ -157,11 +201,15 @@ class TestCLIConfidence:
     def test_confidence_empty(self, tmp_path, capsys):
         mem_dir = tmp_path / "memories"
         mem_dir.mkdir()
-        exit_code = main([
-            "--repo-root", str(tmp_path),
-            "--memories-dir", str(mem_dir),
-            "confidence",
-        ])
+        exit_code = main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--memories-dir",
+                str(mem_dir),
+                "confidence",
+            ]
+        )
         assert exit_code == 0
         captured = capsys.readouterr()
         assert "No memories found" in captured.out
@@ -171,11 +219,15 @@ class TestCLIConfidence:
         mem_dir = tmp_path / "memories"
         mem_dir.mkdir()
         (mem_dir / "m1.md").write_text("# M1 (2026-01-01)\n\nContent\n")
-        exit_code = main([
-            "--repo-root", str(tmp_path),
-            "--memories-dir", str(mem_dir),
-            "confidence",
-        ])
+        exit_code = main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--memories-dir",
+                str(mem_dir),
+                "confidence",
+            ]
+        )
         assert exit_code == 0
         captured = capsys.readouterr()
         assert "m1" in captured.out
@@ -188,11 +240,16 @@ class TestCLISearch:
     def test_search_no_results(self, tmp_path, capsys):
         mem_dir = tmp_path / "memories"
         mem_dir.mkdir()
-        exit_code = main([
-            "--repo-root", str(tmp_path),
-            "--memories-dir", str(mem_dir),
-            "search", "nonexistent",
-        ])
+        exit_code = main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--memories-dir",
+                str(mem_dir),
+                "search",
+                "nonexistent",
+            ]
+        )
         assert exit_code == 0
         captured = capsys.readouterr()
         assert "No results found" in captured.out
@@ -202,11 +259,16 @@ class TestCLISearch:
         mem_dir = tmp_path / "memories"
         mem_dir.mkdir()
         (mem_dir / "m1.md").write_text("# M1 (2026-01-01)\n\nSome test content\n")
-        exit_code = main([
-            "--repo-root", str(tmp_path),
-            "--memories-dir", str(mem_dir),
-            "search", "test",
-        ])
+        exit_code = main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--memories-dir",
+                str(mem_dir),
+                "search",
+                "test",
+            ]
+        )
         assert exit_code == 0
         captured = capsys.readouterr()
         assert "m1" in captured.out
@@ -214,14 +276,21 @@ class TestCLISearch:
     @pytest.mark.unit
     def test_search_json_output(self, tmp_path, capsys):
         import json
+
         mem_dir = tmp_path / "memories"
         mem_dir.mkdir()
         (mem_dir / "m1.md").write_text("# M1 (2026-01-01)\n\nSome test content\n")
-        exit_code = main([
-            "--repo-root", str(tmp_path),
-            "--memories-dir", str(mem_dir),
-            "search", "test", "--json",
-        ])
+        exit_code = main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--memories-dir",
+                str(mem_dir),
+                "search",
+                "test",
+                "--json",
+            ]
+        )
         assert exit_code == 0
         captured = capsys.readouterr()
         data = json.loads(captured.out)
@@ -236,11 +305,18 @@ class TestCLISearch:
         mem_dir.mkdir()
         for i in range(5):
             (mem_dir / f"m{i}.md").write_text(f"# M{i} (2026-01-01)\n\nTest content {i}\n")
-        exit_code = main([
-            "--repo-root", str(tmp_path),
-            "--memories-dir", str(mem_dir),
-            "search", "test", "--top", "2",
-        ])
+        exit_code = main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--memories-dir",
+                str(mem_dir),
+                "search",
+                "test",
+                "--top",
+                "2",
+            ]
+        )
         assert exit_code == 0
         captured = capsys.readouterr()
         lines = [line for line in captured.out.strip().splitlines() if line.strip()]
@@ -251,11 +327,16 @@ class TestCLISearch:
         mem_dir = tmp_path / "memories"
         mem_dir.mkdir()
         (mem_dir / "m1.md").write_text("# M1 (2026-01-01)\n\nSome test content\n")
-        exit_code = main([
-            "--repo-root", str(tmp_path),
-            "--memories-dir", str(mem_dir),
-            "search", "test",
-        ])
+        exit_code = main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--memories-dir",
+                str(mem_dir),
+                "search",
+                "test",
+            ]
+        )
         assert exit_code == 0
         captured = capsys.readouterr()
         # Format: {memory_id} ({confidence:.0%}, {citation_status}) - {title}
@@ -280,10 +361,13 @@ class TestCLIDefaultMemoriesDir:
         mem_dir = tmp_path / ".serena" / "memories"
         mem_dir.mkdir(parents=True)
         (mem_dir / "m1.md").write_text("# M1 (2026-01-01)\n\nContent\n")
-        exit_code = main([
-            "--repo-root", str(tmp_path),
-            "verify",
-        ])
+        exit_code = main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "verify",
+            ]
+        )
         assert exit_code == 0
 
 
@@ -305,21 +389,33 @@ class TestCLISearchVerifyRoundTrip:
 
         mem_dir = self._write_subdir_memory(tmp_path)
 
-        search_code = main([
-            "--repo-root", str(tmp_path),
-            "--memories-dir", str(mem_dir),
-            "search", "batching", "--json",
-        ])
+        search_code = main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--memories-dir",
+                str(mem_dir),
+                "search",
+                "batching",
+                "--json",
+            ]
+        )
         emitted = json.loads(capsys.readouterr().out)
 
         assert search_code == 0
         assert [r["memory_id"] for r in emitted] == ["workflows/target"]
 
-        verify_code = main([
-            "--repo-root", str(tmp_path),
-            "--memories-dir", str(mem_dir),
-            "verify", "--memory-id", emitted[0]["memory_id"],
-        ])
+        verify_code = main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--memories-dir",
+                str(mem_dir),
+                "verify",
+                "--memory-id",
+                emitted[0]["memory_id"],
+            ]
+        )
 
         assert verify_code == 0
 
@@ -327,11 +423,17 @@ class TestCLISearchVerifyRoundTrip:
     def test_verify_rejects_bare_stem_for_subdirectory_memory(self, tmp_path, capsys):
         mem_dir = self._write_subdir_memory(tmp_path)
 
-        exit_code = main([
-            "--repo-root", str(tmp_path),
-            "--memories-dir", str(mem_dir),
-            "verify", "--memory-id", "target",
-        ])
+        exit_code = main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--memories-dir",
+                str(mem_dir),
+                "verify",
+                "--memory-id",
+                "target",
+            ]
+        )
 
         assert exit_code == 1
         assert "Memory not found: target" in capsys.readouterr().err

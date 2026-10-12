@@ -68,9 +68,7 @@ def _isolate_git_config_for_test_git() -> Iterator[None]:
     # by construction. The snapshot above is restored on teardown, so the
     # caller's configuration survives the session. Refs #2548, #4717.
     for name in [
-        key
-        for key in os.environ
-        if key == "GIT_CONFIG_COUNT" or _NUMBERED_GIT_CONFIG.match(key)
+        key for key in os.environ if key == "GIT_CONFIG_COUNT" or _NUMBERED_GIT_CONFIG.match(key)
     ]:
         del os.environ[name]
     os.environ["GIT_CONFIG_COUNT"] = "1"
@@ -206,8 +204,7 @@ def _sanitize_git_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     function exists to stop.
     """
     suite_owns_config = all(
-        os.environ.get(name) == value
-        for name, value in _SUITE_OWNED_GIT_CONFIG.items()
+        os.environ.get(name) == value for name, value in _SUITE_OWNED_GIT_CONFIG.items()
     )
     for name in set(_local_env_vars()) | set(_GIT_POINTER_VARS):
         if suite_owns_config and name in _SUITE_OWNED_GIT_CONFIG:

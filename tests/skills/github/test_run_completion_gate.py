@@ -27,13 +27,7 @@ import yaml
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _SCRIPT_PATH = (
-    _REPO_ROOT
-    / ".claude"
-    / "skills"
-    / "github"
-    / "scripts"
-    / "pr"
-    / "run_completion_gate.py"
+    _REPO_ROOT / ".claude" / "skills" / "github" / "scripts" / "pr" / "run_completion_gate.py"
 )
 _PR_REVIEW_CONFIG_PATH = _REPO_ROOT / ".claude" / "skills" / "pr-review" / "pr-review-config.yaml"
 _MERGE_READY_CRITERION = "PR is ready to merge (CI green, no conflicts)"
@@ -42,7 +36,8 @@ _MERGE_READY_CRITERION = "PR is ready to merge (CI green, no conflicts)"
 def _import_dispatcher():
     """Import the dispatcher module from its file path."""
     spec = importlib.util.spec_from_file_location(
-        "run_completion_gate", _SCRIPT_PATH,
+        "run_completion_gate",
+        _SCRIPT_PATH,
     )
     assert spec is not None
     assert spec.loader is not None
@@ -82,8 +77,7 @@ def test_default_config_path_resolves_to_a_tracked_file() -> None:
         check=False,
     )
     assert tracked.returncode == 0, (
-        f"{relative} is the dispatcher default but is not tracked at HEAD: "
-        f"{tracked.stderr.strip()}"
+        f"{relative} is the dispatcher default but is not tracked at HEAD: {tracked.stderr.strip()}"
     )
     assert default.resolve() == _PR_REVIEW_CONFIG_PATH.resolve(), (
         f"the dispatcher default ({relative}) and the config every test in "
@@ -128,7 +122,10 @@ def _clear_plugin_root_env(monkeypatch):
 
 def _make_proc(stdout: str = "", stderr: str = "", returncode: int = 0):
     return subprocess.CompletedProcess(
-        args=[], returncode=returncode, stdout=stdout, stderr=stderr,
+        args=[],
+        returncode=returncode,
+        stdout=stdout,
+        stderr=stderr,
     )
 
 
@@ -159,7 +156,12 @@ def repo_root(tmp_path, monkeypatch):
         _dispatcher,
         "_verify_command_trust",
         lambda *_a, **_k: _dispatcher.CommandTrustCheck(
-            _dispatcher.COMMAND_TRUST_TRUSTED, [], [], [], [], "",
+            _dispatcher.COMMAND_TRUST_TRUSTED,
+            [],
+            [],
+            [],
+            [],
+            "",
         ),
     )
     return tmp_path
@@ -187,64 +189,79 @@ class TestPassWhenDsl:
 
     def test_simple_int_eq_passes(self):
         data = {"unresolved_count": 0}
-        assert _dispatcher._eval_pass_when(
-            data, "stdout-json.unresolved_count == 0",
-        ) is True
+        assert (
+            _dispatcher._eval_pass_when(
+                data,
+                "stdout-json.unresolved_count == 0",
+            )
+            is True
+        )
 
     def test_simple_int_eq_fails(self):
         data = {"unresolved_count": 3}
-        assert _dispatcher._eval_pass_when(
-            data, "stdout-json.unresolved_count == 0",
-        ) is False
+        assert (
+            _dispatcher._eval_pass_when(
+                data,
+                "stdout-json.unresolved_count == 0",
+            )
+            is False
+        )
 
     def test_bool_eq_true(self):
         data = {"fetched_pages_complete": True}
-        assert _dispatcher._eval_pass_when(
-            data, "stdout-json.fetched_pages_complete == true",
-        ) is True
+        assert (
+            _dispatcher._eval_pass_when(
+                data,
+                "stdout-json.fetched_pages_complete == true",
+            )
+            is True
+        )
 
     def test_bool_eq_false_with_false_literal(self):
         data = {"merged": False}
-        assert _dispatcher._eval_pass_when(
-            data, "stdout-json.merged == false",
-        ) is True
+        assert (
+            _dispatcher._eval_pass_when(
+                data,
+                "stdout-json.merged == false",
+            )
+            is True
+        )
 
     def test_neq_operator(self):
         data = {"state": "OPEN"}
-        assert _dispatcher._eval_pass_when(
-            data, 'stdout-json.state != "CLOSED"',
-        ) is True
+        assert (
+            _dispatcher._eval_pass_when(
+                data,
+                'stdout-json.state != "CLOSED"',
+            )
+            is True
+        )
 
     def test_and_composition_both_true(self):
         data = {"unresolved_count": 0, "fetched_pages_complete": True}
-        expr = (
-            "stdout-json.unresolved_count == 0 "
-            "AND stdout-json.fetched_pages_complete == true"
-        )
+        expr = "stdout-json.unresolved_count == 0 AND stdout-json.fetched_pages_complete == true"
         assert _dispatcher._eval_pass_when(data, expr) is True
 
     def test_and_composition_one_false(self):
         data = {"unresolved_count": 0, "fetched_pages_complete": False}
-        expr = (
-            "stdout-json.unresolved_count == 0 "
-            "AND stdout-json.fetched_pages_complete == true"
-        )
+        expr = "stdout-json.unresolved_count == 0 AND stdout-json.fetched_pages_complete == true"
         assert _dispatcher._eval_pass_when(data, expr) is False
 
     def test_or_composition_one_true(self):
         data = {"unresolved_count": 5, "ignore_threads": True}
-        expr = (
-            "stdout-json.unresolved_count == 0 "
-            "OR stdout-json.ignore_threads == true"
-        )
+        expr = "stdout-json.unresolved_count == 0 OR stdout-json.ignore_threads == true"
         assert _dispatcher._eval_pass_when(data, expr) is True
 
     def test_missing_path_returns_none(self):
         data: dict = {}
         # null literal compares equal to a missing path
-        assert _dispatcher._eval_pass_when(
-            data, "stdout-json.nope == null",
-        ) is True
+        assert (
+            _dispatcher._eval_pass_when(
+                data,
+                "stdout-json.nope == null",
+            )
+            is True
+        )
 
     def test_unsupported_op_raises(self):
         data = {"x": 1}
@@ -253,18 +270,26 @@ class TestPassWhenDsl:
 
     def test_dotted_nested_path(self):
         data = {"outer": {"inner": 42}}
-        assert _dispatcher._eval_pass_when(
-            data, "stdout-json.outer.inner == 42",
-        ) is True
+        assert (
+            _dispatcher._eval_pass_when(
+                data,
+                "stdout-json.outer.inner == 42",
+            )
+            is True
+        )
 
     def test_quoted_string_with_space_stays_intact(self):
         # Per Gemini review: previous expr.split() broke on
         # ``"PR merged"``, splitting it into ``['"PR', 'merged"']``. The
         # shlex.split tokenizer keeps the literal as a single token.
         data = {"label": "PR merged"}
-        assert _dispatcher._eval_pass_when(
-            data, 'stdout-json.label == "PR merged"',
-        ) is True
+        assert (
+            _dispatcher._eval_pass_when(
+                data,
+                'stdout-json.label == "PR merged"',
+            )
+            is True
+        )
 
     def test_unbalanced_quotes_rejected(self):
         with pytest.raises(ValueError, match="tokenization failed"):
@@ -333,12 +358,16 @@ class TestRunCompletionGate:
         ]
 
         with patch.object(
-            _dispatcher.subprocess, "run", side_effect=responses,
+            _dispatcher.subprocess,
+            "run",
+            side_effect=responses,
         ):
             rc = _dispatcher.main(
                 [
-                    "--config", str(config_path),
-                    "--pull-request", "1234",
+                    "--config",
+                    str(config_path),
+                    "--pull-request",
+                    "1234",
                     "--json",
                 ],
             )
@@ -353,7 +382,10 @@ class TestRunCompletionGate:
         }
 
     def test_writes_gate_evidence_file_before_merge_action(
-        self, repo_root, tmp_path, monkeypatch,
+        self,
+        repo_root,
+        tmp_path,
+        monkeypatch,
     ):
         monkeypatch.chdir(tmp_path)
         config_path = _write_config(
@@ -371,14 +403,18 @@ class TestRunCompletionGate:
         evidence_path = tmp_path / ".agents" / "pr-comments" / "PR-4377" / "gate.json"
 
         with patch.object(
-            _dispatcher.subprocess, "run",
+            _dispatcher.subprocess,
+            "run",
             return_value=_make_proc(stdout=json.dumps({"unresolved_count": 0})),
         ):
             rc = _dispatcher.main(
                 [
-                    "--config", str(config_path),
-                    "--pull-request", "4377",
-                    "--evidence-path", str(evidence_path),
+                    "--config",
+                    str(config_path),
+                    "--pull-request",
+                    "4377",
+                    "--evidence-path",
+                    str(evidence_path),
                 ],
             )
 
@@ -403,15 +439,18 @@ class TestRunCompletionGate:
         )
 
         with patch.object(
-            _dispatcher.subprocess, "run",
+            _dispatcher.subprocess,
+            "run",
             return_value=_make_proc(
                 stdout=json.dumps({"unresolved_count": 3}),
             ),
         ):
             rc = _dispatcher.main(
                 [
-                    "--config", str(config_path),
-                    "--pull-request", "1234",
+                    "--config",
+                    str(config_path),
+                    "--pull-request",
+                    "1234",
                     "--json",
                 ],
             )
@@ -423,7 +462,10 @@ class TestRunCompletionGate:
         assert "pass_when evaluated false" in result["criteria"][0]["reason"]
 
     def test_command_error_fails_closed_when_fail_open_false(
-        self, repo_root, tmp_path, capsys,
+        self,
+        repo_root,
+        tmp_path,
+        capsys,
     ):
         config_path = _write_config(
             tmp_path,
@@ -439,13 +481,16 @@ class TestRunCompletionGate:
         )
 
         with patch.object(
-            _dispatcher.subprocess, "run",
+            _dispatcher.subprocess,
+            "run",
             side_effect=FileNotFoundError("nope"),
         ):
             rc = _dispatcher.main(
                 [
-                    "--config", str(config_path),
-                    "--pull-request", "1234",
+                    "--config",
+                    str(config_path),
+                    "--pull-request",
+                    "1234",
                     "--json",
                 ],
             )
@@ -470,13 +515,16 @@ class TestRunCompletionGate:
         )
 
         with patch.object(
-            _dispatcher.subprocess, "run",
+            _dispatcher.subprocess,
+            "run",
             side_effect=FileNotFoundError("nope"),
         ):
             rc = _dispatcher.main(
                 [
-                    "--config", str(config_path),
-                    "--pull-request", "1234",
+                    "--config",
+                    str(config_path),
+                    "--pull-request",
+                    "1234",
                     "--json",
                 ],
             )
@@ -500,13 +548,16 @@ class TestRunCompletionGate:
         )
 
         with patch.object(
-            _dispatcher.subprocess, "run",
+            _dispatcher.subprocess,
+            "run",
             return_value=_make_proc(stdout="not-json", returncode=0),
         ):
             rc = _dispatcher.main(
                 [
-                    "--config", str(config_path),
-                    "--pull-request", "1234",
+                    "--config",
+                    str(config_path),
+                    "--pull-request",
+                    "1234",
                     "--json",
                 ],
             )
@@ -517,7 +568,10 @@ class TestRunCompletionGate:
         assert "not a JSON object" in result["criteria"][0]["reason"]
 
     def test_non_zero_exit_treated_as_dispatch_error(
-        self, repo_root, tmp_path, capsys,
+        self,
+        repo_root,
+        tmp_path,
+        capsys,
     ):
         # Per Copilot review: a non-zero verifier exit is a dispatch
         # error, not a "the verifier ran fine, parse its stdout"
@@ -536,7 +590,8 @@ class TestRunCompletionGate:
             ],
         )
         with patch.object(
-            _dispatcher.subprocess, "run",
+            _dispatcher.subprocess,
+            "run",
             return_value=_make_proc(
                 stdout=json.dumps({"x": 0}),
                 stderr="something went wrong",
@@ -554,7 +609,10 @@ class TestRunCompletionGate:
         assert result["criteria"][0]["stderr"] == "something went wrong"
 
     def test_broken_pass_when_fails_closed_even_when_fail_open_true(
-        self, repo_root, tmp_path, capsys,
+        self,
+        repo_root,
+        tmp_path,
+        capsys,
     ):
         # Per CodeRabbit review: a broken pass_when expression is a
         # config bug, not a verifier outage. fail_open MUST NOT mask
@@ -573,7 +631,8 @@ class TestRunCompletionGate:
             ],
         )
         with patch.object(
-            _dispatcher.subprocess, "run",
+            _dispatcher.subprocess,
+            "run",
             return_value=_make_proc(stdout=json.dumps({"x": 0})),
         ):
             rc = _dispatcher.main(
@@ -585,7 +644,10 @@ class TestRunCompletionGate:
         assert "fails closed" in result["criteria"][0]["reason"]
 
     def test_verifier_stdout_preserved_in_result(
-        self, repo_root, tmp_path, capsys,
+        self,
+        repo_root,
+        tmp_path,
+        capsys,
     ):
         # Per CodeRabbit review: the result row must include the
         # verifier's stdout/stderr so the failing criterion can be
@@ -603,7 +665,8 @@ class TestRunCompletionGate:
         )
         verifier_out = json.dumps({"unresolved_count": 0})
         with patch.object(
-            _dispatcher.subprocess, "run",
+            _dispatcher.subprocess,
+            "run",
             return_value=_make_proc(stdout=verifier_out, returncode=0),
         ):
             rc = _dispatcher.main(
@@ -616,8 +679,10 @@ class TestRunCompletionGate:
     def test_missing_config_returns_two(self, repo_root, tmp_path):
         rc = _dispatcher.main(
             [
-                "--config", str(tmp_path / "does-not-exist.yaml"),
-                "--pull-request", "1234",
+                "--config",
+                str(tmp_path / "does-not-exist.yaml"),
+                "--pull-request",
+                "1234",
                 "--json",
             ],
         )
@@ -663,8 +728,10 @@ class TestRunCompletionGate:
         with patch.object(_dispatcher.subprocess, "run", side_effect=fake_run):
             rc = _dispatcher.main(
                 [
-                    "--config", str(config_path),
-                    "--pull-request", "1234",
+                    "--config",
+                    str(config_path),
+                    "--pull-request",
+                    "1234",
                     "--json",
                 ],
             )
@@ -688,13 +755,16 @@ class TestRunCompletionGate:
         )
 
         with patch.object(
-            _dispatcher.subprocess, "run",
+            _dispatcher.subprocess,
+            "run",
             return_value=_make_proc(stdout=json.dumps({"x": 7})),
         ):
             rc = _dispatcher.main(
                 [
-                    "--config", str(config_path),
-                    "--pull-request", "1",
+                    "--config",
+                    str(config_path),
+                    "--pull-request",
+                    "1",
                     "--json",
                 ],
             )
@@ -851,7 +921,8 @@ class TestPassWhenPythonNegativeBranches:
     def test_multiline_rejected(self):
         with pytest.raises(ValueError, match="single line"):
             _dispatcher._eval_pass_when_python(
-                {}, "lambda d: d\n.get('x')",
+                {},
+                "lambda d: d\n.get('x')",
             )
 
     def test_not_a_lambda_body_rejected(self):
@@ -867,7 +938,8 @@ class TestPassWhenPythonNegativeBranches:
         # A second parameter is outside the one-positional-arg contract.
         with pytest.raises(ValueError, match="exactly one positional argument"):
             _dispatcher._eval_pass_when_python(
-                {}, "lambda d, e: d.get('x') is True",
+                {},
+                "lambda d, e: d.get('x') is True",
             )
 
 
@@ -933,7 +1005,10 @@ class TestDispatcherCriterionRejectionPaths:
         assert "missing pass_when" in capsys.readouterr().err
 
     def test_pass_when_and_pass_when_python_both_set_rejected(
-        self, repo_root, tmp_path, capsys,
+        self,
+        repo_root,
+        tmp_path,
+        capsys,
     ):
         # Per Copilot review: both-set is ambiguous because the
         # dispatcher silently picks pass_when_python first. Reject at
@@ -957,7 +1032,10 @@ class TestDispatcherCriterionRejectionPaths:
         assert "mutually exclusive" in capsys.readouterr().err
 
     def test_timeout_fails_closed_when_fail_open_false(
-        self, repo_root, tmp_path, capsys,
+        self,
+        repo_root,
+        tmp_path,
+        capsys,
     ):
         config_path = _write_config(
             tmp_path,
@@ -972,7 +1050,8 @@ class TestDispatcherCriterionRejectionPaths:
             ],
         )
         with patch.object(
-            _dispatcher.subprocess, "run",
+            _dispatcher.subprocess,
+            "run",
             side_effect=subprocess.TimeoutExpired(cmd=["sleep"], timeout=1),
         ):
             rc = _dispatcher.main(
@@ -984,7 +1063,10 @@ class TestDispatcherCriterionRejectionPaths:
         assert "command failed to run" in result["criteria"][0]["reason"]
 
     def test_timeout_passes_when_fail_open_true(
-        self, repo_root, tmp_path, capsys,
+        self,
+        repo_root,
+        tmp_path,
+        capsys,
     ):
         config_path = _write_config(
             tmp_path,
@@ -999,7 +1081,8 @@ class TestDispatcherCriterionRejectionPaths:
             ],
         )
         with patch.object(
-            _dispatcher.subprocess, "run",
+            _dispatcher.subprocess,
+            "run",
             side_effect=subprocess.TimeoutExpired(cmd=["sleep"], timeout=1),
         ):
             rc = _dispatcher.main(
@@ -1012,7 +1095,10 @@ class TestDispatcherMainRejectionPaths:
     """Reachable branches in main() that earlier tests did not cover."""
 
     def test_empty_completion_criteria_returns_two(
-        self, repo_root, tmp_path, capsys,
+        self,
+        repo_root,
+        tmp_path,
+        capsys,
     ):
         config_path = _write_config(tmp_path, [])
         rc = _dispatcher.main(
@@ -1022,7 +1108,10 @@ class TestDispatcherMainRejectionPaths:
         assert "No completion_criteria" in capsys.readouterr().err
 
     def test_malformed_criterion_not_a_mapping(
-        self, repo_root, tmp_path, capsys,
+        self,
+        repo_root,
+        tmp_path,
+        capsys,
     ):
         # YAML parses "- foo" as a list element of type str, not dict.
         # CodeRabbit review feedback: a non-mapping criterion is a
@@ -1039,7 +1128,10 @@ class TestDispatcherMainRejectionPaths:
         assert "not a mapping" in capsys.readouterr().err
 
     def test_completion_criteria_not_a_list_rejected(
-        self, repo_root, tmp_path, capsys,
+        self,
+        repo_root,
+        tmp_path,
+        capsys,
     ):
         # Per CodeRabbit: a dict in this slot would be silently iterated
         # as keys. Reject explicitly.
@@ -1055,7 +1147,10 @@ class TestDispatcherMainRejectionPaths:
         assert "must be a list" in capsys.readouterr().err
 
     def test_unreadable_config_returns_two(
-        self, repo_root, tmp_path, capsys,
+        self,
+        repo_root,
+        tmp_path,
+        capsys,
     ):
         # Per CodeRabbit: yaml.YAMLError must be caught and exit 2.
         config_path = tmp_path / "pr-review-config.yaml"
@@ -1205,7 +1300,10 @@ class TestPassWhenPythonBroadException:
     """
 
     def test_zero_division_in_lambda_fails_closed(
-        self, repo_root, tmp_path, capsys,
+        self,
+        repo_root,
+        tmp_path,
+        capsys,
     ):
         config_path = _write_config(
             tmp_path,
@@ -1220,7 +1318,8 @@ class TestPassWhenPythonBroadException:
             ],
         )
         with patch.object(
-            _dispatcher.subprocess, "run",
+            _dispatcher.subprocess,
+            "run",
             return_value=_make_proc(stdout=json.dumps({"x": 0})),
         ):
             rc = _dispatcher.main(
@@ -1232,7 +1331,10 @@ class TestPassWhenPythonBroadException:
         assert "fails closed" in result["criteria"][0]["reason"]
 
     def test_index_error_in_lambda_fails_closed(
-        self, repo_root, tmp_path, capsys,
+        self,
+        repo_root,
+        tmp_path,
+        capsys,
     ):
         config_path = _write_config(
             tmp_path,
@@ -1247,7 +1349,8 @@ class TestPassWhenPythonBroadException:
             ],
         )
         with patch.object(
-            _dispatcher.subprocess, "run",
+            _dispatcher.subprocess,
+            "run",
             return_value=_make_proc(stdout=json.dumps({"items": []})),
         ):
             rc = _dispatcher.main(
@@ -1265,76 +1368,112 @@ class TestPassWhenPythonAstSafeSubset:
     """
 
     def test_is_true_comparison(self):
-        assert _dispatcher._eval_pass_when_python(
-            {"CanMerge": True}, "lambda d: d.get('CanMerge') is True",
-        ) is True
+        assert (
+            _dispatcher._eval_pass_when_python(
+                {"CanMerge": True},
+                "lambda d: d.get('CanMerge') is True",
+            )
+            is True
+        )
 
     def test_is_true_comparison_false_when_value_not_true(self):
         # ``is True`` must be identity-strict: a truthy non-True value
         # (e.g. the string "yes") does NOT satisfy ``is True``.
-        assert _dispatcher._eval_pass_when_python(
-            {"CanMerge": "yes"}, "lambda d: d.get('CanMerge') is True",
-        ) is False
+        assert (
+            _dispatcher._eval_pass_when_python(
+                {"CanMerge": "yes"},
+                "lambda d: d.get('CanMerge') is True",
+            )
+            is False
+        )
 
     def test_and_composition(self):
         data = {"CanMerge": True, "fetched_pages_complete": True}
-        assert _dispatcher._eval_pass_when_python(
-            data,
-            "lambda d: d.get('CanMerge') is True "
-            "and d.get('fetched_pages_complete') is True",
-        ) is True
+        assert (
+            _dispatcher._eval_pass_when_python(
+                data,
+                "lambda d: d.get('CanMerge') is True and d.get('fetched_pages_complete') is True",
+            )
+            is True
+        )
 
     def test_or_composition(self):
-        assert _dispatcher._eval_pass_when_python(
-            {"a": False, "b": True},
-            "lambda d: d.get('a') is True or d.get('b') is True",
-        ) is True
+        assert (
+            _dispatcher._eval_pass_when_python(
+                {"a": False, "b": True},
+                "lambda d: d.get('a') is True or d.get('b') is True",
+            )
+            is True
+        )
 
     def test_and_short_circuits_false_operand(self):
-        assert _dispatcher._eval_pass_when_python(
-            {"a": False},
-            "lambda d: d.get('a') is True and d['unsupported'] == 1",
-        ) is False
+        assert (
+            _dispatcher._eval_pass_when_python(
+                {"a": False},
+                "lambda d: d.get('a') is True and d['unsupported'] == 1",
+            )
+            is False
+        )
 
     def test_or_short_circuits_true_operand(self):
-        assert _dispatcher._eval_pass_when_python(
-            {"a": True},
-            "lambda d: d.get('a') is True or d['unsupported'] == 1",
-        ) is True
+        assert (
+            _dispatcher._eval_pass_when_python(
+                {"a": True},
+                "lambda d: d.get('a') is True or d['unsupported'] == 1",
+            )
+            is True
+        )
 
     def test_not_operator(self):
-        assert _dispatcher._eval_pass_when_python(
-            {"merged": False}, "lambda d: not d.get('merged') is True",
-        ) is True
+        assert (
+            _dispatcher._eval_pass_when_python(
+                {"merged": False},
+                "lambda d: not d.get('merged') is True",
+            )
+            is True
+        )
 
     def test_get_with_default(self):
-        assert _dispatcher._eval_pass_when_python(
-            {}, "lambda d: d.get('missing', 0) == 0",
-        ) is True
+        assert (
+            _dispatcher._eval_pass_when_python(
+                {},
+                "lambda d: d.get('missing', 0) == 0",
+            )
+            is True
+        )
 
     def test_in_membership_against_tuple(self):
-        assert _dispatcher._eval_pass_when_python(
-            {"state": "CLEAN"},
-            "lambda d: d.get('state') in ('CLEAN', 'UNSTABLE')",
-        ) is True
+        assert (
+            _dispatcher._eval_pass_when_python(
+                {"state": "CLEAN"},
+                "lambda d: d.get('state') in ('CLEAN', 'UNSTABLE')",
+            )
+            is True
+        )
 
     def test_numeric_comparison(self):
-        assert _dispatcher._eval_pass_when_python(
-            {"x": 7}, "lambda d: d.get('x', 0) > 0",
-        ) is True
+        assert (
+            _dispatcher._eval_pass_when_python(
+                {"x": 7},
+                "lambda d: d.get('x', 0) > 0",
+            )
+            is True
+        )
 
     def test_attribute_call_other_than_get_rejected(self):
         # ``d.keys()`` is a method call but not the permitted ``get``.
         with pytest.raises(ValueError, match="get"):
             _dispatcher._eval_pass_when_python(
-                {"x": 1}, "lambda d: d.keys() is not None",
+                {"x": 1},
+                "lambda d: d.keys() is not None",
             )
 
     def test_arbitrary_name_rejected(self):
         # A free name (not the lambda param) must not resolve.
         with pytest.raises(ValueError, match="unknown name"):
             _dispatcher._eval_pass_when_python(
-                {}, "lambda d: __import__ is None",
+                {},
+                "lambda d: __import__ is None",
             )
 
     def test_subscript_rejected_fails_closed(self):
@@ -1342,7 +1481,8 @@ class TestPassWhenPythonAstSafeSubset:
         # evaluator raises rather than executing it.
         with pytest.raises(ValueError, match="unsupported expression node"):
             _dispatcher._eval_pass_when_python(
-                {"k": 1}, "lambda d: d['k'] == 1",
+                {"k": 1},
+                "lambda d: d['k'] == 1",
             )
 
     def test_binop_rejected_before_evaluation(self):
@@ -1355,13 +1495,15 @@ class TestPassWhenPythonAstSafeSubset:
         # A bare builtin call (len) is not <param>.get(...); rejected.
         with pytest.raises(ValueError):
             _dispatcher._eval_pass_when_python(
-                {"x": [1]}, "lambda d: len(d.get('x')) == 1",
+                {"x": [1]},
+                "lambda d: len(d.get('x')) == 1",
             )
 
     def test_get_with_too_many_args_rejected(self):
         with pytest.raises(ValueError, match="one or two positional"):
             _dispatcher._eval_pass_when_python(
-                {}, "lambda d: d.get('a', 0, 9) == 0",
+                {},
+                "lambda d: d.get('a', 0, 9) == 0",
             )
 
 
@@ -1392,7 +1534,8 @@ class TestMergeReadyFourConditionGate:
     def _run_gate(self, tmp_path: Path, capsys, verifier_data: dict) -> tuple[int, dict]:
         config_path = self._merge_ready_config(tmp_path)
         with patch.object(
-            _dispatcher.subprocess, "run",
+            _dispatcher.subprocess,
+            "run",
             return_value=_make_proc(stdout=json.dumps(verifier_data), returncode=0),
         ):
             rc = _dispatcher.main(
@@ -1414,7 +1557,11 @@ class TestMergeReadyFourConditionGate:
 
     @pytest.mark.parametrize("merge_state", ["CLEAN", "HAS_HOOKS", "UNSTABLE"])
     def test_every_supported_merge_state_passes(
-        self, repo_root, tmp_path, capsys, merge_state,
+        self,
+        repo_root,
+        tmp_path,
+        capsys,
+        merge_state,
     ):
         """The three states `test_pr_merge_ready.py` routes to T1 clear the gate.
 
@@ -1454,7 +1601,12 @@ class TestMergeReadyFourConditionGate:
         ],
     )
     def test_any_missing_condition_fails_closed(
-        self, repo_root, tmp_path, capsys, override, reason,
+        self,
+        repo_root,
+        tmp_path,
+        capsys,
+        override,
+        reason,
     ):
         data = self._ready_payload()
         data.update(override)
@@ -1472,7 +1624,10 @@ class TestTableModeShowsEvidence:
     """
 
     def test_failing_row_shows_command_and_output(
-        self, repo_root, tmp_path, capsys,
+        self,
+        repo_root,
+        tmp_path,
+        capsys,
     ):
         config_path = _write_config(
             tmp_path,
@@ -1486,7 +1641,8 @@ class TestTableModeShowsEvidence:
             ],
         )
         with patch.object(
-            _dispatcher.subprocess, "run",
+            _dispatcher.subprocess,
+            "run",
             return_value=_make_proc(
                 stdout=json.dumps({"unresolved_count": 0}),
                 stderr="warning from verifier",
@@ -1502,6 +1658,7 @@ class TestTableModeShowsEvidence:
         assert "command:" in out
         assert "stdout:" in out
         assert "warning from verifier" in out
+
 
 # ---------------------------------------------------------------------------
 # CWE-829 config trust boundary (issue #5072)
@@ -1521,8 +1678,7 @@ def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess:
         "GIT_COMMITTER_EMAIL": "t@example.invalid",
     }
     proc = subprocess.run(
-        ["git", "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null",
-         *args],
+        ["git", "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null", *args],
         cwd=cwd,
         env=env,
         capture_output=True,
@@ -1625,7 +1781,10 @@ class TestVerifyConfigOnly:
         return config
 
     def test_a_trusted_config_verifies_and_runs_nothing(
-        self, git_repo, tmp_path, capsys,
+        self,
+        git_repo,
+        tmp_path,
+        capsys,
     ):
         """The marker is the whole point: verifying must not dispatch."""
         marker = tmp_path / "ran.txt"
@@ -1635,14 +1794,17 @@ class TestVerifyConfigOnly:
             encoding="utf-8",
         )
         config = self._config_with_scripts(
-            tmp_path, f"{sys.executable} {preflight}",
+            tmp_path,
+            f"{sys.executable} {preflight}",
         )
         _commit_as_trusted(git_repo, config, preflight)
 
         rc = _dispatcher.main(
             [
-                "--config", str(config),
-                "--pull-request", "1",
+                "--config",
+                str(config),
+                "--pull-request",
+                "1",
                 "--verify-config-only",
                 "--json",
             ],
@@ -1657,14 +1819,18 @@ class TestVerifyConfigOnly:
         assert any("preflight.py" in f for f in payload["checked_files"])
 
     def test_a_rewritten_command_halts_before_dispatch(
-        self, git_repo, tmp_path, capsys,
+        self,
+        git_repo,
+        tmp_path,
+        capsys,
     ):
         """The attack #5520 names: swap the command after the trusted commit."""
         marker = tmp_path / "ran.txt"
         preflight = tmp_path / "preflight.py"
         preflight.write_text("print('{}')\n", encoding="utf-8")
         config = self._config_with_scripts(
-            tmp_path, f"{sys.executable} {preflight}",
+            tmp_path,
+            f"{sys.executable} {preflight}",
         )
         _commit_as_trusted(git_repo, config, preflight)
 
@@ -1676,8 +1842,10 @@ class TestVerifyConfigOnly:
 
         rc = _dispatcher.main(
             [
-                "--config", str(config),
-                "--pull-request", "1",
+                "--config",
+                str(config),
+                "--pull-request",
+                "1",
                 "--verify-config-only",
             ],
         )
@@ -1691,7 +1859,8 @@ class TestVerifyConfigOnly:
         preflight = tmp_path / "preflight.py"
         preflight.write_text("print('{}')\n", encoding="utf-8")
         config = self._config_with_scripts(
-            tmp_path, f"{sys.executable} {preflight}",
+            tmp_path,
+            f"{sys.executable} {preflight}",
         )
         _commit_as_trusted(git_repo, config, preflight)
         config.write_text(
@@ -1701,8 +1870,10 @@ class TestVerifyConfigOnly:
 
         rc = _dispatcher.main(
             [
-                "--config", str(config),
-                "--pull-request", "1",
+                "--config",
+                str(config),
+                "--pull-request",
+                "1",
                 "--verify-config-only",
             ],
         )
@@ -1711,7 +1882,11 @@ class TestVerifyConfigOnly:
         assert "HALT" in capsys.readouterr().err
 
     def test_the_plugin_root_form_is_expanded_not_skipped(
-        self, git_repo, tmp_path, capsys, monkeypatch,
+        self,
+        git_repo,
+        tmp_path,
+        capsys,
+        monkeypatch,
     ):
         """The gap that made the first version of this mode a false verdict.
 
@@ -1726,15 +1901,16 @@ class TestVerifyConfigOnly:
         preflight.write_text("print('{}')\n", encoding="utf-8")
         config = self._config_with_scripts(
             tmp_path,
-            'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}'
-            '/preflight.py"',
+            'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/preflight.py"',
         )
         _commit_as_trusted(git_repo, config, preflight)
 
         rc = _dispatcher.main(
             [
-                "--config", str(config),
-                "--pull-request", "1",
+                "--config",
+                str(config),
+                "--pull-request",
+                "1",
                 "--verify-config-only",
                 "--json",
             ],
@@ -1747,7 +1923,11 @@ class TestVerifyConfigOnly:
         )
 
     def test_an_expanded_plugin_root_script_is_still_compared(
-        self, git_repo, tmp_path, capsys, monkeypatch,
+        self,
+        git_repo,
+        tmp_path,
+        capsys,
+        monkeypatch,
     ):
         """Recall control: expansion must feed the byte comparison, not bypass it."""
         monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(tmp_path))
@@ -1763,8 +1943,10 @@ class TestVerifyConfigOnly:
 
         rc = _dispatcher.main(
             [
-                "--config", str(config),
-                "--pull-request", "1",
+                "--config",
+                str(config),
+                "--pull-request",
+                "1",
                 "--verify-config-only",
             ],
         )
@@ -1772,7 +1954,11 @@ class TestVerifyConfigOnly:
         assert rc == 2, "an expanded path was resolved but never compared"
 
     def test_a_shell_evaluated_token_is_reported_not_silently_skipped(
-        self, git_repo, tmp_path, capsys, monkeypatch,
+        self,
+        git_repo,
+        tmp_path,
+        capsys,
+        monkeypatch,
     ):
         """A pwsh -Command payload cannot be resolved statically.
 
@@ -1783,14 +1969,16 @@ class TestVerifyConfigOnly:
         monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
         config = self._config_with_scripts(
             tmp_path,
-            'pwsh -NoProfile -Command \'& $exe (Join-Path $root "x.py")\'',
+            "pwsh -NoProfile -Command '& $exe (Join-Path $root \"x.py\")'",
         )
         _commit_as_trusted(git_repo, config)
 
         rc = _dispatcher.main(
             [
-                "--config", str(config),
-                "--pull-request", "1",
+                "--config",
+                str(config),
+                "--pull-request",
+                "1",
                 "--verify-config-only",
                 "--json",
             ],
@@ -1805,7 +1993,10 @@ class TestVerifyConfigOnly:
         assert "no file comparison was possible" in captured.err
 
     def test_a_literal_command_reports_nothing_unverifiable(
-        self, git_repo, tmp_path, capsys,
+        self,
+        git_repo,
+        tmp_path,
+        capsys,
     ):
         """Precision control on the report above.
 
@@ -1815,14 +2006,17 @@ class TestVerifyConfigOnly:
         preflight = tmp_path / "preflight.py"
         preflight.write_text("print('{}')\n", encoding="utf-8")
         config = self._config_with_scripts(
-            tmp_path, f"{sys.executable} {preflight}",
+            tmp_path,
+            f"{sys.executable} {preflight}",
         )
         _commit_as_trusted(git_repo, config, preflight)
 
         rc = _dispatcher.main(
             [
-                "--config", str(config),
-                "--pull-request", "1",
+                "--config",
+                str(config),
+                "--pull-request",
+                "1",
                 "--verify-config-only",
                 "--json",
             ],
@@ -1833,7 +2027,10 @@ class TestVerifyConfigOnly:
         assert payload["unverifiable_command_tokens"] == []
 
     def test_every_harness_map_is_verified_not_only_the_first(
-        self, git_repo, tmp_path, capsys,
+        self,
+        git_repo,
+        tmp_path,
+        capsys,
     ):
         """Which map a consumer selects is prose the gate cannot read."""
         other = tmp_path / "copilot_only.py"
@@ -1863,8 +2060,10 @@ class TestVerifyConfigOnly:
 
         rc = _dispatcher.main(
             [
-                "--config", str(config),
-                "--pull-request", "1",
+                "--config",
+                str(config),
+                "--pull-request",
+                "1",
                 "--verify-config-only",
             ],
         )
@@ -1879,7 +2078,10 @@ class TestConfigTrustBoundary:
     """
 
     def test_identical_config_proceeds_and_executes(
-        self, git_repo, tmp_path, capsys,
+        self,
+        git_repo,
+        tmp_path,
+        capsys,
     ):
         marker = tmp_path / "ran.txt"
         config_path = _write_config(tmp_path, _marker_criterion(tmp_path, marker))
@@ -1902,7 +2104,10 @@ class TestConfigTrustBoundary:
         assert payload["command_trust"]["untrusted_files"] == []
 
     def test_tampered_config_halts_without_executing_command(
-        self, git_repo, tmp_path, capsys,
+        self,
+        git_repo,
+        tmp_path,
+        capsys,
     ):
         # Trusted copy holds a benign criterion; the PR tree rewrites the
         # command. The marker file is the negative control: it must NOT
@@ -1927,9 +2132,7 @@ class TestConfigTrustBoundary:
         )
 
         assert rc == 2
-        assert not marker.exists(), (
-            "tampered completion_criteria.command must never execute"
-        )
+        assert not marker.exists(), "tampered completion_criteria.command must never execute"
         err = capsys.readouterr().err
         assert "HALT" in err
         assert "diverged" in err
@@ -1952,7 +2155,10 @@ class TestConfigTrustBoundary:
         assert "diverged" in capsys.readouterr().err
 
     def test_bidi_controls_in_surfaced_diff_are_escaped(
-        self, git_repo, tmp_path, capsys,
+        self,
+        git_repo,
+        tmp_path,
+        capsys,
     ):
         # Trojan Source (CVE-2021-42574): a bidi control such as U+202E
         # in the tampered content could make the terminal render a
@@ -1964,8 +2170,7 @@ class TestConfigTrustBoundary:
         config_path = _write_config(tmp_path, _marker_criterion(tmp_path, marker))
         _commit_as_trusted(git_repo, config_path)
         config_path.write_text(
-            config_path.read_text(encoding="utf-8")
-            + "\n\u202eevil\u200bhidden\x1b[31mansi",
+            config_path.read_text(encoding="utf-8") + "\n\u202eevil\u200bhidden\x1b[31mansi",
             encoding="utf-8",
         )
 
@@ -1984,7 +2189,10 @@ class TestConfigTrustBoundary:
         assert "\\u001b" in err
 
     def test_config_in_nested_repository_fails_closed(
-        self, git_repo, tmp_path, capsys,
+        self,
+        git_repo,
+        tmp_path,
+        capsys,
     ):
         # A PR can vendor a nested repository (initialized submodule or
         # committed checkout) whose origin/main the ATTACKER controls.
@@ -2009,7 +2217,10 @@ class TestConfigTrustBoundary:
         assert "different git work tree" in err
 
     def test_symlinked_config_is_rejected_without_reading_target(
-        self, git_repo, tmp_path, capsys,
+        self,
+        git_repo,
+        tmp_path,
+        capsys,
     ):
         # CWE-59/CWE-200: validate_safe_path resolves symlinks, so a
         # PR-committed symlink at the config path would redirect the
@@ -2039,7 +2250,10 @@ class TestConfigTrustBoundary:
         assert "hunter2" not in err
 
     def test_symlinked_parent_directory_is_rejected(
-        self, git_repo, tmp_path, capsys,
+        self,
+        git_repo,
+        tmp_path,
+        capsys,
     ):
         # Parent-directory variant of the same redirect: the final
         # component is a regular file but a directory on the path is a
@@ -2056,8 +2270,10 @@ class TestConfigTrustBoundary:
 
         rc = _dispatcher.main(
             [
-                "--config", str(link_dir / "pr-review-config.yaml"),
-                "--pull-request", "1",
+                "--config",
+                str(link_dir / "pr-review-config.yaml"),
+                "--pull-request",
+                "1",
             ],
         )
 
@@ -2067,7 +2283,10 @@ class TestConfigTrustBoundary:
         assert "LOCAL_ONLY" not in err
 
     def test_config_missing_from_trusted_ref_halts(
-        self, git_repo, tmp_path, capsys,
+        self,
+        git_repo,
+        tmp_path,
+        capsys,
     ):
         # origin/main exists but never carried the config: fail closed,
         # because tampering is indistinguishable from a new file.
@@ -2124,7 +2343,10 @@ class TestConfigTrustBoundary:
         assert "git-error" in capsys.readouterr().err
 
     def test_approval_flag_executes_diverged_config_with_warning(
-        self, git_repo, tmp_path, capsys,
+        self,
+        git_repo,
+        tmp_path,
+        capsys,
     ):
         config_path = _write_config(
             tmp_path,
@@ -2143,8 +2365,10 @@ class TestConfigTrustBoundary:
 
         rc = _dispatcher.main(
             [
-                "--config", str(config_path),
-                "--pull-request", "1",
+                "--config",
+                str(config_path),
+                "--pull-request",
+                "1",
                 "--json",
                 "--approve-untrusted-config",
             ],
@@ -2167,8 +2391,10 @@ class TestConfigTrustBoundary:
 
         rc = _dispatcher.main(
             [
-                "--config", str(config_path),
-                "--pull-request", "1",
+                "--config",
+                str(config_path),
+                "--pull-request",
+                "1",
                 "--approve-untrusted-config",
             ],
         )
@@ -2178,7 +2404,10 @@ class TestConfigTrustBoundary:
         assert "WARNING" in capsys.readouterr().err
 
     def test_malformed_trusted_ref_rejected_before_git_runs(
-        self, git_repo, tmp_path, capsys,
+        self,
+        git_repo,
+        tmp_path,
+        capsys,
     ):
         # A ref starting with "-" could be parsed as a git option
         # (argument injection); it must be rejected up front.
@@ -2188,8 +2417,10 @@ class TestConfigTrustBoundary:
 
         rc = _dispatcher.main(
             [
-                "--config", str(config_path),
-                "--pull-request", "1",
+                "--config",
+                str(config_path),
+                "--pull-request",
+                "1",
                 "--trusted-ref=--upload-pack=/bin/true",
             ],
         )
@@ -2208,9 +2439,12 @@ class TestConfigTrustBoundary:
 
         rc = _dispatcher.main(
             [
-                "--config", str(config_path),
-                "--pull-request", "1",
-                "--trusted-ref", "upstream/release",
+                "--config",
+                str(config_path),
+                "--pull-request",
+                "1",
+                "--trusted-ref",
+                "upstream/release",
             ],
         )
 
@@ -2249,7 +2483,9 @@ class TestVerifyConfigTrustErrorBranches:
         assert result.status == _dispatcher.TRUST_GIT_ERROR
 
     def test_config_outside_toplevel_reports_git_error(
-        self, tmp_path, monkeypatch,
+        self,
+        tmp_path,
+        monkeypatch,
     ):
         elsewhere = tmp_path / "elsewhere"
         elsewhere.mkdir()
@@ -2257,8 +2493,10 @@ class TestVerifyConfigTrustErrorBranches:
         def _fake(args, cwd):
             if args[:2] == ["rev-parse", "--show-toplevel"]:
                 return subprocess.CompletedProcess(
-                    args=args, returncode=0,
-                    stdout=str(elsewhere).encode() + b"\n", stderr=b"",
+                    args=args,
+                    returncode=0,
+                    stdout=str(elsewhere).encode() + b"\n",
+                    stderr=b"",
                 )
             raise AssertionError(f"unexpected git call: {args}")
 
@@ -2272,21 +2510,30 @@ class TestVerifyConfigTrustErrorBranches:
         assert "outside git work tree" in result.detail
 
     def test_cat_file_filters_failure_reports_git_error(
-        self, tmp_path, monkeypatch,
+        self,
+        tmp_path,
+        monkeypatch,
     ):
         def _fake(args, cwd):
             if args[:2] == ["cat-file", "--filters"]:
                 return subprocess.CompletedProcess(
-                    args=args, returncode=128, stdout=b"", stderr=b"boom",
+                    args=args,
+                    returncode=128,
+                    stdout=b"",
+                    stderr=b"boom",
                 )
             if args[:2] == ["rev-parse", "--symbolic-full-name"]:
                 return subprocess.CompletedProcess(
-                    args=args, returncode=0,
-                    stdout=b"refs/remotes/origin/main\n", stderr=b"",
+                    args=args,
+                    returncode=0,
+                    stdout=b"refs/remotes/origin/main\n",
+                    stderr=b"",
                 )
             return subprocess.CompletedProcess(
-                args=args, returncode=0,
-                stdout=str(tmp_path).encode() + b"\n", stderr=b"",
+                args=args,
+                returncode=0,
+                stdout=str(tmp_path).encode() + b"\n",
+                stderr=b"",
             )
 
         monkeypatch.setattr(_dispatcher, "_run_git", _fake)
@@ -2299,7 +2546,9 @@ class TestVerifyConfigTrustErrorBranches:
         assert "cat-file --filters" in result.detail
 
     def test_ls_tree_failure_is_git_error_not_missing_base(
-        self, tmp_path, monkeypatch,
+        self,
+        tmp_path,
+        monkeypatch,
     ):
         # cat-file -e exits 128 for BOTH an absent path and an
         # object-store error, which would have made verification
@@ -2309,17 +2558,23 @@ class TestVerifyConfigTrustErrorBranches:
         def _fake(args, cwd):
             if args[:1] == ["ls-tree"]:
                 return subprocess.CompletedProcess(
-                    args=args, returncode=128, stdout=b"",
+                    args=args,
+                    returncode=128,
+                    stdout=b"",
                     stderr=b"fatal: object store corrupt",
                 )
             if args[:2] == ["rev-parse", "--symbolic-full-name"]:
                 return subprocess.CompletedProcess(
-                    args=args, returncode=0,
-                    stdout=b"refs/remotes/origin/main\n", stderr=b"",
+                    args=args,
+                    returncode=0,
+                    stdout=b"refs/remotes/origin/main\n",
+                    stderr=b"",
                 )
             return subprocess.CompletedProcess(
-                args=args, returncode=0,
-                stdout=str(tmp_path).encode() + b"\n", stderr=b"",
+                args=args,
+                returncode=0,
+                stdout=str(tmp_path).encode() + b"\n",
+                stderr=b"",
             )
 
         monkeypatch.setattr(_dispatcher, "_run_git", _fake)
@@ -2348,8 +2603,7 @@ class TestTrustBoundaryHardening:
         _git(git_repo, "commit", "-q", "-m", "attacker controls HEAD")
 
         rc = _dispatcher.main(
-            ["--config", str(config_path), "--pull-request", "1",
-             "--trusted-ref", "HEAD"],
+            ["--config", str(config_path), "--pull-request", "1", "--trusted-ref", "HEAD"],
         )
 
         assert rc == 3
@@ -2358,7 +2612,10 @@ class TestTrustBoundaryHardening:
         assert "remote-tracking" in err
 
     def test_local_branch_as_trusted_ref_fails_closed(
-        self, git_repo, tmp_path, capsys,
+        self,
+        git_repo,
+        tmp_path,
+        capsys,
     ):
         marker = tmp_path / "ran.txt"
         config_path = _write_config(tmp_path, _marker_criterion(tmp_path, marker))
@@ -2367,8 +2624,7 @@ class TestTrustBoundaryHardening:
         _git(git_repo, "branch", "pr-branch")
 
         rc = _dispatcher.main(
-            ["--config", str(config_path), "--pull-request", "1",
-             "--trusted-ref", "pr-branch"],
+            ["--config", str(config_path), "--pull-request", "1", "--trusted-ref", "pr-branch"],
         )
 
         assert rc == 3
@@ -2376,7 +2632,9 @@ class TestTrustBoundaryHardening:
         assert "remote-tracking" in capsys.readouterr().err
 
     def test_eol_only_difference_under_autocrlf_stays_trusted(
-        self, git_repo, tmp_path,
+        self,
+        git_repo,
+        tmp_path,
     ):
         # F4: a consumer repo with core.autocrlf=true checks the config out
         # with CRLF while the trusted blob stores LF. The comparison uses
@@ -2402,7 +2660,9 @@ class TestTrustBoundaryHardening:
         assert marker.exists()
 
     def test_content_tamper_under_autocrlf_still_halts(
-        self, git_repo, tmp_path,
+        self,
+        git_repo,
+        tmp_path,
     ):
         # Negative control for the EOL allowance: CRLF conversion plus a
         # real content change must still halt without executing.
@@ -2432,7 +2692,10 @@ class TestTrustBoundaryHardening:
         assert not marker.exists()
 
     def test_deeply_nested_config_fails_config_not_crash(
-        self, repo_root, tmp_path, capsys,
+        self,
+        repo_root,
+        tmp_path,
+        capsys,
     ):
         # F6: RecursionError is not a yaml.YAMLError subclass; a nesting
         # bomb must exit 2 (config error), not escape as a traceback with
@@ -2479,7 +2742,9 @@ class TestConfigLoaderBranches:
     """Unit coverage for the split read/parse loader (100% requirement)."""
 
     def test_unreadable_existing_config_reports_config_error(
-        self, tmp_path, monkeypatch,
+        self,
+        tmp_path,
+        monkeypatch,
     ):
         config = tmp_path / "c.yaml"
         config.write_text("{}", encoding="utf-8")
@@ -2511,21 +2776,30 @@ class TestVerifyRefCommitBranch:
     """
 
     def test_symbolic_ok_but_verify_fails_reports_git_error(
-        self, tmp_path, monkeypatch,
+        self,
+        tmp_path,
+        monkeypatch,
     ):
         def _fake(args, cwd):
             if args[:2] == ["rev-parse", "--symbolic-full-name"]:
                 return subprocess.CompletedProcess(
-                    args=args, returncode=0,
-                    stdout=b"refs/remotes/origin/main\n", stderr=b"",
+                    args=args,
+                    returncode=0,
+                    stdout=b"refs/remotes/origin/main\n",
+                    stderr=b"",
                 )
             if args[:2] == ["rev-parse", "--verify"]:
                 return subprocess.CompletedProcess(
-                    args=args, returncode=1, stdout=b"", stderr=b"",
+                    args=args,
+                    returncode=1,
+                    stdout=b"",
+                    stderr=b"",
                 )
             return subprocess.CompletedProcess(
-                args=args, returncode=0,
-                stdout=str(tmp_path).encode() + b"\n", stderr=b"",
+                args=args,
+                returncode=0,
+                stdout=str(tmp_path).encode() + b"\n",
+                stderr=b"",
             )
 
         monkeypatch.setattr(_dispatcher, "_run_git", _fake)
@@ -2544,7 +2818,10 @@ class TestApprovalDoesNotCoverGitError:
     """
 
     def test_approval_flag_rejected_when_not_a_git_repo(
-        self, tmp_path, monkeypatch, capsys,
+        self,
+        tmp_path,
+        monkeypatch,
+        capsys,
     ):
         monkeypatch.setattr(_dispatcher, "_PROJECT_ROOT", tmp_path)
         marker = tmp_path / "ran.txt"
@@ -2552,8 +2829,10 @@ class TestApprovalDoesNotCoverGitError:
 
         rc = _dispatcher.main(
             [
-                "--config", str(config_path),
-                "--pull-request", "1",
+                "--config",
+                str(config_path),
+                "--pull-request",
+                "1",
                 "--approve-untrusted-config",
             ],
         )
@@ -2566,7 +2845,10 @@ class TestApprovalDoesNotCoverGitError:
         assert "does not apply when verification is impossible" in err
 
     def test_approval_flag_rejected_when_trusted_ref_absent(
-        self, git_repo, tmp_path, capsys,
+        self,
+        git_repo,
+        tmp_path,
+        capsys,
     ):
         marker = tmp_path / "ran.txt"
         config_path = _write_config(tmp_path, _marker_criterion(tmp_path, marker))
@@ -2575,8 +2857,10 @@ class TestApprovalDoesNotCoverGitError:
 
         rc = _dispatcher.main(
             [
-                "--config", str(config_path),
-                "--pull-request", "1",
+                "--config",
+                str(config_path),
+                "--pull-request",
+                "1",
                 "--approve-untrusted-config",
             ],
         )
@@ -2599,7 +2883,8 @@ def _write_marker_script(script: Path, marker: Path) -> Path:
 def _benign_script(script: Path) -> Path:
     """Write a verifier that passes and leaves no trace."""
     script.write_text(
-        "import json\nprint(json.dumps({'ok': True}))\n", encoding="utf-8",
+        "import json\nprint(json.dumps({'ok': True}))\n",
+        encoding="utf-8",
     )
     return script
 
@@ -2621,14 +2906,18 @@ class TestCommandTrustBoundary:
     """
 
     def test_untouched_verifier_and_data_file_dispatch(
-        self, git_repo, tmp_path, capsys,
+        self,
+        git_repo,
+        tmp_path,
+        capsys,
     ):
         marker = tmp_path / "ran.txt"
         script = _write_marker_script(tmp_path / "verify.py", marker)
         data = tmp_path / "fixture.json"
         data.write_text("{}", encoding="utf-8")
         config_path = _write_config(
-            tmp_path, [_script_criterion("Ok", script, str(data))],
+            tmp_path,
+            [_script_criterion("Ok", script, str(data))],
         )
         _commit_as_trusted(git_repo, config_path, script, data)
 
@@ -2641,12 +2930,16 @@ class TestCommandTrustBoundary:
         payload = json.loads(capsys.readouterr().out)
         assert payload["command_trust"]["status"] == "trusted"
         assert payload["command_trust"]["checked_files"] == [
-            "verify.py", "fixture.json",
+            "verify.py",
+            "fixture.json",
         ]
         assert payload["command_trust"]["untrusted_files"] == []
 
     def test_modified_verifier_script_halts_without_executing(
-        self, git_repo, tmp_path, capsys,
+        self,
+        git_repo,
+        tmp_path,
+        capsys,
     ):
         # The exact attack from issue #5099: the config is left untouched
         # (so config_trust stays "trusted") while the verifier script the
@@ -2663,16 +2956,17 @@ class TestCommandTrustBoundary:
         )
 
         assert rc == 2
-        assert not marker.exists(), (
-            "a rewritten verifier script must never execute"
-        )
+        assert not marker.exists(), "a rewritten verifier script must never execute"
         err = capsys.readouterr().err
         assert "HALT" in err
         assert "verify.py" in err
         assert "--approve-untrusted-config" in err
 
     def test_verifier_added_by_the_pr_and_absent_at_base_halts(
-        self, git_repo, tmp_path, capsys,
+        self,
+        git_repo,
+        tmp_path,
+        capsys,
     ):
         # A tracked verifier the base branch does not have is PR-supplied
         # code with nothing to compare against: untrusted, not "no
@@ -2694,7 +2988,10 @@ class TestCommandTrustBoundary:
         assert "new_verify.py" in capsys.readouterr().err
 
     def test_untracked_operator_file_is_recorded_not_compared(
-        self, git_repo, tmp_path, capsys,
+        self,
+        git_repo,
+        tmp_path,
+        capsys,
     ):
         # A file the operator writes during the review, such as a local
         # scratch fixture. It is untracked, so it has no trusted-ref copy;
@@ -2708,7 +3005,8 @@ class TestCommandTrustBoundary:
         script = _write_marker_script(tmp_path / "verify.py", marker)
         dispositions = tmp_path / "dispositions.json"
         config_path = _write_config(
-            tmp_path, [_script_criterion("Ok", script, str(dispositions))],
+            tmp_path,
+            [_script_criterion("Ok", script, str(dispositions))],
         )
         _commit_as_trusted(git_repo, config_path, script)
         dispositions.write_text("{}", encoding="utf-8")
@@ -2727,7 +3025,10 @@ class TestCommandTrustBoundary:
         ]
 
     def test_a_tracked_option_value_is_compared_like_any_other_path(
-        self, git_repo, tmp_path, capsys,
+        self,
+        git_repo,
+        tmp_path,
+        capsys,
     ):
         """Positive control for the pair above: tracked means compared.
 
@@ -2748,7 +3049,8 @@ class TestCommandTrustBoundary:
         registry = tmp_path / "dispositions.json"
         registry.write_text("{}", encoding="utf-8")
         config_path = _write_config(
-            tmp_path, [_script_criterion("Ok", script, str(registry))],
+            tmp_path,
+            [_script_criterion("Ok", script, str(registry))],
         )
         _commit_as_trusted(git_repo, config_path, script, registry)
 
@@ -2766,7 +3068,9 @@ class TestCommandTrustBoundary:
         assert payload["command_trust"]["skipped_untracked_files"] == []
 
     def test_a_tampered_tracked_option_value_halts_the_gate(
-        self, git_repo, tmp_path,
+        self,
+        git_repo,
+        tmp_path,
     ):
         """The half that matters: comparison without a halt is decoration.
 
@@ -2778,11 +3082,11 @@ class TestCommandTrustBoundary:
         registry = tmp_path / "dispositions.json"
         registry.write_text("{}", encoding="utf-8")
         config_path = _write_config(
-            tmp_path, [_script_criterion("Ok", script, str(registry))],
+            tmp_path,
+            [_script_criterion("Ok", script, str(registry))],
         )
         _commit_as_trusted(git_repo, config_path, script, registry)
-        registry.write_text('{"some-check": {"disposition": "known-flaky"}}',
-                            encoding="utf-8")
+        registry.write_text('{"some-check": {"disposition": "known-flaky"}}', encoding="utf-8")
 
         rc = _dispatcher.main(
             ["--config", str(config_path), "--pull-request", "1"],
@@ -2792,7 +3096,10 @@ class TestCommandTrustBoundary:
         assert not marker.exists(), "no criterion may run on an edited registry"
 
     def test_an_equals_form_option_value_is_compared_like_any_other_path(
-        self, git_repo, tmp_path, capsys,
+        self,
+        git_repo,
+        tmp_path,
+        capsys,
     ):
         """Positive control: `--flag=value` is one argv token, not two.
 
@@ -2808,7 +3115,8 @@ class TestCommandTrustBoundary:
         registry = tmp_path / "dispositions.json"
         registry.write_text("{}", encoding="utf-8")
         config_path = _write_config(
-            tmp_path, [_script_criterion("Ok", script, f"--registry={registry}")],
+            tmp_path,
+            [_script_criterion("Ok", script, f"--registry={registry}")],
         )
         _commit_as_trusted(git_repo, config_path, script, registry)
 
@@ -2826,7 +3134,9 @@ class TestCommandTrustBoundary:
         assert payload["command_trust"]["skipped_untracked_files"] == []
 
     def test_a_tampered_equals_form_option_value_halts_the_gate(
-        self, git_repo, tmp_path,
+        self,
+        git_repo,
+        tmp_path,
     ):
         """The half that matters: an edited `--flag=value` registry halts too.
 
@@ -2840,11 +3150,11 @@ class TestCommandTrustBoundary:
         registry = tmp_path / "dispositions.json"
         registry.write_text("{}", encoding="utf-8")
         config_path = _write_config(
-            tmp_path, [_script_criterion("Ok", script, f"--registry={registry}")],
+            tmp_path,
+            [_script_criterion("Ok", script, f"--registry={registry}")],
         )
         _commit_as_trusted(git_repo, config_path, script, registry)
-        registry.write_text('{"some-check": {"disposition": "known-flaky"}}',
-                            encoding="utf-8")
+        registry.write_text('{"some-check": {"disposition": "known-flaky"}}', encoding="utf-8")
 
         rc = _dispatcher.main(
             ["--config", str(config_path), "--pull-request", "1"],
@@ -2854,7 +3164,9 @@ class TestCommandTrustBoundary:
         assert not marker.exists(), "no criterion may run on an edited registry"
 
     def test_untracked_script_does_not_mask_a_tampered_tracked_one(
-        self, git_repo, tmp_path,
+        self,
+        git_repo,
+        tmp_path,
     ):
         # Negative control for the untracked carve-out: skipping an
         # untracked path must not stop a tracked, tampered script from
@@ -2862,7 +3174,8 @@ class TestCommandTrustBoundary:
         script = _benign_script(tmp_path / "verify.py")
         scratch = tmp_path / "scratch.json"
         config_path = _write_config(
-            tmp_path, [_script_criterion("Ok", script, str(scratch))],
+            tmp_path,
+            [_script_criterion("Ok", script, str(scratch))],
         )
         _commit_as_trusted(git_repo, config_path, script)
         scratch.write_text("{}", encoding="utf-8")
@@ -2877,7 +3190,9 @@ class TestCommandTrustBoundary:
         assert not marker.exists()
 
     def test_no_criterion_runs_when_a_later_one_is_untrusted(
-        self, git_repo, tmp_path,
+        self,
+        git_repo,
+        tmp_path,
     ):
         # FR-3.1: every trust check precedes every dispatch. A trusted
         # first criterion must not run when a later one is untrusted.
@@ -2907,7 +3222,10 @@ class TestCommandTrustBoundary:
         )
 
     def test_approval_flag_allows_modified_verifier_with_warning(
-        self, git_repo, tmp_path, capsys,
+        self,
+        git_repo,
+        tmp_path,
+        capsys,
     ):
         script = _benign_script(tmp_path / "verify.py")
         config_path = _write_config(tmp_path, [_script_criterion("Ok", script)])
@@ -2917,8 +3235,10 @@ class TestCommandTrustBoundary:
 
         rc = _dispatcher.main(
             [
-                "--config", str(config_path),
-                "--pull-request", "1",
+                "--config",
+                str(config_path),
+                "--pull-request",
+                "1",
                 "--json",
                 "--approve-untrusted-config",
             ],
@@ -2934,7 +3254,11 @@ class TestCommandTrustBoundary:
         assert payload["command_trust"]["approved"] is True
 
     def test_git_error_during_file_verification_is_not_approvable(
-        self, git_repo, tmp_path, monkeypatch, capsys,
+        self,
+        git_repo,
+        tmp_path,
+        monkeypatch,
+        capsys,
     ):
         marker = tmp_path / "ran.txt"
         script = _write_marker_script(tmp_path / "verify.py", marker)
@@ -2946,7 +3270,9 @@ class TestCommandTrustBoundary:
         def _fail_verifier_lookup(args, cwd):
             if args[0] == "ls-tree" and args[-1] == ":(literal)verify.py":
                 return subprocess.CompletedProcess(
-                    args=args, returncode=128, stdout=b"",
+                    args=args,
+                    returncode=128,
+                    stdout=b"",
                     stderr=b"fatal: object store is broken",
                 )
             return original(args, cwd)
@@ -2955,8 +3281,10 @@ class TestCommandTrustBoundary:
 
         rc = _dispatcher.main(
             [
-                "--config", str(config_path),
-                "--pull-request", "1",
+                "--config",
+                str(config_path),
+                "--pull-request",
+                "1",
                 "--approve-untrusted-config",
             ],
         )
@@ -2965,13 +3293,14 @@ class TestCommandTrustBoundary:
         assert not marker.exists(), (
             "approval must not unlock dispatch when verification is impossible"
         )
-        assert (
-            "does not apply when verification is impossible"
-            in capsys.readouterr().err
-        )
+        assert "does not apply when verification is impossible" in capsys.readouterr().err
 
     def test_script_outside_the_work_tree_is_recorded_not_checked(
-        self, git_repo, tmp_path, tmp_path_factory, capsys,
+        self,
+        git_repo,
+        tmp_path,
+        tmp_path_factory,
+        capsys,
     ):
         # An installed-plugin script lives outside the consumer's work
         # tree. A PR to that repository cannot rewrite it and it has no
@@ -2980,7 +3309,8 @@ class TestCommandTrustBoundary:
         marker = tmp_path / "ran.txt"
         script = _write_marker_script(plugin_root / "verify.py", marker)
         config_path = _write_config(
-            tmp_path, [_script_criterion("Plugin", script)],
+            tmp_path,
+            [_script_criterion("Plugin", script)],
         )
         _commit_as_trusted(git_repo, config_path)
 
@@ -2993,12 +3323,13 @@ class TestCommandTrustBoundary:
         payload = json.loads(capsys.readouterr().out)
         assert payload["command_trust"]["status"] == "trusted"
         assert payload["command_trust"]["checked_files"] == []
-        assert str(script.resolve()) in (
-            payload["command_trust"]["skipped_external_files"]
-        )
+        assert str(script.resolve()) in (payload["command_trust"]["skipped_external_files"])
 
     def test_interpreter_and_flags_are_not_compared(
-        self, git_repo, tmp_path, capsys,
+        self,
+        git_repo,
+        tmp_path,
+        capsys,
     ):
         marker = tmp_path / "ran.txt"
         script = _write_marker_script(tmp_path / "verify.py", marker)
@@ -3023,7 +3354,11 @@ class TestCommandTrustBoundary:
         assert "--pull-request" not in checked
 
     def test_repo_local_symlink_escaping_the_work_tree_halts(
-        self, git_repo, tmp_path, tmp_path_factory, capsys,
+        self,
+        git_repo,
+        tmp_path,
+        tmp_path_factory,
+        capsys,
     ):
         # CWE-59: a PR-committed symlink lets the argv name a repo-local
         # path whose content has no trusted-ref copy. Fail closed.
@@ -3044,7 +3379,10 @@ class TestCommandTrustBoundary:
         assert str(link) in capsys.readouterr().err
 
     def test_unparseable_command_line_exits_config_error(
-        self, git_repo, tmp_path, capsys,
+        self,
+        git_repo,
+        tmp_path,
+        capsys,
     ):
         config_path = _write_config(
             tmp_path,
@@ -3077,7 +3415,10 @@ class TestCommandTrustBypassRegressions:
     """
 
     def test_pathspec_magic_filename_cannot_evade_the_tracked_check(
-        self, git_repo, tmp_path, capsys,
+        self,
+        git_repo,
+        tmp_path,
+        capsys,
     ):
         # F-2: git reads pathspec magic from a leading ":" even after
         # "--", so a tracked file named ":(glob)evil.py" never matched
@@ -3095,13 +3436,14 @@ class TestCommandTrustBypassRegressions:
         )
 
         assert rc == 2
-        assert not marker.exists(), (
-            "a pathspec-magic filename must not skip verification"
-        )
+        assert not marker.exists(), "a pathspec-magic filename must not skip verification"
         assert ":(glob)evil.py" in capsys.readouterr().err
 
     def test_tracked_pathspec_magic_filename_is_verified_not_skipped(
-        self, git_repo, tmp_path, capsys,
+        self,
+        git_repo,
+        tmp_path,
+        capsys,
     ):
         # Positive control for the fix: the same adversarial filename,
         # unmodified since the trusted ref, must be CHECKED (not merely
@@ -3144,9 +3486,7 @@ class TestCommandTrustBypassRegressions:
         )
 
         assert rc == 2
-        assert not marker.exists(), (
-            "an in-tree symlink must not execute unverified"
-        )
+        assert not marker.exists(), "an in-tree symlink must not execute unverified"
         assert "verify.py" in capsys.readouterr().err
 
     def test_symlinked_parent_directory_halts(self, git_repo, tmp_path):
@@ -3159,10 +3499,14 @@ class TestCommandTrustBypassRegressions:
         _write_marker_script(real_dir / "verify.py", marker)
         (tmp_path / "linked").symlink_to(real_dir, target_is_directory=True)
         config_path = _write_config(
-            tmp_path, [_script_criterion("Dir", tmp_path / "linked" / "verify.py")],
+            tmp_path,
+            [_script_criterion("Dir", tmp_path / "linked" / "verify.py")],
         )
         _commit_as_trusted(
-            git_repo, config_path, real_dir / "verify.py", tmp_path / "linked",
+            git_repo,
+            config_path,
+            real_dir / "verify.py",
+            tmp_path / "linked",
         )
 
         rc = _dispatcher.main(
@@ -3173,7 +3517,10 @@ class TestCommandTrustBypassRegressions:
         assert not marker.exists()
 
     def test_nested_repository_path_halts_instead_of_skipping(
-        self, git_repo, tmp_path, capsys,
+        self,
+        git_repo,
+        tmp_path,
+        capsys,
     ):
         # F-4: git ls-files does not descend into a gitlink, so every
         # file inside a submodule reads as untracked in the superproject
@@ -3193,13 +3540,16 @@ class TestCommandTrustBypassRegressions:
         )
 
         assert rc == 2
-        assert not marker.exists(), (
-            "a nested-repository path must not skip verification"
-        )
+        assert not marker.exists(), "a nested-repository path must not skip verification"
         assert "vendored/verify.py" in capsys.readouterr().err
 
     def test_cwd_outside_the_work_tree_fails_closed(
-        self, git_repo, tmp_path, tmp_path_factory, monkeypatch, capsys,
+        self,
+        git_repo,
+        tmp_path,
+        tmp_path_factory,
+        monkeypatch,
+        capsys,
     ):
         # F-5: relative argv resolves against the cwd, so running the
         # gate from a different tree silently routed work-tree scripts
@@ -3219,7 +3569,10 @@ class TestCommandTrustBypassRegressions:
         assert "outside the git work tree" in capsys.readouterr().err
 
     def test_transitive_import_of_a_work_tree_module_is_verified(
-        self, git_repo, tmp_path, capsys,
+        self,
+        git_repo,
+        tmp_path,
+        capsys,
     ):
         # F-1: every shipped verifier imports github_core.api from the
         # work tree's plugin lib directory at module load, so a PR could
@@ -3240,13 +3593,16 @@ class TestCommandTrustBypassRegressions:
         )
         config_path = _write_config(tmp_path, [_script_criterion("Ok", script)])
         _commit_as_trusted(
-            git_repo, config_path, script, helper, lib / "__init__.py",
+            git_repo,
+            config_path,
+            script,
+            helper,
+            lib / "__init__.py",
         )
 
         marker = tmp_path / "pwned.txt"
         helper.write_text(
-            f"import pathlib\npathlib.Path({str(marker)!r}).write_text('ran')\n"
-            "VALUE = 'evil'\n",
+            f"import pathlib\npathlib.Path({str(marker)!r}).write_text('ran')\nVALUE = 'evil'\n",
             encoding="utf-8",
         )
 
@@ -3255,13 +3611,14 @@ class TestCommandTrustBypassRegressions:
         )
 
         assert rc == 2
-        assert not marker.exists(), (
-            "a rewritten imported module must never be loaded"
-        )
+        assert not marker.exists(), "a rewritten imported module must never be loaded"
         assert "lib/helperpkg/api.py" in capsys.readouterr().err
 
     def test_relative_import_inside_a_package_is_verified(
-        self, git_repo, tmp_path, capsys,
+        self,
+        git_repo,
+        tmp_path,
+        capsys,
     ):
         # The shipped github_core.api reaches its siblings with
         # "from .log_safety import ...". An absolute-only resolver walks
@@ -3271,7 +3628,8 @@ class TestCommandTrustBypassRegressions:
         pkg.mkdir(parents=True)
         (pkg / "__init__.py").write_text("", encoding="utf-8")
         (pkg / "api.py").write_text(
-            "from .sibling import VALUE\n", encoding="utf-8",
+            "from .sibling import VALUE\n",
+            encoding="utf-8",
         )
         sibling = pkg / "sibling.py"
         sibling.write_text("VALUE = 'clean'\n", encoding="utf-8")
@@ -3285,14 +3643,17 @@ class TestCommandTrustBypassRegressions:
         )
         config_path = _write_config(tmp_path, [_script_criterion("Ok", script)])
         _commit_as_trusted(
-            git_repo, config_path, script,
-            pkg / "__init__.py", pkg / "api.py", sibling,
+            git_repo,
+            config_path,
+            script,
+            pkg / "__init__.py",
+            pkg / "api.py",
+            sibling,
         )
 
         marker = tmp_path / "pwned.txt"
         sibling.write_text(
-            f"import pathlib\npathlib.Path({str(marker)!r}).write_text('ran')\n"
-            "VALUE = 'evil'\n",
+            f"import pathlib\npathlib.Path({str(marker)!r}).write_text('ran')\nVALUE = 'evil'\n",
             encoding="utf-8",
         )
 
@@ -3301,9 +3662,7 @@ class TestCommandTrustBypassRegressions:
         )
 
         assert rc == 2
-        assert not marker.exists(), (
-            "a relative-imported module must never be loaded unverified"
-        )
+        assert not marker.exists(), "a relative-imported module must never be loaded unverified"
         assert "lib/helperpkg/sibling.py" in capsys.readouterr().err
 
     def test_relative_import_cannot_climb_out_of_the_work_tree(self, tmp_path):
@@ -3319,7 +3678,10 @@ class TestCommandTrustBypassRegressions:
         ]
 
     def test_unrelated_sibling_change_does_not_halt(
-        self, git_repo, tmp_path, capsys,
+        self,
+        git_repo,
+        tmp_path,
+        capsys,
     ):
         # The import closure must stay narrower than a directory rule:
         # editing a sibling script nothing imports must not halt, or
@@ -3349,19 +3711,22 @@ class TestClassifyArgvToken:
     def test_flags_and_empty_tokens_are_skipped(self, tmp_path):
         for token in ("--pull-request", "-v", ""):
             assert _dispatcher._classify_argv_token(token, tmp_path) == (
-                _dispatcher._ARGV_SKIP, "",
+                _dispatcher._ARGV_SKIP,
+                "",
             )
 
     def test_bare_interpreter_name_is_not_a_path(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         assert _dispatcher._classify_argv_token("python3", tmp_path) == (
-            _dispatcher._ARGV_SKIP, "",
+            _dispatcher._ARGV_SKIP,
+            "",
         )
 
     def test_directory_inside_work_tree_is_skipped(self, tmp_path):
         (tmp_path / "sub").mkdir()
         assert _dispatcher._classify_argv_token(
-            str(tmp_path / "sub"), tmp_path,
+            str(tmp_path / "sub"),
+            tmp_path,
         ) == (_dispatcher._ARGV_SKIP, "")
 
     def test_relative_token_resolves_against_cwd(self, tmp_path, monkeypatch):
@@ -3370,11 +3735,14 @@ class TestClassifyArgvToken:
         monkeypatch.chdir(tmp_path)
 
         assert _dispatcher._classify_argv_token("pkg/verify.py", tmp_path) == (
-            _dispatcher._ARGV_VERIFY, "pkg/verify.py",
+            _dispatcher._ARGV_VERIFY,
+            "pkg/verify.py",
         )
 
     def test_lexical_parent_escape_is_not_treated_as_inside(
-        self, tmp_path, tmp_path_factory,
+        self,
+        tmp_path,
+        tmp_path_factory,
     ):
         # Path.relative_to is lexical, so "<root>/../x" would otherwise
         # pass containment; normpath collapses it first.
@@ -3383,14 +3751,18 @@ class TestClassifyArgvToken:
         target.write_text("x", encoding="utf-8")
 
         kind, value = _dispatcher._classify_argv_token(
-            str(tmp_path / ".." / outside.name / "verify.py"), tmp_path,
+            str(tmp_path / ".." / outside.name / "verify.py"),
+            tmp_path,
         )
 
         assert kind == _dispatcher._ARGV_EXTERNAL
         assert value == str(target.resolve())
 
     def test_escaping_symlink_missed_by_the_precheck_still_fails_closed(
-        self, tmp_path, tmp_path_factory, monkeypatch,
+        self,
+        tmp_path,
+        tmp_path_factory,
+        monkeypatch,
     ):
         # Defense in depth: if the symlink pre-check misses a link (for
         # example one created between the check and the resolve), the
@@ -3401,20 +3773,26 @@ class TestClassifyArgvToken:
         link = tmp_path / "verify.py"
         link.symlink_to(target)
         monkeypatch.setattr(
-            _dispatcher, "_first_symlinked_component", lambda *_a: None,
+            _dispatcher,
+            "_first_symlinked_component",
+            lambda *_a: None,
         )
 
         assert _dispatcher._classify_argv_token(str(link), tmp_path) == (
-            _dispatcher._ARGV_ESCAPES, str(link),
+            _dispatcher._ARGV_ESCAPES,
+            str(link),
         )
 
     def test_nonexistent_path_outside_work_tree_is_skipped(self, tmp_path):
         assert _dispatcher._classify_argv_token(
-            "/nonexistent/x.py", tmp_path,
+            "/nonexistent/x.py",
+            tmp_path,
         ) == (_dispatcher._ARGV_SKIP, "")
 
     def test_unresolvable_repo_local_path_fails_closed(
-        self, tmp_path, monkeypatch,
+        self,
+        tmp_path,
+        monkeypatch,
     ):
         def _boom(self, strict=False):
             raise OSError("symlink loop")
@@ -3423,7 +3801,8 @@ class TestClassifyArgvToken:
         token = str(tmp_path / "loop.py")
 
         assert _dispatcher._classify_argv_token(token, tmp_path) == (
-            _dispatcher._ARGV_ESCAPES, token,
+            _dispatcher._ARGV_ESCAPES,
+            token,
         )
 
     def test_unresolvable_external_path_is_skipped(self, tmp_path, monkeypatch):
@@ -3433,7 +3812,8 @@ class TestClassifyArgvToken:
         monkeypatch.setattr(Path, "resolve", _boom)
 
         assert _dispatcher._classify_argv_token(
-            "/elsewhere/x.py", tmp_path,
+            "/elsewhere/x.py",
+            tmp_path,
         ) == (_dispatcher._ARGV_SKIP, "")
 
 
@@ -3483,9 +3863,7 @@ class TestImportClosureBranches:
         pkg.mkdir()
         (pkg / "__init__.py").write_text("", encoding="utf-8")
 
-        assert _dispatcher._resolve_module_file("pkg", [tmp_path], tmp_path) == (
-            "pkg/__init__.py"
-        )
+        assert _dispatcher._resolve_module_file("pkg", [tmp_path], tmp_path) == ("pkg/__init__.py")
 
     def test_empty_dotted_name_resolves_to_nothing(self, tmp_path):
         assert _dispatcher._resolve_module_file("", [tmp_path], tmp_path) is None
@@ -3494,7 +3872,9 @@ class TestImportClosureBranches:
         assert _dispatcher._resolve_module_file("json", [tmp_path], tmp_path) is None
 
     def test_symlinked_module_is_not_resolved_as_a_closure_member(
-        self, tmp_path, tmp_path_factory,
+        self,
+        tmp_path,
+        tmp_path_factory,
     ):
         # A module reached through a symlink must not be silently
         # verified at its target; _classify_argv_token fails those
@@ -3535,9 +3915,13 @@ class TestFirstSymlinkedComponentBranches:
 
         # The first component at or below the root is the root itself,
         # and an unstattable component is reported rather than skipped.
-        assert _dispatcher._first_symlinked_component(
-            tmp_path / "x.py", tmp_path,
-        ) == tmp_path
+        assert (
+            _dispatcher._first_symlinked_component(
+                tmp_path / "x.py",
+                tmp_path,
+            )
+            == tmp_path
+        )
 
     def test_component_above_the_root_is_ignored(self, tmp_path, tmp_path_factory):
         # A symlink above the work tree is the operator's environment,
@@ -3563,7 +3947,10 @@ class TestNestedRepositoryProbeBranches:
             _dispatcher,
             "_run_git",
             lambda args, cwd: subprocess.CompletedProcess(
-                args=args, returncode=128, stdout=b"", stderr=b"boom",
+                args=args,
+                returncode=128,
+                stdout=b"",
+                stderr=b"boom",
             ),
         )
 
@@ -3575,8 +3962,10 @@ class TestNestedRepositoryProbeBranches:
             _dispatcher,
             "_run_git",
             lambda args, cwd: subprocess.CompletedProcess(
-                args=args, returncode=0,
-                stdout=str(tmp_path).encode() + b"\n", stderr=b"",
+                args=args,
+                returncode=0,
+                stdout=str(tmp_path).encode() + b"\n",
+                stderr=b"",
             ),
         )
 
@@ -3588,7 +3977,10 @@ class TestNestedRepositoryProbeBranches:
             _dispatcher,
             "_run_git",
             lambda args, cwd: subprocess.CompletedProcess(
-                args=args, returncode=0, stdout=b"/elsewhere\n", stderr=b"",
+                args=args,
+                returncode=0,
+                stdout=b"/elsewhere\n",
+                stderr=b"",
             ),
         )
 
@@ -3607,17 +3999,24 @@ class TestVerifyWorktreeFileTrustBranches:
         def _fake(args, cwd):
             if args[0] == "ls-tree":
                 return subprocess.CompletedProcess(
-                    args=args, returncode=0,
-                    stdout=b"blob deadbeef\tv.py\n", stderr=b"",
+                    args=args,
+                    returncode=0,
+                    stdout=b"blob deadbeef\tv.py\n",
+                    stderr=b"",
                 )
             return subprocess.CompletedProcess(
-                args=args, returncode=128, stdout=b"", stderr=b"boom",
+                args=args,
+                returncode=128,
+                stdout=b"",
+                stderr=b"boom",
             )
 
         monkeypatch.setattr(_dispatcher, "_run_git", _fake)
 
         is_trusted, error = _dispatcher._verify_worktree_file_trust(
-            "v.py", tmp_path, "origin/main",
+            "v.py",
+            tmp_path,
+            "origin/main",
         )
 
         assert is_trusted is False
@@ -3627,17 +4026,24 @@ class TestVerifyWorktreeFileTrustBranches:
         def _fake(args, cwd):
             if args[0] == "ls-tree":
                 return subprocess.CompletedProcess(
-                    args=args, returncode=0,
-                    stdout=b"blob deadbeef\tv.py\n", stderr=b"",
+                    args=args,
+                    returncode=0,
+                    stdout=b"blob deadbeef\tv.py\n",
+                    stderr=b"",
                 )
             return subprocess.CompletedProcess(
-                args=args, returncode=0, stdout=b"trusted", stderr=b"",
+                args=args,
+                returncode=0,
+                stdout=b"trusted",
+                stderr=b"",
             )
 
         monkeypatch.setattr(_dispatcher, "_run_git", _fake)
 
         is_trusted, error = _dispatcher._verify_worktree_file_trust(
-            "v.py", tmp_path, "origin/main",
+            "v.py",
+            tmp_path,
+            "origin/main",
         )
 
         assert is_trusted is False
@@ -3653,7 +4059,9 @@ class TestVerifyCommandTrustErrorBranches:
             _dispatcher,
             "_run_git",
             lambda args, cwd: subprocess.CompletedProcess(
-                args=args, returncode=128, stdout=b"",
+                args=args,
+                returncode=128,
+                stdout=b"",
                 stderr=b"not a git repository",
             ),
         )
@@ -3683,18 +4091,26 @@ class TestVerifyCommandTrustErrorBranches:
             _dispatcher,
             "_run_git",
             lambda args, cwd: subprocess.CompletedProcess(
-                args=args, returncode=0,
-                stdout=str(tmp_path).encode() + b"\n", stderr=b"",
+                args=args,
+                returncode=0,
+                stdout=str(tmp_path).encode() + b"\n",
+                stderr=b"",
             ),
         )
 
         with pytest.raises(_dispatcher.ConfigError, match="verification kind"):
             _dispatcher._verify_command_trust(
-                [{"name": "X", "verification": "manual"}], 1, "origin/main",
+                [{"name": "X", "verification": "manual"}],
+                1,
+                "origin/main",
             )
 
     def test_tracked_probe_failure_halts_as_git_error(
-        self, git_repo, tmp_path, monkeypatch, capsys,
+        self,
+        git_repo,
+        tmp_path,
+        monkeypatch,
+        capsys,
     ):
         marker = tmp_path / "ran.txt"
         script = _write_marker_script(tmp_path / "verify.py", marker)
@@ -3706,7 +4122,9 @@ class TestVerifyCommandTrustErrorBranches:
         def _fail_ls_files(args, cwd):
             if args[0] == "ls-files":
                 return subprocess.CompletedProcess(
-                    args=args, returncode=128, stdout=b"",
+                    args=args,
+                    returncode=128,
+                    stdout=b"",
                     stderr=b"fatal: index is corrupt",
                 )
             return original(args, cwd)
@@ -3718,9 +4136,7 @@ class TestVerifyCommandTrustErrorBranches:
         )
 
         assert rc == 3
-        assert not marker.exists(), (
-            "an unusable tracked-file probe must fail closed, not skip"
-        )
+        assert not marker.exists(), "an unusable tracked-file probe must fail closed, not skip"
         assert "cannot be verified" in capsys.readouterr().err
 
 
@@ -3740,12 +4156,16 @@ class TestTrackedSubset:
             _dispatcher,
             "_run_git",
             lambda args, cwd: subprocess.CompletedProcess(
-                args=args, returncode=0, stdout=b"a.py\x00", stderr=b"",
+                args=args,
+                returncode=0,
+                stdout=b"a.py\x00",
+                stderr=b"",
             ),
         )
 
         tracked, error = _dispatcher._tracked_subset(
-            ["a.py", "b.json"], tmp_path,
+            ["a.py", "b.json"],
+            tmp_path,
         )
 
         assert tracked == {"a.py"}
@@ -3756,7 +4176,10 @@ class TestTrackedSubset:
             _dispatcher,
             "_run_git",
             lambda args, cwd: subprocess.CompletedProcess(
-                args=args, returncode=128, stdout=b"", stderr=b"index corrupt",
+                args=args,
+                returncode=128,
+                stdout=b"",
+                stderr=b"index corrupt",
             ),
         )
 
@@ -3785,8 +4208,7 @@ def _own_plugin_root(monkeypatch, root: Path) -> None:
     monkeypatch.setattr(
         _dispatcher,
         "_DISPATCHER_PATH",
-        root.resolve() / "skills" / "github" / "scripts" / "pr"
-        / "run_completion_gate.py",
+        root.resolve() / "skills" / "github" / "scripts" / "pr" / "run_completion_gate.py",
     )
 
 
@@ -3835,10 +4257,14 @@ class TestInstallTrustedRoot:
         assert _dispatcher._install_trusted_root(str(config)) is None
 
     @pytest.mark.parametrize(
-        "env_var", ["CLAUDE_PLUGIN_ROOT", "COPILOT_PLUGIN_ROOT"],
+        "env_var",
+        ["CLAUDE_PLUGIN_ROOT", "COPILOT_PLUGIN_ROOT"],
     )
     def test_either_host_variable_install_trusts(
-        self, tmp_path, monkeypatch, env_var,
+        self,
+        tmp_path,
+        monkeypatch,
+        env_var,
     ):
         monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
         monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
@@ -3863,7 +4289,9 @@ class TestInstallTrustedRoot:
         assert _dispatcher._install_trusted_root(str(config)) is None
 
     def test_surrounding_whitespace_is_stripped_from_a_real_root(
-        self, tmp_path, monkeypatch,
+        self,
+        tmp_path,
+        monkeypatch,
     ):
         """Discriminating twin for the case above.
 
@@ -3903,9 +4331,12 @@ class TestInstallTrustedRoot:
         monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
         monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(not_a_dir))
 
-        assert _dispatcher._install_trusted_root(
-            str(not_a_dir / "pr-review-config.yaml"),
-        ) is None
+        assert (
+            _dispatcher._install_trusted_root(
+                str(not_a_dir / "pr-review-config.yaml"),
+            )
+            is None
+        )
 
     def test_a_root_inside_the_project_root_is_refused(self, monkeypatch):
         """Condition 3: the PR-controlled in-repo fallback never widens.
@@ -3947,7 +4378,9 @@ class TestInstallTrustedRoot:
         assert _dispatcher._install_trusted_root(str(config)) is None
 
     def test_a_config_outside_the_declared_root_is_refused(
-        self, tmp_path, monkeypatch,
+        self,
+        tmp_path,
+        monkeypatch,
     ):
         """Condition 4: declaring a root does not bless every path."""
         root = tmp_path / "plugin"
@@ -3986,7 +4419,9 @@ class TestInstallTrustedRoot:
         assert _dispatcher._install_trusted_root(str(link)).root == root.resolve()
 
     def test_copilot_root_is_consulted_before_claude_root(
-        self, tmp_path, monkeypatch,
+        self,
+        tmp_path,
+        monkeypatch,
     ):
         """Order matches resolve_pr_review_config's own precedence.
 
@@ -4006,7 +4441,9 @@ class TestInstallTrustedRoot:
         assert _dispatcher._install_trusted_root(str(config)).root == copilot_root.resolve()
 
     def test_a_relative_config_resolves_against_the_cwd(
-        self, tmp_path, monkeypatch,
+        self,
+        tmp_path,
+        monkeypatch,
     ):
         """--config may be relative; the gate resolves it against the cwd.
 
@@ -4031,7 +4468,9 @@ class TestInstallTrustedRoot:
         assert approved.root == root.resolve()
 
     def test_a_relative_config_inside_the_work_tree_is_refused(
-        self, tmp_path, monkeypatch,
+        self,
+        tmp_path,
+        monkeypatch,
     ):
         """Discriminating control for the case above.
 
@@ -4049,16 +4488,21 @@ class TestInstallTrustedRoot:
         monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
         monkeypatch.chdir(consumer)
 
-        assert _dispatcher._install_trusted_root(
-            "skills/pr-review/pr-review-config.yaml",
-        ) is None
+        assert (
+            _dispatcher._install_trusted_root(
+                "skills/pr-review/pr-review-config.yaml",
+            )
+            is None
+        )
 
 
 class TestEnforceConfigTrustInstallTrusted:
     """_enforce_config_trust short-circuits only on an install-trusted root."""
 
     def test_install_root_skips_config_verification_but_not_the_ref_check(
-        self, tmp_path, monkeypatch,
+        self,
+        tmp_path,
+        monkeypatch,
     ):
         """Byte verification is skipped; ref validation is NOT.
 
@@ -4076,7 +4520,10 @@ class TestEnforceConfigTrustInstallTrusted:
         def _fake_git(args, cwd):
             calls.append(args)
             return subprocess.CompletedProcess(
-                args, 0, b"refs/remotes/origin/main\n", b"",
+                args,
+                0,
+                b"refs/remotes/origin/main\n",
+                b"",
             )
 
         monkeypatch.setattr(_dispatcher, "_run_git", _fake_git)
@@ -4087,7 +4534,9 @@ class TestEnforceConfigTrustInstallTrusted:
             False,
             b"completion_criteria: []\n",
             _dispatcher.InstallTrust(
-                tmp_path, tmp_path / "pr-review-config.yaml", tmp_path,
+                tmp_path,
+                tmp_path / "pr-review-config.yaml",
+                tmp_path,
             ),
         )
 
@@ -4107,6 +4556,7 @@ class TestEnforceConfigTrustInstallTrusted:
         declared it trusted, and executed it. Exit 3, matching
         TRUST_GIT_ERROR, so --approve-untrusted-config cannot override it.
         """
+
         def _fake_git(args, cwd):
             return subprocess.CompletedProcess(args, 0, b"refs/heads/main\n", b"")
 
@@ -4118,7 +4568,9 @@ class TestEnforceConfigTrustInstallTrusted:
             True,  # approval must NOT rescue this
             b"completion_criteria: []\n",
             _dispatcher.InstallTrust(
-                tmp_path, tmp_path / "pr-review-config.yaml", tmp_path,
+                tmp_path,
+                tmp_path / "pr-review-config.yaml",
+                tmp_path,
             ),
         )
 
@@ -4132,6 +4584,7 @@ class TestEnforceConfigTrustInstallTrusted:
         Discriminating twin for the case above: this one is stopped by the
         regex and never reaches git, so _run_git raising proves the order.
         """
+
         def _explode(*args, **kwargs):
             raise AssertionError("a malformed ref must not reach git")
 
@@ -4143,7 +4596,9 @@ class TestEnforceConfigTrustInstallTrusted:
             False,
             b"completion_criteria: []\n",
             _dispatcher.InstallTrust(
-                tmp_path, tmp_path / "pr-review-config.yaml", tmp_path,
+                tmp_path,
+                tmp_path / "pr-review-config.yaml",
+                tmp_path,
             ),
         )
 
@@ -4205,7 +4660,10 @@ class TestWorkTreeProbeFailure:
         return config
 
     def test_a_git_timeout_exits_3_instead_of_raising(
-        self, tmp_path, monkeypatch, capsys,
+        self,
+        tmp_path,
+        monkeypatch,
+        capsys,
     ):
         config = self._plugin_root(tmp_path, monkeypatch)
 
@@ -4224,7 +4682,10 @@ class TestWorkTreeProbeFailure:
         assert "Refusing to load config from unsafe path" not in err, err
 
     def test_a_symlink_loop_in_the_work_tree_path_exits_3(
-        self, tmp_path, monkeypatch, capsys,
+        self,
+        tmp_path,
+        monkeypatch,
+        capsys,
     ):
         """RuntimeError from resolve() must not escape as a traceback.
 
@@ -4256,9 +4717,13 @@ class TestWorkTreeProbeFailure:
 
         monkeypatch.setattr(Path, "resolve", _looping)
         monkeypatch.setattr(
-            _dispatcher, "_run_git",
+            _dispatcher,
+            "_run_git",
             lambda args, cwd: subprocess.CompletedProcess(
-                args, 0, looped.encode() + b"\n", b"",
+                args,
+                0,
+                looped.encode() + b"\n",
+                b"",
             ),
         )
 
@@ -4311,7 +4776,10 @@ class TestWorkTreeProbeFailure:
             # work tree, which condition 3 refuses, and the case then dies at
             # containment having never reached the anchor call.
             return subprocess.CompletedProcess(
-                args, 0, str(tmp_path / "consumer").encode() + b"\n", b"",
+                args,
+                0,
+                str(tmp_path / "consumer").encode() + b"\n",
+                b"",
             )
 
         monkeypatch.setattr(_dispatcher, "_run_git", _hang_on_anchor)
@@ -4364,7 +4832,10 @@ class TestInstalledRuntimePrerequisites:
     """
 
     def test_missing_pyyaml_exits_2_with_an_actionable_message(
-        self, tmp_path, monkeypatch, capsys,
+        self,
+        tmp_path,
+        monkeypatch,
+        capsys,
     ):
         root = tmp_path / "plugin"
         config = root / "skills" / "pr-review" / "pr-review-config.yaml"
@@ -4377,10 +4848,16 @@ class TestInstalledRuntimePrerequisites:
         def _fake_git(args, cwd):
             if args[:2] == ["rev-parse", "--symbolic-full-name"]:
                 return subprocess.CompletedProcess(
-                    args, 0, b"refs/remotes/origin/main\n", b"",
+                    args,
+                    0,
+                    b"refs/remotes/origin/main\n",
+                    b"",
                 )
             return subprocess.CompletedProcess(
-                args, 0, str(tmp_path / "consumer").encode() + b"\n", b"",
+                args,
+                0,
+                str(tmp_path / "consumer").encode() + b"\n",
+                b"",
             )
 
         monkeypatch.setattr(_dispatcher, "_run_git", _fake_git)
@@ -4419,7 +4896,9 @@ class TestInstallTrustedPathConsistency:
     """
 
     def test_a_relative_config_reads_the_cwd_anchored_file(
-        self, tmp_path, monkeypatch,
+        self,
+        tmp_path,
+        monkeypatch,
     ):
         """Two files share a relative name; the cwd-anchored one wins.
 
@@ -4435,7 +4914,8 @@ class TestInstallTrustedPathConsistency:
         approved = root / "pr-review-config.yaml"
         approved.parent.mkdir(parents=True)
         approved.write_text(
-            "completion_criteria:\n  - name: approved\n", encoding="utf-8",
+            "completion_criteria:\n  - name: approved\n",
+            encoding="utf-8",
         )
         # The file the ROOT-anchored resolution names for the same arg:
         # tmp/inst/plugin/../inst/plugin/<name> is tmp/inst/inst/plugin/<name>.
@@ -4446,7 +4926,8 @@ class TestInstallTrustedPathConsistency:
         decoy = tmp_path / "inst" / "inst" / "plugin" / "pr-review-config.yaml"
         decoy.parent.mkdir(parents=True)
         decoy.write_text(
-            "completion_criteria:\n  - name: decoy\n", encoding="utf-8",
+            "completion_criteria:\n  - name: decoy\n",
+            encoding="utf-8",
         )
 
         monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(root))
@@ -4484,11 +4965,13 @@ class TestInstallTrustedPathConsistency:
         approved = root / "skills" / "pr-review" / "pr-review-config.yaml"
         approved.parent.mkdir(parents=True)
         approved.write_text(
-            "completion_criteria:\n  - name: approved\n", encoding="utf-8",
+            "completion_criteria:\n  - name: approved\n",
+            encoding="utf-8",
         )
         decoy = tmp_path / "decoy.yaml"
         decoy.write_text(
-            "completion_criteria:\n  - name: decoy\n", encoding="utf-8",
+            "completion_criteria:\n  - name: decoy\n",
+            encoding="utf-8",
         )
 
         monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(root))
@@ -4515,14 +4998,17 @@ class TestInstallTrustedPathConsistency:
         assert b"decoy" not in resolved.raw
 
     def test_the_environment_root_cannot_redirect_an_absolute_config(
-        self, tmp_path, monkeypatch,
+        self,
+        tmp_path,
+        monkeypatch,
     ):
         """An absolute --config is unaffected by the root, as before."""
         root = tmp_path / "plugin"
         config = root / "skills" / "pr-review" / "pr-review-config.yaml"
         config.parent.mkdir(parents=True)
         config.write_text(
-            "completion_criteria:\n  - name: absolute\n", encoding="utf-8",
+            "completion_criteria:\n  - name: absolute\n",
+            encoding="utf-8",
         )
         monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(root))
         _own_plugin_root(monkeypatch, root)
@@ -4538,7 +5024,9 @@ class TestInstallTrustedPathConsistency:
         assert b"absolute" in resolved.raw
 
     def test_a_config_outside_the_root_still_falls_back_to_containment(
-        self, tmp_path, monkeypatch,
+        self,
+        tmp_path,
+        monkeypatch,
     ):
         """Negative control: the install branch is not always taken."""
         root = tmp_path / "plugin"

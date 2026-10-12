@@ -36,9 +36,11 @@ from typing import Any
 # RESULT TYPES
 # ===========================================================================
 
+
 @dataclass
 class Result:
     """Standard result object for script operations."""
+
     success: bool
     message: str
     data: dict = field(default_factory=dict)
@@ -52,12 +54,13 @@ class Result:
             "data": self.data,
             "errors": self.errors,
             "warnings": self.warnings,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
 
 class Action:
     """Possible triage actions."""
+
     USE_EXISTING = "USE_EXISTING"
     IMPROVE_EXISTING = "IMPROVE_EXISTING"
     CREATE_NEW = "CREATE_NEW"
@@ -67,14 +70,15 @@ class Action:
 
 class InputCategory:
     """Categories of user input."""
-    EXPLICIT_CREATE = "explicit_create"      # "create a skill for X"
-    EXPLICIT_IMPROVE = "explicit_improve"    # "improve the X skill"
-    SKILL_QUESTION = "skill_question"        # "do I have a skill for X?"
-    TASK_REQUEST = "task_request"            # "help me with X", "I need to X"
-    ERROR_MESSAGE = "error_message"          # Stack traces, errors
-    CODE_SNIPPET = "code_snippet"            # Code pasted
-    URL_CONTENT = "url_content"              # URLs
-    GENERAL = "general"                      # Unclear
+
+    EXPLICIT_CREATE = "explicit_create"  # "create a skill for X"
+    EXPLICIT_IMPROVE = "explicit_improve"  # "improve the X skill"
+    SKILL_QUESTION = "skill_question"  # "do I have a skill for X?"
+    TASK_REQUEST = "task_request"  # "help me with X", "I need to X"
+    ERROR_MESSAGE = "error_message"  # Stack traces, errors
+    CODE_SNIPPET = "code_snippet"  # Code pasted
+    URL_CONTENT = "url_content"  # URLs
+    GENERAL = "general"  # Unclear
 
 
 # ===========================================================================
@@ -83,57 +87,57 @@ class InputCategory:
 
 # Patterns for detecting input category
 EXPLICIT_CREATE_PATTERNS = [
-    r'\b(?:create|build|make|design|develop)\s+(?:a\s+)?(?:new\s+)?skill\b',
-    r'\bskillforge[:\s]',
-    r'\b(?:new|custom)\s+skill\s+(?:for|to)\b',
-    r'\bultimate\s+skill\b',
+    r"\b(?:create|build|make|design|develop)\s+(?:a\s+)?(?:new\s+)?skill\b",
+    r"\bskillforge[:\s]",
+    r"\b(?:new|custom)\s+skill\s+(?:for|to)\b",
+    r"\bultimate\s+skill\b",
 ]
 
 EXPLICIT_IMPROVE_PATTERNS = [
-    r'\b(?:improve|enhance|update|upgrade|fix|extend)\s+(?:the\s+)?(?:\w+\s+)?skill\b',
-    r'\bskill\s+(?:needs?|could\s+use|should\s+have)\b',
-    r'\b(?:add|include)\s+(?:to|in)\s+(?:the\s+)?\w+\s+skill\b',
+    r"\b(?:improve|enhance|update|upgrade|fix|extend)\s+(?:the\s+)?(?:\w+\s+)?skill\b",
+    r"\bskill\s+(?:needs?|could\s+use|should\s+have)\b",
+    r"\b(?:add|include)\s+(?:to|in)\s+(?:the\s+)?\w+\s+skill\b",
 ]
 
 SKILL_QUESTION_PATTERNS = [
-    r'\bdo\s+(?:i|we)\s+have\s+(?:a\s+)?skill\b',
-    r'\bwhich\s+skill\b',
-    r'\bwhat\s+skill\b',
-    r'\brecommend\s+(?:a\s+)?skill\b',
-    r'\bskill\s+for\b',
-    r'\bfind\s+(?:a\s+)?skill\b',
-    r'\bsuggest\s+(?:a\s+)?skill\b',
-    r'\bis\s+there\s+(?:a\s+)?skill\b',
+    r"\bdo\s+(?:i|we)\s+have\s+(?:a\s+)?skill\b",
+    r"\bwhich\s+skill\b",
+    r"\bwhat\s+skill\b",
+    r"\brecommend\s+(?:a\s+)?skill\b",
+    r"\bskill\s+for\b",
+    r"\bfind\s+(?:a\s+)?skill\b",
+    r"\bsuggest\s+(?:a\s+)?skill\b",
+    r"\bis\s+there\s+(?:a\s+)?skill\b",
 ]
 
 TASK_REQUEST_PATTERNS = [
-    r'\b(?:help|assist)\s+(?:me\s+)?(?:with|to)\b',
-    r'\bi\s+need\s+to\b',
-    r'\bhow\s+(?:do\s+i|can\s+i|to)\b',
-    r'\bcan\s+you\b',
-    r'\bplease\b.*\b(?:help|do|make|create|fix|build)\b',
+    r"\b(?:help|assist)\s+(?:me\s+)?(?:with|to)\b",
+    r"\bi\s+need\s+to\b",
+    r"\bhow\s+(?:do\s+i|can\s+i|to)\b",
+    r"\bcan\s+you\b",
+    r"\bplease\b.*\b(?:help|do|make|create|fix|build)\b",
 ]
 
 ERROR_PATTERNS = [
-    r'Error:',
-    r'Exception:',
-    r'TypeError:',
-    r'ReferenceError:',
-    r'SyntaxError:',
-    r'at\s+\S+\s+\(',
-    r'Traceback \(most recent call',
+    r"Error:",
+    r"Exception:",
+    r"TypeError:",
+    r"ReferenceError:",
+    r"SyntaxError:",
+    r"at\s+\S+\s+\(",
+    r"Traceback \(most recent call",
     r'File "[^"]+", line \d+',
 ]
 
 CODE_PATTERNS = [
-    r'^\s*(function|const|let|var|class|import|export|def|async|await)\s+',
-    r'^\s*<[a-zA-Z][^>]*>',
-    r'=>',
-    r'^\s*@\w+',
+    r"^\s*(function|const|let|var|class|import|export|def|async|await)\s+",
+    r"^\s*<[a-zA-Z][^>]*>",
+    r"=>",
+    r"^\s*@\w+",
 ]
 
 URL_PATTERNS = [
-    r'https?://[^\s]+',
+    r"https?://[^\s]+",
 ]
 
 
@@ -159,7 +163,9 @@ def classify_input(query: str) -> tuple[str, dict[str, Any]]:
         if re.search(pattern, query_lower):
             # Extract the purpose/goal
             # SECURITY: Use bounded character class to prevent ReDoS (polynomial backtracking)
-            purpose_match = re.search(r'skill\s+(?:for|to)\s+([a-zA-Z0-9 \-,\'\"]{1,200})', query_lower)
+            purpose_match = re.search(
+                r"skill\s+(?:for|to)\s+([a-zA-Z0-9 \-,\'\"]{1,200})", query_lower
+            )
             if purpose_match:
                 signals["extracted_purpose"] = purpose_match.group(1).strip()
             return InputCategory.EXPLICIT_CREATE, signals
@@ -168,7 +174,9 @@ def classify_input(query: str) -> tuple[str, dict[str, Any]]:
     for pattern in EXPLICIT_IMPROVE_PATTERNS:
         if re.search(pattern, query_lower):
             # Try to extract skill name
-            skill_match = re.search(r'(?:improve|enhance|update|fix)\s+(?:the\s+)?(\w+(?:-\w+)*)\s+skill', query_lower)
+            skill_match = re.search(
+                r"(?:improve|enhance|update|fix)\s+(?:the\s+)?(\w+(?:-\w+)*)\s+skill", query_lower
+            )
             if skill_match:
                 signals["mentioned_skill_name"] = skill_match.group(1)
             return InputCategory.EXPLICIT_IMPROVE, signals
@@ -208,6 +216,7 @@ def classify_input(query: str) -> tuple[str, dict[str, Any]]:
 # SKILL MATCHING (from skillrecommender)
 # ===========================================================================
 
+
 def get_index_path() -> Path:
     """Get the skill index file path."""
     return Path.home() / ".cache" / "skillrecommender" / "skill_index.json"
@@ -232,31 +241,161 @@ def load_skill_index() -> dict | None:
 
 DOMAIN_SYNONYMS = {
     # Document formats - maps concepts to related terms
-    "spreadsheet": ["excel", "xlsx", "xls", "csv", "workbook", "tabular", "data table", "cells", "rows columns"],
+    "spreadsheet": [
+        "excel",
+        "xlsx",
+        "xls",
+        "csv",
+        "workbook",
+        "tabular",
+        "data table",
+        "cells",
+        "rows columns",
+    ],
     "document": ["word", "docx", "doc", "text document", "write document", "report"],
     "presentation": ["powerpoint", "pptx", "slides", "deck", "slide deck", "keynote", "pitch"],
     "pdf": ["pdf", "export pdf", "portable document"],
-
     # Development concepts
-    "debugging": ["debug", "error", "exception", "stack trace", "traceback", "crash", "fix bug", "breakpoint", "investigate"],
-    "testing": ["test", "unit test", "integration test", "e2e", "coverage", "spec", "tdd", "jest", "vitest", "pytest", "mocha"],
-    "security": ["security", "vulnerability", "owasp", "audit", "secure", "penetration", "pentest", "xss", "injection"],
-    "code_quality": ["review", "code review", "pr review", "pull request", "refactor", "clean code", "code smell", "lint"],
-    "database": ["database", "db", "schema", "migration", "sql", "postgres", "mysql", "mongodb", "data model", "orm"],
+    "debugging": [
+        "debug",
+        "error",
+        "exception",
+        "stack trace",
+        "traceback",
+        "crash",
+        "fix bug",
+        "breakpoint",
+        "investigate",
+    ],
+    "testing": [
+        "test",
+        "unit test",
+        "integration test",
+        "e2e",
+        "coverage",
+        "spec",
+        "tdd",
+        "jest",
+        "vitest",
+        "pytest",
+        "mocha",
+    ],
+    "security": [
+        "security",
+        "vulnerability",
+        "owasp",
+        "audit",
+        "secure",
+        "penetration",
+        "pentest",
+        "xss",
+        "injection",
+    ],
+    "code_quality": [
+        "review",
+        "code review",
+        "pr review",
+        "pull request",
+        "refactor",
+        "clean code",
+        "code smell",
+        "lint",
+    ],
+    "database": [
+        "database",
+        "db",
+        "schema",
+        "migration",
+        "sql",
+        "postgres",
+        "mysql",
+        "mongodb",
+        "data model",
+        "orm",
+    ],
     "api": ["api", "rest", "graphql", "endpoint", "openapi", "swagger", "restful", "http"],
-    "frontend": ["ui", "ux", "frontend", "react", "vue", "angular", "css", "styling", "component", "user interface"],
-    "accessibility": ["accessibility", "a11y", "wcag", "screen reader", "aria", "keyboard navigation"],
-    "performance": ["performance", "optimize", "slow", "speed", "fast", "bottleneck", "profiling", "cache"],
-    "authentication": ["auth", "login", "authentication", "oauth", "jwt", "session", "sign in", "sign up", "password"],
-    "deployment": ["deploy", "deployment", "production", "release", "ship", "hosting", "ci", "cd", "pipeline"],
+    "frontend": [
+        "ui",
+        "ux",
+        "frontend",
+        "react",
+        "vue",
+        "angular",
+        "css",
+        "styling",
+        "component",
+        "user interface",
+    ],
+    "accessibility": [
+        "accessibility",
+        "a11y",
+        "wcag",
+        "screen reader",
+        "aria",
+        "keyboard navigation",
+    ],
+    "performance": [
+        "performance",
+        "optimize",
+        "slow",
+        "speed",
+        "fast",
+        "bottleneck",
+        "profiling",
+        "cache",
+    ],
+    "authentication": [
+        "auth",
+        "login",
+        "authentication",
+        "oauth",
+        "jwt",
+        "session",
+        "sign in",
+        "sign up",
+        "password",
+    ],
+    "deployment": [
+        "deploy",
+        "deployment",
+        "production",
+        "release",
+        "ship",
+        "hosting",
+        "ci",
+        "cd",
+        "pipeline",
+    ],
     "devops": ["docker", "kubernetes", "k8s", "container", "helm", "terraform", "infrastructure"],
     "documentation": ["documentation", "docs", "readme", "changelog", "api docs", "jsdoc"],
-    "architecture": ["architecture", "system design", "design pattern", "microservices", "monolith"],
-    "workflow": ["flowchart", "diagram", "workflow", "process", "swimlane", "sequence diagram", "uml"],
-
+    "architecture": [
+        "architecture",
+        "system design",
+        "design pattern",
+        "microservices",
+        "monolith",
+    ],
+    "workflow": [
+        "flowchart",
+        "diagram",
+        "workflow",
+        "process",
+        "swimlane",
+        "sequence diagram",
+        "uml",
+    ],
     # AI/ML concepts
-    "ai_ml": ["ai", "ml", "machine learning", "llm", "rag", "embedding", "langchain", "prompt", "model"],
-
+    "ai_ml": [
+        "ai",
+        "ml",
+        "machine learning",
+        "llm",
+        "rag",
+        "embedding",
+        "langchain",
+        "prompt",
+        "model",
+    ],
     # Creative
     "visual": ["visual", "image", "graphic", "art", "canvas", "design"],
 }
@@ -400,7 +539,12 @@ def calculate_match_score(query: str, skill: dict) -> tuple[float, list[str]]:
     return min(100, score), reasons
 
 
-def find_matching_skills(query: str, skills: list[dict], limit: int = 5, signals: dict = None) -> list[dict]:
+def find_matching_skills(
+    query: str,
+    skills: list[dict[str, Any]],
+    limit: int = 5,
+    signals: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
     """
     Find skills that match the query, sorted by score.
 
@@ -442,14 +586,16 @@ def find_matching_skills(query: str, skills: list[dict], limit: int = 5, signals
             score += min(15, len(matching_domains) * 5)
 
         if score > 0:
-            matches.append({
-                "name": skill.get("name"),
-                "score": min(100, score),
-                "reasons": reasons,
-                "source": skill.get("source"),
-                "description": skill.get("description", "")[:100],
-                "domains": skill.get("domains", []),
-            })
+            matches.append(
+                {
+                    "name": skill.get("name"),
+                    "score": min(100, score),
+                    "reasons": reasons,
+                    "source": skill.get("source"),
+                    "description": skill.get("description", "")[:100],
+                    "domains": skill.get("domains", []),
+                }
+            )
 
     matches.sort(key=lambda m: m["score"], reverse=True)
     return matches[:limit]
@@ -459,12 +605,10 @@ def find_matching_skills(query: str, skills: list[dict], limit: int = 5, signals
 # TRIAGE DECISION
 # ===========================================================================
 
+
 def make_triage_decision(
-    category: str,
-    signals: dict,
-    matches: list[dict],
-    query: str
-) -> tuple[str, dict]:
+    category: str, signals: dict[str, Any], matches: list[dict[str, Any]], query: str
+) -> tuple[str, dict[str, Any]]:
     """
     Make the final triage decision based on input analysis and skill matches.
 
@@ -553,7 +697,9 @@ def make_triage_decision(
     # Error messages - prefer skills with debugging domain (UNIVERSAL, no hardcoded names)
     if category == InputCategory.ERROR_MESSAGE:
         # Find skills with debugging domain
-        debugging_skills = [m for m in matches if "debugging" in [d.lower() for d in m.get("domains", [])]]
+        debugging_skills = [
+            m for m in matches if "debugging" in [d.lower() for d in m.get("domains", [])]
+        ]
         best_debug_skill = debugging_skills[0] if debugging_skills else None
 
         if best_debug_skill and best_debug_skill["score"] >= 50:
@@ -575,9 +721,11 @@ def make_triage_decision(
             }
 
     # Code, URL, or task request - route based on match quality
-    if category in [InputCategory.CODE_SNIPPET,
-                    InputCategory.URL_CONTENT, InputCategory.TASK_REQUEST]:
-
+    if category in [
+        InputCategory.CODE_SNIPPET,
+        InputCategory.URL_CONTENT,
+        InputCategory.TASK_REQUEST,
+    ]:
         if multi_domain and top_score >= 50:
             return Action.COMPOSE, {
                 **details,
@@ -627,6 +775,7 @@ def make_triage_decision(
 # MAIN TRIAGE FUNCTION
 # ===========================================================================
 
+
 def triage_request(query: str) -> Result:
     """
     Analyze any user input and determine the best skill-related action.
@@ -643,7 +792,7 @@ def triage_request(query: str) -> Result:
         return Result(
             success=False,
             message="Skill index not found. Run discover_skills.py first.",
-            errors=["Index file missing: ~/.cache/skillrecommender/skill_index.json"]
+            errors=["Index file missing: ~/.cache/skillrecommender/skill_index.json"],
         )
 
     skills = index.get("skills", [])
@@ -665,13 +814,14 @@ def triage_request(query: str) -> Result:
             "signals": signals,
             "top_matches": matches[:5],
             "total_skills_scanned": len(skills),
-        }
+        },
     )
 
 
 # ===========================================================================
 # CLI
 # ===========================================================================
+
 
 def format_output(result: Result) -> str:
     """Format result for human-readable output."""
@@ -682,9 +832,9 @@ def format_output(result: Result) -> str:
     details = data.get("details", {})
 
     # Header
-    lines.append(f"\n{'='*60}")
+    lines.append(f"\n{'=' * 60}")
     lines.append(f"SKILL TRIAGE RESULT: {action}")
-    lines.append(f"{'='*60}")
+    lines.append(f"{'=' * 60}")
 
     # Category
     lines.append(f"\nInput Category: {data.get('input_category', 'unknown')}")
@@ -704,7 +854,7 @@ def format_output(result: Result) -> str:
                 lines.append(f"     Matched: {', '.join(m['reasons'][:2])}")
 
     # Action-specific guidance
-    lines.append(f"\n{'─'*60}")
+    lines.append(f"\n{'─' * 60}")
     lines.append("RECOMMENDED NEXT STEP:")
 
     if action == Action.USE_EXISTING:
@@ -731,7 +881,7 @@ def format_output(result: Result) -> str:
         suggestion = details.get("suggested_action", "Clarify your intent")
         lines.append(f"  {suggestion}")
 
-    lines.append(f"{'─'*60}\n")
+    lines.append(f"{'─' * 60}\n")
 
     return "\n".join(lines)
 
@@ -746,26 +896,14 @@ Examples:
   %(prog)s "help me debug this error"
   %(prog)s "do I have a skill for testing?" --json
   %(prog)s "TypeError: Cannot read property 'map' of undefined"
-        """
+        """,
     )
 
-    parser.add_argument(
-        "query",
-        type=str,
-        help="The user input to analyze"
-    )
+    parser.add_argument("query", type=str, help="The user input to analyze")
 
-    parser.add_argument(
-        "--json",
-        action="store_true",
-        help="Output results as JSON"
-    )
+    parser.add_argument("--json", action="store_true", help="Output results as JSON")
 
-    parser.add_argument(
-        "--verbose", "-v",
-        action="store_true",
-        help="Enable verbose output"
-    )
+    parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose output")
 
     args = parser.parse_args()
 

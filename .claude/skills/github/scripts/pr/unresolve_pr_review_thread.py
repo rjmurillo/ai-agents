@@ -121,10 +121,7 @@ def get_resolved_threads(pr_number: int) -> list[dict]:
     )
 
     threads = (
-        data.get("repository", {})
-        .get("pullRequest", {})
-        .get("reviewThreads", {})
-        .get("nodes", [])
+        data.get("repository", {}).get("pullRequest", {}).get("reviewThreads", {}).get("nodes", [])
     )
     return [t for t in threads if t.get("isResolved", False)]
 
@@ -187,9 +184,7 @@ def main(argv: list[str] | None = None) -> int:
         return 3
 
     if not resolved_threads:
-        print(
-            f"No resolved threads on PR #{args.pull_request} to unresolve"
-        )
+        print(f"No resolved threads on PR #{args.pull_request} to unresolve")
         result = {
             "TotalResolved": 0,
             "Unresolved": 0,
@@ -199,10 +194,7 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(result, indent=2))
         return 0
 
-    print(
-        f"Found {len(resolved_threads)} resolved thread(s) "
-        f"on PR #{args.pull_request}"
-    )
+    print(f"Found {len(resolved_threads)} resolved thread(s) on PR #{args.pull_request}")
 
     unresolved_count = 0
     failed_count = 0
@@ -218,10 +210,7 @@ def main(argv: list[str] | None = None) -> int:
             if first.get("databaseId"):
                 comment_id = first["databaseId"]
 
-        print(
-            f"  Unresolving thread {thread['id']} "
-            f"(comment {comment_id} by @{author})..."
-        )
+        print(f"  Unresolving thread {thread['id']} (comment {comment_id} by @{author})...")
 
         if unresolve_review_thread(thread["id"]):
             unresolved_count += 1

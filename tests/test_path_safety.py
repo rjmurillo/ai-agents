@@ -19,9 +19,7 @@ def test_valid_relative_path_resolves_inside_cwd(
     assert validate_path_no_traversal(Path("safe.txt")) == target.resolve()
 
 
-def test_traversal_attempt_is_rejected(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_traversal_attempt_is_rejected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
     monkeypatch.chdir(repo)

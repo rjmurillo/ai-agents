@@ -307,9 +307,7 @@ class TestRepoRatchet:
             ["add", "-A"],
             ["commit", "-qm", "seed"],
         ):
-            subprocess.run(
-                ["git", "-C", str(tmp_path), *command], check=True, capture_output=True
-            )
+            subprocess.run(["git", "-C", str(tmp_path), *command], check=True, capture_output=True)
         args = [
             "--repo-root",
             str(tmp_path),
@@ -368,9 +366,7 @@ class TestRepoRatchet:
         assert csp.main([*argv, "--update-baseline"]) == 2
         assert json.loads(outside.read_text(encoding="utf-8")) == {"files": {}}
 
-    def test_a_baseline_inside_the_repository_is_still_accepted(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_baseline_inside_the_repository_is_still_accepted(self, tmp_path: Path) -> None:
         """The refusal above is only correct if the supported path still works."""
         root = tmp_path / "repo"
         skills = root / ".claude" / "skills" / "delta" / "scripts"

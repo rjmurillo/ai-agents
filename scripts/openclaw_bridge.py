@@ -55,15 +55,18 @@ def _validate_path_component(name: str, base_dir: Path) -> Path:
         raise ValueError(f"Path traversal detected in agent name: {name}")
     return candidate
 
+
 # Agent role vocabulary. These values are written directly in agent frontmatter
 # (``role:``) and are already OpenClaw's role names, so the export copies them
 # through unchanged. An agent with no ``role:`` falls back to _DEFAULT_ROLE.
-_KNOWN_ROLES: frozenset[str] = frozenset({
-    "strategic",
-    "coordinator",
-    "executor",
-    "support",
-})
+_KNOWN_ROLES: frozenset[str] = frozenset(
+    {
+        "strategic",
+        "coordinator",
+        "executor",
+        "support",
+    }
+)
 
 _DEFAULT_ROLE = "support"
 
@@ -229,14 +232,16 @@ def generate_agents_md(agents: list[AgentDefinition]) -> str:
         desc = agent.description[:80] + "..." if len(agent.description) > 80 else agent.description
         lines.append(f"| {agent.name} | {agent.role} | {model} | {desc} |")
 
-    lines.extend([
-        "",
-        "## Routing Rules",
-        "",
-        "Route tasks to agents by matching keywords in the request.",
-        "The orchestrator agent coordinates multi-step workflows.",
-        "",
-    ])
+    lines.extend(
+        [
+            "",
+            "## Routing Rules",
+            "",
+            "Route tasks to agents by matching keywords in the request.",
+            "The orchestrator agent coordinates multi-step workflows.",
+            "",
+        ]
+    )
 
     for agent in agents:
         if agent.argument_hint:
@@ -272,12 +277,14 @@ def generate_skill_md(agent: AgentDefinition) -> str:
     ]
 
     if agent.argument_hint:
-        lines.extend([
-            "## Usage",
-            "",
-            f"{agent.argument_hint}",
-            "",
-        ])
+        lines.extend(
+            [
+                "## Usage",
+                "",
+                f"{agent.argument_hint}",
+                "",
+            ]
+        )
 
     return "\n".join(lines)
 
@@ -353,14 +360,16 @@ def export_json(agents: list[AgentDefinition]) -> str:
     """
     data = []
     for agent in agents:
-        data.append({
-            "name": agent.name,
-            "description": agent.description,
-            "model": _MODEL_MAP.get(agent.model, agent.model),
-            "role": agent.role,
-            "argument_hint": agent.argument_hint,
-            "source": agent.source_path if agent.source_path else agent.name,
-        })
+        data.append(
+            {
+                "name": agent.name,
+                "description": agent.description,
+                "model": _MODEL_MAP.get(agent.model, agent.model),
+                "role": agent.role,
+                "argument_hint": agent.argument_hint,
+                "source": agent.source_path if agent.source_path else agent.name,
+            }
+        )
     return json.dumps({"agents": data, "count": len(data)}, indent=2)
 
 

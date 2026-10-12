@@ -22,13 +22,16 @@ This document captures the repeatable pattern validated during the Phase 1 pilot
 ### Step 1: Create Project
 
 ```python
-execute_forgetful_tool("create_project", {
-    "name": "ai-agents-{domain}",  # e.g., "ai-agents-testing"
-    "description": "Domain description with scope and sources",
-    "project_type": "development",
-    "repo_name": "rjmurillo/ai-agents",
-    "notes": "Source: .serena/memories/{domain}-observations.md"
-})
+execute_forgetful_tool(
+    "create_project",
+    {
+        "name": "ai-agents-{domain}",  # e.g., "ai-agents-testing"
+        "description": "Domain description with scope and sources",
+        "project_type": "development",
+        "repo_name": "rjmurillo/ai-agents",
+        "notes": "Source: .serena/memories/{domain}-observations.md",
+    },
+)
 ```
 
 **Returns**: Project ID for linking memories
@@ -49,26 +52,28 @@ Parse the observation file sections:
 For each learning:
 
 ```python
-execute_forgetful_tool("create_memory", {
-    "title": "Short descriptive title",  # e.g., "Integration tests must test end-to-end behavior"
-    "content": "Full learning text with evidence",
-    "context": "Observation from Session {session}, {date}. {domain} {type}.",
-    "keywords": ["domain-specific", "tags", "for", "search"],
-    "tags": [
-        "testing",           # Domain
-        "constraint",        # OR "preference", "edge-case"
-        "high-confidence",   # OR "medium-confidence", "low-confidence"
-        "pester"            # Specific technology
-    ],
-    "importance": 10,        # 9-10 for HIGH, 7-8 for MED, 5-6 for LOW
-    "project_ids": [project_id],
-
-    # Provenance fields (required)
-    "source_repo": "rjmurillo/ai-agents",
-    "source_files": [".serena/memories/{domain}-observations.md"],
-    "confidence": 1.0,       # 1.0 for HIGH, 0.85 for MED, 0.7 for LOW
-    "encoding_agent": "claude-opus-4-5"  # OR sonnet, etc.
-})
+execute_forgetful_tool(
+    "create_memory",
+    {
+        "title": "Short descriptive title",  # e.g., "Integration tests must test end-to-end behavior"
+        "content": "Full learning text with evidence",
+        "context": "Observation from Session {session}, {date}. {domain} {type}.",
+        "keywords": ["domain-specific", "tags", "for", "search"],
+        "tags": [
+            "testing",  # Domain
+            "constraint",  # OR "preference", "edge-case"
+            "high-confidence",  # OR "medium-confidence", "low-confidence"
+            "pester",  # Specific technology
+        ],
+        "importance": 10,  # 9-10 for HIGH, 7-8 for MED, 5-6 for LOW
+        "project_ids": [project_id],
+        # Provenance fields (required)
+        "source_repo": "rjmurillo/ai-agents",
+        "source_files": [".serena/memories/{domain}-observations.md"],
+        "confidence": 1.0,  # 1.0 for HIGH, 0.85 for MED, 0.7 for LOW
+        "encoding_agent": "claude-opus-4-5",  # OR sonnet, etc.
+    },
+)
 ```
 
 **Auto-linking**: Forgetful automatically links new memories to semantically similar existing memories (visible in `linked_memory_ids` response).
@@ -78,11 +83,14 @@ execute_forgetful_tool("create_memory", {
 Test queries that should return relevant results:
 
 ```python
-execute_forgetful_tool("query_memory", {
-    "query": "domain-specific search terms",
-    "query_context": "Why searching for this",
-    "project_ids": [project_id]  # Filter to specific project
-})
+execute_forgetful_tool(
+    "query_memory",
+    {
+        "query": "domain-specific search terms",
+        "query_context": "Why searching for this",
+        "project_ids": [project_id],  # Filter to specific project
+    },
+)
 ```
 
 **Validation queries used for testing domain**:

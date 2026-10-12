@@ -234,16 +234,14 @@ def _parse_date_bound(value: str | None) -> date | None:
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Audit security-guidance child-review transcripts for repeated diff "
-            "and block content."
+            "Audit security-guidance child-review transcripts for repeated diff and block content."
         )
     )
     parser.add_argument(
         "--projects-dir",
         default=str(Path.home() / ".claude" / "projects"),
         help=(
-            "Directory holding per-project transcript subdirectories "
-            "(default: ~/.claude/projects)."
+            "Directory holding per-project transcript subdirectories (default: ~/.claude/projects)."
         ),
     )
     parser.add_argument("--since", help="YYYY-MM-DD inclusive lower bound on session start.")

@@ -91,9 +91,7 @@ class TestClassifyPrFetchFailure:
 
     def test_rate_limit_suppresses_fork_hint(self) -> None:
         """HTTP 403 + rate-limit text must NOT produce the fork hint (#4333)."""
-        result = classify_pr_fetch_failure(
-            "100", "HTTP 403: API rate limit exceeded"
-        )
+        result = classify_pr_fetch_failure("100", "HTTP 403: API rate limit exceeded")
         assert result.hint == ""
         assert "GH_TOKEN" not in result.warning
 

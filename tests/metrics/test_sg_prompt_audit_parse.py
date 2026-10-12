@@ -231,9 +231,7 @@ def test_add_usage_sums_field_by_field() -> None:
 
 
 def test_latency_seconds_computes_delta() -> None:
-    delta = parse_mod.latency_seconds(
-        "2026-09-20T00:00:00.000Z", "2026-09-20T00:00:05.500Z"
-    )
+    delta = parse_mod.latency_seconds("2026-09-20T00:00:00.000Z", "2026-09-20T00:00:05.500Z")
     assert delta == pytest.approx(5.5)
 
 
@@ -280,12 +278,10 @@ def test_valid_timestamp_false_for_garbage_or_naive_or_empty(bad: str) -> None:
     assert parse_mod._valid_timestamp(bad) is False
 
 
-
-
 # --- diff bodies that quote the prompt's own markers --------------------------
 
 _QUOTED_TAIL = (
-    "+    \"\\n\\nInvestigate per the method in your instructions, then return \"\n"
+    '+    "\\n\\nInvestigate per the method in your instructions, then return "\n'
     "\n\nInvestigate per the method in your instructions, then return the findings list.\n"
     "+tail = 1\n"
 )
@@ -311,7 +307,7 @@ def test_extract_diff_keeps_refute_body_that_quotes_refute_terminator() -> None:
 
 def test_classify_prompt_ignores_iter2_markers_quoted_inside_the_diff() -> None:
     quoted = (
-        "+\"\\n\\n---\\n\\nA prior reviewer already flagged\"\n"
+        '+"\\n\\n---\\n\\nA prior reviewer already flagged"\n'
         "\n\n---\n\nA prior reviewer already flagged <excluded_findings>\n"
     )
     text = investigate_prompt(diff_text([("a.py", quoted)]))

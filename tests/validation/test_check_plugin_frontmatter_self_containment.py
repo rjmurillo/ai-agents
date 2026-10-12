@@ -45,12 +45,10 @@ def _frontmatter(description: str, extra: str = "") -> str:
 
 def _write_marketplace_manifests(root: Path, sources: tuple[str, ...] = gate.PLUGIN_ROOTS) -> None:
     github_plugins = [
-        {"name": f"plugin-{index}", "source": f"./{source}"}
-        for index, source in enumerate(sources)
+        {"name": f"plugin-{index}", "source": f"./{source}"} for index, source in enumerate(sources)
     ]
     claude_plugins = [
-        {"name": f"plugin-{index}", "source": f"./{source}"}
-        for index, source in enumerate(sources)
+        {"name": f"plugin-{index}", "source": f"./{source}"} for index, source in enumerate(sources)
     ]
     (root / ".github" / "plugin").mkdir(parents=True)
     (root / ".claude-plugin").mkdir()
@@ -401,7 +399,6 @@ class TestFrontmatterParsing:
 
     def test_no_frontmatter_means_nothing_scanned(self) -> None:
         assert gate.frontmatter_lines("# Title\n\ndescription: docs/a.md\n") == []
-
 
     def test_unterminated_frontmatter_is_not_frontmatter(self) -> None:
         """Otherwise the whole body would be scanned as frontmatter."""
@@ -808,9 +805,7 @@ class TestParserFidelity:
         assert gate.main(["--repo-root", str(tmp_path)]) == 1
         assert "docs/guide.md" in capsys.readouterr().err
 
-    def test_main_resolves_references_against_the_files_own_directory(
-        self, tmp_path: Path
-    ) -> None:
+    def test_main_resolves_references_against_the_files_own_directory(self, tmp_path: Path) -> None:
         """End to end, so the CLI cannot quietly stop passing the file's directory.
 
         Every unit test builds the shipper itself, which leaves ``main`` free to
@@ -843,9 +838,7 @@ class TestParserFidelity:
         (root / "rules").mkdir(parents=True)
         (root / "rules" / "y.md").write_text("x", encoding="utf-8")
         (root / "skills").mkdir()
-        (root / "skills" / "a.md").write_text(
-            _frontmatter("Per rules/y.md."), encoding="utf-8"
-        )
+        (root / "skills" / "a.md").write_text(_frontmatter("Per rules/y.md."), encoding="utf-8")
         assert gate.main(["--repo-root", str(tmp_path)]) == 0
 
         (root / "skills" / "a.md").write_text(
@@ -921,9 +914,7 @@ class TestUriHandling:
             ("See urn:isbn:0451450523 and docs/a.md", ["docs/a.md"]),
         ],
     )
-    def test_an_opaque_uri_tail_is_not_a_reference(
-        self, value: str, expected: list[str]
-    ) -> None:
+    def test_an_opaque_uri_tail_is_not_a_reference(self, value: str, expected: list[str]) -> None:
         """Its tail is an address or a payload, not a path.
 
         The expectation is exact per case rather than "either shape". A range
@@ -941,7 +932,6 @@ class TestUriHandling:
         """
         text = _frontmatter("Note:docs/a.md is the file.")
         assert [ref for _, _, ref in gate.scan_file(Path("x.md"), text)] == ["docs/a.md"]
-
 
     @pytest.mark.parametrize(
         ("value", "expected"),

@@ -178,8 +178,7 @@ class TestStageOrdering:
         for gate in FAST_PARALLEL_GATES | set(FAST_STDIN_GATES):
             gate_index = _entry_index_of(config, gate)
             assert gate_index is not None and gate_index < scan_index, (
-                f"{gate!r} must precede security-scan so a cheap failure "
-                "skips the semgrep scan."
+                f"{gate!r} must precede security-scan so a cheap failure skips the semgrep scan."
             )
         for expensive in EXPENSIVE_JOBS:
             expensive_index = _entry_index_of(config, expensive)
@@ -262,8 +261,7 @@ class TestStdinPlacement:
             entry = _top_level_entries(config)[index]
             job = next(j for j in _jobs_in_entry(entry) if j.get("name") == name)
             assert job.get("use_stdin") is True, (
-                f"{name!r} no longer reads stdin; remove it from "
-                "PARALLEL_STDIN_EXCEPTIONS."
+                f"{name!r} no longer reads stdin; remove it from PARALLEL_STDIN_EXCEPTIONS."
             )
 
     def test_security_scan_is_a_top_level_stdin_job(self) -> None:
@@ -298,8 +296,7 @@ class TestStdinPlacement:
         offenders = [
             str(job.get("name"))
             for entry in _top_level_entries(bad)
-            if isinstance(entry.get("group"), dict)
-            and entry["group"].get("parallel") is True
+            if isinstance(entry.get("group"), dict) and entry["group"].get("parallel") is True
             for job in _jobs_in_entry(entry)
             if job.get("use_stdin") is True
             and str(job.get("name")) not in PARALLEL_STDIN_EXCEPTIONS
@@ -357,8 +354,7 @@ class TestFastStageMembershipIsExact:
         parallel_groups = [
             entry
             for entry in entries[:scan_index]
-            if isinstance(entry.get("group"), dict)
-            and entry["group"].get("parallel") is True
+            if isinstance(entry.get("group"), dict) and entry["group"].get("parallel") is True
         ]
         assert len(parallel_groups) == 1, (
             "Exactly one fast parallel group is expected ahead of "
@@ -379,8 +375,7 @@ class TestFastStageMembershipIsExact:
         stdin_groups = [
             entry
             for entry in entries[:scan_index]
-            if isinstance(entry.get("group"), dict)
-            and entry["group"].get("piped") is True
+            if isinstance(entry.get("group"), dict) and entry["group"].get("piped") is True
         ]
         assert len(stdin_groups) == 1
         names = [str(job.get("name")) for job in _jobs_in_entry(stdin_groups[0])]
@@ -418,11 +413,7 @@ class TestFastStageMembershipIsExact:
         entries = _top_level_entries(config)
         scan_index = _entry_index_of(config, "security-scan")
         assert scan_index is not None
-        names = [
-            str(entry.get("name"))
-            for entry in entries[:scan_index]
-            if "group" not in entry
-        ]
+        names = [str(entry.get("name")) for entry in entries[:scan_index] if "group" not in entry]
         assert names == list(SINGLETON_GUARDS), (
             f"Top-level singleton guards are {names}, roster is "
             f"{list(SINGLETON_GUARDS)}. Update SINGLETON_GUARDS deliberately "
@@ -436,11 +427,7 @@ class TestFastStageMembershipIsExact:
         # decision in this module.
         config = _load_config()
         entries = _top_level_entries(config)
-        all_names = {
-            str(job.get("name"))
-            for entry in entries
-            for job in _jobs_in_entry(entry)
-        }
+        all_names = {str(job.get("name")) for entry in entries for job in _jobs_in_entry(entry)}
         accounted = (
             set(SINGLETON_GUARDS)
             | set(FAST_STDIN_GATES)
@@ -454,4 +441,3 @@ class TestFastStageMembershipIsExact:
             "stage. Add each to a roster in this module so its scheduling is "
             "a decision, not an accident (issue #5066)."
         )
-

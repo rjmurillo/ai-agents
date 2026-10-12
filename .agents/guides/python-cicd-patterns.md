@@ -49,6 +49,7 @@ Python scripts MUST use standard exit codes (per ADR-035):
 ```python
 import sys
 
+
 def main() -> int:
     """Main entry point. Returns exit code."""
     try:
@@ -60,6 +61,7 @@ def main() -> int:
     except Exception as e:
         print(f"FATAL: {e}", file=sys.stderr)
         return 2
+
 
 if __name__ == "__main__":
     sys.exit(main())
@@ -102,19 +104,9 @@ import sys
 
 def parse_args() -> argparse.Namespace:
     """Parse command line arguments."""
-    parser = argparse.ArgumentParser(
-        description="Validate session log format"
-    )
-    parser.add_argument(
-        "--session-path",
-        required=True,
-        help="Path to session log file"
-    )
-    parser.add_argument(
-        "--strict",
-        action="store_true",
-        help="Enable strict validation mode"
-    )
+    parser = argparse.ArgumentParser(description="Validate session log format")
+    parser.add_argument("--session-path", required=True, help="Path to session log file")
+    parser.add_argument("--strict", action="store_true", help="Enable strict validation mode")
     return parser.parse_args()
 
 
@@ -279,8 +271,7 @@ import os
 
 
 @pytest.mark.skipif(
-    "GITHUB_TOKEN" not in os.environ,
-    reason="Requires GITHUB_TOKEN for integration tests"
+    "GITHUB_TOKEN" not in os.environ, reason="Requires GITHUB_TOKEN for integration tests"
 )
 def test_github_api_connection():
     """Verify GitHub API connectivity."""

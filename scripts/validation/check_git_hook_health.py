@@ -126,6 +126,7 @@ PROBE_HOOK = "pre-push"
 # the summary line does not claim pre-push is dead when pre-push proved live.
 _POST_PROBE_PREFIX = "pre-push is live, but "
 
+
 # Lefthook's generated shim ends by dispatching the hook through its own
 # resolver function, and that line is the one part of the template every
 # supported platform shares. Measured on the shim Lefthook 2.1.11 installed
@@ -156,7 +157,6 @@ SYSTEM_REMEDY = f"git config --system --unset-all core.hooksPath && {REMEDY}"
 # milliseconds, so this only trips on a genuine hang. The gate fails closed
 # with ADR-035 exit 3 because an unreadable hook state is not a verified pass.
 GIT_TIMEOUT_SECONDS = 5
-
 
 
 class GitExecutionError(RuntimeError):
@@ -220,9 +220,7 @@ def _hooks_dir(repo_root: Path) -> Path:
 
 def _configured_hooks_path(repo_root: Path) -> tuple[str | None, str | None]:
     """Return the effective ``core.hooksPath`` value and its config scope."""
-    value = _git(
-        repo_root, "config", "--get", "core.hooksPath", missing_ok=True
-    ) or None
+    value = _git(repo_root, "config", "--get", "core.hooksPath", missing_ok=True) or None
     scoped = _git(
         repo_root,
         "config",
@@ -265,8 +263,7 @@ def _failed_condition(repo_root: Path, hooks_dir: Path) -> str:
     scope_text = f" in {scope} scope" if scope is not None else ""
     if not hooks_dir.exists():
         return (
-            f"core.hooksPath is set to '{configured}'{scope_text} "
-            "and that directory does not exist"
+            f"core.hooksPath is set to '{configured}'{scope_text} and that directory does not exist"
         )
     if not hooks_dir.is_dir():
         return (
@@ -322,9 +319,7 @@ def _dispatch_failure(hook: Path, hook_name: str) -> str | None:
     return None
 
 
-def _diagnose_hooks_dir(
-    repo_root: Path, hooks_dir: Path
-) -> tuple[str | None, frozenset[str]]:
+def _diagnose_hooks_dir(repo_root: Path, hooks_dir: Path) -> tuple[str | None, frozenset[str]]:
     """Return the failed condition and the hook types examined.
 
     The inventory is obtained once and returned, so the success report names the
@@ -365,9 +360,7 @@ def _missing_hook_types(hooks_dir: Path, configured: frozenset[str]) -> str | No
     alone reports healthy while the hook type someone just added is inert.
     """
     missing = sorted(
-        name
-        for name in configured - {PROBE_HOOK}
-        if not _is_live_hook(hooks_dir / name, name)
+        name for name in configured - {PROBE_HOOK} if not _is_live_hook(hooks_dir / name, name)
     )
     if not missing:
         return None
@@ -406,10 +399,9 @@ def _skip(reason: str, detail: str) -> int:
 
 def _evaluate(repo_root: Path) -> int:
     """Evaluate once and return the ADR-035 exit code."""
-    if (
-        os.environ.get("GITHUB_ACTIONS", "").lower() in ("true", "1")
-        or os.environ.get("CI", "").lower() in ("true", "1")
-    ):
+    if os.environ.get("GITHUB_ACTIONS", "").lower() in ("true", "1") or os.environ.get(
+        "CI", ""
+    ).lower() in ("true", "1"):
         return _skip(REASON_POLICY_EXEMPT, "skipped under CI (0 hooks probed)")
     if not _uses_lefthook(repo_root):
         return _skip(
@@ -464,23 +456,23 @@ def _evaluate(repo_root: Path) -> int:
 def validate_git_hook_health(repo_root: Path) -> bool:
     """Return False when pre-push is inert or verification is impossible.
 
-    Entry point matching the contract the pre-PR registry consumes. Canonical
-    source: ``scripts/validation/pre_pr_sequence.py:150``, whose adapter
-    signature reads verbatim (quoted at column 0 so the 96-character original
-    is reproduced byte for byte rather than wrapped to fit an indent):
+        Entry point matching the contract the pre-PR registry consumes. Canonical
+        source: ``scripts/validation/pre_pr_sequence.py:150``, whose adapter
+        signature reads verbatim (quoted at column 0 so the 96-character original
+        is reproduced byte for byte rather than wrapped to fit an indent):
 
-def _root_only(validator: Callable[[Path], bool]) -> Callable[[Path, argparse.Namespace], bool]:
+    def _root_only(validator: Callable[[Path], bool]) -> Callable[[Path, argparse.Namespace], bool]:
 
-    A dead pre-push hook or an unverifiable Git state fails loud rather than
-    warning. The repair is bounded, and refusing an unverifiable push avoids
-    silently recreating the incident this gate exists to catch
-    (.claude/rules/ci-scripts.md MUST 11).
+        A dead pre-push hook or an unverifiable Git state fails loud rather than
+        warning. The repair is bounded, and refusing an unverifiable push avoids
+        silently recreating the incident this gate exists to catch
+        (.claude/rules/ci-scripts.md MUST 11).
 
-    Prints what was probed and where it resolved on the healthy path, so a
-    caller can tell "checked and found hooks live" from "did nothing"
-    (.claude/rules/ci-scripts.md MUST 12). The silence-when-healthy contract
-    of the original SessionStart design does not apply here: that output landed
-    in every session's context, this lands in one pre-PR report.
+        Prints what was probed and where it resolved on the healthy path, so a
+        caller can tell "checked and found hooks live" from "did nothing"
+        (.claude/rules/ci-scripts.md MUST 12). The silence-when-healthy contract
+        of the original SessionStart design does not apply here: that output landed
+        in every session's context, this lands in one pre-PR report.
     """
     return _evaluate(repo_root) == 0
 

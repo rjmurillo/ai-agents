@@ -67,9 +67,7 @@ def apply_to_patterns() -> list[str]:
     # coverage assertions survive the applyTo->paths key migration.
     scope = frontmatter.get("paths", frontmatter.get("applyTo"))
     if scope is None:
-        pytest.fail(
-            "canonical-source-mirror.md frontmatter missing paths/applyTo"
-        )
+        pytest.fail("canonical-source-mirror.md frontmatter missing paths/applyTo")
     return _coerce_patterns(scope)
 
 
@@ -82,9 +80,9 @@ def test_review_axes_path_matches(apply_to_patterns: list[str]) -> None:
 
 def test_github_prompts_path_matches(apply_to_patterns: list[str]) -> None:
     """REQ-012-03 AC: .github/prompts/pr-quality-gate-analyst.md must match."""
-    assert _matches_any(
-        ".github/prompts/pr-quality-gate-analyst.md", apply_to_patterns
-    ), f"applyTo does not cover .github/prompts/; patterns={apply_to_patterns}"
+    assert _matches_any(".github/prompts/pr-quality-gate-analyst.md", apply_to_patterns), (
+        f"applyTo does not cover .github/prompts/; patterns={apply_to_patterns}"
+    )
 
 
 def test_existing_hooks_coverage_preserved(apply_to_patterns: list[str]) -> None:

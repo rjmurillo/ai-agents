@@ -326,7 +326,9 @@ This review identifies that the same patterns need to be applied to:
 ## Agent Invocation for Remediation
 
 ```python
-Task(subagent_type="orchestrator", prompt="""
+Task(
+    subagent_type="orchestrator",
+    prompt="""
 Remediate all findings from PR #753 comprehensive review.
 
 Priority: Address all CRITICAL and HIGH issues first.
@@ -343,5 +345,6 @@ Steps:
 7. Commit with atomic commits per category
 
 Expected outcome: All CRITICAL and HIGH findings resolved, PR ready for merge.
-""")
+""",
+)
 ```

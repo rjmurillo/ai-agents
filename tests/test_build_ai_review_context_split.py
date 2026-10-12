@@ -36,7 +36,6 @@ def test_output_helpers_are_extracted_from_ci_entrypoint():
     assert "def append_multiline_output(" in outputs_source
 
 
-
 def _import_outputs():
     """Import the outputs module fresh, with no prior entrypoint pollution."""
     import importlib.util
@@ -131,8 +130,10 @@ def test_main_maps_output_config_error_to_exit_2(monkeypatch, tmp_path):
     def fake_run(cmd, **kwargs):
         if isinstance(cmd, list) and "gh" in cmd[0]:
             import json
+
             return subprocess.CompletedProcess(
-                cmd, 0,
+                cmd,
+                0,
                 stdout=json.dumps({"number": 1, "title": "t", "body": "b"}),
                 stderr="",
             )
@@ -161,15 +162,11 @@ def test_outputs_module_has_no_mutable_exception_alias():
             and obj is not outputs.OutputConfigError
             and name.isupper()
         ):
-            __import__("pytest").fail(
-                f"Mutable exception alias found: {name} = {obj.__name__}"
-            )
+            __import__("pytest").fail(f"Mutable exception alias found: {name} = {obj.__name__}")
         # Check for type[Exception] attributes (the original pattern)
         if name != "OutputConfigError" and obj is outputs.OutputConfigError:
             if name not in ("__class__",):
-                __import__("pytest").fail(
-                    f"Aliased OutputConfigError found as {name}"
-                )
+                __import__("pytest").fail(f"Aliased OutputConfigError found as {name}")
 
 
 # --- Tests for gh_retry_helpers extraction (issue #4597) ---

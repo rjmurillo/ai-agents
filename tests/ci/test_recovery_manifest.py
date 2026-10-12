@@ -93,9 +93,7 @@ class TestRequiredContextGating:
         )
 
         assert manifest.is_safe is False
-        assert "no workflow definition found" in (
-            manifest.blocked[0].blocked_reason or ""
-        )
+        assert "no workflow definition found" in (manifest.blocked[0].blocked_reason or "")
 
     def test_non_required_run_needs_no_recovery_event(self):
         manifest = plan(
@@ -231,18 +229,13 @@ class TestSharedWorkflowName:
         """Write two files declaring REQUIRED_WORKFLOW, then load them."""
         for filename, types in (("a.yml", first_types), ("b.yml", second_types)):
             (directory / filename).write_text(
-                f"name: {REQUIRED_WORKFLOW}\n"
-                f"on:\n  pull_request:\n    types: {types}\n",
+                f"name: {REQUIRED_WORKFLOW}\non:\n  pull_request:\n    types: {types}\n",
                 encoding="utf-8",
             )
         return load_workflow_subscriptions(directory)
 
-    def test_blocks_when_only_one_sharer_subscribes_to_the_recovery_event(
-        self, tmp_path: Path
-    ):
-        subscriptions = self.load_pair(
-            tmp_path, "[opened, reopened]", "[opened, synchronize]"
-        )
+    def test_blocks_when_only_one_sharer_subscribes_to_the_recovery_event(self, tmp_path: Path):
+        subscriptions = self.load_pair(tmp_path, "[opened, reopened]", "[opened, synchronize]")
 
         manifest = plan(
             [make_run(1, workflow=REQUIRED_WORKFLOW, context=REQUIRED_CONTEXT)],
@@ -251,16 +244,10 @@ class TestSharedWorkflowName:
         )
 
         assert manifest.is_safe is False
-        assert "does not subscribe to 'reopened'" in (
-            manifest.blocked[0].blocked_reason or ""
-        )
+        assert "does not subscribe to 'reopened'" in (manifest.blocked[0].blocked_reason or "")
 
-    def test_clears_when_every_sharer_subscribes_to_the_recovery_event(
-        self, tmp_path: Path
-    ):
-        subscriptions = self.load_pair(
-            tmp_path, "[opened, reopened]", "[reopened, synchronize]"
-        )
+    def test_clears_when_every_sharer_subscribes_to_the_recovery_event(self, tmp_path: Path):
+        subscriptions = self.load_pair(tmp_path, "[opened, reopened]", "[reopened, synchronize]")
 
         manifest = plan(
             [make_run(1, workflow=REQUIRED_WORKFLOW, context=REQUIRED_CONTEXT)],

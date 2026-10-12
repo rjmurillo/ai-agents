@@ -16,8 +16,7 @@ from scripts.github_core.api import RepoInfo
 # Import the script via importlib (not a package)
 # ---------------------------------------------------------------------------
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1]
-    / ".claude" / "skills" / "github" / "scripts" / "pr"
+    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "pr"
 )
 
 
@@ -72,28 +71,36 @@ class TestMain:
             assert exc.value.code == 4
 
     def test_thread_not_found_exits_2(self):
-        with patch(
-            "get_thread_by_id.assert_gh_authenticated",
-        ), patch(
-            "get_thread_by_id.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_thread_by_id.gh_graphql",
-            side_effect=RuntimeError("Could not resolve to a node"),
+        with (
+            patch(
+                "get_thread_by_id.assert_gh_authenticated",
+            ),
+            patch(
+                "get_thread_by_id.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_thread_by_id.gh_graphql",
+                side_effect=RuntimeError("Could not resolve to a node"),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--thread-id", "PRRT_abc"])
             assert exc.value.code == 2
 
     def test_null_node_exits_2(self):
-        with patch(
-            "get_thread_by_id.assert_gh_authenticated",
-        ), patch(
-            "get_thread_by_id.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_thread_by_id.gh_graphql",
-            return_value={"node": None},
+        with (
+            patch(
+                "get_thread_by_id.assert_gh_authenticated",
+            ),
+            patch(
+                "get_thread_by_id.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_thread_by_id.gh_graphql",
+                return_value={"node": None},
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--thread-id", "PRRT_abc"])
@@ -136,14 +143,18 @@ class TestMain:
                 },
             },
         }
-        with patch(
-            "get_thread_by_id.assert_gh_authenticated",
-        ), patch(
-            "get_thread_by_id.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_thread_by_id.gh_graphql",
-            return_value=thread_data,
+        with (
+            patch(
+                "get_thread_by_id.assert_gh_authenticated",
+            ),
+            patch(
+                "get_thread_by_id.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_thread_by_id.gh_graphql",
+                return_value=thread_data,
+            ),
         ):
             rc = main(["--thread-id", "PRRT_abc"])
         assert rc == 0
@@ -156,14 +167,18 @@ class TestMain:
         assert output["comments"][1]["author"] == "bob"
 
     def test_api_error_exits_3(self):
-        with patch(
-            "get_thread_by_id.assert_gh_authenticated",
-        ), patch(
-            "get_thread_by_id.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "get_thread_by_id.gh_graphql",
-            side_effect=RuntimeError("Server error"),
+        with (
+            patch(
+                "get_thread_by_id.assert_gh_authenticated",
+            ),
+            patch(
+                "get_thread_by_id.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_thread_by_id.gh_graphql",
+                side_effect=RuntimeError("Server error"),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--thread-id", "PRRT_abc"])

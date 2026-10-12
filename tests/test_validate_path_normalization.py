@@ -183,32 +183,20 @@ class TestScanFile:
     def test_detects_multiple_violations(self, tmp_path: Path) -> None:
         f = tmp_path / "doc.md"
         f.write_text(
-            "Windows: C:\\path\\to\\file.md\n"
-            "macOS: /Users/dev/file.md\n"
-            "Linux: /home/user/file.md\n"
+            "Windows: C:\\path\\to\\file.md\nmacOS: /Users/dev/file.md\nLinux: /home/user/file.md\n"
         )
         violations = scan_file(f, FORBIDDEN_PATTERNS)
         assert len(violations) == 3
 
     def test_skips_fenced_code_blocks_backtick(self, tmp_path: Path) -> None:
         f = tmp_path / "doc.md"
-        f.write_text(
-            "# Doc\n"
-            "```\n"
-            "C:\\example\\path\n"
-            "```\n"
-        )
+        f.write_text("# Doc\n```\nC:\\example\\path\n```\n")
         violations = scan_file(f, FORBIDDEN_PATTERNS)
         assert violations == []
 
     def test_skips_fenced_code_blocks_tilde(self, tmp_path: Path) -> None:
         f = tmp_path / "doc.md"
-        f.write_text(
-            "# Doc\n"
-            "~~~\n"
-            "/home/user/example\n"
-            "~~~\n"
-        )
+        f.write_text("# Doc\n~~~\n/home/user/example\n~~~\n")
         violations = scan_file(f, FORBIDDEN_PATTERNS)
         assert violations == []
 
@@ -238,11 +226,7 @@ class TestScanFile:
 
     def test_reports_correct_line_number(self, tmp_path: Path) -> None:
         f = tmp_path / "doc.md"
-        f.write_text(
-            "Line 1: Normal text\n"
-            "Line 2: C:\\violation\\here.md\n"
-            "Line 3: Normal text\n"
-        )
+        f.write_text("Line 1: Normal text\nLine 2: C:\\violation\\here.md\nLine 3: Normal text\n")
         violations = scan_file(f, FORBIDDEN_PATTERNS)
         assert len(violations) == 1
         assert violations[0].line == 2
@@ -260,12 +244,7 @@ class TestScanFile:
     def test_code_block_tracking_across_content(self, tmp_path: Path) -> None:
         """Paths after a closed code block are still detected."""
         f = tmp_path / "doc.md"
-        f.write_text(
-            "```\n"
-            "C:\\inside\\block\n"
-            "```\n"
-            "C:\\outside\\block\n"
-        )
+        f.write_text("```\nC:\\inside\\block\n```\nC:\\outside\\block\n")
         violations = scan_file(f, FORBIDDEN_PATTERNS)
         assert len(violations) == 1
         assert violations[0].line == 4
@@ -357,11 +336,15 @@ class TestMain:
 
     def test_custom_extensions_with_fail(self, tmp_path: Path) -> None:
         (tmp_path / "file.txt").write_text("C:\\violation\n")
-        result = main([
-            "--path", str(tmp_path),
-            "--extensions", ".txt",
-            "--fail-on-violation",
-        ])
+        result = main(
+            [
+                "--path",
+                str(tmp_path),
+                "--extensions",
+                ".txt",
+                "--fail-on-violation",
+            ]
+        )
         assert result == 1
 
     def test_exclude_paths(self, tmp_path: Path) -> None:
@@ -369,11 +352,15 @@ class TestMain:
         excluded.mkdir()
         (excluded / "lib.md").write_text("C:\\vendored\n")
         (tmp_path / "root.md").write_text("clean\n")
-        result = main([
-            "--path", str(tmp_path),
-            "--exclude-paths", "vendor",
-            "--fail-on-violation",
-        ])
+        result = main(
+            [
+                "--path",
+                str(tmp_path),
+                "--exclude-paths",
+                "vendor",
+                "--fail-on-violation",
+            ]
+        )
         assert result == 0
 
     def test_help_flag(self) -> None:
@@ -415,4 +402,3 @@ class TestMain:
         captured = capsys.readouterr()
         assert "Line 2" in captured.out
         assert "Windows Absolute Path" in captured.out
-

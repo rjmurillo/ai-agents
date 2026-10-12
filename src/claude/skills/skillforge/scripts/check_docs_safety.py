@@ -36,8 +36,8 @@ def is_unquoted_tool_var(line: str, var: str) -> bool:
         return False
 
     safe_forms = (
-        f"\"${var}\"",
-        f"\"${{{var}}}\"",
+        f'"${var}"',
+        f'"${{{var}}}"',
     )
     return not any(safe in line for safe in safe_forms)
 
@@ -59,7 +59,11 @@ def scan_file(path: Path) -> list[str]:
 
 def main() -> int:
     repo_root = Path(__file__).resolve().parents[1]
-    targets = [Path(arg).resolve() for arg in sys.argv[1:]] if len(sys.argv) > 1 else default_targets(repo_root)
+    targets = (
+        [Path(arg).resolve() for arg in sys.argv[1:]]
+        if len(sys.argv) > 1
+        else default_targets(repo_root)
+    )
 
     all_issues: list[str] = []
     try:

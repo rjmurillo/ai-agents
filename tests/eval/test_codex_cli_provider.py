@@ -4,6 +4,7 @@ Offline: no CLI is launched. The Codex binary is not installed in this
 repository's container, so these cover the argv shape read from the
 openai/codex source and every refusal path, not a live run.
 """
+
 from __future__ import annotations
 
 import subprocess
@@ -120,10 +121,7 @@ def test_codex_cli_optin_accepts_an_affirmative_value(
     monkeypatch.setattr(_codex_cli, "_init_git_repository", lambda sandbox: None)
     install_runner(monkeypatch, Recorder(on_call=write_last_message("PONG")))
 
-    assert (
-        _codex_cli._CodexCLIProvider().complete(messages=MESSAGES, model="gpt-5.6")
-        == "PONG"
-    )
+    assert _codex_cli._CodexCLIProvider().complete(messages=MESSAGES, model="gpt-5.6") == "PONG"
 
 
 def test_codex_cli_never_reports_a_model_fingerprint(

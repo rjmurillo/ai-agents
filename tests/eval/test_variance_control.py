@@ -161,65 +161,65 @@ class TestClassifyFinding:
     def test_bit_identical(self):
         text = vc.response_text_variance(["x", "x"])
         verdict = vc.verdict_distribution(["IDENTIFY", "IDENTIFY"])
-        assert vc.classify_finding(
-            text, verdict, reps_answered=2, reps_total=2
-        ).startswith("responses-bit-identical")
+        assert vc.classify_finding(text, verdict, reps_answered=2, reps_total=2).startswith(
+            "responses-bit-identical"
+        )
 
     def test_text_varies_verdict_stable(self):
         text = vc.response_text_variance(["a long answer", "a longer answer"])
         verdict = vc.verdict_distribution(["IDENTIFY", "IDENTIFY"])
-        assert vc.classify_finding(
-            text, verdict, reps_answered=2, reps_total=2
-        ).startswith("text-varies-verdict-stable")
+        assert vc.classify_finding(text, verdict, reps_answered=2, reps_total=2).startswith(
+            "text-varies-verdict-stable"
+        )
 
     def test_verdicts_vary(self):
         text = vc.response_text_variance(["a", "b"])
         verdict = vc.verdict_distribution(["IDENTIFY", "ESCALATE"])
-        assert vc.classify_finding(
-            text, verdict, reps_answered=2, reps_total=2
-        ).startswith("verdicts-vary")
+        assert vc.classify_finding(text, verdict, reps_answered=2, reps_total=2).startswith(
+            "verdicts-vary"
+        )
 
     def test_high_error_rate_odd_total(self):
         # 10 of 21 answered is fewer than half; must flag high-error-rate
         # (integer reps_total // 2 == 10 would miss this off-by-one).
         text = vc.response_text_variance(["a", "b"])
         verdict = vc.verdict_distribution(["IDENTIFY", "ESCALATE"])
-        assert vc.classify_finding(
-            text, verdict, reps_answered=10, reps_total=21
-        ).startswith("high-error-rate")
+        assert vc.classify_finding(text, verdict, reps_answered=10, reps_total=21).startswith(
+            "high-error-rate"
+        )
 
     def test_exactly_half_is_not_high_error(self):
         text = vc.response_text_variance(["a", "b"])
         verdict = vc.verdict_distribution(["IDENTIFY", "ESCALATE"])
         # 10 of 20 is exactly half: healthy, not high-error-rate.
-        assert not vc.classify_finding(
-            text, verdict, reps_answered=10, reps_total=20
-        ).startswith("high-error-rate")
+        assert not vc.classify_finding(text, verdict, reps_answered=10, reps_total=20).startswith(
+            "high-error-rate"
+        )
 
     def test_verdicts_unparseable_when_none_extracted(self):
         # All answered reps lack an extractable verdict: a parser/prompt-shape
         # failure, not API verdict non-determinism.
         text = vc.response_text_variance(["a", "b"])
         verdict = vc.verdict_distribution([None, None])
-        assert vc.classify_finding(
-            text, verdict, reps_answered=2, reps_total=2
-        ).startswith("verdicts-unparseable")
+        assert vc.classify_finding(text, verdict, reps_answered=2, reps_total=2).startswith(
+            "verdicts-unparseable"
+        )
 
     def test_unparseable_takes_precedence_over_bit_identical(self):
         # Bit-identical responses with no extractable verdict must surface the
         # actionable parser failure, not "responses-bit-identical".
         text = vc.response_text_variance(["same", "same"])
         verdict = vc.verdict_distribution([None, None])
-        assert vc.classify_finding(
-            text, verdict, reps_answered=2, reps_total=2
-        ).startswith("verdicts-unparseable")
+        assert vc.classify_finding(text, verdict, reps_answered=2, reps_total=2).startswith(
+            "verdicts-unparseable"
+        )
 
     def test_zero_answered_is_insufficient_data(self):
         text = vc.response_text_variance([])
         verdict = vc.verdict_distribution([])
-        assert vc.classify_finding(
-            text, verdict, reps_answered=0, reps_total=5
-        ).startswith("insufficient-data")
+        assert vc.classify_finding(text, verdict, reps_answered=0, reps_total=5).startswith(
+            "insufficient-data"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -243,25 +243,43 @@ class _FakeAdapter:
         self.calls: list[dict] = []
 
     def call_model(
-        self, prompt, model_id, fixture_id, variant, run_index, *, system, max_retries=3,
+        self,
+        prompt,
+        model_id,
+        fixture_id,
+        variant,
+        run_index,
+        *,
+        system,
+        max_retries=3,
     ):
-        self.calls.append({
-            "fixture_id": fixture_id, "variant": variant,
-            "run_index": run_index, "model_id": model_id,
-        })
+        self.calls.append(
+            {
+                "fixture_id": fixture_id,
+                "variant": variant,
+                "run_index": run_index,
+                "model_id": model_id,
+            }
+        )
         return self._responses[run_index - 1]
 
 
 class TestRunReps:
     def test_records_one_per_rep_with_verdicts(self):
-        adapter = _FakeAdapter([
-            _FakeResult("IDENTIFY a"),
-            _FakeResult("ESCALATE b"),
-            _FakeResult("IDENTIFY c"),
-        ])
+        adapter = _FakeAdapter(
+            [
+                _FakeResult("IDENTIFY a"),
+                _FakeResult("ESCALATE b"),
+                _FakeResult("IDENTIFY c"),
+            ]
+        )
         records = vc.run_reps(
-            adapter, system="sys", user="usr",
-            fixture_id="F002", reps=3, model_id="m",
+            adapter,
+            system="sys",
+            user="usr",
+            fixture_id="F002",
+            reps=3,
+            model_id="m",
         )
         assert len(records) == 3
         assert [r.verdict for r in records] == ["IDENTIFY", "ESCALATE", "IDENTIFY"]
@@ -269,12 +287,19 @@ class TestRunReps:
         assert all(c["variant"] == "agent" for c in adapter.calls)
 
     def test_error_rep_has_empty_response_and_no_verdict(self):
-        adapter = _FakeAdapter([
-            _FakeResult("IDENTIFY a"),
-            _FakeResult("", outcome="error", error_category="timeout"),
-        ])
+        adapter = _FakeAdapter(
+            [
+                _FakeResult("IDENTIFY a"),
+                _FakeResult("", outcome="error", error_category="timeout"),
+            ]
+        )
         records = vc.run_reps(
-            adapter, system="s", user="u", fixture_id="F002", reps=2, model_id="m",
+            adapter,
+            system="s",
+            user="u",
+            fixture_id="F002",
+            reps=2,
+            model_id="m",
         )
         assert records[1].response == ""
         assert records[1].verdict is None
@@ -302,8 +327,11 @@ class TestSummarizeVariance:
         ]
         summary = vc.summarize_variance(records, "IDENTIFY")
         md = vc.build_report_md(
-            run_id="rid", fixture_id="F002", agent="security",
-            model_id="m", summary=summary,
+            run_id="rid",
+            fixture_id="F002",
+            agent="security",
+            model_id="m",
+            summary=summary,
         )
         assert "# Variance Control Report: F002 / security" in md
         assert "## Verdict variance" in md

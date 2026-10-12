@@ -3,6 +3,7 @@
 Mutation proof: removing one bare-python3 invocation and adding a different one in the
 same file at equal count must fire the ratchet. A count-only baseline misses this swap.
 """
+
 from __future__ import annotations
 
 import json
@@ -74,9 +75,7 @@ def test_legacy_int_baseline_accepted(tmp_path: Path) -> None:
         },
     )
     baseline_path = repo / "baseline.json"
-    baseline_path.write_text(
-        json.dumps({"files": {"README.md": 1}}, indent=2), encoding="utf-8"
-    )
+    baseline_path.write_text(json.dumps({"files": {"README.md": 1}}, indent=2), encoding="utf-8")
 
     rc = main(["--repo-root", str(repo), "--baseline", str(baseline_path)])
 
@@ -96,9 +95,7 @@ def test_legacy_int_baseline_fires_on_count_rise(
         },
     )
     baseline_path = repo / "baseline.json"
-    baseline_path.write_text(
-        json.dumps({"files": {"README.md": 1}}, indent=2), encoding="utf-8"
-    )
+    baseline_path.write_text(json.dumps({"files": {"README.md": 1}}, indent=2), encoding="utf-8")
 
     rc = main(["--repo-root", str(repo), "--baseline", str(baseline_path)])
 

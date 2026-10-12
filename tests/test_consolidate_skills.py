@@ -232,8 +232,13 @@ class TestLoadSessions:
     def test_loads_recent_sessions(self, tmp_path: Path) -> None:
         today = datetime.now(UTC).strftime("%Y-%m-%d")
         session = {
-            "session": {"date": today, "number": 1, "branch": "main",
-                        "startingCommit": "abc", "objective": "test"},
+            "session": {
+                "date": today,
+                "number": 1,
+                "branch": "main",
+                "startingCommit": "abc",
+                "objective": "test",
+            },
             "workLog": [{"action": "Did something"}],
         }
         (tmp_path / f"{today}-session-1.json").write_text(json.dumps(session))
@@ -383,14 +388,17 @@ class TestConsolidate:
         today = datetime.now(UTC).strftime("%Y-%m-%d")
         for i in range(4):
             session = {
-                "session": {"date": today, "number": i + 1, "branch": "main",
-                            "startingCommit": "abc", "objective": "test"},
+                "session": {
+                    "date": today,
+                    "number": i + 1,
+                    "branch": "main",
+                    "startingCommit": "abc",
+                    "objective": "test",
+                },
                 "workLog": [{"action": "Run the full pytest test suite"}],
                 "outcomes": ["All tests passed"],
             }
-            (sessions_dir / f"{today}-session-{i + 1}.json").write_text(
-                json.dumps(session)
-            )
+            (sessions_dir / f"{today}-session-{i + 1}.json").write_text(json.dumps(session))
 
         config = ConsolidationConfig(min_uses=3, min_success_rate=0.70, lookback_days=7)
         report = consolidate(sessions_dir, memories_dir, config)
@@ -420,8 +428,13 @@ class TestConsolidate:
         today = datetime.now(UTC).strftime("%Y-%m-%d")
         # Only 1 session, below min_uses=3
         session = {
-            "session": {"date": today, "number": 1, "branch": "main",
-                        "startingCommit": "abc", "objective": "test"},
+            "session": {
+                "date": today,
+                "number": 1,
+                "branch": "main",
+                "startingCommit": "abc",
+                "objective": "test",
+            },
             "workLog": [{"action": "Run the full pytest test suite"}],
         }
         (sessions_dir / f"{today}-session-1.json").write_text(json.dumps(session))
@@ -510,13 +523,17 @@ class TestCli:
             [
                 sys.executable,
                 "scripts/consolidate_skills.py",
-                "--sessions-dir", str(sessions_dir),
-                "--memories-dir", str(memories_dir),
+                "--sessions-dir",
+                str(sessions_dir),
+                "--memories-dir",
+                str(memories_dir),
                 "--dry-run",
-                "--project-root", str(tmp_path),
+                "--project-root",
+                str(tmp_path),
             ],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
         )
         assert result.returncode == 0
 
@@ -530,13 +547,18 @@ class TestCli:
             [
                 sys.executable,
                 "scripts/consolidate_skills.py",
-                "--sessions-dir", str(sessions_dir),
-                "--memories-dir", str(memories_dir),
-                "--format", "json",
-                "--project-root", str(tmp_path),
+                "--sessions-dir",
+                str(sessions_dir),
+                "--memories-dir",
+                str(memories_dir),
+                "--format",
+                "json",
+                "--project-root",
+                str(tmp_path),
             ],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
         )
         assert result.returncode == 0
         data = json.loads(result.stdout)
@@ -547,11 +569,14 @@ class TestCli:
             [
                 sys.executable,
                 "scripts/consolidate_skills.py",
-                "--sessions-dir", str(tmp_path / "sessions" / ".." / ".." / "etc"),
-                "--project-root", str(tmp_path),
+                "--sessions-dir",
+                str(tmp_path / "sessions" / ".." / ".." / "etc"),
+                "--project-root",
+                str(tmp_path),
             ],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
         )
         assert result.returncode == 2
         assert "traversal" in result.stderr
@@ -564,11 +589,14 @@ class TestCli:
             [
                 sys.executable,
                 "scripts/consolidate_skills.py",
-                "--sessions-dir", str(sessions),
-                "--project-root", str(tmp_path / "project"),
+                "--sessions-dir",
+                str(sessions),
+                "--project-root",
+                str(tmp_path / "project"),
                 "--dry-run",
             ],
             capture_output=True,
-            text=True, encoding="utf-8",
+            text=True,
+            encoding="utf-8",
         )
         assert result.returncode != 2

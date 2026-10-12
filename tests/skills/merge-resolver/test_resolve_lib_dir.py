@@ -116,9 +116,7 @@ def _make_plugin_root(base: Path, name: str) -> Path:
     package = root / "lib" / _CORE_PACKAGE_NAME
     package.mkdir(parents=True)
     (package / "__init__.py").write_text("", encoding="utf-8")
-    (package / _CORE_MODULE_FILE_NAME).write_text(
-        "class RepoInfo:\n    pass\n", encoding="utf-8"
-    )
+    (package / _CORE_MODULE_FILE_NAME).write_text("class RepoInfo:\n    pass\n", encoding="utf-8")
     _add_plugin_manifest(root)
     return root
 
@@ -142,9 +140,7 @@ def _make_transitively_broken_plugin_root(base: Path, name: str) -> Path:
     package.mkdir(parents=True)
     (package / "__init__.py").write_text("", encoding="utf-8")
     (package / _CORE_MODULE_FILE_NAME).write_text(
-        "from github_core.missing_dependency import value\n"
-        "class RepoInfo:\n"
-        "    pass\n",
+        "from github_core.missing_dependency import value\nclass RepoInfo:\n    pass\n",
         encoding="utf-8",
     )
     return root
@@ -199,9 +195,7 @@ class TestLibDirCandidates:
             str(_REPO_CLAUDE_LIB),
         ]
 
-    def test_unset_variables_contribute_no_candidate(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_unset_variables_contribute_no_candidate(self, monkeypatch: pytest.MonkeyPatch) -> None:
         _clear_plugin_env(monkeypatch)
 
         assert mod._lib_dir_candidates() == [str(_REPO_CLAUDE_LIB)]
@@ -221,9 +215,7 @@ class TestResolveLibDir:
 
         assert mod._core_import_error("/candidate/lib") == "process exited 1"
 
-    def test_import_probe_reports_timeout(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_import_probe_reports_timeout(self, monkeypatch: pytest.MonkeyPatch) -> None:
         def raise_timeout(*args: object, **kwargs: object) -> None:
             raise subprocess.TimeoutExpired("python", 30)
 
@@ -437,15 +429,12 @@ class TestResolveLibDirCli:
         assert result.returncode == 2, result.stdout
         assert "Plugin lib directory not found" in result.stderr
         assert (
-            f"{foreign / 'lib'} (no {_CORE_PACKAGE_NAME}/{_CORE_MODULE_FILE_NAME})"
-            in result.stderr
+            f"{foreign / 'lib'} (no {_CORE_PACKAGE_NAME}/{_CORE_MODULE_FILE_NAME})" in result.stderr
         )
         assert f"{tmp_path / 'absent-plugin' / 'lib'} (no such directory)" in result.stderr
         assert f"{tmp_path / 'plugin' / 'lib'} (no such directory)" in result.stderr
 
-    def test_runs_when_a_partial_core_package_precedes_a_valid_root(
-        self, tmp_path: Path
-    ) -> None:
+    def test_runs_when_a_partial_core_package_precedes_a_valid_root(self, tmp_path: Path) -> None:
         """A half-installed github_core must not end the run at import time."""
         script = self._install_script(tmp_path)
         partial = _make_partial_plugin_root(tmp_path, "half-installed")
@@ -461,9 +450,7 @@ class TestResolveLibDirCli:
         assert "ModuleNotFoundError" not in result.stderr
         assert "--branch-name" in result.stdout
 
-    def test_runs_when_api_has_a_missing_transitive_module(
-        self, tmp_path: Path
-    ) -> None:
+    def test_runs_when_api_has_a_missing_transitive_module(self, tmp_path: Path) -> None:
         """A candidate that fails the real import must fall through."""
         script = self._install_script(tmp_path)
         broken = _make_transitively_broken_plugin_root(tmp_path, "half-installed")
@@ -479,9 +466,7 @@ class TestResolveLibDirCli:
         assert "ModuleNotFoundError" not in result.stderr
         assert "--branch-name" in result.stdout
 
-    def test_runs_when_api_exits_zero_before_import_completion(
-        self, tmp_path: Path
-    ) -> None:
+    def test_runs_when_api_exits_zero_before_import_completion(self, tmp_path: Path) -> None:
         script = self._install_script(tmp_path)
         broken = _make_early_exit_plugin_root(tmp_path, "early-exit")
         result = self._run(

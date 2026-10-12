@@ -113,11 +113,7 @@ def test_last_tail_mutation_fixture_names_the_automatic_mutant_explicitly() -> N
     """
     from tests.eval._runtime_parity_test_support import runtime_grader
 
-    fixtures = {
-        f.fixture_id: f for f in runtime_parity.load_fixtures(FIXTURES_PATH)
-    }
+    fixtures = {f.fixture_id: f for f in runtime_parity.load_fixtures(FIXTURES_PATH)}
     fixture = fixtures["last-tail-mutation-detected"]
 
-    assert fixture.negative.response == (
-        fixture.positive.response + runtime_grader.MUTANT_TAIL
-    )
+    assert fixture.negative.response == (fixture.positive.response + runtime_grader.MUTANT_TAIL)

@@ -17,8 +17,7 @@ from scripts.github_core.api import RepoInfo
 # Import the script via importlib (not a package)
 # ---------------------------------------------------------------------------
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1]
-    / ".claude" / "skills" / "github" / "scripts" / "pr"
+    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "pr"
 )
 
 
@@ -108,8 +107,7 @@ class TestCompareDiffContent:
 
     def test_high_overlap_is_duplicate(self):
         diff = (
-            "diff --git a/file1.py b/file1.py\n+change\n"
-            "diff --git a/file2.py b/file2.py\n+change"
+            "diff --git a/file1.py b/file1.py\n+change\ndiff --git a/file2.py b/file2.py\n+change"
         )
         commits = [
             {"changedFiles": ["file1.py", "file2.py"]},
@@ -135,14 +133,18 @@ class TestMain:
             assert exc.value.code == 4
 
     def test_no_followups_found(self, capsys):
-        with patch(
-            "detect_copilot_followup_pr.assert_gh_authenticated",
-        ), patch(
-            "detect_copilot_followup_pr.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "subprocess.run",
-            return_value=_completed(stdout="[]", rc=0),
+        with (
+            patch(
+                "detect_copilot_followup_pr.assert_gh_authenticated",
+            ),
+            patch(
+                "detect_copilot_followup_pr.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout="[]", rc=0),
+            ),
         ):
             rc = main(["--pr-number", "42"])
         assert rc == 0

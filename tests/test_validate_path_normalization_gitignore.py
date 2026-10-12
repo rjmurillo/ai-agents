@@ -137,9 +137,7 @@ class TestGitCheckIgnoreCannotHangThePush:
 
         assert seen.get("timeout") == vpn.GIT_CHECK_IGNORE_TIMEOUT_SECONDS
 
-    def test_a_hung_git_fails_open_instead_of_raising(
-        self, tmp_path: Path, monkeypatch
-    ) -> None:
+    def test_a_hung_git_fails_open_instead_of_raising(self, tmp_path: Path, monkeypatch) -> None:
         kept = tmp_path / "doc.md"
         kept.write_text("ok\n", encoding="utf-8")
 
@@ -161,9 +159,7 @@ class TestGitCheckIgnoreCannotHangThePush:
 
         assert collect_files(tmp_path, [".md"], []) == [kept]
 
-    def test_a_missing_git_binary_still_fails_open(
-        self, tmp_path: Path, monkeypatch
-    ) -> None:
+    def test_a_missing_git_binary_still_fails_open(self, tmp_path: Path, monkeypatch) -> None:
         kept = tmp_path / "doc.md"
         kept.write_text("ok\n", encoding="utf-8")
 

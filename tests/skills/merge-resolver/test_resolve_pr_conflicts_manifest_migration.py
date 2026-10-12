@@ -32,6 +32,7 @@ mod = import_skill_script(".claude/skills/merge-resolver/scripts/resolve_pr_conf
 resolve_plugin_manifest_conflict = mod.resolve_plugin_manifest_conflict
 _resolve_conflicted_file = mod._resolve_conflicted_file
 
+
 class TestResolvePluginManifestAdr091Migration:
     """A side that dropped the version field wins: ADR-092 forbids the field."""
 

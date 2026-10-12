@@ -33,11 +33,7 @@ class TestBindingShapeSoleSuppression:
 
     @staticmethod
     def _script():
-        return (
-            "import sys\n"
-            "def main(argv=None):\n"
-            "    sys.exit(1)\n"
-        )
+        return "import sys\ndef main(argv=None):\n    sys.exit(1)\n"
 
     @staticmethod
     def _test_with_binding(binding_line):
@@ -74,9 +70,7 @@ class TestBindingShapeSoleSuppression:
         ],
         ids=lambda x: x if isinstance(x, str) else "",
     )
-    def test_binding_suppresses_sole(
-        self, tmp_path, monkeypatch, label, binding_line
-    ):
+    def test_binding_suppresses_sole(self, tmp_path, monkeypatch, label, binding_line):
         _arrange(tmp_path, monkeypatch, self._script(), self._test_with_binding(binding_line))
         assert _run(tmp_path, "0") == ratchet.EXIT_REGRESSION
 
@@ -90,9 +84,7 @@ class TestBindingShapeSoleSuppression:
         ],
         ids=lambda x: x if isinstance(x, str) else "",
     )
-    def test_non_binding_preserves_sole(
-        self, tmp_path, monkeypatch, label, binding_line
-    ):
+    def test_non_binding_preserves_sole(self, tmp_path, monkeypatch, label, binding_line):
         _arrange(tmp_path, monkeypatch, self._script(), self._test_with_binding(binding_line))
         assert _run(tmp_path, "0") == ratchet.EXIT_OK
 
@@ -107,11 +99,7 @@ class TestImportThenReassign:
 
     @staticmethod
     def _script():
-        return (
-            "import sys\n"
-            "def main(argv=None):\n"
-            "    sys.exit(1)\n"
-        )
+        return "import sys\ndef main(argv=None):\n    sys.exit(1)\n"
 
     def test_module_import_then_reassign(self, tmp_path, monkeypatch):
         """Reassigning main after module import suppresses sole."""
@@ -176,11 +164,7 @@ class TestModuleEndSemantics:
 
     def test_untouched_target_import_credits(self, tmp_path, monkeypatch):
         """Plain from-import with no later rebinding credits correctly."""
-        test_src = (
-            "from scripts.ci.widget import main\n"
-            "def test_exit():\n"
-            "    assert main() != 0\n"
-        )
+        test_src = "from scripts.ci.widget import main\ndef test_exit():\n    assert main() != 0\n"
         _arrange(tmp_path, monkeypatch, self._script(), test_src)
         assert _run(tmp_path, "0") == ratchet.EXIT_OK
 

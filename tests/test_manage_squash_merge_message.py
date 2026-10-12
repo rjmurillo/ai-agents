@@ -20,7 +20,12 @@ from scripts.github_core.api import RepoInfo
 
 _SCRIPT_PATH = (
     Path(__file__).resolve().parents[1]
-    / ".claude" / "skills" / "github" / "scripts" / "repo" / "manage_squash_merge_message.py"
+    / ".claude"
+    / "skills"
+    / "github"
+    / "scripts"
+    / "repo"
+    / "manage_squash_merge_message.py"
 )
 
 
@@ -86,7 +91,8 @@ class TestFetchCurrentSetting:
 class TestUpdateSetting:
     def test_sends_field_via_gh_api(self):
         with patch(
-            f"{_mod.__name__}.subprocess.run", return_value=_completed(),
+            f"{_mod.__name__}.subprocess.run",
+            return_value=_completed(),
         ) as mock_run:
             _mod.update_setting("o", "r", "PR_BODY")
 
@@ -134,8 +140,9 @@ class TestMainInitialReadFailure:
         with (
             patch(f"{_mod.__name__}.assert_gh_authenticated"),
             patch(f"{_mod.__name__}.resolve_repo_params", return_value=_MOCK_REPO),
-            patch(f"{_mod.__name__}.fetch_current_setting",
-                  side_effect=RuntimeError("404 Not Found")),
+            patch(
+                f"{_mod.__name__}.fetch_current_setting", side_effect=RuntimeError("404 Not Found")
+            ),
         ):
             rc = _mod.main(["--output-format", "json"])
         output = json.loads(capsys.readouterr().out)
@@ -149,15 +156,22 @@ class TestMainInitialReadFailure:
         with (
             patch(f"{_mod.__name__}.assert_gh_authenticated"),
             patch(f"{_mod.__name__}.resolve_repo_params", return_value=_MOCK_REPO),
-            patch(f"{_mod.__name__}.fetch_current_setting",
-                  side_effect=RuntimeError("no squash_merge_commit_message field")),
+            patch(
+                f"{_mod.__name__}.fetch_current_setting",
+                side_effect=RuntimeError("no squash_merge_commit_message field"),
+            ),
             patch(f"{_mod.__name__}.update_setting") as mock_update,
         ):
-            rc = _mod.main([
-                "--set", "BLANK",
-                "--expected-current", "PR_BODY",
-                "--output-format", "json",
-            ])
+            rc = _mod.main(
+                [
+                    "--set",
+                    "BLANK",
+                    "--expected-current",
+                    "PR_BODY",
+                    "--output-format",
+                    "json",
+                ]
+            )
         assert rc == 3
         mock_update.assert_not_called()
 
@@ -169,11 +183,16 @@ class TestMainExpectedCurrentGuard:
             patch(f"{_mod.__name__}.resolve_repo_params", return_value=_MOCK_REPO),
             patch(f"{_mod.__name__}.fetch_current_setting", return_value="COMMIT_MESSAGES"),
         ):
-            rc = _mod.main([
-                "--set", "PR_BODY",
-                "--expected-current", "PR_BODY",
-                "--output-format", "json",
-            ])
+            rc = _mod.main(
+                [
+                    "--set",
+                    "PR_BODY",
+                    "--expected-current",
+                    "PR_BODY",
+                    "--output-format",
+                    "json",
+                ]
+            )
 
         output = json.loads(capsys.readouterr().out)
         assert rc == 1
@@ -185,15 +204,20 @@ class TestMainExpectedCurrentGuard:
         with (
             patch(f"{_mod.__name__}.assert_gh_authenticated"),
             patch(f"{_mod.__name__}.resolve_repo_params", return_value=_MOCK_REPO),
-            patch(f"{_mod.__name__}.fetch_current_setting",
-                  side_effect=["COMMIT_MESSAGES", "PR_BODY"]),
+            patch(
+                f"{_mod.__name__}.fetch_current_setting", side_effect=["COMMIT_MESSAGES", "PR_BODY"]
+            ),
             patch(f"{_mod.__name__}.update_setting") as mock_update,
             patch(f"{_mod.__name__}.write_skill_output"),
         ):
-            rc = _mod.main([
-                "--set", "PR_BODY",
-                "--expected-current", "COMMIT_MESSAGES",
-            ])
+            rc = _mod.main(
+                [
+                    "--set",
+                    "PR_BODY",
+                    "--expected-current",
+                    "COMMIT_MESSAGES",
+                ]
+            )
         assert rc == 0
         mock_update.assert_called_once_with("testowner", "testrepo", "PR_BODY")
 
@@ -232,8 +256,9 @@ class TestMainWriteReportsBeforeAfter:
         with (
             patch(f"{_mod.__name__}.assert_gh_authenticated"),
             patch(f"{_mod.__name__}.resolve_repo_params", return_value=_MOCK_REPO),
-            patch(f"{_mod.__name__}.fetch_current_setting",
-                  side_effect=["COMMIT_MESSAGES", "PR_BODY"]),
+            patch(
+                f"{_mod.__name__}.fetch_current_setting", side_effect=["COMMIT_MESSAGES", "PR_BODY"]
+            ),
             patch(f"{_mod.__name__}.update_setting"),
             patch(f"{_mod.__name__}.write_skill_output") as output,
         ):
@@ -252,8 +277,10 @@ class TestMainWriteReportsBeforeAfter:
         with (
             patch(f"{_mod.__name__}.assert_gh_authenticated"),
             patch(f"{_mod.__name__}.resolve_repo_params", return_value=_MOCK_REPO),
-            patch(f"{_mod.__name__}.fetch_current_setting",
-                  side_effect=["COMMIT_MESSAGES", "COMMIT_MESSAGES"]),
+            patch(
+                f"{_mod.__name__}.fetch_current_setting",
+                side_effect=["COMMIT_MESSAGES", "COMMIT_MESSAGES"],
+            ),
             patch(f"{_mod.__name__}.update_setting"),
             patch(f"{_mod.__name__}.write_skill_output") as output,
         ):
@@ -266,8 +293,7 @@ class TestMainWriteReportsBeforeAfter:
             patch(f"{_mod.__name__}.assert_gh_authenticated"),
             patch(f"{_mod.__name__}.resolve_repo_params", return_value=_MOCK_REPO),
             patch(f"{_mod.__name__}.fetch_current_setting", return_value="COMMIT_MESSAGES"),
-            patch(f"{_mod.__name__}.update_setting",
-                  side_effect=RuntimeError("422 Unprocessable")),
+            patch(f"{_mod.__name__}.update_setting", side_effect=RuntimeError("422 Unprocessable")),
         ):
             rc = _mod.main(["--set", "PR_BODY", "--output-format", "json"])
         output = json.loads(capsys.readouterr().out)

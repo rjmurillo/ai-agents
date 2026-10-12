@@ -61,6 +61,7 @@ def _tiktoken_missing() -> bool:
 
 class CompressionLevel(Enum):
     """Compression level options."""
+
     LIGHT = "light"
     MEDIUM = "medium"
     AGGRESSIVE = "aggressive"
@@ -69,6 +70,7 @@ class CompressionLevel(Enum):
 @dataclass
 class CompressionMetrics:
     """Compression metrics output."""
+
     original_tokens: int
     compressed_tokens: int
     reduction_percent: float
@@ -80,6 +82,7 @@ class CompressionMetrics:
 @dataclass
 class CompressionResult:
     """Compression operation result."""
+
     success: bool
     compressed_content: str
     metrics: CompressionMetrics
@@ -88,24 +91,24 @@ class CompressionResult:
 
 # Abbreviation dictionary
 ABBREVIATIONS = {
-    'configuration': 'config',
-    'repository': 'repo',
-    'documentation': 'docs',
-    'implementation': 'impl',
-    'environment': 'env',
-    'authentication': 'auth',
-    'authorization': 'authz',
-    'parameter': 'param',
-    'reference': 'ref',
-    'application': 'app',
-    'information': 'info',
-    'description': 'desc',
-    'specification': 'spec',
-    'administrator': 'admin',
-    'development': 'dev',
-    'production': 'prod',
-    'directory': 'dir',
-    'command': 'cmd',
+    "configuration": "config",
+    "repository": "repo",
+    "documentation": "docs",
+    "implementation": "impl",
+    "environment": "env",
+    "authentication": "auth",
+    "authorization": "authz",
+    "parameter": "param",
+    "reference": "ref",
+    "application": "app",
+    "information": "info",
+    "description": "desc",
+    "specification": "spec",
+    "administrator": "admin",
+    "development": "dev",
+    "production": "prod",
+    "directory": "dir",
+    "command": "cmd",
 }
 
 
@@ -144,7 +147,7 @@ def preserve_code_blocks(content: str) -> tuple[str, list[str]]:
         return placeholder_template.format(len(code_blocks) - 1)
 
     # Match code fences (triple backticks)
-    pattern = r'```[\s\S]*?```'
+    pattern = r"```[\s\S]*?```"
     processed = re.sub(pattern, replace_code_block, content)
 
     return processed, code_blocks
@@ -181,11 +184,11 @@ def compress_headers(content: str, level: CompressionLevel) -> str:
         Content with compressed headers
     """
     # H2 headers: ## Title -> [Title]
-    result = re.sub(r'^## (.+)$', r'[\1]', content, flags=re.MULTILINE)
+    result = re.sub(r"^## (.+)$", r"[\1]", content, flags=re.MULTILINE)
 
     # H3 headers in aggressive mode: ### Title -> |Title:
     if level == CompressionLevel.AGGRESSIVE:
-        result = re.sub(r'^### (.+)$', r'|\1:', result, flags=re.MULTILINE)
+        result = re.sub(r"^### (.+)$", r"|\1:", result, flags=re.MULTILINE)
 
     return result
 
@@ -201,7 +204,7 @@ def compress_tables(content: str, level: CompressionLevel) -> str:
     Returns:
         Content with compressed tables
     """
-    lines = content.split('\n')
+    lines = content.split("\n")
     result = []
     in_table = False
     headers = []
@@ -211,18 +214,18 @@ def compress_tables(content: str, level: CompressionLevel) -> str:
         line = lines[i].strip()
 
         # Detect table start
-        if line.startswith('|') and not in_table:
+        if line.startswith("|") and not in_table:
             # Check if next line is separator
-            if i + 1 < len(lines) and re.match(r'^\|[-:\s|]+\|$', lines[i + 1].strip()):
+            if i + 1 < len(lines) and re.match(r"^\|[-:\s|]+\|$", lines[i + 1].strip()):
                 in_table = True
                 # Extract headers
-                headers = [h.strip() for h in line.split('|') if h.strip()]
+                headers = [h.strip() for h in line.split("|") if h.strip()]
                 i += 2  # Skip header and separator
                 continue
 
         # Process table row
-        if in_table and line.startswith('|'):
-            cells = [c.strip() for c in line.split('|') if c.strip()]
+        if in_table and line.startswith("|"):
+            cells = [c.strip() for c in line.split("|") if c.strip()]
             pairs = []
 
             for header, cell in zip(headers, cells, strict=False):
@@ -234,7 +237,7 @@ def compress_tables(content: str, level: CompressionLevel) -> str:
                     pairs.append(f"{header}: {cell}")
 
             if pairs:
-                result.append('|' + ' |'.join(pairs))
+                result.append("|" + " |".join(pairs))
             i += 1
         elif in_table:
             # End of table
@@ -246,7 +249,7 @@ def compress_tables(content: str, level: CompressionLevel) -> str:
             result.append(line)
             i += 1
 
-    return '\n'.join(result)
+    return "\n".join(result)
 
 
 def compress_lists(content: str, level: CompressionLevel) -> str:
@@ -264,7 +267,7 @@ def compress_lists(content: str, level: CompressionLevel) -> str:
         return content
 
     # Convert bullet lists: - Item -> |Item
-    result = re.sub(r'^[\*\-]\s+(.+)$', r'|\1', content, flags=re.MULTILINE)
+    result = re.sub(r"^[\*\-]\s+(.+)$", r"|\1", content, flags=re.MULTILINE)
 
     return result
 
@@ -285,9 +288,9 @@ def _line_is_protected(line: str, in_yaml_frontmatter: bool) -> bool:
     """
     if in_yaml_frontmatter:
         return True
-    if '`' in line:
+    if "`" in line:
         return True
-    if 'http://' in line or 'https://' in line:
+    if "http://" in line or "https://" in line:
         return True
     return False
 
@@ -307,41 +310,41 @@ def _apply_word_removals(line: str, level: CompressionLevel) -> str:
 
     # Common phrase compressions
     phrase_replacements = [
-        (r'\bin order to\b', 'to'),
-        (r'\bdue to the fact that\b', 'because'),
-        (r'\bfor the purpose of\b', 'for'),
-        (r'\bin the event that\b', 'if'),
-        (r'\bat the present time\b', 'now'),
-        (r'\bat this point in time\b', 'now'),
-        (r'\bmake sure to\b', 'ensure'),
-        (r'\bin spite of\b', 'despite'),
-        (r'\bby means of\b', 'via'),
-        (r'\bprior to\b', 'before'),
-        (r'\bsubsequent to\b', 'after'),
+        (r"\bin order to\b", "to"),
+        (r"\bdue to the fact that\b", "because"),
+        (r"\bfor the purpose of\b", "for"),
+        (r"\bin the event that\b", "if"),
+        (r"\bat the present time\b", "now"),
+        (r"\bat this point in time\b", "now"),
+        (r"\bmake sure to\b", "ensure"),
+        (r"\bin spite of\b", "despite"),
+        (r"\bby means of\b", "via"),
+        (r"\bprior to\b", "before"),
+        (r"\bsubsequent to\b", "after"),
     ]
 
     for pattern, replacement in phrase_replacements:
         result = re.sub(pattern, replacement, result, flags=re.IGNORECASE)
 
     if level == CompressionLevel.MEDIUM or level == CompressionLevel.AGGRESSIVE:
-        result = re.sub(r'\bthe\s+', '', result, flags=re.IGNORECASE)
-        result = re.sub(r'\ba\s+', '', result, flags=re.IGNORECASE)
-        result = re.sub(r'\ban\s+', '', result, flags=re.IGNORECASE)
-        result = re.sub(r'\bis\s+', '', result, flags=re.IGNORECASE)
-        result = re.sub(r'\bare\s+', '', result, flags=re.IGNORECASE)
-        result = re.sub(r'\bwas\s+', '', result, flags=re.IGNORECASE)
-        result = re.sub(r'\bwere\s+', '', result, flags=re.IGNORECASE)
+        result = re.sub(r"\bthe\s+", "", result, flags=re.IGNORECASE)
+        result = re.sub(r"\ba\s+", "", result, flags=re.IGNORECASE)
+        result = re.sub(r"\ban\s+", "", result, flags=re.IGNORECASE)
+        result = re.sub(r"\bis\s+", "", result, flags=re.IGNORECASE)
+        result = re.sub(r"\bare\s+", "", result, flags=re.IGNORECASE)
+        result = re.sub(r"\bwas\s+", "", result, flags=re.IGNORECASE)
+        result = re.sub(r"\bwere\s+", "", result, flags=re.IGNORECASE)
 
     if level == CompressionLevel.AGGRESSIVE:
-        result = re.sub(r'\bthis\s+', '', result, flags=re.IGNORECASE)
-        result = re.sub(r'\bthat\s+', '', result, flags=re.IGNORECASE)
-        result = re.sub(r'\bthese\s+', '', result, flags=re.IGNORECASE)
-        result = re.sub(r'\bthose\s+', '', result, flags=re.IGNORECASE)
-        result = re.sub(r'\bwill\s+', '', result, flags=re.IGNORECASE)
-        result = re.sub(r'\bshall\s+', '', result, flags=re.IGNORECASE)
-        result = re.sub(r'\bmust\s+', '', result, flags=re.IGNORECASE)
-        result = re.sub(r'\bshould\s+', '', result, flags=re.IGNORECASE)
-        result = re.sub(r'\bcan\s+', '', result, flags=re.IGNORECASE)
+        result = re.sub(r"\bthis\s+", "", result, flags=re.IGNORECASE)
+        result = re.sub(r"\bthat\s+", "", result, flags=re.IGNORECASE)
+        result = re.sub(r"\bthese\s+", "", result, flags=re.IGNORECASE)
+        result = re.sub(r"\bthose\s+", "", result, flags=re.IGNORECASE)
+        result = re.sub(r"\bwill\s+", "", result, flags=re.IGNORECASE)
+        result = re.sub(r"\bshall\s+", "", result, flags=re.IGNORECASE)
+        result = re.sub(r"\bmust\s+", "", result, flags=re.IGNORECASE)
+        result = re.sub(r"\bshould\s+", "", result, flags=re.IGNORECASE)
+        result = re.sub(r"\bcan\s+", "", result, flags=re.IGNORECASE)
 
     return result
 
@@ -363,7 +366,7 @@ def remove_redundant_words(content: str, level: CompressionLevel) -> str:
     if level == CompressionLevel.LIGHT:
         return content
 
-    lines = content.split('\n')
+    lines = content.split("\n")
     result_lines = []
     in_yaml_frontmatter = False
     frontmatter_seen = False
@@ -372,7 +375,7 @@ def remove_redundant_words(content: str, level: CompressionLevel) -> str:
         stripped = line.strip()
 
         # Track YAML frontmatter boundaries (--- at start/end)
-        if stripped == '---':
+        if stripped == "---":
             if not frontmatter_seen:
                 in_yaml_frontmatter = True
                 frontmatter_seen = True
@@ -386,7 +389,7 @@ def remove_redundant_words(content: str, level: CompressionLevel) -> str:
         else:
             result_lines.append(_apply_word_removals(line, level))
 
-    return '\n'.join(result_lines)
+    return "\n".join(result_lines)
 
 
 def apply_abbreviations(content: str) -> str:
@@ -402,7 +405,7 @@ def apply_abbreviations(content: str) -> str:
     result = content
 
     for term, abbrev in ABBREVIATIONS.items():
-        pattern = f'\\b{term}\\b'
+        pattern = f"\\b{term}\\b"
         result = re.sub(pattern, abbrev, result, flags=re.IGNORECASE)
 
     return result
@@ -420,21 +423,21 @@ def collapse_whitespace(content: str, level: CompressionLevel) -> str:
         Content with collapsed whitespace
     """
     # Collapse multiple spaces to single space
-    result = re.sub(r' {2,}', ' ', content)
+    result = re.sub(r" {2,}", " ", content)
 
     # Trim trailing whitespace from lines
-    result = re.sub(r' +$', '', result, flags=re.MULTILINE)
+    result = re.sub(r" +$", "", result, flags=re.MULTILINE)
 
     # Collapse newlines based on level
     if level == CompressionLevel.LIGHT:
         # Keep double newlines (paragraphs), collapse 3+
-        result = re.sub(r'\n{3,}', '\n\n', result)
+        result = re.sub(r"\n{3,}", "\n\n", result)
     elif level == CompressionLevel.MEDIUM:
         # Keep single newlines, collapse 3+
-        result = re.sub(r'\n{3,}', '\n', result)
+        result = re.sub(r"\n{3,}", "\n", result)
     else:  # AGGRESSIVE
         # Collapse all multiple newlines to single
-        result = re.sub(r'\n{2,}', '\n', result)
+        result = re.sub(r"\n{2,}", "\n", result)
 
     return result
 
@@ -503,7 +506,7 @@ def build_metrics(original: str, compressed: str, level: CompressionLevel) -> Co
         reduction_percent=reduction_percent,
         original_size=len(original),
         compressed_size=len(compressed),
-        compression_level=level.value
+        compression_level=level.value,
     )
 
 
@@ -514,37 +517,27 @@ def main() -> None:
         sys.exit(4)
 
     parser = argparse.ArgumentParser(
-        description='Compress markdown documentation to minimal tokens using pipe-delimited format',
+        description="Compress markdown documentation to minimal tokens using pipe-delimited format",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__
+        epilog=__doc__,
     )
 
-    parser.add_argument(
-        '-i', '--input',
-        required=True,
-        type=Path,
-        help='Input markdown file path'
-    )
+    parser.add_argument("-i", "--input", required=True, type=Path, help="Input markdown file path")
 
     parser.add_argument(
-        '-l', '--level',
+        "-l",
+        "--level",
         type=str,
-        choices=['light', 'medium', 'aggressive'],
-        default='medium',
-        help='Compression level (default: medium)'
+        choices=["light", "medium", "aggressive"],
+        default="medium",
+        help="Compression level (default: medium)",
     )
 
     parser.add_argument(
-        '-o', '--output',
-        type=Path,
-        help='Output file path (default: stdout as JSON)'
+        "-o", "--output", type=Path, help="Output file path (default: stdout as JSON)"
     )
 
-    parser.add_argument(
-        '-v', '--verbose',
-        action='store_true',
-        help='Verbose output'
-    )
+    parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
 
     args = parser.parse_args()
 
@@ -560,7 +553,7 @@ def main() -> None:
     try:
         # CWE-22: Validate resolved path stays within repository root
         resolved_input_path = validate_path_within_repo(args.input)
-        content = resolved_input_path.read_text(encoding='utf-8')
+        content = resolved_input_path.read_text(encoding="utf-8")
     except Exception as e:
         print(f"Error reading input file: {e}", file=sys.stderr)
         sys.exit(1)
@@ -575,22 +568,21 @@ def main() -> None:
     metrics = build_metrics(content, compressed, level)
 
     # Build result
-    result = CompressionResult(
-        success=True,
-        compressed_content=compressed,
-        metrics=metrics
-    )
+    result = CompressionResult(success=True, compressed_content=compressed, metrics=metrics)
 
     # Output
     if args.output:
         try:
             # CWE-22: Validate resolved path stays within repository root
             resolved_output_path = validate_path_within_repo(args.output)
-            resolved_output_path.write_text(compressed, encoding='utf-8')
+            resolved_output_path.write_text(compressed, encoding="utf-8")
             if args.verbose:
                 print(f"Compressed content written to: {args.output}", file=sys.stderr)
-                print(f"Metrics: {metrics.original_tokens} → {metrics.compressed_tokens} tokens "
-                      f"({metrics.reduction_percent}% reduction)", file=sys.stderr)
+                print(
+                    f"Metrics: {metrics.original_tokens} → {metrics.compressed_tokens} tokens "
+                    f"({metrics.reduction_percent}% reduction)",
+                    file=sys.stderr,
+                )
         except Exception as e:
             print(f"Error writing output file: {e}", file=sys.stderr)
             sys.exit(3)
@@ -602,5 +594,5 @@ def main() -> None:
     sys.exit(0)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

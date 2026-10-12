@@ -109,9 +109,7 @@ class TestHardening:
         assert kinds(findings) == [KIND_RELOCATED]
         assert "github.actor" in findings[0].detail
 
-    def test_a_job_level_env_overrides_a_tainted_workflow_level_one(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_job_level_env_overrides_a_tainted_workflow_level_one(self, tmp_path: Path) -> None:
         body = """\
             on: pull_request
             env:
@@ -149,9 +147,7 @@ class TestHardening:
 
         assert findings == []
 
-    def test_an_expression_only_job_name_claims_no_pinned_context(
-        self, tmp_path: Path
-    ) -> None:
+    def test_an_expression_only_job_name_claims_no_pinned_context(self, tmp_path: Path) -> None:
         body = "on: push\njobs:\n  a:\n    name: ${{ matrix.x }}\n    steps: []\n"
         documents = load_workflows(_dir(tmp_path, body))
 
@@ -161,15 +157,15 @@ class TestHardening:
         """Nested aliases stay small in memory but `str()` of them does not."""
         levels = ["a: &a [x, x, x, x, x, x, x, x, x, x]"]
         for name, prev in zip("bcdefghijk", "abcdefghij", strict=True):
-            levels.append(f"{name}: &{name} [*{prev}, *{prev}, *{prev}, *{prev}, *{prev}, "
-                          f"*{prev}, *{prev}, *{prev}, *{prev}, *{prev}]")
+            levels.append(
+                f"{name}: &{name} [*{prev}, *{prev}, *{prev}, *{prev}, *{prev}, "
+                f"*{prev}, *{prev}, *{prev}, *{prev}, *{prev}]"
+            )
         anchors = "\n".join(f"          {line}" for line in levels)
         body = (
             "on: pull_request\njobs:\n  gate:\n    name: Run Python Tests\n"
             "    steps:\n      - name: Bomb\n        id: bomb\n        run: echo hi\n"
-            "        with:\n"
-            + anchors
-            + "\n        if: github.actor == 'a'\n"
+            "        with:\n" + anchors + "\n        if: github.actor == 'a'\n"
         )
 
         findings, _ = lint_one(tmp_path, body)

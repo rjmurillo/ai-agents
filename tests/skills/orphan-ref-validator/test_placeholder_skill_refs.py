@@ -14,8 +14,7 @@ from pathlib import Path
 import pytest
 
 _SCRIPT_DIR = (
-    Path(__file__).resolve().parents[3]
-    / ".claude" / "skills" / "orphan-ref-validator" / "scripts"
+    Path(__file__).resolve().parents[3] / ".claude" / "skills" / "orphan-ref-validator" / "scripts"
 )
 sys.path.insert(0, str(_SCRIPT_DIR))
 _spec = importlib.util.spec_from_file_location(

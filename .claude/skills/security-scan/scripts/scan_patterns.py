@@ -152,13 +152,12 @@ CWE78_PATTERNS = {
             "description": "ProcessStartInfo with interpolated arguments",
             "severity": "HIGH",
             "recommendation": (
-                "Validate all arguments; avoid string interpolation in "
-                "command arguments"
+                "Validate all arguments; avoid string interpolation in command arguments"
             ),
         },
         {
             "pattern": re.compile(
-                r'new\s+Process\s*\(\s*\)\s*\{[^}]*FileName\s*=\s*(\w*(user|input|param|arg|request|cmd)\w*)',
+                r"new\s+Process\s*\(\s*\)\s*\{[^}]*FileName\s*=\s*(\w*(user|input|param|arg|request|cmd)\w*)",
                 re.IGNORECASE,
             ),
             "description": "Process with potentially unvalidated FileName",

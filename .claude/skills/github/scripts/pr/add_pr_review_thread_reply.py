@@ -99,11 +99,13 @@ def build_parser() -> argparse.ArgumentParser:
         description="Add a reply to a PR review thread via GraphQL.",
     )
     parser.add_argument(
-        "--thread-id", required=True,
+        "--thread-id",
+        required=True,
         help="GraphQL thread ID (e.g., PRRT_kwDOQoWRls5m3L76)",
     )
     parser.add_argument(
-        "--resolve", action="store_true",
+        "--resolve",
+        action="store_true",
         help="Resolve the thread after posting the reply",
     )
     parser.add_argument(
@@ -142,15 +144,8 @@ def _thread_decision(
     if thread is None:
         return "SKIP", "not_found"
     pull_request = thread.get("pullRequest")
-    actual_pull_request = (
-        pull_request.get("number")
-        if isinstance(pull_request, dict)
-        else None
-    )
-    if (
-        expected_pull_request is not None
-        and actual_pull_request != expected_pull_request
-    ):
+    actual_pull_request = pull_request.get("number") if isinstance(pull_request, dict) else None
+    if expected_pull_request is not None and actual_pull_request != expected_pull_request:
         return "SKIP", "wrong_pull_request"
     if thread.get("isResolved"):
         return "SKIP", "thread_resolved"
@@ -162,8 +157,7 @@ def _guard_auto_merge_before_resolution(thread_id: str) -> dict[str, Any]:
         return guard_auto_merge_before_final_thread_resolution(thread_id)
     except RuntimeError as exc:
         error_and_exit(
-            "Thread reply posted but auto-merge guard failed; "
-            f"thread left unresolved: {exc}",
+            f"Thread reply posted but auto-merge guard failed; thread left unresolved: {exc}",
             3,
         )
         raise AssertionError("error_and_exit returned") from exc
@@ -175,10 +169,7 @@ def _resolve_thread_after_reply(thread_id: str) -> bool:
         {"threadId": thread_id},
     )
     return bool(
-        resolve_data
-        .get("resolveReviewThread", {})
-        .get("thread", {})
-        .get("isResolved", False)
+        resolve_data.get("resolveReviewThread", {}).get("thread", {}).get("isResolved", False)
     )
 
 

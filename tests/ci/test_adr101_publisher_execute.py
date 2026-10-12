@@ -249,9 +249,7 @@ class TestRun:
         seen: dict[str, bool] = {}
 
         class Spy(FakeRunner):
-            def __call__(
-                self, argv: list[str], **kwargs: Any
-            ) -> subprocess.CompletedProcess[str]:
+            def __call__(self, argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
                 if argv[0] != "git":
                     seen["present"] = (Path(kwargs["cwd"]) / name).exists()
                 result = super().__call__(argv, **kwargs)

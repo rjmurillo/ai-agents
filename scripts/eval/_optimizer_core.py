@@ -309,9 +309,7 @@ def split_tasks(
     test = tuple(ranked[n_sel : n_sel + n_test])
     opt = tuple(ranked[n_sel + n_test :])
 
-    fingerprint = split_fingerprint(
-        cleaned, seed=seed, sel_ratio=sel_ratio, test_ratio=test_ratio
-    )
+    fingerprint = split_fingerprint(cleaned, seed=seed, sel_ratio=sel_ratio, test_ratio=test_ratio)
     return TaskSplit(opt=opt, sel=sel, test=test, fingerprint=fingerprint)
 
 
@@ -467,8 +465,7 @@ def _reject_smuggled_markers(patch: Patch) -> None:
     for line in _normalize_newlines(patch.text).split("\n"):
         if line.strip() in (FENCE_START, FENCE_END):
             raise ProtectedSectionError(
-                "patch text may not contain a slow-update fence marker; "
-                f"found {line.strip()!r}"
+                f"patch text may not contain a slow-update fence marker; found {line.strip()!r}"
             )
 
 
@@ -776,8 +773,7 @@ def gate(
         raise ValueError(f"max_p must be in [0, 1], got {max_p}")
     if max_p is not None and p_value is None:
         raise ValueError(
-            "max_p needs a p_value to judge; an unknown tail is not evidence "
-            "that it clears the bar"
+            "max_p needs a p_value to judge; an unknown tail is not evidence that it clears the bar"
         )
     if max_p is not None and max_consultations is None:
         raise ValueError(

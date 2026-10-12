@@ -82,9 +82,7 @@ EXIT_AUTH = 4
 DEFAULT_MODEL = "claude-sonnet-4-6"
 DEFAULT_N_RUNS = 3
 DEFAULT_SEED = 0
-ALLOWED_PROVENANCE = frozenset(
-    {"synthetic", "public-cve", "paraphrased-from-public"}
-)
+ALLOWED_PROVENANCE = frozenset({"synthetic", "public-cve", "paraphrased-from-public"})
 TAG_RE = re.compile(r"^[a-z0-9][a-z0-9_:-]{0,63}$")
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -163,9 +161,7 @@ def _run_id_arg(value: str) -> str:
     threat model as `_agent_name_arg`: raw input flows into directory
     templates that are joined to REPO_ROOT."""
     if not _RUN_ID_RE.match(value):
-        raise argparse.ArgumentTypeError(
-            f"run id must match {_RUN_ID_RE.pattern} (got {value!r})"
-        )
+        raise argparse.ArgumentTypeError(f"run id must match {_RUN_ID_RE.pattern} (got {value!r})")
     return value
 
 
@@ -180,8 +176,7 @@ def _skill_path_arg(value: str) -> str:
         or not _SKILL_PATH_RE.match(value)
     ):
         raise argparse.ArgumentTypeError(
-            f"--skill-path must match {_SKILL_PATH_RE.pattern} with no '..' "
-            f"(got {value!r})"
+            f"--skill-path must match {_SKILL_PATH_RE.pattern} with no '..' (got {value!r})"
         )
     return value
 
@@ -194,13 +189,9 @@ def _assert_under_repo_root(path: Path) -> Path:
     try:
         resolved = path.resolve(strict=False)
     except OSError as exc:
-        raise FileNotFoundError(
-            f"refusing to resolve path {path!s}: {exc}"
-        ) from exc
+        raise FileNotFoundError(f"refusing to resolve path {path!s}: {exc}") from exc
     if repo_root not in (resolved, *resolved.parents):
-        raise FileNotFoundError(
-            f"refusing to access {resolved} (outside REPO_ROOT {repo_root})"
-        )
+        raise FileNotFoundError(f"refusing to access {resolved} (outside REPO_ROOT {repo_root})")
     return resolved
 
 
@@ -234,9 +225,7 @@ class FixtureValidator:
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError) as exc:
-            raise FixtureValidationError(
-                f"{path.name}: cannot parse JSON ({exc})"
-            ) from exc
+            raise FixtureValidationError(f"{path.name}: cannot parse JSON ({exc})") from exc
 
         if not isinstance(data, dict):
             raise FixtureValidationError(f"{path.name}: top-level must be a JSON object")
@@ -269,9 +258,7 @@ class FixtureValidator:
     def _require_str(path: Path, data: dict[str, Any], field: str) -> str:
         value = data.get(field)
         if not isinstance(value, str) or not value:
-            raise FixtureValidationError(
-                f"{path.name}: missing or empty required field '{field}'"
-            )
+            raise FixtureValidationError(f"{path.name}: missing or empty required field '{field}'")
         return value
 
     @staticmethod
@@ -289,9 +276,7 @@ class FixtureValidator:
         return cast(ProvenanceLiteral, provenance)
 
     @staticmethod
-    def _require_assertions(
-        path: Path, fixture_id: str, data: dict[str, Any]
-    ) -> list[Assertion]:
+    def _require_assertions(path: Path, fixture_id: str, data: dict[str, Any]) -> list[Assertion]:
         raw = data.get("assertions")
         if not isinstance(raw, list) or not raw:
             raise FixtureValidationError(
@@ -299,15 +284,11 @@ class FixtureValidator:
             )
         result: list[Assertion] = []
         for index, item in enumerate(raw):
-            result.append(
-                FixtureValidator._validate_assertion(path, fixture_id, index, item)
-            )
+            result.append(FixtureValidator._validate_assertion(path, fixture_id, index, item))
         return result
 
     @staticmethod
-    def _validate_assertion(
-        path: Path, fixture_id: str, index: int, item: object
-    ) -> Assertion:
+    def _validate_assertion(path: Path, fixture_id: str, index: int, item: object) -> Assertion:
         if not isinstance(item, dict):
             raise FixtureValidationError(
                 f"{path.name} ({fixture_id}): assertions[{index}] must be an object"
@@ -323,9 +304,7 @@ class FixtureValidator:
         pattern = item.get("pattern")
         expected_value = item.get("expected_value")
         normalized_pattern = pattern if isinstance(pattern, str) else None
-        normalized_expected = (
-            expected_value if isinstance(expected_value, str) else None
-        )
+        normalized_expected = expected_value if isinstance(expected_value, str) else None
 
         # Reject malformed regex patterns at fixture-load time so a bad
         # fixture cannot consume an API call before failing at score
@@ -357,19 +336,14 @@ class FixtureValidator:
             ) from exc
 
     @staticmethod
-    def _validate_tags(
-        path: Path, fixture_id: str, data: dict[str, Any]
-    ) -> list[str]:
+    def _validate_tags(path: Path, fixture_id: str, data: dict[str, Any]) -> list[str]:
         raw = data.get("tags", [])
         if not isinstance(raw, list):
-            raise FixtureValidationError(
-                f"{path.name} ({fixture_id}): 'tags' must be a list"
-            )
+            raise FixtureValidationError(f"{path.name} ({fixture_id}): 'tags' must be a list")
         for tag in raw:
             if not isinstance(tag, str) or not TAG_RE.match(tag):
                 raise FixtureValidationError(
-                    f"{path.name} ({fixture_id}): invalid tag {tag!r}; "
-                    f"must match {TAG_RE.pattern}"
+                    f"{path.name} ({fixture_id}): invalid tag {tag!r}; must match {TAG_RE.pattern}"
                 )
         return list(raw)
 
@@ -400,7 +374,7 @@ def _strip_frontmatter(text: str) -> str:
     match = re.match(r"^---[ \t]*\r?\n.*?\r?\n---[ \t]*\r?\n", text, re.DOTALL)
     if match is None:
         return text
-    return text[match.end():]
+    return text[match.end() :]
 
 
 def _read_agent_prompt(agent: str) -> tuple[str, str]:
@@ -412,9 +386,7 @@ def _read_agent_prompt(agent: str) -> tuple[str, str]:
     rel = AGENT_PROMPT_REF_TEMPLATE.format(agent=agent)
     path = _assert_under_repo_root(REPO_ROOT / rel)
     if not path.exists():
-        raise FileNotFoundError(
-            f"agent prompt not found at {path} (looked for {agent}.shared.md)"
-        )
+        raise FileNotFoundError(f"agent prompt not found at {path} (looked for {agent}.shared.md)")
     return _strip_frontmatter(path.read_text(encoding="utf-8")), rel
 
 
@@ -432,9 +404,7 @@ def _read_skill_prompt(agent: str, skill_rel: str | None) -> tuple[str, str]:
     so a content-controlled skill whose body matches the agent body yields an
     identical `prompt_sha`.
     """
-    rel = skill_rel if skill_rel is not None else SKILL_PROMPT_REF_TEMPLATE.format(
-        agent=agent
-    )
+    rel = skill_rel if skill_rel is not None else SKILL_PROMPT_REF_TEMPLATE.format(agent=agent)
     path = _assert_under_repo_root(REPO_ROOT / rel)
     if not path.exists():
         raise FileNotFoundError(
@@ -557,8 +527,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         default=None,
         choices=list(HARNESSES),
         help=(
-            "Harness axis of the transport matrix. Pair with --billing; "
-            "either alone is refused."
+            "Harness axis of the transport matrix. Pair with --billing; either alone is refused."
         ),
     )
     parser.add_argument(
@@ -632,9 +601,7 @@ def _resolve_prompt_metadata(
         return _sha256_text(agent_prompt), agent_prompt_ref
     if variant == "skill":
         if skill_prompt is None or skill_prompt_ref is None:
-            raise ValueError(
-                "skill variant requires skill_prompt and skill_prompt_ref"
-            )
+            raise ValueError("skill variant requires skill_prompt and skill_prompt_ref")
         return _sha256_text(skill_prompt), skill_prompt_ref
     return _sha256_text(BASELINE_PROMPT), BASELINE_PROMPT_REF
 
@@ -655,9 +622,7 @@ def _execute_one(
     skill_prompt_ref: str | None = None,
 ) -> RunRecord:
     """Run one (fixture, variant, run_index) call and score the result."""
-    system, user = _build_prompt(
-        variant, agent_prompt, fixture.input, skill_prompt=skill_prompt
-    )
+    system, user = _build_prompt(variant, agent_prompt, fixture.input, skill_prompt=skill_prompt)
     prompt_sha, prompt_ref = _resolve_prompt_metadata(
         variant,
         agent_prompt,
@@ -681,9 +646,7 @@ def _execute_one(
     else:
         # Record the assertion shape with passed=False so downstream
         # aggregation can decide to count or exclude per AC-3.
-        scored = [
-            _make_failed_assertion_result(a) for a in fixture.assertions
-        ]
+        scored = [_make_failed_assertion_result(a) for a in fixture.assertions]
 
     return RunRecord(
         fixture_id=fixture.id,
@@ -743,9 +706,7 @@ def _run_live(
     skill_prompt_ref: str | None = None
     if "skill" in plan.variants:
         try:
-            skill_prompt, skill_prompt_ref = _read_skill_prompt(
-                args.agent, args.skill_path
-            )
+            skill_prompt, skill_prompt_ref = _read_skill_prompt(args.agent, args.skill_path)
         except FileNotFoundError as exc:
             print(f"error: {exc}", file=sys.stderr)
             return EXIT_CONFIG
@@ -763,9 +724,7 @@ def _run_live(
     )
 
     try:
-        persistence = RunPersistence(
-            run_dir, resume=bool(args.resume), seed=args.seed
-        )
+        persistence = RunPersistence(run_dir, resume=bool(args.resume), seed=args.seed)
     except RunDirectoryNotFreshError as exc:
         # Fresh-run mode is forbidden against a populated runs.jsonl.
         print(f"error: {exc}", file=sys.stderr)
@@ -782,13 +741,12 @@ def _run_live(
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_CONFIG
 
-    fixture_path_by_id = {
-        f.id: p for f, p in zip(fixtures, fixture_paths, strict=True)
-    }
+    fixture_path_by_id = {f.id: p for f, p in zip(fixtures, fixture_paths, strict=True)}
     adapter = AnthropicAPIAdapter(seed=args.seed)
     engine = build_default_engine()
 
     import time as _time
+
     wall_start = _time.monotonic()
     error_count = 0
     total_records = 0
@@ -811,9 +769,7 @@ def _run_live(
                 # mode, RunDirectoryNotFreshError already prevented us from
                 # opening a populated dir, so `is_completed` cannot be True.
                 # Guarding here keeps the contract explicit.
-                if args.resume and persistence.is_completed(
-                    fixture.id, variant, run_index
-                ):
+                if args.resume and persistence.is_completed(fixture.id, variant, run_index):
                     print(
                         json.dumps(
                             {
@@ -926,10 +882,7 @@ def _run_live(
                 json.dumps(
                     {
                         "level": "error",
-                        "message": (
-                            "fixture-level error rate exceeds 10%; "
-                            "halting before report"
-                        ),
+                        "message": ("fixture-level error rate exceeds 10%; halting before report"),
                         "fixtures_with_errors": fixtures_with_errors_count,
                         "executed_fixtures": executed_fixtures_count,
                         "error_count": error_count,

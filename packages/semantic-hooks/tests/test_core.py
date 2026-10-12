@@ -1,6 +1,5 @@
 """Tests for core data structures."""
 
-
 from semantic_hooks.core import (
     HookContext,
     HookEvent,

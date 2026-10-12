@@ -176,8 +176,7 @@ def load_marketplace_config(project_root: Path) -> list[dict[str, str]]:
     if plugins is None:
         return []
     if not isinstance(plugins, list) or not all(
-        isinstance(plugin, dict) and isinstance(plugin.get("source", ""), str)
-        for plugin in plugins
+        isinstance(plugin, dict) and isinstance(plugin.get("source", ""), str) for plugin in plugins
     ):
         print(
             f"ERROR: {marketplace_path} plugins must be a JSON array of objects "
@@ -385,9 +384,7 @@ def resolve_output_path(project_root: Path, output: str) -> Path:
     project_root = project_root.resolve()
     resolved = (project_root / Path(output).expanduser()).resolve(strict=False)
     if not resolved.is_relative_to(project_root):
-        raise ValueError(
-            f"output path escapes project root: {output} -> {resolved}"
-        )
+        raise ValueError(f"output path escapes project root: {output} -> {resolved}")
     return resolved
 
 

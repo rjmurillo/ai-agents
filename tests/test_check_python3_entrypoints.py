@@ -131,9 +131,7 @@ class TestCollectThirdPartyImports:
 
         assert _collect_third_party_imports(script, tmp_path) == {"yaml"}
 
-    def test_parent_package_initializer_import_detected(
-        self, tmp_path: Path
-    ) -> None:
+    def test_parent_package_initializer_import_detected(self, tmp_path: Path) -> None:
         script = _write_script(
             tmp_path,
             "scripts/audit.py",
@@ -198,9 +196,7 @@ class TestCheckDocs:
         assert violations == []
 
     def test_missing_script_file_is_skipped(self, tmp_path: Path) -> None:
-        doc = _write_doc(
-            tmp_path, "README.md", ["Run: `python3 scripts/nonexistent.py`"]
-        )
+        doc = _write_doc(tmp_path, "README.md", ["Run: `python3 scripts/nonexistent.py`"])
         violations = check_docs([doc], tmp_path)
         assert violations == []
 
@@ -233,9 +229,7 @@ class TestCheckDocs:
         assert len(violations) == 1
         assert violations[0][1] == 3
 
-    def test_violation_when_local_import_loads_yaml(
-        self, tmp_path: Path
-    ) -> None:
+    def test_violation_when_local_import_loads_yaml(self, tmp_path: Path) -> None:
         _write_script(
             tmp_path,
             "scripts/audit.py",
@@ -267,15 +261,11 @@ class TestDocumentedMemoryIndexEntrypoints:
                 encoding="utf-8",
             )
             commands.extend(
-                match.group("command")
-                for match in _MEMORY_INDEX_ENTRYPOINT.finditer(content)
+                match.group("command") for match in _MEMORY_INDEX_ENTRYPOINT.finditer(content)
             )
 
         assert len(commands) == 25
-        assert set(commands) == {
-            "uv run --frozen python "
-            "scripts/validation/memory_index.py --ci"
-        }
+        assert set(commands) == {"uv run --frozen python scripts/validation/memory_index.py --ci"}
 
         result = subprocess.run(
             shlex.split(commands[0]),

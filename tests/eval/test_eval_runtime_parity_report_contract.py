@@ -53,14 +53,18 @@ def test_report_hashes_the_exact_installed_agent_bytes(tmp_path: Path) -> None:
     record = report["fixtures"][0]
 
     assert code == parity.EXIT_OK
-    assert record["claude_agent_sha256"] == hashlib.sha256(
-        (claude_workspace / ".claude" / "agents" / "parity.md").read_bytes()
-    ).hexdigest()
-    assert record["copilot_agent_sha256"] == hashlib.sha256(
-        (
-            copilot_workspace / ".github" / "agents" / "parity.agent.md"
-        ).read_bytes()
-    ).hexdigest()
+    assert (
+        record["claude_agent_sha256"]
+        == hashlib.sha256(
+            (claude_workspace / ".claude" / "agents" / "parity.md").read_bytes()
+        ).hexdigest()
+    )
+    assert (
+        record["copilot_agent_sha256"]
+        == hashlib.sha256(
+            (copilot_workspace / ".github" / "agents" / "parity.agent.md").read_bytes()
+        ).hexdigest()
+    )
 
 
 @pytest.mark.parametrize(
@@ -255,9 +259,7 @@ def test_empty_success_explains_the_fail_closed_result(tmp_path: Path) -> None:
     assert failure["error"] == "runtime returned no answer"
 
 
-def test_version_probes_use_isolated_harness_profiles(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_version_probes_use_isolated_harness_profiles(tmp_path: Path, monkeypatch) -> None:
     fixtures_path = _single_fixture_corpus(tmp_path, "resume-phase-3")
     monkeypatch.setenv("HOME", "/operator/home")
     calls = []
@@ -291,9 +293,7 @@ def test_version_probes_use_isolated_harness_profiles(
     assert "/operator/home" not in copilot_env.values()
 
 
-def test_git_init_failure_returns_external_exit(
-    tmp_path: Path, monkeypatch, capsys
-) -> None:
+def test_git_init_failure_returns_external_exit(tmp_path: Path, monkeypatch, capsys) -> None:
     fixtures_path = _single_fixture_corpus(tmp_path, "resume-phase-3")
 
     def fail_git_init(*args, **kwargs):
@@ -344,9 +344,7 @@ def test_empty_version_probe_fails_closed(tmp_path: Path) -> None:
         )
 
 
-def test_main_rejects_a_different_current_worktree(
-    tmp_path: Path, monkeypatch, capsys
-) -> None:
+def test_main_rejects_a_different_current_worktree(tmp_path: Path, monkeypatch, capsys) -> None:
     monkeypatch.chdir(tmp_path)
 
     code = parity.main(["--dry-run"], runner=_version_runner)
@@ -355,9 +353,7 @@ def test_main_rejects_a_different_current_worktree(
     assert "current directory is not inside a git worktree" in capsys.readouterr().err
 
 
-def test_worktree_identity_rejects_a_top_level_outside_cwd(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_worktree_identity_rejects_a_top_level_outside_cwd(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
         runtime_parity.subprocess,
@@ -374,9 +370,7 @@ def test_worktree_identity_rejects_a_top_level_outside_cwd(
         runtime_parity.verify_worktree_identity()
 
 
-def test_git_init_drops_inherited_repository_context(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_git_init_drops_inherited_repository_context(tmp_path: Path, monkeypatch) -> None:
     for name in runtime_harness.GIT_CONTEXT_VARIABLES:
         monkeypatch.setenv(name, str(runtime_parity.REPO_ROOT))
     calls = []

@@ -23,7 +23,10 @@ from search_memory import (
 
 
 def _write_episode(
-    directory: Path, name: str, task: str, lessons: list[str] | None = None,
+    directory: Path,
+    name: str,
+    task: str,
+    lessons: list[str] | None = None,
 ) -> Path:
     """Write a minimal episode record for search tests."""
     payload = {"id": name, "task": task, "lessons": lessons or []}
@@ -204,7 +207,9 @@ class TestSearchEpisodes:
 
     def test_matches_lessons(self, tmp_path: Path) -> None:
         _write_episode(
-            tmp_path, "episode-2026-01-02-session-9", "unrelated task",
+            tmp_path,
+            "episode-2026-01-02-session-9",
+            "unrelated task",
             lessons=["Always measure the corpus before narrowing a guard"],
         )
 
@@ -216,7 +221,9 @@ class TestSearchEpisodes:
         # Matching those would return the whole store for a generic query.
         for index in range(5):
             _write_episode(
-                tmp_path, f"episode-2026-01-02-session-{index}-topic-{index}", "",
+                tmp_path,
+                f"episode-2026-01-02-session-{index}-topic-{index}",
+                "",
             )
 
         assert search_episodes("episode", tmp_path, 10) == []
@@ -279,11 +286,15 @@ class TestMainFunction:
         episodes = tmp_path / "episodes"
         episodes.mkdir()
 
-        result = main([
-            "git hooks",
-            "--serena-path", str(serena),
-            "--episodes-path", str(episodes),
-        ])
+        result = main(
+            [
+                "git hooks",
+                "--serena-path",
+                str(serena),
+                "--episodes-path",
+                str(episodes),
+            ]
+        )
         assert result == 0
 
         captured = capsys.readouterr()
@@ -293,7 +304,9 @@ class TestMainFunction:
         assert isinstance(output["Results"], list)
 
     def test_searches_episodes_alongside_serena(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str],
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
     ) -> None:
         serena = tmp_path / "memories"
         serena.mkdir()
@@ -302,11 +315,15 @@ class TestMainFunction:
         episodes.mkdir()
         _write_episode(episodes, "episode-2026-01-02-session-9-ratchet-fix", "")
 
-        result = main([
-            "ratchet",
-            "--serena-path", str(serena),
-            "--episodes-path", str(episodes),
-        ])
+        result = main(
+            [
+                "ratchet",
+                "--serena-path",
+                str(serena),
+                "--episodes-path",
+                str(episodes),
+            ]
+        )
         assert result == 0
 
         output = json.loads(capsys.readouterr().out)
@@ -317,12 +334,17 @@ class TestMainFunction:
         assert output["Diagnostic"]["Episodes"]["MemoryCount"] == 1
 
     def test_episode_path_traversal_rejected(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str],
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
     ) -> None:
-        result = main([
-            "alpha",
-            "--episodes-path", "../../etc",
-        ])
+        result = main(
+            [
+                "alpha",
+                "--episodes-path",
+                "../../etc",
+            ]
+        )
         assert result == 2
         assert "traversal" in json.loads(capsys.readouterr().out)["Error"]
 
@@ -332,12 +354,17 @@ class TestMainFunction:
         episodes = tmp_path / "episodes"
         episodes.mkdir()
 
-        result = main([
-            "test query",
-            "--serena-path", str(serena),
-            "--episodes-path", str(episodes),
-            "--format", "table",
-        ])
+        result = main(
+            [
+                "test query",
+                "--serena-path",
+                str(serena),
+                "--episodes-path",
+                str(episodes),
+                "--format",
+                "table",
+            ]
+        )
         assert result == 0
         captured = capsys.readouterr()
         assert "No results found" in captured.out
@@ -346,9 +373,7 @@ class TestMainFunction:
         result = main(["test<invalid>"])
         assert result == 1
 
-    @pytest.mark.parametrize(
-        "removed_flag", ["--lexical-only", "--semantic-only"]
-    )
+    @pytest.mark.parametrize("removed_flag", ["--lexical-only", "--semantic-only"])
     def test_removed_backend_flags_are_rejected(
         self, removed_flag: str, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -377,11 +402,18 @@ class TestMainFunction:
         episodes = tmp_path / "episodes"
         episodes.mkdir()
 
-        assert main([
-            "alpha",
-            "--serena-path", str(serena),
-            "--episodes-path", str(episodes),
-        ]) == 0
+        assert (
+            main(
+                [
+                    "alpha",
+                    "--serena-path",
+                    str(serena),
+                    "--episodes-path",
+                    str(episodes),
+                ]
+            )
+            == 0
+        )
 
         output = json.loads(capsys.readouterr().out)
         assert set(output["SearchStatus"]) == {
@@ -398,11 +430,15 @@ class TestMainFunction:
         episodes = tmp_path / "episodes"
         episodes.mkdir()
 
-        result = main([
-            "nonexistent",
-            "--serena-path", str(serena),
-            "--episodes-path", str(episodes),
-        ])
+        result = main(
+            [
+                "nonexistent",
+                "--serena-path",
+                str(serena),
+                "--episodes-path",
+                str(episodes),
+            ]
+        )
         assert result == 0
         captured = capsys.readouterr()
         output = json.loads(captured.out)

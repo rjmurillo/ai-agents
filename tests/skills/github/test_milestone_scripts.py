@@ -16,7 +16,10 @@ from test_helpers import import_skill_script
 
 def make_proc(stdout="", stderr="", returncode=0):
     return subprocess.CompletedProcess(
-        args=[], returncode=returncode, stdout=stdout, stderr=stderr,
+        args=[],
+        returncode=returncode,
+        stdout=stdout,
+        stderr=stderr,
     )
 
 
@@ -37,9 +40,12 @@ def _extract_json(text):
             except json.JSONDecodeError:
                 continue
     raise ValueError("No JSON found in output: " + repr(text))
+
+
 # ---------------------------------------------------------------------------
 # get_latest_semantic_milestone
 # ---------------------------------------------------------------------------
+
 
 class TestGetLatestSemanticMilestone:
     """Tests for get_latest_semantic_milestone.main."""
@@ -194,6 +200,7 @@ class TestGetLatestSemanticMilestone:
 # set_item_milestone (scripts/milestone/)
 # ---------------------------------------------------------------------------
 
+
 class TestSetItemMilestone:
     """Tests for set_item_milestone.main."""
 
@@ -208,10 +215,16 @@ class TestSetItemMilestone:
             patch("set_item_milestone.resolve_repo_params", return_value=_mock_repo()),
             patch("subprocess.run", return_value=make_proc(stdout=json.dumps(item_data))),
         ):
-            rc = mod.main([
-                "--item-type", "pr", "--item-number", "10",
-                "--milestone-title", "existing-ms",
-            ])
+            rc = mod.main(
+                [
+                    "--item-type",
+                    "pr",
+                    "--item-number",
+                    "10",
+                    "--milestone-title",
+                    "existing-ms",
+                ]
+            )
         assert rc == 0
         result = _extract_json(capsys.readouterr().out)
         assert result["Data"]["action"] == "skipped"
@@ -223,10 +236,13 @@ class TestSetItemMilestone:
         with (
             patch("set_item_milestone.assert_gh_authenticated"),
             patch("set_item_milestone.resolve_repo_params", return_value=_mock_repo()),
-            patch("subprocess.run", side_effect=[
-                make_proc(stdout=json.dumps(item_data)),  # _get_item_milestone
-                make_proc(returncode=0),                   # _assign_milestone
-            ]),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    make_proc(stdout=json.dumps(item_data)),  # _get_item_milestone
+                    make_proc(returncode=0),  # _assign_milestone
+                ],
+            ),
         ):
             rc = mod.main(["--item-type", "pr", "--item-number", "10", "--milestone-title", "v1.0"])
         assert rc == 0
@@ -241,10 +257,13 @@ class TestSetItemMilestone:
         with (
             patch("set_item_milestone.assert_gh_authenticated"),
             patch("set_item_milestone.resolve_repo_params", return_value=_mock_repo()),
-            patch("subprocess.run", side_effect=[
-                make_proc(stdout=json.dumps(item_data)),  # _get_item_milestone
-                make_proc(returncode=0),                   # _assign_milestone
-            ]),
+            patch(
+                "subprocess.run",
+                side_effect=[
+                    make_proc(stdout=json.dumps(item_data)),  # _get_item_milestone
+                    make_proc(returncode=0),  # _assign_milestone
+                ],
+            ),
             patch("set_item_milestone.gh_api_paginated", return_value=milestones),
         ):
             rc = mod.main(["--item-type", "issue", "--item-number", "5"])
@@ -286,10 +305,16 @@ class TestSetItemMilestone:
             ),
         ):
             with pytest.raises(SystemExit) as exc:
-                mod.main([
-                    "--item-type", "pr", "--item-number", "10",
-                    "--milestone-title", "v1.0",
-                ])
+                mod.main(
+                    [
+                        "--item-type",
+                        "pr",
+                        "--item-number",
+                        "10",
+                        "--milestone-title",
+                        "v1.0",
+                    ]
+                )
         assert exc.value.code == 3
 
     def test_help_does_not_crash(self):

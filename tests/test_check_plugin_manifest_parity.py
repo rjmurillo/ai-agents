@@ -29,6 +29,7 @@ SCRIPT = REPO_ROOT / "build" / "scripts" / "check_plugin_manifest_parity.py"
 # seconds is the repo's prevailing choice and is ~100x the observed runtime.
 _SUBPROCESS_TIMEOUT = 30
 
+
 def _load_module() -> Any:
     """Import the validator by path, fresh per test."""
     spec = importlib.util.spec_from_file_location("parity_under_test", SCRIPT)
@@ -80,9 +81,7 @@ def test_every_shipped_description_is_count_free(parity: Any) -> None:
 
 
 @pytest.mark.parametrize("index", range(len(_load_module()._DESCRIBED_FILES)))
-def test_a_count_in_any_configured_file_is_caught(
-    parity: Any, tmp_path: Path, index: int
-) -> None:
+def test_a_count_in_any_configured_file_is_caught(parity: Any, tmp_path: Path, index: int) -> None:
     """Every configured file must be read.
 
     Parameterized over the real tuple so that skipping any single entry, by path
@@ -142,10 +141,34 @@ def test_every_count_token_is_live(parity: Any, tmp_path: Path) -> None:
     would delete the case that checks it, and the deletion would pass.
     """
     expected = [
-        "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
-        "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen",
-        "seventeen", "eighteen", "nineteen", "twenty", "thirty", "forty", "fifty",
-        "sixty", "seventy", "eighty", "ninety", "hundred",
+        "one",
+        "two",
+        "three",
+        "four",
+        "five",
+        "six",
+        "seven",
+        "eight",
+        "nine",
+        "ten",
+        "eleven",
+        "twelve",
+        "thirteen",
+        "fourteen",
+        "fifteen",
+        "sixteen",
+        "seventeen",
+        "eighteen",
+        "nineteen",
+        "twenty",
+        "thirty",
+        "forty",
+        "fifty",
+        "sixty",
+        "seventy",
+        "eighty",
+        "ninety",
+        "hundred",
     ]
     for token in expected + ["1", "25", "100"]:
         text = f"Ships {token} agents"
@@ -179,7 +202,7 @@ def test_uncounted_descriptions_pass(parity: Any, tmp_path: Path, description: s
 
 
 def test_a_singular_category_is_still_a_count(parity: Any, tmp_path: Path) -> None:
-    '''A count like "1 agent" goes stale the moment a second lands.'''
+    """A count like "1 agent" goes stale the moment a second lands."""
     assert parity.check_description_counts((_manifest(tmp_path, "2 agent"),)) == 1
 
 
@@ -207,7 +230,7 @@ def test_four_intervening_words_do_not_match(parity: Any, tmp_path: Path) -> Non
 
 
 def test_a_hyphenated_count_is_a_count(parity: Any, tmp_path: Path) -> None:
-    '''"25-agent" is the same claim as "25 agents" and goes stale identically.'''
+    """ "25-agent" is the same claim as "25 agents" and goes stale identically."""
     assert parity.check_description_counts((_manifest(tmp_path, "A 25-agent kit"),)) == 1
 
 
@@ -250,18 +273,14 @@ def test_clean_marketplace_entries_pass(parity: Any, tmp_path: Path) -> None:
     assert parity.check_description_counts((market,)) == 0
 
 
-def test_every_configured_file_is_scanned_not_just_the_first(
-    parity: Any, tmp_path: Path
-) -> None:
+def test_every_configured_file_is_scanned_not_just_the_first(parity: Any, tmp_path: Path) -> None:
     """A short-circuit after the first clean file must fail here."""
     clean = _manifest(tmp_path, "Nothing to see", name="clean.json")
     dirty = _manifest(tmp_path, _THE_REGRESSION, name="dirty.json")
     assert parity.check_description_counts((clean, dirty)) == 1
 
 
-def test_scanned_count_covers_every_description(
-    parity: Any, tmp_path: Path, capsys: Any
-) -> None:
+def test_scanned_count_covers_every_description(parity: Any, tmp_path: Path, capsys: Any) -> None:
     """The reported total must reflect both files and both entries within one."""
     market = _marketplace(
         tmp_path,
@@ -330,17 +349,13 @@ def test_non_object_entry_is_skipped(parity: Any, tmp_path: Path) -> None:
     assert parity.check_description_counts((target,)) == 1
 
 
-def test_unnamed_entry_is_labelled_by_position(
-    parity: Any, tmp_path: Path, capsys: Any
-) -> None:
+def test_unnamed_entry_is_labelled_by_position(parity: Any, tmp_path: Path, capsys: Any) -> None:
     market = _marketplace(tmp_path, [{"description": _THE_REGRESSION}])
     assert parity.check_description_counts((market,)) == 1
     assert "entry 0" in capsys.readouterr().err
 
 
-def test_failure_names_the_offending_substring(
-    parity: Any, tmp_path: Path, capsys: Any
-) -> None:
+def test_failure_names_the_offending_substring(parity: Any, tmp_path: Path, capsys: Any) -> None:
     """The operator needs the exact text to delete, not just a file name."""
     assert parity.check_description_counts((_manifest(tmp_path, _THE_REGRESSION),)) == 1
     assert "25 specialized agent definitions" in capsys.readouterr().err
@@ -353,7 +368,8 @@ def test_cli_passes_on_the_checked_in_repository() -> None:
     result = subprocess.run(
         [sys.executable, str(SCRIPT)],
         capture_output=True,
-        text=True, encoding="utf-8",
+        text=True,
+        encoding="utf-8",
         cwd=REPO_ROOT,
         timeout=_SUBPROCESS_TIMEOUT,
     )
@@ -364,7 +380,8 @@ def test_cli_reports_the_description_check() -> None:
     result = subprocess.run(
         [sys.executable, str(SCRIPT)],
         capture_output=True,
-        text=True, encoding="utf-8",
+        text=True,
+        encoding="utf-8",
         cwd=REPO_ROOT,
         timeout=_SUBPROCESS_TIMEOUT,
     )
@@ -384,7 +401,8 @@ def test_cli_scans_every_configured_description() -> None:
     result = subprocess.run(
         [sys.executable, str(SCRIPT)],
         capture_output=True,
-        text=True, encoding="utf-8",
+        text=True,
+        encoding="utf-8",
         cwd=REPO_ROOT,
         timeout=_SUBPROCESS_TIMEOUT,
     )
@@ -403,7 +421,8 @@ def test_configuration_covers_every_manifest_in_the_repository() -> None:
     tracked = subprocess.run(
         ["git", "ls-files", "-z", "*plugin.json", "*marketplace.json"],
         capture_output=True,
-        text=True, encoding="utf-8",
+        text=True,
+        encoding="utf-8",
         cwd=REPO_ROOT,
         check=True,
         timeout=_SUBPROCESS_TIMEOUT,
@@ -460,9 +479,7 @@ def test_a_hyphen_separates_a_count_from_a_non_count_word(
     assert parity.check_description_counts((_manifest(tmp_path, text),)) == 1
 
 
-def test_a_count_word_outside_the_token_set_is_not_a_count(
-    parity: Any, tmp_path: Path
-) -> None:
+def test_a_count_word_outside_the_token_set_is_not_a_count(parity: Any, tmp_path: Path) -> None:
     """Pins the real edge of the pattern, which is the token list, not hyphens.
 
     "half-dozen hooks" is an inventory claim in English and this gate does not

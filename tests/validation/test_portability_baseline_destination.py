@@ -63,9 +63,7 @@ class TestTheWriteCannotBeRedirectedOffThePathGitTracks:
 
         assert refuse_symlinked_baseline(root, path)
 
-    def test_a_symlinked_parent_does_not_get_written_through(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_symlinked_parent_does_not_get_written_through(self, tmp_path: Path) -> None:
         root = _repo(tmp_path)
         (root / "real").mkdir()
         victim = root / "real" / "b.json"
@@ -82,9 +80,7 @@ class TestTheWriteCannotBeRedirectedOffThePathGitTracks:
         assert rc == 2
         assert victim.read_text(encoding="utf-8") == "DO NOT OVERWRITE"
 
-    def test_an_ordinary_nested_path_inside_the_repository_is_allowed(
-        self, tmp_path: Path
-    ) -> None:
+    def test_an_ordinary_nested_path_inside_the_repository_is_allowed(self, tmp_path: Path) -> None:
         """The refusal must not fire on every path with a parent directory."""
         root = _repo(tmp_path)
         nested = root / "scripts" / "validation" / "sub"
@@ -92,9 +88,7 @@ class TestTheWriteCannotBeRedirectedOffThePathGitTracks:
 
         assert not refuse_symlinked_baseline(root, nested / "b.json")
 
-    def test_the_repository_root_itself_terminates_the_walk(
-        self, tmp_path: Path
-    ) -> None:
+    def test_the_repository_root_itself_terminates_the_walk(self, tmp_path: Path) -> None:
         """A symlink above the root is somebody else's problem, not the ratchet's.
 
         Walking past the root would make the refusal depend on where the
@@ -139,9 +133,7 @@ class TestTheWriteCannotBeRedirectedOffThePathGitTracks:
 
         assert not refuse_symlinked_baseline(root, path)
 
-    def test_a_link_to_the_root_does_not_get_written_through(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_link_to_the_root_does_not_get_written_through(self, tmp_path: Path) -> None:
         """The victim is valid, matching JSON on purpose.
 
         Corrupt bytes there would make the floor read refuse and the write stop
@@ -168,9 +160,7 @@ class TestTheWriteCannotBeRedirectedOffThePathGitTracks:
         assert rc == 2
         assert victim.read_text(encoding="utf-8") == original
 
-    def test_parent_step_does_not_hide_an_intermediate_symlink(
-        self, tmp_path: Path
-    ) -> None:
+    def test_parent_step_does_not_hide_an_intermediate_symlink(self, tmp_path: Path) -> None:
         """The symlink walk must catch `link/../file` before any write."""
         root = _repo(tmp_path)
         (root / "target" / "a" / "b").mkdir(parents=True)
@@ -180,9 +170,7 @@ class TestTheWriteCannotBeRedirectedOffThePathGitTracks:
 
         assert refuse_symlinked_baseline(root, path)
 
-    def test_symlink_beyond_sixty_four_components_is_refused(
-        self, tmp_path: Path
-    ) -> None:
+    def test_symlink_beyond_sixty_four_components_is_refused(self, tmp_path: Path) -> None:
         root = _repo(tmp_path)
         target = root / "target"
         target.mkdir()

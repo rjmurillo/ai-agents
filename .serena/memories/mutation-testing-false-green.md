@@ -70,11 +70,13 @@ Anchor on the smallest span that is both unique and invariant. Here that is the
 step-name line alone, which the harness's own uniqueness test already enforces:
 
 ```python
-old_bytes=b"      - name: Run ADR-006 run-block ratchet\n",
-new_bytes=(
-    b"      - name: Run ADR-006 run-block ratchet\n"
-    b"        if: steps.should-run.outputs.skip != 'true'\n"
-),
+old_bytes = (b"      - name: Run ADR-006 run-block ratchet\n",)
+new_bytes = (
+    (
+        b"      - name: Run ADR-006 run-block ratchet\n"
+        b"        if: steps.should-run.outputs.skip != 'true'\n"
+    ),
+)
 ```
 
 Before adding or repairing a mutation, read its literal and ask which bytes the

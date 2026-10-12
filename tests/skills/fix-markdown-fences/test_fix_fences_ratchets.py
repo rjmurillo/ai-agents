@@ -131,7 +131,9 @@ class TestScannerParity:
         mutated = appended
         assert mutated == [], (
             f"seed {seed}: --write mutated {len(mutated)} balanced document(s). "
-            f"First: {mutated[0]!r}" if mutated else ""
+            f"First: {mutated[0]!r}"
+            if mutated
+            else ""
         )
         # The assertion above classifies by EDIT SHAPE, and a review showed
         # that shape can hide the damage: a repair that rewrites the middle
@@ -148,12 +150,13 @@ class TestScannerParity:
         broke = [
             text
             for text in random_documents(seed)
-            if not _has_unclosed_fence(text)
-            and _has_unclosed_fence(repair_markdown_fences(text))
+            if not _has_unclosed_fence(text) and _has_unclosed_fence(repair_markdown_fences(text))
         ]
         assert broke == [], (
             f"seed {seed}: --write turned {len(broke)} balanced document(s) into "
-            f"unclosed ones. First: {broke[0]!r}" if broke else ""
+            f"unclosed ones. First: {broke[0]!r}"
+            if broke
+            else ""
         )
 
     @pytest.mark.parametrize("seed", sorted(FUZZ_BASELINE))
@@ -232,11 +235,7 @@ class TestScannerParity:
         # defaults `count` to it, so setting it to zero makes both sides zero
         # and turns the ratchet below into a no-op that still passes.
         assert len(documents) == 2000 == FUZZ_DOCUMENTS
-        diverged = [
-            text
-            for text in documents
-            if oracle_fence_lines(text) != _inside_fence(text)
-        ]
+        diverged = [text for text in documents if oracle_fence_lines(text) != _inside_fence(text)]
         # Exact, for the reason given in the prose suite's twin: at-or-below
         # hides a fix and lets a later regression pass. One baseline serves
         # both scanners because the counts are equal, which is itself a check

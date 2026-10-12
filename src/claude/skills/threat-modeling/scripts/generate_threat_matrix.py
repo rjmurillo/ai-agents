@@ -38,7 +38,7 @@ STRIDE_CATEGORIES = [
     ("E", "Elevation of Privilege", "Gaining capabilities without authorization"),
 ]
 
-TEMPLATE = '''# Threat Model: {scope}
+TEMPLATE = """# Threat Model: {scope}
 
 **Created**: {date}
 **Version**: 1.0
@@ -163,14 +163,14 @@ TEMPLATE = '''# Threat Model: {scope}
 
 - OWASP Threat Modeling: https://owasp.org/www-community/Threat_Modeling
 - Microsoft STRIDE: https://docs.microsoft.com/en-us/azure/security/develop/threat-modeling-tool-threats
-'''
+"""
 
 
 def generate_stride_sections() -> str:
     """Generate STRIDE category sections."""
     sections = []
     for code, name, description in STRIDE_CATEGORIES:
-        section = f'''### {code} - {name}
+        section = f"""### {code} - {name}
 
 **Definition**: {description}
 
@@ -182,7 +182,7 @@ def generate_stride_sections() -> str:
 | ID | Element | Threat | Risk |
 |----|---------|--------|------|
 | | | | |
-'''
+"""
         sections.append(section)
     return "\n".join(sections)
 

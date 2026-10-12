@@ -126,7 +126,7 @@ def open_issue_number() -> str:
             "--json",
             "number",
             "--jq",
-            ".[0].number // \"\"",
+            '.[0].number // ""',
         ],
         check=True,
         capture_output=True,

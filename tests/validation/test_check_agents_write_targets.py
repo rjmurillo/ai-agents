@@ -179,10 +179,7 @@ def test_eval_scenario_data_is_not_scanned(tmp_path: Path) -> None:
 
 
 def test_opt_out_with_reason_suppresses_finding() -> None:
-    text = (
-        "See `.agents/sessions/x.json`. "
-        "agents-write-target: historical -- incident evidence\n"
-    )
+    text = "See `.agents/sessions/x.json`. agents-write-target: historical -- incident evidence\n"
     assert checker.scan_text("docs/example.md", text) == []
 
 

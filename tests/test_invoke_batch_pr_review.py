@@ -28,15 +28,12 @@ class TestGetPrBranch:
 
         assert mock_run.call_count == 2
         assert all(
-            call.kwargs["timeout"] == SUBPROCESS_TIMEOUT_SECONDS
-            for call in mock_run.call_args_list
+            call.kwargs["timeout"] == SUBPROCESS_TIMEOUT_SECONDS for call in mock_run.call_args_list
         )
 
     @patch("scripts.invoke_batch_pr_review.run_gh")
     def test_returns_branch_name(self, mock_gh: MagicMock) -> None:
-        mock_gh.return_value = MagicMock(
-            returncode=0, stdout='{"headRefName": "feat/my-branch"}'
-        )
+        mock_gh.return_value = MagicMock(returncode=0, stdout='{"headRefName": "feat/my-branch"}')
         assert get_pr_branch(123) == "feat/my-branch"
 
     @patch("scripts.invoke_batch_pr_review.run_gh")
@@ -116,24 +113,33 @@ class TestPrintStatusTable:
 class TestMain:
     @patch("scripts.invoke_batch_pr_review.run_git")
     def test_status_operation(self, mock_git: MagicMock) -> None:
-        mock_git.return_value = MagicMock(
-            returncode=0, stdout="/fake/repo\n"
+        mock_git.return_value = MagicMock(returncode=0, stdout="/fake/repo\n")
+        result = main(
+            [
+                "--pr-numbers",
+                "1",
+                "2",
+                "--operation",
+                "status",
+                "--worktree-root",
+                "/tmp",
+            ]
         )
-        result = main([
-            "--pr-numbers", "1", "2",
-            "--operation", "status",
-            "--worktree-root", "/tmp",
-        ])
         assert result == 0
 
     @patch("scripts.invoke_batch_pr_review.get_worktree_status")
     def test_returns_3_on_subprocess_timeout(self, mock_status: MagicMock) -> None:
         mock_status.side_effect = subprocess.TimeoutExpired(cmd="git", timeout=60)
-        result = main([
-            "--pr-numbers", "1",
-            "--operation", "status",
-            "--worktree-root", "/tmp",
-        ])
+        result = main(
+            [
+                "--pr-numbers",
+                "1",
+                "--operation",
+                "status",
+                "--worktree-root",
+                "/tmp",
+            ]
+        )
         assert result == 3
 
 
@@ -185,12 +191,18 @@ class TestPushWorktreeChanges:
             patch.object(invoke_batch_pr_review, "remove_worktree", return_value=True),
         ):
             mock_run_git.return_value = MagicMock(returncode=0, stdout="", stderr="")
-            result = main([
-                "--pr-numbers", "1",
-                "--operation", "cleanup",
-                "--worktree-root", str(tmp_path),
-                "--operator-identity", "rjmurillo",
-            ])
+            result = main(
+                [
+                    "--pr-numbers",
+                    "1",
+                    "--operation",
+                    "cleanup",
+                    "--worktree-root",
+                    str(tmp_path),
+                    "--operator-identity",
+                    "rjmurillo",
+                ]
+            )
 
         assert result == 0
         mock_reset.assert_called_once_with(status.path, operator="rjmurillo")

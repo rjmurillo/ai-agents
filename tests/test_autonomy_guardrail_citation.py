@@ -60,9 +60,7 @@ def test_agent_carries_autonomy_guardrail_citation(path: Path) -> None:
     assert path.exists(), f"Expected agent prompt at {path}"
     text = path.read_text(encoding="utf-8")
     citation_lines = [
-        line
-        for line in text.splitlines()
-        if CITATION_PHRASE in line and CITATION_TARGET in line
+        line for line in text.splitlines() if CITATION_PHRASE in line and CITATION_TARGET in line
     ]
     assert len(citation_lines) == 1, (
         f"{path.relative_to(REPO_ROOT)} must contain exactly one one-line autonomy "

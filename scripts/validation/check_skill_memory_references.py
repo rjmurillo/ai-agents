@@ -337,10 +337,7 @@ def main(argv: list[str] | None = None) -> int:
         return EXIT_CONFIG
 
     if not (repo_root / MEMORIES_ROOT).is_dir():
-        print(
-            f"[SKIP] {MEMORIES_ROOT.as_posix()} not present; "
-            "0 memory references examined."
-        )
+        print(f"[SKIP] {MEMORIES_ROOT.as_posix()} not present; 0 memory references examined.")
         return EXIT_OK
 
     if not any((repo_root / root).is_dir() for root in CORPUS_ROOTS):

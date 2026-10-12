@@ -74,9 +74,7 @@ class TestResolveBaselinePathSentinel:
     def test_relative_traversal_returns_none(self, tmp_path: Path) -> None:
         root = tmp_path / "repo"
         root.mkdir()
-        result = common.resolve_baseline_path(
-            root, Path("../../etc/passwd"), "default.json"
-        )
+        result = common.resolve_baseline_path(root, Path("../../etc/passwd"), "default.json")
         assert result is None
 
     def test_absolute_outside_root_returns_none(self, tmp_path: Path) -> None:
@@ -84,9 +82,7 @@ class TestResolveBaselinePathSentinel:
         root.mkdir()
         outside = tmp_path / "other.json"
         outside.write_text("{}")
-        result = common.resolve_baseline_path(
-            root, outside, "default.json"
-        )
+        result = common.resolve_baseline_path(root, outside, "default.json")
         assert result is None
 
     def test_inside_root_returns_path(self, tmp_path: Path) -> None:
@@ -95,18 +91,14 @@ class TestResolveBaselinePathSentinel:
         inside = root / "scripts" / "baseline.json"
         inside.parent.mkdir(parents=True)
         inside.write_text("{}")
-        result = common.resolve_baseline_path(
-            root, inside, "default.json"
-        )
+        result = common.resolve_baseline_path(root, inside, "default.json")
         assert result is not None
         assert result.is_relative_to(root)
 
     def test_none_baseline_returns_default(self, tmp_path: Path) -> None:
         root = tmp_path / "repo"
         root.mkdir()
-        result = common.resolve_baseline_path(
-            root, None, "my_baseline.json"
-        )
+        result = common.resolve_baseline_path(root, None, "my_baseline.json")
         assert result == root / "scripts" / "validation" / "my_baseline.json"
 
     def test_outside_root_always_returns_none(self, tmp_path: Path) -> None:
@@ -237,9 +229,7 @@ class TestScanAllSingleTraversal:
     def test_returns_consistent_triple(self, tmp_path: Path) -> None:
         skills_root = tmp_path / ".claude" / "skills"
         skills_root.mkdir(parents=True)
-        self._make_skill(
-            skills_root, "alpha", "python3 .claude/skills/alpha/run.py\n"
-        )
+        self._make_skill(skills_root, "alpha", "python3 .claude/skills/alpha/run.py\n")
         self._make_skill(skills_root, "beta", "no invocations here\n")
 
         exec_counts, marker_counts, files_by_root = cep.scan_all(tmp_path)
@@ -261,9 +251,7 @@ class TestScanAllSingleTraversal:
         assert exec_direct == exec_via_wrapper
         assert by_root_direct == by_root_via_wrapper
 
-    def test_inverted_control_counts_from_two_calls_could_diverge(
-        self, tmp_path: Path
-    ) -> None:
+    def test_inverted_control_counts_from_two_calls_could_diverge(self, tmp_path: Path) -> None:
         # Inverted control: two separate calls to wrapper functions COULD return
         # counts from different snapshots. scan_all makes that impossible because
         # the counts come from one walk.
@@ -277,8 +265,11 @@ class TestScanAllSingleTraversal:
         assert result_a == result_b, "scan_all must be deterministic"
 
     def test_exec_checker_stays_below_500_lines(self) -> None:
-        path = Path(__file__).parent.parent.parent / "scripts" / "validation" / (
-            "check_skill_md_exec_portability.py"
+        path = (
+            Path(__file__).parent.parent.parent
+            / "scripts"
+            / "validation"
+            / ("check_skill_md_exec_portability.py")
         )
         lines = path.read_text(encoding="utf-8").splitlines()
         count = len(lines)

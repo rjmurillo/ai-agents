@@ -161,7 +161,7 @@ def _warning_lines(repo_root: Path) -> list[str] | None:
             f"format changed; update {Path(__file__).name} to match it.\n"
         )
         return None
-    warnings = [line[len(_WARNING_PREFIX):].strip() for line in body]
+    warnings = [line[len(_WARNING_PREFIX) :].strip() for line in body]
     if len(warnings) != int(declared.group(1)):
         sys.stderr.write(
             f"memory tier validator declared {declared.group(1)} warnings but "
@@ -172,9 +172,7 @@ def _warning_lines(repo_root: Path) -> list[str] | None:
     return warnings
 
 
-def _tracked_relative_paths(
-    repo_root: Path, *, announce_unmerged: bool = True
-) -> set[str] | None:
+def _tracked_relative_paths(repo_root: Path, *, announce_unmerged: bool = True) -> set[str] | None:
     """Tracked memory files as paths relative to the memories directory.
 
     The set comprehension below already collapsed a path git listed once per
@@ -184,13 +182,11 @@ def _tracked_relative_paths(
     for the reason the other ratchets need it: ``run`` reads the index twice on
     a regression and the note belongs to the counting read alone.
     """
-    files = tracked_files(
-        repo_root, (f"{_MEMORIES_DIR}/**",), announce_unmerged=announce_unmerged
-    )
+    files = tracked_files(repo_root, (f"{_MEMORIES_DIR}/**",), announce_unmerged=announce_unmerged)
     if files is None:
         return None
     prefix = f"{_MEMORIES_DIR}/"
-    return {path[len(prefix):] for path in files if path.startswith(prefix)}
+    return {path[len(prefix) :] for path in files if path.startswith(prefix)}
 
 
 def _subject(warning: str) -> str:

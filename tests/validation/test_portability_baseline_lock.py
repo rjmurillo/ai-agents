@@ -63,9 +63,7 @@ class TestPosixPath:
             ran.append(1)
         assert ran == [1]
 
-    def test_stale_directory_from_old_mkdir_lock_is_removed(
-        self, tmp_path: Path
-    ) -> None:
+    def test_stale_directory_from_old_mkdir_lock_is_removed(self, tmp_path: Path) -> None:
         """A directory left by the previous SIGKILL-unsafe lock is cleaned up.
 
         Before Issue #4237 the lock was a directory created with mkdir().
@@ -156,16 +154,12 @@ class TestWindowsPathViaSeam:
             calls.append("unlock")
 
         with pytest.raises(RuntimeError, match="body error"):
-            with _baseline_write_lock(
-                lock_path, _lock=record_lock, _unlock=record_unlock
-            ):
+            with _baseline_write_lock(lock_path, _lock=record_lock, _unlock=record_unlock):
                 raise RuntimeError("body error")
 
         assert "unlock" in calls, "unlock must run even when the body raises"
 
-    def test_stale_directory_is_cleared_before_injected_lock(
-        self, tmp_path: Path
-    ) -> None:
+    def test_stale_directory_is_cleared_before_injected_lock(self, tmp_path: Path) -> None:
         lock_path = tmp_path / ".baseline.write-lock"
         lock_path.mkdir(mode=0o700)
 
@@ -184,9 +178,7 @@ class TestWindowsPathViaSeam:
             "stale directory must not prevent the injected lock from being called"
         )
 
-    def test_timeout_fires_when_injected_lock_always_busy(
-        self, tmp_path: Path
-    ) -> None:
+    def test_timeout_fires_when_injected_lock_always_busy(self, tmp_path: Path) -> None:
         """TimeoutError is raised when the lock primitive never succeeds."""
         lock_path = tmp_path / ".baseline.write-lock"
 
@@ -197,13 +189,11 @@ class TestWindowsPathViaSeam:
         with mock.patch("scripts.validation.portability_baseline_write.time") as t:
             start = 0.0
             t.monotonic.side_effect = [
-                start,       # initial: deadline = start + 10
+                start,  # initial: deadline = start + 10
                 start + 11,  # first loop check: already past deadline
             ]
             t.sleep = lambda _: None
 
             with pytest.raises(TimeoutError, match="timed out waiting for baseline lock"):
-                with _baseline_write_lock(
-                    lock_path, _lock=_always_busy_lock, _unlock=_noop_unlock
-                ):
+                with _baseline_write_lock(lock_path, _lock=_always_busy_lock, _unlock=_noop_unlock):
                     pass

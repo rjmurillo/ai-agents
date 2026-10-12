@@ -25,13 +25,14 @@ from dataclasses import dataclass
 @dataclass
 class TCOResult:
     """What you get back from TCO calculation."""
-    npv_build: float        # Total cost to build (negative = you spend this)
-    npv_buy: float          # Total cost to buy (negative = you spend this)
-    npv_partner: float      # Total cost to partner (negative = you spend this)
-    irr_build: float        # Internal rate of return (mostly academic)
+
+    npv_build: float  # Total cost to build (negative = you spend this)
+    npv_buy: float  # Total cost to buy (negative = you spend this)
+    npv_partner: float  # Total cost to partner (negative = you spend this)
+    irr_build: float  # Internal rate of return (mostly academic)
     breakeven_years: float  # When does build become cheaper than buy?
     sensitivity: dict[str, float]  # How much do costs swing if inputs change?
-    warning: str = ""       # Any red flags
+    warning: str = ""  # Any red flags
 
 
 def calculate_realistic_build_cost(
@@ -39,7 +40,7 @@ def calculate_realistic_build_cost(
     maintenance_hours: float,
     maintenance_growth: float,
     code_churn_rate: float,
-    year: int
+    year: int,
 ) -> float:
     """
     Calculate what building ACTUALLY costs per year (not just salary).
@@ -122,9 +123,14 @@ def calculate_irr(
     return mid
 
 
-def calculate_breakeven(build_initial: float, build_ongoing: float,
-                       buy_initial: float, buy_ongoing: float,
-                       discount_rate: float, max_years: int = 20) -> float:
+def calculate_breakeven(
+    build_initial: float,
+    build_ongoing: float,
+    buy_initial: float,
+    buy_ongoing: float,
+    discount_rate: float,
+    max_years: int = 20,
+) -> float:
     """Calculate break-even point in years."""
     for year in range(1, max_years + 1):
         npv_build = calculate_npv(build_initial, build_ongoing, discount_rate, year)
@@ -172,7 +178,7 @@ def sensitivity_analysis(
     npv_build_low = calculate_npv(args.build_initial, avg_build_cost, rate_low, args.years)
     npv_build_high = calculate_npv(args.build_initial, avg_build_cost, rate_high, args.years)
 
-    sensitivity['discount_rate'] = abs(npv_build_high - npv_build_low)
+    sensitivity["discount_rate"] = abs(npv_build_high - npv_build_low)
 
     # Test ongoing cost sensitivity (±20%)
     cost_low = avg_build_cost * 0.8
@@ -181,7 +187,7 @@ def sensitivity_analysis(
     npv_cost_low = calculate_npv(args.build_initial, cost_low, args.discount_rate, args.years)
     npv_cost_high = calculate_npv(args.build_initial, cost_high, args.discount_rate, args.years)
 
-    sensitivity['ongoing_cost'] = abs(npv_cost_high - npv_cost_low)
+    sensitivity["ongoing_cost"] = abs(npv_cost_high - npv_cost_low)
 
     return sensitivity
 
@@ -320,42 +326,91 @@ RULE OF THUMB:
   If NPV (Build) is way more negative than NPV (Buy), buy wins BIG.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        """
+        """,
     )
 
     # Required for all scenarios
-    parser.add_argument('--discount-rate', type=float, required=True,
-                       help='Discount rate: 0.10 = 10%%, 0.12 = 12%% (typical: 10-15%%)')
-    parser.add_argument('--years', type=int, required=True, choices=[3, 5, 10],
-                       help='Analysis horizon: 3, 5, or 10 years')
+    parser.add_argument(
+        "--discount-rate",
+        type=float,
+        required=True,
+        help="Discount rate: 0.10 = 10%%, 0.12 = 12%% (typical: 10-15%%)",
+    )
+    parser.add_argument(
+        "--years",
+        type=int,
+        required=True,
+        choices=[3, 5, 10],
+        help="Analysis horizon: 3, 5, or 10 years",
+    )
 
     # Simple mode: just annual costs
-    parser.add_argument('--build-initial', type=float, required=True,
-                       help='Build: Upfront cost ($)')
-    parser.add_argument('--build-ongoing', type=float, required=False,
-                       help='Build: Annual cost - SIMPLE mode (use OR realistic params)')
+    parser.add_argument(
+        "--build-initial", type=float, required=True, help="Build: Upfront cost ($)"
+    )
+    parser.add_argument(
+        "--build-ongoing",
+        type=float,
+        required=False,
+        help="Build: Annual cost - SIMPLE mode (use OR realistic params)",
+    )
 
     # Realistic mode: detailed build costs
-    parser.add_argument('--engineer-cost', type=float, required=False,
-                       help='Build: Fully-loaded engineer cost/year ($350K typical)')
-    parser.add_argument('--maintenance-hours', type=float, required=False, default=0,
-                       help='Build: Annual overhead hours (security, compliance, updates). '
-                            'Typical: 80-200')
-    parser.add_argument('--maintenance-growth', type=float, required=False, default=1.0,
-                       help='Build: Yearly overhead growth (1.15 = 15%%/year). Typical: 1.10-1.20')
-    parser.add_argument('--code-churn-rate', type=float, required=False, default=0.0,
-                       help='Build: Annual code churn rate (0.5 = 50%%). '
-                            'Startups: 0.6-0.8, Enterprises: 0.3-0.5')
+    parser.add_argument(
+        "--engineer-cost",
+        type=float,
+        required=False,
+        help="Build: Fully-loaded engineer cost/year ($350K typical)",
+    )
+    parser.add_argument(
+        "--maintenance-hours",
+        type=float,
+        required=False,
+        default=0,
+        help="Build: Annual overhead hours (security, compliance, updates). Typical: 80-200",
+    )
+    parser.add_argument(
+        "--maintenance-growth",
+        type=float,
+        required=False,
+        default=1.0,
+        help="Build: Yearly overhead growth (1.15 = 15%%/year). Typical: 1.10-1.20",
+    )
+    parser.add_argument(
+        "--code-churn-rate",
+        type=float,
+        required=False,
+        default=0.0,
+        help="Build: Annual code churn rate (0.5 = 50%%). Startups: 0.6-0.8, Enterprises: 0.3-0.5",
+    )
 
     # Buy/Partner (always simple - just costs)
-    parser.add_argument('--buy-initial', type=float, required=True,
-                       help='Buy: Upfront cost (licenses, setup, integration)')
-    parser.add_argument('--buy-ongoing', type=float, required=True,
-                       help='Buy: Annual cost (subscriptions, support, training)')
-    parser.add_argument('--partner-initial', type=float, required=False, default=0,
-                       help='Partner: Upfront cost (integration, setup)')
-    parser.add_argument('--partner-ongoing', type=float, required=False, default=0,
-                       help='Partner: Annual cost (rev share, support)')
+    parser.add_argument(
+        "--buy-initial",
+        type=float,
+        required=True,
+        help="Buy: Upfront cost (licenses, setup, integration)",
+    )
+    parser.add_argument(
+        "--buy-ongoing",
+        type=float,
+        required=True,
+        help="Buy: Annual cost (subscriptions, support, training)",
+    )
+    parser.add_argument(
+        "--partner-initial",
+        type=float,
+        required=False,
+        default=0,
+        help="Partner: Upfront cost (integration, setup)",
+    )
+    parser.add_argument(
+        "--partner-ongoing",
+        type=float,
+        required=False,
+        default=0,
+        help="Partner: Annual cost (rev share, support)",
+    )
 
     args = parser.parse_args()
 
@@ -365,9 +420,8 @@ RULE OF THUMB:
         mode = "REALISTIC"
         if args.build_ongoing:
             print(
-                "ERROR: Cannot use both --build-ongoing (simple) and "
-                "--engineer-cost (realistic)",
-                file=sys.stderr
+                "ERROR: Cannot use both --build-ongoing (simple) and --engineer-cost (realistic)",
+                file=sys.stderr,
             )
             print("       Choose ONE mode: simple OR realistic", file=sys.stderr)
             sys.exit(1)
@@ -380,7 +434,7 @@ RULE OF THUMB:
                 args.maintenance_hours,
                 args.maintenance_growth,
                 args.code_churn_rate,
-                year
+                year,
             )
             build_yearly_costs.append(yearly_cost)
 
@@ -401,9 +455,8 @@ RULE OF THUMB:
         avg_build_cost = args.build_ongoing
     else:
         print(
-            "ERROR: Must provide EITHER --build-ongoing (simple) OR "
-            "--engineer-cost (realistic)",
-            file=sys.stderr
+            "ERROR: Must provide EITHER --build-ongoing (simple) OR --engineer-cost (realistic)",
+            file=sys.stderr,
         )
         print("       See --help for examples", file=sys.stderr)
         sys.exit(1)
@@ -417,9 +470,7 @@ RULE OF THUMB:
         sys.exit(1)
 
     # Calculate NPVs for buy/partner (always simple)
-    npv_buy = calculate_npv(
-        args.buy_initial, args.buy_ongoing, args.discount_rate, args.years
-    )
+    npv_buy = calculate_npv(args.buy_initial, args.buy_ongoing, args.discount_rate, args.years)
     npv_partner = calculate_npv(
         args.partner_initial, args.partner_ongoing, args.discount_rate, args.years
     )
@@ -429,9 +480,7 @@ RULE OF THUMB:
 
     # Calculate break-even (using average cost)
     breakeven = calculate_breakeven(
-        args.build_initial, avg_build_cost,
-        args.buy_initial, args.buy_ongoing,
-        args.discount_rate
+        args.build_initial, avg_build_cost, args.buy_initial, args.buy_ongoing, args.discount_rate
     )
 
     # Create result
@@ -441,7 +490,7 @@ RULE OF THUMB:
         npv_partner=npv_partner,
         irr_build=irr_build,
         breakeven_years=breakeven,
-        sensitivity={}
+        sensitivity={},
     )
 
     # Sensitivity analysis
@@ -452,9 +501,9 @@ RULE OF THUMB:
         result.warning = "Negative NPV detected (costs exceed discounted value)"
 
     # Output results
-    print(f"{'='*80}")
+    print(f"{'=' * 80}")
     print(f"TCO Analysis ({args.years} year horizon) - {mode} MODE")
-    print(f"{'='*80}")
+    print(f"{'=' * 80}")
     print("")
     print("COSTS (in today's dollars):")
     print(f"  Build:   ${abs(result.npv_build):>15,.2f}")
@@ -484,7 +533,7 @@ RULE OF THUMB:
         print("")
 
     print("FINANCIAL METRICS:")
-    print(f"  IRR (Build):         {result.irr_build*100:>6.1f}%")
+    print(f"  IRR (Build):         {result.irr_build * 100:>6.1f}%")
     print(f"  Break-even vs Buy:   Year {result.breakeven_years:.1f}")
     if result.breakeven_years > args.years:
         print("                       ⚠️  Break-even AFTER analysis horizon")
@@ -516,5 +565,5 @@ RULE OF THUMB:
     sys.exit(0)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

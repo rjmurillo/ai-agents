@@ -72,9 +72,7 @@ class TestWorktreePathFilter:
         assert bad_file not in sources, (
             f"{bad_file} should be excluded (relative path contains 'worktrees')"
         )
-        assert ok_file in sources, (
-            f"{ok_file} should be included (no skip word in relative path)"
-        )
+        assert ok_file in sources, f"{ok_file} should be included (no skip word in relative path)"
 
     def test_pycache_still_excluded_from_worktree_root(self, tmp_path: Path) -> None:
         """__pycache__ skip still applies even when repo root is inside worktrees."""

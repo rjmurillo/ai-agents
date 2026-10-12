@@ -588,11 +588,7 @@ def test_a_shorter_run_of_the_same_fence_character_does_not_close_it(tmp_path: P
     doc = write(
         tmp_path,
         "docs/example.md",
-        "````\n"
-        "```\n"
-        "[ADR-999](./ADR-999-does-not-exist.md)\n"
-        "````\n"
-        "[ADR-998](./ADR-998-nope.md)\n",
+        "````\n```\n[ADR-999](./ADR-999-does-not-exist.md)\n````\n[ADR-998](./ADR-998-nope.md)\n",
     )
 
     findings = find_broken_adr_links(tmp_path, files=[doc], baseline=set(), tracked=frozenset())
@@ -615,11 +611,7 @@ def test_a_different_fence_character_inside_a_block_does_not_close_it(tmp_path: 
     doc = write(
         tmp_path,
         "docs/example.md",
-        "~~~\n"
-        "```\n"
-        "[ADR-999](./ADR-999-does-not-exist.md)\n"
-        "~~~\n"
-        "[ADR-998](./ADR-998-nope.md)\n",
+        "~~~\n```\n[ADR-999](./ADR-999-does-not-exist.md)\n~~~\n[ADR-998](./ADR-998-nope.md)\n",
     )
 
     findings = find_broken_adr_links(tmp_path, files=[doc], baseline=set(), tracked=frozenset())
@@ -670,8 +662,7 @@ def test_a_four_space_indented_fence_marker_does_not_open_a_fence(tmp_path: Path
     doc = write(
         tmp_path,
         "docs/example.md",
-        "    ```\n"
-        "[ADR-999](./ADR-999-does-not-exist.md)\n",
+        "    ```\n[ADR-999](./ADR-999-does-not-exist.md)\n",
     )
 
     findings = find_broken_adr_links(tmp_path, files=[doc], baseline=set(), tracked=frozenset())
@@ -688,9 +679,7 @@ def test_a_three_space_indented_fence_marker_still_opens_a_fence(tmp_path: Path)
     doc = write(
         tmp_path,
         "docs/example.md",
-        "   ```\n"
-        "[ADR-999](./ADR-999-does-not-exist.md)\n"
-        "   ```\n",
+        "   ```\n[ADR-999](./ADR-999-does-not-exist.md)\n   ```\n",
     )
 
     findings = find_broken_adr_links(tmp_path, files=[doc], baseline=set(), tracked=frozenset())
@@ -1362,9 +1351,7 @@ def test_main_reports_the_examined_file_count(tmp_path: Path, capsys) -> None:
     assert "0 violation(s) across 2 tracked markdown file(s)" in capsys.readouterr().out
 
 
-def test_main_fails_closed_on_a_valid_repo_with_no_tracked_markdown(
-    tmp_path: Path, capsys
-) -> None:
+def test_main_fails_closed_on_a_valid_repo_with_no_tracked_markdown(tmp_path: Path, capsys) -> None:
     """A wrong-but-valid repository root must not manufacture a green result.
 
     `repo_root` pointing at a real git repository that happens to track zero
@@ -1591,9 +1578,7 @@ def test_base_allowances_for_run_auto_resolves_the_default_branch(tmp_path: Path
     assert entries == {"unresolved:adr/index.md:ADR-005-gone.md"}
 
 
-def test_base_allowances_for_run_says_so_when_no_base_ref_resolves(
-    tmp_path: Path, capsys
-) -> None:
+def test_base_allowances_for_run_says_so_when_no_base_ref_resolves(tmp_path: Path, capsys) -> None:
     """Silence here would read as "ratcheted and clean". It is not."""
     _init_repo(tmp_path)
 
@@ -1601,18 +1586,14 @@ def test_base_allowances_for_run_says_so_when_no_base_ref_resolves(
     assert "no base ref resolved" in capsys.readouterr().err
 
 
-def test_base_allowances_for_run_says_so_when_the_baseline_is_new(
-    tmp_path: Path, capsys
-) -> None:
+def test_base_allowances_for_run_says_so_when_the_baseline_is_new(tmp_path: Path, capsys) -> None:
     _repo_with_base(tmp_path, "")
 
     assert base_allowances_for_run(tmp_path, tmp_path / "absent.txt", "auto") is None
     assert "does not exist at main" in capsys.readouterr().err
 
 
-def test_main_returns_two_when_this_branch_added_a_baseline_entry(
-    tmp_path: Path, capsys
-) -> None:
+def test_main_returns_two_when_this_branch_added_a_baseline_entry(tmp_path: Path, capsys) -> None:
     """End to end: a branch cannot clear its own new defect with a new entry."""
     _repo_with_base(tmp_path, "# no entries yet\n")
     write(tmp_path, "adr/index.md", "[ADR-005](ADR-005-gone.md)\n")
@@ -1621,9 +1602,7 @@ def test_main_returns_two_when_this_branch_added_a_baseline_entry(
     )
     subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True)
 
-    exit_code = main(
-        ["--repo-root", str(tmp_path), "--baseline", str(tmp_path / "baseline.txt")]
-    )
+    exit_code = main(["--repo-root", str(tmp_path), "--baseline", str(tmp_path / "baseline.txt")])
 
     assert exit_code == 2
     assert "this branch added" in capsys.readouterr().err
@@ -1635,9 +1614,7 @@ def test_main_honors_an_entry_the_base_ref_already_carried(tmp_path: Path) -> No
     write(tmp_path, "adr/index.md", "[ADR-005](ADR-005-gone.md)\n")
     subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True)
 
-    assert (
-        main(["--repo-root", str(tmp_path), "--baseline", str(tmp_path / "baseline.txt")]) == 0
-    )
+    assert main(["--repo-root", str(tmp_path), "--baseline", str(tmp_path / "baseline.txt")]) == 0
 
 
 def test_main_base_ref_none_disables_the_provenance_check(tmp_path: Path) -> None:

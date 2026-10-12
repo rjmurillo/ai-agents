@@ -81,9 +81,7 @@ class TestDecide:
 
         assert scope.decide("pull_request", base, head, repo).skip is False
 
-    def test_docs_only_change_skips_and_says_how_many_files_were_examined(
-        self, repo: Path
-    ) -> None:
+    def test_docs_only_change_skips_and_says_how_many_files_were_examined(self, repo: Path) -> None:
         base = _git(repo, "rev-parse", "HEAD")
         head = _commit(repo, {"docs/a.md": "a\n", "notes/b.txt": "b\n"})
 
@@ -300,9 +298,7 @@ class TestEntrypoint:
         base = _git(repo, "rev-parse", "HEAD")
         head = _commit(repo, {"build/x.py": "x\n"})
 
-        result = self._run(
-            repo, {"EVENT_NAME": "pull_request", "BASE_SHA": base, "HEAD_SHA": head}
-        )
+        result = self._run(repo, {"EVENT_NAME": "pull_request", "BASE_SHA": base, "HEAD_SHA": head})
 
         assert result.returncode == EXIT_OK
         assert "skip=false" in result.stdout

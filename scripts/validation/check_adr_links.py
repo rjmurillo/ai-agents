@@ -1031,8 +1031,7 @@ def validate_adr_links(repo_root: Path, base_ref: str = "auto") -> bool:
     for finding in findings:
         print(finding.format())
     print(
-        f"check_adr_links: {len(findings)} violation(s) across "
-        f"{examined} tracked markdown file(s)"
+        f"check_adr_links: {len(findings)} violation(s) across {examined} tracked markdown file(s)"
     )
     return not findings
 
@@ -1113,8 +1112,7 @@ def main(argv: list[str] | None = None) -> int:
     for finding in findings:
         print(finding.format())
     print(
-        f"check_adr_links: {len(findings)} violation(s) across "
-        f"{examined} tracked markdown file(s)"
+        f"check_adr_links: {len(findings)} violation(s) across {examined} tracked markdown file(s)"
     )
 
     return 1 if findings else 0

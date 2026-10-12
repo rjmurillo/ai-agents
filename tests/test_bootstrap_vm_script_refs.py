@@ -55,11 +55,9 @@ def test_vm_bootstrap_references_no_deleted_script() -> None:
 
 def test_referenced_repo_scripts_detects_a_missing_path() -> None:
     """Negative control: the guard must fail on the exact shape of the bug."""
-    script = 'uv run --frozen python scripts/maintenance/install_merge_drivers.py\n'
+    script = "uv run --frozen python scripts/maintenance/install_merge_drivers.py\n"
 
-    assert _referenced_repo_scripts(script) == [
-        "scripts/maintenance/install_merge_drivers.py"
-    ]
+    assert _referenced_repo_scripts(script) == ["scripts/maintenance/install_merge_drivers.py"]
 
 
 def test_referenced_repo_scripts_ignores_comments_and_absolute_paths() -> None:

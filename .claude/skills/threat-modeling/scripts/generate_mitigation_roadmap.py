@@ -49,7 +49,7 @@ class Threat:
 
 RISK_ORDER = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3}
 
-ROADMAP_TEMPLATE = '''# Mitigation Roadmap: {scope}
+ROADMAP_TEMPLATE = """# Mitigation Roadmap: {scope}
 
 **Generated**: {date}
 **Source**: {source}
@@ -123,7 +123,7 @@ ROADMAP_TEMPLATE = '''# Mitigation Roadmap: {scope}
 ## Appendix: All Threats by Risk
 
 {threat_table}
-'''
+"""
 
 
 def parse_threat_matrix(content: str) -> list[Threat]:
@@ -138,21 +138,21 @@ def parse_threat_matrix(content: str) -> list[Threat]:
     threats: list[Threat] = []
 
     # Find threat matrix table
-    table_pattern = r'\| ID \| Element \| STRIDE \| Threat \|.*?\n((?:\|.*\n)*)'
+    table_pattern = r"\| ID \| Element \| STRIDE \| Threat \|.*?\n((?:\|.*\n)*)"
     match = re.search(table_pattern, content, re.IGNORECASE)
 
     if not match:
         return threats
 
-    table_rows = match.group(1).strip().split('\n')
+    table_rows = match.group(1).strip().split("\n")
 
     for row in table_rows:
         # Skip separator rows
-        if '---' in row:
+        if "---" in row:
             continue
 
         # Parse table row
-        cells = [c.strip() for c in row.split('|')[1:-1]]
+        cells = [c.strip() for c in row.split("|")[1:-1]]
         if len(cells) >= 7:
             threat = Threat(
                 id=cells[0],
@@ -256,11 +256,11 @@ def extract_scope(content: str) -> str:
     Returns:
         Scope string or default
     """
-    match = re.search(r'# Threat Model: (.+)', content)
+    match = re.search(r"# Threat Model: (.+)", content)
     if match:
         return match.group(1).strip()
 
-    match = re.search(r'## Scope.*?Subject\*\*: (.+)', content, re.DOTALL)
+    match = re.search(r"## Scope.*?Subject\*\*: (.+)", content, re.DOTALL)
     if match:
         return match.group(1).strip()
 
@@ -343,13 +343,15 @@ Examples:
     )
 
     parser.add_argument(
-        "--input", "-i",
+        "--input",
+        "-i",
         type=Path,
         required=True,
         help="Path to the threat model markdown file",
     )
     parser.add_argument(
-        "--output", "-o",
+        "--output",
+        "-o",
         type=Path,
         required=True,
         help="Output path for the mitigation roadmap",

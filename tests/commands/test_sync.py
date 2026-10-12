@@ -552,7 +552,8 @@ def test_script_entrypoint_honors_cli_flags(tmp_path: Path) -> None:
         ],
         cwd=repo,
         capture_output=True,
-        text=True, encoding="utf-8",
+        text=True,
+        encoding="utf-8",
         timeout=10,
         check=False,
     )

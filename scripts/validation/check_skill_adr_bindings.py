@@ -299,9 +299,7 @@ def find_skill_files(repo_root: Path) -> list[Path] | None:
     # tracked path needs the filter today, which is exactly why it is written
     # down rather than left to the tree's current shape.
     return sorted(
-        repo_root / relative
-        for relative in relatives
-        if relative.rsplit("/", 1)[-1] == "SKILL.md"
+        repo_root / relative for relative in relatives if relative.rsplit("/", 1)[-1] == "SKILL.md"
     )
 
 
@@ -418,9 +416,7 @@ def _declaration_finding(
         )
 
     retired = [
-        (number, statuses[number])
-        for number in numbers
-        if statuses[number] in RETIRED_STATUSES
+        (number, statuses[number]) for number in numbers if statuses[number] in RETIRED_STATUSES
     ]
     if not retired:
         return None
@@ -638,9 +634,7 @@ def _corpus_is_empty(adr_dir: Path) -> bool:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description=(
-            "Flag a SKILL.md declaring a retired ADR in metadata.adr (issue #5665)."
-        )
+        description=("Flag a SKILL.md declaring a retired ADR in metadata.adr (issue #5665).")
     )
     parser.add_argument(
         "--repo-root",

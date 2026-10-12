@@ -405,12 +405,10 @@ def build_mutations(repo_root: Path | None = None) -> list[Mutation]:
             description="M10: cosmetic control rewords a module docstring",
             target_file=wf_perms_test,
             old_bytes=(
-                b"A job with no ``permissions:`` block silently inherits the "
-                b"workflow-level one.\n"
+                b"A job with no ``permissions:`` block silently inherits the workflow-level one.\n"
             ),
             new_bytes=(
-                b"A job with no ``permissions:`` block quietly inherits the "
-                b"workflow-level one.\n"
+                b"A job with no ``permissions:`` block quietly inherits the workflow-level one.\n"
             ),
             test_filter=perms_gate,
             expected_outcome=SURVIVED,

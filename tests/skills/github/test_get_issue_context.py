@@ -28,6 +28,7 @@ def _mock_repo():
 def _import_module():
     """Import the module under test."""
     import importlib
+
     mod_name = "get_issue_context"
     if mod_name in sys.modules:
         del sys.modules[mod_name]
@@ -54,9 +55,9 @@ class TestGetIssueContext:
         with (
             patch("get_issue_context.assert_gh_authenticated"),
             patch("get_issue_context.resolve_repo_params", return_value=_mock_repo()),
-            patch("subprocess.run", return_value=make_completed_process(
-                stdout=json.dumps(issue_data)
-            )) as run,
+            patch(
+                "subprocess.run", return_value=make_completed_process(stdout=json.dumps(issue_data))
+            ) as run,
         ):
             rc = mod.main(["--issue", "42"])
 
@@ -92,9 +93,9 @@ class TestGetIssueContext:
         with (
             patch("get_issue_context.assert_gh_authenticated"),
             patch("get_issue_context.resolve_repo_params", return_value=_mock_repo()),
-            patch("subprocess.run", return_value=make_completed_process(
-                stdout=json.dumps(issue_data)
-            )),
+            patch(
+                "subprocess.run", return_value=make_completed_process(stdout=json.dumps(issue_data))
+            ),
         ):
             rc = mod.main(["--issue", "10"])
         assert rc == 0
@@ -106,9 +107,13 @@ class TestGetIssueContext:
         with (
             patch("get_issue_context.assert_gh_authenticated"),
             patch("get_issue_context.resolve_repo_params", return_value=_mock_repo()),
-            patch("subprocess.run", return_value=make_completed_process(
-                stderr="not found", returncode=1,
-            )),
+            patch(
+                "subprocess.run",
+                return_value=make_completed_process(
+                    stderr="not found",
+                    returncode=1,
+                ),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 mod.main(["--issue", "999"])
@@ -119,9 +124,13 @@ class TestGetIssueContext:
         with (
             patch("get_issue_context.assert_gh_authenticated"),
             patch("get_issue_context.resolve_repo_params", return_value=_mock_repo()),
-            patch("subprocess.run", return_value=make_completed_process(
-                stderr="some error", returncode=1,
-            )),
+            patch(
+                "subprocess.run",
+                return_value=make_completed_process(
+                    stderr="some error",
+                    returncode=1,
+                ),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 mod.main(["--issue", "999"])
@@ -168,9 +177,9 @@ class TestGetIssueContext:
                 "get_issue_context.resolve_repo_params",
                 return_value=RepoInfo(owner="o", repo="r"),
             ),
-            patch("subprocess.run", return_value=make_completed_process(
-                stdout=json.dumps(issue_data)
-            )),
+            patch(
+                "subprocess.run", return_value=make_completed_process(stdout=json.dumps(issue_data))
+            ),
         ):
             rc = mod.main(["--issue", "5"])
         assert rc == 0

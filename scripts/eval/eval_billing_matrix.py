@@ -175,17 +175,12 @@ def _render_text(rows: Sequence[dict[str, object]]) -> str:
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Print the eval harness x billing matrix and whether each cell "
-            "can run on this machine."
+            "Print the eval harness x billing matrix and whether each cell can run on this machine."
         )
     )
     parser.add_argument("--harness", choices=HARNESSES, help="Limit to one harness.")
-    parser.add_argument(
-        "--billing", choices=BILLING_MODES, help="Limit to one billing mode."
-    )
-    parser.add_argument(
-        "--provider", help="Limit to the cell this provider name selects."
-    )
+    parser.add_argument("--billing", choices=BILLING_MODES, help="Limit to one billing mode.")
+    parser.add_argument("--provider", help="Limit to the cell this provider name selects.")
     parser.add_argument("--json", action="store_true", help="Emit JSON instead of text.")
     parser.add_argument(
         "--require-ready",
@@ -238,8 +233,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(_render_text(rows))
     if args.require_ready and any(row["readiness"] == NOT_READY for row in rows):
         print(
-            "error: at least one selected cell is not ready; see the missing "
-            "column above.",
+            "error: at least one selected cell is not ready; see the missing column above.",
             file=sys.stderr,
         )
         return EXIT_EXTERNAL

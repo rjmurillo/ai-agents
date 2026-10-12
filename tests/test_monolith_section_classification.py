@@ -73,27 +73,12 @@ def audit_mentions_section(audit_text: str, monolith_name: str, title: str) -> b
 
 
 def test_top_level_sections_skips_fenced_headings() -> None:
-    text = (
-        "## Real One\n"
-        "~~~\n"
-        "```\n"
-        "## Fenced Not A Section\n"
-        "```\n"
-        "~~~\n"
-        "## Real Two\n"
-    )
+    text = "## Real One\n~~~\n```\n## Fenced Not A Section\n```\n~~~\n## Real Two\n"
     assert top_level_sections(text) == ["Real One", "Real Two"]
 
 
 def test_top_level_sections_requires_bare_closing_fence() -> None:
-    text = (
-        "## Real One\n"
-        "```\n"
-        "```text\n"
-        "## Fenced Not A Section\n"
-        "```\n"
-        "## Real Two\n"
-    )
+    text = "## Real One\n```\n```text\n## Fenced Not A Section\n```\n## Real Two\n"
     assert top_level_sections(text) == ["Real One", "Real Two"]
 
 
@@ -117,21 +102,13 @@ def test_every_monolith_section_is_classified(monolith: Path) -> None:
     sections = top_level_sections(monolith.read_text(encoding="utf-8"))
     assert sections, f"no top-level sections found in {monolith.name}"
     missing = [
-        title
-        for title in sections
-        if not audit_mentions_section(audit_text, monolith.name, title)
+        title for title in sections if not audit_mentions_section(audit_text, monolith.name, title)
     ]
-    assert not missing, (
-        f"{monolith.name} sections absent from the classification doc: {missing}"
-    )
+    assert not missing, f"{monolith.name} sections absent from the classification doc: {missing}"
 
 
 def test_audit_records_total_section_count() -> None:
-    total = sum(
-        len(top_level_sections(path.read_text(encoding="utf-8"))) for path in MONOLITHS
-    )
+    total = sum(len(top_level_sections(path.read_text(encoding="utf-8"))) for path in MONOLITHS)
     audit_text = ANALYSIS_DOC.read_text(encoding="utf-8")
     total_row = rf"^\|\s*\*\*Total\*\*\s*\|\s*\*\*{total}\*\*\s*\|"
-    assert re.search(total_row, audit_text, re.M), (
-        f"audit total tally must state {total} sections"
-    )
+    assert re.search(total_row, audit_text, re.M), f"audit total tally must state {total} sections"

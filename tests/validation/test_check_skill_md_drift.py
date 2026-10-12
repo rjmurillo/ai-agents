@@ -37,14 +37,9 @@ from scripts.validation.check_skill_md_portability import (
 )
 
 
-def _make_marker_file(
-    marker_paths: str, prose_body: str
-) -> str:
+def _make_marker_file(marker_paths: str, prose_body: str) -> str:
     """Build a markdown file with a vendor-portability marker and prose."""
-    return (
-        f"<!-- vendor-portability: declared. References {marker_paths}. -->\n"
-        f"{prose_body}\n"
-    )
+    return f"<!-- vendor-portability: declared. References {marker_paths}. -->\n{prose_body}\n"
 
 
 class TestExtractPathsFromText:
@@ -230,9 +225,7 @@ class TestMarkerPathDrift:
         assert len(undeclared) == 1
         assert "scripts/validation/foo.py" in undeclared[0]
 
-    def test_existence_miss_nonexistent_child_of_existing_parent(
-        self, tmp_path: Path
-    ) -> None:
+    def test_existence_miss_nonexistent_child_of_existing_parent(self, tmp_path: Path) -> None:
         """Defect 1 (CRITICAL): parent exists and is non-empty, child missing.
 
         This is the regression guard for the vacuity bug. The parent-directory
@@ -336,9 +329,7 @@ class TestMarkerPathDrift:
         # Must NOT reach the existence check
         assert not any("existence miss" in f for f in failures)
 
-    def test_broad_directory_does_not_swallow_missing_child(
-        self, tmp_path: Path
-    ) -> None:
+    def test_broad_directory_does_not_swallow_missing_child(self, tmp_path: Path) -> None:
         """Defect 3 (HIGH): declaring 'scripts/validation' does not make
         'scripts/validation/definitely-missing.py' pass existence.
 
@@ -489,7 +480,5 @@ class TestVacuityRegressionGuard:
             "/scripts/x.py",
         ):
             unsafe: set[str] = set()
-            _extract_paths_from_text(
-                f"See {candidate} for details.", unsafe_collector=unsafe
-            )
+            _extract_paths_from_text(f"See {candidate} for details.", unsafe_collector=unsafe)
             assert unsafe, f"traversal or absolute path not reported: {candidate}"

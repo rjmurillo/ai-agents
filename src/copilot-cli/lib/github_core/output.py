@@ -174,9 +174,7 @@ def write_skill_error(
         JSON string when format is json, None when human.
     """
     if error_type not in VALID_ERROR_TYPES:
-        raise ValueError(
-            f"error_type must be one of {VALID_ERROR_TYPES}, got: {error_type}"
-        )
+        raise ValueError(f"error_type must be one of {VALID_ERROR_TYPES}, got: {error_type}")
     if not message:
         # skill-output.schema.json requires Error.Message "minLength": 1
         # (ADR-103 Round 5). Before this guard, the schema and validator
@@ -284,6 +282,8 @@ def _detect_script_name() -> str:
             script_path: str = caller_file
             return os.path.basename(script_path)
     return "unknown"
+
+
 def _status_color(status: str) -> str:
     """Return ANSI color code for the given status."""
     colors = {

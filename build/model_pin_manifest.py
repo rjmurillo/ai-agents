@@ -92,9 +92,7 @@ MANIFEST_MAX_AGE_DAYS = 180
 # "20250514" were a minor version -- an 8-digit run cannot satisfy \d{1,2},
 # and the optional minor group must consume the string up to ``$`` or not
 # match at all, so a trailing 8-digit run cannot be silently dropped either.
-_CANONICAL_MAJOR_MINOR_RE = re.compile(
-    r"^claude-(opus|sonnet|haiku)-(\d{1,2})(?:[.-](\d{1,2}))?$"
-)
+_CANONICAL_MAJOR_MINOR_RE = re.compile(r"^claude-(opus|sonnet|haiku)-(\d{1,2})(?:[.-](\d{1,2}))?$")
 
 # The two known target shapes a platform's own ``model_tiers`` map spells its
 # tier defaults in today. See templates/platforms/copilot-cli.yaml:109-112
@@ -103,9 +101,7 @@ _CANONICAL_MAJOR_MINOR_RE = re.compile(
 # per-platform-name template means a platform YAML's spelling stays the one
 # source of truth for its own format.
 _DOT_FORM_RE = re.compile(r"^claude-(opus|sonnet|haiku)-\d+\.\d+$")
-_DISPLAY_FORM_RE = re.compile(
-    r"^Claude (Opus|Sonnet|Haiku) \d+\.\d+ \(copilot\)$"
-)
+_DISPLAY_FORM_RE = re.compile(r"^Claude (Opus|Sonnet|Haiku) \d+\.\d+ \(copilot\)$")
 
 
 def _load_sweep_evidence_exports() -> tuple[
@@ -129,9 +125,7 @@ def _load_sweep_evidence_exports() -> tuple[
     touch" contract intact through every link.
     """
     path = Path(__file__).resolve().parent / "model_pin_sweep_evidence.py"
-    spec = importlib.util.spec_from_file_location(
-        "_model_pin_manifest_sweep_evidence", path
-    )
+    spec = importlib.util.spec_from_file_location("_model_pin_manifest_sweep_evidence", path)
     if spec is None or spec.loader is None:
         raise ImportError(f"Cannot load build utility {path}: no import spec")
     module = importlib.util.module_from_spec(spec)
@@ -143,9 +137,7 @@ def _load_sweep_evidence_exports() -> tuple[
         normalize = module._normalize_id
         satisfies_rule2 = module.sweep_report_satisfies_rule2
     except AttributeError as exc:
-        raise ImportError(
-            f"Build utility {path} does not define the expected exports"
-        ) from exc
+        raise ImportError(f"Build utility {path} does not define the expected exports") from exc
     return (
         cast("Callable[[str], str]", normalize),
         cast("Callable[[Path, dict[str, object]], bool]", satisfies_rule2),
@@ -273,9 +265,7 @@ def _entry_evidence_valid(
         return False
     if not _sweep_report_satisfies_rule2(artifact_path, entry):
         return False
-    return _normalize_id(str(entry.get("default_model", ""))) == _normalize_id(
-        default_model
-    )
+    return _normalize_id(str(entry.get("default_model", ""))) == _normalize_id(default_model)
 
 
 def resolve_manifest_model(
@@ -369,9 +359,7 @@ def resolve_manifest_model(
     return model.strip()
 
 
-def format_model_id_for_platform(
-    model_id: str, platform_tiers: Mapping[str, object]
-) -> str | None:
+def format_model_id_for_platform(model_id: str, platform_tiers: Mapping[str, object]) -> str | None:
     """Format a canonical versioned model id in a platform's own spelling.
 
     This is the cross-platform spelling gap rule 5's generator change

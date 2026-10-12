@@ -93,7 +93,10 @@ else:
             break
         _cur = _cur.parent
 if _lib_dir is None or not os.path.isdir(_lib_dir):
-    print(f"Plugin lib directory not found: {_lib_dir} (CLAUDE_PLUGIN_ROOT={_plugin_root!r})", file=sys.stderr)
+    print(
+        f"Plugin lib directory not found: {_lib_dir} (CLAUDE_PLUGIN_ROOT={_plugin_root!r})",
+        file=sys.stderr,
+    )
     sys.exit(2)  # Config error per ADR-035
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
@@ -156,12 +159,14 @@ def get_project_directory() -> str:
 ```python
 SAFE_BASE_DIR = Path(__file__).resolve().parents[3]
 
+
 def _is_relative_to(path: Path, base: Path) -> bool:
     try:
         path.relative_to(base)
         return True
     except ValueError:
         return False
+
 
 # Verify path is within project boundary
 if not _is_relative_to(candidate_path, SAFE_BASE_DIR):

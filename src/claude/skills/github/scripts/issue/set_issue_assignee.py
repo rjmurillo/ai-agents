@@ -81,9 +81,14 @@ def main(argv: list[str] | None = None) -> int:
     for assignee in assignees:
         result = subprocess.run(
             [
-                "gh", "issue", "edit", str(args.issue),
-                "--repo", f"{owner}/{repo}",
-                "--add-assignee", assignee,
+                "gh",
+                "issue",
+                "edit",
+                str(args.issue),
+                "--repo",
+                f"{owner}/{repo}",
+                "--add-assignee",
+                assignee,
             ],
             capture_output=True,
             text=True,

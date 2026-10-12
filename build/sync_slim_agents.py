@@ -284,9 +284,7 @@ def compare(agents: tuple[str, ...]) -> Drift:
         for destination in DESTINATIONS:
             target = destination.path_for(name)
             comparisons.append(
-                compare_file(
-                    target, source_body, _read(target), destination.transforms
-                )
+                compare_file(target, source_body, _read(target), destination.transforms)
             )
     return collect_drift(comparisons)
 
@@ -335,8 +333,7 @@ def _config_error(header: str, paths: list[str], remedy: str) -> int:
 def _blocked_error(blocked: tuple[Comparison, ...]) -> int:
     """Refuse the whole run and show every line that would be overwritten."""
     print(
-        "sync-slim-agents: destinations carry body wording the transforms"
-        " cannot reproduce:",
+        "sync-slim-agents: destinations carry body wording the transforms cannot reproduce:",
         file=sys.stderr,
     )
     for comparison in blocked:
@@ -368,8 +365,7 @@ def _preflight(for_write: bool) -> int:
         return _config_error(
             "declared agent files are missing:",
             missing,
-            "Update SLIMMED_AGENTS or restore the files. Refusing to sync a"
-            " partial set.",
+            "Update SLIMMED_AGENTS or restore the files. Refusing to sync a partial set.",
         )
 
     unsafe = find_unsafe_paths(SLIMMED_AGENTS)
@@ -418,10 +414,7 @@ def _report_check(drift: Drift) -> int:
     if drift.applicable:
         print("Run with --write to propagate the src/claude/agents/ bodies.")
     if drift.blocked:
-        print(
-            "Reconcile the lines above by hand. --write refuses the whole run"
-            " while any remain."
-        )
+        print("Reconcile the lines above by hand. --write refuses the whole run while any remain.")
     if drift.applicable or drift.blocked:
         return EXIT_DRIFT
     return EXIT_OK
@@ -445,16 +438,12 @@ def _run(args: argparse.Namespace) -> int:
         # the default check run is read-only and has nothing to protect.
         if not Path.cwd().resolve().is_relative_to(REPO_ROOT.resolve()):
             print(
-                "sync-slim-agents: current directory is outside the repository"
-                f" root: {Path.cwd()}",
+                f"sync-slim-agents: current directory is outside the repository root: {Path.cwd()}",
                 file=sys.stderr,
             )
             return EXIT_CONFIG
         changed = apply_sync(compare(SLIMMED_AGENTS))
-        print(
-            f"sync-slim-agents: wrote: {len(changed)} of {total}"
-            " destination files"
-        )
+        print(f"sync-slim-agents: wrote: {len(changed)} of {total} destination files")
         for path in changed:
             print(f"  {path}")
         print(

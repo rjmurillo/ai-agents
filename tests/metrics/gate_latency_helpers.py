@@ -34,18 +34,14 @@ _DIVIDER = "\x1b[38;2;56;56;56m" + "─" * 40 + "\x1b[0m"
 # on the strength of an unverified claim (see lefthook_summary.py's module
 # docstring for both captures and the correction).
 REAL_CAPTURED_STDOUT = (
-    f"{_DIVIDER}\n"
-    "summary: (done in 0.20 seconds)\n"
-    "✓ security-suppressions-staged (0.20 seconds)\n"
+    f"{_DIVIDER}\nsummary: (done in 0.20 seconds)\n✓ security-suppressions-staged (0.20 seconds)\n"
 )
 
 # Real captured output, this session, from a disposable throwaway repo (never
 # committed to this repository) whose pre-commit hook declared one job that
 # exits 0 and one that exits 1: `✓` for the pass, `✗` for the fail.
 NEGATIVE_CONTROL_STDOUT = (
-    "summary: (done in 0.01 seconds)\n"
-    "✓ good-job (0.00 seconds)\n"
-    "✗ bad-job (0.00 seconds)\n"
+    "summary: (done in 0.01 seconds)\n✓ good-job (0.00 seconds)\n✗ bad-job (0.00 seconds)\n"
 )
 
 # Not observed in this environment (see lefthook_summary.py's module
@@ -53,8 +49,7 @@ NEGATIVE_CONTROL_STDOUT = (
 # synonym this module accepts defensively. Tests classification robustness,
 # not a ground-truth capture.
 UNVERIFIED_SYNONYM_MARKER_STDOUT = (
-    "summary: (done in 0.05 seconds)\n"
-    "✔️ some-other-job (0.05 seconds)\n"
+    "summary: (done in 0.05 seconds)\n✔️ some-other-job (0.05 seconds)\n"
 )
 
 _LEFTHOOK_YML = """\
@@ -81,6 +76,7 @@ pre-push:
             run: echo c2
             timeout: 30s
 """
+
 
 class _FakeCompleted:
     def __init__(self, returncode: int, stdout: str = "", stderr: str = "") -> None:
@@ -193,7 +189,4 @@ def run_one_repetition(
     distinct, which is what testing.md asks for (one behavior per test), while
     removing the repetition the code-qualities non-redundancy score counts.
     """
-    return gate_latency_sampler._run_repetition(
-        repo, lefthook_cmd or ["lefthook"], hook, files, 0
-    )
-
+    return gate_latency_sampler._run_repetition(repo, lefthook_cmd or ["lefthook"], hook, files, 0)

@@ -21,20 +21,12 @@ _TEMPLATES_MIRRORS = (
 _PLUGIN_VERSION_RULE_SURFACES = (
     REPO_ROOT / ".claude" / "rules" / "plugin-version-bump.md",
     REPO_ROOT / ".github" / "instructions" / "plugin-version-bump.instructions.md",
-    REPO_ROOT
-    / "src"
-    / "copilot-cli"
-    / "instructions"
-    / "plugin-version-bump.instructions.md",
+    REPO_ROOT / "src" / "copilot-cli" / "instructions" / "plugin-version-bump.instructions.md",
 )
 _KNOWLEDGE_PERSISTENCE_SURFACES = (
     REPO_ROOT / ".claude" / "rules" / "knowledge-persistence.md",
     REPO_ROOT / ".github" / "instructions" / "knowledge-persistence.instructions.md",
-    REPO_ROOT
-    / "src"
-    / "copilot-cli"
-    / "instructions"
-    / "knowledge-persistence.instructions.md",
+    REPO_ROOT / "src" / "copilot-cli" / "instructions" / "knowledge-persistence.instructions.md",
 )
 # ai-agents-architecture-contract is distribution: repo-local: no Copilot mirror.
 _ARCHITECTURE_SKILL_SURFACES = (
@@ -134,8 +126,7 @@ def test_claude_agents_rule_states_drift_detector_inputs() -> None:
 def test_other_detector_guidance_surfaces_state_actual_inputs() -> None:
     expected_first_pair = "`src/claude` against `src/vs-code-agents`"
     expected_pairs = (
-        "`src/claude` against `src/vs-code-agents`, and `.claude/agents` against "
-        "`.github/agents`"
+        "`src/claude` against `src/vs-code-agents`, and `.claude/agents` against `.github/agents`"
     )
 
     for path in (*_TEMPLATES_MIRRORS, _TEMPLATES_RULE):
@@ -222,16 +213,12 @@ def test_readme_and_installation_agree_on_vscode_agent_path() -> None:
     installation = _read(REPO_ROOT / "docs" / "installation.md")
 
     # README platform table: VS Code row should point to .github/agents/
-    vscode_row = re.search(
-        r"\|\s*\*\*VS Code.*?\|\s*`([^`]+)`\s*\|", readme
-    )
+    vscode_row = re.search(r"\|\s*\*\*VS Code.*?\|\s*`([^`]+)`\s*\|", readme)
     assert vscode_row is not None, "VS Code row missing from README platform table"
     readme_path = vscode_row.group(1)
 
     # installation.md platform table: VS Code row
-    install_vscode_row = re.search(
-        r"\|\s*VS Code\s*\|\s*`([^`]+)`\s*\|", installation
-    )
+    install_vscode_row = re.search(r"\|\s*VS Code\s*\|\s*`([^`]+)`\s*\|", installation)
     assert install_vscode_row is not None
     install_path = install_vscode_row.group(1)
 

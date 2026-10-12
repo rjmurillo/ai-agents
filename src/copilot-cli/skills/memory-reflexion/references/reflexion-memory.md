@@ -108,6 +108,7 @@ Episodes are structured extracts from session logs, optimized for replay and ana
 ```python
 import os
 import sys
+
 _root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT") or ".claude"
 sys.path.insert(0, f"{_root}/skills/memory")
 
@@ -461,10 +462,7 @@ for ep in routing:
 for outcome, episodes in by_outcome.items():
     print(f"{outcome}: {len(episodes)} episodes")
     chosen = Counter(
-        d["chosen"]
-        for ep in episodes
-        for d in ep["decisions"]
-        if "routing" in d.get("context", "")
+        d["chosen"] for ep in episodes for d in ep["decisions"] if "routing" in d.get("context", "")
     )
     for choice, count in chosen.most_common():
         print(f"  - {choice}: {count} times")

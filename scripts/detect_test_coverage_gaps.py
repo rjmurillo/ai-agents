@@ -127,7 +127,9 @@ def main(argv: list[str] | None = None) -> int:
         description="Detect PowerShell files without test coverage",
     )
     parser.add_argument(
-        "--path", default=".", help="Root path to scan (default: current directory)",
+        "--path",
+        default=".",
+        help="Root path to scan (default: current directory)",
     )
     parser.add_argument("--staged-only", action="store_true", help="Only check git-staged files")
     parser.add_argument("--ignore-file", default="", help="Path to file with ignore patterns")

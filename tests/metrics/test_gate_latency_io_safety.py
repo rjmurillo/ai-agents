@@ -79,6 +79,7 @@ def _sample_report(*, n: int = 1, stdin_supplied: bool = False) -> GateLatencyRe
 
 # --- Owner-only mode and the symlink-refusing writer -------------------------
 
+
 @pytest.mark.skipif(sys.platform == "win32", reason="POSIX mode bits; os.fchmod is POSIX-only")
 def test_edge_write_json_permission_mode_is_owner_only(tmp_path: Path) -> None:
     path = tmp_path / "mode.json"
@@ -114,4 +115,3 @@ def test_negative_safe_open_narrows_preexisting_broader_mode(tmp_path: Path) -> 
         assert stat.S_IMODE(target.stat().st_mode) == 0o600
     finally:
         os.close(fd)
-

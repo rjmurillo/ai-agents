@@ -89,6 +89,7 @@ collapses runs of `\s+` to a single space before `fnmatchcase`.
 
 ```python
 import re
+
 normalized = re.sub(r"\s+", " ", tool_args).strip()
 ```
 

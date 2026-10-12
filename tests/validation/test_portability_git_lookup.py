@@ -89,9 +89,7 @@ def test_run_git_preserves_partial_stderr_on_timeout(
 
     assert result is not None
     assert result.returncode == GIT_TIMEOUT_RETURN_CODE
-    assert result.stderr == (
-        b"waiting for repository lock\ngit command timed out after 30s"
-    )
+    assert result.stderr == (b"waiting for repository lock\ngit command timed out after 30s")
 
 
 def test_run_git_strips_git_overrides_case_insensitively(
@@ -212,9 +210,7 @@ def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
 def _repo(root: Path, *, inner: str = "") -> Path:
     """Create a repository, returning the directory a checker would be pointed at."""
     root.mkdir(parents=True, exist_ok=True)
-    subprocess.run(
-        ["git", "init", "-q", "-b", "main", str(root)], check=True, capture_output=True
-    )
+    subprocess.run(["git", "init", "-q", "-b", "main", str(root)], check=True, capture_output=True)
     _git(root, "config", "user.email", "t@example.com")
     _git(root, "config", "user.name", "Test")
     _git(root, "config", "commit.gpgsign", "false")
@@ -232,9 +228,7 @@ def _commit(top: Path, base: Path, payload: Mapping[str, object]) -> None:
 class TestTheFloorSurvivesWhereGitAnswersWithSilence:
     """`ls-tree` prints nothing for a tree-ish it cannot reach under its prefix."""
 
-    def test_a_checkout_below_the_git_top_level_still_reads_the_floor(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_checkout_below_the_git_top_level_still_reads_the_floor(self, tmp_path: Path) -> None:
         """The prefix applies to every tree-ish, not only to HEAD.
 
         Descending into a subtree re-applies it, finds nothing, and exits 0.
@@ -337,9 +331,7 @@ class TestNoRefsIsNotProofNothingWasCommitted:
         assert previous is None
         assert problem is not None and "object database still holds commits" in problem
 
-    def test_a_repository_that_was_never_committed_to_has_no_floor(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_repository_that_was_never_committed_to_has_no_floor(self, tmp_path: Path) -> None:
         """The control. Without it the refusal above could be unconditional."""
         top = _repo(tmp_path / "repo")
         (top / REL).write_text(json.dumps(LOW), encoding="utf-8")
@@ -427,9 +419,7 @@ class TestAPathThatCannotBeResolvedIsNotProofNothingWasRecorded:
     function has promised `None` for an unanswerable resolve throughout.
     """
 
-    def test_a_path_outside_the_repository_is_recorded_nowhere_in_it(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_path_outside_the_repository_is_recorded_nowhere_in_it(self, tmp_path: Path) -> None:
         root = _repo(tmp_path / "repo")
         outside = tmp_path / "elsewhere" / "baseline.json"
         outside.parent.mkdir(parents=True)

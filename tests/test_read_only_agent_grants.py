@@ -43,8 +43,7 @@ def test_read_only_agent_grants_no_write_or_shell(agent: str, tree: Path) -> Non
     granted = set(_tools(tree / f"{agent}.md"))
 
     assert granted.isdisjoint(FORBIDDEN), (
-        f"{agent} in {tree} is read-only by contract but holds "
-        f"{sorted(granted & FORBIDDEN)}."
+        f"{agent} in {tree} is read-only by contract but holds {sorted(granted & FORBIDDEN)}."
     )
     assert {"Read", "Grep", "Glob"} <= granted
 
@@ -61,8 +60,6 @@ def test_missing_tools_key_is_detected(tmp_path: Path) -> None:
 def test_forbidden_tool_is_detected(tmp_path: Path) -> None:
     """Negative control: a granted Bash tool intersects the forbidden set."""
     agent = tmp_path / "agent.md"
-    agent.write_text(
-        "---\nname: agent\ntools:\n  - Read\n  - Bash\n---\nbody\n", encoding="utf-8"
-    )
+    agent.write_text("---\nname: agent\ntools:\n  - Read\n  - Bash\n---\nbody\n", encoding="utf-8")
 
     assert set(_tools(agent)) & FORBIDDEN == {"Bash"}

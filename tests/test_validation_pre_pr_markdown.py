@@ -66,7 +66,6 @@ class TestValidateMarkdownLint:
             cwd=tmp_path,
         )
 
-
     def test_skip_autofix_runs_check_only(
         self,
         tmp_path: Path,
@@ -88,9 +87,7 @@ class TestValidateMarkdownLint:
             cwd=tmp_path,
         )
 
-    def test_falls_back_to_full_repo_when_scope_is_unknown(
-        self, tmp_path: Path
-    ) -> None:
+    def test_falls_back_to_full_repo_when_scope_is_unknown(self, tmp_path: Path) -> None:
 
         with patch("checks_tooling.shutil.which", return_value="npx"):
             with patch(
@@ -121,10 +118,13 @@ class TestValidateMarkdownLint:
                     "Linting: 0 files\nSummary: 0 issues in 0 files\n",
                     "",
                 )
-                assert validate_markdown_lint(
-                    tmp_path,
-                    explicit_targets=[".project-toolkit/analysis/p2/x.md"],
-                ) is True
+                assert (
+                    validate_markdown_lint(
+                        tmp_path,
+                        explicit_targets=[".project-toolkit/analysis/p2/x.md"],
+                    )
+                    is True
+                )
 
         mock_run.assert_called_once_with(
             [
@@ -154,16 +154,17 @@ class TestValidateMarkdownLint:
                     "Linting: 1 files\nSummary: 0 issues in 0 files\n",
                     "",
                 )
-                assert validate_markdown_lint(
-                    tmp_path,
-                    explicit_targets=["README.md"],
-                ) is True
+                assert (
+                    validate_markdown_lint(
+                        tmp_path,
+                        explicit_targets=["README.md"],
+                    )
+                    is True
+                )
 
         assert "WARNING" not in capsys.readouterr().out
 
-    def test_explicit_targets_are_passed_after_option_delimiter(
-        self, tmp_path: Path
-    ) -> None:
+    def test_explicit_targets_are_passed_after_option_delimiter(self, tmp_path: Path) -> None:
 
         with patch("checks_tooling.shutil.which", return_value="npx"):
             with patch("checks_tooling._run_subprocess") as mock_run:
@@ -172,10 +173,13 @@ class TestValidateMarkdownLint:
                     "Linting: 1 files\nSummary: 0 issues in 0 files\n",
                     "",
                 )
-                assert validate_markdown_lint(
-                    tmp_path,
-                    explicit_targets=["-leading.md"],
-                ) is True
+                assert (
+                    validate_markdown_lint(
+                        tmp_path,
+                        explicit_targets=["-leading.md"],
+                    )
+                    is True
+                )
 
         command = mock_run.call_args.args[0]
         assert command[-2:] == ["--", "-leading.md"]
@@ -215,8 +219,10 @@ class TestValidateDashProhibition:
 
     def test_returns_true_for_clean_branch(self, tmp_path: Path) -> None:
 
-        with patch("checks_dash._resolve_branch_base_ref") as mock_ref, \
-             patch("checks_dash._run_subprocess") as mock_run:
+        with (
+            patch("checks_dash._resolve_branch_base_ref") as mock_ref,
+            patch("checks_dash._run_subprocess") as mock_run,
+        ):
             mock_ref.return_value = "origin/main"
             mock_run.side_effect = [
                 (0, "README.md\n", ""),  # git diff
@@ -230,8 +236,10 @@ class TestValidateDashProhibition:
         # rather than the working tree. Mock the two subprocess calls
         # in order: (1) git diff returns the file list, (2) git show
         # returns the file content as if from HEAD.
-        with patch("checks_dash._resolve_branch_base_ref") as mock_ref, \
-             patch("checks_dash._run_subprocess") as mock_run:
+        with (
+            patch("checks_dash._resolve_branch_base_ref") as mock_ref,
+            patch("checks_dash._run_subprocess") as mock_run,
+        ):
             mock_ref.return_value = "origin/main"
             mock_run.side_effect = [
                 (0, "doc.md\n", ""),  # git diff
@@ -241,8 +249,10 @@ class TestValidateDashProhibition:
 
     def test_returns_false_on_en_dash(self, tmp_path: Path) -> None:
 
-        with patch("checks_dash._resolve_branch_base_ref") as mock_ref, \
-             patch("checks_dash._run_subprocess") as mock_run:
+        with (
+            patch("checks_dash._resolve_branch_base_ref") as mock_ref,
+            patch("checks_dash._run_subprocess") as mock_run,
+        ):
             mock_ref.return_value = "origin/main"
             mock_run.side_effect = [
                 (0, "range.md\n", ""),
@@ -255,8 +265,10 @@ class TestValidateDashProhibition:
         vendored = tmp_path / "node_modules" / "pkg" / "README.md"
         vendored.parent.mkdir(parents=True)
         vendored.write_text(f"upstream prose with {chr(0x2014)} dash\n", encoding="utf-8")
-        with patch("checks_dash._resolve_branch_base_ref") as mock_ref, \
-             patch("checks_dash._run_subprocess") as mock_run:
+        with (
+            patch("checks_dash._resolve_branch_base_ref") as mock_ref,
+            patch("checks_dash._run_subprocess") as mock_run,
+        ):
             mock_ref.return_value = "origin/main"
             mock_run.return_value = (0, "node_modules/pkg/README.md\n", "")
             assert pre_pr_policy().accepts(validate_dash_prohibition(tmp_path))
@@ -266,8 +278,10 @@ class TestValidateDashProhibition:
         fixture = tmp_path / "tests" / "hooks" / "fixtures" / "dash_violations.md"
         fixture.parent.mkdir(parents=True)
         fixture.write_text(f"intentional {chr(0x2014)}\n", encoding="utf-8")
-        with patch("checks_dash._resolve_branch_base_ref") as mock_ref, \
-             patch("checks_dash._run_subprocess") as mock_run:
+        with (
+            patch("checks_dash._resolve_branch_base_ref") as mock_ref,
+            patch("checks_dash._run_subprocess") as mock_run,
+        ):
             mock_ref.return_value = "origin/main"
             mock_run.return_value = (0, "tests/hooks/fixtures/dash_violations.md\n", "")
             assert pre_pr_policy().accepts(validate_dash_prohibition(tmp_path))
@@ -275,8 +289,10 @@ class TestValidateDashProhibition:
     def test_includes_github_instructions_tree(self, tmp_path: Path) -> None:
         """REQ-006-AC4: .github/instructions/ is NOT excluded."""
 
-        with patch("checks_dash._resolve_branch_base_ref") as mock_ref, \
-             patch("checks_dash._run_subprocess") as mock_run:
+        with (
+            patch("checks_dash._resolve_branch_base_ref") as mock_ref,
+            patch("checks_dash._run_subprocess") as mock_run,
+        ):
             mock_ref.return_value = "origin/main"
             mock_run.side_effect = [
                 (0, ".github/instructions/universal.instructions.md\n", ""),
@@ -287,8 +303,10 @@ class TestValidateDashProhibition:
     def test_returns_true_when_git_diff_fails(self, tmp_path: Path) -> None:
         """Fail open on git subprocess failure (do not block on infra issues)."""
 
-        with patch("checks_dash._resolve_branch_base_ref") as mock_ref, \
-             patch("checks_dash._run_subprocess") as mock_run:
+        with (
+            patch("checks_dash._resolve_branch_base_ref") as mock_ref,
+            patch("checks_dash._run_subprocess") as mock_run,
+        ):
             mock_ref.return_value = "origin/main"
             mock_run.return_value = (128, "", "fatal: bad revision")
             assert pre_pr_policy().accepts(validate_dash_prohibition(tmp_path))
@@ -303,8 +321,10 @@ class TestValidateDashProhibition:
 
         # Working tree clean, but HEAD content (mocked) has em-dash:
         # the function MUST flag it.
-        with patch("checks_dash._resolve_branch_base_ref") as mock_ref, \
-             patch("checks_dash._run_subprocess") as mock_run:
+        with (
+            patch("checks_dash._resolve_branch_base_ref") as mock_ref,
+            patch("checks_dash._run_subprocess") as mock_run,
+        ):
             mock_ref.return_value = "origin/main"
             mock_run.side_effect = [
                 (0, "doc.md\n", ""),
@@ -319,7 +339,6 @@ class TestValidateDashProhibition:
 # ---------------------------------------------------------------------------
 # validate_lefthook_installed
 # ---------------------------------------------------------------------------
-
 
 
 class TestMarkdownLintReportsWhatItActuallyChecked:
@@ -342,9 +361,7 @@ class TestMarkdownLintReportsWhatItActuallyChecked:
     ) -> tuple[bool, str]:
 
         with patch("checks_tooling.shutil.which", return_value="npx"):
-            with patch(
-                "checks_tooling._markdown_lint_targets", return_value=targets
-            ):
+            with patch("checks_tooling._markdown_lint_targets", return_value=targets):
                 with patch("checks_tooling._run_subprocess") as mock_run:
                     mock_run.return_value = result
                     outcome = validate_markdown_lint(tmp_path)
@@ -367,9 +384,7 @@ class TestMarkdownLintReportsWhatItActuallyChecked:
     def test_a_fully_selected_clean_run_stays_quiet(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        outcome, out = self._run(
-            tmp_path, ["README.md"], (0, _clean_stdout(1), ""), capsys
-        )
+        outcome, out = self._run(tmp_path, ["README.md"], (0, _clean_stdout(1), ""), capsys)
 
         assert outcome is True
         assert "WARNING" not in out, "a fully checked run has nothing to report"
@@ -408,9 +423,7 @@ class TestMarkdownLintReportsWhatItActuallyChecked:
         # `_markdown_lint_targets` returns None when scope is unknown and the
         # command becomes a single `**/*.md` glob. Comparing 406 linted files
         # against one glob argument would warn on every clean full-repo run.
-        outcome, out = self._run(
-            tmp_path, None, (0, _clean_stdout(406), ""), capsys
-        )
+        outcome, out = self._run(tmp_path, None, (0, _clean_stdout(406), ""), capsys)
 
         assert outcome is True
         assert "WARNING" not in out
@@ -418,9 +431,7 @@ class TestMarkdownLintReportsWhatItActuallyChecked:
     def test_a_full_repo_run_that_matches_nothing_still_warns(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        outcome, out = self._run(
-            tmp_path, None, (0, _clean_stdout(0), ""), capsys
-        )
+        outcome, out = self._run(tmp_path, None, (0, _clean_stdout(0), ""), capsys)
 
         assert outcome is True
         assert "0 of 1 target" in out
@@ -454,9 +465,7 @@ class TestMarkdownLintReportsWhatItActuallyChecked:
     ) -> None:
         # cli2 restates all 44 exclusion globs on one `Finding:` line. Printing
         # stdout alongside stderr buried the lines that named the rule.
-        finding = "Finding: docs/guide.md " + " ".join(
-            f"!excluded/{n}/**" for n in range(44)
-        )
+        finding = "Finding: docs/guide.md " + " ".join(f"!excluded/{n}/**" for n in range(44))
         outcome, out = self._run(
             tmp_path,
             ["docs/guide.md"],

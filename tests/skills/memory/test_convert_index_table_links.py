@@ -28,17 +28,13 @@ class TestValidatePathWithinProject:
         child = tmp_path / "sub"
         child.mkdir()
         # Should return the resolved path without raising
-        result = convert_index_table_links._validate_path_within_project(
-            str(child), tmp_path
-        )
+        result = convert_index_table_links._validate_path_within_project(str(child), tmp_path)
         assert result == child.resolve()
 
     def test_rejects_sibling(self, tmp_path):
         sibling = tmp_path.parent / "sibling"
         with pytest.raises(SystemExit):
-            convert_index_table_links._validate_path_within_project(
-                str(sibling), tmp_path
-            )
+            convert_index_table_links._validate_path_within_project(str(sibling), tmp_path)
 
 
 class TestBuildMemoryNames:

@@ -90,9 +90,7 @@ def scrub_path(raw_path: str) -> str:
 
 def assert_no_interpreter(env: dict[str, str]) -> None:
     """Fail loudly when the row is not actually vanilla."""
-    found = [
-        name for name in _INTERPRETERS if shutil.which(name, path=env.get("PATH", ""))
-    ]
+    found = [name for name in _INTERPRETERS if shutil.which(name, path=env.get("PATH", ""))]
     if found:
         raise GuardError(
             "row is not vanilla: these interpreters still resolve: " + ", ".join(found)
@@ -154,8 +152,7 @@ def assert_degraded(returncode: int, output: str) -> None:
     """The contract: degraded and warning, never denied."""
     if returncode != 0:
         raise GuardError(
-            f"hook DENIED with exit {returncode}; it must degrade, not block.\n"
-            f"Output:\n{output}"
+            f"hook DENIED with exit {returncode}; it must degrade, not block.\nOutput:\n{output}"
         )
     missing = [f for f in _REQUIRED_WARNING_FRAGMENTS if f not in output]
     if missing:
@@ -201,9 +198,20 @@ def run_linux_container(image: str, install_root: Path, consumer_cwd: Path) -> t
             "This row requires a runner with Docker."
         )
     probe = subprocess.run(
-        ["docker", "run", "--rm", image, "sh", "-c",
-         "command -v python3 || command -v python || echo NONE"],
-        capture_output=True, text=True, encoding="utf-8", errors="replace", check=False,
+        [
+            "docker",
+            "run",
+            "--rm",
+            image,
+            "sh",
+            "-c",
+            "command -v python3 || command -v python || echo NONE",
+        ],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
     )
     # An empty result and a failed invocation are different things. Treating a
     # failed docker call as "an interpreter resolved" reports a confusing
@@ -217,21 +225,33 @@ def run_linux_container(image: str, install_root: Path, consumer_cwd: Path) -> t
         raise GuardError(
             f"image {image} is not vanilla; an interpreter resolved: {probe.stdout.strip()}"
         )
-    command = extract_hook_command(
-        install_root / "hooks" / "hooks.json", "PreToolUse", "bash"
-    )
+    command = extract_hook_command(install_root / "hooks" / "hooks.json", "PreToolUse", "bash")
     script = f"cd /consumer && {command}"
     proc = subprocess.run(
         [
-            "docker", "run", "--rm", "-i",
-            "-v", f"{install_root}:/plugin:ro",
-            "-v", f"{consumer_cwd}:/consumer",
-            "-e", "COPILOT_PLUGIN_ROOT=/plugin",
-            "-e", "CLAUDE_PLUGIN_ROOT=/plugin",
-            image, "bash", "-c", script,
+            "docker",
+            "run",
+            "--rm",
+            "-i",
+            "-v",
+            f"{install_root}:/plugin:ro",
+            "-v",
+            f"{consumer_cwd}:/consumer",
+            "-e",
+            "COPILOT_PLUGIN_ROOT=/plugin",
+            "-e",
+            "CLAUDE_PLUGIN_ROOT=/plugin",
+            image,
+            "bash",
+            "-c",
+            script,
         ],
-        input=_PAYLOAD, capture_output=True, text=True,
-        encoding="utf-8", errors="replace", check=False,
+        input=_PAYLOAD,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
     )
     return proc.returncode, proc.stdout + proc.stderr
 
@@ -270,9 +290,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.image, install_root, args.consumer_cwd.resolve()
             )
         else:
-            returncode, output = run_windows(
-                install_root, args.consumer_cwd.resolve()
-            )
+            returncode, output = run_windows(install_root, args.consumer_cwd.resolve())
         print(f"hook exit code: {returncode}")
         print(f"hook output:\n{output}")
         assert_degraded(returncode, output)

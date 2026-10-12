@@ -20,8 +20,7 @@ from scripts.github_core.api import RepoInfo
 # Import the script via importlib (not a package)
 # ---------------------------------------------------------------------------
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1]
-    / ".claude" / "skills" / "github" / "scripts" / "pr"
+    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "pr"
 )
 
 
@@ -103,7 +102,8 @@ class TestScriptCommit:
 
         with (
             patch.object(
-                _mod, "__file__",
+                _mod,
+                "__file__",
                 "/repo/.claude/skills/github/scripts/pr/test_pr_merge_ready.py",
             ),
             patch.object(_mod.subprocess, "run", side_effect=completed),
@@ -119,7 +119,8 @@ class TestScriptCommit:
         ]
         with (
             patch.object(
-                _mod, "__file__",
+                _mod,
+                "__file__",
                 "/repo/.claude/skills/github/scripts/pr/test_pr_merge_ready.py",
             ),
             patch.object(_mod.subprocess, "run", side_effect=completed),
@@ -140,7 +141,8 @@ class TestScriptCommit:
         ]
         with (
             patch.object(
-                _mod, "__file__",
+                _mod,
+                "__file__",
                 "/repo/.claude/skills/github/scripts/pr/test_pr_merge_ready.py",
             ),
             patch.object(_mod.subprocess, "run", side_effect=completed),
@@ -207,9 +209,14 @@ class TestBuildParser:
         assert args.pull_request == 42
 
     def test_ignore_flags(self):
-        args = build_parser().parse_args([
-            "--pull-request", "1", "--ignore-ci", "--ignore-threads",
-        ])
+        args = build_parser().parse_args(
+            [
+                "--pull-request",
+                "1",
+                "--ignore-ci",
+                "--ignore-threads",
+            ]
+        )
         assert args.ignore_ci is True
         assert args.ignore_threads is True
 
@@ -269,12 +276,10 @@ class TestCheckMergeReadiness:
         assert result["CanMerge"] is False
         assert result["MergeStateStatus"] == "BLOCKED"
         assert any("blocked" in r.lower() for r in result["Reasons"]), (
-            f"a BLOCKED merge state must name the blocker; reasons: "
-            f"{result['Reasons']}"
+            f"a BLOCKED merge state must name the blocker; reasons: {result['Reasons']}"
         )
         assert any(
-            "branch protection" in r.lower() or "review" in r.lower()
-            for r in result["Reasons"]
+            "branch protection" in r.lower() or "review" in r.lower() for r in result["Reasons"]
         ), (
             "blocker reason should name branch protection / missing review "
             f"decision; reasons: {result['Reasons']}"
@@ -365,6 +370,7 @@ class TestCheckMergeReadiness:
 
     def test_pr_not_found_exits_2(self, caplog):
         import logging
+
         with caplog.at_level(logging.WARNING, logger="test_pr_merge_ready"):
             with patch(
                 "test_pr_merge_ready.gh_graphql",
@@ -377,14 +383,14 @@ class TestCheckMergeReadiness:
         # `op=merge_ready_failed reason=...` log line so an operator can
         # grep failures across scripts using a unified taxonomy.
         assert any(
-            "op=merge_ready_failed" in r.message
-            and "reason=pr_not_found" in r.message
+            "op=merge_ready_failed" in r.message and "reason=pr_not_found" in r.message
             for r in caplog.records
         ), "merge_ready failure path must log op=merge_ready_failed reason=pr_not_found"
 
     def test_pr_not_found_via_could_not_resolve_exits_2(self, caplog):
         """gh_graphql RuntimeError with 'Could not resolve' maps to exit 2."""
         import logging
+
         with caplog.at_level(logging.WARNING, logger="test_pr_merge_ready"):
             with patch(
                 "test_pr_merge_ready.gh_graphql",
@@ -394,14 +400,14 @@ class TestCheckMergeReadiness:
                     check_merge_readiness("o", "r", 999)
             assert exc.value.code == 2
         assert any(
-            "op=merge_ready_failed" in r.message
-            and "reason=pr_not_found" in r.message
+            "op=merge_ready_failed" in r.message and "reason=pr_not_found" in r.message
             for r in caplog.records
         )
 
     def test_graphql_error_exits_3_with_log(self, caplog):
         """A non-'Could not resolve' RuntimeError exits 3 and logs reason=graphql_error."""
         import logging
+
         with caplog.at_level(logging.WARNING, logger="test_pr_merge_ready"):
             with patch(
                 "test_pr_merge_ready.gh_graphql",
@@ -411,8 +417,7 @@ class TestCheckMergeReadiness:
                     check_merge_readiness("o", "r", 42)
             assert exc.value.code == 3
         assert any(
-            "op=merge_ready_failed" in r.message
-            and "reason=graphql_error" in r.message
+            "op=merge_ready_failed" in r.message and "reason=graphql_error" in r.message
             for r in caplog.records
         )
 
@@ -432,26 +437,27 @@ class TestCheckMergeReadiness:
         inline (paginated saw all threads; inline was truncated to 100).
         """
         import logging
+
         pr_data = json.loads(json.dumps(_OPEN_PR))
         threads = pr_data["repository"]["pullRequest"]["reviewThreads"]
         threads["totalCount"] = 150
         # Inline first:100 page: 100 unresolved threads.
-        threads["nodes"] = [
-            {"id": f"PRRT_{i}", "isResolved": False} for i in range(100)
-        ]
+        threads["nodes"] = [{"id": f"PRRT_{i}", "isResolved": False} for i in range(100)]
 
         # Paginated helper sees all 150 and reports 105 unresolved
         # (45 of the 150 happen to be resolved; not visible in inline).
-        fake_unresolved = [
-            {"id": f"PRRT_real_{i}", "isResolved": False} for i in range(105)
-        ]
+        fake_unresolved = [{"id": f"PRRT_real_{i}", "isResolved": False} for i in range(105)]
         with caplog.at_level(logging.INFO, logger="test_pr_merge_ready"):
-            with patch(
-                "test_pr_merge_ready.gh_graphql", return_value=pr_data,
-            ), patch(
-                "test_pr_merge_ready.get_unresolved_review_threads",
-                return_value=fake_unresolved,
-            ) as mock_paginated:
+            with (
+                patch(
+                    "test_pr_merge_ready.gh_graphql",
+                    return_value=pr_data,
+                ),
+                patch(
+                    "test_pr_merge_ready.get_unresolved_review_threads",
+                    return_value=fake_unresolved,
+                ) as mock_paginated,
+            ):
                 result = check_merge_readiness("o", "r", 42, ignore_ci=True)
 
         mock_paginated.assert_called_once_with("o", "r", 42)
@@ -459,10 +465,9 @@ class TestCheckMergeReadiness:
             "Pagination fallback should use paginated count when it exceeds "
             "the inline floor (105 paginated > 100 inline)"
         )
-        assert any(
-            "op=merge_ready_threads_paginating" in r.message
-            for r in caplog.records
-        ), "Fallback path must log the paginating signal"
+        assert any("op=merge_ready_threads_paginating" in r.message for r in caplog.records), (
+            "Fallback path must log the paginating signal"
+        )
 
     def test_threads_pagination_fallback_floor_on_transport_failure(self):
         """Pagination floor invariant: when get_unresolved_review_threads
@@ -474,16 +479,19 @@ class TestCheckMergeReadiness:
         threads = pr_data["repository"]["pullRequest"]["reviewThreads"]
         threads["totalCount"] = 150
         # 42 unresolved, 58 resolved on inline page.
-        threads["nodes"] = (
-            [{"id": f"u{i}", "isResolved": False} for i in range(42)]
-            + [{"id": f"r{i}", "isResolved": True} for i in range(58)]
-        )
+        threads["nodes"] = [{"id": f"u{i}", "isResolved": False} for i in range(42)] + [
+            {"id": f"r{i}", "isResolved": True} for i in range(58)
+        ]
 
-        with patch(
-            "test_pr_merge_ready.gh_graphql", return_value=pr_data,
-        ), patch(
-            "test_pr_merge_ready.get_unresolved_review_threads",
-            return_value=[],  # simulate transport-failure []
+        with (
+            patch(
+                "test_pr_merge_ready.gh_graphql",
+                return_value=pr_data,
+            ),
+            patch(
+                "test_pr_merge_ready.get_unresolved_review_threads",
+                return_value=[],  # simulate transport-failure []
+            ),
         ):
             result = check_merge_readiness("o", "r", 42, ignore_ci=True)
 
@@ -634,14 +642,18 @@ class TestMain:
             assert exc.value.code == 4
 
     def test_ready_returns_0(self, capsys):
-        with patch(
-            "test_pr_merge_ready.assert_gh_authenticated",
-        ), patch(
-            "test_pr_merge_ready.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "test_pr_merge_ready.gh_graphql",
-            return_value=_OPEN_PR,
+        with (
+            patch(
+                "test_pr_merge_ready.assert_gh_authenticated",
+            ),
+            patch(
+                "test_pr_merge_ready.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "test_pr_merge_ready.gh_graphql",
+                return_value=_OPEN_PR,
+            ),
         ):
             rc = main(["--pull-request", "42"])
         assert rc == 0
@@ -649,14 +661,18 @@ class TestMain:
     def test_not_ready_returns_1(self, capsys):
         pr_data = json.loads(json.dumps(_OPEN_PR))
         pr_data["repository"]["pullRequest"]["isDraft"] = True
-        with patch(
-            "test_pr_merge_ready.assert_gh_authenticated",
-        ), patch(
-            "test_pr_merge_ready.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch(
-            "test_pr_merge_ready.gh_graphql",
-            return_value=pr_data,
+        with (
+            patch(
+                "test_pr_merge_ready.assert_gh_authenticated",
+            ),
+            patch(
+                "test_pr_merge_ready.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "test_pr_merge_ready.gh_graphql",
+                return_value=pr_data,
+            ),
         ):
             rc = main(["--pull-request", "42"])
         assert rc == 1
@@ -740,9 +756,7 @@ class TestFetchedPagesCompleteFlag:
         # totalCount > len(nodes): GitHub has more threads than we fetched.
         payload = _pr_payload_with_totals(
             review_threads_total=150,
-            review_threads_nodes=[
-                {"id": f"t{i}", "isResolved": True} for i in range(100)
-            ],
+            review_threads_nodes=[{"id": f"t{i}", "isResolved": True} for i in range(100)],
             contexts_total=1,
             contexts_nodes=[
                 {
@@ -759,7 +773,9 @@ class TestFetchedPagesCompleteFlag:
         with (
             patch.object(_mod, "gh_graphql", return_value=payload),
             patch.object(
-                _mod, "get_unresolved_review_threads", return_value=[],
+                _mod,
+                "get_unresolved_review_threads",
+                return_value=[],
             ) as mock_paginate,
         ):
             result = check_merge_readiness("o", "r", 1)
@@ -884,8 +900,11 @@ class TestFetchedPagesCompleteFlag:
         merge_ready_payload = {
             "repository": {
                 "pullRequest": {
-                    "number": 1, "state": "OPEN", "isDraft": False,
-                    "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN",
+                    "number": 1,
+                    "state": "OPEN",
+                    "isDraft": False,
+                    "mergeable": "MERGEABLE",
+                    "mergeStateStatus": "CLEAN",
                     "reviewThreads": {"totalCount": 0, "nodes": []},
                     "commits": {
                         "nodes": [
@@ -958,9 +977,9 @@ class TestStaleDirtySuspected:
     @pytest.mark.parametrize(
         ("mergeable", "merge_state_status"),
         [
-            ("CONFLICTING", "DIRTY"),       # both signals present
-            ("CONFLICTING", "CLEAN"),       # mergeable signal alone
-            ("MERGEABLE", "DIRTY"),         # state signal alone
+            ("CONFLICTING", "DIRTY"),  # both signals present
+            ("CONFLICTING", "CLEAN"),  # mergeable signal alone
+            ("MERGEABLE", "DIRTY"),  # state signal alone
         ],
     )
     def test_flags_dirty_or_conflicting(self, mergeable, merge_state_status):
@@ -969,11 +988,11 @@ class TestStaleDirtySuspected:
     @pytest.mark.parametrize(
         ("mergeable", "merge_state_status"),
         [
-            ("MERGEABLE", "CLEAN"),         # the clean baseline
-            ("MERGEABLE", "BLOCKED"),       # awaiting review, not a conflict
-            ("MERGEABLE", "BEHIND"),        # behind != dirty; BEHIND has its own gate
-            ("UNKNOWN", "UNKNOWN"),         # still computing, not yet a conflict
-            ("", ""),                       # missing fields default to not-suspected
+            ("MERGEABLE", "CLEAN"),  # the clean baseline
+            ("MERGEABLE", "BLOCKED"),  # awaiting review, not a conflict
+            ("MERGEABLE", "BEHIND"),  # behind != dirty; BEHIND has its own gate
+            ("UNKNOWN", "UNKNOWN"),  # still computing, not yet a conflict
+            ("", ""),  # missing fields default to not-suspected
         ],
     )
     def test_does_not_flag_non_conflict_states(self, mergeable, merge_state_status):
@@ -1027,8 +1046,10 @@ class TestCheckRunVerdictSameRunSiblings:
     def test_pr_4463_shape_two_runs_each_failure_plus_skipped(self):
         """The live shape that produced CIPassing=true against a red PR."""
         rows = [
-            _run_row("FAILURE", _R_A), _run_row("FAILURE", _R_B),
-            _run_row("SKIPPED", _R_A2), _run_row("SKIPPED", _R_B2),
+            _run_row("FAILURE", _R_A),
+            _run_row("FAILURE", _R_B),
+            _run_row("SKIPPED", _R_A2),
+            _run_row("SKIPPED", _R_B2),
         ]
         assert _mod._check_run_verdict(rows) == "FAIL"
 
@@ -1177,7 +1198,8 @@ class TestNonRequiredDispositions:
     def test_all_failures_disposed_returns_empty(self, tmp_path):
         disp_file = _write_dispositions(tmp_path, {"Run Tests": _entry()})
         result = _check_nonrequired_dispositions(
-            ["Run Tests"], disp_file,
+            ["Run Tests"],
+            disp_file,
         )
         assert result == []
 
@@ -1185,58 +1207,69 @@ class TestNonRequiredDispositions:
 
     def test_missing_file_returns_all_failures(self):
         result = _check_nonrequired_dispositions(
-            ["Run Tests", "Lint"], "/nonexistent/path.json",
+            ["Run Tests", "Lint"],
+            "/nonexistent/path.json",
         )
         assert result == ["Run Tests", "Lint"]
 
     def test_none_file_returns_all_failures(self):
         result = _check_nonrequired_dispositions(
-            ["Run Tests"], None,
+            ["Run Tests"],
+            None,
         )
         assert result == ["Run Tests"]
 
     def test_partial_disposition_returns_undisposed(self, tmp_path):
         disp_file = _write_dispositions(tmp_path, {"Run Tests": _entry()})
         result = _check_nonrequired_dispositions(
-            ["Run Tests", "Lint"], disp_file,
+            ["Run Tests", "Lint"],
+            disp_file,
         )
         assert result == ["Lint"]
 
     def test_invalid_disposition_value_treated_as_undisposed(self, tmp_path):
         disp_file = _write_dispositions(
-            tmp_path, {"Run Tests": _entry(disposition="yolo")},
+            tmp_path,
+            {"Run Tests": _entry(disposition="yolo")},
         )
         result = _check_nonrequired_dispositions(
-            ["Run Tests"], disp_file,
+            ["Run Tests"],
+            disp_file,
         )
         assert result == ["Run Tests"]
 
     def test_non_string_disposition_treated_as_undisposed(self, tmp_path):
         """An unhashable value must reject, not raise on the set membership."""
         disp_file = _write_dispositions(
-            tmp_path, {"Run Tests": _entry(disposition=["known-flaky"])},
+            tmp_path,
+            {"Run Tests": _entry(disposition=["known-flaky"])},
         )
         result = _check_nonrequired_dispositions(
-            ["Run Tests"], disp_file,
+            ["Run Tests"],
+            disp_file,
         )
         assert result == ["Run Tests"]
 
     def test_empty_reason_treated_as_undisposed(self, tmp_path):
         disp_file = _write_dispositions(
-            tmp_path, {"Run Tests": _entry(reason="   ")},
+            tmp_path,
+            {"Run Tests": _entry(reason="   ")},
         )
         result = _check_nonrequired_dispositions(
-            ["Run Tests"], disp_file,
+            ["Run Tests"],
+            disp_file,
         )
         assert result == ["Run Tests"]
 
     def test_non_string_reason_treated_as_undisposed(self, tmp_path):
         """A numeric reason must reject, not raise on `.strip()`."""
         disp_file = _write_dispositions(
-            tmp_path, {"Run Tests": _entry(reason=1234)},
+            tmp_path,
+            {"Run Tests": _entry(reason=1234)},
         )
         result = _check_nonrequired_dispositions(
-            ["Run Tests"], disp_file,
+            ["Run Tests"],
+            disp_file,
         )
         assert result == ["Run Tests"]
 
@@ -1251,7 +1284,8 @@ class TestNonRequiredDispositions:
         disp_file.write_text("not json{{{", encoding="utf-8")
         _git(repo, "add", "--", "dispositions.json")
         result = _check_nonrequired_dispositions(
-            ["Run Tests"], str(disp_file),
+            ["Run Tests"],
+            str(disp_file),
         )
         assert result == ["Run Tests"]
 
@@ -1265,7 +1299,9 @@ class TestNonRequiredDispositions:
         reader has to refuse them.
         """
         disp_file = _write_dispositions(
-            tmp_path, {"Run Tests": _entry()}, track=False,
+            tmp_path,
+            {"Run Tests": _entry()},
+            track=False,
         )
         assert _check_nonrequired_dispositions(["Run Tests"], disp_file) == [
             "Run Tests",
@@ -1286,15 +1322,18 @@ class TestNonRequiredDispositions:
         loose = tmp_path / "loose.json"
         loose.write_text(json.dumps({"Run Tests": _entry()}), encoding="utf-8")
         assert _check_nonrequired_dispositions(
-            ["Run Tests"], str(loose),
+            ["Run Tests"],
+            str(loose),
         ) == ["Run Tests"]
 
     def test_non_dict_entry_treated_as_undisposed(self, tmp_path):
         disp_file = _write_dispositions(
-            tmp_path, {"Run Tests": "just a string"},
+            tmp_path,
+            {"Run Tests": "just a string"},
         )
         result = _check_nonrequired_dispositions(
-            ["Run Tests"], disp_file,
+            ["Run Tests"],
+            disp_file,
         )
         assert result == ["Run Tests"]
 
@@ -1305,9 +1344,13 @@ class TestNonRequiredDispositions:
                 {"Check": _entry(disposition=disp_val, reason="valid")},
                 name=f"d_{disp_val}.json",
             )
-            assert _check_nonrequired_dispositions(
-                ["Check"], disp_file,
-            ) == [], f"Failed for disposition={disp_val}"
+            assert (
+                _check_nonrequired_dispositions(
+                    ["Check"],
+                    disp_file,
+                )
+                == []
+            ), f"Failed for disposition={disp_val}"
 
 
 class TestDispositionExpiry:
@@ -1326,7 +1369,8 @@ class TestDispositionExpiry:
     def test_future_datetime_expiry_is_disposed(self, tmp_path):
         """A full ISO 8601 timestamp with an offset parses, not just a date."""
         disp_file = _write_dispositions(
-            tmp_path, {"Scan": _entry(expires="2999-01-01T12:30:00+00:00")},
+            tmp_path,
+            {"Scan": _entry(expires="2999-01-01T12:30:00+00:00")},
         )
         assert _check_nonrequired_dispositions(["Scan"], disp_file) == []
 
@@ -1343,14 +1387,16 @@ class TestDispositionExpiry:
         disagreement between hosts can take.
         """
         disp_file = _write_dispositions(
-            tmp_path, {"Scan": _entry(expires="2999-01-01T12:30:00Z")},
+            tmp_path,
+            {"Scan": _entry(expires="2999-01-01T12:30:00Z")},
         )
         assert _check_nonrequired_dispositions(["Scan"], disp_file) == []
 
     def test_past_zulu_expiry_is_undisposed(self, tmp_path):
         """Negative half: normalizing `Z` must not also stop expiry working."""
         disp_file = _write_dispositions(
-            tmp_path, {"Scan": _entry(expires="2000-01-01T00:00:00Z")},
+            tmp_path,
+            {"Scan": _entry(expires="2000-01-01T00:00:00Z")},
         )
         assert _check_nonrequired_dispositions(["Scan"], disp_file) == ["Scan"]
 
@@ -1370,38 +1416,45 @@ class TestDispositionExpiry:
     # date agree across versions and are excluded to keep one grammar
     # rather than because they disagree. `2999-001` is refused by both.
 
-    @pytest.mark.parametrize("value", [
-        "29990101",                  # basic-format calendar date, 3.11+ only
-        "2999-W01-1",                # week date, 3.11+ only
-        "2999-001",                  # ordinal date, rejected on both
-        "2999-01-01T12",             # hour-only time, parses on both
-        "2999-01-01T12:30",          # no seconds, parses on both
-        "2999-01-01T12:30:00+0000",  # basic-format offset, 3.11+ only
-        # Fractional seconds are 3 or 6 digits on both hosts and any width on
-        # 3.11+. Measured with 3.10.20 against 3.14.3 using
-        # `2999-01-01T12:30:00.<n digits>+00:00`:
-        #   digits 1 2 3 4 5 6 -> 3.10 err err ok err err ok, 3.14 all ok
-        "2999-01-01T12:30:00.1+00:00",       # 1 digit, 3.11+ only
-        "2999-01-01T12:30:00.12+00:00",      # 2 digits, 3.11+ only
-        "2999-01-01T12:30:00.1234+00:00",    # 4 digits, 3.11+ only
-        "2999-01-01T12:30:00.12345+00:00",   # 5 digits, 3.11+ only
-    ])
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "29990101",  # basic-format calendar date, 3.11+ only
+            "2999-W01-1",  # week date, 3.11+ only
+            "2999-001",  # ordinal date, rejected on both
+            "2999-01-01T12",  # hour-only time, parses on both
+            "2999-01-01T12:30",  # no seconds, parses on both
+            "2999-01-01T12:30:00+0000",  # basic-format offset, 3.11+ only
+            # Fractional seconds are 3 or 6 digits on both hosts and any width on
+            # 3.11+. Measured with 3.10.20 against 3.14.3 using
+            # `2999-01-01T12:30:00.<n digits>+00:00`:
+            #   digits 1 2 3 4 5 6 -> 3.10 err err ok err err ok, 3.14 all ok
+            "2999-01-01T12:30:00.1+00:00",  # 1 digit, 3.11+ only
+            "2999-01-01T12:30:00.12+00:00",  # 2 digits, 3.11+ only
+            "2999-01-01T12:30:00.1234+00:00",  # 4 digits, 3.11+ only
+            "2999-01-01T12:30:00.12345+00:00",  # 5 digits, 3.11+ only
+        ],
+    )
     def test_off_grammar_forms_are_undisposed(self, tmp_path, value):
         disp_file = _write_dispositions(
-            tmp_path, {"Scan": _entry(expires=value)},
+            tmp_path,
+            {"Scan": _entry(expires=value)},
         )
         assert _check_nonrequired_dispositions(["Scan"], disp_file) == ["Scan"]
 
-    @pytest.mark.parametrize("value", [
-        "2999-01-01",
-        "2999-01-01T12:30:00",
-        "2999-01-01T12:30:00Z",
-        "2999-01-01T12:30:00+00:00",
-        "2999-01-01T12:30:00-08:00",
-        "2999-01-01T12:30:00.123+00:00",
-        "2999-01-01T12:30:00.123456+00:00",
-        "2999-01-01 12:30:00+00:00",
-    ])
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "2999-01-01",
+            "2999-01-01T12:30:00",
+            "2999-01-01T12:30:00Z",
+            "2999-01-01T12:30:00+00:00",
+            "2999-01-01T12:30:00-08:00",
+            "2999-01-01T12:30:00.123+00:00",
+            "2999-01-01T12:30:00.123456+00:00",
+            "2999-01-01 12:30:00+00:00",
+        ],
+    )
     def test_forms_every_supported_host_parses_are_disposed(self, tmp_path, value):
         """The positive control on the grammar.
 
@@ -1409,14 +1462,16 @@ class TestDispositionExpiry:
         rejection case above and quietly disable the whole feature.
         """
         disp_file = _write_dispositions(
-            tmp_path, {"Scan": _entry(expires=value)},
+            tmp_path,
+            {"Scan": _entry(expires=value)},
         )
         assert _check_nonrequired_dispositions(["Scan"], disp_file) == []
 
     def test_the_grammar_is_anchored_at_both_ends(self, tmp_path):
         """A value with trailing garbage must not match on its prefix."""
         disp_file = _write_dispositions(
-            tmp_path, {"Scan": _entry(expires="2999-01-01ignored")},
+            tmp_path,
+            {"Scan": _entry(expires="2999-01-01ignored")},
         )
         assert _check_nonrequired_dispositions(["Scan"], disp_file) == ["Scan"]
 
@@ -1427,31 +1482,36 @@ class TestDispositionExpiry:
         that parses, which would accept a value nobody wrote on purpose.
         """
         disp_file = _write_dispositions(
-            tmp_path, {"Scan": _entry(expires="2999Z01Z01")},
+            tmp_path,
+            {"Scan": _entry(expires="2999Z01Z01")},
         )
         assert _check_nonrequired_dispositions(["Scan"], disp_file) == ["Scan"]
 
     def test_past_expiry_is_undisposed(self, tmp_path):
         disp_file = _write_dispositions(
-            tmp_path, {"Scan": _entry(expires=_PAST_EXPIRY)},
+            tmp_path,
+            {"Scan": _entry(expires=_PAST_EXPIRY)},
         )
         assert _check_nonrequired_dispositions(["Scan"], disp_file) == ["Scan"]
 
     def test_missing_expiry_is_undisposed(self, tmp_path):
         disp_file = _write_dispositions(
-            tmp_path, {"Scan": _entry(expires=None)},
+            tmp_path,
+            {"Scan": _entry(expires=None)},
         )
         assert _check_nonrequired_dispositions(["Scan"], disp_file) == ["Scan"]
 
     def test_unparseable_expiry_is_undisposed(self, tmp_path):
         disp_file = _write_dispositions(
-            tmp_path, {"Scan": _entry(expires="whenever")},
+            tmp_path,
+            {"Scan": _entry(expires="whenever")},
         )
         assert _check_nonrequired_dispositions(["Scan"], disp_file) == ["Scan"]
 
     def test_non_string_expiry_is_undisposed(self, tmp_path):
         disp_file = _write_dispositions(
-            tmp_path, {"Scan": _entry(expires=20991231)},
+            tmp_path,
+            {"Scan": _entry(expires=20991231)},
         )
         assert _check_nonrequired_dispositions(["Scan"], disp_file) == ["Scan"]
 
@@ -1466,65 +1526,92 @@ class TestDispositionPullRequestAllowlist:
 
     def test_listed_pr_is_disposed(self, tmp_path):
         disp_file = _write_dispositions(
-            tmp_path, {"Scan": _entry(pull_requests=[5433, 5481])},
+            tmp_path,
+            {"Scan": _entry(pull_requests=[5433, 5481])},
         )
-        assert _check_nonrequired_dispositions(
-            ["Scan"], disp_file, 5481,
-        ) == []
+        assert (
+            _check_nonrequired_dispositions(
+                ["Scan"],
+                disp_file,
+                5481,
+            )
+            == []
+        )
 
     def test_unlisted_pr_is_undisposed(self, tmp_path):
         disp_file = _write_dispositions(
-            tmp_path, {"Scan": _entry(pull_requests=[5433, 5460])},
+            tmp_path,
+            {"Scan": _entry(pull_requests=[5433, 5460])},
         )
         assert _check_nonrequired_dispositions(
-            ["Scan"], disp_file, 5481,
+            ["Scan"],
+            disp_file,
+            5481,
         ) == ["Scan"]
 
     def test_absent_allowlist_applies_to_any_pr(self, tmp_path):
         disp_file = _write_dispositions(tmp_path, {"Scan": _entry()})
-        assert _check_nonrequired_dispositions(
-            ["Scan"], disp_file, 5481,
-        ) == []
+        assert (
+            _check_nonrequired_dispositions(
+                ["Scan"],
+                disp_file,
+                5481,
+            )
+            == []
+        )
 
     def test_allowlist_without_pr_number_is_undisposed(self, tmp_path):
         """Membership cannot be shown, so the entry fails closed."""
         disp_file = _write_dispositions(
-            tmp_path, {"Scan": _entry(pull_requests=[5481])},
+            tmp_path,
+            {"Scan": _entry(pull_requests=[5481])},
         )
         assert _check_nonrequired_dispositions(["Scan"], disp_file) == ["Scan"]
 
     def test_non_list_allowlist_is_undisposed(self, tmp_path):
         disp_file = _write_dispositions(
-            tmp_path, {"Scan": _entry(pull_requests=5481)},
+            tmp_path,
+            {"Scan": _entry(pull_requests=5481)},
         )
         assert _check_nonrequired_dispositions(
-            ["Scan"], disp_file, 5481,
+            ["Scan"],
+            disp_file,
+            5481,
         ) == ["Scan"]
 
     def test_non_integer_member_is_undisposed(self, tmp_path):
         """A string member rejects the whole list, matching int or not."""
         disp_file = _write_dispositions(
-            tmp_path, {"Scan": _entry(pull_requests=[5481, "5460"])},
+            tmp_path,
+            {"Scan": _entry(pull_requests=[5481, "5460"])},
         )
         assert _check_nonrequired_dispositions(
-            ["Scan"], disp_file, 5481,
+            ["Scan"],
+            disp_file,
+            5481,
         ) == ["Scan"]
 
     def test_bool_member_is_undisposed(self, tmp_path):
         """`isinstance(True, int)` is True in Python, so bools need the guard."""
         disp_file = _write_dispositions(
-            tmp_path, {"Scan": _entry(pull_requests=[True])},
+            tmp_path,
+            {"Scan": _entry(pull_requests=[True])},
         )
         assert _check_nonrequired_dispositions(
-            ["Scan"], disp_file, 1,
+            ["Scan"],
+            disp_file,
+            1,
         ) == ["Scan"]
 
     def test_empty_allowlist_is_undisposed(self, tmp_path):
         disp_file = _write_dispositions(
-            tmp_path, {"Scan": _entry(pull_requests=[])},
+            tmp_path,
+            {"Scan": _entry(pull_requests=[])},
         )
         assert _check_nonrequired_dispositions(
-            ["Scan"], disp_file, 5481,
+            ["Scan"],
+            disp_file,
+            5481,
         ) == ["Scan"]
 
     # -- The two bounds compose as AND --
@@ -1535,15 +1622,20 @@ class TestDispositionPullRequestAllowlist:
             {"Scan": _entry(expires=_PAST_EXPIRY, pull_requests=[5481])},
         )
         assert _check_nonrequired_dispositions(
-            ["Scan"], disp_file, 5481,
+            ["Scan"],
+            disp_file,
+            5481,
         ) == ["Scan"]
 
     def test_unexpired_entry_scoped_to_other_prs_is_undisposed(self, tmp_path):
         disp_file = _write_dispositions(
-            tmp_path, {"Scan": _entry(pull_requests=[5433])},
+            tmp_path,
+            {"Scan": _entry(pull_requests=[5433])},
         )
         assert _check_nonrequired_dispositions(
-            ["Scan"], disp_file, 5481,
+            ["Scan"],
+            disp_file,
+            5481,
         ) == ["Scan"]
 
 
@@ -1791,8 +1883,7 @@ class TestShippedDispositionsFile:
     """
 
     _PATH = (
-        Path(__file__).resolve().parents[1]
-        / ".project-toolkit" / "pr-checks" / "dispositions.json"
+        Path(__file__).resolve().parents[1] / ".project-toolkit" / "pr-checks" / "dispositions.json"
     )
 
     def test_every_entry_carries_both_bounds(self):
@@ -1856,8 +1947,7 @@ class TestShippedDispositionsFile:
         entries = json.loads(self._PATH.read_text(encoding="utf-8"))
         for name, entry in entries.items():
             assert _EXPIRES_PATTERN.match(entry["expires"]), (
-                f"{name} has an expires outside the accepted grammar: "
-                f"{entry['expires']}"
+                f"{name} has an expires outside the accepted grammar: {entry['expires']}"
             )
 
     def test_shipped_entries_reject_an_unlisted_pr(self):
@@ -1865,7 +1955,9 @@ class TestShippedDispositionsFile:
         for name, entry in entries.items():
             unlisted = max(entry["pull_requests"]) + 1_000_000
             assert _check_nonrequired_dispositions(
-                [name], str(self._PATH), unlisted,
+                [name],
+                str(self._PATH),
+                unlisted,
             ) == [name], f"{name} accepts unlisted PR {unlisted}"
 
 
@@ -1876,9 +1968,9 @@ class TestMergeReadinessWithDispositions:
         """PR data: zero required checks, one failed non-required check."""
         pr_data = json.loads(json.dumps(_OPEN_PR))
         pr_data["repository"]["pullRequest"]["mergeStateStatus"] = "UNSTABLE"
-        pr_data["repository"]["pullRequest"]["commits"]["nodes"][0][
-            "commit"
-        ]["statusCheckRollup"]["contexts"]["nodes"] = [
+        pr_data["repository"]["pullRequest"]["commits"]["nodes"][0]["commit"]["statusCheckRollup"][
+            "contexts"
+        ]["nodes"] = [
             {
                 "__typename": "CheckRun",
                 "name": "Run Python Tests",
@@ -1887,9 +1979,9 @@ class TestMergeReadinessWithDispositions:
                 "isRequired": False,
             },
         ]
-        pr_data["repository"]["pullRequest"]["commits"]["nodes"][0][
-            "commit"
-        ]["statusCheckRollup"]["state"] = "FAILURE"
+        pr_data["repository"]["pullRequest"]["commits"]["nodes"][0]["commit"]["statusCheckRollup"][
+            "state"
+        ] = "FAILURE"
         return pr_data
 
     def test_undisposed_nonrequired_failure_blocks_merge(self):
@@ -1904,12 +1996,17 @@ class TestMergeReadinessWithDispositions:
     def test_disposed_nonrequired_failure_allows_merge(self, tmp_path):
         """With valid disposition file, UNSTABLE PR can merge."""
         pr_data = self._pr_with_failed_nonrequired()
-        disp_file = _write_dispositions(tmp_path, {
-            "Run Python Tests": _entry(reason="Tracked in issue #9999"),
-        })
+        disp_file = _write_dispositions(
+            tmp_path,
+            {
+                "Run Python Tests": _entry(reason="Tracked in issue #9999"),
+            },
+        )
         with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
             result = check_merge_readiness(
-                "o", "r", 42,
+                "o",
+                "r",
+                42,
                 dispositions_file=disp_file,
             )
         assert result["CanMerge"] is True
@@ -1922,12 +2019,18 @@ class TestMergeReadinessWithDispositions:
         applies and the failure clears.
         """
         pr_data = self._pr_with_failed_nonrequired()
-        disp_file = _write_dispositions(tmp_path, {
-            "Run Python Tests": _entry(pull_requests=[42]),
-        })
+        disp_file = _write_dispositions(
+            tmp_path,
+            {
+                "Run Python Tests": _entry(pull_requests=[42]),
+            },
+        )
         with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
             result = check_merge_readiness(
-                "o", "r", 42, dispositions_file=disp_file,
+                "o",
+                "r",
+                42,
+                dispositions_file=disp_file,
             )
         assert result["UndisposedNonRequiredFailures"] == []
         assert result["CanMerge"] is True
@@ -1939,12 +2042,18 @@ class TestMergeReadinessWithDispositions:
         pr_number were dropped on the way to the guard this would still pass.
         """
         pr_data = self._pr_with_failed_nonrequired()
-        disp_file = _write_dispositions(tmp_path, {
-            "Run Python Tests": _entry(pull_requests=[99]),
-        })
+        disp_file = _write_dispositions(
+            tmp_path,
+            {
+                "Run Python Tests": _entry(pull_requests=[99]),
+            },
+        )
         with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
             result = check_merge_readiness(
-                "o", "r", 42, dispositions_file=disp_file,
+                "o",
+                "r",
+                42,
+                dispositions_file=disp_file,
             )
         assert result["UndisposedNonRequiredFailures"] == ["Run Python Tests"]
         assert result["CanMerge"] is False
@@ -1952,12 +2061,18 @@ class TestMergeReadinessWithDispositions:
     def test_expired_entry_still_blocks_merge(self, tmp_path):
         """An expired entry blocks exactly as an absent one does."""
         pr_data = self._pr_with_failed_nonrequired()
-        disp_file = _write_dispositions(tmp_path, {
-            "Run Python Tests": _entry(expires=_PAST_EXPIRY),
-        })
+        disp_file = _write_dispositions(
+            tmp_path,
+            {
+                "Run Python Tests": _entry(expires=_PAST_EXPIRY),
+            },
+        )
         with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
             result = check_merge_readiness(
-                "o", "r", 42, dispositions_file=disp_file,
+                "o",
+                "r",
+                42,
+                dispositions_file=disp_file,
             )
         assert result["UndisposedNonRequiredFailures"] == ["Run Python Tests"]
         assert result["CanMerge"] is False
@@ -1967,9 +2082,9 @@ class TestMergeReadinessWithDispositions:
         pr_data = json.loads(json.dumps(_OPEN_PR))
         pr_data["repository"]["pullRequest"]["mergeStateStatus"] = "UNSTABLE"
         # No required checks at all, one non-required failure
-        pr_data["repository"]["pullRequest"]["commits"]["nodes"][0][
-            "commit"
-        ]["statusCheckRollup"]["contexts"]["nodes"] = [
+        pr_data["repository"]["pullRequest"]["commits"]["nodes"][0]["commit"]["statusCheckRollup"][
+            "contexts"
+        ]["nodes"] = [
             {
                 "__typename": "CheckRun",
                 "name": "Purpose Check",
@@ -1978,9 +2093,9 @@ class TestMergeReadinessWithDispositions:
                 "isRequired": False,
             },
         ]
-        pr_data["repository"]["pullRequest"]["commits"]["nodes"][0][
-            "commit"
-        ]["statusCheckRollup"]["state"] = "FAILURE"
+        pr_data["repository"]["pullRequest"]["commits"]["nodes"][0]["commit"]["statusCheckRollup"][
+            "state"
+        ] = "FAILURE"
         with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
             result = check_merge_readiness("o", "r", 42)
         # Must block: zero required checks, non-required failed, no disposition
@@ -2088,9 +2203,7 @@ class TestClassifyTier:
         assert classify_tier(result) == "T3"
 
     def test_blocked_with_failure_and_threads_is_t4(self):
-        result = self._blocked(
-            FailedRequiredChecks=[{"name": "lint"}], UnresolvedThreads=2
-        )
+        result = self._blocked(FailedRequiredChecks=[{"name": "lint"}], UnresolvedThreads=2)
         assert classify_tier(result) == "T4"
 
     def test_blocked_bot_with_work_is_t5(self):
@@ -2298,9 +2411,18 @@ class TestClassifyTier:
     def test_tier_order_tuple_is_complete(self):
         """Verify _TIER_ORDER contains all possible classifier outputs."""
         from test_pr_merge_ready import _TIER_ORDER
+
         expected = {
-            "T1", "T2", "T3", "T4", "T5",
-            "BEHIND", "BLOCKED", "DIRTY", "SKIP", "UNSUPPORTED",
+            "T1",
+            "T2",
+            "T3",
+            "T4",
+            "T5",
+            "BEHIND",
+            "BLOCKED",
+            "DIRTY",
+            "SKIP",
+            "UNSUPPORTED",
         }
         assert set(_TIER_ORDER) == expected
 
@@ -2314,17 +2436,18 @@ def _add_unresolved_thread(pr_data):
 
 def _add_failed_required_check(pr_data, name="required-thing"):
     """Give `pr_data` exactly one failing required check, in place."""
-    rollup = (
-        pr_data["repository"]["pullRequest"]["commits"]["nodes"][0]["commit"]
-        ["statusCheckRollup"]
+    rollup = pr_data["repository"]["pullRequest"]["commits"]["nodes"][0]["commit"][
+        "statusCheckRollup"
+    ]
+    rollup["contexts"]["nodes"].append(
+        {
+            "__typename": "CheckRun",
+            "name": name,
+            "status": "COMPLETED",
+            "conclusion": "FAILURE",
+            "isRequired": True,
+        }
     )
-    rollup["contexts"]["nodes"].append({
-        "__typename": "CheckRun",
-        "name": name,
-        "status": "COMPLETED",
-        "conclusion": "FAILURE",
-        "isRequired": True,
-    })
 
 
 def _clean_pr_in_state(merge_state):
@@ -2527,21 +2650,30 @@ class TestUnsupportedMergeStatesNeverReachT1:
         pull_request = pr_data["repository"]["pullRequest"]
         pull_request["mergeStateStatus"] = "UNSTABLE"
         rollup = pull_request["commits"]["nodes"][0]["commit"]["statusCheckRollup"]
-        rollup["contexts"]["nodes"].append({
-            "__typename": "CheckRun",
-            "name": "flaky-extra",
-            "status": "COMPLETED",
-            "conclusion": "FAILURE",
-            "isRequired": False,
-        })
-        dispositions_path = _write_dispositions(tmp_path, {
-            "flaky-extra": _entry(
-                reason="tracked in issue #4899", pull_requests=[42],
-            ),
-        })
+        rollup["contexts"]["nodes"].append(
+            {
+                "__typename": "CheckRun",
+                "name": "flaky-extra",
+                "status": "COMPLETED",
+                "conclusion": "FAILURE",
+                "isRequired": False,
+            }
+        )
+        dispositions_path = _write_dispositions(
+            tmp_path,
+            {
+                "flaky-extra": _entry(
+                    reason="tracked in issue #4899",
+                    pull_requests=[42],
+                ),
+            },
+        )
         with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
             result = check_merge_readiness(
-                "o", "r", 42, dispositions_file=dispositions_path,
+                "o",
+                "r",
+                42,
+                dispositions_file=dispositions_path,
             )
         assert result["FailedNonRequiredChecks"] != []
         assert result["UndisposedNonRequiredFailures"] == []
@@ -2554,13 +2686,15 @@ class TestUnsupportedMergeStatesNeverReachT1:
         pull_request = pr_data["repository"]["pullRequest"]
         pull_request["mergeStateStatus"] = "UNSTABLE"
         rollup = pull_request["commits"]["nodes"][0]["commit"]["statusCheckRollup"]
-        rollup["contexts"]["nodes"].append({
-            "__typename": "CheckRun",
-            "name": "flaky-extra",
-            "status": "COMPLETED",
-            "conclusion": "FAILURE",
-            "isRequired": False,
-        })
+        rollup["contexts"]["nodes"].append(
+            {
+                "__typename": "CheckRun",
+                "name": "flaky-extra",
+                "status": "COMPLETED",
+                "conclusion": "FAILURE",
+                "isRequired": False,
+            }
+        )
         with patch("test_pr_merge_ready.gh_graphql", return_value=pr_data):
             result = check_merge_readiness("o", "r", 42)
         assert result["UndisposedNonRequiredFailures"] == ["flaky-extra"]
@@ -2587,12 +2721,9 @@ class TestUnsupportedMergeStatesNeverReachT1:
         Read from the command file rather than restated, so widening the set in
         the script without widening the documented merge path fails here.
         """
-        assert _mod._SUPPORTED_MERGE_STATES == frozenset(
-            {"CLEAN", "HAS_HOOKS", "UNSTABLE"}
-        )
+        assert _mod._SUPPORTED_MERGE_STATES == frozenset({"CLEAN", "HAS_HOOKS", "UNSTABLE"})
         command = (
-            Path(__file__).resolve().parents[1]
-            / ".claude" / "skills" / "pr-autofix" / "SKILL.md"
+            Path(__file__).resolve().parents[1] / ".claude" / "skills" / "pr-autofix" / "SKILL.md"
         ).read_text(encoding="utf-8")
         assert (
             "`mergeStateStatus` is `CLEAN` or `HAS_HOOKS` (or `UNSTABLE` with "
@@ -2673,7 +2804,8 @@ class TestTheAllowlistIsWhatBlocksTheUnsupportedStates:
     def test_without_the_allowlist_an_unsupported_state_reports_ready(self, merge_state):
         """Discriminates `test_unsupported_merge_state_blocks_can_merge`."""
         result = self._readiness_without_the_allowlist(
-            _clean_pr_in_state(merge_state), merge_state,
+            _clean_pr_in_state(merge_state),
+            merge_state,
         )
         assert result["Reasons"] == [], (
             "the pre-fix shape produced no blocking reason for an unlisted "
@@ -2688,7 +2820,8 @@ class TestTheAllowlistIsWhatBlocksTheUnsupportedStates:
         T1 is the auto-merge path, so this is issue #4899 itself, reproduced.
         """
         result = self._readiness_without_the_allowlist(
-            _clean_pr_in_state(merge_state), merge_state,
+            _clean_pr_in_state(merge_state),
+            merge_state,
         )
         assert result["Tier"] == "T1"
 
@@ -2737,7 +2870,8 @@ class TestTheAllowlistIsWhatBlocksTheUnsupportedStates:
         excluded, not because patching the module attribute fires.
         """
         result = self._readiness_without_the_allowlist(
-            _clean_pr_in_state(merge_state), merge_state,
+            _clean_pr_in_state(merge_state),
+            merge_state,
         )
         assert result["CanMerge"] is True, f"reasons: {result['Reasons']}"
         assert result["Tier"] == "T1"
@@ -2779,7 +2913,10 @@ class TestSupportedStatesClearTheCompletionGate:
 
     _CONFIG_PATH = (
         Path(__file__).resolve().parents[1]
-        / ".claude" / "skills" / "pr-review" / "pr-review-config.yaml"
+        / ".claude"
+        / "skills"
+        / "pr-review"
+        / "pr-review-config.yaml"
     )
     _CRITERION = "PR is ready to merge (CI green, no conflicts)"
 
@@ -2830,6 +2967,7 @@ class TestSupportedStatesClearTheCompletionGate:
         assert result["Tier"] == "UNSUPPORTED"
         assert _gate._eval_pass_when_python(result, self._shipped_predicate()) is False
 
+
 def _failing_bot_pr() -> dict:
     """`_OPEN_PR` with one failing required check, so a tier arm is reachable."""
     pr = json.loads(json.dumps(_OPEN_PR))
@@ -2861,10 +2999,14 @@ class TestIsBotFlagReachesTierT5:
     """
 
     def _tier(self, argv: list[str], capsys) -> str:
-        with patch("test_pr_merge_ready.assert_gh_authenticated"), patch(
-            "test_pr_merge_ready.resolve_repo_params",
-            return_value=RepoInfo(owner="o", repo="r"),
-        ), patch("test_pr_merge_ready.gh_graphql", return_value=_failing_bot_pr()):
+        with (
+            patch("test_pr_merge_ready.assert_gh_authenticated"),
+            patch(
+                "test_pr_merge_ready.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("test_pr_merge_ready.gh_graphql", return_value=_failing_bot_pr()),
+        ):
             rc = main(argv)
         assert rc == 1, "a PR with a failing required check is not merge-ready"
         return json.loads(capsys.readouterr().out)["Tier"]

@@ -173,9 +173,7 @@ class TestSkillVariantPrompt:
         # The output-shape suffix must be identical across variants so the
         # verdict scorer sees the same contract (methodology symmetry).
         _, agent_user = cli_mod._build_prompt("agent", "AGENT", "X")
-        _, skill_user = cli_mod._build_prompt(
-            "skill", "AGENT", "X", skill_prompt="SKILL"
-        )
+        _, skill_user = cli_mod._build_prompt("skill", "AGENT", "X", skill_prompt="SKILL")
         assert agent_user == skill_user
 
     def test_skill_variant_without_content_raises(self):
@@ -439,9 +437,7 @@ class TestContentControlledPromptParity:
         agent_prompt, _ = cli_mod._read_agent_prompt("security")
         skill_prompt, _ = cli_mod._read_skill_prompt("security", skill_rel)
 
-        assert cli_mod._sha256_text(agent_prompt) == cli_mod._sha256_text(
-            skill_prompt
-        )
+        assert cli_mod._sha256_text(agent_prompt) == cli_mod._sha256_text(skill_prompt)
 
     def test_stripped_agent_prompt_drops_frontmatter_description(self):
         agent_prompt, _ = cli_mod._read_agent_prompt("security")
@@ -668,9 +664,7 @@ class _FakePersistence:
 
 
 class TestGenerateReportFormFactorFailure:
-    def test_form_factor_failure_still_writes_v1_report(
-        self, tmp_path, monkeypatch, capsys
-    ):
+    def test_form_factor_failure_still_writes_v1_report(self, tmp_path, monkeypatch, capsys):
         monkeypatch.setattr(cli_mod, "REPO_ROOT", tmp_path)
         fixture_path = tmp_path / "F001.json"
         fixture_path.write_text("{}", encoding="utf-8")

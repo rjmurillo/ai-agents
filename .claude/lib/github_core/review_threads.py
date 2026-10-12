@@ -169,8 +169,12 @@ class FetchStatus(str, enum.Enum):
 
 
 def _log_structural_missing(
-    owner: str, repo: str, pull_request: int,
-    pages_seen: int, aggregated_count: int, reason: str,
+    owner: str,
+    repo: str,
+    pull_request: int,
+    pages_seen: int,
+    aggregated_count: int,
+    reason: str,
 ) -> None:
     """Emit the structured ``op=review_threads_failed`` line for a structural
     problem in the GraphQL response. Centralizes the greppable failure reasons,
@@ -180,9 +184,13 @@ def _log_structural_missing(
     malformed-but-present structure.
     """
     logger.warning(
-        "op=review_threads_failed pr=%d owner=%s repo=%s "
-        "page=%d aggregated=%d reason=%s",
-        pull_request, owner, repo, pages_seen, aggregated_count, reason,
+        "op=review_threads_failed pr=%d owner=%s repo=%s page=%d aggregated=%d reason=%s",
+        pull_request,
+        owner,
+        repo,
+        pages_seen,
+        aggregated_count,
+        reason,
     )
 
 
@@ -216,7 +224,12 @@ def _unwrap_review_threads(
             return review_threads
 
     _log_structural_missing(
-        owner, repo, pull_request, pages_seen, aggregated_count, reason,
+        owner,
+        repo,
+        pull_request,
+        pages_seen,
+        aggregated_count,
+        reason,
     )
     return None
 
@@ -250,7 +263,11 @@ def _fetch_review_threads_page(
         logger.warning(
             "op=review_threads_failed pr=%d owner=%s repo=%s "
             "page=%d aggregated=%d reason=graphql_error error=%s",
-            pull_request, owner, repo, pages_seen, aggregated_count,
+            pull_request,
+            owner,
+            repo,
+            pages_seen,
+            aggregated_count,
             safe_log_str(exc),
         )
         warnings.warn(
@@ -261,7 +278,12 @@ def _fetch_review_threads_page(
         return FetchStatus.TRANSPORT_ERROR, None
 
     review_threads = _unwrap_review_threads(
-        data, owner, repo, pull_request, pages_seen, aggregated_count,
+        data,
+        owner,
+        repo,
+        pull_request,
+        pages_seen,
+        aggregated_count,
     )
     if review_threads is None:
         return FetchStatus.STRUCTURAL_MISSING, None
@@ -269,8 +291,12 @@ def _fetch_review_threads_page(
 
 
 def _log_review_threads_page(
-    pull_request: int, pages_seen: int, cursor: str | None,
-    page_info: dict, page_nodes: list, aggregated_count: int,
+    pull_request: int,
+    pages_seen: int,
+    cursor: str | None,
+    page_info: dict,
+    page_nodes: list,
+    aggregated_count: int,
 ) -> None:
     """Per-page DEBUG log; full cursor so adjacent pages with shared 8-char
     prefixes can be distinguished.
@@ -278,10 +304,12 @@ def _log_review_threads_page(
     logger.debug(
         "op=review_threads_page pr=%d page=%d cursor_in=%s end_cursor=%s "
         "nodes=%d cumulative=%d has_next=%s",
-        pull_request, pages_seen,
+        pull_request,
+        pages_seen,
         cursor if cursor else "<start>",
         page_info.get("endCursor"),
-        len(page_nodes), aggregated_count,
+        len(page_nodes),
+        aggregated_count,
         bool(page_info.get("hasNextPage")),
     )
 
@@ -300,7 +328,11 @@ def _warn_review_threads_capped(pull_request: int, aggregated_count: int) -> Non
 
 
 def _warn_structural_truncation(
-    owner: str, repo: str, pull_request: int, pages_seen: int, aggregated_count: int,
+    owner: str,
+    repo: str,
+    pull_request: int,
+    pages_seen: int,
+    aggregated_count: int,
 ) -> None:
     """Surface a mid-pagination structural failure.
 
@@ -318,12 +350,21 @@ def _warn_structural_truncation(
         stacklevel=2,
     )
     _log_structural_missing(
-        owner, repo, pull_request, pages_seen, aggregated_count, "structural_failure",
+        owner,
+        repo,
+        pull_request,
+        pages_seen,
+        aggregated_count,
+        "structural_failure",
     )
 
 
 def _warn_cursor_missing(
-    owner: str, repo: str, pull_request: int, pages_seen: int, aggregated_count: int,
+    owner: str,
+    repo: str,
+    pull_request: int,
+    pages_seen: int,
+    aggregated_count: int,
 ) -> None:
     """Surface a hasNextPage=true with empty/null endCursor.
 
@@ -338,7 +379,12 @@ def _warn_cursor_missing(
         stacklevel=2,
     )
     _log_structural_missing(
-        owner, repo, pull_request, pages_seen, aggregated_count, "cursor_missing",
+        owner,
+        repo,
+        pull_request,
+        pages_seen,
+        aggregated_count,
+        "cursor_missing",
     )
 
 
@@ -363,14 +409,23 @@ def get_unresolved_review_threads(
     while pages_seen < _REVIEW_THREADS_MAX_PAGES:
         pages_seen += 1
         status, review_threads = _fetch_review_threads_page(
-            owner, repo, pull_request, cursor, pages_seen, len(aggregated),
+            owner,
+            repo,
+            pull_request,
+            cursor,
+            pages_seen,
+            len(aggregated),
         )
         if status == FetchStatus.TRANSPORT_ERROR:
             return []
         if status == FetchStatus.STRUCTURAL_MISSING:
             if pages_seen > 1:
                 _warn_structural_truncation(
-                    owner, repo, pull_request, pages_seen, len(aggregated),
+                    owner,
+                    repo,
+                    pull_request,
+                    pages_seen,
+                    len(aggregated),
                 )
             break
         assert review_threads is not None
@@ -379,15 +434,23 @@ def get_unresolved_review_threads(
 
         page_info = review_threads.get("pageInfo") or {}
         _log_review_threads_page(
-            pull_request, pages_seen, cursor, page_info,
-            page_nodes, len(aggregated),
+            pull_request,
+            pages_seen,
+            cursor,
+            page_info,
+            page_nodes,
+            len(aggregated),
         )
         if not page_info.get("hasNextPage"):
             break
         cursor = page_info.get("endCursor")
         if not cursor:
             _warn_cursor_missing(
-                owner, repo, pull_request, pages_seen, len(aggregated),
+                owner,
+                repo,
+                pull_request,
+                pages_seen,
+                len(aggregated),
             )
             break
     else:
@@ -397,8 +460,12 @@ def get_unresolved_review_threads(
     logger.info(
         "op=review_threads_complete pr=%d owner=%s repo=%s "
         "pages=%d total=%d unresolved=%d duration_ms=%d",
-        pull_request, owner, repo, pages_seen,
-        len(aggregated), len(unresolved),
+        pull_request,
+        owner,
+        repo,
+        pages_seen,
+        len(aggregated),
+        len(unresolved),
         int((time.monotonic() - op_start) * 1000),
     )
     return unresolved

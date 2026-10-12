@@ -81,7 +81,9 @@ The 65/25/10 split (framework/domain/hybrid) inventory is directionally accurate
    ```python
    SESSION_DIR = os.environ.get("AWESOME_AI_SESSIONS_DIR", ".project-toolkit/sessions")
    if not os.path.exists(SESSION_DIR):
-       raise ValueError(f"Session directory not found: {SESSION_DIR}. Set AWESOME_AI_SESSIONS_DIR or create .project-toolkit/sessions/")
+       raise ValueError(
+           f"Session directory not found: {SESSION_DIR}. Set AWESOME_AI_SESSIONS_DIR or create .project-toolkit/sessions/"
+       )
    ```
 2. Document consumer setup requirements: "Projects using session-protocol must create `.project-toolkit/sessions/` or set AWESOME_AI_SESSIONS_DIR"
 3. Add Phase 0 deliverable: "Path validation integration test with non-standard consumer structure"

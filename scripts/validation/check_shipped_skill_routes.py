@@ -200,9 +200,7 @@ SKILL_FILE = "SKILL.md"
 # Full working copies of this repository live under these directory names.
 # Descending into them multiplies the walk and reports drift in throwaway trees.
 # check_in_root_worktrees.py reports the in-root copies (issue #4702).
-PRUNED_DIRS = frozenset(
-    {"worktrees", "node_modules", ".git", ".venv", "venv", "__pycache__"}
-)
+PRUNED_DIRS = frozenset({"worktrees", "node_modules", ".git", ".venv", "venv", "__pycache__"})
 
 # Captures whatever follows ``Skill:`` up to whitespace, so a malformed name is
 # seen rather than silently truncated to its leading legal segment. The
@@ -489,10 +487,7 @@ def _cell_text(cell: TableCell) -> str:
         match = _ROUTE_RE.search(segment.content)
         return match is not None and bool(match.group(1))
 
-    survives = [
-        "" if documents_a_route(segment) else segment.content
-        for segment in cell.segments
-    ]
+    survives = ["" if documents_a_route(segment) else segment.content for segment in cell.segments]
 
     def blanked(index: int, segment: CellSegment) -> str:
         if not segment.code:
@@ -650,10 +645,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         return EXIT_DRIFT
 
-    print(
-        f"[PASS] {total_routes} Skill: route(s) resolve across "
-        f"{len(roots)} plugin root(s)"
-    )
+    print(f"[PASS] {total_routes} Skill: route(s) resolve across {len(roots)} plugin root(s)")
     return EXIT_OK
 
 

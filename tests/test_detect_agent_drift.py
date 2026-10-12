@@ -270,15 +270,11 @@ class TestKnownBaselineDrift:
 
     def test_baselined_above_floor_below_threshold_is_baselined(self) -> None:
         floor = KNOWN_BASELINE_DRIFT[("merge-resolver", "src-claude vs src-vscode")]
-        assert (
-            _classify_overall("merge-resolver", floor + 0.9, 80) == "OK (baselined)"
-        )
+        assert _classify_overall("merge-resolver", floor + 0.9, 80) == "OK (baselined)"
 
     def test_baselined_below_floor_still_drifts(self) -> None:
         floor = KNOWN_BASELINE_DRIFT[("merge-resolver", "src-claude vs src-vscode")]
-        assert (
-            _classify_overall("merge-resolver", floor - 0.1, 80) == "DRIFT DETECTED"
-        )
+        assert _classify_overall("merge-resolver", floor - 0.1, 80) == "DRIFT DETECTED"
 
     def test_baseline_does_not_apply_to_other_comparison(self) -> None:
         # The baseline key includes the comparison label, so a floor recorded for
@@ -303,9 +299,7 @@ class TestKnownBaselineDrift:
         # Issue #2715: merge-resolver's enriched .claude/agents copy diverges from
         # the leaner .github/agents copy by design, so the install comparison is
         # baselined at the same floor as the vendored comparison.
-        floor = KNOWN_BASELINE_DRIFT[
-            ("merge-resolver", ".claude/agents vs .github/agents")
-        ]
+        floor = KNOWN_BASELINE_DRIFT[("merge-resolver", ".claude/agents vs .github/agents")]
         assert (
             _classify_overall(
                 "merge-resolver",
@@ -333,10 +327,7 @@ class TestKnownBaselineDrift:
             "---\nname: baselined-fixture\n---\n## Core Mission\n\n"
             "Rich Claude-only mission text that the counterpart does not carry."
         )
-        vscode = (
-            "---\ndescription: baselined-fixture\n---\n## Core Mission\n\n"
-            "xyz qqq zzz www."
-        )
+        vscode = "---\ndescription: baselined-fixture\n---\n## Core Mission\n\nxyz qqq zzz www."
         key = ("baselined-fixture", "src-claude vs src-vscode")
         KNOWN_BASELINE_DRIFT[key] = 0.0
         try:
@@ -484,12 +475,14 @@ class TestMain:
     def test_invalid_vscode_path(self, tmp_path: Path) -> None:
         claude_dir = tmp_path / "claude"
         claude_dir.mkdir()
-        exit_code = main([
-            "--claude-path",
-            str(claude_dir),
-            "--vscode-path",
-            str(tmp_path / "nonexistent"),
-        ])
+        exit_code = main(
+            [
+                "--claude-path",
+                str(claude_dir),
+                "--vscode-path",
+                str(tmp_path / "nonexistent"),
+            ]
+        )
         assert exit_code == 2
 
     def test_no_drift_returns_0(self, tmp_path: Path) -> None:
@@ -502,10 +495,14 @@ class TestMain:
         (claude_dir / "test.md").write_text(content, encoding="utf-8")
         (vscode_dir / "test.agent.md").write_text(content, encoding="utf-8")
 
-        exit_code = main([
-            "--claude-path", str(claude_dir),
-            "--vscode-path", str(vscode_dir),
-        ])
+        exit_code = main(
+            [
+                "--claude-path",
+                str(claude_dir),
+                "--vscode-path",
+                str(vscode_dir),
+            ]
+        )
         assert exit_code == 0
 
     def test_json_output_format(self, tmp_path: Path) -> None:
@@ -514,11 +511,16 @@ class TestMain:
         claude_dir.mkdir()
         vscode_dir.mkdir()
 
-        exit_code = main([
-            "--claude-path", str(claude_dir),
-            "--vscode-path", str(vscode_dir),
-            "--output-format", "json",
-        ])
+        exit_code = main(
+            [
+                "--claude-path",
+                str(claude_dir),
+                "--vscode-path",
+                str(vscode_dir),
+                "--output-format",
+                "json",
+            ]
+        )
         assert exit_code == 0
 
     def test_help_flag(self) -> None:

@@ -164,9 +164,7 @@ class TestRealSchemas:
         else:  # pragma: no cover - defensive
             raise AssertionError("expected ValueError for absolute path $ref")
 
-    def test_validates_a_policy_carrying_real_evidence(
-        self, write_skillbook: Any
-    ) -> None:
+    def test_validates_a_policy_carrying_real_evidence(self, write_skillbook: Any) -> None:
         # Drive a populated evidence array through the cross-file $ref and the
         # integrity check together, with non-trivial derived counts.
         policy = make_policy(
@@ -290,25 +288,17 @@ class TestValidatorMain:
     """The validator CLI entry point and its exit codes."""
 
     def test_exit_ok_on_valid_seed_data(self) -> None:
-        exit_code = main(
-            ["--skillbook-dir", str(_SKILLBOOK_DIR), "--schema-dir", str(_SCHEMA_DIR)]
-        )
+        exit_code = main(["--skillbook-dir", str(_SKILLBOOK_DIR), "--schema-dir", str(_SCHEMA_DIR)])
         assert exit_code == EXIT_OK
 
     def test_exit_config_when_files_missing(self, tmp_path: Path) -> None:
-        exit_code = main(
-            ["--skillbook-dir", str(tmp_path), "--schema-dir", str(_SCHEMA_DIR)]
-        )
+        exit_code = main(["--skillbook-dir", str(tmp_path), "--schema-dir", str(_SCHEMA_DIR)])
         assert exit_code == EXIT_CONFIG
 
-    def test_exit_logic_on_schema_violation(
-        self, write_skillbook: Any, tmp_path: Path
-    ) -> None:
+    def test_exit_logic_on_schema_violation(self, write_skillbook: Any, tmp_path: Path) -> None:
         # A policy with a malformed id violates the id pattern.
         skillbook = write_skillbook(policies=[make_policy("BAD_ID")])
-        exit_code = main(
-            ["--skillbook-dir", str(skillbook), "--schema-dir", str(_SCHEMA_DIR)]
-        )
+        exit_code = main(["--skillbook-dir", str(skillbook), "--schema-dir", str(_SCHEMA_DIR)])
         assert exit_code == EXIT_LOGIC
 
     def test_exit_config_on_path_traversal_value_error(
@@ -344,14 +334,10 @@ class TestValidatorMain:
             json.dumps({"type": "object"}), encoding="utf-8"
         )
         skillbook = write_skillbook(policies=[make_policy()])
-        exit_code = main(
-            ["--skillbook-dir", str(skillbook), "--schema-dir", str(schema_dir)]
-        )
+        exit_code = main(["--skillbook-dir", str(skillbook), "--schema-dir", str(schema_dir)])
         assert exit_code == EXIT_CONFIG
 
-    def test_exit_config_on_os_error_from_ref(
-        self, write_skillbook: Any, tmp_path: Path
-    ) -> None:
+    def test_exit_config_on_os_error_from_ref(self, write_skillbook: Any, tmp_path: Path) -> None:
         # When _load_ref_file raises OSError (e.g. IsADirectoryError because
         # the $ref points at a directory), main() must catch it and return
         # EXIT_CONFIG (2), not crash. Reach this branch by writing a schema
@@ -380,7 +366,5 @@ class TestValidatorMain:
             json.dumps({"type": "object"}), encoding="utf-8"
         )
         skillbook = write_skillbook(policies=[make_policy()])
-        exit_code = main(
-            ["--skillbook-dir", str(skillbook), "--schema-dir", str(schema_dir)]
-        )
+        exit_code = main(["--skillbook-dir", str(skillbook), "--schema-dir", str(schema_dir)])
         assert exit_code == EXIT_CONFIG

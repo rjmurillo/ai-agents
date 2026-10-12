@@ -99,11 +99,15 @@ def test_check_paths_allows_existing(tmp_path: Path) -> None:
     subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True)
     subprocess.run(
         ["git", "config", "user.email", "test@test.com"],
-        cwd=tmp_path, capture_output=True, check=True,
+        cwd=tmp_path,
+        capture_output=True,
+        check=True,
     )
     subprocess.run(
         ["git", "config", "user.name", "Test"],
-        cwd=tmp_path, capture_output=True, check=True,
+        cwd=tmp_path,
+        capture_output=True,
+        check=True,
     )
     # Create a legacy test file
     test_dir = tmp_path / ".claude" / "skills" / "foo" / "tests"
@@ -112,7 +116,9 @@ def test_check_paths_allows_existing(tmp_path: Path) -> None:
     subprocess.run(["git", "add", "."], cwd=tmp_path, capture_output=True, check=True)
     subprocess.run(
         ["git", "commit", "-m", "init", "--no-verify"],
-        cwd=tmp_path, capture_output=True, check=True,
+        cwd=tmp_path,
+        capture_output=True,
+        check=True,
     )
 
     # Existing file should be tolerated
@@ -129,17 +135,23 @@ def test_check_paths_blocks_new(tmp_path: Path) -> None:
     subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True)
     subprocess.run(
         ["git", "config", "user.email", "test@test.com"],
-        cwd=tmp_path, capture_output=True, check=True,
+        cwd=tmp_path,
+        capture_output=True,
+        check=True,
     )
     subprocess.run(
         ["git", "config", "user.name", "Test"],
-        cwd=tmp_path, capture_output=True, check=True,
+        cwd=tmp_path,
+        capture_output=True,
+        check=True,
     )
     (tmp_path / "README.md").write_text("# repo")
     subprocess.run(["git", "add", "."], cwd=tmp_path, capture_output=True, check=True)
     subprocess.run(
         ["git", "commit", "-m", "init", "--no-verify"],
-        cwd=tmp_path, capture_output=True, check=True,
+        cwd=tmp_path,
+        capture_output=True,
+        check=True,
     )
 
     violations = check_paths(
@@ -159,11 +171,15 @@ def _init_repo_with_legacy_test(tmp_path: Path) -> None:
     subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True)
     subprocess.run(
         ["git", "config", "user.email", "test@test.com"],
-        cwd=tmp_path, capture_output=True, check=True,
+        cwd=tmp_path,
+        capture_output=True,
+        check=True,
     )
     subprocess.run(
         ["git", "config", "user.name", "Test"],
-        cwd=tmp_path, capture_output=True, check=True,
+        cwd=tmp_path,
+        capture_output=True,
+        check=True,
     )
     test_dir = tmp_path / ".claude" / "skills" / "foo" / "tests"
     test_dir.mkdir(parents=True)
@@ -171,7 +187,9 @@ def _init_repo_with_legacy_test(tmp_path: Path) -> None:
     subprocess.run(["git", "add", "."], cwd=tmp_path, capture_output=True, check=True)
     subprocess.run(
         ["git", "commit", "-m", "init", "--no-verify"],
-        cwd=tmp_path, capture_output=True, check=True,
+        cwd=tmp_path,
+        capture_output=True,
+        check=True,
     )
 
 
@@ -182,9 +200,7 @@ def _init_repo_with_legacy_test(tmp_path: Path) -> None:
         "src/copilot-cli/skills/foo/tests/test_legacy.py",
     ],
 )
-def test_check_paths_allows_mirror_of_legacy_source(
-    tmp_path: Path, mirror_path: str
-) -> None:
+def test_check_paths_allows_mirror_of_legacy_source(tmp_path: Path, mirror_path: str) -> None:
     """A mirror path is tolerated when its .claude/skills/ counterpart is legacy.
 
     The build (generate_skills.py) is what places this file at the mirror
@@ -244,21 +260,30 @@ def test_main_with_violation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
     subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True, check=True)
     subprocess.run(
         ["git", "config", "user.email", "t@t.com"],
-        cwd=tmp_path, capture_output=True, check=True,
+        cwd=tmp_path,
+        capture_output=True,
+        check=True,
     )
     subprocess.run(
         ["git", "config", "user.name", "T"],
-        cwd=tmp_path, capture_output=True, check=True,
+        cwd=tmp_path,
+        capture_output=True,
+        check=True,
     )
     (tmp_path / "x").write_text("")
     subprocess.run(["git", "add", "."], cwd=tmp_path, capture_output=True, check=True)
     subprocess.run(
         ["git", "commit", "-m", "i", "--no-verify"],
-        cwd=tmp_path, capture_output=True, check=True,
+        cwd=tmp_path,
+        capture_output=True,
+        check=True,
     )
 
-    result = main([
-        "--repo-root", str(tmp_path),
-        ".claude/skills/new/tests/test_bad.py",
-    ])
+    result = main(
+        [
+            "--repo-root",
+            str(tmp_path),
+            ".claude/skills/new/tests/test_bad.py",
+        ]
+    )
     assert result == 1

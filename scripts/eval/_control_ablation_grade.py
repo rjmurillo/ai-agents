@@ -168,9 +168,7 @@ def changed_paths(workspace: Path) -> tuple[str, ...]:
     return tuple(path for path in diff.stdout.split("\0") if path)
 
 
-def added_lines_by_python_path(
-    workspace: Path, paths: Sequence[str]
-) -> dict[str, str]:
+def added_lines_by_python_path(workspace: Path, paths: Sequence[str]) -> dict[str, str]:
     """Return, per changed `.py` path, the concatenated `+`-prefixed diff lines.
 
     Requires `changed_paths` to have already staged the working tree (`git
@@ -205,9 +203,7 @@ def _command_env() -> dict[str, str]:
     return {**_nested_git_env(), "PYTHONDONTWRITEBYTECODE": "1"}
 
 
-def _run_command(
-    argv: Sequence[str], workspace: Path
-) -> subprocess.CompletedProcess[str]:
+def _run_command(argv: Sequence[str], workspace: Path) -> subprocess.CompletedProcess[str]:
     try:
         return subprocess.run(
             list(argv),
@@ -221,11 +217,15 @@ def _run_command(
             check=False,
         )
     except subprocess.TimeoutExpired as exc:
-        stdout = exc.stdout if isinstance(exc.stdout, str) else (exc.stdout or b"").decode(
-            "utf-8", errors="replace"
+        stdout = (
+            exc.stdout
+            if isinstance(exc.stdout, str)
+            else (exc.stdout or b"").decode("utf-8", errors="replace")
         )
-        stderr = exc.stderr if isinstance(exc.stderr, str) else (exc.stderr or b"").decode(
-            "utf-8", errors="replace"
+        stderr = (
+            exc.stderr
+            if isinstance(exc.stderr, str)
+            else (exc.stderr or b"").decode("utf-8", errors="replace")
         )
         return subprocess.CompletedProcess(list(argv), returncode=124, stdout=stdout, stderr=stderr)
 

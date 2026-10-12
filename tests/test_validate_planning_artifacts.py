@@ -299,9 +299,7 @@ class TestValidateConditions:
         planning = tmp_path / ".project-toolkit" / "planning"
         planning.mkdir(parents=True)
         (planning / "plan-feat.md").write_text(
-            "| Task | Conditions |\n"
-            "|------|------------|\n"
-            "| Auth | Security: Use PKCE flow |\n"
+            "| Task | Conditions |\n|------|------------|\n| Auth | Security: Use PKCE flow |\n"
         )
         docs = find_planning_documents(tmp_path, "feat")
         assert docs is not None
@@ -315,13 +313,7 @@ class TestValidateConditions:
         planning = tmp_path / ".project-toolkit" / "planning"
         planning.mkdir(parents=True)
         (planning / "plan-feat.md").write_text(
-            "## Conditions\n"
-            "- QA: Needs test spec\n"
-            "\n"
-            "## Tasks\n"
-            "| Task |\n"
-            "|------|\n"
-            "| Work |\n"
+            "## Conditions\n- QA: Needs test spec\n\n## Tasks\n| Task |\n|------|\n| Work |\n"
         )
         docs = find_planning_documents(tmp_path, "feat")
         assert docs is not None
@@ -348,10 +340,7 @@ class TestMain:
         planning = tmp_path / ".project-toolkit" / "planning"
         planning.mkdir(parents=True)
         (planning / "plan-clean.md").write_text(
-            "# Plan\n\n"
-            "| Task | Effort |\n"
-            "|------|--------|\n"
-            "| Task 1 | 2h |\n"
+            "# Plan\n\n| Task | Effort |\n|------|--------|\n| Task 1 | 2h |\n"
         )
         result = main(["--path", str(tmp_path)])
         assert result == 0
@@ -369,11 +358,15 @@ class TestMain:
         planning.mkdir(parents=True)
         (planning / "epic-warn.md").write_text("**Effort**: 5-5 hours")
         (planning / "tasks-warn.md").write_text("**Effort**: 10-10 hours")
-        result = main([
-            "--path", str(tmp_path),
-            "--feature-name", "warn",
-            "--fail-on-warning",
-        ])
+        result = main(
+            [
+                "--path",
+                str(tmp_path),
+                "--feature-name",
+                "warn",
+                "--fail-on-warning",
+            ]
+        )
         assert result == 1
 
     def test_returns_1_errors_with_fail_on_error(self, tmp_path: Path) -> None:
@@ -395,13 +388,7 @@ class TestMain:
         planning = tmp_path / ".project-toolkit" / "planning"
         planning.mkdir(parents=True)
         (planning / "plan-err.md").write_text(
-            "## Conditions\n"
-            "- QA: Orphan condition\n"
-            "\n"
-            "## Tasks\n"
-            "| Task |\n"
-            "|------|\n"
-            "| Work |\n"
+            "## Conditions\n- QA: Orphan condition\n\n## Tasks\n| Task |\n|------|\n| Work |\n"
         )
         result = main(["--path", str(tmp_path)])
         assert result == 0
@@ -411,12 +398,17 @@ class TestMain:
         planning.mkdir(parents=True)
         (planning / "epic-ct.md").write_text("**Effort**: 10-10 hours")
         (planning / "tasks-ct.md").write_text("**Effort**: 11-11 hours")
-        result = main([
-            "--path", str(tmp_path),
-            "--feature-name", "ct",
-            "--estimate-threshold", "5",
-            "--fail-on-warning",
-        ])
+        result = main(
+            [
+                "--path",
+                str(tmp_path),
+                "--feature-name",
+                "ct",
+                "--estimate-threshold",
+                "5",
+                "--fail-on-warning",
+            ]
+        )
         assert result == 1
 
     def test_output_shows_document_count(
@@ -444,13 +436,7 @@ class TestMain:
         planning = tmp_path / ".project-toolkit" / "planning"
         planning.mkdir(parents=True)
         (planning / "plan-rem.md").write_text(
-            "## Conditions\n"
-            "- QA: Add test\n"
-            "\n"
-            "## Tasks\n"
-            "| Task |\n"
-            "|------|\n"
-            "| Work |\n"
+            "## Conditions\n- QA: Add test\n\n## Tasks\n| Task |\n|------|\n| Work |\n"
         )
         main(["--path", str(tmp_path)])
         captured = capsys.readouterr()

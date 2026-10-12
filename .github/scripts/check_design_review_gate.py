@@ -28,21 +28,25 @@ sys.path.insert(0, workspace)
 from scripts.ai_review_common import write_output  # noqa: E402
 
 # Verdicts that block merge
-BLOCKING_VERDICTS = frozenset({
-    "NEEDS_CHANGES",
-    "FAIL",
-    "REJECTED",
-})
+BLOCKING_VERDICTS = frozenset(
+    {
+        "NEEDS_CHANGES",
+        "FAIL",
+        "REJECTED",
+    }
+)
 
 # Verdicts that pass the gate
-PASSING_VERDICTS = frozenset({
-    "PASS",
-    "APPROVED",
-    "CONCERNS",
-    "NEEDS_ADR",
-    "WARNING",
-    "COMPLETE",
-})
+PASSING_VERDICTS = frozenset(
+    {
+        "PASS",
+        "APPROVED",
+        "CONCERNS",
+        "NEEDS_ADR",
+        "WARNING",
+        "COMPLETE",
+    }
+)
 
 # Pattern to extract YAML frontmatter
 _FRONTMATTER_RE = re.compile(r"\A---\n(.+?)\n---", re.DOTALL)

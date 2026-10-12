@@ -75,7 +75,7 @@ def f():
 
 
 def test_cli_exit_contract_does_not_credit_local_main_from_script_string() -> None:
-    source = '''
+    source = """
 SCRIPT = "scripts/ci/fake_gate.py"
 
 def main(argv=None):
@@ -83,18 +83,18 @@ def main(argv=None):
 
 def test_local_main_not_gate_main():
     assert main(["--bad"]) == 1
-'''
+"""
 
     assert covered_stems(source, frozenset({"fake_gate"})) == set()
 
 
 def test_cli_exit_contract_credits_assigned_module_main() -> None:
-    source = '''
+    source = """
 mod = _load_module("fake_gate")
 main = mod.main
 
 def test_gate_main():
     assert main(["--bad"]) == 1
-'''
+"""
 
     assert covered_stems(source, frozenset({"fake_gate"})) == {"fake_gate"}

@@ -98,8 +98,7 @@ When an algorithm is non-obvious, annotate the invariant it preserves or the sou
 
 ```python
 # Magic happens here
-def reconcile(local, remote):
-    ...
+def reconcile(local, remote): ...
 ```
 
 ### Good (invariant documented)
@@ -107,8 +106,7 @@ def reconcile(local, remote):
 ```python
 # Last-writer-wins per field, with a tiebreaker on the (timestamp, replica_id)
 # pair. See ADR-019 for the conflict resolution policy.
-def reconcile(local: State, remote: State) -> State:
-    ...
+def reconcile(local: State, remote: State) -> State: ...
 ```
 
 ## TODO Format
@@ -135,6 +133,7 @@ Mark deprecated symbols so callers see the replacement before they read the body
 
 ```python
 import warnings
+
 
 def legacy_charge(account_id, amount_cents):
     """Deprecated: use charge_account; will be removed in v3.0 (#1450)."""

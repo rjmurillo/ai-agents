@@ -19,6 +19,7 @@ from dataclasses import dataclass
 @dataclass
 class DriftAnalysis:
     """Structured result for drift analysis."""
+
     drift_analysis: dict[str, float]
     recommendation: str
     triggered_rules: list[str]
@@ -37,22 +38,20 @@ def parse_adr(adr_path: str) -> dict:
 
     # Extract decision type (Build/Buy/Partner/Defer)
     decision_match = re.search(
-        r'##\s+Decision\s+We will (BUILD|BUY|PARTNER|DEFER)',
-        content,
-        re.IGNORECASE
+        r"##\s+Decision\s+We will (BUILD|BUY|PARTNER|DEFER)", content, re.IGNORECASE
     )
     if decision_match:
-        assumptions['decision_type'] = decision_match.group(1).lower()
+        assumptions["decision_type"] = decision_match.group(1).lower()
 
     # Extract TCO figures if present
-    tco_matches = re.findall(r'\$([0-9,]+)', content)
+    tco_matches = re.findall(r"\$([0-9,]+)", content)
     if tco_matches:
-        assumptions['costs'] = [int(m.replace(',', '')) for m in tco_matches]
+        assumptions["costs"] = [int(m.replace(",", "")) for m in tco_matches]
 
     # Extract time horizon
-    horizon_match = re.search(r'(\d+)\s*year', content, re.IGNORECASE)
+    horizon_match = re.search(r"(\d+)\s*year", content, re.IGNORECASE)
     if horizon_match:
-        assumptions['time_horizon_years'] = int(horizon_match.group(1))
+        assumptions["time_horizon_years"] = int(horizon_match.group(1))
 
     return assumptions
 
@@ -62,30 +61,30 @@ def calculate_drift(original: dict, current: dict) -> dict[str, float]:
     drift = {}
 
     # Cost drift
-    if 'costs' in original and 'costs' in current:
-        orig_total = sum(original['costs'])
-        curr_total = sum(current['costs'])
+    if "costs" in original and "costs" in current:
+        orig_total = sum(original["costs"])
+        curr_total = sum(current["costs"])
         if orig_total > 0:
-            drift['cost'] = abs(curr_total - orig_total) / orig_total * 100
+            drift["cost"] = abs(curr_total - orig_total) / orig_total * 100
 
     # Time horizon drift
-    if 'time_horizon_years' in original and 'time_horizon_years' in current:
-        orig_horizon = original['time_horizon_years']
-        curr_horizon = current['time_horizon_years']
+    if "time_horizon_years" in original and "time_horizon_years" in current:
+        orig_horizon = original["time_horizon_years"]
+        curr_horizon = current["time_horizon_years"]
         if orig_horizon > 0:
-            drift['time_horizon'] = abs(curr_horizon - orig_horizon) / orig_horizon * 100
+            drift["time_horizon"] = abs(curr_horizon - orig_horizon) / orig_horizon * 100
 
     # Strategic priority drift (from current state only)
-    if 'strategic_priority_changed' in current:
-        drift['strategic_priority'] = 100 if current['strategic_priority_changed'] else 0
+    if "strategic_priority_changed" in current:
+        drift["strategic_priority"] = 100 if current["strategic_priority_changed"] else 0
 
     # Vendor viability (from current state only)
-    if 'vendor_viability_concerns' in current:
-        drift['vendor_viability'] = 100 if current['vendor_viability_concerns'] else 0
+    if "vendor_viability_concerns" in current:
+        drift["vendor_viability"] = 100 if current["vendor_viability_concerns"] else 0
 
     # Team capacity (from current state only)
-    if 'team_capacity_changed' in current:
-        drift['team_capacity'] = 100 if current['team_capacity_changed'] else 0
+    if "team_capacity_changed" in current:
+        drift["team_capacity"] = 100 if current["team_capacity_changed"] else 0
 
     return drift
 
@@ -94,34 +93,33 @@ def check_triggers(drift: dict[str, float], current: dict) -> list[str]:
     """Check which reassessment triggers have fired."""
     triggered = []
 
-    if 'cost' in drift and drift['cost'] > 20:
+    if "cost" in drift and drift["cost"] > 20:
         triggered.append(f"Cost assumption changed {drift['cost']:.1f}% (trigger: >20%)")
 
-    if 'time_horizon' in drift and drift['time_horizon'] > 20:
+    if "time_horizon" in drift and drift["time_horizon"] > 20:
         triggered.append(
-            f"Time horizon shifted {drift['time_horizon']:.1f}% "
-            "(trigger: material shift)"
+            f"Time horizon shifted {drift['time_horizon']:.1f}% (trigger: material shift)"
         )
 
-    if 'strategic_priority' in drift and drift['strategic_priority'] > 0:
+    if "strategic_priority" in drift and drift["strategic_priority"] > 0:
         triggered.append("Strategic priority shifted (core <-> context)")
 
-    if 'vendor_viability' in drift and drift['vendor_viability'] > 0:
+    if "vendor_viability" in drift and drift["vendor_viability"] > 0:
         triggered.append("Vendor viability concerns detected (M&A, financials, EOL)")
 
-    if 'team_capacity' in drift and drift['team_capacity'] > 0:
+    if "team_capacity" in drift and drift["team_capacity"] > 0:
         triggered.append("Team capacity changed (key departures or hiring surge)")
 
-    if current.get('competitive_dynamics_shifted', False):
+    if current.get("competitive_dynamics_shifted", False):
         triggered.append("Competitive dynamics shifted (urgency increased)")
 
-    if current.get('regulatory_changes', False):
+    if current.get("regulatory_changes", False):
         triggered.append("Regulatory changes affect decision")
 
-    if current.get('technology_disruption', False):
+    if current.get("technology_disruption", False):
         triggered.append("Technology disruption makes decision obsolete")
 
-    if current.get('customer_demand_signal', False):
+    if current.get("customer_demand_signal", False):
         triggered.append("Customer demand signal changed")
 
     return triggered
@@ -156,32 +154,32 @@ Example current state file format (JSON):
   "technology_disruption": false,
   "customer_demand_signal": false
 }
-        """
+        """,
     )
 
-    parser.add_argument('--adr-file', type=str, required=True,
-                       help='ADR markdown file with original assumptions')
-    parser.add_argument('--current-state', type=str, required=True,
-                       help='JSON file with current state')
+    parser.add_argument(
+        "--adr-file", type=str, required=True, help="ADR markdown file with original assumptions"
+    )
+    parser.add_argument(
+        "--current-state", type=str, required=True, help="JSON file with current state"
+    )
 
     args = parser.parse_args()
 
     # Validate input paths to prevent path traversal (CWE-22)
     import os
+
     try:
         allowed_base = os.path.abspath(".")
 
         adr_file_path = os.path.abspath(args.adr_file)
         if not adr_file_path.startswith(allowed_base):
-            raise ValueError(
-                f"Path traversal attempt detected in --adr-file: {args.adr_file}"
-            )
+            raise ValueError(f"Path traversal attempt detected in --adr-file: {args.adr_file}")
 
         current_state_path = os.path.abspath(args.current_state)
         if not current_state_path.startswith(allowed_base):
             raise ValueError(
-                f"Path traversal attempt detected in --current-state: "
-                f"{args.current_state}"
+                f"Path traversal attempt detected in --current-state: {args.current_state}"
             )
     except ValueError as e:
         print(f"ERROR: {e}", file=sys.stderr)
@@ -195,10 +193,7 @@ Example current state file format (JSON):
         with open(current_state_path) as f:
             current = json.load(f)
     except FileNotFoundError:
-        print(
-            f"ERROR: Current state file not found: {args.current_state}",
-            file=sys.stderr
-        )
+        print(f"ERROR: Current state file not found: {args.current_state}", file=sys.stderr)
         sys.exit(1)
     except json.JSONDecodeError as e:
         print(f"ERROR: Invalid JSON in current state file: {e}", file=sys.stderr)
@@ -215,7 +210,7 @@ Example current state file format (JSON):
 
     # Output results
     print("Reassessment Trigger Analysis")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"Original Decision: {original.get('decision_type', 'Unknown').upper()}")
     print("")
     print("Drift Analysis:")
@@ -231,5 +226,5 @@ Example current state file format (JSON):
     sys.exit(exit_code)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

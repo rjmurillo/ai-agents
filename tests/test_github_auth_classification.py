@@ -39,9 +39,7 @@ from scripts.github_core.rate_limit import RateLimitStatus, check_workflow_rate_
 # Captured refusal bodies (issue #4326 Observations A, B, and the third
 # observation; issue #4335 workflow log).
 REST_403_QUOTA = "gh: API rate limit exceeded for user ID 6811113 (HTTP 403)"
-RUN_LIST_403_QUOTA = (
-    "failed to get runs: HTTP 403: API rate limit exceeded for user ID 6811113"
-)
+RUN_LIST_403_QUOTA = "failed to get runs: HTTP 403: API rate limit exceeded for user ID 6811113"
 REST_BODY_QUOTA = (
     '{"message": "API rate limit exceeded for user ID 6811113", '
     '"documentation_url": "https://docs.github.com/rest/overview/'
@@ -62,9 +60,7 @@ REST_503 = "HTTP 503: Service unavailable (https://api.github.com/user)"
 # status, so before this fix they classified as INVALID_CREDENTIALS and the
 # preflight told the operator to run `gh auth login` for a dead network, which
 # is the #3139 symptom in its most common form.
-GH_DIAL_FAILURE = (
-    "dial tcp: lookup invalid.example.test on 127.0.0.53:53: no such host"
-)
+GH_DIAL_FAILURE = "dial tcp: lookup invalid.example.test on 127.0.0.53:53: no such host"
 GH_CONNECT_FAILURE = (
     "error connecting to invalid.example.test\n"
     "check your internet connection or https://githubstatus.com"
@@ -87,9 +83,7 @@ GH_AUTH_STATUS_INVALID = (
 
 
 def _completed(stdout: str = "", stderr: str = "", rc: int = 0):
-    return subprocess.CompletedProcess(
-        args=["gh"], returncode=rc, stdout=stdout, stderr=stderr
-    )
+    return subprocess.CompletedProcess(args=["gh"], returncode=rc, stdout=stdout, stderr=stderr)
 
 
 class TestModuleLevelConstantsAreDefinedOnce:
@@ -132,10 +126,7 @@ class TestClassifyGhFailureText:
         assert classify_gh_failure_text(body) is GhAuthStatus.RATE_LIMITED
 
     def test_secondary_limit_is_its_own_status(self):
-        assert (
-            classify_gh_failure_text(SECONDARY_LIMIT)
-            is GhAuthStatus.SECONDARY_RATE_LIMITED
-        )
+        assert classify_gh_failure_text(SECONDARY_LIMIT) is GhAuthStatus.SECONDARY_RATE_LIMITED
 
     def test_rate_limit_text_with_remaining_header_is_secondary(self):
         body = f"{REST_403_QUOTA}\nX-Ratelimit-Remaining: 4935"
@@ -145,9 +136,7 @@ class TestClassifyGhFailureText:
     def test_rest_5xx_is_transient(self):
         assert classify_gh_failure_text(REST_503) is GhAuthStatus.TRANSIENT_ERROR
 
-    @pytest.mark.parametrize(
-        "body", [GH_DIAL_FAILURE, GH_CONNECT_FAILURE, GH_DNS_FAILURE]
-    )
+    @pytest.mark.parametrize("body", [GH_DIAL_FAILURE, GH_CONNECT_FAILURE, GH_DNS_FAILURE])
     def test_gh_connectivity_wording_is_transient(self, body):
         """gh's own transport text carries no HTTP status and no curl wording."""
         assert classify_gh_failure_text(body) is GhAuthStatus.TRANSIENT_ERROR
@@ -156,10 +145,7 @@ class TestClassifyGhFailureText:
         assert classify_gh_failure_text(BAD_CREDENTIALS) is GhAuthStatus.INVALID_CREDENTIALS
 
     def test_permission_denial_is_not_a_quota_refusal(self):
-        assert (
-            classify_gh_failure_text(PERMISSION_DENIED)
-            is GhAuthStatus.INVALID_CREDENTIALS
-        )
+        assert classify_gh_failure_text(PERMISSION_DENIED) is GhAuthStatus.INVALID_CREDENTIALS
 
     def test_empty_text_is_invalid(self):
         assert classify_gh_failure_text("") is GhAuthStatus.INVALID_CREDENTIALS
@@ -216,12 +202,17 @@ class TestGraphqlRetryEnvelope:
     def _run_with_recorded_sleeps(self, bodies, drained, pin_jitter=False):
         calls = [_completed(stderr=body, rc=1) for body in bodies]
         sleeps: list[float] = []
-        jitter = patch(
-            "random.uniform", side_effect=lambda low, high: high
-        ) if pin_jitter else nullcontext()
-        with patch("subprocess.run", side_effect=calls), patch(
-            "scripts.github_core.api.drained_rate_limit_buckets", return_value=drained
-        ), patch("time.sleep", side_effect=sleeps.append), jitter:
+        jitter = (
+            patch("random.uniform", side_effect=lambda low, high: high)
+            if pin_jitter
+            else nullcontext()
+        )
+        with (
+            patch("subprocess.run", side_effect=calls),
+            patch("scripts.github_core.api.drained_rate_limit_buckets", return_value=drained),
+            patch("time.sleep", side_effect=sleeps.append),
+            jitter,
+        ):
             with pytest.raises(RuntimeError) as exc:
                 gh_graphql("query { viewer { login } }")
         return sleeps, str(exc.value)
@@ -234,9 +225,7 @@ class TestGraphqlRetryEnvelope:
         # `_graphql_retry_ceiling` left this test green while the worst-case
         # budget fell from 45s to 3s, back inside the refusal window issue
         # #4326 measured at about a minute.
-        sleeps, _ = self._run_with_recorded_sleeps(
-            [GRAPHQL_QUOTA] * 3, drained=[], pin_jitter=True
-        )
+        sleeps, _ = self._run_with_recorded_sleeps([GRAPHQL_QUOTA] * 3, drained=[], pin_jitter=True)
 
         assert len(sleeps) == 2
         assert sleeps == [REFUSAL_BACKOFF_SECONDS[0], REFUSAL_BACKOFF_SECONDS[1]]
@@ -253,9 +242,7 @@ class TestGraphqlRetryEnvelope:
 
     def test_drained_bucket_fails_fast_instead_of_burning_attempts(self):
         """Genuine exhaustion resets on the hour; no bounded retry reaches it."""
-        sleeps, message = self._run_with_recorded_sleeps(
-            [GRAPHQL_QUOTA] * 3, drained=["graphql"]
-        )
+        sleeps, message = self._run_with_recorded_sleeps([GRAPHQL_QUOTA] * 3, drained=["graphql"])
 
         assert sleeps == []
         assert "bucket exhausted: graphql" in message
@@ -396,12 +383,8 @@ class TestAssertGhAuthenticatedExitCodes:
         assert exc.value.code == 4
         assert "gh auth login" in capsys.readouterr().err
 
-    @pytest.mark.parametrize(
-        "body", [GH_DIAL_FAILURE, GH_CONNECT_FAILURE, GH_DNS_FAILURE]
-    )
-    def test_lost_connectivity_exits_3_and_never_says_gh_auth_login(
-        self, body, capsys
-    ):
+    @pytest.mark.parametrize("body", [GH_DIAL_FAILURE, GH_CONNECT_FAILURE, GH_DNS_FAILURE])
+    def test_lost_connectivity_exits_3_and_never_says_gh_auth_login(self, body, capsys):
         calls = [_completed(stderr=body, rc=1), _completed(stderr=body, rc=1)]
         with patch("subprocess.run", side_effect=calls):
             with pytest.raises(SystemExit) as exc:
@@ -544,10 +527,7 @@ class TestTransportBlockedClassification:
 
     def test_global_refusal_is_transport_blocked(self):
         """Only the session-wide wording earns the session-wide verdict."""
-        assert (
-            classify_gh_failure_text(PROXY_REST_403)
-            is GhAuthStatus.TRANSPORT_BLOCKED
-        )
+        assert classify_gh_failure_text(PROXY_REST_403) is GhAuthStatus.TRANSPORT_BLOCKED
 
     def test_query_scoped_refusal_is_not_transport_blocked(self):
         """A refused GraphQL query is not proof that gh is unusable.
@@ -558,10 +538,7 @@ class TestTransportBlockedClassification:
         and declare the transport dead while other gh calls still worked
         (Copilot review on PR #5509).
         """
-        assert (
-            classify_gh_failure_text(PROXY_GRAPHQL_403)
-            is not GhAuthStatus.TRANSPORT_BLOCKED
-        )
+        assert classify_gh_failure_text(PROXY_GRAPHQL_403) is not GhAuthStatus.TRANSPORT_BLOCKED
 
     def test_documentation_url_alone_is_not_enough(self):
         """The docs URL rides on both bodies, so it cannot be a global marker."""
@@ -586,10 +563,7 @@ class TestTransportBlockedClassification:
 
     def test_blocked_wins_over_transient_wording(self):
         """A refusal that mentions a timeout is still permanent for the session."""
-        body = (
-            "gh: GitHub access is not enabled for this session. (HTTP 403) "
-            "connection timed out"
-        )
+        body = "gh: GitHub access is not enabled for this session. (HTTP 403) connection timed out"
         assert classify_gh_failure_text(body) is GhAuthStatus.TRANSPORT_BLOCKED
 
     def test_a_legitimate_body_reusing_the_phrase_is_not_blocked(self):
@@ -598,10 +572,7 @@ class TestTransportBlockedClassification:
         A GitHub body that happens to contain the narrower wording must not
         trip the session-wide verdict; only the global phrase does.
         """
-        body = (
-            "gh: Advanced Security is not enabled for this session's "
-            "repository (HTTP 403)"
-        )
+        body = "gh: Advanced Security is not enabled for this session's repository (HTTP 403)"
         assert classify_gh_failure_text(body) is not GhAuthStatus.TRANSPORT_BLOCKED
 
     def test_ordinary_permission_denial_is_untouched(self):
@@ -617,9 +588,7 @@ class TestTransportBlockedRemedy:
     """The message an agent reads decides its next call, so it must be true."""
 
     def _describe(self):
-        return describe_gh_auth_failure(
-            GhAuthResult(GhAuthStatus.TRANSPORT_BLOCKED, "HTTP 403")
-        )
+        return describe_gh_auth_failure(GhAuthResult(GhAuthStatus.TRANSPORT_BLOCKED, "HTTP 403"))
 
     def test_exit_code_is_config_not_external(self):
         """Exit 3 advertises 'retryable', and a refused session never clears."""

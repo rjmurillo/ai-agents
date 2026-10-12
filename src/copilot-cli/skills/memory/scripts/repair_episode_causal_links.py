@@ -170,9 +170,7 @@ def _summarize(reports: list[dict[str, Any]]) -> dict[str, Any]:
         "Unchanged": sum(1 for r in reports if r["status"] == "unchanged"),
         "Unrepairable": [r["path"] for r in reports if r["status"] == "unrepairable"],
         "Invalid": [
-            {"path": r["path"], "reason": r["reason"]}
-            for r in reports
-            if r["status"] == "invalid"
+            {"path": r["path"], "reason": r["reason"]} for r in reports if r["status"] == "invalid"
         ],
     }
 

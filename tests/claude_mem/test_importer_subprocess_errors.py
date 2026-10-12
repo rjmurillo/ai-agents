@@ -176,9 +176,7 @@ class TestOnlyOsErrorsAreAbsorbedPerFile:
     ) -> None:
         """The loop absorbs each failure independently rather than stopping at the first."""
         importer = _stage_two_memories(tmp_path, monkeypatch)
-        run = _RecordingRun(
-            {"01-first.json", "02-second.json"}, PermissionError("not executable")
-        )
+        run = _RecordingRun({"01-first.json", "02-second.json"}, PermissionError("not executable"))
         monkeypatch.setattr(_import_mem.subprocess, "run", run)
 
         result = _import_mem.main(["--importer", str(importer)], env={}, home=tmp_path)

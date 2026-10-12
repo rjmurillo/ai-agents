@@ -91,10 +91,12 @@ def _bash_payload() -> bytes:
     customer-wedge property (issue #2205), and it is deliberately NOT evidence
     that any guard fired.
     """
-    return json.dumps({
-        "tool_name": "Bash",
-        "tool_input": {"command": "echo hello"},
-    }).encode()
+    return json.dumps(
+        {
+            "tool_name": "Bash",
+            "tool_input": {"command": "echo hello"},
+        }
+    ).encode()
 
 
 def _run_hook(
@@ -241,9 +243,7 @@ def _find_dispatcher(install_root: Path, event: str) -> Path | None:
         if not candidate.is_file():
             continue
         if not candidate.is_relative_to(root):
-            raise ValueError(
-                f"refusing to run {candidate}: resolves outside {root}"
-            )
+            raise ValueError(f"refusing to run {candidate}: resolves outside {root}")
         return candidate
     return None
 

@@ -84,9 +84,7 @@ SKILLS_SIDECAR_INSTALL_TREE = ".claude/skills/review/scripts/validate_review_mar
 # truth for "which scripts/ packages are registered for lib distribution").
 # Shape preserved from scripts/sync_plugin_lib.py's original SYNC_PAIRS so
 # that read-only provenance gate needs no change.
-SYNC_PAIRS: list[tuple[str, str]] = [
-    (f"scripts/{pkg}", f".claude/lib/{pkg}") for pkg in PACKAGES
-]
+SYNC_PAIRS: list[tuple[str, str]] = [(f"scripts/{pkg}", f".claude/lib/{pkg}") for pkg in PACKAGES]
 
 IMPORT_CONVERSIONS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"from scripts\.github_core\.(\w+) import"), r"from .\1 import"),

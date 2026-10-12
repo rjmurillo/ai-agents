@@ -52,14 +52,10 @@ def _has_own_or_twin_marker(root: Path) -> bool:
 def _validate_plugin_root(root: Path, *, source: str) -> None:
     """Raise PluginInfrastructureError unless ``root`` is a real plugin install root."""
     if not root.is_dir():
-        raise PluginInfrastructureError(
-            f"Invalid {source}: plugin root is not a directory: {root}"
-        )
+        raise PluginInfrastructureError(f"Invalid {source}: plugin root is not a directory: {root}")
     if not _has_own_or_twin_marker(root):
         marker = root / ".claude-plugin" / "plugin.json"
-        raise PluginInfrastructureError(
-            f"Invalid {source}: plugin marker missing: {marker}"
-        )
+        raise PluginInfrastructureError(f"Invalid {source}: plugin marker missing: {marker}")
 
 
 def _find_hooks_dir(root: Path) -> str | None:
@@ -117,13 +113,11 @@ def ensure_plugin_paths() -> None:
 
     if hooks_dir is None or not os.path.isdir(hooks_dir):
         raise PluginInfrastructureError(
-            f"Plugin hooks directory not found: {hooks_dir} "
-            f"(CLAUDE_PLUGIN_ROOT={plugin_root!r})"
+            f"Plugin hooks directory not found: {hooks_dir} (CLAUDE_PLUGIN_ROOT={plugin_root!r})"
         )
     if lib_dir is None or not os.path.isdir(lib_dir):
         raise PluginInfrastructureError(
-            f"Plugin lib directory not found: {lib_dir} "
-            f"(CLAUDE_PLUGIN_ROOT={plugin_root!r})"
+            f"Plugin lib directory not found: {lib_dir} (CLAUDE_PLUGIN_ROOT={plugin_root!r})"
         )
     if hooks_dir not in sys.path:
         sys.path.insert(0, hooks_dir)

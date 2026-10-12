@@ -29,8 +29,7 @@ from tests.mock_fidelity import assert_mock_keys_match
 # Import the script via importlib (not a package)
 # ---------------------------------------------------------------------------
 _SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[1]
-    / ".claude" / "skills" / "github" / "scripts" / "pr"
+    Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "pr"
 )
 
 
@@ -171,14 +170,19 @@ class TestBuildParser:
         assert args.repo == ""
 
     def test_all_flags(self):
-        args = build_parser().parse_args([
-            "--pull-request", "50",
-            "--owner", "myorg",
-            "--repo", "myrepo",
-            "--include-diff",
-            "--diff-stat",
-            "--include-changed-files",
-        ])
+        args = build_parser().parse_args(
+            [
+                "--pull-request",
+                "50",
+                "--owner",
+                "myorg",
+                "--repo",
+                "myrepo",
+                "--include-diff",
+                "--diff-stat",
+                "--include-changed-files",
+            ]
+        )
         assert args.pull_request == 50
         assert args.owner == "myorg"
         assert args.repo == "myrepo"
@@ -187,11 +191,16 @@ class TestBuildParser:
         assert args.include_changed_files is True
 
     def test_focused_field_flag(self):
-        args = build_parser().parse_args([
-            "--pull-request", "50",
-            "--field", "author_is_bot",
-            "--field", "auto_merge_method",
-        ])
+        args = build_parser().parse_args(
+            [
+                "--pull-request",
+                "50",
+                "--field",
+                "author_is_bot",
+                "--field",
+                "auto_merge_method",
+            ]
+        )
         assert args.field == ["author_is_bot", "auto_merge_method"]
 
 
@@ -212,9 +221,13 @@ class TestMainErrors:
 
     def test_pr_not_found_exits_2(self):
         auth_patch, repo_patch = _patch_auth_and_repo()
-        with auth_patch, repo_patch, patch(
-            "subprocess.run",
-            return_value=_completed(rc=1, stderr="not found"),
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                return_value=_completed(rc=1, stderr="not found"),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "999"])
@@ -223,9 +236,13 @@ class TestMainErrors:
     def test_api_failure_exits_3(self):
         """Generic API error (no 'not found' in message) exits with code 3."""
         auth_patch, repo_patch = _patch_auth_and_repo()
-        with auth_patch, repo_patch, patch(
-            "subprocess.run",
-            return_value=_completed(rc=1, stderr="internal server error"),
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                return_value=_completed(rc=1, stderr="internal server error"),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "50"])
@@ -233,9 +250,13 @@ class TestMainErrors:
 
     def test_invalid_json_pr_response_exits_3(self):
         auth_patch, repo_patch = _patch_auth_and_repo()
-        with auth_patch, repo_patch, patch(
-            "subprocess.run",
-            return_value=_completed(stdout="not-json", rc=0),
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout="not-json", rc=0),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "50"])
@@ -258,7 +279,6 @@ class TestMainErrors:
                 main(["--pull-request", "50"])
             assert exc.value.code == 3
 
-
     def test_object_status_check_rollup_exits_3(self):
         """The helper rejects the GraphQL connection shape gh does not return."""
         auth_patch, repo_patch = _patch_auth_and_repo()
@@ -277,7 +297,6 @@ class TestMainErrors:
                 main(["--pull-request", "50"])
             assert exc.value.code == 3
 
-
     def test_malformed_status_check_exits_3(self):
         auth_patch, repo_patch = _patch_auth_and_repo()
         with (
@@ -294,7 +313,6 @@ class TestMainErrors:
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "50"])
             assert exc.value.code == 3
-
 
     def test_non_object_pr_response_exits_3(self):
         auth_patch, repo_patch = _patch_auth_and_repo()
@@ -324,7 +342,6 @@ class TestMainErrors:
 
         assert exc.value.code == 1
 
-
     def test_review_threads_fetch_failure_exits_3(self):
         """GraphQL review-thread failure is not reported as zero threads."""
         auth_patch, repo_patch = _patch_auth_and_repo()
@@ -337,7 +354,6 @@ class TestMainErrors:
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "50"])
             assert exc.value.code == 3
-
 
     def test_review_threads_timeout_exits_3(self):
         auth_patch, repo_patch = _patch_auth_and_repo()
@@ -353,7 +369,6 @@ class TestMainErrors:
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "50"])
             assert exc.value.code == 3
-
 
     def test_review_threads_missing_cursor_exits_3(self):
         """A paginated response cannot silently stop without a cursor."""
@@ -373,7 +388,6 @@ class TestMainErrors:
                 main(["--pull-request", "50"])
             assert exc.value.code == 3
 
-
     def test_review_threads_invalid_node_exits_3(self):
         """A missing isResolved value cannot become a false zero."""
         auth_patch, repo_patch = _patch_auth_and_repo()
@@ -387,7 +401,6 @@ class TestMainErrors:
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "50"])
             assert exc.value.code == 3
-
 
     @pytest.mark.parametrize(
         ("response", "expected_code"),
@@ -415,7 +428,6 @@ class TestMainErrors:
                 main(["--pull-request", "50"])
             assert exc.value.code == expected_code
 
-
     def test_review_threads_invalid_page_metadata_exits_3(self):
         auth_patch, repo_patch = _patch_auth_and_repo()
         response = _review_threads_response(totalCount=-1)
@@ -428,7 +440,6 @@ class TestMainErrors:
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "50"])
             assert exc.value.code == 3
-
 
     def test_review_threads_changed_total_exits_3(self):
         auth_patch, repo_patch = _patch_auth_and_repo()
@@ -454,7 +465,6 @@ class TestMainErrors:
                 main(["--pull-request", "50"])
             assert exc.value.code == 3
 
-
     def test_review_threads_page_limit_exits_3(self):
         auth_patch, repo_patch = _patch_auth_and_repo()
         response = _review_threads_response(
@@ -472,7 +482,6 @@ class TestMainErrors:
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "50"])
             assert exc.value.code == 3
-
 
     def test_review_threads_repeated_cursor_exits_3(self):
         auth_patch, repo_patch = _patch_auth_and_repo()
@@ -498,7 +507,6 @@ class TestMainErrors:
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "50"])
             assert exc.value.code == 3
-
 
     def test_review_threads_duplicate_thread_exits_3(self):
         auth_patch, repo_patch = _patch_auth_and_repo()
@@ -543,9 +551,13 @@ class TestMainErrors:
     def test_api_failure_uses_stdout_when_stderr_empty(self):
         """When stderr is empty, error message falls back to stdout."""
         auth_patch, repo_patch = _patch_auth_and_repo()
-        with auth_patch, repo_patch, patch(
-            "subprocess.run",
-            return_value=_completed(rc=1, stderr="", stdout="some error in stdout"),
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                return_value=_completed(rc=1, stderr="", stdout="some error in stdout"),
+            ),
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "50"])
@@ -561,9 +573,13 @@ class TestMainSuccess:
     def test_basic_output(self, capsys):
         """Core fields are extracted correctly from the gh response."""
         auth_patch, repo_patch = _patch_auth_and_repo()
-        with auth_patch, repo_patch, patch(
-            "subprocess.run",
-            return_value=_completed(stdout=_pr_json(), rc=0),
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=_pr_json(), rc=0),
+            ),
         ):
             rc = main(["--pull-request", "50"])
         assert rc == 0
@@ -608,10 +624,14 @@ class TestMainSuccess:
 
     def test_status_check_rollup_is_requested(self, capsys):
         auth_patch, repo_patch = _patch_auth_and_repo()
-        with auth_patch, repo_patch, patch(
-            "subprocess.run",
-            return_value=_completed(stdout=_pr_json(), rc=0),
-        ) as run:
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=_pr_json(), rc=0),
+            ) as run,
+        ):
             rc = main(["--pull-request", "50"])
         assert rc == 0
         capsys.readouterr()
@@ -626,9 +646,13 @@ class TestMainSuccess:
             {"oid": "b2", "messageHeadline": "two"},
         ]
         auth_patch, repo_patch = _patch_auth_and_repo()
-        with auth_patch, repo_patch, patch(
-            "subprocess.run",
-            return_value=_completed(stdout=_pr_json(commits=commits), rc=0),
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=_pr_json(commits=commits), rc=0),
+            ),
         ):
             rc = main(["--pull-request", "50"])
         assert rc == 0
@@ -638,9 +662,13 @@ class TestMainSuccess:
     def test_commits_empty_list(self, capsys):
         """Zero commits returns 0."""
         auth_patch, repo_patch = _patch_auth_and_repo()
-        with auth_patch, repo_patch, patch(
-            "subprocess.run",
-            return_value=_completed(stdout=_pr_json(commits=[]), rc=0),
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=_pr_json(commits=[]), rc=0),
+            ),
         ):
             rc = main(["--pull-request", "50"])
         assert rc == 0
@@ -652,9 +680,13 @@ class TestMainSuccess:
         raw = json.loads(_pr_json())
         del raw["commits"]
         auth_patch, repo_patch = _patch_auth_and_repo()
-        with auth_patch, repo_patch, patch(
-            "subprocess.run",
-            return_value=_completed(stdout=json.dumps(raw), rc=0),
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=json.dumps(raw), rc=0),
+            ),
         ):
             rc = main(["--pull-request", "50"])
         assert rc == 0
@@ -664,15 +696,19 @@ class TestMainSuccess:
     def test_merged_pr(self, capsys):
         """Merged PR populates merged=True and merged_by."""
         auth_patch, repo_patch = _patch_auth_and_repo()
-        with auth_patch, repo_patch, patch(
-            "subprocess.run",
-            return_value=_completed(
-                stdout=_pr_json(
-                    state="MERGED",
-                    mergedAt="2025-01-03T00:00:00Z",
-                    mergedBy={"login": "bob"},
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                return_value=_completed(
+                    stdout=_pr_json(
+                        state="MERGED",
+                        mergedAt="2025-01-03T00:00:00Z",
+                        mergedBy={"login": "bob"},
+                    ),
+                    rc=0,
                 ),
-                rc=0,
             ),
         ):
             rc = main(["--pull-request", "50"])
@@ -685,9 +721,13 @@ class TestMainSuccess:
     def test_empty_labels(self, capsys):
         """PR with no labels returns empty list."""
         auth_patch, repo_patch = _patch_auth_and_repo()
-        with auth_patch, repo_patch, patch(
-            "subprocess.run",
-            return_value=_completed(stdout=_pr_json(labels=[]), rc=0),
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=_pr_json(labels=[]), rc=0),
+            ),
         ):
             rc = main(["--pull-request", "50"])
         assert rc == 0
@@ -699,9 +739,13 @@ class TestMainSuccess:
         raw = json.loads(_pr_json())
         del raw["author"]
         auth_patch, repo_patch = _patch_auth_and_repo()
-        with auth_patch, repo_patch, patch(
-            "subprocess.run",
-            return_value=_completed(stdout=json.dumps(raw), rc=0),
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=json.dumps(raw), rc=0),
+            ),
         ):
             rc = main(["--pull-request", "50"])
         assert rc == 0
@@ -711,9 +755,13 @@ class TestMainSuccess:
     def test_null_author(self, capsys):
         """PR with explicit null author returns None."""
         auth_patch, repo_patch = _patch_auth_and_repo()
-        with auth_patch, repo_patch, patch(
-            "subprocess.run",
-            return_value=_completed(stdout=_pr_json(author=None), rc=0),
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=_pr_json(author=None), rc=0),
+            ),
         ):
             rc = main(["--pull-request", "50"])
         assert rc == 0
@@ -723,28 +771,34 @@ class TestMainSuccess:
     def test_head_sha_maps_from_head_ref_oid(self, capsys):
         """head_sha is sourced directly from the gh headRefOid field (#2315)."""
         auth_patch, repo_patch = _patch_auth_and_repo()
-        with auth_patch, repo_patch, patch(
-            "subprocess.run",
-            return_value=_completed(
-                stdout=_pr_json(headRefOid="0123456789abcdef0123456789abcdef01234567"),
-                rc=0,
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                return_value=_completed(
+                    stdout=_pr_json(headRefOid="0123456789abcdef0123456789abcdef01234567"),
+                    rc=0,
+                ),
             ),
         ):
             rc = main(["--pull-request", "50"])
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
-        assert output["Data"]["head_sha"] == (
-            "0123456789abcdef0123456789abcdef01234567"
-        )
+        assert output["Data"]["head_sha"] == ("0123456789abcdef0123456789abcdef01234567")
 
     def test_head_sha_missing_key_is_none(self, capsys):
         """If headRefOid is absent from the response, head_sha is None (no KeyError)."""
         raw = json.loads(_pr_json())
         del raw["headRefOid"]
         auth_patch, repo_patch = _patch_auth_and_repo()
-        with auth_patch, repo_patch, patch(
-            "subprocess.run",
-            return_value=_completed(stdout=json.dumps(raw), rc=0),
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=json.dumps(raw), rc=0),
+            ),
         ):
             rc = main(["--pull-request", "50"])
         assert rc == 0
@@ -754,9 +808,13 @@ class TestMainSuccess:
     def test_head_sha_empty_string_maps_through(self, capsys):
         """An empty headRefOid maps through unchanged (not coerced to None)."""
         auth_patch, repo_patch = _patch_auth_and_repo()
-        with auth_patch, repo_patch, patch(
-            "subprocess.run",
-            return_value=_completed(stdout=_pr_json(headRefOid=""), rc=0),
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=_pr_json(headRefOid=""), rc=0),
+            ),
         ):
             rc = main(["--pull-request", "50"])
         assert rc == 0
@@ -781,9 +839,13 @@ class TestMainDiffAndFiles:
             return _completed(stdout="diff output", rc=0)
 
         auth_patch, repo_patch = _patch_auth_and_repo()
-        with auth_patch, repo_patch, patch(
-            "subprocess.run",
-            side_effect=_side_effect,
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                side_effect=_side_effect,
+            ),
         ):
             rc = main(["--pull-request", "50", "--include-diff"])
         assert rc == 0
@@ -802,9 +864,13 @@ class TestMainDiffAndFiles:
             return _completed(stdout="stat output", rc=0)
 
         auth_patch, repo_patch = _patch_auth_and_repo()
-        with auth_patch, repo_patch, patch(
-            "subprocess.run",
-            side_effect=_side_effect,
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                side_effect=_side_effect,
+            ),
         ):
             rc = main(["--pull-request", "50", "--include-diff", "--diff-stat"])
         assert rc == 0
@@ -824,9 +890,13 @@ class TestMainDiffAndFiles:
             return _completed(rc=1, stderr="diff failed")
 
         auth_patch, repo_patch = _patch_auth_and_repo()
-        with auth_patch, repo_patch, patch(
-            "subprocess.run",
-            side_effect=_side_effect,
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                side_effect=_side_effect,
+            ),
         ):
             rc = main(["--pull-request", "50", "--include-diff"])
         assert rc == 0
@@ -847,9 +917,13 @@ class TestMainDiffAndFiles:
             return _completed(stdout="file1.py\nfile2.py\n", rc=0)
 
         auth_patch, repo_patch = _patch_auth_and_repo()
-        with auth_patch, repo_patch, patch(
-            "subprocess.run",
-            side_effect=_side_effect,
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                side_effect=_side_effect,
+            ),
         ):
             rc = main(["--pull-request", "50", "--include-changed-files"])
         assert rc == 0
@@ -869,9 +943,13 @@ class TestMainDiffAndFiles:
             return _completed(stdout="a.py\n\n  \nb.py\n", rc=0)
 
         auth_patch, repo_patch = _patch_auth_and_repo()
-        with auth_patch, repo_patch, patch(
-            "subprocess.run",
-            side_effect=_side_effect,
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                side_effect=_side_effect,
+            ),
         ):
             rc = main(["--pull-request", "50", "--include-changed-files"])
         assert rc == 0
@@ -890,9 +968,13 @@ class TestMainDiffAndFiles:
             return _completed(rc=1, stderr="files failed")
 
         auth_patch, repo_patch = _patch_auth_and_repo()
-        with auth_patch, repo_patch, patch(
-            "subprocess.run",
-            side_effect=_side_effect,
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                side_effect=_side_effect,
+            ),
         ):
             rc = main(["--pull-request", "50", "--include-changed-files"])
         assert rc == 0
@@ -916,15 +998,22 @@ class TestMainDiffAndFiles:
             return _completed(rc=19)
 
         auth_patch, repo_patch = _patch_auth_and_repo()
-        with auth_patch, repo_patch, patch(
-            "subprocess.run",
-            side_effect=_side_effect,
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                side_effect=_side_effect,
+            ),
         ):
-            rc = main([
-                "--pull-request", "50",
-                "--include-diff",
-                "--include-changed-files",
-            ])
+            rc = main(
+                [
+                    "--pull-request",
+                    "50",
+                    "--include-diff",
+                    "--include-changed-files",
+                ]
+            )
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
         assert output["Data"]["context_fetch_failures"] == [
@@ -954,15 +1043,22 @@ class TestMainDiffAndFiles:
             return _completed(stdout="x.py\ny.py\n", rc=0)
 
         auth_patch, repo_patch = _patch_auth_and_repo()
-        with auth_patch, repo_patch, patch(
-            "subprocess.run",
-            side_effect=_side_effect,
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                side_effect=_side_effect,
+            ),
         ):
-            rc = main([
-                "--pull-request", "50",
-                "--include-diff",
-                "--include-changed-files",
-            ])
+            rc = main(
+                [
+                    "--pull-request",
+                    "50",
+                    "--include-diff",
+                    "--include-changed-files",
+                ]
+            )
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
         data = output["Data"]
@@ -983,8 +1079,13 @@ class TestExtendedMetadata:
             baseRefOid="deadbeef0000000000000000000000000000dead",
         )
         auth_patch, repo_patch = _patch_auth_and_repo()
-        with auth_patch, repo_patch, patch(
-            "subprocess.run", return_value=_completed(stdout=json.dumps(pr)),
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=json.dumps(pr)),
+            ),
         ):
             rc = main(["--pull-request", "50"])
         assert rc == 0
@@ -994,8 +1095,13 @@ class TestExtendedMetadata:
     def test_is_draft_false_by_default(self, capsys):
         pr = _pr_data(isDraft=False)
         auth_patch, repo_patch = _patch_auth_and_repo()
-        with auth_patch, repo_patch, patch(
-            "subprocess.run", return_value=_completed(stdout=json.dumps(pr)),
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=json.dumps(pr)),
+            ),
         ):
             rc = main(["--pull-request", "50"])
         assert rc == 0
@@ -1005,8 +1111,13 @@ class TestExtendedMetadata:
     def test_is_draft_true(self, capsys):
         pr = _pr_data(isDraft=True)
         auth_patch, repo_patch = _patch_auth_and_repo()
-        with auth_patch, repo_patch, patch(
-            "subprocess.run", return_value=_completed(stdout=json.dumps(pr)),
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=json.dumps(pr)),
+            ),
         ):
             rc = main(["--pull-request", "50"])
         assert rc == 0
@@ -1016,8 +1127,13 @@ class TestExtendedMetadata:
     def test_merge_state_status_present(self, capsys):
         pr = _pr_data(mergeStateStatus="CLEAN")
         auth_patch, repo_patch = _patch_auth_and_repo()
-        with auth_patch, repo_patch, patch(
-            "subprocess.run", return_value=_completed(stdout=json.dumps(pr)),
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=json.dumps(pr)),
+            ),
         ):
             rc = main(["--pull-request", "50"])
         assert rc == 0
@@ -1027,8 +1143,13 @@ class TestExtendedMetadata:
     def test_auto_merge_none(self, capsys):
         pr = _pr_data(autoMergeRequest=None)
         auth_patch, repo_patch = _patch_auth_and_repo()
-        with auth_patch, repo_patch, patch(
-            "subprocess.run", return_value=_completed(stdout=json.dumps(pr)),
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=json.dumps(pr)),
+            ),
         ):
             rc = main(["--pull-request", "50"])
         assert rc == 0
@@ -1040,8 +1161,13 @@ class TestExtendedMetadata:
     def test_auto_merge_set(self, capsys):
         pr = _pr_data(autoMergeRequest={"mergeMethod": "SQUASH"})
         auth_patch, repo_patch = _patch_auth_and_repo()
-        with auth_patch, repo_patch, patch(
-            "subprocess.run", return_value=_completed(stdout=json.dumps(pr)),
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=json.dumps(pr)),
+            ),
         ):
             rc = main(["--pull-request", "50"])
         assert rc == 0
@@ -1051,13 +1177,20 @@ class TestExtendedMetadata:
         assert data["auto_merge_method"] == "SQUASH"
 
     def test_head_repo_fields(self, capsys):
-        pr = _pr_data(headRepository={
-            "name": "ai-agents",
-            "owner": {"login": "rjmurillo"},
-        })
+        pr = _pr_data(
+            headRepository={
+                "name": "ai-agents",
+                "owner": {"login": "rjmurillo"},
+            }
+        )
         auth_patch, repo_patch = _patch_auth_and_repo()
-        with auth_patch, repo_patch, patch(
-            "subprocess.run", return_value=_completed(stdout=json.dumps(pr)),
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=json.dumps(pr)),
+            ),
         ):
             rc = main(["--pull-request", "50"])
         assert rc == 0
@@ -1067,12 +1200,19 @@ class TestExtendedMetadata:
         assert data["head_repo_owner"] == "rjmurillo"
 
     def test_reviews_list(self, capsys):
-        pr = _pr_data(reviews=[
-            {"author": {"login": "reviewer1"}, "state": "APPROVED"},
-        ])
+        pr = _pr_data(
+            reviews=[
+                {"author": {"login": "reviewer1"}, "state": "APPROVED"},
+            ]
+        )
         auth_patch, repo_patch = _patch_auth_and_repo()
-        with auth_patch, repo_patch, patch(
-            "subprocess.run", return_value=_completed(stdout=json.dumps(pr)),
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=json.dumps(pr)),
+            ),
         ):
             rc = main(["--pull-request", "50"])
         assert rc == 0
@@ -1080,14 +1220,21 @@ class TestExtendedMetadata:
         assert len(out["Data"]["reviews"]) == 1
 
     def test_review_counts_aggregated(self, capsys):
-        pr = _pr_data(reviews=[
-            {"id": "r1", "state": "APPROVED", "author": {"login": "bob"}},
-            {"id": "r2", "state": "APPROVED", "author": {"login": "carol"}},
-            {"id": "r3", "state": "CHANGES_REQUESTED", "author": {"login": "dave"}},
-        ])
+        pr = _pr_data(
+            reviews=[
+                {"id": "r1", "state": "APPROVED", "author": {"login": "bob"}},
+                {"id": "r2", "state": "APPROVED", "author": {"login": "carol"}},
+                {"id": "r3", "state": "CHANGES_REQUESTED", "author": {"login": "dave"}},
+            ]
+        )
         auth_patch, repo_patch = _patch_auth_and_repo()
-        with auth_patch, repo_patch, patch(
-            "subprocess.run", return_value=_completed(stdout=json.dumps(pr)),
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=json.dumps(pr)),
+            ),
         ):
             rc = main(["--pull-request", "50"])
         assert rc == 0
@@ -1117,7 +1264,6 @@ class TestExtendedMetadata:
         assert data["review_thread_returned_count"] == 2
         assert data["review_thread_unresolved_count"] == 1
         assert data["review_thread_counts_complete"] is True
-
 
     def test_review_threads_paginates_past_first_hundred(self, capsys):
         auth_patch, repo_patch = _patch_auth_and_repo()
@@ -1150,7 +1296,6 @@ class TestExtendedMetadata:
         assert "cursor" not in graphql.call_args_list[0].args[1]
         assert graphql.call_args_list[1].args[1]["cursor"] == "cursor-100"
 
-
     def test_review_thread_count_reports_hidden_nodes(self, capsys):
         auth_patch, repo_patch = _patch_auth_and_repo()
         response = _review_threads_response(
@@ -1171,7 +1316,6 @@ class TestExtendedMetadata:
         assert data["review_thread_returned_count"] == 1
         assert data["review_thread_unresolved_count"] == 1
         assert data["review_thread_counts_complete"] is False
-
 
     def test_empty_status_checks_are_authoritative(self, capsys):
         auth_patch, repo_patch = _patch_auth_and_repo()
@@ -1209,12 +1353,23 @@ class TestExtendedMetadata:
         """API response lacking new fields should not crash."""
         pr = _pr_data()
         # Remove new fields to simulate old API response
-        for key in ("baseRefOid", "isDraft", "mergeStateStatus",
-                    "autoMergeRequest", "headRepository", "reviews"):
+        for key in (
+            "baseRefOid",
+            "isDraft",
+            "mergeStateStatus",
+            "autoMergeRequest",
+            "headRepository",
+            "reviews",
+        ):
             pr.pop(key, None)
         auth_patch, repo_patch = _patch_auth_and_repo()
-        with auth_patch, repo_patch, patch(
-            "subprocess.run", return_value=_completed(stdout=json.dumps(pr)),
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=json.dumps(pr)),
+            ),
         ):
             rc = main(["--pull-request", "50"])
         assert rc == 0
@@ -1284,9 +1439,13 @@ class TestAuthorIsBot:
 
     def _data(self, capsys, author):
         auth_patch, repo_patch = _patch_auth_and_repo()
-        with auth_patch, repo_patch, patch(
-            "subprocess.run",
-            return_value=_completed(stdout=_pr_json(author=author), rc=0),
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=_pr_json(author=author), rc=0),
+            ),
         ):
             rc = main(["--pull-request", "50"])
         assert rc == 0
@@ -1397,9 +1556,13 @@ class TestAuthorIsBot:
         raw = json.loads(_pr_json())
         del raw["author"]
         auth_patch, repo_patch = _patch_auth_and_repo()
-        with auth_patch, repo_patch, patch(
-            "subprocess.run",
-            return_value=_completed(stdout=json.dumps(raw), rc=0),
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=json.dumps(raw), rc=0),
+            ),
         ):
             rc = main(["--pull-request", "50"])
         assert rc == 0

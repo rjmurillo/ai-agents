@@ -80,8 +80,7 @@ def make_task(**overrides: object) -> dict[str, Any]:
             "known_bad": {
                 "files": {
                     "calc/core.py": (
-                        "def add(a, b):\n    return a + b\n\n\n"
-                        "def subtract(a, b):\n    return 3\n"
+                        "def add(a, b):\n    return a + b\n\n\ndef subtract(a, b):\n    return 3\n"
                     )
                 },
                 "response": "Added subtract(a, b) to calc/core.py.",
@@ -153,9 +152,7 @@ class FakeClaudeRunner:
         self.extra_files = extra_files or {}
         self.calls: list[list[str]] = []
 
-    def __call__(
-        self, argv: list[str], **kwargs: object
-    ) -> subprocess.CompletedProcess[str]:
+    def __call__(self, argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         args = [str(value) for value in argv]
         self.calls.append(args)
         if "--version" in args:

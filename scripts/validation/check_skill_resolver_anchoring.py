@@ -72,10 +72,7 @@ class Violation:
     detail: str
 
     def render(self) -> str:
-        return (
-            f"{self.path}:{self.line}: {self.function}(): {self.kind}\n"
-            f"    {self.detail}"
-        )
+        return f"{self.path}:{self.line}: {self.function}(): {self.kind}\n    {self.detail}"
 
 
 def _function_blocks(lines: list[str]) -> list[tuple[str, int, int]]:
@@ -155,9 +152,7 @@ def check_file(path: Path) -> list[Violation]:
 
         for offset, line in enumerate(body):
             stripped = line.strip()
-            is_bare = bool(
-                BARE_RELATIVE_ROOT.match(stripped) or BARE_RELATIVE_INLINE.search(line)
-            )
+            is_bare = bool(BARE_RELATIVE_ROOT.match(stripped) or BARE_RELATIVE_INLINE.search(line))
             if not is_bare:
                 continue
 

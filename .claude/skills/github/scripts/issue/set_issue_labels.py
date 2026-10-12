@@ -124,8 +124,8 @@ def build_parser() -> argparse.ArgumentParser:
             "Label names to apply. To apply two labels 'bug' and "
             "'enhancement', use either unquoted space-separated arguments "
             "(--labels bug enhancement) or a quoted comma-separated string "
-            "(--labels \"bug,enhancement\"). Only commas split names, so a "
-            "quoted space-separated string (--labels \"bug enhancement\") is "
+            '(--labels "bug,enhancement"). Only commas split names, so a '
+            'quoted space-separated string (--labels "bug enhancement") is '
             "one label named 'bug enhancement'. Repeat the flag to add more; "
             "surrounding whitespace on each name is trimmed."
         ),
@@ -263,9 +263,7 @@ def _get_issue_labels(owner: str, repo: str, issue: int) -> list[str]:
     return [
         name
         for item in labels
-        if isinstance(item, dict)
-        and isinstance(name := item.get("name"), str)
-        and name
+        if isinstance(item, dict) and isinstance(name := item.get("name"), str) and name
     ]
 
 

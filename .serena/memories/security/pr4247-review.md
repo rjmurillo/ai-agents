@@ -49,18 +49,20 @@ Class: `TestBotSkipGuardClassification`
 
 **Allowlist of permitted skip-guarded steps** (lines 920-932):
 ```python
-_ALLOWED_BEHIND_GUARD: frozenset[str] = frozenset({
-    "Checkout repository",
-    "Setup PowerShell",
-    "Validate PR Description vs Diff",
-    "Validate PR Description Standards",
-    "Check QA Report Exists",
-    "Generate Validation Report",
-    "Post PR Comment",
-    "Set Job Summary",
-    "Check PR commit count",
-    "Enforce Blocking Issues",
-})
+_ALLOWED_BEHIND_GUARD: frozenset[str] = frozenset(
+    {
+        "Checkout repository",
+        "Setup PowerShell",
+        "Validate PR Description vs Diff",
+        "Validate PR Description Standards",
+        "Check QA Report Exists",
+        "Generate Validation Report",
+        "Post PR Comment",
+        "Set Job Summary",
+        "Check PR commit count",
+        "Enforce Blocking Issues",
+    }
+)
 ```
 
 **Key test methods** (all present in the branch):

@@ -109,9 +109,7 @@ def _scaffold(tmp_path: Path) -> Path:
     return repo
 
 
-def _run(
-    repo: Path, changed: list[str], pr_body: str = ""
-) -> subprocess.CompletedProcess[str]:
+def _run(repo: Path, changed: list[str], pr_body: str = "") -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [
             sys.executable,
@@ -124,7 +122,8 @@ def _run(
             *changed,
         ],
         capture_output=True,
-        text=True, encoding="utf-8",
+        text=True,
+        encoding="utf-8",
         check=False,
     )
 
@@ -166,9 +165,7 @@ def test_c2_empty_body_is_not_shape() -> None:
 
 
 def test_frontmatter_and_body_split_handle_crlf() -> None:
-    frontmatter, body = mod.split_frontmatter(
-        "---\r\nname: x\r\n---\r\nbody line\r\n"
-    )
+    frontmatter, body = mod.split_frontmatter("---\r\nname: x\r\n---\r\nbody line\r\n")
     assert frontmatter == "name: x"
     assert body == "body line"
 
@@ -248,10 +245,7 @@ def test_invocation_parsing_allows_spaces_and_single_quotes() -> None:
 
 
 def test_invocation_parsing_detects_descriptive_agent_list() -> None:
-    text = (
-        "Task(subagent_type=...) agent "
-        "(analyst, architect, qa, security, devops, roadmap)"
-    )
+    text = "Task(subagent_type=...) agent (analyst, architect, qa, security, devops, roadmap)"
     assert mod._task_invocations(text) == {
         "analyst",
         "architect",
@@ -275,8 +269,7 @@ def test_pure_skill_agent_fails(tmp_path: Path) -> None:
     _write_command(
         repo,
         "build",
-        'Task(subagent_type="shaped"): do work.\n'
-        'Invoke Skill(skill="pre-mortem") first.\n',
+        'Task(subagent_type="shaped"): do work.\nInvoke Skill(skill="pre-mortem") first.\n',
     )
 
     proc = _run(repo, [rel])
@@ -300,14 +293,11 @@ def test_pure_agent_passes(tmp_path: Path) -> None:
 def test_mixed_agent_with_frontmatter_override_passes(tmp_path: Path) -> None:
     """Skill-shape but isolation_required: true -> exit 0."""
     repo = _scaffold(tmp_path)
-    rel = _write_agent(
-        repo, "critic", _reference_body(), isolation_required=True
-    )
+    rel = _write_agent(repo, "critic", _reference_body(), isolation_required=True)
     _write_command(
         repo,
         "review",
-        'Task(subagent_type="critic"): review.\n'
-        'Skill(skill="taste-lints").\n',
+        'Task(subagent_type="critic"): review.\nSkill(skill="taste-lints").\n',
     )
 
     proc = _run(repo, [rel])
@@ -333,8 +323,7 @@ def test_three_pipeline_agent_passes_via_c3_na(tmp_path: Path) -> None:
         _write_command(
             repo,
             cmd,
-            'Task(subagent_type="analyst"): investigate.\n'
-            'Skill(skill="memory").\n',
+            'Task(subagent_type="analyst"): investigate.\nSkill(skill="memory").\n',
         )
 
     proc = _run(repo, [rel])
@@ -356,8 +345,7 @@ def test_pr_description_override_token_passes(tmp_path: Path) -> None:
     _write_command(
         repo,
         "build",
-        'Task(subagent_type="shaped"): do work.\n'
-        'Skill(skill="pre-mortem").\n',
+        'Task(subagent_type="shaped"): do work.\nSkill(skill="pre-mortem").\n',
     )
 
     proc = _run(
@@ -378,14 +366,11 @@ def test_pr_description_override_token_passes(tmp_path: Path) -> None:
 def test_shared_template_sibling_scored(tmp_path: Path) -> None:
     """A templates/agents/*.shared.md change is scored by agent name."""
     repo = _scaffold(tmp_path)
-    rel = _write_agent(
-        repo, "devops", _reference_body(), shared_template=True
-    )
+    rel = _write_agent(repo, "devops", _reference_body(), shared_template=True)
     _write_command(
         repo,
         "ship",
-        'Task(subagent_type="devops"): release.\n'
-        'Skill(skill="pipeline-validator").\n',
+        'Task(subagent_type="devops"): release.\nSkill(skill="pipeline-validator").\n',
     )
 
     proc = _run(repo, [rel])
@@ -420,7 +405,8 @@ def test_missing_repo_root_is_config_error(tmp_path: Path) -> None:
     proc = subprocess.run(
         [sys.executable, str(SCRIPT), "--repo-root", str(missing)],
         capture_output=True,
-        text=True, encoding="utf-8",
+        text=True,
+        encoding="utf-8",
         check=False,
     )
     assert proc.returncode == 2
@@ -432,7 +418,8 @@ def test_missing_commands_dir_is_config_error(tmp_path: Path) -> None:
     proc = subprocess.run(
         [sys.executable, str(SCRIPT), "--repo-root", str(repo)],
         capture_output=True,
-        text=True, encoding="utf-8",
+        text=True,
+        encoding="utf-8",
         check=False,
     )
     assert proc.returncode == 2
@@ -483,7 +470,8 @@ def test_changed_files_via_env(tmp_path: Path, monkeypatch) -> None:
     proc = subprocess.run(
         [sys.executable, str(SCRIPT), "--repo-root", str(repo)],
         capture_output=True,
-        text=True, encoding="utf-8",
+        text=True,
+        encoding="utf-8",
         check=False,
         env={**__import__("os").environ, "CHANGED_FILES": rel},
     )

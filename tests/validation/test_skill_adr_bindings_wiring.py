@@ -198,10 +198,7 @@ def test_main_exits_ok_when_at_baseline(tmp_path: Path) -> None:
     every outcome except the unrun-gate case.
     """
     repo = _repo_with(tmp_path, retired_skills=1)
-    assert (
-        main(["--repo-root", str(repo), "--baseline", str(_baseline(tmp_path, 1))])
-        == EXIT_OK
-    )
+    assert main(["--repo-root", str(repo), "--baseline", str(_baseline(tmp_path, 1))]) == EXIT_OK
 
 
 def test_main_exits_regression_above_baseline(tmp_path: Path) -> None:
@@ -213,9 +210,7 @@ def test_main_exits_regression_above_baseline(tmp_path: Path) -> None:
     )
 
 
-def test_adapter_is_true_when_at_baseline(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_adapter_is_true_when_at_baseline(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Drives the adapter itself, which is what `pre_pr` calls.
 
     The adapter takes only a repo root, so the ceiling it reads is the module's

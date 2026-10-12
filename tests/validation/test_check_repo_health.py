@@ -182,9 +182,7 @@ class TestBareFlaggedWorkTreesFail:
 
         assert check_repo_health.main([str(linked)]) == 1
 
-    def test_a_subdirectory_of_a_bare_flagged_checkout_exits_one(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_subdirectory_of_a_bare_flagged_checkout_exits_one(self, tmp_path: Path) -> None:
         repo = _make_repo(tmp_path)
         nested = repo / "scripts" / "validation"
         nested.mkdir(parents=True)
@@ -282,6 +280,7 @@ class TestAPoisonedSharedConfigIsReportedFromAWorktreeThatStillWorks:
         assert "local=true" in err
         assert "already broken" in err
         assert "Fix: git config --replace-all core.bare false" in err
+
     """A repair aimed at the wrong config file leaves the checkout broken."""
 
     def test_a_worktree_scoped_value_gets_a_worktree_scoped_repair(
@@ -312,9 +311,7 @@ class TestRepositoriesWithNoWorkTreeAreOutOfScope:
         assert code == 0
         assert "bare repository with no work tree" in capsys.readouterr().out
 
-    def test_a_bare_repository_inside_a_checkout_is_not_blamed_on_it(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_bare_repository_inside_a_checkout_is_not_blamed_on_it(self, tmp_path: Path) -> None:
         """The ancestor walk must compare git directories, not just find a marker."""
         repo = _make_repo(tmp_path)
         nested = repo / "vendor" / "mirror.git"
@@ -451,17 +448,13 @@ class TestDiagnoseClassifiesWithoutPrinting:
 
         assert check_repo_health.diagnose(bare).status == "bare_by_design"
 
-    def test_a_marker_file_with_no_gitdir_line_resolves_to_nothing(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_marker_file_with_no_gitdir_line_resolves_to_nothing(self, tmp_path: Path) -> None:
         marker = tmp_path / ".git"
         marker.write_text("not a gitdir pointer\n", encoding="utf-8")
 
         assert check_repo_health._marker_git_dir(marker) is None
 
-    def test_a_relative_gitdir_pointer_resolves_against_the_marker(
-        self, tmp_path: Path
-    ) -> None:
+    def test_a_relative_gitdir_pointer_resolves_against_the_marker(self, tmp_path: Path) -> None:
         target = tmp_path / "elsewhere"
         target.mkdir()
         marker = tmp_path / ".git"

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size (ruff format pushed this file past 500 lines)
 """Deterministic long-tail route resolver for the autoplan skill (DESIGN-037).
 
 The `autoplan` high-traffic table is prose a model reads; this script is the
@@ -104,12 +105,53 @@ _WORD_RE = re.compile(r"[a-z0-9]+")
 # they never contribute to an intent match or a false positive.
 _STOPWORDS: frozenset[str] = frozenset(
     {
-        "a", "an", "and", "are", "as", "at", "be", "been", "being", "but",
-        "by", "can", "could", "do", "does", "did", "for", "from", "how",
-        "i", "in", "is", "it", "its", "my", "of", "on", "or", "our",
-        "please", "should", "that", "the", "their", "this", "to", "was",
-        "we", "were", "what", "which", "who", "will", "with", "would",
-        "you", "your",
+        "a",
+        "an",
+        "and",
+        "are",
+        "as",
+        "at",
+        "be",
+        "been",
+        "being",
+        "but",
+        "by",
+        "can",
+        "could",
+        "do",
+        "does",
+        "did",
+        "for",
+        "from",
+        "how",
+        "i",
+        "in",
+        "is",
+        "it",
+        "its",
+        "my",
+        "of",
+        "on",
+        "or",
+        "our",
+        "please",
+        "should",
+        "that",
+        "the",
+        "their",
+        "this",
+        "to",
+        "was",
+        "we",
+        "were",
+        "what",
+        "which",
+        "who",
+        "will",
+        "with",
+        "would",
+        "you",
+        "your",
     }
 )
 
@@ -327,7 +369,9 @@ def _resolve_explicit(
             namespace, name = None, match.group("slash_name")
         else:
             namespace, name = match.group("use_ns"), match.group("use_name")
-        result = _resolve_one_reference(namespace, name, catalog, home_namespace, home_qualified, notes)
+        result = _resolve_one_reference(
+            namespace, name, catalog, home_namespace, home_qualified, notes
+        )
         if result is not None:
             return result
     return None
@@ -342,12 +386,18 @@ def _find_multi_domain_marker(request: str) -> str | None:
     return None
 
 
-def _resolve_specialist(request: str, catalog: list[Skill], home_qualified: str) -> dict[str, object]:
+def _resolve_specialist(
+    request: str, catalog: list[Skill], home_qualified: str
+) -> dict[str, object]:
     """Score every eligible front-door skill and return the winner, a tie, or none."""
     request_tokens = frozenset(_tokenize(request))
     scored: list[tuple[int, int, Skill, list[str]]] = []
     for skill in catalog:
-        if skill.role != "front-door" or not skill.intents or skill.qualified_name == home_qualified:
+        if (
+            skill.role != "front-door"
+            or not skill.intents
+            or skill.qualified_name == home_qualified
+        ):
             continue
         matched = [
             intent

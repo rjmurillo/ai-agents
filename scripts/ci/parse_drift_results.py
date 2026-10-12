@@ -105,17 +105,25 @@ def _format_agent_entry(agent: dict[str, object]) -> str:
     entry += f"- **Overall similarity**: {similarity}%\n"
 
     drifting_sections_raw = agent.get("driftingSections")
-    drifting_sections = [] if drifting_sections_raw is None else _require_list(
-        drifting_sections_raw,
-        "agent.driftingSections",
+    drifting_sections = (
+        []
+        if drifting_sections_raw is None
+        else _require_list(
+            drifting_sections_raw,
+            "agent.driftingSections",
+        )
     )
     if drifting_sections:
         entry += f"- **Drifting sections**: {', '.join(str(s) for s in drifting_sections)}\n"
 
     missing_sections_raw = agent.get("missingSections")
-    missing_sections = [] if missing_sections_raw is None else _require_list(
-        missing_sections_raw,
-        "agent.missingSections",
+    missing_sections = (
+        []
+        if missing_sections_raw is None
+        else _require_list(
+            missing_sections_raw,
+            "agent.missingSections",
+        )
     )
     if missing_sections:
         entry += f"- **Missing sections**: {', '.join(str(s) for s in missing_sections)}\n"

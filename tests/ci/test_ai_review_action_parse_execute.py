@@ -23,10 +23,7 @@ def test_parse_output_uses_last_literal_verdict_and_writes_outputs(tmp_path):
         exit_code=0,
     )
     assert output_path.read_text(encoding="utf-8") == (
-        "verdict=PASS\n"
-        'labels=["bug","area-workflows"]\n'
-        "milestone=v1.1\n"
-        "exit_code=0\n"
+        'verdict=PASS\nlabels=["bug","area-workflows"]\nmilestone=v1.1\nexit_code=0\n'
     )
 
 

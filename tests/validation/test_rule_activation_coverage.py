@@ -73,9 +73,7 @@ def _write_skill_scenario(root: Path, skill_id: str, payload: Mapping[str, objec
     return path
 
 
-def _write_baseline(
-    root: Path, uncovered_rules: list[str], uncovered_skills: list[str]
-) -> Path:
+def _write_baseline(root: Path, uncovered_rules: list[str], uncovered_skills: list[str]) -> Path:
     path = root / "baseline.json"
     payload = gate.build_baseline_payload(set(uncovered_rules), set(uncovered_skills))
     path.write_text(json.dumps(payload), encoding="utf-8")
@@ -251,9 +249,7 @@ def test_empty_scenarios_list_is_config_error(tmp_path: Path) -> None:
 
 def test_all_negative_scenarios_is_config_error(tmp_path: Path) -> None:
     _make_tree(tmp_path)
-    _write_rule_scenario(
-        tmp_path, "covered-rule", _rule_scenario("covered-rule", positive=False)
-    )
+    _write_rule_scenario(tmp_path, "covered-rule", _rule_scenario("covered-rule", positive=False))
     baseline = _write_baseline(tmp_path, ["bare-rule"], ["bare-skill"])
     assert _run(tmp_path, baseline) == gate.EXIT_CONFIG
 
@@ -336,9 +332,7 @@ def test_baseline_duplicate_entry_is_config_error(tmp_path: Path) -> None:
     _make_tree(tmp_path)
     baseline = tmp_path / "baseline.json"
     baseline.write_text(
-        json.dumps(
-            {"uncovered_rules": ["bare-rule", "bare-rule"], "uncovered_skills": []}
-        ),
+        json.dumps({"uncovered_rules": ["bare-rule", "bare-rule"], "uncovered_skills": []}),
         encoding="utf-8",
     )
     assert _run(tmp_path, baseline) == gate.EXIT_CONFIG
@@ -414,7 +408,5 @@ def test_empty_scenario_dir_is_config_error(tmp_path: Path) -> None:
     scenario_dir = tmp_path / "tests" / "evals" / "rule-scenarios"
     for path in scenario_dir.glob("*.json"):
         path.unlink()
-    baseline = _write_baseline(
-        tmp_path, ["bare-rule", "covered-rule"], ["bare-skill"]
-    )
+    baseline = _write_baseline(tmp_path, ["bare-rule", "covered-rule"], ["bare-skill"])
     assert _run(tmp_path, baseline) == gate.EXIT_CONFIG

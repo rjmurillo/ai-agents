@@ -87,8 +87,7 @@ def test_no_autofix_surface_runs_git_clean() -> None:
         if _GIT_CLEAN.search(line)
     ]
     assert not offenders, (
-        "git clean removes operator-owned untracked files (issue #4790). "
-        f"Found at: {offenders}"
+        f"git clean removes operator-owned untracked files (issue #4790). Found at: {offenders}"
     )
 
 

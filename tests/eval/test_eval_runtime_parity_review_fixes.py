@@ -50,9 +50,7 @@ def test_agent_install_preserves_crlf_line_endings(tmp_path: Path) -> None:
     assert target.read_bytes() == b"---\r\nname: parity\r\n---\r\nbody\r\n"
 
 
-def test_runtime_env_redirects_every_home_and_cache_root(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_runtime_env_redirects_every_home_and_cache_root(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("HOME", "/operator/home")
     monkeypatch.setenv("USERPROFILE", "/operator/home")
     monkeypatch.setenv("LOCALAPPDATA", "/operator/AppData/Local")
@@ -81,9 +79,7 @@ def test_runtime_env_redirects_every_home_and_cache_root(
     assert not any(value.startswith("/operator") for value in env.values())
 
 
-def test_the_claude_harness_is_profile_isolated_too(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_the_claude_harness_is_profile_isolated_too(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("HOME", "/operator/home")
     workspace = tmp_path / "claude"
     workspace.mkdir()
@@ -94,9 +90,7 @@ def test_the_claude_harness_is_profile_isolated_too(
     assert env["CLAUDE_CONFIG_DIR"].startswith(str(workspace))
 
 
-def test_each_harness_receives_only_its_own_credentials(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_each_harness_receives_only_its_own_credentials(tmp_path: Path, monkeypatch) -> None:
     credentials = {
         "ANTHROPIC_API_KEY": "anthropic",
         "CLAUDE_CODE_OAUTH_TOKEN": "claude-oauth",
@@ -252,9 +246,7 @@ def test_malformed_jsonl_is_an_external_runtime_failure(
         args = [str(value) for value in argv]
         executable = Path(args[0]).name.lower()
         if "--version" in args:
-            return subprocess.CompletedProcess(
-                args, 0, f"{executable} test-version\n", ""
-            )
+            return subprocess.CompletedProcess(args, 0, f"{executable} test-version\n", "")
         response = "CONTINUE_PHASE_3"
         if executable.startswith("claude"):
             events = [
@@ -266,9 +258,7 @@ def test_malformed_jsonl_is_an_external_runtime_failure(
                     }
                 ),
                 bad_line,
-                json.dumps(
-                    {"type": "result", "subtype": "success", "result": response}
-                ),
+                json.dumps({"type": "result", "subtype": "success", "result": response}),
             ]
         else:
             events = [
@@ -282,9 +272,7 @@ def test_malformed_jsonl_is_an_external_runtime_failure(
                     }
                 )
             ]
-        return subprocess.CompletedProcess(
-            args, 0, "\n".join(events) + "\n", ""
-        )
+        return subprocess.CompletedProcess(args, 0, "\n".join(events) + "\n", "")
 
     code = parity.main(
         [
@@ -312,12 +300,8 @@ def test_consequential_choice_exposes_each_question_capability() -> None:
         if fixture.fixture_id == "consequential-choice"
     )
 
-    claude = parity.build_argv(
-        "claude", "claude", parity.DEFAULT_MODEL, fixture
-    )
-    copilot = parity.build_argv(
-        "copilot", "copilot", parity.DEFAULT_MODEL, fixture
-    )
+    claude = parity.build_argv("claude", "claude", parity.DEFAULT_MODEL, fixture)
+    copilot = parity.build_argv("copilot", "copilot", parity.DEFAULT_MODEL, fixture)
 
     assert claude[claude.index("--tools") + 1] == "AskUserQuestion"
     assert "--available-tools=ask_user" in copilot
@@ -330,9 +314,7 @@ class TestTheAgentIsRegisteredUnderTheNameTheCliIsInvokedWith:
 
     def _fixture(self):
         return next(
-            f
-            for f in parity.load_fixtures(FIXTURES)
-            if f.fixture_id == "consequential-choice"
+            f for f in parity.load_fixtures(FIXTURES) if f.fixture_id == "consequential-choice"
         )
 
     def test_the_claude_agent_frontmatter_name_becomes_parity(self, tmp_path: Path):
@@ -362,9 +344,7 @@ class TestTheAgentIsRegisteredUnderTheNameTheCliIsInvokedWith:
         parity.prepare_workspace(fixture, "claude", workspace)
 
         source = fixture.claude_agent.read_text(encoding="utf-8")
-        installed = (workspace / ".claude" / "agents" / "parity.md").read_text(
-            encoding="utf-8"
-        )
+        installed = (workspace / ".claude" / "agents" / "parity.md").read_text(encoding="utf-8")
         assert installed.endswith(source.split("---", 2)[2])
 
     def _fixture_with_agent(self, agent: Path):
@@ -395,9 +375,7 @@ class TestTheAgentIsRegisteredUnderTheNameTheCliIsInvokedWith:
         source.write_text(content, encoding="utf-8")
 
         with pytest.raises(parity.ParityConfigError):
-            parity.prepare_workspace(
-                self._fixture_with_agent(source), "claude", tmp_path / "ws"
-            )
+            parity.prepare_workspace(self._fixture_with_agent(source), "claude", tmp_path / "ws")
 
 
 class TestQuestionMechanismClassifier:
@@ -416,9 +394,7 @@ class TestQuestionMechanismClassifier:
     def test_prose_with_no_question_tool_reports_the_text_fallback(self):
         tools = [{"type": "tool_use", "name": "Edit"}]
 
-        assert (
-            parity.question_mechanism(tools, "Should we do A or B?") == "text_fallback"
-        )
+        assert parity.question_mechanism(tools, "Should we do A or B?") == "text_fallback"
 
     def test_no_tools_and_no_response_reports_no_answer(self):
         assert parity.question_mechanism([], "   ") == "no_answer"

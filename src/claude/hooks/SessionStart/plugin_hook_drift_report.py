@@ -35,6 +35,7 @@ from plugin_hook_drift_state import InstallReport
 MAX_LINES_PER_DIRECTION = 20
 MAX_REPORTED_INSTALLS = 10
 
+
 def _capped(lines: Sequence[str], label: str, prefix: str) -> list[str]:
     """Render at most ``MAX_LINES_PER_DIRECTION`` entries, saying what was cut.
 

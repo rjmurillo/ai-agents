@@ -87,6 +87,7 @@ The **actual implementation** has strong protections:
 ```python
 SAFE_BASE_DIR = Path(__file__).resolve().parents[3]
 
+
 def _validate_path_string(path_str: str) -> str | None:
     """Validate BEFORE Path() construction to prevent tainted data flow."""
     # Rejects null bytes (CWE-158), control chars, obvious traversal patterns
@@ -96,6 +97,7 @@ def _validate_path_string(path_str: str) -> str | None:
     if "/../" in normalized or normalized.startswith("../"):
         return None
     return path_str
+
 
 def get_project_directory(hook_input: dict) -> str:
     """Defense-in-depth path validation (lines 216-243)."""
@@ -189,10 +191,12 @@ def test_plugin_root_path_traversal_rejection():
     # 1. Falls back to default lib directory, OR
     # 2. Validates and rejects the traversal path
 
+
 def test_project_dir_normalization():
     """Verify CLAUDE_PROJECT_DIR paths are normalized before use."""
     os.environ["CLAUDE_PROJECT_DIR"] = "/tmp/project/../../../etc"
     from hook_utilities import get_project_directory
+
     project_dir = get_project_directory()
     # MUST NOT resolve to /etc
     assert not project_dir.startswith("/etc")

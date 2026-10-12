@@ -91,10 +91,12 @@ class TestWriteGithubOutput:
         output_file.touch()
         monkeypatch.setenv("GITHUB_OUTPUT", str(output_file))
 
-        write_github_output({
-            "simple": "value",
-            "multi": "line1\nline2",
-        })
+        write_github_output(
+            {
+                "simple": "value",
+                "multi": "line1\nline2",
+            }
+        )
 
         outputs = _read_outputs(output_file)
         assert outputs["simple"] == "value"

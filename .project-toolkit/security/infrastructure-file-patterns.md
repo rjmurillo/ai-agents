@@ -175,16 +175,23 @@ def should_trigger_security_review(changed_files):
         "**/Auth/**",
         "**/Security/**",
         "*.env*",
-        "*.pem", "*.key", "*.p12", "*.pfx",
-        "*secret*", "*credential*"
+        "*.pem",
+        "*.key",
+        "*.p12",
+        "*.pfx",
+        "*secret*",
+        "*credential*",
     ]
 
     high_patterns = [
-        "build/**/*.ps1", "build/**/*.sh",
-        "Dockerfile*", "docker-compose*",
+        "build/**/*.ps1",
+        "build/**/*.sh",
+        "Dockerfile*",
+        "docker-compose*",
         "**/Controllers/**",
         "appsettings*.json",
-        "*.tf", "*.tfvars"
+        "*.tf",
+        "*.tfvars",
     ]
 
     matches = []

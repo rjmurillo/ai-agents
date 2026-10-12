@@ -101,8 +101,7 @@ def classify(*, outcome: str, error_message: str, log: str) -> Classification:
         is_semantic_failure=False,
         is_transient=True,
         message=(
-            f"Transient infrastructure failure ({detail}); "
-            "not a PR title defect. Rerun to recover."
+            f"Transient infrastructure failure ({detail}); not a PR title defect. Rerun to recover."
         ),
     )
 
@@ -160,9 +159,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     log = _read_log(args.log_file)
-    result = classify(
-        outcome=args.outcome, error_message=args.error_message, log=log
-    )
+    result = classify(outcome=args.outcome, error_message=args.error_message, log=log)
     print(_render(result, args.pr_title))
     return result.exit_code
 

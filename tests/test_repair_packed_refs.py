@@ -177,9 +177,7 @@ def test_write_failure_unlinks_temp_after_file_is_closed(
             assert temp_closed is True
         original_unlink(path, missing_ok=missing_ok)
 
-    monkeypatch.setattr(
-        repair_module.tempfile, "NamedTemporaryFile", fake_named_temporary_file
-    )
+    monkeypatch.setattr(repair_module.tempfile, "NamedTemporaryFile", fake_named_temporary_file)
     monkeypatch.setattr(Path, "unlink", assert_closed_before_unlink)
 
     with pytest.raises(OSError, match="write failed"):
@@ -189,9 +187,7 @@ def test_write_failure_unlinks_temp_after_file_is_closed(
     assert packed_refs.read_bytes() == PACKED_REFS_HEADER
 
 
-def test_replace_failure_unlinks_temp_file(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_replace_failure_unlinks_temp_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Failed replacement removes the closed temp file."""
     packed_refs = tmp_path / "packed-refs"
     packed_refs.write_bytes(PACKED_REFS_HEADER)

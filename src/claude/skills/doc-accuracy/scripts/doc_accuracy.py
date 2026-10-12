@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 # Data classes
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class SourceSymbol:
     """A public symbol extracted from source code."""
@@ -176,24 +177,26 @@ _GIT_TIMEOUT = 60  # seconds, applied to every git subprocess call
 # inject configuration, or alter revision/object resolution.
 # Sanitized from every git subprocess to ensure -C <repo_root> is authoritative.
 # Source: `git rev-parse --local-env-vars` plus all GIT_CONFIG_* variables.
-_GIT_ENV_DENY_EXACT = frozenset((
-    "GIT_DIR",
-    "GIT_WORK_TREE",
-    "GIT_IMPLICIT_WORK_TREE",
-    "GIT_INDEX_FILE",
-    "GIT_OBJECT_DIRECTORY",
-    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-    "GIT_COMMON_DIR",
-    "GIT_CEILING_DIRECTORIES",
-    "GIT_GRAFT_FILE",
-    "GIT_REPLACE_REF_BASE",
-    "GIT_NO_REPLACE_OBJECTS",
-    "GIT_SHALLOW_FILE",
-    "GIT_PREFIX",
-    "GIT_CONFIG",
-    "GIT_CONFIG_PARAMETERS",
-    "GIT_CONFIG_COUNT",
-))
+_GIT_ENV_DENY_EXACT = frozenset(
+    (
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_IMPLICIT_WORK_TREE",
+        "GIT_INDEX_FILE",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        "GIT_COMMON_DIR",
+        "GIT_CEILING_DIRECTORIES",
+        "GIT_GRAFT_FILE",
+        "GIT_REPLACE_REF_BASE",
+        "GIT_NO_REPLACE_OBJECTS",
+        "GIT_SHALLOW_FILE",
+        "GIT_PREFIX",
+        "GIT_CONFIG",
+        "GIT_CONFIG_PARAMETERS",
+        "GIT_CONFIG_COUNT",
+    )
+)
 
 # Prefix patterns: any env var starting with these is stripped.
 _GIT_ENV_DENY_PREFIXES = ("GIT_CONFIG_",)
@@ -215,9 +218,8 @@ def _git_env() -> dict[str, str]:
     env = os.environ.copy()
     for key in tuple(env):
         normalized = key.upper()
-        if (
-            normalized in _GIT_ENV_DENY_EXACT
-            or any(normalized.startswith(p) for p in _GIT_ENV_DENY_PREFIXES)
+        if normalized in _GIT_ENV_DENY_EXACT or any(
+            normalized.startswith(p) for p in _GIT_ENV_DENY_PREFIXES
         ):
             del env[key]
     env.update(_GIT_ENV_FORCE)
@@ -229,8 +231,10 @@ def _git_command(repo_root: Path, *args: str) -> list[str]:
     return [
         "git",
         "--no-replace-objects",
-        "-c", "core.fsmonitor=false",
-        "-C", str(repo_root),
+        "-c",
+        "core.fsmonitor=false",
+        "-C",
+        str(repo_root),
         *args,
     ]
 
@@ -284,7 +288,11 @@ def _iter_git_files(repo_root: Path, *, require_git: bool = False):
         result = subprocess.run(
             _git_command(
                 repo_root,
-                "ls-files", "-z", "--cached", "--others", "--exclude-standard",
+                "ls-files",
+                "-z",
+                "--cached",
+                "--others",
+                "--exclude-standard",
             ),
             capture_output=True,
             check=True,
@@ -299,8 +307,8 @@ def _iter_git_files(repo_root: Path, *, require_git: bool = False):
     except subprocess.CalledProcessError as exc:
         if require_git:
             raise _GitError(
-                3, f"ls-files: git index error: "
-                f"{_decode_stderr(exc.stderr)}",
+                3,
+                f"ls-files: git index error: {_decode_stderr(exc.stderr)}",
             ) from exc
     except FileNotFoundError:
         if require_git:
@@ -355,13 +363,15 @@ def _extract_csharp_symbols(content: str, file_path: str) -> list[SourceSymbol]:
             kind = "method" if "(" in line else "property"
             sig = line.strip()
 
-        symbols.append(SourceSymbol(
-            name=name,
-            kind=kind,
-            file=file_path,
-            line=i + 1,
-            signature=sig,
-        ))
+        symbols.append(
+            SourceSymbol(
+                name=name,
+                kind=kind,
+                file=file_path,
+                line=i + 1,
+                signature=sig,
+            )
+        )
 
     return symbols
 
@@ -384,13 +394,15 @@ def _extract_python_symbols(content: str, file_path: str) -> list[SourceSymbol]:
             continue
 
         kind = "class" if kind_token == "class" else "function"
-        symbols.append(SourceSymbol(
-            name=name,
-            kind=kind,
-            file=file_path,
-            line=i + 1,
-            signature=line.strip(),
-        ))
+        symbols.append(
+            SourceSymbol(
+                name=name,
+                kind=kind,
+                file=file_path,
+                line=i + 1,
+                signature=line.strip(),
+            )
+        )
 
     return symbols
 
@@ -417,13 +429,15 @@ def _extract_js_symbols(content: str, file_path: str) -> list[SourceSymbol]:
 
         name = match.group(1)
         kind = "class" if "class " in line else "function"
-        symbols.append(SourceSymbol(
-            name=name,
-            kind=kind,
-            file=file_path,
-            line=i + 1,
-            signature=stripped,
-        ))
+        symbols.append(
+            SourceSymbol(
+                name=name,
+                kind=kind,
+                file=file_path,
+                line=i + 1,
+                signature=stripped,
+            )
+        )
 
     return symbols
 
@@ -436,9 +450,7 @@ SYMBOL_EXTRACTORS = {
 }
 
 
-def _find_referenced_symbols(
-    doc_content: str, symbol_names: set[str]
-) -> list[str]:
+def _find_referenced_symbols(doc_content: str, symbol_names: set[str]) -> list[str]:
     """Find source symbols referenced in documentation content."""
     found: list[str] = []
     for name in symbol_names:
@@ -469,9 +481,7 @@ def _count_code_blocks(content: str) -> int:
     return len(re.findall(r"^```\w*\s*$", content, re.MULTILINE))
 
 
-def _merge_base(
-    repo_root: Path, base_oid: str, head_oid: str, env: dict[str, str]
-) -> str:
+def _merge_base(repo_root: Path, base_oid: str, head_oid: str, env: dict[str, str]) -> str:
     """Return the fork point of ``base_oid`` and ``head_oid``.
 
     Exit 2 when the two commits share no history (a config error: the
@@ -480,17 +490,20 @@ def _merge_base(
     try:
         result = subprocess.run(
             _git_command(repo_root, "merge-base", base_oid, head_oid),
-            capture_output=True, check=True,
-            timeout=_GIT_TIMEOUT, env=env,
+            capture_output=True,
+            check=True,
+            timeout=_GIT_TIMEOUT,
+            env=env,
         )
     except subprocess.CalledProcessError as exc:
         if exc.returncode == 1 and not exc.stdout:
             raise _GitError(
-                2, f"merge-base: {base_oid[:12]} and HEAD share no history",
+                2,
+                f"merge-base: {base_oid[:12]} and HEAD share no history",
             ) from exc
         raise _GitError(
-            3, f"merge-base: failed (rc {exc.returncode}): "
-            f"{_decode_stderr(exc.stderr)}",
+            3,
+            f"merge-base: failed (rc {exc.returncode}): {_decode_stderr(exc.stderr)}",
         ) from exc
     oid_bytes = result.stdout.strip()
     if re.fullmatch(rb"(?:[0-9a-f]{40}|[0-9a-f]{64})", oid_bytes) is None:
@@ -547,9 +560,7 @@ def _get_changed_files(diff_base: str, repo_root: Path) -> set[str]:
     return _diff_name_set(repo_root, fork_oid, head_oid, env)
 
 
-def _resolve_fork_and_head(
-    diff_base: str, repo_root: Path, env: dict[str, str]
-) -> tuple[str, str]:
+def _resolve_fork_and_head(diff_base: str, repo_root: Path, env: dict[str, str]) -> tuple[str, str]:
     """Validate the repo and revisions; return ``(fork_oid, head_oid)``.
 
     Phases 1-4 of the sequence documented on ``_get_changed_files``.
@@ -558,17 +569,20 @@ def _resolve_fork_and_head(
     try:
         wt_result = subprocess.run(
             _git_command(repo_root, "rev-parse", "--is-inside-work-tree"),
-            capture_output=True, check=True,
-            timeout=_GIT_TIMEOUT, env=env,
+            capture_output=True,
+            check=True,
+            timeout=_GIT_TIMEOUT,
+            env=env,
         )
     except subprocess.CalledProcessError as exc:
         raise _GitError(
-            3, f"rev-parse: not a git repository: "
-            f"{_decode_stderr(exc.stderr)}",
+            3,
+            f"rev-parse: not a git repository: {_decode_stderr(exc.stderr)}",
         ) from exc
     if wt_result.stdout.strip().lower() != b"true":
         raise _GitError(
-            3, "rev-parse: not inside a git work tree",
+            3,
+            "rev-parse: not inside a git work tree",
         )
 
     def resolve_commit(ref: str, *, invalid_exit: int) -> str:
@@ -576,40 +590,49 @@ def _resolve_fork_and_head(
             raw_result = subprocess.run(
                 _git_command(
                     repo_root,
-                    "rev-parse", "--verify", "--quiet", "--end-of-options",
+                    "rev-parse",
+                    "--verify",
+                    "--quiet",
+                    "--end-of-options",
                     ref,
                 ),
-                capture_output=True, check=True,
-                timeout=_GIT_TIMEOUT, env=env,
+                capture_output=True,
+                check=True,
+                timeout=_GIT_TIMEOUT,
+                env=env,
             )
         except subprocess.CalledProcessError as exc:
             if exc.returncode == 1:
                 raise _GitError(
-                    invalid_exit, f"rev-parse: unknown revision '{ref}'",
+                    invalid_exit,
+                    f"rev-parse: unknown revision '{ref}'",
                 ) from exc
             raise _GitError(
-                3, f"rev-parse: failed to resolve '{ref}' "
+                3,
+                f"rev-parse: failed to resolve '{ref}' "
                 f"(rc {exc.returncode}): {_decode_stderr(exc.stderr)}",
             ) from exc
 
         raw_oid_bytes = raw_result.stdout.strip()
-        if re.fullmatch(
-            rb"(?:[0-9a-f]{40}|[0-9a-f]{64})", raw_oid_bytes
-        ) is None:
+        if re.fullmatch(rb"(?:[0-9a-f]{40}|[0-9a-f]{64})", raw_oid_bytes) is None:
             raise _GitError(
-                3, f"rev-parse: malformed object ID for '{ref}'",
+                3,
+                f"rev-parse: malformed object ID for '{ref}'",
             )
         raw_oid = raw_oid_bytes.decode("ascii")
 
         try:
             subprocess.run(
                 _git_command(repo_root, "cat-file", "-e", raw_oid),
-                capture_output=True, check=True,
-                timeout=_GIT_TIMEOUT, env=env,
+                capture_output=True,
+                check=True,
+                timeout=_GIT_TIMEOUT,
+                env=env,
             )
         except subprocess.CalledProcessError as exc:
             raise _GitError(
-                3, f"cat-file: object {raw_oid[:12]} not accessible "
+                3,
+                f"cat-file: object {raw_oid[:12]} not accessible "
                 f"(rc {exc.returncode}): {_decode_stderr(exc.stderr)}",
             ) from exc
 
@@ -617,23 +640,31 @@ def _resolve_fork_and_head(
             commit_result = subprocess.run(
                 _git_command(
                     repo_root,
-                    "rev-parse", "--verify", "--quiet", "--end-of-options",
+                    "rev-parse",
+                    "--verify",
+                    "--quiet",
+                    "--end-of-options",
                     f"{ref}^{{commit}}",
                 ),
-                capture_output=True, check=True,
-                timeout=_GIT_TIMEOUT, env=env,
+                capture_output=True,
+                check=True,
+                timeout=_GIT_TIMEOUT,
+                env=env,
             )
         except subprocess.CalledProcessError as exc:
             if exc.returncode == 1:
                 try:
                     subprocess.run(
                         _git_command(repo_root, "cat-file", "-e", raw_oid),
-                        capture_output=True, check=True,
-                        timeout=_GIT_TIMEOUT, env=env,
+                        capture_output=True,
+                        check=True,
+                        timeout=_GIT_TIMEOUT,
+                        env=env,
                     )
                 except subprocess.CalledProcessError as missing_exc:
                     raise _GitError(
-                        3, f"cat-file: object {raw_oid[:12]} not accessible "
+                        3,
+                        f"cat-file: object {raw_oid[:12]} not accessible "
                         f"(rc {missing_exc.returncode}): "
                         f"{_decode_stderr(missing_exc.stderr)}",
                     ) from missing_exc
@@ -642,26 +673,31 @@ def _resolve_fork_and_head(
                     f"rev-parse: invalid commit revision '{ref}'",
                 ) from exc
             raise _GitError(
-                3, f"rev-parse: failed to peel '{ref}' to a commit "
+                3,
+                f"rev-parse: failed to peel '{ref}' to a commit "
                 f"(rc {exc.returncode}): {_decode_stderr(exc.stderr)}",
             ) from exc
 
         oid_bytes = commit_result.stdout.strip()
         if re.fullmatch(rb"(?:[0-9a-f]{40}|[0-9a-f]{64})", oid_bytes) is None:
             raise _GitError(
-                3, f"rev-parse: malformed commit ID for '{ref}'",
+                3,
+                f"rev-parse: malformed commit ID for '{ref}'",
             )
         oid = oid_bytes.decode("ascii")
 
         try:
             subprocess.run(
                 _git_command(repo_root, "cat-file", "-e", f"{oid}^{{commit}}"),
-                capture_output=True, check=True,
-                timeout=_GIT_TIMEOUT, env=env,
+                capture_output=True,
+                check=True,
+                timeout=_GIT_TIMEOUT,
+                env=env,
             )
         except subprocess.CalledProcessError as exc:
             raise _GitError(
-                3, f"cat-file: commit {oid[:12]} not accessible "
+                3,
+                f"cat-file: commit {oid[:12]} not accessible "
                 f"(rc {exc.returncode}): {_decode_stderr(exc.stderr)}",
             ) from exc
         return oid
@@ -676,9 +712,7 @@ def _resolve_fork_and_head(
     return oid, head_oid
 
 
-def _diff_name_set(
-    repo_root: Path, fork_oid: str, head_oid: str, env: dict[str, str]
-) -> set[str]:
+def _diff_name_set(repo_root: Path, fork_oid: str, head_oid: str, env: dict[str, str]) -> set[str]:
     """Phase 5: diff by resolved OIDs, NUL-separated output."""
     oid = fork_oid
     try:
@@ -689,27 +723,40 @@ def _diff_name_set(
         result = subprocess.run(
             _git_command(
                 repo_root,
-                "diff", "--no-ext-diff", "--no-textconv", "--no-renames",
-                "--name-only", "-z",
-                oid, head_oid, "--",
+                "diff",
+                "--no-ext-diff",
+                "--no-textconv",
+                "--no-renames",
+                "--name-only",
+                "-z",
+                oid,
+                head_oid,
+                "--",
             ),
-            capture_output=True, check=True,
-            timeout=_GIT_TIMEOUT, env=env,
+            capture_output=True,
+            check=True,
+            timeout=_GIT_TIMEOUT,
+            env=env,
         )
     except subprocess.CalledProcessError as exc:
         raise _GitError(
-            3, f"diff: git failed after ref validation: "
-            f"{_decode_stderr(exc.stderr)}",
+            3,
+            f"diff: git failed after ref validation: {_decode_stderr(exc.stderr)}",
         ) from exc
-    return {
-        os.fsdecode(f) for f in result.stdout.split(b"\x00") if f
-    }
+    return {os.fsdecode(f) for f in result.stdout.split(b"\x00") if f}
 
 
 _HUNK_HEADER = re.compile(r"^@@ -\d+(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
 _C_ESCAPES = {
-    "a": 7, "b": 8, "t": 9, "n": 10, "v": 11, "f": 12, "r": 13,
-    '"': 34, "\\": 92,
+    "a": 7,
+    "b": 8,
+    "t": 9,
+    "n": 10,
+    "v": 11,
+    "f": 12,
+    "r": 13,
+    '"': 34,
+    "\\": 92,
 }
 
 
@@ -735,7 +782,7 @@ def _unquote_c_path(quoted: str) -> str:
             raw.extend(ch.encode("utf-8"))
             i += 1
         elif quoted[i + 1].isdigit():
-            raw.append(int(quoted[i + 1:i + 4], 8))
+            raw.append(int(quoted[i + 1 : i + 4], 8))
             i += 4
         else:
             raw.append(_C_ESCAPES.get(quoted[i + 1], ord(quoted[i + 1])))
@@ -907,23 +954,30 @@ def _diff_line_ranges(
         result = subprocess.run(
             _git_command(
                 repo_root,
-                "diff", "--no-ext-diff", "--no-textconv", "--no-color",
-                "--unified=0", "--no-renames",
-                "--src-prefix=a/", "--dst-prefix=b/",
-                fork_oid, head_oid, "--",
+                "diff",
+                "--no-ext-diff",
+                "--no-textconv",
+                "--no-color",
+                "--unified=0",
+                "--no-renames",
+                "--src-prefix=a/",
+                "--dst-prefix=b/",
+                fork_oid,
+                head_oid,
+                "--",
             ),
-            capture_output=True, check=True,
-            timeout=_GIT_TIMEOUT, env=env,
+            capture_output=True,
+            check=True,
+            timeout=_GIT_TIMEOUT,
+            env=env,
         )
     except subprocess.CalledProcessError as exc:
         raise _GitError(
-            3, f"diff: git failed reading hunks: "
-            f"{_decode_stderr(exc.stderr)}",
+            3,
+            f"diff: git failed reading hunks: {_decode_stderr(exc.stderr)}",
         ) from exc
     try:
-        return _parse_unified_zero(
-            result.stdout.decode("utf-8", errors="replace")
-        )
+        return _parse_unified_zero(result.stdout.decode("utf-8", errors="replace"))
     except ValueError:
         return {}
 
@@ -938,9 +992,7 @@ def _has_symlink_part(path: Path, repo_root: Path) -> bool:
     return False
 
 
-def _claim_in_ranges(
-    claim: dict[str, Any], ranges: list[list[int]]
-) -> bool:
+def _claim_in_ranges(claim: dict[str, Any], ranges: list[list[int]]) -> bool:
     """True when the claim's span overlaps any changed range.
 
     The span runs from ``line`` to ``end_line`` inclusive. For a fenced
@@ -1025,20 +1077,23 @@ def run_assessment(
             # No parsed hunk, or a symlinked doc (git diffs only the link
             # text, not the content read here): changed in full.
             ranges = (
-                None if _has_symlink_part(doc_path, repo_root)
+                None
+                if _has_symlink_part(doc_path, repo_root)
                 else changed_ranges.get(_norm_path(rel_path))
             ) or [[1, line_count]]
             # A key collision unions ranges, so it can only widen scope.
             changed_lines.setdefault(_norm_path(rel_path), []).extend(ranges)
 
-        doc_inventory.append(DocFile(
-            path=rel_path,
-            size_bytes=doc_path.stat().st_size,
-            line_count=line_count,
-            code_blocks=_count_code_blocks(content),
-            referenced_symbols=refs,
-            mapped_source_files=mapped,
-        ))
+        doc_inventory.append(
+            DocFile(
+                path=rel_path,
+                size_bytes=doc_path.stat().st_size,
+                line_count=line_count,
+                code_blocks=_count_code_blocks(content),
+                referenced_symbols=refs,
+                mapped_source_files=mapped,
+            )
+        )
 
     # Build coverage summary
     documented_symbols = set()
@@ -1079,6 +1134,7 @@ def run_assessment(
 # ---------------------------------------------------------------------------
 # Phase 2: Claim Extraction
 # ---------------------------------------------------------------------------
+
 
 def _detect_language(info_string: str) -> str:
     """Detect language from code fence info string."""
@@ -1121,16 +1177,18 @@ _PY_NON_CODE_RE = re.compile(
     r"|\#[^\n]*"
 )
 
-_PY_NON_CODE_TOKENS = frozenset({
-    tokenize.STRING,
-    tokenize.COMMENT,
-    getattr(tokenize, "FSTRING_START", -1),
-    getattr(tokenize, "FSTRING_MIDDLE", -1),
-    getattr(tokenize, "FSTRING_END", -1),
-    getattr(tokenize, "TSTRING_START", -1),
-    getattr(tokenize, "TSTRING_MIDDLE", -1),
-    getattr(tokenize, "TSTRING_END", -1),
-})
+_PY_NON_CODE_TOKENS = frozenset(
+    {
+        tokenize.STRING,
+        tokenize.COMMENT,
+        getattr(tokenize, "FSTRING_START", -1),
+        getattr(tokenize, "FSTRING_MIDDLE", -1),
+        getattr(tokenize, "FSTRING_END", -1),
+        getattr(tokenize, "TSTRING_START", -1),
+        getattr(tokenize, "TSTRING_MIDDLE", -1),
+        getattr(tokenize, "TSTRING_END", -1),
+    }
+)
 
 
 def _blank_python_non_code_by_tokens(code: str) -> str:
@@ -1232,11 +1290,11 @@ def _extract_identifiers(code: str, lang: str = "") -> list[str]:
 def _extract_quantitative_claims(line: str) -> list[str]:
     """Find quantitative claims in a line of text."""
     patterns = [
-        r"[<>~]\s*\d+[%]",           # <5%, >90%, ~10%
+        r"[<>~]\s*\d+[%]",  # <5%, >90%, ~10%
         r"\d+-\d+\s*(?:ns|ms|us|s)\b",  # 15-40ns
-        r"\d+\s*(?:ns|ms|us|s)\b",    # 100ns
-        r"\d+(?:\.\d+)?%",            # 33.4%
-        r"\+\d+(?:\.\d+)?%",          # +93.1%
+        r"\d+\s*(?:ns|ms|us|s)\b",  # 100ns
+        r"\d+(?:\.\d+)?%",  # 33.4%
+        r"\+\d+(?:\.\d+)?%",  # +93.1%
     ]
     claims = []
     for p in patterns:
@@ -1262,14 +1320,10 @@ def run_claim_extraction(
         try:
             content = _read_doc_text(doc_path)
         except OSError as exc:
-            logger.warning(
-                "Failed to read doc file %s: %s", doc_info["path"], exc
-            )
+            logger.warning("Failed to read doc file %s: %s", doc_info["path"], exc)
             continue
 
-        lines = [
-            ln[:-1] if ln.endswith("\r") else ln for ln in content.split("\n")
-        ]
+        lines = [ln[:-1] if ln.endswith("\r") else ln for ln in content.split("\n")]
         mapped_sources = doc_info.get("mapped_source_files", [])
         default_source = mapped_sources[0] if mapped_sources else ""
 
@@ -1302,17 +1356,19 @@ def run_claim_extraction(
                         break
 
                 claim_counter += 1
-                claims.append(Claim(
-                    id=f"claim-{claim_counter:04d}",
-                    file=doc_info["path"],
-                    line=block_start,
-                    claim_type="code_example",
-                    language=lang,
-                    content=code_content,
-                    symbols_referenced=identifiers,
-                    mapped_source=mapped,
-                    end_line=block_start + len(block_lines) + 1,  # closing fence
-                ))
+                claims.append(
+                    Claim(
+                        id=f"claim-{claim_counter:04d}",
+                        file=doc_info["path"],
+                        line=block_start,
+                        claim_type="code_example",
+                        language=lang,
+                        content=code_content,
+                        symbols_referenced=identifiers,
+                        mapped_source=mapped,
+                        end_line=block_start + len(block_lines) + 1,  # closing fence
+                    )
+                )
                 i += 1
                 continue
 
@@ -1325,31 +1381,35 @@ def run_claim_extraction(
                 claim_counter += 1
                 method_name = method_ref.group(1)
                 mapped = symbol_to_source.get(method_name, default_source)
-                claims.append(Claim(
-                    id=f"claim-{claim_counter:04d}",
-                    file=doc_info["path"],
-                    line=i + 1,
-                    claim_type="behavioral",
-                    language="",
-                    content=line.strip(),
-                    symbols_referenced=[method_name],
-                    mapped_source=mapped,
-                ))
+                claims.append(
+                    Claim(
+                        id=f"claim-{claim_counter:04d}",
+                        file=doc_info["path"],
+                        line=i + 1,
+                        claim_type="behavioral",
+                        language="",
+                        content=line.strip(),
+                        symbols_referenced=[method_name],
+                        mapped_source=mapped,
+                    )
+                )
 
             # Detect quantitative claims
             quant_claims = _extract_quantitative_claims(line)
             if quant_claims:
                 claim_counter += 1
-                claims.append(Claim(
-                    id=f"claim-{claim_counter:04d}",
-                    file=doc_info["path"],
-                    line=i + 1,
-                    claim_type="quantitative",
-                    language="",
-                    content=line.strip(),
-                    symbols_referenced=quant_claims,
-                    mapped_source=default_source,
-                ))
+                claims.append(
+                    Claim(
+                        id=f"claim-{claim_counter:04d}",
+                        file=doc_info["path"],
+                        line=i + 1,
+                        claim_type="quantitative",
+                        language="",
+                        content=line.strip(),
+                        symbols_referenced=quant_claims,
+                        mapped_source=default_source,
+                    )
+                )
 
             # Detect method signature claims
             sig_match = re.search(
@@ -1360,16 +1420,18 @@ def run_claim_extraction(
             )
             if sig_match:
                 claim_counter += 1
-                claims.append(Claim(
-                    id=f"claim-{claim_counter:04d}",
-                    file=doc_info["path"],
-                    line=i + 1,
-                    claim_type="method_signature",
-                    language="",
-                    content=line.strip(),
-                    symbols_referenced=_extract_identifiers(sig_match.group(1)),
-                    mapped_source=default_source,
-                ))
+                claims.append(
+                    Claim(
+                        id=f"claim-{claim_counter:04d}",
+                        file=doc_info["path"],
+                        line=i + 1,
+                        claim_type="method_signature",
+                        language="",
+                        content=line.strip(),
+                        symbols_referenced=_extract_identifiers(sig_match.group(1)),
+                        mapped_source=default_source,
+                    )
+                )
 
             i += 1
 
@@ -1379,6 +1441,7 @@ def run_claim_extraction(
 # ---------------------------------------------------------------------------
 # Phase 3: Compilability Check
 # ---------------------------------------------------------------------------
+
 
 def _scope_findings(
     findings: list[dict[str, Any]],
@@ -1417,10 +1480,7 @@ def run_compilability_check(
     if not source_symbols:
         return {
             "status": "DID_NOT_RUN",
-            "reason": (
-                "No source symbols found; Phase 3 cannot verify "
-                "documentation references."
-            ),
+            "reason": ("No source symbols found; Phase 3 cannot verify documentation references."),
             "findings": [],
         }
 
@@ -1469,30 +1529,32 @@ def run_compilability_check(
                         # nosemgrep: skill-ldap-injection
                         if not re.search(pattern, actual.signature):
                             finding_counter += 1
-                            findings.append(Finding(
-                                id=f"compile-{finding_counter:04d}",
-                                claim_id=claim_dict["id"],
-                                severity="critical",
-                                category="phantom_parameter",
-                                file=claim_dict["file"],
-                                line=claim_dict["line"],
-                                description=(
-                                    f"Parameter '{param}' does not exist in "
-                                    f"{sym_name}(). "
-                                    f"Actual signature: {actual.signature}"
-                                ),
-                                evidence={
-                                    "documented": content[:200],
-                                    "actual_signature": actual.signature,
-                                    "source_file": actual.file,
-                                    "source_line": actual.line,
-                                },
-                                suggested_fix=(
-                                    f"Remove or rename parameter '{param}'. "
-                                    f"Check {actual.file}:{actual.line} for "
-                                    f"correct signature."
-                                ),
-                            ))
+                            findings.append(
+                                Finding(
+                                    id=f"compile-{finding_counter:04d}",
+                                    claim_id=claim_dict["id"],
+                                    severity="critical",
+                                    category="phantom_parameter",
+                                    file=claim_dict["file"],
+                                    line=claim_dict["line"],
+                                    description=(
+                                        f"Parameter '{param}' does not exist in "
+                                        f"{sym_name}(). "
+                                        f"Actual signature: {actual.signature}"
+                                    ),
+                                    evidence={
+                                        "documented": content[:200],
+                                        "actual_signature": actual.signature,
+                                        "source_file": actual.file,
+                                        "source_line": actual.line,
+                                    },
+                                    suggested_fix=(
+                                        f"Remove or rename parameter '{param}'. "
+                                        f"Check {actual.file}:{actual.line} for "
+                                        f"correct signature."
+                                    ),
+                                )
+                            )
             else:
                 # Symbol not found in codebase
                 # Only flag CamelCase identifiers (likely type/method names)
@@ -1501,12 +1563,34 @@ def run_compilability_check(
 
                 # Skip common framework types
                 framework_types = {
-                    "String", "Int32", "Boolean", "Object", "Array",
-                    "List", "Dictionary", "Task", "Action", "Func",
-                    "IEnumerable", "IList", "Console", "Exception",
-                    "Math", "DateTime", "TimeSpan", "Path", "File",
-                    "Directory", "Type", "Attribute", "Nullable",
-                    "True", "False", "None", "Error", "Promise",
+                    "String",
+                    "Int32",
+                    "Boolean",
+                    "Object",
+                    "Array",
+                    "List",
+                    "Dictionary",
+                    "Task",
+                    "Action",
+                    "Func",
+                    "IEnumerable",
+                    "IList",
+                    "Console",
+                    "Exception",
+                    "Math",
+                    "DateTime",
+                    "TimeSpan",
+                    "Path",
+                    "File",
+                    "Directory",
+                    "Type",
+                    "Attribute",
+                    "Nullable",
+                    "True",
+                    "False",
+                    "None",
+                    "Error",
+                    "Promise",
                 }
                 if sym_name in framework_types:
                     continue
@@ -1517,27 +1601,28 @@ def run_compilability_check(
                     continue
 
                 finding_counter += 1
-                findings.append(Finding(
-                    id=f"compile-{finding_counter:04d}",
-                    claim_id=claim_dict["id"],
-                    severity="high",
-                    category="unresolved_symbol",
-                    file=claim_dict["file"],
-                    line=claim_dict["line"],
-                    description=(
-                        f"Symbol '{sym_name}' referenced in documentation "
-                        f"not found in codebase"
-                    ),
-                    evidence={
-                        "documented": content[:200],
-                        "symbol": sym_name,
-                        "search_scope": "all source files",
-                    },
-                    suggested_fix=(
-                        f"Verify '{sym_name}' exists in the codebase. "
-                        f"It may be misspelled, renamed, or removed."
-                    ),
-                ))
+                findings.append(
+                    Finding(
+                        id=f"compile-{finding_counter:04d}",
+                        claim_id=claim_dict["id"],
+                        severity="high",
+                        category="unresolved_symbol",
+                        file=claim_dict["file"],
+                        line=claim_dict["line"],
+                        description=(
+                            f"Symbol '{sym_name}' referenced in documentation not found in codebase"
+                        ),
+                        evidence={
+                            "documented": content[:200],
+                            "symbol": sym_name,
+                            "search_scope": "all source files",
+                        },
+                        suggested_fix=(
+                            f"Verify '{sym_name}' exists in the codebase. "
+                            f"It may be misspelled, renamed, or removed."
+                        ),
+                    )
+                )
 
     claims_by_id = {c["id"]: c for c in claims_data.get("claims", [])}
     return {
@@ -1570,10 +1655,7 @@ def check_gate(
     by_severity: dict[str, int] = {}
     blocking_count = 0
 
-    if (
-        compilability_data
-        and compilability_data.get("status") == "DID_NOT_RUN"
-    ):
+    if compilability_data and compilability_data.get("status") == "DID_NOT_RUN":
         return {
             "verdict": "DID_NOT_RUN",
             "reason": compilability_data["reason"],
@@ -1613,10 +1695,7 @@ def generate_markdown_report(
     lines.append("# Documentation Accuracy Report")
     lines.append("")
 
-    lines.append(
-        f"**Gate: {gate_result['verdict']}** "
-        f"(threshold: {gate_result['threshold']})"
-    )
+    lines.append(f"**Gate: {gate_result['verdict']}** (threshold: {gate_result['threshold']})")
     lines.append("")
     if reason := gate_result.get("reason"):
         lines.append(f"**Reason:** {reason}")
@@ -1647,17 +1726,14 @@ def generate_markdown_report(
         lines.append("## Findings")
         lines.append("")
         lines.append(
-            f"Total: {gate_result['total_findings']} "
-            f"({gate_result['blocking_findings']} blocking)"
+            f"Total: {gate_result['total_findings']} ({gate_result['blocking_findings']} blocking)"
         )
         lines.append("")
         lines.append("| Severity | File | Line | Description |")
         lines.append("|----------|------|------|-------------|")
         for f in compilability_data["findings"]:
             desc = f["description"][:80]
-            lines.append(
-                f"| {f['severity']} | {f['file']} | {f['line']} | {desc} |"
-            )
+            lines.append(f"| {f['severity']} | {f['file']} | {f['line']} | {desc} |")
         lines.append("")
 
     output_path.write_text("\n".join(lines), encoding="utf-8")
@@ -1690,10 +1766,7 @@ def _print_summary(
             count = gate_result["by_severity"].get(sev, 0)
             if count:
                 print(f"  {sev}: {count}")
-    print(
-        f"Gate: {gate_result['verdict']} "
-        f"(threshold: {gate_result['threshold']})"
-    )
+    print(f"Gate: {gate_result['verdict']} (threshold: {gate_result['threshold']})")
     if reason := gate_result.get("reason"):
         print(f"Reason: {reason}")
 
@@ -1720,34 +1793,46 @@ def _load_json_artifact(path: Path, name: str) -> dict[str, Any] | None:
 
 def _build_parser() -> argparse.ArgumentParser:
     """Build the argument parser."""
-    parser = argparse.ArgumentParser(
-        description="Documentation accuracy scanner (Phases 1-3)"
-    )
+    parser = argparse.ArgumentParser(description="Documentation accuracy scanner (Phases 1-3)")
     parser.add_argument(
-        "--target", "-t", type=Path, required=True,
+        "--target",
+        "-t",
+        type=Path,
+        required=True,
         help="Repository root to scan",
     )
     parser.add_argument(
-        "--output-dir", "-o", type=Path, default=None,
-        help="Output directory for JSON artifacts "
-        "(default: <target>/.doc-accuracy)",
+        "--output-dir",
+        "-o",
+        type=Path,
+        default=None,
+        help="Output directory for JSON artifacts (default: <target>/.doc-accuracy)",
     )
     parser.add_argument(
-        "--phases", type=str, default="1,2,3",
+        "--phases",
+        type=str,
+        default="1,2,3",
         help="Comma-separated phases to run (default: 1,2,3)",
     )
     parser.add_argument(
-        "--diff-base", type=str, default=None,
+        "--diff-base",
+        type=str,
+        default=None,
         help="Git ref for incremental mode (only report files changed "
         "since HEAD forked from this ref, as in git diff REF...HEAD)",
     )
     parser.add_argument(
-        "--severity-threshold", type=str, default="high",
+        "--severity-threshold",
+        type=str,
+        default="high",
         choices=["critical", "high", "medium", "low"],
         help="Minimum severity for non-zero exit code (default: high)",
     )
     parser.add_argument(
-        "--format", "-f", type=str, default="json",
+        "--format",
+        "-f",
+        type=str,
+        default="json",
         choices=["json", "gate", "summary", "markdown"],
         help=(
             "Output format (default: json). 'gate' emits the same JSON without "
@@ -1825,17 +1910,13 @@ def main(argv: list[str] | None = None) -> int:
     # Phase 2: Claim Extraction
     if 2 in phases or 3 in phases:
         if assessment is None:
-            assessment = _load_json_artifact(
-                output_dir / "assessment.json", "assessment.json"
-            )
+            assessment = _load_json_artifact(output_dir / "assessment.json", "assessment.json")
             if assessment is None:
                 return 1
 
         print("Phase 2: Claim Extraction...", file=sys.stderr)
         claims_data = run_claim_extraction(target, assessment)
-        (output_dir / "claims.json").write_text(
-            json.dumps(claims_data, indent=2), encoding="utf-8"
-        )
+        (output_dir / "claims.json").write_text(json.dumps(claims_data, indent=2), encoding="utf-8")
         print(
             f"  Extracted {len(claims_data['claims'])} claims",
             file=sys.stderr,
@@ -1844,16 +1925,12 @@ def main(argv: list[str] | None = None) -> int:
     # Phase 3: Compilability Check
     if 3 in phases:
         if assessment is None:
-            assessment = _load_json_artifact(
-                output_dir / "assessment.json", "assessment.json"
-            )
+            assessment = _load_json_artifact(output_dir / "assessment.json", "assessment.json")
             if assessment is None:
                 return 1
 
         if claims_data is None:
-            claims_data = _load_json_artifact(
-                output_dir / "claims.json", "claims.json"
-            )
+            claims_data = _load_json_artifact(output_dir / "claims.json", "claims.json")
             if claims_data is None:
                 return 1
 
@@ -1907,14 +1984,15 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
     elif args.format == "summary":
-        _print_summary(
-            assessment, claims_data, compilability_data, gate_result
-        )
+        _print_summary(assessment, claims_data, compilability_data, gate_result)
     elif args.format == "markdown":
         report_path = output_dir / "report.md"
         generate_markdown_report(
-            assessment, claims_data, compilability_data,
-            gate_result, report_path,
+            assessment,
+            claims_data,
+            compilability_data,
+            gate_result,
+            report_path,
         )
         print(f"Report written to {report_path}", file=sys.stderr)
 

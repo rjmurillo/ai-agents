@@ -46,13 +46,12 @@ def _scaffold(tmp_path: Path) -> Path:
     return adr_dir
 
 
-def _run(
-    repo_root: Path, *extra: str
-) -> subprocess.CompletedProcess[str]:
+def _run(repo_root: Path, *extra: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, str(SCRIPT), "--repo-root", str(repo_root), *extra],
         capture_output=True,
-        text=True, encoding="utf-8",
+        text=True,
+        encoding="utf-8",
         check=False,
     )
 

@@ -87,9 +87,7 @@ def _exit_code_for_report(report: dict[str, object]) -> int:
 
 def _exit_code_for_comparison(comparison: dict[str, object]) -> int:
     return (
-        EXIT_UNVERIFIED_OR_WORSE
-        if comparison["result"] in _FAILING_COMPARISON_RESULTS
-        else EXIT_OK
+        EXIT_UNVERIFIED_OR_WORSE if comparison["result"] in _FAILING_COMPARISON_RESULTS else EXIT_OK
     )
 
 

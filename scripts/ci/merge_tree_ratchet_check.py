@@ -179,9 +179,7 @@ def _parse_baseline(text: str) -> BaselineRead:
         return BaselineRead(BaselineState.MALFORMED)
 
 
-def _read_baseline_at_ref(
-    repo_root: Path, ref: str, rel_path: str
-) -> BaselineRead:
+def _read_baseline_at_ref(repo_root: Path, ref: str, rel_path: str) -> BaselineRead:
     """Read one baseline while distinguishing absence from Git failure."""
     listed = _git(repo_root, "ls-tree", "--name-only", ref, "--", rel_path)
     if listed.returncode != 0:
@@ -253,8 +251,7 @@ def _baseline_failure(
         if result.state is BaselineState.EXTERNAL:
             return (
                 EXIT_EXTERNAL,
-                f"{label}: EXTERNAL ERROR - {source} baseline read failed: "
-                f"{result.diagnostic}",
+                f"{label}: EXTERNAL ERROR - {source} baseline read failed: {result.diagnostic}",
             )
         if result.state is BaselineState.MALFORMED:
             return EXIT_CONFIG, f"{label}: CONFIG ERROR - malformed baseline in {source}"
@@ -292,9 +289,7 @@ def _check_one(
     return EXIT_OK, f"{label}: OK. {count} <= {baseline}."
 
 
-def _prepare_merged_tree(
-    repo_root: Path, base_ref: str
-) -> tuple[str | None, str | None, int]:
+def _prepare_merged_tree(repo_root: Path, base_ref: str) -> tuple[str | None, str | None, int]:
     """Pin the base and construct a conflict-free merged tree."""
     base_oid = _resolve_base_oid(repo_root, base_ref)
     if base_oid is None:
@@ -343,8 +338,7 @@ def _check_base_derived(
     if merged > ceiling:
         return (
             EXIT_REGRESSION,
-            f"{label}: REGRESSION. {merged} > {ceiling} at the base ref "
-            f"(+{merged - ceiling}).",
+            f"{label}: REGRESSION. {merged} > {ceiling} at the base ref (+{merged - ceiling}).",
         )
     return EXIT_OK, f"{label}: OK. {merged} <= {ceiling} at the base ref."
 
@@ -366,9 +360,7 @@ def _check_registered(
     return _check_one(ratchet.label, ratchet.current_count(scratch_root), base, merged)
 
 
-def _evaluate_registered_ratchets(
-    repo_root: Path, base_oid: str, scratch_root: Path
-) -> int:
+def _evaluate_registered_ratchets(repo_root: Path, base_oid: str, scratch_root: Path) -> int:
     entries, drift = fork_registry_verdict(repo_root, base_oid)
     if entries is None:
         print(
@@ -425,9 +417,7 @@ def _evaluate_merged_tree(repo_root: Path, base_ref: str) -> int:
         if _materialize_tree(repo_root, tree_oid, scratch_root) and _init_scratch_repo(
             scratch_root
         ):
-            primary_exit = _evaluate_registered_ratchets(
-                repo_root, base_oid, scratch_root
-            )
+            primary_exit = _evaluate_registered_ratchets(repo_root, base_oid, scratch_root)
     finally:
         cleanup_error = _remove_tree(scratch_root, "merge-tree scratch")
     if cleanup_error:
@@ -453,10 +443,7 @@ def _evaluate_merged_tree(repo_root: Path, base_ref: str) -> int:
     if exit_code != EXIT_OK:
         return exit_code
 
-    print(
-        f"merge-tree-ratchet: OK. Merged tree passes all registered ratchets "
-        f"(base: {base_ref})."
-    )
+    print(f"merge-tree-ratchet: OK. Merged tree passes all registered ratchets (base: {base_ref}).")
     return EXIT_OK
 
 

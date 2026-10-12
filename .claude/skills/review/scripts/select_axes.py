@@ -63,16 +63,42 @@ LOCAL_AXES = ("code-qualities-assessment", "doc-accuracy", "golden-principles", 
 # agent-artifacts alone and skipped code-qualities-assessment, which reads both.
 _CODE_SUFFIXES = frozenset(
     {
-        ".py", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".cs",
-        ".ps1", ".psm1", ".sh", ".bash", ".go", ".rs", ".rb", ".java",
+        ".py",
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".cjs",
+        ".cs",
+        ".ps1",
+        ".psm1",
+        ".sh",
+        ".bash",
+        ".go",
+        ".rs",
+        ".rb",
+        ".java",
     }
 )
 
 _DEPENDENCY_MANIFESTS = frozenset(
     {
-        "pyproject.toml", "uv.lock", "poetry.lock", "package.json", "package-lock.json",
-        "pnpm-lock.yaml", "yarn.lock", "go.mod", "go.sum", "cargo.toml", "cargo.lock",
-        "gemfile", "gemfile.lock", "directory.packages.props", "packages.lock.json",
+        "pyproject.toml",
+        "uv.lock",
+        "poetry.lock",
+        "package.json",
+        "package-lock.json",
+        "pnpm-lock.yaml",
+        "yarn.lock",
+        "go.mod",
+        "go.sum",
+        "cargo.toml",
+        "cargo.lock",
+        "gemfile",
+        "gemfile.lock",
+        "directory.packages.props",
+        "packages.lock.json",
     }
 )
 
@@ -80,9 +106,23 @@ _DEPENDENCY_MANIFESTS = frozenset(
 # "token" inside "src/tokenizer.py" both selected the security axis before.
 _SECURITY_WORDS = frozenset(
     {
-        "auth", "authn", "authz", "oauth", "secret", "secrets", "credential", "credentials",
-        "password", "passwords", "token", "tokens", "permission", "permissions",
-        "authentication", "authorization", "security",
+        "auth",
+        "authn",
+        "authz",
+        "oauth",
+        "secret",
+        "secrets",
+        "credential",
+        "credentials",
+        "password",
+        "passwords",
+        "token",
+        "tokens",
+        "permission",
+        "permissions",
+        "authentication",
+        "authorization",
+        "security",
     }
 )
 
@@ -97,8 +137,13 @@ _CI_PATH_TOKENS = (".github/workflows/", ".github/actions/")
 _CI_DIRECTORIES = frozenset({"deploy", "release"})
 _CI_FILENAMES = frozenset(
     {
-        "dockerfile", "lefthook.yml", "lefthook.yaml", "release.yml", "release.yaml",
-        "deploy.yml", "deploy.yaml",
+        "dockerfile",
+        "lefthook.yml",
+        "lefthook.yaml",
+        "release.yml",
+        "release.yaml",
+        "deploy.yml",
+        "deploy.yaml",
     }
 )
 _CI_FILENAME_PREFIXES = ("dockerfile.", "docker-compose", "deploy.")
@@ -367,8 +412,17 @@ _DOC_ACCURACY_SUFFIXES = frozenset({".md"})
 # exactly that case.
 _DOC_ACCURACY_EXCLUDED_DIRS = frozenset(
     {
-        ".git", "node_modules", "__pycache__", ".venv", "venv",
-        "target", "dist", "build", "bin", "obj", ".doc-accuracy",
+        ".git",
+        "node_modules",
+        "__pycache__",
+        ".venv",
+        "venv",
+        "target",
+        "dist",
+        "build",
+        "bin",
+        "obj",
+        ".doc-accuracy",
     }
 )
 # scan_principles._is_applicable compares these two names literally. The
@@ -445,9 +499,7 @@ def _golden_principles_reads(path: str) -> bool:
     name = segments[-1]
     if name.endswith(_GP_SCRIPT_SUFFIXES):
         return True
-    if name == _GP_SCANNER_SKILL_FILENAME and _has_contiguous_segments(
-        segments, _GP_SKILLS_MARKER
-    ):
+    if name == _GP_SCANNER_SKILL_FILENAME and _has_contiguous_segments(segments, _GP_SKILLS_MARKER):
         return True
     if (
         name.endswith(".md")
@@ -512,7 +564,12 @@ _RISK_TABLE: tuple[tuple[str, Callable[[str], bool], tuple[str, ...], tuple[str,
     ("decision-records", _is_decision_doc_path, ("decision-rigor",), ()),
     ("roadmap-or-spec-docs", _is_roadmap_doc_path, ("roadmap",), ()),
     ("docs-and-instructions", _is_docs_path, (), ("doc-accuracy",)),
-    ("executable-code", _is_code_path, ("code-quality",), ("code-qualities-assessment", "taste-lints")),
+    (
+        "executable-code",
+        _is_code_path,
+        ("code-quality",),
+        ("code-qualities-assessment", "taste-lints"),
+    ),
     ("toolkit-governance", _is_toolkit_artifact_path, (), ("golden-principles",)),
 )
 # The 12 diff effects the caller verified in the diff body, which no path glob
@@ -761,11 +818,17 @@ def _default_references_dir() -> Path:
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
-        "--changed-path", action="append", default=[], metavar="PATH",
+        "--changed-path",
+        action="append",
+        default=[],
+        metavar="PATH",
         help="A path from the verified three-dot diff. Repeatable.",
     )
     parser.add_argument(
-        "--effect", action="append", default=[], metavar="NAME",
+        "--effect",
+        action="append",
+        default=[],
+        metavar="NAME",
         help=(
             "A diff effect verified in the diff body. Known values: "
             + ", ".join(sorted(_EFFECT_TABLE))
@@ -773,15 +836,21 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
-        "--pin", action="append", default=[], metavar="AXIS",
+        "--pin",
+        action="append",
+        default=[],
+        metavar="AXIS",
         help="A caller-pinned always-on axis, canonical or local. Repeatable.",
     )
     parser.add_argument(
-        "--deep", action="store_true",
+        "--deep",
+        action="store_true",
         help="Deep review: select every candidate axis regardless of risk.",
     )
     parser.add_argument(
-        "--references-dir", type=Path, default=None,
+        "--references-dir",
+        type=Path,
+        default=None,
         help="Directory holding the canonical axis prompts (references/*.md).",
     )
     return parser

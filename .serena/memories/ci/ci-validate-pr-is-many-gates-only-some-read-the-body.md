@@ -210,7 +210,7 @@ the dash rule and checks it before the bypass:
 dash_issue_types = {"Em/en-dash in PR title", "Em/en-dash in PR description"}
 has_dash_critical = any(...)
 if args.ci and has_dash_critical:
-    return print_results(issues, ci=args.ci)   # exits 1 regardless of the label
+    return print_results(issues, ci=args.ci)  # exits 1 regardless of the label
 ```
 
 So a body with an em-dash stays red with the label applied. Reaching for the bypass on

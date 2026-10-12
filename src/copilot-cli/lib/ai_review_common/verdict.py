@@ -81,9 +81,7 @@ def get_milestone(output: str) -> str:
     return match.group(1) if match else ""
 
 
-FAIL_VERDICTS = frozenset(
-    {"CRITICAL_FAIL", "REJECTED", "FAIL", "NEEDS_REVIEW", "NON_COMPLIANT"}
-)
+FAIL_VERDICTS = frozenset({"CRITICAL_FAIL", "REJECTED", "FAIL", "NEEDS_REVIEW", "NON_COMPLIANT"})
 
 
 # Tokens accepted by .github/actions/ai-review/action.yml's parse step:
@@ -93,9 +91,7 @@ FAIL_VERDICTS = frozenset(
 # merge_verdicts must not treat these CI-valid tokens as unknown garbage.
 # PR #1965 coderabbit Y14.
 _KNOWN_VERDICT_TOKENS: frozenset[str] = (
-    frozenset(
-        {"PASS", "WARN", "UNKNOWN", "DID_NOT_RUN", "COMPLIANT", "NON_COMPLIANT", "PARTIAL"}
-    )
+    frozenset({"PASS", "WARN", "UNKNOWN", "DID_NOT_RUN", "COMPLIANT", "NON_COMPLIANT", "PARTIAL"})
     | FAIL_VERDICTS
 )
 
@@ -262,9 +258,7 @@ def _has_assessed_files(files: list[object], summary: dict[str, object]) -> bool
     # category this adapter does not know, is output it cannot vouch for, and
     # letting a valid sibling carry it would be the partial-evidence pass this
     # function exists to refuse.
-    entries: list[dict[str, object]] = [
-        entry for entry in files if isinstance(entry, dict)
-    ]
+    entries: list[dict[str, object]] = [entry for entry in files if isinstance(entry, dict)]
     if len(entries) != len(files):
         return False
     if not all(entry.get("category") in _KNOWN_CATEGORIES for entry in entries):
@@ -291,9 +285,7 @@ def _has_linted_category(payload: dict[str, object]) -> bool:
     by_category = payload.get("files_by_category")
     if not isinstance(by_category, dict):
         return False
-    return any(
-        _coerce_nonnegative_int(by_category.get(name)) for name in _ASSESSED_CATEGORIES
-    )
+    return any(_coerce_nonnegative_int(by_category.get(name)) for name in _ASSESSED_CATEGORIES)
 
 
 def _has_inventoried_docs(payload: dict[str, object]) -> bool:
@@ -311,17 +303,13 @@ def _has_inventoried_docs(payload: dict[str, object]) -> bool:
     documentation_files = assessment.get("documentation_files")
     if not isinstance(documentation_files, list) or not documentation_files:
         return False
-    inventoried = {
-        entry.get("path") for entry in documentation_files if isinstance(entry, dict)
-    }
+    inventoried = {entry.get("path") for entry in documentation_files if isinstance(entry, dict)}
     changed = assessment.get("changed_files")
     if not isinstance(changed, list):
         # No diff scope, so there is no changed set to be complete against.
         return True
     return all(
-        name in inventoried
-        for name in changed
-        if isinstance(name, str) and name.endswith(".md")
+        name in inventoried for name in changed if isinstance(name, str) and name.endswith(".md")
     )
 
 
@@ -422,9 +410,7 @@ def adapt_local_axis_verdict(
     # golden-principles narrows once more: applicable_files counts what a GP
     # rule governs, and its axis note says a clean result on a non-toolkit repo
     # "means no rule applied, not that design was reviewed".
-    if axis == "golden-principles" and not _coerce_nonnegative_int(
-        payload.get("applicable_files")
-    ):
+    if axis == "golden-principles" and not _coerce_nonnegative_int(payload.get("applicable_files")):
         return "UNKNOWN"
     # taste-lints counts a generated file into files_scanned then skips it
     # without running a rule, so it reports the split in files_by_category.
@@ -444,19 +430,21 @@ def adapt_local_axis_verdict(
 
 
 _INFRA_PATTERNS = re.compile(
-    "|".join([
-        r"timed?\s*out",
-        r"timeout",
-        r"rate\s*limit",
-        r"429",
-        r"network\s*error",
-        r"502\s*Bad\s*Gateway",
-        r"503\s*Service\s*Unavailable",
-        r"connection\s*(refused|reset|timeout)",
-        r"Copilot\s*CLI\s*failed.*with\s*no\s*output",
-        r"missing\s*Copilot\s*access",
-        r"insufficient\s*scopes",
-    ]),
+    "|".join(
+        [
+            r"timed?\s*out",
+            r"timeout",
+            r"rate\s*limit",
+            r"429",
+            r"network\s*error",
+            r"502\s*Bad\s*Gateway",
+            r"503\s*Service\s*Unavailable",
+            r"connection\s*(refused|reset|timeout)",
+            r"Copilot\s*CLI\s*failed.*with\s*no\s*output",
+            r"missing\s*Copilot\s*access",
+            r"insufficient\s*scopes",
+        ]
+    ),
     re.IGNORECASE,
 )
 
@@ -506,9 +494,7 @@ def spec_validation_failed(
 _JSON_LABELS_PATTERN = re.compile(r'"labels"\s*:\s*\[([^\]]*)\]')
 _JSON_MILESTONE_PATTERN = re.compile(r'"milestone"\s*:\s*"([^"]*)"')
 
-SAFE_NAME_PATTERN = re.compile(
-    r"^(?=.{1,50}$)[A-Za-z0-9](?:[A-Za-z0-9 _.\-]*[A-Za-z0-9])?$"
-)
+SAFE_NAME_PATTERN = re.compile(r"^(?=.{1,50}$)[A-Za-z0-9](?:[A-Za-z0-9 _.\-]*[A-Za-z0-9])?$")
 
 
 def get_labels_from_ai_output(output: str | None) -> list[str]:

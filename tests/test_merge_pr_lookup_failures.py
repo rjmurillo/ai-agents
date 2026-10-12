@@ -32,14 +32,24 @@ _GH_MISSING_PR = (
     "(repository.pullRequest)\n"
 )
 _GH_MISSING_REPO = "GraphQL: Could not resolve to a Repository with the name 'o/r'. (repository)"
-_PR_STATE = json.dumps({
-    "state": "OPEN", "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN",
-    "headRefName": "feature", "headRefOid": _HEAD,
-})
-_READBACK = json.dumps({
-    "state": "MERGED", "mergeCommit": {"oid": "c" * 40}, "mergedBy": {"login": "octocat"},
-    "autoMergeRequest": None, "headRefOid": _HEAD,
-})
+_PR_STATE = json.dumps(
+    {
+        "state": "OPEN",
+        "mergeable": "MERGEABLE",
+        "mergeStateStatus": "CLEAN",
+        "headRefName": "feature",
+        "headRefOid": _HEAD,
+    }
+)
+_READBACK = json.dumps(
+    {
+        "state": "MERGED",
+        "mergeCommit": {"oid": "c" * 40},
+        "mergedBy": {"login": "octocat"},
+        "autoMergeRequest": None,
+        "headRefOid": _HEAD,
+    }
+)
 _OK = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
 
 
@@ -79,7 +89,9 @@ def _drive_main(view, capsys, auth=_OK) -> tuple[int, dict, list[list[str]]]:
     [
         pytest.param(_failed(stderr=_GH_MISSING_PR), 2, "NotFound", id="AC1-gh-missing-pr"),
         pytest.param(
-            _failed(stdout=_GH_MISSING_PR, stderr="warning: unrelated"), 2, "NotFound",
+            _failed(stdout=_GH_MISSING_PR, stderr="warning: unrelated"),
+            2,
+            "NotFound",
             id="AC1-marker-on-stdout-only",
         ),
         pytest.param(_failed(stderr="not found"), 2, "NotFound", id="AC2-legacy-wording"),

@@ -1845,9 +1845,9 @@ class TestTheCopilotSurfaceIsValidated:
         )
         report = _run(root)
         missing = [v for v in report.violations if v.category == "missing_script"]
-        assert [v.script for v in missing] == [
-            "src/copilot-cli/hooks/PreToolUse/absent.py"
-        ], [v.message for v in report.violations]
+        assert [v.script for v in missing] == ["src/copilot-cli/hooks/PreToolUse/absent.py"], [
+            v.message for v in report.violations
+        ]
 
     def test_a_copilot_dispatcher_missing_exit_code_docs_fails(self, tmp_path):
         report = _run(_copilot_tree(tmp_path, dispatcher='"""No contract here."""\n'))
@@ -1908,9 +1908,7 @@ class TestTheCopilotManifestIsTheShimSourceOfTruth:
             manifest={"event": "PreToolUse", "shims": ["guard.py"], "timeouts": {"guard.py": 12}},
         )
         report = _run(root)
-        shim = next(
-            e for e in report.entries if e.script_path.endswith("PreToolUse/guard.py")
-        )
+        shim = next(e for e in report.entries if e.script_path.endswith("PreToolUse/guard.py"))
         assert shim.timeout == 12
 
 
@@ -2019,4 +2017,3 @@ class TestTheShippedCopilotTreeSatisfiesTheContract:
         report = _run(PROJECT_ROOT)
         copilot = [v for v in report.violations if "copilot-cli" in v.script]
         assert copilot == [], [v.message for v in copilot]
-

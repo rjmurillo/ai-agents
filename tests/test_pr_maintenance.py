@@ -77,9 +77,7 @@ def _mock_subprocess_run(stdout: str):
     """Return a mock for subprocess.run that returns given stdout."""
 
     def _side_effect(*args, **kwargs):
-        return subprocess.CompletedProcess(
-            args=args[0], returncode=0, stdout=stdout, stderr=""
-        )
+        return subprocess.CompletedProcess(args=args[0], returncode=0, stdout=stdout, stderr="")
 
     return _side_effect
 
@@ -88,9 +86,7 @@ def _mock_subprocess_run_failure():
     """Return a mock for subprocess.run that raises CalledProcessError."""
 
     def _side_effect(*args, **kwargs):
-        raise subprocess.CalledProcessError(
-            returncode=1, cmd=args[0], output="Error: API error"
-        )
+        raise subprocess.CalledProcessError(returncode=1, cmd=args[0], output="Error: API error")
 
     return _side_effect
 
@@ -233,9 +229,7 @@ class TestGetMaintenanceResults:
     def test_large_metric_values(self, tmp_path: Path):
         log_file = tmp_path / "test.log"
         log_file.write_text(
-            "PRs Processed: 999\n"
-            "Comments Acknowledged: 12345\n"
-            "Conflicts Resolved: 100\n",
+            "PRs Processed: 999\nComments Acknowledged: 12345\nConflicts Resolved: 100\n",
             encoding="utf-8",
         )
 
@@ -395,9 +389,7 @@ class TestCreateWorkflowFailureAlert:
     def test_includes_run_url(self):
         run_url = "https://github.com/owner/repo/actions/runs/55555"
 
-        body = create_workflow_failure_alert(
-            run_url=run_url, trigger_event="workflow_dispatch"
-        )
+        body = create_workflow_failure_alert(run_url=run_url, trigger_event="workflow_dispatch")
 
         assert run_url in body
         assert "workflow_dispatch" in body
@@ -538,9 +530,7 @@ class TestIntegrationScenarios:
     def test_complete_happy_path(self, tmp_path: Path):
         log_file = tmp_path / "integration-test.log"
         log_file.write_text(
-            "PRs Processed: 10\n"
-            "Comments Acknowledged: 25\n"
-            "Conflicts Resolved: 3\n",
+            "PRs Processed: 10\nComments Acknowledged: 25\nConflicts Resolved: 3\n",
             encoding="utf-8",
         )
 

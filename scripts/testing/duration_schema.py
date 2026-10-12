@@ -58,8 +58,7 @@ def parse_module(raw: object) -> ModuleEntry:
     """Validate one module entry read from history."""
     if not isinstance(raw, dict) or not isinstance(raw.get("ids"), str):
         raise ValueError(f"module entry {raw!r} lacks a string ids field")
-    return {"seconds": _seconds(raw, "seconds"), "tests": _count(raw, "tests"),
-            "ids": raw["ids"]}
+    return {"seconds": _seconds(raw, "seconds"), "tests": _count(raw, "tests"), "ids": raw["ids"]}
 
 
 def parse_partition(raw: object) -> PartitionEntry:

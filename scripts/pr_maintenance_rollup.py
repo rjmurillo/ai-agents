@@ -18,9 +18,7 @@ _FAILURE_STATES = {
 }
 _CONTEXTS_MAX_PAGES = 50
 
-FetchContextPage = Callable[
-    [str, str, str, str], tuple[list[dict[str, Any]], dict[str, Any]]
-]
+FetchContextPage = Callable[[str, str, str, str], tuple[list[dict[str, Any]], dict[str, Any]]]
 
 _STATUS_CONTEXT_PAGE_QUERY = """\
 query($owner: String!, $name: String!, $oid: GitObjectID!, $cursor: String!) {

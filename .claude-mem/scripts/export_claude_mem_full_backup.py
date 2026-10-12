@@ -42,9 +42,7 @@ def validate_output_path(output_path: Path, memories_dir: Path) -> bool:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        description="Export complete claude-mem backup via plugin"
-    )
+    parser = argparse.ArgumentParser(description="Export complete claude-mem backup via plugin")
     parser.add_argument("--project", default="", help="Optional project filter")
     parser.add_argument("--output-file", default="", help="Override default filename")
     args = parser.parse_args(argv)
@@ -130,9 +128,7 @@ def _run_security_review(output_path: Path) -> int:
         return 0
     print("\nRunning security review...")
     sys.stdout.flush()
-    result = subprocess.run(
-        [sys.executable, str(security_script), "--", str(output_path)]
-    )
+    result = subprocess.run([sys.executable, str(security_script), "--", str(output_path)])
     if result.returncode != 0:
         print("ERROR: Security review FAILED.", file=sys.stderr)
         return 1

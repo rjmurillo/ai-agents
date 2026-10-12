@@ -25,7 +25,7 @@ Create an explicit search plan BEFORE executing queries:
 
 **Claude-Mem MCP** (timeline-based):
 
-```python
+```text
 # Step 1: Search for index
 mcp__plugin_claude-mem_mcp-search__search(query="[topic]")
 
@@ -242,7 +242,7 @@ After report completion, update systems:
 > `.serena/memories/` files, or return it to the parent session
 > (`universal.md` MUST NOT 11, issue #5061).
 
-```python
+```text
 mcp__serena__write_memory(
     memory_file_name="documentary-[topic]-[date]",
     content="[Key findings summary]"

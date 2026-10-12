@@ -41,10 +41,7 @@ def test_unquoted_adjacent_bracket_groups_fail(tmp_path: Path) -> None:
 
     assert len(violations) == 1
     assert "adjacent bracket groups" in violations[0].reason
-    assert (
-        violations[0].suggestion
-        == "argument-hint: '<PR_NUMBERS> [--parallel --cleanup]'"
-    )
+    assert violations[0].suggestion == "argument-hint: '<PR_NUMBERS> [--parallel --cleanup]'"
 
 
 def test_quoted_adjacent_bracket_groups_fail(tmp_path: Path) -> None:
@@ -73,8 +70,7 @@ def test_quoted_pr_review_triple_group_suggests_single_group(tmp_path: Path) -> 
 
     assert len(violations) == 1
     assert (
-        violations[0].suggestion
-        == "argument-hint: '<PR_NUMBERS> [--parallel --cleanup --dry-run]'"
+        violations[0].suggestion == "argument-hint: '<PR_NUMBERS> [--parallel --cleanup --dry-run]'"
     )
 
 

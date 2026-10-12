@@ -40,8 +40,9 @@ Thank you for your interest in contributing to this project. This guide explains
 4. **Set up Python environment**: `uv sync --frozen --extra dev` (creates `.venv` from `uv.lock` without re-resolving it). This matches the locked environment the pre-push gate and CI use. On managed containers, `scripts/bootstrap-vm.sh` runs this automatically.
 5. Configure Git for cross-platform development (see [Git Configuration](#git-configuration) below)
 6. Install Git hooks: `uv run --frozen lefthook install --reset-hooks-path`, then verify with `uv run --frozen lefthook check-install`
-7. Make your changes following the guidelines below
-8. Submit a pull request
+7. Hide the bulk format commit from blame: `git config blame.ignoreRevsFile .git-blame-ignore-revs`
+8. Make your changes following the guidelines below
+9. Submit a pull request
 
 **After setup, quality gates are automated.** Pre-commit hooks run ruff (Python) and markdownlint on staged files. Pre-push hooks run full test suites, drift detection, and security scans before each push. CI runs the complete validation suite. No manual test commands needed for routine development.
 
@@ -648,8 +649,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 _plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
-_lib_dir = str(Path(_plugin_root).resolve() / "lib") if _plugin_root \
-           else str(Path(__file__).resolve().parents[2] / "lib")
+_lib_dir = (
+    str(Path(_plugin_root).resolve() / "lib")
+    if _plugin_root
+    else str(Path(__file__).resolve().parents[2] / "lib")
+)
 if os.path.isdir(_lib_dir) and _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
@@ -660,6 +664,7 @@ try:
         result = _get_project_directory()
         return Path(result) if result else None
 except ImportError:
+
     def get_project_directory() -> Path | None:
         env_dir = os.environ.get("CLAUDE_PROJECT_DIR")
         if env_dir:

@@ -197,7 +197,7 @@ class TestCheckOutcomeInvariants:
             CheckOutcome(validator="v", state=EvidenceState.FAIL, reason="x.y", duration_seconds=-1)
 
     def test_examined_zero_is_accepted_on_a_pass(self) -> None:
-        """"0 violations in 0 files" is a legitimate empty-set pass."""
+        """ "0 violations in 0 files" is a legitimate empty-set pass."""
         outcome = CheckOutcome.passed("v", revision="HEAD", scope="changed files", examined=0)
 
         assert outcome.examined == 0

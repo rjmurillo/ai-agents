@@ -13,7 +13,8 @@ def module_entry(seconds: float, name: str) -> ModuleEntry:
 def leg(seconds: dict[str, float], partition: str = "leg") -> Snapshot:
     """A snapshot whose modules all ran in one partition."""
     return Snapshot(
-        sha="now", recorded_at="2026-10-10T00:00:00+00:00",
+        sha="now",
+        recorded_at="2026-10-10T00:00:00+00:00",
         partitions={partition: {"tests": len(seconds), "wall_seconds": 1.0}},
         modules={n: module_entry(s, n) for n, s in seconds.items()},
         module_partitions={n: partition for n in seconds},

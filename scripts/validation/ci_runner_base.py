@@ -44,9 +44,7 @@ def validate_sha(value: str) -> str | None:
     return value
 
 
-def run(
-    cmd: list[str], *, check: bool = False, timeout: int = 60
-) -> tuple[int, str, str]:
+def run(cmd: list[str], *, check: bool = False, timeout: int = 60) -> tuple[int, str, str]:
     """Run a subprocess by argv. Returns (exit_code, stdout, stderr).
 
     Not vulnerable to CWE-78 (command injection): ``cmd`` is an argv list and
@@ -156,9 +154,7 @@ def _print_fetch_error(base_ref: str, stdout: str, stderr: str) -> None:
 
 def _is_shallow_repository() -> bool | None:
     """True, False, or None when git could not answer."""
-    code, stdout, _ = run(
-        ["git", "rev-parse", "--is-shallow-repository"], check=False, timeout=30
-    )
+    code, stdout, _ = run(["git", "rev-parse", "--is-shallow-repository"], check=False, timeout=30)
     if code != 0:
         return None
     value = stdout.strip().lower()
@@ -194,9 +190,7 @@ def resolve_base(base_ref: str) -> str | None:
     )
     origin_resolves = rc_origin == 0
     if origin_resolves:
-        rc_head, head_sha, _ = run(
-            ["git", "rev-parse", "--verify", "--quiet", "HEAD"], timeout=10
-        )
+        rc_head, head_sha, _ = run(["git", "rev-parse", "--verify", "--quiet", "HEAD"], timeout=10)
         # Prefer origin/<base_ref> unless it equals HEAD (a direct push to the
         # base branch, where the origin diff would be empty).
         if rc_head != 0 or head_sha.strip() != origin_sha.strip():
@@ -204,9 +198,7 @@ def resolve_base(base_ref: str) -> str | None:
 
     push_before = validate_sha(os.environ.get("PUSH_BEFORE_SHA", ""))
     if push_before is not None:
-        rc, _, _ = run(
-            ["git", "rev-parse", "--verify", "--quiet", push_before], timeout=10
-        )
+        rc, _, _ = run(["git", "rev-parse", "--verify", "--quiet", push_before], timeout=10)
         if rc == 0:
             return push_before
 

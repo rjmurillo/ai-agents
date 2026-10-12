@@ -838,9 +838,7 @@ class TestFilterViolationsForDiff:
 
     def test_line_not_in_diff_suppressed(self) -> None:
         v = self._v(99)
-        result = _filter_violations_for_diff(
-            [v], "/repo/f.py", {"/repo/f.py": {1, 2, 3}}, "main"
-        )
+        result = _filter_violations_for_diff([v], "/repo/f.py", {"/repo/f.py": {1, 2, 3}}, "main")
         assert result == []
 
     def test_isolating_negative_control_diff_lines_param(
@@ -976,9 +974,15 @@ class TestSuppressionSurvivesFrontmatter:
     """
 
     FM = [
-        "---\n", "id: ADR-035\n", "status: accepted\n", "date: 2025-12-30\n",
-        "decision-makers: [rjmurillo]\n", "supersedes: []\n",
-        "superseded-by: null\n", "explainer: null\n", "implemented: true\n",
+        "---\n",
+        "id: ADR-035\n",
+        "status: accepted\n",
+        "date: 2025-12-30\n",
+        "decision-makers: [rjmurillo]\n",
+        "supersedes: []\n",
+        "superseded-by: null\n",
+        "explainer: null\n",
+        "implemented: true\n",
         "---\n",
     ]
     SUPPRESSION = "<!-- # taste-lint: ignore file-size (prose ADR) -->\n"

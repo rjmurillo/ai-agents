@@ -129,9 +129,7 @@ def _read(path: Path) -> str:
 
 @pytest.mark.parametrize("skills_root", TREE_ROOTS)
 @pytest.mark.parametrize("relative_path", CLEANED_SKILL_FILES)
-def test_cleaned_skill_names_no_forgetful_surface(
-    skills_root: Path, relative_path: str
-) -> None:
+def test_cleaned_skill_names_no_forgetful_surface(skills_root: Path, relative_path: str) -> None:
     """Positive guard: no cleaned skill file names the retired server."""
     path = skills_root / relative_path
     skill = relative_path.split("/")[0]
@@ -154,8 +152,7 @@ def test_guard_detects_every_removed_spelling(spelling: str) -> None:
     on a file that still carried it.
     """
     assert _names_forgetful(f"prefix {spelling} suffix"), (
-        f"guard no longer detects {spelling!r}; the positive tests above are "
-        "passing vacuously"
+        f"guard no longer detects {spelling!r}; the positive tests above are passing vacuously"
     )
 
 
@@ -214,9 +211,7 @@ def test_memory_consolidate_boundary_names_the_live_sibling_contract(
 
 @pytest.mark.parametrize("skills_root", TREE_ROOTS)
 @pytest.mark.parametrize("relative_path", MEMORY_DOCUMENTARY_FILES)
-def test_every_memory_system_count_says_three(
-    skills_root: Path, relative_path: str
-) -> None:
+def test_every_memory_system_count_says_three(skills_root: Path, relative_path: str) -> None:
     """Every count qualifying "MCP server" or "memory system" must read three.
 
     The first version of this guard pinned three hand-picked strings, so it proved
@@ -235,9 +230,7 @@ def test_every_memory_system_count_says_three(
         for match in _MEMORY_COUNT_RE.finditer(content)
         if _COUNT_WORDS[match.group("count").lower()] != 3
     ]
-    assert not wrong, (
-        f"{relative_path} states a memory-system count that is not three: {wrong}"
-    )
+    assert not wrong, f"{relative_path} states a memory-system count that is not three: {wrong}"
 
 
 def test_memory_system_count_scan_is_not_vacuous() -> None:
@@ -280,9 +273,7 @@ def test_memory_systems_heading_count_matches_the_list_beneath_it(
         "rather than letting it pass vacuously"
     )
     declared = int(block.group("count"))
-    listed = sum(
-        1 for line in block.group("items").splitlines() if line.startswith("- ")
-    )
+    listed = sum(1 for line in block.group("items").splitlines() if line.startswith("- "))
     assert declared == listed, (
         f"heading declares {declared} MCP servers but {listed} are listed beneath it"
     )

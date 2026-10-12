@@ -172,9 +172,11 @@ def _line_is_protected(line: str, in_yaml_frontmatter: bool) -> bool:
     """Check if line should skip word removal."""
     # 12 lines: Pure predicate logic
 
+
 def _apply_word_removals(line: str, level: CompressionLevel) -> str:
     """Apply removal patterns to unprotected line."""
     # 40 lines: Pure transformation logic
+
 
 def remove_redundant_words(content: str, level: CompressionLevel) -> str:
     """Remove redundant words while preserving meaning."""
@@ -205,9 +207,9 @@ else:
 def _line_is_protected(line: str, in_yaml_frontmatter: bool) -> bool:
     if in_yaml_frontmatter:
         return True
-    if '`' in line:
+    if "`" in line:
         return True
-    if 'http://' in line or 'https://' in line:
+    if "http://" in line or "https://" in line:
         return True
     return False
 ```
@@ -262,7 +264,7 @@ This test would fail before refactoring because protection logic was buried in 6
 in_yaml_frontmatter = False
 frontmatter_seen = False
 
-if stripped == '---':
+if stripped == "---":
     if not frontmatter_seen:
         in_yaml_frontmatter = True
         frontmatter_seen = True
@@ -530,6 +532,7 @@ Path validation tests use monkeypatch to inject tmp_path as repo root:
 def _patch_repo_root(self, monkeypatch: pytest.MonkeyPatch, root: Path) -> None:
     def _validate_in_tmp(path: Path, repo_root: Path | None = None) -> Path:
         return _orig(path, repo_root=root)
+
     monkeypatch.setattr("analyze_skill_placement.validate_path_within_repo", _validate_in_tmp)
 ```
 
@@ -642,7 +645,8 @@ None. All changes are ready to merge.
 
 2. **Consider extracting protection rules to configuration**:
    ```python
-   PROTECTED_PATTERNS = ['`', 'http://', 'https://']
+   PROTECTED_PATTERNS = ["`", "http://", "https://"]
+
 
    def _line_is_protected(line: str, in_yaml_frontmatter: bool) -> bool:
        if in_yaml_frontmatter:
@@ -668,11 +672,9 @@ None. All changes are ready to merge.
        def __init__(self, level: CompressionLevel):
            self.level = level
 
-       def add_step(self, step: Callable[[str], str]) -> None:
-           ...
+       def add_step(self, step: Callable[[str], str]) -> None: ...
 
-       def compress(self, content: str) -> str:
-           ...
+       def compress(self, content: str) -> str: ...
    ```
    Benefit: Extensible compression with custom steps.
    Trade-off: Adds complexity for single use case.

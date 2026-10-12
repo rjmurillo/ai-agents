@@ -289,9 +289,12 @@ class TestTokenMatchingDoesNotOverFire:
     @pytest.mark.parametrize(
         ("path", "expected"),
         [
-            ("src/auth/session.py", "security"), ("src/oauth_client.py", "security"),
-            ("utils/sanitizer.py", "security"), (".github/workflows/release.yml", "devops"),
-            ("deploy/main.tf", "devops"), ("release/publish.yml", "devops"),
+            ("src/auth/session.py", "security"),
+            ("src/oauth_client.py", "security"),
+            ("utils/sanitizer.py", "security"),
+            (".github/workflows/release.yml", "devops"),
+            ("deploy/main.tf", "devops"),
+            ("release/publish.yml", "devops"),
             ("Dockerfile", "devops"),
         ],
     )
@@ -519,8 +522,10 @@ class TestSkillDocumentsTheSelector:
 @pytest.mark.parametrize(
     ("path", "expected_axis"),
     [
-        ("tests/test_router.py", "qa"), ("src/auth/login.py", "security"),
-        ("uv.lock", "devops"), (".github/actions/setup/action.yml", "devops"),
+        ("tests/test_router.py", "qa"),
+        ("src/auth/login.py", "security"),
+        ("uv.lock", "devops"),
+        (".github/actions/setup/action.yml", "devops"),
         ("src/models.py", "architect"),
         (".project-toolkit/architecture/ADR-099-thing.md", "decision-rigor"),
         (".claude/skills/review/SKILL.md", "agent-safety"),
