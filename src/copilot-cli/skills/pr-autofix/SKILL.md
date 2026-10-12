@@ -740,7 +740,7 @@ each member of a stack through this script and a stacked member is mergeable
 there. Only the unattended squash-merge route is unsafe: it folds the PR into
 its parent branch and collapses the stack. Work tiers and the `BEHIND` and
 `DIRTY` rows are unchanged for a stacked PR, so CI and thread fixes still run.
-A PR aimed at a release branch also takes this row, which is deliberate: the
+A PR aimed at any non-default branch also takes this row, which is deliberate: the
 loop has no verified path that lands work anywhere but the default branch.
 
 `UNSUPPORTED` is a merge-path row rather than a work tier because the work

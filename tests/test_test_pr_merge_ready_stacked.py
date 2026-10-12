@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 import pytest
 
+from scripts.github_core.api import RepoInfo
 from tests.test_test_pr_merge_ready import (
     _OPEN_PR,
     _mod,
@@ -73,7 +74,14 @@ class TestStackedReplacesT1:
         assert result["Tier"] == "STACKED"
 
     def test_exit_code_is_zero_for_a_mergeable_stacked_pr(self, capsys):
-        with patch("test_pr_merge_ready.gh_graphql", return_value=_payload(base="feature/parent")):
+        with (
+            patch("test_pr_merge_ready.assert_gh_authenticated"),
+            patch(
+                "test_pr_merge_ready.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("test_pr_merge_ready.gh_graphql", return_value=_payload(base="feature/parent")),
+        ):
             rc = main(["--pull-request", "42"])
 
         assert rc == 0
