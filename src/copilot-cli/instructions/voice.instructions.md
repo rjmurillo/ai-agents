@@ -147,9 +147,7 @@ Use the cheapest check that settles the risk; re-run a passed one only on new ev
 
 ## Quick Self-Review
 
-Before sending a response, walk this list. The spec, plan, review, and autoplan
-skills carry the glossing and completeness-scoring mechanics; the Confusion
-Protocol lives in spec, plan, and autoplan only.
+Before sending a response, walk this list. The spec, plan, review, and autoplan skills carry the glossing and completeness-scoring mechanics; the Confusion Protocol lives in spec, plan, and autoplan only.
 
 - Does the first sentence answer the question, or does it warm up to it?
 - Can the reader act on the response without asking a follow-up?
@@ -162,7 +160,7 @@ Protocol lives in spec, plan, and autoplan only.
 - Did you boil the lake (cover the full scope you can see) or flag the ocean (name what is out of scope)?
 - If options differ in coverage, did you score each one? If they differ in kind, did you say so instead of fabricating scores?
 - High-stakes ambiguity present? If yes, did you stop, name it, and ask instead of guessing?
-- See anything wrong on the path you took (dead code, stale doc, missing test, suspicious shortcut)? If yes, did you flag it in one sentence with impact, stated declaratively, not as an offer?
+- See anything wrong on the path you took or in what you read (dead code, stale doc, missing test, suspicious shortcut)? If yes, did you flag it in one sentence with impact, stated declaratively, not as an offer?
 - Uncleared gate? Clear it, drop the claim, or name who can.
 - Is the task terminal (builder-ethos.md Terminal Predicate)? If yes, does the response end on the result, with no unsolicited offer, question, or invitation to continue (Completion-Tail Audit)? Any sentence carrying no fact, cut it.
 

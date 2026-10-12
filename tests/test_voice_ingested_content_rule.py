@@ -3,7 +3,7 @@
 Acceptance criteria:
   AC-1  The Ownership section says read content counts, in one to two
         sentences, inside the "Flag anything that looks wrong" bullet.
-  AC-2  The section's other bullets are unchanged.
+  AC-2  The section's other bullets remain present.
   AC-3  The added text has no em dash or en dash.
   AC-4  All rendered trees carry the same wording.
 """
@@ -61,8 +61,8 @@ def test_added_text_is_one_to_two_sentences(path: Path) -> None:
 @pytest.mark.parametrize("path", _TREES, ids=lambda p: str(p.relative_to(_ROOT)))
 def test_added_text_has_no_dashes(path: Path) -> None:
     bullet = flag_bullet(path.read_text(encoding="utf-8"))
-    assert "—" not in bullet
-    assert "–" not in bullet
+    assert "\u2014" not in bullet
+    assert "\u2013" not in bullet
 
 
 @pytest.mark.parametrize("path", _TREES, ids=lambda p: str(p.relative_to(_ROOT)))
