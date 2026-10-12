@@ -58,3 +58,25 @@ def mask_code(text: str) -> str:
     for start, end in _fence_ranges(text):
         text = _blank(text, start, end)
     return _CODE_SPAN.sub(lambda m: re.sub(r"[^\n]", " ", m.group()), text)
+
+
+def original_context(text: str, match: re.Match[str]) -> str:
+    """Return the match's context group read from the unmasked ``text``."""
+    if match.group("context") is None:
+        return ""
+    return text[match.start("context") : match.end("context")]
+
+
+def sub_outside_code(pattern: re.Pattern[str], text: str) -> str:
+    """Delete ``pattern`` matches that sit outside fenced blocks and code spans.
+
+    Matching runs on the masked copy, whose offsets equal the original's, so
+    documented examples inside code survive a load and save round trip.
+    """
+    pieces: list[str] = []
+    last = 0
+    for match in pattern.finditer(mask_code(text)):
+        pieces.append(text[last : match.start()])
+        last = match.end()
+    pieces.append(text[last:])
+    return "".join(pieces)
