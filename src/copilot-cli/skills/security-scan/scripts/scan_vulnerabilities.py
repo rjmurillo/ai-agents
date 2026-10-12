@@ -160,8 +160,8 @@ _STAGED_FILES_COMMAND = ("git", "diff", "--staged", "--name-only", "--diff-filte
 def get_staged_files() -> list[str]:
     """Get list of staged files from git, excluding staged deletions.
 
-    A deleted path no longer exists in the working tree, so it cannot add
-    command injection to the resulting branch and the reader would fail on it.
+    A staged deletion removes the file, so it cannot introduce command
+    injection, and reading the missing path in ``scan_file`` would fail.
     ``--diff-filter=d`` drops deletions; unreadable surviving files still
     reach ``scan_file`` and still report an error.
 
@@ -478,7 +478,7 @@ def _collect_files_to_scan(args: argparse.Namespace) -> list[str]:
         # --files target that yielded nothing is a mis-specified request, not a
         # clean scan, so it keeps the usage-error exit (EXIT_ERROR).
         if args.git_staged and not args.directory and not args.files:
-            print("No files to scan (no staged files remain after excluding deletions).")
+            print("No files to scan (nothing staged, or only deletions staged).")
             sys.exit(EXIT_SUCCESS)
         print("No files to scan. Use --git-staged, --directory, or specify files.")
         sys.exit(EXIT_ERROR)
