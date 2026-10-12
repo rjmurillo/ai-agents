@@ -3,8 +3,8 @@
 
 A workflow that runs off the ARM default carries a `# ADR-NNN Exception:` comment
 (ADR-055, "Exception Documentation Format"). The comment is an audit trail, and it
-rots the way a citation rots: ADR-055 once prescribed `# ADR-032 Exception:` for
-the same reason that ADR-032 was renumbered away, and the retired spellings
+rots the way a citation rots: ADR-055 itself prescribed `# ADR-032 Exception:` until
+PR #1604 renumbered it from ADR-032 and left the body unswept, and the retired spellings
 `# ADR-024 Exception:` and `# ADR-014 Exception:` stayed loose in the tree. No
 gate read the pattern, so a marker could name an ADR that does not exist, or one
 that a later record retired, and still pass.

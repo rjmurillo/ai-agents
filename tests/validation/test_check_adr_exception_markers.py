@@ -85,12 +85,13 @@ def test_proposed_adr_is_live(tmp_path: Path) -> None:
     assert _run(tmp_path).returncode == 0
 
 
-def test_no_markers_passes_and_reports_zero_examined(tmp_path: Path) -> None:
+def test_no_markers_passes_and_reports_zero_markers(tmp_path: Path) -> None:
     _adr(tmp_path, 55, "accepted")
     _workflow(tmp_path, "# plain comment")
     result = _run(tmp_path)
     assert result.returncode == 0
     assert "0 marker" in result.stdout
+    assert "in 1 workflow file" in result.stdout
 
 
 # --- neg --------------------------------------------------------------------
@@ -203,7 +204,7 @@ def test_non_workflow_files_are_not_scanned(tmp_path: Path) -> None:
     assert _run(tmp_path).returncode == 0
 
 
-def test_scalar_status_types_do_not_crash(tmp_path: Path) -> None:
+def test_non_scalar_status_does_not_crash(tmp_path: Path) -> None:
     adr_dir = tmp_path / ".project-toolkit" / "architecture"
     adr_dir.mkdir(parents=True)
     (adr_dir / "ADR-055-runner.md").write_text("---\nstatus:\n  - a\n---\n", encoding="utf-8")
