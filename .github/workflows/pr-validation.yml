@@ -333,6 +333,22 @@ jobs:
       # to compare against and nothing a contributor could raise to silence it.
       - name: Run memory-index token ratchet
         run: uv run --frozen python3 scripts/ci/memory_index_token_ratchet.py
+      # Issue #5828: `memory-placement` runs only at pre-commit. A memory that
+      # reads as policy reaches main through every route that skips local hooks:
+      # `--no-verify`, a clone where `lefthook install` was never run, a bot
+      # push, a cloud agent, the web editor. This step runs the same check over
+      # the memories the PR changed. A file new to the PR, or one whose
+      # classification rose to normative, fails; a renamed file with unchanged
+      # content keeps its base class. The check owns the diff, the rename
+      # detection, and the merge-base lookup (ADR-006).
+      - name: Run memory-placement check
+        env:
+          BASE_REF: ${{ github.base_ref || github.event.repository.default_branch }}
+        run: |
+          # Keep this fetch full-depth; the check needs the merge base with
+          # BASE_REF. See the taste-lint ratchet step above.
+          git fetch origin "$BASE_REF"
+          uv run --frozen python3 scripts/validation/check_memory_placement.py --ci --changed-since FETCH_HEAD
       # Issue #4398: the three count ratchets measure the branch head, not the
       # merged result. A branch cut before main lowered a baseline can pass its
       # own count check yet breach the ceiling once it lands. This step evaluates
