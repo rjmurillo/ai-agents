@@ -440,3 +440,47 @@ def test_detached_head_holds_on_branch(repo: Path, tmp_path: Path, capsys) -> No
 
     assert code == checker.EXIT_HOLD
     assert f"branch mismatch: recorded {BRANCH}, live HEAD" in out
+
+
+def test_star_bullet_decision_without_provenance_holds(repo: Path, tmp_path: Path, capsys) -> None:
+    handoff = _write(tmp_path / "h.md", _record(repo), "* **Skip it**: why\n")
+
+    code, out = _run(handoff, repo, capsys)
+
+    assert code == checker.EXIT_HOLD
+    assert "decision without provenance" in out
+
+
+def test_missing_decisions_section_holds(repo: Path, tmp_path: Path, capsys) -> None:
+    handoff = _write(tmp_path / "h.md", _record(repo))
+    handoff.write_text(
+        handoff.read_text(encoding="utf-8").replace("## Decisions Made", "## Choices"),
+        encoding="utf-8",
+    )
+
+    code, out = _run(handoff, repo, capsys)
+
+    assert code == checker.EXIT_HOLD
+    assert checker.MISSING_DECISIONS in out
+
+
+def test_inherited_git_dir_does_not_redirect_the_check(
+    repo: Path, tmp_path: Path, capsys, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    other = tmp_path / "other"
+    other.mkdir()
+    _git(other, "init", "-q", "-b", "main")
+    handoff = _write(tmp_path / "h.md", _record(repo))
+    monkeypatch.setenv("GIT_DIR", str(other / ".git"))
+
+    code, _ = _run(handoff, repo, capsys)
+
+    assert code == checker.EXIT_OK
+
+
+def test_nul_byte_in_worktree_is_a_config_error(repo: Path, tmp_path: Path, capsys) -> None:
+    handoff = _write(tmp_path / "h.md", _record(repo, Worktree="/a\x00b"))
+
+    code = checker.main([str(handoff), "--repo", str(repo)])
+
+    assert code == checker.EXIT_CONFIG

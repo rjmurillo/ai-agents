@@ -35,6 +35,7 @@ EXIT CODES (ADR-035):
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import subprocess
 import sys
@@ -61,13 +62,15 @@ REQUIRED_FIELDS = (
     "Validation run",
 )
 MIN_SHA_LENGTH = 7
+_REPO_ENV = frozenset({"GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR"})
+MISSING_DECISIONS = "section ## Decisions Made is absent"
 DUPLICATE = "{conflicting duplicate}"
 
 _COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
 _PLACEHOLDER = re.compile(r"^\{.*\}$")
-_FIELD_LINE = re.compile(r"^- \*\*(?P<key>[^*]+)\*\*:[ \t]*(?P<value>.*)$")
-_DECISION_LINE = re.compile(r"^- ")
-_SUB_BULLET = re.compile(r"^\s+- (?P<key>[A-Za-z ]+):[ \t]*(?P<value>.*)$")
+_FIELD_LINE = re.compile(r"^[-*+] \*\*(?P<key>[^*]+)\*\*:[ \t]*(?P<value>.*)$")
+_DECISION_LINE = re.compile(r"^[-*+] ")
+_SUB_BULLET = re.compile(r"^\s+[-*+] (?P<key>[A-Za-z ]+):[ \t]*(?P<value>.*)$")
 _REMOTE_URL = re.compile(r"[:/](?P<owner>[^/:]+)/(?P<name>[^/]+?)(?:\.git)?/?$")
 
 
@@ -87,6 +90,10 @@ class Report:
 
 def _strip_comments(text: str) -> str:
     return _COMMENT.sub("", text)
+
+
+def _has_heading(text: str, heading: str) -> bool:
+    return bool(re.search(rf"(?m)^## {re.escape(heading)}\s*$", _strip_comments(text)))
 
 
 def _section(text: str, heading: str) -> str:
@@ -113,6 +120,8 @@ def _is_missing(value: str | None) -> bool:
 def decisions_without_provenance(text: str) -> list[str]:
     """Return the decision titles that lack a non-empty ``Provenance:`` sub-bullet."""
     body = _section(_strip_comments(text), "Decisions Made")
+    if not _has_heading(text, "Decisions Made"):
+        return [MISSING_DECISIONS]
     decisions: list[tuple[str, bool]] = []
     for line in body.splitlines():
         if _DECISION_LINE.match(line):
@@ -133,6 +142,11 @@ def _is_none(title: str) -> bool:
     return title.lower().strip("*. ") in {"none", "n/a"}
 
 
+def _clean_git_env() -> dict[str, str]:
+    """Drop variables that make ``git -C`` read a different repository (hook context)."""
+    return {k: v for k, v in os.environ.items() if k not in _REPO_ENV}
+
+
 def _git(repo: Path, *args: str) -> str:
     try:
         result = subprocess.run(
@@ -142,6 +156,7 @@ def _git(repo: Path, *args: str) -> str:
             encoding="utf-8",
             errors="replace",
             check=False,
+            env=_clean_git_env(),
         )
     except OSError as exc:
         raise GitError(f"git unavailable: {exc}") from exc
@@ -253,12 +268,12 @@ def main(argv: list[str] | None = None) -> int:
     except GitError as exc:
         print(f"[ERROR] {exc}", file=sys.stderr)
         return EXIT_EXTERNAL
-    except OSError as exc:
-        print(f"[ERROR] cannot read handoff: {exc}", file=sys.stderr)
-        return EXIT_CONFIG
     except UnicodeDecodeError as exc:
         print(f"[HOLD] handoff is not valid UTF-8: {exc}")
         return EXIT_HOLD
+    except (OSError, ValueError) as exc:
+        print(f"[ERROR] cannot read handoff or resolve its paths: {exc}", file=sys.stderr)
+        return EXIT_CONFIG
     if report.holds:
         for reason in report.holds:
             print(f"[HOLD] {reason}")
