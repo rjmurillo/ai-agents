@@ -73,7 +73,7 @@ def parse_citation_block(text: str) -> list[Citation]:
                 file=sys.stderr,
             )
             continue
-        context = match.group("context") or ""
+        context = _original_context(text, match)
         citations.append(
             Citation(
                 source_type=source_type,
@@ -87,6 +87,8 @@ def parse_citation_block(text: str) -> list[Citation]:
 def parse_link_block(text: str) -> list[MemoryLink]:
     """Extract memory links from markdown text using [link:type](target) syntax.
 
+    Fenced code blocks and inline code spans are skipped, like citations.
+
     Args:
         text: Raw markdown content to parse.
 
@@ -94,7 +96,7 @@ def parse_link_block(text: str) -> list[MemoryLink]:
         List of MemoryLink objects found in the text.
     """
     links: list[MemoryLink] = []
-    for match in _LINK_PATTERN.finditer(text):
+    for match in _LINK_PATTERN.finditer(mask_code(text)):
         raw_type = match.group("link_type")
         link_type = _parse_link_type(raw_type)
         if link_type is None:
@@ -103,7 +105,7 @@ def parse_link_block(text: str) -> list[MemoryLink]:
                 file=sys.stderr,
             )
             continue
-        context = match.group("context") or ""
+        context = _original_context(text, match)
         links.append(
             MemoryLink(
                 link_type=link_type,
@@ -276,6 +278,28 @@ def save_memory(memory: MemoryWithCitations, memories_dir: Path) -> Path:
     return file_path
 
 
+def _original_context(text: str, match: re.Match[str]) -> str:
+    """Return the match's context group read from the unmasked ``text``."""
+    if match.group("context") is None:
+        return ""
+    return text[match.start("context") : match.end("context")]
+
+
+def _sub_outside_code(pattern: re.Pattern[str], text: str) -> str:
+    """Delete ``pattern`` matches that sit outside fenced blocks and code spans.
+
+    Matching runs on the masked copy, whose offsets equal the original's, so
+    documented examples inside code survive a load and save round trip.
+    """
+    pieces: list[str] = []
+    last = 0
+    for match in pattern.finditer(mask_code(text)):
+        pieces.append(text[last : match.start()])
+        last = match.end()
+    pieces.append(text[last:])
+    return "".join(pieces)
+
+
 def _strip_citation_link_blocks(content: str) -> str:
     """Remove ## Citations and ## Links sections from content to prevent duplication.
 
@@ -306,8 +330,8 @@ def _strip_citation_link_blocks(content: str) -> str:
         result_lines.append(line)
 
     stripped = "\n".join(result_lines).rstrip()
-    stripped = _INLINE_CITATION_PATTERN.sub("", stripped)
-    stripped = _INLINE_LINK_PATTERN.sub("", stripped)
+    stripped = _sub_outside_code(_INLINE_CITATION_PATTERN, stripped)
+    stripped = _sub_outside_code(_INLINE_LINK_PATTERN, stripped)
     stripped = re.sub(r"^\s*-\s*$", "", stripped, flags=re.MULTILINE)
     stripped = re.sub(r"\n{3,}", "\n\n", stripped)
     return stripped.strip()

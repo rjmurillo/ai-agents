@@ -6,10 +6,9 @@ not a claim about the repository. ``mask_code`` replaces every code character
 with a space and keeps newlines, so offsets and line structure survive and
 the citation pattern can no longer match inside code.
 
-Handled: backtick and tilde fences at any indent (so list-item fences count), unterminated
-fences that run to the end of the text, and inline code spans. A backtick fence
-inside a blockquote has no line-anchored opener, but its backtick runs pair as
-one multi-line code span, so it is blanked as well. A tilde fence there is not.
+Handled: backtick and tilde fences at any indent (so list-item fences count), fences
+inside blockquotes (leading ``>`` markers are allowed before the run),
+unterminated fences that run to the end of the text, and inline code spans.
 """
 
 from __future__ import annotations
@@ -17,10 +16,10 @@ from __future__ import annotations
 import re
 
 # Opener: three or more backticks or tildes, at line start after optional
-# indent. A backtick fence's info string may not hold a backtick (CommonMark
+# indent and blockquote markers. A backtick fence's info string may not hold a backtick (CommonMark
 # 0.31.2 section 4.5), so such a line is ordinary text.
 _FENCE_OPEN = re.compile(
-    r"^[ \t]*(?:(`{3,})(?![^\n]*`)|(~{3,}))[^\n]*(?:\n|\Z)",
+    r"^[ \t>]*(?:(`{3,})(?![^\n]*`)|(~{3,}))[^\n]*(?:\n|\Z)",
     re.MULTILINE,
 )
 
@@ -45,7 +44,7 @@ def _fence_ranges(text: str) -> list[tuple[int, int]]:
     while (opener := _FENCE_OPEN.search(text, pos)) is not None:
         run = opener.group(1) or opener.group(2)
         closer = re.compile(
-            rf"^[ \t]*{re.escape(run[0])}{{{len(run)},}}[ \t]*$",
+            rf"^[ \t>]*{re.escape(run[0])}{{{len(run)},}}[ \t]*$",
             re.MULTILINE,
         ).search(text, opener.end())
         end = closer.end() if closer else len(text)

@@ -95,6 +95,19 @@ class TestMaskCodeFences:
         text = f"> ```\n> {CITE}\n> ```\n"
         assert "cite" not in mask_code(text)
 
+    @pytest.mark.unit
+    def test_blockquote_tilde_fence_is_blanked(self):
+        text = f"> ~~~\n> {CITE}\n> ~~~\nafter {CITE}\n"
+        masked = mask_code(text)
+        assert masked.count("cite") == 1
+        assert masked.endswith("after " + CITE + "\n")
+
+    @pytest.mark.unit
+    def test_fence_marker_line_interrupts_a_span(self):
+        """CommonMark 0.31.2 section 4.5: a fence opener ends the paragraph."""
+        text = f"`literal\n```\nend`\n{CITE}\n"
+        assert "cite" not in mask_code(text)
+
 
 class TestMaskCodeSpans:
     """Inline code spans are blanked."""
