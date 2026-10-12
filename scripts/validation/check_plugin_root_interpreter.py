@@ -26,10 +26,11 @@ Two things have to hold for it to be portable:
    this way from inside a vendored install, which has no ``pyproject.toml`` to
    install dependencies from even if it wanted to.
 
-This validator enforces both. It carries no baseline for Markdown and code:
-every invocation there was migrated to the canonical form in the same change
-that added this guard (per issue #5949), so any offense is a regression. Shipped
-YAML has a short, named allowance list instead (``_YAML_ALLOWANCES``, below).
+This validator enforces both, plus a bare-path rule for shipped YAML (Rule 3,
+below). Markdown and code carry no baseline: every invocation there moved to
+the canonical form when this guard was added (issue #5949), so any offense is
+a regression. Shipped YAML has a short, named allowance list instead
+(``YAML_ALLOWANCES`` in ``plugin_root_interpreter_allowances.py``).
 
 Scope: tracked ``*.md``, ``*.py``, ``*.tmpl``, and ``*.mustache`` files, plus
 ``*.yaml`` and ``*.yml`` files under a plugin root (``.claude/``,
@@ -79,10 +80,10 @@ Detection:
 
   **Rule 3 (YAML only, bare path).** In shipped YAML, an interpreter on a bare
   ``.claude/skills/...py`` operand also invokes a plugin script. ``python3``
-  there is flagged (plugin-self-containment MUST 2); any other interpreter is
-  one rule-1 offense. Markdown bare paths belong to
-  ``check_skill_md_exec_portability.py``. YAML offenses listed in
-  ``plugin_root_interpreter_allowances.py`` are not reported.
+  there is flagged (``.claude/rules/plugin-self-containment.md`` MUST 2); any
+  other interpreter is one rule-1 offense. Markdown bare paths belong to
+  ``check_skill_md_exec_portability.py``. Allowed YAML offenses are not
+  reported; an allowance that matches nothing prints a ``note:`` on stdout.
 
   A line carrying ``plugin-root-interpreter:`` plus a reason, on the offending
   line or the line directly above it, suppresses that one offense. Same
@@ -97,7 +98,7 @@ Detection:
   the original file, not where the operand happened to land.
 
 Exit codes (ADR-035):
-  0 - no offenses found
+  0 - no offenses found (allowance notes do not change the exit code)
   1 - one or more offenses found
   2 - configuration error (git unavailable, an in-scope tracked file could not
       be read, or the scan examined zero files)
@@ -148,11 +149,11 @@ DECLARATION = "plugin-root-interpreter:"
 _PLUGIN_ROOT_FALLBACK = ".claude"
 _PLUGIN_ROOT_VARS = ("COPILOT_PLUGIN_ROOT", "CLAUDE_PLUGIN_ROOT")
 
-# YAML is read only where it ships; repository CI YAML runs uv on purpose.
+# YAML is read only where it ships; CI YAML runs uv on purpose.
 _PLUGIN_ROOTS = (".claude/", "src/claude/", "src/copilot-cli/")
 _YAML_SUFFIXES = (".yaml", ".yml")
 _Key = tuple[str, str, str]
-_MUST_2 = "plugin-self-containment MUST 2"
+_MUST_2 = ".claude/rules/plugin-self-containment.md MUST 2"
 _SCAN_PATTERNS = ("*.md", "*.py", "*.tmpl", "*.mustache", "*.yaml", "*.yml")
 
 # One interpreter token: `python`, `python3`, or a pinned `python3.11`-style
@@ -187,9 +188,7 @@ _INVOCATION_HEAD = re.compile(_INTERP_PHRASE + r"\$\{(?:" + "|".join(_PLUGIN_ROO
 
 # Rule 3 (YAML only): the same interpreter phrase on a bare fallback-root path.
 _BARE_INVOCATION = re.compile(
-    _INTERP_PHRASE
-    + re.escape(_PLUGIN_ROOT_FALLBACK)
-    + r"/(?P<tail>skills/[A-Za-z0-9_./-]*\.py)(?![\w./-])"
+    _INTERP_PHRASE + r"\.claude/(?P<tail>skills/[A-Za-z0-9_./-]*\.py)(?![\w./-])"
 )
 
 # The `skills/...py` tail once the plugin-root expansion is behind us.

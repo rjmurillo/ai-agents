@@ -2,8 +2,9 @@
 
 Each entry is keyed by (path relative to its plugin root, rule, script tail),
 so one entry covers the three mirrors and survives line moves. Rules: "form",
-"dependency", "bare-path". The checker prints an entry that no longer matches
-anything, so a fixed offense shows up as an entry to delete.
+"dependency", "bare-path". For an entry that no longer matches anything, the
+checker prints a non-failing ``note:`` line on stdout, so a fixed offense shows
+up as an entry to delete without failing CI.
 """
 
 from __future__ import annotations
