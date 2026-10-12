@@ -64,7 +64,9 @@ regression gate (exit 10) still compares cohesion against the merge base.
 
 Files under `src/claude/`, `src/copilot-cli/`, `src/vs-code-agents/`,
 `.claude/hooks/`, and `.github/instructions/` are classified as generated
-mirrors and are not scored. Edit their sources.
+mirrors and are not scored. Edit the sources instead: `templates/` for rules,
+agents, hooks, and `SKILL.md` files, and `.claude/skills/<name>/` for a skill's
+scripts, README, and other support files.
 
 ## Language Support
 

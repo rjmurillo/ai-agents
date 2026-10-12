@@ -195,14 +195,14 @@ The JSON report carries `gate_mode` and a `comparisons` array with per-quality
 |------|---------|
 | 0 | Gate passed |
 | 10 | Regression mode: a comparable quality regressed, or scored evidence was lost |
-| 11 | Below configured thresholds (absolute mode, or a new file in regression mode); `minConfidence` makes low-confidence qualities warn only |
+| 11 | Below configured thresholds (absolute mode, or a new file in regression mode); below-threshold qualities at or above `minConfidence`; lower-confidence misses warn only |
 | 1 | Script error (invalid args, unresolvable base, file not found) |
 
 ---
 
 ## Configuration
 
-Create `.qualityrc.json` to customize thresholds:
+Create `.qualityrc.json` to customize thresholds. Optional `minConfidence` (default 0.0 gates all) makes lower-confidence qualities warn only in absolute mode; regression still compares all:
 
 ```json
 {

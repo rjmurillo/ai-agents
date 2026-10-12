@@ -1804,7 +1804,7 @@ def test_markdown_report_marks_advisory_issues(tmp_path: Path) -> None:
 
     config["minConfidence"] = 0.5
     report = generate_markdown_report([assessment], config)
-    assert "**Cohesion Issues (advisory, low confidence)**:" in report
+    assert "**Cohesion Issues (advisory for absolute thresholds, low confidence)**:" in report
 
 
 def test_repo_quality_config_passes_a_normal_sized_new_module(tmp_path: Path) -> None:

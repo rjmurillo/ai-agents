@@ -1420,7 +1420,11 @@ def generate_markdown_report(
         floor = _confidence_floor(config)
         for label, threshold_key, score in quality_rows:
             if _score_below_threshold(score, _threshold_min(file_thresholds, threshold_key)):
-                advisory = " (advisory, low confidence)" if _is_advisory(score, floor) else ""
+                advisory = (
+                    " (advisory for absolute thresholds, low confidence)"
+                    if _is_advisory(score, floor)
+                    else ""
+                )
                 report.append(f"**{label} Issues{advisory}**:")
                 for reason in score.reasons:
                     report.append(f"  - {reason}")
