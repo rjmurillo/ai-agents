@@ -63,12 +63,10 @@ DEFAULT_OUT_SUBDIR = Path(".project-toolkit") / "temp" / "tool-output"
 OUT_DIR_ENV = "TOOL_OUTPUT_DIR"
 
 _SECRET_ENV_NAME = re.compile(
-    r"(?i)(token|secret|passw(or)?d|key|auth|cookie|credential|connection|dsn|(^|_)pat$)"
+    r"(?i)(token|secret|passw(or)?d|passphrase|key|auth|cookie|credential|connection|dsn|(^|_)pat$)"
 )
 _MIN_SECRET_LENGTH = 4
-_SECRET_FLAG = re.compile(
-    r"(?i)^-{1,2}[\w-]*(token|secret|passw(or)?d|api[_-]?key|credential|auth)[\w-]*$"
-)
+_SECRET_FLAG = re.compile(r"^-{1,2}[\w-]+$")
 _MASK = "***"
 _ARTIFACT_NAME = re.compile(r"^\d{8}T\d{6}-[0-9a-f]{8}\.log$")
 _PIPE_DRAIN_GRACE_S = 2.0
@@ -148,6 +146,13 @@ def _scrub(text: str) -> str:
     return str(redact_ci_sink(text).text)
 
 
+def _is_secret_flag(flag: str) -> bool:
+    """Match a `--flag` whose name hits the same pattern as secret env names."""
+    if not _SECRET_FLAG.match(flag):
+        return False
+    return bool(_SECRET_ENV_NAME.search(flag.lstrip("-").replace("-", "_")))
+
+
 def _mask_argv(argv: list[str]) -> list[str]:
     """Mask values that follow or join a secret-named flag, for the command echo."""
     masked: list[str] = []
@@ -161,7 +166,7 @@ def _mask_argv(argv: list[str]) -> list[str]:
         if sep and _SECRET_ENV_NAME.search(flag) and not flag.startswith("-"):
             masked.append(f"{flag}={_MASK}")
             continue
-        if _SECRET_FLAG.match(flag):
+        if _is_secret_flag(flag):
             masked.append(f"{flag}={_MASK}" if sep else arg)
             hide_next = not sep
             continue

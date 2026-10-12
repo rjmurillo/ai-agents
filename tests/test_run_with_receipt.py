@@ -452,3 +452,29 @@ class TestSecondReviewBypasses:
     def test_launch_error_message_is_redacted(self, tmp_path, capfd):
         run([f"/nonexistent/{GITHUB_TOKEN}"], tmp_path)
         assert GITHUB_TOKEN not in capfd.readouterr().err
+
+
+class TestThirdReviewBypasses:
+    @pytest.mark.parametrize(
+        "flag", ["--key", "--private-key", "--access-key", "--passphrase", "--pat"]
+    )
+    def test_more_secret_flags_masked(self, tmp_path, capfd, flag):
+        run(py("print('n' * 40000)") + [flag, "plainsecretvalue99"], tmp_path)
+        assert "plainsecretvalue99" not in capfd.readouterr().out
+
+    def test_pem_block_interleaved_with_stderr_is_redacted(self, tmp_path, capfd):
+        script = (
+            "import sys, time\n"
+            "lines = ['-----BEGIN RSA PRIVATE KEY-----', 'MIIEowIBAAKCAQEAsecretbody1',"
+            " 'secretbody2', '-----END RSA PRIVATE KEY-----']\n"
+            "for line in lines:\n"
+            "    sys.stdout.write(line + '\\n'); sys.stdout.flush(); time.sleep(0.1)\n"
+            "    sys.stderr.write('log line\\n'); sys.stderr.flush(); time.sleep(0.1)\n"
+            "print('n' * 40000)\n"
+        )
+        run(py(script), tmp_path)
+        out = capfd.readouterr().out
+        saved = artifact_from(out).read_text()
+        for blob in (out, saved):
+            assert "secretbody" not in blob
+            assert "MIIEow" not in blob
