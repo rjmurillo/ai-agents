@@ -18,6 +18,7 @@ from run_with_receipt import (
 )
 
 GITHUB_TOKEN = "ghp_" + "A1b2C3d4E5" * 4  # 40 chars after prefix, matches github-token rule
+ARTIFACT_NAME = "20260101T000000-deadbeef.log"
 BEARER = "Bearer abcDEF123456xyz+/="
 
 
@@ -210,7 +211,7 @@ class TestRetrieval:
         assert len(capfd.readouterr().out) == 65536
 
     def test_rejects_path_outside_out_dir(self, tmp_path, capfd):
-        outside = tmp_path / "secret.txt"
+        outside = tmp_path / ARTIFACT_NAME
         outside.write_text("nope")
         out_dir = tmp_path / "out"
         out_dir.mkdir()
@@ -228,14 +229,17 @@ class TestRetrieval:
     def test_rejects_symlink_escape(self, tmp_path):
         out_dir = tmp_path / "out"
         out_dir.mkdir()
-        target = tmp_path / "x.log"
+        target = tmp_path / ARTIFACT_NAME
         target.write_text("hidden")
-        (out_dir / "link.log").symlink_to(target)
-        assert main(["read", str(out_dir / "link.log"), "--out-dir", str(out_dir)]) == EXIT_USAGE
+        (out_dir / "20260101T000001-cafebabe.log").symlink_to(target)
+        assert (
+            main(["read", str(out_dir / "20260101T000001-cafebabe.log"), "--out-dir", str(out_dir)])
+            == EXIT_USAGE
+        )
 
     @pytest.mark.parametrize(("offset", "length"), [("-1", "10"), ("0", "0")])
     def test_rejects_bad_range(self, tmp_path, offset, length):
-        path = tmp_path / "a.log"
+        path = tmp_path / ARTIFACT_NAME
         path.write_text("data")
         argv = [
             "read",
@@ -251,7 +255,8 @@ class TestRetrieval:
 
     def test_missing_artifact_is_external_failure(self, tmp_path):
         assert (
-            main(["read", str(tmp_path / "gone.log"), "--out-dir", str(tmp_path)]) == EXIT_EXTERNAL
+            main(["read", str(tmp_path / ARTIFACT_NAME), "--out-dir", str(tmp_path)])
+            == EXIT_EXTERNAL
         )
 
 
@@ -374,7 +379,7 @@ class TestRedactionBypasses:
         assert GITHUB_TOKEN not in artifact_from(out).read_text()
 
     def test_read_redacts_even_a_planted_unredacted_artifact(self, tmp_path, capfd):
-        planted = tmp_path / "planted.log"
+        planted = tmp_path / ARTIFACT_NAME
         planted.write_text(f"leak {GITHUB_TOKEN}\n")
         assert main(["read", str(planted), "--out-dir", str(tmp_path)]) == 0
         assert GITHUB_TOKEN not in capfd.readouterr().out
@@ -401,3 +406,49 @@ class TestRedactionBypasses:
         )
         assert run(py(script), tmp_path) == 0
         assert capfd.readouterr().out == "done\n"
+
+
+class TestSecondReviewBypasses:
+    def test_read_refuses_arbitrary_file_even_with_matching_out_dir(self, tmp_path, capfd):
+        victim = tmp_path / "passwd"
+        victim.write_text("root:x:0:0\n")
+        assert main(["read", str(victim), "--out-dir", str(tmp_path)]) == EXIT_USAGE
+        assert "root:x" not in capfd.readouterr().out
+
+    def test_read_refuses_non_artifact_log_name(self, tmp_path):
+        other = tmp_path / "app.log"
+        other.write_text("data")
+        assert main(["read", str(other), "--out-dir", str(tmp_path)]) == EXIT_USAGE
+
+    def test_token_split_across_stdout_writes_with_stderr_between(self, tmp_path, capfd):
+        script = (
+            "import sys, time\n"
+            f"t = '{GITHUB_TOKEN}'\n"
+            "sys.stdout.write('k ' + t[:20]); sys.stdout.flush()\n"
+            "time.sleep(0.3)\n"
+            "sys.stderr.write('interleaved\\n'); sys.stderr.flush()\n"
+            "time.sleep(0.3)\n"
+            "sys.stdout.write(t[20:] + '\\n' + 'b' * 40000); sys.stdout.flush()\n"
+        )
+        run(py(script), tmp_path)
+        out = capfd.readouterr().out
+        saved = artifact_from(out).read_text()
+        for blob in (out, saved):
+            assert GITHUB_TOKEN[:20] not in blob
+            assert GITHUB_TOKEN[20:] not in blob
+
+    @pytest.mark.parametrize(
+        "name", ["GITHUB_PAT", "NPM_AUTH", "OPENAI_KEY", "SESSION_COOKIE", "DB_CONNECTION"]
+    )
+    def test_more_env_secret_names_redacted_by_value(self, tmp_path, capfd, monkeypatch, name):
+        monkeypatch.setenv(name, "opaque-value-9988")
+        run(py("print('v=opaque-value-9988')"), tmp_path)
+        assert "opaque-value-9988" not in capfd.readouterr().out
+
+    def test_name_equals_secret_operand_masked_in_command_echo(self, tmp_path, capfd):
+        run(py("print('n' * 40000)") + ["API_TOKEN=plainsecretvalue99"], tmp_path)
+        assert "plainsecretvalue99" not in capfd.readouterr().out
+
+    def test_launch_error_message_is_redacted(self, tmp_path, capfd):
+        run([f"/nonexistent/{GITHUB_TOKEN}"], tmp_path)
+        assert GITHUB_TOKEN not in capfd.readouterr().err

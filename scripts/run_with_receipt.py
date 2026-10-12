@@ -63,32 +63,58 @@ DEFAULT_OUT_SUBDIR = Path(".project-toolkit") / "temp" / "tool-output"
 OUT_DIR_ENV = "TOOL_OUTPUT_DIR"
 
 _SECRET_ENV_NAME = re.compile(
-    r"(?i)(token|secret|passw(or)?d|api[_-]?key|credential|private[_-]?key)"
+    r"(?i)(token|secret|passw(or)?d|key|auth|cookie|credential|connection|dsn|(^|_)pat$)"
 )
 _MIN_SECRET_LENGTH = 4
 _SECRET_FLAG = re.compile(
     r"(?i)^-{1,2}[\w-]*(token|secret|passw(or)?d|api[_-]?key|credential|auth)[\w-]*$"
 )
 _MASK = "***"
+_ARTIFACT_NAME = re.compile(r"^\d{8}T\d{6}-[0-9a-f]{8}\.log$")
 _PIPE_DRAIN_GRACE_S = 2.0
 
 
 @dataclass(slots=True)
 class Capture:
-    """Child output in arrival order, plus per-stream byte buffers."""
+    """Child output as per-stream buffers plus a line-assembled merged view.
 
-    chunks: list[tuple[str, bytes]] = field(default_factory=list)
+    The merged view orders whole lines by completion time. A line is emitted
+    only once its newline arrives (or at ``finish``), so a secret written in
+    pieces with the other stream's output in between is rejoined before
+    redaction instead of being split by the interleave.
+    """
+
+    streams: dict[str, bytearray] = field(
+        default_factory=lambda: {"out": bytearray(), "err": bytearray()}
+    )
+    partial: dict[str, bytearray] = field(
+        default_factory=lambda: {"out": bytearray(), "err": bytearray()}
+    )
+    lines: list[bytes] = field(default_factory=list)
     lock: threading.Lock = field(default_factory=threading.Lock)
 
     def add(self, stream: str, data: bytes) -> None:
         with self.lock:
-            self.chunks.append((stream, data))
+            self.streams[stream] += data
+            buffer = self.partial[stream]
+            buffer += data
+            while (index := buffer.find(b"\n")) >= 0:
+                self.lines.append(bytes(buffer[: index + 1]))
+                del buffer[: index + 1]
+
+    def finish(self) -> None:
+        """Flush unterminated trailing lines, stdout first."""
+        with self.lock:
+            for stream in ("out", "err"):
+                if self.partial[stream]:
+                    self.lines.append(bytes(self.partial[stream]))
+                    self.partial[stream].clear()
 
     def stream_bytes(self, stream: str) -> bytes:
-        return b"".join(data for name, data in self.chunks if name == stream)
+        return bytes(self.streams[stream])
 
     def merged_bytes(self) -> bytes:
-        return b"".join(data for _, data in self.chunks)
+        return b"".join(self.lines)
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,6 +158,9 @@ def _mask_argv(argv: list[str]) -> list[str]:
             hide_next = False
             continue
         flag, sep, _ = arg.partition("=")
+        if sep and _SECRET_ENV_NAME.search(flag) and not flag.startswith("-"):
+            masked.append(f"{flag}={_MASK}")
+            continue
         if _SECRET_FLAG.match(flag):
             masked.append(f"{flag}={_MASK}" if sep else arg)
             hide_next = not sep
@@ -172,6 +201,7 @@ def _run_child(argv: list[str]) -> tuple[int, Capture]:
     # A grandchild can keep a pipe open after the child exits; do not wait on it.
     for thread in threads:
         thread.join(timeout=_PIPE_DRAIN_GRACE_S)
+    capture.finish()
     return (128 - code if code < 0 else code), capture
 
 
@@ -276,7 +306,7 @@ def run_command(argv: list[str], max_inline_bytes: int, out_dir: Path) -> int:
     try:
         exit_code, capture = _run_child(argv)
     except OSError as exc:
-        print(f"run_with_receipt: cannot launch {_scrub(argv[0])!r}: {exc}", file=sys.stderr)
+        print(_scrub(f"run_with_receipt: cannot launch {argv[0]!r}: {exc}"), file=sys.stderr)
         return EXIT_EXTERNAL
     duration = time.monotonic() - started
     if len(capture.merged_bytes()) <= max_inline_bytes:
@@ -301,8 +331,8 @@ def _is_inside(path: Path, root: Path) -> bool:
 def read_artifact(artifact: str, offset: int, length: int, out_dir: Path) -> int:
     """Print `length` bytes of a saved artifact from `offset` (CWE-22 guarded)."""
     path = Path(artifact).expanduser().resolve()
-    if not _is_inside(path, out_dir):
-        print(f"run_with_receipt: {path} is outside {out_dir}", file=sys.stderr)
+    if not _is_inside(path, out_dir) or not _ARTIFACT_NAME.match(path.name):
+        print("run_with_receipt: not a saved artifact under the output dir", file=sys.stderr)
         return EXIT_USAGE
     if offset < 0 or length < 1:
         print("run_with_receipt: offset must be >= 0 and length >= 1", file=sys.stderr)
