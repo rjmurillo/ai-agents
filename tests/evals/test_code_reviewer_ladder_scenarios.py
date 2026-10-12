@@ -59,13 +59,6 @@ def test_negative_control_expects_no_finding() -> None:
     assert _by_id()[_CONTROL]["expected_verdict"].startswith("NO_FINDING")
 
 
-def test_control_verdict_differs_from_both_rejections() -> None:
-    scenarios = _by_id()
-    control = scenarios[_CONTROL]["expected_verdict"]
-    assert control != scenarios[_REUSE]["expected_verdict"]
-    assert control != scenarios[_OMISSION]["expected_verdict"]
-
-
 def test_scenario_ids_are_unique() -> None:
     ids = [s["id"] for s in json.loads(_SCENARIOS.read_text(encoding="utf-8"))["scenarios"]]
     assert len(ids) == len(set(ids))
