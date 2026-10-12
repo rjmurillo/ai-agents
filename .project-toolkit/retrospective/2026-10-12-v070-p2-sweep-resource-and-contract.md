@@ -8,7 +8,7 @@
 
 Evidence base: the orchestrator's session record as relayed in the request, checked against GitHub REST (paginated) and git on 2026-10-12. I did not read raw transcripts. Each claim is labeled OBSERVED, INFERRED, or UNKNOWN. UNKNOWN (relayed) means the orchestrator said it and no artifact confirms it.
 
-Failure mode class (retros.md MUST 2): item 2 matches FAILURE-MODES.md class 9 (confident incorrectness). Item 5 matches class 4 (false completion marker, in claim form). Item 1 matches no class. The proposal for a new class is the first row of Findings for the owner.
+Failure mode class (retros.md MUST 2): item 2 matches FAILURE-MODES.md class 9 (confident incorrectness). Item 5 matches class 4 (false completion marker, in claim form). Item 1 maps to class 7 (self-contained agent delegation failure): the brief did not carry the wave cap or the stash ban, and host resource exhaustion is the mechanism that made the gap costly. Class 7 covers context a delegator did not pass through. It does not name shared-host limits such as inodes, so the first Findings row asks the owner whether that needs a new class and a linked ADR. This retro proposes no new class itself.
 
 Already covered, referenced and not repeated: PR #6316 (merged, rule quirks for agent templates, reachability test, portability ratchet) and PR #6317 (open, memories for tmp inode cap, check-runs pagination, GraphQL secondary limit, killed pre-push markers, skill support file source, 5851 decision).
 
@@ -89,7 +89,7 @@ Problem: every tool call returned ENOSPC while bytes were 18% used.
 **Item 2. The ship contract named the wrong source of truth**
 
 Problem: the contract said skill scripts live in `src/claude`. `build_all.py` reverts edits there.
-- Q1 Why did agent edits vanish? A1 OBSERVED (contract 3b CORRECTION): the source is `.claude/skills/<name>/`, mirrored into `src/`.
+- Q1 Why did agent edits vanish? A1 OBSERVED (contract 3b CORRECTION): the source for skill support files (everything except `SKILL.md`) is `.claude/skills/<name>/`, mirrored into `src/`. `SKILL.md` renders from `templates/skills/*.SKILL.md.tmpl`.
 - Q2 Why did the contract say `src/claude`? A2 INFERRED: `.claude/AGENTS.md` opens by calling `.claude/` a binplaced copy of the `src/claude/` tree. A reader who stops there infers the wrong direction. The same file lists each skill's non-SKILL.md files as hand-maintained.
 - Q3 Why was the claim not caught? A3 UNKNOWN (relayed): no agent or orchestrator ran one edit through `build_all.py` before the wave.
 - Q4 Why did several agents hit it? A4 OBSERVED: the contract was shared. One wrong line reached every brief. UNKNOWN: the count.
@@ -104,7 +104,7 @@ Problem: GraphQL refused calls for about 30 minutes, twice, with primary quota n
 - Q2 Why was the account busy? A2 OBSERVED: 9 agents polled PR checks while about 14 PRs ran CI, on one identity (#4607 subject).
 - Q3 Why did polling use GraphQL? A3 OBSERVED: `get_pr_checks.py:5` is GraphQL only.
 - Q4 Why not catch it early? A4 INFERRED: `gh api rate_limit` showed a healthy budget, which hid the cause (same trap as closed #4690).
-- Q5 Why does no REST path exist? A5 UNKNOWN: a search of closed and open issues for `get_pr_checks GraphQL` found only #3574. No issue tracks a REST path.
+- Q5 Why does no REST path exist? A5 OBSERVED: a search of closed and open issues for `get_pr_checks GraphQL` found only #3574, and none tracks a REST path. UNKNOWN: why no REST path was built.
 - Root cause: the check-status script has one transport, and the shared account has one budget.
 - Fix: poll through REST check-runs at 5-minute intervals (used, worked). Memory is in #6317. Script change is a finding for the owner.
 
@@ -121,7 +121,7 @@ Problem: the orchestrator said the merge used an admin bypass, then retracted (r
 - Item 8. Q: why did #6315 ship another agent's body? A: the contract named one shared scratchpad directory for body files, so same-named files collided. Root cause: a shared writable path in a brief that fans out to parallel agents. Fix: `new_pr.py --prepare-body-file` creates a private `.project-toolkit/scratch/pr-body-*.md` per worktree. This is the same shape as item 2, one wrong line in the shared brief. The orchestrator authored it. FAILURE-MODES class 9.
 - Item 4. Q: why `git stash; git stash pop`? INFERRED: used as a cheap "is the tree clean" guard. The stash stack is shared across worktrees, so the pop can take another agent's entry. Rule exists at `orchestrator.shared.md:348` and in the memory above. It was not in the contract until step 3a was added. Fix: guard with `git status --porcelain`, never stash.
 - Item 6. Q: why `timeout 110` on push? INFERRED: a bound to stop a hung push. It kills pre-push hooks and leaks scratch. Covered by #6317 memory and contract step 3c.
-- Item 7. Q: why was the rule recorded backwards? OBSERVED: `pr_description.py:5` flags a file the description names that is not in the diff. INFERRED: the agent read "must match the diff" as "diff files must be named". The reverse direction is a WARNING only. No memory holds the direction.
+- Item 7. Q: why was the rule recorded backwards? OBSERVED: `pr_description.py:5` flags a file the description names that is not in the diff. INFERRED: the agent read "must match the diff" as "diff files must be named". The reverse direction is a WARNING only. A search of origin/main `.serena/memories/` for `pr_description`, `## Changes`, and `not in the diff` found `ci/ci-validate-pr-is-many-gates-only-some-read-the-body.md` (lines 108-114) and `ci/ci-linking-an-issue-arms-an-ai-gate-against-your-diff.md` (lines 94-97). Both name the gate. Neither states the direction rule.
 
 ### Fishbone (item 1)
 - Prompt: contract had no cap and no stash ban at first.
@@ -135,6 +135,7 @@ Problem: the orchestrator said the merge used an admin bypass, then retracted (r
 ### Patterns and Shifts
 - A partial read treated as whole: GraphQL quota (item 3), check-runs page (item 5). Two instances, same session.
 - A limit stated in one place and absent from the brief: wave cap, stash ban, skill source. Three instances.
+- Prior art: `2026-08-04-truncated-window-reductions.md` records a reduction over an incomplete window that answered plausibly and announced no loss. Items 3 and 5 repeat that shape across sessions, so the paginate memory update has two precedents. The prior sweep entry is `2026-10-04-p2-issue-sweep.md`; its item 8 (durable state kept in /tmp) sits next to item 1 here.
 - Shift: after the first failure the contract gained steps 3a, 3b, 3c. Failures became contract lines, which is the repo's pattern of replacing trust with a gate.
 
 ### Learning Matrix
@@ -240,7 +241,7 @@ Each candidate names one action, one trigger, and one source. Learning 1 rests o
 
 ### ADD
 ```json
-{"skill_id":"orchestration-carry-the-wave-cap-into-the-brief","statement":"Copy the orchestrator wave cap and stash ban into every hand-written fan-out brief.","context":"Writing a ship contract or prompt for 5 or more parallel agents.","evidence":"#6292; orchestrator.shared.md:347-348","atomicity":80}
+{"skill_id":"orchestration-carry-the-wave-cap-into-the-brief","statement":"Copy the orchestrator wave cap and stash ban into every hand-written fan-out brief.","context":"Writing a ship contract or prompt for any parallel agents; the cap matters from 5 or more, the stash ban from 2.","evidence":"#6292; orchestrator.shared.md:347-348","atomicity":80}
 {"skill_id":"orchestration-prove-a-brief-source-path-with-one-edit","statement":"Run one real edit through the build before a brief names a source path.","context":"Any shared brief that tells agents where to edit.","evidence":"ship contract 3b CORRECTION, 2026-10-12","atomicity":90}
 {"skill_id":"git-guard-a-clean-tree-with-status-not-stash","statement":"Guard a clean tree with git status --porcelain, never git stash then pop.","context":"Any agent checking for local changes in a repo with linked worktrees.","evidence":"owner stash popped, 2026-10-12 (relayed)","atomicity":92}
 {"skill_id":"github-pr-body-files-are-per-worktree","statement":"Give each parallel agent its own PR body file via new_pr.py --prepare-body-file.","context":"Briefing parallel agents that each open a PR.","evidence":"#6315, 2026-10-12","atomicity":90}
@@ -273,7 +274,7 @@ Each candidate names one action, one trigger, and one source. Learning 1 rests o
 | carry the wave cap | `orchestrator.shared.md:347` (agent text, not memory) | Medium: same cap, different surface | ADD |
 | prove a brief source path | #6317 skill-support-files memory | Low: that one names the tree, this one names the check | ADD |
 | guard with status | git-stash-is-shared-across-every-worktree | Medium: same hazard, this gives the replacement command | ADD |
-| description direction | none found in memory index | Low | ADD |
+| description direction | the two ci memories above name the gate, not the direction (search cited at Item 7) | Low | ADD |
 
 ## Phase 5: Persist and Close
 
@@ -316,7 +317,7 @@ Not written: this retro ran in a linked worktree. `universal.md` MUST NOT 11 rou
 
 | Item | Evidence (path:line) | Proposed action | Class |
 |------|----------------------|-----------------|-------|
-| Propose a FAILURE-MODES class for shared-host resource exhaustion under unbounded fan-out, with an ADR | `.claude/rules/retros.md:28`; `.agents/governance/FAILURE-MODES.md:19-30` | Draft the ADR and the class 13 entry citing #6292 | Requested improvement |
+| Decide whether FAILURE-MODES class 7 covers shared-host resource exhaustion under unbounded fan-out. If not, add class 13 through a linked ADR | `.claude/rules/retros.md:28`; `.agents/governance/FAILURE-MODES.md:19-30` | Owner decides. If class 13, draft the ADR citing #6292, and link it here by appending a dated section | Optional enhancement |
 | Wave cap applies only inside the orchestrator agent | `templates/agents/orchestrator.shared.md:347`; no match in `templates/rules/` | Decide whether a one-line pointer belongs in the ship or push-pr skill. Not a new always-on rule | Optional enhancement |
 | Check-status script reads GraphQL only, so shared-account polling hits the secondary limit | `.claude/skills/github/scripts/pr/get_pr_checks.py:5`; #4607 comment 2026-10-12T08:11:42Z | Add a REST check-runs path with `--paginate`. No open issue tracks it | Optional enhancement |
 | `TMPDIR` does not move the harness per-call output directory | #6292 body; `ci-tmp-inode-cap` memory in #6317 | Check Claude Code docs for a temp-directory setting. UNKNOWN whether one exists | Optional enhancement |
@@ -339,15 +340,15 @@ No Blocker rows. #6292 already tracks the scratch leak. One issue was filed at t
 
 ### Helped, Hindered, Hypothesis
 
-### Helped
+#### Helped
 - Merge timestamps from REST gave a trace without transcripts.
 - The closed issues #4148 and #5436 showed the cap existed and where.
 
-### Hindered
+#### Hindered
 - Most friction items have no artifact. Claims about agent counts and durations stay UNKNOWN (relayed).
 - `gh search issues` returned no rows for every query. `gh api search/issues` worked.
 
-### Hypothesis
+#### Hypothesis
 - If the orchestrator logs agents per wave and `df -i /tmp` before each wave to the per-issue handoff, the next sweep's retro turns item 1 from INFERRED to OBSERVED.
 
 ## Retrospective Handoff
