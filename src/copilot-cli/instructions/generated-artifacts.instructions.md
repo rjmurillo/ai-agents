@@ -4,6 +4,9 @@ applyTo: build/scripts/**,templates/**,src/copilot-cli/**,.github/agents/**,.git
 
 # Customer-Facing Generated Artifacts
 
+<!-- vendor-portability: upstream build scope glob and lib trees (issue #5298). Paths:
+     build/scripts, .claude/lib -->
+
 This rule exists because of a P0 incident. A generator produced the Copilot CLI
 plugin's `hooks.json` with a bare `./hooks/...` command path and explicit
 `cwd: "."`. Copilot CLI 1.0.57 resolved that path from the user's working
@@ -11,7 +14,7 @@ directory, not the plugin install directory, so every hook failed at launch
 with "No such file or directory". The failure happened before any in-script
 handler could run. The only recovery was to uninstall the plugin. The broken
 form shipped for 33 days across six releases (v0.3.0 to v0.5.6). See
-`.project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md`.
+`2026-06-02-pr-2205-customer-wedge-incident.md`.
 
 Current official docs define hook `cwd` relative to the repository root or as
 an absolute path. The Copilot CLI changelog documents plugin-root variables.
@@ -60,8 +63,8 @@ as load-bearing as the artifact's bytes.
 3. **Gate the shipped artifact, not only the generator.** A test that exercises
    the generator on a fixture is necessary but not sufficient; a hand-edit or a
    merge can desync the committed artifact. Add a validator over the committed
-   artifact (example: `scripts/validation/validate_hook_anchoring.py`, wired into
-   `scripts/validation/pre_pr.py`). Derive the expected shape from the generator,
+   artifact (example: `validate_hook_anchoring.py`, wired into
+   `pre_pr.py`). Derive the expected shape from the generator,
    not a hardcoded copy.
 
 4. **Smoke-test in the real target runtime where feasible.** Install the vendored
@@ -161,7 +164,7 @@ lib step (`build/scripts/lib_mirror.py`) now renders the shared packages
 directly into every lib plugin tree in the same run that renders every other
 class, and the binplace step that follows every generator copies the
 claude-side plugin trees onto their install-tree counterparts
-(`templates/platforms/binplace.yaml`'s `lib-*` and `skills-sidecar` rows).
+(`binplace.yaml`'s `lib-*` and `skills-sidecar` rows).
 There is no second command whose order matters: `uv run python
 build/scripts/build_all.py` is the whole sequence.
 
@@ -198,8 +201,8 @@ directly and run `build_all.py`, same as any other lib-exception file.
 Before you merge a change to a generator or customer-facing artifact:
 
 - Did you read the settled contract before changing the artifact?
-- If the change touches a mirrored library (`scripts/hook_utilities`,
-  `scripts/github_core`, `scripts/ai_review_common`), did you run
+- If the change touches a mirrored library (`hook_utilities`,
+  `github_core`, `ai_review_common`), did you run
   `build_all.py`, and confirm all three lib trees (`src/claude/lib/`,
   `src/copilot-cli/lib/`, `.claude/lib/`) match rather than trusting the
   exit code alone?
@@ -222,14 +225,14 @@ never have to uninstall to recover from an artifact we generated.
 
 ## References
 
-- `.project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md`. The incident.
+- `2026-06-02-pr-2205-customer-wedge-incident.md`. The incident.
 - `.claude/skills/agent-harness-reference/SKILL.md`. Operational contract.
 - `.claude/skills/agent-harness-reference/references/official-hook-contracts.md`. Official sources and refresh procedure.
 - `.claude/skills/ai-agents-portability-campaign/SKILL.md`. Contract change workflow.
 - `.claude/rules/canonical-source-mirror.md`. Self-referential test anti-pattern.
 - `.claude/skills/software-engineering-library/references/release-it.md`. Fail fast and loud; bound the blast radius by prevention, not by silently swallowing failures.
-- `scripts/validation/validate_hook_anchoring.py`. The committed-artifact gate.
+- `validate_hook_anchoring.py`. The committed-artifact gate.
 - `build/scripts/lib_mirror.py`. Renders `scripts/{hook_utilities,github_core,ai_review_common}/` into every lib plugin tree; the `sync_plugin_lib.py` shim is retired (issue #5790).
-- `scripts/ci/check_plugin_lib_mirrors.py`. The gate that catches a stale lib mirror; now a thin wrapper over `build_all.py --check`.
+- `check_plugin_lib_mirrors.py`. The gate that catches a stale lib mirror; now a thin wrapper over `build_all.py --check`.
 - `tests/build_scripts/test_generate_hooks_runtime_contract.py`. Runtime-contract test pattern.
 - `tests/e2e/test_cli_hook_e2e.py`. Real-CLI smoke.
