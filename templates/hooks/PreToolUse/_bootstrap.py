@@ -31,6 +31,11 @@ class PluginInfrastructureError(Exception):
     """
 
 
+def _has_own_marker(root: Path) -> bool:
+    """True if *root* carries its own ``.claude-plugin/plugin.json``."""
+    return (root / ".claude-plugin" / "plugin.json").is_file()
+
+
 def _has_own_or_twin_marker(root: Path) -> bool:
     """True if *root* carries a plugin manifest, directly or via its twin.
 
@@ -40,8 +45,13 @@ def _has_own_or_twin_marker(root: Path) -> bool:
     named ``.claude``, accept its twin tree's marker instead,
     ``<root>/../src/claude/.claude-plugin/plugin.json``; the drift gate
     guarantees the two trees are byte-identical.
+
+    Call this only for a root derived from this file's own location. A root
+    named by an environment variable must use ``_has_own_marker`` unless it
+    resolves to that same self-relative root: whoever controls the variable
+    also controls the tree at that path, forged twin included (#5793).
     """
-    if (root / ".claude-plugin" / "plugin.json").is_file():
+    if _has_own_marker(root):
         return True
     if root.name == ".claude":
         twin = root.parent / "src" / "claude" / ".claude-plugin" / "plugin.json"
@@ -49,11 +59,31 @@ def _has_own_or_twin_marker(root: Path) -> bool:
     return False
 
 
-def _validate_plugin_root(root: Path, *, source: str) -> None:
-    """Raise PluginInfrastructureError unless ``root`` is a real plugin install root."""
+def _self_relative_root() -> Path | None:
+    """Nearest ancestor of this file that carries an own or twin marker.
+
+    Computed from this file's on-disk location, never from the environment,
+    so an attacker cannot redirect it.
+    """
+    cur = Path(__file__).resolve().parent
+    while True:
+        if _has_own_or_twin_marker(cur):
+            return cur
+        if cur.parent == cur:
+            return None
+        cur = cur.parent
+
+
+def _validate_plugin_root(root: Path, *, source: str, trust_twin: bool) -> None:
+    """Raise PluginInfrastructureError unless ``root`` is a real plugin install root.
+
+    ``trust_twin`` admits the twin manifest (see ``_has_own_or_twin_marker``).
+    Pass True only for the self-relative root.
+    """
     if not root.is_dir():
         raise PluginInfrastructureError(f"Invalid {source}: plugin root is not a directory: {root}")
-    if not _has_own_or_twin_marker(root):
+    has_marker = _has_own_or_twin_marker(root) if trust_twin else _has_own_marker(root)
+    if not has_marker:
         marker = root / ".claude-plugin" / "plugin.json"
         raise PluginInfrastructureError(f"Invalid {source}: plugin marker missing: {marker}")
 
@@ -94,22 +124,25 @@ def ensure_plugin_paths() -> None:
                 "Invalid CLAUDE_PLUGIN_ROOT: control characters are not allowed"
             )
         resolved_root = Path(plugin_root).resolve()
-        _validate_plugin_root(resolved_root, source="CLAUDE_PLUGIN_ROOT")
+        # An environment-selected root earns the twin only when it IS the
+        # self-relative root (Claude Code sets CLAUDE_PLUGIN_ROOT=.claude when
+        # it loads this repository's project plugin). Any other root must
+        # carry its own manifest (#5793).
+        _validate_plugin_root(
+            resolved_root,
+            source="CLAUDE_PLUGIN_ROOT",
+            trust_twin=resolved_root == _self_relative_root(),
+        )
         hooks_dir = _find_hooks_dir(resolved_root)
         lib_dir = str(resolved_root / "lib")
     else:
-        cur = Path(__file__).resolve().parent
         hooks_dir = None
         lib_dir = None
-        while True:
-            if _has_own_or_twin_marker(cur):
-                _validate_plugin_root(cur, source="plugin root")
-                hooks_dir = _find_hooks_dir(cur)
-                lib_dir = str(cur / "lib")
-                break
-            if cur.parent == cur:
-                break
-            cur = cur.parent
+        cur = _self_relative_root()
+        if cur is not None:
+            _validate_plugin_root(cur, source="plugin root", trust_twin=True)
+            hooks_dir = _find_hooks_dir(cur)
+            lib_dir = str(cur / "lib")
 
     if hooks_dir is None or not os.path.isdir(hooks_dir):
         raise PluginInfrastructureError(

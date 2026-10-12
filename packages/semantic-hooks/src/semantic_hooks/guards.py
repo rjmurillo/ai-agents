@@ -200,7 +200,7 @@ class StuckConfig:
 
 
 def extract_topic_signature(text: str, min_words: int = 2) -> str | None:
-    """Extract topic signature from text — top 5 significant words.
+    """Extract topic signature from text: top 5 significant words.
 
     Args:
         text: Input text to extract signature from

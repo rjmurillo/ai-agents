@@ -56,6 +56,7 @@ from check_nested_tests import validate_no_nested_tests
 from check_promotion_exceptions import validate_promotion_exceptions
 from check_push_lock_paths import validate_push_lock_paths
 from check_required_context_conditions import validate_required_context_conditions
+from check_rule_adr_citations import validate_rule_adr_citations
 from check_serena_memory_worktree_scope import (
     validate_serena_memory_worktree_scope,
 )
@@ -376,6 +377,12 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # retired record and a hard gate would red every push until they are
     # repointed.
     _Gate("Skill ADR Bindings (ratchet)", _root_only(validate_skill_adr_bindings)),
+    # Resolves an `ADR-NNN` citation in a rule file, `AGENTS.md` or `CLAUDE.md`
+    # against that ADR's own status (issue #5200). The third ADR consumer gate:
+    # the skill gate reads `metadata.adr`, this one reads prose. Only a citation
+    # the classifier places as binding can fail it. Baselined by identity, so a
+    # new violation cannot hide behind a repaired one.
+    _Gate("Rule ADR Citations (ratchet)", _root_only(validate_rule_adr_citations)),
     _Gate("Design Review Frontmatter", _root_only(validate_design_review_frontmatter)),
     # PR #1887 retrospective, Layer 2.
     _Gate("Build Command Exit Gates", _root_only(validate_build_gates)),

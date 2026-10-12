@@ -160,6 +160,10 @@ query($owner: String!, $repo: String!, $oid: GitObjectID!, $number: Int!, $curso
 _CONTEXTS_MAX_PAGES = 50
 _BLOCKING_MERGE_STATES = {"CONFLICTING", "UNKNOWN"}
 _BLOCKING_MERGE_STATE_STATUSES = {"DIRTY", "UNKNOWN"}
+_MISSING_RECOVERY_HINT = (
+    "Recovery: close and reopen the PR to re-fire pull_request workflows "
+    "(see fix-ci.md, 'Required check never reported')."
+)
 
 # Pending statuses for CheckRun
 _PENDING_STATUSES = {"QUEUED", "IN_PROGRESS", "WAITING", "PENDING", "REQUESTED"}
@@ -731,7 +735,8 @@ def _resolve_status(
     if missing:
         return (
             f"PR #{number}: {len(missing)} required check(s) never reported "
-            f"(MISSING: {', '.join(missing[:3])}{'...' if len(missing) > 3 else ''})",
+            f"(MISSING: {', '.join(missing[:3])}{'...' if len(missing) > 3 else ''}). "
+            f"{_MISSING_RECOVERY_HINT}",
             "FAIL",
         )
     if output["FailedCount"] > 0:

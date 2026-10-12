@@ -149,7 +149,7 @@ class TestRealSchemas:
             raise AssertionError("expected ValueError for path traversal")
 
     def test_load_ref_file_rejects_absolute_path(self, tmp_path: Path) -> None:
-        # Negative path: an absolute $ref must also be rejected — Path / abs
+        # Negative path: an absolute $ref must also be rejected: Path / abs
         # discards the left operand, so resolution lands outside _schema_dir.
         target = tmp_path / "abs.json"
         target.write_text(json.dumps({"type": "string"}), encoding="utf-8")
