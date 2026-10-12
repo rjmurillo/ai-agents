@@ -25,6 +25,8 @@
 |gh graphql rest rate limit budget separate exhaustion: [process/process-gh-graphql-and-rest-budgets-are-separate](process/process-gh-graphql-and-rest-budgets-are-separate.md) (1421)
 |close comment absence claim grep zsh glob evidence exit status before posting: [process/process-post-a-closing-claim-only-after-its-evidence-command-succeeds](process/process-post-a-closing-claim-only-after-its-evidence-command-succeeds.md) (249)
 |implementer subagent prompt interim CI status end turn resume drive to merge: [orchestration/orchestration-implementer-prompts-must-forbid-interim-stops](orchestration/orchestration-implementer-prompts-must-forbid-interim-stops.md) (203)
+|wave cap fan-out brief hand-written contract concurrent delegations 4 per wave orchestrator template inode issue 6292: [orchestration/orchestration-the-wave-cap-lives-in-the-orchestrator-template-not-in-a-hand-written-brief](orchestration/orchestration-the-wave-cap-lives-in-the-orchestrator-template-not-in-a-hand-written-brief.md) (447)
+|shared brief source path wrong tree src/claude build_all reverts edit sample edit before wave ship contract 3b: [orchestration/orchestration-a-source-path-in-a-shared-brief-was-wrong-until-one-edit-went-through-the-build](orchestration/orchestration-a-source-path-in-a-shared-brief-was-wrong-until-one-edit-went-through-the-build.md) (455)
 |rate limit 403 refusal header X-Ratelimit-Reset Remaining velocity: [ci/github-rate-limit-payload-does-not-predict-service](ci/github-rate-limit-payload-does-not-predict-service.md) (4114)
 |rebase after push non-fast-forward force-push forbidden merge remote: [git/git-rebase-after-push-costs-two-cycles](git/git-rebase-after-push-costs-two-cycles.md) (1350)
 |push takes 15 minutes lefthook pre-push empty ls-remote: [git/git-empty-hook-run-means-an-empty-push](git/git-empty-hook-run-means-an-empty-push.md) (2692)
@@ -56,6 +58,8 @@
 |pr context statusCheckRollup list null CheckRun StatusContext reviewThreads: [github/pr-context-authoritative-metadata](github/pr-context-authoritative-metadata.md) (195)
 |stacked pull request async merge endpoint merge-async stack GraphQL refusal: [github/stacked-pr-async-merge-endpoint](github/stacked-pr-async-merge-endpoint.md) (1084)
 |PR validator prepare-body-file backticked path not in diff: [pr-review/pr-validator-needs-prepare-body-file-and-diff-backed-paths](pr-review/pr-validator-needs-prepare-body-file-and-diff-backed-paths.md) (238)
+|pr_description strict file claim Changes heading What changed not in diff CRITICAL unnamed file WARNING direction: [github/github-pr-description-strict-file-claims-sit-under-change-headings](github/github-pr-description-strict-file-claims-sit-under-change-headings.md) (413)
+|parallel agents shared scratch directory pr body overwritten pr1.md prepare-body-file per worktree issue 6315 Validate PR: [github/github-pr-body-files-collide-in-a-shared-scratch-directory](github/github-pr-body-files-collide-in-a-shared-scratch-directory.md) (332)
 |triage packet stale issue closed before dispatch re-check state: [pr-review/triage-packets-go-stale-within-hours](pr-review/triage-packets-go-stale-within-hours.md) (175)
 |coderabbit sticky changes-requested approve command: [coderabbit/coderabbit-sticky-changes-requested-clears-with-approve-command](coderabbit/coderabbit-sticky-changes-requested-clears-with-approve-command.md) (131)
 
