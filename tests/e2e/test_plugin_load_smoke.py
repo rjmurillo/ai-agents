@@ -36,10 +36,11 @@ the shipped plugin directory, and assert the plugin loads.
     pass when the CLI stops reporting tool availability.
 
 Startup probe (issue #6000): before the first test that needs a CLI, one
-``<cli> --version`` runs with a 10s timeout. A CLI that hangs there (a wrapper
-shim that blocks with no TTY) fails that one test, naming the resolved
-executable path, and the dependent tests skip. A hung CLI costs about 10s, not
-one full timeout per test.
+``<cli> --version`` runs with a 10s timeout. "Needs a CLI" means the test
+carries a ``copilot``, ``claude``, or ``codex`` marker. A CLI that hangs there
+(a wrapper shim that blocks with no TTY) reports an error at setup of the first
+test that uses it, naming the resolved executable path, and the dependent tests
+skip. A hung CLI costs about 10s, not one full timeout per test.
 
 Why version-agnostic (issue #3148): earlier the smoke keyed the benign path on a
 per-version allowlist (``_COPILOT_BENIGN_NO_ENUM_VERSIONS``) plus a "zero
@@ -337,7 +338,8 @@ def _probe_cli_startup(cli: str) -> str | None:
     if resolved is None:
         return None
     try:
-        _run_cli([resolved, "--version"], timeout=_STARTUP_PROBE_TIMEOUT_SECONDS)
+        flags = ["--no-auto-update"] if cli == "copilot" else []
+        _run_cli([resolved, *flags, "--version"], timeout=_STARTUP_PROBE_TIMEOUT_SECONDS)
     except subprocess.TimeoutExpired:
         return (
             f"{cli} CLI did not answer `--version` within {_STARTUP_PROBE_TIMEOUT_SECONDS}s. "
@@ -2529,9 +2531,10 @@ def test_every_real_cli_test_outlasts_its_subprocess_timeout() -> None:
 
 
 def test_an_all_hang_run_fits_the_pre_push_cap() -> None:
-    """When every CLI hangs, each smoke test stops at its first CLI timeout.
+    """When every CLI hangs, the run still fits the pre-push cap.
 
-    Each CLI runs one startup probe, and one test (the Claude plugin load) runs
+    The sum below bounds probes that answer and real calls that then hang: each
+    CLI runs one startup probe, and one test (the Claude plugin load) runs
     ``--version`` before its first real call. The sum must stay
     under the pre-push cap, or the cap kills the run and the hung test goes
     unnamed (issue #6181).
