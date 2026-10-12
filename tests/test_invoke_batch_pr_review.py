@@ -313,10 +313,12 @@ class TestRemoveWorktreeAudit:
         root, worktree = linked_worktree
         real_run_git = invoke_batch_pr_review.run_git
 
-        def fail_remove(*args: str, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        def fail_remove(
+            *args: str, cwd: str | Path | None = None
+        ) -> subprocess.CompletedProcess[str]:
             if args[:2] == ("worktree", "remove"):
                 return subprocess.CompletedProcess(args, 1, "", "boom")
-            return real_run_git(*args, **kwargs)
+            return real_run_git(*args, cwd=cwd)
 
         with patch.object(invoke_batch_pr_review, "run_git", side_effect=fail_remove):
             assert remove_worktree(7, root) is False
