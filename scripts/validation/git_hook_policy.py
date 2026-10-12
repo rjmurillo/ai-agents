@@ -7545,7 +7545,7 @@ def parse_pytest_workers(raw: str | None) -> str:
 def scaled_worker_cap(visible_cpus: int) -> int:
     """Return half the visible CPUs, clamped to the scaled range and the host.
 
-    The clamp comes first so a 1-core container gets 1, not the floor of 4.
+    The final min with visible CPUs keeps a 1-core host at 1 instead of the floor of 4.
     """
     half = visible_cpus // 2
     clamped = max(PYTEST_SCALED_WORKERS_MIN, min(half, PYTEST_SCALED_WORKERS_MAX))
