@@ -35,11 +35,12 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import sys
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
+from functools import partial
 from pathlib import Path
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
@@ -51,10 +52,11 @@ sys.path.insert(0, str(_SCRIPT_DIR))
 from memory_placement_git import (  # noqa: E402
     ConfigError,
     base_tree_paths,
-    index_paths,
+    read_base_blob,
     read_candidate,
     repo_root,
 )
+from memory_placement_paths import Scope, build_scope  # noqa: E402
 
 from scripts.utils.markdown_parser import (  # noqa: E402
     Section,
@@ -289,7 +291,13 @@ def classify(text: str) -> Classification:
 
 @dataclass(frozen=True, slots=True)
 class Finding:
-    """One reportable line: a file classified normative, suspect, or suppressed."""
+    """One reportable line: a file classified normative, suspect, or suppressed.
+
+    ``base_label`` is the classification of the file's content at the base (the
+    old path for a rename). It is read only for a normative file present at the
+    base, because only that file can fail by rising; otherwise it is None.
+    ``rose`` is True when such a file was not normative at the base.
+    """
 
     path: str
     reported_label: str
@@ -299,6 +307,8 @@ class Finding:
     destination: str
     is_new: bool
     invalid_suppression: bool
+    base_label: str | None = None
+    rose: bool = False
 
 
 def _reported_label(classification: Classification) -> str | None:
@@ -310,12 +320,21 @@ def _reported_label(classification: Classification) -> str | None:
     return None
 
 
-def evaluate_file(relpath: str, text: str, is_new: bool) -> Finding | None:
-    """Classify one file's text and return a Finding, or None if it is clean."""
+def evaluate_file(relpath: str, text: str, read_base: Callable[[], str] | None) -> Finding | None:
+    """Classify one file's text against its base content; None if it is clean.
+
+    ``read_base`` returns the content at the base, or is None for a file absent
+    there. A file present at the base fails only when it rose to normative, so
+    a grandfathered normative memory that is moved or edited without gaining
+    signals passes. The base is read lazily: only a normative file needs it.
+    """
     classification = classify(text)
     reported = _reported_label(classification)
     if reported is None:
         return None
+    base_label = None
+    if read_base is not None and classification.label == "normative":
+        base_label = classify(read_base()).label
     return Finding(
         path=relpath,
         reported_label=reported,
@@ -323,25 +342,34 @@ def evaluate_file(relpath: str, text: str, is_new: bool) -> Finding | None:
         signals=classification.signals,
         route=classification.route,
         destination=_ROUTE_DESTINATIONS[classification.route],
-        is_new=is_new,
+        is_new=read_base is None,
         invalid_suppression=classification.invalid_suppression,
+        base_label=base_label,
+        rose=base_label is not None and base_label != "normative",
     )
+
+
+def _is_failing(finding: Finding) -> bool:
+    """True for a normative file that is new or whose classification rose."""
+    return finding.reported_label == "normative" and (finding.is_new or finding.rose)
 
 
 def format_finding_line(finding: Finding) -> str:
     """Render one finding as ``<path>: <label>: <signals> -> route to ...``."""
     signals_text = ",".join(finding.signals) if finding.signals else "none"
-    return (
+    line = (
         f"{finding.path}: {finding.reported_label}: {signals_text} -> "
         f"route to {finding.route} ({finding.destination})"
     )
+    if finding.rose:
+        line += f" [rose from {finding.base_label}]"
+    return line
 
 
 def _tally(findings: list[Finding]) -> tuple[Counter[str], int]:
-    """Return (label counts, number of new-and-normative findings)."""
+    """Return (label counts, number of failing findings)."""
     counts = Counter(f.reported_label for f in findings)
-    failing = sum(1 for f in findings if f.reported_label == "normative" and f.is_new)
-    return counts, failing
+    return counts, sum(1 for f in findings if _is_failing(f))
 
 
 def format_summary(examined: int, findings: list[Finding]) -> str:
@@ -352,7 +380,7 @@ def format_summary(examined: int, findings: list[Finding]) -> str:
         f"{counts.get('normative', 0)} normative, "
         f"{counts.get('suspect', 0)} suspect, "
         f"{counts.get('suppressed', 0)} suppressed, "
-        f"{failing} failing (new and normative)."
+        f"{failing} failing (normative and new or risen)."
     )
 
 
@@ -367,87 +395,48 @@ def _report_dict(examined: int, findings: list[Finding]) -> dict[str, object]:
     }
 
 
-def _is_skippable(path: Path) -> bool:
-    """True for README.md, any *-index.md, and anything that is not .md."""
-    if path.suffix.lower() != ".md":
-        return True
-    if path.name == "README.md":
-        return True
-    return path.name.endswith("-index.md")
-
-
-def _candidate_paths(args: argparse.Namespace, repo_root: Path) -> list[Path]:
-    """Return the raw paths a caller asked to check, before filtering."""
-    if args.path is not None:
-        base_dir = args.path if args.path.is_absolute() else repo_root / args.path
-        base_dir = base_dir.resolve()
-        if not base_dir.is_relative_to(repo_root):
-            raise ConfigError(f"--path is outside the repository: {args.path}")
-        if not base_dir.is_dir():
-            raise ConfigError(f"--path is not a directory: {args.path}")
-        return sorted(base_dir.rglob("*.md"))
-    return [Path(p) for p in args.paths]
-
-
-def _resolve_candidates(
-    args: argparse.Namespace,
-    repo_root: Path,
-    index: dict[str, tuple[str, str] | None] | None,
-) -> list[tuple[str, Path]]:
-    """Resolve caller-supplied paths to (repo-relative posix path, absolute path).
-
-    Applies the README/``*-index.md``/non-``.md`` skip and rejects (raises
-    ``ConfigError``) any path that resolves outside the repository root.
-    """
-    candidates: list[tuple[str, Path]] = []
-    for raw in _candidate_paths(args, repo_root):
-        abspath = raw if raw.is_absolute() else repo_root / raw
-        # Normalise without following symlinks: the staged path is the one
-        # git tracks, and a link's target may sit in the base tree while the
-        # link itself is new. resolve() would report the target instead.
-        abspath = Path(os.path.normpath(abspath))
-        if not abspath.is_relative_to(repo_root):
-            raise ConfigError(f"path is outside the repository: {raw}")
-        if index is None and abspath.is_dir():
-            raise ConfigError(f"positional path is a directory, use --path: {raw}")
-        if _is_skippable(abspath):
-            continue
-        relpath = abspath.relative_to(repo_root).as_posix()
-        if index is not None:
-            if relpath not in index:
-                raise ConfigError(f"staged path is not in the index: {raw}")
-            entry = index[relpath]
-            if entry is None:
-                raise ConfigError(f"staged path has unresolved index entries: {raw}")
-            if entry[0] == "120000":
-                raise ConfigError(f"staged symlink cannot be validated: {raw}")
-            candidates.append((relpath, abspath))
-            continue
-        if not abspath.is_file():
-            # Fail closed. lefthook's {staged_files} never lists deletions
-            # (ACMR filter), so a staged memory deletion cannot land here.
-            raise ConfigError(f"path is missing or a dangling symlink: {raw}")
-        # Lexical path = git entry; resolved target = what read_text opens.
-        if not abspath.resolve().is_relative_to(repo_root):
-            raise ConfigError(f"symlink target is outside the repository: {raw}")
-        candidates.append((relpath, abspath))
-    return candidates
-
-
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
-        description="Flag newly added Serena memories that read as normative or procedural."
+        description="Flag Serena memories that are new, or newly more normative, policy."
     )
     parser.add_argument("paths", nargs="*", help="Memory files to check (lefthook {staged_files}).")
     parser.add_argument("--path", type=Path, default=None, help="Directory to walk for .md files.")
-    parser.add_argument("--base", default="HEAD", help="Git ref that decides new vs existing.")
-    parser.add_argument("--ci", action="store_true", help="Exit 1 when a NEW file is normative.")
+    parser.add_argument(
+        "--base", default=None, help="Git ref that defines the baseline (default HEAD)."
+    )
+    parser.add_argument(
+        "--changed-since",
+        metavar="REF",
+        default=None,
+        help="Check the memories REF...HEAD changed, against their merge base with REF.",
+    )
+    parser.add_argument("--ci", action="store_true", help="Exit 1 when a file fails.")
     parser.add_argument("--json", action="store_true", help="Emit a JSON report instead of text.")
     parser.add_argument(
         "--staged", action="store_true", help="Read each file from the git index, not the tree."
     )
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if args.changed_since is not None and (
+        args.staged or args.paths or args.path is not None or args.base is not None
+    ):
+        parser.error("--changed-since replaces --staged, --path, --base, and positional paths")
+    return args
+
+
+def _evaluate_all(root: Path, scope: Scope, base_tree: set[str]) -> list[Finding]:
+    """Classify every candidate against its content at the base."""
+    findings: list[Finding] = []
+    for relpath, abspath in scope.candidates:
+        text = read_candidate(root, relpath, abspath, scope.index)
+        base_path = scope.renames.get(relpath, relpath)
+        read_base = (
+            partial(read_base_blob, root, scope.base, base_path) if base_path in base_tree else None
+        )
+        finding = evaluate_file(relpath, text, read_base)
+        if finding is not None:
+            findings.append(finding)
+    return findings
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -460,34 +449,21 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     try:
-        index = index_paths(root) if args.staged else None
-        candidates = _resolve_candidates(args, root, index)
-    except ConfigError as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 2
-
-    base_tree = base_tree_paths(root, args.base)
-    if base_tree is None:
-        print(f"error: could not read base ref {args.base!r} with git ls-tree", file=sys.stderr)
-        return 2
-
-    findings: list[Finding] = []
-    try:
-        for relpath, abspath in candidates:
-            text = read_candidate(root, relpath, abspath, index)
-            finding = evaluate_file(relpath, text, relpath not in base_tree)
-            if finding is not None:
-                findings.append(finding)
+        scope = build_scope(args, root)
+        base_tree = base_tree_paths(root, scope.base)
+        if base_tree is None:
+            raise ConfigError(f"could not read base ref {scope.base!r} with git ls-tree")
+        findings = _evaluate_all(root, scope, base_tree)
     except ConfigError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
     if args.json:
-        print(json.dumps(_report_dict(len(candidates), findings), indent=2))
+        print(json.dumps(_report_dict(len(scope.candidates), findings), indent=2))
     else:
         for finding in findings:
             print(format_finding_line(finding))
-        print(format_summary(len(candidates), findings))
+        print(format_summary(len(scope.candidates), findings))
 
     return 1 if (args.ci and _tally(findings)[1]) else 0
 
