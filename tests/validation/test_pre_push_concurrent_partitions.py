@@ -477,3 +477,12 @@ def test_without_process_groups_the_child_itself_is_killed(
 
     assert late.killed is True
     assert group_kills == []
+
+
+def test_a_relative_repo_root_still_reads_the_database_version(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _finished_database(tmp_path / ".testmondata")
+    monkeypatch.chdir(tmp_path.parent)
+    relative = Path(tmp_path.name)
+    assert git_hook_policy._testmon_database_missing(relative, {}) is False

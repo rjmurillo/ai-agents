@@ -7818,7 +7818,7 @@ def _testmon_database_missing(repo_root: Path, env: Mapping[str, str]) -> bool:
     if not path.exists():
         return True
     try:
-        with closing(sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True)) as connection:
+        with closing(sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)) as connection:
             return connection.execute("PRAGMA user_version").fetchone()[0] == 0
     except sqlite3.Error:
         return True
