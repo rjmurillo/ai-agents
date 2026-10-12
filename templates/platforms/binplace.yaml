@@ -116,7 +116,7 @@ rows:
   # Copilot-side counterpart, same as the three packages above; the review
   # skill's sidecar script gets the same Copilot-side counterpart
   # (skills-sidecar-copilot, issue #6098): scripts/validation/ is its only
-  # canonical copy and the skill-support mirror skips it.
+  # canonical copy and the skill-support mirrors skip it.
   - class: lib-bootstrap
     source: scripts/hook_utilities/bootstrap.py
     plugin_tree: src/claude/lib/bootstrap.py

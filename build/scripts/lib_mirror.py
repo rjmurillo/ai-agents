@@ -81,12 +81,14 @@ SYNC_FILE_NAMES: tuple[tuple[str, str], ...] = (
 # (`skills-sidecar` and `skills-sidecar-copilot`) give it a plugin tree per
 # provider, and this module renders both from the one canonical source.
 #
-# `scripts/validation/` is the only canonical copy. The skill-support mirror
-# (`skill_support_mirror.py`) treats `.claude/skills/<name>/` as the source
-# for every other support file, so it must skip this one: copying it from
-# the install tree back into the plugin trees reverts the render below
-# (issue #6098). `SKILLS_SIDECAR_OWNED` names the skill and the path inside
-# it, so the mirror derives its skip from this module and cannot drift.
+# `scripts/validation/` is the only canonical copy. The skill-support mirrors
+# (`skill_support_mirror.py` for the Claude plugin tree and
+# `generate_skills.py` for the Copilot tree) treat `.claude/skills/<name>/`
+# as the source for every other support file, so both must skip this one:
+# copying it from the install tree back into the plugin trees reverts the
+# render below (issue #6098). `SKILLS_SIDECAR_OWNED` names the skill and the
+# path inside it, so both mirrors derive their skip from this module and
+# cannot drift.
 SKILLS_SIDECAR_SOURCE = "scripts/validation/validate_review_marker.py"
 SKILLS_SIDECAR_PLUGIN_TREE = "src/claude/skills/review/scripts/validate_review_marker.py"
 SKILLS_SIDECAR_COPILOT_TREE = "src/copilot-cli/skills/review/scripts/validate_review_marker.py"
