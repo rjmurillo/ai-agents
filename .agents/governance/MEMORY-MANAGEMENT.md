@@ -555,10 +555,15 @@ anything here changing. Re-verify at a newer revision before relying on it.
 
 1. Do not run `claude-mem generate` in this checkout.
 2. Keep `CLAUDE_MEM_FOLDER_CLAUDEMD_ENABLED` at `false`, or add the absolute
-   path of `.claude/agents` to `CLAUDE_MEM_FOLDER_MD_EXCLUDE`. Both live in
-   `~/.claude-mem/settings.json`, so the repository cannot set them for you.
-3. If the stub returns, delete it. `scripts/validation/check_agent_tree_frontmatter.py`
-   fails the build while it exists. `build/scripts/check_agent_content_parity.py`
+   path of `.claude/agents` as an entry in the `CLAUDE_MEM_FOLDER_MD_EXCLUDE`
+   JSON array. Both live in `settings.json` in the claude-mem data directory
+   (`~/.claude-mem` unless `CLAUDE_MEM_DATA_DIR` points elsewhere), so the
+   repository cannot set them for you. These guard only the per-session writer;
+   `generate` ignores them.
+3. If the stub returns, delete it.
+   [`scripts/validation/check_agent_tree_frontmatter.py`](../../scripts/validation/check_agent_tree_frontmatter.py)
+   fails pre-PR validation while it exists.
+   [`build/scripts/check_agent_content_parity.py`](../../build/scripts/check_agent_content_parity.py)
    has no exemption for it. The stub is caught, not prevented.
 
 ---
