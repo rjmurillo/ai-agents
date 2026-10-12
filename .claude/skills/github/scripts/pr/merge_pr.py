@@ -29,6 +29,13 @@ is reported as success with ``recovered: true``. Every envelope carries an
 ``audit`` record (actor, target, action, approval, result, rollback,
 residual risk).
 
+Stacked PRs (issue #5473): GraphQL and the synchronous REST merge both refuse
+a PR that is part of a stack. The script then gates every open downstack
+member with test_pr_merge_ready.py, because merge-async lands the whole stack
+up to the requested PR. It then calls ``PUT pulls/{n}/merge-async`` pinned to
+the head SHA and polls the returned UUID to a terminal status. ``--auto`` never
+takes this path.
+
 Exit codes follow ADR-035:
     0 - Success
     1 - Invalid parameters / logic error
@@ -46,6 +53,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from typing import Any, NoReturn
 
@@ -134,9 +142,23 @@ _STRATEGY_PREFERENCE = ("squash", "merge", "rebase")
 _BLOCKED_KEYWORDS = ("BLOCKED", "branch protection", "required status check")
 
 # Issue #5473: GraphQL refuses outright for a PR GitHub considers part of a
-# stack and names the REST endpoint _rest_merge already calls. Retargeting the
-# child to break the stack is refused too, so REST is the only path.
+# stack. Retargeting the child to break the stack is refused too. The
+# synchronous REST merge (_rest_merge) answers 403 for a stack, so the only
+# working path is the asynchronous endpoint (_merge_stack_async).
 _STACK_KEYWORDS = ("part of a stack", "asynchronous merge REST API")
+
+# merge-async lives only in this REST API version. The 409 body returns the
+# UUID of the request already in flight.
+_ASYNC_API_VERSION = "2026-03-10"
+_ASYNC_POLL_INTERVAL_SECONDS = 2.0
+_ASYNC_POLL_TIMEOUT_SECONDS = 120.0
+# Consecutive failed status polls tolerated before the outcome is called unknown.
+_ASYNC_POLL_MAX_ERRORS = 3
+_API_CALL_TIMEOUT_SECONDS = 30
+_READINESS_TIMEOUT_SECONDS = 180
+_READINESS_SCRIPT = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "test_pr_merge_ready.py"
+)
 
 # Issue #5767: GitHub refuses a pinned merge when the head moved after review.
 # gh and the REST endpoint both say "Head branch was modified". Matched
@@ -487,11 +509,10 @@ def _rest_merge(
 def _pr_is_merged(pr: int, repo_flag: str) -> bool:
     """Return True when GitHub reports the PR as merged.
 
-    Issue #5473: the asynchronous REST merge used for stacked PRs can return
-    success without ``merged: true`` in the body.  Treating a missing flag as
-    failure would report a completed merge as an error, so ask GitHub for the
-    PR's state instead of inferring it.  Any query failure returns False so an
-    unverified merge is never reported as a success.
+    A REST merge can return success without ``merged: true`` in the body.
+    Treating a missing flag as failure would report a completed merge as an
+    error, so ask GitHub for the PR's state instead of inferring it.  Any query
+    failure returns False so an unverified merge is never reported as a success.
     """
     try:
         result = subprocess.run(
@@ -512,6 +533,302 @@ def _pr_is_merged(pr: int, repo_flag: str) -> bool:
         return False
 
 
+def _api_get_json(endpoint: str, what: str) -> dict[str, Any]:
+    """GET a REST endpoint at the merge-async API version; return the JSON object.
+
+    Any failure raises _MergeFailureError so the caller fails closed: an
+    unreadable stack is never treated as an empty one.
+    """
+    cmd = ["gh", "api", "-H", f"X-GitHub-Api-Version: {_ASYNC_API_VERSION}", endpoint]
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=_API_CALL_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise _MergeFailureError(f"{what} timed out ({exc})", 3, "Timeout") from exc
+    if result.returncode != 0:
+        detail = sanitize_failure_detail(result.stderr or result.stdout)
+        raise _MergeFailureError(f"{what} failed: {detail}", 3, "ApiError")
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise _MergeFailureError(f"{what} returned invalid JSON", 3, "ApiError") from exc
+    if not isinstance(data, dict):
+        raise _MergeFailureError(f"{what} did not return a JSON object", 3, "ApiError")
+    return data
+
+
+def _open_members_below(pr: int, repo_flag: str) -> list[int]:
+    """Return the open stack members stacked below ``pr``.
+
+    Issue #5473: merge-async lands every PR in the stack up to and including
+    the requested one. A merged member stays listed with ``state: closed``, so
+    only open members need a readiness proof. A PR the stack listing omits
+    raises, because the set the call would merge is then unknown.
+    """
+    pr_data = _api_get_json(f"repos/{repo_flag}/pulls/{pr}", f"PR #{pr} lookup")
+    stack = pr_data.get("stack")
+    number = stack.get("number") if isinstance(stack, dict) else None
+    if not isinstance(number, int):
+        raise _MergeFailureError(
+            f"PR #{pr} was refused as part of a stack but GitHub reports no stack "
+            "for it; the members a merge would land are unknown, no merge attempted",
+            6,
+            "General",
+        )
+    listing = _api_get_json(f"repos/{repo_flag}/stacks/{number}", f"stack #{number} lookup")
+    raw_members = listing.get("pull_requests")
+    members = (
+        [m for m in raw_members if isinstance(m, dict)] if isinstance(raw_members, list) else []
+    )
+    numbers = [m.get("number") for m in members]
+    if pr not in numbers:
+        raise _MergeFailureError(
+            f"PR #{pr} is not in the member list of stack #{number}; the members a "
+            "merge would land are unknown, no merge attempted",
+            6,
+            "General",
+        )
+    below = members[: numbers.index(pr)]
+    return [int(m["number"]) for m in below if m.get("state") == "open"]
+
+
+def _member_not_ready_reason(member: int, repo_flag: str) -> str | None:
+    """Run the completion gate on one member; return why it failed, or None if ready."""
+    owner, _, repo = repo_flag.partition("/")
+    cmd = [
+        sys.executable,
+        _READINESS_SCRIPT,
+        "--owner",
+        owner,
+        "--repo",
+        repo,
+        "--pull-request",
+        str(member),
+    ]
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=_READINESS_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return f"readiness check timed out after {_READINESS_TIMEOUT_SECONDS}s"
+    if result.returncode == 0:
+        return None
+    detail = sanitize_failure_detail(result.stderr or result.stdout)
+    if result.returncode == 1:
+        return f"not merge-ready: {detail}"
+    return f"readiness check could not run (exit {result.returncode}): {detail}"
+
+
+def _assert_stack_ready(pr: int, repo_flag: str) -> None:
+    """Refuse the async merge unless every open downstack member is merge-ready.
+
+    merge-async runs no branch protection at request time and merges the whole
+    stack up to ``pr``. A member that never cleared a gate would land
+    unreviewed, so any member that is not provably ready aborts before the call.
+    """
+    failures = []
+    for member in _open_members_below(pr, repo_flag):
+        reason = _member_not_ready_reason(member, repo_flag)
+        if reason:
+            failures.append(f"#{member} ({reason})")
+    if failures:
+        raise _MergeFailureError(
+            f"merging PR #{pr} would also merge downstack PRs that are not "
+            f"merge-ready: {'; '.join(failures)}. No merge attempted.",
+            6,
+            "General",
+        )
+
+
+def _parse_json_object(text: str) -> dict[str, Any]:
+    """Parse text as a JSON object; anything else yields an empty dict."""
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _async_uuid(body: dict[str, Any]) -> str:
+    """Return the merge request UUID from a merge-async body, or an empty string."""
+    details = body.get("details")
+    candidate = details.get("uuid") if isinstance(details, dict) else body.get("uuid")
+    return candidate if isinstance(candidate, str) else ""
+
+
+def _request_async_merge(ctx: _MergeContext, subject: str, body: str) -> dict[str, Any]:
+    """PUT merge-async pinned to the reviewed head; return the response body.
+
+    The ``sha`` field makes GitHub cancel the merge when the branch moved after
+    the readiness check. A 409 means a request is already in flight and its
+    UUID comes back in the body, so that body is returned rather than treated as
+    a failure and no second request is issued.
+    """
+    cmd = [
+        "gh",
+        "api",
+        "-X",
+        "PUT",
+        "-H",
+        f"X-GitHub-Api-Version: {_ASYNC_API_VERSION}",
+        f"repos/{ctx.repo_flag}/pulls/{ctx.pr}/merge-async",
+        "-f",
+        f"merge_method={ctx.strategy}",
+        "-f",
+        "merge_action=direct_merge",
+        "-f",
+        f"sha={ctx.head_sha}",
+    ]
+    if subject:
+        cmd += ["-f", f"commit_title={subject}"]
+    if body:
+        cmd += ["-f", f"commit_message={body}"]
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=_MERGE_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        # The request may have landed; the readback decides.
+        raise _MergeFailureError(
+            f"merge-async request for PR #{ctx.pr} timed out after "
+            f"{_MERGE_TIMEOUT_SECONDS}s ({exc}); outcome unknown",
+            3,
+            "Timeout",
+        ) from exc
+    parsed = _parse_json_object(result.stdout)
+    in_flight = result.returncode != 0 and "HTTP 409" in (result.stderr or "")
+    if result.returncode == 0 or (in_flight and _async_uuid(parsed)):
+        return parsed
+    detail = sanitize_failure_detail(result.stderr or result.stdout)
+    raise _MergeFailureError(f"merge-async request was refused: {detail}", 6, "General")
+
+
+def _fetch_async_status(ctx: _MergeContext, uuid: str) -> dict[str, Any] | None:
+    """GET one merge-async status; None when the poll itself failed."""
+    cmd = [
+        "gh",
+        "api",
+        "-H",
+        f"X-GitHub-Api-Version: {_ASYNC_API_VERSION}",
+        f"repos/{ctx.repo_flag}/pulls/{ctx.pr}/merge-async/{uuid}",
+    ]
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=_API_CALL_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return None
+    if result.returncode != 0:
+        return None
+    return _parse_json_object(result.stdout) or None
+
+
+def _async_status_is_merged(body: dict[str, Any], pr: int) -> bool:
+    """True when merged, False while pending; any other status raises.
+
+    Only the polled body status is terminal. The HTTP code is not: a 202 means
+    accepted and a 200 can mean already queued.
+    """
+    status = body.get("status")
+    if status == "merged":
+        return True
+    if status == "pending":
+        return False
+    details = body.get("details")
+    message = details.get("message") if isinstance(details, dict) else None
+    if status == "failed":
+        raise _MergeFailureError(f"merge-async reported failure: {message or body}", 6, "General")
+    if status == "enqueued":
+        raise _MergeFailureError(
+            f"merge-async queued PR #{pr} and did not merge it: {message or body}", 6, "General"
+        )
+    raise _MergeFailureError(
+        f"merge-async returned an unrecognized status {status!r}: {body}", 3, "ApiError"
+    )
+
+
+def _wait_for_async_merge(ctx: _MergeContext, accepted: dict[str, Any]) -> None:
+    """Poll the merge-async UUID to a terminal status within a bounded time."""
+    if _async_status_is_merged(accepted, ctx.pr):
+        return
+    uuid = _async_uuid(accepted)
+    if not uuid:
+        raise _MergeFailureError(
+            f"merge-async accepted PR #{ctx.pr} but returned no request UUID to poll; "
+            "outcome unknown",
+            3,
+            "ApiError",
+        )
+    deadline = time.monotonic() + _ASYNC_POLL_TIMEOUT_SECONDS
+    errors = 0
+    while time.monotonic() < deadline:
+        body = _fetch_async_status(ctx, uuid)
+        errors = errors + 1 if body is None else 0
+        if errors >= _ASYNC_POLL_MAX_ERRORS:
+            raise _MergeFailureError(
+                f"merge-async status poll for PR #{ctx.pr} failed {errors} times in a "
+                "row; outcome unknown",
+                3,
+                "ApiError",
+            )
+        if body is not None and _async_status_is_merged(body, ctx.pr):
+            return
+        time.sleep(_ASYNC_POLL_INTERVAL_SECONDS)
+    raise _MergeFailureError(
+        f"merge-async for PR #{ctx.pr} still pending after "
+        f"{_ASYNC_POLL_TIMEOUT_SECONDS:g}s; outcome unknown",
+        3,
+        "Timeout",
+    )
+
+
+def _merge_stack_async(
+    ctx: _MergeContext,
+    subject: str,
+    body: str,
+    graphql_output: str,
+) -> None:
+    """Merge a stacked PR through the asynchronous endpoint (issue #5473).
+
+    Gate every open downstack member first, then request the merge pinned to
+    the reviewed head, then poll to a terminal status. Returns when GitHub
+    reports merged. Every failure raises _MergeFailureError carrying the
+    original GraphQL refusal, so the caller's readback can still adjudicate.
+    """
+    try:
+        _assert_stack_ready(ctx.pr, ctx.repo_flag)
+        accepted = _request_async_merge(ctx, subject, body)
+        _wait_for_async_merge(ctx, accepted)
+    except _MergeFailureError as failure:
+        raise _MergeFailureError(
+            f"PR #{ctx.pr} is part of a stack and the asynchronous merge did not "
+            f"complete it: {failure.message}\nGraphQL said: {graphql_output}",
+            failure.code,
+            failure.error_type,
+        ) from failure
+
+
 def _handle_merge_failure(
     merge_result: subprocess.CompletedProcess[str],
     ctx: _MergeContext,
@@ -525,7 +842,9 @@ def _handle_merge_failure(
     (issue #4362), pinned to the same head SHA.  REST enforces the same branch
     rules as GraphQL but resolves the policy check differently; a 200 with
     ``merged: true`` confirms the ruleset was satisfied and the GraphQL refusal
-    was spurious.  Returns None when REST merged the PR.  Any other failure
+    was spurious.  A stack refusal skips that endpoint, which answers 403 for a
+    stack, and goes to the asynchronous merge instead (issue #5473).  Returns
+    None when REST or the asynchronous merge merged the PR.  Any other failure
     raises _MergeFailureError so the caller can read the PR back before reporting.
     """
     pr = ctx.pr
@@ -542,9 +861,12 @@ def _handle_merge_failure(
         )
     if any(kw in output for kw in ("not mergeable", "cannot be merged", "conflicts")):
         raise _MergeFailureError(f"PR #{pr} is not mergeable: {output}", 6, "General")
-    is_stack = any(kw in output for kw in _STACK_KEYWORDS)
-    if not ctx.auto and (is_stack or any(kw in output for kw in _BLOCKED_KEYWORDS)):
-        # GraphQL refused with a BLOCKED policy or stack error; retry via REST once.
+    if not ctx.auto and any(kw in output for kw in _STACK_KEYWORDS):
+        # The synchronous REST endpoint refuses a stack, so go asynchronous.
+        _merge_stack_async(ctx, subject, body, output)
+        return
+    if not ctx.auto and any(kw in output for kw in _BLOCKED_KEYWORDS):
+        # GraphQL refused with a BLOCKED policy error; retry via REST once.
         rest_result = _rest_merge(
             pr,
             ctx.repo_flag,
@@ -558,19 +880,9 @@ def _handle_merge_failure(
                 rest_data = json.loads(rest_result.stdout)
             except json.JSONDecodeError:
                 rest_data = {}
-            # The asynchronous merge accepts the request without reporting
-            # merged=true, so a missing flag is not a failure. Confirm against
-            # the PR's own merged state instead of assuming either way.
             if rest_data.get("merged") or _pr_is_merged(pr, ctx.repo_flag):
                 return
         # REST also failed; surface the original GraphQL error.
-        if is_stack:
-            raise _MergeFailureError(
-                f"PR #{pr} is part of a stack and the asynchronous REST merge did "
-                f"not complete it: {output}",
-                6,
-                "General",
-            )
         raise _MergeFailureError(
             f"PR #{pr} is blocked by branch protection policy: {output}\n"
             "Hint: use --auto to enable auto-merge when checks pass.",
