@@ -519,6 +519,48 @@ npx tsx scripts/search-memories.ts "" | head -20
 npx tsx scripts/search-memories.ts "[expected topic]"
 ```
 
+### A CLAUDE.md stub appears under `.claude/agents/`
+
+**Cause**: The claude-mem plugin writes a `CLAUDE.md` into a folder when that
+folder holds tracked files and an observation names one of its direct children.
+`.claude/agents/` meets both tests. The Claude Code plugin loader then registers
+the stub as a dispatchable agent (issue #5493).
+
+**Measured** (issue #5499): The upstream `generate` command was run from source
+in a scratch git repo. The repo had one tracked file, `.claude/agents/analyst.md`,
+and one observation that read it. The command logged zero errors and wrote
+`.claude/agents/CLAUDE.md`. It wrote the file again after the file was removed
+and `CLAUDE_MEM_FOLDER_MD_EXCLUDE` named that folder. The setting
+`CLAUDE_MEM_FOLDER_CLAUDEMD_ENABLED` was `false` for both runs. The run used
+source, not a marketplace install, because no install exists on the machine that
+ran it.
+
+External source, pinned: `github.com/thedotmack/claude-mem` at commit
+`b3e036fa1341c8ee0e6380e7bbec3b5004001f64` (package version 13.35.0).
+
+- `src/cli/claude-md-commands.ts` line 65, `getTrackedFolders`, takes its folder
+  list from `git ls-files`.
+- `src/cli/claude-md-commands.ts` line 363, `generateClaudeMd`, reads one
+  setting, `CLAUDE_MEM_CONTEXT_OBSERVATIONS`. It reads neither the enabled
+  flag nor the exclude list.
+- `src/services/worker/agents/ResponseProcessor.ts` line 1071 gates the
+  per-session write on `CLAUDE_MEM_FOLDER_CLAUDEMD_ENABLED`.
+  `src/utils/claude-md-utils.ts` line 304 applies `CLAUDE_MEM_FOLDER_MD_EXCLUDE`
+  on that path. This path was read, not run.
+
+This is an external claim about another project, so it can go stale without
+anything here changing. Re-verify at a newer revision before relying on it.
+
+**Solution**:
+
+1. Do not run `claude-mem generate` in this checkout.
+2. Keep `CLAUDE_MEM_FOLDER_CLAUDEMD_ENABLED` at `false`, or add the absolute
+   path of `.claude/agents` to `CLAUDE_MEM_FOLDER_MD_EXCLUDE`. Both live in
+   `~/.claude-mem/settings.json`, so the repository cannot set them for you.
+3. If the stub returns, delete it. `scripts/validation/check_agent_tree_frontmatter.py`
+   fails the build while it exists. `build/scripts/check_agent_content_parity.py`
+   has no exemption for it. The stub is caught, not prevented.
+
 ---
 
 ## Best Practices
