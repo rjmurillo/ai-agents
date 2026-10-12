@@ -14,6 +14,7 @@ import pytest
 
 from scripts.validation import check_plugin_root_interpreter as checker
 from scripts.validation.check_plugin_frontmatter_self_containment import plugin_roots
+from scripts.validation.plugin_root_interpreter_allowances import yaml_key_paths
 from tests.validation.test_check_plugin_root_interpreter import REPO_ROOT, make_repo
 
 _ROOT = "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
@@ -115,7 +116,7 @@ def test_bare_path_in_markdown_is_left_to_the_markdown_ratchet(tmp_path: Path) -
 
 
 def test_allowance_suppresses_only_its_key(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    key = ("skills/demo/config.yaml", "bare-path", "skills/foo/scripts/bar.py")
+    key = ("skills/demo/config.yaml", "a", "bare-path", "skills/foo/scripts/bar.py")
     monkeypatch.setattr(checker, "_YAML_ALLOWANCES", {key: "test reason"})
     files = {
         ".claude/skills/foo/scripts/baz.py": "import json\n",
@@ -126,7 +127,7 @@ def test_allowance_suppresses_only_its_key(tmp_path: Path, monkeypatch: pytest.M
         ),
         _OTHER: _BARE_BAR,
     }
-    used: set[tuple[str, str, str]] = set()
+    used: set[tuple[str, str, str, str]] = set()
     offenses = checker.scan(make_repo(tmp_path, {**_STDLIB, **files}), used)
     assert [o.split(": ", 1)[0] for o in offenses] == [
         f"{_CONFIG}:{2}",
@@ -139,20 +140,20 @@ def test_allowance_suppresses_only_its_key(tmp_path: Path, monkeypatch: pytest.M
 def test_main_notes_an_allowance_that_no_longer_matches(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    key = ("skills/demo/config.yaml", "bare-path", "skills/foo/scripts/gone.py")
+    key = ("skills/demo/config.yaml", "a", "bare-path", "skills/foo/scripts/gone.py")
     monkeypatch.setattr(checker, "_YAML_ALLOWANCES", {key: "test reason"})
     repo = make_repo(tmp_path, {**_STDLIB, _CONFIG: "a: 1\n"})
     assert checker.main(["--repo-root", str(repo)]) == 0
     out = capsys.readouterr().out
-    assert "allowance no longer matches: skills/demo/config.yaml bare-path" in out
+    assert "allowance no longer matches: skills/demo/config.yaml a bare-path" in out
 
 
 def test_shipped_config_offenses_are_all_allowed() -> None:
     # Self-apply: the real config has offenses, and the allowance names each.
-    used: set[tuple[str, str, str]] = set()
+    used: set[tuple[str, str, str, str]] = set()
     assert checker.scan(REPO_ROOT, used) == []
-    assert any(rule == "form" and "run_completion_gate" in tail for _, rule, tail in used)
-    assert {path for path, _, _ in used} == {"skills/pr-review/pr-review-config.yaml"}
+    assert any(rule == "form" and "run_completion_gate" in tail for _, _, rule, tail in used)
+    assert {path for path, _, _, _ in used} == {"skills/pr-review/pr-review-config.yaml"}
 
 
 def test_shipped_config_is_reported_without_the_allowance(
@@ -162,3 +163,45 @@ def test_shipped_config_is_reported_without_the_allowance(
     offenses = checker.scan(REPO_ROOT)
     assert offenses
     assert all("pr-review-config.yaml" in offense for offense in offenses)
+
+
+def test_yaml_key_paths_follow_indentation_and_list_items() -> None:
+    text = (
+        "scripts:\n"
+        "  claude_code:\n"
+        "    # comment\n"
+        '    get: "python3 x"\n'
+        "  copilot:\n"
+        '    get: "python3 y"\n'
+        "completion_criteria:\n"
+        '  - name: "One"\n'
+        '    command: "python3 z"\n'
+    )
+    assert yaml_key_paths(text) == [
+        "scripts",
+        "scripts.claude_code",
+        "scripts.claude_code",
+        "scripts.claude_code.get",
+        "scripts.copilot",
+        "scripts.copilot.get",
+        "completion_criteria",
+        "completion_criteria.name",
+        "completion_criteria.command",
+    ]
+
+
+def test_allowance_does_not_cover_a_new_key_for_the_same_script(tmp_path: Path) -> None:
+    # The allowed claude_code entry stays quiet; the same bare call under a
+    # new key is reported, so an allowance cannot absorb a new regression.
+    script = ".claude/skills/github/scripts/pr/get_pr_context.py"
+    config = (
+        "scripts:\n"
+        "  claude_code:\n"
+        f'    get_pr_context: "python3 {script} --pull-request {{number}}"\n'
+        "  copilot:\n"
+        f'    new_check: "python3 {script}"\n'
+    )
+    config_path = ".claude/skills/pr-review/pr-review-config.yaml"
+    files = {script: "import json\n", config_path: config}
+    [offense] = checker.scan(make_repo(tmp_path, files))
+    assert offense.startswith(f"{config_path}:{5}: ")

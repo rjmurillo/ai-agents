@@ -119,15 +119,15 @@ _REPO_ROOT = _SCRIPT_DIR.parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+from scripts.validation import plugin_root_interpreter_allowances as _allowances  # noqa: E402
 from scripts.validation.check_doc_interpreter_portability import (  # noqa: E402
     HISTORICAL_ROOTS,
     ScanError,
     third_party_imports,
     tracked_files,
 )
-from scripts.validation.plugin_root_interpreter_allowances import (  # noqa: E402
-    YAML_ALLOWANCES as _YAML_ALLOWANCES,
-)
+
+_YAML_ALLOWANCES = _allowances.YAML_ALLOWANCES
 
 # Fixtures construct offending invocations on purpose. Same carve-out shape as
 # ``FIXTURE_ROOTS`` in ``check_doc_interpreter_portability.py``, kept as a
@@ -152,7 +152,7 @@ _PLUGIN_ROOT_VARS = ("COPILOT_PLUGIN_ROOT", "CLAUDE_PLUGIN_ROOT")
 # YAML is read only where it ships; CI YAML runs uv on purpose.
 _PLUGIN_ROOTS = (".claude/", "src/claude/", "src/copilot-cli/")
 _YAML_SUFFIXES = (".yaml", ".yml")
-_Key = tuple[str, str, str]
+_Key = tuple[str, str, str, str]
 _MUST_2 = ".claude/rules/plugin-self-containment.md MUST 2"
 _SCAN_PATTERNS = ("*.md", "*.py", "*.tmpl", "*.mustache", "*.yaml", "*.yml")
 
@@ -415,9 +415,9 @@ def find_yaml_offenses(
     found = _plugin_root_offenses(text, rel, repo_root, tracked_py)
     found += _bare_path_offenses(text, rel)
     root_relative = next((rel[len(r) :] for r in _PLUGIN_ROOTS if rel.startswith(r)), rel)
-    reported: list[tuple[int, str]] = []
+    owners, reported = _allowances.yaml_key_paths(text), []
     for offense in sorted(found, key=lambda o: o.lineno):
-        key = (root_relative, offense.rule, offense.tail)
+        key = (root_relative, owners[offense.lineno - 1], offense.rule, offense.tail)
         if key in _YAML_ALLOWANCES:
             used_allowances.add(key)
         else:
@@ -480,8 +480,8 @@ def main(argv: list[str] | None = None) -> int:
 
     for message in offenses:
         print(message, file=sys.stderr)
-    for path, rule, tail in sorted(set(_YAML_ALLOWANCES) - used_allowances):
-        note = f"allowance no longer matches: {path} {rule} {tail}"
+    for path, owner, rule, tail in sorted(set(_YAML_ALLOWANCES) - used_allowances):
+        note = f"allowance no longer matches: {path} {owner} {rule} {tail}"
         print(f"check-plugin-root-interpreter: note: {note}")
 
     if offenses:
