@@ -115,7 +115,7 @@ def trusted_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         f".claude/{_EMIT}",
         """\
         import json, pathlib
-        pathlib.Path("ran.txt").write_text("ran")
+        pathlib.Path("ran.txt").write_text("ran", encoding="utf-8")
         print(json.dumps({"ok": True}))
         """,
     )
@@ -148,7 +148,7 @@ def test_the_verified_plugin_root_script_is_the_one_that_runs(
     criterion = payload["criteria"][0]
     assert criterion["exit_code"] == 0
     assert criterion["stdout_json"] == {"ok": True}
-    assert (trusted_repo / "ran.txt").read_text() == "ran"
+    assert (trusted_repo / "ran.txt").read_text(encoding="utf-8") == "ran"
 
 
 def test_a_tampered_plugin_root_script_halts_before_it_runs(
