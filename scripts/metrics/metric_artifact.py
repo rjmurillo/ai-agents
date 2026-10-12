@@ -44,7 +44,12 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from scripts.metrics.metric_artifact_checks import (
+# The repository root must be importable when this runs as a plain script.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.metrics.metric_artifact_checks import (  # noqa: E402  (path set above)
     STATUSES,
     Finding,
     check_counts,
