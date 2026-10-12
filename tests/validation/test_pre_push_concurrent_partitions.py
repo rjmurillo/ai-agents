@@ -16,10 +16,12 @@ partitions run at the same time.
 from __future__ import annotations
 
 import os
+import sqlite3
 import subprocess
 import sys
 import threading
 import time
+from contextlib import closing
 from pathlib import Path
 
 import pytest
@@ -183,6 +185,12 @@ def test_a_one_worker_budget_runs_the_partitions_in_sequence(
     assert peak == 1
 
 
+def _finished_database(path: Path) -> None:
+    """Write the file testmon leaves after it creates every table."""
+    with closing(sqlite3.connect(path)) as connection:
+        connection.execute("PRAGMA user_version = 1")
+
+
 def test_testmon_without_a_database_builds_it_in_sequence(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -201,7 +209,7 @@ def test_testmon_without_a_database_builds_it_in_sequence(
 def test_testmon_with_a_database_overlaps_the_partitions(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    (tmp_path / ".testmondata").write_bytes(b"")
+    _finished_database(tmp_path / ".testmondata")
     monkeypatch.setenv(git_hook_policy.PYTEST_WORKERS_ENV, "8")
     monkeypatch.setattr(git_hook_policy, "_container_clamped", lambda seconds: seconds)
     seen = _stub(monkeypatch, tmp_path, barrier=threading.Barrier(2, timeout=10))
@@ -216,12 +224,21 @@ def test_the_database_location_follows_testmons_own_environment_variable(
     tmp_path: Path,
 ) -> None:
     assert git_hook_policy._testmon_database_missing(tmp_path, {}) is True
-    (tmp_path / ".testmondata").write_bytes(b"")
+    _finished_database(tmp_path / ".testmondata")
     assert git_hook_policy._testmon_database_missing(tmp_path, {}) is False
     relocated = {"TESTMON_DATAFILE": "elsewhere.db"}
     assert git_hook_policy._testmon_database_missing(tmp_path, relocated) is True
-    (tmp_path / "elsewhere.db").write_bytes(b"")
+    _finished_database(tmp_path / "elsewhere.db")
     assert git_hook_policy._testmon_database_missing(tmp_path, relocated) is False
+
+
+def test_an_interrupted_database_build_counts_as_missing(tmp_path: Path) -> None:
+    path = tmp_path / ".testmondata"
+    with closing(sqlite3.connect(path)) as connection:
+        connection.execute("CREATE TABLE metadata (dataid TEXT PRIMARY KEY, data TEXT)")
+    assert git_hook_policy._testmon_database_missing(tmp_path, {}) is True
+    path.write_bytes(b"not a sqlite file")
+    assert git_hook_policy._testmon_database_missing(tmp_path, {}) is True
 
 
 def _sleeper(pid_file: Path, seconds: int) -> list[str]:

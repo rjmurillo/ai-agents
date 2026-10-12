@@ -16,6 +16,7 @@ import re
 import shlex
 import shutil
 import signal
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -25,6 +26,7 @@ import unicodedata
 import warnings
 from collections import Counter
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
+from contextlib import closing
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from fnmatch import fnmatch
@@ -7807,8 +7809,19 @@ def _seed_testmon_database(repo_root: Path) -> None:
 
 
 def _testmon_database_missing(repo_root: Path, env: Mapping[str, str]) -> bool:
-    """Whether testmon has no database yet, using testmon's own location rule."""
-    return not (repo_root / (env.get("TESTMON_DATAFILE") or ".testmondata")).exists()
+    """Whether testmon has no finished database yet, using testmon's own location rule.
+
+    testmon sets ``PRAGMA user_version`` after it creates every table, so a file
+    whose version is still 0 is an interrupted build and counts as missing.
+    """
+    path = repo_root / (env.get("TESTMON_DATAFILE") or ".testmondata")
+    if not path.exists():
+        return True
+    try:
+        with closing(sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True)) as connection:
+            return connection.execute("PRAGMA user_version").fetchone()[0] == 0
+    except sqlite3.Error:
+        return True
 
 
 def _pytest_overlap_lanes(

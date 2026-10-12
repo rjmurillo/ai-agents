@@ -239,6 +239,41 @@ def test_run_lanes_stops_every_child_when_interrupted_then_reraises() -> None:
     assert stopped == [True]
 
 
+def test_run_lanes_stops_children_when_interrupted_while_submitting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    release = threading.Event()
+    stopped: list[bool] = []
+    cancels: list[bool] = []
+    real_pool = pytest_lanes.ThreadPoolExecutor
+
+    class InterruptingPool(real_pool):  # type: ignore[valid-type, misc]
+        calls = 0
+
+        def submit(self, fn, /, *args, **kwargs):
+            InterruptingPool.calls += 1
+            if InterruptingPool.calls == 2:
+                raise KeyboardInterrupt
+            return super().submit(fn, *args, **kwargs)
+
+    monkeypatch.setattr(pytest_lanes, "ThreadPoolExecutor", InterruptingPool)
+
+    def run_one(_lane: Lane, cancel: threading.Event) -> list[PartitionReport]:
+        release.wait(timeout=10)
+        cancels.append(cancel.is_set())
+        return [PartitionReport("slow", None, 0.0)]
+
+    def stop_all() -> None:
+        stopped.append(True)
+        release.set()
+
+    with pytest.raises(KeyboardInterrupt):
+        pytest_lanes.run_lanes([_lane("a"), _lane("b")], run_one, lambda _r: None, stop_all)
+
+    assert stopped == [True]
+    assert cancels == [True]
+
+
 def test_run_lane_starts_nothing_once_cancelled() -> None:
     cancel = threading.Event()
     seen: list[Sequence[str]] = []

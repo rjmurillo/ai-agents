@@ -21,7 +21,7 @@ import subprocess
 import threading
 import time
 from collections.abc import Callable, Sequence
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -172,8 +172,9 @@ def run_lanes(
     """
     cancel = threading.Event()
     with ThreadPoolExecutor(max_workers=len(lanes)) as pool:
-        futures = [pool.submit(run_one, lane, cancel) for lane in lanes]
+        futures: list[Future[list[PartitionReport]]] = []
         try:
+            futures.extend(pool.submit(run_one, lane, cancel) for lane in lanes)
             for future in as_completed(futures):
                 on_done(future.result())
         except BaseException:
