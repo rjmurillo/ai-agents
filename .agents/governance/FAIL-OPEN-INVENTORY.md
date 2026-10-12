@@ -256,9 +256,12 @@ whole input domain. It is a defect when a whole-tree validator sits behind a
 diff filter, because a pre-existing violation then goes unreported while the
 check still reports success.
 
-30 candidates: 24 `dorny/paths-filter` workflows and 6 with a top-level
-`on: paths:` trigger. Each verdict was decided by reading the called Python
-module, not the workflow YAML alone. 6 defects, 24 legitimate, 0 unclear.
+Triage snapshot taken before issue #5114: 30 candidates, 24
+`dorny/paths-filter` workflows and 6 with a top-level `on: paths:` trigger.
+Each verdict was decided by reading the called Python module, not the
+workflow YAML alone. 6 defects, 24 legitimate, 0 unclear. After #5114,
+`validate-adr-number-uniqueness.yml` carries no filter, so it left the
+legitimate list; the tallies are historical, not current.
 
 ### Defects
 
@@ -286,7 +289,7 @@ check is inherently PR-scoped and asks a question about this diff
 (`ai-spec-validation.yml`, `investigation-claim-backstop.yml`,
 `synthesis-panel-gate.yml`, `test-codeql-integration.yml`).
 
-Three deserve their reasoning kept, because they are the shapes worth copying:
+Four deserve their reasoning kept, because they are the shapes worth copying:
 
 - `instruction-budget.yml:36` carries no filter at all and runs on every
   trigger. This is the already-fixed precedent `ci-scripts.md` cites.

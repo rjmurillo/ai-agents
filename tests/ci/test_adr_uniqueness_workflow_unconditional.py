@@ -38,7 +38,12 @@ def _runs_validator(job: dict[Any, Any]) -> bool:
     steps = job.get("steps")
     if not isinstance(steps, list):
         return False
-    return any(isinstance(step, dict) and VALIDATOR in str(step.get("run", "")) for step in steps)
+    # An unconditional step only: a failure()-gated remediation step quotes
+    # the validator command in its message and must not count as running it.
+    return any(
+        isinstance(step, dict) and "if" not in step and VALIDATOR in str(step.get("run", ""))
+        for step in steps
+    )
 
 
 def gating_errors(workflow: dict[Any, Any]) -> list[str]:
@@ -145,3 +150,22 @@ jobs:
 def test_detector_rejects_an_empty_workflow() -> None:
     assert gating_errors({"jobs": {}}) == ["workflow declares no jobs"]
     assert gating_errors({}) == ["workflow declares no jobs"]
+
+
+_REMEDIATION_ONLY = """
+name: x
+on: {push: {branches: [main]}}
+jobs:
+  validate-adr-numbers:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Show remediation on failure
+        if: failure()
+        run: echo "python3 scripts/validation/check_adr_uniqueness.py"
+"""
+
+
+def test_detector_ignores_validator_text_in_remediation_step() -> None:
+    """Negative control: quoting the command in a failure() message is not running it."""
+    errors = gating_errors(yaml.safe_load(_REMEDIATION_ONLY))
+    assert any("never runs" in e for e in errors)
