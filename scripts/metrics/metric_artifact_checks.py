@@ -83,7 +83,8 @@ def _text(value: object) -> bool:
 def check_envelope(payload: Mapping[str, Any]) -> list[Finding]:
     """Check identity fields: version, metric, kind, unit, repository, branch, cohort."""
     findings: list[Finding] = []
-    if payload.get("schema_version") != SCHEMA_VERSION:
+    version = payload.get("schema_version")
+    if isinstance(version, bool) or version != SCHEMA_VERSION:
         findings.append(Finding("INVALID", "schema_version", f"must be {SCHEMA_VERSION}"))
     for key in ("metric", "branch", "cohort"):
         if not _text(payload.get(key)):
@@ -112,6 +113,27 @@ def check_revision(payload: Mapping[str, Any]) -> list[Finding]:
     return findings
 
 
+def _failure_fields(page: Mapping[str, Any]) -> list[Finding]:
+    """Type-check the failure fields and refuse a complete run that records a failure."""
+    page_no, record, reason = (
+        page.get("failed_page"),
+        page.get("failed_record"),
+        page.get("failure"),
+    )
+    findings = []
+    if page_no is not None and not (is_count(page_no) and page_no >= 1):
+        findings.append(
+            Finding("INVALID", "pagination.failed_page", "must be a page number or null")
+        )
+    if record is not None and not _text(record):
+        findings.append(Finding("INVALID", "pagination.failed_record", "must be a string or null"))
+    if reason is not None and not _text(reason):
+        findings.append(Finding("INVALID", "pagination.failure", "must be a string or null"))
+    if page["complete"] and any(item is not None for item in (page_no, record, reason)):
+        findings.append(Finding("INVALID", "pagination", "complete run must not record a failure"))
+    return findings
+
+
 def check_pagination(payload: Mapping[str, Any]) -> list[Finding]:
     """BLOCK on incomplete retrieval, and require the failure to be named."""
     findings: list[Finding] = []
@@ -122,6 +144,7 @@ def check_pagination(payload: Mapping[str, Any]) -> list[Finding]:
         return [Finding("INVALID", "pagination.complete", "must be true or false")]
     if not is_count(page.get("pages_fetched")):
         findings.append(Finding("INVALID", "pagination.pages_fetched", "must be a count"))
+    findings.extend(_failure_fields(page))
     if page["complete"]:
         return findings
     findings.append(Finding("BLOCKED", "pagination", "retrieval is incomplete"))
@@ -239,6 +262,8 @@ def _tie_findings(payload: Mapping[str, Any], derived: int) -> list[Finding]:
         tied, field = denominator, "denominator"
     else:
         tied, field = numerator, "numerator"
+        if kind in ("stock_snapshot", "event_flow") and denominator is not None:
+            findings.append(Finding("INVALID", "denominator", f"must be null for {kind}"))
     if kind != "reconstructed_estimate" and tied is not None and tied != derived:
         findings.append(Finding("INVALID", field, f"{tied} != counts.derived {derived}"))
     return findings
@@ -251,7 +276,7 @@ def check_numbers(payload: Mapping[str, Any]) -> list[Finding]:
         return findings
     counts = payload.get("counts")
     derived = counts.get("derived") if isinstance(counts, Mapping) else None
-    if is_count(derived):
+    if is_count(derived) and payload.get("status") not in ("BLOCKED", "INVALID"):
         findings.extend(_tie_findings(payload, derived))
     numeric = payload.get("numerator") is not None or payload.get("denominator") is not None
     if payload.get("status") in ("BLOCKED", "INVALID") and numeric:

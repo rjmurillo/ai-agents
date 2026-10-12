@@ -9,13 +9,21 @@ unless the caller passes a scope declaration.
 
 from __future__ import annotations
 
+import html
+import re
 from collections.abc import Mapping, Sequence
 from typing import Any
 
 from scripts.metrics.metric_artifact import ValidationResult
-from scripts.metrics.metric_artifact_checks import Finding
+from scripts.metrics.metric_artifact_checks import Finding, parse_utc
 
-_DIMENSIONS = ("unit", "repository", "kind", "window", "source_revision")
+_DIMENSIONS = ("unit", "repository", "branch", "cohort", "kind", "window", "source_revision")
+_CONTROL_RE = re.compile(r"[\x00-\x1f\x7f\u2028\u2029]+")
+
+
+def _clean(value: object) -> str:
+    """Render untrusted payload text on one line with markup escaped."""
+    return html.escape(_CONTROL_RE.sub(" ", str(value)).strip(), quote=True)
 
 
 def _value(payload: Mapping[str, Any]) -> str:
@@ -23,24 +31,34 @@ def _value(payload: Mapping[str, Any]) -> str:
     return f"{numerator}/{denominator}" if denominator is not None else f"{numerator}"
 
 
+def _limitations(data: Mapping[str, Any]) -> list[str]:
+    limits = data.get("limitations")
+    return [_clean(item) for item in limits] if isinstance(limits, list) else []
+
+
 def report_line(payload: object, result: ValidationResult) -> str:
     """One report line for ``payload``: number, provisional number, or a withheld notice."""
     data: Mapping[str, Any] = payload if isinstance(payload, Mapping) else {}
-    metric = data.get("metric", "unknown")
+    metric = _clean(data.get("metric", "unknown"))
     if result.status == "PASS":
         return f"{metric}: {_value(data)}"
-    reasons = "; ".join(f"{f.field}: {f.message}" for f in result.findings)
+    reasons = [_clean(f"{f.field}: {f.message}") for f in result.findings]
+    detail = "; ".join(part for part in ("; ".join(_limitations(data)), "; ".join(reasons)) if part)
     if result.status == "WARN":
-        limits = "; ".join(data.get("limitations", []))
-        detail = "; ".join(part for part in (limits, reasons) if part)
         return f"[PROVISIONAL] {metric}: {_value(data)} ({detail})"
-    return f"[{result.status}] {metric}: withheld ({reasons})"
+    return f"[{result.status}] {metric}: withheld ({detail})"
+
+
+def _instant(value: object) -> str:
+    """Normalize a UTC timestamp so ``Z`` and ``+00:00`` compare equal."""
+    parsed = parse_utc(value)
+    return parsed.isoformat() if parsed is not None else str(value)
 
 
 def _dimension(payload: Mapping[str, Any], name: str) -> str:
     value = payload.get(name)
     if name == "window" and isinstance(value, Mapping):
-        return f"{value.get('start')}..{value.get('end')}"
+        return f"{_instant(value.get('start'))}..{_instant(value.get('end'))}"
     return str(value)
 
 

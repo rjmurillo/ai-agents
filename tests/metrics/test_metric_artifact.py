@@ -357,3 +357,42 @@ class TestEnvelope:
 
         assert _status(payload) == "INVALID"
         assert key in _fields(payload)
+
+
+class TestReviewFindings:
+    def test_boolean_schema_version_is_invalid(self) -> None:
+        payload = with_changes(stock_payload(), schema_version=True)
+
+        assert "schema_version" in _fields(payload)
+
+    def test_stock_with_denominator_is_invalid(self) -> None:
+        payload = with_changes(stock_payload(), denominator=99)
+
+        assert _status(payload) == "INVALID"
+        assert "denominator" in _fields(payload)
+
+    def test_blocked_rate_with_null_numbers_is_blocked_not_invalid(self) -> None:
+        payload = with_changes(
+            rate_payload(),
+            status="BLOCKED",
+            numerator=None,
+            denominator=None,
+            limitations=["API outage"],
+        )
+
+        assert _status(payload) == "BLOCKED"
+
+    def test_complete_pagination_with_recorded_failure_is_invalid(self) -> None:
+        payload = nested(stock_payload(), "pagination", failed_page=301, failure="HTTP 502")
+
+        assert _status(payload) == "INVALID"
+        assert "pagination" in _fields(payload)
+
+    @pytest.mark.parametrize(
+        ("key", "value"),
+        [("failed_page", 0), ("failed_record", 5), ("failure", " ")],
+    )
+    def test_malformed_failure_field_is_invalid(self, key, value) -> None:
+        payload = nested(stock_payload(), "pagination", **{key: value})
+
+        assert f"pagination.{key}" in _fields(payload)
