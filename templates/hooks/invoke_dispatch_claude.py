@@ -96,37 +96,60 @@ def _read_manifest_name(manifest: Path) -> str | None:
     return name if isinstance(name, str) and name else None
 
 
-def _plugin_name(root: Path) -> str | None:
+def _plugin_name(root: Path, *, trust_twin: bool) -> str | None:
     """Read a plugin manifest's ``name``; None when absent or malformed.
 
-    When *root* is named ``.claude`` and carries no manifest of its own
-    (ADR-109 B6 deleted ``.claude/.claude-plugin/plugin.json``: ``.claude/``
-    is now the binplaced dogfood copy of ``src/claude/``, not an independent
-    marketplace source), fall back to the twin tree's manifest,
+    ADR-109 B6 deleted ``.claude/.claude-plugin/plugin.json``: ``.claude/`` is
+    now the binplaced dogfood copy of ``src/claude/``, not an independent
+    marketplace source. With ``trust_twin`` and *root* named ``.claude`` and
+    carrying no manifest, fall back to the twin tree's manifest,
     ``<root>/../src/claude/.claude-plugin/plugin.json``. The drift gate
     guarantees the two trees carry the same identity.
+
+    A root named by an environment variable must pass ``trust_twin=False``:
+    whoever controls the variable also controls the tree at that path, forged
+    twin included (#5793).
     """
     name = _read_manifest_name(root / ".claude-plugin" / "plugin.json")
-    if name is None and root.name == ".claude":
+    if name is None and trust_twin and root.name == ".claude":
         twin = root.parent / "src" / "claude" / ".claude-plugin" / "plugin.json"
         name = _read_manifest_name(twin)
     return name
 
 
 def _project_self_hosts_plugin() -> bool:
-    """True when running as a plugin inside the repo that publishes it."""
+    """True when running as a plugin inside the repo that publishes it.
+
+    Two candidates, two trust levels. The plugin root comes from
+    ``CLAUDE_PLUGIN_ROOT``, so it earns the twin only when it is this file's
+    own plugin root (``_HOOKS_DIR.parent``, which Claude Code sets
+    ``CLAUDE_PLUGIN_ROOT`` to when it loads this repository's project plugin);
+    any other root must carry its own manifest. The project candidate
+    ``<project>/.claude`` is the repository under work: it needs the twin to
+    recognize this repository, and a repository that forges the identity can
+    already do so with a plain manifest, so the twin adds no capability there.
+    """
     plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT", "").strip()
     if not plugin_root:
         return False
-    own_name = _plugin_name(Path(plugin_root))
+    root = Path(plugin_root)
+    own_name = _plugin_name(root, trust_twin=_is_own_plugin_root(root))
     if own_name is None:
         return False
     # Fallback to cwd: Claude Code sets CLAUDE_PROJECT_DIR in normal
     # operation. A wrong cwd yields a name mismatch, which fails safe
     # (no bail; the group still runs).
     project_dir = os.environ.get("CLAUDE_PROJECT_DIR", "").strip() or os.getcwd()
-    project_name = _plugin_name(Path(project_dir) / ".claude")
+    project_name = _plugin_name(Path(project_dir) / ".claude", trust_twin=True)
     return project_name == own_name
+
+
+def _is_own_plugin_root(root: Path) -> bool:
+    """True when *root* is this file's own plugin root, by on-disk location."""
+    try:
+        return root.resolve() == _HOOKS_DIR.parent
+    except OSError:
+        return False
 
 
 def _load_group(group_id: str) -> tuple[str, str, list[str]]:
