@@ -18,7 +18,8 @@ Sources, each read on 2026-10-03:
   `AuthDotJson` (`auth_mode`, `OPENAI_API_KEY`, `tokens.access_token`) in
   `codex-rs/login/src/auth/storage.rs` of github.com/openai/codex. A file that
   carries an API key is refused: it would bill the metered account.
-  `codex login status` prints `Logged in using ChatGPT` for the plan login.
+  `codex login status` prints `Logged in using ChatGPT` for the plan login,
+  to stderr, with stdout empty.
 - Copilot: `copilot login --help` (CLI 1.0.91) lists the OAuth token from the
   GitHub CLI app as a supported token, so `gh auth token` is the disk source.
   Its OAuth token usually carries wider scopes than Copilot needs, so the
@@ -160,7 +161,14 @@ def _probe_env(environ: Mapping[str, str]) -> dict[str, str]:
     return {name: value for name in _PROBE_ENV_NAMES if (value := environ.get(name))}
 
 
-def _probe_output(argv: list[str], environ: Mapping[str, str]) -> str | None:
+def _probe_output(
+    argv: list[str], environ: Mapping[str, str], *, include_stderr: bool = False
+) -> str | None:
+    """Stdout of a probe that exited 0, or None on any failure.
+
+    `include_stderr` appends stderr after stdout, for a CLI that prints its
+    status there. A caller that parses stdout as JSON must leave it off.
+    """
     try:
         completed = subprocess.run(
             argv,
@@ -175,7 +183,11 @@ def _probe_output(argv: list[str], environ: Mapping[str, str]) -> str | None:
         )
     except (OSError, subprocess.SubprocessError):
         return None
-    return completed.stdout or "" if completed.returncode == 0 else None
+    if completed.returncode != 0:
+        return None
+    if include_stderr:
+        return f"{completed.stdout or ''}\n{completed.stderr or ''}"
+    return completed.stdout or ""
 
 
 def claude_login_probe(executable: str, environ: Mapping[str, str]) -> bool:
@@ -193,8 +205,11 @@ def claude_login_probe(executable: str, environ: Mapping[str, str]) -> bool:
 
 
 def codex_login_probe(executable: str, environ: Mapping[str, str]) -> bool:
-    """True when `codex login status` reports the ChatGPT plan login."""
-    output = _probe_output([executable, "login", "status"], environ)
+    """True when `codex login status` reports the ChatGPT plan login.
+
+    The Codex CLI prints that status line to stderr, so both streams are read.
+    """
+    output = _probe_output([executable, "login", "status"], environ, include_stderr=True)
     if output is None:
         return False
     return any(line.strip() == "Logged in using ChatGPT" for line in output.splitlines())
