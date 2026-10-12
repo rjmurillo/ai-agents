@@ -78,6 +78,8 @@ Based on the above changes:
    python3 -I "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/new_pr.py" --title "<conventional commit title>" --body-file ".project-toolkit/scratch/pr-body-<returned-uuid>.md"
    ```
 
+- Branch checked out in a worktree outside the clone: append `--head "<branch>"` to the command. Never remove the worktree to open the PR. Push the branch first, since `gh` resolves the head on the remote.
+- A rejected body file names both rules at once: the file name pattern and mode 600. `--prepare-body-file` creates a file that meets both.
 - Title MUST follow conventional commit format (e.g., `feat: Add feature`, `fix(auth): Resolve bug`)
 - Body SHOULD include GitHub issue linking keywords to auto-close issues:
   - `Closes #123`: auto-closes issue when PR merges
