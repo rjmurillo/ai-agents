@@ -137,7 +137,6 @@
 |polling PR checks GraphQL secondary rate limit 3 minutes parallel agents outage: [ci/ci-polling-pr-checks-trips-the-graphql-secondary-limit](ci/ci-polling-pr-checks-trips-the-graphql-secondary-limit.md) (272)
 |tmp tmpfs inode cap ENOSPC parallel pre-push TMPDIR harness output issue 6292: [ci/ci-tmp-inode-cap-stops-every-tool-call-during-parallel-pushes](ci/ci-tmp-inode-cap-stops-every-tool-call-during-parallel-pushes.md) (317)
 |python 3.14 pathlib is_dir is_file OSError swallow stat _run_command FileNotFoundError dead code: [python/python-314-pathlib-swallows-oserror](python/python-314-pathlib-swallows-oserror.md) (159)
-|taste baseline slack MAX_BASELINE_SLACK drift enforced by pytest: [ci/ci-taste-baseline-slack-is-enforced-by-pytest-not-the-ratchet](ci/ci-taste-baseline-slack-is-enforced-by-pytest-not-the-ratchet.md) (1077)
 |ratchet declared twice lefthook checks_ratchet parity add/add conflict: [ci/ci-a-ratchet-is-declared-twice-so-drop-it-twice](ci/ci-a-ratchet-is-declared-twice-so-drop-it-twice.md) (704)
 |stale detached HEAD shared checkout verify wrong commit: [workspace/workspace-shared-checkout-is-a-stale-detached-head](workspace/workspace-shared-checkout-is-a-stale-detached-head.md) (1497)
 |tracking branch push retry fleet CPU load pre-pr-validation timeout SIGKILL: [ci/tracking-branch-push-retries-under-fleet-cpu-load](ci/tracking-branch-push-retries-under-fleet-cpu-load.md) (2383)
