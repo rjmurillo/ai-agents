@@ -330,3 +330,74 @@ class TestFailureAndEntryPoint:
         )
         assert result.returncode == 5
         assert result.stdout == "hi\n"
+
+
+class TestRedactionBypasses:
+    def receipt_command(self, tmp_path, capfd, extra: list[str]) -> str:
+        run(py("print('n' * 40000)") + extra, tmp_path)
+        out = capfd.readouterr().out
+        return next(i for i in out.splitlines() if i.startswith("command: "))
+
+    @pytest.mark.parametrize(
+        "extra",
+        [
+            ["--token", "plainsecretvalue99"],
+            ["--password=plainsecretvalue99"],
+            ["--api-key", "plainsecretvalue99"],
+            ["-H", "Authorization: Basic plainsecretvalue99"],
+            ["https://user:plainsecretvalue99@example.com/x"],
+        ],
+    )
+    def test_secret_flag_values_absent_from_command_echo(self, tmp_path, capfd, extra):
+        assert "plainsecretvalue99" not in self.receipt_command(tmp_path, capfd, extra)
+
+    def test_short_env_secret_value_redacted(self, tmp_path, capfd, monkeypatch):
+        monkeypatch.setenv("DB_PASSWORD", "hunter2")
+        run(py("print('pw=hunter2')"), tmp_path)
+        assert "hunter2" not in capfd.readouterr().out
+        run(py("print('pw=hunter2'); print('n' * 40000)"), tmp_path)
+        out = capfd.readouterr().out
+        assert "hunter2" not in out
+        assert "hunter2" not in artifact_from(out).read_text()
+
+    def test_secret_split_across_read_boundary_redacted(self, tmp_path, capfd):
+        script = (
+            "import sys, time\n"
+            f"t = '{GITHUB_TOKEN}'\n"
+            "sys.stdout.write('a' * 100 + ' ' + t[:20]); sys.stdout.flush()\n"
+            "time.sleep(0.3)\n"
+            "sys.stdout.write(t[20:] + ' ' + 'b' * 40000); sys.stdout.flush()\n"
+        )
+        run(py(script), tmp_path)
+        out = capfd.readouterr().out
+        assert GITHUB_TOKEN not in out
+        assert GITHUB_TOKEN not in artifact_from(out).read_text()
+
+    def test_read_redacts_even_a_planted_unredacted_artifact(self, tmp_path, capfd):
+        planted = tmp_path / "planted.log"
+        planted.write_text(f"leak {GITHUB_TOKEN}\n")
+        assert main(["read", str(planted), "--out-dir", str(tmp_path)]) == 0
+        assert GITHUB_TOKEN not in capfd.readouterr().out
+
+    def test_secret_in_invalid_utf8_stream_redacted(self, tmp_path, capfd):
+        script = (
+            f"import sys; sys.stdout.buffer.write(b'\\xff {GITHUB_TOKEN} \\xfe' + b'q' * 40000)"
+        )
+        run(py(script), tmp_path)
+        out = capfd.readouterr().out
+        assert GITHUB_TOKEN not in out
+        assert GITHUB_TOKEN not in artifact_from(out).read_text(encoding="utf-8")
+
+    def test_no_temp_file_left_beside_artifact(self, tmp_path, capfd):
+        run(py("print('n' * 40000)"), tmp_path)
+        capfd.readouterr()
+        assert [p.suffix for p in tmp_path.iterdir()] == [".log"]
+
+    def test_grandchild_holding_pipe_does_not_hang(self, tmp_path, capfd):
+        script = (
+            "import subprocess, sys\n"
+            "subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'])\n"
+            "print('done')\n"
+        )
+        assert run(py(script), tmp_path) == 0
+        assert capfd.readouterr().out == "done\n"

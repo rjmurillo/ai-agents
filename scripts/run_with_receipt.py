@@ -65,7 +65,12 @@ OUT_DIR_ENV = "TOOL_OUTPUT_DIR"
 _SECRET_ENV_NAME = re.compile(
     r"(?i)(token|secret|passw(or)?d|api[_-]?key|credential|private[_-]?key)"
 )
-_MIN_SECRET_LENGTH = 8
+_MIN_SECRET_LENGTH = 4
+_SECRET_FLAG = re.compile(
+    r"(?i)^-{1,2}[\w-]*(token|secret|passw(or)?d|api[_-]?key|credential|auth)[\w-]*$"
+)
+_MASK = "***"
+_PIPE_DRAIN_GRACE_S = 2.0
 
 
 @dataclass(slots=True)
@@ -112,7 +117,27 @@ def _secret_values() -> list[str]:
 
 def _scrub(text: str) -> str:
     """Redact `text` with token shapes plus exact secret values from the env."""
-    return str(redact_ci_sink(text, secret_values=_secret_values()).text)
+    for value in sorted(_secret_values(), key=len, reverse=True):
+        text = text.replace(value, _MASK)
+    return str(redact_ci_sink(text).text)
+
+
+def _mask_argv(argv: list[str]) -> list[str]:
+    """Mask values that follow or join a secret-named flag, for the command echo."""
+    masked: list[str] = []
+    hide_next = False
+    for arg in argv:
+        if hide_next:
+            masked.append(_MASK)
+            hide_next = False
+            continue
+        flag, sep, _ = arg.partition("=")
+        if _SECRET_FLAG.match(flag):
+            masked.append(f"{flag}={_MASK}" if sep else arg)
+            hide_next = not sep
+            continue
+        masked.append(arg)
+    return masked
 
 
 def _decode(data: bytes) -> str:
@@ -143,9 +168,10 @@ def _run_child(argv: list[str]) -> tuple[int, Capture]:
     ]
     for thread in threads:
         thread.start()
-    for thread in threads:
-        thread.join()
     code = proc.wait()
+    # A grandchild can keep a pipe open after the child exits; do not wait on it.
+    for thread in threads:
+        thread.join(timeout=_PIPE_DRAIN_GRACE_S)
     return (128 - code if code < 0 else code), capture
 
 
@@ -204,7 +230,7 @@ def build_receipt(
         )
     exposed = sum(len(part.encode("utf-8")) for part in (head, tail, failure))
     return Receipt(
-        command=_scrub(shlex.join(argv)),
+        command=_scrub(shlex.join(_mask_argv(argv))),
         exit_code=exit_code,
         duration_s=duration_s,
         total_bytes=total,
@@ -250,7 +276,7 @@ def run_command(argv: list[str], max_inline_bytes: int, out_dir: Path) -> int:
     try:
         exit_code, capture = _run_child(argv)
     except OSError as exc:
-        print(f"run_with_receipt: cannot launch {argv[0]!r}: {exc}", file=sys.stderr)
+        print(f"run_with_receipt: cannot launch {_scrub(argv[0])!r}: {exc}", file=sys.stderr)
         return EXIT_EXTERNAL
     duration = time.monotonic() - started
     if len(capture.merged_bytes()) <= max_inline_bytes:
@@ -290,7 +316,7 @@ def read_artifact(artifact: str, offset: int, length: int, out_dir: Path) -> int
     except OSError as exc:
         print(f"run_with_receipt: cannot read artifact: {exc}", file=sys.stderr)
         return EXIT_EXTERNAL
-    sys.stdout.write(_decode(data))
+    sys.stdout.write(_scrub(_decode(data)))
     sys.stdout.flush()
     end = offset + len(data)
     more = f" next_offset={end}" if end < size else " end_of_artifact"
