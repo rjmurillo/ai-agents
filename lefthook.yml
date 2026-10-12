@@ -656,6 +656,14 @@ pre-push:
             run: uv run --frozen python scripts/validation/git_hook_policy.py pytest
             env:
               AI_AGENTS_PYTEST_WORKER_CAP: "4"
+              # Issue #5383: shared CPU budget. Job classes in this group:
+              # CPU-bound are python-tests (xdist workers), pre-pr-validation
+              # (the other heavy job), zero-collection-tests, python-type-check;
+              # I/O-bound is worktree-gc-report; the rest are lightweight. One
+              # CPU is held back for pre-pr-validation, so xdist runs
+              # min(4, visible CPUs - 1) workers, never fewer than one. A
+              # four-CPU container runs 3 workers beside it.
+              AI_AGENTS_PYTEST_CPU_RESERVE: "1"
 
           # Issue #4494: a test_*.py inside testpaths that defines no test
           # collects nothing, is counted in no failure, and reads as a passing

@@ -746,7 +746,12 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         # tests/validation/test_check_generated_staleness.py.
         "PRE_PR_OUTER_CAP_SECONDS": "240",
     }
-    assert pre_push_jobs["python-tests"]["env"] == {"AI_AGENTS_PYTEST_WORKER_CAP": "4"}
+    # Issue #5383: python-tests shares the machine with pre-pr-validation, the
+    # other heavy CPU-bound job in the group, so one CPU is held back for it.
+    assert pre_push_jobs["python-tests"]["env"] == {
+        "AI_AGENTS_PYTEST_WORKER_CAP": "4",
+        "AI_AGENTS_PYTEST_CPU_RESERVE": "1",
+    }
     assert pre_push_jobs["push-ref-policy"]["use_stdin"] is True
     assert pre_push_jobs["security-scan"]["use_stdin"] is True
     assert pre_push_jobs["security-suppression-policy"]["use_stdin"] is True

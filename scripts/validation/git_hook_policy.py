@@ -664,6 +664,11 @@ PYTEST_WORKERS_ENV = "AI_AGENTS_PYTEST_WORKERS"
 # subprocess tests until their 15-second caps fired. The cap never exceeds the
 # host's visible CPU count, and an explicit PYTEST_WORKERS_ENV value wins.
 PYTEST_WORKER_CAP_ENV = "AI_AGENTS_PYTEST_WORKER_CAP"
+# Issue #5383: the cap above bounds this job alone. Sibling CPU-bound jobs in
+# the same Lefthook group (`pre-pr-validation` is the heaviest) draw on the same
+# cores, so the hook names how many CPUs those siblings hold. xdist gets the
+# remainder, never fewer than one worker. Read only when the cap is read.
+PYTEST_CPU_RESERVE_ENV = "AI_AGENTS_PYTEST_CPU_RESERVE"
 SKIPPED_DASH_PREFIXES = (
     "node_modules/",
     ".venv/",
@@ -7511,6 +7516,32 @@ def parse_pytest_worker_cap(raw: str) -> int:
     return cap
 
 
+def parse_pytest_cpu_reserve(raw: str) -> int:
+    """Return the CPUs held back for sibling jobs: a non-negative integer.
+
+    Zero is valid and means no reservation.
+
+    Raises:
+        ValueError: ``raw`` is not a non-negative decimal integer.
+    """
+    candidate = raw.strip()
+    rejection = f"{PYTEST_CPU_RESERVE_ENV} must be a non-negative integer, got {raw!r}"
+    if not candidate.isdecimal():
+        raise ValueError(rejection)
+    return int(candidate)
+
+
+def local_worker_budget(cap: int, visible_cpus: int, reserve: int) -> int:
+    """Return the xdist worker count for one job sharing a CPU budget.
+
+    The result is ``min(cap, visible_cpus - reserve)``, floored at one worker so
+    a small container still runs the suite. The job's own demand therefore
+    never exceeds the CPUs left after siblings take their share, except for the
+    one-worker floor on a machine with ``reserve >= visible_cpus``.
+    """
+    return max(1, min(cap, visible_cpus - reserve))
+
+
 def _visible_cpu_count() -> int:
     """Return CPUs available to this process, with a Python 3.10 fallback."""
     if sys.version_info >= (3, 13):
@@ -7535,7 +7566,9 @@ def _pytest_parallel_flags() -> list[str]:
     cap_raw = os.environ.get(PYTEST_WORKER_CAP_ENV)
     if not (worker_override and worker_override.strip()) and cap_raw and cap_raw.strip():
         cap = parse_pytest_worker_cap(cap_raw)
-        workers = str(min(cap, _visible_cpu_count()))
+        reserve_raw = os.environ.get(PYTEST_CPU_RESERVE_ENV, "")
+        reserve = parse_pytest_cpu_reserve(reserve_raw) if reserve_raw.strip() else 0
+        workers = str(local_worker_budget(cap, _visible_cpu_count(), reserve))
     return ["-n", workers, "--dist", PYTEST_DIST_MODE]
 
 
@@ -7783,6 +7816,7 @@ def run_pytest(repo_root: Path) -> int:
         "GIT_OBJECT_DIRECTORY",
         "GIT_ALTERNATE_OBJECT_DIRECTORIES",
         PYTEST_WORKER_CAP_ENV,
+        PYTEST_CPU_RESERVE_ENV,
         PYTEST_WORKERS_ENV,
         # Consumed here, so it must not reach the child. A test that invokes
         # this policy inherits the parent's `=1` otherwise and takes the

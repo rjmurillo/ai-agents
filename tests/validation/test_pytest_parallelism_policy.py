@@ -332,6 +332,7 @@ def test_run_pytest_consumes_worker_override_before_child_process(
     monkeypatch.setenv(policy.PYTEST_FULL_SUITE_LOCALLY_ENV, "1")
     monkeypatch.setenv(policy.PYTEST_WORKERS_ENV, "3")
     monkeypatch.setenv(policy.PYTEST_WORKER_CAP_ENV, "4")
+    monkeypatch.setenv(policy.PYTEST_CPU_RESERVE_ENV, "1")
     seen_commands: list[list[str]] = []
     seen_envs: list[dict[str, str]] = []
 
@@ -354,6 +355,7 @@ def test_run_pytest_consumes_worker_override_before_child_process(
 
     assert _flag_value(seen_commands[0], _WORKER_FLAGS) == "3"
     assert all(policy.PYTEST_WORKER_CAP_ENV not in env for env in seen_envs)
+    assert all(policy.PYTEST_CPU_RESERVE_ENV not in env for env in seen_envs)
     assert all(policy.PYTEST_WORKERS_ENV not in env for env in seen_envs)
     # Every control `run_pytest` consumes has to be stripped, not just the two
     # that were there first. The opt-in leaking through makes a child test that
