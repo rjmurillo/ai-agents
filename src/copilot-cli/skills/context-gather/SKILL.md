@@ -7,7 +7,7 @@ metadata:
   routing:
     role: front-door
     invoker: autoplan
-    trigger: autoplan routes unfamiliar-topic research to context-gather before build
+    trigger: autoplan routes unfamiliar-topic research to context-gather before research
     user-facing: false
 ---
 
@@ -38,7 +38,7 @@ Collect multi-source context before planning or implementation. Searches Serena,
 Use this skill when:
 
 - Starting a complex task that needs multi-source context before planning or implementation.
-- autoplan routes an unfamiliar-topic request here before `research` or `build`.
+- autoplan routes an unfamiliar-topic request here before `research`.
 - You need to pull framework-specific guidance from Context7 alongside project memory.
 - Exploring what the memory tiers already record about a topic before committing to an approach.
 
@@ -134,6 +134,6 @@ After execution, confirm:
 | Artifact | Relationship |
 |----------|-------------|
 | SPEC-005 REQ-005 | Acceptance criteria AC-12 defines runtime-conditional skip via `CONTEXT_LOADED:` marker |
-| SPEC-005 DESIGN-005 | Per-command edit specs reference context-gather as preflight dependency |
+| SPEC-005 DESIGN-005 | Historical design for per-command preflight wiring; ADR-064 retired the commands, so no current skill checks the marker |
 | `.claude/skills/steering-matcher/SKILL.md` | Sibling preflight skill in the `/build` chain |
 | `.claude/skills/chestertons-fence/SKILL.md` | Sibling preflight skill in the `/build` chain |
