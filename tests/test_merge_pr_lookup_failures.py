@@ -97,11 +97,29 @@ def _drive_main(view, capsys, auth=_OK) -> tuple[int, dict, list[list[str]]]:
         pytest.param(_failed(stderr="not found"), 2, "NotFound", id="AC2-legacy-wording"),
         pytest.param(_failed(stderr="gh: Not Found (HTTP 404)"), 2, "NotFound", id="AC2-any-case"),
         pytest.param(_failed(stderr="HTTP 502: Bad Gateway"), 3, "ApiError", id="AC3-external"),
-        pytest.param(_failed(stderr=_GH_MISSING_REPO), 3, "ApiError", id="AC3-missing-repo"),
+        pytest.param(_failed(stderr=_GH_MISSING_REPO), 2, "NotFound", id="AC6-missing-repo-stderr"),
+        pytest.param(
+            _failed(stdout=_GH_MISSING_REPO, stderr="warning: unrelated"),
+            2,
+            "NotFound",
+            id="AC6-missing-repo-stdout-only",
+        ),
+        pytest.param(
+            _failed(stderr=_GH_MISSING_REPO.upper()),
+            2,
+            "NotFound",
+            id="AC6-missing-repo-any-case",
+        ),
+        pytest.param(
+            _failed(stderr="HTTP 500: could not resolve host"),
+            3,
+            "ApiError",
+            id="AC3-resolve-wording-is-not-a-repo",
+        ),
     ],
 )
 def test_failed_lookup_exit_code(view, code, error_type, capsys):
-    """AC1-AC3: a failed PR lookup maps to the ADR-035 code and never merges."""
+    """AC1-AC3, AC6: a failed PR lookup maps to the ADR-035 code and never merges."""
     exit_code, envelope, calls = _drive_main(view, capsys)
     assert exit_code == code
     assert envelope["Error"]["Type"] == error_type

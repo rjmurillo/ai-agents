@@ -80,6 +80,9 @@ from github_core.placeholder_identity import filter_coauthor_trailers
 _SCRIPT_NAME = "merge_pr.py"
 # Matched case-insensitively against the stdout and stderr of a failed PR view.
 _NOT_FOUND_MARKERS = ("could not resolve to a pullrequest", "not found")
+# gh reports a missing repository as "Could not resolve to a Repository".
+# A wrong repository never resolves on retry, so it is a config error (ADR-035).
+_REPO_NOT_FOUND_MARKER = "could not resolve to a repository"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -300,6 +303,11 @@ def _is_not_found(gh_output: str) -> bool:
     return any(marker in lowered for marker in _NOT_FOUND_MARKERS)
 
 
+def _is_repo_not_found(gh_output: str) -> bool:
+    """Return True when failed gh output says the repository does not exist."""
+    return _REPO_NOT_FOUND_MARKER in gh_output.lower()
+
+
 def _fetch_pr_state(
     pr: int,
     repo_flag: str,
@@ -326,6 +334,14 @@ def _fetch_pr_state(
     if pr_result.returncode != 0:
         output = pr_result.stderr or pr_result.stdout
         combined = f"{pr_result.stdout}\n{pr_result.stderr}"
+        if _is_repo_not_found(combined):
+            _emit_error(
+                f"Repository {repo_flag} not found: {sanitize_failure_detail(combined)}",
+                2,
+                "NotFound",
+                output_format,
+                pr,
+            )
         if _is_not_found(combined):
             # Keep gh's words: a 404 from a wrong host or repo also lands here.
             _emit_error(
