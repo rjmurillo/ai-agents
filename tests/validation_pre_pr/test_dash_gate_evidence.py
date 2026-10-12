@@ -248,10 +248,10 @@ class TestScanThatRanReportsWhatItExamined:
         assert outcome.examined == 2
         assert _run_handler(repo) == 1
 
-    def test_no_markdown_on_the_branch_is_pass_with_zero_examined(
+    def test_no_markdown_or_python_on_the_branch_is_pass_with_zero_examined(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        repo = _repo_with(tmp_path, {"src/mod.py": f"# x{EM_DASH}y\n"})
+        repo = _repo_with(tmp_path, {"src/mod.json": f'{{"k": "x{EM_DASH}y"}}\n'})
         _pin_base(monkeypatch, lambda root: git_stdout(root, "rev-parse", "HEAD~1"))
 
         outcome = checks_dash.validate_dash_prohibition(repo)
