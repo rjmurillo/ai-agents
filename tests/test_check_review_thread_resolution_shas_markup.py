@@ -138,6 +138,13 @@ def test_self_closing_unrendered_element_still_hides_its_text(tag: str) -> None:
     assert _mod.extract_shas(body) == ["abc1234"]
 
 
+@pytest.mark.parametrize("tag", ["script", "style", "iframe", "noembed", "noframes"])
+def test_commit_link_on_unrendered_element_is_skipped(tag: str) -> None:
+    # 6195-A2: GitHub strips the whole element, attributes included.
+    body = f'<div>\n<{tag} href="https://x/commit/deadbee">x</{tag}>Fixed in abc1234\n</div>'
+    assert _mod.extract_shas(body) == ["abc1234"]
+
+
 def test_self_closing_ordinary_element_keeps_following_text() -> None:
     # 6195-A2 inverse
     assert _mod.extract_shas("<div>\n<br/>Fixed in abc1234\n</div>") == ["abc1234"]

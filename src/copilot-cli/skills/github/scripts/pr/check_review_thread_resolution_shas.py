@@ -168,7 +168,9 @@ class _HtmlText(HTMLParser):
             # Older CPython reads only script and style as raw text.
             self.set_cdata_mode(tag)
         if tag in _UNRENDERED_ELEMENTS:
+            # GitHub strips the element with its attributes, so no href counts.
             self._unrendered_tag = tag
+            return
         self.parts.extend(_commit_refs(value) for name, value in attrs if name == "href" and value)
 
     def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
