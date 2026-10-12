@@ -439,6 +439,7 @@ def _claude_init_tools(agent: str) -> set[str]:
 # `github` (the `mcp__github__` prefix is derived from the server name).
 _GITHUB_MCP_SERVER = "github"
 _GITHUB_MCP_PROBE_TOOL = "mcp__github__get_file_contents"
+_GITHUB_MCP_README_MARKER = "ai-agents"
 _GITHUB_MCP_PROBE_PROMPT = (
     f"Call {_GITHUB_MCP_PROBE_TOOL} once with owner rjmurillo, repo ai-agents, "
     "path README.md. Do not use any other tool. Then reply with the single word DONE."
@@ -1152,7 +1153,9 @@ def test_claude_analyst_makes_a_live_github_mcp_read() -> None:
 
     assert called, f"analyst never called {_GITHUB_MCP_PROBE_TOOL} though the server is connected"
     assert not errored, f"{_GITHUB_MCP_PROBE_TOOL} returned an error: {_redacted_tail(text)}"
-    assert text.strip(), f"{_GITHUB_MCP_PROBE_TOOL} returned no content"
+    assert _GITHUB_MCP_README_MARKER in text.lower(), (
+        f"{_GITHUB_MCP_PROBE_TOOL} result does not look like README.md: {_redacted_tail(text)}"
+    )
 
 
 @pytest.mark.smoke

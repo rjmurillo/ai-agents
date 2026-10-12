@@ -171,7 +171,11 @@ claude mcp add --scope user --transport http github \
   --header "Authorization: Bearer $GITHUB_PAT"
 ```
 
-Use a token with read access to the repositories you review. Confirm the
+Use a fine-grained token with read-only access to the repositories you
+review. The shell expands `$GITHUB_PAT` before `claude` starts, so the token
+appears in that process's arguments and Claude Code stores the expanded value
+in your user-scope configuration (`~/.claude.json`). Do not run the command on
+a shared host, and rotate the token if the file leaves your machine. Confirm the
 server is connected with `claude mcp list`. To prove a real call works, run:
 
 ```bash
