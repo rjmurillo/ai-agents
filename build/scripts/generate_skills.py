@@ -51,6 +51,7 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_SCRIPT_DIR))
 
 import skill_templates  # noqa: E402
+from lib_mirror import lib_owned_support_files  # noqa: E402
 from skill_distribution import SkillDistributionError, repo_local_names  # noqa: E402
 
 # _copy_skill_tree, GenerateSkillsError, SkillSupportSyncError,
@@ -131,6 +132,7 @@ def _copy_skills(
             what_if=what_if,
             skills_output_dir=output_dir if translate else None,
             plugin_skill_md=plugin_skill_md,
+            skip_filenames=lib_owned_support_files(src.name),
             frontmatter_drop=frontmatter_drop,
         )
         total_written += written

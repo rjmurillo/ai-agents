@@ -156,6 +156,12 @@ query($owner: String!, $repo: String!, $number: Int!) {
             isDraft
             mergeable
             mergeStateStatus
+            baseRefName
+            baseRepository {
+                defaultBranchRef {
+                    name
+                }
+            }
             reviewThreads(first: 100) {
                 totalCount
                 nodes {
@@ -606,6 +612,24 @@ def _fetch_pr_data(owner: str, repo: str, pr_number: int, op_start: float) -> di
         )
         error_and_exit(f"PR #{pr_number} not found", 2)
     return pr
+
+
+def _base_ref_name(pr: dict[str, Any]) -> str:
+    """Name of the branch the PR merges into, or "" when the payload omits it."""
+    value = pr.get("baseRefName")
+    return value if isinstance(value, str) else ""
+
+
+def _default_branch_name(pr: dict[str, Any]) -> str:
+    """Default branch of the PR's base repository, or "" when the payload omits it.
+
+    Every hop can be an explicit null in a GraphQL payload (a deleted fork, an
+    empty repository), so each level is collapsed before it is indexed.
+    """
+    repo = pr.get("baseRepository")
+    ref = repo.get("defaultBranchRef") if isinstance(repo, dict) else None
+    name = ref.get("name") if isinstance(ref, dict) else None
+    return name if isinstance(name, str) else ""
 
 
 def _merge_state_status(pr: dict) -> str:
@@ -1699,6 +1723,8 @@ def check_merge_readiness(
         "IsDraft": pr.get("isDraft", False),
         "Mergeable": mergeable,
         "MergeStateStatus": merge_state,
+        "BaseRef": _base_ref_name(pr),
+        "DefaultBranch": _default_branch_name(pr),
         "StaleDirtySuspected": stale_dirty_suspected(mergeable or "", merge_state),
         "UnresolvedThreads": unresolved_count,
         "TotalThreads": total_threads,
@@ -1722,7 +1748,7 @@ def check_merge_readiness(
 # ---------------------------------------------------------------------------
 
 # Total classifier: every PR maps to exactly one tier.  Merge-path states
-# (BEHIND, BLOCKED, DIRTY, SKIP, UNSUPPORTED) are separated from work-needed
+# (BEHIND, BLOCKED, DIRTY, SKIP, UNSUPPORTED, STACKED) are separated from work-needed
 # tiers (T1-T5) so callers never invent ad-hoc buckets.
 
 _TIER_ORDER = (
@@ -1736,6 +1762,7 @@ _TIER_ORDER = (
     "DIRTY",
     "SKIP",
     "UNSUPPORTED",
+    "STACKED",
 )
 
 # Merge-path states resolved by lookup (no branching needed).
@@ -1779,6 +1806,26 @@ def _merge_state_gate_tier(merge_state: str, has_work: bool) -> str | None:
     return None
 
 
+def _base_ref_gate(result: dict[str, Any]) -> bool:
+    """True when the PR provably targets the repository default branch.
+
+    ``classify_tier`` reaches ``T1`` only through this gate (issue #6201).
+    pr-autofix lands a T1 PR with a squash merge, and a squash merge folds a
+    PR into its *base*.  For a stacked PR the base is the parent PR's branch,
+    so landing it collapses the stack into the parent instead of reaching the
+    default branch.  A base that cannot be compared (either name missing) is
+    refused for the same reason the merge-state allowlist refuses an unknown
+    state: nothing here has proved the merge lands where the caller expects.
+
+    ``CanMerge`` is deliberately unaffected.  ``merge_pr.py`` gates every
+    downstack member of a stack through this script's exit code, and a stacked
+    member is mergeable in that flow; only the unattended T1 route is unsafe.
+    """
+    base = result.get("BaseRef") or ""
+    default = result.get("DefaultBranch") or ""
+    return bool(base) and bool(default) and base == default
+
+
 def classify_tier(result: dict[str, Any], *, is_bot: bool = False) -> str:
     """Return the canonical tier for a merge-readiness result.
 
@@ -1809,6 +1856,13 @@ def classify_tier(result: dict[str, Any], *, is_bot: bool = False) -> str:
     other value, ``UNKNOWN`` and a missing value today plus anything GitHub
     adds later, returns the terminal ``UNSUPPORTED`` tier.
 
+    ``STACKED`` is the terminal tier for a PR that would be ``T1`` except that
+    its base branch is not the repository default branch, or that base cannot be
+    compared (issue #6201).  Work tiers and merge-state tiers are unchanged for
+    such a PR: CI and thread fixes apply to a stacked PR as to any other, and
+    ``BEHIND``/``DIRTY`` keep their repair tiers.  Only the merge step is
+    unsafe, so ``STACKED`` replaces ``T1`` and nothing else.
+
     ``UNSUPPORTED`` is its own tier rather than a fall-through to ``T4``
     because the work tiers name work the caller can do and there is none here.
     Such a PR routinely carries zero unresolved threads and zero CI failures,
@@ -1837,8 +1891,10 @@ def classify_tier(result: dict[str, Any], *, is_bot: bool = False) -> str:
     # T1: merge-ready.  Only _SUPPORTED_MERGE_STATES reach this far, so this
     # arm covers CLEAN, HAS_HOOKS, and UNSTABLE-with-dispositions.
     # BLOCKED is excluded even if a caller passes CanMerge=True (issue #5549).
+    # A merge-ready PR whose base is not the default branch is STACKED, not T1
+    # (issue #6201): the squash merge would land it on the parent branch.
     if result.get("CanMerge") and merge_state in _SUPPORTED_MERGE_STATES:
-        return "T1"
+        return "T1" if _base_ref_gate(result) else "STACKED"
 
     # T4/T2/T3: classify by failure type
     if has_ci_failures and has_threads:
