@@ -12,12 +12,14 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import relocation_evidence as reloc
 from validation_record_fixtures import (
     make_generated_target,
     make_record,
@@ -52,17 +54,17 @@ def test_pure_move_with_equal_names_and_count_passes() -> None:
 
 
 def test_pure_move_ignores_the_module_path_but_not_the_class_or_param() -> None:
-    names, defects = mod._test_names(
+    names, defects = reloc.test_names(
         "t", "tests_after", ["a/test_z.py::TestB::test_b[x]", "b/test_y.py::test_a"]
     )
     assert defects == []
-    assert names == mod.Counter(["TestB::test_b[x]", "test_a"])
+    assert names == Counter(["TestB::test_b[x]", "test_a"])
 
 
 def test_ids_without_a_separator_compare_whole() -> None:
-    names, defects = mod._test_names("t", "tests_before", ["test_a", "test_b"])
+    names, defects = reloc.test_names("t", "tests_before", ["test_a", "test_b"])
     assert defects == []
-    assert names == mod.Counter(["test_a", "test_b"])
+    assert names == Counter(["test_a", "test_b"])
 
 
 def test_id_path_spelling_is_normalized() -> None:
@@ -116,7 +118,7 @@ def test_diff_listing_is_capped() -> None:
     _evidence(target)["tests_before"] = [f"t.py::test_{n}" for n in range(12)]
     _evidence(target)["tests_after"] = ["t.py::test_0"]
     errors = _errors(target)
-    assert any("lost 11:" in e and e.count("test_") == mod._RELOCATION_DIFF_LIMIT for e in errors)
+    assert any("lost 11:" in e and e.count("test_") == reloc._RELOCATION_DIFF_LIMIT for e in errors)
 
 
 def test_missing_evidence_fails() -> None:
