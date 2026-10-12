@@ -129,6 +129,7 @@
 |taste count ratchet pre-push cost twelve minutes python-tests: [ci/run-count-ratchets-before-the-expensive-pre-push](ci/run-count-ratchets-before-the-expensive-pre-push.md) (875)
 |pre-push wall clock duration python-tests partitions mutation contention DORA: [ci/ci-pre-push-wall-clock-is-python-tests](ci/ci-pre-push-wall-clock-is-python-tests.md) (1854)
 |CLAUDE_PLUGIN_ROOT pycache bytecode generated staleness gate python-tests collect only full suite merge_group D9 review marker merge main: [ci/ci-local-push-and-test-environment-contracts](ci/ci-local-push-and-test-environment-contracts.md) (608)
+|pre-push pytest CLAUDE_PLUGIN_ROOT src/copilot-cli COPILOT_PLUGIN_ROOT env default test passes locally fails push git_hook_policy: [ci/ci-pre-push-pytest-sets-claude-plugin-root-to-copilot-tree](ci/ci-pre-push-pytest-sets-claude-plugin-root-to-copilot-tree.md) (327)
 |check-runs REST paginate total_count 100 per page required check missing gh api commits: [ci/ci-check-runs-rest-call-needs-paginate](ci/ci-check-runs-rest-call-needs-paginate.md) (222)
 |rule template golden fixture rule_templates_b2 lossless test_rule_templates_lossless pytest split-1 build_all does not write: [ci/ci-rule-template-edits-need-golden-fixture-updates](ci/ci-rule-template-edits-need-golden-fixture-updates.md) (315)
 |required checks nine ruleset main dispatch closure advisory verify_dispatch_closure behind main merge origin/main: [ci/ci-main-required-checks-are-nine-and-dispatch-closure-is-advisory](ci/ci-main-required-checks-are-nine-and-dispatch-closure-is-advisory.md) (378)
