@@ -45,13 +45,17 @@ The second HIGH group adapts the user-side correction regexes in
 thedotmack/claude-mem (Apache-2.0), plugin/skills/agent-cost-report/
 scripts/acr/patterns.py and behavior.py, at commit 356b7c08f64c. Only the
 fixed phrases were kept; bare words such as "already", "stop", and "again"
-were dropped as too broad. claude-mem carries no praise regexes. The
-transcript-derived HIGH and MED groups come from the same operator's 326
-distinct human turns over 30 days. Every match in that corpus was read by
-hand and was a real correction or preference. Precision outside that
-corpus and recall were not measured. The MED
-preference phrases follow the reflect skill's MEDIUM trigger table
-("use X instead of Y", "prefer", "rather than").
+were dropped as too broad. claude-mem carries no praise regexes.
+
+The transcript-derived groups come from the same operator's 30 days of
+Claude Code history, 326 distinct human turns. Every match there was read
+by hand and was a real correction or preference. The MED preference
+phrases follow the reflect skill's MEDIUM trigger table ("use X instead
+of Y", "prefer"). A cross-check on 30 days of Codex and Droid history
+(141 and 97 distinct user turns) found no new false positive except
+"rather than", which matched pasted prose in 4 of 5 turns and was left
+out. Copilot CLI history held only automated prompts. Recall was not
+measured.
 
 References:
     - Issue #5817 (this hook), #5820 (PRD), #3184 (the no-op it replaces)
@@ -127,7 +131,6 @@ MED_PATTERNS = tuple(
         r"^\s*(?:yes[,.!]?\s+)?that(?:'|’)?s (?:it|exactly)\b",
         r"\bi (?:also |really |just )?(?:don(?:'|’)?t|do not) (?:want|like)\b",
         r"\buse\b[^.?!\n]{1,60}\binstead\b",
-        r"\brather than\b",
         r"\bi(?: would|(?:'|’)d)? prefer\b",
         r"(?:^|[;:.!]\s*)prefer\b",
     )

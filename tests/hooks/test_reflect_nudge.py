@@ -208,7 +208,6 @@ class TestClassify:
             "I don't want pre-push hooks over 5m",
             "I also don't like how it captures that",
             "use `claude -p` instead, it is already authenticated",
-            "ask me rather than guessing",
             "prefer logging a hint",
             "I'd prefer the smaller diff",
             "log less; prefer a hint",
@@ -225,6 +224,7 @@ class TestClassify:
             "preferences file is missing",
             "do I want this?",
             "which do you prefer, A or B?",
+            "It fetches its own base ref rather than relying on FETCH_HEAD",
         ],
     )
     def test_not_preference(self, text: str) -> None:
