@@ -7,7 +7,6 @@ import argparse
 import json
 import os
 import re
-import subprocess
 import sys
 from html.parser import HTMLParser
 from typing import Any
@@ -35,6 +34,11 @@ if not os.path.isdir(_lib_dir):
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+if _script_dir not in sys.path:
+    sys.path.insert(0, _script_dir)
+
+from commit_ancestry import check_ancestor
 from github_core.api import assert_gh_authenticated, gh_graphql, resolve_repo_params
 
 try:
@@ -48,7 +52,6 @@ except ImportError:  # pragma: no cover - exercised when markdown-it-py is missi
     _MARKDOWN = None
 
 _MAX_THREAD_PAGES = 50
-_GIT_TIMEOUT_SECONDS = 30
 # Which text the SHA regex read: the rendered text, or the raw body as a
 # fail-closed fallback (reported per reference and per comment).
 TEXT_MODE_PARSED = "parsed"
@@ -314,66 +317,6 @@ def _latest_comment(thread: dict[str, Any]) -> dict[str, Any] | None:
     if not comment_nodes:
         return None
     return max(comment_nodes, key=lambda c: str(c.get("createdAt") or ""))
-
-
-def _git(repo_path: str, *args: str) -> tuple[int, str, str]:
-    """Run git; a timeout or a git that cannot start returns rc -1 and the reason."""
-    try:
-        result = subprocess.run(
-            ["git", "-C", repo_path, *args],
-            capture_output=True,
-            encoding="utf-8",
-            errors="replace",
-            check=False,
-            timeout=_GIT_TIMEOUT_SECONDS,
-        )
-    except subprocess.TimeoutExpired:
-        return -1, "", f"git {args[0]} timed out after {_GIT_TIMEOUT_SECONDS}s"
-    except OSError as exc:
-        return -1, "", f"git could not run: {exc}"
-    return result.returncode, result.stdout, result.stderr
-
-
-def _git_error(stderr: str) -> str:
-    lines = [line.strip() for line in stderr.splitlines() if line.strip()]
-    return f"git-error: {lines[0]}" if lines else "git-error"
-
-
-def _classify_unresolved(sha: str, repo_path: str) -> tuple[bool, str, str]:
-    returncode, stdout, stderr = _git(repo_path, "rev-parse", f"--disambiguate={sha}")
-    if returncode != 0:
-        return False, "invalid", _git_error(stderr)
-    candidates = [line for line in stdout.splitlines() if line.strip()]
-    if len(candidates) > 1:
-        return False, "ambiguous", f"{len(candidates)} objects share this prefix"
-    if candidates:
-        return False, "invalid", "not-a-commit"
-    return False, "invalid", "missing-object"
-
-
-def check_ancestor(sha: str, head_sha: str, repo_path: str) -> tuple[bool, str, str]:
-    """Classify a SHA as (reachable, status, detail).
-
-    status is reachable, unreachable, ambiguous, or invalid; the gate fails on
-    the last three. detail says why an invalid SHA failed: missing-object (not
-    in the local clone), not-a-commit, or git-error: <git's first stderr line>.
-    """
-    # rev-parse --verify --quiet exits 1 when the name does not resolve to a
-    # commit; any other nonzero exit is git itself failing.
-    returncode, stdout, stderr = _git(
-        repo_path, "rev-parse", "--verify", "--quiet", f"{sha}^{{commit}}"
-    )
-    if returncode == 1:
-        return _classify_unresolved(sha, repo_path)
-    if returncode != 0:
-        return False, "invalid", _git_error(stderr)
-
-    returncode, _, stderr = _git(repo_path, "merge-base", "--is-ancestor", stdout.strip(), head_sha)
-    if returncode == 0:
-        return True, "reachable", ""
-    if returncode == 1:
-        return False, "unreachable", ""
-    return False, "invalid", _git_error(stderr)
 
 
 def _failure_reason(threads: list[dict[str, Any]], fetched_pages_complete: bool) -> str | None:

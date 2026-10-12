@@ -96,14 +96,19 @@ def test_empty_comment_in_html_block_does_not_hide_later_text(opener: str) -> No
 
 def test_pre_fix_parser_patch_reproduces_the_hidden_text() -> None:
     # 6195-A1: guard that the emulation above is real, so the test above can fail.
+    class _Plain(HTMLParser):
+        seen: list[str] = []
+
+        def handle_data(self, data: str) -> None:
+            self.seen.append(data)
+
     comment_patch, cdata_patch = _pre_fix_html_parser()
-    plain = HTMLParser()
-    seen: list[str] = []
-    plain.handle_data = seen.append  # type: ignore[method-assign]
     with comment_patch, cdata_patch:
+        plain = _Plain()
         plain.feed("<div><!--> abc1234 --> def5678</div>")
         plain.close()
-    assert "abc1234" not in "".join(seen)
+    assert "abc1234" not in "".join(_Plain.seen)
+    assert "def5678" in "".join(_Plain.seen)
 
 
 @pytest.mark.parametrize("closer", ["-->", "--!>"])

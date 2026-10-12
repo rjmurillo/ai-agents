@@ -22,6 +22,7 @@ _SCRIPTS_DIR = (
 sys.path.insert(0, str(_SCRIPTS_DIR))
 
 import check_review_thread_resolution_shas as _mod  # noqa: E402
+import commit_ancestry  # noqa: E402
 
 _HEAD = "b" * 40
 _DEEP_BODY = "\n".join(" " * (2 * depth) + "- x" for depth in range(40)) + " deadbee"
@@ -199,7 +200,7 @@ def test_check_ancestor_reports_missing_object() -> None:
     run, calls = _git_stub(_done(1), _done(0, stdout=""))
     with patch("subprocess.run", side_effect=run):
         assert _mod.check_ancestor("abc1234", _HEAD, ".") == (False, "invalid", "missing-object")
-    assert all(call["timeout"] == _mod._GIT_TIMEOUT_SECONDS for call in calls)
+    assert all(call["timeout"] == commit_ancestry._GIT_TIMEOUT_SECONDS for call in calls)
 
 
 def test_check_ancestor_reports_non_commit_object() -> None:
