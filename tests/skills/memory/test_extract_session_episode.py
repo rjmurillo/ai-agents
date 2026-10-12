@@ -2636,6 +2636,28 @@ class TestValidateModeRejectsUnusableEventIds:
         )
         assert extract_session_episode.main([str(target), "--validate"]) == 0
 
+    def test_a_session_log_file_is_a_usage_error_not_a_content_violation(self, tmp_path, capsys):
+        """A session log has no ``events`` key. Name the wrong input, not a bad episode."""
+        log = tmp_path / "session-pr-1-autofix.json"
+        log.write_text(json.dumps({"session": {"number": 1}, "workLog": []}), encoding="utf-8")
+        assert extract_session_episode.main([str(log), "--validate"]) == 2
+        err = capsys.readouterr().err
+        assert "not an episode file" in err
+        assert "events must be a list" not in err
+
+    def test_a_session_log_file_is_left_untouched_by_validate_fix(self, tmp_path):
+        log = tmp_path / "session-pr-1-autofix.json"
+        body = json.dumps({"session": {"number": 1}})
+        log.write_text(body, encoding="utf-8")
+        assert extract_session_episode.main([str(log), "--validate", "--fix"]) == 2
+        assert log.read_text(encoding="utf-8") == body
+
+    def test_an_episode_with_null_events_is_still_a_content_violation(self, tmp_path, capsys):
+        episode = tmp_path / "episode-null.json"
+        episode.write_text(json.dumps({"events": None}), encoding="utf-8")
+        assert extract_session_episode.main([str(episode), "--validate"]) == 2
+        assert "events must be a list" in capsys.readouterr().err
+
     def test_the_committed_episode_store_is_clean(self):
         """Regression pin: the repaired file must not come back, and no new
         episode may land with ids that tooling cannot index or with a commit

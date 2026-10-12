@@ -1829,7 +1829,9 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "Validate an existing episode JSON file, or every *.json under a "
-            "directory, instead of extracting. Exit 2 on a duplicate, missing, "
+            "directory, instead of extracting. The path must be an episode, "
+            "not a session log: a file with no 'events' key exits 2 as a "
+            "usage error. Exit 2 on a duplicate, missing, "
             "or non-contiguous event id, or a commit-to-commit edge that runs "
             "backwards in committer time"
         ),
@@ -2596,13 +2598,34 @@ def _episode_paths(target: Path) -> list[Path]:
     return [target]
 
 
+def _not_episode_file(target: Path) -> bool:
+    """Return True when ``target`` is a JSON object with no ``events`` key.
+
+    Session logs (``.project-toolkit/sessions/*.json``) parse as objects but
+    carry no ``events`` key. Naming that mistake beats reporting a content
+    violation against a file that was never an episode. An unreadable or
+    non-object file is not caught here: ``validate_episode_file`` reports it.
+    A key present with a bad value (``"events": null``) stays a violation.
+    """
+    data, _ = _read_episode(target)
+    return data is not None and "events" not in data
+
+
 def run_validate(target: Path, *, fix: bool = False) -> int:
     """Validate an episode file or a directory of them. Exit 2 on violation.
+
+    An explicit file argument must be an episode, not a session log: a file
+    with no ``events`` key exits 2 with a usage error, not a content violation.
+    A directory is globbed for ``*.json`` and each file is checked as before.
 
     With ``fix``, repair backwards commit order in place first, then report on
     what the repair left. A refused repair still counts as a violation, so the
     exit code never claims a file was fixed when it was not.
     """
+    if target.is_file() and _not_episode_file(target):
+        msg = f"{target} is not an episode file (no 'events' key); pass an episode JSON"
+        print(json.dumps({"Error": msg}), file=sys.stderr)
+        return 2
     paths = _episode_paths(target)
     if not paths:
         print(json.dumps({"Error": f"No episode files under {target}"}), file=sys.stderr)
