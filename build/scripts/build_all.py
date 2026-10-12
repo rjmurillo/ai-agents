@@ -96,6 +96,7 @@ sys.path.insert(0, str(_SCRIPT_DIR))
 
 import agent_templates  # noqa: E402
 import binplace_manifest  # noqa: E402
+import check_surface_parity  # noqa: E402
 import generate_adr_index  # noqa: E402
 import generate_hooks  # noqa: E402
 import generate_rules  # noqa: E402
@@ -2172,6 +2173,40 @@ def _run_binplace(repo_root: Path, *, check: bool) -> GeneratorResult:
     return result
 
 
+def _surface_parity_exit(repo_root: Path, stale_paths: list[str]) -> int:
+    """Run the surface parity gate and print its findings (issue #5637).
+
+    ``templates/platforms/surface-parity.yaml`` says which source each shipped
+    copy answers to. ``--check`` runs the same checks as
+    ``check_surface_parity.py``, so CI and a local run share one result, and
+    labels each stale path the generators left with the surface that owns it.
+    A tree with no manifest has no parity claims; the standalone CLI and
+    ``tests/build_scripts/test_surface_parity_repo.py`` fail on a missing
+    manifest in this repository. Returns 0 (holds) or 2 (finding or bad config).
+    """
+    try:
+        manifest = check_surface_parity.load_manifest(repo_root)
+        if manifest is None:
+            return 0
+        findings = [
+            *check_surface_parity.classify_changes(manifest, stale_paths),
+            *check_surface_parity.run_checks(repo_root, manifest, owned_prefixes=OWNED_PREFIXES),
+        ]
+    except (
+        check_surface_parity.SurfaceManifestError,
+        binplace_manifest.BinplaceConfigError,
+        ConfigError,
+    ) as exc:
+        print(f"Error: surface parity manifest: {exc}", file=sys.stderr)
+        return 2
+    if not findings:
+        return 0
+    print("SURFACE PARITY VIOLATION:", file=sys.stderr)
+    for line in check_surface_parity.format_report(findings):
+        print(f"  {line}", file=sys.stderr)
+    return 2
+
+
 def _run_generators(
     repo_root: Path,
     configs: list[Path],
@@ -2293,6 +2328,7 @@ def _run_generators(
             for p in diff:
                 print(f"  {p}", file=sys.stderr)
             audit.overall_exit = 2
+        audit.overall_exit = max(audit.overall_exit, _surface_parity_exit(repo_root, diff))
 
     if audit_format == "json":
         sys.stdout.write(_format_audit_json(audit))
