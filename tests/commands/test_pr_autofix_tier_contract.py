@@ -107,7 +107,11 @@ def test_a_second_no_op_arm_is_visible_to_the_dispatch_extractor() -> None:
 #   the round cap and posting an escalation comment. Unlike SKIP it terminates
 #   after the disarm gate, not before, because "armed but not provably T1" is
 #   exactly true of it.
-_TERMINAL_TIERS = frozenset({"SKIP", "UNSUPPORTED"})
+# - STACKED (a merge-ready PR whose base is not the default branch, issue
+#   #6201). It replaces T1, so dispatching it would run the squash merge that
+#   folds the PR into its parent branch. It terminates after the disarm gate for
+#   the same reason UNSUPPORTED does.
+_TERMINAL_TIERS = frozenset({"SKIP", "UNSUPPORTED", "STACKED"})
 
 
 @pytest.mark.parametrize("doc", [COMMAND_PATH, MIRROR_PATH])
