@@ -235,3 +235,81 @@ def test_owned_targets_includes_settings(tmp_path: Path) -> None:
 
     assert root / ".claude" / "settings.json" in targets
     assert root / "src" / "claude" / "hooks" / "PreToolUse" / "guard.py" in targets
+
+
+def _seed_cache(root: Path) -> Path:
+    """Seed a bytecode cache beside a real hook template, as running it would."""
+    return write_template(root, "SessionStart/__pycache__/probe.cpython-314.pyc", b"\x00cache")
+
+
+def test_positive_discover_skips_bytecode_cache(tmp_path: Path) -> None:
+    """Issue 5875: a __pycache__ file under templates/hooks/ is not a template."""
+    root = fake_repo(tmp_path)
+    write_template(root, "SessionStart/probe.py", b"print('ok')\n")
+    _seed_cache(root)
+
+    names = hook_templates.discover(root)
+
+    assert list(names) == ["SessionStart/probe.py"]
+
+
+def test_positive_validate_passes_with_template_cache(tmp_path: Path) -> None:
+    """Issue 5875: validate mode reports no drift for a cache with no rendered copy."""
+    root = fake_repo(tmp_path)
+    write_template(root, "SessionStart/probe.py", b"print('ok')\n")
+    hook_templates.compile_all(root, validate=False)
+    _seed_cache(root)
+
+    result = hook_templates.compile_all(root, validate=True)
+
+    assert result.exit_code == 0
+    assert result.drifted == []
+
+
+def test_positive_write_does_not_copy_cache_to_plugin_tree(tmp_path: Path) -> None:
+    """Issue 5875: the render step leaves the cache out of src/claude/hooks/."""
+    root = fake_repo(tmp_path)
+    write_template(root, "SessionStart/probe.py", b"print('ok')\n")
+    _seed_cache(root)
+
+    hook_templates.compile_all(root, validate=False)
+
+    plugin_dir = root / "src" / "claude" / "hooks" / "SessionStart"
+    assert (plugin_dir / "probe.py").is_file()
+    assert not (plugin_dir / "__pycache__").exists()
+
+
+def test_edge_stray_pyc_outside_cache_dir_is_skipped(tmp_path: Path) -> None:
+    """Issue 5875: a bare .pyc or .pyo is skipped wherever it sits."""
+    root = fake_repo(tmp_path)
+    write_template(root, "SessionStart/probe.py", b"print('ok')\n")
+    write_template(root, "SessionStart/stray.pyc", b"\x00")
+    write_template(root, "stray.pyo", b"\x00")
+
+    assert list(hook_templates.discover(root)) == ["SessionStart/probe.py"]
+
+
+def test_negative_owned_targets_exclude_cache(tmp_path: Path) -> None:
+    """Issue 5875: owned_targets() never claims a cache path as a render target."""
+    root = fake_repo(tmp_path)
+    write_template(root, "SessionStart/probe.py", b"print('ok')\n")
+    _seed_cache(root)
+
+    targets = hook_templates.owned_targets(root)
+
+    assert all("__pycache__" not in target.parts for target in targets)
+
+
+def test_negative_real_source_beside_cache_still_drifts(tmp_path: Path) -> None:
+    """Control: skipping the cache must not hide drift on the .py beside it."""
+    root = fake_repo(tmp_path)
+    write_template(root, "SessionStart/probe.py", b"print('new')\n")
+    _seed_cache(root)
+    stale = root / "src" / "claude" / "hooks" / "SessionStart" / "probe.py"
+    stale.parent.mkdir(parents=True, exist_ok=True)
+    stale.write_bytes(b"print('old')\n")
+
+    result = hook_templates.compile_all(root, validate=True)
+
+    assert result.exit_code == 1
+    assert str(stale) in result.drifted
