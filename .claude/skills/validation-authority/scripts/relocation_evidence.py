@@ -8,6 +8,7 @@ defect strings. Nothing here touches the filesystem or runs a command.
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Iterable
 from typing import Any
 
 RELOCATION = "relocation-no-semantic-change"
@@ -55,7 +56,7 @@ def name_diff(before: Counter[str], after: Counter[str]) -> str:
     return "; ".join(parts)
 
 
-def _id_paths(ids: object) -> set[str]:
+def _id_paths(ids: Iterable[str] | None) -> set[str]:
     """Return the normalized module paths named by valid collected ids."""
     return {path_key(str(item).strip().split("::", 1)[0]) for item in ids} if ids else set()
 
