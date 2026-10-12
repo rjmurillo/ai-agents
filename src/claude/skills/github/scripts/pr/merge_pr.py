@@ -35,7 +35,7 @@ Exit codes follow ADR-035:
     2 - Not found
     3 - External error (API failure)
     4 - Auth error
-    6 - Not mergeable
+    100 - Not mergeable (script-specific; ADR-035 reserves 5-99)
 """
 
 from __future__ import annotations
@@ -78,6 +78,8 @@ from github_core.output import (
 from github_core.placeholder_identity import filter_coauthor_trailers
 
 _SCRIPT_NAME = "merge_pr.py"
+# Script-specific exit code per ADR-035 (100+), documented in the header above.
+_EXIT_NOT_MERGEABLE = 100
 # Matched case-insensitively against the stdout and stderr of a failed PR view.
 _NOT_FOUND_MARKERS = ("could not resolve to a pullrequest", "not found")
 
@@ -520,7 +522,7 @@ def _handle_merge_failure(
 ) -> None:
     """Translate a non-zero gh-pr-merge return into an envelope or a failure.
 
-    Conflicts and head-moved refusals emit their envelope and exit 6 directly.
+    Conflicts and head-moved refusals emit their envelope and exit 100 directly.
     On a BLOCKED-keyword failure, retry once via the REST merge endpoint
     (issue #4362), pinned to the same head SHA.  REST enforces the same branch
     rules as GraphQL but resolves the policy check differently; a 200 with
@@ -537,11 +539,13 @@ def _handle_merge_failure(
         raise _MergeFailureError(
             f"PR #{pr} head moved after review; refusing the stale target "
             f"(pinned {ctx.head_sha or 'none'}): {output}",
-            6,
+            _EXIT_NOT_MERGEABLE,
             "General",
         )
     if any(kw in output for kw in ("not mergeable", "cannot be merged", "conflicts")):
-        raise _MergeFailureError(f"PR #{pr} is not mergeable: {output}", 6, "General")
+        raise _MergeFailureError(
+            f"PR #{pr} is not mergeable: {output}", _EXIT_NOT_MERGEABLE, "General"
+        )
     is_stack = any(kw in output for kw in _STACK_KEYWORDS)
     if not ctx.auto and (is_stack or any(kw in output for kw in _BLOCKED_KEYWORDS)):
         # GraphQL refused with a BLOCKED policy or stack error; retry via REST once.
@@ -568,13 +572,13 @@ def _handle_merge_failure(
             raise _MergeFailureError(
                 f"PR #{pr} is part of a stack and the asynchronous REST merge did "
                 f"not complete it: {output}",
-                6,
+                _EXIT_NOT_MERGEABLE,
                 "General",
             )
         raise _MergeFailureError(
             f"PR #{pr} is blocked by branch protection policy: {output}\n"
             "Hint: use --auto to enable auto-merge when checks pass.",
-            6,
+            _EXIT_NOT_MERGEABLE,
             "General",
         )
     raise _MergeFailureError(f"Failed to merge PR #{pr}: {output}", 3, "ApiError")
@@ -946,7 +950,7 @@ def main(argv: list[str] | None = None) -> int:
     if pr_data.get("state") == "CLOSED":
         _emit_error(
             f"PR #{pr} is closed and cannot be merged",
-            6,
+            _EXIT_NOT_MERGEABLE,
             "General",
             output_format,
             pr,

@@ -149,6 +149,19 @@ def write_skill_output(
     return None
 
 
+# ADR-035 exit code ranges. 0-4 are the standard codes; 5-99 are reserved
+# ("do not use until standardized"); 100-255 are script-specific and must be
+# documented in the calling script's header. 255 is the largest value a
+# process exit status can carry.
+_STANDARD_EXIT_CODES = range(0, 5)
+_SCRIPT_SPECIFIC_EXIT_CODES = range(100, 256)
+
+
+def _is_valid_exit_code(exit_code: int) -> bool:
+    """Return True when exit_code is in an ADR-035 usable range."""
+    return exit_code in _STANDARD_EXIT_CODES or exit_code in _SCRIPT_SPECIFIC_EXIT_CODES
+
+
 def write_skill_error(
     message: str,
     exit_code: int,
@@ -163,7 +176,8 @@ def write_skill_error(
 
     Args:
         message: Human-readable error message.
-        exit_code: Exit code per ADR-035.
+        exit_code: Exit code per ADR-035: 0-4, or 100-255 for a script-specific
+            code documented in the script header. 5-99 is reserved and rejected.
         error_type: Machine-readable error category.
         output_format: Output format: json, human, or auto.
         script_name: Name of the calling script.
@@ -172,6 +186,9 @@ def write_skill_error(
 
     Returns:
         JSON string when format is json, None when human.
+
+    Raises:
+        ValueError: error_type, message, or exit_code is invalid.
     """
     if error_type not in VALID_ERROR_TYPES:
         raise ValueError(f"error_type must be one of {VALID_ERROR_TYPES}, got: {error_type}")
@@ -210,21 +227,6 @@ def write_skill_error(
         # one (Copilot review on PR #5283, following the ADR-103 Round 5
         # convergence check).
         raise ValueError(f"message must be a string, got: {type(message).__name__}")
-    # Scope note before the guard below: it checks TYPE only (int, not
-    # bool), not the VALUE RANGE the "Exit code per ADR-035" docstring
-    # above names. ADR-035's own table (.project-toolkit/architecture/ADR-035-
-    # exit-code-standardization.md:52-60) reserves 5-99 ("do not use
-    # until standardized") and requires 100+ codes to be documented in
-    # the calling script's header. At least one existing caller already
-    # violates that: .claude/skills/github/scripts/pr/merge_pr.py:412
-    # passes code 6 for "is not mergeable", a 5-99 value,
-    # documented in that script's own header (lines 21-27) rather than
-    # migrated to 100+. Enforcing the full range here would break that
-    # caller (and any other repo-wide violator not yet surveyed) without
-    # an accompanying migration, which is a separate, wider change than
-    # this guard's narrow type-safety fix. Tracked as issue #5303 rather
-    # than silently left unenforced (Copilot review on PR #5283,
-    # `scripts/github_core/output.py:208`).
     if isinstance(exit_code, bool) or not isinstance(exit_code, int):
         # skill-output.schema.json types Error.Code as "type": "integer"
         # (pre-dates ADR-103) and both scripts/validate_skill_output.py
@@ -241,6 +243,14 @@ def write_skill_error(
         # independent-thinker seat, ADR-103 Round 5 convergence check,
         # finding F1).
         raise ValueError(f"exit_code must be an integer, got: {type(exit_code).__name__}")
+    if not _is_valid_exit_code(exit_code):
+        # ADR-035 reserves 5-99 and requires script-specific codes to be 100+
+        # and documented in the script header. A process exit status is one
+        # byte, so values above 255 wrap and negatives are invalid (issue #5303).
+        raise ValueError(
+            "exit_code must be 0-4 (ADR-035 standard) or 100-255 "
+            f"(script-specific), got: {exit_code}"
+        )
 
     resolved = get_output_format(output_format)
 

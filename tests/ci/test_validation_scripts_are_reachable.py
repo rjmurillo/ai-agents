@@ -27,8 +27,8 @@ Workflow, hook, and skill documentation can name an entry point. Once a
 ``SKILL.md`` names a helper script, the graph follows that helper's imports and
 executable string literals.
 
-Under that model the scripts (127 under scripts/validation plus 30 under
-build/scripts at the time of this edit) yield one unreachable, a real decision
+Under that model the scripts (128 under scripts/validation plus 30 under
+build/scripts at the time of this edit) yield two unreachable, real decisions
 recorded in ``_NO_CALLER`` below rather than a bulk exemption.
 
 What this does not do: prove the caller is correct, or that the script would
@@ -88,6 +88,14 @@ _NO_CALLER: dict[str, str] = {
         "a one-time historical question about how the review axes under "
         "REQ-008 were seeded. Wiring it would make it a gate it was explicitly "
         "written not to be."
+    ),
+    "scripts/validation/check_handoff_resume.py": (
+        "Run by an agent at resume time, not by a workflow, hook, or skill. The "
+        "orchestrator Resume Check and the HANDOFF.md template name it, and "
+        "agent prose is not an entry surface this graph follows. Wiring it into "
+        "CI would run it against a handoff that does not exist there, and "
+        "wiring it into a SKILL.md adds a ratcheted upstream-path reference to a "
+        "shipped skill (issue #5766)."
     ),
 }
 
