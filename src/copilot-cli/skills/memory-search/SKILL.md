@@ -40,15 +40,16 @@ Use this skill when the user says:
 
 ```bash
 # Search memory (Tier 1)
-python3 .claude/skills/memory/scripts/search_memory.py "git hooks"
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "git hooks"
 
 # JSON output for scripting
-python3 .claude/skills/memory/scripts/search_memory.py "git hooks" --format json
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "git hooks" --format json
 ```
 
 The search script is canonical and shared with the `memory` router; this
 sub-skill does not reimplement it. It lives at
-`.claude/skills/memory/scripts/search_memory.py`.
+`skills/memory/scripts/search_memory.py` under the plugin root (`COPILOT_PLUGIN_ROOT`, then
+`CLAUDE_PLUGIN_ROOT`, falling back to `.claude`).
 
 ## Quick Reference
 

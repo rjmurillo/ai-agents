@@ -268,17 +268,18 @@ reads these fields:
 
 ```bash
 # Verify skill location
-test -f ".claude/skills/memory/scripts/search_memory.py" && echo "exists" || echo "not found"
+test -f "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" && echo "exists" || echo "not found"
 
 # List available skills
-find .claude/skills -name "*.py" -type f
+ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
+find "$ROOT/skills" -name "*.py" -type f
 ```
 
 **Solutions**:
 
 | Cause | Solution |
 |-------|----------|
-| Wrong path | Use correct relative path from project root |
+| Wrong path | Use the plugin root path (`COPILOT_PLUGIN_ROOT`, then `CLAUDE_PLUGIN_ROOT`, then `.claude`) |
 | Skill not installed | Verify skill directory structure |
 | Permissions issue | Check file permissions |
 
