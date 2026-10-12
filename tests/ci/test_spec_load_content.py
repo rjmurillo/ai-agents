@@ -366,6 +366,7 @@ class TestBlankToken:
             "RUNNER_TEMP": str(tmp_path),
             "GITHUB_OUTPUT": str(tmp_path / "out.txt"),
             "GITHUB_RUN_ID": "0",
+            "GITHUB_ACTIONS": "true",
             **extra,
         }
 
@@ -397,6 +398,15 @@ class TestBlankToken:
         env = self._env(tmp_path, GH_TOKEN="", GITHUB_TOKEN="ghs_fallback")
         ok = MagicMock(returncode=0, stdout="Title\n\nBody")
         with patch.dict(os.environ, env):
+            with patch("scripts.ci.spec_load_content.subprocess.run", return_value=ok):
+                assert main() == EXIT_OK
+
+    def test_blank_token_outside_actions_proceeds_for_stored_login(self, tmp_path: Path) -> None:
+        ok = MagicMock(returncode=0, stdout="Title\n\nBody")
+        env = self._env(tmp_path, GH_TOKEN="")
+        with patch.dict(os.environ, env):
+            os.environ.pop("GITHUB_TOKEN", None)
+            os.environ.pop("GITHUB_ACTIONS", None)
             with patch("scripts.ci.spec_load_content.subprocess.run", return_value=ok):
                 assert main() == EXIT_OK
 

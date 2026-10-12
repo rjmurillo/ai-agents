@@ -61,8 +61,12 @@ def _token_is_blank() -> bool:
     A workflow that wires `GH_TOKEN: ${{ secrets.X }}` exports an empty string
     when the secret resolves empty. `gh` treats an empty GH_TOKEN as unset and
     prints a usage message per issue reference (issue #6122). An unset GH_TOKEN
-    is not flagged, because a local `gh auth login` session still works.
+    is not flagged, because a local `gh auth login` session still works. An
+    empty token outside GitHub Actions is not flagged either: `gh` falls back
+    to the stored login, so only CI treats it as a dead end.
     """
+    if os.environ.get("GITHUB_ACTIONS") != "true":
+        return False
     if "GH_TOKEN" not in os.environ:
         return False
     return not os.environ["GH_TOKEN"].strip() and not os.environ.get("GITHUB_TOKEN", "").strip()
@@ -209,8 +213,8 @@ def run(_argv: list[str] | None = None) -> int:
     if issue_refs and _token_is_blank():
         print(
             "::error::GH_TOKEN is set but empty, so issue lookups cannot authenticate "
-            f"({issue_refs_raw}). The workflow env sources it from github.token, or from "
-            "a secret such as BOT_PAT if overridden. Refill that secret.",
+            f"({issue_refs_raw}). The step inherits github.token. If a step overrides "
+            "GH_TOKEN with a secret such as BOT_PAT, refill that secret.",
             file=sys.stderr,
         )
         return EXIT_AUTH
