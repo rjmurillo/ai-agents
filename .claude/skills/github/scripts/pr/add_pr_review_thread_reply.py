@@ -41,7 +41,10 @@ if _script_dir not in sys.path:
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
 
-from auto_merge_guard import guard_auto_merge_before_final_thread_resolution
+from auto_merge_guard import (
+    guard_auto_merge_before_final_thread_resolution,
+    identity_mismatches,
+)
 from github_core.api import (
     assert_gh_authenticated,
     error_and_exit,
@@ -88,6 +91,10 @@ query($threadId: ID!) {
             isResolved
             pullRequest {
                 number
+                state
+                headRefOid
+                baseRefName
+                baseRefOid
             }
         }
     }
@@ -113,6 +120,21 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         help="Expected PR number. Threads from another PR are skipped.",
     )
+    parser.add_argument(
+        "--expected-head-sha",
+        default="",
+        help="Head SHA the readiness cycle captured. A moved head stops all mutation.",
+    )
+    parser.add_argument(
+        "--expected-base-ref",
+        default="",
+        help="Base ref the readiness cycle captured. A retargeted PR stops all mutation.",
+    )
+    parser.add_argument(
+        "--expected-base-sha",
+        default="",
+        help="Base SHA the readiness cycle captured. A moved base stops all mutation.",
+    )
 
     body_group = parser.add_mutually_exclusive_group(required=True)
     body_group.add_argument("--body", help="Reply text (inline)")
@@ -136,9 +158,19 @@ def query_thread_state(thread_id: str) -> dict[str, Any] | None:
     return node if isinstance(node, dict) else None
 
 
+def _expected_identity(args: argparse.Namespace) -> dict[str, str] | None:
+    identity = {
+        "head_sha": args.expected_head_sha,
+        "base_ref": args.expected_base_ref,
+        "base_sha": args.expected_base_sha,
+    }
+    return identity if any(identity.values()) else None
+
+
 def _thread_decision(
     thread_id: str,
     expected_pull_request: int | None,
+    expected_identity: dict[str, str] | None = None,
 ) -> tuple[str, str]:
     thread = query_thread_state(thread_id)
     if thread is None:
@@ -149,12 +181,21 @@ def _thread_decision(
         return "SKIP", "wrong_pull_request"
     if thread.get("isResolved"):
         return "SKIP", "thread_resolved"
+    mismatches = identity_mismatches(
+        pull_request if isinstance(pull_request, dict) else {},
+        expected_identity,
+    )
+    if mismatches:
+        return "STALE", f"pull_request_identity_changed: {', '.join(mismatches)}"
     return "ACT", "thread_unresolved"
 
 
-def _guard_auto_merge_before_resolution(thread_id: str) -> dict[str, Any]:
+def _guard_auto_merge_before_resolution(
+    thread_id: str,
+    expected_identity: dict[str, str] | None,
+) -> dict[str, Any]:
     try:
-        return guard_auto_merge_before_final_thread_resolution(thread_id)
+        return guard_auto_merge_before_final_thread_resolution(thread_id, expected_identity)
     except RuntimeError as exc:
         error_and_exit(
             f"Thread reply posted but auto-merge guard failed; thread left unresolved: {exc}",
@@ -173,9 +214,35 @@ def _resolve_thread_after_reply(thread_id: str) -> bool:
     )
 
 
+def _stale_identity_error(
+    reason: str,
+    args: argparse.Namespace,
+    fmt: str,
+    *,
+    reply_posted: bool,
+) -> int:
+    """Refuse to mutate a PR whose identity moved since the readiness cycle."""
+    outcome = "Reply posted but thread left unresolved" if reply_posted else "No mutation made"
+    write_skill_error(
+        f"{outcome}: {reason}",
+        1,
+        error_type="VerificationFailed",
+        output_format=fmt,
+        script_name="add_pr_review_thread_reply.py",
+        extra={
+            "action": "SKIP",
+            "reason": "pull_request_identity_changed",
+            "thread_id": args.thread_id,
+        },
+    )
+    return 1
+
+
 def _initial_thread_gate(args: argparse.Namespace, fmt: str) -> int | None:
     try:
-        action, reason = _thread_decision(args.thread_id, args.pull_request)
+        action, reason = _thread_decision(
+            args.thread_id, args.pull_request, _expected_identity(args)
+        )
     except RuntimeError as exc:
         write_skill_error(
             f"Failed to query thread state: {exc}",
@@ -192,6 +259,8 @@ def _initial_thread_gate(args: argparse.Namespace, fmt: str) -> int | None:
         return 3
     if action == "ACT":
         return None
+    if action == "STALE":
+        return _stale_identity_error(reason, args, fmt, reply_posted=False)
     write_skill_output(
         {
             "action": action,
@@ -260,8 +329,9 @@ def _resolve_after_reply(
             "resolve_action": "SKIP",
             "resolve_reason": "not_requested",
         }, 0
+    expected_identity = _expected_identity(args)
     try:
-        action, reason = _thread_decision(args.thread_id, args.pull_request)
+        action, reason = _thread_decision(args.thread_id, args.pull_request, expected_identity)
     except RuntimeError as exc:
         return _resolve_reply_error(
             f"Reply posted but failed to requery thread before resolve: {exc}",
@@ -272,6 +342,8 @@ def _resolve_after_reply(
             comment,
             fmt,
         )
+    if action == "STALE":
+        return {}, _stale_identity_error(reason, args, fmt, reply_posted=True)
     if action == "SKIP":
         return {
             "thread_resolved": reason == "thread_resolved",
@@ -279,7 +351,7 @@ def _resolve_after_reply(
             "resolve_reason": reason,
         }, 0
 
-    auto_merge_guard = _guard_auto_merge_before_resolution(args.thread_id)
+    auto_merge_guard = _guard_auto_merge_before_resolution(args.thread_id, expected_identity)
     try:
         thread_resolved = _resolve_thread_after_reply(args.thread_id)
     except RuntimeError as exc:
