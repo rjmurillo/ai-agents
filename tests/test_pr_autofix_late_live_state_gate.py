@@ -246,9 +246,28 @@ def test_mutation_examples_use_the_late_guard(relative_path: str) -> None:
         'run_pr_mutation_if_live python3 "$SCRIPTS_DIR/set_pr_auto_merge.py"',
         'run_pr_mutation_if_live python3 "$SCRIPTS_DIR/merge_pr.py"',
         "run_pr_mutation_if_live env FORCE_PUSH_OK=1 git push",
+        'run_pr_mutation_if_live python3 "$SCRIPTS_DIR/add_pr_review_thread_reply.py"',
     )
     for command in expected:
         assert command in text, f"{relative_path} has an unguarded example: {command}"
+
+
+@pytest.mark.parametrize("relative_path", GUARDED_DOCS)
+def test_thread_resolve_example_binds_the_readiness_identity(relative_path: str) -> None:
+    """Issue #5435: the resolve example passes the captured identity to the script."""
+    text = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+    start = text.index(
+        'run_pr_mutation_if_live python3 "$SCRIPTS_DIR/add_pr_review_thread_reply.py"'
+    )
+    command = text[start : text.index("```", start)]
+    assert "--resolve" in command
+    assert '--expected-head-sha "$EXPECTED_HEAD_SHA"' in command
+    assert '--expected-base-ref "$EXPECTED_BASE_REF"' in command
+    assert '--expected-base-sha "$EXPECTED_BASE_SHA"' in command
+    # The unwrapped form must not survive anywhere in the shipped surface.
+    for line in text.splitlines():
+        if "add_pr_review_thread_reply.py" in line and "--resolve" in line:
+            assert "run_pr_mutation_if_live" in line or line.lstrip().startswith("- **Armed")
 
 
 def test_merged_after_review_skips_base_refresh(tmp_path: Path, guarded_doc: str) -> None:
