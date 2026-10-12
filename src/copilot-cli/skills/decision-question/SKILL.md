@@ -1,7 +1,7 @@
 ---
 name: decision-question
 version: 1.0.0
-description: Ask the user to choose only when work is blocked on a decision they own, and present the smallest complete decision brief. Routes out delegated, policy-mandated, evidence-resolvable, and terminal cases, then builds a bounded brief with stable IDs, a recommendation, Hold semantics, and a deterministic split chain. Use when you say `ask the user to choose`, `do I need a user decision here`, or `present a decision brief`. Do NOT use to review a decision already made (use decision-critic) or to surface project risks (use pre-mortem).
+description: Ask the user to choose only when blocked on a decision they own, with the smallest complete decision brief. Use when you say `ask the user to choose`, `do I need a user decision here`, or `present a decision brief`. Do NOT use to review a decision already made (use decision-critic) or to surface project risks (use pre-mortem).
 license: MIT
 metadata:
   capability:
