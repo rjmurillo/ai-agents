@@ -54,13 +54,39 @@ def test_cli_skip_exits_zero(tmp_path: Path) -> None:
     assert json.loads(done.stdout)["status"] == "skip"
 
 
+def test_cli_context_only_skip_exits_zero(tmp_path: Path) -> None:
+    done = _run(tmp_path, {"context": {"task_terminal": True}})
+    assert done.returncode == 0
+    assert json.loads(done.stdout)["status"] == "skip"
+
+
+def test_cli_stale_recommendation_exits_two(tmp_path: Path) -> None:
+    d2 = raw_decision("D2", option_count=3, recommendation="o3")
+    d2["options"][2]["requires"] = {"D1": "o1"}
+    brief = {**make_brief(raw_decision("D1"), d2), "answers": {"D1": "o2"}}
+    done = _run(tmp_path, brief)
+    assert done.returncode == 2
+    assert json.loads(done.stdout)["status"] == "revise_recommendation"
+
+
+def test_cli_paging_selects_the_next_page(tmp_path: Path) -> None:
+    brief = {**make_brief(raw_decision("D1", option_count=6)), "paging": {"D1": 1}}
+    done = _run(tmp_path, brief)
+    assert json.loads(done.stdout)["page"] == ["o4", "o5", "o6"]
+
+
 def test_cli_max_options_override(tmp_path: Path) -> None:
     done = _run(tmp_path, make_brief(raw_decision("D1", option_count=6)), "--max-options", "6")
     assert json.loads(done.stdout)["split"] is False
 
 
 @pytest.mark.parametrize(
-    "payload", ["{not json", "[1, 2]", json.dumps({"decisions": [{"statement": "x"}]})]
+    "payload",
+    [
+        "{not json",
+        "[1, 2]",
+        json.dumps({"context": {"material_decision": True}, "decisions": [{"statement": "x"}]}),
+    ],
 )
 def test_cli_malformed_brief_exits_one(tmp_path: Path, payload: str) -> None:
     done = _run(tmp_path, payload)

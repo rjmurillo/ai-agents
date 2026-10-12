@@ -67,10 +67,15 @@ with `python3`. Output is one JSON object.
    ```
 
    `status: incomplete` (exit 2) lists the missing fields. Enrich the brief and
-   rerun. `status: ask` lists the prompt `pages`. Present page one.
+   rerun. `status: revise_recommendation` (exit 2) means an earlier answer
+   filtered out the recommended option: pick a remaining option or set
+   `no_recommendation`, then rerun. `status: ask` lists the prompt `pages` and
+   the `page` to present now.
 4. **Ask, then prune.** Present the decision with `AskUserQuestion`. Record the
-   answer under `answers` and rerun. Dependent decisions are pruned or
-   recomputed from that answer, and unresolved IDs are never renumbered.
+   answer under `answers` and rerun. When the user picks `_more`, add one to
+   that decision's count under `paging` and rerun; the same decision returns
+   its next page. Decisions that depend on an answer are pruned or filtered from
+   that answer, and unresolved IDs are never renumbered.
 5. **Weak evidence on an irreversible choice.** `pre_ask_review` in the output
    names `decision-critic` and `pre-mortem`. Run one before asking.
 
@@ -82,7 +87,7 @@ with `python3`. Output is one JSON object.
 python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/decision-question/scripts/decision_question.py" --brief <brief.json> [--max-options N]
 ```
 
-Reads one decision, or `{context, decisions, answers}`. Routes, then validates
+Reads one decision, or `{context, decisions, answers, paging}`. Routes, then validates
 and plans the next actionable decision. `--max-options` overrides the pinned
 per-prompt bound for a harness that reports a different cap (minimum 3).
 
@@ -91,15 +96,16 @@ per-prompt bound for a harness that reports a different cap (minimum 3).
 - `0`: routing resolved. No question warranted (`skip`), a complete bounded
   brief (`ask`), every open decision held (`held`), or nothing left (`resolved`).
 - `1`: unreadable or malformed brief JSON, an answer that is not one of the
-  decision's options, or a cap below 3.
+  decision's options, a duplicate decision ID, an out-of-range `paging` count, or a cap below 3.
 - `2`: a question is warranted but the brief is not decision-complete
-  (`incomplete`, with the missing fields listed).
+  (`incomplete`, with the missing fields listed), or an earlier answer removed
+  the recommended option (`revise_recommendation`).
 
 ## Decision brief contract
 
 Each decision carries a stable ID (`D1`, `D2`), a one-sentence statement of what
-must be decided now, why it matters now, 2 to 4 materially distinct options
-with their consequences, a recommendation with its load-bearing reason (or an
+must be decided now, why it matters now, at least two materially distinct options
+(presented 2 to 4 per page; overflow becomes a split chain) with their consequences, a recommendation with its load-bearing reason (or an
 explicit statement that evidence supports none), and `Hold` only when deferring
 is legitimate and a reopen condition exists. Render with the harness
 `AskUserQuestion` tool (`voice.md` defines the term); do not invent a new UI
@@ -142,5 +148,5 @@ different cap: pass the observed value as `--max-options`.
       (`status: skip`, exit 0).
 - [ ] The presented decision is complete (`status: ask`, exit 0).
 - [ ] No page exceeds the bound; over-bound briefs report `split: true`.
-- [ ] Dependent decisions were pruned or recomputed from the recorded answers.
+- [ ] Dependent decisions were pruned or filtered from the recorded answers.
 - [ ] A held decision keeps its ID and states its reopen condition.

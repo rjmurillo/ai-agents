@@ -16,8 +16,9 @@ new UI contract.
    it in background prose.
 3. **Why it matters now.** The blocking consequence or material tradeoff. Cut
    background that does not change the choice.
-4. **Bounded options.** 2 to 4 materially distinct paths, each with enough
-   consequence to choose. A cosmetic rewrite of another option fails the
+4. **Distinct options.** At least two materially distinct paths, each with
+   enough consequence to choose. Each presented page carries 2 to 4 (see "The
+   harness bound"); more options become a split chain. A cosmetic rewrite of another option fails the
    distinct check.
 5. **Recommendation.** Recommend an option when evidence and delegated judgment
    support one, and give the load-bearing reason. When they do not, set
@@ -57,11 +58,21 @@ number. The engine needs a cap of at least 3 to paginate and keep a real choice.
   splits while more options remain than the final page can hold, so the
   remainder is never a single option. Six options at a cap of four
   become `[o1, o2, o3, more]` then `[o4, o5, o6]`.
+- **Paging.** The engine returns every page plus `page_index` and `page`, the
+  entries to present now. When the user picks `_more`, do not record it under
+  `answers`. Set `paging` to `{"D1": 1}` (the count of `_more` picks) and rerun;
+  the same decision ID returns its next page. Record a real pick under
+  `answers`. A count past the final page is malformed (exit 1).
 - **Dependent decisions.** Ask the earliest load-bearing decision first. Its
   answer prunes impossible later decisions and filters options that stopped
   being reachable. Express a dependency as `requires` on a decision or on an
   option: a map of earlier decision ID to the answer that keeps it alive.
-  `{"D1": "cloud"}` keeps D2 only when D1 was answered `cloud`.
+  `{"D1": "cloud"}` keeps D2 only when D1 was answered `cloud`. A decision whose
+  option waits on an unanswered or held prerequisite is deferred, so the user
+  never sees a question with an alternative hidden. If an earlier answer filters
+  out the recommended option, the engine returns `revise_recommendation` (exit
+  2) with the `remaining_options`; pick one of them or set `no_recommendation`,
+  then rerun. Decision IDs must be unique within a brief.
 
 Chain states in the output: `deferred` lists decisions waiting on an unanswered
 or held prerequisite; `pruned` lists decisions an answer made irrelevant.

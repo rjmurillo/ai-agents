@@ -16,7 +16,8 @@ Exit codes (CLI):
     0  routing resolved: no question warranted, a complete bounded brief was
        produced, or every remaining decision is held.
     1  invalid arguments or unreadable/malformed brief JSON.
-    2  a question is warranted but the brief is not decision-complete.
+    2  a question is warranted but the brief is not decision-complete, or an
+       earlier answer filtered out its recommended option (revise_recommendation).
 """
 
 from __future__ import annotations
@@ -245,9 +246,25 @@ def _dependency_state(requires: dict[str, str], answers: dict[str, str]) -> str:
 
 
 def chain_state(decisions: list[Decision], answers: dict[str, str]) -> dict[str, str]:
-    """Map each decision id to LIVE, PENDING, PRUNED, or BLOCKED."""
+    """Map each decision id to LIVE, PENDING, PRUNED, or BLOCKED.
 
-    return {d.id: _dependency_state(d.requires, answers) for d in decisions}
+    A decision whose own prerequisites hold is still not actionable while any
+    of its options waits on an unanswered or held prerequisite: asking it now
+    would hide that option from the user.
+    """
+
+    return {d.id: _decision_state(d, answers) for d in decisions}
+
+
+def _decision_state(decision: Decision, answers: dict[str, str]) -> str:
+    own = _dependency_state(decision.requires, answers)
+    if own != LIVE:
+        return own
+    option_states = {_dependency_state(o.requires, answers) for o in decision.options}
+    for waiting in (PENDING, BLOCKED):
+        if waiting in option_states:
+            return waiting
+    return LIVE
 
 
 def prune_chain(decisions: list[Decision], answers: dict[str, str]) -> list[Decision]:
@@ -292,6 +309,11 @@ def _validate_answers(decisions: list[Decision], answers: dict[str, str]) -> Non
         decision = by_id.get(decision_id)
         if decision is None:
             raise ValueError(f"answer for unknown decision {decision_id}")
+        if value == CONTINUATION_ID:
+            raise ValueError(
+                f"{decision_id} answer {CONTINUATION_ID!r} is a page request; "
+                "record it under paging, not answers"
+            )
         if value == HOLD_ID and not decision.allow_hold:
             raise ValueError(f"{decision_id} was held but offers no Hold")
         if value != HOLD_ID and value not in {o.id for o in decision.options}:
@@ -305,34 +327,77 @@ def _load_brief(path: Path) -> dict[str, Any]:
     return data
 
 
-def _parse_brief(data: dict[str, Any]) -> tuple[list[Decision], dict[str, Any], dict[str, str]]:
+def _parse_brief(data: dict[str, Any]) -> tuple[list[Decision], dict[str, str], dict[str, int]]:
     if "decisions" in data:
         decisions = [Decision.from_dict(d) for d in data["decisions"]]
     else:
         decisions = [Decision.from_dict(data)]
-    context = dict(data.get("context") or {})
+    ids = [d.id for d in decisions]
+    duplicates = sorted({i for i in ids if ids.count(i) > 1})
+    if duplicates:
+        raise ValueError(f"duplicate decision id: {', '.join(duplicates)}")
     answers = {str(k): str(v) for k, v in (data.get("answers") or {}).items()}
     _validate_answers(decisions, answers)
-    return decisions, context, answers
+    paging = _parse_paging(data.get("paging") or {}, decisions)
+    return decisions, answers, paging
 
 
-def _ask_result(decision: Decision, max_options: int) -> dict[str, Any]:
+def _parse_paging(raw: dict[str, Any], decisions: list[Decision]) -> dict[str, int]:
+    """Read the page cursor per decision: how many `_more` picks were recorded."""
+
+    known = {d.id for d in decisions}
+    paging: dict[str, int] = {}
+    for decision_id, count in raw.items():
+        if str(decision_id) not in known:
+            raise ValueError(f"paging for unknown decision {decision_id}")
+        if isinstance(count, bool) or not isinstance(count, int) or count < 0:
+            raise ValueError(f"paging for {decision_id} must be a non-negative integer")
+        paging[str(decision_id)] = count
+    return paging
+
+
+def _ask_result(decision: Decision, max_options: int, page_index: int = 0) -> dict[str, Any]:
     missing = missing_brief_fields(decision)
     if missing:
         return {"status": "incomplete", "decision_id": decision.id, "missing": missing}
     pages = plan_prompt_pages(decision.options, max_options, hold=decision.allow_hold)
+    if page_index >= len(pages):
+        raise ValueError(
+            f"paging for {decision.id} is {page_index} but it has {len(pages)} page(s)"
+        )
+    ids = [[o.id for o in page] for page in pages]
     return {
         "status": "ask",
         "decision_id": decision.id,
-        "pages": [[o.id for o in page] for page in pages],
+        "pages": ids,
+        "page_index": page_index,
+        "page": ids[page_index],
         "split": len(pages) > 1,
+    }
+
+
+def _stale_recommendation(decisions: list[Decision], decision: Decision) -> dict[str, Any] | None:
+    """Detect a recommendation that earlier answers filtered out of the options."""
+
+    original = next(d for d in decisions if d.id == decision.id)
+    live = {o.id for o in decision.options}
+    stale = original.recommendation
+    if decision.no_recommendation or stale is None or stale in live:
+        return None
+    if stale not in {o.id for o in original.options}:
+        return None
+    return {
+        "status": "revise_recommendation",
+        "decision_id": decision.id,
+        "stale_recommendation": stale,
+        "remaining_options": [o.id for o in decision.options],
     }
 
 
 def evaluate(data: dict[str, Any], max_options: int = MAX_PRESENTED_OPTIONS) -> dict[str, Any]:
     """Route, then validate and plan the next actionable decision."""
 
-    decisions, context, answers = _parse_brief(data)
+    context = dict(data.get("context") or {})
     should_ask, reason = route(context)
     result: dict[str, Any] = {
         "should_ask": should_ask,
@@ -342,6 +407,7 @@ def evaluate(data: dict[str, Any], max_options: int = MAX_PRESENTED_OPTIONS) -> 
     }
     if not should_ask:
         return {**result, "status": "skip"}
+    decisions, answers, paging = _parse_brief(data)
     if context.get("irreversible") and context.get("weak_evidence"):
         result["pre_ask_review"] = ["decision-critic", "pre-mortem"]
 
@@ -354,7 +420,10 @@ def evaluate(data: dict[str, Any], max_options: int = MAX_PRESENTED_OPTIONS) -> 
 
     decision = next_decision(decisions, answers)
     if decision is not None:
-        return {**result, **_ask_result(decision, max_options)}
+        stale = _stale_recommendation(decisions, decision)
+        if stale is not None:
+            return {**result, **stale}
+        return {**result, **_ask_result(decision, max_options, paging.get(decision.id, 0))}
     if held:
         return {**result, "status": "held", "reason": "every open decision is held"}
     return {
@@ -383,7 +452,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     print(json.dumps(result, indent=2))
-    return 2 if result["status"] == "incomplete" else 0
+    return 2 if result["status"] in ("incomplete", "revise_recommendation") else 0
 
 
 if __name__ == "__main__":
