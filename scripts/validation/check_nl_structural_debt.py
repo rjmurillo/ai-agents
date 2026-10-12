@@ -53,7 +53,7 @@ for _path in (_SCRIPT_DIR, _SCRIPT_DIR.parents[1]):
         sys.path.insert(0, str(_path))
 
 from check_capability_graph import TreeError, survey  # noqa: E402
-from nl_cardinality import Fence, derived_count_claims, fence_step, simplify  # noqa: E402
+from nl_cardinality import Fence, derived_count_claims, fence_step  # noqa: E402
 
 BASELINE_PATH = "scripts/validation/nl_structural_debt_baseline.json"
 MIN_BLOCK_LINES = 5
@@ -181,7 +181,7 @@ def stale_counts(files: dict[str, str]) -> dict[str, str]:
             norm = " ".join(claim.text.split()).casefold()
             seen[norm] += 1
             suffix = "" if seen[norm] == 1 else f"#{seen[norm]}"
-            found[f"{rel}::{norm}{suffix}"] = simplify(claim.text)
+            found[f"{rel}::{norm}{suffix}"] = claim.simplified
     return dict(sorted(found.items()))
 
 
