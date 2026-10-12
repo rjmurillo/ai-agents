@@ -231,7 +231,7 @@ class TestMain:
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "50"])
-            assert exc.value.code == 6
+            assert exc.value.code == 100
 
     def test_merge_success(self, capsys):
         state_json = json.dumps(
@@ -429,7 +429,7 @@ class TestMain:
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "50"])
-            assert exc.value.code == 6
+            assert exc.value.code == 100
 
     def test_blocked_policy_without_auto_exits_6(self):
         state_json = json.dumps(
@@ -469,7 +469,7 @@ class TestMain:
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "50"])
-            assert exc.value.code == 6
+            assert exc.value.code == 100
 
     def test_blocked_policy_with_auto_succeeds(self, capsys):
         state_json = json.dumps(
@@ -1142,10 +1142,10 @@ class TestErrorEnvelope:
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "50", "--output-format", "json"])
-            assert exc.value.code == 6
+            assert exc.value.code == 100
         envelope = json.loads(capsys.readouterr().out)
         assert envelope["Success"] is False
-        assert envelope["Error"]["Code"] == 6
+        assert envelope["Error"]["Code"] == 100
         assert envelope["Error"]["Type"] == "General"
 
     def test_not_mergeable_uses_envelope(self, capsys):
@@ -1186,10 +1186,10 @@ class TestErrorEnvelope:
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "50", "--output-format", "json"])
-            assert exc.value.code == 6
+            assert exc.value.code == 100
         envelope = json.loads(capsys.readouterr().out)
         assert envelope["Success"] is False
-        assert envelope["Error"]["Code"] == 6
+        assert envelope["Error"]["Code"] == 100
 
 
 # ---------------------------------------------------------------------------
@@ -1276,7 +1276,7 @@ class TestMainAdditional:
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "50"])
-            assert exc.value.code == 6
+            assert exc.value.code == 100
 
     def test_delete_branch_flag(self, capsys):
         state_json = json.dumps(
@@ -1483,7 +1483,7 @@ class TestRestRetryOnBlocked:
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "50"])
-        assert exc.value.code == 6
+        assert exc.value.code == 100
         # State fetch, gh pr merge, REST, recovery readback (still OPEN).
         assert len(calls) == 4
 
@@ -1526,7 +1526,7 @@ class TestRestRetryOnBlocked:
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "50"])
-        assert exc.value.code == 6
+        assert exc.value.code == 100
         # State fetch, gh pr merge, then the readback; never a REST retry.
         assert not any(c[:2] == ["gh", "api"] for c in calls)
         assert len(calls) == 3
@@ -1680,7 +1680,7 @@ class TestRestRetryOnStack:
         )
         with pytest.raises(SystemExit) as exc:
             self._run(side, ["--pull-request", "5470", "--strategy", "squash"])
-        assert exc.value.code == 6
+        assert exc.value.code == 100
         assert "part of a stack" in capsys.readouterr().out
 
     def test_state_confirmation_failure_is_not_a_merge(self):
@@ -1693,7 +1693,7 @@ class TestRestRetryOnStack:
         )
         with pytest.raises(SystemExit) as exc:
             self._run(side, ["--pull-request", "5470", "--strategy", "squash"])
-        assert exc.value.code == 6
+        assert exc.value.code == 100
 
     def test_stack_rest_failure_exits_6_and_names_the_stack(self, capsys):
         """A failed REST retry surfaces the stack cause, not a protection hint."""
@@ -1704,7 +1704,7 @@ class TestRestRetryOnStack:
         )
         with pytest.raises(SystemExit) as exc:
             self._run(side, ["--pull-request", "5470", "--strategy", "squash"])
-        assert exc.value.code == 6
+        assert exc.value.code == 100
         out = capsys.readouterr().out
         assert "part of a stack" in out
         assert "branch protection policy" not in out
@@ -1873,7 +1873,7 @@ class TestHeadPinning:
     def test_head_moved_refusal_exits_6_without_rest_retry(self, text, capsys):
         fake = _FakeGh(merge=_completed(rc=1, stderr=text), readback=_OPEN_READBACK)
         code, env = _run_main(fake, [], capsys)
-        assert code == 6
+        assert code == 100
         assert "head moved" in env["Error"]["Message"]
         assert _HEAD in env["Error"]["Message"]
         assert env["Data"]["audit"]["result"] == "failed"
@@ -2010,7 +2010,7 @@ class TestPartialFailureRecovery:
     def test_conflict_failure_reads_back_and_exits_6_when_open(self, capsys):
         fake = _FakeGh(merge=_completed(rc=1, stderr="not mergeable"), readback=_OPEN_READBACK)
         code, env = _run_main(fake, [], capsys)
-        assert code == 6
+        assert code == 100
         assert any(_is_readback(c) for c in fake.calls)
         assert env["Data"]["audit"]["result"] == "failed"
 
@@ -2141,7 +2141,7 @@ class TestRollbackHint:
 class TestRefusalAudit:
     def test_closed_refusal_carries_audit(self, capsys):
         code, env = _run_main(_FakeGh(state=_pr_state("CLOSED")), [], capsys)
-        assert code == 6
+        assert code == 100
         assert env["Data"]["audit"]["result"] == "refused: PR is closed"
 
     def test_head_mismatch_refusal_carries_audit(self, capsys):

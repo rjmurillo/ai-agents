@@ -15,7 +15,14 @@ from pathlib import Path
 
 import pytest
 
-from tests.skills.github.dynamic_load_helpers import NEW_PR, REPO_ROOT, closure, gate, write
+from tests.skills.github.dynamic_load_helpers import (
+    NEW_PR,
+    REPO_ROOT,
+    closure,
+    gate,
+    shipped_verifier_closure,
+    write,
+)
 
 
 class TestTheConcreteCaseTheAdrNames:
@@ -75,35 +82,10 @@ class TestTheConcreteCaseTheAdrNames:
 
     def test_no_shipped_verifier_reaches_a_dynamic_load_today(self) -> None:
         """Measured 2026-09-29: the closure of the configured verifiers has none."""
-        import yaml
+        named, closure = shipped_verifier_closure()
+        assert named, "the config names no verifier script; the scan proves nothing"
 
-        config = yaml.safe_load(
-            (REPO_ROOT / ".claude/skills/pr-review/pr-review-config.yaml").read_text(
-                encoding="utf-8"
-            )
-        )
-        named: set[str] = set()
-
-        def collect(value: object) -> None:
-            if isinstance(value, str):
-                for token in value.replace('"', " ").replace("'", " ").split():
-                    marker = token.find(".claude/skills/")
-                    if marker != -1 and token.endswith(".py"):
-                        named.add(token[marker:])
-            elif isinstance(value, dict):
-                for child in value.values():
-                    collect(child)
-            elif isinstance(value, list):
-                for child in value:
-                    collect(child)
-
-        collect(config)
-        present = sorted(path for path in named if (REPO_ROOT / path).is_file())
-        assert present, "the config names no verifier script; the scan proves nothing"
-
-        closure = gate._expand_import_closure(present, REPO_ROOT)
-
-        assert len(closure) > len(present)
+        assert len(closure) > len(named)
         assert gate._unresolvable_dynamic_sites(closure, REPO_ROOT) == []
 
 
