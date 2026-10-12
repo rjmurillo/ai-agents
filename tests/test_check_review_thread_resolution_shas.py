@@ -391,8 +391,8 @@ def test_pr_review_config_contains_resolution_sha_gate() -> None:
         if item["name"] == "Resolved thread commit references are reachable"
     )
     assert (
-        sha_gate["command"] == "python3 .claude/skills/github/scripts/pr/"
-        "check_review_thread_resolution_shas.py --pull-request {pr}"
+        sha_gate["command"] == 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/'
+        'skills/github/scripts/pr/check_review_thread_resolution_shas.py" --pull-request {pr}'
     )
     assert sha_gate["pass_when"] == (
         "stdout-json.unreachable_count == 0 AND "

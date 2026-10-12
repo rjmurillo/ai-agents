@@ -283,8 +283,9 @@ def test_pr_review_config_contains_suppressed_gate() -> None:
         item for item in criteria if item["name"] == "No suppressed Copilot review findings"
     )
     assert (
-        suppressed_gate["command"] == "python3 .claude/skills/github/scripts/pr/"
-        "check_suppressed_review_findings.py --pull-request {pr} "
+        suppressed_gate["command"] == 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-'
+        '.claude}}/skills/github/scripts/pr/check_suppressed_review_findings.py" '
+        "--pull-request {pr} "
         "--dispositions-file .project-toolkit/pr-checks/suppressed-finding-dispositions.json"
     )
     assert suppressed_gate["pass_when"] == (
