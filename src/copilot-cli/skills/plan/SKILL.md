@@ -158,7 +158,7 @@ Format when triggered:
 
 1. **Name the ambiguity in one sentence.** What is unclear and why it matters. Example: `Unclear whether the new session-cleanup job should delete the log file or just mark it archived. Affects every downstream consumer that reads old sessions for analytics.`
 2. **Present 2 to 3 options with trade-offs.** Each option lands on a consequence the user can evaluate. Use the Completeness scoring rule above when the options differ in coverage.
-3. **Ask.** Single, specific question. Use `AskUserQuestion` when the answer is one of a small set; use plain prose when the answer is open-ended.
+3. **Ask.** Single, specific question. Use `AskUserQuestion` when the answer is one of a small set (build the brief with the `decision-question` skill); use plain prose when the answer is open-ended.
 
 Do not trigger this protocol for:
 

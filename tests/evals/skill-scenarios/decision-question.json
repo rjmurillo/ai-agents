@@ -1,0 +1,54 @@
+{
+  "skill_path": ".claude/skills/decision-question/SKILL.md",
+  "skill_id": "decision-question",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Six candidate options exceed the prompt bound and must split",
+      "input": "I need the owner to pick one of six storage backends: sqlite, postgres, redis, dynamodb, cosmos, or files. All are authorized and none is mandated by policy. How do you ask? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "4 options",
+        "split",
+        "recommendation",
+        "D1"
+      ],
+      "expected_gate": "decision-question-split",
+      "rationale": "The prompt names six options and no skill. A response that keeps each prompt at 4 or fewer presented options, pages the rest through a continuation entry, gives a recommendation with its reason, and labels the decision D1 is attributable to the skill rather than generic advice."
+    },
+    {
+      "id": "S2",
+      "desc": "Delegated choice emits no question",
+      "input": "Choose the best of the two caching approaches and implement it. Both fit the acceptance criteria. Do you ask me which one? Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "delegated",
+        "no question"
+      ],
+      "expected_gate": "decision-question-skip",
+      "rationale": "The user handed over the choice, so asking spends attention they gave away. A response that decides and states why no question is warranted is attributable to the routing gate."
+    },
+    {
+      "id": "S3",
+      "desc": "Dependent decision waits for the earlier answer",
+      "input": "Whether we need a queue at all (D1) decides which queue to use (D2). Both need my input. How do you ask? Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "D1",
+        "first",
+        "prune"
+      ],
+      "expected_gate": "decision-question-chain",
+      "rationale": "Asking D2 first wastes the user's answer if D1 removes the queue. A response that asks D1 alone, then prunes or recomputes D2 from the answer and keeps the IDs, is attributable to the skill."
+    },
+    {
+      "id": "S4",
+      "desc": "Terminal task does not solicit optional follow-up",
+      "input": "The requested fix is merged and verified. I noticed an optional cleanup. Should I ask the user to choose whether to do it? Answer in 3 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "terminal",
+        "STOP TOKEN",
+        "no question"
+      ],
+      "expected_gate": "decision-question-skip",
+      "rationale": "A completed task plus an optional enhancement is a declarative flag, not a decision prompt. A response that cites the terminal state and declines to ask is attributable to the skill's routing gate."
+    }
+  ]
+}
