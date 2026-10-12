@@ -77,12 +77,51 @@ Hooks do load in this install: SessionStart and UserPromptSubmit hooks ran durin
 | Copilot CLI | postToolUse `modifiedResult` through the generated adapter. | Documented for shell. No command rewrite. | Probe it inside this repo's own `.github/hooks` first, since the temp-repo probe never fired. If it does not fire, fall back to a preToolUse `modifiedArgs` wrapper. |
 | Codex | Native `tool_output_token_limit` if the probe shows it bounds model-visible output. Otherwise a PreToolUse `updatedInput` wrapper script. | PostToolUse cannot replace output, so a wrapper is the only hook seam. | Re-run the config probe with credits. Unsupported: PostToolUse replacement. |
 
+Owner decision 2026-10-12: Claude Code takes no hook (ADR-097). The Claude Code row above is superseded by the native ceiling in the measurement section below. The PreToolUse wrapper for failing commands moves to an opt-in script.
+
 ## What this does not settle
 
 - Whether the Copilot `modifiedResult` and Codex `tool_output_token_limit` work. Both are NOT RUN.
 - The wrapper's effect on command identity in receipts and on approval prompts.
 - Secret redaction before the artifact is written. That is build-phase work from the issue.
-- Measurement through #5400. No before and after numbers exist yet.
+- Measurement on the Codex trace behind the issue (36.5 MB, 3,849 calls). The Claude Code measurement is in the next section.
+
+## Decision and measurement: native Claude Code ceiling (option B)
+
+The owner ruled out a Claude Code tool-use hook (ADR-097, `.claude/rules/tool-use-hook-bar.md`). Claude Code is bounded by the native setting instead. `templates/hooks/settings.tmpl` sets top-level `bashOutputMaxChars` to 15000, which renders to `.claude/settings.json`. `tests/hooks/test_bash_output_cap.py` pins it.
+
+Setting contract, checked 2026-10-12 against https://code.claude.com/docs/en/settings-reference.md and https://code.claude.com/docs/en/env-vars.md: top-level key, positive integer, clamped to 4000-128000, unset means 30,000, needs Claude Code 2.1.261 or later, and it overrides `BASH_MAX_OUTPUT_LENGTH`.
+
+Scope: successful Bash calls on Claude Code only. A failing call keeps its own cap of about 10,000 characters. Copilot CLI and Codex are not covered.
+
+### Method
+
+No script under `scripts/` measures exec output. The #5400 tooling (`scripts/validation/instruction_bytes*.py`) counts authored instruction bytes, not tool output. The sample here is every Bash `tool_result` in the local Claude Code transcripts for this repository and its worktrees (`~/.claude/projects/*ai-agents*/*.jsonl`): 15,570 calls. Size is `stdout` plus `stderr` characters from the recorded `toolUseResult`, else the `tool_result` text length. Estimated tokens are characters divided by 4. A call above the ceiling is costed as a 2,200 character receipt (2,000 character preview plus the saved-file path line).
+
+Limits of this sample:
+
+- It is censored at the old ceiling. The transcripts record what the model saw, so the largest call is 30,069 characters and 17 results carry a spill marker. True sizes above 30,000 are unseen, so the cut at lower ceilings is a floor.
+- It is Claude Code, not the Codex trace of 36.5 MB over 3,849 calls. The two harnesses do not share a ceiling.
+- Characters and estimated tokens measure transcript payload. They do not measure provider billing or cache state.
+- Each call above the ceiling may cost the model a follow-up read of the saved file. That cost is not netted out.
+
+### Result
+
+Baseline: 15,570 calls, 18,520,601 characters (about 4.63M estimated tokens).
+
+Per-call size distribution (characters): p50 468, p75 1,259, p90 2,912, p95 4,520, p99 10,788, p99.9 28,454, max 30,069.
+
+| Ceiling | Calls over ceiling | Share of calls | Characters after | Characters cut | Est. tokens cut |
+|---|---|---|---|---|---|
+| 128,000 (max) | 0 | 0.00% | 18,520,601 | 0.0% | 0 |
+| 30,000 (default) | 5 | 0.03% | 18,381,258 | 0.8% | 34,835 |
+| 20,000 | 49 | 0.31% | 17,384,153 | 6.1% | 284,112 |
+| **15,000 (chosen)** | **81** | **0.52%** | **16,898,106** | **8.8%** | **405,623** |
+| 10,000 | 184 | 1.18% | 15,907,782 | 14.1% | 653,204 |
+| 8,000 | 275 | 1.77% | 15,295,892 | 17.4% | 806,177 |
+| 5,000 | 640 | 4.11% | 13,808,844 | 25.4% | 1,177,939 |
+
+Why 15,000: the default already caps at 30,000, so only a lower value cuts anything. 15,000 halves the default and touches 0.52% of calls, all in the tail above p99.5. It removes 8.8% of the characters. Dropping to 10,000 adds 103 affected calls (the p99 point, 10,788) for 5.3 more points of cut, and equals the failure cap. The owner can tune the value; the test pins `CHOSEN` in one place.
 
 ## Probe artifacts
 
