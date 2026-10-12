@@ -135,6 +135,11 @@ def make_relocation_target(**overrides: Any) -> dict[str, Any]:
     )
     base["relocation_evidence"] = {
         "collect_command": "uv run pytest tests/validation --collect-only -q",
+        "moved_from": ["tests/validation/test_slow.py"],
+        "moved_to": [
+            "tests/validation/test_slow_part1.py",
+            "tests/validation/test_slow_part2.py",
+        ],
         "tests_before": [
             "tests/validation/test_slow.py::test_a",
             "tests/validation/test_slow.py::TestB::test_b[x]",

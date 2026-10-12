@@ -254,6 +254,40 @@ def _name_diff(before: Counter[str], after: Counter[str]) -> str:
     return "; ".join(parts)
 
 
+def _id_paths(ids: object) -> set[str]:
+    """Return the normalized module paths named by valid collected ids."""
+    return {_path_key(str(item).strip().split("::", 1)[0]) for item in ids} if ids else set()
+
+
+def _path_list(where: str, key: str, value: object) -> tuple[set[str], list[str]]:
+    """Return the normalized paths in a ``relocation_evidence`` path list and shape defects."""
+    label = f"{where}: relocation_evidence.{key}"
+    if not isinstance(value, list) or not value or not all(_text(item) for item in value):
+        return set(), [f"{label} must be a non-empty list of test module paths"]
+    return {_path_key(item) for item in value}, []
+
+
+def _relocation_path_defects(
+    where: str, target: dict[str, Any], evidence: dict[str, Any], moved: tuple[set[str], set[str]]
+) -> list[str]:
+    """The ids must cover the recorded source and destination files, and the target."""
+    source, destination = moved
+    defects: list[str] = []
+    if _path_key(target.get("target")) not in destination:
+        defects.append(f"{where}: relocation_evidence.moved_to must list the target")
+    for key, expected, label in (
+        ("tests_before", source, "moved_from"),
+        ("tests_after", destination, "moved_to"),
+    ):
+        found = _id_paths(evidence.get(key))
+        if found != expected:
+            defects.append(
+                f"{where}: relocation_evidence.{key} must come from exactly the {label} "
+                f"files (listed {sorted(expected)}, ids name {sorted(found)})"
+            )
+    return defects
+
+
 def _relocation_defects(where: str, target: dict[str, Any]) -> list[str]:
     """Check the `relocation_evidence` block required for a relocation diagnosis."""
     evidence = target.get("relocation_evidence")
@@ -264,8 +298,14 @@ def _relocation_defects(where: str, target: dict[str, Any]) -> list[str]:
         defects.append(f"{where}: relocation_evidence.collect_command must be a non-empty string")
     before, before_defects = _test_names(where, "tests_before", evidence.get("tests_before"))
     after, after_defects = _test_names(where, "tests_after", evidence.get("tests_after"))
-    defects += before_defects + after_defects
-    if not (before_defects or after_defects) and before != after:
+    source, source_defects = _path_list(where, "moved_from", evidence.get("moved_from"))
+    destination, destination_defects = _path_list(where, "moved_to", evidence.get("moved_to"))
+    shape = before_defects + after_defects + source_defects + destination_defects
+    defects += shape
+    if shape:
+        return defects
+    defects += _relocation_path_defects(where, target, evidence, (source, destination))
+    if before != after:
         defects.append(
             f"{where}: relocation changed the collected tests "
             f"({sum(before.values())} before, {sum(after.values())} after); "
@@ -274,14 +314,25 @@ def _relocation_defects(where: str, target: dict[str, Any]) -> list[str]:
     return defects
 
 
+def _is_test_module(segments: list[str]) -> bool:
+    """Return True for a ``.py`` file pytest collects by name: ``test_*.py`` or ``*_test.py``."""
+    name = segments[-1]
+    return name.endswith(".py") and (name.startswith("test_") or name.endswith("_test.py"))
+
+
 def _relocation_scope_defects(where: str, target: dict[str, Any]) -> list[str]:
-    """A relocation claim is limited to LOCAL files under ``tests/``."""
+    """A relocation claim is limited to LOCAL test modules under ``tests/``."""
     defects: list[str] = []
     if target["provenance"].get("category") != "LOCAL":
         defects.append(f"{where}: {RELOCATION} applies only to LOCAL provenance")
     segments = _path_key(target.get("target")).split("/")
     if segments[0] != "tests" or ".." in segments:
         defects.append(f"{where}: {RELOCATION} applies only to a target under tests/")
+    elif not _is_test_module(segments):
+        defects.append(
+            f"{where}: {RELOCATION} applies only to a test module (test_*.py or *_test.py); "
+            "conftest.py and other support files need a defect diagnosis"
+        )
     return defects
 
 
@@ -366,6 +417,11 @@ def _coverage_defects(
     return defects
 
 
+def _is_text_list(value: object) -> bool:
+    """Return True when ``value`` is a list of non-empty strings."""
+    return isinstance(value, list) and all(_text(item) for item in value)
+
+
 def _trigger_defects(trigger: object, targets: list[Any]) -> list[str]:
     """An activated trigger needs a record target for each path it named."""
     if not isinstance(trigger, dict):
@@ -379,21 +435,26 @@ def _trigger_defects(trigger: object, targets: list[Any]) -> list[str]:
         return []
     if not targets:
         return ["the trigger activated but the record has no targets; record each target"]
+    defects: list[str] = []
+    effects = trigger.get("effects")
+    if effects is not None and not _is_text_list(effects):
+        defects.append("trigger.effects must be a list of non-empty effect strings")
     recorded = {_path_key(t.get("target")) for t in targets if isinstance(t, dict)}
     named = trigger.get("targets")
     named = named if isinstance(named, list) else []
     paths = [_path_key(t["path"]) for t in named if isinstance(t, dict) and _text(t.get("path"))]
-    return [
+    defects += [
         f"trigger target {path!r} has no record target"
         for path in sorted(set(paths))
         if path not in recorded
     ]
+    return defects
 
 
 def _relocation_effect_defects(trigger: object, targets: list[Any]) -> list[str]:
     """A relocation cannot coexist with a declared semantic effect on the same change."""
     effects = trigger.get("effects") if isinstance(trigger, dict) else None
-    if not effects:
+    if not effects or not _is_text_list(effects):
         return []
     return [
         f"targets[{index}]: {RELOCATION} contradicts trigger effects "

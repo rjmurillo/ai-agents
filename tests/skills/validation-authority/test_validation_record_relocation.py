@@ -52,18 +52,25 @@ def test_pure_move_with_equal_names_and_count_passes() -> None:
 
 
 def test_pure_move_ignores_the_module_path_but_not_the_class_or_param() -> None:
-    target = make_relocation_target()
-    _evidence(target)["tests_after"] = [
-        "other/dir/test_z.py::TestB::test_b[x]",
-        "other/dir/test_y.py::test_a",
-    ]
-    assert _errors(target) == []
+    names, defects = mod._test_names(
+        "t", "tests_after", ["a/test_z.py::TestB::test_b[x]", "b/test_y.py::test_a"]
+    )
+    assert defects == []
+    assert names == mod.Counter(["TestB::test_b[x]", "test_a"])
 
 
 def test_ids_without_a_separator_compare_whole() -> None:
+    names, defects = mod._test_names("t", "tests_before", ["test_a", "test_b"])
+    assert defects == []
+    assert names == mod.Counter(["test_a", "test_b"])
+
+
+def test_id_path_spelling_is_normalized() -> None:
     target = make_relocation_target()
-    _evidence(target)["tests_before"] = ["test_a", "test_b"]
-    _evidence(target)["tests_after"] = ["test_b", "test_a"]
+    _evidence(target)["tests_after"] = [
+        ".\\tests\\validation\\test_slow_part2.py::TestB::test_b[x]",
+        "tests/validation/test_slow_part1.py::test_a",
+    ]
     assert _errors(target) == []
 
 
@@ -271,3 +278,62 @@ def test_real_trigger_then_record_cli_fails_when_an_assertion_changed(tmp_path: 
     )
     assert result.returncode == 1
     assert "contradicts trigger effects" in result.stdout
+
+
+def test_unrelated_ids_do_not_clear_a_dropped_test() -> None:
+    """Both lists name only an untouched file, so nothing covers the recorded move."""
+    target = make_relocation_target()
+    _evidence(target)["tests_before"] = ["tests/validation/test_other.py::test_ok"]
+    _evidence(target)["tests_after"] = ["tests/validation/test_other.py::test_ok"]
+    errors = _errors(target)
+    assert any("tests_before must come from exactly the moved_from files" in e for e in errors)
+    assert any("tests_after must come from exactly the moved_to files" in e for e in errors)
+
+
+def test_target_must_be_listed_as_a_destination() -> None:
+    target = make_relocation_target()
+    _evidence(target)["moved_to"] = ["tests/validation/test_slow_part1.py"]
+    errors = _errors(target)
+    assert any("moved_to must list the target" in e for e in errors)
+
+
+@pytest.mark.parametrize("key", ["moved_from", "moved_to"])
+@pytest.mark.parametrize("value", [None, [], "tests/x.py", [""], [3]])
+def test_moved_path_lists_must_be_non_empty_path_lists(key: str, value: Any) -> None:
+    target = make_relocation_target()
+    _evidence(target)[key] = value
+    errors = _errors(target)
+    assert any(f"relocation_evidence.{key} must be a non-empty list" in e for e in errors)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "tests/validation/conftest.py",
+        "tests/validation/helpers.py",
+        "tests/validation/data.json",
+        "tests/validation/__init__.py",
+    ],
+)
+def test_relocation_refuses_support_files(path: str) -> None:
+    target = make_relocation_target(target=path, authority={"permitted_change_location": path})
+    _evidence(target)["moved_to"] = [path]
+    assert any("applies only to a test module" in e for e in _errors(target))
+
+
+def test_relocation_accepts_the_suffix_test_module_name() -> None:
+    path = "tests/validation/slow_part2_test.py"
+    target = make_relocation_target(target=path, authority={"permitted_change_location": path})
+    _evidence(target)["moved_to"] = [path, "tests/validation/test_slow_part1.py"]
+    _evidence(target)["tests_after"] = [
+        f"{path}::TestB::test_b[x]",
+        "tests/validation/test_slow_part1.py::test_a",
+    ]
+    assert _errors(target) == []
+
+
+@pytest.mark.parametrize("effects", [True, "severity-change", 3, {"a": 1}, [1], [""]])
+def test_malformed_trigger_effects_are_a_defect_not_a_crash(effects: Any) -> None:
+    trigger = {"decision": "activate", "effects": effects}
+    errors = _errors(make_relocation_target(), trigger=trigger)
+    assert "trigger.effects must be a list of non-empty effect strings" in errors
