@@ -15,6 +15,7 @@
 |frontmatter key migration nested metadata shape atomic commit count gate scope bypass bulk rename: [decision-frontmatter-migrations-must-cover-both-key-shapes](decision-frontmatter-migrations-must-cover-both-key-shapes.md) (1353)
 |disposition registry base ref waiver self-approve finding eureka: [decision-a-disposition-registry-is-trusted-only-from-the-base-ref](decision-a-disposition-registry-is-trusted-only-from-the-base-ref.md) (416)
 |signing signature attestation sigstore publisher app check run forged test result conftest ADR-101 eureka: [decision-signing-proves-who-reported-a-result-not-that-it-is-true](decision-signing-proves-who-reported-a-result-not-that-it-is-true.md) (472)
+|eureka PostToolUse hook bashOutputMaxChars native output cap ADR-097 issue 5851 first principles: [decision-a-host-output-cap-beat-the-posttooluse-hook-for-5851](decision-a-host-output-cap-beat-the-posttooluse-hook-for-5851.md) (321)
 
 [GitHub and PR Operations]
 |premise verification git log -S git grep reviewer-findings pr-comment-responder refuted: [pr-review/decision-premise-verification-reused-reviewer-findings](pr-review/decision-premise-verification-reused-reviewer-findings.md) (800)
@@ -88,6 +89,7 @@
 |always-on corpus membership applyTo mirror generated synthesized internal-only: [architecture/always-on-membership-lives-in-the-mirror](architecture/always-on-membership-lives-in-the-mirror.md) (456)
 |always-on rule edit invalidates corpus figures byte totals: [architecture/growing-an-always-on-rule-breaks-four-prose-documents](architecture/growing-an-always-on-rule-breaks-four-prose-documents.md) (1791)
 |github_core source scripts lib_mirror generated .claude/lib: [architecture/architecture-github-core-source-is-scripts-github-core](architecture/architecture-github-core-source-is-scripts-github-core.md) (164)
+|skill support files source .claude/skills src/claude pruned stale build_all mirror: [architecture/architecture-skill-support-files-are-sourced-in-claude-skills](architecture/architecture-skill-support-files-are-sourced-in-claude-skills.md) (349)
 
 [Implementation and Quality]
 |implementation code feature bug fix test TDD additive: [skills-implementation-index](skills-implementation-index.md) (304)
@@ -127,6 +129,9 @@
 |taste count ratchet pre-push cost twelve minutes python-tests: [ci/run-count-ratchets-before-the-expensive-pre-push](ci/run-count-ratchets-before-the-expensive-pre-push.md) (875)
 |pre-push wall clock duration python-tests partitions mutation contention DORA: [ci/ci-pre-push-wall-clock-is-python-tests](ci/ci-pre-push-wall-clock-is-python-tests.md) (1854)
 |CLAUDE_PLUGIN_ROOT pycache bytecode generated staleness gate python-tests collect only full suite merge_group D9 review marker merge main: [ci/ci-local-push-and-test-environment-contracts](ci/ci-local-push-and-test-environment-contracts.md) (608)
+|nl structural debt update-baseline refuses new section growth baseline json seed: [ci/ci-nl-structural-debt-update-baseline-refuses-a-new-section](ci/ci-nl-structural-debt-update-baseline-refuses-a-new-section.md) (294)
+|polling PR checks GraphQL secondary rate limit 3 minutes parallel agents outage: [ci/ci-polling-pr-checks-trips-the-graphql-secondary-limit](ci/ci-polling-pr-checks-trips-the-graphql-secondary-limit.md) (272)
+|tmp tmpfs inode cap ENOSPC parallel pre-push TMPDIR harness output issue 6292: [ci/ci-tmp-inode-cap-stops-every-tool-call-during-parallel-pushes](ci/ci-tmp-inode-cap-stops-every-tool-call-during-parallel-pushes.md) (317)
 |python 3.14 pathlib is_dir is_file OSError swallow stat _run_command FileNotFoundError dead code: [python/python-314-pathlib-swallows-oserror](python/python-314-pathlib-swallows-oserror.md) (159)
 |taste baseline slack MAX_BASELINE_SLACK drift enforced by pytest: [ci/ci-taste-baseline-slack-is-enforced-by-pytest-not-the-ratchet](ci/ci-taste-baseline-slack-is-enforced-by-pytest-not-the-ratchet.md) (1077)
 |ratchet declared twice lefthook checks_ratchet parity add/add conflict: [ci/ci-a-ratchet-is-declared-twice-so-drop-it-twice](ci/ci-a-ratchet-is-declared-twice-so-drop-it-twice.md) (704)
@@ -166,6 +171,7 @@
 |script absolute path wrong worktree repo_root __file__ validates: [git/git-a-script-run-by-absolute-path-validates-its-own-worktree](git/git-a-script-run-by-absolute-path-validates-its-own-worktree.md) (1736)
 |merge conflict resolve ours theirs convenience wrong side: [git/git-a-conflict-resolved-for-convenience-records-a-falsehood](git/git-a-conflict-resolved-for-convenience-records-a-falsehood.md) (1189)
 |git stash shared across worktrees pop takes another: [git/git-stash-is-shared-across-every-worktree](git/git-stash-is-shared-across-every-worktree.md) (965)
+|mutation-active marker killed pre-push hook recover mutation_workspace push blocked timeout log file: [git/git-killed-pre-push-hook-leaves-mutation-markers-that-block-pushes](git/git-killed-pre-push-hook-leaves-mutation-markers-that-block-pushes.md) (284)
 |git shallow graft depth fetch unshallow blocks push: [git/git-shallow-is-shared-across-every-worktree](git/git-shallow-is-shared-across-every-worktree.md) (1132)
 |subagent sandbox worktree checkout moves head wrong commit: [git/git-a-subagent-in-your-worktree-moves-your-head](git/git-a-subagent-in-your-worktree-moves-your-head.md) (1729)
 |agent steering system prompt renders from live checkout: [git/git-checkout-drift-feeds-stale-agent-steering](git/git-checkout-drift-feeds-stale-agent-steering.md) (947)
