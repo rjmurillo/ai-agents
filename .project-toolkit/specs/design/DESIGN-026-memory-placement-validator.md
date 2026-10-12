@@ -35,9 +35,10 @@ new, narrow validator script that flags newly added Serena memories carrying
 normative or procedural content, wires it into the existing parallel memory
 job group in `lefthook.yml`, and ships its tests. Issue #5828 adds a server-side
 step in `.github/workflows/pr-validation.yml`, rename-aware base reads, and a
-rule that fails an existing memory whose classification rises to normative. Neither PR touches the
-always-on `templates/rules/universal.md`, the memory-index integrity
-validators (issues #4313, #4776, #4705), or any capability registry.
+rule that fails an existing memory whose classification rises to normative.
+None of these changes touches the always-on `templates/rules/universal.md`,
+the memory-index integrity validators (issues #4313, #4776, #4705), or any
+capability registry.
 
 ## Component Architecture
 
@@ -71,11 +72,11 @@ lefthook.yml   edit: one new job in the existing memory-size/memory-index/
 |---|---|---|---|
 | Where the taxonomy lives | Extend `templates/rules/knowledge-persistence.md`, not `universal.md` | REQ-028 Out of scope | Epic #5456's 2026-09-11 direction: any byte change to `universal.md` needs figures refreshed in four downstream documents; `knowledge-persistence.md` is already path-scoped to the exact trees this contract governs and already carries the sibling rule and memory guidance |
 | Validator language | Python, matching existing `scripts/validation/` siblings | ADR-042 | Every validator this job group already runs (`memory_index.py`, `update_memory_index_tokens.py`, `validate_memory_tier.py`) is Python; a new script in the same language keeps one runtime for the whole group |
-| New-vs-existing policy | Presence in `git ls-tree -r --name-only <base>` decides new; for an existing file, a rename-aware read of its base content decides whether the classification rose (issue #5828) | REQ-028 Out of scope (no corpus migration) | Existing memories keep warning, so the corpus needs no migration; only a file entering the tree, or one that gets worse, fails. The base ref is the baseline, so no debt-register file exists to raise |
+| New-vs-existing policy | Presence in `git ls-tree -r --name-only <base>` decides new; for an existing file, a rename-aware read of its base content decides whether the classification rose (issue #5828) | REQ-028 Out of scope (no corpus migration) | Existing memories keep warning, so the corpus needs no migration; only a file entering the tree, or one whose classification rises to `normative`, fails. The base ref is the baseline, so no debt-register file exists to raise |
 | Classification model | Two-signal threshold (normative-heading OR role-contract, else keyword-count-plus-procedure-shape), not a single keyword count | REQ-028 Q5 evidence | Corpus measurement (993 validator-eligible files): 162 contain `MUST`, 185 carry a governance-style heading; a single-keyword rule would flag roughly one file in six with no discrimination. Two independent signals catch the shape the rules actually care about (a memory that reads like a rule or an agent contract) instead of penalizing incidental use of `never` or `always` in prose |
 | Suppression mechanism | One HTML comment with a non-empty reason, `<!-- placement: evidence; reason: ... -->`, matching the existing `vendor-portability` and `citation-freshness: ignore` marker convention already used elsewhere in this repository | `canonical-source-mirror.md` precedent | Reuses a pattern every contributor already knows instead of inventing a new escape-hatch syntax |
-| Server-side leg | A `Run memory-placement check` step in `validate-pr` of `.github/workflows/pr-validation.yml`, after the memory-index token ratchet, running `check_memory_placement.py --ci --changed-since FETCH_HEAD` after one base-ref fetch (issue #5828) | ADR-006 | Every route that skips local hooks (`--no-verify`, a clone without `lefthook install`, a bot push, a cloud agent, the web editor) reaches `main` unchecked; the sibling memory ratchets carry the same server-side step for the same reason. The script owns the diff, the rename detection, and the merge-base lookup, so the `run:` block holds the fetch and one command |
-| Lefthook placement | Stays as the fast local leg. Joins the existing `parallel: true` group (`memory-size`, `memory-index`, `memory-token-counts`, `memory-tier`), all globbed `.serena/memories/**/*.md` | `lefthook.yml:328-350` | Same trigger glob, same group, no new group needed; the four existing jobs in that group establish the pattern for a fifth |
+| Server-side leg | A `Run memory-placement check` step in `validate-pr` of `.github/workflows/pr-validation.yml`, after the memory-index token ratchet, running `check_memory_placement.py --ci --changed-since FETCH_HEAD` after one base-ref fetch (issue #5828) | ADR-006 | Every route that skips local hooks (`--no-verify`, a clone without `lefthook install`, a merge commit, a bot push, a cloud agent, the web editor) reaches `main` unchecked; the sibling memory ratchets carry the same server-side step for the same reason. The script owns the diff, the rename detection, and the merge-base lookup, so the `run:` block holds the fetch and one command |
+| Lefthook placement | Stays as the fast local leg. Joins the existing memory `parallel: true` group in `lefthook.yml` (it already holds `memory-size`, `memory-index`, `memory-token-counts`, `memory-tier`, and the cross-reference jobs), all globbed `.serena/memories/**/*.md` | `lefthook.yml`, the `parallel: true` group that holds `memory-size` | Same trigger glob, same group, no new group needed; the sibling memory jobs in that group establish the pattern |
 
 ## Placement taxonomy (doc content, PR A)
 
@@ -140,9 +141,9 @@ check_memory_placement.py --changed-since <git-ref> [--ci] [--json]
   present in that listing is existing, everything else is new. An existing
   file's base content is read with `git cat-file blob <REF>:<path>`.
 - `--staged`: read each file from the git index, and take rename sources from
-  `git diff --cached --name-status --find-renames --diff-filter=ACMR -z <REF>`.
+  `git diff --cached --name-status --find-renames --diff-filter=ACMRT -z <REF> -- .serena/memories`.
 - `--changed-since REF`: the server-side mode. Lists the memories that
-  `git diff --name-status --find-renames --diff-filter=ACMR -z REF...HEAD`
+  `git diff --name-status --find-renames --diff-filter=ACMRT -z REF...HEAD -- .serena/memories`
   reports under `.serena/memories`, and uses `git merge-base REF HEAD` as the
   base. It replaces `--base`, `--staged`, `--path`, and positional paths;
   combining them is a usage error (exit 2).
@@ -238,25 +239,28 @@ Per `AGENTS.md` Standards (0 ok, 1 logic, 2 config, 3 external, 4 auth):
 
 ### Lefthook wiring
 
-New job in the existing `parallel: true` group at `lefthook.yml:328-350`,
-alongside `memory-size`, `memory-index`, `memory-token-counts`, and
-`memory-tier`:
+New job in the existing memory `parallel: true` group of `lefthook.yml`,
+alongside `memory-size`, `memory-index`, `memory-token-counts`, `memory-tier`,
+and the cross-reference jobs:
 
 ```yaml
 - name: memory-placement
   timeout: 1m
   run: uv run --frozen python scripts/validation/check_memory_placement.py --ci --base HEAD --staged {staged_files}
   glob: ".serena/memories/**/*.md"
+  skip:
+    - merge
 ```
 
 `{staged_files}` supplies exactly the files lefthook is already gating in
 this group, so the job costs no additional filesystem walk beyond what its
-four siblings already do.
+siblings already do. The `skip: [merge]` entry is one more route past the local
+hook; the server-side step covers it.
 
 ### Server-side wiring
 
 The local hook is skipped by `--no-verify`, a clone without `lefthook install`,
-a bot push, a cloud agent, and the web editor. A step in the `validate-pr` job
+a merge commit, a bot push, a cloud agent, and the web editor. A step in the `validate-pr` job
 of `.github/workflows/pr-validation.yml` closes that gap (issue #5828):
 
 ```yaml
@@ -288,7 +292,8 @@ the same rule applies on `merge_group`, where the PR body is empty.
 | Scenario | Mode | Detection | Handling |
 |---|---|---|---|
 | `git ls-tree` fails (not a git repo, bad `--base`) | Cannot determine new-vs-existing | Non-zero exit from the subprocess call | Exit 2, error names the ref and the command tried |
-| A file is renamed with no content change | Would read as new at the new path | `--find-renames` in the name-status diff supplies the old path | The base class is read from the old path, so the unchanged file passes. Content that gets worse in the same commit fails as a rise |
+| A file is renamed with no content change | Would read as new at the new path | `--find-renames` in the name-status diff supplies the old path | The base class is read from the old path, so the unchanged file passes. Content that rises to `normative` in the same commit fails as a rise |
+| A memory moves into `.serena/memories` from another directory | The pathspec `.serena/memories` (`MEMORY_PATHSPEC`, which every diff leg appends) hides the rename source | None; the pathspec bounds the diff | Reads as an add, so it is judged as new. Move it in a commit that keeps the content evidence-shaped |
 | A rename scores below git's 50 percent similarity | Reads as a delete plus an add | None; git's threshold | Judged as new. Split the move and the rewrite into two commits |
 | `--changed-since REF` cannot find a merge base (shallow clone, unrelated history) | Cannot decide the baseline | Non-zero exit from `git merge-base` | Exit 2, error says to fetch full history for the base ref |
 | A heading regex false-matches inside a fenced code block | Miscounts signal (b) or (d) | None automatic | Test suite includes a fixture with a fenced block containing a matching heading string, asserting it is excluded from signal counting |

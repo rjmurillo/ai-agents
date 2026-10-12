@@ -190,6 +190,33 @@ def test_changed_since_fails_a_new_normative_memory(repo, capsys):
     assert f"{NEW}: normative:" in capsys.readouterr().out
 
 
+def test_changed_since_fails_a_symlink_replaced_by_a_normative_file(repo, capsys):
+    note = f"{MEMORIES}/note.md"
+    write(repo, note, EVIDENCE_INCIDENT)
+    (repo / OLD).symlink_to("note.md")
+    commit_all(repo, "memory link")
+    _branch(repo)
+    (repo / OLD).unlink()
+    write(repo, OLD, NORMATIVE_HEADING)
+    commit_all(repo, "replace link with normative file")
+
+    assert checker.main(["--ci", "--changed-since", "main"]) == 1
+    assert f"{OLD}: normative:" in capsys.readouterr().out
+
+
+def test_changed_since_examines_a_file_replaced_by_a_symlink(repo, capsys):
+    write(repo, f"{MEMORIES}/note.md", EVIDENCE_INCIDENT)
+    write(repo, OLD, SUSPECT_TERM_DENSITY)
+    commit_all(repo, "suspect file")
+    _branch(repo)
+    (repo / OLD).unlink()
+    (repo / OLD).symlink_to("note.md")
+    commit_all(repo, "replace file with link")
+
+    assert checker.main(["--ci", "--changed-since", "main"]) == 0
+    assert "1 file(s) examined" in capsys.readouterr().out
+
+
 def test_changed_since_passes_a_new_suspect_memory(repo):
     _branch(repo)
     write(repo, NEW, SUSPECT_TERM_DENSITY)

@@ -185,7 +185,7 @@ def _name_status(repo_root: Path, diff_args: list[str]) -> list[DiffEntry]:
             "diff",
             "--name-status",
             "--find-renames",
-            "--diff-filter=ACMR",
+            "--diff-filter=ACMRT",
             "-z",
             *diff_args,
             "--",

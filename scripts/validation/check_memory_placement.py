@@ -3,7 +3,8 @@
 
 The knowledge-persistence rule's placement contract says a memory holds
 evidence and a rule, skill, or agent holds required behavior. This check flags
-a NEWLY added memory that reads as policy and names the surface it belongs on.
+a NEWLY added memory, or an existing one an edit raises to policy, and names
+the surface it belongs on.
 It does not migrate the corpus, build a registry, or budget tokens.
 
 SIGNALS, from :func:`classify` on raw text after fenced and indented code is
@@ -18,15 +19,17 @@ POLICY: ``normative`` when (b) or (d) fires, or (a) >= 5 with (c).
 ``suspect`` when (a) >= 3 or (c) fires, or both. Otherwise ``evidence``.
 Two signals are required because single words are weak (figures: DESIGN-026).
 
-A file present in the ``--base`` tree never fails; it warns. Only a file
-absent from the base tree fails, and only when classified ``normative``.
+A file absent from the base tree fails when classified ``normative``. A file
+present there fails only when its classification rises to ``normative`` from
+``suspect`` or ``evidence`` (issue #5828); otherwise it warns. A rename is read
+against its old path.
 ``<!-- placement: evidence; reason: ... -->`` with a non-empty reason
 downgrades to evidence (reported ``suppressed``); an empty reason is
 reported ``invalid-suppression`` and does not downgrade. Route: (d) to an
 agent, (c) without (a) >= 5 to a skill, else to a rule. README.md,
 ``*-index.md``, and non-``.md`` files are skipped.
 
-EXIT CODES (ADR-035): 0 clean or warnings only; 1 a new normative file under
+EXIT CODES (ADR-035): 0 clean or warnings only; 1 a new or risen normative file under
 ``--ci``; 2 usage error, not a git repository, bad ``--base``, or a path
 outside the repository.
 """
