@@ -13,9 +13,7 @@
       "type": "milestone",
       "content": "Make the ADR-006 run-block gate an exact ratchet",
       "caused_by": [],
-      "leads_to": [
-        "e006"
-      ]
+      "leads_to": []
     },
     {
       "id": "e002",
@@ -23,9 +21,7 @@
       "type": "milestone",
       "content": "Add a CI backstop for the no-net-new suppression policy",
       "caused_by": [],
-      "leads_to": [
-        "e006"
-      ]
+      "leads_to": []
     },
     {
       "id": "e003",
@@ -33,9 +29,7 @@
       "type": "milestone",
       "content": "Gate extracted CI scripts on a proven nonzero CLI exit",
       "caused_by": [],
-      "leads_to": [
-        "e006"
-      ]
+      "leads_to": []
     },
     {
       "id": "e004",
@@ -43,9 +37,7 @@
       "type": "milestone",
       "content": "Fix the live exit-contract instances on main",
       "caused_by": [],
-      "leads_to": [
-        "e006"
-      ]
+      "leads_to": []
     },
     {
       "id": "e005",
@@ -53,22 +45,14 @@
       "type": "milestone",
       "content": "Record the convention",
       "caused_by": [],
-      "leads_to": [
-        "e006"
-      ]
+      "leads_to": []
     },
     {
       "id": "e006",
       "timestamp": "2026-07-31T04:00:54+00:00",
       "type": "commit",
       "content": "Commit: 31d0e9cd6",
-      "caused_by": [
-        "e001",
-        "e002",
-        "e003",
-        "e004",
-        "e005"
-      ],
+      "caused_by": [],
       "leads_to": [
         "e007"
       ]
@@ -186,7 +170,7 @@
     "errors": 0,
     "recoveries": 0,
     "commits": 10,
-    "files_changed": 2
+    "files_changed": 0
   },
   "lessons": []
 }

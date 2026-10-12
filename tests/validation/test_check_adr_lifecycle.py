@@ -44,7 +44,7 @@ removed with it rather than left asserting a contract the gate no longer has.
 Ratchet and CLI behavior: improvement passes, regression exits 1, baseline
 missing / malformed / stale exits 2, missing ADR directory exits 2,
 ``--write-baseline`` round-trips, and ``main(argv)`` itself returns non-zero on
-a regression (``.claude/rules/ci-scripts.md`` MUST 10 and 21).
+a regression (``.claude/rules/ci-scripts.md`` MUST 21 and 23).
 """
 
 from __future__ import annotations
