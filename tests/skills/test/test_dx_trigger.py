@@ -36,6 +36,7 @@ COPILOT_SKILLS_ROOT = PROJECT_ROOT / "src" / "copilot-cli" / "skills"
 TEST_SKILL_MD = SKILLS_ROOT / "test" / "SKILL.md"
 DX_SKILL_MD = SKILLS_ROOT / "dx-review" / "SKILL.md"
 _TIMEOUT_S = 60
+GATE5_HEADING = "Gate 5: Developer Experience (DX) and Documentation Accuracy"
 
 
 @pytest.fixture(scope="module")
@@ -303,7 +304,7 @@ def _section(text: str, heading: str) -> str:
 
 
 def test_gate5_composes_dx_review_instead_of_a_checklist() -> None:
-    gate5 = _section(TEST_SKILL_MD.read_text(encoding="utf-8"), "Gate 5: Developer Experience (DX)")
+    gate5 = _section(TEST_SKILL_MD.read_text(encoding="utf-8"), GATE5_HEADING)
     assert 'Skill(skill="dx-review")' in gate5
     assert "skills/test/scripts/dx_trigger.py" in gate5
     assert "DX CHANGE-SCOPE REPORT" in gate5
@@ -321,7 +322,7 @@ def test_gate5_composes_dx_review_instead_of_a_checklist() -> None:
 
 
 def test_gate5_effect_list_matches_the_script() -> None:
-    gate5 = _section(TEST_SKILL_MD.read_text(encoding="utf-8"), "Gate 5: Developer Experience (DX)")
+    gate5 = _section(TEST_SKILL_MD.read_text(encoding="utf-8"), GATE5_HEADING)
     effects_line = gate5.split("Effects:", 1)[1].split(". ", 1)[0]
     assert set(re.findall(r"`([a-z-]+)`", effects_line)) == set(mod.EFFECTS)
 
