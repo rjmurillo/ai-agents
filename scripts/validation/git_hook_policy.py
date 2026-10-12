@@ -710,6 +710,9 @@ WINDOWS_RESERVED_NAMES = frozenset(
         )
     },
 )
+# Windows caps a command line at 32767 characters. Half of that leaves room for
+# the git prefix and a long repo path (issue #5437).
+STAGE_CHUNK_MAX_CHARS = 16000
 GENERATED_PATHS = {
     "mcp": (
         ".vscode/mcp.json",
@@ -3144,6 +3147,30 @@ def _deleted_generated_candidates(kind: str, repo_root: Path) -> list[Path] | No
     return candidates
 
 
+def _chunk_paths(
+    paths: Sequence[str],
+    max_chars: int = STAGE_CHUNK_MAX_CHARS,
+) -> Iterator[list[str]]:
+    """Yield path batches whose joined length stays under ``max_chars``.
+
+    Windows rejects a process whose command line passes 32767 characters
+    (``WinError 206``, issue #5437). Batching keeps every ``git add`` argv
+    bounded however large the generated corpus grows, and a path is never
+    split, so spaces and newlines in a name stay safe.
+    """
+    chunk: list[str] = []
+    size = 0
+    for path in paths:
+        cost = len(path) + 1
+        if chunk and size + cost > max_chars:
+            yield chunk
+            chunk, size = [], 0
+        chunk.append(path)
+        size += cost
+    if chunk:
+        yield chunk
+
+
 def stage_generated(kind: str, repo_root: Path) -> int:
     safety_result = check_generated_paths(kind, repo_root)
     if safety_result != 0:
@@ -3168,10 +3195,12 @@ def stage_generated(kind: str, repo_root: Path) -> int:
         relative_paths.append(relative_path)
     if not relative_paths:
         return 0
-    result = _run_git(repo_root, ["add", "--", *relative_paths])
-    if result.returncode != 0:
-        _print_process_output(result)
-    return result.returncode
+    for chunk in _chunk_paths(relative_paths):
+        result = _run_git(repo_root, ["add", "--", *chunk])
+        if result.returncode != 0:
+            _print_process_output(result)
+            return result.returncode
+    return 0
 
 
 def extract_session_episodes(paths: Sequence[str], repo_root: Path) -> int:
