@@ -39,6 +39,12 @@ instructions the shipped skill would execute. Issue #2050. -->
 1. MUST NOT edit generated files directly (`src/copilot-cli/agents/`, `src/vs-code-agents/`). Edit the template in `templates/` and regenerate. This does NOT apply to `src/claude/`, `.claude/agents/`, or `.github/agents/`, which are hand-maintained; the claude-agents rule, MUST-1, requires editing `src/claude/<agent>.md` directly, in the same change as the template.
 2. MUST NOT remove a platform target without a corresponding ADR.
 
+## Agent prompt edits touch more than the template
+
+1. **Update the golden fixtures by hand.** Editing agent prompt text, including any `partials/*.mustache` file, also changes the byte-exact files under `tests/build_scripts/fixtures/agent_templates_b1/expected/{claude,copilot_source}/<stem>.md`. `build_all.py` does not write them, so only `test_agent_templates_lossless.py` catches a miss, at pre-push.
+2. **Find the orchestrator body in its partials.** Its text lives in the `orchestrator-*.mustache` partials. `orchestrator.shared.md` is a duplicate that `test_orchestrator_shared_contracts.py` still reads, so a contract change must land in both.
+3. **Name a tool by file name in prose.** The Skill Markdown Portability ratchet counts every path under the top-level scripts directory written in an agent template or a `SKILL.md`, and a rise over the per-file baseline fails the push.
+
 ## Compose a capability, do not copy its policy
 
 Before you write a normative block into a template, check whether some artifact
