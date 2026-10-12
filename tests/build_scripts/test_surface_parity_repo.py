@@ -173,3 +173,9 @@ def test_agent_drift_detection_keeps_its_own_purpose() -> None:
     text = DRIFT_WORKFLOW.read_text(encoding="utf-8")
     assert "show_drift_failure.py" in text
     assert "write_drift_job_summary.py" in text
+
+
+def test_staleness_workflow_does_not_repeat_the_agent_validate() -> None:
+    """build_all.py --check already runs generate_agents; the standalone step is a duplicate."""
+    commands = step_commands(load_workflow(STALENESS_WORKFLOW))
+    assert not any(GENERATE_VALIDATE in c for c in commands)

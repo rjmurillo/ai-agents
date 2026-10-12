@@ -4,7 +4,7 @@
 # Regenerates all agents from templates and fails if committed files differ.
 #
 # Local developers and AI agents can run the same validation using:
-#   uv run python build/generate_agents.py --validate
+#   uv run python build/scripts/build_all.py --check
 
 name: Validate Generated Agents
 
@@ -195,12 +195,6 @@ jobs:
       - name: Validate capability matrix references
         if: steps.should-run.outputs.skip != 'true'
         run: uv run python build/scripts/validate_agent_matrix_refs.py
-
-      - name: Regenerate and validate agent files
-        if: steps.should-run.outputs.skip != 'true'
-        run: |
-          echo "Running agent generation in validation mode..."
-          uv run python build/generate_agents.py --validate
 
       - name: Review-axes drift check (REQ-008-03)
         if: steps.should-run.outputs.skip != 'true'
