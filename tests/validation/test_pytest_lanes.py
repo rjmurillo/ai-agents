@@ -11,6 +11,7 @@ import subprocess
 import threading
 import time
 from collections.abc import Sequence
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -245,9 +246,8 @@ def test_run_lanes_stops_children_when_interrupted_while_submitting(
     release = threading.Event()
     stopped: list[bool] = []
     cancels: list[bool] = []
-    real_pool = pytest_lanes.ThreadPoolExecutor
 
-    class InterruptingPool(real_pool):  # type: ignore[valid-type, misc]
+    class InterruptingPool(ThreadPoolExecutor):
         calls = 0
 
         def submit(self, fn, /, *args, **kwargs):
