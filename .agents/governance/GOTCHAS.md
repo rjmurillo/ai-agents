@@ -53,6 +53,12 @@ and what a vendored install loses without it>. Issue #2050. -->
 
 Both the canonical file and its `src/copilot-cli/` mirror carry the marker,
 because the checker scans both trees.
+
+For a rule, `src/claude/rules/` is compiled output of
+`build/scripts/rule_templates.py`. Put the marker in `templates/rules/<name>.md`,
+then run `uv run python build/scripts/build_all.py` to regenerate
+`src/claude/rules/`, `.claude/rules/`, and the Copilot instructions mirror. Do
+not hand-edit the generated trees.
 ## A bare directory argument to taste-lints is a silent false pass
 
 `taste_lints.py --rules file-size <dir>` with the directory as a **positional**

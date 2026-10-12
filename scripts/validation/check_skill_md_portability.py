@@ -67,8 +67,9 @@ itself the shipped artifact, not a source that generates one. See issues
 #3578 (plugin-root widening), #3646 (templates/agents
 widening), #5214 (instructions widening), and #5294 (rules widening).
 
-``src/claude/rules`` is the rendered Claude rules tree of the ``project-toolkit``
-plugin root. Rules are governance prose that names this repository's own paths
+``src/claude/rules`` is the rendered Claude rules tree (compiled from
+``templates/rules`` by ``build/scripts/rule_templates.py``) of the
+``project-toolkit`` plugin root. Rules are governance prose that names this repository's own paths
 constantly, so the corpus is grandfathered in the baseline and the same
 ``vendor-portability`` marker declares a rule whose subject is upstream paths.
 The edit source ``templates/rules`` and the binplaced ``.claude/rules`` copy
