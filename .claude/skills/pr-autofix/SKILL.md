@@ -743,7 +743,7 @@ moves the state to one of the three named states; reclassify after the fix.
 |------|----------|--------|
 | T1 | `CanMerge=true` (`CLEAN`, `HAS_HOOKS`, or `UNSTABLE` with all non-required failures disposed); never `BLOCKED` | Merge via the row for that state in "Merge path by `mergeStateStatus`" below; each of the three names its own script |
 | T2 | CI failures only (required or undisposed non-required), no threads; includes `BLOCKED` | Fix CI, verify required checks pass |
-| T3 | Threads only (CI passing); includes `BLOCKED` | Walk full thread lifecycle, then merge. A `BLOCKED` PR that still reports `BLOCKED` after its threads resolve is waiting on an outside gate: stop |
+| T3 | Threads only (CI passing); includes `BLOCKED` | Walk full thread lifecycle, then merge. A `BLOCKED` PR that still reports `BLOCKED` after its threads resolve is waiting on an outside gate: run `detect_stale_bot_review.py`, then stop |
 | T4 | Both CI failures + threads; includes `BLOCKED` | Fix CI first, then lifecycle threads |
 | T5 | Bot PR that passes merge-state gates but has failures or threads | Handle individually |
 
@@ -758,10 +758,47 @@ here would re-assert the thing issue #4899 fixed.
 | State | Criteria | Action |
 |-------|----------|--------|
 | BEHIND | `MergeStateStatus == "BEHIND"` | Update branch against main, then reclassify |
-| BLOCKED | `MergeStateStatus == "BLOCKED"` with no CI failure and no unresolved thread (branch protection, pending reviews) | Wait for external gate (review approval, etc.). `BLOCKED` with a failure or thread is T2, T3, T4, or T5 instead |
+| BLOCKED | `MergeStateStatus == "BLOCKED"` with no CI failure and no unresolved thread (branch protection, pending reviews) | Run `detect_stale_bot_review.py` ("Stale bot `CHANGES_REQUESTED` review" below), then wait for the external gate (review approval, etc.). `BLOCKED` with a failure or thread is T2, T3, T4, or T5 instead |
 | DIRTY | `MergeStateStatus == "DIRTY"` (merge conflict) | Resolve conflict via the merge-resolver agent, then reclassify |
 | SKIP | Draft, merged, or closed | No action |
 | UNSUPPORTED | `MergeStateStatus` outside `CLEAN`/`HAS_HOOKS`/`UNSTABLE`/`BEHIND`/`BLOCKED`/`DIRTY` (`UNKNOWN`, missing, or a value GitHub adds later) | Disarm auto-merge, then stop and hand the PR to a human. Do not attempt a merge and do not enter the round-cap loop |
+
+### Stale bot `CHANGES_REQUESTED` review
+
+A PR can stay `BLOCKED` after every thread is fixed and resolved and CI is green
+(issue #5950). A bot (CodeRabbit, Copilot) left a `CHANGES_REQUESTED` review on an
+older commit. A later bot pass posts `COMMENTED`, which does not supersede it.
+Only an `APPROVED` review or a dismissal clears it. Dismissal is a human action:
+this skill never dismisses a review.
+
+Run the detector on a `BLOCKED` PR with no failure and no unresolved thread, and
+again after a bot re-review:
+
+```bash
+python3 "$SCRIPTS_DIR/detect_stale_bot_review.py" --pull-request {pr} --output-format json
+```
+
+It reads `get_pr_context.py`, `get_pr_checks.py`, and `get_pr_reviews.py`,
+posts nothing, and exits 0 with `Data.verdict`:
+
+| `Data.verdict` | Meaning | Action |
+|----------------|---------|--------|
+| `NO_BOT_CHANGES_REQUESTED` | No bot holds an active `CHANGES_REQUESTED` review | The block is another outside gate: stop |
+| `NOT_READY` | A bot holds one, but `Data.reasons` lists open work (thread, CI, `BEHIND`, `DIRTY`) | Finish that work, then run the detector again |
+| `FRESH_CHANGES_REQUESTED` | The review is on the current head | Address its findings through the thread lifecycle |
+| `REQUEST_REREVIEW` | Stale review, PR ready, no bot review at head yet | Post `Data.bots[].rereview_trigger` as a PR comment once, wait for the bot, run the detector again |
+| `DISMISSAL_HANDOFF` | Stale review, PR ready, and the bot already reviewed head (or has no known trigger) | Give `Data.handoff` to the human verbatim and stop |
+
+An `APPROVED` bot review at head supersedes the stale one, so the detector reports
+`NO_BOT_CHANGES_REQUESTED`. The handoff carries the review id, the reviewed commit,
+the `PUT .../reviews/{id}/dismissals` command, and why dismissal is safe (every thread
+resolved, CI green). A bot with no verified re-review trigger goes straight to the
+handoff; the script never guesses one.
+
+Do not loop on re-reviews. Each push can start a new bot round on the same lines.
+When a re-review opens new threads, the PR is T3 again and `check_pr_round_cap.py`
+bounds that loop (Workflow list, step 5). The round cap is the fixed point: when it
+returns `ESCALATE`, stop and hand off instead of requesting another review.
 
 ## Fix Patterns
 
@@ -901,6 +938,11 @@ python3 "$SCRIPTS_DIR/check_pr_round_cap.py" --pull-request {pr} --output-format
 # out main instead of debugging the PR). Exit 3 = cannot determine (probe
 # failure is not absence; never treat UNKNOWN as green).
 python3 "$SCRIPTS_DIR/triage_red_check.py" --check-name "<failing check name>" --pull-request {pr}
+
+# Stale bot CHANGES_REQUESTED review (issue #5950). Read-only classifier: exit 0
+# with Data.verdict, and Data.handoff holds the human dismissal text. It never
+# dismisses a review or posts a comment.
+python3 "$SCRIPTS_DIR/detect_stale_bot_review.py" --pull-request {pr} --output-format json
 
 # Get CI check logs (step 2, only when the check is green on main)
 python3 "$SCRIPTS_DIR/get_pr_checks.py" --pull-request {pr} | \
@@ -1055,6 +1097,7 @@ Per PR processed:
 | Swapping the disarm gate and the round cap back | The breaker's ESCALATE hands the PR to a human with auto-merge possibly still armed, which is the CWE-284 case the ordering closes | Keep disarm first, then the cap, as the tier-dispatch block states |
 | Reading CI logs before triaging the failing check | A check red on main is not this PR's failure, and investigating it on the PR spends a round on someone else's bug | Run `triage_red_check.py` first and attribute RED_ON_MAIN with its EvidenceUrl |
 | Letting a T3/T4 PR iterate without a cap | PR #1887 ran 11+ bot rounds over 46 hours and PRs #1965 and #1979 ran 18 each; prose caps have been ignored every time | Call `check_pr_round_cap.py` once per pass and honor ESCALATE |
+| Dismissing a stale bot `CHANGES_REQUESTED` review, or re-requesting bot reviews until one passes | Dismissal is a self-approval action, and each push restarts the bot's round on the same lines | Run `detect_stale_bot_review.py` and hand `Data.handoff` to a human |
 | Trusting `CanMerge=True` as the merge decision | It is one input, not the gate; all four Ready-to-Merge conditions have to hold | Evaluate the four conditions and pick the merge path from `mergeStateStatus` |
 | Force-pushing without re-reading the ref | A ref you read at triage is not where the branch is now, and a bare `--force-with-lease` reads a tracking ref any fetch can advance | Match `git rev-parse "refs/heads/$BRANCH"` against the PR's expected head SHA, then pin the lease to that SHA |
 
