@@ -81,6 +81,7 @@ Scripts under `scripts/validation/`, `build/`, and `.github/workflows/` gate eve
    and a new guard shipped without the comment skip its siblings had, so documenting
    the defect would have failed the gate. The third is the shape to fear: converting
    instead of validating fails open on the path the guard exists to protect.
+5. **Exempt a prose-only validator in the reachability test.** Agent prose is not an entry surface, so a new validator that agents run only from a prompt or handoff template fails `test_validation_scripts_are_reachable.py`. Add it to `_NO_CALLER` there with a reason, and update the script totals and the unreachable count in the module docstring.
 
 ## MUST NOT
 
