@@ -50,6 +50,7 @@ generated shims, event translation, or hook output:
 | Script | Purpose | Exit codes |
 |--------|---------|------------|
 | `dx_trigger.py` (this skill's script directory) | Decides whether Gate 5 composes `dx-review`, from verified changed paths and DX effects. Emits the decision, journeys, and skip or activation reason as JSON. | `0` decision emitted, `2` config error (review-axis classifier missing or unloadable) |
+| `doc_accuracy_trigger.py` | Decides whether Gate 5 composes `doc-accuracy`. Emits JSON. | `0` decision emitted, `2` config error or blank diff base |
 
 ## Step 0: Classify PR Type
 
@@ -127,9 +128,9 @@ If `/build` handed over a provenance/authority record path (issue #5387), re-run
 
 Output: `VERDICT: PASS|WARN|CRITICAL_FAIL` with findings array.
 
-## Gate 5: Developer Experience (DX)
+## Gate 5: Developer Experience (DX) and Documentation Accuracy
 
-Invoke Skill(skill="orphan-ref-validator"). Reject the gate on `VERDICT: CRITICAL_FAIL` or `VERDICT: ERROR`; `VERDICT: WARN` is non-blocking and surfaces in the test summary. This mirrors the `build` skill's Mandatory Exit Gate 4 so a reference to a deleted skill or a missing script path is caught at `/test` as well as at `/build`. To diagnose a failure, re-run the skill with `--output human`; each finding shows `path:line` plus a one-line recommendation. Manifest count claims are not validated by anything: the marketplace count validator was retired in #2187 and orphan-ref-validator never took the work over. Its scanner emits only skill_name, script_path, and scan_truncated findings. The skill invocation is platform-agnostic; each platform mirror runs its own copy of `scan.py`. If pre-existing drift outside the PR's scope blocks the gate, fix it in the same PR (the directives at `<!-- orphan-ref-ignore -->` and `<!-- orphan-ref-ignore-file -->` are documented in the skill's SKILL.md).
+Invoke Skill(skill="orphan-ref-validator"), the same check as the `build` skill's Mandatory Exit Gate 4. Reject the gate on `VERDICT: CRITICAL_FAIL` or `VERDICT: ERROR`; `VERDICT: WARN` surfaces in the test summary. Re-run with `--output human` to diagnose. Fix drift that blocks the gate in the same PR.
 
 Then compose `dx-review`. This gate keeps no DX checklist of its own:
 `dx-review` owns the eight-dimension scorecard and the Time-to-Hello-World
@@ -154,8 +155,13 @@ Then compose `dx-review`. This gate keeps no DX checklist of its own:
    TTHW or N/A with reason, severity-ranked findings, and skipped dimensions
    with rationale. A missing report is `VERDICT: ERROR`.
 
-Gate verdict: the worse of orphan-ref-validator and `dx-review`, ordered PASS,
-WARN, CRITICAL_FAIL, ERROR. A skip contributes PASS.
+Then compose `doc-accuracy` per `references/doc-accuracy-gate.md`, which owns the
+procedure, the effect list, and the `DOC ACCURACY REPORT` block. Run
+`doc_accuracy_trigger.py`; on a skip record `DOC ACCURACY: SKIPPED` with its
+`reason`. `UNKNOWN`, `DID_NOT_RUN`, or an unrun required phase is `ERROR`.
+
+Gate verdict: the worst of orphan-ref-validator, `dx-review`, and `doc-accuracy`,
+ordered PASS, WARN, CRITICAL_FAIL, ERROR. A skip contributes PASS.
 
 Output: `VERDICT: PASS|WARN|CRITICAL_FAIL|ERROR` with findings array.
 
@@ -208,7 +214,7 @@ Synthesize into overall report:
 | Non-Functional | PASS/WARN/CRITICAL_FAIL | Count | file:line citations |
 | Security | PASS/WARN/CRITICAL_FAIL | Count | CWE references |
 | DevOps | PASS/WARN/CRITICAL_FAIL | Count | file:line citations |
-| DX | PASS/WARN/CRITICAL_FAIL/ERROR | Count | `dx_trigger.py` reason, dx-review file:line citations |
+| DX/docs | PASS/WARN/CRITICAL_FAIL/ERROR | Count | trigger reasons, file:line citations |
 | Observability | PASS/WARN/CRITICAL_FAIL | Count | file:line citations |
 
 **Overall verdict**: CRITICAL_FAIL if any gate fails or reports ERROR (a gate that could not run proved nothing). WARN if any gate warns. PASS if all gates pass.
@@ -291,7 +297,7 @@ If any answer is "no" or "not sure," adjust before proceeding.
 - [ ] Every finding cites `file:line`, and every security finding cites a CWE
 - [ ] A CRITICAL_FAIL in one gate did not stop the remaining gates
 - [ ] Each test failure was diagnosed by hypothesis before any code changed
-- [ ] Gate 5 ran `dx_trigger.py`; a skip quotes its reason, an activation carries the `dx-review` change-scope report
+- [ ] Gate 5 ran both triggers; a skip quotes its reason, an activation carries the `dx-review` and `DOC ACCURACY` reports
 - [ ] Gate verdicts synthesized into one overall verdict via quality-grades
 
 ## Anti-Patterns
@@ -301,6 +307,7 @@ If any answer is "no" or "not sure," adjust before proceeding.
 | Stopping at the first CRITICAL_FAIL | Findings are additive, so an early stop hides the rest and buys a second round | Mark the overall verdict and keep running the gates |
 | Running all six gates on a docs-only diff | Burns five agent invocations on dimensions the diff cannot affect | Classify in Step 0 and skip |
 | Writing a DX checklist into Gate 5 | Duplicates `dx-review` and drifts from its eight-dimension contract | Run `dx_trigger.py`, then compose `dx-review` |
+| Skipping `doc-accuracy` because only code changed | Code can make prose stale | Pass each verified effect to the trigger |
 | A finding with no `file:line` | The reader cannot act on it, and it cannot be verified or refuted | Cite the location, and a CWE for security findings |
 | Changing code to make a red test pass | Fixes the symptom and often moves the defect | Form a hypothesis, verify it, then fix |
 | Treating a passing suite as proof of coverage | A green run says the tests that exist pass, not that the risky paths have any | Check error paths and edge cases per Gate 1 |
