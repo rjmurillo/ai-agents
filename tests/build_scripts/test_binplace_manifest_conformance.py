@@ -21,7 +21,10 @@ import binplace_manifest  # noqa: E402
 import yaml  # noqa: E402
 
 _MANIFEST = _REPO_ROOT / "templates" / "platforms" / "binplace.yaml"
-_ROW_KEYS = {"class", "source", "plugin_tree", "install_tree", "compile"}
+# Row names the YAML `class` key `class_name`; every other field shares its YAML key.
+_ROW_KEYS = {
+    "class" if f == "class_name" else f for f in binplace_manifest.Row.__dataclass_fields__
+}
 
 
 def _raw_rows() -> list[dict]:
@@ -36,12 +39,6 @@ def test_live_manifest_conformance_to_row_schema() -> None:
     for entry in raw:
         assert set(entry) <= _ROW_KEYS, f"row {entry['class']} has a key Row does not model"
         assert {"plugin_tree", "install_tree"} <= set(entry)
-
-
-def test_row_model_covers_every_manifest_key() -> None:
-    fields = set(binplace_manifest.Row.__dataclass_fields__)
-
-    assert fields == {"class_name", "source", "plugin_tree", "install_tree", "compile"}
 
 
 @pytest.mark.parametrize("missing", ["plugin_tree", "install_tree"])

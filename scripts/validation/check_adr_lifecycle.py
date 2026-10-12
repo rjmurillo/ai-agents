@@ -126,6 +126,7 @@ from checks_common import (  # noqa: E402
 )
 from yaml_utils import _parse_yaml_frontmatter  # noqa: E402
 
+# Imported, not redefined, so the two ADR gates never disagree about which files are ADRs.
 from scripts.validation.check_adr_uniqueness import ADR_FILENAME_RE  # noqa: E402
 from scripts.validation.frontmatter_contract import FrontmatterStatus  # noqa: E402
 from scripts.validation.frontmatter_contract import (  # noqa: E402
@@ -152,9 +153,6 @@ CHECKS: tuple[str, ...] = (
 LIFECYCLE_STATUSES: frozenset[str] = frozenset(
     {"proposed", "accepted", "rejected", "deprecated", "superseded"}
 )
-
-# ADR_FILENAME_RE is imported from check_adr_uniqueness so the two ADR gates
-# never disagree about which files are ADRs.
 
 # An id reference inside frontmatter: "ADR-091", "adr-91", or a bare integer.
 _ADR_REFERENCE_RE = re.compile(r"^ADR[-_ ]?(\d{1,4})$", re.IGNORECASE)
@@ -1091,10 +1089,10 @@ def write_baseline(path: Path, counts: dict[str, int]) -> None:
     truncating ``path`` directly. The temp-file-then-swap technique is
     ``_atomic_write_text`` in ``scripts/ai_review_common/cache_guard.py``, so a
     crash or two concurrent writers cannot leave the file half-written. A direct
-    ``path.write_text()`` interrupted mid-write (a killed process, a full disk) leaves invalid JSON in place, and this file
-    is the ratchet ceiling every subsequent ``pre_pr.py`` run reads: a
-    corrupted baseline blocks every push until someone reconstructs it by
-    hand (Copilot, PR #5209 round-10 review).
+    ``path.write_text()`` interrupted mid-write (a killed process, a full
+    disk) leaves invalid JSON in place, and this file is the ratchet ceiling
+    every subsequent ``pre_pr.py`` run reads: a corrupted baseline blocks every
+    push until someone reconstructs it by hand (Copilot, PR #5209 round-10 review).
     """
     payload = {
         "schema_version": "1",
