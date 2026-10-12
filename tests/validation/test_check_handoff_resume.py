@@ -430,3 +430,13 @@ def test_unreadable_handoff_is_a_config_error(
 
     assert code == checker.EXIT_CONFIG
     assert "cannot read handoff" in capsys.readouterr().err
+
+
+def test_detached_head_holds_on_branch(repo: Path, tmp_path: Path, capsys) -> None:
+    handoff = _write(tmp_path / "h.md", _record(repo))
+    _git(repo, "checkout", "-q", "--detach")
+
+    code, out = _run(handoff, repo, capsys)
+
+    assert code == checker.EXIT_HOLD
+    assert f"branch mismatch: recorded {BRANCH}, live HEAD" in out
