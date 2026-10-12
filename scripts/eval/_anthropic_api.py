@@ -39,6 +39,7 @@ from _eval_errors import TemperatureDeprecatedError
 DEFAULT_MODEL = "claude-sonnet-5"
 
 _MODELS_ENDPOINT = "https://api.anthropic.com/v1/models"
+_MAX_ERROR_BODY_BYTES = 65536
 
 
 def load_api_key() -> str:
@@ -195,6 +196,14 @@ def _reachable_model_hint(api_key: str) -> str:
     return ". Requested model is unavailable; query the models endpoint for reachable model IDs"
 
 
+def _read_error_body(error: urllib.error.HTTPError) -> str:
+    """Return the HTTP error body as text, or "" when it cannot be read."""
+    try:
+        return error.read(_MAX_ERROR_BODY_BYTES).decode(errors="replace")
+    except (OSError, ValueError, AttributeError):
+        return ""
+
+
 def _read_messages_response(
     request: urllib.request.Request,
     api_key: str,
@@ -203,13 +212,13 @@ def _read_messages_response(
         with urllib.request.urlopen(request, timeout=120) as response:
             return json.loads(response.read().decode(errors="replace"))
     except urllib.error.HTTPError as error:
-        if error.code == 400:
-            # Inspect the raw body before it is redacted below. Discarded
-            # immediately if it doesn't match; never logged or re-raised.
-            detail = error.read().decode(errors="replace")
-            if is_temperature_deprecated_message(detail):
-                raise TemperatureDeprecatedError from None
-        message = safe_http_error_message("Anthropic API", error.code)
+        # Inspect the raw body before it is redacted below. Only the error
+        # type and the billing verdict survive into the message; the text is
+        # discarded immediately and never logged or re-raised.
+        detail = _read_error_body(error)
+        if error.code == 400 and is_temperature_deprecated_message(detail):
+            raise TemperatureDeprecatedError from None
+        message = safe_http_error_message("Anthropic API", error.code, detail)
         if error.code == 404:
             message += _reachable_model_hint(api_key)
         raise RuntimeError(message) from None
@@ -368,7 +377,9 @@ def list_available_models(api_key: str, *, timeout: int = 30) -> list[str]:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             result = json.loads(resp.read().decode(errors="replace"))
     except urllib.error.HTTPError as e:
-        raise RuntimeError(safe_http_error_message("Anthropic models endpoint", e.code)) from None
+        raise RuntimeError(
+            safe_http_error_message("Anthropic models endpoint", e.code, _read_error_body(e))
+        ) from None
     except urllib.error.URLError as e:
         if isinstance(e.reason, (TimeoutError, socket.timeout)):
             raise RuntimeError(f"Anthropic models endpoint timed out after {timeout}s.") from None
