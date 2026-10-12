@@ -101,14 +101,14 @@ def _plugin_name(root: Path, *, trust_twin: bool) -> str | None:
 
     ADR-109 B6 deleted ``.claude/.claude-plugin/plugin.json``: ``.claude/`` is
     now the binplaced dogfood copy of ``src/claude/``, not an independent
-    marketplace source. With ``trust_twin`` and *root* named ``.claude`` and
-    carrying no manifest, fall back to the twin tree's manifest,
-    ``<root>/../src/claude/.claude-plugin/plugin.json``. The drift gate
-    guarantees the two trees carry the same identity.
+    marketplace source. When ``trust_twin`` is set, *root* is named ``.claude``,
+    and *root* has no manifest of its own, fall back to the twin tree's
+    manifest, ``<root>/../src/claude/.claude-plugin/plugin.json``. The drift
+    gate guarantees the two trees carry the same identity.
 
-    A root named by an environment variable must pass ``trust_twin=False``:
-    whoever controls the variable also controls the tree at that path, forged
-    twin included (#5793).
+    The caller decides ``trust_twin`` per candidate; see
+    ``_project_self_hosts_plugin`` for why an environment-named plugin root
+    earns the twin only when it is this file's own root (#5793).
     """
     name = _read_manifest_name(root / ".claude-plugin" / "plugin.json")
     if name is None and trust_twin and root.name == ".claude":

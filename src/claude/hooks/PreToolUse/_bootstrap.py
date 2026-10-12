@@ -47,9 +47,9 @@ def _has_own_or_twin_marker(root: Path) -> bool:
     guarantees the two trees are byte-identical.
 
     Call this only for a root derived from this file's own location. A root
-    named by an environment variable must use ``_has_own_marker``: whoever
-    controls the variable also controls the tree at that path, forged twin
-    included (#5793).
+    named by an environment variable must use ``_has_own_marker`` unless it
+    resolves to that same self-relative root: whoever controls the variable
+    also controls the tree at that path, forged twin included (#5793).
     """
     if _has_own_marker(root):
         return True
