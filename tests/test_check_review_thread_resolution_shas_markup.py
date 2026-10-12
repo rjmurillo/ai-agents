@@ -77,7 +77,7 @@ def test_report_ignores_marker_in_resolved_thread() -> None:
             ],
         },
     }
-    with patch.object(_mod, "check_ancestor", return_value=(True, "reachable")) as ancestor:
+    with patch.object(_mod, "check_ancestor", return_value=(True, "reachable", "")) as ancestor:
         report = _mod.build_report("o", "r", 1, "b" * 40, [thread], True, ".")
     assert [call.args[0] for call in ancestor.call_args_list] == ["abc1234"]
     assert report["invalid_count"] == 0
