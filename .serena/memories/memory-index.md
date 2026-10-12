@@ -58,7 +58,7 @@
 |pr context statusCheckRollup list null CheckRun StatusContext reviewThreads: [github/pr-context-authoritative-metadata](github/pr-context-authoritative-metadata.md) (195)
 |stacked pull request async merge endpoint merge-async stack GraphQL refusal: [github/stacked-pr-async-merge-endpoint](github/stacked-pr-async-merge-endpoint.md) (1084)
 |PR validator prepare-body-file backticked path not in diff: [pr-review/pr-validator-needs-prepare-body-file-and-diff-backed-paths](pr-review/pr-validator-needs-prepare-body-file-and-diff-backed-paths.md) (238)
-|parallel agents shared scratch directory pr body overwritten pr1.md prepare-body-file per worktree issue 6315 Validate PR: [github/github-pr-body-files-collide-in-a-shared-scratch-directory](github/github-pr-body-files-collide-in-a-shared-scratch-directory.md) (332)
+|parallel agents shared scratch directory pr body overwritten pr1.md prepare-body-file per worktree issue 6315 Validate PR: [github/github-pr-body-files-collide-in-a-shared-scratch-directory](github/github-pr-body-files-collide-in-a-shared-scratch-directory.md) (335)
 |triage packet stale issue closed before dispatch re-check state: [pr-review/triage-packets-go-stale-within-hours](pr-review/triage-packets-go-stale-within-hours.md) (175)
 |coderabbit sticky changes-requested approve command: [coderabbit/coderabbit-sticky-changes-requested-clears-with-approve-command](coderabbit/coderabbit-sticky-changes-requested-clears-with-approve-command.md) (131)
 

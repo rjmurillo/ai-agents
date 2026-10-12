@@ -6,7 +6,7 @@ The ship contract for the 2026-10-11 P2 sweep told parallel agents to write PR b
 
 ## Why the private path avoids it
 
-`new_pr.py --prepare-body-file` calls `prepare_pr_body.py`, which creates `pr-body-*.md` under `<repo root>/.project-toolkit/scratch/`. The directory is owner-only and the body file must match `pr-body-[A-Za-z0-9_-]+\.md` (`prepare_pr_body.py` lines 18 and 75). Each agent works in its own worktree, so each repo root has its own scratch directory and the names cannot collide.
+`new_pr.py --prepare-body-file` calls `prepare_pr_body.py`, which creates `pr-body-*.md` under `<repo root>/.project-toolkit/scratch/`. The directory is owner-only and the body file must match `pr-body-[A-Za-z0-9_-]+\.md` (`prepare_pr_body.py` lines 18 and 72 to 81). Each agent works in its own worktree, so each repo root has its own scratch directory and the names cannot collide.
 
 The sweep fix was one prepared body file per PR inside each worktree.
 
