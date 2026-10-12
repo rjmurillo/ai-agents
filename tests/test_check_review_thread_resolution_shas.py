@@ -233,7 +233,7 @@ def test_ignores_unresolved_threads() -> None:
 def test_unreachable_sha_blocks_report() -> None:
     with patch(
         "check_review_thread_resolution_shas.check_ancestor",
-        return_value=(False, "unreachable"),
+        return_value=(False, "unreachable", ""),
     ):
         report = build_report(
             "o",
@@ -254,7 +254,7 @@ def test_unreachable_sha_blocks_report() -> None:
 def test_invalid_sha_blocks_report() -> None:
     with patch(
         "check_review_thread_resolution_shas.check_ancestor",
-        return_value=(False, "invalid"),
+        return_value=(False, "invalid", ""),
     ):
         report = build_report(
             "o",
@@ -272,7 +272,7 @@ def test_invalid_sha_blocks_report() -> None:
 def test_ambiguous_sha_blocks_report() -> None:
     with patch(
         "check_review_thread_resolution_shas.check_ancestor",
-        return_value=(False, "ambiguous"),
+        return_value=(False, "ambiguous", ""),
     ):
         report = build_report(
             "o",
@@ -290,7 +290,7 @@ def test_ambiguous_sha_blocks_report() -> None:
 def test_uses_latest_comment_only() -> None:
     with patch(
         "check_review_thread_resolution_shas.check_ancestor",
-        return_value=(True, "reachable"),
+        return_value=(True, "reachable", ""),
     ) as check:
         report = build_report(
             "o",
@@ -311,7 +311,7 @@ def test_incomplete_comment_pagination_fails_closed() -> None:
     thread["comments"]["totalCount"] = 2
     with patch(
         "check_review_thread_resolution_shas.check_ancestor",
-        return_value=(True, "reachable"),
+        return_value=(True, "reachable", ""),
     ):
         report = build_report("o", "r", 1, "b" * 40, [thread], False, ".")
     assert report["success"] is False
@@ -327,7 +327,7 @@ def test_check_ancestor_classifies_git_exit_codes() -> None:
             merge_base_rc=0,
         ),
     ):
-        assert check_ancestor("abc1234", "b" * 40, ".") == (True, "reachable")
+        assert check_ancestor("abc1234", "b" * 40, ".") == (True, "reachable", "")
     with patch(
         "subprocess.run",
         side_effect=_check_ancestor_run(
@@ -336,23 +336,23 @@ def test_check_ancestor_classifies_git_exit_codes() -> None:
             merge_base_rc=1,
         ),
     ):
-        assert check_ancestor("abc1234", "b" * 40, ".") == (False, "unreachable")
+        assert check_ancestor("abc1234", "b" * 40, ".") == (False, "unreachable", "")
     with patch(
         "subprocess.run",
         side_effect=_check_ancestor_run(
-            verify_rc=128,
+            verify_rc=1,
             disambiguate_stdout="abc1234\ndef5678\n",
         ),
     ):
-        assert check_ancestor("abc1234", "b" * 40, ".") == (False, "ambiguous")
+        assert check_ancestor("abc1234", "b" * 40, ".")[:2] == (False, "ambiguous")
     with patch(
         "subprocess.run",
         side_effect=_check_ancestor_run(
-            verify_rc=128,
+            verify_rc=1,
             disambiguate_stdout="",
         ),
     ):
-        assert check_ancestor("abc1234", "b" * 40, ".") == (False, "invalid")
+        assert check_ancestor("abc1234", "b" * 40, ".") == (False, "invalid", "missing-object")
 
 
 def test_main_exits_zero_and_emits_raw_json(capsys) -> None:
@@ -368,7 +368,7 @@ def test_main_exits_zero_and_emits_raw_json(capsys) -> None:
         ),
         patch(
             "check_review_thread_resolution_shas.check_ancestor",
-            return_value=(True, "reachable"),
+            return_value=(True, "reachable", ""),
         ),
     ):
         rc = main(["--pull-request", "99"])
@@ -391,8 +391,8 @@ def test_pr_review_config_contains_resolution_sha_gate() -> None:
         if item["name"] == "Resolved thread commit references are reachable"
     )
     assert (
-        sha_gate["command"] == "python3 .claude/skills/github/scripts/pr/"
-        "check_review_thread_resolution_shas.py --pull-request {pr}"
+        sha_gate["command"] == 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/'
+        'skills/github/scripts/pr/check_review_thread_resolution_shas.py" --pull-request {pr}'
     )
     assert sha_gate["pass_when"] == (
         "stdout-json.unreachable_count == 0 AND "

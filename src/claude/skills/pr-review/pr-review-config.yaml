@@ -201,7 +201,10 @@ error_recovery:
 # Fields:
 #   name           Human-readable criterion title.
 #   verification   Currently only "command" is supported.
-#   command        Shell command template; {pr} is substituted with the PR number.
+#   command        Command template; {pr} is substituted with the PR number. It is
+#                  split like a shell line and run without a shell; the plugin-root
+#                  form ${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}} is expanded.
+#                  Other $VAR syntax stays literal; nothing else is expanded.
 #   pass_when      DSL expression evaluated against the parsed stdout JSON.
 #   pass_when_python  (Optional) Python lambda escape hatch when DSL is too narrow.
 #   fail_open      (Optional, default false) Treat dispatch errors as a pass.
@@ -214,22 +217,22 @@ completion_criteria:
   # the agent may proceed if ONLY security threads are unresolved.
   - name: "All review threads resolved (security threads exempt with tracking)"
     verification: "command"
-    command: "python3 .claude/skills/github/scripts/pr/get_unresolved_review_threads.py --pull-request {pr}"
+    command: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/get_unresolved_review_threads.py" --pull-request {pr}'
     pass_when: "stdout-json.unresolved_count == 0 AND stdout-json.fetched_pages_complete == true"
     fail_open: false
   - name: "No suppressed Copilot review findings"
     verification: "command"
-    command: "python3 .claude/skills/github/scripts/pr/check_suppressed_review_findings.py --pull-request {pr} --dispositions-file .project-toolkit/pr-checks/suppressed-finding-dispositions.json"
+    command: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/check_suppressed_review_findings.py" --pull-request {pr} --dispositions-file .project-toolkit/pr-checks/suppressed-finding-dispositions.json'
     pass_when: "stdout-json.undispositioned_suppressed_count == 0 AND stdout-json.fetched_pages_complete == true"
     fail_open: false
   - name: "Resolved thread commit references are reachable"
     verification: "command"
-    command: "python3 .claude/skills/github/scripts/pr/check_review_thread_resolution_shas.py --pull-request {pr}"
+    command: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/check_review_thread_resolution_shas.py" --pull-request {pr}'
     pass_when: "stdout-json.unreachable_count == 0 AND stdout-json.invalid_count == 0 AND stdout-json.ambiguous_count == 0 AND stdout-json.fetched_pages_complete == true"
     fail_open: false
   - name: "PR is ready to merge (CI green, no conflicts)"
     verification: "command"
-    command: "python3 .claude/skills/github/scripts/pr/test_pr_merge_ready.py --pull-request {pr} --dispositions-file .project-toolkit/pr-checks/dispositions.json"
+    command: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/test_pr_merge_ready.py" --pull-request {pr} --dispositions-file .project-toolkit/pr-checks/dispositions.json'
     # pr-autofix readiness is a four-condition gate: GitHub says the PR can
     # merge, required checks pass, review threads are resolved, and the merge
     # state is CLEAN, HAS_HOOKS, or UNSTABLE. Keep these fields explicit here so
@@ -253,7 +256,7 @@ completion_criteria:
     fail_open: false
   - name: "PR is not already merged"
     verification: "command"
-    command: "python3 .claude/skills/github/scripts/pr/test_pr_merged.py --pull-request {pr}"
+    command: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/test_pr_merged.py" --pull-request {pr}'
     pass_when: "stdout-json.merged == false"
     fail_open: false
 
