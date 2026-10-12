@@ -6,15 +6,19 @@ detection regex, the vendored-path skip list, and the helpers that resolve the
 branch base, list changed markdown and Python files, read the HEAD blob, and
 report violations. ``validate_dash_prohibition`` is the public entry point.
 
-Scope boundary (issue #5116): the scan reads ``.md`` and ``.py`` files. A
-printed string or a comment in Python source is authored text under
-``universal.md`` MUST NOT 4, so it is in scope. Other suffixes (JSON, YAML,
+Scope boundary (issue #5116): the scan reads ``.md`` and ``.py`` files.
+Comments in Python source are authored text under ``universal.md`` MUST NOT 4.
+Printed string literals are in scope by this validator's scope decision
+(issue #5116); the rule's "agent prompts" bullet already covers
+agent-prompt strings. Other suffixes (JSON, YAML,
 shell, generated trees without those suffixes) stay out: nothing in them has
 reached a gate report, and widening the suffix list is a separate decision.
 The same ``tests/hooks/fixtures/`` carve-out applies to both suffixes.
 
-Behavior-preserving move: each function is identical to its previous definition
-in ``pre_pr.py``. ``pre_pr`` re-exports ``validate_dash_prohibition`` (and the
+The original extraction from ``pre_pr.py`` (issue #2223) was a
+behavior-preserving move: each function was identical to its previous
+definition there. The ``.py`` widen above is a later, behavior-changing step.
+``pre_pr`` re-exports ``validate_dash_prohibition`` (and the
 module-level helpers) so existing imports keep working.
 """
 
