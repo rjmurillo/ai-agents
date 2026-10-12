@@ -11,6 +11,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from scripts.ci.spec_load_content import (
+    EXIT_AUTH,
     EXIT_CONFIG,
     EXIT_EXTERNAL,
     EXIT_OK,
@@ -352,6 +353,73 @@ class TestRun:
                 side_effect=OSError("gh not found"),
             ):
                 assert main() == EXIT_EXTERNAL
+
+
+class TestBlankToken:
+    """Issue #6122: an empty GH_TOKEN must fail once, naming the token source."""
+
+    def _env(self, tmp_path: Path, **extra: str) -> dict[str, str]:
+        return {
+            "SPEC_REFS": "",
+            "ISSUE_REFS": "5698 5701",
+            "GITHUB_REPOSITORY": "owner/repo",
+            "RUNNER_TEMP": str(tmp_path),
+            "GITHUB_OUTPUT": str(tmp_path / "out.txt"),
+            "GITHUB_RUN_ID": "0",
+            **extra,
+        }
+
+    def test_blank_token_returns_auth_and_names_source(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        env = self._env(tmp_path, GH_TOKEN="")
+        with patch.dict(os.environ, env):
+            os.environ.pop("GITHUB_TOKEN", None)
+            with patch("scripts.ci.spec_load_content.subprocess.run") as gh:
+                rc = main()
+        assert rc == EXIT_AUTH
+        gh.assert_not_called()
+        err = capsys.readouterr().err
+        assert err.count("::error::") == 1
+        assert "GH_TOKEN is set but empty" in err
+        assert "BOT_PAT" in err
+        assert "github.token" in err
+
+    def test_whitespace_token_is_blank(self, tmp_path: Path) -> None:
+        env = self._env(tmp_path, GH_TOKEN="   ")
+        with patch.dict(os.environ, env):
+            os.environ.pop("GITHUB_TOKEN", None)
+            with patch("scripts.ci.spec_load_content.subprocess.run") as gh:
+                assert main() == EXIT_AUTH
+        gh.assert_not_called()
+
+    def test_blank_token_with_github_token_fallback_proceeds(self, tmp_path: Path) -> None:
+        env = self._env(tmp_path, GH_TOKEN="", GITHUB_TOKEN="ghs_fallback")
+        ok = MagicMock(returncode=0, stdout="Title\n\nBody")
+        with patch.dict(os.environ, env):
+            with patch("scripts.ci.spec_load_content.subprocess.run", return_value=ok):
+                assert main() == EXIT_OK
+
+    def test_unset_token_proceeds_for_local_gh_auth(self, tmp_path: Path) -> None:
+        ok = MagicMock(returncode=0, stdout="Title\n\nBody")
+        with patch.dict(os.environ, self._env(tmp_path)):
+            os.environ.pop("GH_TOKEN", None)
+            with patch("scripts.ci.spec_load_content.subprocess.run", return_value=ok):
+                assert main() == EXIT_OK
+
+    def test_present_token_proceeds(self, tmp_path: Path) -> None:
+        ok = MagicMock(returncode=0, stdout="Title\n\nBody")
+        with patch.dict(os.environ, self._env(tmp_path, GH_TOKEN="ghs_real")):
+            with patch("scripts.ci.spec_load_content.subprocess.run", return_value=ok):
+                assert main() == EXIT_OK
+
+    def test_blank_token_without_issue_refs_is_unchanged(self, tmp_path: Path) -> None:
+        spec = tmp_path / "spec.md"
+        spec.write_text("# Spec\nBody")
+        env = self._env(tmp_path, GH_TOKEN="", SPEC_REFS=str(spec), ISSUE_REFS="")
+        with patch.dict(os.environ, env):
+            assert main() == EXIT_OK
+        assert (tmp_path / "spec-content-0.md").exists()
 
 
 class TestMain:
