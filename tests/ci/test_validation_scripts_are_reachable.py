@@ -89,6 +89,14 @@ _NO_CALLER: dict[str, str] = {
         "REQ-008 were seeded. Wiring it would make it a gate it was explicitly "
         "written not to be."
     ),
+    "scripts/validation/check_handoff_resume.py": (
+        "Run by an agent at resume time, not by a workflow, hook, or skill. The "
+        "orchestrator Resume Check and the HANDOFF.md template name it, and "
+        "agent prose is not an entry surface this graph follows. Wiring it into "
+        "CI would run it against a handoff that does not exist there, and "
+        "wiring it into a SKILL.md adds a ratcheted upstream-path reference to a "
+        "shipped skill (issue #5766)."
+    ),
 }
 
 
