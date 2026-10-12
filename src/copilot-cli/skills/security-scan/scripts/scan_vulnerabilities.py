@@ -154,15 +154,23 @@ def _get_shebang_language(file_path: str) -> str | None:
     return None
 
 
+_STAGED_FILES_COMMAND = ("git", "diff", "--staged", "--name-only", "--diff-filter=d")
+
+
 def get_staged_files() -> list[str]:
-    """Get list of staged files from git.
+    """Get list of staged files from git, excluding staged deletions.
+
+    A deleted path no longer exists in the working tree, so it cannot add
+    command injection to the resulting branch and the reader would fail on it.
+    ``--diff-filter=d`` drops deletions; unreadable surviving files still
+    reach ``scan_file`` and still report an error.
 
     Note: Uses subprocess with fixed arguments (no user input) - safe from injection.
     """
     try:
         # Safe: fixed command with no user input
         result = subprocess.run(
-            ["git", "diff", "--staged", "--name-only"],
+            list(_STAGED_FILES_COMMAND),
             capture_output=True,
             text=True,
             check=True,
@@ -170,7 +178,7 @@ def get_staged_files() -> list[str]:
         return [f for f in result.stdout.strip().split("\n") if f]
     except subprocess.CalledProcessError as exc:
         detail = (exc.stderr or exc.stdout or str(exc)).strip()
-        raise GitEnumerationError(f"git diff --staged --name-only failed: {detail}") from exc
+        raise GitEnumerationError(f"{' '.join(_STAGED_FILES_COMMAND)} failed: {detail}") from exc
     except FileNotFoundError as exc:
         raise GitEnumerationError("git executable not found") from exc
 
@@ -470,7 +478,7 @@ def _collect_files_to_scan(args: argparse.Namespace) -> list[str]:
         # --files target that yielded nothing is a mis-specified request, not a
         # clean scan, so it keeps the usage-error exit (EXIT_ERROR).
         if args.git_staged and not args.directory and not args.files:
-            print("No files to scan (nothing staged).")
+            print("No files to scan (no staged files remain after excluding deletions).")
             sys.exit(EXIT_SUCCESS)
         print("No files to scan. Use --git-staged, --directory, or specify files.")
         sys.exit(EXIT_ERROR)
