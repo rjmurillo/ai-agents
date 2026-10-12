@@ -13,6 +13,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 # tests/e2e is not on sys.path under --import-mode=importlib (no __init__.py).
 # Scope the mutation to the import so the added path never leaks into other
 # tests in the session (gemini review, PR #3294).
@@ -26,6 +28,8 @@ try:
         copilot_auth_failure_headline,
         copilot_auth_rejected,
         copilot_block_reason,
+        copilot_policy_denied,
+        copilot_policy_denied_headline,
         copilot_quota_exhausted,
         copilot_rate_limited,
         copilot_run_blocked,
@@ -402,6 +406,77 @@ def test_run_blocked_covers_rate_limit_absent_and_rejected() -> None:
     )
     assert copilot_run_blocked(_completed(stderr=_REJECTED_STDERR, returncode=1)) is True
     assert copilot_run_blocked(_completed(stdout="ok", returncode=0)) is False
+
+
+_POLICY_DENIED_STDERR = "Error: Access denied by policy settings\n"
+
+
+def test_policy_denied_detects_the_cli_sentence_on_stderr() -> None:
+    result = _completed(stderr=_POLICY_DENIED_STDERR, returncode=1)
+    assert copilot_block_reason(result) == "policy_denied"
+    assert copilot_policy_denied(result) is True
+    assert copilot_run_blocked(result) is True
+
+
+def test_policy_denied_is_case_insensitive_and_matches_stdout() -> None:
+    result = _completed(stdout="ACCESS DENIED BY POLICY SETTINGS", returncode=1)
+    assert copilot_policy_denied(result) is True
+
+
+def test_policy_denied_false_on_healthy_run_that_echoes_the_sentence() -> None:
+    result = _completed(stdout=_POLICY_DENIED_STDERR, returncode=0)
+    assert copilot_block_reason(result) is None
+    assert copilot_policy_denied(result) is False
+
+
+@pytest.mark.parametrize(
+    "stderr",
+    [
+        "Access denied",
+        "Error: Access denied to /home/user/.copilot",
+        "Permission denied by policy",
+        "Access denied by policy",
+        "denied by policy settings",
+        "",
+    ],
+)
+def test_policy_denied_ignores_partial_or_unrelated_wording(stderr: str) -> None:
+    result = _completed(stderr=stderr, returncode=1)
+    assert copilot_policy_denied(result) is False
+    assert copilot_run_blocked(result) is False
+
+
+def test_policy_denied_tolerates_none_streams() -> None:
+    assert copilot_policy_denied(_completed(stdout=None, stderr=None, returncode=1)) is False
+
+
+def test_policy_denied_is_not_transient_or_auth() -> None:
+    result = _completed(stderr=_POLICY_DENIED_STDERR, returncode=1)
+    assert copilot_transient_failure(result) is False
+    assert copilot_auth_failed(result) is False
+
+
+def test_quota_takes_precedence_over_policy_denied() -> None:
+    result = _completed(
+        stderr=f"{_POLICY_DENIED_STDERR}You have exceeded your monthly quota", returncode=1
+    )
+    assert copilot_block_reason(result) == "quota_exhausted"
+
+
+def test_policy_denied_takes_precedence_over_auth_boilerplate() -> None:
+    result = _completed(
+        stderr=f"{_POLICY_DENIED_STDERR}No authentication information found.", returncode=1
+    )
+    assert copilot_block_reason(result) == "policy_denied"
+
+
+def test_policy_denied_headline_says_policy_not_credentials_or_retry() -> None:
+    result = _completed(stderr=_POLICY_DENIED_STDERR, returncode=1)
+    headline = copilot_policy_denied_headline(result)
+    assert copilot_run_blocked_headline(result) == headline
+    assert "policy" in headline
+    assert "will not clear" in headline
+    assert "Do not change credentials" in headline
 
 
 def test_run_blocked_false_for_unrelated_failure() -> None:

@@ -169,6 +169,15 @@ COPILOT_QUOTA_EXHAUSTED_MARKERS = (
     "exceeded your monthly quota",
     "quota_exceeded",
 )
+
+# Policy-denial detection. An organization or account policy can switch the
+# Copilot CLI off for a user whose token and quota are healthy. The CLI then
+# exits non-zero with ``Access denied by policy settings``. That is an
+# environment condition, not a defect in this repository, and neither a retry
+# nor a credential change clears it. Only the full CLI sentence matches: a bare
+# ``access denied`` also appears in unrelated permission errors, and treating
+# those as an environment skip would hide real failures.
+COPILOT_POLICY_DENIED_MARKERS = ("access denied by policy settings",)
 COPILOT_TRANSPORT_FAILURE_MARKERS = (
     "failed to fetch pat user login",
     "your token may still be valid",
@@ -182,7 +191,7 @@ COPILOT_TRANSPORT_FAILURE_MARKERS = (
 )
 
 CopilotBlockReason = Literal[
-    "quota_exhausted", "rate_limit", "transport", "auth_rejected", "auth_absent"
+    "quota_exhausted", "rate_limit", "policy_denied", "transport", "auth_rejected", "auth_absent"
 ]
 
 
@@ -218,6 +227,8 @@ def copilot_block_reason(
         return "quota_exhausted"
     if any(marker in haystack for marker in COPILOT_RATE_LIMIT_MARKERS):
         return "rate_limit"
+    if any(marker in haystack for marker in COPILOT_POLICY_DENIED_MARKERS):
+        return "policy_denied"
     if any(marker in haystack for marker in COPILOT_AUTH_REJECTED_MARKERS):
         return "auth_rejected"
     if any(marker in haystack for marker in COPILOT_AUTH_ABSENT_MARKERS):
@@ -241,6 +252,15 @@ def copilot_quota_exhausted(result: subprocess.CompletedProcess[str]) -> bool:
 def copilot_rate_limited(result: subprocess.CompletedProcess[str]) -> bool:
     """True when GitHub explicitly refused the run for a rate limit."""
     return copilot_block_reason(result) == "rate_limit"
+
+
+def copilot_policy_denied(result: subprocess.CompletedProcess[str]) -> bool:
+    """True when an org or account policy refused the Copilot CLI run.
+
+    Not transient and not an auth failure: credentials and quota are healthy, and
+    only a policy change by the account owner clears it.
+    """
+    return copilot_block_reason(result) == "policy_denied"
 
 
 def copilot_transport_failure(result: subprocess.CompletedProcess[str]) -> bool:
@@ -381,8 +401,21 @@ def copilot_auth_failure_headline(result: subprocess.CompletedProcess[str]) -> s
     )
 
 
+def copilot_policy_denied_headline(result: subprocess.CompletedProcess[str]) -> str:
+    """Skip reason for a run an org or account policy refused."""
+    return (
+        "Copilot CLI was denied by an organization or account policy (Access denied "
+        "by policy settings). This is not an auth failure, a rate limit, or a spent "
+        "quota, and a retry will not clear it. The account owner must change the "
+        "policy. Do not change credentials based on this result. "
+        f"{_transient_diagnostics(result)}"
+    )
+
+
 def copilot_run_blocked_headline(result: subprocess.CompletedProcess[str]) -> str:
     """Return operator guidance for the classified reason the run was blocked."""
+    if copilot_policy_denied(result):
+        return copilot_policy_denied_headline(result)
     if copilot_transient_failure(result):
         return copilot_transient_failure_headline(result)
     if copilot_auth_failed(result):

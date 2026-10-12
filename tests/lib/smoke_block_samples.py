@@ -1,7 +1,7 @@
 """Sample CLI block outputs for the smoke skip-or-fail policy tests.
 
 Real Copilot output shapes: a 402 quota block as prose and as a JSON event, plus
-the auth, rate-limit, and transport blocks that must never carry the quota
+the auth, rate-limit, policy-denial, and transport blocks that must never carry the quota
 marker.
 """
 
@@ -26,6 +26,7 @@ NON_QUOTA_STDERR = {
     "auth_absent": "No authentication information found.\nSet COPILOT_GITHUB_TOKEN",
     "auth_rejected": "GitHub returned: Bad credentials",
     "rate_limit": "API rate limit exceeded for user ID 12345.",
+    "policy_denied": "Error: Access denied by policy settings\n",
     "transport": "Failed to fetch PAT user login: connection reset by peer.",
 }
 
