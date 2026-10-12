@@ -73,6 +73,7 @@ from checks_ci_parity import (
     validate_agent_skill_discriminator,
     validate_closure_manifest,
     validate_hook_contracts,
+    validate_memory_placement,
     validate_passive_context_budget,
     validate_placeholder_identity,
     validate_plugin_frontmatter_self_containment,
@@ -444,6 +445,7 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate("Placeholder Identity", _root_only(validate_placeholder_identity)),
     _Gate("Tracked Conflict Markers", _root_only(validate_tracked_conflict_markers)),
     _Gate("Security Suppressions Diff", _root_only(validate_security_suppressions_diff)),
+    _Gate("Memory Placement", _root_only(validate_memory_placement)),
     # The seven gates below are the seven validators the CI job
     # "Validate Vendor Portability" runs. They are kept together, and
     # tests/validation/test_pre_pr_covers_vendor_portability.py reads that

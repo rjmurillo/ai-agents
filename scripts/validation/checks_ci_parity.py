@@ -174,6 +174,24 @@ def validate_security_suppressions_diff(repo_root: Path) -> bool:
     )
 
 
+def validate_memory_placement(repo_root: Path) -> bool:
+    """Fail when the branch adds a policy-shaped memory or raises one (``Validate PR``).
+
+    Runs the command the ``Run memory-placement check`` step runs, over the
+    commits since the base. It reads the committed range only, as CI does:
+    commit first, because an uncommitted edit to a memory is not judged here.
+    The pre-commit ``memory-placement`` job covers staged files. Issue #5828.
+    """
+    base_ref = _base_ref_or_skip(repo_root, "memory placement check")
+    return _run_workflow_validator(
+        repo_root,
+        "scripts/validation/check_memory_placement.py",
+        "--ci",
+        "--changed-since",
+        base_ref,
+    )
+
+
 def validate_closure_manifest(repo_root: Path) -> bool:
     """Advisory: compute the enforcement closure and report unresolved edges.
 

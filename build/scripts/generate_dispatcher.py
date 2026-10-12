@@ -49,11 +49,11 @@ import ast
 import json
 import os
 import re
-import shutil
 import stat
 from pathlib import Path
 from typing import Any
 
+from atomic_write import publish_bytes_preserving_mode
 from generate_hooks_body import is_shimmed
 from generate_hooks_shim import HOOK_STDIN_CEILING_MIB
 from regen_guard import detect_reason_strict as regen_detect_reason
@@ -602,9 +602,9 @@ def write_manifest(
         manifest["timeouts"] = {
             name: int(shim_timeouts[name]) for name in shim_names if name in shim_timeouts
         }
-    manifest_path.write_text(
-        json.dumps(manifest, indent=2) + "\n",
-        encoding="utf-8",
+    publish_bytes_preserving_mode(
+        manifest_path,
+        (json.dumps(manifest, indent=2) + "\n").encode("utf-8"),
     )
     return manifest_path
 
@@ -626,7 +626,7 @@ def _copy_bootstrap(event_dir: Path) -> Path:
     ``_dispatch.py``. Copying from one canonical source avoids N drifting copies.
     """
     dest = event_dir / "_bootstrap.py"
-    shutil.copyfile(_CANONICAL_BOOTSTRAP, dest)
+    publish_bytes_preserving_mode(dest, _CANONICAL_BOOTSTRAP.read_bytes())
     return dest
 
 
@@ -640,7 +640,7 @@ def write_entrypoint(event_dir: Path, event: str) -> Path:
     """
     entry_path = event_dir / "_dispatch.py"
     source = _ENTRYPOINT.replace("__GENERATED_EVENT__", repr(event))
-    entry_path.write_text(source, encoding="utf-8")
+    publish_bytes_preserving_mode(entry_path, source.encode("utf-8"))
     return entry_path
 
 
