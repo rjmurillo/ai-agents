@@ -567,7 +567,9 @@ def test_build_lib_check_mode_writes_nothing(tmp_path: Path) -> None:
 
     result = build_all._build_lib(tmp_path, cfg, "copilot-cli", check=True)
 
-    assert result.exit_code == 0, result.notices
+    # Every destination is missing, so check mode fails on the drift (issue
+    # #6098) and still writes nothing.
+    assert result.exit_code == 2, result.notices
     assert not (tmp_path / "src" / "claude" / "lib").exists()
     assert not (tmp_path / "src" / "copilot-cli" / "lib").exists()
 
@@ -584,10 +586,45 @@ def test_build_lib_check_mode_reports_drift_without_writing(tmp_path: Path) -> N
 
     result = build_all._build_lib(tmp_path, cfg, "copilot-cli", check=True)
 
-    assert result.exit_code == 0, result.notices
-    # Unchanged: check mode reports drift as a change, not an error, and
-    # writes nothing.
+    assert result.exit_code == 2, result.notices
+    # Issue #6098: drift fails check mode. It still writes nothing.
     assert (stale_dir / "__init__.py").read_text(encoding="utf-8") == "# stale\n"
+
+
+def test_build_lib_check_mode_is_clean_after_a_write_run(tmp_path: Path) -> None:
+    """A tree the write run just rendered has no drift, so check mode exits 0."""
+    _write_minimal_lib_sources(tmp_path)
+    cfg = tmp_path / "p.yaml"
+    cfg.write_text('schemaVersion: "1.0"\nprovider: "copilot-cli"\n')
+    assert build_all._build_lib(tmp_path, cfg, "copilot-cli").exit_code == 0
+
+    result = build_all._build_lib(tmp_path, cfg, "copilot-cli", check=True)
+
+    assert result.exit_code == 0, result.notices
+
+
+@pytest.mark.parametrize(
+    "drifted",
+    [
+        lib_mirror.SKILLS_SIDECAR_PLUGIN_TREE,
+        lib_mirror.SKILLS_SIDECAR_COPILOT_TREE,
+    ],
+)
+def test_build_lib_check_mode_fails_on_a_drifted_review_sidecar(
+    tmp_path: Path, drifted: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Issue #6098: a stale copy of the review marker validator fails check."""
+    _write_minimal_lib_sources(tmp_path)
+    cfg = tmp_path / "p.yaml"
+    cfg.write_text('schemaVersion: "1.0"\nprovider: "copilot-cli"\n')
+    assert build_all._build_lib(tmp_path, cfg, "copilot-cli").exit_code == 0
+    (tmp_path / drifted).write_text("# stale\n", encoding="utf-8")
+
+    result = build_all._build_lib(tmp_path, cfg, "copilot-cli", check=True)
+
+    assert result.exit_code == 2
+    assert drifted in capsys.readouterr().err
+    assert (tmp_path / drifted).read_text(encoding="utf-8") == "# stale\n"
 
 
 def test_build_lib_copies_packages_with_import_rewrite(tmp_path: Path) -> None:

@@ -245,9 +245,8 @@ def test_compile_all_renders_every_package_into_both_plugin_roots(tmp_path: Path
         for pkg in lib_mirror.PACKAGES:
             assert (tmp_path / root / pkg / "__init__.py").is_file()
         assert (tmp_path / root / "bootstrap.py").is_file()
-    assert (
-        tmp_path / "src" / "claude" / "skills" / "review" / "scripts" / "validate_review_marker.py"
-    ).is_file()
+    for sidecar in lib_mirror.SKILLS_SIDECAR_PLUGIN_TREES:
+        assert (tmp_path / sidecar).is_file(), sidecar
 
 
 def test_compile_all_check_mode_writes_nothing(tmp_path: Path) -> None:
@@ -257,6 +256,43 @@ def test_compile_all_check_mode_writes_nothing(tmp_path: Path) -> None:
 
     assert not result.had_errors, result.errors
     assert not (tmp_path / "src" / "claude" / "lib").exists()
+    # Every destination is missing, so check mode reports each as drift.
+    assert result.had_drift
+    assert all(line.startswith("created:") for line in result.drift), result.drift
+
+
+def test_compile_all_check_mode_reports_stale_package_file_and_stale_extra(tmp_path: Path) -> None:
+    _write_full_sources(tmp_path)
+    lib_mirror.compile_all(tmp_path)
+    pkg = tmp_path / "src" / "claude" / "lib" / "hook_utilities"
+    (pkg / "__init__.py").write_text("# stale\n", encoding="utf-8")
+    (pkg / "extra.py").write_text("", encoding="utf-8")
+
+    result = lib_mirror.compile_all(tmp_path, check=True)
+
+    assert not result.had_errors, result.errors
+    assert any(line.startswith("updated:") and "__init__.py" in line for line in result.drift)
+    assert any(line.startswith("removed:") and "extra.py" in line for line in result.drift)
+    assert (pkg / "extra.py").exists()
+
+
+def test_compile_all_check_mode_is_clean_after_a_write_run(tmp_path: Path) -> None:
+    _write_full_sources(tmp_path)
+    lib_mirror.compile_all(tmp_path)
+
+    result = lib_mirror.compile_all(tmp_path, check=True)
+
+    assert not result.had_errors, result.errors
+    assert not result.had_drift, result.drift
+
+
+def test_compile_all_write_mode_never_fills_drift(tmp_path: Path) -> None:
+    _write_full_sources(tmp_path)
+
+    result = lib_mirror.compile_all(tmp_path)
+
+    assert result.changes
+    assert result.drift == []
 
 
 def test_compile_all_surfaces_missing_file_source_as_error(tmp_path: Path) -> None:
