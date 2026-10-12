@@ -134,14 +134,23 @@ git worktree add "../wt-pr-{number}" "$branch"
 
 ### Step 4: Launch Agents
 
-**Sequential**: Invoke the `pr-comment-responder` skill once per PR. That skill
-owns its per-PR comment map and documents where it writes it, so the path is not
-restated here: a second copy of a write target drifts, and the copy living in
-another skill's prose is the one that drifts first.
+**Sequential**: Invoke the `pr-comment-responder` skill once per PR, with the
+Step 0 verdict on its own line of the invocation: `Transport: gh` or
+`Transport: gh_unusable`. That skill owns its per-PR comment map and documents
+where it writes it, so the path is not restated here: a second copy of a write
+target drifts, and the copy living in another skill's prose is the one that
+drifts first.
 
-**Parallel**: Launch background Task agents per PR. Wait for all with `TaskOutput`.
+**Parallel**: Launch background Task agents per PR, each prompt carrying the same
+`Transport:` line. Wait for all with `TaskOutput`.
 
-Neither mode is available in `gh_unusable`. The Step 0 verdict does not cross into that skill or into a child agent, and its workflow calls the `gh`-backed scripts unconditionally with no MCP branch, so delegating walks into the 403 the preflight exists to avoid and parallelism multiplies it. Refuse `--parallel`, say the transport is why, and carry out the responder's steps yourself against the github skill's `references/transport-routing.md`, one PR at a time, recording in the verdict that the phase was derived. Refs #5518.
+The line is the only channel for the verdict: neither the skill nor a child agent
+sees Step 0. In `gh_unusable` the responder's workflow takes its MCP branch per
+step (the Transport section of its `references/workflow.md`), so both modes stay
+available. A child agent that lacks an MCP operation it needs reports it as
+unavailable. Record that PR as unprocessed with the transport as the reason,
+never as a verdict. Step 3 reads `head.ref` from `pull_request_read` per
+`mcp_mode_constraints` in config.
 
 Each agent's intermediate output is subject to `output_constraints.per_pr_max_response_tokens` from config. If an agent approaches the token limit, summarize findings and move to the next PR.
 
