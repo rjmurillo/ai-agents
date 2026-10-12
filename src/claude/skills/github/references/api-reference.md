@@ -12,7 +12,7 @@ Reference documentation for the GitHub skill. For usage, see `../SKILL.md`.
 | 3 | GitHub API error | Check error message, may be rate limit |
 | 4 | gh CLI not authenticated | Run `gh auth login` |
 | 5 | Idempotency skip | Comment already exists (expected) |
-| 6 | Not mergeable | PR has conflicts or checks failing |
+| 100 | Not mergeable (`merge_pr.py`, script-specific) | PR has conflicts or checks failing |
 
 ## API Endpoints Used
 

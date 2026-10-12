@@ -7,6 +7,13 @@ a number word and a plural noun are directly followed by an enumeration of a
 different size. A count with no nearby structure is left alone, because nothing
 proves it wrong.
 
+A second, narrower form is also flagged: an imperative that names a bare count
+("Run the three filters.") with no enumeration after it. The number then restates
+a fact held elsewhere, and nothing on the page proves it right. Only an imperative
+verb opens this form, because "the two facts below" and "the three programs" often
+refer to a structure the reader can see. Measured repo-wide, that restriction keeps
+the form to a handful of lines; an unrestricted "the N nouns" match hits ~160.
+
 An explicit contractual form ("exactly three", "at least two", "no more than
 four") is retained: the number is the requirement, not a copy of a list.
 """
@@ -84,6 +91,27 @@ _BULLET_RE = re.compile(r"^(\s*)(?:[-*+]|\d+[.)])\s+\S")
 _ITEM_SPLIT_RE = re.compile(r"\s*,\s*(?:and\s+|or\s+)?|\s+(?:and|or)\s+", re.IGNORECASE)
 
 
+# An imperative verb, an optional quantifier, then "the N [modifiers] plural-noun".
+_BARE_RE = re.compile(
+    rf"\b(?P<verb>run|apply|use|check|invoke|execute|call|pass|dispatch|answer|clear)\s+"
+    rf"(?:all\s+|each\s+of\s+)?the\s+(?P<num>{_NUMBER})\s+"
+    r"(?:[A-Za-z-]+\s+){0,2}?(?P<noun>[A-Za-z-]+s)\b(?P<tail>.*)$",
+    re.IGNORECASE,
+)
+# A tail that opens a structure, a definition, or a link proves the reader can see the items.
+_STRUCTURED_TAIL_RE = re.compile(
+    r"[:(\[`]|\bin\s+(?:order|the\s+table)\b|\b(?:below|above)\b", re.IGNORECASE
+)
+# Text before the verb that still leaves it in imperative position: nothing, a Markdown
+# marker, a clause boundary, a sequencing word, or a leading adverb. A subject or a modal
+# ("Users can apply", "You may run") makes the sentence declarative.
+_IMPERATIVE_PREFIX_RE = re.compile(
+    r"^(?:\s*(?:[#>*+-]+|\d+[.)])?\s*(?:\*\*|__)?\s*(?:(?:always|first|then|next|also|just|now)\s+)?"
+    r"|.*(?:[.!?:;]|,\s*(?:then|and|or)|\b(?:then|and|or))\s+(?:(?:always|first|also|just|now)\s+)?)$",
+    re.IGNORECASE,
+)
+
+
 @dataclass(frozen=True)
 class Claim:
     """One derived cardinality claim contradicted by its enumeration."""
@@ -92,6 +120,9 @@ class Claim:
     text: str
     stated: int
     actual: int
+    # The line with this claim's own number removed. Stored at detection so the fix
+    # edits the flagged span, not a different count on the same line.
+    simplified: str = ""
 
 
 def _number(token: str) -> int:
@@ -151,6 +182,12 @@ def _bullet_items(lines: list[str], start: int) -> int:
     return count
 
 
+def _without_span(line: str, span: tuple[int, int]) -> str:
+    """Return the line with the number at span removed, trimmed like Claim.text."""
+    start, end = span
+    return (line[:start] + line[end:].lstrip()).strip()
+
+
 def _is_position_label(prefix: str, number: str) -> bool:
     """Return True when a digit is an ordinal label such as "Phase 1", not a count."""
     return number.isdigit() and bool(_LABEL_RE.search(prefix))
@@ -162,6 +199,11 @@ def _is_contractual(prefix: str) -> bool:
 
 
 def derived_count_claims(text: str) -> list[Claim]:
+    """Return every derived count: contradicted by its enumeration, or bare with none."""
+    return sorted([*_contradicted_claims(text), *bare_count_claims(text)], key=lambda c: c.line)
+
+
+def _contradicted_claims(text: str) -> list[Claim]:
     """Return every claim whose stated count differs from its enumeration."""
     lines = text.splitlines()
     claims: list[Claim] = []
@@ -186,18 +228,57 @@ def derived_count_claims(text: str) -> list[Claim]:
         # Far fewer items than the stated count reads as a partial example list,
         # not an exhaustive enumeration, so decline to judge it.
         if actual >= 2 and actual != stated and stated < 2 * actual:
-            claims.append(Claim(index + 1, line.strip(), stated, actual))
+            fix = _without_span(line, match.span("num"))
+            claims.append(Claim(index + 1, line.strip(), stated, actual, fix))
     return claims
 
 
-def simplify(claim_text: str) -> str:
-    """Return the claim with the derived number removed.
+def _next_structure(lines: list[str], index: int) -> tuple[str, int]:
+    """Classify what follows the claim line: ("table", 0), ("list", n), or ("none", 0)."""
+    for line in lines[index + 1 :]:
+        if not line.strip():
+            continue
+        if line.lstrip().startswith("|"):
+            return "table", 0
+        if _BULLET_RE.match(line):
+            return "list", _bullet_items(lines, index)
+        break
+    return "none", 0
 
-    Uses the detector's own pattern, so the span removed is the span flagged.
+
+def bare_count_claims(text: str) -> list[Claim]:
+    """Return imperatives that name a count with no enumeration to check it against.
+
+    Retained: a non-imperative sentence, a contractual qualifier before the number, a
+    structured tail (colon, parenthesis, link, backtick, "below"), a table row or a
+    table on the next non-blank line, and a following list whose item count matches.
+    A following list of a different size is reported with its real count in `actual`,
+    on the same terms as the colon form (two or more items, stated under twice actual).
+    With nothing to compare against, `actual` is 0.
     """
-    match = _CLAIM_RE.search(claim_text)
-    if match is None:
-        return claim_text
-    start, end = match.span("num")
-    tail = claim_text[end:].lstrip()
-    return claim_text[:start] + tail
+    lines = text.splitlines()
+    claims: list[Claim] = []
+    fence: Fence | None = None
+    for index, line in enumerate(lines):
+        fence, is_fence_line = fence_step(line, fence)
+        if is_fence_line or fence is not None or line.lstrip().startswith("|"):
+            continue
+        match = _BARE_RE.search(line)
+        if match is None or _STRUCTURED_TAIL_RE.search(match.group("tail")):
+            continue
+        if not _IMPERATIVE_PREFIX_RE.match(line[: match.start("verb")]):
+            continue
+        if _is_contractual(line[: match.start("num")]):
+            continue
+        stated = _number(match.group("num"))
+        kind, items = _next_structure(lines, index)
+        if kind == "table" or (kind == "list" and not _list_contradicts(stated, items)):
+            continue
+        fix = _without_span(line, match.span("num"))
+        claims.append(Claim(index + 1, line.strip(), stated, items, fix))
+    return claims
+
+
+def _list_contradicts(stated: int, items: int) -> bool:
+    """Return True when a following list is a countable enumeration of a different size."""
+    return items >= 2 and items != stated and stated < 2 * items

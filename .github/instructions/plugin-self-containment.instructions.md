@@ -155,6 +155,12 @@ into the plugin roots, and no gate flagged it. A manual read caught it.
 1. MUST NOT assume a path resolves because it resolves locally. Self-hosting guarantees every wrong path looks right here.
 2. MUST NOT read a passing portability check as proof of portability. The checks are baselined ratchets.
 
+## Editing agent templates
+
+1. **Update the golden fixtures by hand.** Any prompt edit, including a `partials/*.mustache` file, changes the byte-exact files under `tests/build_scripts/fixtures/agent_templates_b1/expected/{claude,copilot_source}/`. `build_all.py` skips them; only `test_agent_templates_lossless.py` at pre-push catches a miss.
+2. **Find orchestrator text in its partials.** It lives in `orchestrator-*.mustache`. `orchestrator.shared.md` is a duplicate that `test_orchestrator_shared_contracts.py` still reads.
+3. **Name a tool by file name in prose.** The Skill Markdown Portability ratchet counts each top-level scripts directory path in an agent template or `SKILL.md`, and a rise fails the push.
+
 ## Checking a change
 
 Scope the question to what you changed. For each file you added or edited under a plugin root or `templates/agents/`, list the paths it tells the reader to read or run, and classify each one against the three-kind table above.

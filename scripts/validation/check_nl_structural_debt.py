@@ -7,7 +7,8 @@ here for authored artifacts only:
 
   1. duplicate normative blocks: five or more consecutive normalized,
      non-trivial lines that two authored files share. This is duplicate code.
-  2. derived cardinality claims: "the three filters" followed by four filters.
+  2. derived cardinality claims: "the three filters" followed by four filters, or an
+     imperative naming a bare count ("Run the three filters.") with no enumeration.
      This is duplicated mutable state.
   3. low cohesion: one rule whose `paths:` frontmatter claims five or more distinct
      top-level roots. This is one artifact owning unrelated policies. The measure
@@ -55,7 +56,7 @@ for _path in (_SCRIPT_DIR, _SCRIPT_DIR.parents[1]):
         sys.path.insert(0, str(_path))
 
 from check_capability_graph import TreeError, survey  # noqa: E402
-from nl_cardinality import Fence, derived_count_claims, fence_step, simplify  # noqa: E402
+from nl_cardinality import Fence, derived_count_claims, fence_step  # noqa: E402
 from nl_cohesion import MIN_SPREAD, path_spread  # noqa: E402
 
 BASELINE_PATH = "scripts/validation/nl_structural_debt_baseline.json"
@@ -184,7 +185,7 @@ def stale_counts(files: dict[str, str]) -> dict[str, str]:
             norm = " ".join(claim.text.split()).casefold()
             seen[norm] += 1
             suffix = "" if seen[norm] == 1 else f"#{seen[norm]}"
-            found[f"{rel}::{norm}{suffix}"] = simplify(claim.text)
+            found[f"{rel}::{norm}{suffix}"] = claim.simplified
     return dict(sorted(found.items()))
 
 

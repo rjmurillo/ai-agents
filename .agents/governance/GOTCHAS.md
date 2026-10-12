@@ -308,7 +308,7 @@ group finishes. A measured run put `python-tests` at 946 seconds against 2.6
 seconds for `taste-count-ratchet`, so you wait out the suite to be told your
 branch is behind.
 
-Rebase before you push, or run the four gates yourself first. They take about
+Rebase before you push, or run the gates yourself first. They take about
 2 seconds:
 
 ```bash

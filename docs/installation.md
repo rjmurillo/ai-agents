@@ -145,6 +145,50 @@ npx ai-agents init --pack business
 `--pack` is repeatable and accepts comma-separated values (`--pack business` or
 `--pack a,b`). An unknown pack name fails with the list of available packs.
 
+## GitHub MCP prerequisite
+
+Four Claude agents (`analyst`, `security`, `code-reviewer`, `comment-analyzer`)
+and the `github`, `pr-review`, and `pr-autofix` skills name `mcp__github__*`
+tools. The plugin does not provide the server behind them. Claude Code has no
+built-in `github` MCP server, and this repository's `.mcp.json` registers only
+`serena` and `deepwiki`.
+
+An agent's `tools:` list only filters tools that a connected server supplies.
+With no server named `github`, Claude Code drops the `mcp__github__*` names
+without an error. The agent still runs, on its other tools. Measured on
+2026-10-11 with `claude -p --agent analyst` and no `github` server: the init
+event listed only `mcp__serena__*`, `mcp__deepwiki__*`, `Read`, `Glob`, and
+`Grep`.
+
+The plugin cannot close this gap for you. A plugin-bundled server is named
+`mcp__plugin_<plugin>_<server>__<tool>`, which never matches `mcp__github__`.
+The `mcpServers` agent field is ignored for plugin agents. Add the server
+yourself, named exactly `github`, at user scope:
+
+```bash
+claude mcp add --scope user --transport http github \
+  https://api.githubcopilot.com/mcp/ \
+  --header "Authorization: Bearer $GITHUB_PAT"
+```
+
+Use a fine-grained token with read-only access to the repositories you
+review. The shell expands `$GITHUB_PAT` before `claude` starts, so the token
+appears in that process's arguments and Claude Code stores the expanded value
+in your user-scope configuration (`~/.claude.json`). Do not run the command on
+a shared host, and rotate the token if the file leaves your machine. Confirm the
+server is connected with `claude mcp list`. To prove a real call works, run:
+
+```bash
+RUN_CLI_E2E=1 uv run pytest tests/e2e/test_plugin_load_smoke.py \
+  -k live_github_mcp_read -v
+```
+
+The test skips, and says so, when no connected `github` server exists. Without
+the server, the `github` skill scripts under `.claude/skills/github/scripts/`
+(backed by `gh`) cover the same operations. Claude Code sources:
+[MCP](https://code.claude.com/docs/en/mcp) and
+[subagents](https://code.claude.com/docs/en/sub-agents).
+
 ## Uninstallation
 
 Use your tool's native uninstall support.
