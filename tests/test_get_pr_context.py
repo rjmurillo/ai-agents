@@ -1066,6 +1066,87 @@ class TestMainDiffAndFiles:
         assert data["files"] == ["x.py", "y.py"]
 
 
+def _emit_bytes(real_run, raw: bytes, **kwargs):
+    """Run a child that writes ``raw`` to stdout, honoring the caller's decode kwargs."""
+    child = "import sys; sys.stdout.buffer.write(bytes.fromhex(sys.argv[1]))"
+    return real_run([sys.executable, "-c", child, raw.hex()], **kwargs)
+
+
+class TestUtf8Decoding:
+    """gh output decodes as UTF-8 with replacement, never the locale codec (issue #5432)."""
+
+    def test_all_three_gh_calls_pin_utf8_replace(self):
+        seen: list[dict] = []
+
+        def _side_effect(*args, **kwargs):
+            seen.append(kwargs)
+            if len(seen) == 1:
+                return _completed(stdout=_pr_json(), rc=0)
+            return _completed(stdout="x", rc=0)
+
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with auth_patch, repo_patch, patch("subprocess.run", side_effect=_side_effect):
+            rc = main(["--pull-request", "50", "--include-diff", "--include-changed-files"])
+        assert rc == 0
+        assert len(seen) == 3
+        for kwargs in seen:
+            assert kwargs["encoding"] == "utf-8"
+            assert kwargs["errors"] == "replace"
+
+    def test_pr_json_with_undecodable_byte_is_replaced(self, capsys):
+        """A stray 0x9d byte in gh JSON must not crash or null stdout."""
+        real_run = subprocess.run
+        payload = json.loads(_pr_json())
+        payload["title"] = "bad X end"
+        raw = json.dumps(payload).encode("utf-8").replace(b"X", b"\x9d")
+
+        def _run(args, **kwargs):
+            return _emit_bytes(real_run, raw, **kwargs)
+
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with auth_patch, repo_patch, patch("subprocess.run", side_effect=_run):
+            rc = main(["--pull-request", "50"])
+        assert rc == 0
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert data["title"] == "bad \ufffd end"
+
+    def test_diff_with_undecodable_byte_is_replaced(self, capsys):
+        real_run = subprocess.run
+        calls = 0
+
+        def _run(args, **kwargs):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                return _completed(stdout=_pr_json(), rc=0)
+            return _emit_bytes(real_run, b"diff \x9d end", **kwargs)
+
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with auth_patch, repo_patch, patch("subprocess.run", side_effect=_run):
+            rc = main(["--pull-request", "50", "--include-diff"])
+        assert rc == 0
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert data["diff"] == "diff \ufffd end"
+
+    def test_changed_files_with_undecodable_byte_is_replaced(self, capsys):
+        real_run = subprocess.run
+        calls = 0
+
+        def _run(args, **kwargs):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                return _completed(stdout=_pr_json(), rc=0)
+            return _emit_bytes(real_run, b"a\x9d.py\nb.py\n", **kwargs)
+
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with auth_patch, repo_patch, patch("subprocess.run", side_effect=_run):
+            rc = main(["--pull-request", "50", "--include-changed-files"])
+        assert rc == 0
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert data["files"] == ["a\ufffd.py", "b.py"]
+
+
 # ---------------------------------------------------------------------------
 # Tests: extended metadata fields (issue #3912)
 # ---------------------------------------------------------------------------
