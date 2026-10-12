@@ -24,13 +24,17 @@ _REUSE, _OMISSION, _CONTROL = "CR18", "CR19", "CR20"
 
 
 def _load_runner() -> ModuleType:
-    # The runner imports sibling modules (for example `_anthropic_api`) by flat name.
-    if str(_RUNNER.parent) not in sys.path:
-        sys.path.insert(0, str(_RUNNER.parent))
-    spec = importlib.util.spec_from_file_location("eval_prompt_change", _RUNNER)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    # The runner imports sibling modules (for example `_anthropic_api`) by flat
+    # name, so the eval directory is on sys.path only while the import runs.
+    saved = list(sys.path)
+    sys.path.insert(0, str(_RUNNER.parent))
+    try:
+        spec = importlib.util.spec_from_file_location("eval_prompt_change", _RUNNER)
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+    finally:
+        sys.path[:] = saved
     return module
 
 

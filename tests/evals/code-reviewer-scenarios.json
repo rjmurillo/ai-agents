@@ -220,7 +220,7 @@
       ],
       "expected_verdict": "REJECT_REUSE_EXISTING",
       "expected_reason_contains": "load_json",
-      "rationale": "The minimal-implementation ladder (code-qualities-assessment references/executable-nl-artifacts.md) stops at the first adequate rung. Rung 2 (existing repo capability) and rung 3 (standard library) both solve the need, and the reviewer cites the existing implementation's file:line as evidence. A new copy adds a second representation of the same knowledge, so the finding is reject and reuse."
+      "rationale": "The minimal-implementation ladder (code-qualities-assessment references/executable-nl-artifacts.md) stops at the first adequate rung. Rung 2 (existing repo capability) and rung 3 (standard library) both solve the need, and the reviewer names the existing helper and its module as evidence. A new copy adds a second representation of the same knowledge, so the finding is reject and reuse."
     },
     {
       "id": "CR19",
