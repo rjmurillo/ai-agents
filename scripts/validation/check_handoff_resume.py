@@ -178,7 +178,7 @@ def _check_required(record: dict[str, str], report: Report) -> None:
 
 def _check_timestamp(record: dict[str, str], report: Report) -> None:
     value = record.get("Timestamp")
-    if _is_missing(value):
+    if value is None or _is_missing(value):
         return
     try:
         datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
