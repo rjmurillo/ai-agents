@@ -4,7 +4,7 @@
 - **Date**: 2026-10-11 to 2026-10-12 (UTC)
 - **Agents**: orchestrator, about 12 implementer agents, review agents
 - **Task Type**: Bug
-- **Outcome**: Partial (9 of 10 issues closed, 1 open with PR #6315 pending)
+- **Outcome**: Success (10 of 10 issues closed; #6315 merged 2026-10-12T10:28:55Z, 533f7bba5)
 
 Evidence base: the orchestrator's session record as relayed in the request, checked against GitHub REST (paginated) and git on 2026-10-12. I did not read raw transcripts. Each claim is labeled OBSERVED, INFERRED, or UNKNOWN. UNKNOWN (relayed) means the orchestrator said it and no artifact confirms it.
 
@@ -17,9 +17,9 @@ Already covered, referenced and not repeated: PR #6316 (merged, rule quirks for 
 ### 4-Step Debrief
 
 **Step 1: Observe (facts only)**
-- OBSERVED: 13 sweep PRs merged 2026-10-12: #6301 e3efd0693, #6298 6964b7403, #6306 ce06312ac, #6304 088f9296b, #6303 ca1e027b2, #6299 b2b74f7fd, #6314 a9cd81144, #6293 a0708e774, #6318 5154e6ccf, #6319 8e7088f3b, #6320 49ccb4bfd, #6309 0cee6a298, #6316 75680f729. Two stay open: #6315 (Fixes #5399) and #6317.
+- OBSERVED: 13 sweep PRs merged 2026-10-12: #6301 e3efd0693, #6298 6964b7403, #6306 ce06312ac, #6304 088f9296b, #6303 ca1e027b2, #6299 b2b74f7fd, #6314 a9cd81144, #6293 a0708e774, #6318 5154e6ccf, #6319 8e7088f3b, #6320 49ccb4bfd, #6309 0cee6a298, #6316 75680f729. #6315 (Fixes #5399) merged later at 10:28:55Z (533f7bba5). Only #6317 stays open.
 - OBSERVED: the request listed #6320 as pending. It merged 2026-10-12T09:35:09Z.
-- OBSERVED: issues closed `completed`: #5766, #5403, #5765, #5601, #6032, #5851, #5397, #5390. #5417 closed `not_planned` at 05:36:32Z. #5399 is open.
+- OBSERVED: issues closed `completed`: #5766, #5403, #5765, #5601, #6032, #5851, #5397, #5390. #5417 closed `not_planned` at 05:36:32Z. #5399 closed through #6309 (0cee6a298) and #6315 (533f7bba5).
 - OBSERVED: #5390 close comment (05:36:37Z) closes the epic. #6290 and #6291 (created 05:36Z) track parts 2 and 3 of #5389.
 - OBSERVED: #6292 (created 06:05Z) records `df -i /tmp` at 1,048,560 of 1,048,576 inodes with 18% bytes used, 446 leaked ratchet directories, and 561,487 entries under `/tmp/pytest-of-richard` across 15 basetemps. It says about 12 agents ran `pre_pr.py` and `git push` at once.
 - OBSERVED: `templates/agents/orchestrator.shared.md:347` sets "Max concurrent delegations per wave: 4 by default". Line 348 bars stash in a concurrent wave. A search of `templates/rules/` and `.claude/rules/` for concurrency, wave, and fan-out limits found neither.
@@ -29,6 +29,7 @@ Already covered, referenced and not repeated: PR #6316 (merged, rule quirks for 
 - OBSERVED: #4607 holds the new evidence comment (2026-10-12T08:11:42Z). GraphQL showed 4,669 and 4,752 of 5,000 remaining during both refusals. REST core showed 5,000.
 - OBSERVED: `scripts/validation/pr_description.py:5` flags files a description names that are not in the diff. The ship contract carries a 3b CORRECTION that names `.claude/skills/<name>/` as the source for skill support files.
 - OBSERVED: #5851 close comment records the owner choice of option B (#6314, native `bashOutputMaxChars`), then option C (#6299), over a hook (ADR-097, `.claude/rules/tool-use-hook-bar.md`).
+- OBSERVED (coordinator report): the ship contract had parallel agents write PR body files into one shared scratchpad directory. Files such as `pr1.md` were overwritten across agents. #6315 first shipped with another agent's body and failed "Validate PR". The fix was a per-PR body file inside each worktree.
 - UNKNOWN (relayed): the ENOSPC duration, the number of agents that edited `src/claude`, the stash pop on the owner's stash, the wrong admin-merge claim and its retraction, the `timeout 110` push wrapper, the backwards recording of the description rule. No artifact holds these.
 
 **Step 2: Respond**
@@ -45,8 +46,8 @@ Already covered, referenced and not repeated: PR #6316 (merged, rule quirks for 
 
 **Step 4: Apply**
 - Rules: none new. Both candidates fail the always-on admission test or duplicate `orchestrator.shared.md`.
-- Memories: four candidates (Phase 4), not written from this linked worktree.
-- Issues: none filed by this retro. Findings table below.
+- Memories: five candidates (Phase 4), not written from this linked worktree.
+- Issues: #6338 filed (stale docstring). Findings table below.
 
 ### Execution Trace
 
@@ -116,7 +117,8 @@ Problem: the orchestrator said the merge used an admin bypass, then retracted (r
 - Root cause: an inference about a gate was stated as fact before the gate's evidence was complete. FAILURE-MODES class 4 in claim form.
 - Fix: do not state a bypass until every required check name is matched in the paginated list. Pagination memory is in #6317.
 
-**Items 4, 6, 7** have short chains.
+**Items 4, 6, 7, 8** have short chains.
+- Item 8. Q: why did #6315 ship another agent's body? A: the contract named one shared scratchpad directory for body files, so same-named files collided. Root cause: a shared writable path in a brief that fans out to parallel agents. Fix: `new_pr.py --prepare-body-file` creates a private `.project-toolkit/scratch/pr-body-*.md` per worktree. This is the same shape as item 2, one wrong line in the shared brief. The orchestrator authored it. FAILURE-MODES class 9.
 - Item 4. Q: why `git stash; git stash pop`? INFERRED: used as a cheap "is the tree clean" guard. The stash stack is shared across worktrees, so the pop can take another agent's entry. Rule exists at `orchestrator.shared.md:348` and in the memory above. It was not in the contract until step 3a was added. Fix: guard with `git status --porcelain`, never stash.
 - Item 6. Q: why `timeout 110` on push? INFERRED: a bound to stop a hung push. It kills pre-push hooks and leaks scratch. Covered by #6317 memory and contract step 3c.
 - Item 7. Q: why was the rule recorded backwards? OBSERVED: `pr_description.py:5` flags a file the description names that is not in the diff. INFERRED: the agent read "must match the diff" as "diff files must be named". The reverse direction is a WARNING only. No memory holds the direction.
@@ -181,6 +183,7 @@ Not applicable. No spec artifacts changed in this retro.
 | Add | Carry the wave cap into a hand-written brief | memory candidate |
 | Add | Status-guard without stash | memory candidate |
 | Add | Description rule direction | memory candidate |
+| Add | Per-worktree PR body file | memory candidate |
 | Modify | `ci-check-runs-rest-call-needs-paginate` (in #6317) | add the retracted bypass claim as evidence, after #6317 merges |
 
 Rules vs memories vs skills vs issues: no new always-on rule (the cap duplicates `orchestrator.shared.md:347`, and `AGENTS.md` bars growth without displacement). All four additions are memories. No skill edit. Two repo findings go to the owner as potential issues.
@@ -223,7 +226,14 @@ Each candidate names one action, one trigger, and one source. Learning 1 rests o
 - **Skill Operation**: ADD
 - **Target Skill ID**: github/github-pr-description-named-files-must-be-in-the-diff
 
-### Learning 5 (not extracted, duplicate)
+### Learning 5
+- **Statement**: Give each parallel agent its own PR body file via `new_pr.py --prepare-body-file`.
+- **Atomicity Score**: 90%
+- **Evidence**: #6315 shipped another agent's body and failed Validate PR (coordinator report).
+- **Skill Operation**: ADD
+- **Target Skill ID**: github/github-pr-body-files-are-per-worktree
+
+### Learning 6 (not extracted, duplicate)
 - Pagination, GraphQL secondary limit, tmp inode cap, killed-hook markers, skill source tree, 5851 native-cap decision: all in #6317. Similarity above 70%. Decision: reference only.
 
 ## Skillbook Updates
@@ -233,6 +243,7 @@ Each candidate names one action, one trigger, and one source. Learning 1 rests o
 {"skill_id":"orchestration-carry-the-wave-cap-into-the-brief","statement":"Copy the orchestrator wave cap and stash ban into every hand-written fan-out brief.","context":"Writing a ship contract or prompt for 5 or more parallel agents.","evidence":"#6292; orchestrator.shared.md:347-348","atomicity":80}
 {"skill_id":"orchestration-prove-a-brief-source-path-with-one-edit","statement":"Run one real edit through the build before a brief names a source path.","context":"Any shared brief that tells agents where to edit.","evidence":"ship contract 3b CORRECTION, 2026-10-12","atomicity":90}
 {"skill_id":"git-guard-a-clean-tree-with-status-not-stash","statement":"Guard a clean tree with git status --porcelain, never git stash then pop.","context":"Any agent checking for local changes in a repo with linked worktrees.","evidence":"owner stash popped, 2026-10-12 (relayed)","atomicity":92}
+{"skill_id":"github-pr-body-files-are-per-worktree","statement":"Give each parallel agent its own PR body file via new_pr.py --prepare-body-file.","context":"Briefing parallel agents that each open a PR.","evidence":"#6315, 2026-10-12","atomicity":90}
 {"skill_id":"github-pr-description-named-files-must-be-in-the-diff","statement":"A file named under the PR ## Changes heading must appear in the diff.","context":"Writing or fixing a PR body before validate_pr_description.","evidence":"scripts/validation/pr_description.py:5","atomicity":90}
 ```
 
@@ -274,6 +285,7 @@ Each candidate names one action, one trigger, and one source. Learning 1 rests o
 | 2 prove source path | 90% | none | Not written |
 | 3 status guard | 92% | stash memory | Not written |
 | 4 description direction | 90% | none | Not written |
+| 5 per-worktree body file | 90% | none | Not written |
 
 Not written: this retro ran in a linked worktree. `universal.md` MUST NOT 11 routes memory writes through the owning checkout. The handoff lists the candidates.
 
@@ -297,6 +309,7 @@ Not written: this retro ran in a linked worktree. `universal.md` MUST NOT 11 rou
 | Wave cap exists only in the orchestrator agent template | Process |
 | `get_pr_checks.py` has no REST path | Tool Gap |
 | Harness output directory ignores `TMPDIR` | Tool Gap |
+| Stale docstring mirrors a removed `_no_duplicate_keys` | Missing Documentation (filed as #6338) |
 | `.claude/AGENTS.md` opening line reads as if `src/claude` is the origin | Missing Documentation |
 
 #### Findings for the owner
@@ -309,7 +322,7 @@ Not written: this retro ran in a linked worktree. `universal.md` MUST NOT 11 rou
 | `TMPDIR` does not move the harness per-call output directory | #6292 body; `ci-tmp-inode-cap` memory in #6317 | Check Claude Code docs for a temp-directory setting. UNKNOWN whether one exists | Optional enhancement |
 | `.claude/AGENTS.md` line 3 calls `.claude/` a binplaced copy of `src/claude/`, which invites the wrong source tree for skill support files | `.claude/AGENTS.md:3,8` | Add "skill support files originate here" to line 3 | Optional enhancement |
 
-No Blocker rows. No issue filed by this retro: `.claude/skills/retrospective/SKILL.md` Phase 5 bars it, and no per-item owner authorization exists. #6292 already tracks the scratch leak.
+No Blocker rows. #6292 already tracks the scratch leak. One issue was filed at the coordinator's request, over the Phase 5 default of not filing: #6338, `.claude/skills/adr-review/scripts/detect_adr_changes.py:173` names `_no_duplicate_keys` in `build/scripts/generate_adr_index.py`, which has no such function (it lives at `scripts/validation/frontmatter_contract.py:150`). The same stale claim sits at `scripts/validation/check_adr_lifecycle.py:317`. A search of issues for `_no_duplicate_keys` and `detect_adr_changes` found no open match (#5189 is closed and unrelated).
 
 ### ROTI Assessment
 
@@ -317,7 +330,7 @@ No Blocker rows. No issue filed by this retro: `.claude/skills/retrospective/SKI
 
 **Benefits Received**:
 - Two relayed claims corrected against GitHub (#6320 state, check-runs page size).
-- Four atomic memory candidates, none duplicating #6316 or #6317.
+- Five atomic memory candidates, none duplicating #6316 or #6317.
 - Five owner findings, each with a path.
 
 **Time Invested**: one session of reads and GitHub queries.
@@ -347,6 +360,7 @@ No Blocker rows. No issue filed by this retro: `.claude/skills/retrospective/SKI
 | orchestration-prove-a-brief-source-path-with-one-edit | Run one real edit through the build before a brief names a source path. | 90% | ADD | - |
 | git-guard-a-clean-tree-with-status-not-stash | Guard a clean tree with git status --porcelain, never git stash then pop. | 92% | ADD | - |
 | github-pr-description-named-files-must-be-in-the-diff | A file named under the PR ## Changes heading must appear in the diff. | 90% | ADD | - |
+| github-pr-body-files-are-per-worktree | Give each parallel agent its own PR body file via new_pr.py --prepare-body-file. | 90% | ADD | - |
 
 ### Memory Updates
 
@@ -356,6 +370,7 @@ No Blocker rows. No issue filed by this retro: `.claude/skills/retrospective/SKI
 | Prove source path | Skill | Learning 2 | `.serena/memories/orchestration/orchestration-prove-a-brief-source-path-with-one-edit.md` |
 | Status guard | Skill | Learning 3 | `.serena/memories/git/git-guard-a-clean-tree-with-status-not-stash.md` |
 | Description direction | Skill | Learning 4 | `.serena/memories/github/github-pr-description-named-files-must-be-in-the-diff.md` |
+| Body file per worktree | Skill | Learning 5 | `.serena/memories/github/github-pr-body-files-are-per-worktree.md` |
 | Paginate memory | Pattern | Add retracted bypass claim, after #6317 merges | `.serena/memories/ci/ci-check-runs-rest-call-needs-paginate.md` |
 
 ### Git Operations
@@ -366,7 +381,7 @@ No Blocker rows. No issue filed by this retro: `.claude/skills/retrospective/SKI
 
 ### Handoff Summary
 
-- **Skills to persist**: 4 candidates (atomicity >= 70%)
-- **Memory files touched**: none written; 4 new and 1 update proposed
+- **Skills to persist**: 5 candidates (atomicity >= 70%)
+- **Memory files touched**: none written; 5 new and 1 update proposed
 - **Blockers for the owner**: 0
 - **Recommended next**: skillbook from the owning checkout, after #6317 merges
