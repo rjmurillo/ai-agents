@@ -77,6 +77,10 @@ def test_wrapper_reads_underlying_output_conformance(
 ) -> None:
     stdout = _underlying_stdout(nodes, complete=complete, capsys=capsys)
 
+    # The wrapper coerces both fields, so pin the raw types the owner emits.
+    payload = json.loads(stdout)
+    assert type(payload["unresolved_count"]) is int
+    assert type(payload["fetched_pages_complete"]) is bool
     assert _read_through_wrapper(stdout) == expected
 
 

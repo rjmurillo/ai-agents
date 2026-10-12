@@ -32,9 +32,10 @@ Public API:
         The write allowlist ``build_all.assert_no_claude_writes`` accepts,
         computed by unioning every ``.claude/``-rooted row's owned paths
         (DESIGN-025, "How ``assert_no_claude_writes`` derives its
-        allowlist"). The ``skills`` row still delegates to
-        ``skill_templates.owned_targets`` rather than walking a plugin tree,
-        because that row's ``plugin_tree`` stays ``null`` until B3.
+        allowlist"). The ``skills`` row delegates to
+        ``skill_templates.owned_targets`` rather than walking its plugin
+        tree, because that function returns both halves (plugin and install)
+        per discovered skill.
     ``binplace(repo_root, *, check) -> BinplaceResult``
         For every row with a non-``null`` ``plugin_tree``: copies each file
         under it to the same relative path under ``install_tree``,

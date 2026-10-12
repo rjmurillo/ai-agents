@@ -39,7 +39,7 @@ enum authoritative (Copilot, PR #5209 round-7 review).
 The schema enforced here is ADR-073 (`ADR-073-adr-lifecycle-frontmatter.md`),
 which owns the frontmatter block and the rule that the frontmatter wins over
 prose on disagreement. This module does not copy either. `LIFECYCLE_STATUSES`
-and the checked field names are held to ADR-073 by
+is held to the ADR-073 status enum by
 `test_lifecycle_statuses_conform_to_adr_073`. This gate is read-only. It opens
 ADR files and never writes one.
 
