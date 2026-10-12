@@ -192,3 +192,87 @@ def test_default_strategy_settings_failure_exit_code(settings, code, error_type,
     assert exit_code == code
     assert envelope["Error"]["Type"] == error_type
     assert not any(c[:3] == ["gh", "pr", "merge"] for c in calls)
+
+
+# Issue #6164: exit 3 messages must not carry raw gh output (CWE-117, CWE-209).
+_TOKEN = "ghp_" + "A1b2C3d4E5f6G7h8I9j0K1l2M3"
+_SHA_TOKEN = "b" * 40
+_HOSTILE = f"HTTP 502: Bad Gateway token={_TOKEN}\nforged: ok\r\nsha={_SHA_TOKEN}"
+
+
+def _assert_envelope_is_safe(envelope: dict) -> None:
+    """The error message holds neither a token nor a line break."""
+    message = envelope["Error"]["Message"]
+    assert _TOKEN not in message
+    assert _SHA_TOKEN not in message
+    assert "[REDACTED]" in message
+    assert "\n" not in message
+    assert "\r" not in message
+
+
+def test_pr_state_failure_sanitizes_gh_output(capsys):
+    """AC1, AC2: the exit 3 'Failed to get PR state' message is redacted and collapsed."""
+    exit_code, envelope, _ = _drive_main(_failed(stderr=_HOSTILE), capsys)
+    assert exit_code == 3
+    assert envelope["Error"]["Type"] == "ApiError"
+    assert envelope["Error"]["Message"].startswith("Failed to get PR state: HTTP 502")
+    _assert_envelope_is_safe(envelope)
+
+
+def test_pr_state_failure_falls_back_to_stdout_and_bounds_length(capsys):
+    """AC1: stdout is used when stderr is empty, and the detail is capped at 200 chars."""
+    view = _failed(stdout=_HOSTILE + " x" * 400, stderr="")
+    exit_code, envelope, _ = _drive_main(view, capsys)
+    assert exit_code == 3
+    _assert_envelope_is_safe(envelope)
+    detail = envelope["Error"]["Message"].removeprefix("Failed to get PR state: ")
+    assert detail.endswith("...")
+    assert len(detail) <= 203
+
+
+def _drive_merge_failure(merge, capsys) -> tuple[int, dict]:
+    """Run main() with `gh pr merge` failing as given and the readback query failing."""
+
+    def fake_run(cmd, **kwargs):
+        argv = list(cmd)
+        if argv[:3] == ["gh", "auth", "status"]:
+            return _OK
+        if argv[:3] == ["gh", "pr", "view"] and "mergeCommit" in " ".join(argv):
+            return _failed(stderr="readback unavailable")
+        if argv[:3] == ["gh", "pr", "view"]:
+            return subprocess.CompletedProcess(argv, 0, _PR_STATE, "")
+        if argv[:3] == ["gh", "pr", "merge"]:
+            return merge
+        raise AssertionError(f"unexpected command: {argv!r}")
+
+    argv = ["--owner", "o", "--repo", "r", "--pull-request", "999999", "--strategy", "squash"]
+    with patch("subprocess.run", side_effect=fake_run):
+        try:
+            code = _MOD.main(argv)
+        except SystemExit as exc:
+            code = int(exc.code or 0)
+    out = capsys.readouterr().out
+    return code, json.loads(out)
+
+
+def test_merge_failure_sanitizes_gh_output(capsys):
+    """AC1, AC2: the exit 3 'Failed to merge PR' message is redacted and collapsed."""
+    exit_code, envelope = _drive_merge_failure(_failed(stderr=_HOSTILE), capsys)
+    assert exit_code == 3
+    assert envelope["Error"]["Type"] == "ApiError"
+    assert envelope["Error"]["Message"].startswith("Failed to merge PR #999999: HTTP 502")
+    _assert_envelope_is_safe(envelope)
+    original = envelope["Data"]["audit"]["original_error"]
+    assert original.startswith("Failed to merge PR #999999: HTTP 502")
+    assert _TOKEN not in original
+    assert _SHA_TOKEN not in original
+    assert "\n" not in original
+
+
+def test_default_strategy_settings_failure_sanitizes_gh_output(capsys):
+    """AC1, AC2: the exit 3 repository-settings message is redacted and collapsed."""
+    exit_code, envelope, _ = _drive_default_strategy(_failed(stderr=_HOSTILE), capsys)
+    assert exit_code == 3
+    assert envelope["Error"]["Type"] == "ApiError"
+    assert envelope["Error"]["Message"].startswith("Failed to query repository settings")
+    _assert_envelope_is_safe(envelope)

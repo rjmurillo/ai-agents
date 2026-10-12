@@ -351,6 +351,7 @@ _NEW_GATES: dict[str, str] = {
     "Placeholder Identity": "check_placeholder_identity.py",
     "Tracked Conflict Markers": "tracked-conflict-markers",
     "Security Suppressions Diff": "security-suppressions-diff",
+    "Memory Placement": "check_memory_placement.py",
 }
 
 

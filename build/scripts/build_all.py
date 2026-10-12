@@ -432,7 +432,8 @@ def _build_lib(
     :func:`lib_mirror.compile_all` renders `scripts/{hook_utilities,
     github_core,ai_review_common}/`, `bootstrap.py`, and the review skill's
     sidecar script directly into `src/claude/lib/` and `src/copilot-cli/lib/`
-    (plus `src/claude/skills/review/scripts/`); the manifest-driven binplace
+    (plus `src/claude/skills/review/scripts/` and
+    `src/copilot-cli/skills/review/scripts/`); the manifest-driven binplace
     step that runs after every generator then copies the claude-side plugin
     trees onto their `.claude/` install-tree counterparts
     (`templates/platforms/binplace.yaml`'s `lib-*` and `skills-sidecar`
@@ -467,6 +468,12 @@ def _build_lib(
         c for c in outcome.changes if c.strip().startswith(("[WARNING]", "[ERROR]"))
     )
     if outcome.errors:
+        result.exit_code = 2
+    if check and outcome.had_drift:
+        # ``--check`` is read-only here, so drift never shows up in the
+        # git-diff staleness gate below (issue #6098). Fail on it directly.
+        for line in outcome.drift:
+            print(f"STALENESS DETECTED: lib mirror differs from scripts/: {line}", file=sys.stderr)
         result.exit_code = 2
     return result
 
