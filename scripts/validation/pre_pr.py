@@ -51,7 +51,7 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
-# Shared infrastructure (subprocess wrapper, SKIP signal, base-ref helpers).
+# Validators re-exported by name (the rest come from pre_pr_reexports).
 from active_plan_closeout import validate_active_plan_closeout
 from check_adr_lifecycle import validate_adr_lifecycle
 from check_adr_links import validate_adr_links

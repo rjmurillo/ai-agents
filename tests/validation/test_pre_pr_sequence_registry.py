@@ -293,9 +293,9 @@ class TestFastStageDeferral:
 
 class TestPrePrReexportsEverySequenceValidator:
     """``pre_pr.py`` is a facade (issue #2223): ``from scripts.validation.pre_pr
-    import X`` must keep working for every validator ``pre_pr_sequence`` wires
-    into ``_SEQUENCE``. A validator added to the sequence without the matching
-    re-export in ``pre_pr.py`` raises ``ImportError`` for callers (issue #5272,
+    import X`` must keep working for every validator ``pre_pr_sequence`` imports.
+    A validator imported there without the matching re-export in ``pre_pr.py``
+    raises ``ImportError`` for callers (issue #5272,
     first seen for ``validate_adr_links`` in PR #5209).
 
     The check walks ``vars(pre_pr_sequence)`` rather than a hand-kept list, so

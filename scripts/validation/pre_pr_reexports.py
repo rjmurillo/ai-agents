@@ -2,14 +2,14 @@
 """Re-exports of the validators ``pre_pr.py`` does not import by name itself.
 
 ``pre_pr.py`` is a facade (issue #2223): ``from scripts.validation.pre_pr
-import X`` must resolve for every ``validate_*`` that ``pre_pr_sequence`` wires
-into ``_SEQUENCE``. ``pre_pr.py`` star-imports this module so the names land in
-its namespace as the identical objects, and so the runner stays under the
-500-line ceiling (issue #3073). It relies on ``pre_pr.py`` having put
-``scripts/validation`` on ``sys.path`` before the star import.
+import X`` must resolve for every ``validate_*`` that ``pre_pr_sequence`` imports.
+``pre_pr.py`` star-imports this module so the names land in its namespace as
+the identical objects, and so the runner stays under the 500-line ceiling
+(issue #3073). It relies on ``pre_pr.py`` having put ``scripts/validation`` on
+``sys.path`` before the star import.
 
-Add a validator here when it joins ``_SEQUENCE`` and ``pre_pr.py`` does not
-already import it. ``tests/validation/test_pre_pr_sequence_registry.py`` fails
+Add a validator here when ``pre_pr_sequence`` imports it and ``pre_pr.py`` does
+not already. ``tests/validation/test_pre_pr_sequence_registry.py`` fails
 until you do (issue #5272).
 """
 
