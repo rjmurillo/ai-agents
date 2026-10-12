@@ -419,7 +419,7 @@ Consequences:
   names, and `url(...)`. `Bash(...)` and `Edit(...)` are not among them
   (`copilot help permissions`, 1.0.95).
 - ADR-107 section 6 fail-closed branch (`excludeFilenames`) is not taken: the
-  unknown resolved to a non-widening answer, and 16 skills carry scoped entries.
+  unknown resolved to a non-widening answer, and 17 skills carry scoped entries.
   The repository-side guard for a future Copilot release that does widen is the
   invariant-6 predicate in
   `tests/build_scripts/test_copilot_skill_allowed_tools_projection.py`.
