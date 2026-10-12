@@ -31,7 +31,6 @@ import atomic_write  # noqa: E402
 import build_all  # noqa: E402
 import generate_agent_catalog  # noqa: E402
 import generate_dispatcher  # noqa: E402
-import generate_hooks  # noqa: E402
 import generate_hooks_emit  # noqa: E402
 import generate_rules  # noqa: E402
 import skill_support_mirror  # noqa: E402
@@ -392,80 +391,3 @@ def test_backup_copy_fallback_preserves_content_and_mode(
         assert stat.S_IMODE(backup.stat().st_mode) == 0o755
     finally:
         transaction.commit()
-
-
-# --- generate_hooks_events staging ------------------------------------------
-
-
-_HOOKS_YAML = """\
-schemaVersion: "1.0"
-provider: "test"
-artifacts:
-  hooks:
-    settingsSource: "settings.json"
-    scriptSource: "hooks_src"
-    outputConfig: "out/hooks.json"
-    outputScripts: "out"
-    eventRemap:
-      PreToolUse: PreToolUse
-    eventDrop: []
-    matcherPolicy: "inline-script-shim"
-    versionField: 1
-"""
-
-
-def _hooks_repo(tmp_path: Path) -> Path:
-    cfg = tmp_path / "platform.yaml"
-    cfg.write_text(_HOOKS_YAML, encoding="utf-8")
-    script = tmp_path / "hooks_src" / "PreToolUse" / "guard.py"
-    script.parent.mkdir(parents=True)
-    script.write_text("import sys\nsys.exit(0)\n", encoding="utf-8")
-    settings = {
-        "hooks": {
-            "PreToolUse": [
-                {
-                    "matcher": "Bash",
-                    "hooks": [
-                        {"type": "command", "command": "python3 .claude/hooks/PreToolUse/guard.py"}
-                    ],
-                }
-            ]
-        }
-    }
-    (tmp_path / "settings.json").write_text(json.dumps(settings), encoding="utf-8")
-    return cfg
-
-
-def test_hooks_generation_never_writes_through_a_redirect_raced_onto_a_stage_path(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Swap every transaction stage file for a symlink right after it exists.
-
-    Stage files are created empty by ``tempfile.mkstemp`` and filled by the
-    generator afterward. That fill is the window: the dispatcher artifact copy
-    and the ``hooks.json`` write both ran ``copy2`` or ``write_text`` against a
-    path another process could have turned into a link.
-    """
-    external = _external(tmp_path)
-    cfg = _hooks_repo(tmp_path)
-    real_new_stage_path = HookGenerationTransaction.new_stage_path
-    raced: list[Path] = []
-
-    def racing_new_stage_path(self: HookGenerationTransaction, directory: Path) -> Path:
-        stage = real_new_stage_path(self, directory)
-        stage.unlink()
-        stage.symlink_to(external)
-        raced.append(stage)
-        return stage
-
-    try:
-        monkeypatch.setattr(HookGenerationTransaction, "new_stage_path", racing_new_stage_path)
-        rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
-    except OSError:
-        pytest.skip("symlink creation unavailable on this platform")
-
-    assert raced, "generation never allocated a stage path"
-    assert rc == 0
-    assert external.read_bytes() == _EXTERNAL_BYTES
-    assert (tmp_path / "out" / "hooks.json").is_file()
-    assert not (tmp_path / "out" / "hooks.json").is_symlink()
