@@ -17,6 +17,12 @@
     {
       "agent": "architect",
       "pair": "claude-shared",
+      "unit": "order",
+      "digest": "87313f79a1b1e24d4f592ba82d13603e924f57c164dcfe51a2e9734ac7316fc3"
+    },
+    {
+      "agent": "architect",
+      "pair": "claude-shared",
       "unit": "section:Architectural Decision Records (ADRs)",
       "digest": "23d91e960a646a969c65fa818fcf1bf38245e136fe070217e5d041692497b10e"
     },
@@ -37,6 +43,12 @@
       "pair": "claude-shared",
       "unit": "section:Style Guide Compliance",
       "digest": "f5ba2e88a7a434437c1bcf34e93661ac55298352d73266dbb9b5dd3b59500617"
+    },
+    {
+      "agent": "code-reviewer",
+      "pair": "claude-shared",
+      "unit": "order",
+      "digest": "8f5ddb2c5261d4a4cf2f6f9bd7ac859fc411aff087688b5c7f2168ccac43e40c"
     },
     {
       "agent": "code-reviewer",
@@ -85,6 +97,12 @@
       "pair": "claude-shared",
       "unit": "frontmatter:description",
       "digest": "d1640d5d3e4b4846a2c1cc2162ede4549396fb16378ee2d24f51e9df1c3b2da1"
+    },
+    {
+      "agent": "high-level-advisor",
+      "pair": "claude-shared",
+      "unit": "order",
+      "digest": "acf0ca080d5c77f4a5f37cac12df9c22037308b709650e4a5b2e2472fe8ab173"
     },
     {
       "agent": "high-level-advisor",
@@ -143,6 +161,12 @@
     {
       "agent": "merge-resolver",
       "pair": "claude-shared",
+      "unit": "order",
+      "digest": "c2f98a42a69a1a9572d3de77070d9f96e2e646255119976e36ee96bdc46fce12"
+    },
+    {
+      "agent": "merge-resolver",
+      "pair": "claude-shared",
       "unit": "section:Anti-Patterns",
       "digest": "7c0cac308f4e93172744cf5fec6a60a459661048b0acb75fd45f077f3830b598"
     },
@@ -161,6 +185,12 @@
     {
       "agent": "orchestrator",
       "pair": "claude-shared",
+      "unit": "order",
+      "digest": "6288c52f7d0df75e6aedb428ad25f5332e22f0012aaa255b05201fe030be2cb0"
+    },
+    {
+      "agent": "orchestrator",
+      "pair": "claude-shared",
       "unit": "section:Anti-Patterns",
       "digest": "dcad132918759ba8e7376b3a3d2b5a59de52783f9b8171a7d7430f83caf3ab0b"
     },
@@ -169,6 +199,12 @@
       "pair": "claude-shared",
       "unit": "section:Core Behavior",
       "digest": "3faf78ce08d2f1a9be4f1c3ecf6db8e5320b89389c86e4f229a72fee2290ea12"
+    },
+    {
+      "agent": "pr-comment-responder",
+      "pair": "claude-shared",
+      "unit": "order",
+      "digest": "770556505c99e3826f6009acec9c28647100aa0f32e6ae4e604e317f125cac6a"
     },
     {
       "agent": "pr-comment-responder",
@@ -229,6 +265,12 @@
       "pair": "claude-shared",
       "unit": "section:Test Quality Criteria",
       "digest": "6ce4d78a6a1bc29ab9fff9a4df1bfb4424e807d351676341385ab1fcd391476a"
+    },
+    {
+      "agent": "retrospective",
+      "pair": "claude-shared",
+      "unit": "order",
+      "digest": "cbcd0c773e2f170d614551e860675732e3e15cbaf80ead6311f37b1e14f9e595"
     },
     {
       "agent": "retrospective",
@@ -307,6 +349,12 @@
       "pair": "claude-shared",
       "unit": "frontmatter:argument-hint",
       "digest": "98c98a6cf1c22405279f33aeb0fee665456490f18c37ea9d450fb415aeb97db5"
+    },
+    {
+      "agent": "task-decomposer",
+      "pair": "claude-shared",
+      "unit": "order",
+      "digest": "13a73138182edf30ce7c1f4ac6ad5167327c6e509327491a3399820df110610c"
     },
     {
       "agent": "task-decomposer",

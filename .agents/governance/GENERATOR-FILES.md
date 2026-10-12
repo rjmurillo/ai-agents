@@ -82,7 +82,8 @@ Tree-specific, dropped from comparison: every frontmatter key except
 and `metadata` other than `metadata.role` (the Claude spelling of `role`).
 
 Shared, compared exactly: those three frontmatter keys, the preamble before the
-first H2, and the body of every H2 section both sides carry. Before comparing,
+first H2, the body of every H2 section both sides carry, and the order of
+those shared sections (pin unit `order`). Before comparing,
 the gate applies `detect_agent_drift.normalize_content` (MCP tool prefixes,
 handoff invocation spelling, fence language tags, trailing whitespace) and then
 ignores blank lines. Nothing else is excused. A repeated H2 name in one source
@@ -101,7 +102,9 @@ both normalized sides. The gate fails when a pinned unit changes on either
 side (re-record after review), when a pinned unit now agrees (delete the pin),
 and when the file grows past `BASELINE_CEILING`. Regenerate with
 `uv run python build/scripts/check_agent_source_parity.py --write-baseline` and
-review the diff. To remove a pin, make the two sources agree.
+review the diff. To remove a pin, make the two sources agree, then re-run
+`--write-baseline` (or delete the entry by hand). Agreement alone leaves a
+`PIN-STALE` finding.
 
 ## Regenerating
 

@@ -33,7 +33,8 @@ on only one side (section inventory stays with ``detect_agent_drift.py``).
 Shared, compared exactly after ``detect_agent_drift.normalize_content``: the
 frontmatter keys ``description``, ``argument-hint`` and ``role`` (Claude spells
 ``role`` either top level or as ``metadata.role``), the preamble before the
-first H2, and the body of every H2 section both sides carry. The normalization
+first H2, and the body of every H2 section both sides carry, and the order of the H2
+sections both sides carry (unit ``order``). The normalization
 rewrites MCP tool prefixes, handoff invocation spelling, fence language tags,
 and whitespace, and it ignores blank lines. A repeated H2 name in one source is a
 ConfigError, because a repeat would hide the earlier body. It never drops a text line, reorders
@@ -98,7 +99,7 @@ BASELINE_RELATIVE_PATH = Path(".agents") / "governance" / "agent-source-divergen
 BASELINE_SCHEMA_VERSION = "1"
 # Pinned divergences at the time the gate landed. Raising this needs a code
 # edit, so growth is a reviewed change and not a quiet re-record.
-BASELINE_CEILING = 56
+BASELINE_CEILING = 62
 
 SHARED_FRONTMATTER_KEYS: tuple[str, ...] = ("description", "argument-hint", "role")
 PAIR_CLAUDE = "claude-shared"
@@ -194,18 +195,27 @@ def diverged_units(
 ) -> dict[str, str]:
     """Return ``{unit: digest}`` for each unit the two members disagree on.
 
-    A unit on one side only counts when ``strict`` is set or the unit is
-    frontmatter (a missing shared key is a divergence in every pair).
+    A section on one side only counts only when ``strict`` is set. The
+    preamble and the frontmatter keys count in every pair.
     """
     found: dict[str, str] = {}
     for unit in sorted(set(left) | set(right)):
         one_sided = unit not in left or unit not in right
-        if one_sided and not strict and not unit.startswith("frontmatter:"):
+        if one_sided and not strict and unit.startswith("section:"):
             continue
         a, b = left.get(unit, ""), right.get(unit, "")
         if one_sided or a != b:
             found[unit] = _digest(a, b)
     return found
+
+
+def section_order_divergence(left: dict[str, str], right: dict[str, str]) -> dict[str, str]:
+    """Return ``{"order": digest}`` when shared sections appear in a different order."""
+    both = [u for u in left if u.startswith("section:") and u in right]
+    in_right = [u for u in right if u in set(both)]
+    if both == in_right:
+        return {}
+    return {"order": _digest("\n".join(both), "\n".join(in_right))}
 
 
 def _read(path: Path) -> str:
@@ -230,12 +240,16 @@ def _render(tmpl: Path, partials: Path) -> str:
         raise ConfigError(f"cannot render {tmpl}: {exc}") from exc
 
 
+_MEMBER_SUFFIXES = (".shared.md", ".claude.md.tmpl", ".copilot.md.tmpl")
+
+
 def _stems(repo_root: Path) -> list[str]:
     agents = repo_root / "templates" / "agents"
     if not agents.is_dir():
         raise ConfigError(f"directory not found: {agents}")
-    stems = set(agent_templates.discover(repo_root))
-    stems.update(p.name.removesuffix(".shared.md") for p in agents.glob("*.shared.md"))
+    stems: set[str] = set()
+    for suffix in _MEMBER_SUFFIXES:
+        stems.update(p.name.removesuffix(suffix) for p in agents.glob(f"*{suffix}"))
     return sorted(stems)
 
 
@@ -255,6 +269,7 @@ def _compare_stem(
     ):
         units = extract_units(_render(tmpl, partials))
         diverged = diverged_units(units, shared_units, strict=strict)
+        diverged.update(section_order_divergence(units, shared_units))
         found.update({(stem, pair, unit): digest for unit, digest in diverged.items()})
     return found
 
@@ -410,6 +425,10 @@ def run(repo_root: Path, *, output: str, write_baseline: bool) -> int:
     """Run the gate and return its exit code."""
     found, missing = collect_divergence(repo_root)
     if write_baseline:
+        if missing:
+            _print_text(missing, len(_stems(repo_root)), 0)
+            print("ERROR: refusing to write the baseline with incomplete agents.", file=sys.stderr)
+            return EXIT_DIVERGED
         return _write_baseline(repo_root, found)
     pinned = load_baseline(repo_root)
     findings = missing + reconcile(found, pinned) + _ceiling_finding(len(pinned))
