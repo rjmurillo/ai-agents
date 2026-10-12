@@ -17,11 +17,6 @@ _CLAUDE_CODE_MAP = (
     "scripts.claude_code predates plugin-self-containment MUST 2; the copilot map "
     "already uses the plugin-root form. Migrating it is an owner decision (Refs #6195)."
 )
-_CRITERIA_BEFORE_GATE_FIX = (
-    "completion_criteria used bare paths because run_completion_gate.py did not "
-    "expand the plugin-root form at dispatch. The gate fix moves them to the "
-    "plugin-root form; this entry then stops matching (Refs #6195)."
-)
 _GATE_NEEDS_PYYAML = (
     "transport_preflight.verify_trust runs run_completion_gate.py, which imports "
     "yaml, so bare python3 cannot run it (Refs #6195)."
@@ -48,22 +43,10 @@ _CLAUDE_CODE_ENTRIES = {
     "add_thread_reply_resolve": f"{_PR}add_pr_review_thread_reply.py",
     "resolve_thread": f"{_PR}resolve_pr_review_thread.py",
 }
-_CRITERIA_SCRIPTS = (
-    "get_unresolved_review_threads",
-    "check_suppressed_review_findings",
-    "check_review_thread_resolution_shas",
-    "test_pr_merge_ready",
-    "test_pr_merged",
-)
-
 YAML_ALLOWANCES: dict[tuple[str, str, str, str], str] = {
     **{
         (_PR_REVIEW_CONFIG, f"scripts.claude_code.{entry}", "bare-path", script): _CLAUDE_CODE_MAP
         for entry, script in _CLAUDE_CODE_ENTRIES.items()
-    },
-    **{
-        (_PR_REVIEW_CONFIG, _CRITERION, "bare-path", f"{_PR}{name}.py"): _CRITERIA_BEFORE_GATE_FIX
-        for name in _CRITERIA_SCRIPTS
     },
     (
         _PR_REVIEW_CONFIG,
