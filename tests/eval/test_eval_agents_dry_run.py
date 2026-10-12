@@ -349,6 +349,20 @@ class TestEvalSuiteAgentsDryRun:
         assert result["passed"] is False
         assert result["exit_code"] == 3
 
+    def test_billing_behavioral_child_with_empty_stdout_keeps_exit_4(self, monkeypatch):
+        class _Result:
+            returncode = 4
+            stdout = ""
+            stderr = ""
+
+        monkeypatch.setattr(eval_suite.subprocess, "run", lambda *_args, **_kwargs: _Result())
+        result = eval_suite.run_behavioral_for_prompt(
+            "prompt.md", "scenarios.json", "HEAD", False, "model", False
+        )
+
+        assert result["passed"] is False
+        assert result["exit_code"] == 4
+
     def test_malformed_agent_child_output_is_external_failure(self, monkeypatch):
         class _Result:
             returncode = 0
