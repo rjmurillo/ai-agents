@@ -151,6 +151,8 @@ def _load_pr_data(repo_flag: str, pr: int, json_fields: str) -> JsonObject:
         ["gh", "pr", "view", str(pr), "--repo", repo_flag, "--json", json_fields],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
         check=False,
     )
@@ -446,6 +448,8 @@ def main(argv: list[str] | None = None) -> int:
             diff_args,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=60,
             check=False,
         )
@@ -459,6 +463,8 @@ def main(argv: list[str] | None = None) -> int:
             ["gh", "pr", "diff", str(pr), "--repo", repo_flag, "--name-only"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=60,
             check=False,
         )
