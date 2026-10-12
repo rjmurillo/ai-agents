@@ -26,8 +26,18 @@ def test_html_block_anchor_href_is_checked() -> None:
     assert _mod.extract_shas(body) == ["abc1234"]
 
 
-def test_image_target_is_checked() -> None:
-    assert _mod.extract_shas("![shot](https://x/commit/abc1234/a.png)") == ["abc1234"]
+def test_screenshot_attachment_urls_are_ignored() -> None:
+    url = "https://github.com/user-attachments/assets/01234567-89ab-cdef-0123-456789abcdef"
+    assert _mod.extract_shas(f'![shot]({url}) <img src="{url}"> Fixed in abc1234') == ["abc1234"]
+
+
+def test_link_to_non_commit_url_is_ignored() -> None:
+    body = "See [comment](https://github.com/o/r/pull/1#issuecomment-4207335806)."
+    assert _mod.extract_shas(body) == []
+
+
+def test_commits_path_in_link_is_checked() -> None:
+    assert _mod.extract_shas("[fix](https://x/o/r/pull/1/commits/abc1234)") == ["abc1234"]
 
 
 def test_html_attributes_other_than_links_are_ignored() -> None:
