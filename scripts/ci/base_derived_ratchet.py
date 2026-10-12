@@ -58,6 +58,7 @@ from scripts.ci.count_ratchet import (
     is_shallow_repository,
 )
 from scripts.ci.merge_tree_materialization import (
+    guarded_scratch,
     init_scratch_repo,
     materialize_tree,
     remove_tree,
@@ -164,7 +165,8 @@ def measure_commit(repo_root: Path, commit: str, counter: Counter) -> int | None
     """
     tip = CommitScratch(repo_root, commit)
     try:
-        count = tip.measure(counter)
+        with guarded_scratch():
+            count = tip.measure(counter)
     finally:
         cleanup_error = tip.close()
     if cleanup_error:

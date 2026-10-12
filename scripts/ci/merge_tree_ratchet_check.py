@@ -62,6 +62,7 @@ if TYPE_CHECKING:
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.ci.base_derived_ratchet import CommitScratch, fork_registry_verdict, introduced_at
+from scripts.ci.merge_tree_materialization import guarded_scratch
 from scripts.ci.merge_tree_materialization import (
     init_scratch_repo as _init_scratch_repo,
 )
@@ -398,13 +399,8 @@ def _evaluate_registered_ratchets(repo_root: Path, base_oid: str, scratch_root: 
     return exit_code
 
 
-def _evaluate_merged_tree(repo_root: Path, base_ref: str) -> int:
-    """Extract merged tree, run counters, compare. Returns an EXIT_* code."""
-    base_oid, tree_oid, preparation_exit = _prepare_merged_tree(repo_root, base_ref)
-    if preparation_exit != EXIT_OK:
-        return preparation_exit
-    assert base_oid is not None and tree_oid is not None
-
+def _measure_in_scratch(repo_root: Path, tree_oid: str, base_oid: str) -> int:
+    """Materialize the merged tree in scratch, evaluate, and always remove the scratch."""
     try:
         scratch_root = Path(tempfile.mkdtemp(prefix="merge-tree-ratchet-"))
     except OSError as exc:
@@ -412,7 +408,6 @@ def _evaluate_merged_tree(repo_root: Path, base_ref: str) -> int:
         return EXIT_EXTERNAL
 
     primary_exit = EXIT_EXTERNAL
-    cleanup_error: str | None = None
     try:
         if _materialize_tree(repo_root, tree_oid, scratch_root) and _init_scratch_repo(
             scratch_root
@@ -424,6 +419,18 @@ def _evaluate_merged_tree(repo_root: Path, base_ref: str) -> int:
         print(cleanup_error, file=sys.stderr)
         if primary_exit == EXIT_OK:
             primary_exit = EXIT_EXTERNAL
+    return primary_exit
+
+
+def _evaluate_merged_tree(repo_root: Path, base_ref: str) -> int:
+    """Extract merged tree, run counters, compare. Returns an EXIT_* code."""
+    base_oid, tree_oid, preparation_exit = _prepare_merged_tree(repo_root, base_ref)
+    if preparation_exit != EXIT_OK:
+        return preparation_exit
+    assert base_oid is not None and tree_oid is not None
+
+    with guarded_scratch():
+        primary_exit = _measure_in_scratch(repo_root, tree_oid, base_oid)
     exit_code = primary_exit
 
     if exit_code == EXIT_REGRESSION:

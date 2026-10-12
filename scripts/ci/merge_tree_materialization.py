@@ -5,17 +5,31 @@ from __future__ import annotations
 import errno
 import os
 import shutil
+import signal
 import stat
 import subprocess
 import sys
+import tempfile
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from pathlib import Path
+from typing import Any
 
 from scripts.cli_exec import resolve_executable
 
 _CLEANUP_RETRY_DELAYS = (0.1, 0.2, 0.4, 0.8, 1.6)
 _TRANSIENT_CLEANUP_ERRNOS = frozenset({errno.EBUSY, errno.ENOTEMPTY})
+
+# Scratch prefixes this package creates under the system temp dir. The sweep
+# touches only directories whose names start with one of these.
+SCRATCH_PREFIXES = ("merge-tree-ratchet-", "base-derived-ratchet-")
+# Longer than the 30m cap on the longest pre-push job in lefthook.yml, so a
+# live run on another worktree is never swept.
+STALE_SCRATCH_AGE_SECONDS = 3600
+_TERMINATION_SIGNALS = tuple(
+    getattr(signal, name) for name in ("SIGTERM", "SIGHUP") if hasattr(signal, name)
+)
 
 
 def _make_writable_and_retry(
@@ -224,3 +238,79 @@ def init_scratch_repo(scratch: Path) -> bool:
     if not initialized:
         print("scratch Git initialization did not complete", file=sys.stderr)
     return initialized and cleanup_error is None
+
+
+def sweep_stale_scratch(
+    prefixes: tuple[str, ...] = SCRATCH_PREFIXES,
+    max_age_seconds: float = STALE_SCRATCH_AGE_SECONDS,
+    temp_root: Path | None = None,
+) -> int:
+    """Remove scratch trees left behind by earlier killed runs. Returns the count removed.
+
+    A path qualifies only when it is a real directory (not a symlink), its name
+    starts with one of ``prefixes``, the current user owns it, and its mtime is
+    older than ``max_age_seconds``. Anything else is left alone. A removal that
+    fails is reported on stderr and skipped: a sweep must never fail a ratchet.
+    """
+    root = temp_root if temp_root is not None else Path(tempfile.gettempdir())
+    uid = os.getuid() if hasattr(os, "getuid") else None
+    cutoff = time.time() - max_age_seconds
+    removed = 0
+    try:
+        entries = list(root.iterdir())
+    except OSError as exc:
+        sys.stderr.write(f"scratch sweep skipped: {type(exc).__name__}: {exc}\n")
+        return 0
+    for entry in entries:
+        if not entry.name.startswith(prefixes):
+            continue
+        try:
+            info = entry.lstat()
+        except OSError:
+            continue
+        if not stat.S_ISDIR(info.st_mode) or info.st_mtime >= cutoff:
+            continue
+        if uid is not None and info.st_uid != uid:
+            continue
+        error = remove_tree(entry, "stale ratchet scratch")
+        if error:
+            sys.stderr.write(f"{error}\n")
+        else:
+            removed += 1
+    return removed
+
+
+def _raise_system_exit(signum: int, _frame: object) -> None:
+    raise SystemExit(128 + signum)
+
+
+@contextmanager
+def terminate_as_exit() -> Iterator[None]:
+    """Turn SIGTERM and SIGHUP into ``SystemExit`` so ``finally`` blocks run.
+
+    Python's default action for both signals ends the process without unwinding,
+    which skips the ``finally`` that removes a scratch tree. The exit status is
+    128 plus the signal number, the shell convention for death by signal, so a
+    caller can tell a kill from the 0/1/2/3 result codes. Handlers can only be
+    installed from the main thread; elsewhere the guard is a no-op. Previous
+    handlers are restored on exit.
+    """
+    previous: dict[int, Any] = {}
+    try:
+        for signum in _TERMINATION_SIGNALS:
+            previous[signum] = signal.signal(signum, _raise_system_exit)
+    except ValueError:
+        pass
+    try:
+        yield
+    finally:
+        for signum, handler in previous.items():
+            signal.signal(signum, handler)
+
+
+@contextmanager
+def guarded_scratch() -> Iterator[None]:
+    """Sweep stale scratch, then run the body with termination signals unwinding."""
+    sweep_stale_scratch()
+    with terminate_as_exit():
+        yield
