@@ -85,7 +85,9 @@ Shared, compared exactly: those three frontmatter keys, the preamble before the
 first H2, and the body of every H2 section both sides carry. Before comparing,
 the gate applies `detect_agent_drift.normalize_content` (MCP tool prefixes,
 handoff invocation spelling, fence language tags, trailing whitespace) and then
-ignores blank lines. Nothing else is excused. The normalization never drops a
+ignores blank lines. Nothing else is excused. A repeated H2 name in one source
+is a configuration error (exit 2), because a repeat would hide the earlier body.
+The normalization never drops a
 text line, reorders a step, or edits a number, so the eight invariants of
 ADR-107 section 5 stay in the compared text: ordered steps, completion
 criteria, evidence requirements, failure states, approval gates, authorization

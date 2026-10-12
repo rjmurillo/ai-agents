@@ -35,7 +35,8 @@ frontmatter keys ``description``, ``argument-hint`` and ``role`` (Claude spells
 ``role`` either top level or as ``metadata.role``), the preamble before the
 first H2, and the body of every H2 section both sides carry. The normalization
 rewrites MCP tool prefixes, handoff invocation spelling, fence language tags,
-and whitespace, and it ignores blank lines. It never drops a text line, reorders
+and whitespace, and it ignores blank lines. A repeated H2 name in one source is a
+ConfigError, because a repeat would hide the earlier body. It never drops a text line, reorders
 a step, or edits a number, so the eight ADR-107 section 5 invariants are never
 excused: ordered steps, completion criteria, evidence requirements, failure
 states, approval gates, authorization and capability statements, idempotence and
@@ -84,7 +85,7 @@ if str(_SCRIPT_DIR) not in sys.path:
 
 import agent_templates  # noqa: E402
 from detect_agent_drift import (  # noqa: E402
-    get_markdown_sections,
+    get_markdown_section_list,
     normalize_content,
     remove_yaml_frontmatter,
 )
@@ -172,8 +173,14 @@ def extract_units(text: str) -> dict[str, str]:
         value = _shared_value(frontmatter, key)
         if value:
             units[f"frontmatter:{key}"] = _normalize(value)
-    sections = get_markdown_sections(remove_yaml_frontmatter(text))
-    for name, body in sections.items():
+    seen: set[str] = set()
+    for name, body in get_markdown_section_list(remove_yaml_frontmatter(text)):
+        if name in seen:
+            raise ConfigError(
+                f"duplicate H2 heading {name!r}: a repeated section would hide "
+                "text from the comparison; rename or merge it"
+            )
+        seen.add(name)
         unit = "preamble" if name == "preamble" else f"section:{name}"
         units[unit] = _normalize(body)
     return units

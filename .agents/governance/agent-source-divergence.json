@@ -30,7 +30,7 @@
       "agent": "architect",
       "pair": "claude-shared",
       "unit": "section:Memory Protocol",
-      "digest": "dfa832923776591b72fbc7c0e3581ca7f44554acb10a8a3a004b627192e5bf81"
+      "digest": "7ac050438cf3ddb0b3807de1d499484db9ca64d92daecb60f5bd431396f55585"
     },
     {
       "agent": "architect",
@@ -66,7 +66,7 @@
       "agent": "devops",
       "pair": "claude-shared",
       "unit": "section:Memory Protocol",
-      "digest": "bba97b655fdf76288c513b7c1c022f845d8be1cc9b190c810b0a70cb8fc8a3a4"
+      "digest": "4e8998eb502a0c1c9bc34f56372bfe01d4f9fc9319362b25a8235b13252f0dbe"
     },
     {
       "agent": "devops",
@@ -90,13 +90,13 @@
       "agent": "high-level-advisor",
       "pair": "claude-shared",
       "unit": "section:Memory Protocol",
-      "digest": "b03837154751122cc2dacc2fd6c1a1876cce754bde532730b0f62b90538b5fce"
+      "digest": "44f1db2c1623310d044d61d1fab5c8a94f14e55008f2224ea94daec1e60e5c0e"
     },
     {
       "agent": "high-level-advisor",
       "pair": "claude-shared",
       "unit": "section:Strategic Knowledge Available",
-      "digest": "23e9392cb7ef0cfb23c64060bfe60f43addec738a869d225c1e6ddd06d6f1982"
+      "digest": "457b79995d0298fff2bdde6aa52f444fbf6cfef5268cd14e07d208e4b4b7e929"
     },
     {
       "agent": "high-level-advisor",
@@ -133,12 +133,6 @@
       "pair": "claude-shared",
       "unit": "section:Core Directives",
       "digest": "14f12e47f23458638f0bc39cfe3ea115b90fb791bf3de186758ecc555ba1fe0f"
-    },
-    {
-      "agent": "independent-thinker",
-      "pair": "claude-shared",
-      "unit": "section:Memory Protocol",
-      "digest": "c780ab4e1fa162747bbddbf56f29ac505b23b2ba7565cacbffbcce99587fe33d"
     },
     {
       "agent": "independent-thinker",
@@ -216,7 +210,7 @@
       "agent": "qa",
       "pair": "claude-shared",
       "unit": "section:Memory Protocol",
-      "digest": "3c753576dd67c16a7d0bdf06dc4be497d0d7c57f0123d30dafad7d45bda0d1b6"
+      "digest": "3295195f77490aa2c59c9441ab12d803c99b54f751eb3f146dff6a823b92a43e"
     },
     {
       "agent": "qa",
@@ -252,7 +246,7 @@
       "agent": "retrospective",
       "pair": "claude-shared",
       "unit": "section:Memory Protocol",
-      "digest": "431f3c3b85a3bf77425a139f04d040903dc44d02729111f9ef96fb84487c3aea"
+      "digest": "d565115a1f4a7e4ff9d5bb320d45c82ff26dca9f0ec717cfff4e9ac6e308738a"
     },
     {
       "agent": "retrospective",
@@ -276,7 +270,7 @@
       "agent": "retrospective",
       "pair": "claude-shared",
       "unit": "section:Root Cause Pattern Management",
-      "digest": "c9d9b12e825de8f8ea29625897c16443dcab2676d107660207639d8637e5d30f"
+      "digest": "69a4005c6ceee4e699a4fca56d990a8bc54ed199faf919540ed8444f6fcec21e"
     },
     {
       "agent": "retrospective",
@@ -325,12 +319,6 @@
       "pair": "claude-shared",
       "unit": "section:Complexity Guidelines",
       "digest": "3f9c78c03b0234750783d0f2a47cbc8adf159ff751bcdea7b6ced84e043b97c4"
-    },
-    {
-      "agent": "task-decomposer",
-      "pair": "claude-shared",
-      "unit": "section:Memory Protocol",
-      "digest": "b54c3b71928404ae5cdb79a10d71f65f91edd33b1665589dc6a662686c6a0502"
     },
     {
       "agent": "task-decomposer",
