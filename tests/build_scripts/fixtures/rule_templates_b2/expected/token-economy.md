@@ -14,7 +14,7 @@ Rework is the expensive path: a wrong edit bills the edit, the review, the fix, 
 
 Never trade a gate, a test, or evidence in a report for tokens. That buys a cheap turn now and a full rework cycle later.
 
-For a command you expect to print thousands of lines (full test run, build, log dump), run it through [`run_with_receipt.py`](https://github.com/rjmurillo/ai-agents/blob/main/scripts/run_with_receipt.py) so the full redacted output lands in a file and you read a bounded receipt (issue #5851).
+If this checkout ships the [`run_with_receipt` wrapper](https://github.com/rjmurillo/ai-agents/blob/main/scripts/run_with_receipt.py), run a command you expect to print thousands of lines (full test run, build, log dump) through it. The full redacted output lands in a file and you read a bounded receipt (issue #5851).
 
 ## Why this rule is scoped rather than always-on
 

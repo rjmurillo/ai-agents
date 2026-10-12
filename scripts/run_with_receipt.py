@@ -197,8 +197,8 @@ def _run_child(argv: list[str]) -> tuple[int, Capture]:
     )
     capture = Capture()
     threads = [
-        threading.Thread(target=_pump, args=(proc.stdout, "out", capture)),
-        threading.Thread(target=_pump, args=(proc.stderr, "err", capture)),
+        threading.Thread(target=_pump, args=(proc.stdout, "out", capture), daemon=True),
+        threading.Thread(target=_pump, args=(proc.stderr, "err", capture), daemon=True),
     ]
     for thread in threads:
         thread.start()
