@@ -119,10 +119,11 @@ can be made structurally impossible.
 <!-- vendor-portability: declared. The enforcement scripts named here (scripts/validation/check_nl_structural_debt.py, scripts/validation/nl_structural_debt_baseline.json, scripts/validation/instruction_bytes.py, scripts/validation/check_rule_activation_coverage.py) exist only in the rjmurillo/ai-agents source repository and are absent from installed plugins. -->
 In the `rjmurillo/ai-agents` source repository,
 `scripts/validation/check_nl_structural_debt.py` ratchets authored duplicate
-normative blocks and stale derived counts against
+normative blocks, stale derived counts, and rules that claim five or more
+distinct top-level `paths:` roots (a deterministic cohesion proxy) against
 `scripts/validation/nl_structural_debt_baseline.json`, and reports change
 amplification per capability owner with `--report`. Always-on bytes use
 `scripts/validation/instruction_bytes.py`. Activation coverage uses
 `scripts/validation/check_rule_activation_coverage.py`. Doctrine in this file is
-checked by review, not by the script: the ladder checklist, cohesion, and
-coupling.
+checked by review, not by the script: the ladder checklist, cohesion beyond
+the `paths:` spread proxy, and coupling.

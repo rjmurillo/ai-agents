@@ -97,6 +97,7 @@ Need GitHub data?
 ├─ Review comments → get_pr_review_comments.py
 ├─ Review threads → get_pr_review_threads.py
 ├─ Review verdicts (approved / changes requested) → get_pr_reviews.py
+├─ Bot CHANGES_REQUESTED blocking after threads resolve → detect_stale_bot_review.py
 ├─ Unique reviewers → get_pr_reviewers.py
 ├─ Unaddressed bot comments → get_unaddressed_comments.py
 ├─ PR merged check → test_pr_merged.py
@@ -178,6 +179,7 @@ scripts and `github_core` import with the anthropic SDK blocked.
 | `get_pr_review_comments.py` | Paginated review comments with stale detection | `--pull-request`, `--include-issue-comments`, `--detect-stale`, `--exclude-stale`, `--only-stale` |
 | `get_pr_review_threads.py` | Thread-level review data | `--pull-request`, `--unresolved-only` |
 | `get_pr_reviews.py` | Review submissions (verdict state and body) | `--pull-request`, `--state`, `--output-format {json,human,auto}` |
+| `detect_stale_bot_review.py` | Classify a stale bot `CHANGES_REQUESTED` review that blocks merge; emits the human dismissal handoff, never dismisses | `--pull-request`, `--output-format {json,human,auto}` |
 | `get_pr_reviewers.py` | Enumerate unique reviewers | `--pull-request`, `--exclude-bots` |
 | `get_unaddressed_comments.py` | Bot comments needing attention | `--pull-request` |
 | `get_unresolved_review_threads.py` | Unresolved thread IDs | `--pull-request` |
@@ -194,7 +196,7 @@ scripts and `github_core` import with the anthropic SDK blocked.
 | `why_pr_blocked.py` | Diagnose a `mergeable_state`/`mergeStateStatus: blocked` PR: decomposes it into missing/failing/pending required checks, unresolved review threads, or merge conflicts, and says explicitly when none of those hold (the field can be stale) | `--pull-request`, `--base-branch`, `--output-format {json,human,auto}` |
 | `set_pr_auto_merge.py` | Enable/disable auto-merge | `--pull-request`, `--enable`/`--disable`, `--merge-method` |
 | `invoke_pr_comment_processing.py` | Process AI triage output | `--pr-number`, `--verdict`, `--findings-json` |
-| `new_pr.py` | Create PR with validation | `--title`, `--body`, `--base` |
+| `new_pr.py` | Create PR with validation | `--title`, `--body`, `--body-file`, `--prepare-body-file`, `--base`, `--head`, `--draft`, `--skip-validation`, `--audit-reason`, `--validation-base` |
 | `validate_pr_description.py` | Validate PR description | `--title`, `--body`, `--body-file`, `--fail-on-violation` |
 | `update_pr_branch.py` | Server-side "Update branch": merges the base into the PR head. Exit 0 when the update is requested, completed, or already up to date (`already_up_to_date: true`); exit 1 for a PR that is not open, or a head that differs from `--expected-head-sha` (`reason: head_moved`); exit 2 when the PR is not found; exit 3 for another API failure or a `--wait` timeout (the wait ends only when compare shows the PR is not behind); exit 4 for an auth failure. Unattended callers should pass `--expected-head-sha` | `--pull-request`, `--expected-head-sha`, `--wait`, `--timeout-seconds` |
 | `close_pr.py` | Close PR with comment | `--pull-request`, `--comment` |

@@ -14,16 +14,16 @@ matching "Source" instead.
 |-----------|--------------------|----------------------|------|
 | `build/generate_agents.py` | `templates/agents/*.shared.md` | `src/copilot-cli/agents/`, `src/vs-code-agents/` (per platform YAML) | ADR-002 |
 | `build/scripts/generate_rules.py` | `.claude/rules/*.md` | `.github/instructions/*.instructions.md`, `src/copilot-cli/instructions/*.instructions.md` | REQ-003-006 |
-| `build/scripts/generate_skills.py` | `.claude/skills/<name>/` (SKILL.md read from `src/claude/skills/<name>/SKILL.md` when that skill has a template) | `src/copilot-cli/skills/<name>/` | REQ-003-001 |
+| `build/scripts/generate_skills.py` | `.claude/skills/<name>/` (SKILL.md read from `src/claude/skills/<name>/SKILL.md` when that skill has a template) | `src/copilot-cli/skills/<name>/` (except `review/scripts/validate_review_marker.py`, rendered from `scripts/validation/` by `lib_mirror.py`) | REQ-003-001 |
 | `build/scripts/skill_templates.py` | `templates/skills/<name>.SKILL.md.tmpl` + `templates/skills/partials/*.mustache` | `src/claude/skills/<name>/SKILL.md` and through the binplace step to `.claude/skills/<name>/SKILL.md`, template-owned skills only | ADR-108, ADR-109 |
-| `build/scripts/generate_skills.py` (`sync_claude_plugin_skill_support`) | `.claude/skills/<name>/` (every file except SKILL.md; merge-resolver included, unlike the Copilot mirror row above) | `src/claude/skills/<name>/` (SKILL.md itself is never touched here; that is `skill_templates.py`'s target) | ADR-109 B3 follow-up |
+| `build/scripts/generate_skills.py` (`sync_claude_plugin_skill_support`) | `.claude/skills/<name>/` (every file except SKILL.md and the review sidecar validator; merge-resolver included, unlike the Copilot mirror row above) | `src/claude/skills/<name>/` (SKILL.md itself is never touched here; that is `skill_templates.py`'s target; `review/scripts/validate_review_marker.py` is skipped, rendered from `scripts/validation/` by `lib_mirror.py`) | ADR-109 B3 follow-up |
 | `build/scripts/agent_templates.py` | `templates/agents/<stem>.claude.md.tmpl`, `<stem>.copilot.md.tmpl`, `templates/agents/partials/*.mustache` | `src/claude/agents/<stem>.md` and through `build/generate_agents.py` to `src/copilot-cli/agents/<stem>.agent.md` | ADR-109 |
 | `build/scripts/rule_templates.py` | `templates/rules/<name>.md` (every rule; a literal `{{` in a rule is written `\{{`) | `src/claude/rules/<name>.md` and through the binplace step to `.claude/rules/<name>.md` | ADR-109 |
 | `build/scripts/binplace_manifest.py` | `templates/platforms/binplace.yaml` plus the plugin trees it names | `.claude/agents/`, `.claude/rules/`, `.claude/skills/<name>/SKILL.md`, `.claude/hooks/` (plus `.claude/hooks/hooks.json`), `.github/hooks/*.json` | ADR-109 |
 | `build/generate_agents.py` (`github` platform, `templates/platforms/github.yaml`) | `templates/agents/<stem>.copilot.md.tmpl` via `agent_templates.py` | `.github/agents/*.agent.md` (no `model:` field; GitHub rejects it, issue #4938) | ADR-109 |
 | `build/scripts/hook_templates.py` | `templates/hooks/` (14 executables, `dispatch_groups.json`, `hooks.json`) plus `templates/hooks/settings.tmpl` | `src/claude/hooks/<rel>`, `src/claude/hooks.json` (plugin root, not nested), and directly `.claude/settings.json` (no plugin-tree hop) | ADR-109 |
 | `build/scripts/generate_hooks.py` with `build/scripts/generate_dispatcher.py` | `src/claude/hooks/` + `src/claude/hooks.json` (repointed from `.claude/hooks/` by ADR-109 B4; `hook_templates.compile_all` runs first) | `src/copilot-cli/hooks/` + `src/copilot-cli/hooks/hooks.json`, and through the binplace step to `.github/hooks/*.json` (first binplaced in B4) | REQ-003-007, ADR-068, ADR-109 |
-| `build/scripts/build_all.py` (`_build_lib`, via `build/scripts/lib_mirror.py`) | `scripts/{hook_utilities,github_core,ai_review_common}/`, `scripts/hook_utilities/bootstrap.py`, `scripts/validation/validate_review_marker.py` | `src/claude/lib/`, `src/copilot-cli/lib/`, `src/claude/skills/review/scripts/` (then binplaced onto `.claude/lib/` and `.claude/skills/review/scripts/` per `templates/platforms/binplace.yaml`'s `lib-*` and `skills-sidecar` rows) | REQ-003-001, REQ-003-002, ADR-109 B5 |
+| `build/scripts/build_all.py` (`_build_lib`, via `build/scripts/lib_mirror.py`) | `scripts/{hook_utilities,github_core,ai_review_common}/`, `scripts/hook_utilities/bootstrap.py`, `scripts/validation/validate_review_marker.py` | `src/claude/lib/`, `src/copilot-cli/lib/`, `src/claude/skills/review/scripts/`, `src/copilot-cli/skills/review/scripts/` (then binplaced onto `.claude/lib/` and `.claude/skills/review/scripts/` per `templates/platforms/binplace.yaml`'s `lib-*` and `skills-sidecar` rows; the `skills-sidecar-copilot` row has no install tree) | REQ-003-001, REQ-003-002, ADR-109 B5 |
 | `build/scripts/generate_pr_quality_prompts.py` | `.claude/skills/review/references/{role}.md` | `.github/prompts/pr-quality-gate-{role}.md` | REQ-008-01 |
 
 ## Hand-maintained sibling copies (NOT generated)
@@ -40,11 +40,22 @@ source template exists at run time is generated output, not hand-maintained,
 and the exceptions are scoped to exactly those sets. The seven doc files
 under `.claude/hooks/` (`AGENTS.md`, five `CLAUDE.md` files, one `README.md`)
 are outside the hooks class and stay hand-maintained.
-Every other file below is kept in sync by hand and guarded by the install-parity
-validator, which fails CI when a sibling drifts from its source.
+Every other file below is kept in sync by hand and guarded by `check_surface_parity.py`
+(driven by `templates/platforms/surface-parity.yaml`), which fails CI when a sibling drifts from its source.
 
 | Path | Role | Guard |
 |------|------|-------|
+| `.github/agents/security/references/*.md` | Byte copy of `src/claude/security/references/` | `check_surface_parity.py` (`STALE`, `MISSING`, `EXTRA`) |
+| `src/copilot-cli/lib/*.py` (top-level modules) | Hand-maintained translation of the `.claude/lib/*.py` top-level modules (`translated`; `paths.py` is listed in `divergent` for the `.agents` root) | `check_surface_parity.py` (`STALE`, `MISSING`, `EXTRA`) |
+
+`templates/platforms/surface-parity.yaml` is the machine-readable inventory of
+every surface in this file and the ones it leaves out. Each row names the
+surface path, its authority, its generator, the gate that validates it, and a
+relation: `generated`, `binplaced`, `mirrored`, `translated`, or `independent`.
+`build/scripts/check_surface_parity.py` reads it, and `build_all.py --check`
+runs the same checks. A new output path in `binplace.yaml`, a platform YAML, or
+`OWNED_PREFIXES` with no row fails as `UNMANIFESTED`; a tracked file under
+`src/`, `.claude/`, or `.github/` that no row owns fails as `UNCLASSIFIED`.
 
 ADR-109 B1 moved `.claude/agents/<name>.md`, `.github/agents/<name>.agent.md`, and `src/claude/agents/<stem>.md` into generated output via the agent_templates.py and binplace_manifest.py generators above. ADR-109 B2 moved every `.claude/rules/<name>.md` file (28) the same way via rule_templates.py; `testing.md` is template-owned too, its GitHub Actions example written with the `\{{` escape. ADR-109 B3 gave skills the same two-hop shape: `skill_templates.compile_all` renders `src/claude/skills/<name>/SKILL.md`, and the binplace step copies it onto `.claude/skills/<name>/SKILL.md`; the manifest also gained a `prompts` row (`source: .claude/skills/review/references`, `compile: generate_pr_quality_prompts`, `plugin_tree: null`) that documents the twelve `pr-quality-gate-*.md` files without changing how they are generated. ADR-109 B4 moved the 16-file hooks class (14 executables, `hooks.json`, `dispatch_groups.json`) plus `.claude/settings.json` into generated output via hook_templates.py: `src/claude/hooks/` and `src/claude/hooks.json` render for the first time, `.github/hooks/*.json` is binplaced for the first time, and `.claude/settings.json` renders directly from `templates/hooks/settings.tmpl` with no plugin-tree hop, since it ships in no plugin.
 
@@ -101,6 +112,9 @@ uv run python build/scripts/build_all.py
 
 # Verify generated trees match sources without writing (CI drift gate).
 uv run python build/scripts/build_all.py --check
+
+# Surface parity only (same checks that build_all.py --check also runs).
+uv run python build/scripts/check_surface_parity.py
 
 # Agents only (also runnable standalone).
 uv run python build/generate_agents.py

@@ -11,8 +11,8 @@ it up:
 
 | Artifact | Role |
 |----------|------|
-| `.claude/skills/memory/memory_core/memory_router.py` | Importable module. Serena only. |
-| `.claude/skills/memory/scripts/search_memory.py` | CLI wrapper. Adds the Tier 2 episode store. |
+| `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/memory_core/memory_router.py` | Importable module. Serena only. |
+| `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py` | CLI wrapper. Adds the Tier 2 episode store. |
 
 Agents call the CLI. Python callers import the module.
 
@@ -335,7 +335,7 @@ time python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memo
 
 ### For Skill Authors
 
-1. **Call the script**: `.claude/skills/memory/scripts/search_memory.py`
+1. **Call the script**: `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py`
 2. **Parse JSON**: `--format json` gives structured output
 3. **Include diagnostics**: pair results with `get_memory_router_status()`
 

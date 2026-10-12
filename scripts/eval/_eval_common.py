@@ -6,6 +6,7 @@ duplication of score aggregation logic.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 from collections.abc import Callable, Sequence
@@ -138,23 +139,121 @@ def call_with_temperature_fallback(
         return send(False)
 
 
-def safe_http_error_message(provider_surface: str, status_code: int) -> str:
-    """Return a fixed HTTP error that contains no provider-controlled body."""
+# Closed set of provider `error.type` values that may be echoed. The Anthropic
+# API documents these; the OpenAI-compatible providers reuse `invalid_request_error`
+# and `authentication_error`. Anything outside the set is dropped, never echoed,
+# because a provider-controlled string must not reach logs or persisted artifacts.
+PROVIDER_ERROR_TYPES: frozenset[str] = frozenset(
+    {
+        "invalid_request_error",
+        "authentication_error",
+        "billing_error",
+        "permission_error",
+        "not_found_error",
+        "request_too_large",
+        "rate_limit_error",
+        "timeout_error",
+        "api_error",
+        "overloaded_error",
+    }
+)
+
+# The fixed phrase the Anthropic API returns when the credit balance is depleted
+# (HTTP 400, error.type=invalid_request_error). Matched, never echoed.
+_CREDIT_BALANCE_RE = re.compile(r"credit\s+balance\s+(?:is\s+)?too\s+low", re.IGNORECASE)
+
+# Token that marks a billing failure in a `safe_http_error_message` result, so a
+# caller can tell "fund the key" from "fix the request" without a second parse.
+BILLING_ERROR_MARKER = "error=billing"
+
+_MAX_BODY_CHARS = 65536
+
+
+def _error_object(parsed: object) -> dict[str, Any]:
+    """Return the dict holding `type` and `message` from a parsed provider body.
+
+    Anthropic wraps it as ``{"type": "error", "error": {...}}``. The OpenAI SDK
+    hands back the inner object directly. Anything else yields an empty dict.
+    """
+    if not isinstance(parsed, dict):
+        return {}
+    inner = parsed.get("error")
+    return inner if isinstance(inner, dict) else parsed
+
+
+def _decode_body(body: object) -> object:
+    """Turn raw bytes or text into a parsed JSON value, or the raw text when it is not JSON."""
+    if isinstance(body, bytes):
+        body = body.decode(errors="replace")
+    if not isinstance(body, str):
+        return body
+    text = body[:_MAX_BODY_CHARS]
+    try:
+        return json.loads(text)
+    except ValueError:
+        return text
+
+
+def classify_provider_error_body(body: object) -> tuple[str | None, bool]:
+    """Return ``(error_type, is_credit_balance)`` read from a provider error body.
+
+    *body* may be bytes, text, an already-parsed dict (SDK exceptions), or None.
+    ``error_type`` is the provider's ``error.type`` only when it is in
+    ``PROVIDER_ERROR_TYPES``; otherwise None. ``is_credit_balance`` is True when
+    the error message carries the fixed depleted-credit phrase. No part of the
+    body text is returned, so the redaction policy holds.
+    """
+    parsed = _decode_body(body)
+    if isinstance(parsed, str):
+        return None, bool(_CREDIT_BALANCE_RE.search(parsed))
+    error = _error_object(parsed)
+    raw_type = error.get("type")
+    error_type = (
+        raw_type if isinstance(raw_type, str) and raw_type in PROVIDER_ERROR_TYPES else None
+    )
+    message = error.get("message")
+    return error_type, isinstance(message, str) and bool(_CREDIT_BALANCE_RE.search(message))
+
+
+def _http_category(status_code: int, error_type: str | None, credit_balance: bool) -> str:
+    if error_type == "billing_error" or (status_code == 400 and credit_balance):
+        return "billing"
     if status_code in (401, 403):
-        category = "auth"
-    elif status_code == 408:
-        category = "timeout"
-    elif status_code == 429:
-        category = "rate_limit"
-    elif 500 <= status_code < 600:
-        category = "server_error"
-    elif 400 <= status_code < 500:
-        category = "client_error"
-    else:
-        category = "http_error"
+        return "auth"
+    if status_code == 408:
+        return "timeout"
+    if status_code == 429:
+        return "rate_limit"
+    if 500 <= status_code < 600:
+        return "server_error"
+    if 400 <= status_code < 500:
+        return "client_error"
+    return "http_error"
+
+
+def is_billing_error_message(message: str) -> bool:
+    """True when *message* came from `safe_http_error_message` as a billing failure."""
+    return BILLING_ERROR_MARKER in message and "returned HTTP" in message
+
+
+def safe_http_error_message(
+    provider_surface: str,
+    status_code: int,
+    body: object = None,
+) -> str:
+    """Return a fixed HTTP error that contains no provider-controlled body text.
+
+    *body* is optional. When given, only two facts are read from it: the
+    provider's `error.type`, appended when it is in `PROVIDER_ERROR_TYPES`, and
+    whether the message says the credit balance is too low, which reports
+    ``error=billing``. The body text itself is never returned.
+    """
+    error_type, credit_balance = classify_provider_error_body(body)
+    category = _http_category(status_code, error_type, credit_balance)
+    type_part = f"provider_error_type={error_type}; " if error_type else ""
     return (
         f"{provider_surface} returned HTTP {status_code}: error={category}; "
-        "provider response redacted"
+        f"{type_part}provider response redacted"
     )
 
 

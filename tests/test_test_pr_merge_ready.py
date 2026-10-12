@@ -166,6 +166,8 @@ _OPEN_PR = {
             "isDraft": False,
             "mergeable": "MERGEABLE",
             "mergeStateStatus": "CLEAN",
+            "baseRefName": "main",
+            "baseRepository": {"defaultBranchRef": {"name": "main"}},
             "reviewThreads": {"totalCount": 0, "nodes": []},
             "commits": {
                 "nodes": [
@@ -2125,6 +2127,8 @@ class TestClassifyTier:
             "IsDraft": False,
             "State": "OPEN",
             "MergeStateStatus": "CLEAN",
+            "BaseRef": "main",
+            "DefaultBranch": "main",
             "FailedRequiredChecks": [],
             "UndisposedNonRequiredFailures": [],
             "UnresolvedThreads": 0,
@@ -2139,6 +2143,8 @@ class TestClassifyTier:
             "IsDraft": False,
             "State": "OPEN",
             "MergeStateStatus": "UNSTABLE",
+            "BaseRef": "main",
+            "DefaultBranch": "main",
             "FailedRequiredChecks": [],
             "UndisposedNonRequiredFailures": [],
             "UnresolvedThreads": 0,
@@ -2387,6 +2393,8 @@ class TestClassifyTier:
             "IsDraft": False,
             "State": "OPEN",
             "MergeStateStatus": "CLEAN",
+            "BaseRef": "main",
+            "DefaultBranch": "main",
             "FailedRequiredChecks": [],
             "UndisposedNonRequiredFailures": [],
             "UnresolvedThreads": 0,
@@ -2423,6 +2431,7 @@ class TestClassifyTier:
             "DIRTY",
             "SKIP",
             "UNSUPPORTED",
+            "STACKED",
         }
         assert set(_TIER_ORDER) == expected
 

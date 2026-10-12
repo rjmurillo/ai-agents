@@ -157,7 +157,7 @@ array-handling          Episodes  0.85  Common array gotchas include...
 #### Example 1: Basic Search
 
 ```bash
-python3 .claude/skills/memory/scripts/search_memory.py "git hooks"
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "git hooks"
 ```
 
 Output:
@@ -182,7 +182,7 @@ Output:
 #### Example 2: Table Format
 
 ```bash
-python3 .claude/skills/memory/scripts/search_memory.py \
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" \
     "PowerShell arrays" \
     --format table
 ```
@@ -199,7 +199,7 @@ powershell-arrays        Serena 1.0   Common array operations incl...
 #### Example 3: Limited Results
 
 ```bash
-python3 .claude/skills/memory/scripts/search_memory.py \
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" \
     "authentication" \
     --max-results 3
 ```
@@ -207,7 +207,7 @@ python3 .claude/skills/memory/scripts/search_memory.py \
 #### Example 5: From Shell Script
 
 ```bash
-result=$(python3 .claude/skills/memory/scripts/search_memory.py \
+result=$(python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" \
     "CI pipelines" \
     --max-results 5)
 
@@ -276,7 +276,7 @@ except Exception as e:
 
 ```bash
 # At session start - search relevant context
-context=$(python3 .claude/skills/memory/scripts/search_memory.py \
+context=$(python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" \
     "[session objectives]" \
     --max-results 10)
 
@@ -294,7 +294,7 @@ if data['Count'] > 0:
 
 ```bash
 # Before making technical decisions
-patterns=$(python3 .claude/skills/memory/scripts/search_memory.py \
+patterns=$(python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" \
     "[decision topic] patterns")
 
 echo "$patterns" | python3 -c "

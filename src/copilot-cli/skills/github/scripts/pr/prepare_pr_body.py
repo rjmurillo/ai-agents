@@ -17,6 +17,12 @@ class PreparePrBodyError(RuntimeError):
 
 _BODY_NAME_RE = re.compile(r"^pr-body-[A-Za-z0-9_-]+\.md$")
 _BODY_PLACEHOLDER = "<!-- replace with PR body -->\n"
+# One sentence, shared by the name check and the mode check, so a caller learns
+# both rules from whichever one fails first (#5540).
+_BODY_FILE_RULES = (
+    "body file must match .project-toolkit/scratch/pr-body-*.md and be mode 600 "
+    "(owner-only); create one with new_pr.py --prepare-body-file"
+)
 _PRIVATE_MASK = 0o077
 _HAS_DIRECTORY_FDS = (
     hasattr(os, "O_DIRECTORY")
@@ -146,7 +152,7 @@ def _validate_body_path(relative_path: str) -> Path:
         or len(path.parts) != 3
         or not _BODY_NAME_RE.fullmatch(path.name)
     ):
-        raise PreparePrBodyError("body file must match .project-toolkit/scratch/pr-body-*.md")
+        raise PreparePrBodyError(_BODY_FILE_RULES)
     return path
 
 
@@ -163,7 +169,7 @@ def _validate_body_metadata(
         raise PreparePrBodyError(f"body file must be plain: {relative_path}")
     _require_owned(Path(relative_path), before)
     if stat.S_IMODE(before.st_mode) & _PRIVATE_MASK:
-        raise PreparePrBodyError(f"body file must be owner-only: {relative_path}")
+        raise PreparePrBodyError(f"{_BODY_FILE_RULES}: {relative_path}")
     if not _same_object(before, opened) or (
         before.st_ctime_ns,
         before.st_size,

@@ -112,15 +112,22 @@ class TestCodexDisk:
 
 
 class _FakeRun:
-    def __init__(self, stdout: str = "", returncode: int = 0, error: BaseException | None = None):
+    def __init__(
+        self,
+        stdout: str = "",
+        returncode: int = 0,
+        error: BaseException | None = None,
+        stderr: str = "",
+    ):
         self.stdout, self.returncode, self.error = stdout, returncode, error
+        self.stderr = stderr
         self.calls: list[tuple[list[str], dict[str, Any]]] = []
 
     def __call__(self, argv: list[str], **kwargs: Any) -> Any:
         self.calls.append((argv, kwargs))
         if self.error is not None:
             raise self.error
-        return subprocess.CompletedProcess(argv, self.returncode, self.stdout, "")
+        return subprocess.CompletedProcess(argv, self.returncode, self.stdout, self.stderr)
 
 
 class TestCopilotDisk:
@@ -204,6 +211,46 @@ class TestLoginProbes:
 
         self._probe(monkeypatch, error=OSError())
         assert not src.codex_login_probe("codex", {})
+
+    def test_codex_reads_the_status_line_from_stderr(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        fake = self._probe(monkeypatch, stdout="", stderr="Logged in using ChatGPT\n")
+
+        assert src.codex_login_probe("codex", {})
+        assert fake.calls[0][0] == ["codex", "login", "status"]
+
+    @pytest.mark.parametrize(
+        ("stdout", "stderr", "returncode"),
+        [
+            ("", "", 0),
+            ("", "Logged in using an API key\n", 0),
+            ("", "Not logged in using ChatGPT\n", 0),
+            ("", "Logged in using ChatGPT\n", 1),
+            ("Logged in using an API key\n", "warning: update available\n", 0),
+        ],
+    )
+    def test_codex_rejects_other_streams(
+        self, monkeypatch: pytest.MonkeyPatch, stdout: str, stderr: str, returncode: int
+    ) -> None:
+        self._probe(monkeypatch, stdout=stdout, stderr=stderr, returncode=returncode)
+
+        assert not src.codex_login_probe("codex", {})
+
+    def test_codex_matches_the_line_amid_other_stderr_output(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        self._probe(monkeypatch, stdout="note\n", stderr="warn\nLogged in using ChatGPT\n")
+
+        assert src.codex_login_probe("codex", {})
+
+    def test_claude_ignores_stderr_so_json_stays_parseable(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        payload = json.dumps({"loggedIn": True, "authMethod": "claude.ai"})
+        self._probe(monkeypatch, stdout=payload, stderr="deprecation notice\n")
+        assert src.claude_login_probe("claude", {})
+
+        self._probe(monkeypatch, stdout="", stderr=payload)
+        assert not src.claude_login_probe("claude", {})
 
     def test_copilot_reads_the_last_logged_in_user(self, tmp_path: Path) -> None:
         body = (

@@ -1,6 +1,6 @@
 # Official Hook Contracts
 
-Updated: 2026-09-26
+Updated: 2026-10-12
 
 This sidecar pins the official sources used by `agent-harness-reference`.
 Future agents should refresh these sources, not repeat an open-ended search.
@@ -86,6 +86,23 @@ found no additional configuration key.
 
 Sources: GitHub permission guide, Persisted permissions and Allowing or denying
 permission for specific tools; configuration guide, Setting allowed tools.
+
+### Skill `allowed-tools`
+
+The official skills guide lists `allowed-tools` in a skill's `SKILL.md`
+frontmatter as the tools Copilot may use without asking, with `shell` as its
+example, and warns that pre-approving shell removes the confirmation step.
+Status: DOCS SILENT on argument-scoped entries such as `Bash(git push:*)` and on
+the `Bash(...)` and `Edit(...)` spellings. The `copilot help permissions`
+kinds are `shell(...)`, `write(...)`, MCP server names, and `url(...)`.
+
+Runtime behavior: `probe-evidence.md` section 10 found Copilot CLI 1.0.95 grants
+nothing from a skill's `allowed-tools` in `-p` mode, bare or scoped. Do not read
+the docs example as a measured grant.
+
+Source: GitHub Docs, Adding agent skills for GitHub Copilot CLI
+(<https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-skills>),
+read 2026-10-12.
 
 ### Exact native events
 

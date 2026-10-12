@@ -69,6 +69,9 @@ from pr_context_helpers import (
 
 JsonObject: TypeAlias = dict[str, Any]
 _MAX_REVIEW_THREAD_PAGES = 50
+# Matched case-insensitively against the output of a failed PR view. gh words a
+# missing PR as "Could not resolve to a PullRequest", not "not found".
+_NOT_FOUND_MARKERS = ("could not resolve to a pullrequest", "not found")
 
 _FULL_JSON_FIELDS = (
     "number,title,body,headRefName,headRefOid,baseRefName,baseRefOid,state,author,labels,"
@@ -146,18 +149,25 @@ def _review_threads_page(
     return cast(JsonObject, review_threads)
 
 
+def _is_not_found(gh_output: str) -> bool:
+    lowered = gh_output.lower()
+    return any(marker in lowered for marker in _NOT_FOUND_MARKERS)
+
+
 def _load_pr_data(repo_flag: str, pr: int, json_fields: str) -> JsonObject:
     pr_result = subprocess.run(
         ["gh", "pr", "view", str(pr), "--repo", repo_flag, "--json", json_fields],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
         check=False,
     )
 
     if pr_result.returncode != 0:
         err_msg = pr_result.stderr or pr_result.stdout
-        if "not found" in err_msg:
+        if _is_not_found(err_msg):
             error_and_exit(f"PR #{pr} not found in {repo_flag}", 2)
         error_and_exit(f"Failed to get PR #{pr}: {err_msg}", 3)
 
@@ -446,6 +456,8 @@ def main(argv: list[str] | None = None) -> int:
             diff_args,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=60,
             check=False,
         )
@@ -459,6 +471,8 @@ def main(argv: list[str] | None = None) -> int:
             ["gh", "pr", "diff", str(pr), "--repo", repo_flag, "--name-only"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=60,
             check=False,
         )

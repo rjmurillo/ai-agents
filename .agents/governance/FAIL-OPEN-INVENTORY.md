@@ -256,9 +256,12 @@ whole input domain. It is a defect when a whole-tree validator sits behind a
 diff filter, because a pre-existing violation then goes unreported while the
 check still reports success.
 
-30 candidates: 24 `dorny/paths-filter` workflows and 6 with a top-level
-`on: paths:` trigger. Each verdict was decided by reading the called Python
-module, not the workflow YAML alone. 6 defects, 24 legitimate, 0 unclear.
+Triage snapshot taken before issue #5114: 30 candidates, 24
+`dorny/paths-filter` workflows and 6 with a top-level `on: paths:` trigger.
+Each verdict was decided by reading the called Python module, not the
+workflow YAML alone. 6 defects, 24 legitimate, 0 unclear. After #5114,
+`validate-adr-number-uniqueness.yml` carries no filter, so it left the
+legitimate list; the tallies are historical, not current.
 
 ### Defects
 
@@ -275,7 +278,7 @@ module, not the workflow YAML alone. 6 defects, 24 legitimate, 0 unclear.
 
 Recorded so a later scan does not re-triage them. Two patterns account for
 most: the filter glob equals the validator's file-type or directory domain
-(`yaml-lint.yml`, `validate-paths.yml`, `validate-adr-number-uniqueness.yml`,
+(`yaml-lint.yml`, `validate-paths.yml`,
 `validate-spec-id-uniqueness.yml`, `validate-planning-artifacts.yml`,
 `validate-artifact-retention.yml`, `validate-plugin-manifests.yml`,
 `skillbook-validation.yml`, `slash-command-quality.yml`,
@@ -286,10 +289,14 @@ check is inherently PR-scoped and asks a question about this diff
 (`ai-spec-validation.yml`, `investigation-claim-backstop.yml`,
 `synthesis-panel-gate.yml`, `test-codeql-integration.yml`).
 
-Three deserve their reasoning kept, because they are the shapes worth copying:
+Four deserve their reasoning kept, because they are the shapes worth copying:
 
 - `instruction-budget.yml:36` carries no filter at all and runs on every
   trigger. This is the already-fixed precedent `ci-scripts.md` cites.
+- `validate-adr-number-uniqueness.yml` carries no filter either, since issue
+  #5114. Two PRs each green against their own base can merge into a tree with
+  two files sharing one ADR id, so the id check runs on every PR and every push
+  to `main`. `tests/ci/test_adr_uniqueness_workflow_unconditional.py` pins it.
 - `validate-generated-agents.yml:48` gates a whole-tree generator diff behind a
   filter, and a co-located test, `tests/ci/test_frontmatter_gate_paths_filter.py`,
   asserts the filter still covers everything the gate scans. The filter cannot

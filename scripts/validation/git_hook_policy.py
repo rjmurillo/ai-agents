@@ -16,6 +16,7 @@ import re
 import shlex
 import shutil
 import signal
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -24,7 +25,8 @@ import time
 import unicodedata
 import warnings
 from collections import Counter
-from collections.abc import Iterable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
+from contextlib import closing
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from fnmatch import fnmatch
@@ -46,7 +48,7 @@ from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 from scripts.ci import diff_line_scope
 from scripts.ci.run_pytest_partition import PYTEST_DIST_MODE
 from scripts.hook_utilities.utilities import recent_host_session_dates
-from scripts.validation import cli_smoke_paths, testmon_seed
+from scripts.validation import cli_smoke_paths, pytest_lanes, testmon_seed
 from scripts.validation.evidence import (
     REASON_ADVISORY_FINDINGS,
     REASON_AUTH_UNAVAILABLE,
@@ -710,6 +712,9 @@ WINDOWS_RESERVED_NAMES = frozenset(
         )
     },
 )
+# Windows caps a command line at 32767 characters. Half of that leaves room for
+# the git prefix and a long repo path (issue #5437).
+STAGE_CHUNK_MAX_CHARS = 16000
 GENERATED_PATHS = {
     "mcp": (
         ".vscode/mcp.json",
@@ -904,6 +909,7 @@ def _run_command(
     extra_env: Mapping[str, str] | None = None,
     process_env: Mapping[str, str] | None = None,
     timeout_seconds: float = DEFAULT_SUBPROCESS_TIMEOUT_SECONDS,
+    on_start: Callable[[subprocess.Popen[str]], None] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Run a command and return a CompletedProcess with exit code 3 on timeout.
 
@@ -911,7 +917,9 @@ def _run_command(
     grandchildren (e.g. the gh-act artifact server) do not survive to hold
     ports open (Issue #4217, same defect as #3948 one level up). ``input_text``
     is written to stdin so callers that previously relied on
-    ``subprocess.run(..., input=)`` keep the same semantics.
+    ``subprocess.run(..., input=)`` keep the same semantics. ``on_start``
+    receives the started process, so a caller running several commands at once
+    can stop them all if it is interrupted (issue #6198).
     """
     env = dict(process_env) if process_env is not None else _clean_git_env()
     if extra_env is not None:
@@ -932,6 +940,8 @@ def _run_command(
         )
     except OSError as exc:
         return _ProcessStartFailure(command, exc)
+    if on_start is not None:
+        on_start(proc)
     try:
         stdout, stderr = proc.communicate(
             input=input_text,
@@ -3144,6 +3154,30 @@ def _deleted_generated_candidates(kind: str, repo_root: Path) -> list[Path] | No
     return candidates
 
 
+def _chunk_paths(
+    paths: Sequence[str],
+    max_chars: int = STAGE_CHUNK_MAX_CHARS,
+) -> Iterator[list[str]]:
+    """Yield path batches whose joined length stays under ``max_chars``.
+
+    Windows rejects a process whose command line passes 32767 characters
+    (``WinError 206``, issue #5437). Batching keeps every ``git add`` argv
+    bounded however large the generated corpus grows, and a path is never
+    split, so spaces and newlines in a name stay safe.
+    """
+    chunk: list[str] = []
+    size = 0
+    for path in paths:
+        cost = len(path) + 1
+        if chunk and size + cost > max_chars:
+            yield chunk
+            chunk, size = [], 0
+        chunk.append(path)
+        size += cost
+    if chunk:
+        yield chunk
+
+
 def stage_generated(kind: str, repo_root: Path) -> int:
     safety_result = check_generated_paths(kind, repo_root)
     if safety_result != 0:
@@ -3168,10 +3202,12 @@ def stage_generated(kind: str, repo_root: Path) -> int:
         relative_paths.append(relative_path)
     if not relative_paths:
         return 0
-    result = _run_git(repo_root, ["add", "--", *relative_paths])
-    if result.returncode != 0:
-        _print_process_output(result)
-    return result.returncode
+    for chunk in _chunk_paths(relative_paths):
+        result = _run_git(repo_root, ["add", "--", *chunk])
+        if result.returncode != 0:
+            _print_process_output(result)
+            return result.returncode
+    return 0
 
 
 def extract_session_episodes(paths: Sequence[str], repo_root: Path) -> int:
@@ -7772,6 +7808,143 @@ def _seed_testmon_database(repo_root: Path) -> None:
         )
 
 
+def _testmon_database_missing(repo_root: Path, env: Mapping[str, str]) -> bool:
+    """Whether testmon has no finished database yet, using testmon's own location rule.
+
+    testmon sets ``PRAGMA user_version`` after it creates every table, so a file
+    whose version is still 0 is an interrupted build and counts as missing.
+    """
+    path = repo_root / (env.get("TESTMON_DATAFILE") or ".testmondata")
+    if not path.exists():
+        return True
+    try:
+        with closing(sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)) as connection:
+            version = int(connection.execute("PRAGMA user_version").fetchone()[0])
+            return version == 0
+    except sqlite3.Error:
+        return True
+
+
+def _pytest_overlap_lanes(
+    commands: Sequence[Sequence[str]],
+    repo_root: Path,
+    env: Mapping[str, str],
+) -> list[pytest_lanes.Lane] | None:
+    """Return the lanes that run at the same time, or ``None`` to run in sequence.
+
+    testmon 2.2.0 creates its tables with a bare ``CREATE TABLE``, so two
+    processes that both find no database race to build it and one fails. Every
+    later write is one transaction on a WAL database with a 60s busy wait, and
+    the partitions touch disjoint test names, so only the first build is unsafe.
+    That build runs in sequence (issue #6198).
+    """
+    if _uses_testmon(commands) and _testmon_database_missing(repo_root, env):
+        print(
+            "pytest: no testmon database yet; running the partitions in sequence "
+            "so one run builds it.",
+            file=sys.stderr,
+        )
+        return None
+    return pytest_lanes.plan_lanes(commands, _visible_cpu_count())
+
+
+def _report_partition(report: pytest_lanes.PartitionReport, budget: float) -> int:
+    """Print one partition's output and result line; return its exit code."""
+    if report.result is None:
+        print(
+            f"ERROR: pytest partition {report.label} did not start; "
+            f"the {budget:g}s budget was spent",
+            file=sys.stderr,
+        )
+        return 1
+    _print_process_output(report.result)
+    code = _failure_code(report.result.returncode)
+    suffix = f", stopped at the {budget:g}s budget" if _timed_out(report.result) else ""
+    print(
+        f"pytest partition {report.label}: exit {code} in {report.seconds:.1f}s{suffix}",
+        file=sys.stderr,
+    )
+    return code
+
+
+class _ChildRegistry:
+    """The pytest children one overlapping run started, so an interrupt can stop them.
+
+    A lane can pass its cancel check just before the interrupt and start a
+    child after `stop_all` took its snapshot. `register` stops that child.
+    """
+
+    def __init__(self) -> None:
+        self._started: list[subprocess.Popen[str]] = []
+        self._guard = threading.Lock()
+        self._stopping = False
+
+    @staticmethod
+    def _stop(proc: subprocess.Popen[str]) -> None:
+        if proc.poll() is not None:
+            return
+        if _SUPPORTS_PGROUP:
+            _killpg_safe(proc.pid)
+        else:
+            proc.kill()
+
+    def register(self, proc: subprocess.Popen[str]) -> None:
+        with self._guard:
+            self._started.append(proc)
+            late = self._stopping
+        if late:
+            self._stop(proc)
+
+    def stop_all(self) -> None:
+        with self._guard:
+            self._stopping = True
+            running = list(self._started)
+        for proc in running:
+            self._stop(proc)
+
+
+def _run_pytest_lanes(
+    lanes: Sequence[pytest_lanes.Lane],
+    repo_root: Path,
+    env: Mapping[str, str],
+    deadline: float,
+    budget: float,
+) -> int:
+    """Run the lanes at once under one deadline; return the worst exit code.
+
+    Every lane runs to its end even when another fails, for the same reason the
+    sequential loop does: each partition must record its tests in
+    ``.testmondata``. A failure names its partition on its own line.
+    """
+    children = _ChildRegistry()
+
+    def run_command(command: Sequence[str], remaining: float) -> subprocess.CompletedProcess[str]:
+        return _run_command(
+            command,
+            repo_root,
+            process_env=env,
+            timeout_seconds=remaining,
+            on_start=children.register,
+        )
+
+    outcomes: list[tuple[str, int]] = []
+
+    def on_done(reports: list[pytest_lanes.PartitionReport]) -> None:
+        for report in reports:
+            outcomes.append((report.label, _report_partition(report, budget)))
+
+    pytest_lanes.run_lanes(
+        lanes,
+        lambda lane, cancel: pytest_lanes.run_lane(lane, repo_root, deadline, run_command, cancel),
+        on_done,
+        children.stop_all,
+    )
+    failed = sorted(label for label, code in outcomes if code != 0)
+    if failed:
+        print(f"ERROR: pytest partitions failed: {', '.join(failed)}", file=sys.stderr)
+    return max((code for _, code in outcomes), default=0)
+
+
 def run_pytest(repo_root: Path) -> int:
     env = _clean_git_env()
     for key in (
@@ -7829,6 +8002,11 @@ def run_pytest(repo_root: Path) -> int:
         # Inside the same budget: the fetch spends at most its own short
         # deadline, then the partitions run on whatever is left.
         _seed_testmon_database(repo_root)
+    # Issue #6198: partitions that can overlap do, under the same deadline. The
+    # step then costs the slowest lane, not the sum of the partitions.
+    lanes = _pytest_overlap_lanes(commands, repo_root, env)
+    if lanes is not None:
+        return _run_pytest_lanes(lanes, repo_root, env, deadline, budget)
     # Every partition runs even after one fails, so each records its tests in
     # `.testmondata` and the next push selects from complete data. Stopping at
     # the first failure left later partitions unrecorded, and the next run

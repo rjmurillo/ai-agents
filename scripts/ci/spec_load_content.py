@@ -19,6 +19,8 @@ EXIT CODES (ADR-035):
   2 - referenced spec content is missing
   3 - a GitHub issue lookup failed for a reason other than the reference
       not being an issue
+  4 - GH_TOKEN is set but empty, so no issue lookup can authenticate
+      (ADR-035 authentication error)
 """
 
 from __future__ import annotations
@@ -31,6 +33,7 @@ from pathlib import Path
 EXIT_OK = 0
 EXIT_CONFIG = 2
 EXIT_EXTERNAL = 3
+EXIT_AUTH = 4
 
 # Internal classification, never a process exit code: the reference resolved to
 # something that is not an issue in this repository, most often a pull request
@@ -50,6 +53,23 @@ NOT_AN_ISSUE = -1
 # re-verified from this environment, and that is precisely why the default is
 # to fail rather than to skip.
 _NOT_AN_ISSUE_SIGNALS = ("could not resolve to an issue",)
+
+
+def _token_is_blank() -> bool:
+    """Report a GH_TOKEN that is exported but empty, with no GITHUB_TOKEN to fall back on.
+
+    A workflow that wires `GH_TOKEN: ${{ secrets.X }}` exports an empty string
+    when the secret resolves empty. `gh` treats an empty GH_TOKEN as unset and
+    prints a usage message per issue reference (issue #6122). An unset GH_TOKEN
+    is not flagged, because a local `gh auth login` session still works. An
+    empty token outside GitHub Actions is not flagged either: `gh` falls back
+    to the stored login, so only CI treats it as a dead end.
+    """
+    if os.environ.get("GITHUB_ACTIONS") != "true":
+        return False
+    if "GH_TOKEN" not in os.environ:
+        return False
+    return not os.environ["GH_TOKEN"].strip() and not os.environ.get("GITHUB_TOKEN", "").strip()
 
 
 def write_github_output(key: str, value: str) -> None:
@@ -190,6 +210,14 @@ def run(_argv: list[str] | None = None) -> int:
     exit_code, parts = _load_spec_refs(spec_refs)
     if exit_code != EXIT_OK:
         return exit_code
+    if issue_refs and _token_is_blank():
+        print(
+            "::error::GH_TOKEN is set but empty, so issue lookups cannot authenticate "
+            f"({issue_refs_raw}). The step inherits github.token. If a step overrides "
+            "GH_TOKEN with a secret such as BOT_PAT, refill that secret.",
+            file=sys.stderr,
+        )
+        return EXIT_AUTH
     external_failure, issue_parts = _load_issue_refs(issue_refs, repository)
     parts.extend(issue_parts)
 

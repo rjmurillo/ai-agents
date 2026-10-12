@@ -1,5 +1,13 @@
 {
   "cardinality": {},
+  "cohesion": {
+    "templates/rules/canonical-source-mirror.md": 6,
+    "templates/rules/ci-scripts.md": 6,
+    "templates/rules/generated-artifacts.md": 6,
+    "templates/rules/knowledge-persistence.md": 5,
+    "templates/rules/security.md": 26,
+    "templates/rules/token-economy.md": 5
+  },
   "duplicate_blocks": {
     ".agents/governance/code-quality.md|templates/rules/code-quality.md": 2,
     ".agents/governance/spec-schemas.md|.claude/skills/spec-generator/references/spec-schemas.md": 92,

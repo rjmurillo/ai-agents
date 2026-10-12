@@ -2,13 +2,17 @@
 """Ratchet: natural-language artifacts are source code, so structural debt may not grow.
 
 Rules, skills, and agents are executable artifacts written in English (issue
-#5397). Two defects that code review already names in source code are measured
+#5397). Three defects that code review already names in source code are measured
 here for authored artifacts only:
 
   1. duplicate normative blocks: five or more consecutive normalized,
      non-trivial lines that two authored files share. This is duplicate code.
-  2. derived cardinality claims: "the three filters" followed by four filters.
+  2. derived cardinality claims: "the three filters" followed by four filters, or an
+     imperative naming a bare count ("Run the three filters.") with no enumeration.
      This is duplicated mutable state.
+  3. low cohesion: one rule whose `paths:` frontmatter claims five or more distinct
+     top-level roots. This is one artifact owning unrelated policies. The measure
+     reads frontmatter only, so it is deterministic and needs no model judgment.
 
 The scan set is an allowlist of authored sources: every file the instruction byte
 corpus classifies as authored (`instruction_bytes_corpus.canonical_paths`: templates,
@@ -52,7 +56,8 @@ for _path in (_SCRIPT_DIR, _SCRIPT_DIR.parents[1]):
         sys.path.insert(0, str(_path))
 
 from check_capability_graph import TreeError, survey  # noqa: E402
-from nl_cardinality import Fence, derived_count_claims, fence_step, simplify  # noqa: E402
+from nl_cardinality import Fence, derived_count_claims, fence_step  # noqa: E402
+from nl_cohesion import MIN_SPREAD, path_spread  # noqa: E402
 
 BASELINE_PATH = "scripts/validation/nl_structural_debt_baseline.json"
 MIN_BLOCK_LINES = 5
@@ -180,8 +185,14 @@ def stale_counts(files: dict[str, str]) -> dict[str, str]:
             norm = " ".join(claim.text.split()).casefold()
             seen[norm] += 1
             suffix = "" if seen[norm] == 1 else f"#{seen[norm]}"
-            found[f"{rel}::{norm}{suffix}"] = simplify(claim.text)
+            found[f"{rel}::{norm}{suffix}"] = claim.simplified
     return dict(sorted(found.items()))
+
+
+def spreads(files: dict[str, str]) -> dict[str, int]:
+    """Map each rule path to its root spread when the spread reaches the cohesion floor."""
+    found = {rel: path_spread(text) for rel, text in files.items()}
+    return {rel: n for rel, n in sorted(found.items()) if n >= MIN_SPREAD}
 
 
 def _read_authored(repo_root: Path, path: Path) -> str:
@@ -196,12 +207,16 @@ def _read_authored(repo_root: Path, path: Path) -> str:
 
 
 def measure(repo_root: Path) -> dict[str, dict[str, Any]]:
-    """Return the current debt: duplicate pairs and stale cardinality claims."""
+    """Return the current debt: duplicate pairs, stale counts, and low-cohesion rules."""
     paths = authored_files(repo_root)
     if not paths:
         raise ScanError("no authored artifacts found; an empty scan would pass vacuously")
     files = {p.relative_to(repo_root).as_posix(): _read_authored(repo_root, p) for p in paths}
-    return {"duplicate_blocks": duplicate_blocks(files), "cardinality": stale_counts(files)}
+    return {
+        "duplicate_blocks": duplicate_blocks(files),
+        "cardinality": stale_counts(files),
+        "cohesion": spreads(files),
+    }
 
 
 def _load_baseline(repo_root: Path) -> dict[str, dict[str, Any]]:
@@ -212,8 +227,11 @@ def _load_baseline(repo_root: Path) -> dict[str, dict[str, Any]]:
         data = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         raise ScanError(f"baseline is not valid JSON: {exc}") from exc
-    if not isinstance(data, dict) or set(data) != {"duplicate_blocks", "cardinality"}:
-        raise ScanError("baseline must hold exactly `duplicate_blocks` and `cardinality`")
+    if not isinstance(data, dict) or not {"duplicate_blocks", "cardinality"} <= set(data):
+        raise ScanError("baseline must hold `duplicate_blocks` and `cardinality`")
+    if set(data) - {"duplicate_blocks", "cardinality", "cohesion"}:
+        raise ScanError("baseline holds an unknown section")
+    data.setdefault("cohesion", {})
     if not all(isinstance(data[k], dict) for k in data):
         raise ScanError("baseline sections must be objects")
     counts = data["duplicate_blocks"].values()
@@ -221,6 +239,8 @@ def _load_baseline(repo_root: Path) -> dict[str, dict[str, Any]]:
         raise ScanError("baseline `duplicate_blocks` values must be positive integers")
     if not all(isinstance(v, str) for v in data["cardinality"].values()):
         raise ScanError("baseline `cardinality` values must be strings")
+    if not all(type(v) is int and v > 0 for v in data["cohesion"].values()):
+        raise ScanError("baseline `cohesion` values must be positive integers")
     return data
 
 
@@ -237,6 +257,13 @@ def compare(
     for key in current["cardinality"]:
         if key not in baseline["cardinality"]:
             growth.append(f"stale count {key}: write `{current['cardinality'][key]}` instead")
+    for key, spread in current["cohesion"].items():
+        allowed = baseline["cohesion"].get(key, 0)
+        if spread > allowed:
+            growth.append(f"low cohesion {key}: {spread} unrelated roots, baseline {allowed}")
+    for key, allowed in baseline["cohesion"].items():
+        if current["cohesion"].get(key, 0) < allowed:
+            shrink.append(f"low cohesion {key} shrank below baseline {allowed}")
     for key, allowed in baseline["duplicate_blocks"].items():
         if current["duplicate_blocks"].get(key, 0) < allowed:
             shrink.append(f"duplicate block {key} shrank below baseline {allowed}")
@@ -270,7 +297,8 @@ def amplification(repo_root: Path, duplicates: dict[str, int]) -> dict[str, dict
 def _remediation() -> str:
     return (
         "Fix, in order of preference: delete the repeated text; keep one owner and "
-        "depend on it; drop the derived count. Do not resync copies, because a "
+        "depend on it; drop the derived count; split a rule that claims unrelated roots by "
+        "responsibility. Do not resync copies, because a "
         "synchronized copy keeps the obligation. To lock in a burn-down, run "
         "`uv run python scripts/validation/check_nl_structural_debt.py --update-baseline`."
     )

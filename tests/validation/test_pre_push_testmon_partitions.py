@@ -78,6 +78,8 @@ def test_the_full_suite_opt_in_also_runs_every_partition(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     monkeypatch.setenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, "1")
+    # One worker cannot feed two pools, so the partitions run in the order listed.
+    monkeypatch.setenv(git_hook_policy.PYTEST_WORKERS_ENV, "1")
     seen = _record_codes(monkeypatch, [1, 0, 0, 0])
     assert git_hook_policy.run_pytest(tmp_path) == 1
     assert seen == git_hook_policy._pytest_commands(tmp_path)

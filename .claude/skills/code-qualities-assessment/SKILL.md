@@ -175,18 +175,16 @@ UTF-8 at the merge base (a binary, a
 latin-1 source) scores nothing there, so the head is gated absolutely rather
 than passing on missing evidence.
 
-Every score is size-derived, so adding one small function moves a quality by a
-few tenths with nothing wrong. `--regression-tolerance` defaults to 0.5 for that
-reason: measured, one 2-line function added to a 5-function module drops cohesion
-8.7 to 8.3, while a real degradation moves whole points. Pass `0.0` to gate on
-any drop at all.
+Every score is size-derived, so one small added function moves a quality by a
+few tenths. `--regression-tolerance` defaults to 0.5 for that reason: measured,
+a 2-line function added to a 5-function module drops cohesion 8.7 to 8.3, while
+real degradation moves whole points. Pass `0.0` to gate on any drop at all.
 
 Growth costs more than the tolerance absorbs, and cohesion is where it shows.
-The score is `10 - LOC/120 - 0.3 * (definitions - 1)` at confidence 0.4, so a
-file that gains three functions and 100 lines loses about 1.7 points whether or
-not anything got worse. A test module gaining tests hits this every time. Read
-the named delta before acting on an exit 10: this heuristic cannot tell growth
-from decay, and a file that grew for a good reason is the common case.
+The score is `10 - LOC/120 - 0.3 * (definitions - 1)` at confidence 0.4, so
+three added functions and 100 lines lose about 1.7 points with nothing worse.
+Read the named delta before acting on an exit 10: this heuristic cannot tell
+growth from decay.
 
 The JSON report carries `gate_mode` and a `comparisons` array with per-quality
 `base`, `head`, `delta`, and `status`.
@@ -197,14 +195,14 @@ The JSON report carries `gate_mode` and a `comparisons` array with per-quality
 |------|---------|
 | 0 | Gate passed |
 | 10 | Regression mode: a comparable quality regressed, or scored evidence was lost |
-| 11 | Below configured thresholds (absolute mode, or a new file in regression mode) |
+| 11 | Below configured thresholds (absolute mode, or a new file in regression mode); below-threshold qualities at or above `minConfidence`; lower-confidence misses warn only |
 | 1 | Script error (invalid args, unresolvable base, file not found) |
 
 ---
 
 ## Configuration
 
-Create `.qualityrc.json` to customize thresholds:
+Create `.qualityrc.json` to customize thresholds. Optional `minConfidence` (default 0.0 gates all) makes lower-confidence qualities warn only in absolute mode; regression still compares all:
 
 ```json
 {
@@ -220,6 +218,7 @@ Create `.qualityrc.json` to customize thresholds:
       "testability": { "min": 3 }
     }
   },
+  "minConfidence": 0.5,
   "ignore": [
     "**/generated/**",
     "**/*.pb.py",
