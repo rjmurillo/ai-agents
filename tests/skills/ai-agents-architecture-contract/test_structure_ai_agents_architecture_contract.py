@@ -42,3 +42,75 @@ def test_no_em_or_en_dashes():
 
 def test_size_cap():
     assert len(_text().splitlines()) <= 500
+
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+ADR_DIR = REPO_ROOT / ".project-toolkit" / "architecture"
+
+
+def _row(prefix: str) -> str:
+    rows = [line for line in _text().splitlines() if line.startswith(prefix)]
+    assert len(rows) == 1, f"expected exactly one row starting {prefix!r}, got {len(rows)}"
+    return rows[0]
+
+
+def _adr_status(adr_glob: str) -> str:
+    adr = next(ADR_DIR.glob(adr_glob))
+    match = re.search(r"^status: (\S+)$", adr.read_text(encoding="utf-8"), re.M)
+    assert match, f"{adr.name} has no status frontmatter"
+    return match.group(1)
+
+
+def test_adr_052_row_follows_its_frontmatter_status():
+    assert _adr_status("ADR-052-*.md") == "superseded"
+    row = _row("| Claude-first template strategy")
+    assert "Superseded by ADR-109" in row
+    assert "Accepted (2026-08-25)" not in row
+
+
+def test_adr_036_row_follows_its_frontmatter_status():
+    assert _adr_status("ADR-036-*.md") == "superseded"
+    row = _row("| Two-source agent templates")
+    assert "ADR-052" in row
+    assert "ADR-109" in row
+    assert "procedure still operative" not in row
+
+
+def test_adr_109_decision_row_present_and_accepted():
+    assert _adr_status("ADR-109-*.md") == "accepted"
+    assert "Accepted (2026-09-11)" in _row("| Template-first plugin distribution")
+
+
+def test_claude_agents_row_names_templates_as_canonical():
+    row = _row("| Agents (Claude Code)")
+    assert "templates/agents/<stem>.claude.md.tmpl" in row
+    assert "hand-written" not in row
+    assert "hand-maintained" not in row
+
+
+def test_no_unimplemented_generator_claims_survive():
+    text = _text()
+    assert "all three outputs" not in text
+    assert "unimplemented in ADR-052" not in text
+    assert "ADR-052 unimplemented" not in text
+    assert "is itself canonical, hand-written" not in text
+
+
+def test_copilot_and_vscode_agent_rows_name_distinct_sources():
+    copilot = _row("| Agents (Copilot CLI)")
+    vscode = _row("| Agents (VS Code)")
+    assert "<stem>.copilot.md.tmpl" in copilot
+    assert "*.shared.md" not in copilot
+    assert "*.shared.md" in vscode
+
+
+def test_rules_skills_hooks_rows_name_templates_as_canonical():
+    assert "templates/rules/" in _row("| Rules |")
+    assert "templates/skills/" in _row("| Skills |")
+    assert "templates/hooks/" in _row("| Hooks |")
+
+
+def test_no_claude_canonical_claim_for_template_classes():
+    text = _text()
+    assert "`.claude/` itself is canonical" not in text
+    assert "They NEVER write `.claude/`" not in text

@@ -991,7 +991,13 @@ def run_behavioral_for_prompt(
         )
         parsed, parse_error = _parse_child_json(result.stdout, prompt_path)
         passed = result.returncode == 0 and parse_error is None
-        exit_code = EXIT_EXTERNAL if parse_error is not None else result.returncode
+        # A failing child that prints no JSON (billing exits 4 first) keeps
+        # its own code; only a clean exit with bad output is an API failure.
+        exit_code = (
+            EXIT_EXTERNAL
+            if parse_error is not None and result.returncode == EXIT_OK
+            else result.returncode
+        )
         if parse_error is not None:
             print(f"WARNING: {parse_error}", file=sys.stderr)
             parsed = {"raw_output": result.stdout[:1000], "error": parse_error}

@@ -1648,6 +1648,52 @@ class TestMainCLI:
             eval_mod.main()
         assert exc.value.code == 3
 
+    def _run_with_error(self, tmp_path, monkeypatch, message):
+        scen = self._make_scenarios_file(tmp_path)
+        before = tmp_path / "a.md"
+        before.write_text("p", encoding="utf-8")
+        after = tmp_path / "b.md"
+        after.write_text("p", encoding="utf-8")
+
+        monkeypatch.setattr(eval_mod, "load_api_key_for_selected_provider", lambda *_: "test-key")
+
+        def boom_run(*a, **kw):
+            raise RuntimeError(message)
+
+        monkeypatch.setattr(eval_mod, "_run_and_report", boom_run)
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            ["prog", "--before", str(before), "--after", str(after), "--scenarios", str(scen)],
+        )
+        with pytest.raises(SystemExit) as exc:
+            eval_mod.main()
+        return exc.value.code
+
+    def test_billing_failure_exits_4_and_says_to_fund_the_key(self, tmp_path, monkeypatch, capsys):
+        """Issue #6138: a depleted credit balance is a distinct exit, not exit 3."""
+        code = self._run_with_error(
+            tmp_path,
+            monkeypatch,
+            "Anthropic API returned HTTP 400: error=billing; "
+            "provider_error_type=invalid_request_error; provider response redacted",
+        )
+
+        assert code == 4
+        err = capsys.readouterr().err
+        assert "Fund the API key" in err
+        assert "error=billing" in err
+
+    def test_other_400_still_exits_3(self, tmp_path, monkeypatch):
+        code = self._run_with_error(
+            tmp_path,
+            monkeypatch,
+            "Anthropic API returned HTTP 400: error=client_error; "
+            "provider_error_type=invalid_request_error; provider response redacted",
+        )
+
+        assert code == 3
+
     def test_identical_before_after_warning_emitted(self, tmp_path, monkeypatch, capsys):
         scen = self._make_scenarios_file(tmp_path)
         before = tmp_path / "a.md"

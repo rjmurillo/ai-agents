@@ -83,7 +83,11 @@ from _billing_matrix import (
     apply_selection,
     provider_help_text,
 )
-from _eval_common import EST_TOKENS_PER_CALL, MalformedProviderMetadataError
+from _eval_common import (
+    EST_TOKENS_PER_CALL,
+    MalformedProviderMetadataError,
+    is_billing_error_message,
+)
 from _providers import is_default_anthropic
 
 RATE_LIMIT_SLEEP_SEC = 1.0
@@ -91,6 +95,7 @@ DEFAULT_RUNS = 3
 SECURITY_RUNS = 5
 DEFAULT_BASE_RESAMPLES = 3
 FLAKINESS_BLOCK_THRESHOLD = 0.4
+EXIT_BILLING = 4  # ADR-035 exit 4: the credential cannot be used because the account has no credit
 
 # Criteria reported for human/JSON consumers but NOT part of the pass/fail
 # decision. They are surfaced for context only; the gate verdict never depends
@@ -1196,6 +1201,13 @@ def _run_or_exit(
     except MalformedProviderMetadataError:
         raise
     except RuntimeError as error:
+        if is_billing_error_message(str(error)):
+            print(
+                "ERROR: eval blocked, the provider account has no credit. "
+                f"Fund the API key; the request is not at fault: {error}",
+                file=sys.stderr,
+            )
+            sys.exit(EXIT_BILLING)
         if _is_provider_outage(error):
             print(
                 f"SKIP: behavioral eval could not run, model provider unavailable: {error}",

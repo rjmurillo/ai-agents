@@ -90,8 +90,8 @@ check and which location is allowed to change.
 - **Provenance category**: `LOCAL`, `GENERATED`, `VENDOR`, `UPSTREAM`, or
   `UNKNOWN`.
 - **Diagnosis**: `implementation-defect`, `local-config-defect`,
-  `stale-generated-output`, `baseline-update`, `upstream-defect`, or
-  `unknown`.
+  `stale-generated-output`, `baseline-update`, `upstream-defect`,
+  `relocation-no-semantic-change`, or `unknown`.
 - **Decision record**: a JSON file with one entry per validation target.
 - **Permitted change location**: the one path that the record allows the
   build to edit for that target.
@@ -102,7 +102,10 @@ A record holds `trigger` (the trigger output) and `targets`. Each target holds
 `target`, `component`, `provenance` (`category`, `owner`, `evidence`,
 `canonical_source`), `authority` (`contract`, `diagnosis`,
 `permitted_change_location`, `escalation`), and, for a baseline update,
-`baseline_justification` (`policy_source`, `reason`, `added_entries`).
+`baseline_justification` (`policy_source`, `reason`, `added_entries`), and, for
+`relocation-no-semantic-change`, `relocation_evidence` (`collect_command`,
+`moved_from`, `moved_to`, `tests_before`, `tests_after`). DESIGN-039 rule 11
+governs the relocation contract (issue #6214).
 
 ## Integrations
 

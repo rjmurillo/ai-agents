@@ -83,7 +83,7 @@ Rules:
 1. Each target needs `target`, `component`, `provenance`, and `authority`.
 2. `provenance.category` is one of `LOCAL`, `GENERATED`, `VENDOR`,
    `UPSTREAM`, `UNKNOWN`. `owner` and `evidence` are non-empty.
-3. `authority.diagnosis` is one of the six diagnoses. `contract` and
+3. `authority.diagnosis` is one of the seven diagnoses. `contract` and
    `permitted_change_location` are non-empty.
 4. `UNKNOWN` category or `unknown` diagnosis is a blocking defect. The
    message says to stop semantic edits and request ownership evidence.
@@ -105,6 +105,22 @@ Rules:
    record target.
 10. Paths compare after normalization (forward slashes, no `.` segments).
     One run reports every defect.
+11. `relocation-no-semantic-change` (issue #6214) records a test move that
+    activates the gate, often via the `validation-fixture` cue, but has no
+    defect. It needs `LOCAL` provenance, a test module target under `tests/`
+    (`test_*.py` or `*_test.py`; `conftest.py` and support files are
+    refused), and `relocation_evidence` with a `collect_command`,
+    `moved_from` and `moved_to` path lists (`moved_to` lists the target), and
+    non-empty `tests_before` and `tests_after` id lists. The before ids name
+    exactly the `moved_from` files and the after ids exactly the `moved_to`
+    files. Ids compare without the file path (the text after the first
+    `::`); the multisets must be equal. `trigger.effects` must be a list of
+    effect strings. The trigger emits one change-wide effects list with no
+    per-path attribution, so any declared effect refuses every relocation in
+    the record; a change that mixes a semantic edit with a pure move splits
+    into separate changes. A
+    trigger that declares any effect contradicts the diagnosis, so a move
+    that also redefines a case needs a defect diagnosis.
 
 Exit codes follow ADR-035: 0 pass, 1 defects, 2 configuration error.
 

@@ -1,19 +1,19 @@
 ---
 name: context-gather
-version: 1.1.0
-description: Gather comprehensive context from Serena memory, Context7 docs, DeepWiki, and web sources before planning or implementation. Searches across all knowledge tiers and returns a focused summary with a parseable CONTEXT_LOADED marker for downstream skip detection. Use when you say "gather context before planning", "what do we know before I start". Do NOT use for compressing or placing skill text (use context-optimizer).
+version: 1.1.1
+description: Gather comprehensive context from Serena memory, Context7 docs, DeepWiki, and web sources before planning or implementation. Searches across all knowledge tiers and returns a focused summary ending in a CONTEXT_LOADED marker that this skill scans to skip a repeat fetch in the same conversation. Use when you say "gather context before planning", "what do we know before I start". Do NOT use for compressing or placing skill text (use context-optimizer).
 license: MIT
 metadata:
   routing:
     role: front-door
     invoker: autoplan
-    trigger: autoplan routes unfamiliar-topic research to context-gather before build
+    trigger: autoplan routes unfamiliar-topic research to context-gather before research
     user-facing: false
 ---
 
 # Context Gather
 
-Collect multi-source context before planning or implementation. Searches Serena, Context7, DeepWiki, and web sources, then returns a focused summary that downstream commands can detect and skip redundant fetches.
+Collect multi-source context before planning or implementation. Searches Serena, Context7, DeepWiki, and web sources, then returns a focused summary. The closing `CONTEXT_LOADED:` marker is read only by this skill's own Phase 1 scan, which skips a repeat fetch for the same topic in one conversation.
 
 > **Model choice (behavior change from prior `/context-gather` slash command)**: this skill's frontmatter carries no `model` field, so it inherits the harness default rather than the slash command's pinned `opus`. Context retrieval is search-and-synthesis work, not deep reasoning. Skill behavior is otherwise unchanged.
 
@@ -22,7 +22,7 @@ Collect multi-source context before planning or implementation. Searches Serena,
 | Phrase | Context |
 |--------|---------|
 | `gather context for` | User requests pre-work context collection |
-| `context-gather` | Direct skill invocation or programmatic call from build, plan, research commands (SPEC-005) |
+| `context-gather` | Direct skill invocation, or autoplan routing an unfamiliar topic here before research (SPEC-005) |
 | `what do we know about` | Exploratory context retrieval |
 
 ## Quick Reference
@@ -38,7 +38,7 @@ Collect multi-source context before planning or implementation. Searches Serena,
 Use this skill when:
 
 - Starting a complex task that needs multi-source context before planning or implementation.
-- A lifecycle command (`/build`, `/plan`, `/research`) triggers preflight context loading.
+- autoplan routes an unfamiliar-topic request here before `research`.
 - You need to pull framework-specific guidance from Context7 alongside project memory.
 - Exploring what the memory tiers already record about a topic before committing to an approach.
 
@@ -93,7 +93,7 @@ CONTEXT_LOADED: <topic>
 
 Where `<topic>` is a short, normalized label for the subject (e.g., `pytest-fixtures`, `session-protocol`, `react-server-components`).
 
-3. Return the summary and marker to the calling command or user. Downstream callers (`/build`, `/plan`, `/research` per SPEC-005) detect the marker and skip redundant context fetches.
+3. Return the summary and marker to the calling skill or user. Only this skill's Phase 1 scan reads the marker; no other skill checks it.
 
 ## Extension Points
 
@@ -116,7 +116,7 @@ This skill searches the knowledge tiers using:
 | Re-fetching when marker exists | Wastes tokens and time; duplicates context | Check for `CONTEXT_LOADED:` marker first |
 | Querying all sources sequentially | Slow; unnecessary when early sources suffice | Query in parallel; stop early if coverage is sufficient |
 | Returning raw tool output | Floods context window; not actionable | Synthesize into a focused summary with citations |
-| Skipping the marker emission | Downstream commands cannot detect prior invocation | Always emit `CONTEXT_LOADED: <topic>` at the end |
+| Skipping the marker emission | A repeat invocation in the same conversation cannot detect the prior fetch | Always emit `CONTEXT_LOADED: <topic>` at the end |
 | Using opus model for retrieval | Context gathering is search and synthesis, not deep reasoning | Use sonnet (cost-appropriate) |
 
 ## Verification
@@ -134,7 +134,6 @@ After execution, confirm:
 | Artifact | Relationship |
 |----------|-------------|
 | SPEC-005 REQ-005 | Acceptance criteria AC-12 defines runtime-conditional skip via `CONTEXT_LOADED:` marker |
-| SPEC-005 DESIGN-005 | Per-command edit specs reference context-gather as preflight dependency |
-| `.claude/skills/reflect/SKILL.md` | Downstream consumer that may benefit from context loaded in this skill |
+| SPEC-005 DESIGN-005 | Historical design for per-command preflight wiring; ADR-064 retired the commands, so no current skill checks the marker |
 | `.claude/skills/steering-matcher/SKILL.md` | Sibling preflight skill in the `/build` chain |
 | `.claude/skills/chestertons-fence/SKILL.md` | Sibling preflight skill in the `/build` chain |
