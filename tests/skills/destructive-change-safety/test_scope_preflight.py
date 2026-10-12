@@ -25,10 +25,16 @@ def make_db(path: Path) -> Path:
     return path
 
 
+COUNT_QUERIES = {
+    "parent": "SELECT COUNT(*) FROM parent",
+    "child": "SELECT COUNT(*) FROM child",
+}
+
+
 def row_count(path: Path, table: str) -> int:
     conn = sqlite3.connect(path)
     try:
-        return conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+        return conn.execute(COUNT_QUERIES[table]).fetchone()[0]
     finally:
         conn.close()
 
