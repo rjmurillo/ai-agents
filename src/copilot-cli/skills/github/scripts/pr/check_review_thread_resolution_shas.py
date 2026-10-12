@@ -171,6 +171,12 @@ class _HtmlText(HTMLParser):
             self._unrendered_tag = tag
         self.parts.extend(_commit_refs(value) for name, value in attrs if name == "href" and value)
 
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        # HTML ignores "/>" on raw-text elements, so their text still runs to the end tag.
+        self.handle_starttag(tag, attrs)
+        if tag not in _RAW_TEXT_ELEMENTS:
+            self.handle_endtag(tag)
+
     def handle_endtag(self, tag: str) -> None:
         if tag == self._unrendered_tag:
             self._unrendered_tag = None
@@ -285,8 +291,7 @@ def fetch_review_threads(
 
         page_info = review_threads.get("pageInfo") or {}
         if not page_info.get("hasNextPage"):
-            comments_complete = all(_thread_comments_complete(t) for t in threads)
-            return head_sha, threads, comments_complete
+            return head_sha, threads, True
         cursor = page_info.get("endCursor")
         if not cursor:
             return head_sha, threads, False
@@ -319,16 +324,17 @@ def _latest_comment(thread: dict[str, Any]) -> dict[str, Any] | None:
     return max(comment_nodes, key=lambda c: str(c.get("createdAt") or ""))
 
 
-def _failure_reason(threads: list[dict[str, Any]], fetched_pages_complete: bool) -> str | None:
-    if fetched_pages_complete:
-        return None
+def _failure_reason(threads: list[dict[str, Any]], thread_pages_complete: bool) -> str | None:
+    reasons: list[str] = []
+    if not thread_pages_complete:
+        reasons.append(
+            "review thread pagination incomplete "
+            f"(page cap {_MAX_THREAD_PAGES} reached or end cursor missing)"
+        )
     partial = [str(t.get("id")) for t in threads if not _thread_comments_complete(t)]
     if partial:
-        return f"comments not fully fetched for thread(s): {', '.join(partial)}"
-    return (
-        "review thread pagination incomplete "
-        f"(page cap {_MAX_THREAD_PAGES} reached or end cursor missing)"
-    )
+        reasons.append(f"comments not fully fetched for thread(s): {', '.join(partial)}")
+    return "; ".join(reasons) or None
 
 
 def _reference(
@@ -362,9 +368,12 @@ def build_report(
     pull_request: int,
     head_sha: str,
     threads: list[dict[str, Any]],
-    fetched_pages_complete: bool,
+    thread_pages_complete: bool,
     repo_path: str,
 ) -> dict[str, Any]:
+    fetched_pages_complete = thread_pages_complete and all(
+        _thread_comments_complete(t) for t in threads
+    )
     references: list[dict[str, Any]] = []
     raw_scan_comments: list[dict[str, Any]] = []
     # One git lookup per SHA for the whole run, however many threads cite it.
@@ -393,7 +402,7 @@ def build_report(
     ambiguous_count = sum(1 for r in references if r["status"] == "ambiguous")
     return {
         "success": fetched_pages_complete,
-        "failure_reason": _failure_reason(threads, fetched_pages_complete),
+        "failure_reason": _failure_reason(threads, thread_pages_complete),
         "pull_request": pull_request,
         "owner": owner,
         "repo": repo,
@@ -442,7 +451,7 @@ def main(argv: list[str] | None = None) -> int:
     owner, repo = resolved.owner, resolved.repo
 
     try:
-        head_sha, threads, fetched_pages_complete = fetch_review_threads(
+        head_sha, threads, thread_pages_complete = fetch_review_threads(
             owner,
             repo,
             args.pull_request,
@@ -457,7 +466,7 @@ def main(argv: list[str] | None = None) -> int:
         args.pull_request,
         head_sha,
         threads,
-        fetched_pages_complete,
+        thread_pages_complete,
         args.repo_path,
     )
     _warn_raw_scans(report["raw_scan_comments"])

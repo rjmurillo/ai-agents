@@ -20,9 +20,11 @@ _SCRIPTS_DIR = (
     Path(__file__).resolve().parents[1] / ".claude" / "skills" / "github" / "scripts" / "pr"
 )
 sys.path.insert(0, str(_SCRIPTS_DIR))
-
-import check_review_thread_resolution_shas as _mod  # noqa: E402
-import commit_ancestry  # noqa: E402
+try:
+    import check_review_thread_resolution_shas as _mod
+    import commit_ancestry
+finally:
+    sys.path.remove(str(_SCRIPTS_DIR))
 
 _HEAD = "b" * 40
 _DEEP_BODY = "\n".join(" " * (2 * depth) + "- x" for depth in range(40)) + " deadbee"
@@ -193,6 +195,21 @@ def test_partial_thread_fetch_names_pagination() -> None:
     # 6195-A5
     report, _ = _report(_thread("T1", "abc1234"), complete=False)
     assert "review thread pagination" in report["failure_reason"]
+
+
+def test_partial_thread_and_comment_fetch_names_both() -> None:
+    # 6195-A5
+    report, _ = _report(_thread("T1", "abc1234", total=2), complete=False)
+    assert "review thread pagination" in report["failure_reason"]
+    assert "T1" in report["failure_reason"]
+
+
+def test_partial_comment_fetch_with_complete_pages_fails() -> None:
+    # 6195-A5
+    report, _ = _report(_thread("T1", "abc1234", total=2))
+    assert report["success"] is False
+    assert report["fetched_pages_complete"] is False
+    assert "review thread pagination" not in report["failure_reason"]
 
 
 def test_check_ancestor_reports_missing_object() -> None:

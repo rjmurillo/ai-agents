@@ -131,6 +131,18 @@ def test_unrendered_element_data_in_html_block_is_skipped(tag: str) -> None:
     assert _mod.extract_shas(body) == ["abc1234"]
 
 
+@pytest.mark.parametrize("tag", ["script", "iframe"])
+def test_self_closing_unrendered_element_still_hides_its_text(tag: str) -> None:
+    # 6195-A2: HTML ignores "/>" on raw-text elements, so text runs to the end tag.
+    body = f"<div>\n<{tag}/>deadbee</{tag}>Fixed in abc1234\n</div>"
+    assert _mod.extract_shas(body) == ["abc1234"]
+
+
+def test_self_closing_ordinary_element_keeps_following_text() -> None:
+    # 6195-A2 inverse
+    assert _mod.extract_shas("<div>\n<br/>Fixed in abc1234\n</div>") == ["abc1234"]
+
+
 def test_unclosed_unrendered_element_hides_rest_of_block() -> None:
     # 6195-A2: raw text runs to the end of the block when the end tag is missing.
     assert _mod.extract_shas("<div>\n<script>deadbee\n</div>\n\nFixed in abc1234") == ["abc1234"]
