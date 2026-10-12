@@ -202,6 +202,12 @@ surfaces:
     authority: src/claude/skills/review/scripts/validate_review_marker.py
     generator: build/scripts/binplace_manifest.py
     owner: build_all.py --check
+  - id: skills-review-sidecar-copilot
+    path: src/copilot-cli/skills/review/scripts/validate_review_marker.py
+    relation: generated
+    authority: scripts/validation/validate_review_marker.py
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
   - id: skills-copilot-cli
     path: src/copilot-cli/skills
     relation: translated
