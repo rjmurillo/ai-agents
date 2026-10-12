@@ -205,8 +205,11 @@ python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request <PR_NUMBER> --output-f
 python3 "$SCRIPTS_DIR/pr/why_pr_blocked.py" --pull-request <PR_NUMBER> --output-format json
 ```
 
-Confirm `MissingRequiredChecks` (or `MissingRequired`) is non-empty and
-`FailedCount` is 0. If checks are failing, use the standard workflow instead.
+Confirm `MissingRequiredChecks` (from `get_pr_checks.py`) or `MissingRequired`
+(from `why_pr_blocked.py`) is non-empty. Confirm no reported check is failing
+(`FailedCount` is 0, or `FailingRequired` is empty) and none is pending
+(`PendingRequired` is empty). If checks are failing or pending, use the standard
+workflow instead.
 
 ### Recover without a new commit
 
