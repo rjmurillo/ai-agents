@@ -54,7 +54,7 @@ def test_scan_of_matching_sinks_passes() -> None:
     assert verdict(good_evidence(), scan)["verdict"] == "PASS"
 
 
-def test_unparsed_scan_blocks() -> None:
+def test_unparsed_or_unscanned_scan_blocks() -> None:
     result = verdict(good_evidence(), {"decision": "unknown", "sinks": []})
     assert result["verdict"] == "BLOCK"
     assert "could not parse" in result["reasons"][0]

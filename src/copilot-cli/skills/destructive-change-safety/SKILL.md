@@ -67,8 +67,11 @@ callers and adapters are in the graph. Pass each edited function to
 | `reached_from_changed` | Non-empty means an edited function can reach this sink. Empty means the scan found no path, not that none exists. |
 | `callers_unknown` | True means the entry point lies outside the scan. Widen the scan or read the real callers by hand; the trace is not done. |
 
-Decision `unknown` (exit 1) means a file did not parse. Scope is unknown; do
-not treat it as `skip`. The call graph matches by simple name and over-reports
+Decision `unknown` (exit 1) means a file did not parse (`unparsed`) or a source
+file in a language the scan cannot read, such as PowerShell, JavaScript, C#, or
+Go, went unscanned (`unscanned`). Scope is unknown; do not treat it as `skip`.
+Read each listed file by hand and record what you checked. A scope with no
+readable file at all exits 2. The call graph matches by simple name and over-reports
 on purpose. For callers outside the scanned set, follow the caller-reading
 step of the `review` skill's technical-review reasoning protocol and cite the
 call sites checked.
@@ -133,7 +136,7 @@ path is a repository policy decision outside this skill.
 
 | Subcommand | Purpose | Exit codes |
 |------------|---------|------------|
-| `scan` | Sinks, caller chains, flags, forward trace | `0` ran, `1` unparsed file, `2` bad path |
+| `scan` | Sinks, caller chains, flags, forward trace | `0` ran, `1` unparsed or unscanned file, `2` bad path or no scannable file |
 | `preview-files` | Files a glob would touch | `0` counted, `1` refused |
 | `preview-sql` | Rows a SQLite DELETE or UPDATE would change | `0` counted, `1` refused |
 | `gate` | Fail-closed verdict over evidence | `0` PASS or SKIP, `1` BLOCK, `2` bad input |

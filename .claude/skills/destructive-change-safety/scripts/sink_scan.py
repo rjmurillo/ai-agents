@@ -16,11 +16,15 @@ one look; a missed path costs the data.
 A sink whose function has no caller inside the scanned set reports
 ``callers_unknown``: the entry point lives outside the scan, so the scan
 cannot call the path traced. A file that cannot be parsed makes the decision
-``unknown``, never ``skip``.
+``unknown``, never ``skip``. So is a source file in a language the scan
+cannot read (PowerShell, JavaScript, C#, Go, and the like): the report lists it
+under ``unscanned`` and the decision is ``unknown``. A scope that holds no file
+the scan could read or name raises ``EmptyScopeError``.
 
 EXIT CODES (ADR-035):
     0 - Scan finished; ``decision`` is ``skip`` (no sink) or ``activate``
-    1 - Logic error: ``decision`` is ``unknown`` (a file failed to parse)
+    1 - Logic error: ``decision`` is ``unknown`` (a file failed to parse, or
+        a source file in an unsupported language went unscanned)
     2 - Config error: a path does not exist or holds no scannable file
 """
 
@@ -37,6 +41,14 @@ MAX_CHAINS = 20
 MAX_DEPTH = 12
 SCANNED_SUFFIXES = {".py", ".sql", ".sh"}
 SKIPPED_DIRS = {".git", "__pycache__", ".venv", "node_modules", ".mypy_cache"}
+# Code or script suffixes the scan cannot read. A match in a scanned tree makes
+# the decision ``unknown``; prose and data suffixes stay ignored.
+UNSUPPORTED_SUFFIXES = {
+    ".ps1", ".psm1", ".psd1", ".bat", ".cmd", ".bash", ".zsh", ".fish",
+    ".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx",
+    ".cs", ".go", ".java", ".kt", ".rs", ".rb", ".php", ".pl", ".lua",
+    ".c", ".cc", ".cpp", ".h", ".hpp", ".swift", ".scala",
+}  # fmt: skip
 
 # Dotted calls that delete or overwrite. Attribute-only names are limited to
 # ones that are not also common non-destructive methods (no bare ``.remove``
@@ -83,6 +95,10 @@ GIT_ARGV_PATTERN = re.compile(
     r"^(?:git\s+)?(?:worktree\s+(?:remove|prune)|clean\s+-|reset\s+--hard|branch\s+-D"
     r"|update-ref\s+-d|stash\s+(?:drop|clear)|gc\s+--prune|push\b.*--force)"
 )
+
+
+class EmptyScopeError(Exception):
+    """The roots hold no file the scan can read and no unsupported source file."""
 
 
 @dataclass(frozen=True)
@@ -260,22 +276,36 @@ def scan_text(path: Path, rel: str, graph: Graph) -> None:
             graph.sinks.append(Sink(rel, number, f"<file:{rel}>", kind, line.strip()[:60]))
 
 
-def iter_files(roots: list[Path]) -> list[Path]:
-    """Return every scannable file under the roots, sorted for stable output."""
-    found: set[Path] = set()
+def iter_files(roots: list[Path]) -> tuple[list[Path], list[Path]]:
+    """Return ``(scannable, unscanned)`` files under the roots, sorted.
+
+    A file named as a root is unscanned when its suffix is not scannable. Inside
+    a directory only source suffixes in ``UNSUPPORTED_SUFFIXES`` count, so notes
+    and data files do not make a scan ``unknown``.
+    """
+    scannable: set[Path] = set()
+    unscanned: set[Path] = set()
     for root in roots:
         candidates = [root] if root.is_file() else sorted(root.rglob("*"))
         for item in candidates:
-            if item.is_file() and item.suffix in SCANNED_SUFFIXES:
-                if not SKIPPED_DIRS.intersection(item.parts):
-                    found.add(item)
-    return sorted(found)
+            if not item.is_file() or SKIPPED_DIRS.intersection(item.parts):
+                continue
+            if item.suffix in SCANNED_SUFFIXES:
+                scannable.add(item)
+            elif item.suffix in UNSUPPORTED_SUFFIXES or item == root:
+                unscanned.add(item)
+    return sorted(scannable), sorted(unscanned)
+
+
+def relative_name(path: Path, base: Path) -> str:
+    """Return the path relative to ``base`` when it lies under it, else as given."""
+    return path.relative_to(base).as_posix() if path.is_relative_to(base) else path.as_posix()
 
 
 def build_graph(files: list[Path], base: Path) -> Graph:
     graph = Graph()
     for path in files:
-        rel = path.relative_to(base).as_posix() if path.is_relative_to(base) else path.as_posix()
+        rel = relative_name(path, base)
         (scan_python if path.suffix == ".py" else scan_text)(path, rel, graph)
     return graph
 
@@ -339,14 +369,20 @@ def report_sink(graph: Graph, sink: Sink, reach: dict[str, list[str]]) -> dict[s
 
 def scan(roots: list[Path], base: Path, changed: list[str]) -> dict[str, object]:
     """Scan the roots and return the JSON-ready report."""
-    graph = build_graph(iter_files(roots), base)
+    scannable, unscanned = iter_files(roots)
+    if not scannable and not unscanned:
+        names = ", ".join(str(root) for root in roots)
+        raise EmptyScopeError(f"no scannable file under: {names}")
+    graph = build_graph(scannable, base)
     reach = forward_reach(graph, changed)
-    if graph.unparsed:
+    unscanned_names = sorted(relative_name(path, base) for path in unscanned)
+    if graph.unparsed or unscanned_names:
         decision = "unknown"
     else:
         decision = "activate" if graph.sinks else "skip"
     return {
         "decision": decision,
         "unparsed": sorted(graph.unparsed),
+        "unscanned": unscanned_names,
         "sinks": [report_sink(graph, sink, reach) for sink in graph.sinks],
     }

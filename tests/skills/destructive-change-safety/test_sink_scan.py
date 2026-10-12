@@ -47,7 +47,7 @@ def test_changed_function_that_cannot_reach_the_sink_reports_nothing(indirect_re
 
 def test_read_only_code_skips(read_only_repo: Path) -> None:
     report = scan_dir(read_only_repo)
-    assert report == {"decision": "skip", "unparsed": [], "sinks": []}
+    assert report == {"decision": "skip", "unparsed": [], "unscanned": [], "sinks": []}
 
 
 def test_sink_with_no_scanned_caller_is_marked_unknown(tmp_path: Path) -> None:
@@ -152,11 +152,76 @@ def test_sql_and_shell_files_are_scanned_by_line(tmp_path: Path) -> None:
     assert all(s["callers_unknown"] for s in report["sinks"])
 
 
-def test_skipped_directories_and_other_suffixes_are_ignored(tmp_path: Path) -> None:
+def test_skipped_directories_are_ignored(tmp_path: Path) -> None:
     (tmp_path / ".git").mkdir()
     (tmp_path / ".git" / "hook.sh").write_text("rm -rf x\n", encoding="utf-8")
+    (tmp_path / "ok.py").write_text("x = 1\n", encoding="utf-8")
+    report = scan_dir(tmp_path)
+    assert report["decision"] == "skip"
+    assert report["unscanned"] == []
+
+
+def test_prose_files_in_a_scannable_tree_are_ignored(tmp_path: Path) -> None:
     (tmp_path / "notes.md").write_text("DELETE FROM users\n", encoding="utf-8")
+    (tmp_path / "ok.py").write_text("x = 1\n", encoding="utf-8")
+    report = scan_dir(tmp_path)
+    assert report["decision"] == "skip"
+    assert report["unscanned"] == []
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["clean.ps1", "clean.psm1", "clean.js", "clean.ts", "Clean.cs", "clean.go", "clean.bat"],
+)
+def test_directory_of_unsupported_language_is_unknown_not_skip(tmp_path: Path, name: str) -> None:
+    (tmp_path / name).write_text("Remove-Item -Recurse -Force x\n", encoding="utf-8")
+    report = scan_dir(tmp_path)
+    assert report["decision"] == "unknown"
+    assert report["unscanned"] == [name]
+    assert report["sinks"] == []
+
+
+def test_unsupported_files_in_a_mixed_tree_make_the_decision_unknown(tmp_path: Path) -> None:
+    (tmp_path / "ok.py").write_text("x = 1\n", encoding="utf-8")
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "sub" / "clean.ps1").write_text("Remove-Item x\n", encoding="utf-8")
+    report = scan_dir(tmp_path)
+    assert report["decision"] == "unknown"
+    assert report["unscanned"] == ["sub/clean.ps1"]
+
+
+def test_unsupported_files_do_not_hide_found_sinks(tmp_path: Path) -> None:
+    (tmp_path / "m.sql").write_text("DELETE FROM users;\n", encoding="utf-8")
+    (tmp_path / "clean.js").write_text("fs.rmSync(p)\n", encoding="utf-8")
+    report = scan_dir(tmp_path)
+    assert report["decision"] == "unknown"
+    assert [s["location"] for s in report["sinks"]] == ["m.sql:1"]
+
+
+def test_unscanned_files_under_skipped_directories_are_ignored(tmp_path: Path) -> None:
+    (tmp_path / "node_modules").mkdir()
+    (tmp_path / "node_modules" / "dep.js").write_text("rmSync(x)\n", encoding="utf-8")
+    (tmp_path / "ok.py").write_text("x = 1\n", encoding="utf-8")
     assert scan_dir(tmp_path)["decision"] == "skip"
+
+
+def test_named_file_of_unsupported_type_is_unscanned(tmp_path: Path) -> None:
+    target = tmp_path / "notes.txt"
+    target.write_text("rm -rf x\n", encoding="utf-8")
+    report: dict[str, Any] = sink_scan.scan([target], tmp_path, [])
+    assert report["decision"] == "unknown"
+    assert report["unscanned"] == ["notes.txt"]
+
+
+@pytest.mark.parametrize("setup", ["empty", "prose_only", "skipped_only"])
+def test_root_with_nothing_to_scan_raises(tmp_path: Path, setup: str) -> None:
+    if setup == "prose_only":
+        (tmp_path / "notes.md").write_text("DELETE FROM users\n", encoding="utf-8")
+    if setup == "skipped_only":
+        (tmp_path / ".git").mkdir()
+        (tmp_path / ".git" / "hook.sh").write_text("rm -rf x\n", encoding="utf-8")
+    with pytest.raises(sink_scan.EmptyScopeError):
+        scan_dir(tmp_path)
 
 
 def test_scanning_a_single_file_and_a_path_outside_base(tmp_path: Path) -> None:

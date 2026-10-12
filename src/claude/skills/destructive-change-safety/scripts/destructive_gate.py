@@ -12,7 +12,7 @@ Every subcommand prints one JSON object on stdout.
 EXIT CODES (ADR-035):
     0 - Success: scan ran, preview counted, or gate verdict is PASS or SKIP
     1 - Logic error: scan decision unknown, preview refused, or gate BLOCK
-    2 - Config error: missing path, unreadable JSON, bad arguments
+    2 - Config error: missing path, no scannable file, unreadable JSON, bad arguments
 """
 
 from __future__ import annotations
@@ -54,7 +54,10 @@ def run_scan(args: argparse.Namespace) -> int:
     missing = [str(p) for p in roots if not p.exists()]
     if missing:
         raise ConfigError(f"path does not exist: {', '.join(missing)}")
-    report = sink_scan.scan(roots, Path(args.base).resolve(), args.changed)
+    try:
+        report = sink_scan.scan(roots, Path(args.base).resolve(), args.changed)
+    except sink_scan.EmptyScopeError as error:
+        raise ConfigError(str(error)) from error
     emit(report)
     return 1 if report["decision"] == "unknown" else 0
 

@@ -144,6 +144,29 @@ def test_missing_scan_path_is_a_config_error(tmp_path: Path) -> None:
     assert "path does not exist" in result.stderr
 
 
+def test_directory_of_unsupported_language_exits_one(tmp_path: Path) -> None:
+    (tmp_path / "clean.ps1").write_text("Remove-Item -Recurse -Force x\n", encoding="utf-8")
+    result = run("scan", ".", cwd=tmp_path)
+    assert result.returncode == 1
+    payload = json.loads(result.stdout)
+    assert payload["decision"] == "unknown"
+    assert payload["unscanned"] == ["clean.ps1"]
+
+
+def test_directory_with_nothing_to_scan_is_a_config_error(tmp_path: Path) -> None:
+    (tmp_path / "notes.md").write_text("DELETE FROM users\n", encoding="utf-8")
+    result = run("scan", ".", cwd=tmp_path)
+    assert result.returncode == 2
+    assert "no scannable file" in result.stderr
+
+
+def test_main_reports_empty_scope_as_config_error(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert destructive_gate.main(["scan", str(tmp_path)]) == 2
+    assert "no scannable file" in capsys.readouterr().err
+
+
 @pytest.mark.parametrize("content", ["not json", "[1, 2]"])
 def test_unusable_evidence_file_is_a_config_error(tmp_path: Path, content: str) -> None:
     path = tmp_path / "ev.json"
@@ -158,6 +181,7 @@ def test_missing_evidence_file_is_a_config_error(tmp_path: Path) -> None:
 
 
 def test_main_returns_codes_in_process(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    (tmp_path / "ok.py").write_text("x = 1\n", encoding="utf-8")
     assert destructive_gate.main(["scan", str(tmp_path)]) == 0
     assert json.loads(capsys.readouterr().out)["decision"] == "skip"
     assert destructive_gate.main(["preview-files", "--root", str(tmp_path), "--pattern", "*"]) == 0
