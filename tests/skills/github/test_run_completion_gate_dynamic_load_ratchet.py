@@ -85,6 +85,17 @@ class TestShippedClosureRatchet:
         }
         assert stale == {}, f"_REVIEWED entries no longer match the closure: {stale}"
 
+    def test_closure_does_not_depend_on_the_callers_plugin_root(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The pre-push hook exports CLAUDE_PLUGIN_ROOT=src/copilot-cli (git_hook_policy.py)."""
+        baseline = shipped_verifier_closure()
+        monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", str(REPO_ROOT / "src" / "copilot-cli"))
+        monkeypatch.setenv("COPILOT_PLUGIN_ROOT", str(REPO_ROOT / "src" / "copilot-cli"))
+
+        assert shipped_verifier_closure() == baseline
+        assert not any(path.startswith("src/") for path in baseline[1])
+
     def test_reviewed_launcher_target_is_itself_verified(self) -> None:
         named, closure_paths = shipped_verifier_closure()
 

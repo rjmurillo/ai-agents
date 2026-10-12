@@ -7,9 +7,11 @@ tests load it by path once and share it.
 from __future__ import annotations
 
 import importlib.util
+import os
 import sys
 import textwrap
 from pathlib import Path
+from unittest import mock
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 GATE_PATH = (
@@ -64,6 +66,13 @@ def shipped_verifier_closure() -> tuple[list[str], list[str]]:
 
     config = yaml.safe_load(SHIPPED_CONFIG.read_text(encoding="utf-8"))
     criteria = gate._extract_criteria(config) + gate._scripts_map_criteria(config)
-    named, _external, escaping = gate._collect_command_paths(criteria, 1, REPO_ROOT)
+    # The config's `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}` forms expand from
+    # the environment. The pre-push hook exports CLAUDE_PLUGIN_ROOT=src/copilot-cli, which
+    # would move the closure to the Copilot mirror. Pin the self-hosted `.claude` shape so
+    # the scanned set does not depend on the caller.
+    with mock.patch.dict(os.environ):
+        for var in gate._PLUGIN_ROOT_ENV_VARS:
+            os.environ.pop(var, None)
+        named, _external, escaping = gate._collect_command_paths(criteria, 1, REPO_ROOT)
     assert escaping == [], f"config commands escape the work tree: {escaping}"
     return named, gate._expand_import_closure(named, REPO_ROOT)
