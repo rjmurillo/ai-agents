@@ -55,7 +55,7 @@
       "expected_gate": "route-standard-lifecycle-chain",
       "expected_route": ["build", "test", "review", "ship"],
       "forbidden_routes": ["orchestrator", "spec", "plan"],
-      "rationale": "A bounded change on an existing surface is the Standard tier: /build then /test then /review then /ship. Starting at /spec or /plan over-escalates the tier, and the orchestrator is reserved for multi-domain work. Either fails."
+      "rationale": "With no specialist, Precedence step 4 sends a bounded change on an existing surface to the Standard tier: /build then /test then /review then /ship. Starting at /spec or /plan over-escalates the tier, and the orchestrator is reserved for multi-domain work. Either fails."
     },
     {
       "id": "R6",
@@ -64,7 +64,7 @@
       "input": "We want a scheduled report that emails each team lead their open review debt, but nobody has agreed what counts as debt yet. Build it. Answer in 5 short bullets naming the chain you pick. Do not modify any files.",
       "expected_signals": ["/spec", "/plan", "/build"],
       "expected_gate": "route-feature-lifecycle-chain",
-      "expected_route": ["spec", "plan", "build"],
+      "expected_route": ["spec", "plan", "build", "test", "review", "ship"],
       "forbidden_routes": ["orchestrator"],
       "rationale": "Ambiguous requirements and a new capability put the request in the Feature tier: /spec then /plan then the Standard chain. Jumping straight to /build skips the tier, and the orchestrator is not a lifecycle substitute."
     },
@@ -87,7 +87,7 @@
       "input": "Installed skills include context-gather (gathers context from memory, docs, and web before planning), ai-agents-external-claims (verifies external and vendor claims against primary sources), and research. Before we cite a vendor's reliability statistic in our design doc, gather what we already know, verify the statistic, and then work it into the doc. Answer in 5 short bullets listing the steps in order. Do not modify any files.",
       "expected_signals": ["context-gather", "ai-agents-external-claims", "incorporat"],
       "expected_gate": "order-context-claims-incorporation",
-      "expected_route": ["context-gather", "ai-agents-external-claims"],
+      "expected_route": ["context-gather", "research", "ai-agents-external-claims"],
       "expected_order": ["context-gather", "ai-agents-external-claims", "incorporation"],
       "forbidden_routes": ["orchestrator"],
       "rationale": "The statistic must be gathered, then verified, then incorporated. A response that writes the number into the design doc before the claim gate ran, or verifies before gathering context, has the composition order wrong and fails. Handing the request to the orchestrator also fails."

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size, resolver and model-driven scoring share one report and entry point.
 """Score autoplan routes: resolver fixtures and model-driven scenarios (issue #5389).
 
 `/autoplan` routes a request in two steps. A model reads the high-traffic
@@ -359,9 +360,11 @@ def _is_rubric_score(value: object) -> bool:
 def _cell_score(result: dict[str, Any]) -> float | None:
     """The scored cell of one result, or None when the run did not grade it.
 
-    Mirrors the runner's `_scenario_score_triple` for the `cell_score` path:
-    an errored, ungraded, judge-failed, or off-rubric cell is unmeasured, not a
-    zero. The runner's legacy fallback to the score triple is not read here.
+    Agrees with `_scenario_score_triple` in `eval-rule-activation.py` on the
+    `cell_score` path (pinned by `test_cell_score_agrees_with_the_runner`).
+    Stricter than the runner: a judge-failed cell, and a legacy cell with only
+    the score triple, are unmeasured here. An errored, ungraded, or off-rubric
+    cell is unmeasured too, never a zero.
     """
     mechanisms = result.get("mechanisms")
     cell = mechanisms.get(MODEL_MECHANISM) if isinstance(mechanisms, dict) else None
@@ -371,6 +374,8 @@ def _cell_score(result: dict[str, Any]) -> float | None:
     if not isinstance(scores, dict) or scores.get("graded") is False or scores.get("judge_failed"):
         return None
     value = scores.get("cell_score")
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
     return float(value) if _is_rubric_score(value) else None
 
 

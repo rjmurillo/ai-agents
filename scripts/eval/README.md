@@ -947,10 +947,11 @@ Executed families: `explicit-skill`, `long-tail-single-domain`, `multi-domain-ha
 
 ### Model-driven route scenarios
 
-Six families need a model, because a model reads the autoplan table and the parent skills' prose: `high-traffic-direct`, `conditional-adjunct`, `lifecycle`, `composition-order`, `dx-activation` (positive and negative), and `advisor-vs-buy-vs-build`. `tests/evals/skill-scenarios/autoplan.json` holds 12 scenarios, two per family. Each names `expected_route`, a non-empty `forbidden_routes` list (the adjacent specialists that must not be picked), and for `composition-order` an `expected_order`. `eval-rule-activation.py` runs the file unchanged and its judge sees the `rationale`, which states the constraint, so a response that picks an adjacent specialist or inverts the order scores low.
+Six families need a model, because a model reads the autoplan table and the parent skills' prose: `high-traffic-direct`, `conditional-adjunct`, `lifecycle`, `composition-order`, `dx-activation` (positive and negative), and `advisor-vs-buy-vs-build`. `tests/evals/skill-scenarios/autoplan.json` holds 12 scenarios, two per family. Each names `expected_route`, a non-empty `forbidden_routes` list (the adjacent specialists that must not be picked), and for `composition-order` an `expected_order`. `eval-rule-activation.py` runs the file unchanged and its judge sees the `rationale`, which states the constraint, so a response that picks an adjacent specialist or inverts the order scores low. The judge enforces `forbidden_routes` and `expected_order`; this script does not parse responses, so those two fields are judge-scored, not string-matched.
 
 ```bash
-# 144 calls, about 504,000 tokens (about $1.51 at the sonnet input rate), needs a key
+# 144 calls, about 504,000 tokens (about $1.51 at the sonnet input rate), from the
+# runner's own dry-run estimate, not a measured run. Needs a key.
 uv run python scripts/eval/eval-rule-activation.py \
   --scenarios tests/evals/skill-scenarios/autoplan.json --output run.json
 uv run python scripts/eval/eval_autoplan_routes.py --model-results run.json

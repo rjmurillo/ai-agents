@@ -312,3 +312,61 @@ def test_runner_accepts_the_scenario_file_without_a_model() -> None:
     )
     assert proc.returncode == 0, proc.stderr
     assert "autoplan: 12 scenarios" in proc.stdout
+
+
+def _runner() -> Any:
+    name = "eval_rule_activation_runner"
+    if name in sys.modules:
+        return sys.modules[name]
+    sys.path.insert(0, str(RUNNER.parent))
+    try:
+        spec = importlib.util.spec_from_file_location(name, RUNNER)
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        spec.loader.exec_module(module)
+    finally:
+        sys.path.remove(str(RUNNER.parent))
+    return module
+
+
+@pytest.mark.parametrize(
+    "scores",
+    [
+        {"cell_score": 4.5},
+        {"cell_score": 1},
+        {"cell_score": 6},
+        {"cell_score": True},
+        {"cell_score": None},
+        {"cell_score": 5, "judge_failed": True},
+        {"cell_score": 5, "graded": False},
+        {},
+    ],
+)
+def test_cell_score_agrees_with_the_runner(scores: dict[str, Any]) -> None:
+    """The runner owns the score semantics; the report must read the same cell.
+
+    Stricter than the runner in two places: a judge-failed cell and a legacy
+    triple-only cell are unmeasured here, where the runner still returns a score.
+    """
+    result = {"id": "R1", "mechanisms": {"full": {"scores": scores}}}
+    runner_score, failed, legacy = _runner()._scenario_score_triple(result, "full")
+    if legacy or failed:
+        assert ev._cell_score(result) is None
+    else:
+        assert ev._cell_score(result) == runner_score
+
+
+def test_cell_score_agrees_with_the_runner_on_an_errored_cell() -> None:
+    result = {"id": "R1", "mechanisms": {"full": {"error": "x", "scores": {"cell_score": 5}}}}
+    assert _runner()._scenario_score_triple(result, "full")[0] is None
+    assert ev._cell_score(result) is None
+
+
+def test_pass_bar_and_mechanism_name_are_runner_vocabulary() -> None:
+    runner = _runner()
+    assert ev.MODEL_MECHANISM in runner.MECHANISMS
+    assert (ev.MODEL_MIN_SCORE, ev.MODEL_MAX_SCORE) == (
+        runner.MIN_RUBRIC_SCORE,
+        runner.MAX_RUBRIC_SCORE,
+    )
