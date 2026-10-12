@@ -268,7 +268,7 @@ reads these fields:
 
 ```bash
 # Verify skill location
-test -f ".claude/skills/memory/scripts/search_memory.py" && echo "exists" || echo "not found"
+test -f "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" && echo "exists" || echo "not found"
 
 # List available skills
 find .claude/skills -name "*.py" -type f

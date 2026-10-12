@@ -67,7 +67,7 @@ optional log must show the search before the decision.
 
 The canonical Tier 1 script is `search_memory.py`. It is shared with the
 `memory` router and lives at
-`.claude/skills/memory/scripts/search_memory.py`. This sub-skill delegates to it
+`${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py`. This sub-skill delegates to it
 and does not reimplement search.
 
 ## Memory-First as Chesterton's Fence

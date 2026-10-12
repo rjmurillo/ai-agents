@@ -32,7 +32,7 @@ from memory_core.reflexion_memory import get_episode
 | [memory_router](#memory_router-module) | Unified memory search (Tier 1) | `.claude/skills/memory/memory_core/memory_router.py` |
 | [reflexion_memory](#reflexion_memory-module) | Session episodes (Tier 2) | `.claude/skills/memory/memory_core/reflexion_memory.py` |
 
-Two scripts wrap these modules with a command line: `.claude/skills/memory/scripts/search_memory.py` and `.claude/skills/memory/scripts/extract_session_episode.py`.
+Two scripts wrap these modules with a command line: `search_memory.py` and `extract_session_episode.py`, both in `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/`.
 
 ## memory_router Module
 
