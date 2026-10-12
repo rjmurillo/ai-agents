@@ -123,6 +123,35 @@ def make_baseline_target(policy_source: str, **overrides: Any) -> dict[str, Any]
     return _merged(base, overrides)
 
 
+def make_relocation_target(**overrides: Any) -> dict[str, Any]:
+    """A pure test move: same collected tests, different files (issue #6214)."""
+    base = make_target(
+        target="tests/validation/test_slow_part2.py",
+        component="split of tests/validation/test_slow.py",
+        authority={
+            "diagnosis": "relocation-no-semantic-change",
+            "permitted_change_location": "tests/validation/test_slow_part2.py",
+        },
+    )
+    base["relocation_evidence"] = {
+        "collect_command": "uv run pytest tests/validation --collect-only -q",
+        "moved_from": ["tests/validation/test_slow.py"],
+        "moved_to": [
+            "tests/validation/test_slow_part1.py",
+            "tests/validation/test_slow_part2.py",
+        ],
+        "tests_before": [
+            "tests/validation/test_slow.py::test_a",
+            "tests/validation/test_slow.py::TestB::test_b[x]",
+        ],
+        "tests_after": [
+            "tests/validation/test_slow_part2.py::TestB::test_b[x]",
+            "tests/validation/test_slow_part1.py::test_a",
+        ],
+    }
+    return _merged(base, overrides)
+
+
 def make_record(*targets: Any, trigger: Any = None) -> dict[str, Any]:
     return {
         "trigger": trigger if trigger is not None else {"decision": "activate"},

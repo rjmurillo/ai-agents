@@ -27,6 +27,8 @@ def test_the_opt_in_runs_the_full_suite_without_selection(
 ) -> None:
     """AC5: ``=1`` executes every partition, never the testmon selection."""
     monkeypatch.setenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, "1")
+    # One worker cannot feed two pools, so the partitions run in the order listed.
+    monkeypatch.setenv(git_hook_policy.PYTEST_WORKERS_ENV, "1")
     seen = record_runs(monkeypatch)
     assert git_hook_policy.run_pytest(tmp_path) == 0
     assert seen == git_hook_policy._pytest_commands(tmp_path)

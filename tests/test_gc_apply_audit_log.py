@@ -61,6 +61,7 @@ class TestAppendRemovalRecord:
         assert len(lines) == 1
         record = json.loads(lines[0])
         assert record["schemaVersion"] == 1
+        assert record["tool"] == "gc_worktrees"
         assert record["path"] == "/repo/wt-a"
         assert record["branch"] == "feat/a"
         assert record["head"] == _STUB_HEAD
@@ -113,7 +114,7 @@ class TestAppendRemovalRecord:
         def _fsync(fd: int) -> None:
             synced.append(log_path.read_text(encoding="utf-8"))
 
-        monkeypatch.setattr("scripts.maintenance._gc_apply.os.fsync", _fsync)
+        monkeypatch.setattr("scripts.maintenance.removal_audit.os.fsync", _fsync)
 
         _gc_apply._append_removal_record(
             "/repo/wt-a", "feat/a", _STUB_HEAD, "merged to base", log_path=log_path
@@ -148,6 +149,7 @@ class TestApplyRemovalsAuditIntegration:
         assert record == {
             "schemaVersion": 1,
             "ts": record["ts"],
+            "tool": "gc_worktrees",
             "path": "/repo/a",
             "branch": "feat/a",
             "head": _STUB_HEAD,

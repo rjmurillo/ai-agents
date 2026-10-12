@@ -256,9 +256,10 @@ def _isolate_gc_worktree_audit_log(
 ) -> None:
     """Redirect the gc_worktrees durable audit log away from any real checkout.
 
-    ``scripts.maintenance._gc_apply`` appends one JSONL line per worktree
-    removal to ``.project-toolkit/metrics/gc-worktree-removals.jsonl`` under
-    the plan's main worktree (issue #4790). A test that calls
+    ``scripts.maintenance._gc_apply`` and ``scripts.invoke_batch_pr_review``
+    append one JSONL line per worktree removal to
+    ``.project-toolkit/metrics/gc-worktree-removals.jsonl`` under the main
+    worktree (issue #4790). A test that calls
     ``apply_removals`` without an explicit ``audit_log_path`` would otherwise
     write under whatever ``main_worktree`` its report names, including the
     real clone. Patching the resolver here isolates every such test without
@@ -276,6 +277,9 @@ def _isolate_gc_worktree_audit_log(
     log_path = tmp_path_factory.getbasetemp() / "gc-worktree-removals.jsonl"
     log_path.unlink(missing_ok=True)
     monkeypatch.setattr("scripts.maintenance._gc_apply.audit_log_path_for", lambda _main: log_path)
+    monkeypatch.setattr(
+        "scripts.maintenance.removal_audit.audit_log_path_for", lambda _main: log_path
+    )
 
 
 @pytest.fixture

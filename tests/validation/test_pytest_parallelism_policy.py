@@ -341,8 +341,9 @@ def test_run_pytest_consumes_worker_override_before_child_process(
         *,
         process_env: dict[str, str],
         timeout_seconds: float,
+        on_start: object = None,
     ) -> subprocess.CompletedProcess[str]:
-        del repo_root, timeout_seconds
+        del repo_root, timeout_seconds, on_start
         seen_commands.append(command)
         seen_envs.append(process_env.copy())
         return subprocess.CompletedProcess(command, 0, "", "")
@@ -352,7 +353,10 @@ def test_run_pytest_consumes_worker_override_before_child_process(
 
     assert policy.run_pytest(tmp_path) == 0
 
-    assert _flag_value(seen_commands[0], _WORKER_FLAGS) == "3"
+    # Issue #6198: the bulk and mutation partitions overlap, so the override is
+    # one budget they split, not a value each one repeats.
+    pools = [_flag_value(command, _WORKER_FLAGS) for command in seen_commands]
+    assert sum(int(workers) for workers in pools if workers) == 3
     assert all(policy.PYTEST_WORKER_CAP_ENV not in env for env in seen_envs)
     assert all(policy.PYTEST_WORKERS_ENV not in env for env in seen_envs)
     # Every control `run_pytest` consumes has to be stripped, not just the two
