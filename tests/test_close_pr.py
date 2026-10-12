@@ -301,3 +301,37 @@ class TestMain:
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "50"])
             assert exc.value.code == 3
+
+
+_GH_MISSING_PR = (
+    "GraphQL: Could not resolve to a PullRequest with the number of 999999. "
+    "(repository.pullRequest)\n"
+)
+_GH_MISSING_REPO = "GraphQL: Could not resolve to a Repository with the name 'o/r'. (repository)"
+
+
+@pytest.mark.parametrize(
+    ("stdout", "stderr", "code"),
+    [
+        pytest.param("", _GH_MISSING_PR, 2, id="gh-missing-pr"),
+        pytest.param(_GH_MISSING_PR, "", 2, id="marker-on-stdout-fallback"),
+        pytest.param("", "not found", 2, id="legacy-wording"),
+        pytest.param("", "gh: Not Found (HTTP 404)", 2, id="legacy-any-case"),
+        pytest.param("", "HTTP 502: Bad Gateway", 3, id="external-error"),
+        pytest.param("", _GH_MISSING_REPO, 3, id="missing-repo"),
+    ],
+)
+def test_failed_pr_view_exit_code(stdout, stderr, code):
+    """A failed PR lookup maps to the ADR-035 code and never closes the PR."""
+    with (
+        patch("close_pr.assert_gh_authenticated"),
+        patch("close_pr.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
+        patch(
+            "subprocess.run",
+            return_value=_completed(rc=1, stdout=stdout, stderr=stderr),
+        ) as run,
+    ):
+        with pytest.raises(SystemExit) as exc:
+            main(["--pull-request", "999999"])
+    assert exc.value.code == code
+    assert all(call.args[0][:3] != ["gh", "pr", "close"] for call in run.call_args_list)
