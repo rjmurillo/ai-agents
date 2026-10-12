@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 
 from scripts.validation import check_plugin_root_interpreter as checker
+from scripts.validation.check_plugin_frontmatter_self_containment import plugin_roots
 from tests.validation.test_check_plugin_root_interpreter import REPO_ROOT, make_repo
 
 _ROOT = "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
@@ -99,6 +100,12 @@ def test_yaml_outside_the_plugin_roots_is_not_scanned(tmp_path: Path) -> None:
     assert _scan(tmp_path, {".github/workflows/ci.yml": workflow}) == []
     assert checker.is_in_scope(".github/workflows/ci.yml") is False
     assert checker.is_in_scope("src/copilot-cli/skills/x/config.yaml") is True
+
+
+def test_every_declared_plugin_root_is_scanned_for_yaml() -> None:
+    # Converse: a new marketplace source must not ship YAML this gate never reads.
+    declared = {f"{root}/" for root in plugin_roots(REPO_ROOT)}
+    assert declared - set(checker._PLUGIN_ROOTS) == set()
 
 
 def test_bare_path_in_markdown_is_left_to_the_markdown_ratchet(tmp_path: Path) -> None:
