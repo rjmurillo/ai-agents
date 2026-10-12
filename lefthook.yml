@@ -656,14 +656,21 @@ pre-push:
             run: uv run --frozen python scripts/validation/git_hook_policy.py pytest
             env:
               AI_AGENTS_PYTEST_WORKER_CAP: "4"
-              # Issue #5383: shared CPU budget. Job classes in this group:
-              # CPU-bound are python-tests (xdist workers), pre-pr-validation
-              # (the other heavy job), zero-collection-tests, python-type-check;
-              # I/O-bound is worktree-gc-report; the rest are lightweight. One
-              # CPU is held back for pre-pr-validation, so xdist runs
-              # min(4, visible CPUs - 1) workers, never fewer than one. A
-              # four-CPU container runs 3 workers beside it.
-              AI_AGENTS_PYTEST_CPU_RESERVE: "1"
+              # Issue #5383: shared CPU budget. CPU-bound on every Python
+              # push: python-tests (xdist workers), pre-pr-validation,
+              # zero-collection-tests, python-type-check; each sibling is one
+              # process, so three CPUs are held back and xdist runs
+              # min(4, visible CPUs - 3) workers, never fewer than one. A
+              # four-CPU container runs one worker beside them. The test in
+              # tests/test_lefthook_integration.py pins reserve == sibling
+              # count. I/O-bound: worktree-gc-report, and the two CLI e2e jobs
+              # (hook-anchoring-e2e, plugin-load-e2e), which wait on an agent
+              # CLI over the network. Not measured. workflow-local-run runs
+              # `act` and is CPU-bound when its glob fires; a static reserve
+              # cannot cover a glob-gated job, so a push that fires it can
+              # still exceed the container allocation. The rest are
+              # lightweight.
+              AI_AGENTS_PYTEST_CPU_RESERVE: "3"
 
           # Issue #4494: a test_*.py inside testpaths that defines no test
           # collects nothing, is counted in no failure, and reads as a passing
