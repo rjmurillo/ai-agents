@@ -1516,6 +1516,32 @@ def _count_commit_events(events: list) -> int:
     return sum(1 for evt in events if _as_dict(evt).get("type") == "commit")
 
 
+def _drop_dangling_commit_events(events: list[dict]) -> list[dict]:
+    """Remove commit events whose SHA resolves locally but no ref reaches.
+
+    A dangling object is clone residue (a rebase onto a concurrent push, a
+    squash-merged branch). Carrying its event forward records a SHA that a
+    fresh clone will never fetch, and `--preserve` would otherwise re-union it
+    on every regeneration (issue #5213). `_commit_event_dates` applies the same
+    reachability test to commit-order validation (issue #4240); this applies it
+    to event membership, so the two checks back one claim.
+
+    A SHA that does not resolve at all is kept: absence from this clone is not
+    evidence the commit is unreachable elsewhere, and a shallow or fresh clone
+    would otherwise erase real history. Ids are renumbered so they stay
+    contiguous; the caller's relink pass rebuilds the causal edges.
+    """
+    kept: list[dict] = []
+    for evt in events:
+        sha = _commit_sha(evt) if evt.get("type") == "commit" else None
+        if sha and _commit_datetime(sha) is not None and not _sha_is_reachable(sha):
+            continue
+        kept.append(evt)
+    if len(kept) != len(events):
+        _renumber_events(kept)
+    return kept
+
+
 def _merge_metrics(new: dict, existing: dict) -> dict:
     """Per-key max so regeneration never zeroes a previously counted metric.
 
@@ -1544,8 +1570,10 @@ def merge_preserving(new: dict, existing: dict, *, session_id: str = "") -> dict
     and non-commit event timestamps normalize to the deterministic session date
     so output is idempotent. Commit events keep the real committer date, which
     is already deterministic from the SHA and is the only ordering evidence the
-    causal graph has against a same-day milestone (issue #4071). Applying twice
-    is a no-op.
+    causal graph has against a same-day milestone (issue #4071). Commit events
+    whose SHA resolves locally but is reachable from no ref are dropped, and
+    ``metrics.commits`` is recomputed from the surviving events (issue #5213).
+    Applying twice is a no-op.
     """
     existing = _as_dict(existing)
     date = _deterministic_date(session_id, new.get("timestamp"), existing.get("timestamp"))
@@ -1569,6 +1597,7 @@ def merge_preserving(new: dict, existing: dict, *, session_id: str = "") -> dict
         midnight,
         session_id=session_id,
     )
+    merged["events"] = _drop_dangling_commit_events(merged["events"])
     merged["metrics"] = _merge_metrics(
         _as_dict(new.get("metrics")), _as_dict(existing.get("metrics"))
     )
@@ -1800,7 +1829,9 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "Validate an existing episode JSON file, or every *.json under a "
-            "directory, instead of extracting. Exit 2 on a duplicate, missing, "
+            "directory, instead of extracting. The path must be an episode, "
+            "not a session log: a file with no 'events' key exits 2 as a "
+            "usage error. Exit 2 on a duplicate, missing, "
             "or non-contiguous event id, or a commit-to-commit edge that runs "
             "backwards in committer time"
         ),
@@ -2567,13 +2598,34 @@ def _episode_paths(target: Path) -> list[Path]:
     return [target]
 
 
+def _not_episode_file(target: Path) -> bool:
+    """Return True when ``target`` is a JSON object with no ``events`` key.
+
+    Session logs (``.project-toolkit/sessions/*.json``) parse as objects but
+    carry no ``events`` key. Naming that mistake beats reporting a content
+    violation against a file that was never an episode. An unreadable or
+    non-object file is not caught here: ``validate_episode_file`` reports it.
+    A key present with a bad value (``"events": null``) stays a violation.
+    """
+    data, _ = _read_episode(target)
+    return data is not None and "events" not in data
+
+
 def run_validate(target: Path, *, fix: bool = False) -> int:
     """Validate an episode file or a directory of them. Exit 2 on violation.
+
+    An explicit file argument must be an episode, not a session log: a file
+    with no ``events`` key exits 2 with a usage error, not a content violation.
+    A directory is globbed for ``*.json`` and each file is checked as before.
 
     With ``fix``, repair backwards commit order in place first, then report on
     what the repair left. A refused repair still counts as a violation, so the
     exit code never claims a file was fixed when it was not.
     """
+    if target.is_file() and _not_episode_file(target):
+        msg = f"{target} is not an episode file (no 'events' key); pass an episode JSON"
+        print(json.dumps({"Error": msg}), file=sys.stderr)
+        return 2
     paths = _episode_paths(target)
     if not paths:
         print(json.dumps({"Error": f"No episode files under {target}"}), file=sys.stderr)

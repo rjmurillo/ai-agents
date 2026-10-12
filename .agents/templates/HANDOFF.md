@@ -11,10 +11,30 @@ See: .project-toolkit/architecture/ADR-014-distributed-handoff-architecture.md f
 ## Status
 
 - **Issue**: #{ISSUE_NUMBER}, {issue title}
-- **Branch**: {branch name}
 - **Task**: {one-sentence description of the in-flight task}
-- **Phase**: {planning | implementing | testing | reviewing | blocked | complete}
 - **Progress**: {percent complete or enumerated steps done vs total}
+
+## State Record
+
+<!-- The resume check reads this block. Keep one `- **Key**: value` line per field.
+     Remote, Branch, Worktree, Head SHA, and Timestamp are the live-state anchors.
+     Verify them with: uv run python scripts/validation/check_handoff_resume.py <this file>
+     An empty field or a {placeholder} counts as missing and the resume check holds. -->
+
+- **Remote**: {owner/name}
+- **Branch**: {branch name}
+- **Worktree**: {absolute worktree path}
+- **Head SHA**: {git rev-parse HEAD at handoff time}
+- **Timestamp**: {ISO 8601 UTC, for example 2026-09-30T14:02Z}
+- **Objective**: {what the work must achieve}
+- **Non-goals**: {what the work must not do}
+- **Risk tier**: {read-only | shared-repository | consequential}
+- **Acceptance**: {observable criteria that close the work}
+- **Phase**: {planning | implementing | testing | reviewing | blocked | complete}
+- **Next action**: {the one exact next step}
+- **Validation run**: {commands actually run and their results, or "none"}
+- **Residual risks**: {unresolved risks, or "none known"}
+- **Escalation owner**: {who decides when the record and the repository disagree}
 
 ## Files Modified
 
@@ -24,11 +44,14 @@ See: .project-toolkit/architecture/ADR-014-distributed-handoff-architecture.md f
 
 ## Decisions Made
 
-<!-- Decisions that persist beyond this session. Include alternatives considered. -->
+<!-- Decisions that persist beyond this session. Include alternatives considered.
+     Every decision needs a Provenance line. Mark a replaced decision with a
+     Superseded by line instead of deleting it. -->
 
 - **{decision}**: {rationale}
   - Alternatives considered: {list}
-  - Reference: {ADR / issue / PR / memory path, if any}
+  - Provenance: {who or what decided it: ADR / issue comment / PR / agent finding / memory path}
+  - Superseded by: {later decision, only when replaced}
 
 ## Blocked Items
 
@@ -57,10 +80,17 @@ See: .project-toolkit/architecture/ADR-014-distributed-handoff-architecture.md f
 <!-- Steps the next session runs to confirm handoff claims still hold.
      These are not optional. Stale handoffs cause silent state corruption. -->
 
-- [ ] `git status` matches "Files Modified" (no unexpected drift)
-- [ ] Branch matches: `{branch name}`
+Run the checker first. It compares Remote, Branch, Worktree, and Head SHA with the
+live repository and fails closed. Exit 0 means the anchors match. Exit 1 means HOLD:
+surface the contradiction and do not mutate.
+
+- [ ] `uv run python scripts/validation/check_handoff_resume.py <this file>` exits 0
+- [ ] `git status` matches "Files Modified" (a change caused by the next action is not drift)
+- [ ] Next action is not already done, reverted, or superseded in `git log` since Head SHA
 - [ ] Blocked items still blocked (no out-of-band resolution)
-- [ ] Next step #1 is still the correct starting point
+- [ ] Acceptance and Risk tier restored from the State Record before acting
+- [ ] Decisions carry Provenance; superseded ones are marked
+- [ ] A completion summary is not evidence of completion: confirm with the validation run
 
 ## Related
 

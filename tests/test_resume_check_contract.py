@@ -48,6 +48,7 @@ RULES = (
     "HOLD and surface it",
     "Never mutate on a guess",
     "Delegate returns follow the Handoff Contract.",
+    "`check_handoff_resume.py <handoff>`",
 )
 
 
@@ -100,6 +101,7 @@ EXPECTED_VERDICTS = {
     "S29": "BLOCK",
     "S30": "CONTINUE",
     "S31": "HOLD",
+    "S32": "BLOCK",
 }
 
 
@@ -111,7 +113,7 @@ def test_every_scenario_pins_its_intended_verdict(scenario_id: str) -> None:
     assert scenario["expected_verdict"] in scenario["verdict_options"]
 
 
-@pytest.mark.parametrize("scenario_id", ["S17", "S18", "S19", "S25", "S26", "S29", "S30"])
+@pytest.mark.parametrize("scenario_id", ["S17", "S18", "S19", "S25", "S26", "S29", "S30", "S32"])
 @pytest.mark.parametrize("path", ORCHESTRATOR_PATHS, ids=str)
 def test_graded_scenarios_stay_tied_to_the_resume_text(path: Path, scenario_id: str) -> None:
     scenario = _scenario(scenario_id)

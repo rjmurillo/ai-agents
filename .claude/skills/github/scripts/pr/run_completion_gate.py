@@ -1798,9 +1798,12 @@ def _module_files(dotted: str, roots: list[Path], toplevel: Path) -> list[str]:
 # and ``get_pr_check_logs.py`` use) or runs ``python -c``, ``sys.modules``
 # injection, and a wrong-case literal on a case-insensitive filesystem. Each is
 # a way for trusted, honestly written code to run a PR file. The measurement
-# below covers the RECOGNISED call names only: it says the closure of the
-# shipped config holds no recognised dynamic load, not that it holds no route
-# in this list (issue 6032 tracks the list).
+# below covers the RECOGNISED call names only. A ratchet covers this list:
+# tests/skills/github/test_run_completion_gate_dynamic_load_ratchet.py walks
+# the verifier closure of the shipped config, computed by the functions in this
+# file, and fails with file:line on any of these routes that is not reviewed
+# there (issue 6032). The scanner itself stays a denylist; replacing it with an
+# allowlist that halts on any unclassifiable call is a separate decision.
 #
 # Matching is by the LAST name of the call and ignores the receiver, so an
 # unrelated object's ``.run_path()`` or ``.import_module()`` halts too. That

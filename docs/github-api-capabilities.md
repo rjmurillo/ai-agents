@@ -245,6 +245,7 @@ directly instead of raw `gh`.
 | `get_pr_review_threads.py` | `.claude/skills/github/scripts/pr/` | Get thread details |
 | `get_unresolved_review_threads.py` | `.claude/skills/github/scripts/pr/` | Find unresolved threads |
 | `detect_stale_pr_comments.py` | `.claude/skills/github/scripts/pr/` | Detect bot comments on files absent from PR HEAD |
+| `detect_stale_bot_review.py` | `.claude/skills/github/scripts/pr/` | Classify a stale bot CHANGES_REQUESTED review and emit the human dismissal handoff (mixed: GraphQL context and checks, REST reviews) |
 
 ## Common Patterns
 

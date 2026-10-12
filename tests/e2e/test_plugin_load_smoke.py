@@ -432,6 +432,75 @@ def _claude_init_tools(agent: str) -> set[str]:
     return set(tools)
 
 
+# Issue #5443: declaring `mcp__github__*` in an agent's `tools:` only filters
+# tools a connected `github` MCP server provides. No Claude Code built-in
+# supplies that server, so a bare install resolves none of them and the agent
+# silently drops the names. The live probe below needs a server named exactly
+# `github` (the `mcp__github__` prefix is derived from the server name).
+_GITHUB_MCP_SERVER = "github"
+_GITHUB_MCP_PROBE_TOOL = "mcp__github__get_file_contents"
+_GITHUB_MCP_README_MARKER = "ai-agents"
+_GITHUB_MCP_PROBE_PROMPT = (
+    f"Call {_GITHUB_MCP_PROBE_TOOL} once with owner rjmurillo, repo ai-agents, "
+    "path README.md. Do not use any other tool. Then reply with the single word DONE."
+)
+
+
+def _github_mcp_connected(init_event: dict[str, object]) -> bool:
+    """True when the init event lists a connected MCP server named ``github``."""
+    servers = init_event.get("mcp_servers")
+    if not isinstance(servers, list):
+        return False
+    return any(
+        isinstance(server, dict)
+        and server.get("name") == _GITHUB_MCP_SERVER
+        and server.get("status") == "connected"
+        for server in servers
+    )
+
+
+def _content_blocks(event: dict[str, object]) -> list[dict[str, object]]:
+    message = event.get("message")
+    content = message.get("content") if isinstance(message, dict) else None
+    if not isinstance(content, list):
+        return []
+    return [block for block in content if isinstance(block, dict)]
+
+
+def _tool_result_text(result: dict[str, object]) -> str:
+    """Flatten a tool_result ``content`` field (string or text blocks) to text."""
+    content = result.get("content")
+    if isinstance(content, str):
+        return content
+    if not isinstance(content, list):
+        return ""
+    return "".join(str(block.get("text", "")) for block in content if isinstance(block, dict))
+
+
+def _claude_tool_call_outcome(events: list[dict[str, object]], tool: str) -> tuple[bool, bool, str]:
+    """Return (called, errored, result_text) for the first call to ``tool``.
+
+    ``called`` is False when the agent never issued the call. ``errored`` is
+    True when the tool_result is flagged ``is_error`` or never arrived.
+    """
+    call_ids = [
+        block.get("id")
+        for event in events
+        if event.get("type") == "assistant"
+        for block in _content_blocks(event)
+        if block.get("type") == "tool_use" and block.get("name") == tool
+    ]
+    if not call_ids:
+        return False, False, ""
+    for event in events:
+        if event.get("type") != "user":
+            continue
+        for block in _content_blocks(event):
+            if block.get("type") == "tool_result" and block.get("tool_use_id") == call_ids[0]:
+                return True, bool(block.get("is_error")), _tool_result_text(block)
+    return True, True, ""
+
+
 def _copilot_project_agent_tools(events: list[dict[str, object]], agent: str) -> set[str]:
     """Extract declared tools for a project agent from Copilot CLI events.
 
@@ -1022,6 +1091,70 @@ def test_claude_security_runtime_grants_no_shell_with_executor_control() -> None
     assert {"Bash", "Edit", "Write"} <= implementer_tools, (
         "negative control failed: Claude did not report execution and write tools "
         "for implementer, so the security allowlist cannot prove the grant was read"
+    )
+
+
+@pytest.mark.claude
+@requires_claude
+@_cli_budget(_CLI_TIMEOUT_SECONDS)
+def test_claude_analyst_makes_a_live_github_mcp_read() -> None:
+    """The analyst's `mcp__github__*` grant reaches a real connector (issue #5443).
+
+    The tool-name probes above run with an empty MCP config, so they prove which
+    names the loader permits, not that a `github` server backs them. This run
+    keeps the machine's own MCP configuration, issues a real
+    `mcp__github__get_file_contents` read through the analyst agent, and asserts
+    a non-error result with content. It skips, naming the prerequisite, when no
+    connected server called `github` exists: see "GitHub MCP prerequisite" in
+    docs/installation.md. It is not a `smoke` test because the CI runners
+    provision no such server.
+    """
+    try:
+        run = _run_cli(
+            [
+                resolve_executable("claude"),
+                "-p",
+                "--agent",
+                "analyst",
+                "--allowedTools",
+                _GITHUB_MCP_PROBE_TOOL,
+                "--permission-mode",
+                "dontAsk",
+                "--output-format",
+                "stream-json",
+                "--verbose",
+                _GITHUB_MCP_PROBE_PROMPT,
+            ],
+            cwd=REPO_ROOT,
+            timeout=_CLI_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        _skip_or_fail_claude_timeout("claude live github MCP probe", exc)
+    if run.returncode != 0:
+        _skip_on_claude_block(run, "live github MCP probe")
+        raise AssertionError(
+            f"claude live github MCP probe failed (rc={run.returncode}). "
+            f"stdout={run.stdout[-600:]!r} stderr={run.stderr[-600:]!r}"
+        )
+    events = _json_events(run)
+    init_events = [
+        event
+        for event in events
+        if event.get("type") == "system" and event.get("subtype") == "init"
+    ]
+    assert len(init_events) == 1, f"expected one Claude init event, got {init_events!r}"
+    if not _github_mcp_connected(init_events[0]):
+        pytest.skip(
+            "no connected MCP server named 'github'; see 'GitHub MCP prerequisite' "
+            "in docs/installation.md"
+        )
+
+    called, errored, text = _claude_tool_call_outcome(events, _GITHUB_MCP_PROBE_TOOL)
+
+    assert called, f"analyst never called {_GITHUB_MCP_PROBE_TOOL} though the server is connected"
+    assert not errored, f"{_GITHUB_MCP_PROBE_TOOL} returned an error: {_redacted_tail(text)}"
+    assert _GITHUB_MCP_README_MARKER in text.lower(), (
+        f"{_GITHUB_MCP_PROBE_TOOL} result does not look like README.md: {_redacted_tail(text)}"
     )
 
 
@@ -2359,3 +2492,128 @@ def test_read_agent_tools_from_file_fails_on_missing_agent() -> None:
     """_read_agent_tools_from_file fails clearly on a nonexistent agent."""
     with pytest.raises(AssertionError, match="Agent file not found"):
         _read_agent_tools_from_file("nonexistent-agent-xyz")
+
+
+# ---------------------------------------------------------------------------
+# Live GitHub MCP probe helpers and prerequisite doc (issue #5443, always-on)
+# ---------------------------------------------------------------------------
+
+
+def _init_event(*servers: dict[str, object]) -> dict[str, object]:
+    return {"type": "system", "subtype": "init", "mcp_servers": list(servers)}
+
+
+def test_github_mcp_connected_accepts_a_connected_github_server() -> None:
+    assert _github_mcp_connected(_init_event({"name": "github", "status": "connected"}))
+
+
+@pytest.mark.parametrize(
+    "servers",
+    [
+        [],
+        [{"name": "github", "status": "needs-auth"}],
+        [{"name": "github", "status": "disabled"}],
+        [{"name": "claude.ai GitHub", "status": "connected"}],
+        [{"name": "plugin:x:github", "status": "connected"}],
+        ["github"],
+    ],
+    ids=["none", "needs-auth", "disabled", "connector-name", "plugin-name", "malformed"],
+)
+def test_github_mcp_connected_rejects_anything_but_a_connected_github(
+    servers: list[object],
+) -> None:
+    assert not _github_mcp_connected({"mcp_servers": servers})
+
+
+def test_github_mcp_connected_rejects_a_missing_server_list() -> None:
+    assert not _github_mcp_connected({"type": "system"})
+
+
+def _call_events(
+    *,
+    result_content: object,
+    is_error: bool = False,
+    tool: str = _GITHUB_MCP_PROBE_TOOL,
+    result_id: str = "toolu_1",
+) -> list[dict[str, object]]:
+    return [
+        {
+            "type": "assistant",
+            "message": {"content": [{"type": "tool_use", "id": "toolu_1", "name": tool}]},
+        },
+        {
+            "type": "user",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": result_id,
+                        "is_error": is_error,
+                        "content": result_content,
+                    }
+                ]
+            },
+        },
+    ]
+
+
+def test_tool_call_outcome_reads_a_string_result() -> None:
+    events = _call_events(result_content="# ai-agents")
+
+    assert _claude_tool_call_outcome(events, _GITHUB_MCP_PROBE_TOOL) == (
+        True,
+        False,
+        "# ai-agents",
+    )
+
+
+def test_tool_call_outcome_flattens_text_blocks() -> None:
+    events = _call_events(
+        result_content=[{"type": "text", "text": "a"}, {"type": "text", "text": "b"}]
+    )
+
+    assert _claude_tool_call_outcome(events, _GITHUB_MCP_PROBE_TOOL) == (True, False, "ab")
+
+
+def test_tool_call_outcome_flags_an_error_result() -> None:
+    events = _call_events(result_content="No such tool available", is_error=True)
+
+    called, errored, text = _claude_tool_call_outcome(events, _GITHUB_MCP_PROBE_TOOL)
+
+    assert (called, errored, text) == (True, True, "No such tool available")
+
+
+def test_tool_call_outcome_reports_a_call_that_never_happened() -> None:
+    events = _call_events(result_content="x", tool="mcp__github__issue_read")
+
+    assert _claude_tool_call_outcome(events, _GITHUB_MCP_PROBE_TOOL) == (False, False, "")
+
+
+def test_tool_call_outcome_treats_a_missing_result_as_an_error() -> None:
+    events = _call_events(result_content="x", result_id="toolu_other")
+
+    assert _claude_tool_call_outcome(events, _GITHUB_MCP_PROBE_TOOL) == (True, True, "")
+
+
+def test_tool_call_outcome_survives_malformed_events() -> None:
+    events: list[dict[str, object]] = [
+        {"type": "assistant", "message": "not a dict"},
+        {"type": "assistant", "message": {"content": "not a list"}},
+        {"type": "user"},
+    ]
+
+    assert _claude_tool_call_outcome(events, _GITHUB_MCP_PROBE_TOOL) == (False, False, "")
+
+
+def test_tool_result_text_returns_empty_for_unsupported_content() -> None:
+    assert _tool_result_text({"content": 7}) == ""
+
+
+def test_installation_doc_documents_the_github_mcp_prerequisite() -> None:
+    """Every agent that grants `mcp__github__*` relies on a server the plugin lacks."""
+    text = (REPO_ROOT / "docs" / "installation.md").read_text(encoding="utf-8")
+
+    assert "## GitHub MCP prerequisite" in text
+    section = text.split("## GitHub MCP prerequisite", 1)[1].split("\n## ", 1)[0]
+    assert "mcp__github__" in section
+    assert "claude mcp add" in section

@@ -53,6 +53,8 @@ the one owner of the prefix mapping. Only `BLOCKING` gates merge.
 
 - Render the disposition the finding carries. Do not promote a nit to
   `BLOCKING` or demote `BLOCKING` to `NIT` or `FYI`.
+  The `check_publication` script in this skill checks posted comments against their
+  findings and exits 1 on a changed disposition or a duplicate comment.
 - A non-obvious finding states the problem, why it matters (consequence,
   invariant, or code-health cost), and evidence (caller, test, rule,
   measurement, location). A one-line nit keeps its `Nit:` prefix and

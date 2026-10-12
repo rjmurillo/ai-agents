@@ -106,13 +106,11 @@ from `pull_request_read` method `get` instead and pass it to the same
 
 ### Step 4: Launch Agents
 
-**Sequential**: Invoke `pr-comment-responder` skill for each PR with session context at `.project-toolkit/pr-comments/PR-{pr}/`.
+**Sequential**: Invoke `pr-comment-responder` skill for each PR with session context at `.project-toolkit/pr-comments/PR-{pr}/`. Put the Step 0 verdict on its own line of the invocation: `Transport: gh` or `Transport: gh_unusable`.
 
-In `gh_unusable` mode the Step 0 verdict does not reach this skill: its workflow calls the `gh`-backed scripts unconditionally and has no MCP branch, so delegating there walks straight into the 403 the preflight exists to avoid. Do not delegate. Carry out the responder's steps yourself against the github skill's `references/transport-routing.md`, and record in the verdict that the phase was derived rather than delegated. Refs #5518.
+**Parallel**: Launch background agents per PR, each prompt carrying the same `Transport:` line. Wait for all to complete.
 
-**Parallel**: Launch background agents per PR. Wait for all to complete.
-
-In `gh_unusable` mode this mode is unavailable, for the same reason the sequential one is: a child agent inherits none of the Step 0 verdict and runs the same `gh`-backed responder workflow, so parallelism multiplies the 403 rather than avoiding it. Refuse `--parallel` in that mode, say the transport is why, and derive the PRs one at a time. Refs #5518.
+The line is the only channel for the verdict: neither the skill nor a child agent sees Step 0. In `gh_unusable` the responder's workflow takes its MCP branch per step (the Transport section of its `references/workflow.md`), so both modes stay available. A child agent that lacks an MCP operation it needs reports it as unavailable. Record that PR as unprocessed with the transport as the reason, never as a verdict.
 
 ### Step 5: Verify, Push, and Cleanup
 

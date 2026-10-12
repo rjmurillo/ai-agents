@@ -102,6 +102,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     "Placeholder Identity",
     "Tracked Conflict Markers",
     "Security Suppressions Diff",
+    "Memory Placement",
     "Vendor Portability",
     "Skill Script Portability",
     "Skill Markdown Portability",

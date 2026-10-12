@@ -19,7 +19,6 @@ every skill file except ``SKILL.md`` (rendered separately by
 
 from __future__ import annotations
 
-import shutil
 import stat
 import sys
 from pathlib import Path
@@ -28,8 +27,13 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
+from atomic_write import (  # noqa: E402
+    publish_bytes_atomically,
+    publish_bytes_preserving_mode,
+)
 from binplace_manifest import is_bytecode_artifact  # noqa: E402
 from copilot_body_translation import translate_skill_file  # noqa: E402
+from lib_mirror import lib_owned_support_files  # noqa: E402
 from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
 from skill_distribution import SkillDistributionError, repo_local_names  # noqa: E402
 
@@ -230,7 +234,7 @@ def _copy_skill_tree(
                 print(f"  Would copy: {src_path} -> {dst_path}")
                 continue
             dst_path.parent.mkdir(parents=True, exist_ok=True)
-            dst_path.write_text(translated, encoding="utf-8")
+            publish_bytes_preserving_mode(dst_path, translated.encode("utf-8"))
         else:
             if _copy_matches(dst_path, src_path):
                 continue
@@ -242,7 +246,11 @@ def _copy_skill_tree(
                 print(f"  Would copy: {src_path} -> {dst_path}")
                 continue
             dst_path.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(src_path, dst_path)
+            publish_bytes_atomically(
+                dst_path,
+                src_path.read_bytes(),
+                mode=stat.S_IMODE(src_path.stat().st_mode),
+            )
         written += 1
     return written, skipped
 
@@ -463,14 +471,19 @@ def sync_claude_plugin_skill_support(
         target_dir, repo_local, check=check, what_if=what_if
     )
     for src in skills:
+        owned = lib_owned_support_files(src.name)
         try:
-            wanted = _iter_support_relpaths(src)
+            wanted = _iter_support_relpaths(src) | owned
         except SkillSupportSyncError as exc:
             errors.append(str(exc))
             continue
         target = target_dir / src.name
         written, skipped = _copy_skill_tree(
-            src, target, what_if=what_if, check=check, skip_filenames=frozenset({_SKILL_MD})
+            src,
+            target,
+            what_if=what_if,
+            check=check,
+            skip_filenames=frozenset({_SKILL_MD}) | owned,
         )
         total_written += written
         total_skipped += skipped
