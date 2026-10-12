@@ -213,7 +213,7 @@
     {
       "id": "CR18",
       "desc": "Rejects a custom helper that duplicates an existing repo helper or the standard library",
-      "input": "The diff adds `def read_json_file(path)` to `tools/report.py`. It opens the file, calls `json.load`, and returns the dict. Search shows `common/io.py:14` already defines `load_json(path: Path) -> dict` with the same behavior and error handling, and three modules import it. Python's `pathlib.Path.read_text` plus `json.loads` also covers the need. The diff gives no reason the existing helper is inadequate. Decide whether to accept the new helper.",
+      "input": "The diff adds `def read_json_file(path)` to `tools/report.py`. It opens the file, calls `json.load`, and returns the dict. Search shows the module `common/io.py` already defines `load_json(path: Path) -> dict` with the same behavior and error handling, and three modules import it. Python's `pathlib.Path.read_text` plus `json.loads` also covers the need. The diff gives no reason the existing helper is inadequate. Decide whether to accept the new helper.",
       "verdict_options": [
         "REJECT_REUSE_EXISTING",
         "ACCEPT_NEW_HELPER"
