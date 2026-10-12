@@ -93,13 +93,46 @@ def test_bulleted_enumeration_contradicting_count_is_flagged() -> None:
         "Run exactly three filters: lint, format, types, tests.",
         "Keep at least two gates: build, test, lint.",
         "Run the three filters: lint, format, types.",
-        "Run the three filters.",
+        "The three filters are described in the design doc.",
         "| 4 | Gate | a, b, c |",
         "Spend 10-15 minutes: read, write, test.",
     ],
 )
 def test_contractual_matching_or_unproven_counts_are_retained(line: str) -> None:
     assert card.derived_count_claims(line) == []
+
+
+def test_bare_imperative_count_is_flagged_and_simplified() -> None:
+    claims = card.derived_count_claims("Run the three filters.")
+    assert [(c.stated, c.actual) for c in claims] == [(3, 0)]
+    assert card.simplify(claims[0].text) == "Run the filters."
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Run exactly the three filters.",
+        "Run at least the two filters.",
+        "Run the three filters: see below.",
+        "Run the three filters (lint, format, types).",
+        "Run the three filters in `lefthook.yml`.",
+        "Run the three filters listed below.",
+        "Run the three filters.\n\n- lint\n- format\n- types\n",
+        "Run the three filters.\n\n| a | b |\n",
+        "| Run the three filters | x |",
+        "The three filters run first.",
+        "Run the filters.",
+        "Run the three.",
+        "```\nRun the three filters.\n```",
+    ],
+)
+def test_bare_count_with_contract_structure_or_no_imperative_is_retained(text: str) -> None:
+    assert card.derived_count_claims(text) == []
+
+
+def test_bare_count_claim_is_counted_by_the_ratchet(repo: Path) -> None:
+    _write(repo, "templates/rules/b.md", "Run the three filters.")
+    assert gate.run(repo, update=False) == 1
 
 
 def test_fenced_code_is_ignored() -> None:

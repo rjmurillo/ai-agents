@@ -7,7 +7,8 @@ here for authored artifacts only:
 
   1. duplicate normative blocks: five or more consecutive normalized,
      non-trivial lines that two authored files share. This is duplicate code.
-  2. derived cardinality claims: "the three filters" followed by four filters.
+  2. derived cardinality claims: "the three filters" followed by four filters, or an
+     imperative naming a bare count ("Run the three filters.") with no enumeration.
      This is duplicated mutable state.
 
 The scan set is an allowlist of authored sources: every file the instruction byte

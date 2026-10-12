@@ -7,6 +7,13 @@ a number word and a plural noun are directly followed by an enumeration of a
 different size. A count with no nearby structure is left alone, because nothing
 proves it wrong.
 
+A second, narrower form is also flagged: an imperative that names a bare count
+("Run the three filters.") with no enumeration after it. The number then restates
+a fact held elsewhere, and nothing on the page proves it right. Only an imperative
+verb opens this form, because "the two facts below" and "the three programs" often
+refer to a structure the reader can see. Measured repo-wide, that restriction keeps
+the form to a handful of lines; an unrestricted "the N nouns" match hits ~160.
+
 An explicit contractual form ("exactly three", "at least two", "no more than
 four") is retained: the number is the requirement, not a copy of a list.
 """
@@ -82,6 +89,17 @@ _LABEL_RE = re.compile(
 MAX_ITEM_WORDS = 5
 _BULLET_RE = re.compile(r"^(\s*)(?:[-*+]|\d+[.)])\s+\S")
 _ITEM_SPLIT_RE = re.compile(r"\s*,\s*(?:and\s+|or\s+)?|\s+(?:and|or)\s+", re.IGNORECASE)
+
+
+# An imperative verb, an optional quantifier, then "the N [modifiers] plural-noun".
+_BARE_RE = re.compile(
+    rf"\b(?P<verb>run|apply|use|check|invoke|execute|call|pass|dispatch|answer|clear)\s+"
+    rf"(?:all\s+|each\s+of\s+)?the\s+(?P<num>{'|'.join(NUMBER_WORDS)})\s+"
+    r"(?:[A-Za-z-]+\s+){0,2}?(?P<noun>[A-Za-z-]+s)\b(?P<tail>.*)$",
+    re.IGNORECASE,
+)
+# A tail that opens a structure, a definition, or a link proves the reader can see the items.
+_STRUCTURED_TAIL_RE = re.compile(r"[:(\[`]|\bin\s+(?:order|the\s+table)\b|\b(?:below|above)\b")
 
 
 @dataclass(frozen=True)
@@ -162,6 +180,11 @@ def _is_contractual(prefix: str) -> bool:
 
 
 def derived_count_claims(text: str) -> list[Claim]:
+    """Return every derived count: contradicted by its enumeration, or bare with none."""
+    return sorted([*_contradicted_claims(text), *bare_count_claims(text)], key=lambda c: c.line)
+
+
+def _contradicted_claims(text: str) -> list[Claim]:
     """Return every claim whose stated count differs from its enumeration."""
     lines = text.splitlines()
     claims: list[Claim] = []
@@ -190,12 +213,43 @@ def derived_count_claims(text: str) -> list[Claim]:
     return claims
 
 
+def _followed_by_structure(lines: list[str], index: int) -> bool:
+    """Return True when the next non-blank line starts a list or table."""
+    for line in lines[index + 1 :]:
+        if line.strip():
+            return bool(_BULLET_RE.match(line)) or line.lstrip().startswith("|")
+    return False
+
+
+def bare_count_claims(text: str) -> list[Claim]:
+    """Return imperatives that name a count with no enumeration to check it against.
+
+    Retained: a contractual qualifier before the number, a structured tail (colon,
+    parenthesis, link, backtick, "below"), a table row, and a list or table on the next
+    non-blank line. `actual` is 0 because there is nothing to compare against.
+    """
+    lines = text.splitlines()
+    claims: list[Claim] = []
+    fence: Fence | None = None
+    for index, line in enumerate(lines):
+        fence, is_fence_line = fence_step(line, fence)
+        if is_fence_line or fence is not None or line.lstrip().startswith("|"):
+            continue
+        match = _BARE_RE.search(line)
+        if match is None or _STRUCTURED_TAIL_RE.search(match.group("tail")):
+            continue
+        if _is_contractual(line[: match.start("num")]) or _followed_by_structure(lines, index):
+            continue
+        claims.append(Claim(index + 1, line.strip(), _number(match.group("num")), 0))
+    return claims
+
+
 def simplify(claim_text: str) -> str:
     """Return the claim with the derived number removed.
 
-    Uses the detector's own pattern, so the span removed is the span flagged.
+    Uses the detector's own patterns, so the span removed is the span flagged.
     """
-    match = _CLAIM_RE.search(claim_text)
+    match = _CLAIM_RE.search(claim_text) or _BARE_RE.search(claim_text)
     if match is None:
         return claim_text
     start, end = match.span("num")
