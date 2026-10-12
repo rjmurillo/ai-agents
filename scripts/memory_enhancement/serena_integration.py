@@ -15,6 +15,7 @@ from pathlib import Path
 import frontmatter
 import yaml
 
+from .code_masking import mask_code
 from .models import (
     Citation,
     LinkType,
@@ -53,6 +54,9 @@ _TITLE_DATE_PATTERN = re.compile(
 def parse_citation_block(text: str) -> list[Citation]:
     """Extract citations from markdown text using [cite:type](target) syntax.
 
+    Fenced code blocks and inline code spans are skipped, so a memory can show
+    the syntax as an example without asserting it.
+
     Args:
         text: Raw markdown content to parse.
 
@@ -60,7 +64,7 @@ def parse_citation_block(text: str) -> list[Citation]:
         List of Citation objects found in the text.
     """
     citations: list[Citation] = []
-    for match in _CITATION_PATTERN.finditer(text):
+    for match in _CITATION_PATTERN.finditer(mask_code(text)):
         raw_type = match.group("source_type")
         source_type = _parse_source_type(raw_type)
         if source_type is None:
