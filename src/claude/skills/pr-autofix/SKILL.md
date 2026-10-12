@@ -629,11 +629,12 @@ any merge.
 
 Every command that mutates a branch or PR MUST run through
 `run_pr_mutation_if_live`. This includes base fetches, merges, rebases, pushes,
-auto-merge changes, and direct merges. The wrapper performs a new GitHub query
-immediately before the command and compares the result with the head and base
-identity captured by the current readiness cycle. A gate from an earlier review
-or validation phase is stale. Exit 75 means the wrapper logged the live-state skip. Other nonzero exits come from the mutation command and
-retain their existing error handling.
+auto-merge changes, thread replies and resolves, and direct merges. The wrapper
+performs a new GitHub query immediately before the command and compares the
+result with the head and base identity captured by the current readiness cycle.
+A gate from an earlier review or validation phase is stale. Exit 75 means the
+wrapper logged the live-state skip. Other nonzero exits come from the mutation
+command and retain their existing error handling.
 
 ### Phase 3: Verify and gate
 
@@ -776,8 +777,17 @@ here would re-assert the thing issue #4899 fixed.
 
 - **Stale merge-state cache**: `test_pr_merge_ready.py` sets `StaleDirtySuspected=true` when GitHub reports `mergeable == "CONFLICTING"` or `mergeStateStatus == "DIRTY"`. This is advisory, not authoritative. A PR can merge or close during the review-fix cycle; acting on an earlier ACT result triggers a conflict merge into a deleted branch. In a worktree, use `run_pr_mutation_if_live git fetch origin "$BASE"`, then `git merge-base --is-ancestor "origin/$BASE" HEAD` (exit 0 = ancestor) and a guarded `run_pr_mutation_if_live git merge --no-commit --no-ff "origin/$BASE"` trial merge. Both clean means the conflict is stale. Disable existing auto-merge through the wrapper and verify `autoMergeRequest` is null before the final guarded merge and push (issue #3913). A failing trial merge means the conflict is real: resolve via merge-resolver agent. Evidence required: both live-state verdicts, the ancestry exit code, and the trial-merge result. See doc Stale merge-state cache section (issue #2368).
 - **Stale CI check**: Push a fresh commit to re-trigger. Never pass `--no-verify`; the harness denies it (ADR-112).
-- **Bot review threads**: Read, triage per Thread Severity, reply with disposition, resolve via `add_pr_review_thread_reply.py --resolve`.
-- **Armed auto-merge + final thread**: `add_pr_review_thread_reply.py --resolve` posts the reply, disables armed auto-merge when that thread is the final unresolved one, then resolves the thread. If the guard cannot prove the unresolved count, the script exits 3 after posting the reply and leaves the thread unresolved so GitHub cannot merge before the completion gate.
+- **Bot review threads**: Read, triage per Thread Severity, reply with disposition, resolve through the live-state wrapper (issue #5435). The script re-checks the head SHA, base ref, and base SHA itself, so pass the identity the current readiness cycle captured:
+
+  ```bash
+  run_pr_mutation_if_live python3 "$SCRIPTS_DIR/add_pr_review_thread_reply.py" \
+      --pull-request "$PR" --thread-id "$THREAD_ID" --body-file "$REPLY_FILE" --resolve \
+      --expected-head-sha "$EXPECTED_HEAD_SHA" \
+      --expected-base-ref "$EXPECTED_BASE_REF" \
+      --expected-base-sha "$EXPECTED_BASE_SHA"
+  ```
+
+- **Armed auto-merge + final thread**: `add_pr_review_thread_reply.py --resolve` posts the reply, disables armed auto-merge when that thread is the final unresolved one, then resolves the thread. If the guard cannot prove the unresolved count, the script exits 3 after posting the reply and leaves the thread unresolved so GitHub cannot merge before the completion gate. If the PR is no longer open or its head SHA, base ref, or base SHA differs from the expected identity, the script makes no mutation (exit 1 before the reply) or leaves the thread unresolved and auto-merge untouched (exit 1 or 3 after the reply), so a stale session cannot disarm auto-merge.
 - **Session validation failure**: Hand-edit the log to satisfy the session-log schema, then re-validate it.
 
 ## Force-Push Safety
@@ -1024,7 +1034,7 @@ Per PR processed:
 - [ ] Auto-merge disarm ran after live-state ACT on any PR that is not provably T1 (issue #3913, and issue #5094 for the completeness half): that is every non-T1 PR, and also a T1 whose `fetched_pages_complete` was not the boolean `true`, since a tier derived from a truncated fetch has not earned the exemption. `auto_merge_method` was null or `set_pr_auto_merge.py --disable` succeeded and returned `AutoMergeEnabled: false` before any push.
 - [ ] Round-cap circuit breaker ran on every pass through a T3/T4 PR, after the tier was known and after the auto-merge disarm gate above (issue #5056, ordering per issue #5094): `check_pr_round_cap.py --pull-request $PR --output-format json`. `Data.action=ACT` recorded and work continued; `Data.action=ESCALATE` stopped the thread-fix loop for that PR (round cap or wall-clock budget exceeded) and the script's own PR comment carries the reason, so nothing further was posted by the agent. The breaker's ESCALATE exit hands the PR to a human, so the disarm above has to have run first.
 - [ ] Live-state gate re-ran immediately before any base refresh or conflict resolution (issue #4349): stale gate result from the start of the session is not sufficient; the PR can merge mid-cycle.
-- [ ] Every base refresh, rebase, push, auto-merge change, and direct merge ran through `run_pr_mutation_if_live` immediately before mutation (issue #4349).
+- [ ] Every base refresh, rebase, push, auto-merge change, thread reply or resolve, and direct merge ran through `run_pr_mutation_if_live` immediately before mutation (issues #4349, #5435).
 - [ ] Late mutation checks matched the head SHA, base ref, and base SHA captured by the current readiness cycle; any mismatch stopped mutation and restarted readiness checks.
 - [ ] When `StaleDirtySuspected=true`: `set_pr_auto_merge.py disable` ran and `autoMergeRequest` confirmed null before any base-ref refresh push (issue #3913).
 - [ ] CI-failure triage step 1 ran before any log reading (T2/T4 only, issue #5073): `triage_red_check.py --check-name "<name>"` verdict recorded per failing check; RED_ON_MAIN failures were attributed to main with the EvidenceUrl, not investigated on the PR.

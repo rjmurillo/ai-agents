@@ -32,6 +32,10 @@ query($threadId: ID!) {
             pullRequest {
                 id
                 number
+                state
+                headRefOid
+                baseRefName
+                baseRefOid
                 autoMergeRequest {
                     enabledAt
                     mergeMethod
@@ -133,6 +137,31 @@ def _disable_auto_merge(pull_request_id: str) -> bool:
     return auto_merge is None
 
 
+def identity_mismatches(
+    pull_request: dict[str, Any],
+    expected: dict[str, str] | None,
+) -> list[str]:
+    """Name each live PR identity field that differs from the caller's expectation.
+
+    ``expected`` carries the head SHA, base ref, and base SHA captured by the
+    readiness cycle. A caller that supplies none gets no check, which keeps the
+    script usable outside pr-autofix. When any is supplied the PR must also
+    still be OPEN: a merged PR keeps its head SHA, so a SHA match alone cannot
+    prove the session still owns a live branch.
+    """
+    if not expected:
+        return []
+    comparisons = (
+        ("head SHA", expected.get("head_sha"), pull_request.get("headRefOid")),
+        ("base ref", expected.get("base_ref"), pull_request.get("baseRefName")),
+        ("base SHA", expected.get("base_sha"), pull_request.get("baseRefOid")),
+    )
+    mismatches = [label for label, want, actual in comparisons if want and want != actual]
+    if pull_request.get("state") != "OPEN":
+        mismatches.insert(0, "state")
+    return mismatches
+
+
 def _pull_request_identity(pull_request: dict[str, Any]) -> tuple[str, str, int, str]:
     repository = pull_request.get("repository")
     owner_data = repository.get("owner") if isinstance(repository, dict) else None
@@ -147,8 +176,16 @@ def _pull_request_identity(pull_request: dict[str, Any]) -> tuple[str, str, int,
     return owner, repo, pr_number, pr_id
 
 
-def guard_auto_merge_before_final_thread_resolution(thread_id: str) -> dict[str, Any]:
-    """Disable armed auto-merge if resolving ``thread_id`` would unblock merge."""
+def guard_auto_merge_before_final_thread_resolution(
+    thread_id: str,
+    expected_identity: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Disable armed auto-merge if resolving ``thread_id`` would unblock merge.
+
+    When ``expected_identity`` is given, the live PR must still match it before
+    anything is counted or disabled. A mismatch raises ``RuntimeError`` with no
+    mutation, so a stale session cannot disarm auto-merge on a PR that moved.
+    """
     context = _thread_context(thread_id)
     if context is None:
         return {"action": "NOOP", "reason": "thread_not_found"}
@@ -158,6 +195,12 @@ def guard_auto_merge_before_final_thread_resolution(thread_id: str) -> dict[str,
     pull_request = context.get("pullRequest")
     if not isinstance(pull_request, dict):
         raise RuntimeError("thread has no pull request context")
+
+    mismatches = identity_mismatches(pull_request, expected_identity)
+    if mismatches:
+        raise RuntimeError(
+            f"pull request identity changed ({', '.join(mismatches)}); auto-merge left untouched"
+        )
 
     owner, repo, pr_number, pr_id = _pull_request_identity(pull_request)
 
