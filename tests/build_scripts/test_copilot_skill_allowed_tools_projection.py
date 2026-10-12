@@ -5,13 +5,17 @@ requirements and the abstract capability set. For a skill that is the
 `allowed-tools` frontmatter value.
 
 The runtime probe in `probe-evidence.md` section 10 found that Copilot CLI
-1.0.95 grants nothing from a skill's `allowed-tools`, scoped or bare, so the
-Copilot mirror always prompts. The mirror is therefore never wider than the
-source today. A future Copilot release could start reading the tool name and
-dropping the argument, which is the widening `tool-use-hook-bar.md` records
-for matchers. This predicate keeps the repository side of that boundary shut:
-the generator may respell an MCP tool name and nothing else, so a scoped entry
-such as `Bash(git push:*)` is never degraded to bare `Bash` in the mirror.
+1.0.95 grants nothing from a skill's `allowed-tools`, scoped or bare. The
+probe ran noninteractively (`-p --no-ask-user`), so it recorded denial, not a
+prompt. Interactive behavior is unverified. The mirror is not wider than the
+source in the probed mode. A future Copilot release could start reading the
+tool name and dropping the argument, which is the widening
+`tool-use-hook-bar.md` records for matchers. This predicate keeps the
+repository side of that boundary shut: the generator may respell an MCP tool
+name and nothing else, so a scoped entry such as `Bash(git push:*)` is never
+degraded to bare `Bash` in the mirror. It compares source and mirror text
+only. It cannot detect a Copilot upgrade that changes how permissions are
+interpreted; rerun the probe in `probe-evidence.md` section 10 after upgrades.
 """
 
 from __future__ import annotations
