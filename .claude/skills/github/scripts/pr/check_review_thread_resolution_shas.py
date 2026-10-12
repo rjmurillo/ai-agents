@@ -109,16 +109,62 @@ def build_parser() -> argparse.ArgumentParser:
 # indented code blocks are skipped on purpose, since they quote commands, not fix
 # references. A link target counts only when its URL names a commit
 # (/commit/<sha>); unused reference definitions do not render, so they are not read.
+#
+# html.parser changed across CPython patch releases (gh-135664): older builds end
+# "<!-->" at a later "-->" and parse fewer raw-text elements. _HtmlText pins the
+# fixed behavior, copied from CPython 3.14.7 html/parser.py, so the SHAs found do
+# not depend on which python3 runs the gate.
+_COMMENT_ABRUPT_CLOSE_RE = re.compile(r"-?>")
+_COMMENT_CLOSE_RE = re.compile(r"--!?>")
+# Raw-text elements whose text never renders; GitHub strips them from comments.
+# xmp is raw text too, but its text renders, so it is still read.
+_UNRENDERED_ELEMENTS = frozenset({"script", "style", "iframe", "noembed", "noframes"})
+
+
 class _HtmlText(HTMLParser):
+    # typeshed marks this Final, but html.parser reads it through self, so a
+    # subclass value pins the raw-text set on every CPython version.
+    CDATA_CONTENT_ELEMENTS = ("script", "style", "xmp", "iframe", "noembed", "noframes")  # type: ignore[misc]
+
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self.parts: list[str] = []
+        self._unrendered_tag: str | None = None
+        self._at_eof = False
+
+    def close(self) -> None:
+        self._at_eof = True
+        super().close()
+
+    def parse_comment(self, i: int, report: bool = True) -> int:
+        # https://html.spec.whatwg.org/multipage/parsing.html#comment-start-state
+        # An unclosed comment runs to end of input (older CPython emits it as text).
+        rawdata = self.rawdata
+        match = _COMMENT_ABRUPT_CLOSE_RE.match(rawdata, i + 4)
+        if not match:
+            match = _COMMENT_CLOSE_RE.search(rawdata, i + 4)
+        if match is not None:
+            start, end = match.start(), match.end()
+        elif self._at_eof:
+            start = end = len(rawdata)
+        else:
+            return -1
+        if report:
+            self.handle_comment(rawdata[i + 4 : start])
+        return end
 
     def handle_data(self, data: str) -> None:
-        self.parts.append(data)
+        if self._unrendered_tag is None:
+            self.parts.append(data)
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag in _UNRENDERED_ELEMENTS:
+            self._unrendered_tag = tag
         self.parts.extend(_commit_refs(value) for name, value in attrs if name == "href" and value)
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == self._unrendered_tag:
+            self._unrendered_tag = None
 
 
 def _commit_refs(url: str) -> str:
