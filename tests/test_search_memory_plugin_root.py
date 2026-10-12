@@ -111,3 +111,37 @@ def test_uv_run_pattern_boundaries(line: str, expected: bool) -> None:
 def test_the_guarded_reference_files_exist() -> None:
     names = {path.name for path in _shipped_text_files()}
     assert {"quick-start.md", "skill-reference.md", "architect.claude.md.tmpl"} <= names
+
+
+def _load_search_memory():
+    import importlib.util
+
+    path = REPO_ROOT / ".claude" / "skills" / "memory" / "scripts" / "search_memory.py"
+    spec = importlib.util.spec_from_file_location("search_memory_under_test", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_repo_root_prefers_project_dir_with_memory_store(tmp_path, monkeypatch):
+    """An installed plugin searches the consumer checkout, not the plugin dir."""
+    (tmp_path / ".serena" / "memories").mkdir(parents=True)
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+    module = _load_search_memory()
+    assert module.resolve_repo_root(Path("/plugin/skills/memory/scripts")) == tmp_path.resolve()
+
+
+def test_repo_root_uses_cwd_when_env_unset(tmp_path, monkeypatch):
+    (tmp_path / ".project-toolkit" / "memory").mkdir(parents=True)
+    monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+    monkeypatch.chdir(tmp_path)
+    module = _load_search_memory()
+    assert module.resolve_repo_root(Path("/plugin/skills/memory/scripts")) == tmp_path.resolve()
+
+
+def test_repo_root_falls_back_to_script_relative(tmp_path, monkeypatch):
+    monkeypatch.delenv("CLAUDE_PROJECT_DIR", raising=False)
+    monkeypatch.chdir(tmp_path)
+    module = _load_search_memory()
+    script_dir = Path("/repo/.claude/skills/memory/scripts")
+    assert module.resolve_repo_root(script_dir) == Path("/repo")

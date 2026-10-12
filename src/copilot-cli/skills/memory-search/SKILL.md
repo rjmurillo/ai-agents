@@ -48,7 +48,8 @@ python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/sc
 
 The search script is canonical and shared with the `memory` router; this
 sub-skill does not reimplement it. It lives at
-`${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py`.
+`skills/memory/scripts/search_memory.py` under the plugin root (`COPILOT_PLUGIN_ROOT`, then
+`CLAUDE_PLUGIN_ROOT`, falling back to `.claude`).
 
 ## Quick Reference
 

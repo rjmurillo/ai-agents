@@ -11,7 +11,7 @@ it up:
 
 | Artifact | Role |
 |----------|------|
-| `.claude/skills/memory/memory_core/memory_router.py` | Importable module. Serena only. |
+| `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/memory_core/memory_router.py` | Importable module. Serena only. |
 | `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py` | CLI wrapper. Adds the Tier 2 episode store. |
 
 Agents call the CLI. Python callers import the module.
