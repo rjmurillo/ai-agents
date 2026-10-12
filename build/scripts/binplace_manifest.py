@@ -10,37 +10,12 @@ Per ``.project-toolkit/specs/design/DESIGN-025-template-first-compiler-and-binpl
 data, not code: one YAML file, ``templates/platforms/binplace.yaml``, read
 by this module and by ``build/scripts/build_all.py``'s ``_binplace`` step.
 
-Schema, quoted verbatim from DESIGN-025 (the two rows B1 ships; later
-records add more):
-
-    ```yaml
-    rows:
-      - class: agents
-        source: templates/agents
-        # .claude.md.tmpl / .copilot.md.tmpl pairs, per agent_templates.py
-        plugin_tree: src/claude/agents
-        install_tree: .claude/agents
-      - class: skills
-        source: templates/skills        # existing ADR-108 tree, unchanged by this row's addition
-        plugin_tree: null
-        # B1: no plugin-tree hop yet; B3 repoints this to src/claude/skills
-        install_tree: .claude/skills
-        compile: skill_templates
-        # delegates to skill_templates.owned_targets, not a class-wide prefix
-    ```
-
-    B3 (this record) repoints the ``skills`` row's ``plugin_tree`` to
-    ``src/claude/skills``, exactly as the comment above anticipated;
-    :func:`binplace` now copies that tree onto ``.claude/skills`` for
-    ``skills`` the same way it already does for ``rules``. The row still
-    keeps ``compile: skill_templates`` and delegates to
-    :func:`skill_templates.owned_targets` in :func:`claude_allowlist` rather
-    than switching to the generic plugin-tree-walk path: that function now
-    returns both halves (plugin and install) per discovered skill, so the
-    delegate and the generic path agree on the install-tree set.
-
-    "A row with ``plugin_tree: null`` skips the plugin-tree render hop and
-    copies straight from ``source`` to ``install_tree``."
+The schema lives in ``templates/platforms/binplace.yaml`` (the data) and in the
+DESIGN-025 section named above (the rationale). This docstring does not copy
+either. :class:`Row` is the loader's view of one row. The upstream test
+``test_live_manifest_conformance_to_row_schema`` loads the real manifest and
+fails when a row carries a key :class:`Row` does not model, or when the loader
+stops accepting the live rows.
 
 Public API:
     ``load(repo_root) -> list[Row]``
