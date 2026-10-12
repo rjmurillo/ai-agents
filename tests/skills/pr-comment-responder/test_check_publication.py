@@ -6,6 +6,7 @@ import importlib.util
 import json
 import re
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -15,18 +16,19 @@ _SCRIPT = _SKILL / "scripts" / "check_publication.py"
 _PROTOCOL = _SKILL / "references" / "review-conversation.md"
 
 _spec = importlib.util.spec_from_file_location("check_publication", _SCRIPT)
+assert _spec is not None and _spec.loader is not None
 cp = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(cp)
 
 
-def _data(disposition: str, body: str, **extra) -> dict:
+def _data(disposition: str, body: Any, **extra: Any) -> dict[str, Any]:
     return {
         "findings": [{"id": "F1", "disposition": disposition}],
         "comments": [{"finding_id": "F1", "path": "a.py", "line": 3, "body": body, **extra}],
     }
 
 
-def _kinds(data: dict) -> list[str]:
+def _kinds(data: dict[str, Any]) -> list[str]:
     return [v["kind"] for v in cp.check_publication(data)]
 
 
@@ -111,12 +113,12 @@ def test_comment_without_finding_is_flagged() -> None:
         _data("NIT", None),
     ],
 )
-def test_malformed_input_raises(data: dict) -> None:
+def test_malformed_input_raises(data: dict[str, Any]) -> None:
     with pytest.raises(cp.InputError):
         cp.check_publication(data)
 
 
-def _run(tmp_path: Path, data: dict, capsys) -> tuple[int, str]:
+def _run(tmp_path: Path, data: dict[str, Any], capsys: Any) -> tuple[int, str]:
     path = tmp_path / "in.json"
     path.write_text(json.dumps(data), encoding="utf-8")
     code = cp.main([str(path)])
