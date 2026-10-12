@@ -35,9 +35,11 @@ REFERENCING_PATHS = (
     Path("templates/agents/implementer.shared.md"),
     Path("templates/agents/qa.shared.md"),
     Path("templates/agents/critic.shared.md"),
+    Path("templates/agents/milestone-planner.shared.md"),
     Path(".claude/agents/implementer.md"),
     Path(".claude/agents/qa.md"),
     Path(".claude/agents/critic.md"),
+    Path(".claude/agents/milestone-planner.md"),
 )
 
 FIELDS = (

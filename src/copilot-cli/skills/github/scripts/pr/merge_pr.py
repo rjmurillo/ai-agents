@@ -45,7 +45,7 @@ Exit codes follow ADR-035:
     2 - Not found
     3 - External error (API failure)
     4 - Auth error
-    6 - Not mergeable
+    100 - Not mergeable (script-specific; ADR-035 reserves 5-99)
 """
 
 from __future__ import annotations
@@ -89,6 +89,8 @@ from github_core.output import (
 from github_core.placeholder_identity import filter_coauthor_trailers
 
 _SCRIPT_NAME = "merge_pr.py"
+# Script-specific exit code per ADR-035 (100+), documented in the header above.
+_EXIT_NOT_MERGEABLE = 100
 # Matched case-insensitively against the stdout and stderr of a failed PR view.
 _NOT_FOUND_MARKERS = ("could not resolve to a pullrequest", "not found")
 
@@ -587,7 +589,7 @@ def _stack_number(pr: int, repo_flag: str) -> int:
         raise _MergeFailureError(
             f"PR #{pr} was refused as part of a stack but GitHub reports no stack "
             "for it; the members a merge would land are unknown, no merge attempted",
-            6,
+            _EXIT_NOT_MERGEABLE,
             "General",
         )
     return number
@@ -598,7 +600,7 @@ def _unreadable_member(stack: int, index: int, problem: str) -> _MergeFailureErr
     return _MergeFailureError(
         f"stack #{stack} member {index} has {problem}; the members a merge would "
         "land are unknown, no merge attempted",
-        6,
+        _EXIT_NOT_MERGEABLE,
         "General",
     )
 
@@ -626,7 +628,7 @@ def _stack_members(stack: int, repo_flag: str) -> list[_StackMember]:
         raise _MergeFailureError(
             f"stack #{stack} listing has no member list; the members a merge would "
             "land are unknown, no merge attempted",
-            6,
+            _EXIT_NOT_MERGEABLE,
             "General",
         )
     return [_parse_member(stack, i, raw) for i, raw in enumerate(raw_members)]
@@ -639,7 +641,7 @@ def _members_through(members: list[_StackMember], pr: int, stack: int) -> list[_
         raise _MergeFailureError(
             f"PR #{pr} is not in the member list of stack #{stack}; the members a "
             "merge would land are unknown, no merge attempted",
-            6,
+            _EXIT_NOT_MERGEABLE,
             "General",
         )
     return members[: numbers.index(pr) + 1]
@@ -662,7 +664,7 @@ def _downstack_pins(landing: list[_StackMember], pr: int) -> dict[int, str]:
             raise _MergeFailureError(
                 f"downstack PR #{member.number} has no readable head SHA in the stack "
                 "listing, so its reviewed head cannot be pinned; no merge attempted",
-                6,
+                _EXIT_NOT_MERGEABLE,
                 "General",
             )
         pins[member.number] = member.head_sha.lower()
@@ -725,7 +727,7 @@ def _assert_stack_ready(ctx: _MergeContext, stack: int) -> dict[int, str]:
         raise _MergeFailureError(
             f"merging PR #{ctx.pr} would also merge PRs that are not "
             f"merge-ready: {'; '.join(failures)}. No merge attempted.",
-            6,
+            _EXIT_NOT_MERGEABLE,
             "General",
         )
     return pins
@@ -745,7 +747,7 @@ def _assert_pins_unchanged(ctx: _MergeContext, stack: int, pins: dict[int, str])
         raise _MergeFailureError(
             f"downstack PR {listed} head moved or the stack changed after the readiness "
             f"check; refusing to merge PR #{ctx.pr} on a stale review. No merge attempted.",
-            6,
+            _EXIT_NOT_MERGEABLE,
             "General",
         )
 
@@ -846,7 +848,9 @@ def _request_async_merge(ctx: _MergeContext, subject: str, body: str) -> dict[st
     if result.returncode == 0 or (in_flight and _async_uuid(parsed)):
         return parsed
     detail = sanitize_failure_detail(result.stderr or result.stdout)
-    raise _MergeFailureError(f"merge-async request was refused: {detail}", 6, "General")
+    raise _MergeFailureError(
+        f"merge-async request was refused: {detail}", _EXIT_NOT_MERGEABLE, "General"
+    )
 
 
 def _fetch_async_status(ctx: _MergeContext, uuid: str) -> dict[str, Any] | None:
@@ -888,10 +892,14 @@ def _async_status_is_merged(body: dict[str, Any], pr: int) -> bool:
     details = body.get("details")
     message = details.get("message") if isinstance(details, dict) else None
     if status == "failed":
-        raise _MergeFailureError(f"merge-async reported failure: {message or body}", 6, "General")
+        raise _MergeFailureError(
+            f"merge-async reported failure: {message or body}", _EXIT_NOT_MERGEABLE, "General"
+        )
     if status == "enqueued":
         raise _MergeFailureError(
-            f"merge-async queued PR #{pr} and did not merge it: {message or body}", 6, "General"
+            f"merge-async queued PR #{pr} and did not merge it: {message or body}",
+            _EXIT_NOT_MERGEABLE,
+            "General",
         )
     raise _MergeFailureError(
         f"merge-async returned an unrecognized status {status!r}: {body}", 3, "ApiError"
@@ -972,7 +980,7 @@ def _handle_merge_failure(
 ) -> None:
     """Translate a non-zero gh-pr-merge return into an envelope or a failure.
 
-    Conflicts and head-moved refusals emit their envelope and exit 6 directly.
+    Conflicts and head-moved refusals emit their envelope and exit 100 directly.
     On a BLOCKED-keyword failure, retry once via the REST merge endpoint
     (issue #4362), pinned to the same head SHA.  REST enforces the same branch
     rules as GraphQL but resolves the policy check differently; a 200 with
@@ -991,11 +999,13 @@ def _handle_merge_failure(
         raise _MergeFailureError(
             f"PR #{pr} head moved after review; refusing the stale target "
             f"(pinned {ctx.head_sha or 'none'}): {output}",
-            6,
+            _EXIT_NOT_MERGEABLE,
             "General",
         )
     if any(kw in output for kw in ("not mergeable", "cannot be merged", "conflicts")):
-        raise _MergeFailureError(f"PR #{pr} is not mergeable: {output}", 6, "General")
+        raise _MergeFailureError(
+            f"PR #{pr} is not mergeable: {output}", _EXIT_NOT_MERGEABLE, "General"
+        )
     if not ctx.auto and any(kw in output for kw in _STACK_KEYWORDS):
         # The synchronous REST endpoint refuses a stack, so go asynchronous.
         _merge_stack_async(ctx, subject, body, output)
@@ -1021,7 +1031,7 @@ def _handle_merge_failure(
         raise _MergeFailureError(
             f"PR #{pr} is blocked by branch protection policy: {output}\n"
             "Hint: use --auto to enable auto-merge when checks pass.",
-            6,
+            _EXIT_NOT_MERGEABLE,
             "General",
         )
     raise _MergeFailureError(f"Failed to merge PR #{pr}: {output}", 3, "ApiError")
@@ -1404,7 +1414,7 @@ def main(argv: list[str] | None = None) -> int:
     if pr_data.get("state") == "CLOSED":
         _emit_error(
             f"PR #{pr} is closed and cannot be merged",
-            6,
+            _EXIT_NOT_MERGEABLE,
             "General",
             output_format,
             pr,

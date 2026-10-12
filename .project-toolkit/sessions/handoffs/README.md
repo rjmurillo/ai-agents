@@ -68,7 +68,7 @@ Do not delete handoffs while the issue is open. Stale handoffs cause silent stat
 
 ## Verification
 
-Before treating a handoff as authoritative at session start, run the **Verification on Resume** checklist at the bottom of the handoff file. Claude Code and sibling agents must treat the handoff as a hint until verified against `git status`, file existence, and branch state (Claude Code memory model: memory is a hint, code is ground truth).
+Before treating a handoff as authoritative at session start, run `uv run python scripts/validation/check_handoff_resume.py <handoff>` and the **Verification on Resume** checklist at the bottom of the handoff file. Exit 1 is a HOLD. The orchestrator Resume Check owns the rules; this section does not restate them. Treat the handoff as a hint until verified (memory is a hint, code is ground truth).
 
 ## References
 

@@ -223,7 +223,7 @@ See [references/workflow.md](references/workflow.md) for full phase details.
 
 ## Scripts
 
-This skill ships one script under `scripts/`. The GitHub operations in the Tools
+This skill ships two scripts under `scripts/`. The GitHub operations in the Tools
 table above (context extraction, PR metadata, comments, replies, reactions,
 thread resolution) live in the shared `github` skill, not here.
 
@@ -256,6 +256,14 @@ Exit codes (per ADR-035, copied from the script docstring):
 | 2 | Config/usage error (invalid parameters) |
 | 3 | Fetch failed (could not obtain a trustworthy thread snapshot) |
 | 4 | Auth error |
+
+### check_publication.py
+
+Publication gate for the `review-conversation` protocol. Reads a JSON file of
+validated findings and the comments posted for them. Exits 1 when a comment
+renders a different disposition than its finding (for example an `Optional`
+finding posted with no prefix) or when a comment repeats another. See
+[references/review-conversation.md](references/review-conversation.md).
 
 ## Verification
 

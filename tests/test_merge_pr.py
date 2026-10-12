@@ -231,7 +231,7 @@ class TestMain:
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "50"])
-            assert exc.value.code == 6
+            assert exc.value.code == 100
 
     def test_merge_success(self, capsys):
         state_json = json.dumps(
@@ -429,7 +429,7 @@ class TestMain:
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "50"])
-            assert exc.value.code == 6
+            assert exc.value.code == 100
 
     def test_blocked_policy_without_auto_exits_6(self):
         state_json = json.dumps(
@@ -469,7 +469,7 @@ class TestMain:
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "50"])
-            assert exc.value.code == 6
+            assert exc.value.code == 100
 
     def test_blocked_policy_with_auto_succeeds(self, capsys):
         state_json = json.dumps(
@@ -1142,10 +1142,10 @@ class TestErrorEnvelope:
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "50", "--output-format", "json"])
-            assert exc.value.code == 6
+            assert exc.value.code == 100
         envelope = json.loads(capsys.readouterr().out)
         assert envelope["Success"] is False
-        assert envelope["Error"]["Code"] == 6
+        assert envelope["Error"]["Code"] == 100
         assert envelope["Error"]["Type"] == "General"
 
     def test_not_mergeable_uses_envelope(self, capsys):
@@ -1186,10 +1186,10 @@ class TestErrorEnvelope:
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "50", "--output-format", "json"])
-            assert exc.value.code == 6
+            assert exc.value.code == 100
         envelope = json.loads(capsys.readouterr().out)
         assert envelope["Success"] is False
-        assert envelope["Error"]["Code"] == 6
+        assert envelope["Error"]["Code"] == 100
 
 
 # ---------------------------------------------------------------------------
@@ -1276,7 +1276,7 @@ class TestMainAdditional:
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "50"])
-            assert exc.value.code == 6
+            assert exc.value.code == 100
 
     def test_delete_branch_flag(self, capsys):
         state_json = json.dumps(
@@ -1483,7 +1483,7 @@ class TestRestRetryOnBlocked:
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "50"])
-        assert exc.value.code == 6
+        assert exc.value.code == 100
         # State fetch, gh pr merge, REST, recovery readback (still OPEN).
         assert len(calls) == 4
 
@@ -1526,7 +1526,7 @@ class TestRestRetryOnBlocked:
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "50"])
-        assert exc.value.code == 6
+        assert exc.value.code == 100
         # State fetch, gh pr merge, then the readback; never a REST retry.
         assert not any(c[:2] == ["gh", "api"] for c in calls)
         assert len(calls) == 3
@@ -1598,18 +1598,18 @@ class TestBlockedRestMergedStateFallback:
     def test_missing_merged_flag_with_open_state_exits_6(self):
         with pytest.raises(SystemExit) as exc:
             self._run("{}", json.dumps({"state": "OPEN"}))
-        assert exc.value.code == 6
+        assert exc.value.code == 100
 
     @pytest.mark.parametrize("view_state", ["not json", "[]"])
     def test_unreadable_state_is_not_a_merge(self, view_state):
         with pytest.raises(SystemExit) as exc:
             self._run("{}", view_state)
-        assert exc.value.code == 6
+        assert exc.value.code == 100
 
     def test_failed_state_query_is_not_a_merge(self):
         with pytest.raises(SystemExit) as exc:
             self._run("{}", "", view_rc=1)
-        assert exc.value.code == 6
+        assert exc.value.code == 100
 
 
 # ---------------------------------------------------------------------------
@@ -1843,7 +1843,7 @@ class TestAsyncMergeForStack:
             readiness={41: _completed(rc=1, stderr="  - 2 unresolved review threads")},
         )
         code, env = _run_stack(fake, capsys)
-        assert code == 6
+        assert code == 100
         assert fake.puts() == []
         message = json.dumps(env)
         assert "#41" in message
@@ -1864,7 +1864,7 @@ class TestAsyncMergeForStack:
             readiness={50: _completed(rc=1, stderr="  - 3 failing required checks")},
         )
         code, env = _run_stack(fake, capsys)
-        assert code == 6
+        assert code == 100
         assert fake.puts() == []
         message = json.dumps(env)
         assert "#50" in message
@@ -1874,7 +1874,7 @@ class TestAsyncMergeForStack:
     def test_target_readiness_that_cannot_run_fails_closed(self, capsys):
         fake = _StackGh(readiness={50: _completed(rc=3, stderr="API error")})
         code, env = _run_stack(fake, capsys)
-        assert code == 6
+        assert code == 100
         assert fake.puts() == []
         assert "could not run (exit 3)" in json.dumps(env)
 
@@ -1888,7 +1888,7 @@ class TestAsyncMergeForStack:
         )
         code, env = _run_stack(fake, capsys)
         message = json.dumps(env)
-        assert code == 6
+        assert code == 100
         assert "#40" in message
         assert "#50" in message
 
@@ -1900,7 +1900,7 @@ class TestAsyncMergeForStack:
             ]
         )
         code, env = _run_stack(fake, capsys)
-        assert code == 6
+        assert code == 100
         assert fake.puts() == []
         message = json.dumps(env)
         assert "#40" in message
@@ -1915,7 +1915,7 @@ class TestAsyncMergeForStack:
             ]
         )
         code, env = _run_stack(fake, capsys)
-        assert code == 6
+        assert code == 100
         assert fake.puts() == []
         assert "#40" in json.dumps(env)
 
@@ -1969,7 +1969,7 @@ class TestAsyncMergeForStack:
             member["head"] = head
         fake = _StackGh(members=[member, _member(50)])
         code, env = _run_stack(fake, capsys)
-        assert code == 6
+        assert code == 100
         assert fake.puts() == []
         assert fake.readiness_checked() == []
         assert "#40" in json.dumps(env)
@@ -1979,7 +1979,7 @@ class TestAsyncMergeForStack:
         del member["state"]
         fake = _StackGh(members=[member, _member(50)])
         code, env = _run_stack(fake, capsys)
-        assert code == 6
+        assert code == 100
         assert fake.puts() == []
         assert "state" in json.dumps(env)
 
@@ -1989,7 +1989,7 @@ class TestAsyncMergeForStack:
         member["state"] = state
         fake = _StackGh(members=[member, _member(50)])
         code, _ = _run_stack(fake, capsys)
-        assert code == 6
+        assert code == 100
         assert fake.puts() == []
 
     @pytest.mark.parametrize("number", [None, "40", 4.5, True, [40]])
@@ -1998,7 +1998,7 @@ class TestAsyncMergeForStack:
         member["number"] = number
         fake = _StackGh(members=[member, _member(50)])
         code, env = _run_stack(fake, capsys)
-        assert code == 6
+        assert code == 100
         assert fake.puts() == []
         assert "number" in json.dumps(env)
 
@@ -2007,13 +2007,13 @@ class TestAsyncMergeForStack:
         del member["number"]
         fake = _StackGh(members=[member, _member(50)])
         code, _ = _run_stack(fake, capsys)
-        assert code == 6
+        assert code == 100
         assert fake.puts() == []
 
     def test_non_object_member_fails_closed(self, capsys):
         fake = _StackGh(members=[_member(40), "garbage", _member(50)])
         code, _ = _run_stack(fake, capsys)
-        assert code == 6
+        assert code == 100
         assert fake.puts() == []
 
     @pytest.mark.parametrize("state", ["OPEN", "Open", "draft", "merged", "CLOSED", ""])
@@ -2023,7 +2023,7 @@ class TestAsyncMergeForStack:
             readiness={40: _completed(rc=1, stderr="not ready")},
         )
         code, env = _run_stack(fake, capsys)
-        assert code == 6
+        assert code == 100
         assert fake.puts() == []
         assert 40 in fake.readiness_checked()
         assert "#40" in json.dumps(env)
@@ -2033,7 +2033,7 @@ class TestAsyncMergeForStack:
         member["number"] = None
         fake = _StackGh(members=[_member(40, "closed"), _member(50), member])
         code, _ = _run_stack(fake, capsys)
-        assert code == 6
+        assert code == 100
         assert fake.puts() == []
 
     def test_readiness_check_that_cannot_run_fails_closed(self, capsys):
@@ -2042,7 +2042,7 @@ class TestAsyncMergeForStack:
             readiness={40: _completed(rc=3, stderr="API error")},
         )
         code, env = _run_stack(fake, capsys)
-        assert code == 6
+        assert code == 100
         assert fake.puts() == []
         assert "could not run (exit 3)" in json.dumps(env)
 
@@ -2052,21 +2052,21 @@ class TestAsyncMergeForStack:
             readiness={40: subprocess.TimeoutExpired(["python"], 180)},
         )
         code, env = _run_stack(fake, capsys)
-        assert code == 6
+        assert code == 100
         assert fake.puts() == []
         assert "timed out" in json.dumps(env)
 
     def test_pr_without_stack_object_fails_closed(self, capsys):
         fake = _StackGh(pr_body={"number": 50})
         code, env = _run_stack(fake, capsys)
-        assert code == 6
+        assert code == 100
         assert fake.puts() == []
         assert "reports no stack" in json.dumps(env)
 
     def test_pr_missing_from_stack_listing_fails_closed(self, capsys):
         fake = _StackGh(members=[_member(40), _member(60)])
         code, env = _run_stack(fake, capsys)
-        assert code == 6
+        assert code == 100
         assert fake.puts() == []
         assert "not in the member list" in json.dumps(env)
 
@@ -2075,7 +2075,7 @@ class TestAsyncMergeForStack:
             api_get={"/stacks/9": _completed(stdout=json.dumps({"pull_requests": "nope"}))}
         )
         code, _ = _run_stack(fake, capsys)
-        assert code == 6
+        assert code == 100
         assert fake.puts() == []
 
     @pytest.mark.parametrize(
@@ -2099,7 +2099,7 @@ class TestAsyncMergeForStack:
             put=_completed(rc=1, stderr="gh: Forbidden (HTTP 403)"), readback=_OPEN_READBACK
         )
         code, env = _run_stack(fake, capsys)
-        assert code == 6
+        assert code == 100
         message = json.dumps(env)
         assert "part of a stack" in message
         assert "HTTP 403" in message
@@ -2125,7 +2125,7 @@ class TestAsyncMergeForStack:
             readback=_OPEN_READBACK,
         )
         code, _ = _run_stack(fake, capsys)
-        assert code == 6
+        assert code == 100
         assert len(fake.puts()) == 1
 
     def test_failed_status_exits_6_with_the_reason(self, capsys):
@@ -2136,13 +2136,13 @@ class TestAsyncMergeForStack:
             readback=_OPEN_READBACK,
         )
         code, env = _run_stack(fake, capsys)
-        assert code == 6
+        assert code == 100
         assert "Required status check missing" in json.dumps(env)
 
     def test_enqueued_status_is_not_success(self, capsys):
         fake = _StackGh(polls=[_completed(stdout=_async_body("enqueued"))], readback=_OPEN_READBACK)
         code, env = _run_stack(fake, capsys)
-        assert code == 6
+        assert code == 100
         assert "queued" in json.dumps(env)
 
     def test_unrecognized_status_exits_3(self, capsys):
@@ -2256,7 +2256,7 @@ class TestAsyncMergeForStack:
 
         fake = _HeadMoved(readback=_OPEN_READBACK)
         code, _ = _run_stack(fake, capsys)
-        assert code == 6
+        assert code == 100
         assert fake.puts() == []
 
 
@@ -2410,7 +2410,7 @@ class TestHeadPinning:
     def test_head_moved_refusal_exits_6_without_rest_retry(self, text, capsys):
         fake = _FakeGh(merge=_completed(rc=1, stderr=text), readback=_OPEN_READBACK)
         code, env = _run_main(fake, [], capsys)
-        assert code == 6
+        assert code == 100
         assert "head moved" in env["Error"]["Message"]
         assert _HEAD in env["Error"]["Message"]
         assert env["Data"]["audit"]["result"] == "failed"
@@ -2547,7 +2547,7 @@ class TestPartialFailureRecovery:
     def test_conflict_failure_reads_back_and_exits_6_when_open(self, capsys):
         fake = _FakeGh(merge=_completed(rc=1, stderr="not mergeable"), readback=_OPEN_READBACK)
         code, env = _run_main(fake, [], capsys)
-        assert code == 6
+        assert code == 100
         assert any(_is_readback(c) for c in fake.calls)
         assert env["Data"]["audit"]["result"] == "failed"
 
@@ -2678,7 +2678,7 @@ class TestRollbackHint:
 class TestRefusalAudit:
     def test_closed_refusal_carries_audit(self, capsys):
         code, env = _run_main(_FakeGh(state=_pr_state("CLOSED")), [], capsys)
-        assert code == 6
+        assert code == 100
         assert env["Data"]["audit"]["result"] == "refused: PR is closed"
 
     def test_head_mismatch_refusal_carries_audit(self, capsys):

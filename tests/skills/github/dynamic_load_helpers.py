@@ -7,9 +7,11 @@ tests load it by path once and share it.
 from __future__ import annotations
 
 import importlib.util
+import os
 import sys
 import textwrap
 from pathlib import Path
+from unittest import mock
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 GATE_PATH = (
@@ -45,3 +47,32 @@ def loads(tmp_path: Path, body: str, name: str = "verify.py"):
 
 def closure(tmp_path: Path, *named: str) -> list[str]:
     return gate._expand_import_closure(list(named), tmp_path)
+
+
+SHIPPED_CONFIG = REPO_ROOT / ".claude" / "skills" / "pr-review" / "pr-review-config.yaml"
+
+
+def shipped_verifier_closure() -> tuple[list[str], list[str]]:
+    """``(named, closure)`` for the shipped ``pr-review-config.yaml``.
+
+    Built with the gate's own functions, so the files scanned are the files the
+    gate byte-verifies: the same criteria (``completion_criteria`` plus every
+    ``scripts.<harness>`` entry), the same argv classification, the same import
+    and literal-dynamic-load closure. ``named`` is the work-tree-relative paths
+    the commands name, which can include data files; ``closure`` adds what they
+    import or load.
+    """
+    import yaml
+
+    config = yaml.safe_load(SHIPPED_CONFIG.read_text(encoding="utf-8"))
+    criteria = gate._extract_criteria(config) + gate._scripts_map_criteria(config)
+    # The config's `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}` forms expand from
+    # the environment. The pre-push hook exports CLAUDE_PLUGIN_ROOT=src/copilot-cli, which
+    # would move the closure to the Copilot mirror. Pin the self-hosted `.claude` shape so
+    # the scanned set does not depend on the caller.
+    with mock.patch.dict(os.environ):
+        for var in gate._PLUGIN_ROOT_ENV_VARS:
+            os.environ.pop(var, None)
+        named, _external, escaping = gate._collect_command_paths(criteria, 1, REPO_ROOT)
+    assert escaping == [], f"config commands escape the work tree: {escaping}"
+    return named, gate._expand_import_closure(named, REPO_ROOT)
