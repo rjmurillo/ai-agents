@@ -2173,6 +2173,74 @@ class TestMissingRequired:
         assert set(data["MissingRequiredChecks"]) == {"Validate PR", "PR Validation"}
         assert data["AllPassing"] is False
 
+    def _run_human(self, rollup, ruleset, capsys):
+        with (
+            patch("get_pr_checks.assert_gh_authenticated"),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("get_pr_checks.gh_graphql", return_value=rollup),
+            patch(
+                "get_pr_checks.fetch_ruleset_required_contexts",
+                return_value=ruleset,
+            ),
+        ):
+            rc = main(["--pull-request", "4009", "--output-format", "human"])
+        captured = capsys.readouterr()
+        return rc, captured.out + captured.err
+
+    def test_missing_required_human_summary_includes_recovery_hint(self, capsys):
+        """Issue #5162: MISSING output points the operator at close/reopen."""
+        rc, text = self._run_human(
+            self._green_rollup("Run Python Tests"),
+            ["Run Python Tests", "Validate PR"],
+            capsys,
+        )
+
+        assert rc == 1
+        assert "never reported" in text
+        assert "MISSING: Validate PR" in text
+        assert "close and reopen the PR" in text
+        assert "Required check never reported" in text
+
+    def test_missing_required_hint_follows_truncated_name_list(self, capsys):
+        """The hint survives the 3-name truncation of the MISSING list."""
+        names = [f"Check {i}" for i in range(5)]
+        _, text = self._run_human(
+            self._green_rollup("Run Python Tests"),
+            ["Run Python Tests", *names],
+            capsys,
+        )
+
+        assert "5 required check(s) never reported" in text
+        assert "...)" in text
+        assert "close and reopen the PR" in text
+
+    def test_all_required_present_has_no_recovery_hint(self, capsys):
+        """Positive control: nothing is missing, so no recovery hint appears."""
+        rc, text = self._run_human(
+            self._green_rollup("Run Python Tests"),
+            ["Run Python Tests"],
+            capsys,
+        )
+
+        assert rc == 0
+        assert "close and reopen" not in text
+
+    def test_failed_check_has_no_recovery_hint(self, capsys):
+        """A failing (reported) check needs a code fix, not close/reopen."""
+        rollup = _rollup_response(
+            [_check_run_node("Run Python Tests", "COMPLETED", "FAILURE", required=True)],
+            state="FAILURE",
+            mergeable="MERGEABLE",
+            merge_state_status="BLOCKED",
+        )
+        rc, text = self._run_human(rollup, ["Run Python Tests"], capsys)
+
+        assert rc == 1
+        assert "close and reopen" not in text
+
     def test_ruleset_fetch_failure_exits_3(self, capsys):
         """Ruleset API failure cannot report passing checks."""
         rollup = self._green_rollup()
