@@ -10,7 +10,11 @@ workflow never re-decides it per call.
 
 The invocation carries one line, `Transport: gh` or `Transport: gh_unusable`.
 `/pr-review` Step 4 sends it after its Step 0 preflight. When the line is
-absent, run the preflight once before Phase -1 and use its verdict:
+absent, run the preflight once before Phase -1 and use its verdict. The command
+below assumes a POSIX shell and `python3`. On Windows, or a host with only
+`python.exe` or the `py` launcher, run the `check_transport` entry of the
+Copilot map in `/pr-review`'s `pr-review-config.yaml` instead: it resolves the
+interpreter and the plugin root.
 
 ```bash
 python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/utils/check_github_transport.py"
@@ -40,8 +44,9 @@ steps and does not restate the full mapping.
 | 6, 8.2 | `resolve_pr_review_thread.py` | `resolve_review_thread`, one thread per call. Count what you resolved. |
 | SKILL.md Phase 0 | `cluster_threads.py` | Fetch with `get_review_comments`, write one object per unresolved thread (`thread_id`, `path`, `first_comment_body`) to a repository-relative JSON file, and run the script with `--threads-file`. The clustering stays scripted; only the fetch changes. |
 | Gate 4, Gate 5, 8.2 | `get_pr_review_threads.py` and the inline `gh api graphql` unresolved counts | `get_review_comments`, paged to the end, counting threads whose `isResolved` is false. A truncated read is an incomplete count, not zero. |
-| 8.4 | `get_pr_checks.py`, `triage_red_check.py` | `get_check_runs` paged to the end, latest run per context name, plus `get` for merge state. The required-context set cannot be read, so report checks and merge state and never emit a PASS. Derive the `triage_red_check.py` verdict by hand and record it as derived. |
-| Round cap (review-conversation.md) | `check_pr_round_cap.py` | No MCP operation. Derive the verdict by hand from the fetched review rounds and record it as derived. |
+| 8.4 | `get_pr_checks.py`, `triage_red_check.py` | `get_check_runs` paged to the end, latest run per context name, plus `get` for merge state. The required-context set cannot be read, so report checks and merge state and never emit a PASS. `triage_red_check.py` compares the PR run with recent base-branch runs. Read the base branch's check runs with `get_check_runs` on its head SHA; when you cannot, record the triage verdict as UNKNOWN and attribute nothing to the base branch. |
+| Round cap (review-conversation.md) | `check_pr_round_cap.py` | Unavailable. The script persists a round marker and an escalation note as PR comments, and a hand-derived verdict writes neither, so the stored round never advances and a later session repeats it. Report the round cap as unavailable and do not treat a calculation as persisted state. |
+| Copilot follow-up PRs (`references/bots.md`) | `gh pr list`, `gh pr close`, `gh pr merge` | Unavailable. Report that Copilot opened another PR and leave it unprocessed with the transport as the reason. |
 
 A transport failure is an unknown, never a verdict. Never mark a comment
 `[COMPLETE]`, report `0 unresolved`, or report a PR blocked from a call that

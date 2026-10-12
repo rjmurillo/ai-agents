@@ -102,6 +102,14 @@ Run `transport_preflight` from config first (BLOCKING, once). Its `verify_trust`
 
 ### Step 1: Parse and Validate PRs
 
+In `gh_unusable`, this step and Step 2 run through the MCP operations, not the
+`scripts` map: `pull_request_read` methods `get`, `get_reviews`,
+`get_check_runs`, and `get_review_comments`, per `mcp_mode_constraints` in
+config and the github skill's `references/transport-routing.md`. This covers
+the settled-count step too. If a read fails or is truncated, stop and report the
+PR as unprocessed with the transport as the reason. Do not launch the responder
+from a failed read.
+
 For `all-open`, query open PRs. Cap the list to `invocation_limits.all_open_max_prs` from config (default: 5). If more open PRs exist, report the overflow count and execute `invocation_limits.all_open_overflow_action`.
 
 For each PR number, validate using the `get_pr_context` command from config, read from the `scripts` map for the harness you are running on.
@@ -171,6 +179,8 @@ Wording, pushback, deferral, and escalation of review comments follow the review
 Replying does NOT resolve threads. Use `add_thread_reply_resolve` or separate `resolve_thread` calls. For batch resolution, use the GraphQL template in config.
 
 ## Completion Gate
+
+In `gh_unusable`, `run_completion_gate.py` cannot verify any criterion: its verifiers are `gh`-backed and every one fails. Check each criterion by hand against `pull_request_read` data, mark a criterion `unknown` when its data is unavailable, and never report a pass from a failed call. Record the verdict as derived (`mcp_mode_constraints` in config).
 
 The completion gate is dispatchable: each criterion in `completion_criteria` runs an external verification command, and the command's stdout JSON is the source of truth for the verdict. Run the dispatcher exactly once per PR:
 
