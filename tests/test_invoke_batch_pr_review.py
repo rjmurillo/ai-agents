@@ -14,6 +14,7 @@ from scripts import invoke_batch_pr_review
 from scripts.invoke_batch_pr_review import (
     MAX_AUDITED_DIRTY_ENTRIES,
     SUBPROCESS_TIMEOUT_SECONDS,
+    AuditWriteError,
     WorktreeStatus,
     get_pr_branch,
     get_worktree_status,
@@ -151,6 +152,25 @@ class TestMain:
         assert result == 3
 
 
+class TestCleanupAuditFailure:
+    def test_cleanup_continues_and_exits_nonzero_when_an_audit_write_fails(self) -> None:
+        with (
+            patch("scripts.invoke_batch_pr_review.push_worktree_changes"),
+            patch(
+                "scripts.invoke_batch_pr_review.remove_worktree",
+                side_effect=[AuditWriteError("log"), True],
+            ) as mock_remove,
+            patch("scripts.invoke_batch_pr_review.run_git") as mock_git,
+        ):
+            mock_git.return_value = MagicMock(returncode=0, stdout="/fake/repo\n")
+            result = main(
+                ["--pr-numbers", "1", "2", "--operation", "cleanup", "--worktree-root", "/tmp"]
+            )
+
+        assert result == 1
+        assert mock_remove.call_count == 2
+
+
 class TestPushWorktreeChanges:
     def test_repins_leaked_identity_before_cleanup_commit(self, tmp_path: Path) -> None:
         """A leaked Test <test@test.com> identity must not reach the cleanup commit."""
@@ -279,6 +299,20 @@ class TestRemoveWorktreeAudit:
         assert record["dirtyEntries"] == ["?? report.json"]
         assert record["dirtyEntryCount"] == 1
 
+    def test_forced_removal_lists_files_inside_an_untracked_directory(
+        self, linked_worktree: tuple[Path, Path]
+    ) -> None:
+        root, worktree = linked_worktree
+        (worktree / "reports").mkdir()
+        (worktree / "reports" / "a.json").write_text("a\n")
+        (worktree / "reports" / "b.json").write_text("b\n")
+
+        assert remove_worktree(7, root, force=True) is True
+
+        [record] = _audit_records()
+        assert record["dirtyEntries"] == ["?? reports/a.json", "?? reports/b.json"]
+        assert record["dirtyEntryCount"] == 2
+
     def test_dirty_entries_are_capped_but_the_count_is_exact(
         self, linked_worktree: tuple[Path, Path]
     ) -> None:
@@ -339,13 +373,14 @@ class TestRemoveWorktreeAudit:
         assert _audit_records() == []
         assert "cannot be audited" in capsys.readouterr().out
 
-    def test_unwritable_log_warns_but_still_reports_the_removal(
+    def test_unwritable_log_warns_and_raises_after_the_removal(
         self, linked_worktree: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
     ) -> None:
         root, worktree = linked_worktree
 
         with patch.object(removal_audit, "append_record", side_effect=OSError("disk full")):
-            assert remove_worktree(7, root) is True
+            with pytest.raises(AuditWriteError):
+                remove_worktree(7, root)
 
         assert not worktree.exists()
         captured = capsys.readouterr()

@@ -33,6 +33,10 @@ AUDIT_TOOL = "invoke_batch_pr_review"
 MAX_AUDITED_DIRTY_ENTRIES = 100
 
 
+class AuditWriteError(Exception):
+    """A worktree was removed but its audit record could not be written."""
+
+
 def run_git(
     *args: str, cwd: str | Path | None = None, timeout: int = SUBPROCESS_TIMEOUT_SECONDS
 ) -> subprocess.CompletedProcess[str]:
@@ -136,7 +140,7 @@ def get_worktree_status(pr_number: int, worktree_root: Path) -> WorktreeStatus:
     if not worktree_path.exists():
         return WorktreeStatus(pr=pr_number, path=worktree_path, exists=False)
 
-    status_result = run_git("status", "--short", cwd=worktree_path)
+    status_result = run_git("status", "--short", "--untracked-files=all", cwd=worktree_path)
     branch_result = run_git("branch", "--show-current", cwd=worktree_path)
     commit_result = run_git("log", "-1", "--format=%h", cwd=worktree_path)
 
@@ -179,9 +183,9 @@ def main_worktree_of(worktree_path: Path) -> str | None:
 def record_removal(pr_number: int, status: WorktreeStatus, force: bool, *, log_path: Path) -> None:
     """Append the durable audit record for a worktree this run removed (Issue #4790).
 
-    ``dirty_entries`` is the ``git status --short`` output taken before removal,
-    which names the untracked and modified paths a forced removal deleted. Git
-    status omits gitignored files, so those are not listed.
+    ``dirty_entries`` is the ``git status --short --untracked-files=all`` output
+    taken before removal, which names each untracked and modified path a forced
+    removal deleted. Git status omits gitignored files, so those are not listed.
     """
     entries = status.dirty_entries
     removal_audit.append_record(
@@ -202,6 +206,11 @@ def record_removal(pr_number: int, status: WorktreeStatus, force: bool, *, log_p
 
 
 def remove_worktree(pr_number: int, worktree_root: Path, force: bool = False) -> bool:
+    """Remove a PR worktree and audit it.
+
+    Returns True when the worktree is gone or never existed. Raises
+    ``AuditWriteError`` when it was removed but the audit record failed.
+    """
     status = get_worktree_status(pr_number, worktree_root)
     if not status.exists:
         print(f"Worktree for PR #{pr_number} does not exist")
@@ -243,6 +252,7 @@ def remove_worktree(pr_number: int, worktree_root: Path, force: bool = False) ->
             f"to {log_path}: {exc}",
             file=sys.stderr,
         )
+        raise AuditWriteError(str(log_path)) from exc
     return True
 
 
@@ -335,6 +345,7 @@ def main(argv: list[str] | None = None) -> int:
         args.worktree_root = repo_root.parent
 
     op = args.operation
+    audit_failed = False
 
     try:
         if op in ("setup", "all"):
@@ -353,7 +364,10 @@ def main(argv: list[str] | None = None) -> int:
             for pr in args.pr_numbers:
                 push_worktree_changes(pr, args.worktree_root, operator=args.operator_identity)
             for pr in args.pr_numbers:
-                remove_worktree(pr, args.worktree_root, force=args.force)
+                try:
+                    remove_worktree(pr, args.worktree_root, force=args.force)
+                except AuditWriteError:
+                    audit_failed = True
             print("\n=== Remaining worktrees ===")
             result = run_git("worktree", "list")
             if result.stdout:
@@ -366,7 +380,7 @@ def main(argv: list[str] | None = None) -> int:
         print("\n=== Ready for parallel PR review ===")
         print(f"Worktrees created at: {args.worktree_root}")
 
-    return 0
+    return 1 if audit_failed else 0
 
 
 if __name__ == "__main__":
