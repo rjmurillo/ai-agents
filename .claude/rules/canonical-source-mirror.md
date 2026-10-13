@@ -13,6 +13,18 @@ priority: high
 
 # Canonical Source Mirror Rule
 
+<!-- vendor-portability: contributor-facing rule for the rjmurillo/ai-agents repo
+     itself; it binds new components to the upstream validators, generators,
+     retrospectives, and governance docs it names. None of these exist in a consumer
+     install (issue #5298). Paths: .agents/governance,
+     .claude/skills/orphan-ref-validator/scripts/envelope.py,
+     .project-toolkit/retrospective,
+     .project-toolkit/retrospective/2026-05-05-pr-1887-iteration-paradox.md,
+     .project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md,
+     build/scripts, build/scripts/generate_rules.py, scripts/validate_session_json.py,
+     scripts/validation, scripts/validation/check_placeholder_identity.py,
+     templates/agents/implementer.shared.md, templates/platforms/copilot-cli.yaml -->
+
 When a component's docstring, comment, or README claims to "match", "mirror", "align with", or "extend" an existing source (a regex, a schema, a function signature, a set of exit codes, a JSON contract), the claim is a load-bearing assertion. The reader trusts it. So does the reviewer. So does the next maintainer who replays the contract from your code instead of from the source.
 
 This rule binds those claims to evidence. It exists because PR #1887 (the M4 evidence-rule guard) was designed against an imagined contract instead of the canonical `scripts/validate_session_json.py:CONTRADICTION_PATTERNS` regex. The error survived several reviews. Aligning M4 to canonical took 7 fix commits. The retrospective at `.project-toolkit/retrospective/2026-05-05-pr-1887-iteration-paradox.md` names this anti-pattern "confident incorrectness": partial signal, premature conclusion, confident delivery, multi-round correction.
