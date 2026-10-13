@@ -17,7 +17,7 @@ Trigger: the user corrected the work explicitly (drive-by changes and filing maj
 - Red main: [#6379](https://github.com/rjmurillo/ai-agents/issues/6379), fixed by [#6387](https://github.com/rjmurillo/ai-agents/pull/6387)
 - Security true positives: [#6297](https://github.com/rjmurillo/ai-agents/issues/6297) (merge_pr stacked merge TOCTOU), [#6415](https://github.com/rjmurillo/ai-agents/issues/6415) (dispatch-closure merge-base fail-open), [#5414](https://github.com/rjmurillo/ai-agents/issues/5414) (api_examples SSRF), [#6424](https://github.com/rjmurillo/ai-agents/issues/6424) (prepare_pr_body symlink)
 - Scratch leak: [#6292](https://github.com/rjmurillo/ai-agents/issues/6292) (ratchet scratch trees leak into /tmp)
-- Mirror drift commit: `7dfb67e51` (committed without `build_all.py`)
+- Mirror drift commit: `7dfb67e513ba05700079c72fa92a3b11bfdd951a` ("fix(review): require a review report behind the Reviewed-By marker"). OBSERVED: it exists only on the local branch `fix/defect-d26-review-marker-artifact` and is not on GitHub, so a remote lookup misses it. UNKNOWN: whether the branch is later pushed. The claim that it was committed without `build_all.py` comes from the session facts, not from a CI result
 - Flaky test: `tests/validation/test_pre_push_testmon_concurrent_db.py::test_concurrent_partitions_record_into_one_database`, PR #6387 run 38340318288, job 115113458662
 - Raw data: scratchpad `triage.json`, `closeverify.json`, `run1.json`, `retry.json`, `defects.md`, `learnings_plan.json`
 
@@ -27,14 +27,14 @@ Against `.agents/governance/FAILURE-MODES.md`:
 
 | Failure | Class | Why |
 |---------|-------|-----|
-| Mistake 1: ~82 chains, ~16 concurrent pre-push gates, disk and inode exhaustion | No match. Proposed new class 13, "Unbudgeted fan-out resource exhaustion" | None of the 12 classes covers shared-resource exhaustion by parallel delegation. Nearest is 7 (Self-Contained Agent Delegation Failure), but the delegated agents had full context; the delegator gave them no resource budget. Class 13 is a proposal only. Adopting it needs an ADR, which this retro does not write; see Findings for the owner |
+| Mistake 1: ~82 chains, ~16 concurrent pre-push gates, disk and inode exhaustion | No match. Proposed new class 13, "Unbudgeted fan-out resource exhaustion" | None of the 12 classes covers shared-resource exhaustion by parallel delegation. Nearest is 7 (Self-Contained Agent Delegation Failure), but the delegated agents had full context; the delegator gave them no resource budget. Class 13 is a proposal only. `.claude/rules/retros.md` MUST 2 asks for a linked ADR; this retro makes an explicit exception by not writing one, because a new class needs an ADR decided by the owner and the scope here excludes ADRs and FAILURE-MODES.md edits. See Findings for the owner |
 | Mistake 2: workflows launched with `__FILL__` and `PLACEHOLDER_SEE_NEXT` args | 7. Self-Contained Agent Delegation Failure (delegator side) | The launch carried no real context. The failure was harmless (0 agents ran) |
 | Mistake 3: prompts said "report defects, do not file", stranding 131 reports | 3. Ambiguous Instruction Inversion | Prompt wording blocked the output that mattered; the owner had to reverse it |
 | 58% of proposed closes refuted by the skeptic (22 of 38) | 9. Confident-Incorrectness Recurrence | Single-pass triage asserted "already fixed" without a primary-source read. The skeptic pass caught it before closure |
 | `7dfb67e51` committed without `build_all.py` | 4. False Completion Markers | A wait for disk budget was treated as permission to skip the generation step; the commit looked done |
 | Disk-budget wait that skipped a step instead of blocking | 10. Silent Defaults and Guard-Clause Suppression | Absence of budget produced a silent skip, not an error |
 | Subagent processes surviving TaskStop | Not a repo failure. Claude Code product defect (feedback drafted) | Subagent processes outlived TaskStop |
-| Red main from a time-bomb fixture (`tests/metrics/metric_artifact_helpers.py:24`) | 11-adjacent (test fixture depends on wall clock) | A fixed date aged out; fixed in #6387 |
+| Red main from a time-bomb fixture (`tests/metrics/metric_artifact_helpers.py:24`) | No match (unclassified: a test fixture depends on wall clock, which differs from class 11) | A fixed date aged out; fixed in #6387 |
 
 ### 4-Step Debrief
 
@@ -42,7 +42,7 @@ Against `.agents/governance/FAILURE-MODES.md`:
 - OBSERVED: 187 triage agents ran single-pass on Sonnet.
 - OBSERVED: the close-verify skeptic refuted 22 of 38 proposed closes (58%). 16 were closed with evidence at the first pass.
 - OBSERVED: owner decision D1 delegated all owner-decision items (take the recommended option, run adr-review debate).
-- OBSERVED: ~82 chains started with ~16 concurrent full pre-push gates in separate worktrees. Root was 98% full; `/tmp` was an 8.4M-inode tmpfs. Both filled (ENOSPC). Bash stopped working. All work halted twice.
+- OBSERVED: ~82 chains started with ~16 concurrent full pre-push gates in separate worktrees. Root was 98% full; `/tmp` ran out of inodes (session facts say a tmpfs with 8.4M inodes; issue #6292 reports 1,048,560 of 1,048,576 inodes used. UNKNOWN: which host or day each figure comes from). Both filled (ENOSPC). Bash stopped working. All work halted twice.
 - OBSERVED: TaskStop left subagent processes running. The first `pkill` matched its own monitor and exited 144. Processes were then killed by hand.
 - OBSERVED: mid-run fix: a semaphore of 4 heavy stages, 12 chains, and `df` checks.
 - OBSERVED: root drained to 9G free again with three workflows plus the owner's other sessions. Work stopped a second time.
@@ -125,10 +125,10 @@ Timestamps below are relative where the supplied facts give no clock time. Clock
 **Problem:** Bash stopped working and all work halted twice because root and `/tmp` hit ENOSPC.
 
 **Q1:** Why did Bash stop working?
-**A1:** OBSERVED: root was full and `/tmp` (8.4M-inode tmpfs) was out of inodes, so the shell and tools could not create temp files.
+**A1:** OBSERVED: root was full and `/tmp` (tmpfs, inode count UNKNOWN: 8.4M in session facts, about 1M in #6292) was out of inodes, so the shell and tools could not create temp files.
 
 **Q2:** Why were root and `/tmp` full?
-**A2:** OBSERVED: ~16 full pre-push gates ran at once in separate worktrees on a disk already 98% full. Each gate writes scratch trees and pytest basetemp into `/tmp` (leak tracked as #6292; `pyproject.toml:78` basetemp retention unset). INFERRED: per-gate footprint times 16 exceeded free space and inode count.
+**A2:** OBSERVED: ~16 full pre-push gates ran at once in separate worktrees on a disk already 98% full. Each gate writes scratch trees and pytest basetemp into `/tmp` (leak tracked as #6292, closed by PR #6383; OBSERVED in #6292: a `/tmp/pytest-of-richard` basetemp pile-up. `pyproject.toml` has no pytest retention key). INFERRED: per-gate footprint times 16 exceeded free space and inode count.
 
 **Q3:** Why did ~16 heavy gates run concurrently?
 **A3:** OBSERVED: ~82 chains started at once with no limit on heavy stages. INFERRED: concurrency was set by task count, not by a resource model.
@@ -153,7 +153,7 @@ Timestamps below are relative where the supplied facts give no clock time. Clock
 | Prompt | "Report defects, do not file" stranded 131 reports; no instruction to check disk before heavy stages |
 | Tools | `pkill` matched its own monitor (exit 144); TaskStop does not kill subagent process trees; GraphQL pollers share one quota |
 | Context | Per-gate disk footprint unknown; other sessions' usage invisible to the orchestrator |
-| Dependencies | 98%-full root; 8.4M-inode tmpfs; weekly usage limit; GraphQL 5000/hr |
+| Dependencies | 98%-full root; tmpfs with inode limit (size UNKNOWN: 8.4M vs about 1M); weekly usage limit; GraphQL 5000/hr |
 | Sequence | Launch width set before any measurement; skeptic ran after, not before, triage closes |
 | State | Scratch trees leaked from killed pushes (#6292); stale worktrees held disk |
 
@@ -180,7 +180,7 @@ Timestamps below are relative where the supplied facts give no clock time. Clock
 |---------------|----------|-------------------|----------|
 | Semaphore and `df` checks already proven mid-run | 4 | "Delegate everything" goal rewards width | 4 |
 | Resume-from-cache makes restarts cheap | 3 | Owner's other sessions are invisible to the plan | 3 |
-| Pre-push security review gives confidence to push in parallel | 3 | Scratch-leak defect #6292 unfixed | 3 |
+| Pre-push security review gives confidence to push in parallel | 3 | Scratch-leak defect #6292 unfixed at session time (since fixed by PR #6383) | 3 |
 | Owner reads the findings table | 2 | No launch-time validation of args or budget | 3 |
 
 Net: 12 driving, 13 restraining. Strengthen the semaphore by making it a budget. Reduce the goal pressure by naming a width ceiling in the launch prompt.
@@ -204,7 +204,7 @@ Net: 12 driving, 13 restraining. Strengthen the semaphore by making it a budget.
 **Continue**: skeptic pass on proposed closes; background security review before push; resume-from-cache; REST fallback.
 **Change**: fan-out sized by task count; polling by GraphQL; prompt wording that forbids filing; skipping a step during a wait.
 **Idea**: a `fanout-budget` preflight that prints per-stage footprint and the allowed width; launch-arg validator in the workflow script.
-**Invest**: fix #6292 (scratch leak) so each killed push stops leaking inodes; a host-capacity probe the orchestrator can call.
+**Invest**: set pytest basetemp retention (the ratchet scratch leak #6292 is fixed by PR #6383); a host-capacity probe the orchestrator can call.
 
 ## Phase 2: Diagnosis
 
@@ -279,14 +279,14 @@ NOT RUN. The session produced no spec-layer artifacts for this retrospective.
 | 2 | Add the budget formula and low-water-mark stop to the launch prompt | Repo owner | 1 | 4 |
 | 3 | Add placeholder-arg validation to the workflow script | Repo owner | None | 4 |
 | 4 | Relaunch the paused sweep when root has headroom | Repo owner | 2, 3 | None |
-| 5 | Fix #6292 so killed pushes stop leaking scratch | Issue #6292 | None | None |
+| 5 | Done: #6292 closed by PR #6383 so killed pushes stop leaking ratchet scratch. Remaining: set pytest retention | Repo owner | None | None |
 
 ## Phase 4: Extracted Learnings
 
 ### Learning 1
 - **Statement**: Size heavy-stage concurrency from measured disk and inode footprint, not task count.
 - **Atomicity Score**: 90%
-- **Evidence**: ~16 concurrent gates filled root (98% full) and an 8.4M-inode tmpfs; all work halted twice.
+- **Evidence**: ~16 concurrent gates filled root (98% full) and a tmpfs with inode limit (size UNKNOWN: 8.4M vs about 1M); all work halted twice.
 - **Skill Operation**: ADD
 - **Target Skill ID**: fanout-resource-budget
 
@@ -357,7 +357,7 @@ NOT RUN. The skillbook and `search_memory.py` were not queried in this pass beca
 ## Phase 5: Persist and Close
 
 ### Memory Persistence
-NOT PERFORMED. No Serena write was made from this linked worktree. The seven candidates are returned to the parent session for routing to skillbook. No commit or push was made (root disk at 9G; pushes paused).
+NOT PERFORMED. No Serena write was made from this linked worktree. The seven candidates are returned to the parent session for routing to skillbook. The retro file was committed and pushed in PR #6446 after disk headroom returned.
 
 ### +/Delta
 
@@ -377,14 +377,14 @@ NOT PERFORMED. No Serena write was made from this linked worktree. The seven can
 | New failure class 13 for unbudgeted fan-out | Missing Documentation |
 | Launch-arg placeholder validation | Process Improvements |
 | Fan-out budget preflight | Feature Requests |
-| Scratch leak #6292 | Process Improvements (already tracked) |
+| Scratch leak #6292 | Process Improvements (closed by PR #6383) |
 
 ### Findings for the owner
 
 | Item | Evidence (path:line) | Proposed action | Class |
 |------|----------------------|-----------------|-------|
 | `FAILURE-MODES.md` has no class for fan-out resource exhaustion | `.agents/governance/FAILURE-MODES.md:15-30` (index lists 12 classes, none on shared-resource exhaustion) | Add class 13 with a linked ADR; `.claude/rules/retros.md` MUST 2 requires the ADR | Requested improvement |
-| Ratchet scratch trees leak into `/tmp` on a killed push; pytest basetemp retention unset | `pyproject.toml:78` (basetemp retention); issue #6292 | Cap retention and clean scratch on exit; already tracked in #6292 | Requested improvement |
+| Ratchet scratch trees leak into `/tmp` on a killed push; pytest basetemp retention unset | `pyproject.toml` has no `tmp_path_retention` or `basetemp` key; #6292 observed the `/tmp/pytest-of-richard` pile-up | #6292 is closed by PR #6383 (ratchet scratch trees removed when a push is killed). Remaining gap: pytest basetemp retention is still unset | Requested improvement |
 | TaskStop leaves subagent processes running | Observed in this session; product feedback drafted | Report to the Claude Code product team; not a repo issue | Side quest |
 | Remote branch `fix/metric-age-test-clock` left behind after PR #6387 merged via REST; deny rule blocked delete | PR #6387 | Owner deletes the branch | Optional enhancement |
 | Flaky `test_concurrent_partitions_record_into_one_database` failed `assert 30 == (2 * 30)` once; rerun passed at the same head | PR #6387 run 38340318288, job 115113458662 | File an issue and fix | Requested improvement |
@@ -437,7 +437,7 @@ None written. Routed to the parent session (linked worktree; see Phase 5).
 
 | Operation | Path | Reason |
 |-----------|------|--------|
-| git add | `.project-toolkit/retrospective/2026-10-13-issue-sweep-fanout.md` | Retrospective artifact (not committed; pushes paused) |
+| git add | `.project-toolkit/retrospective/2026-10-13-issue-sweep-fanout.md` | Retrospective artifact (committed and pushed in PR #6446) |
 
 ### Handoff Summary
 
