@@ -90,11 +90,14 @@ the rebuilt document integrates each answer once.
 
    `status: no_material_gaps` returns `NO MATERIAL GAPS`. `status: ask` returns a `batch`
    of independent questions to present now through the `decision-question` skill's
-   bounds (#5408), which this mode composes and does not restate.
-5. **Ask, record, rerun.** Record answers in the ledger and rerun. Prerequisites go first,
-   dependent options are pruned, and question IDs never change across batches.
+   bounds, which this mode composes and does not restate. Other statuses: `invalid`
+   (ledger problems), `incomplete` (a question lacks brief fields), and
+   `revise_recommendation` all exit 1 and need a ledger fix. `held` means only held
+   decisions remain. `resolved` means every live decision is answered, so step 7 starts.
+5. **Ask, record, rerun.** Record answers in the ledger and rerun until `resolved`.
+   A dependent decision is deferred until its prerequisite is answered, options are pruned, and question IDs never change across batches.
 6. **Never choose business policy for the owner.** Recommend only with repository
-   evidence. Otherwise the question carries `Owner decision, no evidence-backed recommendation`.
+   evidence or an existing contract. Otherwise the question carries `Owner decision, no evidence-backed recommendation`.
 7. **Rebuild, then verify.** Patch the spec without deleting unaffected content, keep
    unresolved items under `Open decisions`, and run `spec_audit.py verify` with the
    decision log. Report document growth as an observation, not a success metric.

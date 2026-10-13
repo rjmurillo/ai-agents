@@ -48,9 +48,10 @@ returns `invalid`: a clean verdict needs a finished pass.
 | `id` | Stable global ID such as `Q1`. Unique. Never renumbered. |
 | `category` | One of the eight coverage categories. |
 | `disposition` | `ask` (default), `answered_in_document`, or `answered_in_codebase`. |
-| `anchors` | Section plus an exact `quote` or a `lines` range `[first, last]`. The quote must appear verbatim in that section (line wrapping ignored). A contradiction needs anchors in two different sections. |
+| `anchors` | Section plus an exact `quote` or a `lines` range `[first, last]` (1-based, inclusive). A bare section number such as `"3.1"` also matches the heading `3.1 Session count`. The quote must appear verbatim in that section (line wrapping ignored). A contradiction needs anchors in two different sections. |
 | `evidence`, `answer` | Required for the two `answered_*` dispositions. Document evidence is an anchor. Codebase evidence is `{"path", "lines"}` under `--repo-root`. |
 | `recommendation` | Allowed only with `recommendation_reason` and `recommendation_evidence` (repository evidence or an existing contract). Without one, the question carries `Owner decision, no evidence-backed recommendation`. |
+| `allow_hold`, `hold_reopen_condition` | Let the owner defer the decision. A held decision reports `held` instead of `resolved`, and the reopen condition says what brings it back. |
 | `requires` | Prior answers that keep the decision alive, as in `decision-question`. |
 | `answers`, `paging` | Recorded user picks and `_more` counts, as in `decision-question`. |
 
@@ -59,7 +60,7 @@ returns `invalid`: a clean verdict needs a finished pass.
 - One decision per question. Anchor it to the phrase that exposes the gap.
 - Options are materially distinct. Prefer mutually exclusive and collectively
   exhaustive options when the domain supports it. Do not list `Other`: the
-  harness adds it, and `check` rejects an option labeled `Other`.
+  harness adds it, and `check` rejects any option whose label starts with `Other`.
 - Keep each question answerable with a short selection plus an optional qualifier.
 - If the document or the codebase answers it, record the answer with evidence.
   Do not ask.
@@ -69,7 +70,7 @@ returns `invalid`: a clean verdict needs a finished pass.
 ## Batching and dependencies
 
 `check` returns a `batch` of live decisions, at most the harness question limit
-(`--max-questions`, default from `decision_question.py`), in ID order. Each entry
+(`--max-questions`, default from `decision_question.py`), in ledger order. Each entry
 carries its prompt `pages`, capped by `--max-options`. A decision whose
 prerequisite is unanswered is listed under `deferred`. An answer that voids a
 decision lists it under `pruned`. IDs survive batches, deferrals, and regenerated
@@ -90,12 +91,15 @@ entry per `ask` candidate and run `spec_audit.py verify`:
 ]
 ```
 
+`Q2` assumes the ledger also holds a second `ask` candidate. An `open` outcome keeps
+that decision under `Open decisions` instead of folding it into the text.
+
 `verify` fails when:
 
 - an accepted `text` appears other than exactly once in the rebuilt document, or
   already existed in the source;
 - a `replaces` quote is missing from the source or still in the rebuilt document;
-- an accepted contradiction supersedes no side;
+- an accepted contradiction has an empty `replaces`;
 - an `open` ID is not listed exactly once under an `Open decisions` heading, or
   its anchored source text was removed without a decision;
 - any source line outside the replaced quotes was deleted;
@@ -108,6 +112,4 @@ changes the status.
 
 Score a response on whether anchors are verbatim, whether answered requirements
 are recorded instead of asked, and whether the rebuild integrates each decision
-once. Do not score by number of questions. The `~400 inconsistencies` figure in
-the originating Reddit report has no published source document, deduplication
-rule, or definition, so it is not ground truth.
+once. Do not score by number of questions.
