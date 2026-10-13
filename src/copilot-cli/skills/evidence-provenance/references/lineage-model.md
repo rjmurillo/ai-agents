@@ -41,7 +41,7 @@ Field reference for `classify_lineage.py`. The fixtures in
 | `created` | `pre-existing`, `during-task` | Time axis. |
 | `authority` | `normative`, `executable-runtime`, `derived`, `heuristic` | How much the item can settle. Separate from independence. |
 | `environment` | `synthetic`, `real` | A fixture or the system being claimed about. |
-| `premises` | list of ids, or absent | The assumptions the item was derived from. Absent means lineage unknown. |
+| `premises` | list of ids, or absent | The assumptions the item was derived from. Absent or empty means lineage unknown. |
 | `inherits_from` | evidence ids, or `subject` | Conclusions the item was handed instead of rebuilding. |
 | `changed_by_subject` | boolean | The evaluated actor edited this item. |
 | `discriminating` | boolean | A restored defect made it fail. Recorded, not counted as independence. |
@@ -52,7 +52,7 @@ Field reference for `classify_lineage.py`. The fixtures in
 
 An item is independent when all of these hold:
 
-1. Its lineage is known (`premises` present).
+1. Its lineage is known (`premises` present and not empty).
 2. It shares no premise with the subject and inherits nothing from a member of
    the subject's loop. Loops form by shared premise or inheritance, across items
    as well as against the subject.

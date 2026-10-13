@@ -16,8 +16,8 @@ Input shape (all keys optional unless marked):
                          discriminating, used_as_support, bound_to}]
     checks             [{check*, state, cheap, available, used_as_support}]
 
-`premises` absent on an item means its lineage is unknown, and unknown lineage
-never counts as independent.
+`premises` absent or empty on an item means its lineage is unknown, and unknown
+lineage never counts as independent.
 
 EXIT CODES (ADR-035):
     0 - Success: classification computed, no violation, claim not falsified
@@ -204,7 +204,7 @@ def independence_reasons(item: Item, in_subject_loop: bool) -> list[str]:
     reasons = []
     if item.inherits_rejected:
         reasons.append("inherits-rejected-evidence")
-    if item.premises is None:
+    if not item.premises:
         reasons.append("lineage-missing")
     if in_subject_loop:
         reasons.append("shares-subject-loop")
