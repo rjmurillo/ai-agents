@@ -15,6 +15,7 @@ import json
 import re
 import subprocess
 from collections import defaultdict
+from datetime import datetime, timezone
 
 # A GitHub Actions check-run details URL carries the workflow run identity:
 #   https://github.com/OWNER/REPO/actions/runs/<runId>/job/<jobId>
@@ -82,6 +83,25 @@ def partition_rows_by_run(
         by_run[run_key].append(row)
 
     return [by_run[run_key] for run_key in order] + singletons
+
+
+def current_run_keys(
+    runs: list[tuple[tuple[int, int], str | None]],
+) -> set[tuple[int, int]]:
+    """Return the newest (run id, attempt) key of each triggering event.
+
+    One head SHA can carry a ``pull_request`` run and a ``push`` run of the
+    same workflow. The ruleset evaluates both, so a newer run of one event
+    must not supersede the other event's result. Within one event the newest
+    run still wins, so a rerun replaces the stale failure it retried. Runs
+    with no known event share one bucket, which keeps the old behavior for
+    callers that cannot report an event.
+    """
+    latest: dict[str | None, tuple[int, int]] = {}
+    for key, event in runs:
+        if event not in latest or key > latest[event]:
+            latest[event] = key
+    return set(latest.values())
 
 
 def group_checks_by_name(
@@ -220,3 +240,49 @@ def find_missing_required(
     checks that did report). This function bridges that gap. Refs issue #4359.
     """
     return sorted(c for c in ruleset_contexts if c not in reported_check_names)
+
+
+# A required check can be absent from the rollup because its workflow has not
+# created it yet (an aggregate job that starts after its split jobs finish
+# takes 10 to 35 minutes), not because the event was dropped. Inside this
+# window after the head commit, absence is "queued"; past it, "absent".
+MISSING_GRACE_SECONDS = 2700
+
+
+def head_commit_age_seconds(
+    committed_at: str | None,
+    now: datetime | None = None,
+) -> float | None:
+    """Return seconds since the head commit date, or None when unknown.
+
+    ``committed_at`` is the ISO 8601 ``committedDate`` GraphQL returns. A
+    missing, malformed, or naive timestamp yields None so callers fail closed.
+    A date in the future (clock skew) clamps to zero.
+    """
+    if not committed_at or not isinstance(committed_at, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(committed_at.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return None
+    current = now if now is not None else datetime.now(timezone.utc)
+    return max(0.0, (current - parsed).total_seconds())
+
+
+def missing_checks_queued(
+    committed_at: str | None,
+    grace_seconds: int = MISSING_GRACE_SECONDS,
+    now: datetime | None = None,
+) -> bool:
+    """Return True when absent required checks may still be queued.
+
+    True only when the head commit age is known and under ``grace_seconds``.
+    Unknown age or a non-positive grace returns False, which keeps the
+    pre-existing behavior of reporting the checks as never reported.
+    """
+    if grace_seconds <= 0:
+        return False
+    age = head_commit_age_seconds(committed_at, now)
+    return age is not None and age < grace_seconds
