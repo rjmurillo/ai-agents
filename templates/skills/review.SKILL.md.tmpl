@@ -111,7 +111,7 @@ Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICA
 
 ## Running without the Task tool
 
-A subagent with no `Task` tool MUST NOT review its own diff and write the marker: the author would grade the author. Run each axis as its own `claude -p` process instead. If `claude` is not on `PATH`, record `UNKNOWN` for every axis, which writes no marker. The command and the evidence to keep are in `resources/marker-and-no-task.md`.
+A subagent with no `Task` tool MUST NOT review its own diff and write the marker. Run each axis as its own `claude -p` process, as `resources/marker-and-no-task.md` says. If `claude` is not on `PATH`, record `UNKNOWN` for every axis, which writes no marker.
 
 ## Vendored install (REQ-008-06)
 
