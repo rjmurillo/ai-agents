@@ -574,10 +574,13 @@ hooks are fine.
   command. It proves Git will run a hook that dispatches Lefthook, which an
   executable but inert hook would not.
 
-Neither gate proves the shim resolves the binary the first gate started. On
-Windows the generated shim omits the configured `uv run --frozen lefthook`
-runner and resolves through `PATH`, so the two can disagree. See
-`scripts/validation/checks_plugin.py`.
+Neither gate executes the shim. The shim does resolve the binary the first
+gate starts, on every platform: Lefthook renders one template, which calls the
+configured `lefthook_runner.py`, and the runner tries `uv run --frozen
+lefthook`, then `lefthook` on `PATH`, then exits 3 with a diagnosis. Windows
+differs only in the fallback name, `lefthook.exe`. `tests/test_lefthook_integration.py`
+pins that order in the generated shim on Linux, macOS, and Windows CI, and runs
+the installed shim on POSIX to record which binary it executes (issue #5491).
 
 CI skips both local-clone checks because workflows invoke validation directly.
 Run `uv run --frozen lefthook check-install` by hand when you want the checksum
