@@ -13,18 +13,20 @@ uv run --frozen python scripts/maintenance/prune_branch_config.py          # rep
 uv run --frozen python scripts/maintenance/prune_branch_config.py --apply  # remove
 ```
 
-A section is stale when `refs/heads/<name>` does not exist. The script reads
-branches with `git for-each-ref`, so loose refs, packed refs, and reftable all
-count. It keeps the branch that `HEAD` names in the main checkout and every
-linked worktree, so an unborn branch keeps its settings. It never touches
+A section is stale when `refs/heads/<name>` does not exist and no checkout
+`HEAD` names that branch. The script reads branches with `git for-each-ref`, so
+loose refs, packed refs, and reftable all count. The `HEAD` of the main checkout
+and of every linked worktree is checked, so an unborn branch keeps its
+settings. It never touches
 `branch.*` keys without a subsection, such as `branch.autoSetupMerge`.
 
 `--apply` copies `config` to `config.before-prune` (with a numeric suffix when
 that exists), runs `git config --remove-section` for each stale branch, and
 checks that git still parses the config. On any failure it restores the copy.
 
-Exit codes: `0` success or dry run, `1` stale sections remain and
-`--fail-on-stale` was passed, `2` not a git repository, `3` git failed.
+Exit codes: `0` success (including nothing to prune, a dry-run report, and a
+successful `--apply`), `1` stale sections remain and `--fail-on-stale` was
+passed, `2` not a git repository, `3` git failed or timed out.
 
 ## Periodic report
 
