@@ -24,7 +24,11 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
 
 import lib_mirror  # noqa: E402
-from copilot_body_translation import drop_skill_frontmatter_keys  # noqa: E402
+from copilot_body_translation import (  # noqa: E402
+    drop_skill_frontmatter_keys,
+    render_skill_file,
+    translate_skill_file,
+)
 from skill_support_mirror import _copy_skill_tree  # noqa: E402
 
 _DROP = frozenset({"model", "model-rationale"})
@@ -47,6 +51,19 @@ def test_drop_removes_named_keys_and_keeps_the_body_verbatim() -> None:
     assert result == (
         "---\nname: demo\ndescription: Demo.\n---\nUse $ARGUMENTS here.\nmodel prose line stays.\n"
     )
+
+
+def test_render_without_an_output_dir_is_the_drop_only_copy() -> None:
+    assert render_skill_file(_SKILL, None, _DROP) == drop_skill_frontmatter_keys(_SKILL, _DROP)
+
+
+def test_render_with_an_output_dir_is_the_copilot_translation(tmp_path: Path) -> None:
+    skills_dir = tmp_path / "skills"
+
+    assert render_skill_file(_SKILL, skills_dir, _DROP) == translate_skill_file(
+        _SKILL, skills_dir, _DROP
+    )
+    assert render_skill_file(_SKILL, skills_dir, _DROP) != render_skill_file(_SKILL, None, _DROP)
 
 
 def test_drop_with_no_keys_returns_the_input() -> None:

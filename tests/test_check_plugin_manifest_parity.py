@@ -490,16 +490,11 @@ def test_a_count_word_outside_the_token_set_is_not_a_count(parity: Any, tmp_path
     assert parity.check_description_counts((_manifest(tmp_path, "half-dozen hooks"),)) == 0
 
 
-def test_grok_marketplace_is_scanned_for_counts() -> None:
-    """The Grok Build marketplace publishes a description, so it is scanned."""
+@pytest.mark.parametrize(
+    "rel",
+    [".grok-plugin/marketplace.json", ".agents/plugins/marketplace.json", "src/codex/plugin.json"],
+)
+def test_host_files_are_scanned_for_counts(rel: str) -> None:
     module = _load_module()
     scanned = {path.resolve() for path in module._DESCRIBED_FILES}
-    assert (REPO_ROOT / ".grok-plugin" / "marketplace.json").resolve() in scanned
-
-
-def test_codex_marketplace_and_manifest_are_scanned_for_counts() -> None:
-    """The Codex marketplace and its root plugin.json publish descriptions."""
-    module = _load_module()
-    scanned = {path.resolve() for path in module._DESCRIBED_FILES}
-    assert (REPO_ROOT / ".agents" / "plugins" / "marketplace.json").resolve() in scanned
-    assert (REPO_ROOT / "src" / "codex" / "plugin.json").resolve() in scanned
+    assert (REPO_ROOT / rel).resolve() in scanned

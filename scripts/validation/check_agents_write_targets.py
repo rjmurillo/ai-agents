@@ -38,20 +38,10 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-# ``plugins`` holds the Codex marketplace file Codex reads from the repository
-# root (ADR-115 Decision 7). It is hand-maintained, so it is a read-only input.
+# plugins: the hand-maintained Codex marketplace file (ADR-115 Decision 7).
 _KEEP_DIRS = frozenset(
-    {
-        "governance",
-        "steering",
-        "schemas",
-        "templates",
-        "dictionaries",
-        "guides",
-        "hooks",
-        "archive",
-        "plugins",
-    }
+    {"governance", "steering", "schemas", "templates", "dictionaries", "guides", "hooks", "archive"}
+    | {"plugins"}
 )
 
 # Top-level files that issue #5421 moved to ``.project-toolkit/`` unchanged.

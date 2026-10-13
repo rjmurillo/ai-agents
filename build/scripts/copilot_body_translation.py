@@ -343,3 +343,16 @@ def drop_skill_frontmatter_keys(content: str, drop_keys: frozenset[str]) -> str:
         return content
     frontmatter, body = match.group(1), match.group(2)
     return str(drop_frontmatter_keys(frontmatter, drop_keys)) + body
+
+
+def render_skill_file(
+    content: str, skills_output_dir: Path | None, drop_keys: frozenset[str]
+) -> str:
+    """Render one SKILL.md for a mirror tree.
+
+    A ``skills_output_dir`` selects the Copilot translation; ``None`` selects the
+    drop-only copy the Codex tree uses.
+    """
+    if skills_output_dir is None:
+        return drop_skill_frontmatter_keys(content, drop_keys)
+    return translate_skill_file(content, skills_output_dir, drop_keys)
