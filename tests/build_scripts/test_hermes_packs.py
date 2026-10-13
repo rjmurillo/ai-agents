@@ -27,11 +27,13 @@ import generate_skills  # noqa: E402
 import hermes_pack_checks as checks  # noqa: E402
 import hermes_pack_config as cfg  # noqa: E402
 import hermes_packs  # noqa: E402
-import lib_mirror  # noqa: E402
+import lib_render  # noqa: E402
 import validate_templates_schema as schema  # noqa: E402
 from frontmatter_key_drop import drop_keys_from_skill_md  # noqa: E402
 from test_hermes_pack_checks import make_config, make_stanza, write_skill  # noqa: E402
 
+EM_DASH = chr(0x2014)
+EN_DASH = chr(0x2013)
 HERMES_YAML = _REPO_ROOT / "templates" / "platforms" / "hermes.yaml"
 NESTED_FRONTMATTER = (
     "---\nname: alpha\ndescription: d\nmodel: haiku\nmetadata:\n  domains:\n    - x\n---\nBody\n"
@@ -83,7 +85,7 @@ def test_drop_keys_rejects_a_file_without_frontmatter() -> None:
 def test_build_pack_lays_out_manifest_skills_and_lib(tmp_path: Path) -> None:
     repo = make_repo(tmp_path)
     config = make_config()
-    lib = lib_mirror.render_lib_files(repo)
+    lib = lib_render.render_lib_files(repo)
 
     files = hermes_packs.build_pack(repo / "src/claude/skills", config.packs[0], config, lib)
 
@@ -182,7 +184,7 @@ def test_plan_tree_fails_when_a_pack_exceeds_the_file_budget(tmp_path: Path) -> 
 
 def test_plan_tree_counts_lib_against_the_budget(tmp_path: Path) -> None:
     repo = make_repo(tmp_path)
-    lib = lib_mirror.render_lib_files(repo)
+    lib = lib_render.render_lib_files(repo)
     config = make_config()
     biggest = max(
         len(hermes_packs.build_pack(repo / "src/claude/skills", pack, config, lib))
@@ -252,7 +254,7 @@ def test_index_says_so_when_nothing_is_excluded() -> None:
 def test_index_has_no_dash_characters_or_generated_banner() -> None:
     text = hermes_packs.render_index(make_config()).decode("utf-8")
 
-    assert "—" not in text and "–" not in text
+    assert EM_DASH not in text and EN_DASH not in text
     assert "generated" not in text.lower() and "do not edit" not in text.lower()
 
 
@@ -504,7 +506,7 @@ def real_config() -> cfg.HermesConfig:
 
 
 def test_lib_render_equals_the_committed_claude_lib_tree() -> None:
-    rendered = lib_mirror.render_lib_files(_REPO_ROOT)
+    rendered = lib_render.render_lib_files(_REPO_ROOT)
     committed_root = _REPO_ROOT / "src" / "claude" / "lib"
     committed = {
         p.relative_to(committed_root).as_posix(): p.read_bytes()
@@ -569,7 +571,7 @@ def test_every_real_pack_fits_the_budget_with_lib(real_config: cfg.HermesConfig)
         assert len(files) <= real_config.pack_max_files, pack.key
         assert sum(len(f.data) for f in files.values()) < cfg.HERMES_MAX_PACK_BYTES
         assert sum(1 for rel in files if rel.startswith("lib/")) == len(
-            lib_mirror.render_lib_files(_REPO_ROOT)
+            lib_render.render_lib_files(_REPO_ROOT)
         )
 
 
@@ -582,6 +584,7 @@ def _flat_string_map(value: object) -> bool:
 def test_every_packed_skill_md_passes_the_portable_frontmatter_rules(
     real_config: cfg.HermesConfig,
 ) -> None:
+    # citation-freshness: ignore -- upstream hermes-agent file at the commit pinned in hermes.yaml
     # Rules copied from hermes_cli/agent_plugins.py:209-229 at the pinned commit:
     # name equals the folder, description 1..1024 chars, metadata a flat string map,
     # and allowed-tools, license, and compatibility strings.
@@ -645,5 +648,5 @@ def test_the_real_tree_has_no_dash_characters() -> None:
         "project-toolkit-knowledge/plugin.json",
     ):
         text = (out / name).read_text(encoding="utf-8")
-        assert "—" not in text and "–" not in text, name
+        assert EM_DASH not in text and EN_DASH not in text, name
     assert os.path.isfile(HERMES_YAML)

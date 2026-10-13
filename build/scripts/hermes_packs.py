@@ -53,7 +53,7 @@ from hermes_pack_config import (  # noqa: E402
     PackSpec,
     parse_stanza,
 )
-from lib_mirror import LibRenderError, render_lib_files  # noqa: E402
+from lib_render import LibRenderError, render_lib_files  # noqa: E402
 from yaml_loader import validate_relative_path  # noqa: E402
 
 INDEX_NAME = "README.md"

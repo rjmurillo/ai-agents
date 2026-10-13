@@ -403,52 +403,6 @@ def sync_file(
 
 
 # ---------------------------------------------------------------------------
-# In-memory render, for trees that own their whole directory (ADR-115 Hermes packs)
-# ---------------------------------------------------------------------------
-
-
-class LibRenderError(Exception):
-    """A registered lib source is missing, unreadable, or not a clean byte copy."""
-
-
-def render_lib_files(repo_root: Path) -> dict[str, bytes]:
-    """Return every lib file as ``{path under a lib root: bytes}``, without writing.
-
-    Same sources and transforms as :func:`compile_all`: each ``.py`` file of a
-    :data:`PACKAGES` source goes through :func:`_transform_file`
-    (``IMPORT_CONVERSIONS``), and each :data:`SYNC_FILE_NAMES` source is a byte
-    copy. A Hermes pack (``hermes_packs.py``) owns its whole directory, so it
-    needs the expected bytes up front to count files and sizes and to compare
-    against disk, instead of letting :func:`sync_pair` write them piecemeal.
-    ``tests/build_scripts/test_hermes_packs.py`` pins this result byte for byte
-    to the committed ``src/claude/lib/`` tree that :func:`compile_all` writes.
-
-    Raises :class:`LibRenderError` instead of returning a partial tree.
-    """
-    files: dict[str, bytes] = {}
-    for package in PACKAGES:
-        src_dir = repo_root / "scripts" / package
-        if not src_dir.is_dir():
-            raise LibRenderError(f"Registered source directory missing: scripts/{package}")
-        for src_path in sorted(p for p in src_dir.iterdir() if p.suffix == ".py"):
-            try:
-                files[f"{package}/{src_path.name}"] = _transform_file(src_path)
-            except (OSError, UnicodeDecodeError) as exc:
-                raise LibRenderError(
-                    f"Cannot read scripts/{package}/{src_path.name}: {exc}"
-                ) from exc
-    for src_rel, file_name in SYNC_FILE_NAMES:
-        src_path = repo_root / src_rel
-        if not src_path.is_file():
-            raise LibRenderError(f"Registered source file missing: {src_rel}")
-        try:
-            files[file_name] = read_bytes_no_redirect(src_path)
-        except OSError as exc:
-            raise LibRenderError(f"Cannot read {src_rel}: {exc}") from exc
-    return files
-
-
-# ---------------------------------------------------------------------------
 # Orchestrator: every package and file pair, into every plugin root
 # ---------------------------------------------------------------------------
 

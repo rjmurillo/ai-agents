@@ -233,7 +233,8 @@ def generate_skills(
     if mode == "hermes-packs":
         # The Hermes tree reads src/claude/skills, which the compile and
         # support-file mirror above just refreshed, and owns all of src/hermes.
-        return generate_hermes_packs(stanza, repo_root, what_if=what_if, check=validate)
+        # int(...): same sibling-import typing gap as compile_result above.
+        return int(generate_hermes_packs(stanza, repo_root, what_if=what_if, check=validate))
     if mode != "directory-copy":
         print(
             f"Error: unsupported skills mode '{mode}' "
