@@ -1,8 +1,8 @@
-# ADR Debate Log: ADR-115 Native Plugin Trees for Cursor, Codex, Grok Build, and Hermes
+# ADR Debate Log: ADR-115 Native Plugin Support for Cursor, Codex, Grok Build, Hermes, Devin, Pi, and Muse
 
 ## Summary
 
-- **Rounds**: 3
+- **Rounds**: 5
 - **Outcome**: Consensus
 - **Final Status**: proposed (owner decides acceptance)
 - **Panel**: reduced, architect and critic. The record is new prose and changes no executable enforcement or a rule other gates read.
@@ -82,6 +82,49 @@
 ### Post-consensus evidence
 
 On 2026-10-13 the owner pointed to the Hermes plugin developer guide. Its text at the pinned commit adds two facts to Decision 5. Native `register_skill` skills stay out of `<available_skills>`. Portable packages get `PLUGIN_ROOT`. Both support the portable form the panel accepted, so no decision changed and no new round ran.
+
+## Round 4 Summary
+
+### Key Issues Addressed
+
+- Scope change by the owner on 2026-10-13: add Devin and Pi, and reopen Muse, citing `obra/superpowers` as a working example.
+- Architect P1 and critic P1: Devin loads a root `AGENTS.md` as an always-on rule, and `src/claude/AGENTS.md` is a repository-only guide.
+- Critic P1: the Muse field set and the ADR-092 `version` rule were left open.
+- P2s: the Muse generator and gate were unnamed, "observed working file" overstated the evidence, Muse may need the ADR-111 drop, Devin has no marketplace file to withhold, and two counts were stale.
+
+### Major Changes Made
+
+- Devin gets a generated `src/devin/` tree without `AGENTS.md` or `CLAUDE.md`.
+- Pi reads a private root `package.json` whose `pi.skills` points at `src/claude/skills`.
+- Muse emits six named fields with no `version`, through an `artifacts.muse` stanza and a drift gate. A recorded `muse plugins validate` and `install` run is its schema check.
+- Grok Bot stays unsupported.
+
+### Agent Positions
+
+| Agent | Position |
+|-------|----------|
+| architect | Disagree-and-Commit, one P1 |
+| critic | Block, two P1s |
+
+## Round 5 Summary
+
+### Key Issues Addressed
+
+- Confirmation of every round 4 item.
+- Architect P2: Devin's rule copy did not say whether internal-only globs are filtered.
+- Critic P2: the Status line still named round 4 as the last round.
+
+### Major Changes Made
+
+- Devin filters internal-only rule globs the way Cursor does.
+- Status records rounds 4 and 5.
+
+### Agent Positions
+
+| Agent | Position |
+|-------|----------|
+| architect | Accept |
+| critic | Accept |
 
 ### Next Steps
 
