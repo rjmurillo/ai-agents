@@ -71,6 +71,12 @@ chain of accepted items, is not independent
 (`inherits-rejected-evidence`). The conclusion it was handed came from evidence
 that cannot speak for this artifact revision.
 
+Inheritance never launders independence. An item that inherits from any
+non-independent item, directly or through a chain, is not independent
+(`inherits-non-independent-evidence`), whatever its own origin or premises. A
+second agent's label does not change what it was handed. Items that already
+carry another reason keep only that reason.
+
 ## Verdict order
 
 1. Independent item with `normative` or `executable-runtime` authority in state
@@ -105,3 +111,4 @@ carries only a conclusion drops `premises`, and the item falls to
 | Promotion bindings | `x3_promotion_complete`, `x4_promotion_missing_command` | accepted, rejected |
 | Lineage lost in a handoff | `x5_lineage_dropped_on_handoff` | not independent |
 | Reviewer inherits from a rejected item | `x6_inherits_rejected_missing_binding`, `x7_inherits_stale_revision` | not independent, claim inflated |
+| Reviewer inherits from a non-independent item outside the subject loop | `x9_inherits_non_independent_item`, `x10_inherits_through_chain` | not independent, claim inflated |

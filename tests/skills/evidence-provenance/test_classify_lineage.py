@@ -263,18 +263,63 @@ def test_negative_control_bypassing_the_rule_allows_doubled_confidence(
     assert bypassed["violations"] == [] and bypassed["independent_loops"] == 2
 
 
-def test_loop_grouping_alone_stops_an_inheriting_second_agent(
+def test_inheritance_taint_and_loop_grouping_each_stop_an_inheriting_second_agent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The origin check does not catch a reviewer agent; only premise grouping does."""
+    """The origin check does not catch a reviewer agent; grouping or taint must."""
     record = load_fixture("s6_reviewer_inherits_conclusion")
     guarded = classify_lineage.classify(record, False)
 
+    with monkeypatch.context() as patch:
+        patch.setattr(classify_lineage, "build_loops", no_grouping)
+        taint_only = classify_lineage.classify(record, False)
+    with monkeypatch.context() as patch:
+        patch.setattr(classify_lineage, "taint_pass", lambda items, reasons: False)
+        grouping_only = classify_lineage.classify(record, False)
     monkeypatch.setattr(classify_lineage, "build_loops", no_grouping)
+    monkeypatch.setattr(classify_lineage, "taint_pass", lambda items, reasons: False)
     bypassed = classify_lineage.classify(record, False)
 
     assert guarded["independent_loops"] == 0 and guarded["violations"]
+    assert taint_only["independent_loops"] == 0 and taint_only["violations"]
+    assert grouping_only["independent_loops"] == 0 and grouping_only["violations"]
     assert bypassed["independent_loops"] == 1 and bypassed["violations"] == []
+
+
+def test_inheriting_from_a_non_independent_item_outside_the_subject_loop_taints() -> None:
+    """The reviewer's own premises are fresh; only the inherited source is weak."""
+    report = classify_lineage.classify(load_fixture("x9_inherits_non_independent_item"), False)
+    rows = {r["id"]: r for r in report["evidence"]}
+
+    assert rows["implementer-test"]["loop"] != "L0-subject"
+    assert rows["second-agent-review"]["independent"] is False
+    assert report["independent_loops"] == 0
+
+
+def test_taint_stops_when_the_inherited_source_is_independent() -> None:
+    record = {
+        "subject": subject(),
+        "evidence": [
+            item("source", premises=["obs:a"], origin="human"),
+            item("child", premises=["obs:b"], origin="human", inherits_from=["source"]),
+        ],
+    }
+    rows = {r["id"]: r for r in classify_lineage.classify(record, False)["evidence"]}
+
+    assert rows["child"]["independent"] and rows["source"]["independent"]
+
+
+def test_item_with_its_own_reason_keeps_only_that_reason_when_it_inherits() -> None:
+    record = {
+        "subject": subject(),
+        "evidence": [
+            item("source", premises=["interp:R"]),
+            item("child", premises=["obs:b"], origin="human", inherits_from=["source"]),
+        ],
+    }
+    rows = {r["id"]: r for r in classify_lineage.classify(record, False)["evidence"]}
+
+    assert rows["child"]["not_independent_because"] == ["shares-subject-loop"]
 
 
 def test_naive_item_count_doubles_what_the_classifier_counts() -> None:

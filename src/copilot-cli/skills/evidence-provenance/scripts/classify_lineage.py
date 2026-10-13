@@ -216,9 +216,35 @@ def independence_reasons(item: Item, in_subject_loop: bool) -> list[str]:
     return reasons
 
 
-def describe(item: Item, loops: LoopMap, labels: dict[str, str]) -> dict[str, Any]:
-    in_subject = loops.find(item.id) == loops.find("subject")
-    reasons = independence_reasons(item, in_subject)
+def taint_pass(items: list[Item], reasons: dict[str, list[str]]) -> bool:
+    """Mark one wave of inheritors of non-independent items; report whether any changed."""
+    changed = False
+    for item in items:
+        handed_down = any(reasons.get(ref) for ref in item.inherits_from)
+        if handed_down and not reasons[item.id]:
+            reasons[item.id].append("inherits-non-independent-evidence")
+            changed = True
+    return changed
+
+
+def collect_reasons(items: list[Item], loops: LoopMap) -> dict[str, list[str]]:
+    """Own reasons per item, then taint every inheritor of a non-independent item.
+
+    Inheriting a conclusion does not launder it: an item handed its result by a
+    non-independent item, directly or through a chain, is not independent either.
+    """
+    subject_root = loops.find("subject")
+    reasons = {
+        item.id: independence_reasons(item, loops.find(item.id) == subject_root) for item in items
+    }
+    while taint_pass(items, reasons):
+        pass
+    return reasons
+
+
+def describe(
+    item: Item, loops: LoopMap, labels: dict[str, str], reasons: list[str]
+) -> dict[str, Any]:
     return {
         "id": item.id,
         "state": item.state,
@@ -310,7 +336,8 @@ def classify(record: dict[str, Any], promotion: bool) -> dict[str, Any]:
     mark_rejected_inheritance(items, {key for key, why in problems.items() if why})
     loops = build_loops(subject, items)
     labels = loop_labels(loops, items)
-    rows = [describe(item, loops, labels) for item in items]
+    reasons = collect_reasons(items, loops)
+    rows = [describe(item, loops, labels, reasons[item.id]) for item in items]
     violations = check_violations(record, every)
     independent_loops = count_loops(rows, authoritative_only=False)
     claimed = record.get("claimed_independent")
