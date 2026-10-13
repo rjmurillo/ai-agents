@@ -71,7 +71,7 @@ The skill body MUST NOT hard-fail when the `.claude/` path is missing; it MUST a
 
 | Script | Purpose | Exit codes |
 |--------|---------|------------|
-| `scripts/validate_review_marker.py` | Validates the SHA-bound `Reviewed-By: /review@...` marker `/ship` requires. | `0` valid, `1` missing, stale, or bad axis list, `2` config error |
+| `scripts/validate_review_marker.py` | Validates the SHA-bound `Reviewed-By: /review@...` marker `/ship` requires and the review report its `Review-Artifact` digest covers. `--digest REPORT_FILE` prints that digest for the writer. | `0` valid, `1` missing, stale, bad axis list, or no valid review report, `2` config error |
 | `select_axes.py` (same directory) | Selects the Stage-2 canonical axes and the local-only skill axes from verified changed paths and diff effects. Emits the selection, per-axis reasons, and skips as JSON. | `0` selection emitted, `2` config error (unknown pinned axis, or references directory missing or empty) |
 
 ## Process
@@ -108,6 +108,10 @@ Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICA
 6. **Extract verdict per axis**. Canonical axes end with a line matching `(?m)^\s*(?i:(?:Final\s+)?Verdict):\s*\[?(PASS|WARN|CRITICAL_FAIL|REJECTED|FAIL|NEEDS_REVIEW|NON_COMPLIANT|COMPLIANT|PARTIAL|UNKNOWN)(?![|A-Z_])\]?` (label case-insensitive; tokens case-sensitive uppercase; trailing lookahead rejects template-form lines like `VERDICT: [PASS|WARN|CRITICAL_FAIL]` and token-prefix collisions). Parse them with `extract_verdict` from the verdict library. Local axes emit JSON or `Gate:` instead, so normalize them first with `adapt_local_axis_verdict` from that library: it maps code-quality exit codes, `doc-accuracy` `gate_result.verdict`, and golden/taste `error_count` plus `warning_count` into PASS, WARN, FAIL, or UNKNOWN. On a crash, malformed output, or an unclassified result, record `UNKNOWN` and continue.
 7. **Merge verdicts** via `merge_verdicts([...])`, passing the Stage-1 `spec-compliance` verdict, the step 4c correctness verdict, plus one verdict per axis that actually ran (the selected Stage-2 axes plus any selected local skills; 16 total in deep-review mode with the current set). Rules: any token in `FAIL_VERDICTS` (`CRITICAL_FAIL`/`REJECTED`/`FAIL`/`NEEDS_REVIEW`/`NON_COMPLIANT`) -> `CRITICAL_FAIL`; any `WARN` or `PARTIAL` -> `WARN`; any `UNKNOWN` or unrecognized token -> `UNKNOWN`; all `PASS`/`COMPLIANT` -> `PASS`; empty -> `UNKNOWN`. When Stage 1 returns `CRITICAL_FAIL` (step 2 short-circuit), skip this merge: the FINAL VERDICT is `CRITICAL_FAIL`. A Stage-1 `UNKNOWN` does NOT short-circuit; it is merged like any other axis (issue #2690).
 8. **Emit findings table** (see Output below).
+
+## Running without the Task tool
+
+A subagent with no `Task` tool MUST NOT review its own diff and write the marker: the author would grade the author. Run each axis as its own `claude -p` process instead. If `claude` is not on `PATH`, record `UNKNOWN` for every axis, which writes no marker. The command and the evidence to keep are in `resources/marker-and-no-task.md`.
 
 ## Vendored install (REQ-008-06)
 
@@ -151,28 +155,16 @@ SHA-bound marker so `/ship` can prove the shipped code was reviewed at its curre
 state without re-running the review. Skip this on `CRITICAL_FAIL`, on a Stage-1
 short-circuit, and on `UNKNOWN`: a non-PASS verdict must not leave a marker.
 
-The marker is a git trailer (vendor-safe: it lives in the commit, travels in every
-clone, needs no `.agents/` access). Its contract, quoted verbatim from the reader
-`.claude/skills/review/scripts/validate_review_marker.py` (`MARKER_TRAILER_KEY = "Reviewed-By"`),
-is:
+The marker is an empty commit on top of the reviewed tip. Its body holds a review
+report (the reviewed SHA plus one `<axis>: <VERDICT>` row per axis that ran), then
+the trailers `Reviewed-By: /review@<axis-list> on <reviewed-tip-sha>` and
+`Review-Artifact: sha256:<digest of the report lines>`. A bare `Reviewed-By`
+trailer is rejected: any agent can type one. Write the marker only as
+`resources/marker-and-no-task.md` says, and never add a row for an axis that did
+not run.
 
-```text
-Reviewed-By: /review@<comma-separated-axis-list> on <reviewed-tip-sha>
-```
-
-A commit cannot name its own SHA in a trailer (the SHA hashes the trailer, so
-writing the SHA changes the SHA, with no fixed point). So record the reviewed tip,
-then write an **empty marker commit** on top of it:
-
-1. `REVIEWED_TIP=$(git rev-parse HEAD)` (the code that was reviewed).
-2. Build the axis list from the axes that ran (comma-separated stems, e.g.
-   `analyst,architect,qa,security,...`).
-3. `git commit --allow-empty -m "review: /review PASS marker" --trailer "Reviewed-By: /review@<axis-list> on $REVIEWED_TIP"`
-
-The marker commit adds no code. SHA-binding holds: the marker is valid only while
-its parent (the reviewed tip) is HEAD's parent. Land any new code commit and the
-marker no longer sits on HEAD's parent, so the review is correctly treated as stale.
-Issue #1938 records the design.
+The marker is valid only while its parent (the reviewed tip) is HEAD's parent. Land
+any new code commit and the review is correctly stale. Issues #1938 and #6438.
 
 Re-running `/review` after the verdict is still PASS writes another marker commit;
 that is safe (idempotent in effect: the latest marker binds the current tip).
