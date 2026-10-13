@@ -136,7 +136,7 @@ Resolve to concrete IDs | unresolved: retain harness default + record fallback |
 Preserve registered roles, mappings, role-keyed results, ADR-009, and ADR-078.
 
 Judgment tier owns ambiguity/acceptance and hard exceptions | Do not force a weaker model into judgment work with more prompts, tools, or subagents.
-Bounded: route down only when scope explicit | failure cheap | verifier objective (tests, diff, schema, security) | fan-out/context replay low | receipt compact.
+Below bounded: no model when a script or rule decides it; a big model on a yes/no is a classifier in an expensive coat. Bounded: route down only when scope explicit | failure cheap | verifier objective (tests, diff, schema, security) | fan-out/context replay low | receipt compact.
 Control loop: do not route everything up | constrain capable models for routine work | pre-route up when correction/review/human-wait cost wins.
 Interactive: human-blocking latency weighs more | async: token cost weighs more | fan-out adds coordination tax.
 Fixtures 2026-09-24 (single-turn): cheapest rung within 0.10 of ladder best for most agents. Relative, no pass bar (Luna qa 0.33). Only nominates a tier for a bounded leaf with a real verifier. Measured floors above the cheapest rung on a ladder: skillbook and security-review judgment; orchestrator specified; implementer judgment on one ladder.
@@ -151,7 +151,8 @@ Any model: explicit follow-through, event-driven waits, compact receipts, one ch
 ```text
 0. Recon the target stack (see Target Recon). Never route on an assumed stack.
 1. Classify complexity (Cynefin)
-2. Bounded leaf, real verifier, no consequential judgment?
+2. Script or rule decides it? YES → no model
+   Bounded leaf, real verifier, no consequential judgment?
    YES → bounded or specified tier by task shape
    NO  → judgment tier; continue
 3. Does task need investigation first?
@@ -188,7 +189,7 @@ TIMEBOX: [if applicable]
 TODO: [ledger ID; ensure row; 1-row update]
 ```
 
-This is the single work-order contract; other agents link here and do not copy it. Non-trivial work without OBJECTIVE, ACCEPTANCE, or RISK TIER is not routed. Fields survive delegation, review, correction, and resume.
+This is the single work-order contract; other agents link here and do not copy it. It binds every model call, external models included; a read-only bounded leaf may send JOB, NEEDS (paths), LEAVE ALONE, RETURN. Non-trivial work without OBJECTIVE, ACCEPTANCE, or RISK TIER is not routed. Fields survive delegation, review, correction, and resume.
 
 Capability (it can do the task), reliability (repeatable, honest about uncertainty), and accepted outcome (correct, scoped, independently verified, safe for its tier) differ. Benchmark capability, token volume, generated files, a worker's own weak check, and a completion claim are not acceptance evidence. A task with a missing criterion, scope, tier, or independent evidence cannot reach a successful terminal verdict: BLOCK it.
 
@@ -317,7 +318,7 @@ per-issue handoff.
 
 **You cannot observe your own context usage.** The window size is not exposed to you, so any statement about how much of it remains is fabricated. Do not stop, summarize, defer, or ask for a fresh session on the grounds that you are near a limit.
 
-**Worker transcripts cost twice.** An imported transcript stays in your context, is billed on every later turn, and competes for attention. Workers that share files and conventions each rebuild that orientation, and parallelism does not recover it.
+**Every turn replays the whole context; recall falls as it grows.** Delegate a separable task whose inputs fit a brief and result fits a compact return. Stay inline for a few tool calls or when the brief costs more. Workers that share orientation each rebuild it. **Keep state in files; distill once.** Write decisions to the handoff or plan; pass paths, not bodies. Distill a large artifact once, with citations; reopen the raw source only at a cited line.
 
 **Checkpoint protocol** (runs once between routing waves, after the prior wave returns and before the next fans out):
 
@@ -346,7 +347,6 @@ These are backstops, not a completion test: reaching the terminal predicate (`bu
 - **Budget-exhausted behavior**: At the limit, stop delegating, synthesize completed work, list unresolved items, and return control to the user with what was and was not done.
 - **Max concurrent delegations per wave**: 4 by default, a starting value, not a measured optimum. The binding cost is returns you hold un-folded while the wave lands (see Checkpoint protocol). Bound the wave at what you can fold before the next return arrives. A wave of 5 or more: ask whether two routes are the same question.
 - **A concurrent wave must not contain** a repository-wide git operation (fetch, checkout, rebase, branch switch, stash) or two agents writing the same file. Either makes a return depend on sibling timing and the result irreproducible. Route those serially or give each agent its own worktree.
-- **Answer a lightweight question with a lightweight read.** A targeted search or single field beats pulling a whole return, log, or file into the window you still owe the synthesis.
 
 ## Hook Feedback
 

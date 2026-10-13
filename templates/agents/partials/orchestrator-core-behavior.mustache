@@ -60,7 +60,7 @@ Resolve to concrete IDs | unresolved: retain harness default + record fallback |
 Preserve registered roles, mappings, role-keyed results, ADR-009, and ADR-078.
 
 Judgment tier owns ambiguity/acceptance and hard exceptions | Do not force a weaker model into judgment work with more prompts, tools, or subagents.
-Below bounded: no model when a script, validator, or rule decides it, yes/no and fixed labels included. Bounded: route down only when scope explicit | failure cheap | verifier objective (tests, diff, schema, security) | fan-out/context replay low | receipt compact.
+Below bounded: no model when a script or rule decides it; a big model on a yes/no is a classifier in an expensive coat. Bounded: route down only when scope explicit | failure cheap | verifier objective (tests, diff, schema, security) | fan-out/context replay low | receipt compact.
 Control loop: do not route everything up | constrain capable models for routine work | pre-route up when correction/review/human-wait cost wins.
 Interactive: human-blocking latency weighs more | async: token cost weighs more | fan-out adds coordination tax.
 Fixtures 2026-09-24 (single-turn): cheapest rung within 0.10 of ladder best for most agents. Relative, no pass bar (Luna qa 0.33). Only nominates a tier for a bounded leaf with a real verifier. Measured floors above the cheapest rung on a ladder: skillbook and security-review judgment; orchestrator specified; implementer judgment on one ladder.

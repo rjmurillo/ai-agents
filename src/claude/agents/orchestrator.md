@@ -124,7 +124,7 @@ Resolve to concrete IDs | unresolved: retain harness default + record fallback |
 Preserve registered roles, mappings, role-keyed results, ADR-009, and ADR-078.
 
 Judgment tier owns ambiguity/acceptance and hard exceptions | Do not force a weaker model into judgment work with more prompts, tools, or subagents.
-Below bounded: no model when a script, validator, or rule decides it, yes/no and fixed labels included. Bounded: route down only when scope explicit | failure cheap | verifier objective (tests, diff, schema, security) | fan-out/context replay low | receipt compact.
+Below bounded: no model when a script or rule decides it; a big model on a yes/no is a classifier in an expensive coat. Bounded: route down only when scope explicit | failure cheap | verifier objective (tests, diff, schema, security) | fan-out/context replay low | receipt compact.
 Control loop: do not route everything up | constrain capable models for routine work | pre-route up when correction/review/human-wait cost wins.
 Interactive: human-blocking latency weighs more | async: token cost weighs more | fan-out adds coordination tax.
 Fixtures 2026-09-24 (single-turn): cheapest rung within 0.10 of ladder best for most agents. Relative, no pass bar (Luna qa 0.33). Only nominates a tier for a bounded leaf with a real verifier. Measured floors above the cheapest rung on a ladder: skillbook and security-review judgment; orchestrator specified; implementer judgment on one ladder.
@@ -177,7 +177,7 @@ TIMEBOX: [if applicable]
 TODO: [ledger ID; ensure row; 1-row update]
 ```
 
-This is the single work-order contract; other agents link here and do not copy it. It binds every model call, external models included. A read-only bounded leaf may send four lines: JOB, NEEDS (paths, not bodies), LEAVE ALONE, RETURN (with a line cap). Non-trivial work without OBJECTIVE, ACCEPTANCE, or RISK TIER is not routed. Fields survive delegation, review, correction, and resume.
+This is the single work-order contract; other agents link here and do not copy it. It binds every model call, external models included; a read-only bounded leaf may send JOB, NEEDS (paths), LEAVE ALONE, RETURN. Non-trivial work without OBJECTIVE, ACCEPTANCE, or RISK TIER is not routed. Fields survive delegation, review, correction, and resume.
 
 Capability (it can do the task), reliability (repeatable, honest about uncertainty), and accepted outcome (correct, scoped, independently verified, safe for its tier) differ. Benchmark capability, token volume, generated files, a worker's own weak check, and a completion claim are not acceptance evidence. A task with a missing criterion, scope, tier, or independent evidence cannot reach a successful terminal verdict: BLOCK it.
 
@@ -306,7 +306,7 @@ per-issue handoff.
 
 **You cannot observe your own context usage.** The window size is not exposed to you, so any statement about how much of it remains is fabricated. Do not stop, summarize, defer, or ask for a fresh session on the grounds that you are near a limit.
 
-**Every turn replays the whole context, and recall falls as it grows.** Delegate a separable task whose inputs fit a brief and whose result fits a compact return. Stay inline for a few tool calls, or when the brief costs more than the work. Workers that share orientation each rebuild it. **Keep state in files; distill once.** Write decisions to the handoff or plan and pass paths, not bodies. Boil a large artifact down once, with citations, then work from that document; reopen the raw source only for a cited range.
+**Every turn replays the whole context; recall falls as it grows.** Delegate a separable task whose inputs fit a brief and result fits a compact return. Stay inline for a few tool calls or when the brief costs more. Workers that share orientation each rebuild it. **Keep state in files; distill once.** Write decisions to the handoff or plan; pass paths, not bodies. Distill a large artifact once, with citations; reopen the raw source only at a cited line.
 
 **Checkpoint protocol** (runs once between routing waves, after the prior wave returns and before the next fans out):
 
@@ -372,7 +372,6 @@ the evidence gap. Orchestrator coordinates; it does not investigate.
 | Pasting a skill's full text into a delegation prompt | Spends the subagent's window on text it can load itself; the paste is the pollution | Name the skill and let the subagent load it |
 | Concatenating agent responses | Not synthesis, just noise | Extract, resolve conflicts, produce coherent output |
 | Relaying a worker's "done" without checking the artifact | The report states intent, not the actual change; a false "done" ships as success | Inspect the diff, created file, or command output before synthesizing |
-| Big model for a yes/no a script decides | A classifier in an expensive coat | Script first; else bounded tier, fixed answers |
 | Bounded tier on open-ended work | Review cost can exceed the token savings | Route bounded work down; normal work to the specified tier |
 | Judgment tier for bounded disposable work | Spends expensive review capacity on cheap work | Use the bounded tier with a verifier |
 | Treating more effort as better | Adds latency and tokens without raising acceptance | Start at the task-shape effort; validate any raise |

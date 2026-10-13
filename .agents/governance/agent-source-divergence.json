@@ -65,7 +65,7 @@
     {"agent": "negotiation", "pair": "claude-shared", "unit": "capability:declaration", "digest": "802038c1543a7b0c0eb57a652ed3d7d405eabc35226a67d2c1dd1a66562d9cf2"},
     {"agent": "orchestrator", "pair": "claude-shared", "unit": "capability:declaration", "digest": "802038c1543a7b0c0eb57a652ed3d7d405eabc35226a67d2c1dd1a66562d9cf2"},
     {"agent": "orchestrator", "pair": "claude-shared", "unit": "order", "digest": "6288c52f7d0df75e6aedb428ad25f5332e22f0012aaa255b05201fe030be2cb0"},
-    {"agent": "orchestrator", "pair": "claude-shared", "unit": "section:Anti-Patterns", "digest": "885f4120462fce0251be81adec5defd3a079f50d3ada3f1cd0bad4a50591d391"},
+    {"agent": "orchestrator", "pair": "claude-shared", "unit": "section:Anti-Patterns", "digest": "dcad132918759ba8e7376b3a3d2b5a59de52783f9b8171a7d7430f83caf3ab0b"},
     {"agent": "orchestrator", "pair": "claude-shared", "unit": "section:Core Behavior", "digest": "3faf78ce08d2f1a9be4f1c3ecf6db8e5320b89389c86e4f229a72fee2290ea12"},
     {"agent": "pr-comment-responder", "pair": "claude-shared", "unit": "capability:declaration", "digest": "802038c1543a7b0c0eb57a652ed3d7d405eabc35226a67d2c1dd1a66562d9cf2"},
     {"agent": "pr-comment-responder", "pair": "claude-shared", "unit": "order", "digest": "770556505c99e3826f6009acec9c28647100aa0f32e6ae4e604e317f125cac6a"},

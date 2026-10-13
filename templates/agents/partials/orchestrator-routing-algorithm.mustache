@@ -26,7 +26,7 @@ TIMEBOX: [if applicable]
 TODO: [ledger ID; ensure row; 1-row update]
 ```
 
-This is the single work-order contract; other agents link here and do not copy it. It binds every model call, external models included. A read-only bounded leaf may send four lines: JOB, NEEDS (paths, not bodies), LEAVE ALONE, RETURN (with a line cap). Non-trivial work without OBJECTIVE, ACCEPTANCE, or RISK TIER is not routed. Fields survive delegation, review, correction, and resume.
+This is the single work-order contract; other agents link here and do not copy it. It binds every model call, external models included; a read-only bounded leaf may send JOB, NEEDS (paths), LEAVE ALONE, RETURN. Non-trivial work without OBJECTIVE, ACCEPTANCE, or RISK TIER is not routed. Fields survive delegation, review, correction, and resume.
 
 Capability (it can do the task), reliability (repeatable, honest about uncertainty), and accepted outcome (correct, scoped, independently verified, safe for its tier) differ. Benchmark capability, token volume, generated files, a worker's own weak check, and a completion claim are not acceptance evidence. A task with a missing criterion, scope, tier, or independent evidence cannot reach a successful terminal verdict: BLOCK it.
 
