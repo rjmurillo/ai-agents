@@ -17,7 +17,10 @@ order.
 EXIT CODES:
   0 - success (repaired, or already sound, or --check found nothing)
   1 - logic error (an episode is unreadable or its causal graph is invalid)
-  2 - configuration error (episodes directory missing)
+  2 - configuration error (episodes directory missing, or AI_AGENTS_REPO_ROOT
+      is not a directory)
+
+AI_AGENTS_REPO_ROOT points commit lookups at another repository.
 """
 
 from __future__ import annotations
@@ -41,6 +44,7 @@ from extract_session_episode import (  # noqa: E402
     _git_commit_timestamp,
     _link_sequential_events,
     _norm,
+    check_repo_root_override,
     default_episodes_dir,
     validate_episode_causal_graph,
 )
@@ -193,6 +197,10 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     """Repair every named episode, or the whole corpus."""
+    override_error = check_repo_root_override()
+    if override_error is not None:
+        print(json.dumps({"Error": override_error}), file=sys.stderr)
+        return 2
     args = _parse_args(argv)
     if not args.paths and not Path(args.episodes_dir).is_dir():
         print(json.dumps({"Error": f"no such directory: {args.episodes_dir}"}), file=sys.stderr)

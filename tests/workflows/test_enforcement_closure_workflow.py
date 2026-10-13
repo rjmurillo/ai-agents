@@ -142,6 +142,15 @@ class TestHeadIsData:
         for step in _steps(document, "dispatch-closure"):
             assert "working-directory" not in step, step.get("name")
 
+    def test_the_base_checkout_has_full_history_so_the_merge_base_resolves(
+        self, document: dict[Any, Any]
+    ) -> None:
+        step = next(
+            s for s in _steps(document, "dispatch-closure") if s.get("name") == "Check out the base"
+        )
+
+        assert step["with"]["fetch-depth"] == 0
+
     def test_the_tool_and_the_comparison_ref_are_the_base_checkout(
         self, document: dict[Any, Any]
     ) -> None:

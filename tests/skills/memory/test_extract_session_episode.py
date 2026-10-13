@@ -1815,6 +1815,115 @@ def _commit(repo, name, body, when=None):
     return _git(repo, "rev-parse", "HEAD")
 
 
+class TestRepoRootOverride:
+    """AI_AGENTS_REPO_ROOT redirects repository resolution (issue #5305)."""
+
+    ENV = extract_session_episode.REPO_ROOT_ENV
+
+    @staticmethod
+    def _marker_root() -> Path:
+        here = Path(extract_session_episode.__file__).resolve()
+        return next(p for p in here.parents if (p / ".agents").is_dir())
+
+    def test_default_resolution_unchanged_when_unset(self, monkeypatch):
+        monkeypatch.delenv(self.ENV, raising=False)
+
+        assert extract_session_episode._repo_root() == self._marker_root()
+
+    @pytest.mark.parametrize("blank", ["", "   ", "\t"])
+    def test_blank_override_counts_as_unset(self, monkeypatch, blank):
+        monkeypatch.setenv(self.ENV, blank)
+
+        assert extract_session_episode._repo_root() == self._marker_root()
+
+    def test_override_is_honored(self, tmp_path, monkeypatch):
+        monkeypatch.setenv(self.ENV, str(tmp_path))
+
+        assert extract_session_episode._repo_root() == tmp_path.resolve()
+
+    def test_override_value_is_stripped_and_resolved(self, tmp_path, monkeypatch):
+        link = tmp_path / "link"
+        link.symlink_to(tmp_path, target_is_directory=True)
+        monkeypatch.setenv(self.ENV, f"  {link}  ")
+
+        assert extract_session_episode._repo_root() == tmp_path.resolve()
+
+    def test_override_does_not_need_an_agents_marker(self, tmp_path, monkeypatch):
+        monkeypatch.setenv(self.ENV, str(tmp_path))
+
+        assert not (tmp_path / ".agents").exists()
+        assert extract_session_episode._repo_root() == tmp_path.resolve()
+
+    def test_default_episodes_dir_follows_the_override(self, tmp_path, monkeypatch):
+        monkeypatch.setenv(self.ENV, str(tmp_path))
+
+        expected = tmp_path.resolve() / ".project-toolkit" / "memory" / "episodes"
+        assert extract_session_episode.default_episodes_dir() == expected
+
+    def test_missing_directory_raises(self, tmp_path, monkeypatch):
+        monkeypatch.setenv(self.ENV, str(tmp_path / "nope"))
+
+        with pytest.raises(extract_session_episode.RepoRootOverrideError, match=self.ENV):
+            extract_session_episode._repo_root()
+
+    def test_file_instead_of_directory_raises(self, tmp_path, monkeypatch):
+        target = tmp_path / "file.txt"
+        target.write_text("x", encoding="utf-8")
+        monkeypatch.setenv(self.ENV, str(target))
+
+        with pytest.raises(extract_session_episode.RepoRootOverrideError):
+            extract_session_episode._repo_root()
+
+    def test_check_returns_none_when_valid_or_unset(self, tmp_path, monkeypatch):
+        monkeypatch.delenv(self.ENV, raising=False)
+        assert extract_session_episode.check_repo_root_override() is None
+
+        monkeypatch.setenv(self.ENV, str(tmp_path))
+        assert extract_session_episode.check_repo_root_override() is None
+
+    def test_check_returns_message_when_invalid(self, tmp_path, monkeypatch):
+        monkeypatch.setenv(self.ENV, str(tmp_path / "nope"))
+
+        message = extract_session_episode.check_repo_root_override()
+
+        assert message is not None
+        assert "nope" in message
+
+    def test_main_exits_2_on_invalid_override(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.setenv(self.ENV, str(tmp_path / "nope"))
+        log = tmp_path / "2026-08-01-session-1.json"
+        log.write_text("{}", encoding="utf-8")
+
+        code = extract_session_episode.main([str(log)])
+
+        assert code == 2
+        assert self.ENV in capsys.readouterr().err
+
+    @pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
+    def test_commit_timestamp_reads_the_override_repo(self, tmp_path, monkeypatch):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-q", "-b", "main")
+        _git(repo, "config", "user.email", "t@example.com")
+        _git(repo, "config", "user.name", "T")
+        _git(repo, "config", "commit.gpgsign", "false")
+        sha = _commit(repo, "a.txt", "a", when="2026-08-01T12:00:00+00:00")
+        monkeypatch.setenv(self.ENV, str(repo))
+
+        stamp = extract_session_episode._git_commit_timestamp(sha)
+
+        assert stamp == "2026-08-01T12:00:00+00:00"
+
+    @pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
+    def test_commit_timestamp_unknown_sha_is_none_under_override(self, tmp_path, monkeypatch):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-q", "-b", "main")
+        monkeypatch.setenv(self.ENV, str(repo))
+
+        assert extract_session_episode._git_commit_timestamp("a" * 40) is None
+
+
 @pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
 class TestCausalCommitOrdering:
     @staticmethod

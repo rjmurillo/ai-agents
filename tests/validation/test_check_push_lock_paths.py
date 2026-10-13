@@ -230,7 +230,9 @@ def test_pre_pr_runs_the_push_lock_check() -> None:
     assert "Push Lock Path Agreement" in recorded
 
 
-def test_pre_pr_push_lock_gate_calls_the_real_validator() -> None:
+def test_pre_pr_push_lock_gate_calls_the_real_validator(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """The recorded step must invoke this module, not merely carry its name."""
     validation_dir = Path(__file__).resolve().parents[2] / "scripts" / "validation"
     if str(validation_dir) not in sys.path:
@@ -254,17 +256,13 @@ def test_pre_pr_push_lock_gate_calls_the_real_validator() -> None:
     pre_pr_sequence.run_all_validations(repo_root, args, state, capture)
 
     seen: list[Path] = []
-    original = checker.validate_push_lock_paths
 
     def fake_validate_push_lock_paths(root: Path) -> bool:
         seen.append(root)
         return True
 
-    pre_pr_sequence.validate_push_lock_paths = fake_validate_push_lock_paths
-    try:
-        callbacks["Push Lock Path Agreement"]()
-    finally:
-        pre_pr_sequence.validate_push_lock_paths = original
+    monkeypatch.setattr(pre_pr_sequence, "validate_push_lock_paths", fake_validate_push_lock_paths)
+    callbacks["Push Lock Path Agreement"]()
 
     assert seen == [repo_root]
 
