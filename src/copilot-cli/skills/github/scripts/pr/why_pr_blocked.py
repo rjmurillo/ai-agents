@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+from typing import NamedTuple
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
@@ -47,6 +48,7 @@ from github_core.api import (
 )
 from github_core.checks_rollup import (
     MISSING_GRACE_SECONDS,
+    current_run_keys,
     extract_workflow_run_number,
     fetch_ruleset_required_contexts,
     find_missing_required,
@@ -94,6 +96,7 @@ query($owner: String!, $repo: String!, $number: Int!) {
                                             workflowRun {
                                                 databaseId
                                                 runAttempt
+                                                event
                                             }
                                         }
                                         isRequired(pullRequestNumber: $number)
@@ -152,6 +155,7 @@ query(
                                     workflowRun {
                                         databaseId
                                         runAttempt
+                                        event
                                     }
                                 }
                                 isRequired(pullRequestNumber: $number)
@@ -268,11 +272,31 @@ def _most_blocking_state(states: list[str]) -> str:
     return "unknown"
 
 
-def _classify_same_name_rows(nodes: list[dict]) -> str:
-    """Return the current state for one required-check name."""
+def _workflow_event(node: dict) -> str | None:
+    workflow_run = (node.get("checkSuite") or {}).get("workflowRun") or {}
+    return workflow_run.get("event")
+
+
+class _RunCandidate(NamedTuple):
+    """One workflow attempt's verdict for a check name."""
+
+    key: tuple[int, int] | None
+    event: str | None
+    state: str
+    required: bool
+
+
+def _same_name_verdict(nodes: list[dict]) -> tuple[str, list[dict]]:
+    """Return the current state for one required-check name and its blockers.
+
+    The newest run of each triggering event is current, because the ruleset
+    evaluates the ``pull_request`` and ``push`` runs of one head SHA. The
+    worst state across current runs decides. The second value lists the
+    current runs that are not passing, so a caller can name which run to rerun.
+    """
     check_runs = [node for node in nodes if node.get("__typename") == "CheckRun"]
     if not check_runs:
-        return _classify_rows(nodes)
+        return _classify_rows(nodes), []
 
     prepared = []
     for node in check_runs:
@@ -286,10 +310,11 @@ def _classify_same_name_rows(nodes: list[dict]) -> str:
         )
 
     candidates = [
-        (
-            _workflow_key(group[0]),
-            _classify_rows(group),
-            any(node.get("isRequired") for node in group),
+        _RunCandidate(
+            key=_workflow_key(group[0]),
+            event=_workflow_event(group[0]),
+            state=_classify_rows(group),
+            required=any(node.get("isRequired") for node in group),
         )
         for group in partition_rows_by_run(
             prepared,
@@ -298,15 +323,27 @@ def _classify_same_name_rows(nodes: list[dict]) -> str:
             "_workflow_run_attempt",
         )
     ]
-    if any(is_required for _, _, is_required in candidates):
-        candidates = [candidate for candidate in candidates if candidate[2]]
-    known = [(key, state) for key, state, _ in candidates if key is not None]
-    unknown_states = [state for key, state, _ in candidates if key is None]
-    if known:
-        latest_key = max(key for key, _ in known)
-        current_states = [state for key, state in known if key == latest_key]
-        return _most_blocking_state(current_states + unknown_states)
-    return _most_blocking_state(unknown_states)
+    if any(candidate.required for candidate in candidates):
+        candidates = [candidate for candidate in candidates if candidate.required]
+    unknown_states = [candidate.state for candidate in candidates if candidate.key is None]
+    known = [(candidate.key, candidate) for candidate in candidates if candidate.key is not None]
+    if not known:
+        return _most_blocking_state(unknown_states), []
+
+    current_keys = current_run_keys([(key, candidate.event) for key, candidate in known])
+    current = [(key, candidate) for key, candidate in known if key in current_keys]
+    state = _most_blocking_state([candidate.state for _, candidate in current] + unknown_states)
+    blocking_runs = [
+        {
+            "RunId": key[0],
+            "Attempt": key[1],
+            "Event": candidate.event,
+            "State": candidate.state,
+        }
+        for key, candidate in current
+        if candidate.state != "passing"
+    ]
+    return state, blocking_runs
 
 
 def _fetch_remaining_contexts(
@@ -460,8 +497,9 @@ def diagnose(
 ) -> dict:
     """Compute (missing, failing, unresolved_thread_count) from raw PR data.
 
-    Groups check nodes by name and workflow run. Same-run failures win, and
-    the latest identified workflow run determines the current result.
+    Groups check nodes by name and workflow run. Same-run failures win. The
+    latest identified workflow run of each triggering event is current, and
+    the worst state across current runs determines the result.
 
     ``MissingRequired`` lists every required check absent from the rollup.
     Inside the grace window after the head commit they also appear under
@@ -480,10 +518,16 @@ def diagnose(
         if node.get("isRequired"):
             required_names.add(name)
 
-    states_by_name = {
-        name: _classify_same_name_rows(name_nodes)
+    verdicts_by_name = {
+        name: _same_name_verdict(name_nodes)
         for name, name_nodes in nodes_by_name.items()
         if name in required_names
+    }
+    states_by_name = {name: state for name, (state, _) in verdicts_by_name.items()}
+    blocking_runs = {
+        name: runs
+        for name, (state, runs) in verdicts_by_name.items()
+        if runs and state in {"failing", "pending", "unknown"}
     }
     failing_required = sorted(name for name, state in states_by_name.items() if state == "failing")
     pending_required = sorted(name for name, state in states_by_name.items() if state == "pending")
@@ -516,12 +560,23 @@ def diagnose(
         "FailingRequired": failing_required,
         "PendingRequired": pending_required,
         "IndeterminateRequired": indeterminate_required,
+        "BlockingRuns": blocking_runs,
         "UnresolvedThreads": unresolved_count,
         "BaseBranch": pr_data.get("BaseBranch"),
         "OverallState": pr_data.get("OverallState", "UNKNOWN"),
         "MergeStateStatus": pr_data.get("MergeStateStatus"),
         "RulesetContextsAvailable": ruleset_contexts is not None,
     }
+
+
+def _rerun_hint(blocking_runs: dict[str, list[dict]]) -> str:
+    """Name each blocking run and its event so the caller knows what to rerun."""
+    targets = [
+        f"{name} (run {run['RunId']}, {run['Event'] or 'unknown event'})"
+        for name, runs in sorted(blocking_runs.items())
+        for run in runs
+    ]
+    return f"Rerun: {'; '.join(targets)}" if targets else ""
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -631,6 +686,7 @@ def main(argv: list[str] | None = None) -> int:
     failing = result["FailingRequired"]
     pending = result["PendingRequired"]
     indeterminate = result["IndeterminateRequired"]
+    blocking_runs = result["BlockingRuns"]
     unresolved = result["UnresolvedThreads"]
 
     has_hard_blocker = bool(
@@ -661,6 +717,9 @@ def main(argv: list[str] | None = None) -> int:
         if result["MergeStateStatus"] == "DIRTY":
             parts.append("merge conflicts")
         summary = f"PR #{number} blocked: {', '.join(parts)}"
+        hint = _rerun_hint(blocking_runs)
+        if hint:
+            summary = f"{summary}. {hint}"
         status = "FAIL"
 
     output = {
@@ -677,6 +736,7 @@ def main(argv: list[str] | None = None) -> int:
         "FailingRequired": failing,
         "PendingRequired": pending,
         "IndeterminateRequired": indeterminate,
+        "BlockingRuns": blocking_runs,
         "UnresolvedThreads": unresolved,
         "HasBlocker": has_blocker,
         "RulesetContextsAvailable": result["RulesetContextsAvailable"],

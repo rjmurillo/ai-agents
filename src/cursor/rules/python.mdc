@@ -9,7 +9,7 @@ alwaysApply: false
 These rules apply when you write or review Python. The dev and install target is
 3.14 (`.python-version`, CI, `requires-python = ">=3.14"`). But plugin hooks and
 skill scripts run under the host's ambient interpreter, which may be older, so a
-blocking gate (`scripts/validation/validate_python_syntax.py`, issue #2655)
+blocking gate (`validate_python_syntax.py`, issue #2655)
 requires every tracked file to parse at the hook-portability syntax floor,
 currently 3.10. Write to that floor: avoid syntax newer than 3.10, such as PEP
 695 generics (`def f[T]()`, 3.12+) and PEP 758 unparenthesized `except A, B:`
@@ -101,7 +101,7 @@ Concrete known-valid patterns at the current floor (`>=3.14`):
 - `X | None` and `X | Y` type annotations are valid in function signatures since 3.10.
 - `match`/`case` structural pattern matching is valid since 3.10.
 - PEP 695 generic syntax (`def f[T]()`) is 3.12+; the repo syntax-floor gate
-  (`scripts/validation/validate_python_syntax.py`) rejects it.
+  (`validate_python_syntax.py`) rejects it.
 
 Invalid-at-any-floor runtime uses still warrant a finding:
 

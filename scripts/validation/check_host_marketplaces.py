@@ -96,6 +96,8 @@ def _resolve_source(repo_root: Path, source: object) -> Path | str:
 def _manifest_name(source_dir: Path, manifest_rel: str) -> tuple[str | None, str | None]:
     """Return ``(name, violation)`` for the manifest under ``source_dir``."""
     manifest = source_dir / manifest_rel
+    if not manifest.resolve().is_relative_to(source_dir.resolve()):
+        return None, f"manifest {manifest_rel} resolves outside the source directory"
     if not manifest.is_file():
         return None, f"missing manifest {manifest_rel} under the source directory"
     try:

@@ -5,6 +5,18 @@ alwaysApply: false
 
 # Test File Rules
 
+<!-- vendor-portability: contributor-facing rule for the rjmurillo/ai-agents repo
+     itself; it cites upstream test governance, steering docs, ADRs, and maintenance
+     scripts. None of these exist in a consumer install (issue #5298). Paths:
+     .agents/governance/TESTING-ANTI-PATTERNS.md, .agents/governance/TESTING-RIGOR.md,
+     .agents/steering/testing-approach.md,
+     .project-toolkit/architecture/ADR-023-quality-gate-prompt-testing.md,
+     .project-toolkit/architecture/ADR-034-investigation-session-qa-exemption.md,
+     .project-toolkit/security/benchmarks,
+     .project-toolkit/sessions/2026-08-06-session-10003-profile-optimize-pre-submit-pre-commit-pre-push.json,
+     scripts/maintenance/gc_worktrees.py, scripts/maintenance/worktree_occupancy.py,
+     scripts/quality_gate/external_signal_gate.py, scripts/validation -->
+
 Tests under `tests/` (including `tests/skills/<name>/`) and `.project-toolkit/security/benchmarks/` enforce correctness and catch regressions. They are not decoration.
 
 ## MUST

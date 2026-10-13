@@ -49,7 +49,6 @@ MARKETPLACES = (
     REPO_ROOT / MARKET_CLAUDE,
     REPO_ROOT / MARKET_COPILOT,
     REPO_ROOT / MARKET_GROK,
-    REPO_ROOT / MARKET_CURSOR,
 )
 
 
@@ -118,7 +117,6 @@ def _make_repo(tmp_path: Path, **manifests: str | None) -> Path:
         MARKET_CLAUDE: _marketplace("project-toolkit"),
         MARKET_COPILOT: _marketplace("project-toolkit"),
         MARKET_GROK: _marketplace("project-toolkit"),
-        MARKET_CURSOR: _marketplace("project-toolkit"),
     }
     keys = {
         "src_claude": SRC_CLAUDE,
