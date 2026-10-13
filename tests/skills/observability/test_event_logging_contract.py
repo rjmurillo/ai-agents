@@ -130,14 +130,14 @@ AUTH_LOGS_BODY = {
 }
 
 # 7. Pure in-memory helper: no operational event required.
-PURE_HELPER = {"behavior": {}, "emits": []}
+PURE_HELPER: dict = {"behavior": {}, "emits": []}
 PURE_HELPER_OVERLOGS = {
     "behavior": {},
     "emits": [{"event": "trace", "per_function_entry_exit": True}],
 }
 
 # 8. Lower-layer telemetry already captures the signal: do not duplicate it.
-DOWNSTREAM_SILENT = {"behavior": {}, "emits": []}
+DOWNSTREAM_SILENT: dict = {"behavior": {}, "emits": []}
 DOWNSTREAM_DUPLICATED = {
     "behavior": {},
     "emits": [{"event": "state_transition", "duplicate_of_lower_layer": True}],

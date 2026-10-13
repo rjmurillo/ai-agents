@@ -37,6 +37,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 # behavior flag -> required emitted event categories (MUST Emit table).
 REQUIRED: dict[str, tuple[str, ...]] = {
@@ -70,7 +71,7 @@ REQUIRED_FIELDS: dict[str, tuple[str, ...]] = {
 }
 
 
-def required_categories(behavior: dict) -> list[str]:
+def required_categories(behavior: dict[str, Any]) -> list[str]:
     """Return the event categories a scenario's behavior flags require.
 
     A pure or internal helper (no flag set) requires nothing. Absence is valid.
@@ -82,11 +83,11 @@ def required_categories(behavior: dict) -> list[str]:
     return required
 
 
-def _events_named(emits: list[dict], category: str) -> list[dict]:
+def _events_named(emits: list[dict[str, Any]], category: str) -> list[dict[str, Any]]:
     return [event for event in emits if event.get("event") == category]
 
 
-def _missing_fields(category: str, emits: list[dict]) -> list[str]:
+def _missing_fields(category: str, emits: list[dict[str, Any]]) -> list[str]:
     needed = REQUIRED_FIELDS.get(category, ())
     findings: list[str] = []
     for event in _events_named(emits, category):
@@ -95,7 +96,7 @@ def _missing_fields(category: str, emits: list[dict]) -> list[str]:
     return list(dict.fromkeys(findings))
 
 
-def missing_required(behavior: dict, emits: list[dict]) -> list[str]:
+def missing_required(behavior: dict[str, Any], emits: list[dict[str, Any]]) -> list[str]:
     """Return findings for absent required events or missing load-bearing fields."""
     findings: list[str] = []
     for category in required_categories(behavior):
@@ -106,7 +107,7 @@ def missing_required(behavior: dict, emits: list[dict]) -> list[str]:
     return findings
 
 
-def _duplicate_findings(emits: list[dict]) -> list[str]:
+def _duplicate_findings(emits: list[dict[str, Any]]) -> list[str]:
     """One transition, one event: identical event and fields twice is a duplicate.
 
     Retry attempts differ by their `attempt` field, so repeated attempts are
@@ -124,7 +125,7 @@ def _duplicate_findings(emits: list[dict]) -> list[str]:
     return findings
 
 
-def prohibited_findings(emits: list[dict]) -> list[str]:
+def prohibited_findings(emits: list[dict[str, Any]]) -> list[str]:
     """Return findings for prohibited content across all emitted events."""
     findings: list[str] = []
     for event in emits:
@@ -135,7 +136,7 @@ def prohibited_findings(emits: list[dict]) -> list[str]:
     return list(dict.fromkeys(findings))
 
 
-def classify_scenario(scenario: dict) -> dict:
+def classify_scenario(scenario: dict[str, Any]) -> dict[str, Any]:
     """Classify a scenario as compliant or not.
 
     Returns {"compliant": bool, "findings": [str, ...]}. Raises ValueError when
@@ -153,7 +154,7 @@ def classify_scenario(scenario: dict) -> dict:
     return {"compliant": not findings, "findings": findings}
 
 
-def _load_scenario(path: str) -> dict:
+def _load_scenario(path: str) -> dict[str, Any]:
     raw = sys.stdin.read() if path == "-" else Path(path).read_text(encoding="utf-8")
     scenario = json.loads(raw)
     if not isinstance(scenario, dict):
