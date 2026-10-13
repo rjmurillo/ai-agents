@@ -56,7 +56,7 @@
 |adversarial review dispatched model subagent fabricated finding verify: [pr-review/dispatched-model-reviewer-reliability](pr-review/dispatched-model-reviewer-reliability.md) (2569)
 |blocked pr mergeStateStatus ruleset required contexts thread resolution get_pr_checks wait MISSING why_pr_blocked Run Python Tests aggregator merge UNKNOWN: [diagnosing-a-blocked-pr](diagnosing-a-blocked-pr.md) (1654)
 |CHANGES_REQUESTED COMMENTED dismissed review reviewDecision stale bot review auto-merge blocked: [github/github-dismissed-reviews-block-automerge](github/github-dismissed-reviews-block-automerge.md) (632)
-|em dash en dash guard scope pre_pr checks_dash .py .md staged-dash-policy: [unicode-dash-guard-scope-gap](unicode-dash-guard-scope-gap.md) (1414)
+|em dash en dash guard scope pre_pr checks_dash .py .md staged-dash-policy: [unicode-dash-guard-scope-gap](unicode-dash-guard-scope-gap.md) (1438)
 |zsh bash associative array bad substitution shell iteration: [pr-review/zsh-associative-array-bad-substitution](pr-review/zsh-associative-array-bad-substitution.md) (343)
 |ruleset required contexts scheduled drift second baseline duplicate source contract: [decision-ruleset-drift-must-not-create-a-second-baseline](decision-ruleset-drift-must-not-create-a-second-baseline.md) (258)
 |pr context statusCheckRollup list null CheckRun StatusContext reviewThreads: [github/pr-context-authoritative-metadata](github/pr-context-authoritative-metadata.md) (195)

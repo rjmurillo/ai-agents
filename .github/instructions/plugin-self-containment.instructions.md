@@ -116,19 +116,21 @@ The remaining body surface is large. Counting it is matcher-dependent, so use th
 
 Two counting traps, both hit while measuring this. `.claude/worktrees/` holds nested checkouts of this same repository, so a naive walk multiplies every finding by the number of live agent worktrees; the same scan returned 1,557,567 before excluding them. The in-root worktree check from issue #4702 now reports them. And that body count reads the declaration the way the ratchets do, so a declared file contributes zero no matter how many references it carries.
 
-### Agent files are not scanned at all
+### Agent files are scanned in part
 
-Both portability gates scan skills only. `check_skill_portability.py` walks skill
-scripts and `check_skill_md_portability.py` walks `SKILL.md` bodies. Neither reads
-`src/claude/*.md`, `src/copilot-cli/agents/*.agent.md`, or `templates/agents/*.shared.md`,
-even though the first two sit inside plugin roots and ship to consumers verbatim.
+`check_skill_portability.py` walks skill scripts. `check_skill_md_portability.py`
+walks skill Markdown bodies and the `EXTRA_SCAN_ROOTS`, where the agent templates
+sits since #3646. It reads only `.md` files, so `templates/agents/*.shared.md` is
+covered. The `*.claude.md.tmpl` and `*.copilot.md.tmpl` files and the
+`partials/*.mustache` files are not, and they render into the shipped agent
+bodies. Neither are the rendered `src/claude/agents/*.md` and
+`src/copilot-cli/agents/*.agent.md`. Issue #3465 closed as superseded by #3646.
 
-An agent prompt that tells the reader to open `.claude/agents/<name>.md` therefore
-ships into `src/copilot-cli/` with a path that resolves to nothing, and no gate
-objects. Issue #3465 tracks widening the ratchet and carries the per-surface
-measurement; this section records the working practice to follow until it lands.
+A path an agent prompt tells the reader to open, written in a template or a
+partial, ships into `src/copilot-cli/` unchecked. A `.claude/agents/<name>.md`
+path resolves to nothing there, and no gate objects.
 
-Practical rule while the gap stands: **write shared agent prose without naming a
+Practical rule for the unscanned parts: **write shared agent prose without naming a
 tree-specific path.** Say "an agent registered in this install" rather than
 "a file at `.claude/agents/<name>.md`". The same body is copied into six trees
 across three plugin roots (`.claude/`, `src/claude/`, `src/copilot-cli/`, each of
