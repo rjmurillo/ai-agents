@@ -107,6 +107,7 @@ LEFTHOOK_ROWS = [
     ("python-autofix", "python-autofix"),
     ("python-check", "python-check"),
     ("worktree-gc-report", "worktree-gc-report"),
+    ("branch-config-prune-report", "branch-config-prune-report"),
     ("python-lint-advisory", "python-lint-advisory"),
 ]
 
@@ -285,6 +286,7 @@ def test_a_lefthook_advisory_job_reports_through_the_helper(job: str, validator:
     ("name", "job_seconds"),
     [
         ("worktree-gc-report", 120),
+        ("branch-config-prune-report", 120),
         ("python-lint-advisory", 120),
         ("python-autofix", 300),
         ("python-check", 300),

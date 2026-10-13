@@ -173,7 +173,7 @@ scripts and `github_core` import with the anthropic SDK blocked.
 |--------|---------|----------------|
 | `get_pull_requests.py` | List PRs with filters | `--state`, `--label`, `--author`, `--base`, `--head`, `--search`, `--limit` |
 | `get_pr_context.py` | PR metadata, diff, files | `--pull-request`, `--include-changed-files`, `--include-diff` |
-| `get_pr_checks.py` | CI check status, polling | `--pull-request`, `--wait`, `--timeout-seconds`, `--required-only`, `--output-format {json,human,auto}` |
+| `get_pr_checks.py` | CI check status, polling | `--pull-request`, `--wait`, `--timeout-seconds` (keep at or below 570 with `--wait`; warns above), `--missing-grace-seconds`, `--required-only`, `--output-format {json,human,auto}` |
 | `get_pr_check_logs.py` | Fetch logs from failing CI checks | `--pull-request`, `--max-lines`, `--context-lines` |
 | `triage_red_check.py` | CI-failure triage step 1: is a failing PR check also red on main's latest run? Exit 0 green on main, exit 1 red on main (EvidenceUrl cites the main run), exit 3 cannot determine (never reported as green) | `--check-name`, `--branch`, `--history-depth`, `--pull-request` |
 | `get_pr_review_comments.py` | Paginated review comments with stale detection | `--pull-request`, `--include-issue-comments`, `--detect-stale`, `--exclude-stale`, `--only-stale` |

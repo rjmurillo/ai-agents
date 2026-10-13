@@ -71,6 +71,7 @@ CONTAINER_UNCLAMPED_JOBS = frozenset(
         "review-axis-drift",
         "zero-collection-tests",
         "worktree-gc-report",
+        "branch-config-prune-report",
         "python-lint-advisory",
     }
 )
