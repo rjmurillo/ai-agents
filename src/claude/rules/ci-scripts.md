@@ -100,7 +100,7 @@ uv run --frozen python scripts/ci/subprocess_encoding_count_ratchet.py --update
 
 `scripts/ci/count_ratchet.py --update <name>` reports success and changes nothing. Verify the file afterwards rather than trusting the message.
 
-**The failure never names the offending file.** It reports a delta, and the remediation command it suggests prints the same aggregate. Locate the offender by diffing per-file counts against `origin/main`; the linter needs `--format json -- <files>` because with no file arguments it scans nothing and reports zero, which reads as a clean tree. Prove attribution instead of inferring it: `git rm --cached <suspect>` and re-run; if the ratchet returns OK, that file was the whole delta.
+**Only the taste and memory-index ratchets name the offender.** Their `Current violations:` list prints entries absent at the merge base first, marked `NEW`. The rest print a delta, so locate the offender by diffing per-file counts against `origin/main`; the linter needs `--format json -- <files>` because with no file arguments it scans nothing and reports zero, which reads as a clean tree. Prove attribution instead of inferring it: `git rm --cached <suspect>` and re-run; if the ratchet returns OK, that file was the whole delta.
 
 ## Path filters gate the diff, never the tree
 

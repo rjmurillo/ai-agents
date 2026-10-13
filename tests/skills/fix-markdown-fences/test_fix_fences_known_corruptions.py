@@ -22,6 +22,8 @@ Raw HTML is still pinned here, but only for what the repair FUNCTION does.
 `--write` refuses every one of its shapes; see test_fix_fences_html_guard.py.
 The same holds for the setext-under-a-list-item class: `--write` refuses all
 six corrupting shapes; see test_fix_fences_write_guard.py.
+The same holds for the escaped tab: `--write` refuses all nine corrupting
+label lengths; see test_fix_fences_tab_guard.py.
 
 These are ratchets, not endorsements. Closing any part of a gap lowers its
 counts and fails its test. Lower the pin; never raise it.
@@ -318,8 +320,14 @@ class TestEscapedTabInASingleLineDestinationIsDestructive:
     permissive escape rule on its own.
 
     Fixing it means giving the definition grammar the unexpanded line, which
-    is a change to how every rule in it measures a column. That is why it is
-    pinned here rather than fixed under an armed auto-merge.
+    is a change to how every rule in it measures a column. That is why the
+    repair function is pinned here rather than fixed.
+
+    `--write` no longer reaches this: it refuses all nine corrupting lengths
+    where `markdown-it-py` is installed (issue #5349; see
+    `TestEscapedTabInASingleLineDestinationIsRefused` in
+    test_fix_fences_tab_guard.py). The repair function is unchanged and its
+    count stays pinned here.
     """
 
     LABEL_LENGTHS = tuple(range(1, 12))
@@ -388,10 +396,12 @@ class TestBlockquoteInterruptingAParagraphIsDestructive:
     drift without failing anything. It was the one gap named in the
     acceptance criteria as pinned and in fact pinned nowhere.
 
-    The shape set below is this module's own, not the twelve the shipped
-    prose was measured over, so the counts are not comparable with that
-    entry and are not meant to be. What both measurements agree on is that
-    the family writes.
+    The shape set below is the only twelve: the shipped prose quotes it.
+    `--write` is refused for the five corrupting shapes where `markdown-it-py`
+    is installed (issue #5348; see
+    `TestBlockquoteInterruptingAParagraphIsRefused` in
+    test_fix_fences_write_guard.py). The repair function is unchanged and its
+    count stays pinned here.
     """
 
     SHAPES = {

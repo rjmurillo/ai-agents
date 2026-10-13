@@ -38,9 +38,8 @@ def test_generate_skills_runs_compile_before_copy_and_writes_rendered_target(
     skill_dir = tmp_path / ".claude" / "skills" / "sync"
     skill_dir.mkdir(parents=True)
     # ADR-109 B3: the install-tree SKILL.md is what a prior binplace run
-    # would have left in place; _iter_skill_sources needs it present to
-    # discover "sync" as a skill to copy, but generate_skills' copy loop
-    # must read the just-rendered PLUGIN-tree content, not this stale one.
+    # would have left in place from an earlier run; generate_skills' copy
+    # loop must read the just-rendered PLUGIN-tree content, not this stale one.
     (skill_dir / "SKILL.md").write_text("stale install copy\n", encoding="utf-8")
     config = minimal_platform_config(tmp_path)
 
@@ -78,9 +77,8 @@ def test_generate_skills_validate_true_compares_without_writing_then_still_copie
     write_template(tmp_path, "sync", "{{> greet}}\n")
     dst = seed_target_dir(tmp_path, "sync")
     dst.write_text("hi\n", encoding="utf-8")
-    # validate=True never writes, so the install-tree copy _iter_skill_sources
-    # needs must already be on disk, the same way a prior binplace run
-    # would have left it (ADR-109 B3).
+    # validate=True never writes, so seed the install-tree copy the same way
+    # a prior binplace run would have left it (ADR-109 B3).
     install_target(tmp_path, "sync").write_text("hi\n", encoding="utf-8")
     config = minimal_platform_config(tmp_path)
 

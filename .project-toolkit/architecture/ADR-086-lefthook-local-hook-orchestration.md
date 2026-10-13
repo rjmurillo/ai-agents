@@ -298,12 +298,11 @@ test job before ten seconds elapse.
 ## Confirmation
 
 These commands define acceptance. This ADR does not record that they were run.
-Run acceptance from the primary clone.
+Run acceptance from the active checkout, a primary clone or a linked worktree.
 
 ```bash
 uv sync --frozen --extra dev
 uv run --frozen lefthook version
-uv run --frozen lefthook check-install
 python3 scripts/validation/lefthook_runner.py version
 uv run --frozen pytest tests/test_lefthook_integration.py tests/test_lefthook_runner.py -q
 git diff --quiet
@@ -321,15 +320,17 @@ git status --short
 ```
 
 Acceptance requires all commands to exit zero. Lefthook must report version
-2.1.10. `lefthook check-install` must confirm installed shims in the primary
-clone. A linked worktree retains the non-blocking warning documented under
-issue #2374, so it is not the acceptance environment for this check. The full
+2.1.10. The `Lefthook Installed` gate runs `uv run --frozen lefthook version`
+from the active checkout. That command behaves the same in a linked worktree
+and in the primary clone, so a linked worktree is a valid acceptance
+environment (issue #4789). The gate does not run `lefthook check-install`: its
+shared checksum belongs to whichever branch installed last. The full
 integration file must pass, including per-child timeout headroom, stdin,
 filtering, native same-file staging, policy-driven staging of allowlisted
 additions, modifications, and tracked deletions, active-index behavior,
 installation, and failure propagation.
 
-The primary-clone verification must start and end with no tracked working-tree
+The verification must start and end with no tracked working-tree
 or index changes. Untracked files are allowed. The forced pre-commit run must
 execute the configured jobs and propagate any job failure. Clean-tree gates
 must pass before and after that run, then pass again after generator drift and
@@ -392,6 +393,7 @@ Review this decision when any of these conditions occurs:
 | 2026-07-20 | Verified that Lefthook filters use Git's active index, so no custom alternate-index guard is required. |
 | 2026-07-20 | Clarified rollback triggers, atomic restoration, and proof requirements through 6/6 delta-review consensus. |
 | 2026-10-11 | Amended item 5 and installation notes for the `lefthook_runner.py` runner (PR #5988, issue #5989). Item 6 unchanged. |
+| 2026-10-13 | Aligned the acceptance procedure with the `Lefthook Installed` gate: dropped `check-install` and the linked-worktree exemption, and removed the wrong issue #2374 citation (issue #5490). |
 
 ## Related Decisions
 
@@ -407,3 +409,9 @@ Review this decision when any of these conditions occurs:
 - PR #3244, custom activation mechanism removed by this decision.
 - Lefthook configuration: <https://lefthook.dev/configuration/>.
 - Git hooks: <https://git-scm.com/docs/githooks>.
+
+---
+
+**Amended by**:
+
+- 2026-09-09: [ADR-106: Serena-Only Memory Architecture](./ADR-106-serena-only-memory-architecture.md) retires the forgetful backend and its router that this record names. The decision here survives intact. Amended by reference; the body is preserved (PR #5656).

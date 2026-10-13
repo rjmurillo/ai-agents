@@ -52,6 +52,7 @@ supersedes: []            # ADR ids this record supersedes
 superseded-by: null       # ADR id that supersedes this record, or null
 explainer: null           # link to a living design doc, if paired
 implemented: false        # flips true at first merged change; gates amend-vs-supersede
+review-by: null           # optional: YYYY-MM-DD this record must be revisited, also stated in prose; null when no calendar deadline
 ```
 
 The frontmatter `status` enum is authoritative for tooling. A prose `## Status` section is optional. It is permitted when it carries nuance the enum cannot (review verdicts, conditions to reach Accepted, the conditional state ADR-072 uses today). It is forbidden when it only restates the frontmatter: the enum word alone, or the enum word with a date or the `superseded-by` target. When a section is present and the two disagree, the frontmatter wins, the gate flags the drift, and the author reconciles by editing the prose to match; the gate never silently rewrites prose.
@@ -173,6 +174,26 @@ What the gate enforces after this amendment:
 The new rule shares the `prose-frontmatter-agree` count instead of adding a check name. The base-ref baseline reader rejects a baseline whose keys differ from the code's check list, so a new name would fail every branch against a base that lacks it. Issue #5273 tracks splitting the count.
 
 `ADR-TEMPLATE.md` and its adr-generator copy stop offering `## Status` as a default section and describe when to add one.
+
+## Amendment 2026-10-13: optional review-by date
+
+Issue #5193 found ADR-002 and ADR-039 seven months past a provisional window that only prose recorded. Nothing could notice. The owner chose to amend this ADR rather than file a new one. The change is one additive optional key with a safe default, so it reverses nothing. A second record would split one schema across two files.
+
+`review-by` is `null` or a `YYYY-MM-DD` date. It records a calendar deadline the prose already commits to: a provisional window, a trial period, a re-review checkpoint. A revisit that fires on a condition ("if the eval sets change") is not a date, so it carries `null`. Writing a date there would invent a deadline the prose never made.
+
+What the gate enforces after this amendment, as three named checks in `check_adr_lifecycle.py`:
+
+- `review-by-format`: a value that is not a real `YYYY-MM-DD` date. Applies to every status.
+- `review-by-prose-date`: a `proposed` or `accepted` record whose prose does not state the same date. The field is a second place a deadline is written, and the prose is the first. The check keeps the two from drifting.
+- `review-by-past-due`: a `proposed` or `accepted` record whose date is before today (UTC). A record due today is on time.
+
+A `superseded`, `deprecated`, or `rejected` record is history, so its date is moot.
+
+The clock is a parameter of `scan()` and `run()`. The tests fix it. The command line has no flag for it, because a flag would let a branch dodge the gate.
+
+The ratchet treats the three checks like the others. ADR-077 passed its 2026-09-27 checkpoint without a recorded review, so it enters the baseline as one past-due record. ADR-107 to ADR-118 already carry `review-by` without a matching prose date, so they enter the baseline under `review-by-prose-date`. Both counts can only fall. When ADR-083 reaches 2026-10-19 with no review, `review-by-past-due` fails until the review is held or the date is moved.
+
+Debate log: `.project-toolkit/critique/ADR-073-review-by-amendment-debate-log.md`.
 
 ## Related Decisions
 

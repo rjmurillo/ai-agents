@@ -269,6 +269,46 @@ jobs:
           validator: check_whole_tree_count_ratchets_blocking
           job-status: ${{ job.status }}
 
+  mutation-harness-guard:
+    name: Run mutation harnesses (blocking)
+    # Issue #5538. tests/mutation/mutation_harness_*.py prove a guard test
+    # kills the defect it guards, and no gate ran them, so a stale selector
+    # (#5534) sat on main unreported. run_mutation_harnesses.py discovers the
+    # harnesses by glob and fails the job under the harness that produced the
+    # surviving mutant, the unapplied anchor, or the crash.
+    #
+    # Placement: CI only, not pre-push. The harnesses cost a few minutes in
+    # total and the pre-push declared budget is ratcheted
+    # (tests/ci/test_lefthook_declared_budget.py), so a pre-push job would
+    # need another job's cap cut to pay for it (ci-scripts.md MUST 16).
+    #
+    # No `needs:` and no `if:` on purpose, the same shape as
+    # zero-collection-guard. The job runs every harness, so a path filter
+    # could report green without measuring (issue #5317). `test-result`
+    # needs this job, so the existing "Run Python Tests" required context
+    # fails when a harness fails and no ruleset change is needed.
+    runs-on: ubuntu-26.04-arm
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@351661ca32ac09a36dc5ee2d536e3128f2a3c8ed # v2.22.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup code environment
+        uses: ./.github/actions/setup-code-env
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+          enable-pester: false
+          enable-git-hooks: false
+
+      - name: Run mutation harnesses (blocking)
+        run: uv run --frozen --extra dev python scripts/ci/run_mutation_harnesses.py
+
   test:
     name: "pytest (${{ matrix.partition }})"
     # ADR-101 requirement 1: no `needs:` and no job-level `if:`. The partitions
@@ -844,6 +884,7 @@ jobs:
       - line-endings-guard
       - context-output-guard
       - count-ratchet-guard
+      - mutation-harness-guard
     # !cancelled() rather than always(): a superseded run leaves its
     # dependencies 'cancelled', and always() would turn that into a red
     # required check on the PR head (Issue #5097). !cancelled() still runs on
@@ -876,6 +917,7 @@ jobs:
           LINE_ENDINGS_RESULT: ${{ needs.line-endings-guard.result }}
           CONTEXT_OUTPUT_RESULT: ${{ needs.context-output-guard.result }}
           COUNT_RATCHET_RESULT: ${{ needs.count-ratchet-guard.result }}
+          MUTATION_HARNESS_RESULT: ${{ needs.mutation-harness-guard.result }}
         run: >-
           python scripts/ci/require_job_results.py
           --check TEST_RESULT success "test job failed or was cancelled: {value}"
@@ -884,6 +926,7 @@ jobs:
           --check LINE_ENDINGS_RESULT success "line-endings-guard failed or was cancelled: {value}"
           --check CONTEXT_OUTPUT_RESULT success "context-output-guard failed or was cancelled: {value}"
           --check COUNT_RATCHET_RESULT success "count-ratchet-guard failed or was cancelled: {value}"
+          --check MUTATION_HARNESS_RESULT success "mutation-harness-guard failed or was cancelled: {value}"
 
       # ADR-113 decision 2: persist this job's typed result for the promotion gate.
       - name: Upload promotion evidence

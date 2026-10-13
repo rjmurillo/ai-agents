@@ -41,6 +41,24 @@
     "section-structure": {
       ".project-toolkit/architecture/ADR-030-skills-pattern-superiority.md": 1,
       ".project-toolkit/architecture/ADR-095-scoped-re-review-axes.md": 1
+    },
+    "review-by-format": {},
+    "review-by-past-due": {
+      ".project-toolkit/architecture/ADR-077-flip-stale-contract-tests.md": 1
+    },
+    "review-by-prose-date": {
+      ".project-toolkit/architecture/ADR-107-canonical-skill-contracts-and-harness-projections.md": 1,
+      ".project-toolkit/architecture/ADR-108-template-owned-skill-files.md": 1,
+      ".project-toolkit/architecture/ADR-109-template-first-plugin-distribution.md": 1,
+      ".project-toolkit/architecture/ADR-110-capability-ownership-dag.md": 1,
+      ".project-toolkit/architecture/ADR-111-skill-model-pins-project-per-harness.md": 1,
+      ".project-toolkit/architecture/ADR-112-risk-tiered-action-boundaries.md": 1,
+      ".project-toolkit/architecture/ADR-113-promotion-gate-evidence-and-exceptions.md": 1,
+      ".project-toolkit/architecture/ADR-114-agent-workflows-approval-and-non-blocking.md": 1,
+      ".project-toolkit/architecture/ADR-115-native-plugin-support-per-host.md": 1,
+      ".project-toolkit/architecture/ADR-116-unchecked-in-context-rule-violation-failure-mode.md": 1,
+      ".project-toolkit/architecture/ADR-117-state-conflation-failure-mode.md": 1,
+      ".project-toolkit/architecture/ADR-118-widen-fm-11-to-hand-authored-cross-harness-instructions.md": 1
     }
   }
 }

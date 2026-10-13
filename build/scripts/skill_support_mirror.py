@@ -35,7 +35,10 @@ from binplace_manifest import is_bytecode_artifact  # noqa: E402
 from copilot_body_translation import render_skill_file  # noqa: E402
 from lib_mirror import lib_owned_support_files  # noqa: E402
 from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
+from skill_copy_compare import SKILL_MD as _SKILL_MD  # noqa: E402
+from skill_copy_compare import copy_matches, text_matches, tree_sources  # noqa: E402
 from skill_distribution import SkillDistributionError, repo_local_names  # noqa: E402
+from skill_templates import discover as discover_skill_templates  # noqa: E402
 
 _DEFAULT_EXCLUDES = ("AGENTS.md", "CLAUDE.md")
 
@@ -51,7 +54,6 @@ _DEFAULT_EXCLUDES = ("AGENTS.md", "CLAUDE.md")
 # publicly-shipping Copilot toolkit (see templates/platforms/copilot-cli.yaml).
 _CLAUDE_SUPPORT_SOURCE_REL = Path(".claude") / "skills"
 _CLAUDE_SUPPORT_TARGET_REL = Path("src") / "claude" / "skills"
-_SKILL_MD = Path("SKILL.md")
 
 
 class GenerateSkillsError(Exception):
@@ -71,7 +73,10 @@ class SkillSupportSyncError(GenerateSkillsError):
 
 
 def _iter_skill_sources(
-    source_dir: Path, excludes: set[str], skip_names: frozenset[str] = frozenset()
+    source_dir: Path,
+    excludes: set[str],
+    skip_names: frozenset[str] = frozenset(),
+    templated: frozenset[str] = frozenset(),
 ) -> list[Path]:
     """Return immediate subdirectories that contain a SKILL.md file.
 
@@ -80,6 +85,13 @@ def _iter_skill_sources(
     skill-like layouts are not recursed. ``skip_names`` drops skills flagged
     ``distribution: repo-local`` (``skill_distribution.repo_local_names``):
     they stay under ``.claude/skills/`` and reach no vendor plugin tree.
+
+    ``templated`` names skills that own a ``templates/skills/<name>.SKILL.md.tmpl``
+    (``skill_templates.discover``). Such a skill counts as present even when
+    its install-tree ``SKILL.md`` is absent: a new skill has none until the
+    binplace step, which runs after every generator, writes it. Requiring the
+    file made a new skill's support files wait for a second build run
+    (issue #6537).
     """
     if not source_dir.is_dir():
         raise GenerateSkillsError(f"sourceDir not found: {source_dir}")
@@ -89,47 +101,10 @@ def _iter_skill_sources(
             continue
         if child.name in excludes or child.name in skip_names:
             continue
-        if not (child / "SKILL.md").is_file():
+        if child.name not in templated and not (child / "SKILL.md").is_file():
             continue
         skills.append(child)
     return skills
-
-
-def _copy_matches(dst_path: Path, src_path: Path) -> bool:
-    """True when ``dst_path`` already has ``src_path``'s bytes and permission bits.
-
-    Mirrors ``binplace_manifest._binplace_one_file``'s own reasoning: byte
-    equality alone is not enough, because a file can keep its committed
-    content while losing its executable bit (chmod, a re-clone with a
-    restrictive umask, an editor save that resets permissions). A missing,
-    symlinked, or unreadable destination is never a match, so the caller
-    always falls through to a real write for it.
-    """
-    try:
-        dst_stat = dst_path.lstat()
-    except OSError:
-        return False
-    if stat.S_ISLNK(dst_stat.st_mode):
-        return False
-    try:
-        if dst_path.read_bytes() != src_path.read_bytes():
-            return False
-    except OSError:
-        return False
-    return (dst_stat.st_mode & 0o777) == (src_path.stat().st_mode & 0o777)
-
-
-def _text_matches(dst_path: Path, content: str) -> bool:
-    """True when ``dst_path`` already holds ``content`` (UTF-8), byte for byte.
-
-    Used for the SKILL.md/translate branch, which ``write_text`` has never
-    mode-preserved (unlike the ``shutil.copy2`` branch ``_copy_matches``
-    guards), so only content is compared here.
-    """
-    try:
-        return dst_path.read_text(encoding="utf-8") == content
-    except OSError:
-        return False
 
 
 def _copy_skill_tree(
@@ -198,7 +173,8 @@ def _copy_skill_tree(
     """
     written = 0
     skipped = 0
-    for src_path in source.rglob("*"):
+    renders_skill_md = skills_output_dir is not None or bool(frontmatter_drop)
+    for src_path in tree_sources(source, plugin_skill_md if renders_skill_md else None):
         if src_path.is_dir():
             continue
         # Skip Python cache artifacts; they're build-time noise that
@@ -216,7 +192,7 @@ def _copy_skill_tree(
             skipped += 1
             continue
 
-        if rel == Path("SKILL.md") and (skills_output_dir is not None or frontmatter_drop):
+        if rel == _SKILL_MD and renders_skill_md:
             content_source = src_path
             if plugin_skill_md is not None and plugin_skill_md.is_file():
                 content_source = plugin_skill_md
@@ -225,7 +201,7 @@ def _copy_skill_tree(
                 translated = render_skill_file(content, skills_output_dir, frontmatter_drop)
             except ValueError as exc:
                 raise GenerateSkillsError(f"{content_source}: {exc}") from exc
-            if _text_matches(dst_path, translated):
+            if text_matches(dst_path, translated):
                 continue
             if check:
                 print(f"  DRIFT: {dst_path} differs from {src_path}")
@@ -237,7 +213,7 @@ def _copy_skill_tree(
             dst_path.parent.mkdir(parents=True, exist_ok=True)
             publish_bytes_preserving_mode(dst_path, translated.encode("utf-8"))
         else:
-            if _copy_matches(dst_path, src_path):
+            if copy_matches(dst_path, src_path):
                 continue
             if check:
                 print(f"  DRIFT: {dst_path} differs from {src_path}")
@@ -461,7 +437,12 @@ def sync_claude_plugin_skill_support(
     except SkillDistributionError as exc:
         return (0, 0, 0, [str(exc)])
     try:
-        skills = _iter_skill_sources(source_dir, set(_DEFAULT_EXCLUDES), repo_local)
+        skills = _iter_skill_sources(
+            source_dir,
+            set(_DEFAULT_EXCLUDES),
+            repo_local,
+            frozenset(discover_skill_templates(repo_root)),
+        )
     except GenerateSkillsError:
         return (0, 0, 0, [])
 
