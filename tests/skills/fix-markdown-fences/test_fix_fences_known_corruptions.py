@@ -173,6 +173,31 @@ class TestRawHtmlIsADestructiveGap:
         )
         assert find_fence_defects(text), "the scanner is supposed to report a defect here"
 
+    #: Measured with the write guard in force: of the 20 appended repairs, 7 are
+    #: refused and 13 are still written. The 13 are the shapes where the HTML
+    #: block swallows the appended fence, so the reference parser reads the
+    #: result as balanced and `repair_is_safe` cannot tell.
+    GUARDED_WRITTEN = 13
+    GUARDED_REFUSED = 7
+
+    def test_the_write_guard_refuses_only_some_of_the_shapes(self) -> None:
+        reference = mod._load_reference()
+        assert reference is not None
+        appended = [
+            (text, repair_markdown_fences(text))
+            for text in self._shapes()
+            if repair_markdown_fences(text) != text
+            and repair_markdown_fences(text).startswith(text)
+        ]
+        refused = [t for t, r in appended if not mod.repair_is_safe(reference, t, r)]
+        written = len(appended) - len(refused)
+        assert (written, len(refused)) == (self.GUARDED_WRITTEN, self.GUARDED_REFUSED), (
+            f"guard let {written} through and refused {len(refused)}, pinned at "
+            f"{self.GUARDED_WRITTEN} and {self.GUARDED_REFUSED}. If the guard closed "
+            "more of the gap, lower the written pin and update the Known gaps text "
+            "in fix-markdown-fences.SKILL.md.tmpl."
+        )
+
 
 class TestSetextUnderAListItemIsDestructive:
     """The third gap filed as a miss that turned out to corrupt.

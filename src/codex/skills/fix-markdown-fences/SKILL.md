@@ -146,16 +146,21 @@ documentation:
   Without either rule the tool kept a block open past its real end, and
   `--write` appended a closing fence to documents already well formed.
 - Known gaps, each measured and none counted. Where `markdown-it-py` is
-  installed, `--write` refuses any file whose repair comes out unclosed, so the
-  destructive shapes below are refused rather than written (see "Write
-  guard"). Where it is not installed they are written as described. A raw HTML block swallows a
+  installed, `--write` refuses a file whose repair comes out unclosed (see
+  "Write guard"), which stops the shapes below whose input was balanced and
+  whose repair leaves a fence open. It does not stop a repair that the
+  reference parser still reads as balanced. Where it is not installed every
+  shape is written as described. A raw HTML block swallows a
   following fence, so a fence inside one is read as a fence here and as HTML
   by CommonMark. That one is DESTRUCTIVE, not merely a disagreement, and it is
   the worst gap on this list: the reference parser sees no fence at all, so the
-  document is balanced, and `--write` appends a closer anyway. Measured across
-  all seven CommonMark HTML block types, opener terminated and unterminated,
-  20 of 20 shapes are written to. Do not run `--write` unattended over
-  documents containing raw HTML blocks. A blockquote prefix is never stripped,
+  document is balanced, and `--write` appends a closer anyway. The appended
+  closer lands inside the same HTML block, so the guard reads the result as
+  balanced and allows it. Measured across all seven CommonMark HTML block
+  types, opener terminated and unterminated, 20 of 20 shapes are appended to,
+  7 are refused by the guard, and 13 are still written (for example
+  `<pre>`, `<!-- c`, or `<div>` followed by a fence and no closer). Do not
+  run `--write` unattended over documents containing raw HTML blocks. A blockquote prefix is never stripped,
   and that costs two different things. A fence inside `>` is invisible, which is a miss: six
   shapes diverge and `--write` changes none. A blockquote INTERRUPTING a
   paragraph is worse: CommonMark ends the paragraph and lazily continues the
