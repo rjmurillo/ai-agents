@@ -12,6 +12,9 @@
 # may let the context report success without running the verification its name
 # claims. The check-paths job still gates the two jobs that are not part of the
 # required context (Python Security Checks and the Windows path-contract tests).
+# The Windows job is narrowed further, to the marked modules a change reaches
+# (issue #5380); merge_group, workflow_dispatch and pushes to the default branch
+# run the complete set.
 #
 # Which tests each partition runs is decided inside scripts/ci/run_pytest_partition.py.
 #
@@ -47,6 +50,8 @@ jobs:
       contents: read
     outputs:
       python-changed: ${{ (github.event_name == 'workflow_dispatch' || env.ACT == 'true') && 'true' || steps.determine.outputs.python-changed }}
+      windows-affected: ${{ steps.windows-select.outputs.windows-affected }}
+      windows-files: ${{ steps.windows-select.outputs.windows-files }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -71,6 +76,29 @@ jobs:
           FORCE_RUN_EVENTS: merge_group
           OUTPUT_NAME: python-changed
         run: python3 scripts/workflows/determine_should_run_from_filters.py
+
+      # Issue #5380. One filter key per windows_path module, computed from the
+      # checkout by scripts/ci/windows_path_filter.py, so the job starts only
+      # for a change that reaches a marked module and runs only those modules.
+      - name: Build Windows path-contract filter
+        if: github.event_name != 'workflow_dispatch' && github.event_name != 'merge_group' && env.ACT != 'true'
+        run: python3 scripts/ci/windows_path_filter.py emit --output windows_path_filter.yml
+
+      - name: Check for Windows path-contract inputs
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: windows-filter
+        if: github.event_name != 'workflow_dispatch' && github.event_name != 'merge_group' && env.ACT != 'true'
+        with:
+          filters: windows_path_filter.yml
+
+      - name: Select Windows path-contract tests
+        id: windows-select
+        env:
+          GH_EVENT_NAME: ${{ github.event_name }}
+          GH_REF_NAME: ${{ github.ref_name }}
+          GH_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          FILTER_OUTPUTS: ${{ toJson(steps.windows-filter.outputs) }}
+        run: python3 scripts/ci/windows_path_filter.py select
 
       - name: Report path check result
         env:
@@ -102,7 +130,7 @@ jobs:
       contents: read
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@351661ca32ac09a36dc5ee2d536e3128f2a3c8ed # v2.22.0
         with:
           egress-policy: audit
 
@@ -142,7 +170,7 @@ jobs:
       contents: read
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@351661ca32ac09a36dc5ee2d536e3128f2a3c8ed # v2.22.0
         with:
           egress-policy: audit
 
@@ -168,7 +196,7 @@ jobs:
       contents: read
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@351661ca32ac09a36dc5ee2d536e3128f2a3c8ed # v2.22.0
         with:
           egress-policy: audit
 
@@ -207,7 +235,7 @@ jobs:
       BASE_REF: ${{ github.base_ref || github.event.repository.default_branch }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@351661ca32ac09a36dc5ee2d536e3128f2a3c8ed # v2.22.0
         with:
           egress-policy: audit
 
@@ -300,7 +328,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@351661ca32ac09a36dc5ee2d536e3128f2a3c8ed # v2.22.0
         with:
           egress-policy: audit
 
@@ -495,7 +523,7 @@ jobs:
       contents: read
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@351661ca32ac09a36dc5ee2d536e3128f2a3c8ed # v2.22.0
         with:
           egress-policy: audit
 
@@ -612,7 +640,7 @@ jobs:
       contents: read
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@351661ca32ac09a36dc5ee2d536e3128f2a3c8ed # v2.22.0
         with:
           egress-policy: audit
 
@@ -750,7 +778,7 @@ jobs:
       contents: read
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@351661ca32ac09a36dc5ee2d536e3128f2a3c8ed # v2.22.0
         with:
           egress-policy: audit
 
@@ -877,7 +905,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@351661ca32ac09a36dc5ee2d536e3128f2a3c8ed # v2.22.0
         with:
           egress-policy: audit
 
@@ -954,10 +982,19 @@ jobs:
   # modules by scanning for the marker's name and hands only those to pytest,
   # so a new marked file still needs no edit here. Issue #5380: passing the
   # marker alone made pytest import all 33,326 items to select 1,115.
+  #
+  # Issue #5380, scheduling half: check-paths computes `windows-affected` and
+  # `windows-files` with scripts/ci/windows_path_filter.py. A pull request
+  # starts this job only when it reaches a marked module, and the job runs only
+  # the modules it reaches. merge_group, workflow_dispatch and pushes to the
+  # default branch run the complete set, which is the backstop for a reach the
+  # textual analysis missed.
   test-windows-pwsh:
     name: Run Windows path-contract tests (pytest.mark.windows_path)
     needs: check-paths
-    if: needs.check-paths.outputs.python-changed == 'true'
+    if: >-
+      needs.check-paths.outputs.python-changed == 'true' &&
+      needs.check-paths.outputs.windows-affected == 'true'
     runs-on: windows-latest
     timeout-minutes: 10
     permissions:
@@ -965,7 +1002,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@351661ca32ac09a36dc5ee2d536e3128f2a3c8ed # v2.22.0
         with:
           egress-policy: audit
 
@@ -985,6 +1022,8 @@ jobs:
         shell: pwsh
         env:
           UV_PYTHON: '3.14'
+          # JSON array of the marked modules this change reaches. Empty runs all.
+          WINDOWS_TEST_FILES: ${{ needs.check-paths.outputs.windows-files }}
         run: uv run --frozen python scripts/ci/run_pytest_windows.py -v
 
   main-failure-alert:
