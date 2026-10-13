@@ -44,6 +44,25 @@ ADR-094 (`.project-toolkit/architecture/ADR-094-scoped-re-review-axes.md`) propo
 human maintainer approval. `.agents/governance/CI-FEEDBACK-SUBLOOP.md` remains
 non-normative; ADR-094 recommends against promoting it wholesale.
 
+## One review axis without a Task tool
+
+A subagent that has no Task tool cannot fan out the axes. Ten runs in the
+2026-10-12 sweep fell back to a closed-loop self-review. A fresh `claude -p`
+process gives a reviewer that has not seen the author's reasoning:
+
+```bash
+git diff origin/main...HEAD | claude -p --model sonnet --tools "" \
+  --system-prompt-file .claude/skills/review/references/<axis>.md \
+  "Review the diff on stdin."
+```
+
+Measured 2026-10-12 on Claude Code 2.1.296: with `references/security.md` and a
+one-line diff that added `eval(input())`, the process returned
+`VERDICT: CRITICAL_FAIL` and a CWE-95 message. `claude --help` does not list
+`--system-prompt-file`, yet the flag was accepted. Re-run this probe after a
+Claude Code upgrade before relying on it. The run produces a verdict, not the
+SHA-bound marker that `/ship` reads.
+
 ## Gotchas
 
 `search_memory.py` takes the query as a POSITIONAL arg. `--query "..."` exits 2

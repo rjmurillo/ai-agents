@@ -15,7 +15,7 @@ They live here rather than in ``checks_spec.py`` because adding them there took
 that file from 478 to 568 lines, past the 500-line ceiling
 ``scripts/ci/taste_count_ratchet.py`` enforces.
 
-A seventh validator belongs in this file.
+An eighth validator belongs in this file.
 ``tests/validation/test_pre_pr_covers_vendor_portability.py`` reads the workflow
 and fails until one exists for it, wherever it is defined.
 """
@@ -222,4 +222,18 @@ def validate_plugin_root_interpreter(repo_root: Path) -> bool:
     """
     return _run_portability_validator(
         repo_root, "scripts/validation/check_plugin_root_interpreter.py"
+    )
+
+
+def validate_projection_invariants(repo_root: Path) -> bool:
+    """Fail when a pilot Copilot projection drops an ADR-107 invariant (issue #5687).
+
+    Wraps ``scripts/validation/check_projection_invariants.py``, whose module
+    docstring states what it asserts (invariants 6 and 8 for ``push-pr`` and
+    ``security-scan``) and which six invariants stay advisory. Byte equality
+    after regeneration proves the generator is deterministic; this proves the
+    transform kept the allowed-tools set and the exit-code table.
+    """
+    return _run_portability_validator(
+        repo_root, "scripts/validation/check_projection_invariants.py"
     )

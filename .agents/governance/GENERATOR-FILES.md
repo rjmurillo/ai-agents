@@ -59,6 +59,79 @@ runs the same checks. A new output path in `binplace.yaml`, a platform YAML, or
 
 ADR-109 B1 moved `.claude/agents/<name>.md`, `.github/agents/<name>.agent.md`, and `src/claude/agents/<stem>.md` into generated output via the agent_templates.py and binplace_manifest.py generators above. ADR-109 B2 moved every `.claude/rules/<name>.md` file (28) the same way via rule_templates.py; `testing.md` is template-owned too, its GitHub Actions example written with the `\{{` escape. ADR-109 B3 gave skills the same two-hop shape: `skill_templates.compile_all` renders `src/claude/skills/<name>/SKILL.md`, and the binplace step copies it onto `.claude/skills/<name>/SKILL.md`; the manifest also gained a `prompts` row (`source: .claude/skills/review/references`, `compile: generate_pr_quality_prompts`, `plugin_tree: null`) that documents the twelve `pr-quality-gate-*.md` files without changing how they are generated. ADR-109 B4 moved the 16-file hooks class (14 executables, `hooks.json`, `dispatch_groups.json`) plus `.claude/settings.json` into generated output via hook_templates.py: `src/claude/hooks/` and `src/claude/hooks.json` render for the first time, `.github/hooks/*.json` is binplaced for the first time, and `.claude/settings.json` renders directly from `templates/hooks/settings.tmpl` with no plugin-tree hop, since it ships in no plugin.
 
+## Agent source equivalence (normalized)
+
+Each agent has three hand-written sources under `templates/agents/`:
+`<stem>.shared.md`, `<stem>.claude.md.tmpl`, and `<stem>.copilot.md.tmpl`.
+The generated trees are covered by regeneration. These three sources are
+covered by the `normalized` predicate of ADR-107 section 4, enforced by
+`build/scripts/check_agent_source_parity.py` (ADR-107 migration step M3,
+issue #5688). It renders both templates and compares each against the shared
+source. It runs as the pre-PR gate `Agent Source Parity` and, through
+`tests/build_scripts/test_check_agent_source_parity.py::TestLiveRepository`, in
+the required `Python Tests` run on every pull request.
+
+| Pair | Compared | Section on one side only |
+|------|----------|--------------------------|
+| `claude-shared` | rendered Claude template against `<stem>.shared.md` | Skipped. `detect_agent_drift.py` owns the section inventory |
+| `copilot-shared` | rendered Copilot template against `<stem>.shared.md` | Fails. Both feed the same platform family |
+
+Tree-specific, dropped from comparison: every frontmatter key except
+`description`, `argument-hint`, `role`, and the tool lists. That covers `name`,
+`model`, `model_tier`, `isolation_required`, and `metadata` other than
+`metadata.role` (the Claude spelling of `role`).
+
+Shared, compared exactly: those three frontmatter keys, the preamble before the
+first H2, the body of every H2 section both sides carry, and the order of
+those shared sections (pin unit `order`). Before comparing,
+the gate applies `detect_agent_drift.normalize_content` (MCP tool prefixes,
+handoff invocation spelling, fence language tags, trailing whitespace) and then
+ignores blank lines. Nothing else is excused. A repeated H2 name in one source
+is a configuration error (exit 2), because a repeat would hide the earlier body.
+The normalization never drops a
+text line, reorders a step, or edits a number, so invariants 1 to 5, 7, and 8
+of ADR-107 section 5 stay in the compared text: ordered steps, completion
+criteria, evidence requirements, failure states, approval gates, idempotence and
+rollback statements, and the exit-code contract. Invariants 1 to 5 and 7 are
+prose. The gate checks that the prose is equal, not what it means.
+
+Invariant 6, authorization and the abstract capability set, lives in the tool
+lists, and only the platform spelling of a tool is excused. The gate reduces
+each list to abstract capabilities with `build/scripts/agent_capabilities.py`
+and compares those units:
+
+| Pair | Template list | Shared-source list | Units |
+|------|---------------|--------------------|-------|
+| `claude-shared` | `tools` | `tools_copilot` | `capability:*` |
+| `copilot-shared` | `tools_copilot` | `tools_copilot` | `capability:*` |
+| `copilot-shared` | `tools_vscode` | `tools_vscode` | `capability-vscode:*` |
+
+- Spellings that name one capability are equal: `Read` and `read`, `Grep` and
+  `search`, `Bash` and `shell` and `execute`, `WebFetch` and `web`,
+  `mcp__github__issue_read` and `github/issue_read`. The mapping table is
+  `_BUILTIN` in that module.
+- `$toolset:<name>` references expand through `templates/toolsets.yaml`, the
+  platform variant first, as the generator does. An unknown toolset is a
+  configuration error (exit 2).
+- Units are one `declaration` unit (`restricted` or `unrestricted`), then one
+  unit per family: `builtin`, `mcp:<server>`, and `unmapped`. A member with no
+  tool list is `unrestricted`, because Claude Code gives such an agent every
+  tool. Restricted against unrestricted is one divergence, the declaration.
+- A name the module does not know stays a literal `unmapped` item. A wildcard
+  such as `serena/*` is not an explicit `serena/<tool>` list. Neither can hide
+  a difference.
+- The Claude-only "Claude Code Tools" body section stays out of the comparison.
+
+Divergence that predates the gate is pinned in
+`.agents/governance/agent-source-divergence.json`. Each entry holds a digest of
+both normalized sides. The gate fails when a pinned unit changes on either
+side (re-record after review), when a pinned unit now agrees (delete the pin),
+and when the file grows past `BASELINE_CEILING`. Regenerate with
+`uv run python build/scripts/check_agent_source_parity.py --write-baseline` and
+review the diff. To remove a pin, make the two sources agree, then re-run
+`--write-baseline` (or delete the entry by hand). Agreement alone leaves a
+`PIN-STALE` finding.
+
 ## Regenerating
 
 `build/scripts/build_all.py` orchestrates the generators (skills, agents,
@@ -105,6 +178,7 @@ removed after the transaction commits.
   REQ-003-010 and ADR-107 property 1 for exactly that class.
 - `templates/README.md`: template structure.
 - `build/scripts/validate_install_parity.py`: hand-maintained sibling guard.
+- `build/scripts/check_agent_source_parity.py`: agent source equivalence gate (issue #5688).
 - `.claude/rules/canonical-source-mirror.md`: claims of parity must cite and
   quote the canonical source.
 - Issue #1921: this inventory.
