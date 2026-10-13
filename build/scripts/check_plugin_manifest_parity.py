@@ -72,6 +72,7 @@ _MANIFESTS: tuple[Path, ...] = (
 _MARKETPLACES: tuple[Path, ...] = (
     _REPO_ROOT / ".claude-plugin" / "marketplace.json",
     _REPO_ROOT / ".github" / "plugin" / "marketplace.json",
+    _REPO_ROOT / ".grok-plugin" / "marketplace.json",
 )
 
 _OK = 0
