@@ -1,6 +1,6 @@
 ---
 id: ADR-010
-status: accepted
+status: deprecated
 date: 2025-12-20
 decision-makers: [rjmurillo]
 supersedes: []
@@ -10,6 +10,10 @@ implemented: false
 ---
 
 # ADR-010: Quality Gates with Evaluator-Optimizer Pattern
+
+## Status
+
+Deprecated. The evaluator-optimizer loop this record mandates was never built, and nothing enforces the MUST in the Decision section. Epic #183 closed as not planned on 2026-03-01. Searches of `templates/`, `scripts/`, and `.claude/skills/` find no four-criterion rubric, no regeneration loop, and no evaluation history. ADR-087 still cites the three-iteration cap as design history. `implemented` stays false because no artifact exists.
 
 ## Date
 

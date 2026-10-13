@@ -17,8 +17,10 @@ A sink whose function has no caller inside the scanned set reports
 ``callers_unknown``: the entry point lives outside the scan, so the scan
 cannot call the path traced. A file that cannot be parsed makes the decision
 ``unknown``, never ``skip``. So is a source file in a language the scan
-cannot read (PowerShell, JavaScript, C#, Go, and the like): the report lists it
-under ``unscanned`` and the decision is ``unknown``. A scope that holds no file
+cannot read (PowerShell, JavaScript, C#, Go, and the like) is too, and so is a
+CI or build definition (YAML, Makefile, Dockerfile) or any file that starts with
+a shebang: the report lists it under ``unscanned`` and the decision is
+``unknown``. A scope that holds no file
 the scan could read or name raises ``EmptyScopeError``.
 
 EXIT CODES (ADR-035):
@@ -48,7 +50,12 @@ UNSUPPORTED_SUFFIXES = {
     ".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx",
     ".cs", ".go", ".java", ".kt", ".rs", ".rb", ".php", ".pl", ".lua",
     ".c", ".cc", ".cpp", ".h", ".hpp", ".swift", ".scala",
+    ".yml", ".yaml", ".mk",
 }  # fmt: skip
+# Build and CI definitions whose name carries no suffix. Their recipes execute
+# shell the scan cannot read, so a match makes the decision ``unknown``.
+UNSUPPORTED_NAMES = {"Makefile", "GNUmakefile", "makefile", "Jenkinsfile"}
+UNSUPPORTED_NAME_PREFIXES = ("Dockerfile", "Containerfile")
 
 # Dotted calls that delete or overwrite. Attribute-only names are limited to
 # ones that are not also common non-destructive methods (no bare ``.remove``
@@ -276,12 +283,33 @@ def scan_text(path: Path, rel: str, graph: Graph) -> None:
             graph.sinks.append(Sink(rel, number, f"<file:{rel}>", kind, line.strip()[:60]))
 
 
+def has_shebang(path: Path) -> bool:
+    """True when the file starts with ``#!``; an unreadable file counts as one."""
+    try:
+        with path.open("rb") as handle:
+            return handle.read(2) == b"#!"
+    except OSError:
+        return True
+
+
+def is_unsupported_source(path: Path) -> bool:
+    """True for a file the scan cannot read but that can still run code."""
+    return (
+        path.suffix in UNSUPPORTED_SUFFIXES
+        or path.name in UNSUPPORTED_NAMES
+        or path.name.startswith(UNSUPPORTED_NAME_PREFIXES)
+        or has_shebang(path)
+    )
+
+
 def iter_files(roots: list[Path]) -> tuple[list[Path], list[Path]]:
     """Return ``(scannable, unscanned)`` files under the roots, sorted.
 
     A file named as a root is unscanned when its suffix is not scannable. Inside
-    a directory only source suffixes in ``UNSUPPORTED_SUFFIXES`` count, so notes
-    and data files do not make a scan ``unknown``.
+    a directory a file is unscanned when it can run code the scan cannot read: an
+    unsupported language suffix, a CI or build definition (YAML, Makefile,
+    Dockerfile), or any file that starts with a shebang. Notes and data files do
+    not make a scan ``unknown``.
     """
     scannable: set[Path] = set()
     unscanned: set[Path] = set()
@@ -292,7 +320,7 @@ def iter_files(roots: list[Path]) -> tuple[list[Path], list[Path]]:
                 continue
             if item.suffix in SCANNED_SUFFIXES:
                 scannable.add(item)
-            elif item.suffix in UNSUPPORTED_SUFFIXES or item == root:
+            elif item == root or is_unsupported_source(item):
                 unscanned.add(item)
     return sorted(scannable), sorted(unscanned)
 
