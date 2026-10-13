@@ -71,7 +71,7 @@ def test_counts_single_in_window_skeleton() -> None:
         _write_skeleton(retro_dir, skeleton_date)
 
         # Act
-        count, names = invoke_context_loader._count_pending_skeletons(retro_dir)
+        count, names = invoke_context_loader._count_pending_skeletons(retro_dir, Path(tmp))
 
         # Assert
         assert count == 1
@@ -87,7 +87,7 @@ def test_filled_retro_not_counted() -> None:
         _write_skeleton(retro_dir, _date_days_ago(0), filled=True)
 
         # Act
-        count, names = invoke_context_loader._count_pending_skeletons(retro_dir)
+        count, names = invoke_context_loader._count_pending_skeletons(retro_dir, Path(tmp))
 
         # Assert: a filled retro (no marker) is not pending
         assert count == 0
@@ -103,7 +103,9 @@ def test_stale_skeleton_excluded_by_age_cap() -> None:
         _write_skeleton(retro_dir, _date_days_ago(30))
 
         # Act
-        count, names = invoke_context_loader._count_pending_skeletons(retro_dir, max_age_days=7)
+        count, names = invoke_context_loader._count_pending_skeletons(
+            retro_dir, Path(tmp), max_age_days=7
+        )
 
         # Assert
         assert count == 0
@@ -120,7 +122,9 @@ def test_boundary_at_max_age_days_included() -> None:
         _write_skeleton(retro_dir, skeleton_date)
 
         # Act
-        count, names = invoke_context_loader._count_pending_skeletons(retro_dir, max_age_days=7)
+        count, names = invoke_context_loader._count_pending_skeletons(
+            retro_dir, Path(tmp), max_age_days=7
+        )
 
         # Assert
         assert count == 1
@@ -139,7 +143,9 @@ def test_undated_skeleton_falls_back_to_mtime_age_cap() -> None:
         _age_file(stale, days_old=30)
 
         # Act
-        count, names = invoke_context_loader._count_pending_skeletons(retro_dir, max_age_days=7)
+        count, names = invoke_context_loader._count_pending_skeletons(
+            retro_dir, Path(tmp), max_age_days=7
+        )
 
         # Assert
         assert count == 1
@@ -154,7 +160,7 @@ def test_missing_directory_yields_zero() -> None:
         missing = Path(tmp) / "does-not-exist"
 
         # Act
-        count, names = invoke_context_loader._count_pending_skeletons(missing)
+        count, names = invoke_context_loader._count_pending_skeletons(missing, Path(tmp))
 
         # Assert: fail-open, no crash
         assert count == 0
@@ -182,7 +188,7 @@ def test_unreadable_file_skipped_not_fatal() -> None:
 
         # Act
         with patch.object(Path, "open", _selective_open):
-            count, names = invoke_context_loader._count_pending_skeletons(retro_dir)
+            count, names = invoke_context_loader._count_pending_skeletons(retro_dir, Path(tmp))
 
         # Assert: the bad file is skipped, the good one still counts
         assert count == 1
@@ -259,6 +265,79 @@ def test_find_latest_retrospective_rejects_a_symlinked_retro_dir(tmp_path: Path)
     latest = invoke_context_loader._find_latest_retrospective(retro_dir, project_dir)
 
     assert latest is None
+
+
+# --- _count_pending_skeletons: ancestor symlink guard (CWE-22/CWE-59) -----
+
+
+def _symlink_or_skip(link: Path, target: Path) -> None:
+    try:
+        link.symlink_to(target, target_is_directory=True)
+    except OSError:
+        pytest.skip("cannot create symlink on this platform")
+
+
+def _outside_skeleton_dir(tmp_path: Path) -> Path:
+    """Build an external directory holding one in-window pending skeleton."""
+    outside = tmp_path / "outside"
+    _write_skeleton(outside, _date_days_ago(0))
+    return outside
+
+
+def test_count_pending_skeletons_rejects_a_symlinked_retro_dir(tmp_path: Path) -> None:
+    """A symlinked ``retrospective`` directory must not be globbed."""
+    project_dir = tmp_path / "project"
+    agents_dir = project_dir / ".agents"
+    agents_dir.mkdir(parents=True)
+    outside = _outside_skeleton_dir(tmp_path)
+    retro_dir = agents_dir / "retrospective"
+    _symlink_or_skip(retro_dir, outside)
+
+    count, names = invoke_context_loader._count_pending_skeletons(retro_dir, project_dir)
+
+    assert count == 0
+    assert names == []
+
+
+def test_count_pending_skeletons_rejects_a_symlinked_ancestor(tmp_path: Path) -> None:
+    """A symlinked ``.agents`` ancestor must not redirect the glob."""
+    project_dir = tmp_path / "project"
+    project_dir.mkdir()
+    outside_agents = tmp_path / "outside-agents"
+    _write_skeleton(outside_agents / "retrospective", _date_days_ago(0))
+    _symlink_or_skip(project_dir / ".agents", outside_agents)
+    retro_dir = project_dir / ".agents" / "retrospective"
+
+    count, names = invoke_context_loader._count_pending_skeletons(retro_dir, project_dir)
+
+    assert count == 0
+    assert names == []
+
+
+def test_count_pending_skeletons_counts_real_dirs_under_root(tmp_path: Path) -> None:
+    """Negative control: the same layout with real directories still counts."""
+    project_dir = tmp_path / "project"
+    retro_dir = project_dir / ".agents" / "retrospective"
+    skeleton_date = _date_days_ago(0)
+    _write_skeleton(retro_dir, skeleton_date)
+
+    count, names = invoke_context_loader._count_pending_skeletons(retro_dir, project_dir)
+
+    assert count == 1
+    assert names == [f"{skeleton_date}-auto-retro.md"]
+
+
+def test_count_pending_skeletons_rejects_a_retro_dir_outside_root(tmp_path: Path) -> None:
+    """A ``retro_dir`` that is not under ``root`` fails closed."""
+    project_dir = tmp_path / "project"
+    project_dir.mkdir()
+    elsewhere = tmp_path / "elsewhere" / "retrospective"
+    _write_skeleton(elsewhere, _date_days_ago(0))
+
+    count, names = invoke_context_loader._count_pending_skeletons(elsewhere, project_dir)
+
+    assert count == 0
+    assert names == []
 
 
 # --- _skeleton_dates ------------------------------------------------------
