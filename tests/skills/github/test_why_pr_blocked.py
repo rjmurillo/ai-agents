@@ -108,8 +108,9 @@ def _check_run_node(
     run_number: int | None = None,
     run_attempt: int = 1,
     status: str = "COMPLETED",
+    event: str | None = None,
 ) -> dict:
-    node = {
+    node: dict = {
         "__typename": "CheckRun",
         "name": name,
         "status": status,
@@ -117,13 +118,11 @@ def _check_run_node(
         "isRequired": required,
     }
     if run_number is not None:
+        workflow_run: dict = {"databaseId": run_number, "runAttempt": run_attempt}
+        if event is not None:
+            workflow_run["event"] = event
         node["detailsUrl"] = f"https://github.com/o/r/actions/runs/{run_number}/job/{run_number}"
-        node["checkSuite"] = {
-            "workflowRun": {
-                "databaseId": run_number,
-                "runAttempt": run_attempt,
-            }
-        }
+        node["checkSuite"] = {"workflowRun": workflow_run}
     return node
 
 
@@ -333,6 +332,98 @@ class TestDiagnose:
         result = diagnose(pr_data, ["Validate PR"])
         assert result["FailingRequired"] == []
         assert result["PendingRequired"] == []
+
+    def test_older_push_failure_not_hidden_by_newer_pull_request_success(self):
+        nodes = [
+            _check_run_node("Run Python Tests", "FAILURE", run_number=100, event="push"),
+            _check_run_node("Run Python Tests", "SUCCESS", run_number=101, event="pull_request"),
+        ]
+        pr_data = {
+            "MergeStateStatus": "BLOCKED",
+            "OverallState": "FAILURE",
+            "CheckNodes": nodes,
+            "ThreadNodes": [],
+        }
+        result = diagnose(pr_data, ["Run Python Tests"])
+        assert result["FailingRequired"] == ["Run Python Tests"]
+        assert result["BlockingRuns"] == {
+            "Run Python Tests": [
+                {"RunId": 100, "Attempt": 1, "Event": "push", "State": "failing"},
+            ]
+        }
+
+    def test_older_pull_request_pending_not_hidden_by_newer_push_success(self):
+        nodes = [
+            _check_run_node(
+                "Run Python Tests",
+                "",
+                run_number=100,
+                status="IN_PROGRESS",
+                event="pull_request",
+            ),
+            _check_run_node("Run Python Tests", "SUCCESS", run_number=101, event="push"),
+        ]
+        pr_data = {
+            "MergeStateStatus": "BLOCKED",
+            "OverallState": "PENDING",
+            "CheckNodes": nodes,
+            "ThreadNodes": [],
+        }
+        result = diagnose(pr_data, ["Run Python Tests"])
+        assert result["PendingRequired"] == ["Run Python Tests"]
+        assert result["BlockingRuns"]["Run Python Tests"][0]["Event"] == "pull_request"
+
+    def test_cancelled_run_of_other_event_keeps_check_blocked_and_is_named(self):
+        nodes = [
+            _check_run_node("Run Python Tests", "CANCELLED", run_number=100, event="push"),
+            _check_run_node("Run Python Tests", "SUCCESS", run_number=101, event="pull_request"),
+        ]
+        pr_data = {
+            "MergeStateStatus": "BLOCKED",
+            "OverallState": "FAILURE",
+            "CheckNodes": nodes,
+            "ThreadNodes": [],
+        }
+        result = diagnose(pr_data, ["Run Python Tests"])
+        assert result["FailingRequired"] == ["Run Python Tests"]
+        assert result["BlockingRuns"]["Run Python Tests"][0]["RunId"] == 100
+
+    def test_rerun_within_one_event_still_supersedes_stale_failure(self):
+        nodes = [
+            _check_run_node("Run Python Tests", "FAILURE", run_number=100, event="push"),
+            _check_run_node("Run Python Tests", "SUCCESS", run_number=102, event="push"),
+            _check_run_node("Run Python Tests", "SUCCESS", run_number=101, event="pull_request"),
+        ]
+        pr_data = {
+            "MergeStateStatus": "CLEAN",
+            "OverallState": "SUCCESS",
+            "CheckNodes": nodes,
+            "ThreadNodes": [],
+        }
+        result = diagnose(pr_data, ["Run Python Tests"])
+        assert result["FailingRequired"] == []
+        assert result["PendingRequired"] == []
+        assert result["BlockingRuns"] == {}
+
+    def test_runs_without_event_keep_latest_run_precedence(self):
+        nodes = [
+            _check_run_node("Run Python Tests", "FAILURE", run_number=100),
+            _check_run_node("Run Python Tests", "SUCCESS", run_number=101),
+        ]
+        pr_data = {
+            "MergeStateStatus": "CLEAN",
+            "OverallState": "SUCCESS",
+            "CheckNodes": nodes,
+            "ThreadNodes": [],
+        }
+        result = diagnose(pr_data, ["Run Python Tests"])
+        assert result["FailingRequired"] == []
+
+    def test_fetch_requests_workflow_event(self):
+        gql = _gql_pr(check_nodes=[])
+        with patch("why_pr_blocked.gh_graphql", return_value=gql) as mock_graphql:
+            fetch_pr_data("o", "r", 42)
+        assert "event" in mock_graphql.call_args.args[0]
 
     def test_fetch_preserves_run_identity_for_latest_result(self):
         nodes = [
@@ -615,6 +706,37 @@ class TestMain:
         assert rc == 1
         assert "failing required check(s)" in text
         assert "close and reopen" not in text
+
+    def test_cross_event_failure_exits_1_and_names_run_and_event(self, capsys):
+        """Issue #6408: a red push run behind a green pull_request run blocks."""
+        rc, text = self._human_output(
+            [
+                _check_run_node("Run Python Tests", "FAILURE", run_number=100, event="push"),
+                _check_run_node(
+                    "Run Python Tests", "SUCCESS", run_number=101, event="pull_request"
+                ),
+            ],
+            ["Run Python Tests"],
+            capsys,
+        )
+
+        assert rc == 1
+        assert "1 failing required check(s)" in text
+        assert "Rerun: Run Python Tests (run 100, push)" in text
+
+    def test_same_event_rerun_success_exits_0_without_rerun_hint(self, capsys):
+        """Negative control: a rerun of the same event clears the stale failure."""
+        rc, text = self._human_output(
+            [
+                _check_run_node("Run Python Tests", "FAILURE", run_number=100, event="push"),
+                _check_run_node("Run Python Tests", "SUCCESS", run_number=101, event="push"),
+            ],
+            ["Run Python Tests"],
+            capsys,
+        )
+
+        assert rc == 0
+        assert "Rerun:" not in text
 
     def test_failing_required_exits_1(self, capsys):
         gql = _gql_pr(

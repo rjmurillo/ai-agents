@@ -4,6 +4,11 @@ applyTo: .project-toolkit/retrospective/**,docs/retros/**
 
 # Retrospective File Rules
 
+<!-- vendor-portability: contributor-facing rule for the rjmurillo/ai-agents repo
+     itself; it points at the upstream failure-mode taxonomy and retrospective
+     directory. None of these exist in a consumer install (issue #5298). Paths:
+     .agents/governance/FAILURE-MODES.md, .project-toolkit/retrospective -->
+
 Retrospectives exist so the same failure does not happen twice. They feed future governance and instruction changes, so the format matters.
 
 ## When To Write One

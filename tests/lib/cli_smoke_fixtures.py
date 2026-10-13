@@ -29,5 +29,10 @@ def codex_job(workflow_doc: dict[Any, Any]) -> dict[str, Any]:
 
 
 @pytest.fixture(scope="module")
+def pi_job(workflow_doc: dict[Any, Any]) -> dict[str, Any]:
+    return workflow_doc["jobs"]["smoke-pi"]
+
+
+@pytest.fixture(scope="module")
 def renovate_config() -> dict[str, Any]:
     return load_renovate_config()
