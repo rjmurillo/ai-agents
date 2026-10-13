@@ -39,6 +39,8 @@ get_job_id_from_url = _mod.get_job_id_from_url
 is_github_actions_url = _mod.is_github_actions_url
 get_failure_snippets = _mod.get_failure_snippets
 _is_failing = _mod._is_failing
+get_failed_steps = _mod.get_failed_steps
+get_check_logs = _mod.get_check_logs
 
 
 # ---------------------------------------------------------------------------
@@ -200,6 +202,11 @@ class TestBuildParser:
         assert args.pull_request == 0
         assert args.max_lines == 160
         assert args.context_lines == 30
+        assert args.check_name == []
+
+    def test_check_name_is_repeatable(self):
+        args = build_parser().parse_args(["--check-name", "a", "--check-name", "b"])
+        assert args.check_name == ["a", "b"]
 
 
 class TestIsFailing:
@@ -738,3 +745,266 @@ class TestMergeRefUnusableWithFailingChecks:
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
         assert output["Data"]["FailingChecks"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Tests: --check-name filter and failing step names (defect D8)
+# ---------------------------------------------------------------------------
+
+_GHA_URL = "https://github.com/o/r/actions/runs/111/job/222"
+
+
+def _two_failing_checks_json() -> str:
+    return json.dumps(
+        {
+            "Success": True,
+            "Number": 7,
+            "Checks": [
+                {
+                    "Name": "Enforce Blocking Issues",
+                    "Conclusion": "FAILURE",
+                    "DetailsUrl": "https://circleci.com/build/1",
+                },
+                {
+                    "Name": "Validate PR title",
+                    "Conclusion": "FAILURE",
+                    "DetailsUrl": "https://circleci.com/build/2",
+                },
+                {"Name": "build", "Conclusion": "SUCCESS", "DetailsUrl": ""},
+            ],
+        }
+    )
+
+
+def _run_main(args: list[str]) -> int:
+    with (
+        patch("get_pr_check_logs.assert_gh_authenticated"),
+        patch(
+            "get_pr_check_logs.resolve_repo_params",
+            return_value=RepoInfo(owner="o", repo="r"),
+        ),
+    ):
+        return main(args)
+
+
+class TestCheckNameFilter:
+    def test_filter_keeps_only_the_named_failing_check(self, capsys):
+        rc = _run_main(
+            ["--checks-input", _two_failing_checks_json(), "--check-name", "Validate PR title"]
+        )
+        assert rc == 0
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert data["FailingChecks"] == 1
+        assert [c["Name"] for c in data["CheckLogs"]] == ["Validate PR title"]
+        assert data["CheckNames"] == ["Validate PR title"]
+
+    def test_without_filter_all_failing_checks_are_reported(self, capsys):
+        rc = _run_main(["--checks-input", _two_failing_checks_json()])
+        assert rc == 0
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert data["FailingChecks"] == 2
+        assert data["CheckNames"] == []
+
+    def test_filter_is_case_insensitive(self, capsys):
+        rc = _run_main(
+            [
+                "--checks-input",
+                _two_failing_checks_json(),
+                "--check-name",
+                "enforce BLOCKING issues",
+            ]
+        )
+        assert rc == 0
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert [c["Name"] for c in data["CheckLogs"]] == ["Enforce Blocking Issues"]
+
+    def test_filter_accepts_several_names(self, capsys):
+        rc = _run_main(
+            [
+                "--checks-input",
+                _two_failing_checks_json(),
+                "--check-name",
+                "Enforce Blocking Issues",
+                "--check-name",
+                "Validate PR title",
+            ]
+        )
+        assert rc == 0
+        assert json.loads(capsys.readouterr().out)["Data"]["FailingChecks"] == 2
+
+    def test_unknown_name_fails_and_lists_available_checks(self, capsys):
+        rc = _run_main(["--checks-input", _two_failing_checks_json(), "--check-name", "nope"])
+        assert rc == 1
+        output = json.loads(capsys.readouterr().out)
+        assert output["Success"] is False
+        message = output["Error"]["Message"]
+        assert "nope" in message
+        assert "Enforce Blocking Issues" in message
+        assert "build" in message
+
+    def test_one_unknown_name_among_known_names_fails(self, capsys):
+        rc = _run_main(
+            [
+                "--checks-input",
+                _two_failing_checks_json(),
+                "--check-name",
+                "build",
+                "--check-name",
+                "missing",
+            ]
+        )
+        assert rc == 1
+        assert "missing" in json.loads(capsys.readouterr().out)["Error"]["Message"]
+
+    def test_passing_named_check_reports_no_failing_checks(self, capsys):
+        rc = _run_main(["--checks-input", _two_failing_checks_json(), "--check-name", "build"])
+        assert rc == 0
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert data["FailingChecks"] == 0
+        assert data["CheckLogs"] == []
+
+
+def _job_json(steps: list[dict[str, object]]) -> str:
+    return json.dumps({"id": 222, "name": "Enforce Blocking Issues", "steps": steps})
+
+
+class TestGetFailedSteps:
+    def test_returns_only_failed_steps_with_names(self):
+        steps = [
+            {"number": 1, "name": "Set up job", "conclusion": "success"},
+            {"number": 2, "name": "Check for blocking issues", "conclusion": "failure"},
+            {"number": 3, "name": "Post checkout", "conclusion": "skipped"},
+        ]
+        with patch("get_pr_check_logs.subprocess.run", return_value=_completed(_job_json(steps))):
+            result = get_failed_steps("o", "r", "222")
+        assert result == {
+            "Steps": [{"Number": 2, "Name": "Check for blocking issues", "Conclusion": "failure"}]
+        }
+
+    def test_counts_cancelled_and_timed_out_steps(self):
+        steps = [
+            {"number": 1, "name": "a", "conclusion": "cancelled"},
+            {"number": 2, "name": "b", "conclusion": "timed_out"},
+        ]
+        with patch("get_pr_check_logs.subprocess.run", return_value=_completed(_job_json(steps))):
+            result = get_failed_steps("o", "r", "222")
+        assert [s["Name"] for s in result["Steps"]] == ["a", "b"]
+
+    def test_job_with_no_failed_step_returns_empty_list(self):
+        steps = [{"number": 1, "name": "a", "conclusion": "success"}]
+        with patch("get_pr_check_logs.subprocess.run", return_value=_completed(_job_json(steps))):
+            assert get_failed_steps("o", "r", "222") == {"Steps": []}
+
+    def test_queries_the_job_endpoint(self):
+        with patch(
+            "get_pr_check_logs.subprocess.run", return_value=_completed(_job_json([]))
+        ) as run_mock:
+            get_failed_steps("o", "r", "222")
+        assert run_mock.call_args.args[0] == ["gh", "api", "repos/o/r/actions/jobs/222"]
+        assert run_mock.call_args.kwargs["encoding"] == "utf-8"
+        assert run_mock.call_args.kwargs["errors"] == "replace"
+
+    def test_api_error_is_reported_not_raised(self):
+        with patch(
+            "get_pr_check_logs.subprocess.run", return_value=_completed(stderr="HTTP 404", rc=1)
+        ):
+            result = get_failed_steps("o", "r", "222")
+        assert result["Steps"] == []
+        assert "HTTP 404" in result["Error"]
+
+    def test_invalid_json_is_reported(self):
+        with patch("get_pr_check_logs.subprocess.run", return_value=_completed("not json")):
+            result = get_failed_steps("o", "r", "222")
+        assert result["Steps"] == []
+        assert "Error" in result
+
+    @pytest.mark.parametrize("payload", ["[]", "{}", '{"steps": "x"}'])
+    def test_payload_without_steps_list_is_reported(self, payload):
+        with patch("get_pr_check_logs.subprocess.run", return_value=_completed(payload)):
+            result = get_failed_steps("o", "r", "222")
+        assert result["Steps"] == []
+        assert "steps" in result["Error"]
+
+    def test_non_dict_step_entries_are_ignored(self):
+        payload = json.dumps({"steps": ["x", {"number": 1, "name": "a", "conclusion": "failure"}]})
+        with patch("get_pr_check_logs.subprocess.run", return_value=_completed(payload)):
+            result = get_failed_steps("o", "r", "222")
+        assert [s["Name"] for s in result["Steps"]] == ["a"]
+
+    @pytest.mark.parametrize(
+        "exc", [subprocess.TimeoutExpired(cmd="gh", timeout=60), OSError("gh missing")]
+    )
+    def test_subprocess_failure_is_reported(self, exc):
+        with patch("get_pr_check_logs.subprocess.run", side_effect=exc):
+            result = get_failed_steps("o", "r", "222")
+        assert result["Steps"] == []
+        assert "Error" in result
+
+
+class TestCheckLogsFailedSteps:
+    def _check(self, url: str = _GHA_URL) -> dict[str, object]:
+        return {"Name": "Enforce Blocking Issues", "DetailsUrl": url, "Conclusion": "FAILURE"}
+
+    def test_failed_step_names_are_attached_to_the_check(self):
+        steps = {
+            "Steps": [{"Number": 2, "Name": "Check for blocking issues", "Conclusion": "failure"}]
+        }
+        with (
+            patch("get_pr_check_logs.get_failed_steps", return_value=steps),
+            patch(
+                "get_pr_check_logs.fetch_workflow_run_logs",
+                return_value={"Success": True, "Content": "##[error]boom", "Source": "job"},
+            ),
+        ):
+            [result] = get_check_logs("o", "r", [self._check()], 160, 30)
+        assert result["FailedSteps"] == steps["Steps"]
+        assert "FailedStepsError" not in result
+
+    def test_step_lookup_error_is_surfaced_and_logs_still_returned(self):
+        with (
+            patch(
+                "get_pr_check_logs.get_failed_steps",
+                return_value={"Steps": [], "Error": "HTTP 404"},
+            ),
+            patch(
+                "get_pr_check_logs.fetch_workflow_run_logs",
+                return_value={"Success": True, "Content": "##[error]boom", "Source": "job"},
+            ),
+        ):
+            [result] = get_check_logs("o", "r", [self._check()], 160, 30)
+        assert result["FailedSteps"] == []
+        assert result["FailedStepsError"] == "HTTP 404"
+        assert result["Snippets"]
+
+    def test_steps_survive_a_log_fetch_failure(self):
+        steps = {"Steps": [{"Number": 2, "Name": "s", "Conclusion": "failure"}]}
+        with (
+            patch("get_pr_check_logs.get_failed_steps", return_value=steps),
+            patch(
+                "get_pr_check_logs.fetch_workflow_run_logs",
+                return_value={"Success": False, "Error": "gone", "Source": "none"},
+            ),
+        ):
+            [result] = get_check_logs("o", "r", [self._check()], 160, 30)
+        assert result["LogSource"] == "error"
+        assert result["FailedSteps"] == steps["Steps"]
+
+    def test_run_url_without_job_id_skips_the_step_lookup(self):
+        with (
+            patch("get_pr_check_logs.get_failed_steps") as steps_mock,
+            patch(
+                "get_pr_check_logs.fetch_workflow_run_logs",
+                return_value={"Success": True, "Content": "ok", "Source": "run-failed"},
+            ),
+        ):
+            [result] = get_check_logs(
+                "o", "r", [self._check("https://github.com/o/r/actions/runs/111")], 160, 30
+            )
+        steps_mock.assert_not_called()
+        assert "FailedSteps" not in result
+
+    def test_external_check_skips_the_step_lookup(self):
+        with patch("get_pr_check_logs.get_failed_steps") as steps_mock:
+            [result] = get_check_logs("o", "r", [self._check("https://circleci.com/b/1")], 160, 30)
+        steps_mock.assert_not_called()
+        assert result["LogSource"] == "external"
