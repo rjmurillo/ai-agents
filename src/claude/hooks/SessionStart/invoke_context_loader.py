@@ -199,7 +199,7 @@ def _find_latest_retrospective(retro_dir: Path, root: Path) -> Path | None:
 
 
 def _count_pending_skeletons(
-    retro_dir: Path, max_age_days: int = PENDING_RETRO_MAX_AGE_DAYS
+    retro_dir: Path, root: Path, max_age_days: int = PENDING_RETRO_MAX_AGE_DAYS
 ) -> tuple[int, list[str]]:
     """Count unfilled retro skeletons within ``max_age_days`` (Issue #2079).
 
@@ -207,11 +207,20 @@ def _count_pending_skeletons(
     its filename date is within the window. Filenames without a leading date
     fall back to mtime. Returns ``(count, sorted_filenames)``.
 
-    Fail-open: a missing directory yields ``(0, [])``; a per-file stat or read
-    error skips that file rather than aborting the scan, mirroring
-    :func:`_find_latest_retrospective`.
+    ``root`` is the trusted project directory; every component from ``root``
+    down to ``retro_dir`` is rejected if it is a symlink (see
+    :func:`_has_symlink_component`) before ``retro_dir`` is globbed, so a
+    symlinked ``.agents`` or ``retrospective`` ancestor cannot redirect the
+    scan to an external directory and leak its filenames.
+
+    Fail-open: a missing directory or a symlinked ancestor yields ``(0, [])``;
+    a per-file stat or read error skips that file rather than aborting the
+    scan, mirroring :func:`_find_latest_retrospective`.
     """
     if not retro_dir.is_dir():
+        return 0, []
+
+    if _has_symlink_component(root, retro_dir):
         return 0, []
 
     try:
@@ -375,7 +384,7 @@ def main() -> None:
 
     # Remind about unfilled retro skeletons (Issue #2079). Surface a count
     # and the fill command so the next interactive session can complete them.
-    pending_count, pending_names = _count_pending_skeletons(retro_dir)
+    pending_count, pending_names = _count_pending_skeletons(retro_dir, project_path)
     if pending_count:
         listed = _pending_skeleton_summary(pending_names)
         dates = _skeleton_dates(pending_names)
