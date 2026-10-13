@@ -24,12 +24,6 @@ Read the rest of this file with that order in mind.
 
 ---
 
-## Why Completeness Is Cheap
-
-Completeness is cheap inside a task the user chose; it says nothing about how many tasks run. The compression table and the build-for-yourself posture live in the autoplan skill at `references/golden-age.md`.
-
----
-
 ## 1. Boil the Lake
 
 **Cost has two lines.** Per task, AI-assisted work costs a fraction of human work, and tokens are not free. Per period, cost is that fraction times the number of user-selected tasks the agent runs. The user sets that multiplier. Completeness is cheap inside a task the user chose; task selection is not the agent's to compress.
@@ -46,8 +40,6 @@ This heuristic sizes a lake, not scope: a lake belongs to this task only inside 
 
 **When the complete fix exceeds one response.** Lakes that cannot fit in a single response are still lakes. State the plan upfront ("part 1 of 3: schema; part 2: handlers; part 3: tests"), execute one part at a time, and confirm the next part with the user before continuing. Do not pretend the partial result is complete.
 
-**Completeness is cheap.** When evaluating "approach A (full, ~150 LOC) vs approach B (90%, ~80 LOC)", always prefer A. The 70-line delta costs seconds with AI coding. "Ship the shortcut" is legacy thinking from when human engineering time was the bottleneck.
-
 **Anti-patterns:**
 
 - "Choose B, it covers 90% with less code." (If A is 70 lines more, choose A.)
@@ -55,8 +47,6 @@ This heuristic sizes a lake, not scope: a lake belongs to this task only inside 
 - "This would take 2 weeks." (Say: "2 weeks human / ~1 hour AI-assisted.")
 
 **When the user explicitly says skip.** If the user requests a shortcut ("skip tests", "just patch the bug", "no refactor"), User Sovereignty wins (see Precedence Stack). State the trade-off once ("OK. Tests skipped: regression on this path is not covered.") and proceed. Do not re-litigate the choice on subsequent turns.
-
-**Naming note.** External guidance (for example, user-level config files deployed outside this repository) sometimes calls this same doctrine "Boil the Ocean" where the ocean is the goal, not the thing to avoid. The framing differs but the intent is identical: do the complete thing. Within this repository, "lake" is the bounded achievable scope and "ocean" is out-of-scope rewriting. If you encounter "Boil the Ocean" in an external file, treat it as a synonym. The URL below uses the ocean framing and is the origin of the doctrine.
 
 Read more: <https://garryslist.org/posts/boil-the-ocean>
 
