@@ -109,6 +109,23 @@ def _default_project_repo(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("AI_AGENTS_PROJECT_REPO", "1")
 
 
+@pytest.fixture(autouse=True)
+def _reset_console_note_record() -> None:
+    """Forget the once-per-run console notes before every test.
+
+    ``note_once`` keeps a module-global record so one ``pre_pr.py`` run prints
+    each ``[base-ref] selected ...`` note once. Tests share that process-wide
+    record, so a test that printed a note would silence the same note for every
+    later test and make stderr assertions depend on run order. The module loads
+    under both its bare name (``checks_common`` puts ``scripts/validation`` on
+    ``sys.path``) and its package name, so reset whichever copies are loaded.
+    """
+    for name in ("pre_pr_console", "scripts.validation.pre_pr_console"):
+        module = sys.modules.get(name)
+        if module is not None:
+            module.reset_noted()
+
+
 _GIT_POINTER_VARS = (
     "GIT_DIR",
     "GIT_WORK_TREE",
