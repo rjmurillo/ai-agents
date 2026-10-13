@@ -86,6 +86,18 @@ def shipped_skill_names() -> set[str]:
     return {path.name for path in SKILLS_ROOT.iterdir() if path.is_dir()}
 
 
+def get_commands_line(stdout: str) -> str:
+    """Return the JSON line whose ``command`` is ``get_commands``, skipping any banner."""
+    for line in stdout.splitlines():
+        try:
+            parsed = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict) and parsed.get("command") == "get_commands":
+            return line
+    raise ValueError(f"no get_commands response in Pi stdout, tail: {stdout[-400:]!r}")
+
+
 def package_skill_paths(response_line: str, repo_root: Path) -> dict[str, Path]:
     """Map ``<name>`` to its ``SKILL.md`` for each skill sourced from ``repo_root``.
 
@@ -168,7 +180,7 @@ def test_pi_package_loads_every_skill_and_a_skill_script_finds_lib(tmp_path: Pat
 
     assert str(REPO_ROOT) in listing.stdout, f"pi list omits the package: {listing.stdout!r}"
     expected = shipped_skill_names()
-    loaded = package_skill_paths(rpc.stdout.splitlines()[0], REPO_ROOT)
+    loaded = package_skill_paths(get_commands_line(rpc.stdout), REPO_ROOT)
     missing = expected - set(loaded)
     assert not missing, (
         f"pi lists no skill:<name> from this package for {len(missing)} skills, "
@@ -317,3 +329,40 @@ def test_pi_binary_prefers_pi_bin_and_returns_none_when_it_is_missing(
 
     monkeypatch.setenv("PI_BIN", str(tmp_path / "absent"))
     assert pi_binary() is None
+
+
+def test_pi_binary_finds_pi_on_path_when_pi_bin_is_unset(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake = tmp_path / "pi"
+    fake.write_text("#!/bin/sh\n", encoding="utf-8")
+    fake.chmod(0o755)
+    monkeypatch.delenv("PI_BIN", raising=False)
+    monkeypatch.setenv("PATH", str(tmp_path))
+
+    assert pi_binary() == str(fake)
+
+
+def test_pi_binary_returns_none_when_pi_bin_is_unset_and_path_has_no_pi(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("PI_BIN", raising=False)
+    monkeypatch.setenv("PATH", str(tmp_path))
+
+    assert pi_binary() is None
+
+
+def test_get_commands_line_skips_a_banner_before_the_response() -> None:
+    response = _response()
+
+    assert get_commands_line(f"pi 1.2.0 ready\n{{not json\n{response}\n") == response
+
+
+@pytest.mark.parametrize(
+    "stdout",
+    ["", "banner only\n", _response(command="other"), "[1, 2]\n"],
+    ids=["empty", "banner-only", "other-command", "non-object-json"],
+)
+def test_get_commands_line_fails_clearly_when_no_response_is_present(stdout: str) -> None:
+    with pytest.raises(ValueError, match="no get_commands response in Pi stdout, tail:"):
+        get_commands_line(stdout)

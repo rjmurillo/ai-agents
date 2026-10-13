@@ -34,7 +34,7 @@ def env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> pytest.MonkeyPatch:
     return apply_green(monkeypatch, tmp_path)
 
 
-def test_preset_holds_the_original_argv() -> None:
+def test_preset_argv_matches_the_expected_checks_and_messages() -> None:
     assert list(PRESETS["plugin-cli-smoke"]) == EXPECTED_ARGV
 
 

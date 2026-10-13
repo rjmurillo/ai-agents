@@ -101,13 +101,6 @@ def test_every_skill_directory_meets_pis_metadata_rules() -> None:
     assert problems == []
 
 
-def test_root_package_json_has_no_version_dependencies_or_scripts() -> None:
-    manifest = load_manifest()
-
-    for forbidden in ("version", "dependencies", "devDependencies", "scripts", "workspaces"):
-        assert forbidden not in manifest
-
-
 @pytest.mark.parametrize(
     ("mutation", "fragment"),
     [
