@@ -2,7 +2,9 @@
 """Hook: user_prompt_submit - Auto-recall relevant memories.
 
 Searches .serena/memories/ for content matching the user's prompt,
-ranks by confidence score, and injects top results via stdout.
+keeps only results whose relevance to the prompt reaches
+``_MIN_RELEVANCE``, and injects the top ones via stdout. A prompt with no
+relevant memory injects nothing.
 
 Hook Type: UserPromptSubmit (Claude Code). Copilot CLI drops config-file
 UserPromptSubmit output, so it gets recall through
@@ -76,6 +78,13 @@ _STOP_WORDS = frozenset(
 
 _MAX_RECALL_RESULTS = 3
 _MIN_QUERY_TERMS = 1
+
+# Minimum fraction of query terms that must name a memory (id or title) for it
+# to be injected. The file search matches any one term anywhere in a file, so
+# without this floor every prompt recalls its three highest-confidence
+# candidates. Measured on .serena/memories: unrelated prompts peak at 0.40,
+# prompts with a real target score 0.60 or higher; 0.50 sits in that gap.
+_MIN_RELEVANCE = 0.5
 
 
 def main() -> int:
@@ -169,6 +178,7 @@ def _search_and_format(query: str, memories_dir: Path, repo_root: Path) -> str:
         memories_dir=memories_dir,
         max_results=_MAX_RECALL_RESULTS,
         repo_root=repo_root,
+        min_relevance=_MIN_RELEVANCE,
     )
 
     if not results:
@@ -194,7 +204,8 @@ def _format_memory_context(results: list[SearchResult]) -> str:
 
     for result in results:
         lines.append(
-            f"### {result.title} (confidence: {result.confidence:.0%}, {result.citation_status})"
+            f"### {result.title} (relevance: {result.relevance:.0%}, "
+            f"confidence: {result.confidence:.0%}, {result.citation_status})"
         )
         lines.append(result.snippet)
         relative_path = result.file_path

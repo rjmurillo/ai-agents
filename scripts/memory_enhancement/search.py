@@ -22,6 +22,7 @@ from .verification import STALE_REASON_MARKERS, verify_all_citations
 _SEARCH_TIMEOUT = 5
 _DEFAULT_MAX_RESULTS = 5
 _SNIPPET_LENGTH = 200
+_STEM_LENGTH = 5
 
 
 @dataclass(frozen=True)
@@ -34,6 +35,41 @@ class SearchResult:
     title: str
     snippet: str
     citation_status: str
+    relevance: float = 0.0
+
+
+def query_relevance(query: str, label: str) -> float:
+    """Return the fraction of distinct query terms that name the memory.
+
+    ``label`` is the memory id plus title. A term matches when a label word
+    equals it or shares its first ``_STEM_LENGTH`` characters (both at least
+    that long), so "guards" matches "guard". Body text is ignored on
+    purpose: the file search matches any term anywhere in a file, so a body
+    hit says almost nothing about relevance (measured: 3 of 5 terms of an
+    unrelated prompt appear in most large memories).
+
+    Terms rejected by ``_sanitize_term`` are ignored, as in the file search.
+
+    Returns:
+        A value in [0.0, 1.0]. 0.0 when the query has no usable terms.
+    """
+    terms = {t.lower() for t in _split_query_terms(query)}
+    if not terms:
+        return 0.0
+    label_words = re.findall(r"[a-z0-9]+", label.lower())
+    hits = sum(1 for term in terms if any(_stem_match(term, w) for w in label_words))
+    return hits / len(terms)
+
+
+def _stem_match(term: str, word: str) -> bool:
+    """Return True if term equals word or both share a stem prefix."""
+    if term == word:
+        return True
+    return (
+        len(term) >= _STEM_LENGTH
+        and len(word) >= _STEM_LENGTH
+        and term[:_STEM_LENGTH] == word[:_STEM_LENGTH]
+    )
 
 
 def search_memories(
@@ -41,6 +77,7 @@ def search_memories(
     memories_dir: Path,
     max_results: int = _DEFAULT_MAX_RESULTS,
     repo_root: Path | None = None,
+    min_relevance: float = 0.0,
 ) -> list[SearchResult]:
     """Search memories and return ranked results.
 
@@ -53,9 +90,12 @@ def search_memories(
         max_results: Maximum number of results to return.
         repo_root: Repository root for citation verification.
                    Defaults to detected repo root via find_repo_root.
+        min_relevance: Drop results whose query relevance (fraction of query
+            terms naming the memory, see ``query_relevance``) is below this.
+            Applied before the ``max_results`` cut. 0.0 keeps every match.
 
     Returns:
-        List of SearchResult sorted by confidence descending.
+        List of SearchResult sorted by relevance, then confidence, descending.
     """
     if not query or not query.strip():
         return []
@@ -71,7 +111,14 @@ def search_memories(
     if paths is None:
         return []
 
-    return rank_results(paths, effective_root, max_results, memories_dir=memories_dir)
+    return rank_results(
+        paths,
+        effective_root,
+        max_results,
+        memories_dir=memories_dir,
+        query=query,
+        min_relevance=min_relevance,
+    )
 
 
 def rank_results(
@@ -79,6 +126,8 @@ def rank_results(
     repo_root: Path,
     max_results: int = _DEFAULT_MAX_RESULTS,
     memories_dir: Path | None = None,
+    query: str = "",
+    min_relevance: float = 0.0,
 ) -> list[SearchResult]:
     """Load each matched file, score with confidence, and sort descending.
 
@@ -88,18 +137,22 @@ def rank_results(
         max_results: Maximum results to return.
         memories_dir: Root memories directory.  When provided, each result's
             ``memory_id`` is path-qualified so it matches ``verify --memory-id``.
+        query: Query used to compute each result's ``relevance``. Empty
+            leaves relevance at 0.0.
+        min_relevance: Drop results with relevance below this value before
+            truncating to ``max_results``.
 
     Returns:
-        Sorted list of SearchResult by confidence descending.
+        Sorted list of SearchResult by relevance, then confidence, descending.
     """
     results: list[SearchResult] = []
 
     for file_path in paths:
-        result = _score_memory_file(file_path, repo_root, memories_dir)
-        if result is not None:
+        result = _score_memory_file(file_path, repo_root, memories_dir, query)
+        if result is not None and result.relevance >= min_relevance:
             results.append(result)
 
-    results.sort(key=lambda r: r.confidence, reverse=True)
+    results.sort(key=lambda r: (r.relevance, r.confidence), reverse=True)
     return results[:max_results]
 
 
@@ -215,7 +268,10 @@ def _parse_file_list(stdout: str, memories_dir: Path) -> list[Path]:
 
 
 def _score_memory_file(
-    file_path: Path, repo_root: Path, memories_dir: Path | None = None
+    file_path: Path,
+    repo_root: Path,
+    memories_dir: Path | None = None,
+    query: str = "",
 ) -> SearchResult | None:
     """Load a memory file, compute confidence, and build a SearchResult."""
     memory = load_memory(file_path, memories_dir)
@@ -234,6 +290,7 @@ def _score_memory_file(
         title=memory.title,
         snippet=snippet,
         citation_status=citation_status,
+        relevance=query_relevance(query, f"{memory.memory_id} {memory.title}"),
     )
 
 

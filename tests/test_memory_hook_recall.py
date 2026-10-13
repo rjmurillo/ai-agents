@@ -10,6 +10,7 @@ from unittest.mock import patch
 import pytest
 
 from memory_enhancement.hooks.user_prompt_submit_memory import (
+    _MIN_RELEVANCE,
     _extract_query,
     _find_repo_root,
     _format_memory_context,
@@ -125,13 +126,15 @@ class TestFormatMemoryContext:
             title="Test Memory",
             snippet="This is a test snippet",
             citation_status="verified",
+            relevance=0.6,
         )
         output = _format_memory_context([result])
 
         assert "<memory-context>" in output
         assert "</memory-context>" in output
         assert "Test Memory" in output
-        assert "85%" in output
+        assert "confidence: 85%" in output
+        assert "relevance: 60%" in output
         assert "verified" in output
         assert "test-mem.md" in output
 
@@ -184,6 +187,71 @@ class TestSearchAndFormat:
         result = _search_and_format("query", tmp_path, tmp_path)
         assert "<memory-context>" in result
         assert "Found Memory" in result
+
+
+class TestRelevanceFloor:
+    """End to end: the hook injects nothing unless a memory matches the prompt."""
+
+    @staticmethod
+    def _repo(tmp_path: Path) -> Path:
+        memories = tmp_path / ".serena" / "memories"
+        memories.mkdir(parents=True)
+        (tmp_path / ".git").mkdir()
+        for name, body in (
+            ("decision-worktree-identity-guard-scope", "Guards a worktree identity."),
+            ("skills-design-index", "Index. Mentions hindsight mental model review."),
+            ("orchestrator-observations", "Notes on subagents implement series."),
+        ):
+            (memories / f"{name}.md").write_text(f"# {name} (2026-01-01)\n\n{body}\n")
+        return tmp_path
+
+    @pytest.mark.unit
+    def test_matching_prompt_is_recalled(self, tmp_path: Path):
+        repo = self._repo(tmp_path)
+        out = _search_and_format("worktree identity guards", repo / ".serena" / "memories", repo)
+        assert "<memory-context>" in out
+        assert "decision-worktree-identity-guard-scope" in out
+        assert "relevance:" in out
+
+    @pytest.mark.unit
+    def test_unrelated_prompt_injects_nothing_despite_body_hits(self, tmp_path: Path):
+        repo = self._repo(tmp_path)
+        query = _extract_query("Load hindsight mental model review patterns and identify areas")
+        assert _search_and_format(query, repo / ".serena" / "memories", repo) == ""
+
+    @pytest.mark.unit
+    def test_unrelated_prompt_main_prints_nothing(self, tmp_path, monkeypatch, capsys):
+        repo = self._repo(tmp_path)
+        monkeypatch.setattr(
+            "sys.stdin", io.StringIO(json.dumps({"prompt": "in a series of subagents, implement"}))
+        )
+        monkeypatch.setattr(
+            "memory_enhancement.hooks.user_prompt_submit_memory._find_repo_root",
+            lambda start=None: repo,
+        )
+        assert main() == 0
+        assert capsys.readouterr().out == ""
+
+    @pytest.mark.unit
+    @patch("memory_enhancement.search.search_memories")
+    def test_floor_is_passed_to_search(self, mock_search, tmp_path: Path):
+        mock_search.return_value = []
+        _search_and_format("query", tmp_path, tmp_path)
+        assert mock_search.call_args.kwargs["min_relevance"] == _MIN_RELEVANCE
+
+    @pytest.mark.unit
+    def test_result_exactly_at_floor_is_injected(self, tmp_path: Path):
+        repo = self._repo(tmp_path)
+        # 1 of 2 terms names the memory: relevance 0.5 == _MIN_RELEVANCE.
+        assert _MIN_RELEVANCE == 0.5
+        out = _search_and_format("worktree unrelated", repo / ".serena" / "memories", repo)
+        assert "decision-worktree-identity-guard-scope" in out
+        assert "relevance: 50%" in out
+
+    @pytest.mark.unit
+    def test_empty_query_injects_nothing(self, tmp_path: Path):
+        repo = self._repo(tmp_path)
+        assert _search_and_format("", repo / ".serena" / "memories", repo) == ""
 
 
 class TestExitContract:
