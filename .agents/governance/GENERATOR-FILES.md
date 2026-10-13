@@ -13,7 +13,7 @@ matching "Source" instead.
 | Generator | Source (edit here) | Output (do not edit) | Spec |
 |-----------|--------------------|----------------------|------|
 | `build/generate_agents.py` | `templates/agents/*.shared.md` | `src/copilot-cli/agents/`, `src/vs-code-agents/` (per platform YAML) | ADR-002 |
-| `build/scripts/generate_rules.py` | `.claude/rules/*.md` | `.github/instructions/*.instructions.md`, `src/copilot-cli/instructions/*.instructions.md` | REQ-003-006 |
+| `build/scripts/generate_rules.py` | `src/claude/rules/*.md` (`.claude/rules/` is the binplaced install copy) | `.github/instructions/*.instructions.md`, `src/copilot-cli/instructions/*.instructions.md` | REQ-003-006 |
 | `build/scripts/generate_skills.py` | `.claude/skills/<name>/` (SKILL.md read from `src/claude/skills/<name>/SKILL.md` when that skill has a template) | `src/copilot-cli/skills/<name>/` (except `review/scripts/validate_review_marker.py`, rendered from `scripts/validation/` by `lib_mirror.py`) | REQ-003-001 |
 | `build/scripts/skill_templates.py` | `templates/skills/<name>.SKILL.md.tmpl` + `templates/skills/partials/*.mustache` | `src/claude/skills/<name>/SKILL.md` and through the binplace step to `.claude/skills/<name>/SKILL.md`, template-owned skills only | ADR-108, ADR-109 |
 | `build/scripts/generate_skills.py` (`sync_claude_plugin_skill_support`) | `.claude/skills/<name>/` (every file except SKILL.md and the review sidecar validator; merge-resolver included, unlike the Copilot mirror row above) | `src/claude/skills/<name>/` (SKILL.md itself is never touched here; that is `skill_templates.py`'s target; `review/scripts/validate_review_marker.py` is skipped, rendered from `scripts/validation/` by `lib_mirror.py`) | ADR-109 B3 follow-up |

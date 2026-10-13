@@ -47,12 +47,12 @@ A green `build/scripts/detect_agent_drift.py` is not proof that two agent copies
 
 It compares two pairs, and `templates/` is in neither:
 
-1. `src/claude/*.md` against `src/vs-code-agents/*.agent.md`
+1. `src/claude/agents/*.md` against `src/vs-code-agents/*.agent.md`
 2. `.claude/agents/*.md` against `.github/agents/*.agent.md`
 
 `templates/agents/*.shared.md` is read for FILENAMES only, to pick which agents take part in comparison 2 (`shared_template_names`, `detect_agent_drift.py:536-544`, `frozenset(p.name.removesuffix(".shared.md") for p in templates_path.glob("*.shared.md"))`). The template body is never a comparison input.
 
-Within a pair it scores only the sections named in `SECTIONS_TO_COMPARE` (`detect_agent_drift.py:57`), an 18-entry allowlist. Everything outside it is invisible, including a whole section present in one copy and absent from the other.
+Within a pair it scores only the sections in the `SECTIONS_TO_COMPARE` allowlist in `detect_agent_drift.py`. Everything outside it is invisible, including a whole section present in one copy and absent from the other.
 
 Measured on `origin/main` at `7e8d3ac2f4` (2026-08-01): across the 32 files in `src/claude/*.md`, the 18 allowlisted sections hold 48,177 of the 412,265 characters that `get_markdown_sections()` returns, 11.7%.
 
@@ -65,7 +65,7 @@ uv run python - <<'PY'
 import sys; sys.path.insert(0, 'build/scripts')
 import detect_agent_drift as d
 from pathlib import Path
-a = d.run_detection(Path('src/claude'), Path('src/vs-code-agents'), 80)
+a = d.run_detection(Path('src/claude/agents'), Path('src/vs-code-agents'), 80)
 b = d.run_install_detection(Path('templates/agents'), Path('.claude/agents'),
                             Path('.github/agents'), 80)
 records = list(a) + list(b)
@@ -74,7 +74,7 @@ print(len(records), 'records;', len(content), 'content comparisons;',
       len([r for r in content if not r.sections]), 'match zero sections')
 
 cov = tot = 0
-for f in sorted(Path('src/claude').glob('*.md')):
+for f in sorted(Path('src/claude/agents').glob('*.md')):
     secs = d.get_markdown_sections(d.remove_yaml_frontmatter(f.read_text()))
     tot += sum(len(v) for v in secs.values())
     cov += sum(len(secs[s]) for s in d.SECTIONS_TO_COMPARE if s in secs)
@@ -102,7 +102,7 @@ So for **22 of the 26 agents that have any compared section, one wholly rewritte
 
 Do not compute this column from section counts alone. An earlier version of this rule did, assuming every section scores 100, and concluded `architect` needed three. It needs two, because its sections already average 92.5 rather than 100. The same idealized model produced "more than a fifth of an agent's allowlisted sections", generalized from `architect` alone, which was wrong for 25 of the 26. The real threshold depends on the actual per-section scores, so measure it.
 
-The per-section score is **Jaccard on word sets** (`calculate_similarity`, `detect_agent_drift.py:213-232`): the size of the token intersection over the size of the union. Two consequences follow, and mixing them up produces a badly wrong mental model. Measured by mutation inside `## Constraints` on `src/claude/architect.md`:
+The per-section score is **Jaccard on word sets** (`calculate_similarity`, `detect_agent_drift.py:213-232`): the size of the token intersection over the size of the union. Two consequences follow, and mixing them up produces a badly wrong mental model. Measured by mutation inside `## Constraints` on `src/claude/agents/architect.md`:
 
 | Mutation | Section score | Overall | Result |
 |---|---|---|---|
@@ -118,7 +118,7 @@ Repeated identical lines are free, and free from the very first one: the line's 
 
 What survives all of this is the weaker true claim: a **contradiction that reuses the surrounding vocabulary scores high and passes**, because Jaccard sees tokens, not meaning. And note the last row: even a section scored 8.2 leaves `architect` at 83.3 overall, above the floor. On an agent with one section the same mutation would land at 8.2 overall and fail. The check's sensitivity is inversely proportional to how much of the agent it looks at.
 
-Two further exceptions. `merge-resolver` carries a recorded 20.9 baseline for both of its comparisons (`KNOWN_BASELINE_DRIFT`, `detect_agent_drift.py:116`) and sits in `_ADVISORY_VENDORED_DRIFT` (`:601`). Because the baseline floor is applied in `_classify_overall`, it does not report drift at all: both comparisons print `OK (baselined)` at 20.9% and exit 0. Install-pair drift is advisory unless `--fail-on-install-drift` is passed (`:710-718`, `:864-867`); `.github/workflows/drift-detection.yml` does pass it.
+Two further exceptions. `merge-resolver` has a 20.7 baseline floor (`KNOWN_BASELINE_DRIFT`) and sits in `_ADVISORY_VENDORED_DRIFT`. Its measured 20.3% is below the floor, so a default run prints `DRIFT DETECTED (20.3% similar)` for both comparisons and exits 0 only because the advisory set absorbs it. Install-pair content drift is advisory unless `--fail-on-install-drift` is passed (`_exit_code`); `.github/workflows/drift-detection.yml` does pass it.
 
 That workflow is a **weekly and manual audit, not a PR merge gate**: its only triggers are `schedule` (Mondays 09:00 UTC) and `workflow_dispatch`, and it opens an issue when it finds drift. The PR-time workflow `agent-drift-detection.yml` runs `generate_agents.py --validate`, which regenerates and compares, and never invokes this detector.
 

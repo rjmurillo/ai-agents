@@ -126,6 +126,7 @@ from checks_spec import (
     validate_commands_retired,
     validate_model_pins,
     validate_orchestrator_citations,
+    validate_retired_ownership_claims,
     validate_rule_activation_coverage,
     validate_skill_md_portability,
     validate_skill_memory_references,
@@ -523,6 +524,14 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # inside it: Skill Memory References pins that it runs immediately after
     # Skill SKIP Clause Routing.
     _Gate("Commands Retired (ADR-064)", _root_only(validate_commands_retired)),
+    # Fails when a doc or docstring repeats an ownership claim ADR-109 retired
+    # (agent trees called hand-maintained, flat src/claude paths, PowerShell
+    # test docs). Issue #5788: no other gate reads prose, so the claims
+    # outlived the migration by weeks.
+    _Gate(
+        "Retired Ownership Claims (ADR-109)",
+        _root_only(validate_retired_ownership_claims),
+    ),
     # Builds envelopes with the real skill-output producers and asks
     # scripts/validate_skill_output.py to accept each, then proves the validator
     # still rejects a malformed one. Until issue #5299 no gate ran that validator.

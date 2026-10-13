@@ -80,7 +80,7 @@ def _normalized(path: Path) -> str:
     return " ".join(_read(path).split())
 
 
-def test_template_rules_name_only_generated_agent_trees() -> None:
+def test_template_rules_name_every_generated_agent_tree() -> None:
     for path in (_TEMPLATES_RULE, *_TEMPLATES_MIRRORS):
         text = _read(path)
         must_2 = _numbered_rule(_section(text, "## MUST"), 2)
@@ -91,7 +91,13 @@ def test_template_rules_name_only_generated_agent_trees() -> None:
         assert generated_clause is not None
         must_paths = set(re.findall(r"`([^`]+/)`", generated_clause.group(1)))
 
-        expected = {"src/copilot-cli/agents/", "src/vs-code-agents/"}
+        expected = {
+            "src/claude/agents/",
+            ".claude/agents/",
+            ".github/agents/",
+            "src/copilot-cli/agents/",
+            "src/vs-code-agents/",
+        }
         assert must_paths == expected
         assert should_2 == (
             "2. **Preview per platform**. SHOULD inspect the generated output for both "
@@ -116,7 +122,7 @@ def test_claude_agents_rule_states_drift_detector_inputs() -> None:
 
         assert "It compares two pairs, and `templates/` is in neither:" in detector_section
         assert _numbered_rule(detector_section, 1) == (
-            "1. `src/claude/*.md` against `src/vs-code-agents/*.agent.md`"
+            "1. `src/claude/agents/*.md` against `src/vs-code-agents/*.agent.md`"
         )
         assert _numbered_rule(detector_section, 2) == (
             "2. `.claude/agents/*.md` against `.github/agents/*.agent.md`"

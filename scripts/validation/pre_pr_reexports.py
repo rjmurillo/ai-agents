@@ -50,6 +50,7 @@ from checks_portability import (
 from checks_ratchet import validate_count_ratchets
 from checks_spec import (
     validate_commands_retired,
+    validate_retired_ownership_claims,
     validate_rule_activation_coverage,
     validate_skill_memory_references,
     validate_skill_skip_clauses,
@@ -99,6 +100,7 @@ __all__ = [
     "validate_promotion_exceptions",
     "validate_push_lock_paths",
     "validate_required_context_conditions",
+    "validate_retired_ownership_claims",
     "validate_review_axis_drift",
     "validate_rule_activation_coverage",
     "validate_rule_scope_declarations",
