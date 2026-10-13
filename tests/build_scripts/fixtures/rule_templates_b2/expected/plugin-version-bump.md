@@ -9,6 +9,11 @@ priority: high
 
 # Plugin Manifests Carry No Version
 
+<!-- vendor-portability: contributor-facing rule for the rjmurillo/ai-agents repo
+     itself; its subject is the upstream version-bump validator. That path does not exist
+     in a consumer install (issue #5298). Paths:
+     build/scripts/validate_plugin_version_bump.py -->
+
 None of the three packaged plugin manifests carries a `version` field, and a PR
 must never add one back:
 

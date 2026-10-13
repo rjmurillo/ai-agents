@@ -4,6 +4,18 @@ applyTo: src/claude/**,.claude/agents/**,.claude/skills/**
 
 # Claude Agent and Skill Rules
 
+<!-- vendor-portability: contributor-facing rule for the rjmurillo/ai-agents repo
+     itself; it describes how the upstream generators, templates, and steering docs
+     build the agent and skill trees. None of these exist in a consumer install (issue
+     #5298). Paths: .agents/steering/agent-prompts.md,
+     .agents/steering/claude-skills.md,
+     .project-toolkit/architecture/ADR-042-python-migration-strategy.md,
+     build/generate_agents.py, build/scripts/agent_templates.py,
+     build/scripts/binplace_manifest.py, build/scripts/build_all.py,
+     build/scripts/detect_agent_drift.py,
+     scripts/validation/check_skill_contract_tests.py, templates/agents,
+     templates/agents/partials -->
+
 `src/claude/agents/*.md` are generated from `templates/agents/<stem>.claude.md.tmpl` and the Copilot copy is generated from `<stem>.copilot.md.tmpl` (per ADR-109). A shared block that both variants need lives in the partials directory beside the templates. To add or change an agent, edit the template, run `uv run python build/scripts/build_all.py`, and commit the regenerated copies. A template-owned skill's `SKILL.md` follows the same shape (ADR-108, ADR-109 B3): `templates/skills/<name>.SKILL.md.tmpl` renders to `src/claude/skills/<name>/SKILL.md`, and the same `build_all.py` run binplaces it onto `.claude/skills/<name>/SKILL.md`. `.claude/agents/` and `.claude/skills/` hold per-repo artifacts loaded by Claude Code. There is no `.claude/commands/`: ADR-064 (issue #5632) made skills the single user-invocable surface, and a blocking validator in this repository refuses a command file under any plugin root. The path is not named here because this rule ships in the Copilot instruction mirrors, where the validation tree does not exist.
 
 ## MUST
