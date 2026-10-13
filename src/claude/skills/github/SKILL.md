@@ -173,7 +173,7 @@ scripts and `github_core` import with the anthropic SDK blocked.
 |--------|---------|----------------|
 | `get_pull_requests.py` | List PRs with filters | `--state`, `--label`, `--author`, `--base`, `--head`, `--search`, `--limit` |
 | `get_pr_context.py` | PR metadata, diff, files | `--pull-request`, `--include-changed-files`, `--include-diff` |
-| `get_pr_checks.py` | CI check status, polling | `--pull-request`, `--wait`, `--timeout-seconds`, `--required-only`, `--output-format {json,human,auto}` |
+| `get_pr_checks.py` | CI check status, polling | `--pull-request`, `--wait`, `--timeout-seconds` (keep at or below 570 with `--wait`; warns above), `--missing-grace-seconds`, `--required-only`, `--output-format {json,human,auto}` |
 | `get_pr_check_logs.py` | Fetch logs from failing CI checks | `--pull-request`, `--max-lines`, `--context-lines` |
 | `triage_red_check.py` | CI-failure triage step 1: is a failing PR check also red on main's latest run? Exit 0 green on main, exit 1 red on main (EvidenceUrl cites the main run), exit 3 cannot determine (never reported as green) | `--check-name`, `--branch`, `--history-depth`, `--pull-request` |
 | `get_pr_review_comments.py` | Paginated review comments with stale detection | `--pull-request`, `--include-issue-comments`, `--detect-stale`, `--exclude-stale`, `--only-stale` |
@@ -196,7 +196,7 @@ scripts and `github_core` import with the anthropic SDK blocked.
 | `why_pr_blocked.py` | Diagnose a `mergeable_state`/`mergeStateStatus: blocked` PR: decomposes it into missing/failing/pending required checks, unresolved review threads, or merge conflicts, and says explicitly when none of those hold (the field can be stale) | `--pull-request`, `--base-branch`, `--output-format {json,human,auto}` |
 | `set_pr_auto_merge.py` | Enable/disable auto-merge | `--pull-request`, `--enable`/`--disable`, `--merge-method` |
 | `invoke_pr_comment_processing.py` | Process AI triage output | `--pr-number`, `--verdict`, `--findings-json` |
-| `new_pr.py` | Create PR with validation | `--title`, `--body`, `--body-file`, `--prepare-body-file`, `--base`, `--head`, `--draft`, `--skip-validation`, `--audit-reason`, `--validation-base` |
+| `new_pr.py` | Create PR with validation | `--title`, `--body`, `--body-file`, `--prepare-body-file`, `--preflight`, `--base`, `--head`, `--draft`, `--skip-validation`, `--audit-reason`, `--validation-base` |
 | `validate_pr_description.py` | Validate PR description | `--title`, `--body`, `--body-file`, `--fail-on-violation` |
 | `update_pr_branch.py` | Server-side "Update branch": merges the base into the PR head. Exit 0 when the update is requested, completed, or already up to date (`already_up_to_date: true`); exit 1 for a PR that is not open, or a head that differs from `--expected-head-sha` (`reason: head_moved`); exit 2 when the PR is not found; exit 3 for another API failure or a `--wait` timeout (the wait ends only when compare shows the PR is not behind); exit 4 for an auth failure. Unattended callers should pass `--expected-head-sha` | `--pull-request`, `--expected-head-sha`, `--wait`, `--timeout-seconds` |
 | `close_pr.py` | Close PR with comment | `--pull-request`, `--comment` |
