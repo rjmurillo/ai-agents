@@ -21,6 +21,7 @@ from check_agent_tree_frontmatter import validate_agent_tree_frontmatter
 from check_agents_write_targets import validate_agents_write_targets
 from check_bypass_allowlist import validate_bypass_allowlist
 from check_duplicate_test_helpers import validate_duplicate_test_helpers
+from check_equivalence_predicates import validate_equivalence_predicates
 from check_generated_staleness import validate_generated_staleness
 from check_git_hook_health import validate_git_hook_health
 from check_host_marketplaces import validate_host_marketplaces
@@ -84,6 +85,7 @@ __all__ = [
     "validate_count_ratchets",
     "validate_duplicate_test_helpers",
     "validate_effective_context_ratchet",
+    "validate_equivalence_predicates",
     "validate_external_contract_records",
     "validate_generated_staleness",
     "validate_git_hook_health",
