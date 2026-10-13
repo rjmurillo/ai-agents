@@ -79,6 +79,7 @@ Project Toolkit skills for memory, context, decisions, requirements, strategy, a
 - `decision-critic`
 - `decision-question`
 - `domain-design`
+- `evidence-provenance`
 - `memory`
 - `memory-consolidate`
 - `memory-documentary`
