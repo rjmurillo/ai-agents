@@ -104,6 +104,22 @@ class TestRealSchemas:
         errors = validate_skillbook(_SKILLBOOK_DIR, _SCHEMA_DIR)
         assert errors == [], f"seed data failed validation: {errors}"
 
+    def test_session_lifecycle_reads_continuity_before_executing_and_writes_after(self) -> None:
+        # AGENTS.md splits the gates: Start reads the handoff, End updates it.
+        data = json.loads((_SKILLBOOK_DIR / "workflows.json").read_text(encoding="utf-8"))
+        workflow = next(w for w in data["workflows"] if w["id"] == "wf-session-lifecycle")
+        steps = sorted(workflow["steps"], key=lambda step: step["order"])
+        assert [step["order"] for step in steps] == list(range(1, len(steps) + 1))
+        actions = [step["action"] for step in steps]
+
+        def position(prefix: str) -> int:
+            return next(i for i, a in enumerate(actions) if a.startswith(prefix))
+
+        read_at = position("Read the per-issue handoff")
+        execute_at = position("Execute tasks")
+        update_at = position("Update the per-issue handoff")
+        assert read_at < execute_at < update_at
+
     def test_policy_schema_resolves_evidence_entry_file_ref(self) -> None:
         # An invalid evidence entry must be caught via the cross-file $ref.
         schema_path = _SCHEMA_DIR / "policy.schema.json"

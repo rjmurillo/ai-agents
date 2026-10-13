@@ -155,7 +155,7 @@ def test_a_registered_event_with_no_dispatcher_still_fails(tmp_path: Path) -> No
 
     Driven as a real subprocess rather than through `main()` in-process, so the
     assertion is on the process exit status a CI step actually reads
-    (`.claude/rules/testing.md` MUST 8, `.claude/rules/ci-scripts.md` MUST 10).
+    (`.claude/rules/testing.md` MUST 8, `.claude/rules/ci-scripts.md` MUST 23).
     """
     source = _registering_source(tmp_path)
     assert not (source / "hooks" / "PreToolUse" / "_dispatch.py").exists()
