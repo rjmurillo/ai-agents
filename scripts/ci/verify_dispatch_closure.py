@@ -184,6 +184,21 @@ def _in_ref(tool_root: Path, ref: str, path: str) -> bool:
     return _blob_id(tool_root, ref, path) is not None
 
 
+def _unchanged_symlinks(tool_root: Path, fork: str | None, head_sha: str | None) -> set[str]:
+    """Symlinks of the merge base that the head carries with the same target.
+
+    A symlink the head retargets is the pull request's own change, so a path match
+    alone is not enough: the blob id, which holds the target, has to match too.
+    """
+    if fork is None or head_sha is None:
+        return set()
+    return {
+        path
+        for path in _base_symlinks(tool_root, fork)
+        if _blob_id(tool_root, head_sha, path) == _blob_id(tool_root, fork, path)
+    }
+
+
 def _symlinks_in_tree(root: Path) -> set[str]:
     found: set[str] = set()
     for directory, names, files in os.walk(root, followlinks=False):
@@ -287,9 +302,7 @@ def verify(tool_root: Path, head_root: Path, base_ref: str, head_sha: str | None
             report.added.append(path)
         elif differs:
             report.changed.append(path)
-    known = _base_symlinks(tool_root, base_ref) | (
-        _base_symlinks(tool_root, fork) if fork else set()
-    )
+    known = _base_symlinks(tool_root, base_ref) | _unchanged_symlinks(tool_root, fork, head_sha)
     report.symlinks.extend(sorted(_symlinks_in_tree(head_root) - known))
     report.unresolved.extend(gate._unresolvable_dynamic_sites(closure, head_root))
     return report

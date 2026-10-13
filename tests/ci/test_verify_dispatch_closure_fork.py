@@ -216,6 +216,36 @@ class TestBehindTheBase:
 
         assert report["symlinks"] == ["link"]
 
+    def test_a_symlink_the_pull_request_retargets_is_still_reported(
+        self, trees: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        base, _ = trees
+        os.symlink("README.md", base / "link")
+        commit_on_base(base, "main has a symlink")
+        upstream, _sha = upstream_with_pr(base, {"README.md": "pull request\n"})
+        (upstream / "link").unlink()
+        os.symlink(VERIFIER, upstream / "link")
+        git(upstream, "add", "-A")
+        git(
+            upstream,
+            "-c",
+            "user.email=t@example.invalid",
+            "-c",
+            "user.name=t",
+            "commit",
+            "-q",
+            "-m",
+            "retarget",
+        )
+        sha = rev(upstream)
+        git(upstream, "update-ref", "refs/pull/1/head", sha)
+        (base / "link").unlink()
+        commit_on_base(base, "main removes the symlink")
+
+        report = check(base, upstream, sha, capsys)
+
+        assert report["symlinks"] == ["link"]
+
 
 class TestMergeBase:
     def test_no_head_commit_means_no_merge_base(self, trees: tuple[Path, Path]) -> None:
