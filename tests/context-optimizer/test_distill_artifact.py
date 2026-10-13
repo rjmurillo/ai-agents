@@ -25,7 +25,6 @@ sys.path.insert(0, str(scripts_dir))
 
 import distill_artifact as da  # noqa: E402
 
-ROOT_DIRNAME = ".project-toolkit"
 DASHES = ("\u2013", "\u2014")
 
 DIFF = """diff --git a/src/a.py b/src/a.py
@@ -367,7 +366,9 @@ class TestOutDir:
         (tmp_path / ".git").mkdir()
         sub = tmp_path / "a" / "b"
         sub.mkdir(parents=True)
-        assert da.default_out_dir(sub) == tmp_path.resolve() / ROOT_DIRNAME / da.DISTILL_SUBDIR
+        assert da.default_out_dir(sub) == Path(
+            da.artifact_dir(da.DISTILL_SUBDIR, base=tmp_path.resolve())
+        )
 
     def test_git_file_marks_worktree_root(self, tmp_path) -> None:
         (tmp_path / ".git").write_text("gitdir: elsewhere", encoding="utf-8")
@@ -376,7 +377,9 @@ class TestOutDir:
     def test_outside_repo_falls_back_to_cwd(self, tmp_path, monkeypatch) -> None:
         monkeypatch.setattr(da, "find_repo_root", lambda start: None)
         monkeypatch.chdir(tmp_path)
-        assert da.default_out_dir(tmp_path) == tmp_path.resolve() / ROOT_DIRNAME / da.DISTILL_SUBDIR
+        assert da.default_out_dir(tmp_path) == Path(
+            da.artifact_dir(da.DISTILL_SUBDIR, base=tmp_path.resolve())
+        )
 
     def test_find_repo_root_none_when_absent(self, tmp_path) -> None:
         found = da.find_repo_root(tmp_path.resolve())
@@ -387,7 +390,7 @@ class TestOutDir:
         src = write(tmp_path, "log.txt", "error a\n")
         monkeypatch.chdir(tmp_path)
         _, out, _ = run([str(src)], capsys)
-        expected = tmp_path.resolve() / ROOT_DIRNAME / da.DISTILL_SUBDIR
+        expected = Path(da.artifact_dir(da.DISTILL_SUBDIR, base=tmp_path.resolve()))
         assert Path(out.strip()).parent == expected
 
 
