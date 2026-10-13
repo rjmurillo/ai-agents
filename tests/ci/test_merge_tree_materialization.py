@@ -143,7 +143,7 @@ def test_cleanup_failure_does_not_mask_primary_failure(
         _tree_counters(),
         patch.object(
             _m,
-            "_remove_tree",
+            "_remove_scratch",
             return_value="merge-tree scratch cleanup failed: PermissionError: denied",
         ),
     ):
