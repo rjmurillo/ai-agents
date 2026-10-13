@@ -44,13 +44,13 @@ Exit codes (AGENTS.md contract):
     2 - config error (baseline missing, bad args)
     3 - external error (git, ruff, or taste-lints could not run)
     100 - merge conflict (ratchets were not evaluated)
+    128+N - killed by signal N (SIGTERM, SIGHUP); scratch was removed first
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
-import tempfile
 from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
@@ -62,12 +62,12 @@ if TYPE_CHECKING:
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.ci.base_derived_ratchet import CommitScratch, fork_registry_verdict, introduced_at
-from scripts.ci.merge_tree_materialization import guarded_scratch
+from scripts.ci.merge_tree_materialization import create_scratch, guarded_scratch
 from scripts.ci.merge_tree_materialization import (
     init_scratch_repo as _init_scratch_repo,
 )
 from scripts.ci.merge_tree_materialization import materialize_tree as _materialize_tree
-from scripts.ci.merge_tree_materialization import remove_tree as _remove_tree
+from scripts.ci.merge_tree_materialization import remove_scratch as _remove_scratch
 from scripts.ci.merge_tree_materialization import run_git as _git
 from scripts.ci.merge_tree_ratchet_registry import RATCHETS, MergeTreeRatchet
 
@@ -402,7 +402,7 @@ def _evaluate_registered_ratchets(repo_root: Path, base_oid: str, scratch_root: 
 def _measure_in_scratch(repo_root: Path, tree_oid: str, base_oid: str) -> int:
     """Materialize the merged tree in scratch, evaluate, and always remove the scratch."""
     try:
-        scratch_root = Path(tempfile.mkdtemp(prefix="merge-tree-ratchet-"))
+        scratch_root = create_scratch("merge-tree-ratchet-")
     except OSError as exc:
         print(f"scratch creation failed: {type(exc).__name__}: {exc}", file=sys.stderr)
         return EXIT_EXTERNAL
@@ -414,7 +414,7 @@ def _measure_in_scratch(repo_root: Path, tree_oid: str, base_oid: str) -> int:
         ):
             primary_exit = _evaluate_registered_ratchets(repo_root, base_oid, scratch_root)
     finally:
-        cleanup_error = _remove_tree(scratch_root, "merge-tree scratch")
+        cleanup_error = _remove_scratch(scratch_root, "merge-tree scratch")
     if cleanup_error:
         print(cleanup_error, file=sys.stderr)
         if primary_exit == EXIT_OK:

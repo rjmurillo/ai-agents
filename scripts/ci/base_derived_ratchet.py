@@ -34,13 +34,13 @@ Exit codes (AGENTS.md contract):
     1 - regression (count > count at the merge base)
     2 - config error (no --base-ref)
     3 - external error (counter could not run, or no fork point)
+    128+N - killed by signal N (SIGTERM, SIGHUP); scratch was removed first
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
-import tempfile
 from collections.abc import Callable
 from pathlib import Path
 
@@ -58,10 +58,11 @@ from scripts.ci.count_ratchet import (
     is_shallow_repository,
 )
 from scripts.ci.merge_tree_materialization import (
+    create_scratch,
     guarded_scratch,
     init_scratch_repo,
     materialize_tree,
-    remove_tree,
+    remove_scratch,
     run_git,
 )
 from scripts.ci.ratchet_registry_at_ref import (
@@ -134,7 +135,7 @@ class CommitScratch:
             return False
         tree_oid = proc.stdout.strip()
         try:
-            self._scratch = Path(tempfile.mkdtemp(prefix="base-derived-ratchet-"))
+            self._scratch = create_scratch("base-derived-ratchet-")
         except OSError as exc:
             sys.stderr.write(f"scratch creation failed: {type(exc).__name__}: {exc}\n")
             return False
@@ -154,7 +155,7 @@ class CommitScratch:
         """Remove the scratch directory. Returns a cleanup error, or None."""
         if self._scratch is None:
             return None
-        return remove_tree(self._scratch, "base-derived ratchet scratch")
+        return remove_scratch(self._scratch, "base-derived ratchet scratch")
 
 
 def measure_commit(repo_root: Path, commit: str, counter: Counter) -> int | None:
@@ -163,12 +164,12 @@ def measure_commit(repo_root: Path, commit: str, counter: Counter) -> int | None
     Scratch is removed on every exit path. A failed cleanup is not a
     measurement.
     """
-    tip = CommitScratch(repo_root, commit)
-    try:
-        with guarded_scratch():
+    with guarded_scratch():
+        tip = CommitScratch(repo_root, commit)
+        try:
             count = tip.measure(counter)
-    finally:
-        cleanup_error = tip.close()
+        finally:
+            cleanup_error = tip.close()
     if cleanup_error:
         sys.stderr.write(f"{cleanup_error}\n")
         return None

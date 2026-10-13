@@ -18,14 +18,21 @@ from typing import Any
 
 from scripts.cli_exec import resolve_executable
 
+if sys.platform != "win32":
+    import fcntl
+
 _CLEANUP_RETRY_DELAYS = (0.1, 0.2, 0.4, 0.8, 1.6)
 _TRANSIENT_CLEANUP_ERRNOS = frozenset({errno.EBUSY, errno.ENOTEMPTY})
 
 # Scratch prefixes this package creates under the system temp dir. The sweep
-# touches only directories whose names start with one of these.
+# touches only entries named with one of these, or the dotted siblings that
+# materialize_tree and init_scratch_repo create beside a scratch tree.
 SCRATCH_PREFIXES = ("merge-tree-ratchet-", "base-derived-ratchet-")
-# Longer than the 30m cap on the longest pre-push job in lefthook.yml, so a
-# live run on another worktree is never swept.
+_SIBLING_SUFFIXES = ("-materialize-home", "-materialize-index", "-git-home")
+# The age floor is a backstop. A live run holds a lock on its scratch tree
+# (see create_scratch), and the sweep skips any locked tree whatever its age.
+# Where locks are unavailable (Windows), the floor alone protects a live run;
+# it is twice the 30m cap on the longest pre-push job in lefthook.yml.
 STALE_SCRATCH_AGE_SECONDS = 3600
 _TERMINATION_SIGNALS = tuple(
     getattr(signal, name) for name in ("SIGTERM", "SIGHUP") if hasattr(signal, name)
@@ -240,47 +247,158 @@ def init_scratch_repo(scratch: Path) -> bool:
     return initialized and cleanup_error is None
 
 
+_HELD_SCRATCH_LOCKS: dict[Path, int] = {}
+
+
+def create_scratch(prefix: str) -> Path:
+    """Create a scratch tree under the temp dir and mark it live with a shared lock.
+
+    A concurrent sweep from another run skips any tree whose lock it cannot
+    take, whatever the tree's age. The kernel drops the lock when this process
+    dies by any means, SIGKILL included, so a killed run's tree becomes
+    sweepable. Release with ``remove_scratch``. Raises ``OSError`` when the
+    directory cannot be created. A lock that cannot be taken is reported and
+    skipped; the age floor then protects the tree.
+    """
+    scratch = Path(tempfile.mkdtemp(prefix=prefix))
+    if sys.platform != "win32":
+        try:
+            _HELD_SCRATCH_LOCKS[scratch] = _open_locked(scratch, fcntl.LOCK_SH)
+        except OSError as exc:
+            sys.stderr.write(f"scratch lock skipped: {type(exc).__name__}: {exc}\n")
+    return scratch
+
+
+def remove_scratch(scratch: Path, label: str) -> str | None:
+    """Release the live-run lock on ``scratch``, then remove it. Returns a cleanup error."""
+    fd = _HELD_SCRATCH_LOCKS.pop(scratch, None)
+    if fd is not None:
+        os.close(fd)
+    return remove_tree(scratch, label)
+
+
+def _open_locked(path: Path, operation: int) -> int:
+    """Open directory ``path`` and take a non-blocking ``operation`` flock on it.
+
+    POSIX only; callers check ``sys.platform`` first. Raises
+    ``BlockingIOError`` when another process holds a conflicting lock, and
+    ``OSError`` when ``path`` is missing, a symlink, or not a directory.
+    """
+    fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        fcntl.flock(fd, operation | fcntl.LOCK_NB)
+    except OSError:
+        os.close(fd)
+        raise
+    return fd
+
+
+def _owning_scratch_name(name: str, prefixes: tuple[str, ...]) -> str | None:
+    """Name of the scratch tree ``name`` belongs to, or None when it is not ours.
+
+    A scratch tree owns itself. A dotted sibling such as
+    ``.merge-tree-ratchet-abc-git-home`` belongs to ``merge-tree-ratchet-abc``.
+    """
+    if name.startswith(prefixes):
+        return name
+    if not name.startswith("."):
+        return None
+    for suffix in _SIBLING_SUFFIXES:
+        if name.endswith(suffix) and name[1:].startswith(prefixes):
+            return name[1 : -len(suffix)]
+    return None
+
+
+def _is_stale_and_owned(entry: Path, is_sibling: bool, cutoff: float) -> bool:
+    """True for a non-symlink entry this user owns, last modified before ``cutoff``.
+
+    A scratch tree must be a directory. A sibling may also be a regular file,
+    because the temporary index is one. Ownership is not checked on Windows,
+    which has no ``os.getuid``; the per-user temp dir scopes the sweep there.
+    """
+    try:
+        info = entry.lstat()
+    except OSError:
+        return False
+    is_dir = stat.S_ISDIR(info.st_mode)
+    if not (is_dir or (is_sibling and stat.S_ISREG(info.st_mode))):
+        return False
+    if info.st_mtime >= cutoff:
+        return False
+    return not hasattr(os, "getuid") or info.st_uid == os.getuid()
+
+
+def _remove_entry(entry: Path) -> str | None:
+    if entry.is_dir():
+        return remove_tree(entry, "stale ratchet scratch")
+    try:
+        entry.unlink(missing_ok=True)
+    except OSError as exc:
+        return f"stale ratchet scratch cleanup failed: {type(exc).__name__}: {exc}"
+    return None
+
+
+def _remove_unless_live(entry: Path, owner: Path) -> bool:
+    """Remove ``entry`` while holding an exclusive lock on its scratch tree ``owner``.
+
+    A lock held elsewhere means a live run owns the tree, so the entry stays.
+    A missing owner means a sibling was orphaned, so the entry goes.
+    """
+    lock_fd: int | None = None
+    if sys.platform != "win32":
+        try:
+            lock_fd = _open_locked(owner, fcntl.LOCK_EX)
+        except FileNotFoundError:
+            lock_fd = None
+        except OSError:
+            return False
+    try:
+        error = _remove_entry(entry)
+    finally:
+        if lock_fd is not None:
+            os.close(lock_fd)
+    if error:
+        sys.stderr.write(f"{error}\n")
+    return error is None
+
+
 def sweep_stale_scratch(
     prefixes: tuple[str, ...] = SCRATCH_PREFIXES,
     max_age_seconds: float = STALE_SCRATCH_AGE_SECONDS,
     temp_root: Path | None = None,
 ) -> int:
-    """Remove scratch trees left behind by earlier killed runs. Returns the count removed.
+    """Remove scratch left behind by earlier killed runs. Returns the count removed.
 
-    A path qualifies only when it is a real directory (not a symlink), its name
-    starts with one of ``prefixes``, the current user owns it, and its mtime is
-    older than ``max_age_seconds``. Anything else is left alone. A removal that
-    fails is reported on stderr and skipped: a sweep must never fail a ratchet.
+    An entry qualifies only when its name is a scratch tree or one of that
+    tree's dotted siblings, it is not a symlink, the current user owns it, its
+    mtime is older than ``max_age_seconds``, and no live run holds the lock on
+    its scratch tree. Anything else is left alone. A removal that fails is
+    reported on stderr and skipped: a sweep must never fail a ratchet.
     """
     root = temp_root if temp_root is not None else Path(tempfile.gettempdir())
-    uid = os.getuid() if hasattr(os, "getuid") else None
-    cutoff = time.time() - max_age_seconds
-    removed = 0
     try:
         entries = list(root.iterdir())
     except OSError as exc:
         sys.stderr.write(f"scratch sweep skipped: {type(exc).__name__}: {exc}\n")
         return 0
+    cutoff = time.time() - max_age_seconds
+    removed = 0
     for entry in entries:
-        if not entry.name.startswith(prefixes):
+        owner_name = _owning_scratch_name(entry.name, prefixes)
+        if owner_name is None:
             continue
-        try:
-            info = entry.lstat()
-        except OSError:
+        if not _is_stale_and_owned(entry, owner_name != entry.name, cutoff):
             continue
-        if not stat.S_ISDIR(info.st_mode) or info.st_mtime >= cutoff:
-            continue
-        if uid is not None and info.st_uid != uid:
-            continue
-        error = remove_tree(entry, "stale ratchet scratch")
-        if error:
-            sys.stderr.write(f"{error}\n")
-        else:
+        if _remove_unless_live(entry, root / owner_name):
             removed += 1
     return removed
 
 
 def _raise_system_exit(signum: int, _frame: object) -> None:
+    # Ignore any further termination signal so a second SIGTERM cannot abort
+    # the finally block that is about to remove the scratch tree.
+    for each in _TERMINATION_SIGNALS:
+        signal.signal(each, signal.SIG_IGN)
     raise SystemExit(128 + signum)
 
 
@@ -291,9 +409,12 @@ def terminate_as_exit() -> Iterator[None]:
     Python's default action for both signals ends the process without unwinding,
     which skips the ``finally`` that removes a scratch tree. The exit status is
     128 plus the signal number, the shell convention for death by signal, so a
-    caller can tell a kill from the 0/1/2/3 result codes. Handlers can only be
-    installed from the main thread; elsewhere the guard is a no-op. Previous
-    handlers are restored on exit.
+    caller can tell a kill from the 0/1/2/3 result codes. After the first
+    signal, later ones are ignored until the guard exits, so cleanup inside the
+    guard runs to completion. Handlers can only be installed from the main
+    thread; elsewhere the guard is a no-op. Windows has no SIGHUP and its
+    process kill does not deliver SIGTERM, so there the sweep is the only
+    protection. Previous handlers are restored on exit.
     """
     previous: dict[int, Any] = {}
     try:
@@ -310,7 +431,11 @@ def terminate_as_exit() -> Iterator[None]:
 
 @contextmanager
 def guarded_scratch() -> Iterator[None]:
-    """Sweep stale scratch, then run the body with termination signals unwinding."""
+    """Sweep stale scratch, then run the body with termination signals unwinding.
+
+    Create and remove the scratch tree inside the body, so a signal at any
+    point after creation still reaches the removal.
+    """
     sweep_stale_scratch()
     with terminate_as_exit():
         yield
