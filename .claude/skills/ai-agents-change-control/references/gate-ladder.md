@@ -26,9 +26,10 @@ Two gates cover the ground instead (`scripts/validation/checks_plugin.py`).
 checkout. `Git Hook Health (core.hooksPath)` reads the installed `pre-push` and
 requires Lefthook's complete generated dispatch command as its final command.
 The first proves the pinned runtime starts; the second proves Git will run a
-hook that dispatches Lefthook. Neither executes the shim. The shim reaches the
-same binary on every platform: it calls the configured `lefthook_runner.py`,
-which tries `uv run --frozen lefthook`, then `lefthook` on `PATH`, then exits 3.
+hook that dispatches Lefthook. Neither executes the shim. Unless `LEFTHOOK_BIN`
+is set, the shim calls the configured `lefthook_runner.py` on every platform,
+which tries `uv run --frozen lefthook`, then `lefthook` on `PATH` or in
+`node_modules/.bin`, then exits 3.
 `tests/test_lefthook_integration.py` pins and runs that order (issue #5491).
 
 ## Commit discipline has no automated ceiling

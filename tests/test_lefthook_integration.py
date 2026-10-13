@@ -1277,7 +1277,8 @@ def test_installed_shim_resolves_lefthook_in_runner_order(
     """Issue #5491: run the installed shim and record which binary it executes.
 
     The two local gates never execute the shim. This does, with a PATH that holds
-    only ``sh`` and ``python3`` plus the stubs under test, and records the order
+    only ``python3`` plus the stubs under test (the shim runs through
+    ``/bin/sh``), and records the order
     the shim reaches: pinned ``uv`` runtime, then ``lefthook`` on PATH, then a
     nonzero exit with the runner's diagnosis. The last case is the one the issue
     feared: no resolvable Lefthook must stop the hook, never exit 0 silently.

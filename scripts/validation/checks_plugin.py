@@ -252,13 +252,15 @@ def validate_lefthook_installed(repo_root: Path) -> bool:
     executable ``#!/bin/sh`` plus ``exit 0`` satisfies both a runtime-start check
     and an executability check while running no job at all.
 
-    Neither gate executes the shim, and they do not disagree with it. Lefthook
-    renders one shim template for every platform, so the shim calls the
-    configured ``lefthook_runner.py``, which probes ``uv run --frozen lefthook
-    version`` first, as this gate does, then ``lefthook`` on ``PATH``, then
-    exits 3. Windows differs only in the fallback name (``lefthook.exe``).
+    Neither gate executes the shim, and unless ``LEFTHOOK_BIN`` is set they do
+    not disagree with it. Lefthook renders one shim template for every
+    platform, so the shim calls the configured ``lefthook_runner.py``, which
+    probes ``uv run --frozen lefthook version`` first, as this gate does, then
+    ``lefthook`` on ``PATH`` or in ``node_modules/.bin``, then exits 3. The
+    shim's own fallback (named ``lefthook.exe`` on Windows) is unreachable.
     ``tests/test_lefthook_integration.py::test_install_resets_legacy_hooks_path``
-    pins that order in the generated shim on every platform, and
+    pins the shim text order (override, runner call, shim fallback) on every
+    platform. ``tests/test_lefthook_runner.py`` pins the runner's order, and
     ``test_installed_shim_resolves_lefthook_in_runner_order`` runs the installed
     shim on POSIX. Issue #4789, PR #5358 review, issue #5491.
     """
