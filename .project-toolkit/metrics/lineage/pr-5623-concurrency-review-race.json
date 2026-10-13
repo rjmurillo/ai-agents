@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "id": "pr-5623-concurrency-review-race",
+  "repository": "rjmurillo/ai-agents",
+  "default_branch": "main",
+  "claim": "max_concurrent_children accepted every start after the first completion, so a truncated stream could verify an inflated concurrency maximum.",
+  "supports": [
+    "defect",
+    "review_race"
+  ],
+  "introduction": {
+    "pr": 5623,
+    "url": "https://github.com/rjmurillo/ai-agents/pull/5623",
+    "commit": "aa951a04e76d3db2bc16c72cf7e34573314e65dd",
+    "merged_at": "2026-09-06T22:23:33Z"
+  },
+  "detection": {
+    "source": "devin-ai-integration[bot] review, finding 'Incomplete runs verify inflated concurrency'",
+    "url": "https://github.com/rjmurillo/ai-agents/pull/5623#pullrequestreview-5126799992",
+    "at": "2026-09-06T22:23:38Z"
+  },
+  "detection_delay_seconds": 5,
+  "follow_up": {
+    "kind": "defect_repair",
+    "pr": 5630,
+    "url": "https://github.com/rjmurillo/ai-agents/pull/5630",
+    "commit": "a719e452d57271d304507c6b64ad10769801ee09",
+    "merged_at": "2026-09-07T02:36:22Z"
+  },
+  "status": "FIXED",
+  "status_history": [
+    {
+      "status": "CURRENT",
+      "live_sha": "aa951a04e76d3db2bc16c72cf7e34573314e65dd",
+      "checked_at": "2026-10-13T11:48:26Z",
+      "basis": "claim held at the introduction merge commit: pattern present in scripts/eval/_capability_probes.py at aa951a04e"
+    },
+    {
+      "status": "FIXED",
+      "live_sha": "0dd875f9959689313b1b0096c186b36c594d02e3",
+      "checked_at": "2026-10-13T11:48:29Z",
+      "basis": "claim no longer holds after the repair: pattern absent in scripts/eval/_capability_probes.py at 0dd875f99"
+    }
+  ],
+  "recheck": {
+    "description": "The buggy completion test 'if not saw_end or peak == 0:' lived in scripts/eval/_capability_probes.py. The claim holds while that line is present.",
+    "command": "git show <rev>:scripts/eval/_capability_probes.py | grep -nF 'if not saw_end or peak == 0:'",
+    "path": "scripts/eval/_capability_probes.py",
+    "pattern": "if not saw_end or peak == 0:",
+    "live_when": "present"
+  },
+  "limitations": [
+    "PR #5630 answered seven findings from this review and six from a second review. This record tracks only the concurrency finding.",
+    "The recheck proves the buggy line is gone from that file. It does not prove the replacement in scripts/eval/_capability_topology.py is correct.",
+    "A review arriving 5 s after merge shows a race. It does not show the reviewer or the author was at fault."
+  ]
+}

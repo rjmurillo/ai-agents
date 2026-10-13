@@ -35,7 +35,7 @@ for executable invocations of exactly that tree. All four live in
 |---|---|---|
 | `scripts/validation/check_vendor_portability.py` | skill scripts | code that reads an upstream-only path |
 | `scripts/validation/check_skill_portability.py` | skill scripts | drift against the script baseline |
-| `scripts/validation/check_skill_md_portability.py` | skill `.md`, `templates/agents/`, `src/copilot-cli/instructions/`, `src/claude/rules/` | an upstream path cited in **prose** |
+| `scripts/validation/check_skill_md_portability.py` | skill `.md`, `templates/agents/`, `src/claude/agents/`, `src/copilot-cli/agents/`, `.github/agents/`, `src/copilot-cli/instructions/`, `src/claude/rules/` | an upstream path cited in **prose** |
 | `scripts/validation/check_skill_md_exec_portability.py` | skill `.md` | a bare `.claude/skills/...` script **invocation** |
 
 Symptom: the first two pass, you commit, and the push is rejected by
@@ -59,6 +59,10 @@ For a rule, `src/claude/rules/` is compiled output of
 then run `uv run python build/scripts/build_all.py` to regenerate
 `src/claude/rules/`, `.claude/rules/`, and the Copilot instructions mirror. Do
 not hand-edit the generated trees.
+
+For an agent file, put the marker in the `templates/agents/` template that
+renders it, then run `build_all.py`.
+
 ## A bare directory argument to taste-lints is a silent false pass
 
 `taste_lints.py --rules file-size <dir>` with the directory as a **positional**
