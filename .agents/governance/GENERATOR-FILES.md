@@ -77,9 +77,9 @@ the required `Python Tests` run on every pull request.
 | `copilot-shared` | rendered Copilot template against `<stem>.shared.md` | Fails. Both feed the same platform family |
 
 Tree-specific, dropped from comparison: every frontmatter key except
-`description`, `argument-hint`, and `role`. That covers `name`, `model`,
-`model_tier`, `tools`, `tools_vscode`, `tools_copilot`, `isolation_required`,
-and `metadata` other than `metadata.role` (the Claude spelling of `role`).
+`description`, `argument-hint`, `role`, and the tool lists. That covers `name`,
+`model`, `model_tier`, `isolation_required`, and `metadata` other than
+`metadata.role` (the Claude spelling of `role`).
 
 Shared, compared exactly: those three frontmatter keys, the preamble before the
 first H2, the body of every H2 section both sides carry, and the order of
@@ -89,12 +89,38 @@ handoff invocation spelling, fence language tags, trailing whitespace) and then
 ignores blank lines. Nothing else is excused. A repeated H2 name in one source
 is a configuration error (exit 2), because a repeat would hide the earlier body.
 The normalization never drops a
-text line, reorders a step, or edits a number, so the eight invariants of
-ADR-107 section 5 stay in the compared text: ordered steps, completion
-criteria, evidence requirements, failure states, approval gates, authorization
-and capability statements, idempotence and rollback statements, and the
-exit-code contract. Invariants 1 to 5 and 7 are prose. The gate checks that the
-prose is equal, not what it means.
+text line, reorders a step, or edits a number, so invariants 1 to 5, 7, and 8
+of ADR-107 section 5 stay in the compared text: ordered steps, completion
+criteria, evidence requirements, failure states, approval gates, idempotence and
+rollback statements, and the exit-code contract. Invariants 1 to 5 and 7 are
+prose. The gate checks that the prose is equal, not what it means.
+
+Invariant 6, authorization and the abstract capability set, lives in the tool
+lists, and only the platform spelling of a tool is excused. The gate reduces
+each list to abstract capabilities with `build/scripts/agent_capabilities.py`
+and compares those units:
+
+| Pair | Template list | Shared-source list | Units |
+|------|---------------|--------------------|-------|
+| `claude-shared` | `tools` | `tools_copilot` | `capability:*` |
+| `copilot-shared` | `tools_copilot` | `tools_copilot` | `capability:*` |
+| `copilot-shared` | `tools_vscode` | `tools_vscode` | `capability-vscode:*` |
+
+- Spellings that name one capability are equal: `Read` and `read`, `Grep` and
+  `search`, `Bash` and `shell` and `execute`, `WebFetch` and `web`,
+  `mcp__github__issue_read` and `github/issue_read`. The mapping table is
+  `_BUILTIN` in that module.
+- `$toolset:<name>` references expand through `templates/toolsets.yaml`, the
+  platform variant first, as the generator does. An unknown toolset is a
+  configuration error (exit 2).
+- Units are one `declaration` unit (`restricted` or `unrestricted`), then one
+  unit per family: `builtin`, `mcp:<server>`, and `unmapped`. A member with no
+  tool list is `unrestricted`, because Claude Code gives such an agent every
+  tool. Restricted against unrestricted is one divergence, the declaration.
+- A name the module does not know stays a literal `unmapped` item. A wildcard
+  such as `serena/*` is not an explicit `serena/<tool>` list. Neither can hide
+  a difference.
+- The Claude-only "Claude Code Tools" body section stays out of the comparison.
 
 Divergence that predates the gate is pinned in
 `.agents/governance/agent-source-divergence.json`. Each entry holds a digest of

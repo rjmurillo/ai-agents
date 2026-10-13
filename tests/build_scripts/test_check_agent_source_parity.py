@@ -68,7 +68,7 @@ SHARED = (
     "role: executor\n"
     "description: Applies widget changes.\n"
     "argument-hint: Describe the widget change\n"
-    "tools_vscode:\n  - read\n"
+    "tools_vscode: [read, search]\ntools_copilot: [read, search]\n"
     "---\n" + SHARED_BODY
 )
 
@@ -82,7 +82,7 @@ CLAUDE = (
     "---\n" + SHARED_BODY + "\n## Claude Code Tools\n\n- Read, Grep\n"
 )
 
-COPILOT = SHARED.replace("tools_vscode:\n  - read\n", "tools_copilot:\n  - read\n")
+COPILOT = SHARED
 
 
 def build_repo(
@@ -125,7 +125,7 @@ class TestAgreement:
 
     def test_tree_specific_frontmatter_is_dropped(self, tmp_path: Path) -> None:
         claude = mutate(
-            CLAUDE, "tools: Read, Grep", "tools: Read\nmodel: opus\nisolation_required: true"
+            CLAUDE, "tools: Read, Grep", "tools: Grep, Read\nmodel: opus\nisolation_required: true"
         )
         build_repo(tmp_path, claude=claude)
         assert run_gate(tmp_path) == gate.EXIT_OK
@@ -147,7 +147,7 @@ class TestAgreement:
             tmp_path,
             shared=shared,
             claude=claude,
-            copilot=shared.replace("tools_vscode", "tools_copilot"),
+            copilot=shared,
         )
         assert run_gate(tmp_path) == gate.EXIT_OK
 
@@ -463,7 +463,7 @@ class TestOutput:
         findings = [
             gate.Finding(gate.KIND_DIVERGED, f"a{i}", "claude-shared", "u") for i in range(130)
         ]
-        gate._print_text(findings, examined=130, pinned=0)
+        gate.print_text(findings, examined=130, pinned=0)
         lines = capsys.readouterr().out.splitlines()
         assert "  ... and 30 more" in lines
         assert len(lines) < 110
@@ -484,6 +484,7 @@ class TestLiveRepository:
         import shutil
 
         shutil.copytree(_REPO_ROOT / "templates" / "agents", tmp_path / "templates" / "agents")
+        shutil.copy(_REPO_ROOT / "templates" / "toolsets.yaml", tmp_path / "templates")
         (tmp_path / "pyproject.toml").write_text("", encoding="utf-8")
         gov = tmp_path / gate.BASELINE_RELATIVE_PATH
         gov.parent.mkdir(parents=True)

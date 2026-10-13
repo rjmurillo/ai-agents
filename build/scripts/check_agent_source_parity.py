@@ -25,24 +25,35 @@ Pairs compared, each against ``<stem>.shared.md``:
   one side only is a divergence, because both feed the same platform family.
 
 Tree-specific, dropped from comparison: every frontmatter key outside
-``SHARED_FRONTMATTER_KEYS`` (``name``, ``model``, ``model_tier``, ``tools``,
-``tools_vscode``, ``tools_copilot``, ``isolation_required``, ``metadata``
-other than ``metadata.role``), and for the Claude pair an H2 section present
-on only one side (section inventory stays with ``detect_agent_drift.py``).
+``SHARED_FRONTMATTER_KEYS`` and the tool lists (``name``, ``model``,
+``model_tier``, ``isolation_required``, ``metadata`` other than
+``metadata.role``), and for the Claude pair an H2 section present on only one
+side (section inventory stays with ``detect_agent_drift.py``).
 
 Shared, compared exactly after ``detect_agent_drift.normalize_content``: the
 frontmatter keys ``description``, ``argument-hint`` and ``role`` (Claude spells
 ``role`` either top level or as ``metadata.role``), the preamble before the
-first H2, and the body of every H2 section both sides carry, and the order of the H2
+first H2, the body of every H2 section both sides carry, and the order of the H2
 sections both sides carry (unit ``order``). The normalization
 rewrites MCP tool prefixes, handoff invocation spelling, fence language tags,
 and whitespace, and it ignores blank lines. A repeated H2 name in one source is a
-ConfigError, because a repeat would hide the earlier body. It never drops a text line, reorders
-a step, or edits a number, so the eight ADR-107 section 5 invariants are never
-excused: ordered steps, completion criteria, evidence requirements, failure
-states, approval gates, authorization and capability statements, idempotence and
-rollback statements, and the exit-code contract all live in section text that
-must match.
+ConfigError, because a repeat would hide the earlier body. It never drops a text
+line, reorders a step, or edits a number, so invariants 1 to 5, 7 and 8 stay in
+the compared text: ordered steps, completion criteria, evidence requirements,
+failure states, approval gates, idempotence and rollback statements, and the
+exit-code contract.
+
+Invariant 6, authorization and the abstract capability set, lives in the tool
+lists. Only the platform spelling is excused. ``agent_capabilities.py`` reduces
+each list to abstract capabilities (``Read`` and ``read``, ``Bash`` and
+``shell``, ``mcp__github__issue_read`` and ``github/issue_read``), expands
+``$toolset:`` references, and the gate compares those units. The Claude
+``tools`` list is compared with the shared ``tools_copilot`` list. The Copilot
+template's ``tools_copilot`` and ``tools_vscode`` lists are compared with their
+shared twins. A member with no list is ``unrestricted`` (Claude Code gives such
+an agent every tool), and it diverges from a ``restricted`` list. An unknown
+tool name stays literal and a wildcard is not an explicit tool list, so neither
+can hide a difference.
 
 Accepted divergence that predates this gate is pinned in
 ``.agents/governance/agent-source-divergence.json`` by a digest of both
@@ -75,7 +86,6 @@ import hashlib
 import json
 import re
 import sys
-from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
@@ -84,12 +94,26 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
+import agent_capabilities  # noqa: E402
 import agent_templates  # noqa: E402
+from agent_source_report import (  # noqa: E402
+    KIND_CHANGED,
+    KIND_DIVERGED,
+    KIND_MISSING,
+    KIND_STALE,
+    Finding,
+    Key,
+    print_json,
+    print_text,
+    reconcile,
+)
 from detect_agent_drift import (  # noqa: E402
     get_markdown_section_list,
     normalize_content,
     remove_yaml_frontmatter,
 )
+
+__all__ = ["KIND_CHANGED", "KIND_DIVERGED", "KIND_MISSING", "KIND_STALE", "Finding", "Key"]
 
 EXIT_OK = 0
 EXIT_DIVERGED = 1
@@ -97,39 +121,32 @@ EXIT_CONFIG = 2
 
 BASELINE_RELATIVE_PATH = Path(".agents") / "governance" / "agent-source-divergence.json"
 BASELINE_SCHEMA_VERSION = "1"
-# Pinned divergences at the time the gate landed. Raising this needs a code
-# edit, so growth is a reviewed change and not a quiet re-record.
-BASELINE_CEILING = 62
+# Pinned divergences at the time the gate landed: 62 in prose and 47 in the
+# capability set. Raising this needs a code edit, so growth is a reviewed change
+# and not a quiet re-record.
+BASELINE_CEILING = 109
 
 SHARED_FRONTMATTER_KEYS: tuple[str, ...] = ("description", "argument-hint", "role")
 PAIR_CLAUDE = "claude-shared"
 PAIR_COPILOT = "copilot-shared"
 PAIRS: tuple[str, ...] = (PAIR_CLAUDE, PAIR_COPILOT)
+# Capability lists compared per pair, as (template key, shared key, unit prefix).
+# The Claude template lists tools in Claude spelling; its counterpart is the
+# Copilot CLI list in the shared source. The Copilot template and the shared
+# source use one spelling, so each list is compared with its own twin.
+CAPABILITY_KEYS: dict[str, tuple[tuple[str, str, str], ...]] = {
+    PAIR_CLAUDE: (("tools", "tools_copilot", "capability"),),
+    PAIR_COPILOT: (
+        ("tools_copilot", "tools_copilot", "capability"),
+        ("tools_vscode", "tools_vscode", "capability-vscode"),
+    ),
+}
 
 _FRONTMATTER_RE = re.compile(r"\A---\r?\n(.*?)\r?\n---\r?\n", re.DOTALL)
-_MAX_REPORT_LINES = 100
-
-KIND_DIVERGED = "DIVERGED"
-KIND_CHANGED = "PIN-CHANGED"
-KIND_STALE = "PIN-STALE"
-KIND_MISSING = "MISSING-MEMBER"
-
-Key = tuple[str, str, str]
 
 
 class ConfigError(Exception):
     """The gate could not run: a tree, template, or baseline is unusable."""
-
-
-@dataclass(frozen=True)
-class Finding:
-    """One reason the gate fails."""
-
-    kind: str
-    agent: str
-    pair: str
-    unit: str
-    detail: str = ""
 
 
 def _digest(left: str, right: str) -> str:
@@ -166,10 +183,32 @@ def _normalize(text: str) -> str:
     return "\n".join(line for line in lines if line.strip())
 
 
-def extract_units(text: str) -> dict[str, str]:
-    """Return ``{unit: normalized text}`` for every shared unit in one member."""
-    frontmatter = _frontmatter(text)
+def _capability_units(
+    frontmatter: dict[str, object],
+    capabilities: tuple[tuple[str, str], ...],
+    toolsets: dict[str, dict[str, object]],
+) -> dict[str, str]:
     units: dict[str, str] = {}
+    try:
+        for key, prefix in capabilities:
+            units.update(agent_capabilities.capability_units(frontmatter, key, prefix, toolsets))
+    except agent_capabilities.CapabilityError as exc:
+        raise ConfigError(str(exc)) from exc
+    return units
+
+
+def extract_units(
+    text: str,
+    capabilities: tuple[tuple[str, str], ...] = (),
+    toolsets: dict[str, dict[str, object]] | None = None,
+) -> dict[str, str]:
+    """Return ``{unit: normalized text}`` for every shared unit in one member.
+
+    ``capabilities`` lists ``(frontmatter key, unit prefix)`` tool lists to
+    reduce to abstract capability units (``agent_capabilities.py``).
+    """
+    frontmatter = _frontmatter(text)
+    units = _capability_units(frontmatter, capabilities, toolsets or {})
     for key in SHARED_FRONTMATTER_KEYS:
         value = _shared_value(frontmatter, key)
         if value:
@@ -243,6 +282,14 @@ def _render(tmpl: Path, partials: Path) -> str:
 _MEMBER_SUFFIXES = (".shared.md", ".claude.md.tmpl", ".copilot.md.tmpl")
 
 
+def _load_toolsets(repo_root: Path) -> dict[str, dict[str, object]]:
+    try:
+        toolsets: dict[str, dict[str, object]] = agent_capabilities.load_toolsets(repo_root)
+    except agent_capabilities.CapabilityError as exc:
+        raise ConfigError(str(exc)) from exc
+    return toolsets
+
+
 def _stems(repo_root: Path) -> list[str]:
     agents = repo_root / "templates" / "agents"
     if not agents.is_dir():
@@ -259,15 +306,22 @@ def _compare_stem(
     claude_tmpl: Path,
     copilot_tmpl: Path,
     partials: Path,
+    toolsets: dict[str, dict[str, object]],
 ) -> dict[Key, str]:
     """Return the divergences between one agent's shared source and its templates."""
-    shared_units = extract_units(shared_text)
     found: dict[Key, str] = {}
     for pair, tmpl, strict in (
         (PAIR_CLAUDE, claude_tmpl, False),
         (PAIR_COPILOT, copilot_tmpl, True),
     ):
-        units = extract_units(_render(tmpl, partials))
+        spec = CAPABILITY_KEYS[pair]
+        units = extract_units(
+            _render(tmpl, partials), tuple((own, prefix) for own, _, prefix in spec), toolsets
+        )
+        shared_units = extract_units(
+            shared_text, tuple((theirs, prefix) for _, theirs, prefix in spec), toolsets
+        )
+        agent_capabilities.drop_families_on_declaration_mismatch(units, shared_units)
         diverged = diverged_units(units, shared_units, strict=strict)
         diverged.update(section_order_divergence(units, shared_units))
         found.update({(stem, pair, unit): digest for unit, digest in diverged.items()})
@@ -278,6 +332,7 @@ def collect_divergence(repo_root: Path) -> tuple[dict[Key, str], list[Finding]]:
     """Compare every agent's members. Return divergences and missing-member findings."""
     agents = repo_root / "templates" / "agents"
     pairs = agent_templates.discover(repo_root)
+    toolsets = _load_toolsets(repo_root)
     found: dict[Key, str] = {}
     missing: list[Finding] = []
     for stem in _stems(repo_root):
@@ -288,7 +343,9 @@ def collect_divergence(repo_root: Path) -> tuple[dict[Key, str], list[Finding]]:
             continue
         claude_tmpl, copilot_tmpl = pairs[stem]
         found.update(
-            _compare_stem(stem, _read(shared), claude_tmpl, copilot_tmpl, agents / "partials")
+            _compare_stem(
+                stem, _read(shared), claude_tmpl, copilot_tmpl, agents / "partials", toolsets
+            )
         )
     return found, missing
 
@@ -331,41 +388,31 @@ def _entry_key(entry: object, path: Path) -> Key:
     return (entry["agent"], entry["pair"], entry["unit"])
 
 
-def reconcile(found: dict[Key, str], pinned: dict[Key, str]) -> list[Finding]:
-    """Compare live divergence to the pins and return every failure."""
-    findings: list[Finding] = []
-    for key in sorted(found):
-        agent, pair, unit = key
-        if key not in pinned:
-            findings.append(Finding(KIND_DIVERGED, agent, pair, unit))
-        elif pinned[key] != found[key]:
-            findings.append(
-                Finding(
-                    KIND_CHANGED, agent, pair, unit, "edited since pinned; review, then re-record"
-                )
-            )
-    for key in sorted(set(pinned) - set(found)):
-        findings.append(Finding(KIND_STALE, key[0], key[1], key[2], "now agrees; remove the pin"))
-    return findings
-
-
 def render_baseline(found: dict[Key, str]) -> str:
-    """Return the baseline file text for ``found``."""
-    entries = [
-        {"agent": a, "pair": p, "unit": u, "digest": found[(a, p, u)]}
+    """Return the baseline file text for ``found``, one entry per line.
+
+    One line per pin keeps the file under the 500-line taste limit and makes a
+    re-record diff show one line per changed pin.
+    """
+    description = (
+        "Accepted divergence between the hand-written members of each agent, pinned by "
+        "digest of both normalized sides. Read by build/scripts/check_agent_source_parity.py "
+        "(ADR-107 M3, issue #5688). A pin that no longer matches fails the gate. The file "
+        "only shrinks."
+    )
+    rows = [
+        "    " + json.dumps({"agent": a, "pair": p, "unit": u, "digest": found[(a, p, u)]})
         for (a, p, u) in sorted(found)
     ]
-    document = {
-        "schema_version": BASELINE_SCHEMA_VERSION,
-        "description": (
-            "Accepted divergence between the hand-written members of each agent, pinned by "
-            "digest of both normalized sides. Read by build/scripts/check_agent_source_parity.py "
-            "(ADR-107 M3, issue #5688). A pin that no longer matches fails the gate. The file "
-            "only shrinks."
-        ),
-        "entries": entries,
-    }
-    return json.dumps(document, indent=2) + "\n"
+    body = ",\n".join(rows)
+    entries = f"[\n{body}\n  ]" if rows else "[]"
+    return (
+        "{\n"
+        f'  "schema_version": {json.dumps(BASELINE_SCHEMA_VERSION)},\n'
+        f'  "description": {json.dumps(description)},\n'
+        f'  "entries": {entries}\n'
+        "}\n"
+    )
 
 
 def _ceiling_finding(count: int) -> list[Finding]:
@@ -373,29 +420,6 @@ def _ceiling_finding(count: int) -> list[Finding]:
         return []
     detail = f"{count} pins exceed the ceiling of {BASELINE_CEILING}"
     return [Finding(KIND_DIVERGED, "-", "-", "baseline", detail)]
-
-
-def _print_text(findings: list[Finding], examined: int, pinned: int) -> None:
-    print(f"Examined {examined} agents; {pinned} divergences pinned in the baseline.")
-    for finding in findings[:_MAX_REPORT_LINES]:
-        tail = f" ({finding.detail})" if finding.detail else ""
-        print(f"  {finding.kind}: {finding.agent} {finding.pair} {finding.unit}{tail}")
-    hidden = len(findings) - _MAX_REPORT_LINES
-    if hidden > 0:
-        print(f"  ... and {hidden} more")
-    if findings:
-        print(f"FAIL: {len(findings)} source parity issue(s). Contract: GENERATOR-FILES.md.")
-    else:
-        print("OK: agent sources agree under the normalization contract.")
-
-
-def _print_json(findings: list[Finding], examined: int, pinned: int) -> None:
-    report = {
-        "agents_examined": examined,
-        "pinned": pinned,
-        "findings": [vars(f) for f in findings],
-    }
-    print(json.dumps(report, indent=2))
 
 
 def _write_baseline(repo_root: Path, found: dict[Key, str]) -> int:
@@ -426,14 +450,14 @@ def run(repo_root: Path, *, output: str, write_baseline: bool) -> int:
     found, missing = collect_divergence(repo_root)
     if write_baseline:
         if missing:
-            _print_text(missing, len(_stems(repo_root)), 0)
+            print_text(missing, len(_stems(repo_root)), 0)
             print("ERROR: refusing to write the baseline with incomplete agents.", file=sys.stderr)
             return EXIT_DIVERGED
         return _write_baseline(repo_root, found)
     pinned = load_baseline(repo_root)
     findings = missing + reconcile(found, pinned) + _ceiling_finding(len(pinned))
     examined = len(_stems(repo_root))
-    emit = _print_json if output == "json" else _print_text
+    emit = print_json if output == "json" else print_text
     emit(findings, examined, len(pinned))
     return EXIT_DIVERGED if findings else EXIT_OK
 
