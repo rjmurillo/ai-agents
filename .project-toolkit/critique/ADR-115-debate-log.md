@@ -143,6 +143,7 @@ No panel round ran for these changes. Their authority is the owner's 12 review t
 - Decision 6: Hermes resolvers use the install path, the stanza also drops `allowed-tools`, and each pack needs an enable step.
 - Host facts and measurements now record the Grok Build, Cursor, Hermes, and Codex runs of 2026-10-13.
 - Decision 11 and the Reversibility Assessment wording, per the owner threads.
+- The Hermes `PLUGIN_ROOT` source is cited by upstream file and line in prose, because the citation gate reads a bare path as a file in this repository.
 
 ### Agent Positions
 
