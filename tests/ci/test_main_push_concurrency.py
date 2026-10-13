@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import fnmatch
 from pathlib import Path
 from typing import Any
 
@@ -40,6 +41,15 @@ def _load_workflow(path: Path) -> dict[Any, Any] | None:
     return loaded if isinstance(loaded, dict) else None
 
 
+def _matches_main(patterns: Any) -> bool:
+    """True when a branch filter (list or scalar string) matches ``main``."""
+    if isinstance(patterns, str):
+        patterns = [patterns]
+    if not isinstance(patterns, list):
+        return False
+    return any(isinstance(p, str) and fnmatch.fnmatchcase("main", p) for p in patterns)
+
+
 def _triggers_main_push(workflow: dict[Any, Any]) -> bool:
     on = workflow.get(True, workflow.get("on"))
     if isinstance(on, str):
@@ -52,10 +62,13 @@ def _triggers_main_push(workflow: dict[Any, Any]) -> bool:
     push = on["push"]
     if not isinstance(push, dict):
         return True
-    branches = push.get("branches")
-    if branches is None:
-        return True
-    return isinstance(branches, list) and "main" in branches
+    if "branches" in push:
+        return _matches_main(push["branches"])
+    if "branches-ignore" in push:
+        return not _matches_main(push["branches-ignore"])
+    # GitHub runs a push workflow that defines only tags or tags-ignore for
+    # tag pushes alone, never for a branch push.
+    return "tags" not in push and "tags-ignore" not in push
 
 
 def _main_push_cancel_error(name: str, workflow: dict[Any, Any]) -> str | None:
@@ -122,6 +135,34 @@ def test_detector_ignores_push_workflow_without_main_branch() -> None:
     }
 
     assert _main_push_cancel_error("release.yml", workflow) is None
+
+
+PUSH_SHAPES: list[tuple[str, Any, bool]] = [
+    ("branches-main-list", {"push": {"branches": ["main"]}}, True),
+    ("branches-main-scalar", {"push": {"branches": "main"}}, True),
+    ("branches-glob-matches-main", {"push": {"branches": ["**"]}}, True),
+    ("branches-other-only", {"push": {"branches": ["release/**"]}}, False),
+    ("ignore-lists-main", {"push": {"branches-ignore": ["main", "gh-readonly-queue/**"]}}, False),
+    ("ignore-main-scalar", {"push": {"branches-ignore": "main"}}, False),
+    ("ignore-glob-covers-main", {"push": {"branches-ignore": ["**"]}}, False),
+    ("ignore-omits-main", {"push": {"branches-ignore": ["release/**"]}}, True),
+    ("tags-only", {"push": {"tags": ["v*"]}}, False),
+    ("tags-ignore-only", {"push": {"tags-ignore": ["v*"]}}, False),
+    ("tags-with-main-branch", {"push": {"branches": ["main"], "tags": ["v*"]}}, True),
+    ("paths-only", {"push": {"paths": ["src/**"]}}, True),
+    ("bare-push-mapping-none", {"push": None}, True),
+    ("push-string", "push", True),
+    ("push-list", ["push", "workflow_dispatch"], True),
+    ("pull-request-only", {"pull_request": {"branches": ["main"]}}, False),
+]
+
+
+@pytest.mark.parametrize(
+    ("on", "expected"),
+    [pytest.param(on, want, id=name) for name, on, want in PUSH_SHAPES],
+)
+def test_triggers_main_push_shapes(on: Any, expected: bool) -> None:
+    assert _triggers_main_push({"on": on}) is expected
 
 
 def test_all_known_post_merge_workflows_are_guarded() -> None:

@@ -221,7 +221,7 @@ class TestEveryDeferralIsSound:
 # still a job that cannot fail, so it stays declared here, and the helper's
 # name is a second marker of a swallow beside `||`. `--propagate-errors` marks a
 # ruff job that still fails on a crash, so it is not a swallower.
-EXIT_SWALLOWING_PREPUSH_JOBS = frozenset({"worktree-gc-report"})
+EXIT_SWALLOWING_PREPUSH_JOBS = frozenset({"worktree-gc-report", "branch-config-prune-report"})
 _ADVISORY_REPORTER = "scripts/ci/report_advisory_result.py"
 
 

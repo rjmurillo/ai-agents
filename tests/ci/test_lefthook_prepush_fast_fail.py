@@ -80,6 +80,7 @@ EXPENSIVE_STAGE_ROSTER = EXPENSIVE_JOBS | frozenset(
     {
         "zero-collection-tests",
         "worktree-gc-report",
+        "branch-config-prune-report",
         "python-lint-advisory",
         "additions-advisory",
         "bot-cascade-advisory",

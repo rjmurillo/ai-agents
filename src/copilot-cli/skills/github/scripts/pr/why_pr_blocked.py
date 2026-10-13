@@ -47,10 +47,12 @@ from github_core.api import (
     resolve_repo_params,
 )
 from github_core.checks_rollup import (
+    MISSING_GRACE_SECONDS,
     current_run_keys,
     extract_workflow_run_number,
     fetch_ruleset_required_contexts,
     find_missing_required,
+    missing_checks_queued,
     partition_rows_by_run,
 )
 from github_core.output import (
@@ -75,6 +77,7 @@ query($owner: String!, $repo: String!, $number: Int!) {
                 nodes {
                     commit {
                         oid
+                        committedDate
                         statusCheckRollup {
                             state
                             contexts(first: 100) {
@@ -434,8 +437,10 @@ def fetch_pr_data(owner: str, repo: str, pr_number: int) -> dict:
     commits = (pr.get("commits") or {}).get("nodes") or []
     rollup_nodes: list[dict] = []
     overall_state = "UNKNOWN"
+    head_committed_at = None
     if commits:
         commit_obj = commits[0].get("commit") or {}
+        head_committed_at = commit_obj.get("committedDate")
         rollup = commit_obj.get("statusCheckRollup") or {}
         overall_state = rollup.get("state", "UNKNOWN")
         contexts = rollup.get("contexts") or {}
@@ -479,6 +484,7 @@ def fetch_pr_data(owner: str, repo: str, pr_number: int) -> dict:
         "BaseBranch": pr.get("baseRefName"),
         "MergeStateStatus": pr.get("mergeStateStatus"),
         "OverallState": overall_state,
+        "HeadCommittedAt": head_committed_at,
         "CheckNodes": rollup_nodes,
         "ThreadNodes": thread_nodes,
     }
@@ -487,12 +493,19 @@ def fetch_pr_data(owner: str, repo: str, pr_number: int) -> dict:
 def diagnose(
     pr_data: dict,
     ruleset_contexts: list[str] | None,
+    missing_grace_seconds: int = MISSING_GRACE_SECONDS,
 ) -> dict:
     """Compute (missing, failing, unresolved_thread_count) from raw PR data.
 
     Groups check nodes by name and workflow run. Same-run failures win. The
     latest identified workflow run of each triggering event is current, and
     the worst state across current runs determines the result.
+
+    ``MissingRequired`` lists every required check absent from the rollup.
+    Inside the grace window after the head commit they also appear under
+    ``QueuedRequired`` (the workflow may not have created them yet); past it,
+    or when the head age is unknown, they appear under ``AbsentRequired``.
+    Refs issue #6389.
     """
     nodes = pr_data.get("CheckNodes") or []
 
@@ -527,6 +540,13 @@ def diagnose(
     if ruleset_contexts is not None:
         missing_required = find_missing_required(ruleset_contexts, reported_names)
 
+    head_committed_at = pr_data.get("HeadCommittedAt")
+    is_queued = bool(missing_required) and missing_checks_queued(
+        head_committed_at, missing_grace_seconds
+    )
+    queued_required = list(missing_required) if is_queued else []
+    absent_required = [] if is_queued else list(missing_required)
+
     thread_nodes = pr_data.get("ThreadNodes") or []
     unresolved_count = sum(
         1 for t in thread_nodes if not t.get("isResolved") and not t.get("isOutdated")
@@ -534,6 +554,9 @@ def diagnose(
 
     return {
         "MissingRequired": missing_required,
+        "QueuedRequired": queued_required,
+        "AbsentRequired": absent_required,
+        "HeadCommittedAt": head_committed_at,
         "FailingRequired": failing_required,
         "PendingRequired": pending_required,
         "IndeterminateRequired": indeterminate_required,
@@ -574,8 +597,33 @@ def build_parser() -> argparse.ArgumentParser:
         help="Base branch to read the ruleset from (default: PR base branch). "
         "Pass empty string to skip ruleset fetch.",
     )
+    parser.add_argument(
+        "--missing-grace-seconds",
+        type=int,
+        default=MISSING_GRACE_SECONDS,
+        help="Seconds after the head commit during which a required check absent "
+        "from the rollup is reported as queued, not never reported "
+        f"(default: {MISSING_GRACE_SECONDS}). 0 reports every absent check as never reported.",
+    )
     add_output_format_arg(parser)
     return parser
+
+
+def _missing_summary_parts(absent: list[str], queued: list[str]) -> list[str]:
+    """Return summary fragments that keep queued and absent checks apart."""
+    parts = []
+    if absent:
+        parts.append(
+            f"{len(absent)} missing required check(s) "
+            "(recovery: close and reopen the PR; see fix-ci.md, "
+            "'Required check never reported')"
+        )
+    if queued:
+        parts.append(
+            f"{len(queued)} queued required check(s) not yet reported "
+            "(the head commit is inside the grace window; wait before closing and reopening)"
+        )
+    return parts
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -632,7 +680,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 3
 
-    result = diagnose(pr_data, ruleset_contexts)
+    result = diagnose(pr_data, ruleset_contexts, args.missing_grace_seconds)
 
     missing = result["MissingRequired"]
     failing = result["FailingRequired"]
@@ -657,12 +705,7 @@ def main(argv: list[str] | None = None) -> int:
         status = "PASS"
     else:
         parts = []
-        if missing:
-            parts.append(
-                f"{len(missing)} missing required check(s) "
-                "(recovery: close and reopen the PR; see fix-ci.md, "
-                "'Required check never reported')"
-            )
+        parts.extend(_missing_summary_parts(result["AbsentRequired"], result["QueuedRequired"]))
         if failing:
             parts.append(f"{len(failing)} failing required check(s)")
         if pending:
@@ -687,6 +730,9 @@ def main(argv: list[str] | None = None) -> int:
         "MergeStateStatus": result["MergeStateStatus"],
         "OverallState": result["OverallState"],
         "MissingRequired": missing,
+        "QueuedRequired": result["QueuedRequired"],
+        "AbsentRequired": result["AbsentRequired"],
+        "HeadCommittedAt": result["HeadCommittedAt"],
         "FailingRequired": failing,
         "PendingRequired": pending,
         "IndeterminateRequired": indeterminate,

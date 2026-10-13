@@ -11,6 +11,7 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
+import yaml
 
 from scripts.github_core.api import GhAuthResult, GhAuthStatus, RepoInfo
 
@@ -41,6 +42,8 @@ get_concurrency_group = _mod.get_concurrency_group
 format_markdown_report = _mod.format_markdown_report
 main = _mod.main
 DEFAULT_WORKFLOWS = _mod.DEFAULT_WORKFLOWS
+find_unmatched_workflows = _mod.find_unmatched_workflows
+load_workflow_names = _mod.load_workflow_names
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -49,7 +52,7 @@ DEFAULT_WORKFLOWS = _mod.DEFAULT_WORKFLOWS
 
 def _make_run(
     id: int = 1,
-    name: str = "ai-spec-validation",
+    name: str = "Spec-to-Implementation Validation",
     created_at: str = "2026-01-01T10:00:00Z",
     updated_at: str = "2026-01-01T10:05:00Z",
     conclusion: str | None = "success",
@@ -230,56 +233,32 @@ class TestMetricsCalculation:
 
 
 class TestConcurrencyGroupExtraction:
-    def test_spec_validation_pr(self):
-        run = _make_run(
-            name="ai-spec-validation",
-            event="pull_request",
-            pull_requests=[{"number": 456}],
-        )
-        assert get_concurrency_group(run) == "spec-validation-456"
+    @pytest.mark.parametrize(
+        "name", ["Spec-to-Implementation Validation", "Label PR", "PR Validation"]
+    )
+    def test_pr_run_keys_on_name_and_pr_number(self, name):
+        run = _make_run(name=name, event="pull_request", pull_requests=[{"number": 456}])
+        assert get_concurrency_group(run) == f"{name}-456"
+
+    def test_distinct_workflows_on_one_pr_get_distinct_groups(self):
+        pr = [{"number": 9}]
+        groups = {
+            get_concurrency_group(_make_run(name=n, event="pull_request", pull_requests=pr))
+            for n in DEFAULT_WORKFLOWS
+        }
+        assert len(groups) == len(DEFAULT_WORKFLOWS)
 
     def test_non_pr_fallback(self):
-        run = _make_run(
-            name="ai-spec-validation",
-            event="push",
-            pull_requests=[],
-            head_branch="main",
-        )
-        assert get_concurrency_group(run) == "ai-spec-validation-main"
+        run = _make_run(event="push", pull_requests=[], head_branch="main")
+        assert get_concurrency_group(run) == "Spec-to-Implementation Validation-main"
 
-    def test_session_workflow_pr(self):
-        run = _make_run(
-            name="ai-session-protocol",
-            event="pull_request",
-            pull_requests=[{"number": 789}],
-        )
-        assert get_concurrency_group(run) == "session-protocol-789"
+    def test_pull_request_event_without_pr_falls_back_to_branch(self):
+        run = _make_run(event="pull_request", pull_requests=[], head_branch="topic")
+        assert get_concurrency_group(run) == "Spec-to-Implementation Validation-topic"
 
-    def test_label_workflow_pr(self):
-        run = _make_run(
-            name="label-pr",
-            event="pull_request",
-            pull_requests=[{"number": 100}],
-        )
-        assert get_concurrency_group(run) == "label-pr-100"
-
-    def test_memory_workflow_pr(self):
-        # memory-validation.yml was deleted in issue #5626, so "Memory Health"
-        # is the run the "memory" keyword now matches.
-        run = _make_run(
-            name="memory-health",
-            event="pull_request",
-            pull_requests=[{"number": 200}],
-        )
-        assert get_concurrency_group(run) == "memory-health-200"
-
-    def test_default_pr_validation(self):
-        run = _make_run(
-            name="pr-validation",
-            event="pull_request",
-            pull_requests=[{"number": 400}],
-        )
-        assert get_concurrency_group(run) == "pr-validation-400"
+    def test_pr_entry_without_number_falls_back_to_branch(self):
+        run = _make_run(event="pull_request", pull_requests=[{}], head_branch="topic")
+        assert get_concurrency_group(run) == "Spec-to-Implementation Validation-topic"
 
 
 # ---------------------------------------------------------------------------
@@ -303,7 +282,7 @@ class TestReportGeneration:
 
         runs = [
             _make_run(
-                name="ai-spec-validation",
+                name="Spec-to-Implementation Validation",
                 conclusion="success",
                 created_at="2026-01-01T10:00:00Z",
                 updated_at="2026-01-01T10:05:00Z",
@@ -311,7 +290,7 @@ class TestReportGeneration:
         ]
 
         overlaps: list[Any] = []
-        workflows = ["ai-spec-validation", "ai-session-protocol"]
+        workflows = ["Spec-to-Implementation Validation", "PR Validation"]
         start_date = datetime(2026, 1, 1, tzinfo=UTC)
         end_date = datetime(2026, 1, 31, tzinfo=UTC)
 
@@ -629,14 +608,112 @@ class TestMain:
 
 
 class TestDefaultWorkflows:
-    def test_default_workflows_contains_expected(self):
-        assert "ai-pr-quality-gate" not in DEFAULT_WORKFLOWS
-        assert "ai-spec-validation" in DEFAULT_WORKFLOWS
-        assert "codeql-analysis" in DEFAULT_WORKFLOWS
-        assert "Claude Code Assistant" in DEFAULT_WORKFLOWS
+    def test_default_workflows_pin_real_run_names(self):
+        assert DEFAULT_WORKFLOWS == [
+            "Spec-to-Implementation Validation",
+            "PR Validation",
+            "Label PR",
+            "Memory Health",
+            "CodeQL Analysis",
+            "Claude Code Assistant",
+        ]
 
     def test_default_workflows_count(self):
-        assert len(DEFAULT_WORKFLOWS) == 7
+        assert len(DEFAULT_WORKFLOWS) == 6
+
+    def test_each_default_matches_exactly_one_real_workflow(self):
+        workflows_dir = _SCRIPTS_DIR.parent / "workflows"
+        names = []
+        for path in sorted(workflows_dir.glob("*.yml")):
+            data = yaml.safe_load(path.read_text(encoding="utf-8"))
+            names.append(data.get("name"))
+        for entry in DEFAULT_WORKFLOWS:
+            assert names.count(entry) == 1, f"{entry!r} matches {names.count(entry)} workflows"
+
+    def test_find_unmatched_reports_stems_and_missing(self, tmp_path):
+        (tmp_path / "a.yml").write_text("name: Alpha\non: push\n", encoding="utf-8")
+        (tmp_path / "b.yml").write_text("name: Dup\non: push\n", encoding="utf-8")
+        (tmp_path / "c.yaml").write_text("name: Dup\non: push\n", encoding="utf-8")
+        (tmp_path / "d.yml").write_text("on: push\n", encoding="utf-8")
+        (tmp_path / "e.yml").write_text("- not\n- a mapping\n", encoding="utf-8")
+        result = find_unmatched_workflows(["Alpha", "alpha", "a", "Dup", ""], tmp_path)
+        assert result == ["alpha", "a", "Dup", ""]
+
+    def test_load_workflow_names_agrees_with_yaml_for_every_real_workflow(self):
+        workflows_dir = _SCRIPTS_DIR.parent / "workflows"
+        expected = []
+        for path in sorted(workflows_dir.glob("*.y*ml")):
+            data = yaml.safe_load(path.read_text(encoding="utf-8"))
+            expected.append(data.get("name") or f".github/workflows/{path.name}")
+        assert load_workflow_names(workflows_dir) == expected
+
+    def test_load_workflow_names_strips_quotes(self, tmp_path):
+        (tmp_path / "q.yml").write_text('name: "Quoted One"\n', encoding="utf-8")
+        (tmp_path / "s.yml").write_text("name: 'Single'\n", encoding="utf-8")
+        (tmp_path / "e.yml").write_text('name: ""\n', encoding="utf-8")
+        assert load_workflow_names(tmp_path) == [
+            ".github/workflows/e.yml",
+            "Quoted One",
+            "Single",
+        ]
+
+    def test_load_workflow_names_falls_back_to_path_without_name(self, tmp_path):
+        (tmp_path / "d.yml").write_text("on: push\n", encoding="utf-8")
+        assert load_workflow_names(tmp_path) == [".github/workflows/d.yml"]
+
+    def test_main_unmatched_default_exits_2(self, capsys):
+        with patch.object(_mod, "DEFAULT_WORKFLOWS", ["pr-validation"]):
+            rc = main(["--repository", "o/r"])
+        assert rc == 2
+        err = capsys.readouterr().err
+        assert "Examined 1 default workflow names, 1 unmatched" in err
+        assert "pr-validation" in err
+
+    def test_main_prints_examined_count_for_defaults(self, capsys):
+        with patch.object(_mod, "test_prerequisites", side_effect=RuntimeError("stop")):
+            rc = main(["--repository", "o/r"])
+        assert rc == 1
+        assert "Examined 6 default workflow names, 0 unmatched" in capsys.readouterr().err
+
+    def test_explicit_workflows_skip_default_validation(self, capsys):
+        with patch.object(_mod, "test_prerequisites", side_effect=RuntimeError("stop")):
+            rc = main(["--repository", "o/r", "--workflows", "anything"])
+        assert rc == 1
+        assert "Examined" not in capsys.readouterr().err
+
+
+class TestGetWorkflowRunsMatching:
+    def _run_json(self, names):
+        import json
+
+        return json.dumps(
+            [
+                {
+                    "id": i,
+                    "name": n,
+                    "created_at": "2026-01-02T00:00:00Z",
+                    "updated_at": "2026-01-02T00:01:00Z",
+                    "conclusion": "success",
+                    "event": "push",
+                    "head_branch": "main",
+                    "pull_requests": [],
+                }
+                for i, n in enumerate(names)
+            ]
+        )
+
+    def test_exact_match_only(self):
+        from datetime import datetime
+
+        payload = self._run_json(["PR Validation", "Validate PR Validation x", "pr-validation"])
+        fake = SimpleNamespace(returncode=0, stdout=payload, stderr="")
+        with patch.object(_mod.subprocess, "run", return_value=fake) as run:
+            runs = _mod.get_workflow_runs(
+                "o", "r", datetime(2026, 1, 1, tzinfo=UTC), ["PR Validation"]
+            )
+        assert [r.name for r in runs] == ["PR Validation"]
+        assert run.call_args.kwargs["encoding"] == "utf-8"
+        assert run.call_args.kwargs["errors"] == "replace"
 
 
 # ---------------------------------------------------------------------------
