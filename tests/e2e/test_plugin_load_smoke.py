@@ -34,6 +34,12 @@ the shipped plugin directory, and assert the plugin loads.
     and assert its exact reviewed read-only tool set. Each probe also loads an
     execution agent that must expose shell and edit tools, so the test cannot
     pass when the CLI stops reporting tool availability.
+  - Model id contract (issue #5333, ADR-080): an isolated ``--plugin-dir`` agent
+    pinned to the Copilot opus-tier id from ``templates/platforms/copilot-cli.yaml``
+    must run without the CLI's "specifies model ... which is not available"
+    warning. A bogus id in the same harness must print that warning (the negative
+    control). The CLI exits 0 and falls back to ``auto`` on a bad id, so the
+    warning, not the exit code, is the signal.
 
 Startup probe (issue #6000): before the first test that needs a CLI, one
 ``<cli> --version`` runs with a 10s timeout. "Needs a CLI" means the test
@@ -70,6 +76,7 @@ Copilot cases run only in CI, behind the agent-copilot environment.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import re
@@ -101,6 +108,8 @@ finally:
 from copilot_hook_probe import (  # noqa: E402
     PROBE_EVENT,
     copilot_command,
+    manifest,
+    probe_name,
     run_copilot_plugin_dir,
     write_marker_probe_plugin,
 )
@@ -1311,6 +1320,112 @@ def test_copilot_analyst_runtime_uses_exact_allowlist_with_executor_control() ->
     assert "COPILOT_SHELL_CONTROL" in _copilot_tool_result_text(implementer_events)
 
 
+# Manifest-resolved `model:` runtime contract (issue #5333, ADR-080 rule 5,
+# generated-artifacts.md MUST 2). The generator test proves it WROTE a model id;
+# only the real CLI proves the id RESOLVES. Copilot CLI does not fail a run on an
+# unresolvable agent model: it prints a warning on stderr, falls back to "auto",
+# and exits 0 (Copilot CLI 1.0.96, probed with a bogus id). The reply therefore
+# says nothing about the pin; the warning is the only signal.
+_COPILOT_TIER_CONFIG = REPO_ROOT / "templates" / "platforms" / "copilot-cli.yaml"
+_MODEL_REJECTED_RE = re.compile(
+    r'specifies model "(?P<model>[^"]*)" which is not available', re.IGNORECASE
+)
+# Same shape as a manifest id, but no such model exists, so the CLI must reject it.
+_BOGUS_MODEL_ID = "claude-bogus-99.99"
+_MODEL_PROBE_AGENT = "model-probe"
+_MODEL_PROBE_PROMPT = "Reply exactly READY."
+
+
+def _copilot_tier_model(tier: str) -> str:
+    """The id the generator emits for ``tier`` on Copilot CLI, from the platform YAML."""
+    config = yaml.safe_load(_COPILOT_TIER_CONFIG.read_text(encoding="utf-8"))
+    return str(config["legacy"]["model_tiers"][tier])
+
+
+def _rejected_models(*streams: str) -> list[str]:
+    """Model ids the CLI reported as unavailable, in the order printed."""
+    return [match.group("model") for text in streams for match in _MODEL_REJECTED_RE.finditer(text)]
+
+
+def _write_model_probe_plugin(plugin_dir: Path, model: str) -> str:
+    """Write a one-agent ``--plugin-dir`` plugin pinned to ``model``.
+
+    Returns the ``--agent`` reference. Copilot namespaces plugin agents as
+    ``<plugin>:<agent>``. The plugin is isolated, so the real
+    ``.github/agents/`` and ``src/copilot-cli/agents/`` trees are untouched.
+    """
+    name = probe_name()
+    (plugin_dir / "agents").mkdir(parents=True)
+    (plugin_dir / "plugin.json").write_text(manifest(name), encoding="utf-8")
+    (plugin_dir / "agents" / f"{_MODEL_PROBE_AGENT}.agent.md").write_text(
+        f"---\nname: {_MODEL_PROBE_AGENT}\ndescription: model id runtime probe\n"
+        f"model: {model}\n---\n{_MODEL_PROBE_PROMPT}\n",
+        encoding="utf-8",
+    )
+    return f"{name}:{_MODEL_PROBE_AGENT}"
+
+
+def _run_copilot_model_probe(tmp_path: Path, model: str) -> subprocess.CompletedProcess[str]:
+    """Run the probe agent pinned to ``model`` from a neutral cwd."""
+    root = tmp_path / re.sub(r"[^a-z0-9]+", "-", model.lower())
+    cwd = root / "cwd"
+    cwd.mkdir(parents=True)
+    agent = _write_model_probe_plugin(root / "plugin", model)
+    try:
+        run = _run_cli(
+            copilot_command(
+                "--plugin-dir",
+                str(root / "plugin"),
+                "--agent",
+                agent,
+                "--no-ask-user",
+                "--allow-all-tools",
+                "--output-format",
+                "json",
+                "--prompt",
+                _MODEL_PROBE_PROMPT,
+            ),
+            cwd=cwd,
+            timeout=_CLI_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        _skip_or_fail_copilot_timeout(f"copilot model probe for {model}", exc)
+    _skip_on_copilot_block(run)
+    assert run.returncode == 0, (
+        f"copilot model probe failed for {model} (rc={run.returncode}). "
+        f"stdout={run.stdout[-600:]!r} stderr={run.stderr[-600:]!r}"
+    )
+    return run
+
+
+@pytest.mark.smoke
+@requires_copilot
+@_cli_budget(_CLI_TIMEOUT_SECONDS, _CLI_TIMEOUT_SECONDS)
+def test_copilot_accepts_the_generated_model_id_with_rejection_control(tmp_path: Path) -> None:
+    """Copilot resolves the model id the generator emits, and flags one it cannot.
+
+    The control runs first: a bogus id in the same harness must print the
+    rejection warning, or the warning check below proves nothing. The subject is
+    the opus-tier id from ``templates/platforms/copilot-cli.yaml``, the dot form
+    ``format_model_id_for_platform`` writes into generated frontmatter.
+    """
+    subject = _copilot_tier_model("opus")
+    control_run = _run_copilot_model_probe(tmp_path, _BOGUS_MODEL_ID)
+    subject_run = _run_copilot_model_probe(tmp_path, subject)
+
+    assert _BOGUS_MODEL_ID in _rejected_models(control_run.stderr, control_run.stdout), (
+        "negative control failed: Copilot printed no rejection for "
+        f"{_BOGUS_MODEL_ID!r}, so a clean run for {subject!r} proves nothing. "
+        f"stderr={control_run.stderr[-600:]!r}"
+    )
+    assert subject not in _rejected_models(subject_run.stderr, subject_run.stdout), (
+        f"Copilot CLI cannot use model {subject!r} and fell back to auto. The id is "
+        "unknown to this CLI version or not enabled for the smoke account. "
+        f"stderr={subject_run.stderr[-600:]!r}"
+    )
+    assert "READY" in _copilot_assistant_text(_json_events(subject_run))
+
+
 # Always-on unit checks. They need no real CLI, so they run in bare CI and pin
 # the load contract the gated smoke depends on: every expected lifecycle skill
 # ships in BOTH plugin trees, and the fired-hook detector has a working positive
@@ -1533,6 +1648,145 @@ def test_copilot_commands_disable_auto_update() -> None:
     command = copilot_command("skill", "list", "--json")
 
     assert command[1:] == ["--no-auto-update", "skill", "list", "--json"]
+
+
+# Copilot CLI 1.0.96 stderr for an agent whose `model:` does not resolve.
+_REJECTION_STDERR = (
+    'Warning: Custom agent "p:model-probe" specifies model "claude-bogus-99.99" '
+    'which is not available; using "auto" instead\n'
+)
+
+
+def _load_format_model_id_for_platform() -> Callable[[str, dict[str, str]], str | None]:
+    path = REPO_ROOT / "build" / "model_pin_manifest.py"
+    spec = importlib.util.spec_from_file_location("_smoke_model_pin_manifest", path)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.format_model_id_for_platform
+
+
+def test_rejected_models_reads_the_cli_warning() -> None:
+    assert _rejected_models(_REJECTION_STDERR) == ["claude-bogus-99.99"]
+
+
+def test_rejected_models_reads_every_stream_and_every_warning() -> None:
+    second = _REJECTION_STDERR.replace("claude-bogus-99.99", "claude-opus-9.9")
+
+    assert _rejected_models("", _REJECTION_STDERR + second) == [
+        "claude-bogus-99.99",
+        "claude-opus-9.9",
+    ]
+    assert _rejected_models("", second) == ["claude-opus-9.9"]
+
+
+@pytest.mark.parametrize(
+    "stderr",
+    [
+        "",
+        "READY\n",
+        'Warning: tool "bash" is not available for this agent\n',
+        'Warning: Custom agent "p:model-probe" specifies model "" and nothing else\n',
+    ],
+)
+def test_rejected_models_ignores_output_without_the_warning(stderr: str) -> None:
+    assert _rejected_models(stderr) == []
+
+
+@pytest.mark.parametrize("tier", ["opus", "sonnet", "haiku"])
+def test_probe_ids_are_what_the_generator_emits_for_copilot(tier: str) -> None:
+    """The smoke probes the generator's own output, not a hand-copied literal."""
+    tiers = {t: _copilot_tier_model(t) for t in ("opus", "sonnet", "haiku")}
+    fmt = _load_format_model_id_for_platform()
+    major_minor = re.search(r"(\d+)\.(\d+)$", tiers[tier])
+    assert major_minor is not None
+
+    canonical = f"claude-{tier}-{major_minor.group(1)}-{major_minor.group(2)}"
+
+    assert fmt(canonical, tiers) == tiers[tier]
+
+
+def test_the_bogus_control_id_is_not_a_shipped_tier_default() -> None:
+    shipped = {_copilot_tier_model(t) for t in ("opus", "sonnet", "haiku")}
+
+    assert _BOGUS_MODEL_ID not in shipped
+    assert re.fullmatch(r"claude-(opus|sonnet|haiku)-\d+\.\d+", _BOGUS_MODEL_ID) is None
+
+
+def test_model_probe_plugin_pins_the_model_and_names_the_agent(tmp_path: Path) -> None:
+    plugin = tmp_path / "plugin"
+
+    ref = _write_model_probe_plugin(plugin, "claude-opus-4.6")
+
+    plugin_name, agent = ref.split(":")
+    assert json.loads((plugin / "plugin.json").read_text(encoding="utf-8"))["name"] == plugin_name
+    text = (plugin / "agents" / f"{agent}.agent.md").read_text(encoding="utf-8")
+    frontmatter = yaml.safe_load(text.split("---")[1])
+    assert frontmatter == {
+        "name": "model-probe",
+        "description": "model id runtime probe",
+        "model": "claude-opus-4.6",
+    }
+
+
+def test_model_probe_plugin_names_are_unique_per_call(tmp_path: Path) -> None:
+    first = _write_model_probe_plugin(tmp_path / "a", "claude-opus-4.6")
+    second = _write_model_probe_plugin(tmp_path / "b", "claude-opus-4.6")
+
+    assert first != second
+
+
+def _stub_model_probe_run(
+    monkeypatch: pytest.MonkeyPatch, *, returncode: int, stderr: str = ""
+) -> list[dict[str, object]]:
+    calls: list[dict[str, object]] = []
+
+    def fake(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        calls.append({"args": args, **kwargs})
+        return subprocess.CompletedProcess(args, returncode, stdout="", stderr=stderr)
+
+    monkeypatch.setattr("tests.e2e.test_plugin_load_smoke._run_cli", fake)
+    monkeypatch.setattr(
+        "tests.e2e.test_plugin_load_smoke.copilot_command", lambda *args: ["copilot", *args]
+    )
+    return calls
+
+
+def test_model_probe_runs_the_isolated_plugin_from_a_neutral_cwd(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    calls = _stub_model_probe_run(monkeypatch, returncode=0)
+
+    _run_copilot_model_probe(tmp_path, "claude-opus-4.6")
+
+    args = calls[0]["args"]
+    assert isinstance(args, list)
+    plugin_dir = Path(args[args.index("--plugin-dir") + 1])
+    assert plugin_dir.is_relative_to(tmp_path)
+    assert args[args.index("--agent") + 1].endswith(":model-probe")
+    assert Path(str(calls[0]["cwd"])).is_relative_to(tmp_path)
+    assert Path(str(calls[0]["cwd"])) != REPO_ROOT
+    assert not (REPO_ROOT / "src" / "copilot-cli" / "agents" / "model-probe.agent.md").exists()
+
+
+def test_model_probe_fails_on_a_nonzero_exit(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _stub_model_probe_run(monkeypatch, returncode=1, stderr="boom")
+
+    with pytest.raises(AssertionError, match=r"model probe failed for claude-opus-4\.6 \(rc=1\)"):
+        _run_copilot_model_probe(tmp_path, "claude-opus-4.6")
+
+
+def test_model_probe_keeps_the_stderr_the_rejection_check_reads(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _stub_model_probe_run(monkeypatch, returncode=0, stderr=_REJECTION_STDERR)
+
+    run = _run_copilot_model_probe(tmp_path, _BOGUS_MODEL_ID)
+
+    assert _rejected_models(run.stderr, run.stdout) == [_BOGUS_MODEL_ID]
 
 
 def _fake_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, body: str) -> Path:
@@ -2487,6 +2741,19 @@ def _smoke_tests() -> list[Callable[..., object]]:
     ]
 
 
+def _local_smoke_tests() -> list[Callable[..., object]]:
+    """Smoke tests the pre-push run executes: it selects ``-m "not copilot"``.
+
+    ``CLI_E2E_LOCAL_MARKERS`` keeps every Copilot case in CI behind the
+    agent-copilot environment, so a Copilot hang cannot cost the local push.
+    """
+    return [
+        test
+        for test in _smoke_tests()
+        if not any(mark.name == "copilot" for mark in getattr(test, "pytestmark", []))
+    ]
+
+
 def _smoke_test_named(name: str) -> Callable[..., object]:
     return globals()[name]
 
@@ -2530,6 +2797,16 @@ def test_every_real_cli_test_outlasts_its_subprocess_timeout() -> None:
     assert not short, f"smoke tests without a budget above the CLI timeout: {short}"
 
 
+def test_the_pre_push_bound_counts_claude_and_codex_but_not_copilot_smokes() -> None:
+    """Copilot smokes run only in CI, so they do not spend the pre-push cap (issue #5333)."""
+    local = {test.__name__ for test in _local_smoke_tests()}
+
+    assert test_copilot_accepts_the_generated_model_id_with_rejection_control.__name__ not in local
+    assert test_copilot_plugin_loads_expected_skills.__name__ not in local
+    assert test_claude_plugin_loads_expected_skills.__name__ in local
+    assert test_codex_plugin_loads_expected_skills.__name__ in local
+
+
 def test_an_all_hang_run_fits_the_pre_push_cap() -> None:
     """When every CLI hangs, the run still fits the pre-push cap.
 
@@ -2537,14 +2814,15 @@ def test_an_all_hang_run_fits_the_pre_push_cap() -> None:
     CLI runs one startup probe, and one test (the Claude plugin load) runs
     ``--version`` before its first real call. The sum must stay
     under the pre-push cap, or the cap kills the run and the hung test goes
-    unnamed (issue #6181).
+    unnamed (issue #6181). Copilot smokes are not in the sum: the local run
+    deselects them (``_local_smoke_tests``).
     """
     from scripts.validation.git_hook_policy import CLI_E2E_TIMEOUT_SECONDS
 
     worst_case = (
         len(_PROBED_CLIS) * _STARTUP_PROBE_TIMEOUT_SECONDS
         + _VERSION_TIMEOUT_SECONDS
-        + sum(_first_call_timeout(test) for test in _smoke_tests())
+        + sum(_first_call_timeout(test) for test in _local_smoke_tests())
     )
 
     assert worst_case < CLI_E2E_TIMEOUT_SECONDS, (
