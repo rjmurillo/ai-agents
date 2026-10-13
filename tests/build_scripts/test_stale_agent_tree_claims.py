@@ -28,6 +28,11 @@ RETIRED = {
     "templates/rules/plugin-self-containment.md": (
         "### Agent files are not scanned at all",
         "Issue #3465 tracks widening the ratchet",
+        "It also scans three extra roots",
+        "What sits outside is everything else, such as the rendered agent files",
+        "Neither are the rendered",
+        "ships into `src/copilot-cli/` unchecked",
+        "and no gate objects.",
     ),
     "build/scripts/check_agent_content_parity.py": (
         "two hand-maintained copies",
@@ -67,3 +72,23 @@ def test_retired_phrase_is_absent(relpath: str, phrase: str) -> None:
 @pytest.mark.parametrize("relpath", sorted(ANCHORS))
 def test_corrected_anchor_is_present(relpath: str) -> None:
     assert ANCHORS[relpath] in _read(relpath)
+
+
+SCAN_ROOT_ANCHORS = (
+    "It also scans the six `EXTRA_SCAN_ROOTS`",
+    "`src/claude/agents`, `src/copilot-cli/agents`, and `.github/agents`",
+    "`REQUIRED_EXTRA_ROOTS`",
+    "`UPSTREAM_PATTERNS`",
+)
+
+
+@pytest.mark.parametrize("anchor", SCAN_ROOT_ANCHORS)
+def test_scan_root_claims_match_the_validator(anchor: str) -> None:
+    assert anchor in _read("templates/rules/plugin-self-containment.md")
+
+
+def test_rule_names_every_extra_scan_root_the_validator_scans() -> None:
+    """Every EXTRA_SCAN_ROOTS entry the rule claims is scanned must exist in the validator."""
+    validator = _read("scripts/validation/check_skill_md_portability.py")
+    for root in ("src/claude/agents", "src/copilot-cli/agents", ".github/agents"):
+        assert f'"{root}"' in validator
