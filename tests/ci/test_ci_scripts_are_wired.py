@@ -43,6 +43,11 @@ _WORKFLOW_DIRS = (
 # non-empty reason, so that adding one is a decision rather than a way to
 # silence this test.
 _NOT_WORKFLOW_INVOKED: dict[str, str] = {
+    "hermes_mirror.py": (
+        "Library imported by type_ignore_count_ratchet.py and "
+        "subprocess_encoding_count_ratchet.py, which the ratchet workflow runs. "
+        "Covered by tests/ci/test_hermes_mirror.py."
+    ),
     "invoke_copilot_cli.py": (
         "Library imported by invoke_claude_review.py and scripts/eval. The ai-review "
         "action no longer calls it directly after REQ-047 (issue #6069). Covered by "
