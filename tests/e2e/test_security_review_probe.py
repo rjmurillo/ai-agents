@@ -129,7 +129,7 @@ def test_cannot_evaluate_blocked_fails_even_when_files_are_named() -> None:
         "Need src/greeter.py and tests/test_greeter.py as a diff artifact."
     )
 
-    with pytest.raises(AssertionError, match="reviewed nothing"):
+    with pytest.raises(AssertionError, match="no-verdict answer"):
         assert_review_covers_scope(text, EXPECTED_CHANGED_FILES)
 
 

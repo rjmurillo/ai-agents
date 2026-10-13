@@ -12,10 +12,10 @@ tests cannot make:
 
   1. The agent read the artifact (a ``Read`` tool call on its path).
   2. The review names every changed file the artifact carries.
-  3. The review ends in a verdict token from the agent's Completion Trigger
+  3. The review contains a verdict token from the agent's Completion Trigger
      Taxonomy (``APPROVED``, ``CONDITIONAL``, ``BLOCKED``), and that token is not
-     the ``[BLOCKED] Cannot evaluate`` form, which is the agent admitting it
-     reviewed nothing.
+     the ``[BLOCKED] Cannot evaluate`` form, which is the agent giving a
+     no-verdict answer.
 
 The negative control (acceptance criterion 5) runs the same review against an
 empty artifact. Nothing is enumerable, so ``assert_review_covers_scope`` must
@@ -29,7 +29,7 @@ not ``smoke``, so ``plugin-cli-smoke.yml`` (``-m "smoke and claude"``) does not
 select them. ``test_security_review_probe.py`` pins the helpers with no CLI.
 
 Run locally:
-    RUN_CLI_E2E=1 uv run pytest tests/e2e/test_security_review_e2e.py -v -m claude
+    RUN_CLI_E2E=1 uv run --frozen pytest tests/e2e/test_security_review_e2e.py -v -m claude
 """
 
 from __future__ import annotations

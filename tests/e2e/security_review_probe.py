@@ -27,7 +27,7 @@ try:
 finally:
     sys.path[:] = _original_sys_path
 
-from smoke_skip_policy import skip_or_fail_on_claude_block  # noqa: E402
+from smoke_skip_policy import PLUGIN_ROOT_ENV_KEYS, skip_or_fail_on_claude_block  # noqa: E402
 
 # A review of a two-file diff reads one artifact and answers. 180s bounds a slow
 # model turn; a hang is a defect.
@@ -36,13 +36,13 @@ REVIEW_TIMEOUT_SECONDS = 180
 # The verdict taxonomy in .claude/agents/security.md, "Completion Trigger Taxonomy".
 VERDICT_TOKENS = ("APPROVED", "CONDITIONAL", "BLOCKED")
 _VERDICT_PATTERN = re.compile(r"\b(" + "|".join(VERDICT_TOKENS) + r")\b")
-# The agent's own "I reviewed nothing" answer: `[BLOCKED] Cannot evaluate: ...`.
+# The agent's no-verdict answer: `[BLOCKED] Cannot evaluate: <missing artifact>`.
 _CANNOT_EVALUATE_PATTERN = re.compile(r"\bCannot evaluate\b", re.IGNORECASE)
 
 # The fixed changeset. Both files are added, so the diff carries their full
 # content; no untracked-file half is missing (security.md, step 2 of Review
-# Scope Enumeration). The expected list is derived from the diff in a unit test,
-# so the two cannot drift apart.
+# Scope Enumeration). A unit test checks the expected list against the diff, so
+# the two cannot drift apart.
 EXPECTED_CHANGED_FILES = ("src/greeter.py", "tests/test_greeter.py")
 FIXTURE_DIFF = """\
 diff --git a/src/greeter.py b/src/greeter.py
@@ -165,7 +165,7 @@ def assert_review_covers_scope(text: str, expected_files: tuple[str, ...]) -> No
         f"output_tail={_redacted_tail(text)}"
     )
     assert not _CANNOT_EVALUATE_PATTERN.search(text), (
-        f"the verdict is the 'Cannot evaluate' form: the agent reviewed nothing. "
+        f"the verdict is the 'Cannot evaluate' form: the agent gave a no-verdict answer. "
         f"output_tail={_redacted_tail(text)}"
     )
 
@@ -181,10 +181,10 @@ def _redacted_tail(text: str) -> str:
 
 
 def clean_env() -> dict[str, str]:
-    """Env with inherited plugin-root vars stripped, as the sibling smoke does."""
+    """Env with the inherited PLUGIN_ROOT_ENV_KEYS vars stripped (smoke_skip_policy.py)."""
     env = os.environ.copy()
     for key in list(env):
-        if key.upper() in {"CLAUDE_PLUGIN_ROOT", "CLAUDE_PROJECT_DIR", "COPILOT_PLUGIN_ROOT"}:
+        if key.upper() in PLUGIN_ROOT_ENV_KEYS:
             env.pop(key, None)
     return env
 
