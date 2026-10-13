@@ -61,7 +61,9 @@ Include related work findings in each Phase 1 agent prompt as context.
 ## Phase 1: Independent Review
 
 Start the debate log with the claims-ledger path. Invoke each agent with the ADR
-content, related work findings, and the claims ledger. Each provides:
+content, related work findings, and the claims ledger. When no ledger exists, each
+seat builds one. Every seat verifies factual claims, not only the analyst. Each
+provides:
 
 ```markdown
 ## [Agent] Review
@@ -84,6 +86,11 @@ content, related work findings, and the claims ledger. Each provides:
 | [Issue] | P0/P1/P2 | [Details] |
 
 P0 = blocking, P1 = important, P2 = nice-to-have
+
+### Claims Checked
+| Claim | Kind | Source read | Result |
+|-------|------|-------------|--------|
+| [claim text] | [deciders / issue-or-PR / status / count-or-path / contract] | [file, issue, PR, or command] | [VERIFIED / REFUTED / UNVERIFIED] |
 
 ### Gate Escapes
 - When a factual finding duplicates a `VERIFIED` claims-ledger row, record the
@@ -118,7 +125,12 @@ Path: [Claims ledger path]
    Q5. Does the chosen solution solve the problem? Is the rationale convincing?
    Q6. Are consequences reported as objectively as possible?
    Q7. Is the solution described actionably? Traceable to requirements? Has a review date?
-6. Return structured review per Phase 1 format
+6. Verify every factual claim in the ADR against its primary source, not only
+   the claims framed as the decision. Apply the Factual Claim Verification Block
+   in `agent-prompts.md` to deciders, issue and PR numbers, status claims, counts,
+   paths, and cross-artifact contracts. Check claims the ledger omits. Build a
+   ledger when none is passed.
+7. Return structured review per Phase 1 format
 """,
 )
 ```
@@ -205,6 +217,8 @@ ADR Convergence Check (Round [N])
 [Agent's Phase 1 concerns]
 
 ## Instructions
+Verify every factual claim in text added or changed this round (Factual
+Claim Verification Block in `agent-prompts.md`). A fix round can add a wrong claim.
 Provide ONE position:
 - **Accept**: No blocking concerns remain
 - **Disagree-and-Commit**: Reservations exist but agree to proceed (document dissent)

@@ -71,9 +71,9 @@ from check_adr_lifecycle import (
     EXIT_OK,
     EXIT_REGRESSION,
     _find_cycles,
+    identities,
     main,
     scan,
-    tally,
     validate_adr_lifecycle,
     write_baseline,
 )
@@ -113,7 +113,8 @@ _STATUS_SECTION = "\n## Status\n\nAccepted (2026-08-21). Conditions were cleared
 
 
 def _counts(tmp_path: Path) -> dict[str, int]:
-    return tally(scan(tmp_path / ".project-toolkit" / "architecture", tmp_path))
+    found = identities(scan(tmp_path / ".project-toolkit" / "architecture", tmp_path))
+    return {name: sum(paths.values()) for name, paths in found.items()}
 
 
 def _hits(tmp_path: Path, check: str) -> list[str]:
@@ -121,9 +122,18 @@ def _hits(tmp_path: Path, check: str) -> list[str]:
     return [v.detail for v in scan(adr_dir, tmp_path) if v.check == check]
 
 
-def _baseline(tmp_path: Path, **counts: int) -> Path:
+def _rel(number: int) -> str:
+    """The record path a violation in ``_write(adr_dir, number, ...)`` carries."""
+    return f".project-toolkit/architecture/ADR-{number:03d}-thing.md"
+
+
+def _baseline(tmp_path: Path, **entries: dict[str, int]) -> Path:
+    """A schema 2 baseline; each keyword is a check name mapped to ``{path: count}``."""
     path = tmp_path / "baseline.json"
-    payload = {"counts": {name: counts.get(name, 0) for name in CHECKS}}
+    payload = {
+        "schema_version": "2",
+        "violations": {name: entries.get(name, {}) for name in CHECKS},
+    }
     path.write_text(json.dumps(payload), encoding="utf-8")
     return path
 
@@ -836,7 +846,7 @@ def test_gate_never_mutates_an_adr(tmp_path):
 def test_counts_at_baseline_exit_zero(tmp_path):
     adr_dir = _adr_dir(tmp_path)
     _write(adr_dir, 1, None)
-    baseline = _baseline(tmp_path, **{"frontmatter-parses": 1})
+    baseline = _baseline(tmp_path, **{"frontmatter-parses": {_rel(1): 1}})
 
     result = _run(tmp_path, "--baseline", str(baseline))
 
@@ -867,7 +877,7 @@ def test_a_risen_count_fails_and_names_the_check(tmp_path):
     adr_dir = _adr_dir(tmp_path)
     _write(adr_dir, 1, None)
     _write(adr_dir, 2, None)
-    baseline = _baseline(tmp_path, **{"frontmatter-parses": 1})
+    baseline = _baseline(tmp_path, **{"frontmatter-parses": {_rel(1): 1}})
 
     result = _run(tmp_path, "--baseline", str(baseline))
 
@@ -879,7 +889,7 @@ def test_a_risen_count_fails_and_names_the_check(tmp_path):
 def test_an_improvement_passes_without_rewriting_the_baseline(tmp_path):
     adr_dir = _adr_dir(tmp_path)
     _write(adr_dir, 1, _valid(1), _STATUS_SECTION)
-    baseline = _baseline(tmp_path, **{"frontmatter-parses": 5})
+    baseline = _baseline(tmp_path, **{"frontmatter-parses": {_rel(1): 5}})
     before = baseline.read_text(encoding="utf-8")
 
     result = _run(tmp_path, "--baseline", str(baseline))
@@ -889,10 +899,86 @@ def test_an_improvement_passes_without_rewriting_the_baseline(tmp_path):
     assert baseline.read_text(encoding="utf-8") == before
 
 
+def test_swapping_a_violation_to_another_record_fails(tmp_path):
+    """Issue #5273: fix ADR-001, break ADR-002; the check total stays at 1."""
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1), _STATUS_SECTION)
+    _write(adr_dir, 2, None)
+    baseline = _baseline(tmp_path, **{"frontmatter-parses": {_rel(1): 1}})
+
+    result = _run(tmp_path, "--baseline", str(baseline))
+
+    assert result.returncode == EXIT_REGRESSION, result.stdout + result.stderr
+    assert "frontmatter-parses: 1 -> 1" in result.stdout
+    assert "SWAPPED" in result.stdout
+    assert _rel(2) in result.stdout
+    assert "Fixing a different record does not offset it" in result.stdout
+
+
+def test_a_new_violation_fails_even_when_the_check_total_fell(tmp_path):
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 3, None)
+    baseline = _baseline(tmp_path, **{"frontmatter-parses": {_rel(1): 2}})
+
+    result = _run(tmp_path, "--baseline", str(baseline))
+
+    assert result.returncode == EXIT_REGRESSION, result.stdout + result.stderr
+    assert "frontmatter-parses: 2 -> 1" in result.stdout
+
+
+def test_a_pure_fix_passes_and_is_reported_as_an_improvement(tmp_path):
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1), _STATUS_SECTION)
+    _write(adr_dir, 2, None)
+    baseline = _baseline(tmp_path, **{"frontmatter-parses": {_rel(1): 1, _rel(2): 1}})
+
+    result = _run(tmp_path, "--baseline", str(baseline))
+
+    assert result.returncode == EXIT_OK, result.stdout + result.stderr
+    assert "improved, record with --write-baseline" in result.stdout
+
+
+def test_a_second_violation_of_one_check_in_a_recorded_record_fails(tmp_path):
+    """The key carries a count, so one record cannot absorb a second violation."""
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1, supersedes="[ADR-090, ADR-091]"), _STATUS_SECTION)
+    baseline = _baseline(tmp_path, **{"supersession-target-exists": {_rel(1): 1}})
+
+    result = _run(tmp_path, "--baseline", str(baseline))
+
+    assert result.returncode == EXIT_REGRESSION, result.stdout + result.stderr
+    assert "supersession-target-exists: 1 -> 2" in result.stdout
+
+
+def test_a_swap_across_checks_in_one_record_fails(tmp_path):
+    """A record recorded under one check does not excuse a different check."""
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1, status="bogus"), _STATUS_SECTION)
+    baseline = _baseline(tmp_path, **{"id-matches-filename": {_rel(1): 1}})
+
+    result = _run(tmp_path, "--baseline", str(baseline))
+
+    assert result.returncode == EXIT_REGRESSION, result.stdout + result.stderr
+    assert "status-enum: 0 -> 1" in result.stdout
+
+
+def test_write_baseline_after_a_fix_records_only_what_remains(tmp_path):
+    adr_dir = _adr_dir(tmp_path)
+    _write(adr_dir, 1, _valid(1), _STATUS_SECTION)
+    _write(adr_dir, 2, None)
+    baseline = _baseline(tmp_path, **{"frontmatter-parses": {_rel(1): 1, _rel(2): 1}})
+
+    written = _run(tmp_path, "--baseline", str(baseline), "--write-baseline")
+
+    assert written.returncode == EXIT_OK, written.stdout + written.stderr
+    payload = json.loads(baseline.read_text(encoding="utf-8"))
+    assert payload["violations"]["frontmatter-parses"] == {_rel(2): 1}
+
+
 def test_run_reports_which_checks_are_ready_for_zero_tolerance(tmp_path):
     adr_dir = _adr_dir(tmp_path)
     _write(adr_dir, 1, None)
-    baseline = _baseline(tmp_path, **{"frontmatter-parses": 1})
+    baseline = _baseline(tmp_path, **{"frontmatter-parses": {_rel(1): 1}})
 
     result = _run(tmp_path, "--baseline", str(baseline))
 
@@ -915,9 +1001,10 @@ def test_write_baseline_round_trips_and_then_passes(tmp_path):
 
     assert written.returncode == EXIT_OK
     payload = json.loads(baseline.read_text(encoding="utf-8"))
-    assert payload["counts"]["frontmatter-parses"] == 1
-    assert payload["counts"]["proposed-cannot-supersede"] == 1
-    assert list(payload["counts"]) == list(CHECKS)
+    assert payload["schema_version"] == "2"
+    assert payload["violations"]["frontmatter-parses"] == {_rel(1): 1}
+    assert payload["violations"]["proposed-cannot-supersede"] == {_rel(2): 1}
+    assert list(payload["violations"]) == list(CHECKS)
     assert _run(tmp_path, "--baseline", str(baseline)).returncode == EXIT_OK
 
 
@@ -931,7 +1018,7 @@ def test_write_baseline_leaves_no_temp_file_behind(tmp_path):
     """
     baseline = tmp_path / "baseline.json"
 
-    write_baseline(baseline, dict.fromkeys(CHECKS, 0))
+    write_baseline(baseline, {name: {} for name in CHECKS})
 
     assert baseline.exists()
     leftovers = [p for p in tmp_path.iterdir() if p.suffix == ".tmp"]
@@ -956,7 +1043,7 @@ def test_write_baseline_preserves_the_old_file_when_replace_fails(tmp_path, monk
     monkeypatch.setattr(os, "replace", _boom)
 
     with pytest.raises(OSError, match="simulated replace failure"):
-        write_baseline(baseline, dict.fromkeys(CHECKS, 0))
+        write_baseline(baseline, {name: {} for name in CHECKS})
 
     assert baseline.read_text(encoding="utf-8") == original
     leftovers = [p for p in tmp_path.iterdir() if p.suffix == ".tmp"]
@@ -1057,7 +1144,9 @@ def test_write_baseline_refuses_to_raise_a_check_above_the_base_ref(tmp_path):
 
     assert exit_code == EXIT_CONFIG
     # The on-disk baseline is untouched: the refused write never ran.
-    assert json.loads(baseline.read_text(encoding="utf-8"))["counts"]["frontmatter-parses"] == 0
+    assert (
+        json.loads(baseline.read_text(encoding="utf-8"))["violations"]["frontmatter-parses"] == {}
+    )
 
 
 def test_write_baseline_allows_bootstrap_when_base_ref_has_no_baseline(tmp_path):
@@ -1139,7 +1228,7 @@ def test_baseline_missing_a_check_is_a_config_error(tmp_path):
     adr_dir = _adr_dir(tmp_path)
     _write(adr_dir, 1, _valid(1), _STATUS_SECTION)
     baseline = tmp_path / "baseline.json"
-    baseline.write_text(json.dumps({"counts": {"status-enum": 0}}), encoding="utf-8")
+    baseline.write_text(json.dumps({"violations": {"status-enum": {}}}), encoding="utf-8")
 
     result = _run(tmp_path, "--baseline", str(baseline))
 
@@ -1151,9 +1240,9 @@ def test_baseline_with_a_non_count_value_is_a_config_error(tmp_path):
     adr_dir = _adr_dir(tmp_path)
     _write(adr_dir, 1, _valid(1), _STATUS_SECTION)
     baseline = tmp_path / "baseline.json"
-    counts = dict.fromkeys(CHECKS, 0)
-    counts["status-enum"] = -1
-    baseline.write_text(json.dumps({"counts": counts}), encoding="utf-8")
+    entries: dict[str, dict[str, int]] = {name: {} for name in CHECKS}
+    entries["status-enum"] = {_rel(1): -1}
+    baseline.write_text(json.dumps({"violations": entries}), encoding="utf-8")
 
     result = _run(tmp_path, "--baseline", str(baseline))
 
@@ -1254,8 +1343,13 @@ def test_the_shipped_baseline_covers_every_check():
         (_VALIDATION_DIR / "adr_lifecycle_baseline.json").read_text(encoding="utf-8")
     )
 
-    assert list(payload["counts"]) == list(CHECKS)
-    assert all(isinstance(value, int) and value >= 0 for value in payload["counts"].values())
+    assert payload["schema_version"] == "2"
+    assert list(payload["violations"]) == list(CHECKS)
+    assert all(
+        isinstance(count, int) and count >= 1
+        for paths in payload["violations"].values()
+        for count in paths.values()
+    )
 
 
 def test_the_repository_corpus_does_not_exceed_the_shipped_baseline():
@@ -1310,7 +1404,7 @@ def test_limit_truncates_the_printed_violation_list(tmp_path):
 def test_show_all_prints_violations_under_clean_checks_too(tmp_path):
     adr_dir = _adr_dir(tmp_path)
     _write(adr_dir, 1, None)
-    baseline = _baseline(tmp_path, **{"frontmatter-parses": 1})
+    baseline = _baseline(tmp_path, **{"frontmatter-parses": {_rel(1): 1}})
 
     result = _run(tmp_path, "--baseline", str(baseline), "--show-all")
 
@@ -1322,18 +1416,80 @@ def test_read_baseline_rejects_a_payload_without_counts(tmp_path):
     from check_adr_lifecycle import read_baseline
 
     path = tmp_path / "baseline.json"
-    path.write_text(json.dumps({"schema_version": "1"}), encoding="utf-8")
+    path.write_text(json.dumps({"schema_version": "2"}), encoding="utf-8")
 
-    assert "has no `counts` mapping" in read_baseline(path)
+    assert "has no `violations` mapping" in read_baseline(path)
+
+
+def test_read_baseline_rejects_a_schema_1_counts_file(tmp_path):
+    """Schema 1 cannot name the records behind a count; regenerate instead."""
+    from check_adr_lifecycle import read_baseline
+
+    path = tmp_path / "baseline.json"
+    path.write_text(
+        json.dumps({"schema_version": "1", "counts": dict.fromkeys(CHECKS, 0)}), encoding="utf-8"
+    )
+
+    reason = read_baseline(path)
+
+    assert isinstance(reason, str)
+    assert "schema 1" in reason
+    assert "--write-baseline" in reason
+
+
+def test_read_baseline_rejects_a_non_mapping_check_entry(tmp_path):
+    from check_adr_lifecycle import read_baseline
+
+    path = tmp_path / "baseline.json"
+    entries: dict[str, object] = {name: {} for name in CHECKS}
+    entries["status-enum"] = 3
+    path.write_text(json.dumps({"violations": entries}), encoding="utf-8")
+
+    assert "not a mapping of path to count" in read_baseline(path)
+
+
+def test_read_baseline_rejects_an_empty_path_key(tmp_path):
+    from check_adr_lifecycle import read_baseline
+
+    path = tmp_path / "baseline.json"
+    entries: dict[str, dict[str, int]] = {name: {} for name in CHECKS}
+    entries["status-enum"] = {"": 1}
+    path.write_text(json.dumps({"violations": entries}), encoding="utf-8")
+
+    assert "not a record path" in read_baseline(path)
+
+
+def test_read_baseline_rejects_a_zero_count_entry(tmp_path):
+    """An entry at zero is noise: omit the path instead."""
+    from check_adr_lifecycle import read_baseline
+
+    path = tmp_path / "baseline.json"
+    entries: dict[str, dict[str, int]] = {name: {} for name in CHECKS}
+    entries["status-enum"] = {_rel(1): 0}
+    path.write_text(json.dumps({"violations": entries}), encoding="utf-8")
+
+    assert "not a count" in read_baseline(path)
+
+
+def test_read_baseline_accepts_a_well_formed_schema_2_file(tmp_path):
+    from check_adr_lifecycle import read_baseline
+
+    path = _baseline(tmp_path, **{"status-enum": {_rel(1): 2}})
+
+    parsed = read_baseline(path)
+
+    assert isinstance(parsed, dict)
+    assert parsed["status-enum"] == {_rel(1): 2}
+    assert parsed["frontmatter-parses"] == {}
 
 
 def test_read_baseline_rejects_an_unknown_check_name(tmp_path):
     from check_adr_lifecycle import read_baseline
 
     path = tmp_path / "baseline.json"
-    counts = dict.fromkeys(CHECKS, 0)
-    counts["retired-check"] = 0
-    path.write_text(json.dumps({"counts": counts}), encoding="utf-8")
+    entries: dict[str, dict[str, int]] = {name: {} for name in CHECKS}
+    entries["retired-check"] = {}
+    path.write_text(json.dumps({"violations": entries}), encoding="utf-8")
 
     assert "unknown: ['retired-check']" in read_baseline(path)
 
@@ -1342,9 +1498,9 @@ def test_read_baseline_rejects_a_boolean_count(tmp_path):
     from check_adr_lifecycle import read_baseline
 
     path = tmp_path / "baseline.json"
-    counts: dict[str, object] = dict.fromkeys(CHECKS, 0)
-    counts["status-enum"] = True
-    path.write_text(json.dumps({"counts": counts}), encoding="utf-8")
+    entries: dict[str, dict[str, object]] = {name: {} for name in CHECKS}
+    entries["status-enum"] = {_rel(1): True}
+    path.write_text(json.dumps({"violations": entries}), encoding="utf-8")
 
     assert "not a count" in read_baseline(path)
 
@@ -1366,7 +1522,7 @@ def test_main_reports_config_error_for_a_missing_directory_in_process(tmp_path):
 def test_main_reports_no_check_ready_when_every_check_has_debt(tmp_path, capsys):
     adr_dir = _adr_dir(tmp_path)
     _write(adr_dir, 1, None)
-    baseline = _baseline(tmp_path, **dict.fromkeys(CHECKS, 1))
+    baseline = _baseline(tmp_path, **{name: {_rel(1): 1} for name in CHECKS})
 
     assert main(["--repo-root", str(tmp_path), "--baseline", str(baseline)]) == EXIT_OK
     assert "No check is at zero yet" in capsys.readouterr().out
