@@ -210,11 +210,8 @@ Do not use these words in prose. They mark AI output and add nothing:
 Replacements: be specific instead. "Robust error handling" becomes "handles network timeout, schema mismatch, and partial write." "Significant performance improvement" becomes "p99 drops from 1.2s to 180ms."
 
 MUST NOT add auto-generated headers, generation timestamps, or "do not edit"
-   comments to any file (agent prompts, documentation, code, template outputs).
-   Generated output must be indistinguishable from hand-written content:
-   metadata headers waste tokens and hide the output's intended content. If a
-   script grows a helper that emits such headers, delete the helper instead of
-   calling it.
+   comments to any file. Generated output must read as hand-written: headers
+   waste tokens and hide the content. If a script emits one, delete the emitter.
 
 Markdown lint is SCOPED to files you changed. The PR #908 Five Whys traced 53
 unrelated memory-file changes to `markdownlint --fix **/*.md` run repo-wide
