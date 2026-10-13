@@ -34,8 +34,12 @@ from check_worktree_recipes import validate_worktree_recipes
 from checks_ci_parity import validate_closure_manifest, validate_memory_placement
 from checks_copilot import validate_copilot_routing_exclusions
 from checks_mypy import validate_mypy_changed_files
-from checks_plugin import validate_agent_content_parity
-from checks_portability import validate_agent_template_drift, validate_plugin_root_interpreter
+from checks_plugin import validate_agent_content_parity, validate_agent_source_parity
+from checks_portability import (
+    validate_agent_template_drift,
+    validate_plugin_root_interpreter,
+    validate_projection_invariants,
+)
 from checks_ratchet import validate_count_ratchets
 from checks_spec import (
     validate_commands_retired,
@@ -57,6 +61,7 @@ from checks_tooling import (
 
 __all__ = [
     "validate_agent_content_parity",
+    "validate_agent_source_parity",
     "validate_agent_template_drift",
     "validate_adr_exception_markers",
     "validate_agent_tree_frontmatter",
@@ -80,6 +85,7 @@ __all__ = [
     "validate_mypy_changed_files",
     "validate_nl_structural_debt_ratchet",
     "validate_plugin_root_interpreter",
+    "validate_projection_invariants",
     "validate_promotion_exceptions",
     "validate_push_lock_paths",
     "validate_required_context_conditions",

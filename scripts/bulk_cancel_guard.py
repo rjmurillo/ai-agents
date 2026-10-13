@@ -18,6 +18,10 @@ USAGE:
   uv run python scripts/bulk_cancel_guard.py --all-open-prs \\
       --recovery-event reopened --manifest recovery.json
 
+  # Also count the artifacts those runs hold (one extra API call per run).
+  uv run python scripts/bulk_cancel_guard.py --all-open-prs \\
+      --recovery-event reopened --report-artifacts
+
   # Plan from a captured run inventory (no network).
   uv run python scripts/bulk_cancel_guard.py --runs-file runs.json \\
       --recovery-event synchronize
@@ -73,7 +77,11 @@ from scripts.github_core.workflow_event_subscriptions import (
     load_workflow_subscriptions,
 )
 from scripts.github_core.workflow_provenance import resolve_run_subscriptions
-from scripts.github_core.workflow_runs import cancel_runs, collect_runs_for_targets
+from scripts.github_core.workflow_runs import (
+    cancel_runs,
+    collect_runs_for_targets,
+    with_artifact_counts,
+)
 
 EXIT_OK = 0
 EXIT_BLOCKED = 1
@@ -172,6 +180,15 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--report-artifacts",
+        action="store_true",
+        help=(
+            "Count the live artifacts each run holds and add the total to the "
+            "blast radius. Costs one extra GitHub API call per run, so it is "
+            "off by default; it needs credentials on every input source."
+        ),
+    )
+    parser.add_argument(
         "--confirm",
         action="store_true",
         help="Actually cancel the runs. Without it nothing is mutated.",
@@ -180,6 +197,14 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def gather_runs(args: argparse.Namespace, client: GitHubClient) -> list[WorkflowRun]:
+    """Resolve the run inventory, measuring artifacts when the operator asked."""
+    runs = _enumerate_runs(args, client)
+    if args.report_artifacts:
+        return with_artifact_counts(client, args.repository, runs)
+    return runs
+
+
+def _enumerate_runs(args: argparse.Namespace, client: GitHubClient) -> list[WorkflowRun]:
     """Resolve the run inventory from whichever source the operator chose."""
     if args.runs_file is not None:
         return load_runs_file(args.runs_file)
@@ -206,6 +231,8 @@ def format_report(manifest: RecoveryManifest) -> str:
         f"  in-progress runs    : {radius.in_progress_runs} (occupying runners)",
         f"  required contexts   : {radius.required_context_count}",
     ]
+    if radius.artifact_count is not None:
+        lines.append(f"  artifacts           : {radius.artifact_count} (live, held by these runs)")
     blocked = manifest.blocked
     if blocked:
         lines.append(f"  blocked runs        : {len(blocked)}")
@@ -315,9 +342,10 @@ def _needs_credentials(args: argparse.Namespace) -> bool:
     A ``--runs-file`` dry run touches nothing and needs no credentials, which
     keeps the offline replay path usable on a machine with no ``gh`` login.
     ``--confirm`` always needs them, because cancelling is a live write however
-    the inventory was sourced.
+    the inventory was sourced. ``--report-artifacts`` needs them too, because the
+    artifact count is a live read per run even when the runs came from a file.
     """
-    return args.runs_file is None or args.confirm
+    return args.runs_file is None or args.confirm or args.report_artifacts
 
 
 def _resolve_live_subscriptions(
