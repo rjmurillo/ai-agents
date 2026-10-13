@@ -84,6 +84,7 @@ After execution:
 |--------|----------|-------|
 | `collect_metrics.py` | Python 3.8+ | Cross-platform |
 | `backlog_provenance.py` | Python 3.10+, `gh` | Read-only issue provenance report |
+| `defect_lineage.py` | Python 3.10+, `git` | Check, report, and recheck defect lineage records |
 
 ## Quick Start
 
@@ -103,6 +104,15 @@ python "$SCRIPTS_DIR/backlog_provenance.py" --days 7
 
 # Same report as JSON, for an explicit UTC interval ending 2026-09-29 (exclusive)
 python "$SCRIPTS_DIR/backlog_provenance.py" --days 29 --until 2026-09-29T00:00:00Z --output-format json
+
+# Defect lineage records (this repo keeps them in .project-toolkit/metrics/lineage/):
+# validate, report, and recheck against origin/<default_branch> (run git fetch origin first)
+python "$SCRIPTS_DIR/defect_lineage.py" check <records-dir>
+python "$SCRIPTS_DIR/defect_lineage.py" report <records-dir>
+python "$SCRIPTS_DIR/defect_lineage.py" recheck <records-dir>/<id>.json --write
+
+# --root belongs to the top-level parser, so it goes before the subcommand
+python "$SCRIPTS_DIR/defect_lineage.py" --root <repo> recheck <records-dir>/<id>.json --write
 ```
 
 ## Metrics Collected
@@ -130,6 +140,25 @@ score productivity, and it never files, labels, or closes an issue.
 - Markdown is the default on every terminal and redirect. Empty ratios print `N/A`, or `null` in JSON.
 
 Baseline, reproducible with `--days 29 --until 2026-09-29T00:00:00Z` (UTC, all issue states, retrieved 2026-09-29): 212 issues created 2026-08-31 through 2026-09-28. All 212 are `unknown` because no `source:*` label existed yet on that history. 87 (41.0%) match the machinery heuristic and 16 bursts cover 79 issues. Reconciled against the GitHub search API `created:2026-08-31..2026-09-28` count of 212. The earlier epic figure of 405 issues created in 30 days (2026-09-10 snapshot, about 9 in 10 machinery by title) is a historical claim. It used a different title rule and window, so it is not comparable to this run. The weekly cost-governance review cites this script's output.
+
+## Defect Lineage
+
+A later fix makes an old defect vanish from the current tree. A report of only
+the current state then loses the evidence of the review race, and a report of
+only the old defect calls a fixed problem live. `defect_lineage.py` keeps the
+chain (issue #5638). One JSON record per reviewed chain lives in a records
+directory that each command takes as an argument. The schema and its rules are
+in the docstring of `defect_lineage_record.py`.
+
+- A record holds the introducing PR and merge time, the detection source and time, the follow-up PR and merge time, the live status, a recheck, and its limitations. Timestamps are UTC to the second, so a review 5 s after a merge orders correctly.
+- `supports` says what the chain shows: `defect`, `review_race`, `process_gap`, or `observation`. Record planned work with `supports: ["observation"]` and `follow_up.kind: planned_work`. A follow-up counts as a defect only when the record says so.
+- Status is `CURRENT`, `FIXED`, `REVERTED`, `SUPERSEDED`, or `UNVERIFIED`. It says whether the record's `claim` holds at the recorded live SHA. `REVERTED` means the claim holds again after a recorded `reverted_by`. `SUPERSEDED` means a recorded `superseded_by` replaced the chain.
+- `recheck` reads `recheck.path` at a revision with `git show` and matches `recheck.pattern`. It appends one `status_history` entry and never deletes the chain. A missing file gives `UNVERIFIED`, never `FIXED`. So does a pattern that stops matching when the record has no merged `defect_repair` follow-up and no `superseded_by` (for example, the code moved). `--rev` must be a branch, tag, or SHA: `HEAD~1` and `main^` are rejected as unsafe with exit 2. An unresolved revision exits 3 and records nothing.
+- `report` groups records into live, unverified, historical, and observation buckets. Live holds `CURRENT` and `REVERTED`. Unverified holds `UNVERIFIED`. Historical holds `FIXED` and `SUPERSEDED`. Observation holds every observation-only record, whatever its status. Only the live bucket holds findings present at the recorded SHA.
+- `check` rejects contradictory records, including: a review race that did not follow the merge, a repair merged before detection, `FIXED` without a merged repair, a stored delay that disagrees with the timestamps, and out-of-order history, a follow-up merged before the introduction, and a `FIXED` history entry dated before the follow-up merged.
+- The records cite PR, issue, and review URLs. They do not copy bodies, and they do not blame a model or reviewer for a late review.
+
+Exit codes: 0 ok, 1 invalid record, 2 bad path, JSON, or argument, 3 git cannot run or the revision does not resolve.
 
 ## Detection Patterns
 
