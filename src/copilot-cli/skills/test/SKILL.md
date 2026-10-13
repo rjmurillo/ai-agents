@@ -180,7 +180,7 @@ Output: `VERDICT: PASS|WARN|CRITICAL_FAIL` with findings array.
 ## Principles
 
 - **Testability is design feedback**: Hard to test means poor encapsulation, tight coupling, Law of Demeter violation, weak cohesion, or procedural code.
-- **Tests are proof**: A passing test is evidence. A missing test is a gap in knowledge.
+- **Tests are proof**: A passing test is evidence (see `evidence-provenance`). A missing test is a gap in knowledge.
 - **Hypothesis-driven debugging**: When a test fails, form a hypothesis before changing code. Verify the hypothesis. Then fix.
 - **Defense in depth**: Assume the happy path works. Focus on failure modes.
 

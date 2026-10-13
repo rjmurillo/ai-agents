@@ -34,6 +34,7 @@ Audience: a zero-context contributor (human or model) about to write, run, or sk
 | Measure drift, budgets, telemetry, coverage trends | `ai-agents-diagnostics-toolkit` |
 | Probe an external tool's runtime behavior empirically | `ai-agents-empirical-probe-toolkit` |
 | Understand which gates a change class triggers | `ai-agents-change-control` |
+| Decide whether two pieces of evidence are independent, or whether a named check ran | `evidence-provenance` |
 | Session-log mechanics beyond the QA row | `.claude/rules/session-logs.md` |
 
 ## Process
