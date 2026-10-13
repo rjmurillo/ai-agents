@@ -25,7 +25,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-from dataclasses import dataclass
+from typing import NamedTuple
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
@@ -274,8 +274,7 @@ def _workflow_event(node: dict) -> str | None:
     return workflow_run.get("event")
 
 
-@dataclass(frozen=True)
-class _RunCandidate:
+class _RunCandidate(NamedTuple):
     """One workflow attempt's verdict for a check name."""
 
     key: tuple[int, int] | None
