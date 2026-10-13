@@ -2,7 +2,7 @@
 # Agent Failure Modes
 
 > **Status**: Canonical Source of Truth
-> **Last Updated**: 2026-09-03
+> **Last Updated**: 2026-10-13
 > **RFC 2119**: This document uses RFC 2119 key words.
 > **Reference**: Issue #1690
 
@@ -28,6 +28,7 @@ Trust-based compliance fails at scale. Instructions asking agents to "remember",
 | 10 | Silent defaults and guard-clause suppression | High | PR #1965 round-9/round-11 fixes; daniel.haxx.se 2026-05-11 |
 | 11 | Customer-facing generated artifact shipped without runtime verification | Critical | `2026-06-02-pr-2205-customer-wedge-incident.md`; ADR-071 |
 | 12 | Post-completion continuation | High | Issue #5404 |
+| 13 | State conflation in a boolean guard | Medium | Issues #1168, #5097, #5104; PR #5103 |
 
 ---
 
@@ -392,6 +393,10 @@ The principle: **there is no neutral default for a missing signal.** Either the 
 
 FM-4 (False Completion Markers) describes the *output*: an agent claims a task is done when it isn't. FM-10 describes one of the *mechanisms* that produces FM-4 outputs: the code itself returns success when something was suppressed. FM-4 lives at the agent-narration layer; FM-10 lives at the code-execution layer. A green CI gate built on a verdict parser that silently defaults to PASS is FM-10 producing FM-4. The fix is at the FM-10 layer (harden the parser), not the FM-4 layer (lecture the agent about honesty).
 
+### Not this class: loud conflation
+
+If the wrong outcome is visible (a red check, a blocked merge, an error message) and the defect is that one guard maps two non-equivalent states to it, the class is FM-13, not FM-10. FM-10 requires that nothing tells the reader the operation did not do what its name claims.
+
 ### References
 
 - `.project-toolkit/retrospective/2026-05-10-pr-1965-review-axes-convergence.md` (round 9-11 fixes)
@@ -520,6 +525,69 @@ The principle: **completion is a terminal state, not an invitation to search for
 - `.claude/rules/builder-ethos.md`, section 4 (Task Completion Contract).
 - `.claude/rules/voice.md`, Completion-Tail Audit.
 - `.claude/skills/avoiding-manufactured-work/SKILL.md` (finding-disposition procedure this pattern reuses rather than duplicates).
+
+---
+
+## 13. State Conflation in a Boolean Guard
+
+### Description
+
+A single boolean condition decides an outcome from an input that holds two or more non-equivalent states, so at least one state is reported as another. The guard runs, the outcome is surfaced, and nothing is hidden. The defect is in the guard's input domain, not in what the guard reveals. Common shapes:
+
+- A job gate written as `result == 'success'` or `result != 'success'`, which folds `failure`, `cancelled`, and `skipped` into one outcome
+- An `always()` aggregator that grades a run that was superseded, so `cancelled` is published as `failure`
+- A required check that counts `skipped` as not passing, so an intentional path-filter skip blocks a merge
+- A gate that scores a downloaded artifact and reads "the artifact never uploaded" as "the scan found problems"
+- A truthiness test on a field that can be `false`, `0`, or absent, where each state needs a different outcome
+
+The unifying property: **the guard has one branch where the input has several meanings.** Every state the guard maps to the wrong outcome was a real signal that the guard could not tell apart from its neighbor.
+
+### Trigger
+
+- A gate is written against the state its author was thinking about (the dependency failed) and the other states reach it later (the run was cancelled, the job was skipped, the upload never ran).
+- The gate's tests cover success and failure only. Nobody enumerates the full set of values the input can take.
+- The wrong outcome looks like a legitimate one, so a reader treats it as noise or as a real failure and does not look for a second state behind it.
+
+### Evidence
+
+- **Issue #5097 and PR #5103** (2026-08-15): five result aggregators ran under `if: always()` and failed on `cancelled` dependency results. Every push that superseded an in-flight run published red `failure` check runs on the old head. Fix: `!cancelled()` guards, pinned by `tests/workflows/test_aggregator_cancellation_guard.py`. See `.project-toolkit/retrospective/2026-08-17-issue-5097-aggregator-cancelled-guard.md`, which first filed this under FM-10 and retracted that in its correction sections.
+- **Issue #1168**: branch protection blocked merges because three required checks reported `skipped` after a path filter skipped them on purpose. The required-check rule maps `skipped` to not passing, so an intentional skip and a missing result looked the same. The issue's recommended fix is a pass-through job that reports success when the filter skips the real job.
+- **Issue #5104**: `check-blocking-issues` in `.github/workflows/codeql-analysis.yml` runs under `always()` and scores SARIF artifacts. On a cancelled run the artifacts may never upload, so the gate can read a cancelled upstream as a failed scan. See `.project-toolkit/retrospective/2026-09-01-issue-5104-codeql-cancellation-guard.md`, which found no class that fit and pointed at this one.
+
+### Detection
+
+| Mechanism | Where it runs | What it catches |
+|-----------|---------------|-----------------|
+| Review question: "list every value this input can take; which outcome does each get?" | Review, `/build` exit gate | Unenumerated states |
+| `tests/workflows/test_aggregator_cancellation_guard.py` | CI (pytest) | An `always()` aggregator on a PR head with no cancellation guard |
+| Table-driven test with one row per input state, including `cancelled`, `skipped`, and absent | `/test` functional gate | Any guard whose states share a branch |
+| Falsifiable distinguisher against FM-10: the wrong outcome is visible to the reader | Retrospective classification | Filing a loud conflation under silent suppression |
+
+### Enforcement Pattern
+
+The replacement: **make each distinguishable state an explicit branch with its own outcome.**
+
+| Anti-pattern | Replacement |
+|--------------|-------------|
+| `if: always()` on an aggregator | `if: ${{ !cancelled() }}` so a superseded run skips, and real failures still run the aggregator |
+| `needs.x.result != 'success'` as the only test | Name each result the aggregator accepts (`success`, intentional `skipped`) and each it rejects (`failure`, `cancelled`) |
+| A required check that goes `skipped` on a path filter | A pass-through job with the same name that reports success when the filter skips the real job |
+| Scoring an artifact without checking it exists | Test for the upstream result first, then score the artifact only when the upstream ran to completion |
+| `x or default` or `if not x` on a field with several falsy states | `x is None`, `x is False`, and `x == 0` as separate branches when the outcomes differ |
+
+The principle: **a guard is correct only for the states it names.** Enumerate the input domain in a test with one row per state. A missing row is the defect this class describes.
+
+### Why this is FM-13, not FM-10
+
+FM-10 describes suppression: the execution succeeds, the failure is invisible, and the call site cannot know the operation did not do what its name claims. FM-13 describes conflation: the outcome is visible and loud, and the call site is told something false about which of several real states occurred. The distinguisher is falsifiable. Ask whether a reader of the output knows something went wrong. If yes, the incident is not FM-10. The same guard can fall under both only when it hides one state and mislabels another, and the retrospective must then name both. The fix differs too: FM-10 is fixed by surfacing what was swallowed, FM-13 by adding the branch that separates the states.
+
+### References
+
+- `.project-toolkit/architecture/ADR-117-state-conflation-failure-mode.md`
+- `.project-toolkit/retrospective/2026-08-17-issue-5097-aggregator-cancelled-guard.md` (correction sections)
+- Issues #5097, #5103, #5139, #5145 (this class), #1168, #5104
+- `tests/workflows/test_aggregator_cancellation_guard.py`
+- FM-10 (silent defaults), the neighbor this class is distinguished from
 
 ---
 

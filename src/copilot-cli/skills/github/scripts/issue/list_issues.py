@@ -6,6 +6,7 @@ Enumerates issues in a repository with filtering capabilities:
 - Labels (comma-separated or single label)
 - Author
 - Assignee
+- Milestone (title or number)
 - Search query
 - Result limit
 
@@ -94,10 +95,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Filter by assignee username (use '@me' for self).",
     )
     parser.add_argument(
+        "--milestone",
+        default="",
+        help="Filter by milestone title or number (e.g. 'v0.7.0').",
+    )
+    parser.add_argument(
         "--search",
         default="",
         help="GitHub search query (e.g. 'fix auth is:open'). "
-        "When used, --state/--label/--author/--assignee are ignored.",
+        "When used, --state/--label/--author/--assignee/--milestone are ignored.",
     )
     parser.add_argument(
         "--limit",
@@ -166,7 +172,8 @@ def _build_issue_list_args(args: argparse.Namespace, repo_flag: str) -> list[str
 
     if args.search:
         # gh issue list --search ignores --state, --label, --author,
-        # --assignee. Only pass --search to avoid misleading behavior.
+        # --assignee, --milestone. Only pass --search to avoid misleading
+        # behavior.
         list_args.extend(["--search", args.search])
     else:
         # Forward every state, including 'all'. Omitting --state makes
@@ -184,6 +191,9 @@ def _build_issue_list_args(args: argparse.Namespace, repo_flag: str) -> list[str
 
         if args.assignee:
             list_args.extend(["--assignee", args.assignee])
+
+        if args.milestone:
+            list_args.extend(["--milestone", args.milestone])
 
     return list_args
 

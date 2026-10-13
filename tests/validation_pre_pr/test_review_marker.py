@@ -20,7 +20,8 @@ class TestValidateReviewMarker:
     - Script missing, ``REVIEW_MARKER_ENFORCED=1``: returns ``False``.
     - Script present, HEAD has a binding marker: returns ``True`` regardless
       of enforcement.
-    - Script present, HEAD has no marker, advisory: returns ``True``.
+    - Script present, HEAD has no marker, advisory: returns ``True`` (a
+      policy-exempt ``SKIP``, since advisory mode requires no marker).
     - Script present, HEAD has no marker, enforced: returns ``False``.
     """
 
