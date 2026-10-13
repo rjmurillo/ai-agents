@@ -243,7 +243,9 @@ Issue #5363 asked who owns count-baseline writes now that ADR-091's post-merge b
 |---|---|
 | No `--base-ref` | Exit 2. No ceiling exists. |
 | Fork point unreadable (shallow clone, unrelated history) | Exit 3, `FORK POINT UNREADABLE`. |
-| Fork point lacks the ratchet's own script | Bootstrap: exit 0 and a message that says so. |
+| Fork registry does not list the ratchet's label and the fork point lacks its script | Bootstrap: exit 0 and a message that says so. The branch registry must map the label to that script, or the run exits 1 as `BOOTSTRAP REFUSED`. |
+| Fork registry lists a label that the branch removes or re-points | Exit 1, `RATCHET REMOVED` or `RATCHET SCRIPT MOVED`. |
+| Fork registry unreadable | Exit 3, `REGISTRY UNREADABLE`. |
 | Fork tree cannot be measured | Exit 3. A missing ceiling never passes. |
 | Branch tree cannot be counted | Exit 3. |
 
