@@ -69,10 +69,10 @@ def test_generate_skills_nonzero_compile_returns_before_copy(tmp_path: Path) -> 
     assert not (tmp_path / "out" / "skills" / "sync").exists()
 
 
-def test_generate_skills_validate_true_compares_without_writing_then_still_copies(
+def test_generate_skills_validate_true_compares_without_writing_then_compares_mirror(
     tmp_path: Path,
 ) -> None:
-    """build_all.py --check shape: validate=True skips the write but still copies."""
+    """build_all.py --check shape: validate=True skips every write, mirror included."""
     write_partial(tmp_path, "greet", "hi\n")
     write_template(tmp_path, "sync", "{{> greet}}\n")
     dst = seed_target_dir(tmp_path, "sync")
@@ -81,6 +81,8 @@ def test_generate_skills_validate_true_compares_without_writing_then_still_copie
     # a prior binplace run would have left it (ADR-109 B3).
     install_target(tmp_path, "sync").write_text("hi\n", encoding="utf-8")
     config = minimal_platform_config(tmp_path)
+    # A normal run leaves the Copilot mirror in sync; validate=True must then pass.
+    assert generate_skills.generate_skills(config, tmp_path) == 0
 
     rc = generate_skills.generate_skills(config, tmp_path, validate=True)
 
