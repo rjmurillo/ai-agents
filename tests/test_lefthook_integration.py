@@ -1146,31 +1146,100 @@ def test_install_resets_legacy_hooks_path(tmp_path: Path) -> None:
     assert check_git_hook_health._dispatch_command("pre-push") in hook_shim
     assert check_git_hook_health._dispatch_failure(repo / ".git/hooks/pre-push", "pre-push") is None
 
-    if sys.platform == "win32":
-        # Dear future maintainer: this branch is not a shortcut. lefthook 2.1.10
-        # generates a different shim on Windows than on Linux/macOS from the same
-        # `lefthook.yml`. On Windows it emits its default template that resolves
-        # lefthook from PATH via `call_lefthook run`, omitting the configured
-        # `lefthook:` runner (uv run --frozen lefthook), the LEFTHOOK_BIN
-        # override, and the `elif lefthook -h` fallback. Both platforms install
-        # the same pinned 2.1.10 wheel, so this is an upstream shim-generator
-        # difference, not a version mismatch. The reset and executable-shim
-        # guarantees above still hold, and the shim still dispatches through
-        # lefthook. Tracked in #3289 (with the runner-embed option deferred to
-        # the #3196 shim rework). Keep the strong POSIX assertions below.
-        # Assert the full dispatch line, including "$@", so the test protects
-        # argument forwarding through the Windows shim, not just the command name.
-        assert 'call_lefthook run "pre-push" "$@"' in hook_shim
-        return
-
+    # Issue #5491: the shim's resolution order, pinned on every platform. Lefthook
+    # renders one `hook.tmpl` for all platforms (v2.1.10 `templates.go`); the only
+    # `runtime.GOOS` branch is `getExtension()`, which turns the PATH fallback's
+    # `lefthook` into `lefthook.exe` on Windows. Issue #3289 read a truncated
+    # pytest assertion message from the Windows job and concluded the Windows shim
+    # omits the configured runner. The full-function shim in that run's log
+    # (ending in the `else echo "Can't find lefthook in PATH"` branch) says
+    # otherwise, and this test is what Windows CI now measures instead of infers.
+    extension = ".exe" if sys.platform == "win32" else ""
     explicit_override = 'if test -n "$LEFTHOOK_BIN"'
     configured_call = 'python3 scripts/validation/lefthook_runner.py "$@"'
-    assert explicit_override in hook_shim
-    assert configured_call in hook_shim
-    assert hook_shim.index(explicit_override) < hook_shim.index(configured_call)
+    path_fallback = f"elif lefthook{extension} -h >/dev/null 2>&1"
+    for fragment in (explicit_override, configured_call, path_fallback):
+        assert fragment in hook_shim
+    assert (
+        hook_shim.index(explicit_override)
+        < hook_shim.index(configured_call)
+        < hook_shim.index(path_fallback)
+    )
     # The shim's own `elif test -n "<runner>"` guard is always true, so the
     # fallback chain lives in the runner. Behavior is pinned in
-    # tests/test_lefthook_runner.py (issue #5431).
+    # tests/test_lefthook_runner.py (issue #5431) and, through the installed
+    # shim, by test_installed_shim_runs_the_first_binary_in_runner_order below.
+
+
+def _stub_executable(directory: Path, name: str, log: Path) -> None:
+    """Write an executable that appends its name and arguments to ``log``."""
+    stub = directory / name
+    _write_lf(stub, f'#!/bin/sh\necho "{name} $*" >> "{log}"\nexit 0\n')
+    stub.chmod(0o755)
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="Stub launchers need .exe on Windows; Windows CI pins the shim text above.",
+)
+@pytest.mark.parametrize(
+    ("stubs", "expected_log", "expected_code"),
+    [
+        (
+            ("uv", "lefthook"),
+            ["uv run --frozen lefthook version", "uv run --frozen lefthook run pre-push"],
+            0,
+        ),
+        (("lefthook",), ["lefthook run pre-push"], 0),
+        ((), [], 3),
+    ],
+    ids=["uv-before-path", "path-when-uv-absent", "nothing-resolves-fails-closed"],
+)
+def test_installed_shim_runs_the_first_binary_in_runner_order(
+    stubs: tuple[str, ...],
+    expected_log: list[str],
+    expected_code: int,
+    tmp_path: Path,
+) -> None:
+    """Issue #5491: run the installed shim and record which binary it executes.
+
+    The two local gates never execute the shim. This does, with a PATH that holds
+    only ``python3`` plus the stubs under test (the shim runs through
+    ``/bin/sh``), and records the order
+    the shim reaches: pinned ``uv`` runtime, then ``lefthook`` on PATH, then a
+    nonzero exit with the runner's diagnosis. The last case is the one the issue
+    feared: no resolvable Lefthook must stop the hook, never exit 0 silently.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _copy_runtime_config(repo)
+    runner = Path("scripts/validation/lefthook_runner.py")
+    (repo / runner).parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(PROJECT_ROOT / runner, repo / runner)
+    _run_lefthook(repo, "install", "--reset-hooks-path")
+
+    tools = tmp_path / "bin"
+    tools.mkdir()
+    (tools / "python3").symlink_to(sys.executable)
+    log = tmp_path / "calls.log"
+    for stub in stubs:
+        _stub_executable(tools, stub, log)
+
+    env = {"PATH": str(tools), "HOME": str(tmp_path)}
+    result = subprocess.run(
+        ["/bin/sh", str(repo / ".git/hooks/pre-push")],
+        cwd=repo,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    calls = log.read_text(encoding="utf-8").splitlines() if log.exists() else []
+    assert calls == expected_log, result.stdout + result.stderr
+    assert result.returncode == expected_code, result.stdout + result.stderr
+    if expected_code:
+        assert "Lefthook itself is unavailable" in result.stderr
 
 
 @pytest.mark.parametrize("hook_name", ["pre-commit", "pre-push"])

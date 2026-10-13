@@ -183,6 +183,7 @@
 |script absolute path wrong worktree repo_root __file__ validates: [git/git-a-script-run-by-absolute-path-validates-its-own-worktree](git/git-a-script-run-by-absolute-path-validates-its-own-worktree.md) (1736)
 |merge conflict resolve ours theirs convenience wrong side: [git/git-a-conflict-resolved-for-convenience-records-a-falsehood](git/git-a-conflict-resolved-for-convenience-records-a-falsehood.md) (1189)
 |git stash shared across worktrees pop takes another: [git/git-stash-is-shared-across-every-worktree](git/git-stash-is-shared-across-every-worktree.md) (965)
+|worktree .env gitignored export ANTHROPIC_API_KEY copy symlink ignored key missing: [git/git-a-new-worktree-has-no-env](git/git-a-new-worktree-has-no-env.md) (542)
 |mutation-active marker killed pre-push hook recover mutation_workspace push blocked timeout log file: [git/git-killed-pre-push-hook-leaves-mutation-markers-that-block-pushes](git/git-killed-pre-push-hook-leaves-mutation-markers-that-block-pushes.md) (284)
 |git shallow graft depth fetch unshallow blocks push: [git/git-shallow-is-shared-across-every-worktree](git/git-shallow-is-shared-across-every-worktree.md) (1132)
 |subagent sandbox worktree checkout moves head wrong commit: [git/git-a-subagent-in-your-worktree-moves-your-head](git/git-a-subagent-in-your-worktree-moves-your-head.md) (1729)
@@ -210,7 +211,7 @@
 |eval fixture provenance corpus closed-loop author-worded synthetic trigger-eval upper-bound: [decision-eval-fixture-provenance-closed-loop](decision-eval-fixture-provenance-closed-loop.md) (1509)
 |eval provider billing matrix harness subscription api claude-cli codex-cli copilot-api cost basis credential: [eval/eval-billing-matrix](eval/eval-billing-matrix.md) (1660)
 |eval keyword grader verbatim phrase prompt wording behavior text-pinning ADR-057 false failure: [eval/eval-keyword-graders-test-wording-not-behavior](eval/eval-keyword-graders-test-wording-not-behavior.md) (358)
-|implementation contracts PreToolUse advisory envelope hookSpecificOutput two-pipeline agent: [hooks-pretooluse-advisory-envelope-contract](hooks-pretooluse-advisory-envelope-contract.md) (393), [agents-two-pipeline-mirror-recipe](agents-two-pipeline-mirror-recipe.md) (1053), [eval/eval-multiprovider-transport](eval/eval-multiprovider-transport.md) (816), [lsp-first-enforcement-adr062](lsp-first-enforcement-adr062.md) (427)
+|implementation contracts PreToolUse advisory envelope hookSpecificOutput two-pipeline agent: [hooks-pretooluse-advisory-envelope-contract](hooks-pretooluse-advisory-envelope-contract.md) (393), [agents-two-pipeline-mirror-recipe](agents-two-pipeline-mirror-recipe.md) (1053), [eval/eval-multiprovider-transport](eval/eval-multiprovider-transport.md) (816), [lsp-first-enforcement-adr062](lsp-first-enforcement-adr062.md) (848)
 
 [Memory and Context]
 |context engineering token optimization progressive disclosure just-in-time token: [memory/context-engineering-principles](memory/context-engineering-principles.md) (600), [memory/memory-token-efficiency](memory/memory-token-efficiency.md) (862)
