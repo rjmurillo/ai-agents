@@ -17,6 +17,8 @@ Exit codes follow ADR-035:
 from __future__ import annotations
 
 import argparse
+import contextlib
+import io
 import math
 import os
 import sys
@@ -46,11 +48,13 @@ from github_core.api import (
     resolve_repo_params,
 )
 from github_core.checks_rollup import (
+    MISSING_GRACE_SECONDS,
     extract_required_check_lists,
     extract_workflow_run_number,
     fetch_ruleset_required_contexts,
     find_missing_required,
     group_checks_by_name,
+    missing_checks_queued,
     partition_rows_by_run,
 )
 from github_core.output import (
@@ -76,6 +80,7 @@ query($owner: String!, $repo: String!, $number: Int!) {
                 nodes {
                     commit {
                         oid
+                        committedDate
                         statusCheckRollup {
                             state
                             contexts(first: 100) {
@@ -160,6 +165,37 @@ query($owner: String!, $repo: String!, $oid: GitObjectID!, $number: Int!, $curso
 _CONTEXTS_MAX_PAGES = 50
 _BLOCKING_MERGE_STATES = {"CONFLICTING", "UNKNOWN"}
 _BLOCKING_MERGE_STATE_STATUSES = {"DIRTY", "UNKNOWN"}
+# The agent tool call that wraps this script is killed at 600 seconds, so a
+# --wait budget above this leaves no room for the final poll and the output.
+MAX_WAIT_TIMEOUT_SECONDS = 570
+# Data keys of a successful run. Failure envelopes carry the same keys so a
+# caller that pipes json output never hits a KeyError on a failed run.
+_DATA_KEYS = (
+    "Success",
+    "Number",
+    "Owner",
+    "Repo",
+    "BaseBranch",
+    "OverallState",
+    "MergeState",
+    "MergeStateStatus",
+    "MergeRefUsable",
+    "MergeStateWarning",
+    "HasChecks",
+    "Checks",
+    "FailedCount",
+    "PendingCount",
+    "PassedCount",
+    "AllPassing",
+    "ChecksIncomplete",
+    "PendingRequiredChecks",
+    "FailedRequiredChecks",
+    "MissingRequiredChecks",
+    "MissingRequiredQueued",
+    "HeadCommittedAt",
+)
+# Exit code to Error.Type for failures raised as SystemExit before any query.
+_PREFLIGHT_ERROR_TYPES = {3: "ApiError", 4: "AuthError"}
 _MISSING_RECOVERY_HINT = (
     "Recovery: close and reopen the PR to re-fire pull_request workflows "
     "(see fix-ci.md, 'Required check never reported')."
@@ -459,6 +495,7 @@ def fetch_checks(
             "Checks": [],
             "OverallState": "UNKNOWN",
             "HasChecks": False,
+            "HeadCommittedAt": None,
         }
 
     commit = commits[0]
@@ -473,6 +510,7 @@ def fetch_checks(
             "Checks": [],
             "OverallState": "UNKNOWN",
             "HasChecks": False,
+            "HeadCommittedAt": commit_obj.get("committedDate"),
         }
 
     overall_state = rollup.get("state", "UNKNOWN")
@@ -510,6 +548,7 @@ def fetch_checks(
         "OverallState": overall_state,
         "HasChecks": True,
         "ChecksIncomplete": not pages_complete,
+        "HeadCommittedAt": commit_obj.get("committedDate"),
     }
 
 
@@ -519,6 +558,7 @@ def build_output(
     repo: str,
     required_only: bool = False,
     ruleset_contexts: list[str] | None = None,
+    missing_grace_seconds: int = MISSING_GRACE_SECONDS,
 ) -> dict:
     """Build the final output object from check data.
 
@@ -627,6 +667,12 @@ def build_output(
     else:
         missing_required = None
     all_passing = all_passing and not missing_required
+    # Issue #6389: an aggregate required check is created only after its split
+    # jobs finish, so inside the grace window after the head commit an absent
+    # check is queued, not stranded. Unknown head age stays "absent".
+    missing_queued = bool(missing_required) and missing_checks_queued(
+        check_data.get("HeadCommittedAt"), missing_grace_seconds
+    )
 
     return {
         "Success": True,
@@ -668,6 +714,10 @@ def build_output(
         # check run at all. None when the ruleset fetch was skipped or failed
         # (caller should treat as unknown, not empty).
         "MissingRequiredChecks": missing_required,
+        # Issue #6389: True when every missing check is still inside the grace
+        # window after the head commit, so it may be queued rather than absent.
+        "MissingRequiredQueued": missing_queued,
+        "HeadCommittedAt": check_data.get("HeadCommittedAt"),
     }
 
 
@@ -697,7 +747,17 @@ def build_parser() -> argparse.ArgumentParser:
         "--timeout-seconds",
         type=int,
         default=300,
-        help="Maximum wait time in seconds (default: 300)",
+        help="Maximum wait time in seconds (default: 300). Keep --wait at or "
+        f"below {MAX_WAIT_TIMEOUT_SECONDS}: the agent tool call is killed at 600 seconds "
+        "and returns no result.",
+    )
+    parser.add_argument(
+        "--missing-grace-seconds",
+        type=int,
+        default=MISSING_GRACE_SECONDS,
+        help="Seconds after the head commit during which a required check absent "
+        "from the rollup counts as queued, and --wait keeps polling for it "
+        f"(default: {MISSING_GRACE_SECONDS}). 0 reports absent checks as never reported at once.",
     )
     parser.add_argument(
         "--required-only",
@@ -712,6 +772,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     add_output_format_arg(parser)
     return parser
+
+
+def _missing_names(missing: list[str]) -> str:
+    """Return the MISSING name list, truncated to three names."""
+    return f"MISSING: {', '.join(missing[:3])}{'...' if len(missing) > 3 else ''}"
 
 
 def _resolve_status(
@@ -732,15 +797,24 @@ def _resolve_status(
             "WARNING",
         )
     missing = output.get("MissingRequiredChecks")
-    if missing:
+    queued = bool(output.get("MissingRequiredQueued"))
+    if missing and not queued:
         return (
             f"PR #{number}: {len(missing)} required check(s) never reported "
-            f"(MISSING: {', '.join(missing[:3])}{'...' if len(missing) > 3 else ''}). "
+            f"({_missing_names(missing)}). "
             f"{_MISSING_RECOVERY_HINT}",
             "FAIL",
         )
     if output["FailedCount"] > 0:
         return f"PR #{number}: {output['FailedCount']} check(s) failed", "FAIL"
+    if missing:
+        wait_note = f" after {timeout_seconds} seconds" if timed_out_pending else ""
+        return (
+            f"PR #{number}: {len(missing)} required check(s) not yet reported{wait_note} "
+            f"({_missing_names(missing)}). The head commit is inside the grace window, "
+            "so they may still be queued. Do not close and reopen the PR yet.",
+            "WARNING",
+        )
     if timed_out_pending:
         return (
             f"Timeout: {output['PendingCount']} check(s) still pending "
@@ -755,29 +829,112 @@ def _resolve_status(
     return f"PR #{number}: All {output['PassedCount']} check(s) passing", "PASS"
 
 
-def _handle_fetch_error(check_data: dict, pr_number: int, fmt: object) -> int | None:
+def failure_data(
+    number: int | None,
+    owner: str | None = None,
+    repo: str | None = None,
+    base_branch: str | None = None,
+) -> dict:
+    """Return the Data object for a failure envelope.
+
+    Every key of a successful run is present. Values the failure left unknown
+    are None, never absent, and AllPassing is False so a caller that skips the
+    Success check still fails closed.
+    """
+    data: dict = dict.fromkeys(_DATA_KEYS)
+    data.update(
+        Success=False,
+        Number=number,
+        Owner=owner,
+        Repo=repo,
+        BaseBranch=base_branch,
+        AllPassing=False,
+    )
+    return data
+
+
+def _emit_failure(
+    message: str,
+    code: int,
+    error_type: str,
+    fmt: str,
+    data: dict,
+) -> None:
+    write_skill_error(
+        message,
+        code,
+        error_type=error_type,
+        output_format=fmt,
+        script_name="get_pr_checks.py",
+        extra=data,
+    )
+
+
+def _handle_fetch_error(
+    check_data: dict,
+    pr_number: int,
+    fmt: object,
+    owner: str | None = None,
+    repo: str | None = None,
+) -> int | None:
     """Return an exit code if check_data carries an error, else None."""
-    if check_data.get("Error") == "NotFound":
-        write_skill_error(
-            check_data["Message"],
-            2,
-            error_type="NotFound",
-            output_format=fmt,
-            script_name="get_pr_checks.py",
-            extra={"Number": pr_number},
+    codes = {"NotFound": 2, "ApiError": 3}
+    error = check_data.get("Error")
+    if error not in codes:
+        return None
+    _emit_failure(
+        check_data["Message"],
+        codes[error],
+        error,
+        fmt,
+        failure_data(pr_number, owner, repo),
+    )
+    return codes[error]
+
+
+def _resolve_repo_or_fail(args: argparse.Namespace, fmt: str) -> tuple[str, str]:
+    """Authenticate and resolve owner and repo, keeping json stdout parseable.
+
+    The helpers behind this call write to stderr and raise SystemExit. In json
+    mode that left stdout empty, so a piped caller got a parse error instead of
+    the failure. Emit one error envelope, keep the stderr text, and re-raise
+    with the original exit code.
+    """
+    captured = io.StringIO()
+    try:
+        with contextlib.redirect_stderr(captured):
+            assert_gh_authenticated()
+            resolved = resolve_repo_params(args.owner, args.repo)
+    except SystemExit as exc:
+        sys.stderr.write(captured.getvalue())
+        code = exc.code if isinstance(exc.code, int) and not isinstance(exc.code, bool) else 1
+        if fmt == "json":
+            _emit_failure(
+                captured.getvalue().strip() or f"Preflight failed with exit code {code}",
+                code,
+                _PREFLIGHT_ERROR_TYPES.get(code, "General"),
+                fmt,
+                failure_data(args.pull_request, args.owner or None, args.repo or None),
+            )
+        raise
+    sys.stderr.write(captured.getvalue())
+    return resolved.owner, resolved.repo
+
+
+def _warn_if_wait_exceeds_tool_cap(wait: bool, timeout_seconds: int) -> None:
+    """Warn on stderr when a --wait budget would outlive the 600 second tool cap."""
+    if wait and timeout_seconds > MAX_WAIT_TIMEOUT_SECONDS:
+        print(
+            f"Warning: --timeout-seconds {timeout_seconds} exceeds "
+            f"{MAX_WAIT_TIMEOUT_SECONDS}; a 600 second tool call is killed with no result. "
+            "Re-run --wait instead.",
+            file=sys.stderr,
         )
-        return 2
-    if check_data.get("Error") == "ApiError":
-        write_skill_error(
-            check_data["Message"],
-            3,
-            error_type="ApiError",
-            output_format=fmt,
-            script_name="get_pr_checks.py",
-            extra={"Number": pr_number},
-        )
-        return 3
-    return None
+
+
+def _holds_wait_for_queued(output: dict) -> bool:
+    """Return True when --wait should keep polling for queued required checks."""
+    return bool(output.get("MissingRequiredQueued")) and output["FailedCount"] == 0
 
 
 def _exit_code(output: dict, checks_incomplete: bool, timed_out_pending: bool) -> int:
@@ -795,16 +952,11 @@ def _exit_code(output: dict, checks_incomplete: bool, timed_out_pending: bool) -
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    assert_gh_authenticated()
-
-    resolved = resolve_repo_params(args.owner, args.repo)
-    owner = resolved.owner
-    repo = resolved.repo
-
     fmt = get_output_format(args.output_format)
+    owner, repo = _resolve_repo_or_fail(args, fmt)
 
     check_data = fetch_checks(owner, repo, args.pull_request)
-    rc = _handle_fetch_error(check_data, args.pull_request, fmt)
+    rc = _handle_fetch_error(check_data, args.pull_request, fmt, owner, repo)
     if rc is not None:
         return rc
 
@@ -819,15 +971,16 @@ def main(argv: list[str] | None = None) -> int:
     if base_branch:
         ruleset_contexts = fetch_ruleset_required_contexts(owner, repo, base_branch)
         if ruleset_contexts is None:
-            write_skill_error(
+            _emit_failure(
                 f"Failed to read required checks for base branch {base_branch!r}",
                 3,
-                error_type="ApiError",
-                output_format=fmt,
-                script_name="get_pr_checks.py",
-                extra={"Number": args.pull_request},
+                "ApiError",
+                fmt,
+                failure_data(args.pull_request, owner, repo, base_branch),
             )
             return 3
+
+    _warn_if_wait_exceeds_tool_cap(args.wait, args.timeout_seconds)
 
     start_time = time.monotonic()
     max_iterations = math.ceil(args.timeout_seconds / 10)
@@ -838,7 +991,14 @@ def main(argv: list[str] | None = None) -> int:
     while True:
         iteration += 1
 
-        output = build_output(check_data, owner, repo, args.required_only, ruleset_contexts)
+        output = build_output(
+            check_data,
+            owner,
+            repo,
+            args.required_only,
+            ruleset_contexts,
+            args.missing_grace_seconds,
+        )
         checks_incomplete = checks_incomplete or bool(output.get("ChecksIncomplete", False))
 
         # Under --wait, an empty present rollup is usually a transient GraphQL
@@ -848,9 +1008,16 @@ def main(argv: list[str] | None = None) -> int:
         empty_present_rollup = output["HasChecks"] and not output["Checks"]
         waiting_on_empty = args.wait and empty_present_rollup
 
-        # Done when not waiting, or settled: nothing pending and not an empty
-        # rollup we are still waiting on.
-        if not args.wait or (output["PendingCount"] == 0 and not waiting_on_empty):
+        # Issue #6389: a queued required check has no row to count as pending.
+        # Hold the wait for it unless a check already failed, which makes the
+        # PR red whatever the queued check reports.
+        waiting_on_queued = args.wait and _holds_wait_for_queued(output)
+
+        # Done when not waiting, or settled: nothing pending, nothing queued,
+        # and not an empty rollup we are still waiting on.
+        if not args.wait or (
+            output["PendingCount"] == 0 and not waiting_on_empty and not waiting_on_queued
+        ):
             settled = True
             break
 
@@ -865,12 +1032,14 @@ def main(argv: list[str] | None = None) -> int:
 
         time.sleep(10)
         check_data = fetch_checks(owner, repo, args.pull_request)
-        rc = _handle_fetch_error(check_data, args.pull_request, fmt)
+        rc = _handle_fetch_error(check_data, args.pull_request, fmt, owner, repo)
         if rc is not None:
             return rc
 
     output["ChecksIncomplete"] = checks_incomplete
-    timed_out_pending = not settled and output["PendingCount"] > 0
+    timed_out_pending = not settled and (
+        output["PendingCount"] > 0 or _holds_wait_for_queued(output)
+    )
 
     summary, status = _resolve_status(
         output, args.timeout_seconds, timed_out_pending, checks_incomplete
