@@ -329,15 +329,7 @@ surfaces:
     authority: src/claude/skills
     generator: build/scripts/hermes_packs.py
     owner: build_all.py --check
-    reason: Skills split across packs under the Hermes install cap; SKILL.md drops metadata and the model keys. The README index and each plugin.json are rendered with them.
-  - id: lib-hermes-packs
-    path: src/hermes
-    relation: translated
-    authority: src/claude/lib
-    generator: build/scripts/hermes_packs.py
-    include: ["*/lib/**"]
-    owner: build_all.py --check
-    reason: One byte-identical copy of the shared lib packages per pack, rendered by lib_render.render_lib_files.
+    reason: Skills split across packs under the Hermes install cap; SKILL.md drops metadata, allowed-tools, and the model keys. Each pack also carries a byte-identical copy of the shared lib packages (lib_render.render_lib_files), its plugin.json, and the README index; one generator owns the whole tree, so no second row covers lib/.
 
   # ---- Prompts ------------------------------------------------------------
   - id: prompts-pr-quality-gate
