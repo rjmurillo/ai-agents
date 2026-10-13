@@ -11,6 +11,7 @@ Project Toolkit skills for GitHub pull request work, build, test, and quality ga
 - `agent-harness-reference`
 - `ai-agents-external-claims`
 - `analyze`
+- `api-doc-authoring`
 - `benchmark-models`
 - `build`
 - `chaos-experiment`

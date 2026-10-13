@@ -30,7 +30,8 @@ artifacts:
       delivery:
         description: "Project Toolkit skills for GitHub pull request work, build, test, and quality gates, security review, and operations."
         skills:
-          [agent-harness-reference, ai-agents-external-claims, analyze, benchmark-models, build,
+          [agent-harness-reference, ai-agents-external-claims, analyze, api-doc-authoring,
+           benchmark-models, build,
            chaos-experiment, code-qualities-assessment, codeql-scan, destructive-change-safety,
            doc-accuracy, dx-review, execution-plans, fix-markdown-fences, git-advanced-workflows,
            github, github-url-intercept, golden-principles, merge-resolver, metrics,
