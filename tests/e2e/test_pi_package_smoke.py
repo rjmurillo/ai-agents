@@ -119,6 +119,7 @@ def _run_pi(
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
         timeout=_PI_COMMAND_TIMEOUT_SECONDS,
         check=False,
     )
@@ -137,6 +138,7 @@ def run_skill_script(script: Path) -> subprocess.CompletedProcess[str]:
         capture_output=True,
         text=True,
         encoding="utf-8",
+        errors="replace",
         timeout=_SCRIPT_TIMEOUT_SECONDS,
         check=False,
     )
