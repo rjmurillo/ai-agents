@@ -204,3 +204,40 @@ class TestSuccessReportsBothFields:
         data = _data(capsys)
         assert data["reply_posted"] is True
         assert data["thread_resolved"] is False
+
+
+_SKILL_COPIES = (
+    "templates/skills/pr-autofix.SKILL.md.tmpl",
+    ".claude/skills/pr-autofix/SKILL.md",
+    "src/claude/skills/pr-autofix/SKILL.md",
+    "src/codex/skills/pr-autofix/SKILL.md",
+    "src/copilot-cli/skills/pr-autofix/SKILL.md",
+)
+
+
+def _armed_bullet(relative: str) -> str:
+    text = (Path(__file__).resolve().parents[1] / relative).read_text(encoding="utf-8")
+    lines = [
+        ln for ln in text.splitlines() if ln.startswith("- **Armed auto-merge + final thread**")
+    ]
+    assert len(lines) == 1
+    return lines[0]
+
+
+class TestArmedAutoMergeGuidance:
+    """The recovery text must not route callers around the auto-merge guard."""
+
+    @pytest.mark.parametrize("relative", _SKILL_COPIES)
+    def test_no_separate_resolve_path(self, relative):
+        bullet = _armed_bullet(relative)
+
+        assert "resolve it separately" not in bullet
+        assert "get_thread_by_id.py" not in bullet
+        assert "has no auto-merge guard" in bullet
+
+    @pytest.mark.parametrize("relative", _SKILL_COPIES)
+    def test_failure_hands_off_with_thread_unresolved(self, relative):
+        bullet = _armed_bullet(relative)
+
+        assert "hand off" in bullet
+        assert "Never resolve that thread outside this script" in bullet
