@@ -602,7 +602,11 @@ def main(argv: list[str] | None = None) -> int:
     else:
         parts = []
         if missing:
-            parts.append(f"{len(missing)} missing required check(s)")
+            parts.append(
+                f"{len(missing)} missing required check(s) "
+                "(recovery: close and reopen the PR; see fix-ci.md, "
+                "'Required check never reported')"
+            )
         if failing:
             parts.append(f"{len(failing)} failing required check(s)")
         if pending:

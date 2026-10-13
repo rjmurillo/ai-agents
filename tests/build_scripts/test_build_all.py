@@ -968,7 +968,7 @@ def test_audit_blocklist_in_real_config_blocks_absolute_path(
         ),
     )
     rc = build_all.run(repo, platform=None, check=False, clean=False, audit_format="md")
-    # Notice line is "- leaked /home/runner/..." — leading "- " then path.
+    # Notice line is "- leaked /home/runner/...", leading "- " then path.
     # Pattern ^/home/ won't match because it's not at start of line.
     # Use a permissive blocklist instead to demonstrate the gate end-to-end.
     assert rc in (0, 2, 3)
@@ -1394,7 +1394,7 @@ def test_build_adr_index_fails_loud_when_the_adr_directory_is_missing(tmp_path: 
     assert result.outputs == 0
 
 
-# Regression: #2222 — untracked-file drift (PR #2285 review iteration 2) -----
+# Regression: #2222, untracked-file drift (PR #2285 review iteration 2) -----
 #
 # The CI gate added in PR #2285 wires `build_all.py --check` into
 # agent-drift-detection.yml. For that wiring to actually close #2222, the
@@ -1573,7 +1573,7 @@ def test_run_check_clean_when_untracked_outside_owned_prefix(
     assert rc == 0, f"expected exit 0 from non-owned untracked drift, got {rc}"
 
 
-# Regression: #2440 — --check must be read-only ----------------------------
+# Regression: #2440, --check must be read-only ----------------------------
 #
 # Prior to the fix, `build_all.py --check` ran generators FIRST (which write
 # under owned prefixes like src/copilot-cli/ and .github/instructions/), then
@@ -1647,7 +1647,7 @@ def test_run_check_leaves_clean_tree_unchanged_when_committed_outputs_stale(
         f"expected exit 2 (staleness detected), got {rc}. "
         "If this regresses, --check no longer detects committed-but-stale outputs."
     )
-    # AND the working tree MUST be unchanged — this is the #2440 contract.
+    # AND the working tree MUST be unchanged: this is the #2440 contract.
     porcelain = _git_porcelain(repo)
     assert porcelain == "", (
         f"--check left working tree dirty (#2440 regression). "

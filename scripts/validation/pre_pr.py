@@ -72,6 +72,7 @@ from check_doc_interpreter_portability import (
     validate_doc_interpreter_portability,
 )
 from check_nested_tests import validate_no_nested_tests
+from check_rule_adr_citations import validate_rule_adr_citations
 from check_skill_adr_bindings import validate_skill_adr_bindings
 from check_skill_output_envelopes import validate_skill_output_envelopes
 from check_subprocess_encoding import validate_subprocess_encoding
@@ -106,7 +107,7 @@ from checks_coverage import (
     validate_review_marker,
 )
 from checks_dash import (
-    _branch_markdown_files,
+    _branch_scan_files,
     _find_dash_violations,
     _is_vendored,
     _print_dash_violations,

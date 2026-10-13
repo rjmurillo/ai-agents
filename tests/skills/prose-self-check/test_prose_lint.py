@@ -67,11 +67,11 @@ class TestLexicalLayer:
     """Layer 1: dashes and banned vocabulary."""
 
     def test_em_dash_is_high_severity(self) -> None:
-        findings = lint_prose("A sentence — with a dash.\n", BANNED)
+        findings = lint_prose("A sentence \u2014 with a dash.\n", BANNED)
         assert [(f.kind, f.severity) for f in findings] == [("em_dash", HIGH)]
 
     def test_en_dash_is_high_severity(self) -> None:
-        findings = lint_prose("Range 1 – 2.\n", BANNED)
+        findings = lint_prose("Range 1 \u2013 2.\n", BANNED)
         assert [(f.kind, f.severity) for f in findings] == [("en_dash", HIGH)]
 
     def test_hyphen_is_not_a_dash_finding(self) -> None:
@@ -102,7 +102,7 @@ class TestCodeIsSkipped:
     """Prose rules do not apply to code."""
 
     def test_fenced_block_is_skipped(self) -> None:
-        assert kinds("```python\n# robust — code\n```\n") == []
+        assert kinds("```python\n# robust \u2014 code\n```\n") == []
 
     def test_inline_code_span_is_skipped(self) -> None:
         assert kinds("The `robust` flag is set.\n") == []

@@ -665,7 +665,15 @@ PYTEST_WORKERS_ENV = "AI_AGENTS_PYTEST_WORKERS"
 # one parallel Lefthook group. Issue #4710 measured 48 workers starving
 # subprocess tests until their 15-second caps fired. The cap never exceeds the
 # host's visible CPU count, and an explicit PYTEST_WORKERS_ENV value wins.
+# A positive integer is a fixed cap. The word below asks for a cap scaled to the
+# host (issue #6199): half the visible CPUs, at least 4 and at most 16. A fixed
+# 4 left 44 of 48 cores idle on a workstation; 16 workers ran the same 832-file
+# bulk subset 1.8x faster than 4, and more than 16 gains little because a few
+# slow tests set the wall-time floor.
 PYTEST_WORKER_CAP_ENV = "AI_AGENTS_PYTEST_WORKER_CAP"
+PYTEST_WORKER_CAP_SCALED = "scaled"
+PYTEST_SCALED_WORKERS_MIN = 4
+PYTEST_SCALED_WORKERS_MAX = 16
 SKIPPED_DASH_PREFIXES = (
     "node_modules/",
     ".venv/",
@@ -7534,10 +7542,25 @@ def parse_pytest_workers(raw: str | None) -> str:
     return str(workers)
 
 
-def parse_pytest_worker_cap(raw: str) -> int:
-    """Return a positive local worker cap."""
+def scaled_worker_cap(visible_cpus: int) -> int:
+    """Return half the visible CPUs, clamped to the scaled range and the host.
+
+    The final min with visible CPUs keeps a 1-core host at 1 instead of the floor of 4.
+    """
+    half = visible_cpus // 2
+    clamped = max(PYTEST_SCALED_WORKERS_MIN, min(half, PYTEST_SCALED_WORKERS_MAX))
+    return min(clamped, visible_cpus)
+
+
+def parse_pytest_worker_cap(raw: str) -> int | None:
+    """Return a positive local worker cap, or None to scale to the host."""
     candidate = raw.strip()
-    rejection = f"{PYTEST_WORKER_CAP_ENV} must be a positive integer, got {raw!r}"
+    if candidate.lower() == PYTEST_WORKER_CAP_SCALED:
+        return None
+    rejection = (
+        f"{PYTEST_WORKER_CAP_ENV} must be a positive integer or "
+        f"'{PYTEST_WORKER_CAP_SCALED}', got {raw!r}"
+    )
     try:
         cap = int(candidate)
     except ValueError:
@@ -7571,7 +7594,8 @@ def _pytest_parallel_flags() -> list[str]:
     cap_raw = os.environ.get(PYTEST_WORKER_CAP_ENV)
     if not (worker_override and worker_override.strip()) and cap_raw and cap_raw.strip():
         cap = parse_pytest_worker_cap(cap_raw)
-        workers = str(min(cap, _visible_cpu_count()))
+        visible = _visible_cpu_count()
+        workers = str(scaled_worker_cap(visible) if cap is None else min(cap, visible))
     return ["-n", workers, "--dist", PYTEST_DIST_MODE]
 
 

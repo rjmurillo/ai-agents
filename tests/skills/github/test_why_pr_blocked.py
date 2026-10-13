@@ -559,6 +559,56 @@ class TestMain:
         assert data["HasBlocker"] is True
         assert "Validate PR" in data["MissingRequired"]
 
+    def _human_output(self, check_nodes, ruleset, capsys):
+        gql = _gql_pr(
+            merge_state_status="BLOCKED",
+            overall_state="SUCCESS",
+            check_nodes=check_nodes,
+        )
+        with (
+            patch("why_pr_blocked.assert_gh_authenticated"),
+            patch(
+                "why_pr_blocked.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("why_pr_blocked.gh_graphql", return_value=gql),
+            patch(
+                "why_pr_blocked.fetch_ruleset_required_contexts",
+                return_value=ruleset,
+            ),
+        ):
+            rc = main(["--pull-request", "42", "--output-format", "human"])
+        captured = capsys.readouterr()
+        return rc, captured.out + captured.err
+
+    def test_missing_required_human_summary_includes_recovery_hint(self, capsys):
+        """Issue #5162: the blocked summary names close/reopen for missing checks."""
+        rc, text = self._human_output(
+            [_check_run_node("Run Python Tests", "SUCCESS")],
+            ["Run Python Tests", "Validate PR"],
+            capsys,
+        )
+
+        assert rc == 1
+        assert "1 missing required check(s)" in text
+        assert "close and reopen the PR" in text
+        assert "Required check never reported" in text
+
+    def test_no_missing_checks_has_no_recovery_hint(self, capsys):
+        """Negative control: a blocker other than a missing check carries no hint."""
+        rc, text = self._human_output(
+            [
+                _check_run_node("Run Python Tests", "SUCCESS"),
+                _check_run_node("Validate PR", "FAILURE"),
+            ],
+            ["Run Python Tests", "Validate PR"],
+            capsys,
+        )
+
+        assert rc == 1
+        assert "failing required check(s)" in text
+        assert "close and reopen" not in text
+
     def test_failing_required_exits_1(self, capsys):
         gql = _gql_pr(
             merge_state_status="BLOCKED",

@@ -335,6 +335,10 @@ class TestEveryCheckerRefusesAHiddenBaseline:
         instructions_dir = root / "src" / "copilot-cli" / "instructions"
         instructions_dir.mkdir(parents=True, exist_ok=True)
         (instructions_dir / "_placeholder.md").write_text("Clean prose.\n", encoding="utf-8")
+        # Issue #5294: src/claude/rules is a second required extra root.
+        rules_dir = root / "src" / "claude" / "rules"
+        rules_dir.mkdir(parents=True, exist_ok=True)
+        (rules_dir / "_placeholder.md").write_text("Clean prose.\n", encoding="utf-8")
         target = root / "scripts" / "validation" / name
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(json.dumps({"files": {}, "marker_files": {}}) + "\n")
