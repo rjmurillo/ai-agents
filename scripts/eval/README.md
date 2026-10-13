@@ -221,6 +221,7 @@ Copilot equivalent.
 | `eval-agents.py` | Agent definition quality assessment (standalone). | Complementary |
 | `eval-knowledge-integration.py` | Skill context value measurement (baseline vs enhanced). | Complementary |
 | `eval-skill-overlap.py` | Pairwise skill redundancy detection (DISTINCT / OVERLAP / SUBSUMED) for catalog pruning. | Complementary |
+| `skill_collision_report.py` | Offline full-catalog report of exact, normalized, truncation-sensitive, and near-duplicate skill names and descriptions. `--baseline` gates new high-confidence collisions. No model call. | #5763 |
 | `eval-rule-activation.py` | `.claude/rules/*.md` activation across baseline / description / full mechanisms. | Complementary |
 | `analyze-pr-churn.py` | Deterministic commit-churn classification across a PR cohort (degenerate vs control) to evaluate instruction/rule changes against historical PRs. No LLM; core in `_pr_churn.py`. | Complementary |
 | `eval-reviewer-asymmetry.py` | Statistical-significance test for `templates/agents/{critic,qa,implementer}.shared.md` reviewer-asymmetry framing. Fisher's exact (verdict-pass) + Mann-Whitney U (findings-count). | Complementary |
@@ -1002,6 +1003,57 @@ decommission (#5574). The example file targets the one surviving overlapping
 pair (`memory-enhancement`/`curating-memories`). A pair naming a deleted skill
 is not inert: `eval-skill-overlap.py` resolves every pair member to a skill
 directory before running and exits non-zero when one is missing.
+
+## Skill Collision Report
+
+`skill_collision_report.py` is the catalog-wide, offline sibling of the pairwise
+overlap eval. It reads every `.claude/skills/*/SKILL.md`, compares each unordered
+pair of skill names and descriptions, and reports collisions with stable sorting,
+the file paths, the compared text, the profile used, and a suggested fix.
+
+| Kind | Confidence | Meaning |
+|------|------------|---------|
+| `exact` | high | Identical text. |
+| `normalized` | high | Identical after NFKC, casefold, and punctuation collapse. |
+| `truncated-identical` | high | Distinguishable in full, identical under a truncation profile. |
+| `near` | low | Token Jaccard at or above `--near-threshold` (default 0.8). Owner review only. |
+
+Truncation profiles (`--truncate N`, default 80, 160, 320) keep the first N
+characters of each description. They are controlled inputs, not measured limits of
+any model host. The script reads files only, so it cannot observe how a real
+harness abbreviates descriptions; the `assumptions` block in the JSON output says
+so. It claims no skill-selection accuracy.
+
+```bash
+uv run python scripts/eval/skill_collision_report.py                      # human report
+uv run python scripts/eval/skill_collision_report.py --format json        # machine-readable
+uv run python scripts/eval/skill_collision_report.py --truncate 100       # one custom profile
+uv run python scripts/eval/skill_collision_report.py --changed-since origin/main
+uv run python scripts/eval/skill_collision_report.py --only memory-enhancement
+```
+
+**Regression policy.** `--baseline scripts/eval/skill_collision_baseline.json`
+exits 1 when a high-confidence collision is missing from the reviewed `accepted`
+list. Each entry needs `kind`, `field`, `profile`, `skills` (two names), `reason`,
+and `owner`. Low-confidence `near` findings never fail the run. CI runs this gate in
+`skill-passive-compliance.yml` whenever a `SKILL.md` changes.
+
+**Feeding the overlap eval.** Colliding skills group into clusters. Pass a pairs
+file that holds prompts for the skills you care about, and the script writes a pairs
+file with every within-cluster pair whose two skills have prompts:
+
+```bash
+uv run python scripts/eval/skill_collision_report.py \
+  --prompts-file scripts/eval/examples/overlap-pairs-issue-1949.json \
+  --emit-pairs /tmp/collision-pairs.json
+uv run python scripts/eval/eval-skill-overlap.py --pairs /tmp/collision-pairs.json --dry-run
+```
+
+The emitter exits 2 and writes nothing when the catalog has no cluster, or no
+cluster pair has prompts for both skills. Dry-run needs no provider credentials. A live semantic verdict still records the
+model and harness in `eval-skill-overlap.py`'s own report.
+
+Exit codes: 0 ok, 1 new high-confidence collision, 2 config error, 3 git failure.
 
 ## Model Sweep Eval
 
