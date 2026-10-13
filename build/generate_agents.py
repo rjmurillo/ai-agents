@@ -206,17 +206,6 @@ def _platform_source(
     return parse_simple_frontmatter(parsed["frontmatter_raw"]), parsed["body"]
 
 
-def _declares_agent_output(platform: dict[str, object]) -> bool:
-    """True when a platform config says where agent files go.
-
-    A config with no `legacy` block, no `artifacts.agents` stanza, and no
-    top-level `outputDir` ships no agents. `hermes.yaml` is one (ADR-115
-    Decision 6: Hermes gets skills only). Without this guard the allowlist check
-    below reports that config's empty output path as an error.
-    """
-    return any(key in platform for key in ("legacy", "__agents_stanza__", "outputDir"))
-
-
 def generate_agents(
     templates_path: Path,
     output_root: Path,
@@ -408,8 +397,6 @@ def generate_agents(
         body = parsed["body"]
 
         for platform in platforms:
-            if not _declares_agent_output(platform):
-                continue
             # Support new schema (artifacts.agents stanza), legacy block, and old schema.
             # Resolution order for output path/extension:
             #   1. legacy.{outputDir,fileExtension}  (preserves on-disk layout)

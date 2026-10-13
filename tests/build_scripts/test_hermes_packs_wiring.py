@@ -105,11 +105,23 @@ def test_schema_rejects_a_pack_table_missing_its_commit() -> None:
     assert any("hermesCommit" in e for e in errors)
 
 
-def test_the_agents_generator_skips_a_config_with_no_agent_output() -> None:
+def test_the_agents_generator_skips_the_hermes_config(tmp_path: Path) -> None:
+    """hermes.yaml has an artifacts mapping with no agents stanza, so no agents ship."""
+    import shutil
+
     sys.path.insert(0, str(_REPO_ROOT / "build"))
     import generate_agents
 
-    assert generate_agents._declares_agent_output({"provider": "hermes"}) is False
-    assert generate_agents._declares_agent_output({"provider": "x", "legacy": {}}) is True
-    assert generate_agents._declares_agent_output({"__agents_stanza__": {}}) is True
-    assert generate_agents._declares_agent_output({"outputDir": "src/x"}) is True
+    stage = tmp_path / "stage"
+    (stage / "templates").mkdir(parents=True)
+    for name in ("agents", "platforms"):
+        shutil.copytree(_REPO_ROOT / "templates" / name, stage / "templates" / name)
+    shutil.copy2(_REPO_ROOT / "templates" / "toolsets.yaml", stage / "templates" / "toolsets.yaml")
+    assert (stage / "templates" / "platforms" / "hermes.yaml").is_file()
+
+    rc = generate_agents.generate_agents(
+        templates_path=stage / "templates", output_root=stage / "src", repo_root=stage
+    )
+
+    assert rc == 0
+    assert not (stage / "src" / "hermes").exists()
