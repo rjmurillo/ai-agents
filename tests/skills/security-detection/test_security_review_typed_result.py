@@ -21,6 +21,8 @@ if TESTS_SKILLS_DIR not in sys.path:
 
 from claude_skills_import import import_skill_script
 
+from tests.validation._review_artifact import commit_marker
+
 mod = import_skill_script(
     ".claude/skills/security-detection/detect_infrastructure.py",
     module_name="detect_infrastructure_typed_under_test",
@@ -65,16 +67,7 @@ def repo(tmp_path: Path) -> Path:
 
 def _marker(repo: Path, axes: str = "analyst,security", sha: str | None = None) -> str:
     tip = _git(repo, "rev-parse", "HEAD")
-    _git(
-        repo,
-        "commit",
-        "-q",
-        "--allow-empty",
-        "-m",
-        "review: /review PASS marker",
-        "--trailer",
-        f"Reviewed-By: /review@{axes} on {sha or tip}",
-    )
+    commit_marker(repo, axes, tip, trailer_sha=sha)
     return tip
 
 

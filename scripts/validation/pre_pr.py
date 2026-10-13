@@ -112,6 +112,7 @@ from checks_plugin import (
 )
 from checks_portability import (
     validate_hook_template_drift,
+    validate_rule_lossless_fixtures,
     validate_rule_template_drift,
     validate_skill_contract_tests,
     validate_skill_md_exec_portability,

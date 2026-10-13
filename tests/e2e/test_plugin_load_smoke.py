@@ -124,6 +124,7 @@ from copilot_hook_probe import (  # noqa: E402
     write_marker_probe_plugin,
 )
 from smoke_skip_policy import (  # noqa: E402
+    PLUGIN_ROOT_ENV_KEYS,
     QUOTA_SKIP_MARKER,
     skip_or_fail_on_claude_block,
     skip_or_fail_on_copilot_block,
@@ -282,8 +283,6 @@ def _cli_budget(*subprocess_timeouts: int) -> pytest.MarkDecorator:
     return pytest.mark.timeout(sum(subprocess_timeouts) + _PYTEST_MARGIN_SECONDS)
 
 
-_PLUGIN_ROOT_ENV_KEYS = {"CLAUDE_PLUGIN_ROOT", "CLAUDE_PROJECT_DIR", "COPILOT_PLUGIN_ROOT"}
-
 F = TypeVar("F", bound=Callable[..., object])
 
 
@@ -321,7 +320,7 @@ def _clean_env() -> dict[str, str]:
     """
     env = os.environ.copy()
     for key in list(env):
-        if key.upper() in _PLUGIN_ROOT_ENV_KEYS:
+        if key.upper() in PLUGIN_ROOT_ENV_KEYS:
             env.pop(key, None)
     return env
 
@@ -1672,7 +1671,7 @@ def test_clean_env_strips_plugin_root_keys_case_insensitively(
     env = _clean_env()
 
     assert "KEEP_ME" in env
-    assert not any(key.upper() in _PLUGIN_ROOT_ENV_KEYS for key in env)
+    assert not any(key.upper() in PLUGIN_ROOT_ENV_KEYS for key in env)
 
 
 def test_copilot_commands_disable_auto_update() -> None:

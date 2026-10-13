@@ -1,0 +1,36 @@
+{
+  "claim": "output matches expected",
+  "subject": {
+    "artifact": "pkg",
+    "revision": "r2",
+    "premises": [
+      "interp:R",
+      "generator:gen-v1"
+    ]
+  },
+  "evidence": [
+    {
+      "id": "expected-output",
+      "state": "VERIFIED",
+      "premises": [
+        "generator:gen-v1"
+      ],
+      "authority": "derived"
+    },
+    {
+      "id": "runtime-response",
+      "state": "FAILED",
+      "origin": "external-system",
+      "environment": "real",
+      "authority": "executable-runtime",
+      "premises": [
+        "observation:runtime"
+      ]
+    }
+  ],
+  "expect": {
+    "verdict": "FALSIFIED_BY_INDEPENDENT_OBSERVATION",
+    "independent_loops": 0,
+    "exit": 1
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "claim": "new test discriminates the defect",
+  "subject": {
+    "artifact": "pkg",
+    "revision": "r2",
+    "premises": [
+      "interp:R"
+    ]
+  },
+  "evidence": [
+    {
+      "id": "new-test",
+      "state": "VERIFIED",
+      "premises": [
+        "interp:R"
+      ],
+      "discriminating": true
+    }
+  ],
+  "expect": {
+    "verdict": "SINGLE_LOOP",
+    "independent_loops": 0,
+    "discriminating": [
+      "new-test"
+    ],
+    "exit": 0
+  }
+}
