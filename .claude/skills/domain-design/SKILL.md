@@ -40,7 +40,7 @@ applies them and does not restate them.
 
 ## Triggers
 
-`design this schema`, `design this API`, `where should this module boundary go`,
+`design this schema`, `API design`, `where should this module boundary go`,
 `CRUD or domain operation`, `is this explicit state or reconstruction`
 
 ## When It Applies
@@ -70,7 +70,8 @@ business question or operation
    hidden reconstruction. A value computed cheaply from state you already hold
    is a derivation. A first-class fact rebuilt by joining or probing incidental
    rows (for example, "what have we fetched?" answered by scanning fact rows)
-   is a reconstruction obligation. Record that fact as explicit state. Mark
+   is a reconstruction obligation. Row presence cannot tell a partial fetch from
+   a complete one. Record that fact as explicit state. Mark
    which state changes over time and so needs history or effective-time.
 3. **Derive operations.** Use a domain operation when the behavior carries
    invariants or multi-step transaction semantics that generic CRUD would leak
@@ -113,6 +114,28 @@ python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/domain-de
 | `speculative_mechanism` / `mechanism_has_behavioral_need` | A proposed aggregate, event store, or abstraction (or null) / a current behavior requires it |
 | `use_cases` | Non-empty list of `{question, needs_reconstruction}` from step 6 |
 
+All fields are required except `speculative_mechanism`, which may be null or
+omitted. `mechanism_has_behavioral_need` is still required as a boolean when
+there is no mechanism. The script checks for at least one use case; walking
+three to five is the author's job. A minimal `proposal.json`:
+
+```json
+{
+  "business_question": "Which sites finished fetching for March?",
+  "state_representation": "explicit",
+  "fact_is_first_class": true,
+  "api_style": "domain",
+  "behavior_has_invariant": true,
+  "temporal_question": false,
+  "history_modeled": false,
+  "mirrors_source_payload": false,
+  "behavior_diverges_from_source": false,
+  "speculative_mechanism": null,
+  "mechanism_has_behavioral_need": false,
+  "use_cases": [{"question": "Is site 7 done for March?", "needs_reconstruction": false}]
+}
+```
+
 | Exit | Meaning |
 |------|---------|
 | `0` | Adopt: no axis needs revision |
@@ -124,7 +147,8 @@ python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/domain-de
 **Source-shaped, then behavior-shaped.** An ingestion payload arrives as
 `raw_fetch_events`. The source-shaped design stores those rows and answers
 "what have we fetched?" by de-duplicating them on every read. The business must
-know fetch progress, so the behavior-shaped design records `fetch_progress` per
+know fetch progress, and row presence cannot tell a partial fetch from a
+complete one, so the behavior-shaped design records `fetch_progress` per
 source and window as explicit state. The payload stays an integration contract
 that feeds an ingest step. The question becomes one indexed read.
 
@@ -154,7 +178,10 @@ quality principles; add it when a question requires it.
 ## Extension Points
 
 Add an axis by writing one `check_*` function in `evaluate_design.py`, the
-proposal field it reads, and a positive, negative, and mutation test. Keep this
+proposal field it reads, and a positive, negative, and mutation test. Append the
+function to the `CHECKS` tuple, or `evaluate` never calls it. Add the field to
+`_BOOL_KEYS` or `_STRING_KEYS`, or a missing or mistyped field is not validated
+and does not exit 2. Keep this
 page the decision procedure; move long worked examples into a reference file.
 
 ## Related skills
