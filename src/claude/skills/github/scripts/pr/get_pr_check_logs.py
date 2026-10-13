@@ -104,6 +104,10 @@ _FAILING_CONCLUSIONS = (
     "ERROR",
 )
 
+# Step conclusions that name the step a failed job stopped on. GitHub reports
+# them lowercase on the jobs API, unlike the uppercase check conclusions above.
+_FAILED_STEP_CONCLUSIONS = ("failure", "cancelled", "timed_out")
+
 
 def _is_failing(check: object) -> bool:
     """Return True if a normalized check object represents a failing check.
@@ -205,11 +209,48 @@ def _write_merge_ref_error(payload: dict[str, object], fmt: str) -> None:
     )
 
 
+def _check_name(check: dict[str, Any]) -> str:
+    return str(check.get("Name") or "")
+
+
+def _select_named_checks(
+    checks_list: list[dict[str, Any]],
+    names: list[str],
+    fmt: str,
+) -> list[dict[str, Any]] | None:
+    """Keep checks whose name matches one of ``names`` (case-insensitive).
+
+    Returns the list unchanged when no name is given. Returns None after
+    writing an error when a requested name matches no check, so a typo never
+    reads as "no failing checks".
+    """
+    if not names:
+        return checks_list
+    present = {_check_name(c).casefold() for c in checks_list}
+    missing = [n for n in names if n.casefold() not in present]
+    if missing:
+        available = sorted({_check_name(c) for c in checks_list})
+        write_skill_error(
+            f"No check named {missing}; available checks: {available}",
+            1,
+            error_type="InvalidParams",
+            output_format=fmt,
+            script_name="get_pr_check_logs.py",
+        )
+        return None
+    wanted = {n.casefold() for n in names}
+    return [c for c in checks_list if _check_name(c).casefold() in wanted]
+
+
 def _failing_checks_from_payload(
     payload: dict[str, object],
     fmt: str,
+    check_names: list[str] | None = None,
 ) -> tuple[list[dict[str, Any]] | None, bool, str | None, int]:
-    """Return failing checks, merge-ref state, warning text, and exit code."""
+    """Return failing checks, merge-ref state, warning text, and exit code.
+
+    ``check_names`` narrows the checks considered to those with a matching name.
+    """
     merge_ref_unusable = _merge_ref_unusable(payload)
     if merge_ref_unusable:
         _write_merge_ref_warning(payload, fmt)
@@ -228,7 +269,11 @@ def _failing_checks_from_payload(
         )
         return None, merge_ref_unusable, None, 1
 
-    failing_checks = [c for c in checks_list if _is_failing(c)]
+    selected = _select_named_checks(checks_list, check_names or [], fmt)
+    if selected is None:
+        return None, merge_ref_unusable, None, 1
+
+    failing_checks = [c for c in selected if _is_failing(c)]
     if not merge_ref_unusable:
         return failing_checks, merge_ref_unusable, None, 0
 
@@ -379,6 +424,52 @@ def fetch_workflow_run_logs(
     }
 
 
+def get_failed_steps(owner: str, repo: str, job_id: str) -> dict[str, object]:
+    """Return the failed step names of one Actions job.
+
+    An aggregate job such as "Enforce Blocking Issues" fails on a single step.
+    Naming that step tells the reader where to look without reading the log.
+    A lookup failure is reported in ``Error``; it never aborts log retrieval.
+    """
+    try:
+        result = subprocess.run(
+            ["gh", "api", f"repos/{owner}/{repo}/actions/jobs/{job_id}"],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        return {"Steps": [], "Error": f"Failed to fetch job steps: {exc}"}
+    if result.returncode != 0:
+        return {"Steps": [], "Error": f"Failed to fetch job steps: {result.stderr.strip()}"}
+    try:
+        job = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        return {"Steps": [], "Error": f"Failed to parse job steps: {exc}"}
+    steps = job.get("steps") if isinstance(job, dict) else None
+    if not isinstance(steps, list):
+        return {"Steps": [], "Error": "Job payload has no steps list"}
+    failed = [
+        {"Number": s.get("number"), "Name": s.get("name", ""), "Conclusion": s.get("conclusion")}
+        for s in steps
+        if isinstance(s, dict) and s.get("conclusion") in _FAILED_STEP_CONCLUSIONS
+    ]
+    return {"Steps": failed}
+
+
+def _attach_failed_steps(
+    check_result: dict[str, object],
+    owner: str,
+    repo: str,
+    job_id: str,
+) -> None:
+    """Record the failed step names (and any lookup error) on a check result."""
+    steps = get_failed_steps(owner, repo, job_id)
+    check_result["FailedSteps"] = steps["Steps"]
+    if "Error" in steps:
+        check_result["FailedStepsError"] = steps["Error"]
+
+
 def get_check_logs(
     owner: str,
     repo: str,
@@ -419,6 +510,7 @@ def get_check_logs(
         check_result["RunId"] = run_id
         if job_id:
             check_result["JobId"] = job_id
+            _attach_failed_steps(check_result, owner, repo, job_id)
 
         log_result = fetch_workflow_run_logs(owner, repo, run_id, job_id)
 
@@ -585,6 +677,15 @@ def build_parser() -> argparse.ArgumentParser:
         default=30,
         help="Lines of context before/after failure markers (default: 30)",
     )
+    parser.add_argument(
+        "--check-name",
+        action="append",
+        default=[],
+        help=(
+            "Only report the failing check with this name (case-insensitive). "
+            "Repeat for several checks. Fails when no check has the name."
+        ),
+    )
     add_output_format_arg(parser)
     return parser
 
@@ -666,7 +767,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     failing_checks, merge_ref_unusable, merge_ref_warning, exit_code = _failing_checks_from_payload(
-        payload, fmt
+        payload, fmt, args.check_name
     )
     if exit_code:
         return exit_code
@@ -691,6 +792,7 @@ def main(argv: list[str] | None = None) -> int:
         "Repo": repo,
         "PullRequest": pr_number,
         "FailingChecks": len(failing_checks),
+        "CheckNames": args.check_name,
         "CheckLogs": check_logs,
     }
     if merge_ref_warning:
