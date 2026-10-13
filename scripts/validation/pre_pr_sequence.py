@@ -50,6 +50,7 @@ from check_bypass_allowlist import validate_bypass_allowlist
 from check_citation_freshness import validate_citation_freshness
 from check_doc_interpreter_portability import validate_doc_interpreter_portability
 from check_duplicate_test_helpers import validate_duplicate_test_helpers
+from check_equivalence_predicates import validate_equivalence_predicates
 from check_generated_staleness import validate_generated_staleness
 from check_git_hook_health import validate_git_hook_health
 from check_host_marketplaces import validate_host_marketplaces
@@ -603,6 +604,10 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # Compares the three hand-written agent sources, not the generated trees.
     # ADR-107 M3, issue #5688; contract in GENERATOR-FILES.md.
     _Gate("Agent Source Parity", _root_only(validate_agent_source_parity)),
+    # The predicate table in GENERATOR-FILES.md: legal values, gate scripts that
+    # exist, none rows with an issue and a live expiry, and the none count
+    # ratchet. ADR-107 M1, issue #5686.
+    _Gate("Equivalence Predicates", _root_only(validate_equivalence_predicates)),
     # The Claude Code plugin loader registers every .md under .claude/agents/ as
     # a dispatchable subagent, frontmatter or not. Issue #4813 answered the same
     # five files by narrowing our own validator globs, which taught CI to look

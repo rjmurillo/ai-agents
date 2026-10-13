@@ -409,3 +409,9 @@ Review this decision when any of these conditions occurs:
 - PR #3244, custom activation mechanism removed by this decision.
 - Lefthook configuration: <https://lefthook.dev/configuration/>.
 - Git hooks: <https://git-scm.com/docs/githooks>.
+
+---
+
+**Amended by**:
+
+- 2026-09-09: [ADR-106: Serena-Only Memory Architecture](./ADR-106-serena-only-memory-architecture.md) retires the forgetful backend and its router that this record names. The decision here survives intact. Amended by reference; the body is preserved (PR #5656).

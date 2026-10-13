@@ -782,7 +782,8 @@ jobs:
 
   # Issue #6239 / ADR-104. Builds the pytest-testmon database the pre-push hook
   # downloads, so a developer's first push selects only what changed since main
-  # instead of running the whole suite to build one.
+  # instead of only collecting the suite and leaving every test to CI (issue
+  # #6200).
   #
   # Not part of the required chain. It is deliberately absent from `test-result`
   # needs: a slow, failed, or skipped seed must never change `Run Python Tests`.
