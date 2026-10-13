@@ -92,8 +92,9 @@ def validate_review_marker(repo_root: Path) -> CheckOutcome:
     mode reports a HEAD with no ``Reviewed-By`` trailer as ``SKIP`` with reason
     ``policy.exempt``; a trailer that does not bind the parent, or a failed
     script run, as ``FAIL`` with reason ``advisory.findings``, which
-    ``pre_pr_policy`` licenses; and an absent script as ``SKIP``. Enforced mode reports the same conditions as
-    unlicensed ``FAIL`` results, so they block exactly as ``False`` did.
+    ``pre_pr_policy`` licenses; and an absent script as ``SKIP``. Enforced mode
+    reports the same conditions as unlicensed ``FAIL`` results, so they block
+    exactly as ``False`` did.
     """
     enforced = os.environ.get("REVIEW_MARKER_ENFORCED", "").lower() in ("1", "true")
 
