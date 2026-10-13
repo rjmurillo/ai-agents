@@ -77,6 +77,15 @@ def commit_message(repo: Path, message: str) -> None:
     )
 
 
-def commit_marker(repo: Path, axes: str, sha: str, **overrides: object) -> None:
+def commit_marker(
+    repo: Path,
+    axes: str,
+    sha: str,
+    *,
+    report: list[str] | None = None,
+    digest: str | None = None,
+    trailer_sha: str | None = None,
+) -> None:
     """Write an empty marker commit on ``repo`` HEAD."""
-    commit_message(repo, marker_message(axes, sha, **overrides))  # type: ignore[arg-type]
+    message = marker_message(axes, sha, report=report, digest=digest, trailer_sha=trailer_sha)
+    commit_message(repo, message)

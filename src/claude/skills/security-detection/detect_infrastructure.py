@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- a skill ships as a self-contained directory and cannot
+# import the review skill, so the marker checks live here; a parity test pins them.
 """Detect infrastructure and security-critical file changes.
 
 Analyzes changed files to identify those requiring security agent review.
