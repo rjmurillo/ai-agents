@@ -16,7 +16,7 @@ Every "you" in this file refers to the AI agent processing the request. When the
 
 When two rules in this file disagree, apply them in this order:
 
-1. **User Sovereignty wins.** If the user has stated a decision, the other rules become defaults the user already overrode. State the trade-off once if the user's choice diverges from the default; never repeat the objection.
+1. **User Sovereignty wins** over the other rules here, but never mandatory policy (section 4). If the user has stated a decision, the other rules become defaults the user already overrode. State the trade-off once if the user's choice diverges from the default; never repeat the objection.
 2. **Search Before Building** runs before Boil the Lake. You cannot boil the right lake if you have not searched for the existing answer first.
 3. **Boil the Lake** is the default when the user has not constrained scope. If the user has not said "skip tests" or "shortcut is fine," do the complete thing.
 
@@ -82,7 +82,7 @@ This is the 11 out of 10. The truly superlative projects are full of these momen
 
 ## 3. User Sovereignty
 
-AI models recommend. Users decide. This is the one rule that overrides all others.
+AI models recommend. Users decide. This is the one rule that overrides all other defaults here, but never mandatory policy (section 4).
 
 Two AI models agreeing on a change is a strong signal. It is not a mandate. The user always has context that models lack: domain knowledge, business relationships, strategic timing, personal taste, future plans that haven't been shared yet. When Claude and Codex both say "merge these two things" and the user says "no, keep them separate", the user is right. Always. Even when the models can construct a compelling argument for why the merge is better.
 
@@ -111,9 +111,9 @@ How to derive and record the smallest task contract lives in the `avoiding-manuf
 
 ### Precedence
 
-`system/host requirements > current user request > mandatory safety/repository policy > frozen task contract > optional improvements`.
+`system/host requirements > mandatory safety/repository policy > current user request > frozen task contract > optional improvements`.
 
-Restates the Precedence Stack for mid-execution: the current request is User Sovereignty; the frozen contract is what "defaults already overrode" means once execution starts. Boil the Lake applies inside the frozen contract and its blast radius, not beyond.
+Mandatory policy: the MUST and MUST NOT items in `universal.md` and `security.md`, and the `AGENTS.md` Never list. No request lowers them. Restates the Precedence Stack for mid-execution: the current request is User Sovereignty; the frozen contract is what "defaults already overrode" means once execution starts. Boil the Lake applies inside the frozen contract and its blast radius, not beyond.
 
 ### Finding disposition
 

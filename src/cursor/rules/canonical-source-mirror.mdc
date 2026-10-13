@@ -100,7 +100,7 @@ The gate checks: the cited file must be tracked at HEAD, the cited lines must ex
 
 Everything else in this section remains manual. A claim that names a symbol, a test, or a count WITHOUT a line number is invisible to that gate, and two other gates look like they would catch it and do not:
 
-- `orphan-ref-validator` reports four kinds of finding, and its type at `.claude/skills/orphan-ref-validator/scripts/envelope.py:28-34` enumerates all of them: <!-- citation-freshness: ignore -- the checker harvests 'orphan-ref-validator' from this same sentence's file path as a spurious anchor, and the fenced code block's continuation-quote anchor carries this list's 2-space markdown indent, absent from the unindented module-level code at those lines; content verified present and correct at 28-34, 2026-09-14 -->
+- `orphan-ref-validator` reports five kinds of finding, and its type at `.claude/skills/orphan-ref-validator/scripts/envelope.py:28-35` enumerates all of them: <!-- citation-freshness: ignore -- the checker harvests 'orphan-ref-validator' from this same sentence's file path as a spurious anchor, and the fenced code block's continuation-quote anchor carries this list's 2-space markdown indent, absent from the unindented module-level code at those lines; content verified present and correct at 28-35, 2026-10-13 -->
 
   ```python
   Kind = Literal[
@@ -108,6 +108,7 @@ Everything else in this section remains manual. A claim that names a symbol, a t
       "script_path",
       "rule_path",
       "instruction_path",
+      "retired_path",
       "scan_truncated",
   ]
   ```
