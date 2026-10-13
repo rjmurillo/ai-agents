@@ -160,16 +160,19 @@ def worktree_marker_state(candidate: Path) -> str:
 
 
 def is_foreign_owned(candidate: Path) -> bool:
-    """True when another user owns ``candidate``, so it is not this user's worktree.
+    """True when another user owns ``candidate``.
 
-    Hosts running systemd keep root-owned mode 0700 directories directly under
-    the temp root (``systemd-private-*``, ``snap-private-tmp``). The marker stat
+    The caller applies this only to entries whose ``.git`` marker is unreadable.
+    Hosts running systemd or snapd keep root-owned mode 0700 directories directly under
+    the temp root (``systemd-private-*`` from systemd, ``snap-private-tmp`` from
+    snapd). The marker stat
     inside them raises ``PermissionError`` for every other user, which made the
-    gate ``BLOCKED`` with ``entries.unreadable`` on every run (issue #6487). A
-    directory another user owns cannot hold a worktree this user created, and
-    this user cannot move it, so it is disclosed by count rather than treated
-    as a hole in the scan. A stat failure or a platform without ``getuid``
-    answers False: the entry then stays unreadable, never silently skipped.
+    gate ``BLOCKED`` with ``entries.unreadable`` on every run (issue #6487). An
+    unreadable marker inside a directory another user owns can never be
+    classified by this user's scan, and this user cannot move the directory, so
+    it is disclosed by count rather than treated as a hole in the scan.
+    A stat failure or a platform without ``getuid`` answers False: the entry
+    then stays unreadable, never silently skipped.
     """
     getuid = getattr(os, "getuid", None)
     if getuid is None:
@@ -333,7 +336,12 @@ def build_report(
 
 
 def _unreadable_lines(report: TempReport) -> list[str]:
-    """Report lines for entries the scan could not examine, named and bounded."""
+    """Report lines for entries the scan could not examine.
+
+    Only entries with an unreadable ``.git`` marker are named, bounded by
+    ``_MAX_NAMED_UNREADABLE``. A failed entry stat, an unreadable temp root, and
+    an ``iterdir`` failure add to the count without a name.
+    """
     lines: list[str] = []
     if report.unreadable_entries:
         lines.append(
@@ -349,7 +357,7 @@ def _unreadable_lines(report: TempReport) -> list[str]:
         lines.append(
             f"tmp-worktrees: {report.foreign_entries} entry/entries under "
             f"{report.temp_root} are owned by another user and were not examined "
-            "(not this user's worktrees)."
+            "(their .git marker could not be read)."
         )
     return lines
 

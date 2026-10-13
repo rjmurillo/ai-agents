@@ -1,9 +1,10 @@
 """Directories another user owns do not make the temp-worktree gate BLOCKED (issue #6487).
 
-On a systemd host `/tmp` holds root-owned mode 0700 directories. The marker stat
+On a host running systemd or snapd, `/tmp` holds root-owned mode 0700 directories. The marker stat
 inside them raises ``PermissionError`` for every other user, so the gate reported
-``entries.unreadable`` on every run. These tests fake ownership with
-``os.getuid`` so they pass for any user, including root.
+``entries.unreadable`` on every run. Tests that need a foreign
+owner fake it through ``os.getuid`` or ``is_foreign_owned``, so they pass for any
+user, including root.
 """
 
 from __future__ import annotations
