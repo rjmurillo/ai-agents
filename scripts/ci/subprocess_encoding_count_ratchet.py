@@ -19,7 +19,6 @@ Exit codes (AGENTS.md contract):
 
 from __future__ import annotations
 
-import re
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -35,6 +34,7 @@ from scripts.ci.count_ratchet import (
     run,
     tracked_files,
 )
+from scripts.ci.hermes_mirror import is_verbatim_hermes_mirror
 from scripts.validation.check_subprocess_encoding import find_all_violations
 
 __all__ = [
@@ -63,15 +63,8 @@ _SKILL_MIRROR_ROOTS: tuple[str, ...] = ("src/claude/skills", "src/copilot-cli/sk
 _SKILL_CANONICAL_ROOT = ".claude/skills"
 
 
-# A Hermes pack copies skills/<name>/ one pack directory deep (ADR-115 Decision 6).
-_HERMES_SKILL_MIRROR_RE = re.compile(r"^src/hermes/project-toolkit-[a-z0-9-]+/skills/(.+)$")
-
-
 def _skill_mirror_canonical_source(path_str: str) -> str | None:
     """Return the .claude/skills/ path a skill-mirror path maps to, if any."""
-    hermes = _HERMES_SKILL_MIRROR_RE.match(path_str)
-    if hermes is not None:
-        return f"{_SKILL_CANONICAL_ROOT}/{hermes.group(1)}"
     for root in _SKILL_MIRROR_ROOTS:
         prefix = f"{root}/"
         if path_str.startswith(prefix):
@@ -117,6 +110,7 @@ def current_count(repo_root: Path) -> int | None:
         if not f.startswith(_FIXTURE_PREFIX)
         and (repo_root / f).is_file()
         and _skill_mirror_canonical_source(f) not in tracked_set
+        and not is_verbatim_hermes_mirror(repo_root, f, tracked_set)
     ]
     if not py_files:
         return 0

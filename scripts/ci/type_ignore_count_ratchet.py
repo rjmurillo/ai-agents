@@ -47,6 +47,7 @@ from scripts.ci.base_derived_ratchet import (
 from scripts.ci.count_ratchet import (
     tracked_files,
 )
+from scripts.ci.hermes_mirror import LIB_MIRROR_PACKAGES, is_verbatim_hermes_mirror
 
 __all__ = [
     "EXIT_CONFIG",
@@ -97,22 +98,19 @@ _SELF_REFERENTIAL_FILES: frozenset[str] = frozenset(
 # (`paths.py`, `qa_report.py`, and siblings), whose own suppressions, if any,
 # are original and should still count.
 _LIB_MIRROR_ROOTS: tuple[str, ...] = (".claude/lib", "src/claude/lib", "src/copilot-cli/lib")
-_LIB_MIRROR_PACKAGES: tuple[str, ...] = ("hook_utilities", "github_core", "ai_review_common")
+_LIB_MIRROR_PACKAGES: tuple[str, ...] = LIB_MIRROR_PACKAGES
 _LIB_MIRROR_PREFIXES: tuple[str, ...] = tuple(
     f"{root}/{pkg}/" for root in _LIB_MIRROR_ROOTS for pkg in _LIB_MIRROR_PACKAGES
 )
 
 
-# ADR-115 Decision 6: every Hermes pack carries its own copy of the same three
-# lib packages, one pack directory deep: src/hermes/project-toolkit-<name>/lib/<pkg>/.
-_HERMES_LIB_MIRROR_RE = re.compile(
-    r"^src/hermes/project-toolkit-[a-z0-9-]+/lib/(?:" + "|".join(_LIB_MIRROR_PACKAGES) + r")/"
-)
+# Hermes pack copies (ADR-115 Decision 6) are NOT skipped by name here: they are
+# skipped only when their bytes equal the src/claude source, see hermes_mirror.py.
 
 
 def _is_generated_lib_mirror(path_str: str) -> bool:
     """Return True for a file under a generated lib-mirror package directory."""
-    return path_str.startswith(_LIB_MIRROR_PREFIXES) or bool(_HERMES_LIB_MIRROR_RE.match(path_str))
+    return path_str.startswith(_LIB_MIRROR_PREFIXES)
 
 
 # Same rationale, for the skills class (ADR-109 B3 and its support-file
@@ -125,15 +123,8 @@ _SKILL_MIRROR_ROOTS: tuple[str, ...] = ("src/claude/skills", "src/copilot-cli/sk
 _SKILL_CANONICAL_ROOT = ".claude/skills"
 
 
-# A Hermes pack copies skills/<name>/ one pack directory deep (ADR-115 Decision 6).
-_HERMES_SKILL_MIRROR_RE = re.compile(r"^src/hermes/project-toolkit-[a-z0-9-]+/skills/(.+)$")
-
-
 def _skill_mirror_canonical_source(path_str: str) -> str | None:
     """Return the .claude/skills/ path a skill-mirror path maps to, if any."""
-    hermes = _HERMES_SKILL_MIRROR_RE.match(path_str)
-    if hermes is not None:
-        return f"{_SKILL_CANONICAL_ROOT}/{hermes.group(1)}"
     for root in _SKILL_MIRROR_ROOTS:
         prefix = f"{root}/"
         if path_str.startswith(prefix):
@@ -166,6 +157,8 @@ def current_count(repo_root: Path) -> int | None:
             continue
         skill_source = _skill_mirror_canonical_source(path_str)
         if skill_source is not None and skill_source in tracked_set:
+            continue
+        if is_verbatim_hermes_mirror(repo_root, path_str, tracked_set):
             continue
         path = repo_root / path_str
         try:

@@ -75,10 +75,7 @@ class TestGeneratedSkillMirrorExclusion:
                 "src/copilot-cli/skills/review/scripts/run.py",
                 ".claude/skills/review/scripts/run.py",
             ),
-            (
-                "src/hermes/project-toolkit-delivery/skills/review/scripts/run.py",
-                ".claude/skills/review/scripts/run.py",
-            ),
+            ("src/hermes/project-toolkit-delivery/skills/review/scripts/run.py", None),
             ("src/hermes/project-toolkit-delivery/plugin.json", None),
             ("src/hermes/not-a-pack/skills/review/scripts/run.py", None),
             (".claude/skills/review/scripts/run.py", None),
