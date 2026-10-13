@@ -7,12 +7,12 @@ Issue: #5307, finding 5. Date: 2026-10-13.
 
 Reduced panel: architect and critic. The change proposes a class and edits no executable enforcement and no rule another gate reads. `FAILURE-MODES.md` and `retros.md` are unchanged. The two retros receive appended corrections only.
 
-Each seat ran as a separate read-only `claude -p --model sonnet --permission-mode plan` session. Each received the artifact paths and its seat brief, and no author reasoning. The author fixed findings between rounds. The author did not run a third round on the final text, so the round 2 fixes are checked by the gates below and not by a seat.
+Each seat ran as a separate read-only `claude -p --model sonnet --permission-mode plan` session. Each received the artifact paths and its seat brief, and no author reasoning. The author fixed findings between rounds. The author did not run a third round on the final text, so the round 2 and round 3 fixes are checked by the gates listed under Gates and not by a seat.
 
 ## Phase 0: related work
 
 - Issue #5300 asks for this ADR and is open.
-- Issue #5288 owned the pre-stage dash check. It is closed by PR #6398, which fixed the shallow-clone half only.
+- Issue #5288 owned the pre-stage dash check. It is closed by PR #6398, which fixed the shallow-clone half only. PR #6398's body disposes of the dash half as already persisted by the `voice.md` Quick Self-Review and `universal.md` MUST NOT 4. The ADR cites that disposition and answers it: a prompt-level question is not a pre-stage check, and the 08-25 instance shows the question alone did not prevent the violation.
 - Issue #5461 is open and also proposes a new FAILURE-MODES class, so the number FM #13 is not reserved.
 - Open PR #6437 holds ADR-115. This ADR takes 116.
 
@@ -43,6 +43,19 @@ Resolution:
 
 - **Fixed.** `## Status` section added with a standalone first sentence. The FM #9 boundary now keys on trigger (unquoted parity claim versus deterministic checker rejection). The class is narrowed to deterministically testable rules, with an exclusion for unpredictable tool output and a boundary line against FM #4 and FM #6. Evidence now says one CI instance and one local catch, and labels the cause INFERRED. A "decline the class" alternative was added. Issue #5288's closed state and the missing check are recorded. Severity is Medium, the lowest index tier. The class number is conditional on acceptance order. The FM #12 sentence cites the index row and ADR-105 only. The "third instance" trigger names the retro as the watcher.
 - **Not adopted.** The architect's P1 asks to decide proportionality inside the Decision. The ADR records the weakness as a Negative consequence and a "decline" alternative, and leaves the call to the owner, because the record is `proposed`.
+
+## Gates
+
+Run on the final text of this branch.
+
+| Gate | Command | Result |
+| --- | --- | --- |
+| ADR lifecycle | `scripts/validation/check_adr_lifecycle.py` | PASS, 0 violations across 115 ADR records |
+| ADR links | `scripts/validation/check_adr_links.py` | PASS, 0 violations across 2409 markdown files |
+| ADR uniqueness | `scripts/validation/check_adr_uniqueness.py` | PASS, next free number 117 |
+| Staged dash policy | `scripts/validation/git_hook_policy.py staged-dashes` on the staged files | exit 0 |
+
+PR description validation runs in CI on the PR and is not listed here.
 
 ## Outcome
 

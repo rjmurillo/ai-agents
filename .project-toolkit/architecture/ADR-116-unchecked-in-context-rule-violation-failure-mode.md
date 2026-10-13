@@ -46,11 +46,11 @@ Proposed class entry, in the file's existing shape:
 3. **Boundary against neighbors.**
    - Against FM #1: the rule was read. The failure is a missing check on the output.
    - Against FM #3: the rule has one reading.
-   - Against FM #9: FM #9 is triggered by a claim of parity with a source that is not quoted. FM #13 is triggered by a deterministic checker that rejects the first attempt. The triggers are disjoint.
+   - Against FM #9: FM #9 is triggered by a claim of parity with a source that is not quoted. This class is triggered by writing checkable output without running the checker. If an unquoted parity claim is present, classify the case under FM #9.
    - Against FM #4 (False Completion Markers) and FM #6 (Multi-Agent Rubber-Stamping): those classes report a claim of verification that did not happen. Here the author made no claim and a gate caught the output.
-4. **Evidence.** Two instances of one rule, in two sessions. One reached CI (08-21). One was stopped by a local pre-commit hook before any commit object existed (08-25). The 08-25 retro's own test says classes describe failures that reach an external gate or reviewer, so the local catch is weaker evidence than the CI one. The 08-21 retro proposed checking prose against the rule before submitting it. That fix was never persisted where a later session loads it (08-25 retro, Learning 1 row of its Existing Match table). Whether the cause is the missing check or the un-persisted learning is INFERRED, not measured.
+4. **Evidence.** Two instances of one rule, in two sessions. One reached CI (08-21). One was stopped by a local pre-commit hook before any commit object existed (08-25). The 08-25 retro's own test says classes describe failures that reach an external gate or reviewer, so the local catch is weaker evidence than the CI one. The 08-21 retro proposed checking prose against the rule before submitting it. The 08-25 retro, Learning 1 row of its Existing Match table, records that this fix did not transfer to a later session. `.claude/rules/voice.md` (`paths: ["**"]`, `priority: critical`) does carry a Quick Self-Review question, "Did you use any banned word? Any em dash or en dash?", and the 08-25 session still broke the rule. The self-check was in context and was not run. That supports the class. Whether the cause is the missing check or the un-persisted learning is INFERRED, not measured.
 5. **Detection.** A pre-commit, pre-push, or PR-validation rejection on the first attempt for a rule that was demonstrably in context. The fix diff is mechanical.
-6. **Enforcement pattern.** None new. Detection already exists: `git_hook_policy.py staged-dashes` runs at commit and `pr_description.py:validate_no_dashes` runs at PR validation. The 08-25 retro's Learning 1 proposes a pre-stage check skill (`voice/pre-stage-dash-check`). Its named owner, issue #5288, is closed. The closing PR #6398 fixed the shallow-clone half (`scripts/bootstrap-vm.sh`). A search of the tree outside the two retros and this ADR finds no pre-stage dash check. No owner exists for it. The class is detection-only until someone builds one.
+6. **Enforcement pattern.** None new. Detection already exists: `git_hook_policy.py staged-dashes` runs at commit and `pr_description.py:validate_no_dashes` runs at PR validation. The 08-25 retro's Learning 1 proposes a pre-stage check skill (`voice/pre-stage-dash-check`). Its named owner, issue #5288, is closed. The closing PR #6398 fixed the shallow-clone half (`scripts/bootstrap-vm.sh`). Its body disposes of the dash half as "already persisted. voice.md Quick Self-Review asks about em and en dashes, and universal.md MUST NOT 4 binds the rule. No change." A prompt-level self-review question is not a pre-stage check that runs a tool, and the 08-25 instance shows the question alone did not prevent the violation. A search of the tree outside the two retros and this ADR finds no pre-stage dash check. No open issue owns it. The class is detection-only until someone builds one.
 
 Severity: Medium, the lowest tier in the FAILURE-MODES index. The 08-25 retro rates it "Low-medium". Each instance cost one extra gate round (CI in one case, a local commit retry in the other) and had no external consequence.
 
@@ -115,6 +115,13 @@ Fully reversible. A `proposed` record can move to `rejected` by a frontmatter ed
 - Issue #5307, finding 5.
 - Issue #5300, the request this ADR answers.
 - `.claude/rules/retros.md`, MUST 2 and MUST NOT 1.
-- `.agents/governance/FAILURE-MODES.md`, FM #1, #3, #9, #12.
+- `.agents/governance/FAILURE-MODES.md`, FM #1, #3, #4, #6, #9, #12.
+- Issue #5288, the closed owner of the pre-stage dash check.
+- PR #6398, which closed #5288 and disposed of the dash half.
+- PR #5506, which added FM #12 with no ADR in that PR.
+- `.claude/rules/universal.md`, MUST NOT 4, the dash ban.
+- `.claude/rules/voice.md`, Quick Self-Review.
+- `lefthook.yml:119`, the `staged-dash-policy` job.
+- `pr_description.py:validate_no_dashes`, the PR validation check.
 - `.project-toolkit/retrospective/2026-08-21-pr-automerge-goal-session-2.md`, Finding 2.
 - `.project-toolkit/retrospective/2026-08-25-issue-5192-adr-052-036-reciprocity.md`, Finding 1 and Learning 1.
