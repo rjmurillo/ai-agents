@@ -204,6 +204,18 @@ class TestTruncationBoundary:
 
         assert [f.profile for f in findings] == [scr.PROFILE_FULL]
 
+    def test_full_text_near_pair_still_reports_truncated_identical(self, catalog: Path) -> None:
+        prefix = " ".join(f"token{i:02d}word" for i in range(12))
+        write_skill(catalog, "near-a", prefix + " alpha")
+        write_skill(catalog, "near-b", prefix + " omega")
+
+        findings = scr.find_collisions(scr.load_catalog(catalog), truncations=[80])
+
+        assert [(f.kind, f.confidence, f.profile) for f in findings] == [
+            (scr.KIND_TRUNCATED, scr.HIGH, "chars:80"),
+            (scr.KIND_NEAR, scr.LOW, scr.PROFILE_FULL),
+        ]
+
     def test_truncation_induced_near_collision_is_low_confidence(self, catalog: Path) -> None:
         shared = "one two three four five six seven eight nine ten"
         write_skill(catalog, "wide-a", shared + " alpha beta gamma delta epsilon")

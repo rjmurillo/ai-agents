@@ -43,6 +43,9 @@ KIND_TRUNCATED = "truncated-identical"
 KIND_NEAR = "near"
 
 _HIGH_KINDS = frozenset({KIND_EXACT, KIND_NORMALIZED, KIND_TRUNCATED})
+# A full-text near hit must not hide a stricter truncated-identical finding.
+# Under truncation such a pair reports only truncated-identical, never a repeat near.
+_FULL_SUPPRESSING_KINDS = frozenset({KIND_EXACT, KIND_NORMALIZED})
 _EXCERPT_CHARS = 160
 _NON_WORD = re.compile(r"[\W_]+", re.UNICODE)
 
@@ -299,14 +302,15 @@ def _scan_field(
     field: str,
     chars: int | None,
     threshold: float,
-    full_hits: set[tuple[str, str, str]],
+    full_hits: dict[tuple[str, str, str], str],
 ) -> list[Finding]:
     """Scan every pair for one field and profile. `chars` None means the full text."""
     profile = PROFILE_FULL if chars is None else truncation_profile(chars)
     findings: list[Finding] = []
     for first, second in pairs:
         pair_id = (field, first.skill, second.skill)
-        if chars is not None and pair_id in full_hits:
+        full_kind = full_hits.get(pair_id) if chars is not None else None
+        if full_kind in _FULL_SUPPRESSING_KINDS:
             continue
         raw = (_field_text(first, field), _field_text(second, field))
         if chars is not None:
@@ -316,9 +320,11 @@ def _scan_field(
         verdict = classify(raw, norm, threshold)
         if verdict is None:
             continue
+        if full_kind is not None and verdict[0] != KIND_TRUNCATED:
+            continue
         findings.append(_make_finding(verdict[0], field, profile, (first, second), raw, verdict[1]))
         if chars is None:
-            full_hits.add(pair_id)
+            full_hits[pair_id] = verdict[0]
     return findings
 
 
@@ -341,7 +347,7 @@ def find_collisions(
     """Compare every unordered pair. Stable order: high first, then field, profile, kind, names."""
     ordered = sorted(entries, key=lambda e: e.skill)
     pairs = list(itertools.combinations(ordered, 2))
-    full_hits: set[tuple[str, str, str]] = set()
+    full_hits: dict[tuple[str, str, str], str] = {}
     findings: list[Finding] = []
     for field in (FIELD_NAME, FIELD_DESCRIPTION):
         findings += _scan_field(pairs, field, None, near_threshold, full_hits)
