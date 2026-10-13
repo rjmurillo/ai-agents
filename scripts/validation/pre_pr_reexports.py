@@ -22,6 +22,7 @@ from check_bypass_allowlist import validate_bypass_allowlist
 from check_duplicate_test_helpers import validate_duplicate_test_helpers
 from check_generated_staleness import validate_generated_staleness
 from check_git_hook_health import validate_git_hook_health
+from check_host_marketplaces import validate_host_marketplaces
 from check_in_root_worktrees import validate_in_root_worktrees
 from check_index_line_endings import validate_index_line_endings
 from check_promotion_exceptions import validate_promotion_exceptions
@@ -95,6 +96,7 @@ __all__ = [
     "validate_skill_memory_references",
     "validate_skill_routing_roles_declarations",
     "validate_skill_skip_clauses",
+    "validate_host_marketplaces",
     "validate_skill_tree_layout",
     "validate_tmp_worktrees",
     "validate_traceability",

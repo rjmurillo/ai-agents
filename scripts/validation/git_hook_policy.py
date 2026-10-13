@@ -120,6 +120,7 @@ ALLOWED_REPO_ROOT_ENTRIES = frozenset(
         ".gitattributes",
         ".github",
         ".gitignore",
+        ".grok-plugin",
         ".markdownlint-cli2.yaml",
         ".mcp.json",
         ".project-toolkit",
