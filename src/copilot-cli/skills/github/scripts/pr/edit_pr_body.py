@@ -8,8 +8,8 @@ conditional headers on this PATCH endpoint, so it cannot prevent an edit made
 between that read and the update request.
 
 Safety behavior:
-  - Rejects a body whose hash no longer matches the caller's expected hash.
-  - No-ops when the new body is identical to the current body.
+  - Rejects a body whose hash differs from the caller's expected hash.
+  - No-ops when the new body equals the current body.
   - Warns when the resulting body contains em/en dashes, including retained
     bytes that were already present in the current body.
   - Warns when one closing keyword has multiple bare issue references. GitHub

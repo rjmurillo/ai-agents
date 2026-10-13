@@ -59,13 +59,12 @@ is the generated Copilot instruction mirror of ``.claude/rules/*.md`` via
 ``applyTo:``, drop ``alwaysApply:``/``priority:``, preserve
 ``description:``, synthesize a universal scope when none is declared,
 skip the rule when its scope is entirely internal-only), with the body
-left untouched, the last line of that list reading verbatim: "- body
-unchanged". ``outputDirs`` (documented at that file's lines 8-14) fans the
-same transformed content out to every configured destination, including
-``src/copilot-cli/instructions``. It is scanned directly because it is
-itself the shipped artifact, not a source that generates one. See issues
-#3578 (plugin-root widening), #3646 (templates/agents
-widening), #5214 (instructions widening), and #5294 (rules widening).
+left untouched (the list ends with the step "body unchanged"). ``outputDirs``
+(documented at that file's lines 8-14) fans the same transformed content out
+to every configured destination, including ``src/copilot-cli/instructions``.
+It is scanned directly because it is itself the shipped artifact, not a source
+that generates one. See issues #3578 (plugin-root widening), #3646
+(templates/agents widening), #5214 (instructions widening), and #5294 (rules widening).
 
 ``src/claude/rules`` is the rendered Claude rules tree (compiled from
 ``templates/rules`` by ``build/scripts/rule_templates.py``) of the

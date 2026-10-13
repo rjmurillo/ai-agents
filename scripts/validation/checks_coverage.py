@@ -20,6 +20,7 @@ if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
 from checks_common import _run_subprocess  # noqa: E402
+from validate_review_marker import read_marker_values  # noqa: E402
 
 # The typed contract, package path (evidence.py states why).
 _PROJECT_ROOT = _SCRIPT_DIR.parent.parent
@@ -28,6 +29,7 @@ if str(_PROJECT_ROOT) not in sys.path:
 
 from scripts.validation.evidence import (  # noqa: E402
     REASON_ADVISORY_FINDINGS,
+    REASON_POLICY_EXEMPT,
     REASON_SCRIPT_ABSENT,
     REASON_VIOLATIONS_FOUND,
     CheckOutcome,
@@ -75,7 +77,11 @@ def validate_review_marker(repo_root: Path) -> CheckOutcome:
     exact code being shipped. ``/ship`` itself blocks on a missing marker (AC1);
     here the check is **advisory** by default, because most pre-PR pushes are
     mid-development and have not run ``/review`` yet. Blocking every such push
-    would break normal iteration.
+    would break normal iteration. For the same reason, advisory mode does not
+    report a HEAD that carries no ``Reviewed-By`` trailer at all: no marker is
+    required there, so the gate returns a ``SKIP`` with ``policy.exempt``
+    instead of a ``FAIL`` that every clean ``origin/main`` checkout would show.
+    A trailer that is present but invalid still reports as a licensed ``FAIL``.
 
     Set ``REVIEW_MARKER_ENFORCED=1`` to escalate to BLOCKING (a non-passing
     check then blocks the push).
@@ -91,6 +97,9 @@ def validate_review_marker(repo_root: Path) -> CheckOutcome:
     script = repo_root / "scripts" / "validation" / "validate_review_marker.py"
     if not script.exists():
         return _absent_outcome(enforced)
+
+    if not enforced and _head_has_no_marker(repo_root):
+        return _not_required_outcome()
 
     exit_code, stdout, stderr = _run_subprocess(
         [
@@ -139,6 +148,27 @@ def validate_review_marker(repo_root: Path) -> CheckOutcome:
         revision=_HEAD,
         scope=_SCOPE,
         detail=f"validate_review_marker.py exited {exit_code}; advisory, not enforced",
+    )
+
+
+def _head_has_no_marker(repo_root: Path) -> bool:
+    """True only when git read HEAD and found no ``Reviewed-By`` trailer on it.
+
+    A git read failure is not evidence of absence, so it returns False and the
+    wrapped script gets to report what it sees.
+    """
+    values, error = read_marker_values("HEAD", repo_root)
+    return error is None and not values
+
+
+def _not_required_outcome() -> CheckOutcome:
+    """Type the advisory case where HEAD has no marker and none is required."""
+    print("[SKIP] No /review marker on HEAD; advisory mode does not require one (/ship does).")
+    return CheckOutcome.skipped(
+        _VALIDATOR,
+        reason=REASON_POLICY_EXEMPT,
+        scope=_SCOPE,
+        detail="HEAD carries no Reviewed-By trailer; advisory mode requires no marker",
     )
 
 
