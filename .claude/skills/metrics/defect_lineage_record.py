@@ -19,7 +19,9 @@ Record fields (schema_version 1, all timestamps UTC ``YYYY-MM-DDTHH:MM:SSZ``):
     introduction    {pr, url, commit, merged_at}
     detection       {source, url, at}
     follow_up       null or {kind, pr, url, merged_at, commit}. ``kind`` is
-                    defect_repair, planned_work, or cleanup.
+                    defect_repair, planned_work, or cleanup. ``merged_at`` is a
+                    timestamp, or null when not merged (the key is required).
+                    ``commit`` is required once merged.
     status          CURRENT, FIXED, REVERTED, SUPERSEDED, or UNVERIFIED. It
                     states whether ``claim`` still holds at the live SHA.
     status_history  append-only list of {status, live_sha, checked_at, basis}
@@ -28,6 +30,10 @@ Record fields (schema_version 1, all timestamps UTC ``YYYY-MM-DDTHH:MM:SSZ``):
                     ``command`` is display text for a human. It is never run.
     limitations     non-empty list of what the record does not prove
     optional        detection_delay_seconds, reverted_by, superseded_by
+
+Every ``url`` must start with ``https://github.com/<repository>/``, so a
+detection from another repository or an outside tool cannot be recorded as-is.
+``reverted_by`` and ``superseded_by`` must be ``{pr, url}`` objects.
 
 Status rules: FIXED needs a merged defect_repair follow-up. REVERTED needs
 ``reverted_by``. SUPERSEDED needs ``superseded_by``. An observation-only record
@@ -209,7 +215,10 @@ def _check_follow_up(
         kind = None
     _pr_number(section, "follow_up", problems)
     _url(section, "follow_up", repository, problems)
-    if section.get("merged_at") is None:
+    if "merged_at" not in section:
+        problems.append("follow_up.merged_at is required (null when not merged)")
+        return kind, None
+    if section["merged_at"] is None:
         return kind, None
     _commit(section, "follow_up", problems)
     return kind, _timestamp(section, "merged_at", "follow_up", problems)

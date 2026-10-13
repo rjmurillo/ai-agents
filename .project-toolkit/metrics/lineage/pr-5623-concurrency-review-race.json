@@ -44,7 +44,7 @@
   ],
   "recheck": {
     "description": "The buggy completion test 'if not saw_end or peak == 0:' lived in scripts/eval/_capability_probes.py. The claim holds while that line is present.",
-    "command": "git show <rev>:scripts/eval/_capability_probes.py | grep -n 'not saw_end'",
+    "command": "git show <rev>:scripts/eval/_capability_probes.py | grep -nF 'if not saw_end or peak == 0:'",
     "path": "scripts/eval/_capability_probes.py",
     "pattern": "if not saw_end or peak == 0:",
     "live_when": "present"

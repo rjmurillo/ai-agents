@@ -105,10 +105,14 @@ python "$SCRIPTS_DIR/backlog_provenance.py" --days 7
 # Same report as JSON, for an explicit UTC interval ending 2026-09-29 (exclusive)
 python "$SCRIPTS_DIR/backlog_provenance.py" --days 29 --until 2026-09-29T00:00:00Z --output-format json
 
-# Defect lineage records: validate, report, and recheck against the live default branch
+# Defect lineage records (this repo keeps them in .project-toolkit/metrics/lineage/):
+# validate, report, and recheck against origin/<default_branch> (run git fetch origin first)
 python "$SCRIPTS_DIR/defect_lineage.py" check <records-dir>
 python "$SCRIPTS_DIR/defect_lineage.py" report <records-dir>
 python "$SCRIPTS_DIR/defect_lineage.py" recheck <records-dir>/<id>.json --write
+
+# --root belongs to the top-level parser, so it goes before the subcommand
+python "$SCRIPTS_DIR/defect_lineage.py" --root <repo> recheck <records-dir>/<id>.json --write
 ```
 
 ## Metrics Collected
@@ -147,14 +151,14 @@ directory that each command takes as an argument. The schema and its rules are
 in the docstring of `defect_lineage_record.py`.
 
 - A record holds the introducing PR and merge time, the detection source and time, the follow-up PR and merge time, the live status, a recheck, and its limitations. Timestamps are UTC to the second, so a review 5 s after a merge orders correctly.
-- `supports` says what the chain shows: `defect`, `review_race`, `process_gap`, or `observation`. A planned follow-up is an `observation`, so no follow-up is a defect by default.
-- Status is `CURRENT`, `FIXED`, `REVERTED`, `SUPERSEDED`, or `UNVERIFIED`. It says whether the record's `claim` holds at the recorded live SHA.
-- `recheck` reads `recheck.path` at a revision with `git show` and matches `recheck.pattern`. It appends one `status_history` entry and never deletes the chain. A missing file gives `UNVERIFIED`, never `FIXED`. An unresolved revision exits 3 and records nothing.
-- `report` groups records into live, unverified, historical, and observation buckets. Only the live bucket holds findings present at the recorded SHA.
-- `check` rejects contradictory records: a review race that did not follow the merge, a repair merged before detection, `FIXED` without a merged repair, a stored delay that disagrees with the timestamps, and out-of-order history.
+- `supports` says what the chain shows: `defect`, `review_race`, `process_gap`, or `observation`. Record planned work with `supports: ["observation"]` and `follow_up.kind: planned_work`. A follow-up counts as a defect only when the record says so.
+- Status is `CURRENT`, `FIXED`, `REVERTED`, `SUPERSEDED`, or `UNVERIFIED`. It says whether the record's `claim` holds at the recorded live SHA. `REVERTED` means the claim holds again after a recorded `reverted_by`. `SUPERSEDED` means a recorded `superseded_by` replaced the chain.
+- `recheck` reads `recheck.path` at a revision with `git show` and matches `recheck.pattern`. It appends one `status_history` entry and never deletes the chain. A missing file gives `UNVERIFIED`, never `FIXED`. So does a pattern that stops matching when the record has no merged `defect_repair` follow-up and no `superseded_by` (for example, the code moved). `--rev` must be a branch, tag, or SHA: `HEAD~1` and `main^` are rejected as unsafe with exit 2. An unresolved revision exits 3 and records nothing.
+- `report` groups records into live, unverified, historical, and observation buckets. Live holds `CURRENT` and `REVERTED`. Unverified holds `UNVERIFIED`. Historical holds `FIXED` and `SUPERSEDED`. Observation holds every observation-only record, whatever its status. Only the live bucket holds findings present at the recorded SHA.
+- `check` rejects contradictory records, including: a review race that did not follow the merge, a repair merged before detection, `FIXED` without a merged repair, a stored delay that disagrees with the timestamps, and out-of-order history, a follow-up merged before the introduction, and a `FIXED` history entry dated before the follow-up merged.
 - The records cite PR, issue, and review URLs. They do not copy bodies, and they do not blame a model or reviewer for a late review.
 
-Exit codes: 0 ok, 1 invalid record, 2 bad path or JSON, 3 git failure or unresolved revision.
+Exit codes: 0 ok, 1 invalid record, 2 bad path, JSON, or argument, 3 git cannot run or the revision does not resolve.
 
 ## Detection Patterns
 

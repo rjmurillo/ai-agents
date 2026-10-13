@@ -7,13 +7,18 @@ issue. The record schema lives in ``defect_lineage_record.py`` and the report
 rules in ``defect_lineage_report.py``.
 
 Subcommands:
-    check  PATH...             validate records, print each problem
-    report PATH...             print the grouped report (markdown or json)
-    recheck RECORD [--rev REV] probe REV (default origin/<default_branch>) and
-                               print the new status; --write saves it
+    check   PATH...                         validate records, print each problem
+    report  PATH... [--output-format markdown|json]
+                                            print the grouped report
+    recheck RECORD [--rev REV] [--write]    probe REV (default
+                                            origin/<default_branch>) and print
+                                            the new status; --write saves it
 
 PATH is a record file or a directory of ``*.json`` records. ``--root`` is the
-git repository that ``recheck`` probes (default: the current directory).
+git repository that ``recheck`` probes (default: the current directory). It is
+a top-level option, so it goes before the subcommand:
+``defect_lineage.py --root REPO recheck RECORD``. REV must be a branch, tag, or
+SHA: ``~`` and ``^`` are rejected as unsafe (exit 2).
 
 The recheck probe reads ``recheck.path`` from the revision with ``git show``
 and matches ``recheck.pattern`` as a regular expression. The pattern comes from
@@ -26,7 +31,7 @@ EXIT CODES (ADR-035):
     0 - Success
     1 - Logic error (a record is invalid)
     2 - Config error (bad path, unreadable JSON, bad argument)
-    3 - External error (git missing or failed)
+    3 - External error (git cannot run, or the revision does not resolve)
 """
 
 from __future__ import annotations

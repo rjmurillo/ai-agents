@@ -157,6 +157,10 @@ class TestSections:
     def test_follow_up_kind(self):
         assert has(problems_of(mutate(["follow_up", "kind"], "bogus")), "follow_up.kind must be")
 
+    def test_follow_up_requires_merged_at_key(self):
+        problems = problems_of(mutate(["follow_up", "merged_at"], _DELETE))
+        assert has(problems, "follow_up.merged_at is required")
+
     def test_merged_follow_up_needs_commit(self):
         problems = problems_of(mutate(["follow_up", "commit"], _DELETE))
         assert has(problems, "follow_up.commit")
