@@ -69,17 +69,19 @@ def test_clean_tree_passes(repo: Path) -> None:
     assert gate.run(repo, update=False) == 0
 
 
-def test_simplify_removes_only_the_flagged_number_and_ignores_non_claims() -> None:
-    assert card.simplify("In 2 steps, run the three filters: a, b, c, d.") == (
-        "In 2 steps, run the filters: a, b, c, d."
-    )
-    assert card.simplify("No claim here.") == "No claim here."
+def test_simplified_removes_only_the_flagged_number() -> None:
+    line = "The two phases: plan and deploy. Run the three filters."
+    claims = card.derived_count_claims(line)
+    assert [c.stated for c in claims] == [3]
+    assert claims[0].simplified == "The two phases: plan and deploy. Run the filters."
+    colon = card.derived_count_claims("In 2 steps, run the three filters: a, b, c, d.")
+    assert colon[0].simplified == "In 2 steps, run the filters: a, b, c, d."
 
 
 def test_three_filters_is_flagged_and_simplified() -> None:
     claims = card.derived_count_claims("Run the three filters: lint, format, types, tests.")
     assert [(c.stated, c.actual) for c in claims] == [(3, 4)]
-    assert card.simplify(claims[0].text) == "Run the filters: lint, format, types, tests."
+    assert claims[0].simplified == "Run the filters: lint, format, types, tests."
 
 
 def test_bulleted_enumeration_contradicting_count_is_flagged() -> None:
@@ -93,13 +95,73 @@ def test_bulleted_enumeration_contradicting_count_is_flagged() -> None:
         "Run exactly three filters: lint, format, types, tests.",
         "Keep at least two gates: build, test, lint.",
         "Run the three filters: lint, format, types.",
-        "Run the three filters.",
+        "The three filters are described in the design doc.",
         "| 4 | Gate | a, b, c |",
         "Spend 10-15 minutes: read, write, test.",
     ],
 )
 def test_contractual_matching_or_unproven_counts_are_retained(line: str) -> None:
     assert card.derived_count_claims(line) == []
+
+
+def test_bare_imperative_count_is_flagged_and_simplified() -> None:
+    claims = card.derived_count_claims("Run the three filters.")
+    assert [(c.stated, c.actual) for c in claims] == [(3, 0)]
+    assert claims[0].simplified == "Run the filters."
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Run exactly the three filters.",
+        "Run at least the two filters.",
+        "Run the three filters: see below.",
+        "Run the three filters (lint, format, types).",
+        "Run the three filters in `lefthook.yml`.",
+        "Run the three filters listed below.",
+        "Run the three filters.\n\n- lint\n- format\n- types\n",
+        "Run the three filters.\n\n| a | b |\n",
+        "| Run the three filters | x |",
+        "The three filters run first.",
+        "Run the filters.",
+        "Run the three.",
+        "```\nRun the three filters.\n```",
+    ],
+)
+def test_bare_count_with_contract_structure_or_no_imperative_is_retained(text: str) -> None:
+    assert card.derived_count_claims(text) == []
+
+
+@pytest.mark.parametrize(
+    ("text", "flagged"),
+    [
+        ("Run the 3 filters.", True),
+        ("Run the three filters listed Below.", False),
+        ("Users can apply the three policies.", False),
+        ("You may run the three filters.", False),
+        ("- Run the three filters.", True),
+        ("1. Always run the three filters.", True),
+        ("**Run the three filters.**", True),
+        ("First, then run the three filters.", True),
+        ("Rebase first, or run the three filters.", True),
+        ("Run the three filters.\n\n- a\n- b\n- c\n- d\n", True),
+        ("Run the three filters.\n\n- a\n- b\n- c\n", False),
+        ("Run the three filters.\n\n- a\n", False),
+        ("Run the six filters.\n\n- a\n- b\n", False),
+    ],
+)
+def test_bare_count_review_cases(text: str, flagged: bool) -> None:
+    assert bool(card.derived_count_claims(text)) is flagged
+
+
+def test_following_list_reports_its_real_count() -> None:
+    claims = card.derived_count_claims("Run the three filters.\n\n- a\n- b\n- c\n- d\n")
+    assert [(c.stated, c.actual) for c in claims] == [(3, 4)]
+
+
+def test_bare_count_claim_is_counted_by_the_ratchet(repo: Path) -> None:
+    _write(repo, "templates/rules/b.md", "Run the three filters.")
+    assert gate.run(repo, update=False) == 1
 
 
 def test_fenced_code_is_ignored() -> None:

@@ -650,12 +650,15 @@ pre-push:
           # the inner aggregate budget is 780s on a workstation. Inside a
           # managed container `run_pytest` clamps the aggregate to 150s before
           # it starts a child, so that number, not 780s, bounds a container
-          # push. See ADR-104.
+          # push. See ADR-104. The worker cap is "scaled" (issue #6199): half
+          # the visible CPUs, at least 4 and at most 16, never above the CPU
+          # count. A fixed 4 left a 48-core workstation 1.8x slower than 16
+          # workers. A positive integer here is still a fixed cap.
           - name: python-tests
             timeout: 15m
             run: uv run --frozen python scripts/validation/git_hook_policy.py pytest
             env:
-              AI_AGENTS_PYTEST_WORKER_CAP: "4"
+              AI_AGENTS_PYTEST_WORKER_CAP: "scaled"
               # Issue #5383: shared CPU budget. CPU-bound on every Python
               # push: python-tests (xdist workers), pre-pr-validation,
               # zero-collection-tests, python-type-check; each sibling is one

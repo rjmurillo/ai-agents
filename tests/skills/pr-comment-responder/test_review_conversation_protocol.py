@@ -32,8 +32,8 @@ def _text() -> str:
 
 def test_protocol_exists_and_has_no_dashes() -> None:
     text = _text()
-    assert "—" not in text
-    assert "–" not in text
+    assert "\u2014" not in text
+    assert "\u2013" not in text
 
 
 @pytest.mark.parametrize("disposition", ["BLOCKING", "OPTIONAL", "NIT", "FYI"])

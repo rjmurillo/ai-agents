@@ -56,6 +56,7 @@ from check_nested_tests import validate_no_nested_tests
 from check_promotion_exceptions import validate_promotion_exceptions
 from check_push_lock_paths import validate_push_lock_paths
 from check_required_context_conditions import validate_required_context_conditions
+from check_rule_adr_citations import validate_rule_adr_citations
 from check_serena_memory_worktree_scope import (
     validate_serena_memory_worktree_scope,
 )
@@ -73,6 +74,7 @@ from checks_ci_parity import (
     validate_agent_skill_discriminator,
     validate_closure_manifest,
     validate_hook_contracts,
+    validate_memory_placement,
     validate_passive_context_budget,
     validate_placeholder_identity,
     validate_plugin_frontmatter_self_containment,
@@ -374,6 +376,12 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # retired record and a hard gate would red every push until they are
     # repointed.
     _Gate("Skill ADR Bindings (ratchet)", _root_only(validate_skill_adr_bindings)),
+    # Resolves an `ADR-NNN` citation in a rule file, `AGENTS.md` or `CLAUDE.md`
+    # against that ADR's own status (issue #5200). The third ADR consumer gate:
+    # the skill gate reads `metadata.adr`, this one reads prose. Only a citation
+    # the classifier places as binding can fail it. Baselined by identity, so a
+    # new violation cannot hide behind a repaired one.
+    _Gate("Rule ADR Citations (ratchet)", _root_only(validate_rule_adr_citations)),
     _Gate("Design Review Frontmatter", _root_only(validate_design_review_frontmatter)),
     # PR #1887 retrospective, Layer 2.
     _Gate("Build Command Exit Gates", _root_only(validate_build_gates)),
@@ -444,6 +452,7 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate("Placeholder Identity", _root_only(validate_placeholder_identity)),
     _Gate("Tracked Conflict Markers", _root_only(validate_tracked_conflict_markers)),
     _Gate("Security Suppressions Diff", _root_only(validate_security_suppressions_diff)),
+    _Gate("Memory Placement", _root_only(validate_memory_placement)),
     # The seven gates below are the seven validators the CI job
     # "Validate Vendor Portability" runs. They are kept together, and
     # tests/validation/test_pre_pr_covers_vendor_portability.py reads that

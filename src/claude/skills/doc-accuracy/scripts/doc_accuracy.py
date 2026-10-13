@@ -171,6 +171,12 @@ EXCLUDE_DIRS = {
     ".doc-accuracy",
 }
 
+# In git mode `git ls-files --exclude-standard` already honors .gitignore, so a
+# name-based filter would only drop tracked folders that happen to be called
+# build, bin, obj, dist, or target (issue #6202). Keep the two directories
+# that are never repository content.
+_GIT_EXCLUDE_DIRS = frozenset({".git", ".doc-accuracy"})
+
 _GIT_TIMEOUT = 60  # seconds, applied to every git subprocess call
 
 # Environment variables that can redirect git to a foreign repository,
@@ -271,17 +277,17 @@ def _decode_stderr(raw: bytes | str | None) -> str:
     return raw.strip()
 
 
-def _iter_git_files(repo_root: Path, *, require_git: bool = False):
-    """Yield ``Path`` objects for every file tracked by git in ``repo_root``.
+def _list_git_files(repo_root: Path, *, require_git: bool = False) -> list[Path] | None:
+    """Return every path git knows in ``repo_root``, or ``None`` outside git.
 
     Uses ``git ls-files -z --cached --others --exclude-standard`` with
     NUL-separated output so that paths containing newlines or special
-    characters are handled correctly. Falls back to ``repo_root.rglob("*")``
-    when the directory is not inside a git repository and *require_git* is
-    ``False``.
+    characters are handled correctly. Returns ``None`` when the directory is
+    not inside a git repository and *require_git* is ``False``, so the caller
+    can fall back to a directory walk.
 
     When *require_git* is ``True`` (diff-base/Git-scoped mode), a
-    ``_GitError(3)`` is raised instead of falling back, because rglob
+    ``_GitError(3)`` is raised instead of returning ``None``, because a walk
     would silently bypass the Git-backed scoping contract.
     """
     try:
@@ -299,11 +305,7 @@ def _iter_git_files(repo_root: Path, *, require_git: bool = False):
             timeout=_GIT_TIMEOUT,
             env=_git_env(),
         )
-        for rel_bytes in result.stdout.split(b"\x00"):
-            if rel_bytes:
-                rel = os.fsdecode(rel_bytes)
-                yield repo_root / rel
-        return
+        return [repo_root / os.fsdecode(rel) for rel in result.stdout.split(b"\x00") if rel]
     except subprocess.CalledProcessError as exc:
         if require_git:
             raise _GitError(
@@ -313,11 +315,29 @@ def _iter_git_files(repo_root: Path, *, require_git: bool = False):
     except FileNotFoundError:
         if require_git:
             raise _GitError(3, "ls-files: git binary not found") from None
-    yield from repo_root.rglob("*")
+    return None
 
 
-def _should_exclude(path: Path, repo_root: Path | None = None) -> bool:
-    """Check if path is in an excluded directory.
+def _repo_files(repo_root: Path, *, require_git: bool = False) -> list[Path]:
+    """List the repository files the assessment may read.
+
+    In git mode the list comes from ``git ls-files``, which already honors
+    ``.gitignore``, so tracked folders named ``build`` or ``bin`` are kept and
+    only ``.git`` and ``.doc-accuracy`` are dropped. Outside git, the walk has
+    no ignore rules, so the name-based ``EXCLUDE_DIRS`` filter applies.
+    """
+    listed = _list_git_files(repo_root, require_git=require_git)
+    if listed is not None:
+        return [p for p in listed if not _should_exclude(p, repo_root, _GIT_EXCLUDE_DIRS)]
+    return [p for p in repo_root.rglob("*") if not _should_exclude(p, repo_root)]
+
+
+def _should_exclude(
+    path: Path,
+    repo_root: Path | None = None,
+    exclude_dirs: frozenset[str] | set[str] = EXCLUDE_DIRS,
+) -> bool:
+    """Check if path is in an excluded directory (``EXCLUDE_DIRS`` by default).
 
     When repo_root is provided, only checks the repo-relative portion
     of the path to avoid false positives from parent directory names.
@@ -329,7 +349,7 @@ def _should_exclude(path: Path, repo_root: Path | None = None) -> bool:
         except ValueError:
             pass
     for part in check_path.parts:
-        if part in EXCLUDE_DIRS:
+        if part in exclude_dirs:
             return True
     return False
 
@@ -1017,11 +1037,14 @@ def run_assessment(
     if diff_base:
         changed_files, changed_ranges = _get_changed_diff(diff_base, repo_root)
 
+    repo_files = _repo_files(repo_root, require_git=diff_base is not None)
+    allowed_files = set(repo_files)
+
     # Enumerate documentation files
     doc_files_set: set[Path] = set()
     for glob_pattern in doc_globs:
         for p in repo_root.glob(glob_pattern):
-            if p.is_file() and not _should_exclude(p, repo_root):
+            if p.is_file() and p in allowed_files:
                 doc_files_set.add(p)
 
     # Enumerate source files
@@ -1029,8 +1052,8 @@ def run_assessment(
     source_symbols: list[SourceSymbol] = []
     symbol_names: set[str] = set()
 
-    for p in _iter_git_files(repo_root, require_git=diff_base is not None):
-        if not p.is_file() or _should_exclude(p, repo_root):
+    for p in repo_files:
+        if not p.is_file():
             continue
 
         ext = p.suffix.lower()
@@ -1106,8 +1129,8 @@ def run_assessment(
 
     # Find benchmark files
     benchmark_files = []
-    for p in _iter_git_files(repo_root, require_git=diff_base is not None):
-        if not p.is_file() or _should_exclude(p, repo_root):
+    for p in repo_files:
+        if not p.is_file():
             continue
         name = p.name.lower()
         rel = _repo_relative(p, repo_root)

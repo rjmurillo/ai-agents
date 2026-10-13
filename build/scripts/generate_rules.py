@@ -66,6 +66,7 @@ sys.path.insert(0, str(_SCRIPT_DIR))
 sys.path.insert(0, str(_SCRIPT_DIR.parent))
 
 import rule_templates  # noqa: E402
+from atomic_write import publish_bytes_preserving_mode  # noqa: E402
 from generate_agents_common import (  # noqa: E402
     format_frontmatter_yaml,
     parse_simple_frontmatter,
@@ -381,7 +382,7 @@ def _write_instruction(
         return True
 
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(content, encoding="utf-8")
+    publish_bytes_preserving_mode(target, content.encode("utf-8"))
     return True
 
 

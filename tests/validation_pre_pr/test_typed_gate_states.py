@@ -384,8 +384,10 @@ class TestDashProhibition:
         monkeypatch.setenv("CI", "1")
         _check(self._run(tmp_path, failed), EvidenceState.FAIL, REASON_DIFF_FAILED, blocks=True)
 
-    def test_no_markdown_files_is_a_pass_that_says_zero_examined(self, tmp_path: Path) -> None:
-        outcome = self._run(tmp_path, [(0, "src/app.py\n", "")])
+    def test_no_markdown_or_python_files_is_a_pass_that_says_zero_examined(
+        self, tmp_path: Path
+    ) -> None:
+        outcome = self._run(tmp_path, [(0, "src/app.json\n", "")])
 
         assert outcome.state is EvidenceState.PASS
         assert outcome.examined == 0

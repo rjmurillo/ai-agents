@@ -12,12 +12,12 @@ pattern, and is counted in no failure. Issue #4494 found two such files in
 ``tests/mutation/``, one of them a mutation harness whose results nobody had
 ever read.
 
-The contract this guard reads, verbatim from pyproject.toml:68-69::
+The guard reads ``testpaths`` and ``python_files`` from the pytest table in
+``pyproject.toml`` through :func:`read_pytest_config`. It does not copy their
+values here. ``test_read_pytest_config_conformance_to_pytest`` compares that
+reader with the values pytest itself resolves.
 
-    testpaths = ["tests"]
-    python_files = ["test_*.py"]
-
-Both are read from the file rather than hardcoded, so widening either one
+Because they are read and not hardcoded, widening either one
 widens the guard.
 
 Not every such file is a defect. Two in this repository are legitimately not

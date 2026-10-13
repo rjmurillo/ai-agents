@@ -429,6 +429,39 @@ def test_unsupported_disarms_first_then_terminates(tmp_path: Path, doc: str) -> 
 
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)
+def test_stacked_disarms_first_then_terminates(tmp_path: Path, doc: str) -> None:
+    """STACKED terminates one gate after SKIP, like UNSUPPORTED (issue #6201).
+
+    A stacked PR that would otherwise be T1 must not reach the T1 merge route,
+    where the squash merge folds it into its parent branch. It is "armed but not
+    provably T1", so the disarm gate runs first. It carries no thread and no CI
+    failure, so the round-cap loop has no work to do either.
+    """
+    run = run_dispatch(tmp_path, doc, tier="STACKED", auto_merge="SQUASH", round_action="ACT")
+
+    assert "Cannot determine tier" not in run.stdout, (
+        "STACKED is declared in _TIER_ORDER, not a producer failure"
+    )
+    assert "Tier STACKED" in run.stdout
+    assert run.disarmed, "auto-merge survived on a PR whose base is not the default branch"
+    assert not run.round_cap_called, "the round-cap breaker fired on a PR with no work"
+    assert not run.reached_end
+    assert run.queue_completed, "the gate aborted the queue instead of skipping one PR"
+
+
+@pytest.mark.parametrize("doc", DISPATCH_DOCS)
+def test_stacked_without_auto_merge_still_stops(tmp_path: Path, doc: str) -> None:
+    """Nothing to disarm is not a reason to keep acting on a STACKED PR."""
+    run = run_dispatch(tmp_path, doc, tier="STACKED", auto_merge="null", round_action="ACT")
+
+    assert "Tier STACKED" in run.stdout
+    assert not run.disarmed
+    assert not run.round_cap_called
+    assert not run.reached_end
+    assert run.queue_completed
+
+
+@pytest.mark.parametrize("doc", DISPATCH_DOCS)
 def test_a_comment_reword_changes_nothing(tmp_path: Path, doc: str) -> None:
     """The inverted control, in the suite rather than in a report.
 

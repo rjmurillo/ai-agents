@@ -15,6 +15,7 @@
 |frontmatter key migration nested metadata shape atomic commit count gate scope bypass bulk rename: [decision-frontmatter-migrations-must-cover-both-key-shapes](decision-frontmatter-migrations-must-cover-both-key-shapes.md) (1353)
 |disposition registry base ref waiver self-approve finding eureka: [decision-a-disposition-registry-is-trusted-only-from-the-base-ref](decision-a-disposition-registry-is-trusted-only-from-the-base-ref.md) (416)
 |signing signature attestation sigstore publisher app check run forged test result conftest ADR-101 eureka: [decision-signing-proves-who-reported-a-result-not-that-it-is-true](decision-signing-proves-who-reported-a-result-not-that-it-is-true.md) (472)
+|eureka PostToolUse hook bashOutputMaxChars native output cap ADR-097 issue 5851 first principles: [decision-a-host-output-cap-beat-the-posttooluse-hook-for-5851](decision-a-host-output-cap-beat-the-posttooluse-hook-for-5851.md) (321)
 
 [GitHub and PR Operations]
 |premise verification git log -S git grep reviewer-findings pr-comment-responder refuted: [pr-review/decision-premise-verification-reused-reviewer-findings](pr-review/decision-premise-verification-reused-reviewer-findings.md) (800)
@@ -24,6 +25,8 @@
 |gh graphql rest rate limit budget separate exhaustion: [process/process-gh-graphql-and-rest-budgets-are-separate](process/process-gh-graphql-and-rest-budgets-are-separate.md) (1421)
 |close comment absence claim grep zsh glob evidence exit status before posting: [process/process-post-a-closing-claim-only-after-its-evidence-command-succeeds](process/process-post-a-closing-claim-only-after-its-evidence-command-succeeds.md) (249)
 |implementer subagent prompt interim CI status end turn resume drive to merge: [orchestration/orchestration-implementer-prompts-must-forbid-interim-stops](orchestration/orchestration-implementer-prompts-must-forbid-interim-stops.md) (203)
+|wave cap fan-out brief hand-written contract concurrent delegations 4 per wave orchestrator template inode issue 6292: [orchestration/orchestration-the-wave-cap-lives-in-the-orchestrator-template-not-in-a-hand-written-brief](orchestration/orchestration-the-wave-cap-lives-in-the-orchestrator-template-not-in-a-hand-written-brief.md) (447)
+|shared brief source path wrong tree src/claude build_all reverts edit sample edit before wave ship contract 3b: [orchestration/orchestration-a-source-path-in-a-shared-brief-was-wrong-until-one-edit-went-through-the-build](orchestration/orchestration-a-source-path-in-a-shared-brief-was-wrong-until-one-edit-went-through-the-build.md) (455)
 |rate limit 403 refusal header X-Ratelimit-Reset Remaining velocity: [ci/github-rate-limit-payload-does-not-predict-service](ci/github-rate-limit-payload-does-not-predict-service.md) (4114)
 |rebase after push non-fast-forward force-push forbidden merge remote: [git/git-rebase-after-push-costs-two-cycles](git/git-rebase-after-push-costs-two-cycles.md) (1350)
 |push takes 15 minutes lefthook pre-push empty ls-remote: [git/git-empty-hook-run-means-an-empty-push](git/git-empty-hook-run-means-an-empty-push.md) (2692)
@@ -55,6 +58,7 @@
 |pr context statusCheckRollup list null CheckRun StatusContext reviewThreads: [github/pr-context-authoritative-metadata](github/pr-context-authoritative-metadata.md) (195)
 |stacked pull request async merge endpoint merge-async stack GraphQL refusal: [github/stacked-pr-async-merge-endpoint](github/stacked-pr-async-merge-endpoint.md) (1084)
 |PR validator prepare-body-file backticked path not in diff: [pr-review/pr-validator-needs-prepare-body-file-and-diff-backed-paths](pr-review/pr-validator-needs-prepare-body-file-and-diff-backed-paths.md) (238)
+|parallel agents shared scratch directory pr body overwritten pr1.md prepare-body-file per worktree issue 6315 Validate PR: [github/github-pr-body-files-collide-in-a-shared-scratch-directory](github/github-pr-body-files-collide-in-a-shared-scratch-directory.md) (335)
 |triage packet stale issue closed before dispatch re-check state: [pr-review/triage-packets-go-stale-within-hours](pr-review/triage-packets-go-stale-within-hours.md) (175)
 |coderabbit sticky changes-requested approve command: [coderabbit/coderabbit-sticky-changes-requested-clears-with-approve-command](coderabbit/coderabbit-sticky-changes-requested-clears-with-approve-command.md) (131)
 
@@ -88,6 +92,7 @@
 |always-on corpus membership applyTo mirror generated synthesized internal-only: [architecture/always-on-membership-lives-in-the-mirror](architecture/always-on-membership-lives-in-the-mirror.md) (456)
 |always-on rule edit invalidates corpus figures byte totals: [architecture/growing-an-always-on-rule-breaks-four-prose-documents](architecture/growing-an-always-on-rule-breaks-four-prose-documents.md) (1791)
 |github_core source scripts lib_mirror generated .claude/lib: [architecture/architecture-github-core-source-is-scripts-github-core](architecture/architecture-github-core-source-is-scripts-github-core.md) (164)
+|skill support files source .claude/skills src/claude pruned stale build_all mirror: [architecture/architecture-skill-support-files-are-sourced-in-claude-skills](architecture/architecture-skill-support-files-are-sourced-in-claude-skills.md) (349)
 
 [Implementation and Quality]
 |implementation code feature bug fix test TDD additive: [skills-implementation-index](skills-implementation-index.md) (304)
@@ -127,8 +132,14 @@
 |taste count ratchet pre-push cost twelve minutes python-tests: [ci/run-count-ratchets-before-the-expensive-pre-push](ci/run-count-ratchets-before-the-expensive-pre-push.md) (875)
 |pre-push wall clock duration python-tests partitions mutation contention DORA: [ci/ci-pre-push-wall-clock-is-python-tests](ci/ci-pre-push-wall-clock-is-python-tests.md) (1854)
 |CLAUDE_PLUGIN_ROOT pycache bytecode generated staleness gate python-tests collect only full suite merge_group D9 review marker merge main: [ci/ci-local-push-and-test-environment-contracts](ci/ci-local-push-and-test-environment-contracts.md) (608)
+|pre-push pytest CLAUDE_PLUGIN_ROOT src/copilot-cli COPILOT_PLUGIN_ROOT env default test passes locally fails push git_hook_policy: [ci/ci-pre-push-pytest-sets-claude-plugin-root-to-copilot-tree](ci/ci-pre-push-pytest-sets-claude-plugin-root-to-copilot-tree.md) (327)
+|check-runs REST paginate total_count 100 per page required check missing gh api commits: [ci/ci-check-runs-rest-call-needs-paginate](ci/ci-check-runs-rest-call-needs-paginate.md) (222)
+|rule template golden fixture rule_templates_b2 lossless test_rule_templates_lossless pytest split-1 build_all does not write: [ci/ci-rule-template-edits-need-golden-fixture-updates](ci/ci-rule-template-edits-need-golden-fixture-updates.md) (315)
+|required checks nine ruleset main dispatch closure advisory verify_dispatch_closure behind main merge origin/main: [ci/ci-main-required-checks-are-nine-and-dispatch-closure-is-advisory](ci/ci-main-required-checks-are-nine-and-dispatch-closure-is-advisory.md) (378)
+|nl structural debt update-baseline refuses new section growth baseline json seed: [ci/ci-nl-structural-debt-update-baseline-refuses-a-new-section](ci/ci-nl-structural-debt-update-baseline-refuses-a-new-section.md) (294)
+|polling PR checks GraphQL secondary rate limit 3 minutes parallel agents outage: [ci/ci-polling-pr-checks-trips-the-graphql-secondary-limit](ci/ci-polling-pr-checks-trips-the-graphql-secondary-limit.md) (272)
+|tmp tmpfs inode cap ENOSPC parallel pre-push TMPDIR harness output issue 6292: [ci/ci-tmp-inode-cap-stops-every-tool-call-during-parallel-pushes](ci/ci-tmp-inode-cap-stops-every-tool-call-during-parallel-pushes.md) (317)
 |python 3.14 pathlib is_dir is_file OSError swallow stat _run_command FileNotFoundError dead code: [python/python-314-pathlib-swallows-oserror](python/python-314-pathlib-swallows-oserror.md) (159)
-|taste baseline slack MAX_BASELINE_SLACK drift enforced by pytest: [ci/ci-taste-baseline-slack-is-enforced-by-pytest-not-the-ratchet](ci/ci-taste-baseline-slack-is-enforced-by-pytest-not-the-ratchet.md) (1077)
 |ratchet declared twice lefthook checks_ratchet parity add/add conflict: [ci/ci-a-ratchet-is-declared-twice-so-drop-it-twice](ci/ci-a-ratchet-is-declared-twice-so-drop-it-twice.md) (704)
 |stale detached HEAD shared checkout verify wrong commit: [workspace/workspace-shared-checkout-is-a-stale-detached-head](workspace/workspace-shared-checkout-is-a-stale-detached-head.md) (1497)
 |tracking branch push retry fleet CPU load pre-pr-validation timeout SIGKILL: [ci/tracking-branch-push-retries-under-fleet-cpu-load](ci/tracking-branch-push-retries-under-fleet-cpu-load.md) (2383)
@@ -166,6 +177,7 @@
 |script absolute path wrong worktree repo_root __file__ validates: [git/git-a-script-run-by-absolute-path-validates-its-own-worktree](git/git-a-script-run-by-absolute-path-validates-its-own-worktree.md) (1736)
 |merge conflict resolve ours theirs convenience wrong side: [git/git-a-conflict-resolved-for-convenience-records-a-falsehood](git/git-a-conflict-resolved-for-convenience-records-a-falsehood.md) (1189)
 |git stash shared across worktrees pop takes another: [git/git-stash-is-shared-across-every-worktree](git/git-stash-is-shared-across-every-worktree.md) (965)
+|mutation-active marker killed pre-push hook recover mutation_workspace push blocked timeout log file: [git/git-killed-pre-push-hook-leaves-mutation-markers-that-block-pushes](git/git-killed-pre-push-hook-leaves-mutation-markers-that-block-pushes.md) (284)
 |git shallow graft depth fetch unshallow blocks push: [git/git-shallow-is-shared-across-every-worktree](git/git-shallow-is-shared-across-every-worktree.md) (1132)
 |subagent sandbox worktree checkout moves head wrong commit: [git/git-a-subagent-in-your-worktree-moves-your-head](git/git-a-subagent-in-your-worktree-moves-your-head.md) (1729)
 |agent steering system prompt renders from live checkout: [git/git-checkout-drift-feeds-stale-agent-steering](git/git-checkout-drift-feeds-stale-agent-steering.md) (947)

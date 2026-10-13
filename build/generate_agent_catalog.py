@@ -41,6 +41,10 @@ if TYPE_CHECKING:
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _REPO_ROOT = _SCRIPT_DIR.parent
 
+sys.path.insert(0, str(_SCRIPT_DIR / "scripts"))
+
+from atomic_write import publish_bytes_preserving_mode  # noqa: E402
+
 # Frontmatter delimiter regex. Mirrors build/generate_agents_common.py:
 #   _FRONTMATTER_RE = re.compile(r"^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$")
 # Same contract: capture the YAML block between the leading and the second
@@ -219,7 +223,7 @@ def generate(templates_dir: Path, output_path: Path) -> str:
     """Generate the catalog content from templates and write it to disk."""
     content = render_catalog(collect_entries(templates_dir))
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(content, encoding="utf-8")
+    publish_bytes_preserving_mode(output_path, content.encode("utf-8"))
     return content
 
 

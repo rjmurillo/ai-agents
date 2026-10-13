@@ -71,6 +71,31 @@
       ],
       "expected_gate": "test-gates",
       "rationale": "A skill file and hooks.json are harness interfaces, so the trigger decides activate and Gate 5 composes dx-review in change-scope mode instead of running its own DX checklist. Naming the trigger and the dx-review composition is attributable to the skill rather than to generic DX advice."
+    },
+    {
+      "id": "S7",
+      "desc": "A code-only diff that changes a documented count activates doc-accuracy through an effect",
+      "input": "My diff only changes src/filters.py: the registry now holds 4 filters, and docs/guide.md still says 'the three filters'. Prove this works before I open the PR. Answer in 6 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "Gate 5",
+        "doc_accuracy_trigger",
+        "quantitative-claim",
+        "doc-accuracy"
+      ],
+      "expected_gate": "test-gates",
+      "rationale": "No Markdown file changed, so an extension test skips the check and the stale count escapes. Gate 5 passes the verified quantitative-claim effect to doc_accuracy_trigger.py, which activates doc-accuracy and requires the behavioral phase. Naming the trigger and the effect is attributable to the skill rather than to a generic reminder to update the docs."
+    },
+    {
+      "id": "S8",
+      "desc": "A tests and retrospective diff skips doc-accuracy with a stated reason",
+      "input": "My branch only changes tests/test_uploader.py and a dated note under .agents/retrospective/. Run the test gates. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "doc_accuracy_trigger",
+        "DOC ACCURACY: SKIPPED",
+        "reason"
+      ],
+      "expected_gate": "test-gates",
+      "rationale": "A test file and a dated retrospective cannot invalidate a durable claim, so the trigger decides skip and Gate 5 records DOC ACCURACY: SKIPPED with the reason naming each path. A generic responder either audits the documentation anyway or skips silently; quoting the trigger's skip reason is attributable to the skill."
     }
   ]
 }

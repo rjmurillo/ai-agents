@@ -152,7 +152,9 @@ def test_shipped_config_offenses_are_all_allowed() -> None:
     # Self-apply: the real config has offenses, and the allowance names each.
     used: set[tuple[str, str, str, str]] = set()
     assert checker.scan(REPO_ROOT, used) == []
-    assert any(rule == "form" and "run_completion_gate" in tail for _, _, rule, tail in used)
+    # The verifier lives in the pr-review SKILL.md, not the config (issue #5520),
+    # so no config command may invoke run_completion_gate.py.
+    assert not any("run_completion_gate" in tail for _, _, _, tail in used)
     assert {path for path, _, _, _ in used} == {"skills/pr-review/pr-review-config.yaml"}
 
 

@@ -21,7 +21,6 @@ from __future__ import annotations
 import hashlib
 import json
 import re as _re
-import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -32,6 +31,7 @@ import sys  # noqa: E402
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
+from atomic_write import publish_bytes_preserving_mode  # noqa: E402
 from generate_hooks_body import inject_shim  # noqa: E402
 from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
 from yaml_loader import (  # noqa: E402
@@ -429,11 +429,11 @@ def _copy_script(
         return True, ""
     _ensure_exact_case_dir(target.parent)
     if not matcher:
-        shutil.copyfile(source, target)
+        publish_bytes_preserving_mode(target, source.read_bytes())
         return True, ""
     body = source.read_text(encoding="utf-8")
     transformed = inject_shim(body, matcher)
-    target.write_text(transformed, encoding="utf-8")
+    publish_bytes_preserving_mode(target, transformed.encode("utf-8"))
     return True, ""
 
 

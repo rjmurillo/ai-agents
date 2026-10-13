@@ -41,6 +41,7 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
+from atomic_write import publish_bytes_atomically  # noqa: E402
 from generate_hooks_emit import (  # noqa: E402
     _DEFAULT_TIMEOUT_SEC,
     GenerateHooksError,
@@ -973,7 +974,11 @@ def _stage_dispatcher_artifacts(
             continue
         target = output_scripts / generated.relative_to(stage_root)
         staged = transaction.new_stage_path(target.parent)
-        shutil.copy2(generated, staged)
+        publish_bytes_atomically(
+            staged,
+            generated.read_bytes(),
+            mode=stat.S_IMODE(generated.stat().st_mode),
+        )
         publish_pairs.append((staged, target))
     transaction.delete_many(stale_targets)
     transaction.publish_many(publish_pairs)
@@ -1325,11 +1330,11 @@ def generate_hooks(
             output_config.parent.mkdir(parents=True, exist_ok=True)
             staged_config = transaction.new_stage_path(output_config.parent)
             try:
-                staged_config.write_text(
-                    json.dumps(wrapped, indent=2, sort_keys=True) + "\n",
-                    encoding="utf-8",
+                publish_bytes_atomically(
+                    staged_config,
+                    (json.dumps(wrapped, indent=2, sort_keys=True) + "\n").encode("utf-8"),
+                    mode=0o644,
                 )
-                staged_config.chmod(0o644)
                 transaction.publish_many([(staged_config, output_config)])
             except OSError as exc:
                 print(

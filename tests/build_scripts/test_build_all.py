@@ -567,7 +567,9 @@ def test_build_lib_check_mode_writes_nothing(tmp_path: Path) -> None:
 
     result = build_all._build_lib(tmp_path, cfg, "copilot-cli", check=True)
 
-    assert result.exit_code == 0, result.notices
+    # Every destination is missing, so check mode fails on the drift (issue
+    # #6098) and still writes nothing.
+    assert result.exit_code == 2, result.notices
     assert not (tmp_path / "src" / "claude" / "lib").exists()
     assert not (tmp_path / "src" / "copilot-cli" / "lib").exists()
 
@@ -584,10 +586,45 @@ def test_build_lib_check_mode_reports_drift_without_writing(tmp_path: Path) -> N
 
     result = build_all._build_lib(tmp_path, cfg, "copilot-cli", check=True)
 
-    assert result.exit_code == 0, result.notices
-    # Unchanged: check mode reports drift as a change, not an error, and
-    # writes nothing.
+    assert result.exit_code == 2, result.notices
+    # Issue #6098: drift fails check mode. It still writes nothing.
     assert (stale_dir / "__init__.py").read_text(encoding="utf-8") == "# stale\n"
+
+
+def test_build_lib_check_mode_is_clean_after_a_write_run(tmp_path: Path) -> None:
+    """A tree the write run just rendered has no drift, so check mode exits 0."""
+    _write_minimal_lib_sources(tmp_path)
+    cfg = tmp_path / "p.yaml"
+    cfg.write_text('schemaVersion: "1.0"\nprovider: "copilot-cli"\n')
+    assert build_all._build_lib(tmp_path, cfg, "copilot-cli").exit_code == 0
+
+    result = build_all._build_lib(tmp_path, cfg, "copilot-cli", check=True)
+
+    assert result.exit_code == 0, result.notices
+
+
+@pytest.mark.parametrize(
+    "drifted",
+    [
+        lib_mirror.SKILLS_SIDECAR_PLUGIN_TREE,
+        lib_mirror.SKILLS_SIDECAR_COPILOT_TREE,
+    ],
+)
+def test_build_lib_check_mode_fails_on_a_drifted_review_sidecar(
+    tmp_path: Path, drifted: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Issue #6098: a stale copy of the review marker validator fails check."""
+    _write_minimal_lib_sources(tmp_path)
+    cfg = tmp_path / "p.yaml"
+    cfg.write_text('schemaVersion: "1.0"\nprovider: "copilot-cli"\n')
+    assert build_all._build_lib(tmp_path, cfg, "copilot-cli").exit_code == 0
+    (tmp_path / drifted).write_text("# stale\n", encoding="utf-8")
+
+    result = build_all._build_lib(tmp_path, cfg, "copilot-cli", check=True)
+
+    assert result.exit_code == 2
+    assert drifted in capsys.readouterr().err
+    assert (tmp_path / drifted).read_text(encoding="utf-8") == "# stale\n"
 
 
 def test_build_lib_copies_packages_with_import_rewrite(tmp_path: Path) -> None:
@@ -931,7 +968,7 @@ def test_audit_blocklist_in_real_config_blocks_absolute_path(
         ),
     )
     rc = build_all.run(repo, platform=None, check=False, clean=False, audit_format="md")
-    # Notice line is "- leaked /home/runner/..." — leading "- " then path.
+    # Notice line is "- leaked /home/runner/...", leading "- " then path.
     # Pattern ^/home/ won't match because it's not at start of line.
     # Use a permissive blocklist instead to demonstrate the gate end-to-end.
     assert rc in (0, 2, 3)
@@ -1357,7 +1394,7 @@ def test_build_adr_index_fails_loud_when_the_adr_directory_is_missing(tmp_path: 
     assert result.outputs == 0
 
 
-# Regression: #2222 — untracked-file drift (PR #2285 review iteration 2) -----
+# Regression: #2222, untracked-file drift (PR #2285 review iteration 2) -----
 #
 # The CI gate added in PR #2285 wires `build_all.py --check` into
 # agent-drift-detection.yml. For that wiring to actually close #2222, the
@@ -1536,7 +1573,7 @@ def test_run_check_clean_when_untracked_outside_owned_prefix(
     assert rc == 0, f"expected exit 0 from non-owned untracked drift, got {rc}"
 
 
-# Regression: #2440 — --check must be read-only ----------------------------
+# Regression: #2440, --check must be read-only ----------------------------
 #
 # Prior to the fix, `build_all.py --check` ran generators FIRST (which write
 # under owned prefixes like src/copilot-cli/ and .github/instructions/), then
@@ -1610,7 +1647,7 @@ def test_run_check_leaves_clean_tree_unchanged_when_committed_outputs_stale(
         f"expected exit 2 (staleness detected), got {rc}. "
         "If this regresses, --check no longer detects committed-but-stale outputs."
     )
-    # AND the working tree MUST be unchanged — this is the #2440 contract.
+    # AND the working tree MUST be unchanged: this is the #2440 contract.
     porcelain = _git_porcelain(repo)
     assert porcelain == "", (
         f"--check left working tree dirty (#2440 regression). "

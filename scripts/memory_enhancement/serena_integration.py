@@ -15,6 +15,7 @@ from pathlib import Path
 import frontmatter
 import yaml
 
+from .code_masking import mask_code, original_context, sub_outside_code
 from .models import (
     Citation,
     LinkType,
@@ -53,6 +54,9 @@ _TITLE_DATE_PATTERN = re.compile(
 def parse_citation_block(text: str) -> list[Citation]:
     """Extract citations from markdown text using [cite:type](target) syntax.
 
+    Fenced code blocks and inline code spans are skipped, so a memory can show
+    the syntax as an example without asserting it.
+
     Args:
         text: Raw markdown content to parse.
 
@@ -60,7 +64,7 @@ def parse_citation_block(text: str) -> list[Citation]:
         List of Citation objects found in the text.
     """
     citations: list[Citation] = []
-    for match in _CITATION_PATTERN.finditer(text):
+    for match in _CITATION_PATTERN.finditer(mask_code(text)):
         raw_type = match.group("source_type")
         source_type = _parse_source_type(raw_type)
         if source_type is None:
@@ -69,7 +73,7 @@ def parse_citation_block(text: str) -> list[Citation]:
                 file=sys.stderr,
             )
             continue
-        context = match.group("context") or ""
+        context = original_context(text, match)
         citations.append(
             Citation(
                 source_type=source_type,
@@ -83,6 +87,8 @@ def parse_citation_block(text: str) -> list[Citation]:
 def parse_link_block(text: str) -> list[MemoryLink]:
     """Extract memory links from markdown text using [link:type](target) syntax.
 
+    Fenced code blocks and inline code spans are skipped, like citations.
+
     Args:
         text: Raw markdown content to parse.
 
@@ -90,7 +96,7 @@ def parse_link_block(text: str) -> list[MemoryLink]:
         List of MemoryLink objects found in the text.
     """
     links: list[MemoryLink] = []
-    for match in _LINK_PATTERN.finditer(text):
+    for match in _LINK_PATTERN.finditer(mask_code(text)):
         raw_type = match.group("link_type")
         link_type = _parse_link_type(raw_type)
         if link_type is None:
@@ -99,7 +105,7 @@ def parse_link_block(text: str) -> list[MemoryLink]:
                 file=sys.stderr,
             )
             continue
-        context = match.group("context") or ""
+        context = original_context(text, match)
         links.append(
             MemoryLink(
                 link_type=link_type,
@@ -302,8 +308,8 @@ def _strip_citation_link_blocks(content: str) -> str:
         result_lines.append(line)
 
     stripped = "\n".join(result_lines).rstrip()
-    stripped = _INLINE_CITATION_PATTERN.sub("", stripped)
-    stripped = _INLINE_LINK_PATTERN.sub("", stripped)
+    stripped = sub_outside_code(_INLINE_CITATION_PATTERN, stripped)
+    stripped = sub_outside_code(_INLINE_LINK_PATTERN, stripped)
     stripped = re.sub(r"^\s*-\s*$", "", stripped, flags=re.MULTILINE)
     stripped = re.sub(r"\n{3,}", "\n\n", stripped)
     return stripped.strip()

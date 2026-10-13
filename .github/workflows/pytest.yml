@@ -266,6 +266,14 @@ jobs:
     # not decide whether they run. A diff that matches no policy path still
     # runs every partition in full (run_pytest_partition.py has no subset mode).
     runs-on: ubuntu-latest
+    # Sized from measurement (issue #6141). Across the 40 latest completed runs
+    # (success or failure) as of 2026-10-12, after the split legs landed
+    # (PR #6241), job wall time (started_at to completed_at, setup included)
+    # in minutes was:
+    # split-1 p95 6.8 max 7.1, split-2 p95 6.5 max 6.7, split-3 p95 6.4 max 6.4,
+    # split-4 p95 6.2 max 6.2, safe-push max 1.7, pr-autofix max 1.4. The
+    # slowest leg's p95 sits at 68% of this cap, which leaves 3.2 minutes over
+    # its p95 and 2.9 over its max. Re-measure before changing the cap.
     timeout-minutes: 10
     # `checks: write` was here from the ADR-042 migration (953b4534d, PR #967)
     # and was never used: no step in this job publishes a check run, and
@@ -910,19 +918,17 @@ jobs:
           # only place that decides which pip runs, so keep every mention of
           # it in this block moving with it.
 
-          # Ignored CVEs (re-evaluate when upstream releases a fix):
-          #   CVE-2026-4539: pygments 2.19.2, no fix available. This project
-          #     pins 2.19.2, so a clean virtualenv (which resolves 2.21.0)
-          #     says nothing about it; retiring this belongs to issue #1778,
-          #     measured against the real tree.
+          # No CVEs are ignored. CVE-2026-4539 (pygments) was ignored while
+          # the project pinned 2.19.2. uv.lock now pins 2.21.0, past the
+          # 2.20.0 fix, so an ignore would only hide a regression. Issue
+          # #1778 owns retiring the ignore mechanism.
           #
           # The two historical pip findings, CVE-2026-3219 and CVE-2026-6357,
           # were ignored only while the runner still carried pre-26.1 pip
-          # metadata. Run 32500970183 upgraded to 26.2 and pip-audit reported
-          # a single ignored vulnerability, so those two ignores now suppress
-          # nothing and would hide the findings if they ever recurred.
+          # metadata. Run 32500970183 upgraded to 26.2 and those ignores
+          # suppressed nothing, so they were dropped.
           python -m pip install --upgrade "pip==26.2"
-          pip-audit --ignore-vuln CVE-2026-4539
+          pip-audit
 
       # Issue #2808: `|| true` masked both bandit crashes and genuine findings,
       # turning this step green regardless. Gate on high severity AND high

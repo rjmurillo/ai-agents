@@ -96,6 +96,7 @@ sys.path.insert(0, str(_SCRIPT_DIR))
 
 import agent_templates  # noqa: E402
 import binplace_manifest  # noqa: E402
+import check_surface_parity  # noqa: E402
 import generate_adr_index  # noqa: E402
 import generate_hooks  # noqa: E402
 import generate_rules  # noqa: E402
@@ -110,6 +111,9 @@ import skill_templates  # noqa: E402
 from atomic_write import MOUNT_POINT_REPARSE_TAG as _MOUNT_POINT_REPARSE_TAG  # noqa: E402, F401
 from atomic_write import is_redirecting as _is_redirecting  # noqa: E402
 from atomic_write import publish_bytes_atomically as _publish_bytes_atomically  # noqa: E402
+from atomic_write import (  # noqa: E402
+    publish_bytes_preserving_mode as _publish_bytes_preserving_mode,
+)
 from atomic_write import read_bytes_no_redirect as _read_bytes_no_redirect  # noqa: E402
 from atomic_write import write_bytes_no_redirect as _write_bytes_no_redirect  # noqa: E402, F401
 from yaml_loader import ConfigError, load_platform_config  # noqa: E402
@@ -428,7 +432,8 @@ def _build_lib(
     :func:`lib_mirror.compile_all` renders `scripts/{hook_utilities,
     github_core,ai_review_common}/`, `bootstrap.py`, and the review skill's
     sidecar script directly into `src/claude/lib/` and `src/copilot-cli/lib/`
-    (plus `src/claude/skills/review/scripts/`); the manifest-driven binplace
+    (plus `src/claude/skills/review/scripts/` and
+    `src/copilot-cli/skills/review/scripts/`); the manifest-driven binplace
     step that runs after every generator then copies the claude-side plugin
     trees onto their `.claude/` install-tree counterparts
     (`templates/platforms/binplace.yaml`'s `lib-*` and `skills-sidecar`
@@ -463,6 +468,12 @@ def _build_lib(
         c for c in outcome.changes if c.strip().startswith(("[WARNING]", "[ERROR]"))
     )
     if outcome.errors:
+        result.exit_code = 2
+    if check and outcome.had_drift:
+        # ``--check`` is read-only here, so drift never shows up in the
+        # git-diff staleness gate below (issue #6098). Fail on it directly.
+        for line in outcome.drift:
+            print(f"STALENESS DETECTED: lib mirror differs from scripts/: {line}", file=sys.stderr)
         result.exit_code = 2
     return result
 
@@ -758,7 +769,7 @@ def write_audit(
         for v in violations:
             print(f"AUDIT-BLOCKLIST: {v}", file=sys.stderr)
         return violations
-    audit_path.write_text(text, encoding="utf-8")
+    _publish_bytes_preserving_mode(audit_path, text.encode("utf-8"))
     return []
 
 
@@ -1044,7 +1055,7 @@ def clean_outputs(repo_root: Path, config_path: Path) -> int:
     if not isinstance(artifacts, dict):
         return 0
     # Only clean output dirs whose contents are exclusively generator
-    # output. Skills outputs to src/<provider>/skills/ — safe to nuke.
+    # output. Skills outputs to src/<provider>/skills/, safe to nuke.
     # Agents legacy outputDir is src/copilot-cli (not a subdir), so
     # cleaning would destroy unrelated content. Hooks and rules share dirs
     # with hand-authored files. Restrict to skills for now.
@@ -2172,6 +2183,40 @@ def _run_binplace(repo_root: Path, *, check: bool) -> GeneratorResult:
     return result
 
 
+def _surface_parity_exit(repo_root: Path, stale_paths: list[str]) -> int:
+    """Run the surface parity gate and print its findings (issue #5637).
+
+    ``templates/platforms/surface-parity.yaml`` says which source each shipped
+    copy answers to. ``--check`` runs the same checks as
+    ``check_surface_parity.py``, so CI and a local run share one result, and
+    labels each stale path the generators left with the surface that owns it.
+    A tree with no manifest has no parity claims; the standalone CLI and
+    ``tests/build_scripts/test_surface_parity_repo.py`` fail on a missing
+    manifest in this repository. Returns 0 (holds) or 2 (finding or bad config).
+    """
+    try:
+        manifest = check_surface_parity.load_manifest(repo_root)
+        if manifest is None:
+            return 0
+        findings = [
+            *check_surface_parity.classify_changes(manifest, stale_paths),
+            *check_surface_parity.run_checks(repo_root, manifest, owned_prefixes=OWNED_PREFIXES),
+        ]
+    except (
+        check_surface_parity.SurfaceManifestError,
+        binplace_manifest.BinplaceConfigError,
+        ConfigError,
+    ) as exc:
+        print(f"Error: surface parity manifest: {exc}", file=sys.stderr)
+        return 2
+    if not findings:
+        return 0
+    print("SURFACE PARITY VIOLATION:", file=sys.stderr)
+    for line in check_surface_parity.format_report(findings):
+        print(f"  {line}", file=sys.stderr)
+    return 2
+
+
 def _run_generators(
     repo_root: Path,
     configs: list[Path],
@@ -2293,6 +2338,7 @@ def _run_generators(
             for p in diff:
                 print(f"  {p}", file=sys.stderr)
             audit.overall_exit = 2
+        audit.overall_exit = max(audit.overall_exit, _surface_parity_exit(repo_root, diff))
 
     if audit_format == "json":
         sys.stdout.write(_format_audit_json(audit))

@@ -138,8 +138,8 @@ def test_main_fails_with_diagnosis_when_binary_cannot_start(
 
 
 def test_diagnosis_has_no_dashes() -> None:
-    assert "–" not in runner.DIAGNOSIS
-    assert "—" not in runner.DIAGNOSIS
+    assert "\u2013" not in runner.DIAGNOSIS
+    assert "\u2014" not in runner.DIAGNOSIS
 
 
 def test_configured_runner_points_at_this_script() -> None:

@@ -753,7 +753,7 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
     for sibling in cpu_bound_siblings:
         assert sibling in pre_push_jobs
     assert pre_push_jobs["python-tests"]["env"] == {
-        "AI_AGENTS_PYTEST_WORKER_CAP": "4",
+        "AI_AGENTS_PYTEST_WORKER_CAP": "scaled",
         "AI_AGENTS_PYTEST_CPU_RESERVE": str(len(cpu_bound_siblings)),
     }
     assert pre_push_jobs["push-ref-policy"]["use_stdin"] is True

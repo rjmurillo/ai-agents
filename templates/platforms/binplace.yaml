@@ -114,8 +114,9 @@ rows:
   # File-shaped rows (single registered file, not a package directory):
   # sync_plugin_lib.py's two SYNC_FILE_PAIRS entries. bootstrap.py gets a
   # Copilot-side counterpart, same as the three packages above; the review
-  # skill's sidecar script never had one (sync_plugin_lib.py registered only
-  # one destination for it) so it stays claude-only.
+  # skill's sidecar script gets the same Copilot-side counterpart
+  # (skills-sidecar-copilot, issue #6098): scripts/validation/ is its only
+  # canonical copy and the skill-support mirrors skip it.
   - class: lib-bootstrap
     source: scripts/hook_utilities/bootstrap.py
     plugin_tree: src/claude/lib/bootstrap.py
@@ -130,4 +131,9 @@ rows:
     source: scripts/validation/validate_review_marker.py
     plugin_tree: src/claude/skills/review/scripts/validate_review_marker.py
     install_tree: .claude/skills/review/scripts/validate_review_marker.py
+    compile: lib_mirror
+  - class: skills-sidecar-copilot
+    source: scripts/validation/validate_review_marker.py
+    plugin_tree: src/copilot-cli/skills/review/scripts/validate_review_marker.py
+    install_tree: null
     compile: lib_mirror

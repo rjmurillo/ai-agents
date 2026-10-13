@@ -104,9 +104,9 @@ class TestBuildParser:
             build_parser().parse_args([])
 
     def test_strategy_default_is_none(self):
-        """Default strategy is now None — main() resolves it against repo policy.
+        """Default strategy is now None: main() resolves it against repo policy.
 
-        Regression: #2449 — hard-coded default of 'merge' violated repo
+        Regression: #2449: hard-coded default of 'merge' violated repo
         policies that only allow squash.
         """
         args = build_parser().parse_args(["--pull-request", "50"])
@@ -231,7 +231,7 @@ class TestMain:
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "50"])
-            assert exc.value.code == 6
+            assert exc.value.code == 100
 
     def test_merge_success(self, capsys):
         state_json = json.dumps(
@@ -270,7 +270,7 @@ class TestMain:
                 side_effect=_side_effect,
             ),
         ):
-            # Explicit --strategy merge — default would resolve to squash now.
+            # Explicit --strategy merge, default would resolve to squash now.
             rc = main(["--pull-request", "50", "--strategy", "merge"])
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
@@ -429,7 +429,7 @@ class TestMain:
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "50"])
-            assert exc.value.code == 6
+            assert exc.value.code == 100
 
     def test_blocked_policy_without_auto_exits_6(self):
         state_json = json.dumps(
@@ -469,7 +469,7 @@ class TestMain:
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "50"])
-            assert exc.value.code == 6
+            assert exc.value.code == 100
 
     def test_blocked_policy_with_auto_succeeds(self, capsys):
         state_json = json.dumps(
@@ -765,7 +765,7 @@ class TestValidateStrategy:
         assert exc.value.code == 1
 
     def test_disallowed_strategy_emits_json_envelope(self, capsys):
-        """Regression: #2449 — must emit JSON envelope on stdout, not plain text on stderr.
+        """Regression: #2449: must emit JSON envelope on stdout, not plain text on stderr.
 
         Before the fix, validate_strategy called error_and_exit which
         printed to stderr and produced no JSON on stdout, breaking
@@ -1142,10 +1142,10 @@ class TestErrorEnvelope:
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "50", "--output-format", "json"])
-            assert exc.value.code == 6
+            assert exc.value.code == 100
         envelope = json.loads(capsys.readouterr().out)
         assert envelope["Success"] is False
-        assert envelope["Error"]["Code"] == 6
+        assert envelope["Error"]["Code"] == 100
         assert envelope["Error"]["Type"] == "General"
 
     def test_not_mergeable_uses_envelope(self, capsys):
@@ -1186,10 +1186,10 @@ class TestErrorEnvelope:
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "50", "--output-format", "json"])
-            assert exc.value.code == 6
+            assert exc.value.code == 100
         envelope = json.loads(capsys.readouterr().out)
         assert envelope["Success"] is False
-        assert envelope["Error"]["Code"] == 6
+        assert envelope["Error"]["Code"] == 100
 
 
 # ---------------------------------------------------------------------------
@@ -1276,7 +1276,7 @@ class TestMainAdditional:
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "50"])
-            assert exc.value.code == 6
+            assert exc.value.code == 100
 
     def test_delete_branch_flag(self, capsys):
         state_json = json.dumps(
@@ -1483,7 +1483,7 @@ class TestRestRetryOnBlocked:
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "50"])
-        assert exc.value.code == 6
+        assert exc.value.code == 100
         # State fetch, gh pr merge, REST, recovery readback (still OPEN).
         assert len(calls) == 4
 
@@ -1526,7 +1526,7 @@ class TestRestRetryOnBlocked:
         ):
             with pytest.raises(SystemExit) as exc:
                 main(["--pull-request", "50"])
-        assert exc.value.code == 6
+        assert exc.value.code == 100
         # State fetch, gh pr merge, then the readback; never a REST retry.
         assert not any(c[:2] == ["gh", "api"] for c in calls)
         assert len(calls) == 3
@@ -1556,7 +1556,64 @@ class TestRestRetryOnBlocked:
 
 
 # ---------------------------------------------------------------------------
-# Tests: REST retry on stacked PRs (issue #5473)
+# Tests: BLOCKED REST retry without merged=true in the body (issue #5473)
+# ---------------------------------------------------------------------------
+
+
+class TestBlockedRestMergedStateFallback:
+    """A REST success without merged=true is settled by the PR's own state."""
+
+    _STATE = TestRestRetryOnBlocked._STATE
+
+    def _run(self, rest_stdout: str, view_state: str, view_rc: int = 0, readback=_OPEN_READBACK):
+        calls = []
+
+        def _side(cmd, **kwargs):
+            calls.append(cmd)
+            if len(calls) == 1:
+                return _completed(stdout=self._STATE)
+            if len(calls) == 2:
+                return _completed(rc=1, stderr="Pull request is BLOCKED")
+            if len(calls) == 3:
+                return _completed(stdout=rest_stdout)
+            if _is_readback(cmd):
+                return _completed(stdout=readback)
+            return _completed(rc=view_rc, stdout=view_state)
+
+        with (
+            patch("merge_pr.assert_gh_authenticated"),
+            patch("merge_pr.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
+            patch("merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED),
+            patch("subprocess.run", side_effect=_side),
+        ):
+            return main(["--pull-request", "50", "--strategy", "squash"])
+
+    def test_missing_merged_flag_with_merged_state_succeeds(self):
+        assert self._run("{}", json.dumps({"state": "MERGED"}), readback=_MERGED_READBACK) == 0
+
+    def test_unparseable_rest_body_with_merged_state_succeeds(self):
+        rc = self._run("Accepted", json.dumps({"state": "MERGED"}), readback=_MERGED_READBACK)
+        assert rc == 0
+
+    def test_missing_merged_flag_with_open_state_exits_6(self):
+        with pytest.raises(SystemExit) as exc:
+            self._run("{}", json.dumps({"state": "OPEN"}))
+        assert exc.value.code == 100
+
+    @pytest.mark.parametrize("view_state", ["not json", "[]"])
+    def test_unreadable_state_is_not_a_merge(self, view_state):
+        with pytest.raises(SystemExit) as exc:
+            self._run("{}", view_state)
+        assert exc.value.code == 100
+
+    def test_failed_state_query_is_not_a_merge(self):
+        with pytest.raises(SystemExit) as exc:
+            self._run("{}", "", view_rc=1)
+        assert exc.value.code == 100
+
+
+# ---------------------------------------------------------------------------
+# Tests: asynchronous merge for stacked PRs (issue #5473)
 # ---------------------------------------------------------------------------
 
 
@@ -1567,160 +1624,640 @@ _STACK_ERROR = (
     "(mergePullRequest)\n"
 )
 
+_UUID = "851cb7ea-4b8b-4a18-a588-bcc4654176f7"
 
-class TestRestRetryOnStack:
-    """A stack refusal routes to the REST merge path (issue #5473).
 
-    GraphQL refuses a stacked PR outright and GitHub also refuses to retarget
-    the child, so REST is the only merge path. The refusal text contains none
-    of the BLOCKED keywords, so before this change the retry never ran.
+def _async_body(status: str, uuid: str | None = _UUID, message: str = "") -> str:
+    details: dict[str, str] = {"message": message or f"status {status}"}
+    if uuid:
+        details["uuid"] = uuid
+    return json.dumps({"status": status, "details": details})
+
+
+def _sha(number: int, salt: int = 0) -> str:
+    """A distinct valid 40-hex head SHA per member; salt makes a moved head."""
+    return f"{number + salt * 1000:040x}"
+
+
+def _member(number: int, state: str = "open", salt: int = 0) -> dict:
+    return {
+        "number": number,
+        "state": state,
+        "draft": False,
+        "head": {"ref": f"branch-{number}", "sha": _sha(number, salt)},
+    }
+
+
+class _StackGh:
+    """Route subprocess.run for the stacked-PR merge path and record every argv.
+
+    members: the stack listing, bottom first. The requested PR is 50.
+    listings: successive stack listings (each a members list); the last repeats.
+        Overrides members. Read 1 is the gate snapshot, read 2 the pre-PUT
+        re-check, read 3 the post-merge check.
+    put: the merge-async PUT result (CompletedProcess or exception).
+    polls: successive merge-async status GET results; the last repeats.
+    readiness: per-member CompletedProcess or exception from the completion gate.
+    api_get: per-endpoint-suffix override for the lookups (CompletedProcess).
     """
 
-    _STATE = json.dumps(
-        {
-            "state": "OPEN",
-            "mergeable": "MERGEABLE",
-            "mergeStateStatus": "CLEAN",
-            "headRefName": "feature",
-            "headRefOid": _FIXTURE_HEAD,
-        }
-    )
-
-    def _make_side_effect(
+    def __init__(
         self,
-        rest_rc,
-        rest_stdout="",
-        view_state=None,
-        view_rc=0,
-        readback=_MERGED_READBACK,
+        *,
+        members=None,
+        listings=None,
+        pr_body=None,
+        put=None,
+        polls=None,
+        readiness=None,
+        readback=None,
+        api_get=None,
     ):
-        """Sequence the state fetch, the GraphQL refusal, REST, and the state re-read."""
-        calls = []
+        default = members if members is not None else [_member(40, "closed"), _member(50)]
+        self.listings = list(listings) if listings is not None else [default]
+        self.pr_body = (
+            pr_body if pr_body is not None else {"stack": {"number": 9, "position": 2, "size": 2}}
+        )
+        self.put = put if put is not None else _completed(stdout=_async_body("pending"))
+        self.polls = list(
+            polls if polls is not None else [_completed(stdout=_async_body("merged"))]
+        )
+        self.readiness = readiness or {}
+        self.readback = readback
+        self.api_get = api_get or {}
+        self.calls: list[list[str]] = []
 
-        def _side(cmd, **kwargs):
-            calls.append(cmd)
-            if len(calls) == 1:
-                return _completed(stdout=self._STATE, rc=0)
-            if len(calls) == 2:
-                return _completed(rc=1, stderr=_STACK_ERROR)
-            if len(calls) == 3:
-                return _completed(rc=rest_rc, stdout=rest_stdout)
-            if _is_readback(cmd):
-                return _completed(stdout=readback, rc=0)
-            # gh pr view --json state, the merged-state confirmation
-            return _completed(rc=view_rc, stdout=view_state or "")
+    def __call__(self, cmd, **kwargs):
+        cmd = [str(part) for part in cmd]
+        self.calls.append(cmd)
+        if cmd[0] == sys.executable:
+            return self._readiness(cmd)
+        if cmd[:2] == ["gh", "api"]:
+            return self._api(cmd)
+        if _is_readback(cmd):
+            return _completed(stdout=self._readback_body())
+        if cmd[:3] == ["gh", "pr", "view"]:
+            return _completed(stdout=_pr_state())
+        if cmd[:3] == ["gh", "pr", "merge"]:
+            return _completed(rc=1, stderr=_STACK_ERROR)
+        raise AssertionError(f"unexpected command: {cmd!r}")
 
-        return _side, calls
+    def _readback_body(self) -> str:
+        """Explicit readback, else MERGED only once a merge-async PUT was sent."""
+        if self.readback is not None:
+            return self.readback
+        return _MERGED_READBACK if self.puts() else _OPEN_READBACK
 
-    def _run(self, side, argv):
+    def _readiness(self, cmd):
+        member = int(cmd[cmd.index("--pull-request") + 1])
+        outcome = self.readiness.get(member, _completed(rc=0))
+        if isinstance(outcome, BaseException):
+            raise outcome
+        return outcome
+
+    def _api(self, cmd):
+        path = next(part for part in cmd if part.startswith("repos/"))
+        for suffix, outcome in self.api_get.items():
+            if path.endswith(suffix):
+                if isinstance(outcome, BaseException):
+                    raise outcome
+                return outcome
+        if "-X" in cmd:
+            assert path.endswith("/merge-async"), f"sync merge endpoint used: {path}"
+            if isinstance(self.put, BaseException):
+                raise self.put
+            return self.put
+        if "/merge-async/" in path:
+            outcome = self.polls.pop(0) if len(self.polls) > 1 else self.polls[0]
+            if isinstance(outcome, BaseException):
+                raise outcome
+            return outcome
+        if "/stacks/" in path:
+            listing = self.listings.pop(0) if len(self.listings) > 1 else self.listings[0]
+            return _completed(stdout=json.dumps({"pull_requests": listing}))
+        return _completed(stdout=json.dumps(self.pr_body))
+
+    def puts(self) -> list[list[str]]:
+        return [c for c in self.calls if "-X" in c]
+
+    def readiness_checked(self) -> list[int]:
+        return [int(c[c.index("--pull-request") + 1]) for c in self.calls if c[0] == sys.executable]
+
+    def polled(self) -> list[list[str]]:
+        return [c for c in self.calls if any("/merge-async/" in part for part in c)]
+
+
+def _run_stack(fake: _StackGh, capsys, argv=None):
+    """Run main() against fake with sleeping disabled; return (exit_code, envelope)."""
+    code = 0
+    with (
+        patch("merge_pr.assert_gh_authenticated"),
+        patch("merge_pr.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
+        patch("merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED),
+        patch("subprocess.run", side_effect=fake),
+        patch.object(_mod.time, "sleep"),
+    ):
+        try:
+            code = main(["--pull-request", "50", "--strategy", "squash", *(argv or [])])
+        except SystemExit as exc:
+            code = int(exc.code or 0)
+    return code, json.loads(capsys.readouterr().out)
+
+
+class TestAsyncMergeForStack:
+    """A stack refusal goes to merge-async, never the synchronous endpoint (issue #5473)."""
+
+    def test_pending_then_merged_succeeds(self, capsys):
+        fake = _StackGh(
+            polls=[
+                _completed(stdout=_async_body("pending")),
+                _completed(stdout=_async_body("merged")),
+            ]
+        )
+        code, env = _run_stack(fake, capsys)
+        assert code == 0
+        assert env["Data"]["state"] == "MERGED"
+        assert len(fake.polled()) == 2
+
+    def test_put_carries_version_header_pin_method_and_action(self, capsys):
+        fake = _StackGh()
+        _run_stack(fake, capsys)
+        (put,) = fake.puts()
+        assert put[put.index("-H") + 1] == "X-GitHub-Api-Version: 2026-03-10"
+        assert "repos/o/r/pulls/50/merge-async" in put
+        assert f"sha={_FIXTURE_HEAD}" in put
+        assert "merge_method=squash" in put
+        assert "merge_action=direct_merge" in put
+        assert not any(part.startswith("commit_") for part in put)
+
+    def test_put_uses_expected_head_sha_pin(self, capsys):
+        fake = _StackGh()
+        _run_stack(fake, capsys, ["--expected-head-sha", _FIXTURE_HEAD])
+        (put,) = fake.puts()
+        assert f"sha={_FIXTURE_HEAD}" in put
+
+    def test_subject_and_body_become_commit_fields(self, capsys):
+        fake = _StackGh()
+        _run_stack(fake, capsys, ["--subject", "feat: x", "--body", "details"])
+        (put,) = fake.puts()
+        assert "commit_title=feat: x" in put
+        assert "commit_message=details" in put
+
+    def test_never_calls_the_synchronous_endpoint(self, capsys):
+        fake = _StackGh()
+        _run_stack(fake, capsys)
+        sync = [c for c in fake.puts() if any(p.endswith("/pulls/50/merge") for p in c)]
+        assert sync == []
+
+    def test_immediate_merged_body_skips_polling(self, capsys):
+        fake = _StackGh(put=_completed(stdout=_async_body("merged")))
+        code, _ = _run_stack(fake, capsys)
+        assert code == 0
+        assert fake.polled() == []
+
+    def test_merged_downstack_member_needs_no_readiness_check(self, capsys):
+        fake = _StackGh()
+        _run_stack(fake, capsys)
+        # Only the target is gated; the merged member below it is not.
+        assert fake.readiness_checked() == [50]
+
+    def test_ready_open_downstack_member_is_checked_then_merge_proceeds(self, capsys):
+        fake = _StackGh(members=[_member(40), _member(50), _member(60)])
+        code, _ = _run_stack(fake, capsys)
+        assert code == 0
+        # The member below PR 50 and PR 50 itself are gated; PR 60 above it is not merged.
+        assert sorted(fake.readiness_checked()) == [40, 50]
+        assert len(fake.puts()) == 1
+
+    def test_readiness_check_targets_the_completion_gate_script(self, capsys):
+        fake = _StackGh(members=[_member(40), _member(50)])
+        _run_stack(fake, capsys)
+        gate = next(c for c in fake.calls if c[0] == sys.executable)
+        assert gate[1].endswith("test_pr_merge_ready.py")
+        assert gate[gate.index("--owner") + 1] == "o"
+        assert gate[gate.index("--repo") + 1] == "r"
+
+    def test_unready_downstack_member_aborts_before_the_put(self, capsys):
+        fake = _StackGh(
+            members=[_member(40), _member(41), _member(50)],
+            readiness={41: _completed(rc=1, stderr="  - 2 unresolved review threads")},
+        )
+        code, env = _run_stack(fake, capsys)
+        assert code == 100
+        assert fake.puts() == []
+        message = json.dumps(env)
+        assert "#41" in message
+        assert "#40" not in message
+        assert "unresolved review threads" in message
+        assert "No merge attempted" in message
+
+    def test_target_alone_in_the_stack_is_gated(self, capsys):
+        fake = _StackGh(members=[_member(50)])
+        code, _ = _run_stack(fake, capsys)
+        assert code == 0
+        assert fake.readiness_checked() == [50]
+        assert len(fake.puts()) == 1
+
+    def test_unready_target_aborts_before_the_put(self, capsys):
+        fake = _StackGh(
+            members=[_member(40, "closed"), _member(50)],
+            readiness={50: _completed(rc=1, stderr="  - 3 failing required checks")},
+        )
+        code, env = _run_stack(fake, capsys)
+        assert code == 100
+        assert fake.puts() == []
+        message = json.dumps(env)
+        assert "#50" in message
+        assert "failing required checks" in message
+        assert "No merge attempted" in message
+
+    def test_target_readiness_that_cannot_run_fails_closed(self, capsys):
+        fake = _StackGh(readiness={50: _completed(rc=3, stderr="API error")})
+        code, env = _run_stack(fake, capsys)
+        assert code == 100
+        assert fake.puts() == []
+        assert "could not run (exit 3)" in json.dumps(env)
+
+    def test_downstack_and_target_failures_are_both_reported(self, capsys):
+        fake = _StackGh(
+            members=[_member(40), _member(50)],
+            readiness={
+                40: _completed(rc=1, stderr="unresolved threads"),
+                50: _completed(rc=1, stderr="failing checks"),
+            },
+        )
+        code, env = _run_stack(fake, capsys)
+        message = json.dumps(env)
+        assert code == 100
+        assert "#40" in message
+        assert "#50" in message
+
+    def test_downstack_head_moved_after_the_gate_aborts_before_the_put(self, capsys):
+        fake = _StackGh(
+            listings=[
+                [_member(40), _member(50)],
+                [_member(40, salt=1), _member(50)],
+            ]
+        )
+        code, env = _run_stack(fake, capsys)
+        assert code == 100
+        assert fake.puts() == []
+        message = json.dumps(env)
+        assert "#40" in message
+        assert "head moved" in message
+        assert "No merge attempted" in message
+
+    def test_downstack_member_added_after_the_gate_aborts_before_the_put(self, capsys):
+        fake = _StackGh(
+            listings=[
+                [_member(40, "closed"), _member(50)],
+                [_member(40), _member(50)],
+            ]
+        )
+        code, env = _run_stack(fake, capsys)
+        assert code == 100
+        assert fake.puts() == []
+        assert "#40" in json.dumps(env)
+
+    def test_unchanged_heads_on_the_recheck_let_the_merge_proceed(self, capsys):
+        fake = _StackGh(listings=[[_member(40), _member(50)]])
+        code, _ = _run_stack(fake, capsys)
+        assert code == 0
+        assert len(fake.puts()) == 1
+
+    def test_head_moved_after_the_merge_is_not_reported_as_success(self, capsys):
+        fake = _StackGh(
+            listings=[
+                [_member(40), _member(50)],
+                [_member(40), _member(50)],
+                [_member(40, "closed", salt=1), _member(50, "closed")],
+            ]
+        )
+        code, env = _run_stack(fake, capsys)
+        assert code == 3
+        assert len(fake.puts()) == 1
+        message = json.dumps(env)
+        assert "#40" in message
+        assert "unreviewed" in message
+        assert env["Data"].get("state") != "MERGED"
+
+    def test_unreadable_listing_after_the_merge_is_not_reported_as_success(self, capsys):
+        fake = _StackGh(members=[_member(40), _member(50)])
+        original_api = fake._api
+        reads = {"stacks": 0}
+
+        def flaky(cmd):
+            path = next(part for part in cmd if part.startswith("repos/"))
+            if "/stacks/" in path:
+                reads["stacks"] += 1
+                if reads["stacks"] >= 3:
+                    return _completed(rc=1, stderr="HTTP 502")
+            return original_api(cmd)
+
+        fake._api = flaky
+        code, env = _run_stack(fake, capsys)
+        assert code == 3
+        assert len(fake.puts()) == 1
+        assert "unverified" in json.dumps(env)
+
+    @pytest.mark.parametrize("head", [None, {}, {"sha": None}, {"sha": "abc"}, {"sha": 7}, "x"])
+    def test_open_downstack_member_without_a_valid_head_sha_fails_closed(self, capsys, head):
+        member = _member(40)
+        if head is None:
+            del member["head"]
+        else:
+            member["head"] = head
+        fake = _StackGh(members=[member, _member(50)])
+        code, env = _run_stack(fake, capsys)
+        assert code == 100
+        assert fake.puts() == []
+        assert fake.readiness_checked() == []
+        assert "#40" in json.dumps(env)
+
+    def test_member_without_a_state_fails_closed(self, capsys):
+        member = _member(40)
+        del member["state"]
+        fake = _StackGh(members=[member, _member(50)])
+        code, env = _run_stack(fake, capsys)
+        assert code == 100
+        assert fake.puts() == []
+        assert "state" in json.dumps(env)
+
+    @pytest.mark.parametrize("state", [None, 1, True, ["open"]])
+    def test_member_with_a_mistyped_state_fails_closed(self, capsys, state):
+        member = _member(40)
+        member["state"] = state
+        fake = _StackGh(members=[member, _member(50)])
+        code, _ = _run_stack(fake, capsys)
+        assert code == 100
+        assert fake.puts() == []
+
+    @pytest.mark.parametrize("number", [None, "40", 4.5, True, [40]])
+    def test_member_with_a_missing_or_mistyped_number_fails_closed(self, capsys, number):
+        member = _member(40)
+        member["number"] = number
+        fake = _StackGh(members=[member, _member(50)])
+        code, env = _run_stack(fake, capsys)
+        assert code == 100
+        assert fake.puts() == []
+        assert "number" in json.dumps(env)
+
+    def test_member_without_a_number_key_fails_closed(self, capsys):
+        member = _member(40)
+        del member["number"]
+        fake = _StackGh(members=[member, _member(50)])
+        code, _ = _run_stack(fake, capsys)
+        assert code == 100
+        assert fake.puts() == []
+
+    def test_non_object_member_fails_closed(self, capsys):
+        fake = _StackGh(members=[_member(40), "garbage", _member(50)])
+        code, _ = _run_stack(fake, capsys)
+        assert code == 100
+        assert fake.puts() == []
+
+    @pytest.mark.parametrize("state", ["OPEN", "Open", "draft", "merged", "CLOSED", ""])
+    def test_any_state_other_than_exactly_closed_is_gated(self, capsys, state):
+        fake = _StackGh(
+            members=[_member(40, state), _member(50)],
+            readiness={40: _completed(rc=1, stderr="not ready")},
+        )
+        code, env = _run_stack(fake, capsys)
+        assert code == 100
+        assert fake.puts() == []
+        assert 40 in fake.readiness_checked()
+        assert "#40" in json.dumps(env)
+
+    def test_malformed_member_above_the_target_fails_closed(self, capsys):
+        member = _member(60)
+        member["number"] = None
+        fake = _StackGh(members=[_member(40, "closed"), _member(50), member])
+        code, _ = _run_stack(fake, capsys)
+        assert code == 100
+        assert fake.puts() == []
+
+    def test_readiness_check_that_cannot_run_fails_closed(self, capsys):
+        fake = _StackGh(
+            members=[_member(40), _member(50)],
+            readiness={40: _completed(rc=3, stderr="API error")},
+        )
+        code, env = _run_stack(fake, capsys)
+        assert code == 100
+        assert fake.puts() == []
+        assert "could not run (exit 3)" in json.dumps(env)
+
+    def test_readiness_check_timeout_fails_closed(self, capsys):
+        fake = _StackGh(
+            members=[_member(40), _member(50)],
+            readiness={40: subprocess.TimeoutExpired(["python"], 180)},
+        )
+        code, env = _run_stack(fake, capsys)
+        assert code == 100
+        assert fake.puts() == []
+        assert "timed out" in json.dumps(env)
+
+    def test_pr_without_stack_object_fails_closed(self, capsys):
+        fake = _StackGh(pr_body={"number": 50})
+        code, env = _run_stack(fake, capsys)
+        assert code == 100
+        assert fake.puts() == []
+        assert "reports no stack" in json.dumps(env)
+
+    def test_pr_missing_from_stack_listing_fails_closed(self, capsys):
+        fake = _StackGh(members=[_member(40), _member(60)])
+        code, env = _run_stack(fake, capsys)
+        assert code == 100
+        assert fake.puts() == []
+        assert "not in the member list" in json.dumps(env)
+
+    def test_malformed_member_list_fails_closed(self, capsys):
+        fake = _StackGh(
+            api_get={"/stacks/9": _completed(stdout=json.dumps({"pull_requests": "nope"}))}
+        )
+        code, _ = _run_stack(fake, capsys)
+        assert code == 100
+        assert fake.puts() == []
+
+    @pytest.mark.parametrize(
+        ("lookup", "expected"),
+        [
+            (_completed(rc=1, stderr="HTTP 500"), "failed"),
+            (_completed(stdout="not json"), "invalid JSON"),
+            (_completed(stdout="[]"), "did not return a JSON object"),
+            (subprocess.TimeoutExpired(["gh"], 30), "timed out"),
+        ],
+    )
+    def test_unreadable_stack_lookup_fails_closed(self, capsys, lookup, expected):
+        fake = _StackGh(api_get={"/pulls/50": lookup})
+        code, env = _run_stack(fake, capsys)
+        assert code == 3
+        assert fake.puts() == []
+        assert expected in json.dumps(env)
+
+    def test_put_refusal_exits_6_with_the_original_graphql_error(self, capsys):
+        fake = _StackGh(
+            put=_completed(rc=1, stderr="gh: Forbidden (HTTP 403)"), readback=_OPEN_READBACK
+        )
+        code, env = _run_stack(fake, capsys)
+        assert code == 100
+        message = json.dumps(env)
+        assert "part of a stack" in message
+        assert "HTTP 403" in message
+        assert "GraphQL said" in message
+        assert "branch protection policy" not in message
+
+    def test_conflict_409_polls_the_returned_uuid_without_a_second_put(self, capsys):
+        fake = _StackGh(
+            put=_completed(
+                rc=1,
+                stdout=_async_body("pending", uuid="in-flight"),
+                stderr="gh: Conflict (HTTP 409)",
+            ),
+        )
+        code, _ = _run_stack(fake, capsys)
+        assert code == 0
+        assert len(fake.puts()) == 1
+        assert any("merge-async/in-flight" in part for part in fake.polled()[0])
+
+    def test_conflict_409_without_uuid_exits_6(self, capsys):
+        fake = _StackGh(
+            put=_completed(rc=1, stdout="{}", stderr="gh: Conflict (HTTP 409)"),
+            readback=_OPEN_READBACK,
+        )
+        code, _ = _run_stack(fake, capsys)
+        assert code == 100
+        assert len(fake.puts()) == 1
+
+    def test_failed_status_exits_6_with_the_reason(self, capsys):
+        fake = _StackGh(
+            polls=[
+                _completed(stdout=_async_body("failed", message="Required status check missing"))
+            ],
+            readback=_OPEN_READBACK,
+        )
+        code, env = _run_stack(fake, capsys)
+        assert code == 100
+        assert "Required status check missing" in json.dumps(env)
+
+    def test_enqueued_status_is_not_success(self, capsys):
+        fake = _StackGh(polls=[_completed(stdout=_async_body("enqueued"))], readback=_OPEN_READBACK)
+        code, env = _run_stack(fake, capsys)
+        assert code == 100
+        assert "queued" in json.dumps(env)
+
+    def test_unrecognized_status_exits_3(self, capsys):
+        fake = _StackGh(polls=[_completed(stdout=_async_body("weird"))], readback=_OPEN_READBACK)
+        code, env = _run_stack(fake, capsys)
+        assert code == 3
+        assert "unrecognized status" in json.dumps(env)
+
+    def test_accept_body_without_status_exits_3(self, capsys):
+        fake = _StackGh(put=_completed(stdout="{}"), readback=_OPEN_READBACK)
+        code, _ = _run_stack(fake, capsys)
+        assert code == 3
+        assert fake.polled() == []
+
+    def test_pending_without_uuid_exits_3(self, capsys):
+        fake = _StackGh(
+            put=_completed(stdout=_async_body("pending", uuid=None)), readback=_OPEN_READBACK
+        )
+        code, env = _run_stack(fake, capsys)
+        assert code == 3
+        assert "no request UUID" in json.dumps(env)
+
+    def test_top_level_uuid_is_accepted(self, capsys):
+        fake = _StackGh(put=_completed(stdout=json.dumps({"status": "pending", "uuid": "top"})))
+        code, _ = _run_stack(fake, capsys)
+        assert code == 0
+        assert any("merge-async/top" in part for part in fake.polled()[0])
+
+    def test_pending_forever_times_out_with_exit_3(self, capsys):
+        fake = _StackGh(polls=[_completed(stdout=_async_body("pending"))], readback=_OPEN_READBACK)
         with (
-            patch("merge_pr.assert_gh_authenticated"),
-            patch("merge_pr.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
-            patch("merge_pr.get_allowed_merge_methods", return_value=_ALL_METHODS_ALLOWED),
-            patch("subprocess.run", side_effect=side),
+            patch.object(_mod, "_ASYNC_POLL_TIMEOUT_SECONDS", 0.05),
+            patch.object(_mod, "_ASYNC_POLL_INTERVAL_SECONDS", 0.0),
         ):
-            return main(argv)
+            code, env = _run_stack(fake, capsys)
+        assert code == 3
+        assert env["Error"]["Type"] == "Timeout"
+        assert len(fake.polled()) >= 1
 
-    def test_stack_error_retries_rest_and_succeeds(self, capsys):
-        """REST reporting merged=true needs no state confirmation."""
-        side, calls = self._make_side_effect(
-            rest_rc=0,
-            rest_stdout=json.dumps({"merged": True, "sha": _FIXTURE_HEAD}),
-        )
-        rc = self._run(side, ["--pull-request", "5470", "--strategy", "squash"])
-        assert rc == 0
-        out = json.loads(capsys.readouterr().out)
-        assert out["Data"]["state"] == "MERGED"
-        # State fetch, GraphQL merge, REST PUT, readback. No confirmation call needed.
-        assert len(calls) == 4
+    def test_zero_timeout_never_polls(self, capsys):
+        fake = _StackGh(readback=_OPEN_READBACK, put=_completed(stdout=_async_body("pending")))
+        with patch.object(_mod, "_ASYNC_POLL_TIMEOUT_SECONDS", 0):
+            code, _ = _run_stack(fake, capsys)
+        assert code == 3
+        assert fake.polled() == []
 
-    def test_stack_error_routes_to_rest_put_endpoint(self):
-        """The retry must hit the REST endpoint the GraphQL error names."""
-        side, calls = self._make_side_effect(
-            rest_rc=0,
-            rest_stdout=json.dumps({"merged": True}),
-        )
-        self._run(side, ["--pull-request", "5470", "--strategy", "squash"])
-        rest_cmd = [str(part) for part in calls[2]]
-        assert "PUT" in rest_cmd
-        assert any("pulls/5470/merge" in part for part in rest_cmd)
-        assert any(_FIXTURE_HEAD in part for part in rest_cmd)
+    def test_timeout_then_merged_readback_is_recovered_success(self, capsys):
+        fake = _StackGh(polls=[_completed(stdout=_async_body("pending"))])
+        with patch.object(_mod, "_ASYNC_POLL_TIMEOUT_SECONDS", 0):
+            code, env = _run_stack(fake, capsys)
+        assert code == 0
+        assert env["Data"]["recovered"] is True
 
-    def test_async_response_without_merged_flag_confirms_state(self, capsys):
-        """An async accept omits merged=true; the PR state settles it."""
-        side, calls = self._make_side_effect(
-            rest_rc=0,
-            rest_stdout=json.dumps({"sha": _FIXTURE_HEAD}),
-            view_state=json.dumps({"state": "MERGED"}),
+    def test_one_transient_poll_error_is_tolerated(self, capsys):
+        fake = _StackGh(
+            polls=[_completed(rc=1, stderr="HTTP 502"), _completed(stdout=_async_body("merged"))]
         )
-        rc = self._run(side, ["--pull-request", "5470", "--strategy", "squash"])
-        assert rc == 0
-        out = json.loads(capsys.readouterr().out)
-        assert out["Data"]["state"] == "MERGED"
-        # Confirmation query (call 4) plus the post-merge readback (call 5).
-        assert len(calls) == 5
+        code, _ = _run_stack(fake, capsys)
+        assert code == 0
 
-    def test_async_response_with_unparseable_body_confirms_state(self):
-        """A non-JSON body is not evidence of failure; confirm the state."""
-        side, calls = self._make_side_effect(
-            rest_rc=0,
-            rest_stdout="Accepted",
-            view_state=json.dumps({"state": "MERGED"}),
+    def test_poll_timeout_counts_as_a_poll_error(self, capsys):
+        fake = _StackGh(
+            polls=[subprocess.TimeoutExpired(["gh"], 30), _completed(stdout=_async_body("merged"))]
         )
-        assert self._run(side, ["--pull-request", "5470", "--strategy", "squash"]) == 0
-        assert len(calls) == 5
+        code, _ = _run_stack(fake, capsys)
+        assert code == 0
 
-    def test_async_accept_that_did_not_merge_exits_6(self, capsys):
-        """REST accepted but the PR is still open: report failure, not success."""
-        side, _ = self._make_side_effect(
-            rest_rc=0,
-            rest_stdout=json.dumps({"sha": _FIXTURE_HEAD}),
-            view_state=json.dumps({"state": "OPEN"}),
-            readback=_OPEN_READBACK,
-        )
-        with pytest.raises(SystemExit) as exc:
-            self._run(side, ["--pull-request", "5470", "--strategy", "squash"])
-        assert exc.value.code == 6
-        assert "part of a stack" in capsys.readouterr().out
+    def test_empty_poll_body_counts_as_a_poll_error(self, capsys):
+        fake = _StackGh(polls=[_completed(stdout="{}"), _completed(stdout=_async_body("merged"))])
+        code, _ = _run_stack(fake, capsys)
+        assert code == 0
 
-    def test_state_confirmation_failure_is_not_a_merge(self):
-        """A failed confirmation query must never be read as merged."""
-        side, _ = self._make_side_effect(
-            rest_rc=0,
-            rest_stdout=json.dumps({"sha": _FIXTURE_HEAD}),
-            view_rc=1,
-            readback=_OPEN_READBACK,
-        )
-        with pytest.raises(SystemExit) as exc:
-            self._run(side, ["--pull-request", "5470", "--strategy", "squash"])
-        assert exc.value.code == 6
+    def test_consecutive_poll_errors_exit_3_as_unknown(self, capsys):
+        fake = _StackGh(polls=[_completed(rc=1, stderr="HTTP 502")], readback=_OPEN_READBACK)
+        code, env = _run_stack(fake, capsys)
+        assert code == 3
+        assert "outcome unknown" in json.dumps(env)
+        assert len(fake.polled()) == 3
 
-    def test_stack_rest_failure_exits_6_and_names_the_stack(self, capsys):
-        """A failed REST retry surfaces the stack cause, not a protection hint."""
-        side, _ = self._make_side_effect(
-            rest_rc=1,
-            rest_stdout="",
-            readback=_OPEN_READBACK,
-        )
-        with pytest.raises(SystemExit) as exc:
-            self._run(side, ["--pull-request", "5470", "--strategy", "squash"])
-        assert exc.value.code == 6
-        out = capsys.readouterr().out
-        assert "part of a stack" in out
-        assert "branch protection policy" not in out
+    def test_put_timeout_then_merged_readback_is_recovered_success(self, capsys):
+        fake = _StackGh(put=subprocess.TimeoutExpired(["gh"], 60))
+        code, env = _run_stack(fake, capsys)
+        assert code == 0
+        assert env["Data"]["recovered"] is True
 
-    def test_auto_does_not_retry_rest_on_stack_error(self):
-        """--auto keeps its existing no-retry behavior for stack errors too."""
-        side, calls = self._make_side_effect(
-            rest_rc=0,
-            rest_stdout="",
-            readback=_OPEN_READBACK,
-        )
-        with pytest.raises(SystemExit) as exc:
-            self._run(side, ["--pull-request", "5470", "--auto"])
-        assert exc.value.code == 3
-        # State fetch, gh pr merge, recovery readback; no REST retry.
-        assert len(calls) == 3
+    def test_put_timeout_then_open_readback_exits_3_as_timeout(self, capsys):
+        fake = _StackGh(put=subprocess.TimeoutExpired(["gh"], 60), readback=_OPEN_READBACK)
+        code, env = _run_stack(fake, capsys)
+        assert code == 3
+        assert env["Error"]["Type"] == "Timeout"
+
+    def test_merged_status_with_open_readback_is_not_reported_as_success(self, capsys):
+        fake = _StackGh(readback=_OPEN_READBACK)
+        code, _ = _run_stack(fake, capsys)
+        assert code == 3
+
+    def test_auto_does_not_take_the_async_path(self, capsys):
+        fake = _StackGh(readback=_OPEN_READBACK)
+        code, _ = _run_stack(fake, capsys, ["--auto"])
+        assert code == 3
+        assert fake.puts() == []
+        assert fake.readiness_checked() == []
+
+    def test_head_moved_refusal_never_reaches_the_async_path(self, capsys):
+        class _HeadMoved(_StackGh):
+            def __call__(self, cmd, **kwargs):
+                if list(cmd[:3]) == ["gh", "pr", "merge"]:
+                    self.calls.append(list(cmd))
+                    return _completed(rc=1, stderr="Head branch was modified. part of a stack")
+                return super().__call__(cmd, **kwargs)
+
+        fake = _HeadMoved(readback=_OPEN_READBACK)
+        code, _ = _run_stack(fake, capsys)
+        assert code == 100
+        assert fake.puts() == []
 
 
 # ---------------------------------------------------------------------------
@@ -1873,7 +2410,7 @@ class TestHeadPinning:
     def test_head_moved_refusal_exits_6_without_rest_retry(self, text, capsys):
         fake = _FakeGh(merge=_completed(rc=1, stderr=text), readback=_OPEN_READBACK)
         code, env = _run_main(fake, [], capsys)
-        assert code == 6
+        assert code == 100
         assert "head moved" in env["Error"]["Message"]
         assert _HEAD in env["Error"]["Message"]
         assert env["Data"]["audit"]["result"] == "failed"
@@ -2010,7 +2547,7 @@ class TestPartialFailureRecovery:
     def test_conflict_failure_reads_back_and_exits_6_when_open(self, capsys):
         fake = _FakeGh(merge=_completed(rc=1, stderr="not mergeable"), readback=_OPEN_READBACK)
         code, env = _run_main(fake, [], capsys)
-        assert code == 6
+        assert code == 100
         assert any(_is_readback(c) for c in fake.calls)
         assert env["Data"]["audit"]["result"] == "failed"
 
@@ -2141,7 +2678,7 @@ class TestRollbackHint:
 class TestRefusalAudit:
     def test_closed_refusal_carries_audit(self, capsys):
         code, env = _run_main(_FakeGh(state=_pr_state("CLOSED")), [], capsys)
-        assert code == 6
+        assert code == 100
         assert env["Data"]["audit"]["result"] == "refused: PR is closed"
 
     def test_head_mismatch_refusal_carries_audit(self, capsys):

@@ -113,6 +113,19 @@ def _http_code_from_exc(exc: Exception) -> int | None:
     return code if isinstance(code, int) else None
 
 
+def _body_from_exc(exc: Exception) -> object:
+    """Return the SDK exception's parsed body, falling back to its message text.
+
+    The result feeds `safe_http_error_message`, which reads only `error.type`
+    and the billing verdict from it; nothing here is returned to a caller.
+    """
+    body = getattr(exc, "body", None)
+    if body is not None:
+        return body
+    message = getattr(exc, "message", None)
+    return message if isinstance(message, str) else None
+
+
 def _normalize_and_raise(provider_label: str, exc: Exception) -> None:
     """Re-raise an SDK exception as a RuntimeError matching the message shapes
     `_eval_api_adapter._categorize_error` already understands.
@@ -135,7 +148,9 @@ def _normalize_and_raise(provider_label: str, exc: Exception) -> None:
         ) from None
     code = _http_code_from_exc(exc)
     if code is not None:
-        raise RuntimeError(safe_http_error_message(f"{provider_label} API", code)) from None
+        raise RuntimeError(
+            safe_http_error_message(f"{provider_label} API", code, _body_from_exc(exc))
+        ) from None
     raise RuntimeError(
         f"{provider_label} API network error: error=network_failure; provider details redacted"
     ) from None

@@ -236,6 +236,23 @@ Copilot equivalent.
 | `_anthropic_api.py` | Shared API utilities (key loading, API calls). | N/A |
 | `_billing_matrix.py` | The 3x2 table itself: cells, aliases, credentials, cost basis, and selection precedence. Read by `_providers` and by `_eval_common.cost_basis`. | Complementary |
 
+## HTTP Error Reports
+
+A failed provider call raises a fixed message built by
+`_eval_common.safe_http_error_message`; the provider body text never reaches
+logs or artifacts. Two facts are read from the body and nothing else: the
+`error.type` (kept only when it is in the closed set `PROVIDER_ERROR_TYPES`,
+then appended as `provider_error_type=`) and whether the message says the
+credit balance is too low. The Anthropic API returns HTTP 400 for a depleted
+balance, so that case reports `error=billing` instead of `error=client_error`.
+A `billing_error` type also reports `error=billing`, at any status. Any other
+400 keeps `client_error`.
+
+`eval-prompt-change.py` exits 4 (ADR-035, the credential cannot be used) on
+`error=billing`, so CI and agents can tell exit 4 ("fund the key") from exit 3
+(any other external or API failure). Exit 4 can arrive mid-run, after some
+calls succeeded. Billing is never a skippable provider outage.
+
 ## Harness Capability Evidence
 
 Use a JSON plan when live runtime evidence is authorized. The plan supplies a
@@ -2229,7 +2246,7 @@ Optional: `expected_reason_contains`, `rationale`.
 - **Base unstable.** A base side is excluded from the regression list and from the before and after scores when it passes the threshold without passing every scored run, or when it was scored on fewer runs than the tier requires (3, or 5 with `--security-critical`). It is listed under `Base unstable` with an excluded count.
 - **Stable-baseline floor.** The verdict is FAIL as inconclusive unless at least `max(1, ceil(total / 2))` scenarios keep a stable base. Thin or flaky base scoring can therefore fail the gate even when no regression is found.
 - **Narrow exclusion.** An excluded scenario can still block through after-side flakiness above `FLAKINESS_BLOCK_THRESHOLD`, an after side scored on fewer than the required runs, or the security all-runs criterion. A base that passes every scored run while the after side fails still blocks.
-- **Single-sample limit.** Each base side is sampled once per eval, so a base that draws 3/3 on this sample is treated as stable, and a 0/3 after side then counts as a regression. Repeated baseline sampling is not implemented. Issue #5601 reported 0/3, 2/3, and 3/3 on the same base, and only the 2/3 case is covered.
+- **Base resample.** When a scenario's base passed and its after side failed, the base is sampled `--base-resamples N` more times (default 3, 0 disables) before the scenario counts as a regression. If any resample run fails, the base is marked unstable and excluded, so a base that drew 3/3 once cannot manufacture a regression. A base that stays all-pass keeps the regression. Cost is incurred only on suspected regressions. Issue #5601 reported 0/3, 2/3, and 3/3 on the same base. The 2/3 case is excluded up front, and the 3/3 case is excluded by the resample.
 
 ## Scenario File Locations
 

@@ -16,6 +16,7 @@
       "min": 8
     }
   },
+  "minConfidence": 0.5,
   "context": {
     "test": {
       "testability": {

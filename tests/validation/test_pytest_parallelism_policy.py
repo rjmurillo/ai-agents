@@ -19,8 +19,8 @@ would silently parallelize the pins, the safe-push partition, and every ad-hoc
 ``parallel_flags`` is the guard on that.
 
 Direct calls and CI use ``auto``, xdist's own name for one worker per logical
-CPU. The local pre-push job caps workers at four because it runs beside other
-CPU-heavy jobs in one parallel Lefthook group. Low-core hosts use fewer.
+CPU. The local pre-push job scales workers to the host (4 to 16) because it runs
+beside other CPU-heavy jobs in one parallel Lefthook group. Low-core hosts use fewer.
 ``AI_AGENTS_PYTEST_WORKERS`` accepts ``auto`` or a positive integer and rejects
 everything else. The parent consumes this control before starting pytest so
 policy tests inside the child process still observe the default environment.
@@ -321,6 +321,27 @@ def test_invalid_local_worker_cap_is_rejected(
         _pytest_commands_by_partition(tmp_path)
 
 
+@pytest.mark.parametrize(
+    ("visible", "reserve", "expected"),
+    [(48, "3", "16"), (16, "3", "8"), (8, "3", "4"), (4, "3", "1"), (2, "3", "1")],
+)
+def test_scaled_cap_then_cpu_reserve_sets_worker_count(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    visible: int,
+    reserve: str,
+    expected: str,
+) -> None:
+    monkeypatch.delenv(policy.PYTEST_WORKERS_ENV, raising=False)
+    monkeypatch.setenv(policy.PYTEST_WORKER_CAP_ENV, policy.PYTEST_WORKER_CAP_SCALED)
+    monkeypatch.setenv(policy.PYTEST_CPU_RESERVE_ENV, reserve)
+    monkeypatch.setattr(policy, "_visible_cpu_count", lambda: visible)
+
+    bulk, _mutation, _safe_push, _pr_autofix = _pytest_commands_by_partition(tmp_path)
+
+    assert _flag_value(bulk, _WORKER_FLAGS) == expected
+
+
 def test_run_pytest_consumes_worker_override_before_child_process(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -342,8 +363,9 @@ def test_run_pytest_consumes_worker_override_before_child_process(
         *,
         process_env: dict[str, str],
         timeout_seconds: float,
+        on_start: object = None,
     ) -> subprocess.CompletedProcess[str]:
-        del repo_root, timeout_seconds
+        del repo_root, timeout_seconds, on_start
         seen_commands.append(command)
         seen_envs.append(process_env.copy())
         return subprocess.CompletedProcess(command, 0, "", "")
@@ -353,7 +375,10 @@ def test_run_pytest_consumes_worker_override_before_child_process(
 
     assert policy.run_pytest(tmp_path) == 0
 
-    assert _flag_value(seen_commands[0], _WORKER_FLAGS) == "3"
+    # Issue #6198: the bulk and mutation partitions overlap, so the override is
+    # one budget they split, not a value each one repeats.
+    pools = [_flag_value(command, _WORKER_FLAGS) for command in seen_commands]
+    assert sum(int(workers) for workers in pools if workers) == 3
     assert all(policy.PYTEST_WORKER_CAP_ENV not in env for env in seen_envs)
     assert all(policy.PYTEST_CPU_RESERVE_ENV not in env for env in seen_envs)
     assert all(policy.PYTEST_WORKERS_ENV not in env for env in seen_envs)

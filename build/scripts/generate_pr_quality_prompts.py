@@ -245,6 +245,10 @@ def _read_committed_dest(dest: Path) -> str | None:
     regenerates but forgets to stage/commit would otherwise have a clean
     working tree (drift hook passes) while pushing stale committed prompts.
     PR #1965 copilot review (cluster C).
+
+    Git emits UTF-8 regardless of platform, so decode explicitly. The locale
+    codec on Windows (CP1252) turns arrows and comparison signs into mojibake
+    and reports false drift (#5440).
     """
     try:
         rel = dest.relative_to(REPO_ROOT)
@@ -255,6 +259,8 @@ def _read_committed_dest(dest: Path) -> str | None:
             ["git", "show", f"HEAD:{rel.as_posix()}"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             cwd=str(REPO_ROOT),
             check=False,
             timeout=10,

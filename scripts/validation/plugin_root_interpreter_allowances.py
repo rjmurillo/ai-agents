@@ -17,10 +17,6 @@ _CLAUDE_CODE_MAP = (
     "scripts.claude_code predates plugin-self-containment MUST 2; the copilot map "
     "already uses the plugin-root form. Migrating it is an owner decision (Refs #6195)."
 )
-_GATE_NEEDS_PYYAML = (
-    "transport_preflight.verify_trust runs run_completion_gate.py, which imports "
-    "yaml, so bare python3 cannot run it (Refs #6195)."
-)
 _GUARDED_MARKDOWN_IT = (
     "check_review_thread_resolution_shas.py imports markdown-it-py inside "
     "try/except ImportError and scans the raw body without it. Whether a guarded "
@@ -48,12 +44,6 @@ YAML_ALLOWANCES: dict[tuple[str, str, str, str], str] = {
         (_PR_REVIEW_CONFIG, f"scripts.claude_code.{entry}", "bare-path", script): _CLAUDE_CODE_MAP
         for entry, script in _CLAUDE_CODE_ENTRIES.items()
     },
-    (
-        _PR_REVIEW_CONFIG,
-        "transport_preflight.verify_trust",
-        "form",
-        f"{_PR}run_completion_gate.py",
-    ): _GATE_NEEDS_PYYAML,
     (
         _PR_REVIEW_CONFIG,
         _CRITERION,

@@ -186,7 +186,9 @@ def test_run_and_report_serializes_scored_scenario_count(
         ev, "run_scenario_multi", _fake_multi({"D12": 2, "D6": 3}, {"D12": 0, "D6": 3})
     )
     out_file = tmp_path / "report.json"
-    args = argparse.Namespace(model="m", runs=3, security_critical=False, output=str(out_file))
+    args = argparse.Namespace(
+        model="m", runs=3, security_critical=False, base_resamples=3, output=str(out_file)
+    )
     with pytest.raises(SystemExit) as exc:
         ev._run_and_report("k", "base", "head", [D12, D6], args, "test")
     assert exc.value.code == 0
@@ -481,7 +483,9 @@ def test_inconclusive_fail_exits_nonzero(monkeypatch: pytest.MonkeyPatch, tmp_pa
         ev, "run_scenario_multi", _fake_multi({"D12": 2, "D6": 2}, {"D12": 3, "D6": 3})
     )
     out_file = tmp_path / "report.json"
-    args = argparse.Namespace(model="m", runs=3, security_critical=False, output=str(out_file))
+    args = argparse.Namespace(
+        model="m", runs=3, security_critical=False, base_resamples=3, output=str(out_file)
+    )
     with pytest.raises(SystemExit) as exc:
         ev._run_and_report("k", "base", "head", [D12, D6], args, "test")
     assert exc.value.code == 1

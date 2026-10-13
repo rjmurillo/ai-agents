@@ -367,6 +367,9 @@ class TestTerminatorWordBoundary:
         instructions_dir = tmp_path / "src" / "copilot-cli" / "instructions"
         instructions_dir.mkdir(parents=True)
         (instructions_dir / "_placeholder.md").write_text("Clean prose.\n", encoding="utf-8")
+        rules_dir = tmp_path / "src" / "claude" / "rules"
+        rules_dir.mkdir(parents=True)
+        (rules_dir / "_placeholder.md").write_text("Clean prose.\n", encoding="utf-8")
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
         rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
@@ -390,6 +393,9 @@ class TestTerminatorWordBoundary:
         instructions_dir = tmp_path / "src" / "copilot-cli" / "instructions"
         instructions_dir.mkdir(parents=True)
         (instructions_dir / "_placeholder.md").write_text("Clean prose.\n", encoding="utf-8")
+        rules_dir = tmp_path / "src" / "claude" / "rules"
+        rules_dir.mkdir(parents=True)
+        (rules_dir / "_placeholder.md").write_text("Clean prose.\n", encoding="utf-8")
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
         rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
@@ -790,6 +796,9 @@ class TestPluginRootScan:
         instructions_dir = tmp_path / "src" / "copilot-cli" / "instructions"
         instructions_dir.mkdir(parents=True)
         (instructions_dir / "_placeholder.md").write_text("Clean prose.\n", encoding="utf-8")
+        rules_dir = tmp_path / "src" / "claude" / "rules"
+        rules_dir.mkdir(parents=True)
+        (rules_dir / "_placeholder.md").write_text("Clean prose.\n", encoding="utf-8")
         baseline = tmp_path / "baseline.json"
         baseline.write_text('{"files": {}}', encoding="utf-8")
         code = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
@@ -986,6 +995,10 @@ class TestInstructionsScanRoot:
             placeholder = root / required / "skills" / "_placeholder" / "SKILL.md"
             placeholder.parent.mkdir(parents=True, exist_ok=True)
             placeholder.write_text("placeholder\n", encoding="utf-8")
+        for required in cmp.REQUIRED_EXTRA_ROOTS:
+            extra = root / required / "_placeholder.md"
+            extra.parent.mkdir(parents=True, exist_ok=True)
+            extra.write_text("placeholder\n", encoding="utf-8")
 
     def test_instructions_root_is_in_extra_scan_roots(self) -> None:
         assert "src/copilot-cli/instructions" in cmp.EXTRA_SCAN_ROOTS
@@ -1127,6 +1140,10 @@ class TestInstructionsScanRoot:
         # Directory exists (satisfies missing_required_extra_roots) but has
         # no Markdown files in it.
         (tmp_path / "src" / "copilot-cli" / "instructions").mkdir(parents=True)
+        (tmp_path / "src" / "claude" / "rules").mkdir(parents=True)
+        (tmp_path / "src" / "claude" / "rules" / "_placeholder.md").write_text(
+            "Clean prose.\n", encoding="utf-8"
+        )
         baseline = tmp_path / "baseline.json"
         baseline.write_text('{"files": {}}', encoding="utf-8")
 
@@ -1157,7 +1174,122 @@ class TestInstructionsScanRoot:
         code = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
         out = capsys.readouterr().out
         assert code == 0
-        assert "src/copilot-cli/instructions (1)" in out
+        # The clean file plus the placeholder _write_md seeds in each required root.
+        assert "src/copilot-cli/instructions (2)" in out
+
+
+class TestRulesScanRoot:
+    """``src/claude/rules`` closes the coverage gap from issue #5294.
+
+    The rendered Claude rules tree ships unmodified in the ``project-toolkit``
+    plugin root, but only its Copilot mirror was scanned, and that mirror drops
+    rules whose scope is internal-only. ``templates/rules`` (edit source) and
+    ``.claude/rules`` (binplaced copy) render to the same prose and stay out so
+    no reference is counted twice.
+    """
+
+    def _write_md(self, root: Path, rel: str, body: str) -> None:
+        path = root / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(body, encoding="utf-8")
+        for required in cmp.REQUIRED_SKILLS_ROOTS:
+            placeholder = root / required / "skills" / "_placeholder" / "SKILL.md"
+            placeholder.parent.mkdir(parents=True, exist_ok=True)
+            placeholder.write_text("placeholder\n", encoding="utf-8")
+        for required in cmp.REQUIRED_EXTRA_ROOTS:
+            extra = root / required / "_placeholder.md"
+            extra.parent.mkdir(parents=True, exist_ok=True)
+            extra.write_text("placeholder\n", encoding="utf-8")
+
+    def _run(self, root: Path) -> int:
+        baseline = root / "baseline.json"
+        baseline.write_text('{"files": {}}', encoding="utf-8")
+        return cmp.main(["--repo-root", str(root), "--baseline", str(baseline)])
+
+    def test_rules_root_is_scanned_and_required(self) -> None:
+        assert "src/claude/rules" in cmp.EXTRA_SCAN_ROOTS
+        assert "src/claude/rules" in cmp.REQUIRED_EXTRA_ROOTS
+
+    def test_every_on_disk_plugin_rules_tree_is_in_extra_scan_roots(self) -> None:
+        """Converse guard: a plugin root that ships ``rules/`` must be configured."""
+        root = Path(__file__).resolve().parents[2]
+        for plugin_root in ("src/claude", "src/copilot-cli"):
+            if (root / plugin_root / "rules").is_dir():
+                assert f"{plugin_root}/rules" in cmp.EXTRA_SCAN_ROOTS
+
+    def test_rule_ref_is_counted(self, tmp_path: Path) -> None:
+        self._write_md(tmp_path, "src/claude/rules/ci.md", "See .agents/governance for more.\n")
+        counts = cmp.scan_plugin_roots(tmp_path)
+        assert counts["src/claude/rules/ci.md"] == 1
+
+    def test_clean_rule_is_not_counted(self, tmp_path: Path) -> None:
+        self._write_md(tmp_path, "src/claude/rules/clean.md", "Plain prose, no paths.\n")
+        assert "src/claude/rules/clean.md" not in cmp.scan_plugin_roots(tmp_path)
+
+    def test_marker_suppresses_rule_refs(self, tmp_path: Path) -> None:
+        self._write_md(
+            tmp_path,
+            "src/claude/rules/declared.md",
+            "<!-- vendor-portability: contributor rule -->\nSee .agents/governance.\n",
+        )
+        assert "src/claude/rules/declared.md" not in cmp.scan_plugin_roots(tmp_path)
+
+    @pytest.mark.parametrize("source", ["templates/rules", ".claude/rules"])
+    def test_render_source_and_binplaced_copy_are_not_scanned(
+        self, tmp_path: Path, source: str
+    ) -> None:
+        self._write_md(tmp_path, f"{source}/ci.md", "See .agents/governance for more.\n")
+        counts = cmp.scan_plugin_roots(tmp_path)
+        assert not [key for key in counts if key.startswith(source)]
+
+    def test_unbaselined_rule_ref_exits_1(self, tmp_path: Path) -> None:
+        self._write_md(tmp_path, "src/claude/rules/new.md", "Write to .agents/sessions/x.md\n")
+        assert self._run(tmp_path) == 1
+
+    def test_baselined_rule_ref_exits_0(self, tmp_path: Path) -> None:
+        self._write_md(tmp_path, "src/claude/rules/old.md", "Write to .agents/sessions/x.md\n")
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text(json.dumps({"files": {"src/claude/rules/old.md": 1}}), encoding="utf-8")
+        code = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
+        assert code == 0
+
+    def test_rule_ref_above_baseline_exits_1(self, tmp_path: Path) -> None:
+        self._write_md(
+            tmp_path, "src/claude/rules/old.md", "Write .agents/a and .agents/b and .agents/c\n"
+        )
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text(json.dumps({"files": {"src/claude/rules/old.md": 1}}), encoding="utf-8")
+        code = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
+        assert code == 1
+
+    def test_missing_rules_root_exits_2(self, tmp_path: Path) -> None:
+        self._write_md(tmp_path, "src/copilot-cli/instructions/x.md", "Clean.\n")
+        (tmp_path / "src" / "claude" / "rules" / "_placeholder.md").unlink()
+        (tmp_path / "src" / "claude" / "rules").rmdir()
+        assert cmp.missing_required_extra_roots(tmp_path) == ["src/claude/rules"]
+        assert self._run(tmp_path) == 2
+
+    def test_present_but_empty_rules_root_exits_2(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        self._write_md(tmp_path, "src/copilot-cli/instructions/x.md", "Clean.\n")
+        (tmp_path / "src" / "claude" / "rules" / "_placeholder.md").unlink()
+        assert self._run(tmp_path) == 2
+        err = capsys.readouterr().err
+        assert "examined zero Markdown files" in err
+        assert "src/claude/rules" in err
+
+    def test_rules_root_appears_in_success_report(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        self._write_md(tmp_path, "src/claude/rules/clean.md", "Clean prose.\n")
+        assert self._run(tmp_path) == 0
+        assert "src/claude/rules (2)" in capsys.readouterr().out
+
+    def test_real_rules_tree_is_baselined(self) -> None:
+        """The checked-in rules tree passes against the checked-in baseline."""
+        root = Path(__file__).resolve().parents[2]
+        assert cmp.main(["--repo-root", str(root)]) == 0
 
 
 class TestReport:
@@ -1443,6 +1575,7 @@ class TestUnexpectedScanException:
         skills.mkdir(parents=True)
         (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
         (tmp_path / "src" / "copilot-cli" / "instructions").mkdir(parents=True)
+        (tmp_path / "src" / "claude" / "rules").mkdir(parents=True)
         (skills / "SKILL.md").write_text("Some content.\n", encoding="utf-8")
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
@@ -1462,6 +1595,7 @@ class TestUnexpectedScanException:
         (tmp_path / "src" / "claude" / "skills").mkdir(parents=True)
         (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
         (tmp_path / "src" / "copilot-cli" / "instructions").mkdir(parents=True)
+        (tmp_path / "src" / "claude" / "rules").mkdir(parents=True)
         (skills / "SKILL.md").write_text("Some content.\n", encoding="utf-8")
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
@@ -1618,6 +1752,9 @@ class TestAstCodeStripping:
         instructions_dir = tmp_path / "src" / "copilot-cli" / "instructions"
         instructions_dir.mkdir(parents=True)
         (instructions_dir / "_placeholder.md").write_text("Clean prose.\n", encoding="utf-8")
+        rules_dir = tmp_path / "src" / "claude" / "rules"
+        rules_dir.mkdir(parents=True)
+        (rules_dir / "_placeholder.md").write_text("Clean prose.\n", encoding="utf-8")
         (skills / "SKILL.md").write_text(
             "# Skill\n\nExample:\n\n    write to .project-toolkit/x.md\n", encoding="utf-8"
         )
@@ -1690,6 +1827,9 @@ class TestScanAccounting:
         instructions_dir = tmp_path / "src" / "copilot-cli" / "instructions"
         instructions_dir.mkdir(parents=True)
         (instructions_dir / "_placeholder.md").write_text("Clean prose.\n", encoding="utf-8")
+        rules_dir = tmp_path / "src" / "claude" / "rules"
+        rules_dir.mkdir(parents=True)
+        (rules_dir / "_placeholder.md").write_text("Clean prose.\n", encoding="utf-8")
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
         rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
@@ -1708,6 +1848,9 @@ class TestScanAccounting:
         instructions_dir = tmp_path / "src" / "copilot-cli" / "instructions"
         instructions_dir.mkdir(parents=True)
         (instructions_dir / "_placeholder.md").write_text("Clean prose.\n", encoding="utf-8")
+        rules_dir = tmp_path / "src" / "claude" / "rules"
+        rules_dir.mkdir(parents=True)
+        (rules_dir / "_placeholder.md").write_text("Clean prose.\n", encoding="utf-8")
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
         rc = cmp.main(
@@ -2521,6 +2664,9 @@ class TestNestingExhaustionGate:
         instructions_dir = tmp_path / "src" / "copilot-cli" / "instructions"
         instructions_dir.mkdir(parents=True)
         (instructions_dir / "_placeholder.md").write_text("Clean prose.\n", encoding="utf-8")
+        rules_dir = tmp_path / "src" / "claude" / "rules"
+        rules_dir.mkdir(parents=True)
+        (rules_dir / "_placeholder.md").write_text("Clean prose.\n", encoding="utf-8")
         (skills / "SKILL.md").write_text(body, encoding="utf-8")
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")

@@ -209,6 +209,43 @@
       "expected_verdict": "APPLY_BASE_REVISION_CONTRACT",
       "expected_reason_contains": "base",
       "rationale": "The agent's Load the contract section forbids applying a contract copy that the change under review modified. It loads the base revision, under which partial context cannot PASS, so the verdict is at least WARN. Applying the rewritten copy would let a change approve itself under rules it wrote."
+    },
+    {
+      "id": "CR18",
+      "desc": "Rejects a custom helper that duplicates an existing repo helper or the standard library",
+      "input": "The diff adds `def read_json_file(path)` to `tools/report.py`. It opens the file, calls `json.load`, and returns the dict. Search shows the module `common/io.py` already defines `load_json(path: Path) -> dict` with the same behavior and error handling, and three modules import it. Python's `pathlib.Path.read_text` plus `json.loads` also covers the need. The diff gives no reason the existing helper is inadequate. Decide whether to accept the new helper.",
+      "verdict_options": [
+        "REJECT_REUSE_EXISTING",
+        "ACCEPT_NEW_HELPER"
+      ],
+      "expected_verdict": "REJECT_REUSE_EXISTING",
+      "expected_reason_contains": "load_json",
+      "rationale": "The minimal-implementation ladder (code-qualities-assessment references/executable-nl-artifacts.md) stops at the first adequate rung. Rung 2 (existing repo capability) and rung 3 (standard library) both solve the need, and the reviewer names the existing helper and its module as evidence. A new copy adds a second representation of the same knowledge, so the finding is reject and reuse."
+    },
+    {
+      "id": "CR19",
+      "desc": "Rejects removing required validation or error handling in the name of minimalism",
+      "input": "The diff's description says 'simplify: remove unneeded code'. It deletes the `if not isinstance(amount, Decimal) or amount <= 0: raise ValueError` check from `charge_customer(amount)` and removes the `try/except PaymentGatewayError` that returns a retryable error to the caller. The function charges a real payment gateway and the removed checks have tests that the diff also deletes. Decide how you treat the deletions.",
+      "verdict_options": [
+        "REJECT_NEGLIGENT_OMISSION",
+        "ACCEPT_AS_MINIMALISM"
+      ],
+      "expected_verdict": "REJECT_NEGLIGENT_OMISSION",
+      "expected_reason_contains": "validation",
+      "rationale": "The ladder removes speculative machinery. It never removes validation, error handling, or reliability behavior the function requires. Minimal means the smallest complete solution, not the fewest lines. Deleting required input validation and gateway error handling, plus their tests, is negligent omission and the reviewer rejects it."
+    },
+    {
+      "id": "CR20",
+      "desc": "Accepts minimal code that is correct when no earlier ladder rung applies and no required safeguard is missing",
+      "input": "The diff adds `def is_weekend(d: date) -> bool: return d.weekday() >= 5` to `calendar_utils.py`. Search of the repository finds no existing weekend helper, the standard library has no `is_weekend`, and one caller in `scheduler.py` needs it now. The function takes a typed `date`, which the caller always supplies, and has a unit test for Saturday, Sunday, and Monday. There is no extra abstraction, config, or extension point. Decide whether to report a finding.",
+      "verdict_options": [
+        "NO_FINDING_MINIMAL_IS_CORRECT",
+        "REPORT_MISSING_VALIDATION",
+        "REPORT_DUPLICATION"
+      ],
+      "expected_verdict": "NO_FINDING_MINIMAL_IS_CORRECT",
+      "expected_reason_contains": "no existing",
+      "rationale": "Negative control for CR18 and CR19. No existing helper or stdlib function covers the need, so the earlier rungs fail. A present consumer exists, the direct solution is one line, and the typed input needs no extra check. Flagging it would punish legitimate minimalism, so the reviewer reports no finding."
     }
   ]
 }

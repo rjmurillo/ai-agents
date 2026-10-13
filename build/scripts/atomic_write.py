@@ -21,6 +21,7 @@ Public names:
     ``read_bytes_no_redirect(path) -> bytes``
     ``write_bytes_no_redirect(path, content, *, mode=None) -> None``
     ``publish_bytes_atomically(path, content, *, mode=None) -> None``
+    ``publish_bytes_preserving_mode(path, content) -> None``
     ``reject_symlinked_ancestors(repo_root, label, path) -> str | None``
 """
 
@@ -126,6 +127,28 @@ def publish_bytes_atomically(path: Path, content: bytes, *, mode: int | None = N
         except OSError:
             pass
         raise
+
+
+def publish_bytes_preserving_mode(path: Path, content: bytes) -> None:
+    """Publish ``content`` at ``path``, keeping an existing regular file's mode.
+
+    The generators this replaced (``Path.write_text``, ``shutil.copyfile``)
+    rewrote a regular destination in place, so its permission bits survived,
+    an executable hook stayed executable. ``publish_bytes_atomically`` swaps
+    in a fresh inode, which would reset that to the ``0o600`` create default.
+    This reads the bits off a no-follow ``lstat`` first and passes them as
+    ``mode``. A missing destination, a symlink, or any non-regular entry has
+    no mode worth keeping: the symlink case in particular must not let
+    whatever planted the link dictate the replacement's permissions, so those
+    cases fall through to the restrictive default (CodeQL CWE-732).
+    """
+    try:
+        metadata = path.lstat()
+    except OSError:
+        mode = None
+    else:
+        mode = stat.S_IMODE(metadata.st_mode) if stat.S_ISREG(metadata.st_mode) else None
+    publish_bytes_atomically(path, content, mode=mode)
 
 
 def reject_symlinked_ancestors(repo_root: Path, label: str, path: Path) -> str | None:

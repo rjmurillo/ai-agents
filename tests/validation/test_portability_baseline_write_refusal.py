@@ -79,6 +79,12 @@ def _populate(root: Path) -> None:
     (instructions_dir / "x.instructions.md").write_text(
         "Clean prose with no upstream refs.\n", encoding="utf-8"
     )
+    # Issue #5294: the rendered Claude rules tree is a second required extra
+    # root with the same exists-and-nonempty contract; a clean file keeps the
+    # recorded-file count unchanged.
+    rules_dir = root / "src" / "claude" / "rules"
+    rules_dir.mkdir(parents=True, exist_ok=True)
+    (rules_dir / "x.md").write_text("Clean prose with no upstream refs.\n", encoding="utf-8")
     # ADR-109 B3: check_skill_md_portability now also requires src/claude/skills
     # to exist AND hold at least one readable file, or --update-baseline
     # refuses as a starved root (same "one shipped root with nothing to read"

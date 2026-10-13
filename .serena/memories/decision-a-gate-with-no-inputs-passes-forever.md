@@ -42,10 +42,8 @@ itself, this one never does.
 
 ## Evidence
 
-`memory_enhancement verify-all` verifies citations written in the bracket form
-`[cite` + `:TYPE](TARGET)`. It is split here on purpose: see "This file cannot
-spell its own subject" below. Measured on `origin/main` at `f2dd625`,
-2026-09-06:
+`memory_enhancement verify-all` verifies citations written as
+`[cite:TYPE](TARGET)`. Measured on `origin/main` at `f2dd625`, 2026-09-06:
 
 ```
 $ uv run --frozen python -m memory_enhancement verify-all --json | wc -c
@@ -65,9 +63,8 @@ The verifier itself is correct. Positive and negative control against the same
 binary:
 
 ```
-$ C='[cite'    # split so this file does not assert the citations it documents
-$ printf "# Bad\n\nBody.\n\n## Citations\n\n$C:file](does/not/exist.py) - x\n" > .tmp/bad.md
-$ printf "# Good\n\nBody.\n\n## Citations\n\n$C:file](README.md) - x\n" > .tmp/good.md
+$ printf "# Bad\n\nBody.\n\n## Citations\n\n[cite:file](does/not/exist.py) - x\n" > .tmp/bad.md
+$ printf "# Good\n\nBody.\n\n## Citations\n\n[cite:file](README.md) - x\n" > .tmp/good.md
 $ uv run --frozen python -m memory_enhancement --repo-root . --memories-dir .tmp verify-all
 bad:
   [FAIL] does/not/exist.py - File not found: does/not/exist.py
@@ -91,15 +88,15 @@ into context by every agent reading the thread, against GitHub's 65,536
 character comment limit. A gate with no inputs was the single largest consumer
 of PR-thread context in the repo.
 
-## This file cannot spell its own subject
+## This file could not spell its own subject
 
 Writing this memory broke the gate it describes, on the first push. `Verify
 citations` went red on PR #5800 because `parse_citation_block` in
-`memory_enhancement/serena_integration.py` matches
+`memory_enhancement/serena_integration.py` matched
 `\[cite:(?P<source_type>\w+)\]\((?P<target>[^)]+)\)` against the raw file with
-no fenced-code-block handling at all (`grep -c fence` on that module returns 0).
-The negative-control example above was therefore read as a real citation, and
-its deliberately missing path failed the run exactly as designed:
+no fenced-code-block handling. The negative-control example above was read as a
+real citation, and its deliberately missing path failed the run exactly as
+designed:
 
 ```
 decision-a-gate-with-no-inputs-passes-forever:
@@ -108,10 +105,11 @@ decision-a-gate-with-no-inputs-passes-forever:
 rc=1
 ```
 
-Consequence: no memory can document the citation syntax, because documenting it
-asserts it. Every example in a memory is a live claim about the repository. The
-`$C` split above is the workaround, not a fix; the fix is fence-aware parsing,
-tracked separately so it carries its own tests.
+Consequence at the time: no memory could document the citation syntax, because
+documenting it asserted it. This file split the marker behind a shell variable
+as a workaround. Issue #5802 fixed the parser: `mask_code` in
+`memory_enhancement/code_masking.py` blanks fenced blocks and inline code spans
+before the pattern runs, so this file now carries the plain literal.
 
 This is the second-order form of the rule at the top of this file. The corpus
 had zero citations for 256 days, so this parser path had never once run against

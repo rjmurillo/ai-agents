@@ -16,36 +16,24 @@ Related: Issue #2761 (worktree accumulation starves the markdown LSP).
 
 Every successful removal also appends one line to a durable, append-only
 audit log (``audit_log_path_for``), distinct from the stdout report a
-caller may not have captured. The log lives under the main worktree, never
-under the checkout the script runs from: ``git worktree remove`` deletes a
-linked worktree's gitignored files too, so a log kept there would be erased
-by the next GC run that removes that worktree. Issue #4790: an untracked file vanished during
-autofix work and no removal record survived the process that ran, so a later
-session had nothing to check it against. The log is JSONL, one JSON object
-per removed path, so a later session can answer "what did GC remove and
-when" without having captured that run's output.
+caller may not have captured. The writer and the log location live in
+``removal_audit``, shared with every other tool that removes a worktree
+(Issue #4790). The log is JSONL, one JSON object per removed path, so a later
+session can answer "what did GC remove and when" without having captured that
+run's output.
 """
 
 from __future__ import annotations
 
-import json
-import os
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-from scripts.maintenance import _gc_reasons, _gc_stale
+from scripts.maintenance import _gc_reasons, _gc_stale, removal_audit
+from scripts.maintenance.removal_audit import audit_log_path_for
 from scripts.maintenance.worktree_report import GcReport
-
-_AUDIT_LOG_RELATIVE = Path(".project-toolkit") / "metrics" / "gc-worktree-removals.jsonl"
-
-
-def audit_log_path_for(main_worktree: str) -> Path:
-    """The durable removal log for the repository whose main worktree is given."""
-    return Path(main_worktree) / _AUDIT_LOG_RELATIVE
 
 
 def remove_worktree(path: str, run_git: Callable[..., str]) -> None:
@@ -61,31 +49,13 @@ def _append_removal_record(
     *,
     log_path: Path,
 ) -> None:
-    """Append one durable audit record for a worktree this run removed.
-
-    Append-only and never rewritten: readers scan forward, so a later
-    session can trust that a line present today stays present tomorrow.
-    The parent directory is created if missing so a fresh clone that has
-    not yet run GC does not fail the first removal on a missing directory.
-
-    Each line is flushed and fsynced before returning. The removal it records
-    has already happened on disk, so a record left in the OS buffer could be
-    lost to a crash or power cut while the removal survives. Removals are rare,
-    so one fsync per removal costs nothing a reader would notice.
-    """
-    record = {
-        "schemaVersion": 1,
-        "ts": datetime.now(UTC).isoformat(),
-        "path": path,
-        "branch": branch,
-        "head": head,
-        "reason": reason,
-    }
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-    with log_path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(record, sort_keys=True) + "\n")
-        handle.flush()
-        os.fsync(handle.fileno())
+    """Append one durable audit record for a worktree this run removed."""
+    removal_audit.append_record(
+        "gc_worktrees",
+        path,
+        {"branch": branch, "head": head, "reason": reason},
+        log_path=log_path,
+    )
 
 
 def apply_removals(

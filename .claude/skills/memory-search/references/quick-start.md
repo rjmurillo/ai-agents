@@ -61,12 +61,12 @@ for episode in get_episodes(outcome="failure"):
 
 ```bash
 # Basic search with JSON output
-python3 .claude/skills/memory/scripts/search_memory.py \
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" \
     "git hooks" \
     --format json
 
 # Table format for quick review
-python3 .claude/skills/memory/scripts/search_memory.py \
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" \
     "session protocol" \
     --format table
 ```

@@ -13,6 +13,8 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol, cast
 
+from atomic_write import read_bytes_no_redirect, write_bytes_no_redirect
+
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
     from typing import BinaryIO
@@ -159,7 +161,11 @@ class HookGenerationTransaction:
             try:
                 os.link(target, backup)
             except OSError:
-                shutil.copy2(target, backup)
+                write_bytes_no_redirect(
+                    backup,
+                    read_bytes_no_redirect(target),
+                    mode=stat.S_IMODE(target.stat().st_mode),
+                )
         self._backups[target] = backup
 
     def _replacement_backup(self, target: Path) -> Path | None:

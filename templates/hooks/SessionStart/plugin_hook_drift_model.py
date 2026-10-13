@@ -75,27 +75,28 @@ def read_plugin_name(root: Path) -> str | None:
     """Read a plugin root's declared ``name``; None when absent or malformed.
 
     Goes through the same bounded reader as every other manifest. This one is
-    read for every directory the scan visits, so an unbounded read here would
-    be the cheapest denial-of-service surface in the hook: a single oversized
-    `plugin.json` anywhere under the scanned trees would be loaded in full.
+    read for every directory the scan visits, so an unbounded read would be the
+    cheapest denial-of-service surface in the hook: one oversized `plugin.json`
+    anywhere under the scanned trees would be loaded in full. Never reads the twin.
     """
     name, _ = read_plugin_identity(root)
     return name
 
 
-def read_plugin_identity(root: Path) -> tuple[str | None, bool]:
+def read_plugin_identity(root: Path, *, trust_twin: bool = False) -> tuple[str | None, bool]:
     """``(declared name, unreadable)`` for one candidate plugin root.
 
-    ``unreadable`` separates "there is no plugin manifest here, so this is not
-    a plugin root" from "there is one and this hook could not read it". The
-    second is not a clean skip: an oversized or corrupt `plugin.json` on the
-    real install would otherwise drop that install from the scan silently, and
-    the message would go on to claim no installed copy exists. A ``.claude``
-    root with no manifest (ADR-109 B6) retries the twin
-    ``../src/claude/.claude-plugin/plugin.json`` before reporting absent.
+    ``unreadable`` separates "no plugin manifest here, so not a plugin root"
+    from "a manifest exists and this hook could not read it". The second is
+    not a clean skip: a corrupt `plugin.json` would drop the install from the
+    scan, and the message would then claim no installed copy exists.
+
+    ``trust_twin`` lets a ``.claude`` root with no manifest (ADR-109 B6) retry
+    the twin ``../src/claude/.claude-plugin/plugin.json``. Pass it only for
+    ``project_dir / surface.source_rel``; a scanned install carries its own (#5793).
     """
     data, error = read_json_object(root / PLUGIN_MANIFEST_REL)
-    if data is None and root.name == ".claude":
+    if data is None and trust_twin and root.name == ".claude":
         twin = root.parent / "src" / "claude" / PLUGIN_MANIFEST_REL
         twin_data, twin_error = read_json_object(twin)
         if twin_data is not None:
