@@ -18,6 +18,11 @@ HOME): every ``plugin`` subcommand, ``--list-models``, and any prompt exit with
 the Claude plugin can surface that copy first. The host leg therefore copies the
 tree to a scratch directory and requires the reported skill directory to be
 inside it.
+
+The host leg uses the real Cursor login and runs ``--trust --force``, so the
+model can run shell commands. Its environment goes through ``_host_env``, which
+drops GitHub tokens and every ``*_TOKEN`` / ``*_API_KEY`` variable. HOME and PATH
+stay, because the Cursor login lives under HOME.
 """
 
 from __future__ import annotations
@@ -44,6 +49,10 @@ _SCRIPT_TIMEOUT_SECONDS = 30
 _CLI_TIMEOUT_SECONDS = 240
 _STATUS_TIMEOUT_SECONDS = 30
 _LOADER_MESSAGE = "Plugin lib directory not found"
+_SECRET_VARS = frozenset(
+    {"GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN"}
+)
+_SECRET_SUFFIXES = ("_TOKEN", "_API_KEY")
 _RUN = os.environ.get("RUN_CLI_E2E") == "1"
 
 
@@ -51,6 +60,16 @@ def _clean_env() -> dict[str, str]:
     env = {k: v for k, v in os.environ.items() if k not in _STRIPPED_VARS}
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     return env
+
+
+def _host_env() -> dict[str, str]:
+    """``_clean_env`` minus credentials the trusted, forced host leg must not see."""
+    return {k: v for k, v in _clean_env().items() if not _is_secret_var(k)}
+
+
+def _is_secret_var(name: str) -> bool:
+    upper = name.upper()
+    return upper in _SECRET_VARS or upper.endswith(_SECRET_SUFFIXES)
 
 
 def _run_script(script: Path, cwd: Path) -> subprocess.CompletedProcess[str]:
@@ -87,6 +106,24 @@ def test_cursor_tree_skill_script_fails_loudly_without_lib(tmp_path: Path) -> No
 def test_script_environment_really_has_no_plugin_root_variables() -> None:
     env = _clean_env()
     assert not [name for name in _STRIPPED_VARS if name in env]
+
+
+def test_host_env_drops_tokens_and_api_keys_but_keeps_login_variables(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dropped = ("GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN",
+               "SLACK_BOT_TOKEN", "OPENAI_API_KEY", "lower_token")  # fmt: skip
+    for name in dropped:
+        monkeypatch.setenv(name, "secret")
+    monkeypatch.setenv("HOME", "/home/x")
+    monkeypatch.setenv("PATH", "/usr/bin")
+    monkeypatch.setenv("TOKENIZERS_PARALLELISM", "false")
+    env = _host_env()
+    assert not [name for name in dropped if name in env]
+    assert env["HOME"] == "/home/x"
+    assert env["PATH"] == "/usr/bin"
+    assert env["TOKENIZERS_PARALLELISM"] == "false"
+    assert env["PYTHONDONTWRITEBYTECODE"] == "1"
 
 
 # Host leg --------------------------------------------------------------------
@@ -150,6 +187,7 @@ def test_cursor_agent_loads_the_tree_and_runs_a_skill_script(tmp_path: Path) -> 
             _host_prompt(plugin_dir),
         ],
         cwd=work,
+        env=_host_env(),
         capture_output=True,
         encoding="utf-8",
         errors="replace",
