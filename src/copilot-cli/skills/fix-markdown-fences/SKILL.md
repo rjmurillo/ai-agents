@@ -177,7 +177,9 @@ documentation:
   on the label's length: nine of eleven single-line label lengths turn a
   balanced document into an unclosed one, and the two that do not are the two
   that land on a tab stop. Escaped space and the next-line destination path
-  corrupt none of eleven. And a setext `===`
+  corrupt none of eleven. Where `markdown-it-py` is installed, `--write`
+  refuses all nine and writes none (see "Write guard"); without it the nine
+  are written. And a setext `===`
   underline directly under a list item, followed by a lazy continuation and
   then an indented fence, leaves that fence unseen. The repair function is
   DESTRUCTIVE here, and it was recorded as a miss on a measurement that did not
