@@ -28,7 +28,7 @@ Workflow, hook, and skill documentation can name an entry point. Once a
 executable string literals.
 
 Under that model the scripts (128 under scripts/validation plus 30 under
-build/scripts at the time of this edit) yield two unreachable, real decisions
+build/scripts at the time of this edit) yield three unreachable, real decisions
 recorded in ``_NO_CALLER`` below rather than a bulk exemption.
 
 What this does not do: prove the caller is correct, or that the script would
@@ -96,6 +96,13 @@ _NO_CALLER: dict[str, str] = {
         "CI would run it against a handoff that does not exist there, and "
         "wiring it into a SKILL.md adds a ratcheted upstream-path reference to a "
         "shipped skill (issue #5766)."
+    ),
+    "build/scripts/copilot_launcher.py": (
+        "A reference renderer, not a runner. No workflow, hook, or skill calls "
+        "it. The launcher strings in pr-review-config.yaml are pasted from "
+        "render_launcher(), and tests/build_scripts/test_copilot_launcher.py "
+        "fails any entry that drifts from that function's output (issue #5521). "
+        "Its caller is the test suite."
     ),
 }
 

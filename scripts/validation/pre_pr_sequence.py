@@ -43,6 +43,7 @@ from active_plan_closeout import validate_active_plan_closeout
 from check_adr_exception_markers import validate_adr_exception_markers
 from check_adr_lifecycle import validate_adr_lifecycle
 from check_adr_links import validate_adr_links
+from check_agent_delegation import validate_agent_delegation
 from check_agent_tree_frontmatter import validate_agent_tree_frontmatter
 from check_agents_write_targets import validate_agents_write_targets
 from check_bypass_allowlist import validate_bypass_allowlist
@@ -143,6 +144,7 @@ from checks_tooling import (
     validate_ci_dependency_pins,
     validate_copilot_version_pin,
     validate_effective_context_ratchet,
+    validate_external_contract_records,
     validate_instruction_budget,
     validate_instruction_bytes,
     validate_markdown_lint,
@@ -600,6 +602,10 @@ _SEQUENCE: tuple[_Gate, ...] = (
         "Agent Tree Frontmatter (.claude/agents)",
         _root_only(validate_agent_tree_frontmatter),
     ),
+    # A worker's "you CANNOT delegate" prose must match a tool grant that
+    # withholds Agent; Claude Code lets subagents spawn subagents otherwise.
+    # Issue #5184; contract is MUST 9 in templates/rules/claude-agents.md.
+    _Gate("Agent Delegation (src/claude/agents)", _root_only(validate_agent_delegation)),
     # A loose file directly under .claude/skills/ registers as a skill named after
     # the file (issue #5503, CLAUDE.md registered as skill "CLAUDE").
     _Gate(
@@ -670,6 +676,14 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate(
         "Capability Graph (metadata.capability)",
         _root_only(validate_capability_graph_declarations),
+    ),
+    # Checks the short provenance record a load-bearing external contract
+    # carries beside its consumer: closed field list, a real re-check path for
+    # empirical evidence, no pasted source text. A file with no record passes
+    # (issue #5415).
+    _Gate(
+        "External Contract Records (external-contract)",
+        _root_only(validate_external_contract_records),
     ),
     # Ratchets authored duplicate normative blocks and stale derived counts in
     # natural-language artifacts; generated mirrors are excluded (issue #5397).

@@ -4,6 +4,7 @@ description: Use when you say "break this epic into milestones", "plan this road
 metadata:
   role: coordinator
 argument-hint: Provide the epic or roadmap item to plan
+disallowedTools: Agent
 ---
 
 # Milestone Planner Agent

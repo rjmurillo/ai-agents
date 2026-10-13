@@ -251,7 +251,12 @@ def generate_skills(
 
     try:
         repo_local = repo_local_names(repo_root)
-        skills = _iter_skill_sources(source_dir, excludes, repo_local)
+        skills = _iter_skill_sources(
+            source_dir,
+            excludes,
+            repo_local,
+            frozenset(skill_templates.discover(repo_root)),
+        )
     except GenerateSkillsError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1

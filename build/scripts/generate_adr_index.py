@@ -474,20 +474,14 @@ def _blocker_cell(record: AdrRecord) -> str:
 
     A past-due date is surfaced, not marked. This cell renders whatever
     ``review-by`` says (``review by 2026-01-01``), current or overdue,
-    identically either way: there is no "(overdue)" suffix or other flag here,
-    and no other gate adds one either. Detecting that a date has passed
-    requires reading the wall clock, which this renderer must not do (it is
-    required to be deterministic: same input, byte-identical output, and a
-    clock read would make output depend on run date). ``check_adr_lifecycle.py``
-    does not fill that gap: its ``CHECKS`` tuple has no rule that reads
-    ``review-by`` at all, past-due or otherwise (verified: the string does not
-    appear in that file). So today, nothing in this codebase flags an overdue
-    ``review-by`` date; a reader has to notice one by eye. The whole reason the
-    field exists (issue #5193) is that ADR-002 and ADR-039 sat seven months past
-    a provisional window nobody could see, and until #5193 builds the check
-    this cell's plain rendering has the same blind spot, one layer less deep:
-    at least the date is visible here, where it was not visible at all before
-    this field existed (Copilot, PR #5209 round-5 review).
+    identically either way: there is no "(overdue)" suffix or other flag here.
+    Detecting that a date has passed requires reading the wall clock, which this
+    renderer must not do (it is required to be deterministic: same input,
+    byte-identical output, and a clock read would make output depend on run
+    date). ``check_adr_lifecycle.py`` owns that comparison: its
+    ``review-by-past-due`` check reports a ``proposed`` or ``accepted`` record
+    whose date has passed (issue #5193), with the clock injected so its tests do
+    not read the wall clock either.
     """
     if not record.review_by:
         return record.blocker

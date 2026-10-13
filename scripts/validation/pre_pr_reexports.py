@@ -16,6 +16,7 @@ until you do (issue #5272).
 from __future__ import annotations
 
 from check_adr_exception_markers import validate_adr_exception_markers
+from check_agent_delegation import validate_agent_delegation
 from check_agent_tree_frontmatter import validate_agent_tree_frontmatter
 from check_agents_write_targets import validate_agents_write_targets
 from check_bypass_allowlist import validate_bypass_allowlist
@@ -58,6 +59,7 @@ from checks_tooling import (
     validate_always_on_corpus_claims,
     validate_capability_graph_declarations,
     validate_effective_context_ratchet,
+    validate_external_contract_records,
     validate_instruction_budget,
     validate_instruction_bytes,
     validate_nl_structural_debt_ratchet,
@@ -70,6 +72,7 @@ __all__ = [
     "validate_agent_source_parity",
     "validate_agent_template_drift",
     "validate_adr_exception_markers",
+    "validate_agent_delegation",
     "validate_agent_tree_frontmatter",
     "validate_agents_write_targets",
     "validate_always_on_corpus_claims",
@@ -81,6 +84,7 @@ __all__ = [
     "validate_count_ratchets",
     "validate_duplicate_test_helpers",
     "validate_effective_context_ratchet",
+    "validate_external_contract_records",
     "validate_generated_staleness",
     "validate_git_hook_health",
     "validate_in_root_worktrees",

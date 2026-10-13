@@ -16,7 +16,7 @@ supersedes: []
 superseded-by: null
 explainer: null
 implemented: false
-review-by: null           # optional: YYYY-MM-DD this record must be revisited; null when the decision carries no deadline
+review-by: null           # optional: YYYY-MM-DD this record must be revisited, also stated in the prose; null when the decision carries no deadline
 ---
 
 # ADR-NNN: [Title]
@@ -46,6 +46,21 @@ Omitting the section is never a violation.
 Where the nuance is not about lifecycle at all, name the section for what it
 holds (`## Acceptance Evidence`, `## Provenance`) so no reader mistakes it for a
 second source of truth about state.
+
+Section structures (issue #5196). Two heading sets are sanctioned. New records
+use the canonical set below. Existing records written in the MADR set stay as
+they are: rewriting accepted records to change headings is churn against
+immutable artifacts. A consumer asking for "the Decision" resolves either:
+
+| Concept      | Canonical        | MADR equivalent                                    |
+|--------------|------------------|----------------------------------------------------|
+| Context      | ## Context       | ## Context and Problem Statement                   |
+| Decision     | ## Decision      | ## Decision Outcome                                |
+| Consequences | ## Consequences | ## Consequences, or ### Consequences under Decision Outcome |
+
+The lifecycle gate reports `section-structure` when a record has neither
+heading for a concept. `## Status` and `## Date` are not required. The mapping
+is `SECTION_EQUIVALENTS` in `scripts/validation/check_adr_lifecycle.py`.
 -->
 
 ## Context
@@ -145,10 +160,18 @@ is condition-triggered rather than calendar-triggered.
 | `null` | No calendar deadline. The default. |
 | `YYYY-MM-DD` | The date by which this record must be revisited. |
 
-The field is optional and unenforced, matching the `explainer` and `implemented`
-precedent in ADR-073 Phase 1. It records the deadline the prose already states;
-it does not create one. Whichever section states the deadline stays authoritative
-prose, and the date here must match it.
+The field is optional, matching the `explainer` and `implemented` precedent in
+ADR-073. It records the deadline the prose already states; it does not create
+one. State the same date as `YYYY-MM-DD` in the prose, since the prose is what a
+reader sees and the two must not drift.
+
+The lifecycle gate reads it. It reports `review-by-format` for a value that is
+not a real `YYYY-MM-DD` date, `review-by-prose-date` for a `proposed` or
+`accepted` record whose prose does not state the date, and `review-by-past-due`
+for a `proposed` or `accepted` record whose date has passed. A past-due record
+stops being a violation when you hold the review, record its outcome in the
+prose, and set a new date, set `null`, or change the status. A `superseded`,
+`deprecated`, or `rejected` record is history, and only the format check reads it.
 
 ## Coded Consequences Convention (Optional)
 

@@ -4,6 +4,7 @@ description: Use this agent when you need expert analysis of type design in your
 metadata:
   role: executor
 argument-hint: Point to the type(s) or PR to review for design quality
+disallowedTools: Agent
 ---
 
 # Type Design Analyzer Agent

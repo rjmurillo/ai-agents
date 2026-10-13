@@ -1,6 +1,6 @@
 ---
 name: fix-markdown-fences
-version: 1.4.0
+version: 1.5.0
 description: >-
   Repair malformed markdown code fence closings. Use when you say "fix markdown
   fences", "repair code block closings", "markdown rendering broken", "code
@@ -149,24 +149,25 @@ documentation:
   installed, `--write` refuses a file whose repair comes out unclosed (see
   "Write guard"), which stops the shapes below whose input was balanced and
   whose repair leaves a fence open. It does not stop a repair that the
-  reference parser still reads as balanced. Where it is not installed every
-  shape is written as described. A raw HTML block swallows a
-  following fence, so a fence inside one is read as a fence here and as HTML
-  by CommonMark. That one is DESTRUCTIVE, not merely a disagreement, and it is
-  the worst gap on this list: the reference parser sees no fence at all, so the
-  document is balanced, and `--write` appends a closer anyway. The appended
-  closer lands inside the same HTML block, so the guard reads the result as
-  balanced and allows it. Measured across all seven CommonMark HTML block
-  types, opener terminated and unterminated, 20 of 20 shapes are appended to,
-  7 are refused by the guard, and 13 are still written (for example
-  `<pre>`, `<!-- c`, or `<div>` followed by a fence and no closer). Do not
-  run `--write` unattended over documents containing raw HTML blocks. A blockquote prefix is never stripped,
+  reference parser still reads as balanced. Where it is not installed those
+  shapes are written as described. A raw HTML block swallows a following
+  fence, so a fence inside one is read as a fence here and as HTML by
+  CommonMark. `--write` refuses that file with no extra package (see "Write
+  guard"): measured across all seven CommonMark HTML block types, opener
+  terminated and unterminated, 20 of 20 shapes are refused. The check reads
+  HTML blocks at column zero to three. A block inside a list item or a
+  blockquote is not seen, so a fence inside one is still written to. It also
+  refuses a file where a start condition 7 tag such as `<span>` follows
+  paragraph text, which CommonMark does not read as a block. A refused write
+  costs a manual edit. A blockquote prefix is never stripped,
   and that costs two different things. A fence inside `>` is invisible, which is a miss: six
   shapes diverge and `--write` changes none. A blockquote INTERRUPTING a
   paragraph is worse: CommonMark ends the paragraph and lazily continues the
   quote, so a following `2.` opens a list, while we keep the paragraph open
-  and `--write` appends a closer to a balanced document. Two of twelve
-  measured shapes do that. A backslash in a link destination escapes whatever
+  and the repair function appends a closer to a balanced document. Five of
+  twelve measured shapes do that. Where `markdown-it-py` is installed,
+  `--write` refuses all five and writes none (see "Write guard"); without it
+  the five are written. A backslash in a link destination escapes whatever
   follows it, where CommonMark escapes only ASCII punctuation, so an escaped
   space and an escaped tab are read wrongly: 62 of 64 shapes agree. The spec
   rule was measured before being believed and is worse, 34 of 64 with 30
@@ -176,15 +177,20 @@ documentation:
   on the label's length: nine of eleven single-line label lengths turn a
   balanced document into an unclosed one, and the two that do not are the two
   that land on a tab stop. Escaped space and the next-line destination path
-  corrupt none of eleven. And a setext `===`
-  underline
-  directly under a list item, followed by a lazy continuation and then an
-  indented fence, leaves that fence unseen. This one is DESTRUCTIVE too, and
-  it was recorded here as a miss on a measurement that did not hold: over nine
-  shapes, seven are rewritten and six go in balanced and come out unclosed.
-  The smallest is five lines, `- item` / `===` / `lazy` / two-space fence /
-  `out`, where the list item ending closes the fence for CommonMark and
-  `--write` appends a second one at top level. `---` under
+  corrupt none of eleven. Where `markdown-it-py` is installed, `--write`
+  refuses all nine and writes none (see "Write guard"); without it the nine
+  are written. And a setext `===`
+  underline directly under a list item, followed by a lazy continuation and
+  then an indented fence, leaves that fence unseen. The repair function is
+  DESTRUCTIVE here, and it was recorded as a miss on a measurement that did not
+  hold: over nine shapes, seven are rewritten and six go in balanced and come
+  out unclosed. The smallest is five lines, `- item` / `===` / `lazy` /
+  two-space fence / `out`, where the list item ending closes the fence for
+  CommonMark and the repair appends a second one at top level. Where
+  `markdown-it-py` is installed, `--write` refuses all six of those files and
+  writes none (see "Write guard"); the seventh rewritten shape is a genuinely
+  unclosed file and is repaired correctly. Without the package the six are
+  written. `---` under
   the same item already agrees. The scanners' agreement with a CommonMark
   reference is measured by the fuzz baselines in the repository's test suite.
 
@@ -203,25 +209,33 @@ Exit codes (ADR-035):
 
 ### Write guard
 
-A repair must never turn a balanced file into an unclosed one. The scanner
-reads a few shapes differently from CommonMark. The worst case is a mistaken
-closer next to a raw HTML block: the repair inserts a closing fence above the
-info-string fence, then appends another at the end of the file, and the
-appended one is a fresh opener that nothing closes. A tracked file did exactly
-that. Removing the mistaken-closer rule does not help, because the scanner
-still reads the fence after the HTML block as an opener and appends one.
+`--write` runs two checks before it replaces a file. Either one refuses it: the
+file is not written, it is listed on a `Refused` line with the reason, the
+`refused` key under `--json` names it and `refusal_reasons` says why, and the
+run exits 1. Other files in the same run are still repaired. When a file is
+refused, read the report and fix the fences by hand.
 
-So `--write` checks the repaired text against `markdown-it-py` before it
-writes. A file that was balanced and would come out unclosed is refused: it is
-not written, it is listed on a `Refused` line (the `refused` key under
-`--json`), and the run exits 1. Other files in the same run are still
-repaired. A file that was already unclosed is never refused, since repair
-cannot make it worse by that measure.
+**A fence inside a raw HTML block.** CommonMark reads the fence as HTML, so the
+document is complete, while the scanner reads a fence and would append a
+closer. The edit lands on a well-formed file. The scanner does not model HTML
+blocks, so a file with a fence-looking line inside one is refused. This check
+needs no extra package. Fences inside a fenced block are skipped, so HTML shown
+as an example does not count, and an HTML block that a blank line or its own end
+marker closes before the fence does not count either. A block inside a list item
+or a blockquote is not seen.
+
+**A repair that leaves a fence open.** A repair must never turn a balanced file
+into an unclosed one. The worst case is a mistaken closer next to a raw HTML
+block: the repair inserts a closing fence above the info-string fence, then
+appends another at the end of the file, and the appended one is a fresh opener
+that nothing closes. A tracked file did exactly that. So `--write` checks the
+repaired text against `markdown-it-py`. A file that was balanced and would come
+out unclosed is refused. A file that was already unclosed is never refused,
+since repair cannot make it worse by that measure.
 
 `markdown-it-py` is optional because this skill is vendored into trees that
-carry no third-party packages. Without it the check is skipped, stderr says so,
-and `--write` behaves as it did before the guard. Report mode never needs it.
-When a file is refused, read the report and fix the fences by hand.
+carry no third-party packages. Without it this second check is skipped, stderr
+says so, and the HTML check still runs. Report mode never needs either.
 
 ## Reference: the algorithm
 
