@@ -47,6 +47,7 @@ Derive the route from discovered context (stack, tests, verifier, harness contro
 
 | Tier | Route for | Starting effort |
 |---|---|---|
+| Deterministic | Computable answer: lint, schema, grep, count, diff, an existing validator, a yes/no or fixed label a rule can decide | No model; run the script |
 | Bounded | Explicit scope, cheap failure, objective verifier: extraction, triage, small edits, transforms | Lowest offered |
 | Specified | Known files and patterns: implementation, review, first local repair | Low or medium |
 | Judgment | Ambiguity, architecture, cross-file repair, long-horizon agentic work, acceptance | Medium; high when those dominate |
@@ -75,7 +76,9 @@ Any model: explicit follow-through, event-driven waits, compact receipts, one ch
 ```text
 0. Recon the target stack (see Target Recon). Never route on an assumed stack.
 1. Classify complexity (Cynefin)
-2. Bounded leaf, real verifier, no consequential judgment?
+2. Computable answer (script, validator, schema, rule)?
+   YES → deterministic tier: run it, no model
+   Bounded leaf, real verifier, no consequential judgment?
    YES → bounded or specified tier by task shape
    NO  → judgment tier; continue
 3. Does task need investigation first?

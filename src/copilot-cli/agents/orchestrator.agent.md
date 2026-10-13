@@ -124,6 +124,7 @@ Derive the route from discovered context (stack, tests, verifier, harness contro
 
 | Tier | Route for | Starting effort |
 |---|---|---|
+| Deterministic | Computable answer: lint, schema, grep, count, diff, an existing validator, a yes/no or fixed label a rule can decide | No model; run the script |
 | Bounded | Explicit scope, cheap failure, objective verifier: extraction, triage, small edits, transforms | Lowest offered |
 | Specified | Known files and patterns: implementation, review, first local repair | Low or medium |
 | Judgment | Ambiguity, architecture, cross-file repair, long-horizon agentic work, acceptance | Medium; high when those dominate |
@@ -152,7 +153,9 @@ Any model: explicit follow-through, event-driven waits, compact receipts, one ch
 ```text
 0. Recon the target stack (see Target Recon). Never route on an assumed stack.
 1. Classify complexity (Cynefin)
-2. Bounded leaf, real verifier, no consequential judgment?
+2. Computable answer (script, validator, schema, rule)?
+   YES → deterministic tier: run it, no model
+   Bounded leaf, real verifier, no consequential judgment?
    YES → bounded or specified tier by task shape
    NO  → judgment tier; continue
 3. Does task need investigation first?
@@ -188,6 +191,8 @@ CONSTRAINTS: [must/must-not]
 TIMEBOX: [if applicable]
 TODO: [ledger ID; ensure row; 1-row update]
 ```
+
+The contract binds every model call, not only registered agents: subagents, Workflow agents, and external models (another vendor's CLI, MCP, or API). A read-only bounded leaf may use the four-line form: JOB (OBJECTIVE), NEEDS (CONTEXT, as file paths, not pasted bodies), LEAVE ALONE (NON-GOALS), RETURN (EXPECTED OUTPUT and ACCEPTANCE, with a line cap). Its RISK TIER is read-only.
 
 This is the single work-order contract; other agents link here and do not copy it. Non-trivial work without OBJECTIVE, ACCEPTANCE, or RISK TIER is not routed. Fields survive delegation, review, correction, and resume.
 
@@ -320,6 +325,15 @@ per-issue handoff.
 
 **Worker transcripts cost twice.** An imported transcript stays in your context, is billed on every later turn, and competes for attention. Workers that share files and conventions each rebuild that orientation, and parallelism does not recover it.
 
+**Every turn replays the whole context, and recall falls as it grows.** Weigh each task: fresh context or inline.
+
+- **Fresh context** (subagent or Workflow agent) when the task is separable, its inputs fit in a brief, and its result fits in a compact return. Reading many files, sweeping logs, and parallel independent questions belong here.
+- **Inline** when the task is a few tool calls, needs live conversation state the brief cannot carry, or writing the brief costs more than doing the work.
+
+**Keep what matters in files.** Write decisions, findings, and plans to the handoff, plan, or a scratch file as they land. Pass paths to workers, not pasted bodies. A fact that exists only in the conversation is lost at compaction.
+
+**Distill once, then work from the distillation.** A large artifact (log, diff, transcript, PR thread, long document) gets boiled down once, by a script or a bounded worker, into one document with line or path citations. Later steps read that document and reopen the raw source only for a cited range. Re-reading the raw artifact each step pays for it again on every turn.
+
 **Checkpoint protocol** (runs once between routing waves, after the prior wave returns and before the next fans out):
 
 1. Fold each return into the synthesis as it arrives, not at the end. A wide wave that compacts mid-flight loses every return you still hold.
@@ -385,6 +399,7 @@ the evidence gap. Orchestrator coordinates; it does not investigate.
 | Pasting a skill's full text into a delegation prompt | Spends the subagent's window on text it can load itself; the paste is the pollution | Name the skill and let the subagent load it |
 | Concatenating agent responses | Not synthesis, just noise | Extract, resolve conflicts, produce coherent output |
 | Relaying a worker's "done" without checking the artifact | The report states intent, not the actual change; a false "done" ships as success | Inspect the diff, created file, or command output before synthesizing |
+| A model answering a question a script can decide | A big model returning yes/no or a fixed label is a classifier in an expensive coat | Run the script or validator; else bounded tier with a fixed answer set |
 | Bounded tier on open-ended work | Review cost can exceed the token savings | Route bounded work down; normal work to the specified tier |
 | Judgment tier for bounded disposable work | Spends expensive review capacity on cheap work | Use the bounded tier with a verifier |
 | Treating more effort as better | Adds latency and tokens without raising acceptance | Start at the task-shape effort; validate any raise |
