@@ -6,7 +6,7 @@
 
 [Index Catalog]
 |creator skill authoring frontmatter token efficiency test separation: [creator-best-practices-index](creator-best-practices-index.md) (252), [skills-index](skills-index.md) (839)
-|learning retrospective best practices session notes: [learning-index](learning-index.md) (942), [retrospective-best-practices-index](retrospective-best-practices-index.md) (222)
+|learning retrospective best practices session notes: [learning-index](learning-index.md) (950), [retrospective-best-practices-index](retrospective-best-practices-index.md) (222)
 |pr comment navigation response templates review threads: [pr-comment-index](pr-comment-index.md) (258)
 
 [Decision Records]
@@ -38,8 +38,8 @@
 |pr autofix fleet lease renewal live-state QA evidence: [pr-autofix/fleet-operations](pr-autofix/fleet-operations.md) (406)
 |pr autofix lease renewal comment spam PR-AUTOFIX-LEASE post throttle self-renew noop concurrent session fleet: [pr-autofix/lease-renewal-comment-spam](pr-autofix/lease-renewal-comment-spam.md) (764)
 |pr autofix orphaned local commits round-cap escalation verification reuse: [pr-autofix/pr-autofix-orphaned-commit-verification](pr-autofix/pr-autofix-orphaned-commit-verification.md) (380)
-|github pr issue cli gh api review comment: [skills-github-cli-index](skills-github-cli-index.md) (627), [skills-pr-review-index](skills-pr-review-index.md) (1100), [pr-review/pr-review-batch-response-pattern](pr-review/pr-review-batch-response-pattern.md) (701), [project/project-labels-milestones](project/project-labels-milestones.md) (325)
-|review axes full rerun cost ship marker amplifier scoped adr-094: [review/review-full-rerun-cost-and-ship-marker-amplifier](review/review-full-rerun-cost-and-ship-marker-amplifier.md) (664)
+|github pr issue cli gh api review comment: [skills-github-cli-index](skills-github-cli-index.md) (630), [skills-pr-review-index](skills-pr-review-index.md) (1100), [pr-review/pr-review-batch-response-pattern](pr-review/pr-review-batch-response-pattern.md) (701), [project/project-labels-milestones](project/project-labels-milestones.md) (325)
+|review axes full rerun cost ship marker amplifier scoped adr-094 claude -p system-prompt-file independent axis no Task tool: [review/review-full-rerun-cost-and-ship-marker-amplifier](review/review-full-rerun-cost-and-ship-marker-amplifier.md) (895)
 |gist githubusercontent raw revision file selector content integrity: [github/gist-routing-content-integrity](github/gist-routing-content-integrity.md) (402)
 |github url path dotfile leading dot traversal encoded blob tree: [issues/4992-leading-dot-github-paths](issues/4992-leading-dot-github-paths.md) (145)
 |graphql mutation query resolve thread reply batch nested: [skills-graphql-index](skills-graphql-index.md) (111)
@@ -49,10 +49,13 @@
 |gh extension notify combine metrics milestone webhook grep: [skills-gh-extensions-index](skills-gh-extensions-index.md) (346)
 |copilot review false-positive triage response cli agent frontmatter: [skills-copilot-index](skills-copilot-index.md) (497), [copilot/copilot-cli-frontmatter-regression-runbook](copilot/copilot-cli-frontmatter-regression-runbook.md) (1891)
 |triage stale closure verify history bot superseded duplicate: [pr-review/triage-001-verify-before-stale-closure](pr-review/triage-001-verify-before-stale-closure.md) (435), [pr-review/triage-002-bot-closure-verification](pr-review/triage-002-bot-closure-verification.md) (452)
+|triage issue close single-pass skeptic refute acceptance criteria closing keyword Refs: [pr-review/triage-004-single-pass-close-verdicts-need-skeptic](pr-review/triage-004-single-pass-close-verdicts-need-skeptic.md) (383)
 |pr validation gate status check blocker merge: [validation/validation-pr-gates](validation/validation-pr-gates.md) (1245)
 |pr checks read rollup truncation cancelled superseded severity: [pr-review/use-get-pr-checks-not-raw-rollup](pr-review/use-get-pr-checks-not-raw-rollup.md) (1974)
 |adversarial review dispatched model subagent fabricated finding verify: [pr-review/dispatched-model-reviewer-reliability](pr-review/dispatched-model-reviewer-reliability.md) (2569)
-|blocked pr mergeStateStatus ruleset required contexts thread resolution: [diagnosing-a-blocked-pr](diagnosing-a-blocked-pr.md) (1196)
+|blocked pr mergeStateStatus ruleset required contexts thread resolution get_pr_checks wait MISSING why_pr_blocked Run Python Tests aggregator merge UNKNOWN: [diagnosing-a-blocked-pr](diagnosing-a-blocked-pr.md) (1654)
+|CHANGES_REQUESTED COMMENTED dismissed review reviewDecision stale bot review auto-merge blocked: [github/github-dismissed-reviews-block-automerge](github/github-dismissed-reviews-block-automerge.md) (632)
+|em dash en dash guard scope pre_pr checks_dash .py .md staged-dash-policy: [unicode-dash-guard-scope-gap](unicode-dash-guard-scope-gap.md) (1414)
 |zsh bash associative array bad substitution shell iteration: [pr-review/zsh-associative-array-bad-substitution](pr-review/zsh-associative-array-bad-substitution.md) (343)
 |ruleset required contexts scheduled drift second baseline duplicate source contract: [decision-ruleset-drift-must-not-create-a-second-baseline](decision-ruleset-drift-must-not-create-a-second-baseline.md) (258)
 |pr context statusCheckRollup list null CheckRun StatusContext reviewThreads: [github/pr-context-authoritative-metadata](github/pr-context-authoritative-metadata.md) (195)
@@ -125,7 +128,7 @@
 
 [CI/CD and Workflows]
 |local passes CI fails same commit gitignored build: [decision-local-pass-does-not-clear-red-ci](decision-local-pass-does-not-clear-red-ci.md) (942)
-|spec coverage acceptance criteria checkbox observe signal non-blocking: [ci/ci-spec-coverage-acceptance-signal-is-observe-only](ci/ci-spec-coverage-acceptance-signal-is-observe-only.md) (917)
+|spec coverage acceptance criteria checkbox fails unchecked linked spec observe-only history verdict spec_coverage_verdict linked spec rerun stale body: [ci/ci-spec-coverage-acceptance-signal-is-observe-only](ci/ci-spec-coverage-acceptance-signal-is-observe-only.md) (1256)
 |mutation harness restore failure truncate empty target sibling: [ci/mutation-harness-restore-failure-safe-writes](ci/mutation-harness-restore-failure-safe-writes.md) (360)
 |BOT_PAT github.token runner token AI review read calls: [ci/ci-ai-review-read-calls-use-runner-token](ci/ci-ai-review-read-calls-use-runner-token.md) (284)
 |count ratchet baseline branch freshness behind main stale: [ci/ci-count-ratchets-require-branch-freshness](ci/ci-count-ratchets-require-branch-freshness.md) (1604)
@@ -146,11 +149,11 @@
 |stuck subagent SendMessage nudge git checkout stale local branch GH007 private email worktree identity user.email --worktree: [agent-behavior/stuck-subagent-and-worktree-recovery](agent-behavior/stuck-subagent-and-worktree-recovery.md) (205)
 |spec coverage validator verdict differs across reruns adjacent commits PASS WARN FAIL PARTIAL component: [ci/ai-spec-validator-verdicts-flip-flop-across-reruns](ci/ai-spec-validator-verdicts-flip-flop-across-reruns.md) (751)
 |gc_worktrees prune registered worktrees rescue branch admin directory unreachable commits: [workspace/gc-worktrees-report-then-apply](workspace/gc-worktrees-report-then-apply.md) (542)
-|validate PR check red advisory blocking signal DESCRIPTION_RESULT: [ci/ci-validate-pr-is-many-gates-only-some-read-the-body](ci/ci-validate-pr-is-many-gates-only-some-read-the-body.md) (3232)
+|validate PR check red advisory blocking signal DESCRIPTION_RESULT file mentioned not in diff bullet bold rerun stale payload body edit: [ci/ci-validate-pr-is-many-gates-only-some-read-the-body](ci/ci-validate-pr-is-many-gates-only-some-read-the-body.md) (3572)
 |workspace WSL native worktree uv network handshake mutation harness /mnt/c: [workspace/wsl-native-worktree-for-uv-network-access](workspace/wsl-native-worktree-for-uv-network-access.md) (352)
 |linking an issue Closes Fixes Resolves Implements Refs: [ci/ci-linking-an-issue-arms-an-ai-gate-against-your-diff](ci/ci-linking-an-issue-arms-an-ai-gate-against-your-diff.md) (1723)
 |QA report filename issue-N pr-N rename first push glob: [ci/ci-qa-report-may-be-named-for-the-issue-not-the-pr](ci/ci-qa-report-may-be-named-for-the-issue-not-the-pr.md) (1227)
-|job name collision duplicate check name ambiguous red: [ci/ci-job-names-collide-so-a-red-check-name-is-ambiguous](ci/ci-job-names-collide-so-a-red-check-name-is-ambiguous.md) (1490)
+|job name collision duplicate check name ambiguous red push pull_request event rerun Run Python Tests: [ci/ci-job-names-collide-so-a-red-check-name-is-ambiguous](ci/ci-job-names-collide-so-a-red-check-name-is-ambiguous.md) (1729)
 |AI quality gate Aggregate Results all agents NEEDS_REVIEW: [ci/ci-ai-gate-blocks-when-the-security-review-did-not-run](ci/ci-ai-gate-blocks-when-the-security-review-did-not-run.md) (2000)
 |mutation testing line swap stale bytecode __pycache__ false: [ci/ci-line-swap-mutations-reuse-stale-bytecode](ci/ci-line-swap-mutations-reuse-stale-bytecode.md) (834)
 |CI CD workflow actions runner ARM: [skills-ci-infrastructure-index](skills-ci-infrastructure-index.md) (1068)
@@ -160,7 +163,7 @@
 |doc-only repair executable guard prose shell snippet: [decision-doc-only-repairs-need-an-executable-guard](decision-doc-only-repairs-need-an-executable-guard.md) (620)
 |python-lint-ratchet not a ratchet changed files zero tolerance: [python/python-lint-ratchet-is-not-a-ratchet](python/python-lint-ratchet-is-not-a-ratchet.md) (970)
 |milestone tracking semver v-prefix silent no-op set_item_milestone missing-milestone-ok: [ci/milestone-tracking-v-prefix-fix](ci/milestone-tracking-v-prefix-fix.md) (408)
-|build_all --check drift uncommitted changes git diff: [ci/ci-build-all-check-reports-uncommitted-changes-as-drift](ci/ci-build-all-check-reports-uncommitted-changes-as-drift.md) (163)
+|build_all --check drift uncommitted changes git diff legacy.boolean_contract Generated Artifact Staleness check_generated_staleness: [ci/ci-build-all-check-reports-uncommitted-changes-as-drift](ci/ci-build-all-check-reports-uncommitted-changes-as-drift.md) (373)
 
 [Documentation and Planning]
 |documentation PRD spec user-facing migration self-contained: [skills-documentation-index](skills-documentation-index.md) (311)

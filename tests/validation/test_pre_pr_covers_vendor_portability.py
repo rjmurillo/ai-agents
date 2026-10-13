@@ -1,14 +1,14 @@
 """Bind pre_pr's gate list to the Validate Vendor Portability job (issue #5670).
 
 Two canonical lists of the same validators exist and nothing joined them. The
-CI job ``.github/workflows/validate-vendor-portability.yml`` runs seven, and the
+CI job ``.github/workflows/validate-vendor-portability.yml`` runs eight, and the
 ``_SEQUENCE`` in ``scripts/validation/pre_pr_sequence.py`` ran two. A branch
 could clear every local gate and still turn that job red, which is what
 happened on ``fix/4462-squash-merge-audit``: 65 of 65 gates green while
 ``check_skill_portability`` exited 1 for a skill script with no baseline entry.
 
 The workflow is the source of truth here, not a constant copied out of it. Each
-test below reads the YAML, so adding a seventh validator to the job fails these
+test below reads the YAML, so adding a ninth validator to the job fails these
 tests until a pre_pr gate runs it too.
 
 Why the tests assert on the argv reaching ``_run_subprocess`` rather than on a
@@ -29,7 +29,7 @@ Negative controls, each verified to fail before shipping:
 - Mark a gate ``skip_when_quick=True``: ``test_mapped_gate_is_never_skipped``
   fails.
 - Add an eighth validator step to the workflow carrying ``if: always()``:
-  ``test_workflow_still_defines_seven_validators``,
+  ``test_workflow_still_defines_eight_validators``,
   ``test_no_validator_step_is_conditional``, and
   ``test_every_workflow_validator_is_mapped`` all fail. Filtering steps on
   ``if`` rather than on shape would have made that step invisible, which is the
@@ -83,7 +83,7 @@ def _workflow_validator_commands() -> list[str]:
     Split on shape, not on ``if:``. The remediation step is the job's only
     multi-line ``run``, a block of ``echo`` lines that quotes several validator
     commands in its help text, so anything matching on the text would collect it
-    as a seventh validator. Filtering on ``if`` instead would drop a real
+    as a ninth validator. Filtering on ``if`` instead would drop a real
     validator the day someone adds one with a condition, which is the silent
     direction to fail.
 
@@ -112,9 +112,9 @@ def _gate(name: str) -> Any:
     return matches[0]
 
 
-def test_workflow_still_defines_seven_validators() -> None:
+def test_workflow_still_defines_eight_validators() -> None:
     """Anchor the count so a silently dropped CI step is visible here too."""
-    assert len(_workflow_validator_commands()) == 7
+    assert len(_workflow_validator_commands()) == 8
 
 
 def test_only_the_remediation_step_is_multi_line() -> None:
@@ -163,7 +163,7 @@ def test_mapped_gate_exists(gate_name: str, validator_name: str) -> None:
 
 @pytest.mark.parametrize(("gate_name", "validator_name"), sorted(_EXPECTED.values()))
 def test_mapped_gate_is_never_skipped(gate_name: str, validator_name: str) -> None:
-    """None of the seven may be skippable, or the coverage claim is conditional.
+    """None of the eight may be skippable, or the coverage claim is conditional.
 
     ``skip_when_quick`` drops a gate under ``--quick``, and ``already_run_by``
     drops it when the named pre-push fast-stage job set the environment marker.

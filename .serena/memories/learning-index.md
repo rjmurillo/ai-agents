@@ -13,7 +13,7 @@
 | performance optimization caching process management | [quality/performance-observations](quality/performance-observations.md) |
 | cost optimization token model selection efficiency | [cost/cost-optimization-observations](cost/cost-optimization-observations.md) |
 | powershell patterns scripting best practices module | [powershell/powershell-observations](powershell/powershell-observations.md) |
-| bash scripting shell patterns glob integration | [bash/bash-integration-observations](bash/bash-integration-observations.md) |
+| bash scripting shell patterns glob integration zsh word split pgrep pkill | [bash/bash-integration-observations](bash/bash-integration-observations.md) |
 | error handling anti-patterns suppression catch | [error-handling/error-handling-observations](error-handling/error-handling-observations.md) |
 | architecture decisions system design ADR composite | [architecture/architecture-observations](architecture/architecture-observations.md) |
 | skills architecture MCP isolation firewalled | [skills/skills-architecture-observations](skills/skills-architecture-observations.md) |

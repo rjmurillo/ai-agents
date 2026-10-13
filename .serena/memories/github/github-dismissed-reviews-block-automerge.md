@@ -26,6 +26,20 @@ GitHub branch protection policies typically require at least one active approval
 - `reviewDecision: null` indicates no active approval/rejection
 - GitHub computes merge state asynchronously (may show UNKNOWN initially)
 
+## A COMMENTED re-review does not clear a CHANGES_REQUESTED block
+
+`reviewDecision` moves only on `APPROVED`, `CHANGES_REQUESTED`, and `DISMISSED`.
+A bot that re-reviews after the fix and posts `COMMENTED` leaves its older
+`CHANGES_REQUESTED` review active. All threads can be resolved and every check
+green, and the PR stays blocked. Only a later `APPROVED` from the same reviewer,
+or a human dismissal, clears it.
+
+`detect_stale_bot_review.py` encodes this: `_VERDICT_STATES` at line 82 lists the
+three states that count, and its `DISMISSAL_HANDOFF` verdict prints the dismissal
+command for a human to run. The agent does not dismiss reviews.
+
+Source: the 2026-10-12 sweep (issue #5950), re-read in the script on `origin/main` at `ec3214659`.
+
 ## Related
 - Session: 2026-01-16-session-8-pr-920-merge
 - ADR-014: HANDOFF.md read-only architecture

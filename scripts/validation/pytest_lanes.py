@@ -81,12 +81,20 @@ def split_workers(total: int, lane_count: int) -> list[int]:
     return [base + (1 if index < extra else 0) for index in range(lane_count)]
 
 
-def plan_lanes(commands: Sequence[Sequence[str]], visible_cpus: int) -> list[Lane] | None:
+def plan_lanes(
+    commands: Sequence[Sequence[str]],
+    visible_cpus: int,
+    process_budget: int | None = None,
+) -> list[Lane] | None:
     """Group ``commands`` into lanes that can overlap, or ``None`` to stay serial.
 
     ``None`` means overlap gains nothing or would break the worker budget:
     fewer than two lanes, an unreadable ``-n`` value, or fewer workers than
     xdist lanes (a one-worker budget cannot feed two pools).
+
+    ``process_budget`` caps the pytest processes that run at once, the serial
+    lane's one process included. Without it only the xdist workers are bounded,
+    and the serial lane runs beside them (issue #5383).
     """
     xdist = [tuple(command) for command in commands if _is_xdist(command)]
     serial = tuple(tuple(command) for command in commands if not _is_xdist(command))
@@ -94,6 +102,8 @@ def plan_lanes(commands: Sequence[Sequence[str]], visible_cpus: int) -> list[Lan
     if lane_count < 2 or not xdist:
         return None
     total = _workers_total(xdist[0], visible_cpus)
+    if total is not None and process_budget is not None:
+        total = min(total, process_budget - (1 if serial else 0))
     if total is None or total < len(xdist):
         return None
     shares = split_workers(total, len(xdist))

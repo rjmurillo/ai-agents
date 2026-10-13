@@ -17,6 +17,8 @@ Exit codes follow ADR-035:
 from __future__ import annotations
 
 import argparse
+import contextlib
+import io
 import math
 import os
 import sys
@@ -160,6 +162,33 @@ query($owner: String!, $repo: String!, $oid: GitObjectID!, $number: Int!, $curso
 _CONTEXTS_MAX_PAGES = 50
 _BLOCKING_MERGE_STATES = {"CONFLICTING", "UNKNOWN"}
 _BLOCKING_MERGE_STATE_STATUSES = {"DIRTY", "UNKNOWN"}
+# Data keys of a successful run. Failure envelopes carry the same keys so a
+# caller that pipes json output never hits a KeyError on a failed run.
+_DATA_KEYS = (
+    "Success",
+    "Number",
+    "Owner",
+    "Repo",
+    "BaseBranch",
+    "AllState",
+    "RequiredState",
+    "MergeState",
+    "MergeStateStatus",
+    "MergeRefUsable",
+    "MergeStateWarning",
+    "HasChecks",
+    "Checks",
+    "FailedCount",
+    "PendingCount",
+    "PassedCount",
+    "AllPassing",
+    "ChecksIncomplete",
+    "PendingRequiredChecks",
+    "FailedRequiredChecks",
+    "MissingRequiredChecks",
+)
+# Exit code to Error.Type for failures raised as SystemExit before any query.
+_PREFLIGHT_ERROR_TYPES = {3: "ApiError", 4: "AuthError"}
 _MISSING_RECOVERY_HINT = (
     "Recovery: close and reopen the PR to re-fire pull_request workflows "
     "(see fix-ci.md, 'Required check never reported')."
@@ -790,29 +819,96 @@ def _resolve_status(
     return f"PR #{number}: All {output['PassedCount']} check(s) passing", "PASS"
 
 
-def _handle_fetch_error(check_data: dict, pr_number: int, fmt: object) -> int | None:
+def failure_data(
+    number: int | None,
+    owner: str | None = None,
+    repo: str | None = None,
+    base_branch: str | None = None,
+) -> dict:
+    """Return the Data object for a failure envelope.
+
+    Every key of a successful run is present. Values the failure left unknown
+    are None, never absent, and AllPassing is False so a caller that skips the
+    Success check still fails closed.
+    """
+    data: dict = dict.fromkeys(_DATA_KEYS)
+    data.update(
+        Success=False,
+        Number=number,
+        Owner=owner,
+        Repo=repo,
+        BaseBranch=base_branch,
+        AllPassing=False,
+    )
+    return data
+
+
+def _emit_failure(
+    message: str,
+    code: int,
+    error_type: str,
+    fmt: str,
+    data: dict,
+) -> None:
+    write_skill_error(
+        message,
+        code,
+        error_type=error_type,
+        output_format=fmt,
+        script_name="get_pr_checks.py",
+        extra=data,
+    )
+
+
+def _handle_fetch_error(
+    check_data: dict,
+    pr_number: int,
+    fmt: object,
+    owner: str | None = None,
+    repo: str | None = None,
+) -> int | None:
     """Return an exit code if check_data carries an error, else None."""
-    if check_data.get("Error") == "NotFound":
-        write_skill_error(
-            check_data["Message"],
-            2,
-            error_type="NotFound",
-            output_format=fmt,
-            script_name="get_pr_checks.py",
-            extra={"Number": pr_number},
-        )
-        return 2
-    if check_data.get("Error") == "ApiError":
-        write_skill_error(
-            check_data["Message"],
-            3,
-            error_type="ApiError",
-            output_format=fmt,
-            script_name="get_pr_checks.py",
-            extra={"Number": pr_number},
-        )
-        return 3
-    return None
+    codes = {"NotFound": 2, "ApiError": 3}
+    error = check_data.get("Error")
+    if error not in codes:
+        return None
+    _emit_failure(
+        check_data["Message"],
+        codes[error],
+        error,
+        fmt,
+        failure_data(pr_number, owner, repo),
+    )
+    return codes[error]
+
+
+def _resolve_repo_or_fail(args: argparse.Namespace, fmt: str) -> tuple[str, str]:
+    """Authenticate and resolve owner and repo, keeping json stdout parseable.
+
+    The helpers behind this call write to stderr and raise SystemExit. In json
+    mode that left stdout empty, so a piped caller got a parse error instead of
+    the failure. Emit one error envelope, keep the stderr text, and re-raise
+    with the original exit code.
+    """
+    captured = io.StringIO()
+    try:
+        with contextlib.redirect_stderr(captured):
+            assert_gh_authenticated()
+            resolved = resolve_repo_params(args.owner, args.repo)
+    except SystemExit as exc:
+        sys.stderr.write(captured.getvalue())
+        code = exc.code if isinstance(exc.code, int) and not isinstance(exc.code, bool) else 1
+        if fmt == "json":
+            _emit_failure(
+                captured.getvalue().strip() or f"Preflight failed with exit code {code}",
+                code,
+                _PREFLIGHT_ERROR_TYPES.get(code, "General"),
+                fmt,
+                failure_data(args.pull_request, args.owner or None, args.repo or None),
+            )
+        raise
+    sys.stderr.write(captured.getvalue())
+    return resolved.owner, resolved.repo
 
 
 def _downgrade_required_state(output: dict, checks_incomplete: bool) -> None:
@@ -840,16 +936,11 @@ def _exit_code(output: dict, checks_incomplete: bool, timed_out_pending: bool) -
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    assert_gh_authenticated()
-
-    resolved = resolve_repo_params(args.owner, args.repo)
-    owner = resolved.owner
-    repo = resolved.repo
-
     fmt = get_output_format(args.output_format)
+    owner, repo = _resolve_repo_or_fail(args, fmt)
 
     check_data = fetch_checks(owner, repo, args.pull_request)
-    rc = _handle_fetch_error(check_data, args.pull_request, fmt)
+    rc = _handle_fetch_error(check_data, args.pull_request, fmt, owner, repo)
     if rc is not None:
         return rc
 
@@ -864,13 +955,12 @@ def main(argv: list[str] | None = None) -> int:
     if base_branch:
         ruleset_contexts = fetch_ruleset_required_contexts(owner, repo, base_branch)
         if ruleset_contexts is None:
-            write_skill_error(
+            _emit_failure(
                 f"Failed to read required checks for base branch {base_branch!r}",
                 3,
-                error_type="ApiError",
-                output_format=fmt,
-                script_name="get_pr_checks.py",
-                extra={"Number": args.pull_request},
+                "ApiError",
+                fmt,
+                failure_data(args.pull_request, owner, repo, base_branch),
             )
             return 3
 
@@ -910,7 +1000,7 @@ def main(argv: list[str] | None = None) -> int:
 
         time.sleep(10)
         check_data = fetch_checks(owner, repo, args.pull_request)
-        rc = _handle_fetch_error(check_data, args.pull_request, fmt)
+        rc = _handle_fetch_error(check_data, args.pull_request, fmt, owner, repo)
         if rc is not None:
             return rc
 

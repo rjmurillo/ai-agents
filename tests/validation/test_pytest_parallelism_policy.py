@@ -321,6 +321,27 @@ def test_invalid_local_worker_cap_is_rejected(
         _pytest_commands_by_partition(tmp_path)
 
 
+@pytest.mark.parametrize(
+    ("visible", "reserve", "expected"),
+    [(48, "3", "16"), (16, "3", "8"), (8, "3", "4"), (4, "3", "1"), (2, "3", "1")],
+)
+def test_scaled_cap_then_cpu_reserve_sets_worker_count(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    visible: int,
+    reserve: str,
+    expected: str,
+) -> None:
+    monkeypatch.delenv(policy.PYTEST_WORKERS_ENV, raising=False)
+    monkeypatch.setenv(policy.PYTEST_WORKER_CAP_ENV, policy.PYTEST_WORKER_CAP_SCALED)
+    monkeypatch.setenv(policy.PYTEST_CPU_RESERVE_ENV, reserve)
+    monkeypatch.setattr(policy, "_visible_cpu_count", lambda: visible)
+
+    bulk, _mutation, _safe_push, _pr_autofix = _pytest_commands_by_partition(tmp_path)
+
+    assert _flag_value(bulk, _WORKER_FLAGS) == expected
+
+
 def test_run_pytest_consumes_worker_override_before_child_process(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -332,6 +353,7 @@ def test_run_pytest_consumes_worker_override_before_child_process(
     monkeypatch.setenv(policy.PYTEST_FULL_SUITE_LOCALLY_ENV, "1")
     monkeypatch.setenv(policy.PYTEST_WORKERS_ENV, "3")
     monkeypatch.setenv(policy.PYTEST_WORKER_CAP_ENV, "4")
+    monkeypatch.setenv(policy.PYTEST_CPU_RESERVE_ENV, "1")
     seen_commands: list[list[str]] = []
     seen_envs: list[dict[str, str]] = []
 
@@ -358,6 +380,7 @@ def test_run_pytest_consumes_worker_override_before_child_process(
     pools = [_flag_value(command, _WORKER_FLAGS) for command in seen_commands]
     assert sum(int(workers) for workers in pools if workers) == 3
     assert all(policy.PYTEST_WORKER_CAP_ENV not in env for env in seen_envs)
+    assert all(policy.PYTEST_CPU_RESERVE_ENV not in env for env in seen_envs)
     assert all(policy.PYTEST_WORKERS_ENV not in env for env in seen_envs)
     # Every control `run_pytest` consumes has to be stripped, not just the two
     # that were there first. The opt-in leaking through makes a child test that

@@ -2906,3 +2906,233 @@ class TestRequiredState:
         output = build_output({"Number": 42, "HasChecks": True, "Checks": []}, "o", "r")
 
         assert output["AllState"] == "UNKNOWN"
+
+
+# ---------------------------------------------------------------------------
+# Tests: json failure envelopes keep the success Data schema (issue #6394)
+# ---------------------------------------------------------------------------
+
+
+def _success_data_keys(capsys) -> list[str]:
+    """Run a passing PR through main and return the Data keys it emits."""
+    rollup = _rollup_response([_check_run_node("build", "COMPLETED", "SUCCESS")])
+    with (
+        patch("get_pr_checks.assert_gh_authenticated"),
+        patch("get_pr_checks.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
+        patch("get_pr_checks.gh_graphql", return_value=rollup),
+    ):
+        rc = main(["--pull-request", "7", "--output-format", "json"])
+    assert rc == 0
+    return list(json.loads(capsys.readouterr().out)["Data"])
+
+
+def _fail_with(stderr_text: str, code: object):
+    """Build a side effect that writes to stderr then exits, like error_and_exit."""
+
+    def _raise(*_args, **_kwargs):
+        if stderr_text:
+            print(stderr_text, file=sys.stderr)
+        raise SystemExit(code)
+
+    return _raise
+
+
+class TestFailureEnvelopeSchema:
+    def test_failure_data_keys_match_success_data_keys(self, capsys):
+        assert list(_mod.failure_data(7)) == _success_data_keys(capsys)
+
+    def test_failure_data_fails_closed(self):
+        data = _mod.failure_data(7, "o", "r", "main")
+        assert data["Success"] is False
+        assert data["AllPassing"] is False
+        assert (data["Number"], data["Owner"], data["Repo"], data["BaseBranch"]) == (
+            7,
+            "o",
+            "r",
+            "main",
+        )
+        unknown = {k for k, v in data.items() if v is None}
+        assert {
+            "Checks",
+            "AllState",
+            "RequiredState",
+            "FailedCount",
+            "MissingRequiredChecks",
+        } <= unknown
+
+    def test_not_found_envelope_has_every_success_key(self, capsys):
+        expected = _success_data_keys(capsys)
+        with (
+            patch("get_pr_checks.assert_gh_authenticated"),
+            patch("get_pr_checks.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
+            patch("get_pr_checks.gh_graphql", side_effect=RuntimeError("Could not resolve PR")),
+        ):
+            rc = main(["--pull-request", "999", "--output-format", "json"])
+        captured = capsys.readouterr()
+        envelope = json.loads(captured.out)
+        assert rc == 2
+        assert captured.err == ""
+        assert envelope["Error"]["Type"] == "NotFound"
+        assert list(envelope["Data"]) == expected
+        assert envelope["Data"]["Number"] == 999
+        assert envelope["Data"]["Owner"] == "o"
+        assert envelope["Data"]["Repo"] == "r"
+        assert envelope["Data"]["Checks"] is None
+
+    def test_api_error_envelope_has_every_success_key(self, capsys):
+        expected = _success_data_keys(capsys)
+        with (
+            patch("get_pr_checks.assert_gh_authenticated"),
+            patch("get_pr_checks.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
+            patch("get_pr_checks.gh_graphql", side_effect=RuntimeError("HTTP 502")),
+        ):
+            rc = main(["--pull-request", "5", "--output-format", "json"])
+        envelope = json.loads(capsys.readouterr().out)
+        assert rc == 3
+        assert envelope["Error"]["Type"] == "ApiError"
+        assert list(envelope["Data"]) == expected
+        assert envelope["Data"]["AllPassing"] is False
+
+    def test_ruleset_failure_envelope_has_every_success_key(self, capsys):
+        expected = _success_data_keys(capsys)
+        rollup = _rollup_response([_check_run_node("build", "COMPLETED", "SUCCESS")])
+        with (
+            patch("get_pr_checks.assert_gh_authenticated"),
+            patch("get_pr_checks.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
+            patch("get_pr_checks.gh_graphql", return_value=rollup),
+            patch("get_pr_checks.fetch_ruleset_required_contexts", return_value=None),
+        ):
+            rc = main(["--pull-request", "5", "--output-format", "json"])
+        envelope = json.loads(capsys.readouterr().out)
+        assert rc == 3
+        assert list(envelope["Data"]) == expected
+        assert envelope["Data"]["BaseBranch"] == "main"
+        assert envelope["Data"]["Owner"] == "o"
+
+    def test_wait_loop_fetch_error_envelope_has_every_success_key(self, capsys):
+        expected = _success_data_keys(capsys)
+        pending = _rollup_response([_check_run_node("build", "IN_PROGRESS", "")])
+        with (
+            patch("get_pr_checks.assert_gh_authenticated"),
+            patch("get_pr_checks.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
+            patch(
+                "get_pr_checks.gh_graphql",
+                side_effect=[pending, RuntimeError("Could not resolve PR")],
+            ),
+            patch("get_pr_checks.time.sleep"),
+        ):
+            rc = main(["--pull-request", "5", "--wait", "--output-format", "json"])
+        envelope = json.loads(capsys.readouterr().out)
+        assert rc == 2
+        assert list(envelope["Data"]) == expected
+
+
+class TestPreflightFailureEnvelope:
+    def test_auth_failure_emits_one_envelope_and_keeps_stderr(self, capsys):
+        expected = _success_data_keys(capsys)
+        with (
+            patch(
+                "get_pr_checks.assert_gh_authenticated",
+                side_effect=_fail_with("gh is not authenticated", 4),
+            ),
+            pytest.raises(SystemExit) as exc,
+        ):
+            main(["--pull-request", "9", "--output-format", "json"])
+        captured = capsys.readouterr()
+        envelope = json.loads(captured.out)
+        assert exc.value.code == 4
+        assert captured.err == "gh is not authenticated\n"
+        assert envelope["Success"] is False
+        assert envelope["Error"] == {
+            "Message": "gh is not authenticated",
+            "Code": 4,
+            "Type": "AuthError",
+        }
+        assert list(envelope["Data"]) == expected
+        assert envelope["Data"]["Number"] == 9
+
+    def test_repo_resolution_failure_emits_general_error(self, capsys):
+        with (
+            patch("get_pr_checks.assert_gh_authenticated"),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                side_effect=_fail_with("Invalid GitHub owner name: x y", 2),
+            ),
+            pytest.raises(SystemExit) as exc,
+        ):
+            main(["--pull-request", "9", "--owner", "x y", "--output-format", "json"])
+        captured = capsys.readouterr()
+        envelope = json.loads(captured.out)
+        assert exc.value.code == 2
+        assert envelope["Error"]["Type"] == "General"
+        assert envelope["Error"]["Code"] == 2
+        assert envelope["Data"]["Owner"] == "x y"
+        assert "Invalid GitHub owner name" in captured.err
+
+    def test_external_failure_maps_to_api_error(self, capsys):
+        with (
+            patch(
+                "get_pr_checks.assert_gh_authenticated",
+                side_effect=_fail_with("GitHub returned HTTP 503", 3),
+            ),
+            pytest.raises(SystemExit) as exc,
+        ):
+            main(["--pull-request", "9", "--output-format", "json"])
+        envelope = json.loads(capsys.readouterr().out)
+        assert exc.value.code == 3
+        assert envelope["Error"]["Type"] == "ApiError"
+
+    def test_silent_exit_gets_fallback_message(self, capsys):
+        with (
+            patch("get_pr_checks.assert_gh_authenticated", side_effect=SystemExit(4)),
+            pytest.raises(SystemExit) as exc,
+        ):
+            main(["--pull-request", "9", "--output-format", "json"])
+        captured = capsys.readouterr()
+        envelope = json.loads(captured.out)
+        assert exc.value.code == 4
+        assert captured.err == ""
+        assert envelope["Error"]["Message"] == "Preflight failed with exit code 4"
+
+    def test_non_integer_exit_code_becomes_exit_1(self, capsys):
+        with (
+            patch(
+                "get_pr_checks.assert_gh_authenticated",
+                side_effect=SystemExit("boom"),
+            ),
+            pytest.raises(SystemExit),
+        ):
+            main(["--pull-request", "9", "--output-format", "json"])
+        envelope = json.loads(capsys.readouterr().out)
+        assert envelope["Error"]["Code"] == 1
+        assert envelope["Error"]["Type"] == "General"
+
+    def test_human_format_prints_no_envelope(self, capsys):
+        with (
+            patch(
+                "get_pr_checks.assert_gh_authenticated",
+                side_effect=_fail_with("gh is not authenticated", 4),
+            ),
+            pytest.raises(SystemExit) as exc,
+        ):
+            main(["--pull-request", "9", "--output-format", "human"])
+        captured = capsys.readouterr()
+        assert exc.value.code == 4
+        assert captured.out == ""
+        assert captured.err == "gh is not authenticated\n"
+
+    def test_successful_preflight_forwards_stderr_and_keeps_stdout_json(self, capsys):
+        rollup = _rollup_response([_check_run_node("build", "COMPLETED", "SUCCESS")])
+        with (
+            patch(
+                "get_pr_checks.assert_gh_authenticated",
+                side_effect=lambda: print("auth notice", file=sys.stderr),
+            ),
+            patch("get_pr_checks.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
+            patch("get_pr_checks.gh_graphql", return_value=rollup),
+        ):
+            rc = main(["--pull-request", "9", "--output-format", "json"])
+        captured = capsys.readouterr()
+        assert rc == 0
+        assert captured.err == "auth notice\n"
+        assert json.loads(captured.out)["Success"] is True

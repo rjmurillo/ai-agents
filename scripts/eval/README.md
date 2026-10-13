@@ -926,7 +926,7 @@ this workflow before merge.
 
 ## Autoplan Route Eval
 
-`eval_autoplan_routes.py` is part 1 of #5389. It calls the real `resolve_route.py` `main`, not a copy of its lookup, so a change to the resolver or to any skill's `metadata.routing.intents` moves the score.
+`eval_autoplan_routes.py` is parts 1 and 2 of #5389. Part 1 scores resolver fixtures: it calls the real `resolve_route.py` `main`, not a copy of its lookup, so a change to the resolver or to any skill's `metadata.routing.intents` moves the score. Part 2 scores model-driven families from `--model-results` and never calls the resolver for them.
 
 ```bash
 uv run python scripts/eval/eval_autoplan_routes.py                  # local, about 5 seconds, no API key
@@ -941,9 +941,25 @@ The layers stay separate, as #5389 requires:
 |---|---|
 | Classified, structurally reachable, scenario present | `check_skill_routing_roles.py --report` |
 | Scored route accuracy, deterministic resolver families | this script |
-| Scored route accuracy, model-driven families | not built yet |
+| Scored route accuracy, model-driven families | this script reads the results of `eval-rule-activation.py` on `tests/evals/skill-scenarios/autoplan.json` (#6290) |
 
-Executed families: `explicit-skill`, `long-tail-single-domain`, `multi-domain-handoff`, `negative-noise`, `failure-fallback`. A scenario that expects a specialist fails when the resolver returns the orchestrator or `none`, and the report counts orchestrator handoffs and `none` results as separate rates. A fixture route without a namespace matches that skill in any plugin namespace. A qualified route such as `gstack:dx-review` must match exactly, which pins the namespace in a mixed catalog. Every report lists `high-traffic-direct`, `conditional-adjunct`, `lifecycle`, and `composition-order` as not executed, because a model reads the autoplan table and the parent skills' prose.
+Executed families: `explicit-skill`, `long-tail-single-domain`, `multi-domain-handoff`, `negative-noise`, `failure-fallback`. A scenario that expects a specialist fails when the resolver returns the orchestrator or `none`, and the report counts orchestrator handoffs and `none` results as separate rates. A fixture route without a namespace matches that skill in any plugin namespace. A qualified route such as `gstack:dx-review` must match exactly, which pins the namespace in a mixed catalog.
+
+### Model-driven route scenarios
+
+Six families need a model, because a model reads the autoplan table and the parent skills' prose: `high-traffic-direct`, `conditional-adjunct`, `lifecycle`, `composition-order`, `dx-activation` (positive and negative), and `advisor-vs-buy-vs-build`. `tests/evals/skill-scenarios/autoplan.json` holds 12 scenarios, two per family. Each names `expected_route`, a non-empty `forbidden_routes` list (the adjacent specialists that must not be picked), and for `composition-order` an `expected_order`. `eval-rule-activation.py` runs the file unchanged and its judge sees the `rationale`, which states the constraint, so a response that picks an adjacent specialist or inverts the order scores low. The runner does not pass `forbidden_routes` or `expected_order` to the judge as fields. Both reach it only through the `rationale` prose, and a deterministic test checks that every rationale names each forbidden route and lists the order in sequence. This script does not parse responses, so the two constraints are judge-scored, not string-matched.
+
+```bash
+# 144 calls, about 504,000 tokens (about $1.51 at the sonnet input rate), from the
+# runner's own dry-run estimate, not a measured run. Needs a key.
+uv run python scripts/eval/eval-rule-activation.py \
+  --scenarios tests/evals/skill-scenarios/autoplan.json --output run.json
+uv run python scripts/eval/eval_autoplan_routes.py --model-results run.json
+```
+
+The runner has no spend cap flag. `--dry-run` prints the call count first, and `--judge-repeats 1` cuts the plan to 72 calls. A scenario passes when its `full` cell score is at least 4.0 on the judge's 1 to 5 rubric (`full` puts the autoplan body in the system prompt, which is how autoplan runs).
+
+Each family reports `scenarios`, `reachable` (every named route is an installed skill or agent), `exercised` (the run has a result), `scored` (the cell was graded), and `passed` apart. Without `--model-results` the accuracy reads `not scored`, never zero. A model miss prints `MODEL-MISS` and does not change the exit code, so CI never gates on a judge. A failed resolver fixture still exits 1. The deterministic tests in `tests/eval/test_eval_autoplan_model_scenarios.py` load and validate the file and call no model. The per-route ratchet is #6291.
 
 ## Skill Overlap Eval
 
