@@ -40,6 +40,7 @@ dedupe_checks = _mod.dedupe_checks
 _exit_code = _mod._exit_code
 
 from scripts.github_core.checks_rollup import (  # noqa: E402
+    current_run_keys,
     extract_workflow_run_id,
     partition_rows_by_run,
 )
@@ -71,9 +72,11 @@ def _check(
     details="",
     run_id=None,
     run_attempt=None,
+    event=None,
 ):
     """Build a normalized check dict for dedupe tests."""
     return {
+        "WorkflowEvent": event,
         "Name": name,
         "Type": "CheckRun",
         "State": state,
@@ -2636,6 +2639,113 @@ class TestPartitionRowsByRun:
 
     def test_empty_input_yields_no_groups(self):
         assert partition_rows_by_run([], "u") == []
+
+
+class TestCrossEventAggregation:
+    """Refs issue #6408: pull_request and push runs of one SHA are both current."""
+
+    def test_older_push_failure_beats_newer_pull_request_success(self):
+        checks = [
+            _check(
+                "Run Python Tests", failing=True, conclusion="FAILURE", run_id=100, event="push"
+            ),
+            _check(
+                "Run Python Tests",
+                passing=True,
+                conclusion="SUCCESS",
+                run_id=101,
+                event="pull_request",
+            ),
+        ]
+        result = dedupe_checks(checks)
+        assert len(result) == 1
+        assert result[0]["IsFailing"] is True
+        assert result[0]["WorkflowRunId"] == 100
+        assert result[0]["WorkflowEvent"] == "push"
+
+    def test_older_pull_request_pending_beats_newer_push_success(self):
+        checks = [
+            _check(
+                "Run Python Tests",
+                pending=True,
+                state="IN_PROGRESS",
+                run_id=100,
+                event="pull_request",
+            ),
+            _check(
+                "Run Python Tests", passing=True, conclusion="SUCCESS", run_id=101, event="push"
+            ),
+        ]
+        result = dedupe_checks(checks)
+        assert result[0]["IsPending"] is True
+        assert result[0]["IsPassing"] is False
+
+    def test_failing_beats_pending_across_events(self):
+        checks = [
+            _check("Run Python Tests", pending=True, state="IN_PROGRESS", run_id=101, event="push"),
+            _check(
+                "Run Python Tests",
+                failing=True,
+                conclusion="CANCELLED",
+                run_id=100,
+                event="pull_request",
+            ),
+        ]
+        result = dedupe_checks(checks)
+        assert result[0]["IsFailing"] is True
+
+    def test_rerun_within_one_event_supersedes_stale_failure(self):
+        checks = [
+            _check(
+                "Run Python Tests", failing=True, conclusion="FAILURE", run_id=100, event="push"
+            ),
+            _check(
+                "Run Python Tests", passing=True, conclusion="SUCCESS", run_id=102, event="push"
+            ),
+            _check(
+                "Run Python Tests",
+                passing=True,
+                conclusion="SUCCESS",
+                run_id=101,
+                event="pull_request",
+            ),
+        ]
+        result = dedupe_checks(checks)
+        assert len(result) == 1
+        assert result[0]["IsPassing"] is True
+        assert result[0]["IsFailing"] is False
+
+    def test_missing_event_keeps_latest_run_precedence(self):
+        checks = [
+            _check("Run Python Tests", failing=True, conclusion="FAILURE", run_id=100),
+            _check("Run Python Tests", passing=True, conclusion="SUCCESS", run_id=101),
+        ]
+        result = dedupe_checks(checks)
+        assert result[0]["IsPassing"] is True
+
+    def test_normalize_check_carries_workflow_event(self):
+        ctx = {
+            "__typename": "CheckRun",
+            "name": "Run Python Tests",
+            "status": "COMPLETED",
+            "conclusion": "FAILURE",
+            "checkSuite": {"workflowRun": {"databaseId": 7, "runAttempt": 1, "event": "push"}},
+        }
+        assert normalize_check(ctx)["WorkflowEvent"] == "push"
+
+
+class TestCurrentRunKeys:
+    def test_newest_key_per_event(self):
+        keys = current_run_keys(
+            [((1, 1), "push"), ((3, 1), "push"), ((2, 1), "pull_request"), ((2, 2), "pull_request")]
+        )
+        assert keys == {(3, 1), (2, 2)}
+
+    def test_none_event_shares_one_bucket(self):
+        assert current_run_keys([((1, 1), None), ((2, 1), None)]) == {(2, 1)}
+
+    def test_empty_input_yields_empty_set(self):
+        assert current_run_keys([]) == set()
 
 
 class TestSameRunSiblingAggregation:

@@ -84,6 +84,25 @@ def partition_rows_by_run(
     return [by_run[run_key] for run_key in order] + singletons
 
 
+def current_run_keys(
+    runs: list[tuple[tuple[int, int], str | None]],
+) -> set[tuple[int, int]]:
+    """Return the newest (run id, attempt) key of each triggering event.
+
+    One head SHA can carry a ``pull_request`` run and a ``push`` run of the
+    same workflow. The ruleset evaluates both, so a newer run of one event
+    must not supersede the other event's result. Within one event the newest
+    run still wins, so a rerun replaces the stale failure it retried. Runs
+    with no known event share one bucket, which keeps the old behavior for
+    callers that cannot report an event.
+    """
+    latest: dict[str | None, tuple[int, int]] = {}
+    for key, event in runs:
+        if event not in latest or key > latest[event]:
+            latest[event] = key
+    return set(latest.values())
+
+
 def group_checks_by_name(
     checks: list[dict],
 ) -> tuple[dict[str, dict], dict[str, bool], dict[str, list[str]]]:
