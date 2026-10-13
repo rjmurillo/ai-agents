@@ -27,7 +27,7 @@ Choosing which surface a fact belongs on binds earlier, before you know which tr
 3. **Leave the plugin manifests alone**. `.claude/` and `src/copilot-cli/` ship in the project-toolkit plugin, but the manifests carry no `version` field: Claude Code resolves freshness from the commit SHA instead, so a rule change needs no manifest edit. Adding a `version` back fails `build/scripts/validate_plugin_version_bump.py` (see `.claude/rules/plugin-version-bump.md` and ADR-092).
 4. **Scope by `paths:`**. Set `paths:` to the narrowest glob that fires where the convention applies (`tests/**`, `**/*.ps1`). A universally-binding convention sets `paths: ["**"]`.
 5. **Index a new Serena memory by hand**. A memory under `.serena/memories/` MUST get a keyword line in `memory-index.md` in the same change, or keyword retrieval cannot reach it. `memory_index.py --ci` checks only that index rows resolve to files, never the reverse, so nothing catches the omission. Write `(0)` as the token placeholder; the `memory-token-update` pre-commit job rewrites it to the real count.
-6. **Repair token counts by hand when the autofix is skipped**. `memory-token-update` carries `skip: [merge, "test $SKIP_AUTOFIX = 1"]`, so a memory edited inside a merge commit, or committed with `SKIP_AUTOFIX=1`, keeps a stale count. Pre-push `memory-index-token-ratchet` then fails and names every stale entry. Fix it by running `uv run --frozen python scripts/update_memory_index_tokens.py`, not by editing the number by hand. Before the ratchet existed, a 13% undercount merged (Issue #4441).
+6. **Repair token counts when the autofix is skipped**. `memory-token-update` carries `skip: [merge, "test $SKIP_AUTOFIX = 1"]`, so a memory edited inside a merge commit, or committed with `SKIP_AUTOFIX=1`, keeps a stale count. Pre-push `memory-index-token-ratchet` then fails and names every stale entry. Fix it by running `uv run --frozen python scripts/update_memory_index_tokens.py`, not by editing the number by hand. Before the ratchet existed, a 13% undercount merged (Issue #4441).
 7. **Place by activation semantics**. A new file under `.serena/memories/` MUST hold evidence, not policy; see Placement contract. Normative or procedural content goes to the rule, skill, or agent that owns the behavior.
 
 ## SHOULD
@@ -110,9 +110,9 @@ Before persisting anything, ask in order:
    - Evidence or rationale -> memory (`.serena/memories/<topic>/<name>.md`)
    - Already fully represented elsewhere -> delete or merge
 
-## Past artifacts are not evidence
+## Past artifacts are not proof
 
-Anything you wrote in a past session (a handoff, a session note, a commit message, a PR description, a memory) is a recommendation frozen at its writing date, not evidence about the current tree. Before acting on such a claim, re-verify it with a command against the current tree and cite the command, not the note.
+Anything written in a past session (a handoff, a session note, a commit message, a PR description, a memory) is a recommendation frozen at its writing date, not proof of the current tree. Before acting on such a claim, re-verify it with a command against the current tree and cite the command, not the note.
 
 ## MUST NOT
 
