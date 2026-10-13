@@ -77,7 +77,7 @@ def test_copilot_cli_emits_path_style_tools(staging: Path) -> None:
 
 
 def test_visual_studio_inherits_vscode_toolsfrom(staging: Path) -> None:
-    """visual-studio.yaml has `toolsFrom: vscode` — the toolset expansion
+    """visual-studio.yaml has `toolsFrom: vscode`, so the toolset expansion
     must use vscode tools, NOT visual-studio (which has no entries)."""
     rc = generate_agents.generate_agents(
         templates_path=staging / "templates",
@@ -109,7 +109,7 @@ def test_handoff_syntax_differs_per_platform(staging: Path) -> None:
     vs = vs_path.read_text(encoding="utf-8")
     # The handoff transform fires on `Task(subagent_type="...")` patterns.
     # We assert that the two outputs differ AT LEAST in their handoff
-    # representation — they share most of the body otherwise.
+    # representation: they share most of the body otherwise.
     assert cc != vs
 
 

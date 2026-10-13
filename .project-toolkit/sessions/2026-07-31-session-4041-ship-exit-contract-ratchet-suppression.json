@@ -84,7 +84,7 @@
       "serenaMemoryUpdated": {
         "level": "MUST",
         "Complete": true,
-        "Evidence": "The durable convention from this work is the proven-nonzero-CLI-exit requirement, and it belongs in a cross-harness rule rather than a Serena memory per .claude/rules/knowledge-persistence.md. It landed as MUST 10 in .claude/rules/ci-scripts.md with both generated mirrors regenerated and both plugin manifests bumped to 0.6.5476."
+        "Evidence": "The durable convention from this work is the proven-nonzero-CLI-exit requirement, and it belongs in a cross-harness rule rather than a Serena memory per .claude/rules/knowledge-persistence.md. It landed as MUST 23 in .claude/rules/ci-scripts.md with both generated mirrors regenerated and both plugin manifests bumped to 0.6.5476."
       },
       "markdownLintRun": {
         "level": "MUST",
@@ -136,7 +136,7 @@
     },
     {
       "task": "Record the convention",
-      "outcome": "MUST 10 added to .claude/rules/ci-scripts.md, both instruction mirrors regenerated, both plugin manifests set to 0.6.5476.",
+      "outcome": "MUST 23 added to .claude/rules/ci-scripts.md, both instruction mirrors regenerated, both plugin manifests set to 0.6.5476.",
       "evidence": "commits 4047a91f5, 31e380578, 7b315de86"
     }
   ],

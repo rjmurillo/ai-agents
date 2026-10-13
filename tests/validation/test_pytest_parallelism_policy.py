@@ -19,8 +19,8 @@ would silently parallelize the pins, the safe-push partition, and every ad-hoc
 ``parallel_flags`` is the guard on that.
 
 Direct calls and CI use ``auto``, xdist's own name for one worker per logical
-CPU. The local pre-push job caps workers at four because it runs beside other
-CPU-heavy jobs in one parallel Lefthook group. Low-core hosts use fewer.
+CPU. The local pre-push job scales workers to the host (4 to 16) because it runs
+beside other CPU-heavy jobs in one parallel Lefthook group. Low-core hosts use fewer.
 ``AI_AGENTS_PYTEST_WORKERS`` accepts ``auto`` or a positive integer and rejects
 everything else. The parent consumes this control before starting pytest so
 policy tests inside the child process still observe the default environment.

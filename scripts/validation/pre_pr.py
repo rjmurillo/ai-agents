@@ -95,7 +95,7 @@ from checks_coverage import (
     validate_review_marker,
 )
 from checks_dash import (
-    _branch_markdown_files,
+    _branch_scan_files,
     _find_dash_violations,
     _is_vendored,
     _print_dash_violations,
