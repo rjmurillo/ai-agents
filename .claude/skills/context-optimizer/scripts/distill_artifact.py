@@ -26,6 +26,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -309,15 +310,39 @@ class Result:
         )
 
 
+def is_trusted_cache(target: Path, encoded: bytes) -> bool:
+    """A cached digest counts only as a regular file whose bytes match a fresh build.
+
+    A planted or stale file at the key path is not trusted, and a symlink is
+    never followed.
+    """
+    if target.is_symlink() or not target.is_file():
+        return False
+    return target.read_bytes() == encoded
+
+
+def atomic_write(target: Path, encoded: bytes) -> None:
+    """Write through a temp file and os.replace, which replaces a symlink, not its target."""
+    fd, tmp = tempfile.mkstemp(dir=target.parent, prefix=".distill-", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(encoded)
+        os.replace(tmp, target)
+    except OSError:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+
+
 def distill(data: bytes, source: str, out_dir: Path, max_matches: int, edge_lines: int) -> Result:
-    """Write the digest unless it already exists. Raises OSError on write failure."""
+    """Write the digest unless an identical one exists. Raises OSError on write failure."""
     target = out_dir / f"{cache_key(data, max_matches, edge_lines)}.md"
     kind, digest = build_digest(data, source, max_matches, edge_lines)
-    if target.exists():
-        return Result(target, True, kind, len(data), target.stat().st_size)
+    encoded = digest.encode("utf-8")
+    if is_trusted_cache(target, encoded):
+        return Result(target, True, kind, len(data), len(encoded))
     out_dir.mkdir(parents=True, exist_ok=True)
-    target.write_text(digest, encoding="utf-8")
-    return Result(target, False, kind, len(data), len(digest.encode("utf-8")))
+    atomic_write(target, encoded)
+    return Result(target, False, kind, len(data), len(encoded))
 
 
 def non_negative(value: str) -> int:

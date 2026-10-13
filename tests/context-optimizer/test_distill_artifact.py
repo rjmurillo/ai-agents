@@ -223,15 +223,37 @@ class TestCaching:
         out_dir = str(tmp_path / "o")
         _, first, _ = run([str(src), "--out-dir", out_dir, "--format", "json"], capsys)
         digest = Path(json.loads(first)["digest"])
-        digest.write_text("SENTINEL", encoding="utf-8")
         mtime = digest.stat().st_mtime_ns
         _, second, _ = run([str(src), "--out-dir", out_dir, "--format", "json"], capsys)
         data = json.loads(second)
         assert json.loads(first)["cached"] is False
         assert data["cached"] is True
-        assert digest.read_text(encoding="utf-8") == "SENTINEL"
         assert digest.stat().st_mtime_ns == mtime
-        assert data["digest_bytes"] == len("SENTINEL")
+        assert data["digest_bytes"] == digest.stat().st_size
+
+    def test_planted_file_at_key_path_is_not_trusted(self, tmp_path, capsys) -> None:
+        src = write(tmp_path, "log.txt", "error a\n")
+        out_dir = str(tmp_path / "o")
+        _, first, _ = run([str(src), "--out-dir", out_dir, "--format", "json"], capsys)
+        digest = Path(json.loads(first)["digest"])
+        genuine = digest.read_text(encoding="utf-8")
+        digest.write_text("SENTINEL", encoding="utf-8")
+        _, second, _ = run([str(src), "--out-dir", out_dir, "--format", "json"], capsys)
+        assert json.loads(second)["cached"] is False
+        assert digest.read_text(encoding="utf-8") == genuine
+
+    def test_symlink_at_key_path_is_replaced_not_followed(self, tmp_path, capsys) -> None:
+        src = write(tmp_path, "log.txt", "error a\n")
+        out_dir = tmp_path / "o"
+        _, first, _ = run([str(src), "--out-dir", str(out_dir), "--format", "json"], capsys)
+        digest = Path(json.loads(first)["digest"])
+        victim = write(tmp_path, "victim.txt", "keep me")
+        digest.unlink()
+        digest.symlink_to(victim)
+        _, second, _ = run([str(src), "--out-dir", str(out_dir), "--format", "json"], capsys)
+        assert json.loads(second)["cached"] is False
+        assert victim.read_text(encoding="utf-8") == "keep me"
+        assert not digest.is_symlink() and digest.is_file()
 
     def test_different_options_different_key(self, tmp_path, capsys) -> None:
         src = write(tmp_path, "log.txt", "error a\n")
@@ -313,9 +335,11 @@ class TestCli:
         def boom(self: Path, *a: object, **k: object) -> int:
             raise OSError("disk full")
 
-        monkeypatch.setattr(Path, "write_text", boom)
-        code, out, err = run([str(src), "--out-dir", str(tmp_path / "o")], capsys)
+        monkeypatch.setattr(da.os, "replace", boom)
+        out_dir = tmp_path / "o"
+        code, out, err = run([str(src), "--out-dir", str(out_dir)], capsys)
         assert code == 3 and out == "" and "cannot write" in err
+        assert list(out_dir.iterdir()) == []
 
 
 @pytest.fixture(autouse=True)
