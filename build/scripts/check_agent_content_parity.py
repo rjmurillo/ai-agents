@@ -6,11 +6,12 @@ diff). It does not detect content divergence that already exists on disk.
 This script compares the two copies byte-for-byte and fails if any shared
 filename disagrees.
 
-Both trees are generated output (ADR-109 B1): agent_templates.py renders
-src/claude/agents from templates/agents/<stem>.claude.md.tmpl, and
-binplace_manifest.py copies it onto .claude/agents. A disagreement means a
-stale binplace or a hand edit. Editing a shared agent means editing the
-template and running build/scripts/build_all.py (GENERATOR-FILES.md).
+Neither tree is hand-edited. Since ADR-109 B1, src/claude/agents/ is rendered
+from templates/agents/ by agent_templates.py, and the binplace step copies it
+onto .claude/agents/ (templates/platforms/binplace.yaml, ``agents`` class).
+The two trees agree by construction after a build_all.py run, so a difference
+means a hand edit to a rendered copy or a skipped regeneration. Fix it by
+editing the template and running build_all.py, never by editing either tree.
 
 Files present in one tree but absent from the other are reported as missing.
 Files listed in ALLOWED_ONLY_IN_CLAUDE or ALLOWED_ONLY_IN_SRC are exempt
