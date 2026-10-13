@@ -86,12 +86,21 @@ def test_template_rules_name_only_generated_agent_trees() -> None:
         must_2 = _numbered_rule(_section(text, "## MUST"), 2)
         should_2 = _numbered_rule(_section(text, "## SHOULD"), 2)
         generated_clause = re.search(
-            r"Regenerated files under (.+?) MUST be committed", must_2, re.DOTALL
+            r"Every regenerated tree MUST be committed in the same PR as the template "
+            r"change: (.+?`)\. ",
+            must_2,
+            re.DOTALL,
         )
         assert generated_clause is not None
         must_paths = set(re.findall(r"`([^`]+/)`", generated_clause.group(1)))
 
-        expected = {"src/copilot-cli/agents/", "src/vs-code-agents/"}
+        expected = {
+            "src/claude/agents/",
+            ".claude/agents/",
+            ".github/agents/",
+            "src/copilot-cli/agents/",
+            "src/vs-code-agents/",
+        }
         assert must_paths == expected
         assert should_2 == (
             "2. **Preview per platform**. SHOULD inspect the generated output for both "
@@ -129,10 +138,14 @@ def test_other_detector_guidance_surfaces_state_actual_inputs() -> None:
         "`src/claude` against `src/vs-code-agents`, and `.claude/agents` against `.github/agents`"
     )
 
+    templates_pairs = (
+        "`src/claude/agents` against `src/vs-code-agents`, "
+        "and `.claude/agents` against `.github/agents`"
+    )
     for path in (*_TEMPLATES_MIRRORS, _TEMPLATES_RULE):
         text = _normalized(path)
         assert "does NOT compare templates against anything" in text
-        assert expected_pairs in text
+        assert templates_pairs in text
 
     for path in _ARCHITECTURE_SKILL_SURFACES:
         text = _normalized(path)
