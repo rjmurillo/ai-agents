@@ -45,7 +45,7 @@ Based on the above changes:
 1. Create a new branch if on main.
    1. Determine the type of change that maps to a conventional commit type
       followed by a 3-5 word description (for example, `fix/parser-log-enrichment`).
-2. Read @.github/PULL_REQUEST_TEMPLATE.md
+2. Read @.github/PULL_REQUEST_TEMPLATE.md. Step 3 seeds it into the body file; use this copy only when the seeded file holds the marker alone.
 3. Run the secure path allocator:
 
    ```bash
@@ -56,8 +56,10 @@ Based on the above changes:
      each tool call runs in a fresh shell.
    - The file starts with the line `<!-- replace with PR body -->`, followed by the
      repository PR template. Use the Edit tool to fill the template sections in
-     that exact file, then delete the marker line. A body that still holds the
-     marker line is rejected.
+     that exact file, then delete the marker line. A body that still contains the
+     marker text anywhere is rejected.
+   - If the file holds only the marker, the repository has no usable template.
+     Replace it with the template you read in step 2, adapted to the change.
    - **Fill in** all sections with actual change information from git diff
    - **Replace** placeholder comments with substantive content
    - **Check** appropriate Type of Change boxes based on actual changes
@@ -71,7 +73,9 @@ Based on the above changes:
    python3 -I "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/new_pr.py" --preflight --title "<conventional commit title>" --body-file ".project-toolkit/scratch/pr-body-<returned-uuid>.md"
    ```
 
-   `--preflight` makes no network call and creates nothing. Fix a rejection here.
+   `--preflight` checks the title format and the body file name, mode, and marker.
+   It makes no network call and creates nothing. The dash and escaped newline
+   checks still run at step 6. Fix a rejection here.
 5. Push the branch to origin.
 6. Create a pull request using the new_pr skill script:
 

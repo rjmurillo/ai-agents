@@ -245,9 +245,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--preflight",
         action="store_true",
         help=(
-            "Validate --title and --body-file, then exit without any network call, "
-            "audit log, or PR. Run it before pushing so a rejected body does not "
-            "cost a push."
+            "Check the title format and the body file name, mode, and marker, then "
+            "exit without any network call, audit log, or PR. The dash and escaped "
+            "newline checks still run at creation. Run it before pushing so a "
+            "rejected body does not cost a push."
         ),
     )
     parser.add_argument(
