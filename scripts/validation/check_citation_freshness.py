@@ -102,7 +102,13 @@ _EXTRA_HISTORICAL_ROOTS = (
 # accuracy, not byte identity, so there is nothing content comparison would
 # add here that the source's own (still-enforced) citations do not already
 # cover.
-_GENERATED_SKILL_MIRROR_ROOTS = ("src/claude/skills/", "src/copilot-cli/skills/")
+_GENERATED_SKILL_MIRROR_ROOTS = (
+    "src/claude/skills/",
+    "src/copilot-cli/skills/",
+    "src/codex/skills/",
+    # Lib packages render from scripts/ with an import rewrite (lib_mirror.py).
+    "src/codex/lib/",
+)
 
 
 @dataclass(frozen=True)

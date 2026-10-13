@@ -58,7 +58,11 @@ _FIXTURE_PREFIX = "tests/hooks/fixtures/"
 # type_ignore_count_ratchet.py's ``_is_generated_lib_mirror`` already applies
 # to the lib mirror trees. Keyed on the canonical source actually existing,
 # not on the output prefix alone.
-_SKILL_MIRROR_ROOTS: tuple[str, ...] = ("src/claude/skills", "src/copilot-cli/skills")
+_SKILL_MIRROR_ROOTS: tuple[str, ...] = (
+    "src/claude/skills",
+    "src/copilot-cli/skills",
+    "src/codex/skills",
+)
 _SKILL_CANONICAL_ROOT = ".claude/skills"
 
 

@@ -104,10 +104,10 @@ class BinplaceConfigError(Exception):
 class Row:
     """One binplace manifest row: source, optional plugin-tree hop, install target.
 
-    ``install_tree`` is ``None`` only for a Copilot-side lib row (ADR-109 B5,
-    ``lib-*-copilot`` / ``lib-bootstrap-copilot``): its ``plugin_tree`` under
-    ``src/copilot-cli/lib/`` IS the final output, with no further hop, since
-    ``.claude/`` never mirrors the Copilot tree. :func:`binplace` and
+    ``install_tree`` is ``None`` only for a Copilot-side or Codex-side lib row
+    (ADR-109 B5, ``lib-*-copilot`` / ``lib-*-codex``): its ``plugin_tree`` under
+    ``src/copilot-cli/lib/`` or ``src/codex/lib/`` IS the final output, with no
+    further hop, since ``.claude/`` never mirrors those trees. :func:`binplace` and
     :func:`claude_allowlist` both skip such a row's install side entirely.
     """
 
