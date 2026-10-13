@@ -80,6 +80,7 @@ workflow filters on Python paths and never fires on ``marketplace.json``.
     .claude-plugin/marketplace.json        (Claude marketplace)
     .github/plugin/marketplace.json        (Copilot marketplace)
     .grok-plugin/marketplace.json          (Grok Build marketplace, ADR-115)
+    .cursor-plugin/marketplace.json        (Cursor marketplace, ADR-115)
 
 CLI
 ---
@@ -129,7 +130,7 @@ class PluginManifest:
     manifest: str  # posix path to plugin.json (lives under source_dir)
 
 
-# The two packaged plugins. ADR-109 B6 retired a third entry here,
+# The packaged plugins. ADR-109 B6 retired a third entry here,
 # `.claude` -> `.claude/.claude-plugin/plugin.json`, when the marketplace
 # switch deleted that manifest; `.claude/` is now the binplaced dogfood copy
 # of `src/claude/`, not an independent marketplace source.
@@ -144,6 +145,11 @@ PLUGINS: tuple[PluginManifest, ...] = (
         source_dir="src/copilot-cli",
         manifest="src/copilot-cli/.claude-plugin/plugin.json",
     ),
+    PluginManifest(
+        name="project-toolkit (cursor)",
+        source_dir="src/cursor",
+        manifest="src/cursor/.cursor-plugin/plugin.json",
+    ),
 )
 
 
@@ -154,6 +160,7 @@ MARKETPLACES: tuple[str, ...] = (
     ".claude-plugin/marketplace.json",
     ".github/plugin/marketplace.json",
     ".grok-plugin/marketplace.json",
+    ".cursor-plugin/marketplace.json",
 )
 
 

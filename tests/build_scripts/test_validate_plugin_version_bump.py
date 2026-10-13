@@ -38,15 +38,18 @@ import validate_plugin_version_bump as vpb  # noqa: E402
 
 SRC_CLAUDE = "src/claude/.claude-plugin/plugin.json"
 COPILOT = "src/copilot-cli/.claude-plugin/plugin.json"
+CURSOR = "src/cursor/.cursor-plugin/plugin.json"
 
 MARKET_CLAUDE = ".claude-plugin/marketplace.json"
 MARKET_COPILOT = ".github/plugin/marketplace.json"
 MARKET_GROK = ".grok-plugin/marketplace.json"
+MARKET_CURSOR = ".cursor-plugin/marketplace.json"
 
 MARKETPLACES = (
     REPO_ROOT / MARKET_CLAUDE,
     REPO_ROOT / MARKET_COPILOT,
     REPO_ROOT / MARKET_GROK,
+    REPO_ROOT / MARKET_CURSOR,
 )
 
 
@@ -101,8 +104,8 @@ def _make_repo(tmp_path: Path, **manifests: str | None) -> Path:
     """Build a committed repo whose manifests and marketplaces are the bodies given.
 
     Keys are ``src_claude``, ``copilot``, ``market_claude``,
-    ``market_copilot``, and ``market_grok``. A value of None omits the file entirely. Unspecified
-    files default to a version-free body.
+    ``market_copilot``, ``market_grok``, ``cursor``, and ``market_cursor``. A value of
+    None omits the file entirely. Unspecified files default to a version-free body.
     """
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -111,9 +114,11 @@ def _make_repo(tmp_path: Path, **manifests: str | None) -> Path:
     bodies: dict[str, str | None] = {
         SRC_CLAUDE: _manifest("project-toolkit"),
         COPILOT: _manifest("project-toolkit"),
+        CURSOR: _manifest("project-toolkit"),
         MARKET_CLAUDE: _marketplace("project-toolkit"),
         MARKET_COPILOT: _marketplace("project-toolkit"),
         MARKET_GROK: _marketplace("project-toolkit"),
+        MARKET_CURSOR: _marketplace("project-toolkit"),
     }
     keys = {
         "src_claude": SRC_CLAUDE,
@@ -121,6 +126,8 @@ def _make_repo(tmp_path: Path, **manifests: str | None) -> Path:
         "market_claude": MARKET_CLAUDE,
         "market_copilot": MARKET_COPILOT,
         "market_grok": MARKET_GROK,
+        "cursor": CURSOR,
+        "market_cursor": MARKET_CURSOR,
     }
     for key, body in manifests.items():
         bodies[keys[key]] = body
@@ -200,6 +207,31 @@ def test_grok_marketplace_entry_version_fails(tmp_path: Path) -> None:
     assert result.returncode == 1, result.stdout + result.stderr
     assert "marketplace-version-present" in result.stdout
     assert MARKET_GROK in result.stdout
+
+
+def test_cursor_marketplace_entry_version_fails(tmp_path: Path) -> None:
+    repo = _make_repo(tmp_path, market_cursor=_marketplace("project-toolkit", "1.0.0"))
+
+    result = _run(repo)
+
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "marketplace-version-present" in result.stdout
+    assert MARKET_CURSOR in result.stdout
+
+
+def test_cursor_manifest_version_fails(tmp_path: Path) -> None:
+    repo = _make_repo(tmp_path, cursor=_manifest("project-toolkit", "1.0.0"))
+
+    result = _run(repo)
+
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert CURSOR in result.stdout
+
+
+def test_cursor_plugin_is_registered_with_its_own_manifest() -> None:
+    manifests = {plugin.manifest: plugin.source_dir for plugin in vpb.PLUGINS}
+    assert manifests[CURSOR] == "src/cursor"
+    assert MARKET_CURSOR in vpb.MARKETPLACES
 
 
 def test_copilot_marketplace_entry_version_fails(tmp_path: Path) -> None:
@@ -418,6 +450,7 @@ def test_evaluate_flags_only_present_versions() -> None:
     states = {
         SRC_CLAUDE: vpb.ManifestState(exists=True, version="1.0.0"),
         COPILOT: vpb.ManifestState(exists=False, version=None),
+        CURSOR: vpb.ManifestState(exists=False, version=None),
     }
 
     violations, config_errors = vpb.evaluate(states)
@@ -431,6 +464,7 @@ def test_evaluate_reports_a_read_failure_as_a_config_error() -> None:
     states = {
         SRC_CLAUDE: vpb._RefError("git exploded"),
         COPILOT: vpb.ManifestState(exists=True, version=None),
+        CURSOR: vpb.ManifestState(exists=True, version=None),
     }
 
     violations, config_errors = vpb.evaluate(states)

@@ -19,6 +19,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 CLAUDE_MARKETPLACE = REPO_ROOT / ".claude-plugin" / "marketplace.json"
 COPILOT_MARKETPLACE = REPO_ROOT / ".github" / "plugin" / "marketplace.json"
 GROK_MARKETPLACE = REPO_ROOT / ".grok-plugin" / "marketplace.json"
+CURSOR_MARKETPLACE = REPO_ROOT / ".cursor-plugin" / "marketplace.json"
 CLAUDE_TOOLKIT_PLUGIN = REPO_ROOT / "src" / "claude" / ".claude-plugin" / "plugin.json"
 COPILOT_TOOLKIT_PLUGIN = REPO_ROOT / "src" / "copilot-cli" / ".claude-plugin" / "plugin.json"
 
@@ -104,6 +105,29 @@ class TestGrokMarketplace:
         grok = _load_marketplace(GROK_MARKETPLACE)
         claude = _load_marketplace(CLAUDE_MARKETPLACE)
         assert (grok["name"], grok["owner"]) == (claude["name"], claude["owner"])
+
+
+class TestCursorMarketplace:
+    """Cursor reads `.cursor-plugin/marketplace.json` (ADR-115 Decision 1)."""
+
+    def test_lists_exactly_project_toolkit_at_the_cursor_tree(self) -> None:
+        data = _load_marketplace(CURSOR_MARKETPLACE)
+        assert [(p["name"], p["source"]) for p in data["plugins"]] == [
+            ("project-toolkit", "./src/cursor")
+        ]
+
+    def test_names_cursor_in_the_description(self) -> None:
+        data = _load_marketplace(CURSOR_MARKETPLACE)
+        assert "Cursor" in data["plugins"][0]["description"]
+
+    def test_shares_the_claude_marketplace_name_and_owner(self) -> None:
+        cursor = _load_marketplace(CURSOR_MARKETPLACE)
+        claude = _load_marketplace(CLAUDE_MARKETPLACE)
+        assert (cursor["name"], cursor["owner"]) == (claude["name"], claude["owner"])
+
+    def test_does_not_point_at_a_tree_that_loads_claude_hooks(self) -> None:
+        source = _load_marketplace(CURSOR_MARKETPLACE)["plugins"][0]["source"]
+        assert source != "./src/claude"
 
 
 class TestMarketplaceSourceManifestParity:
