@@ -106,8 +106,8 @@ def _make_repo(tmp_path: Path, **manifests: str | None) -> Path:
     """Build a committed repo whose manifests and marketplaces are the bodies given.
 
     Keys are ``src_claude``, ``copilot``, ``market_claude``,
-    ``market_copilot``, ``market_grok``, ``cursor``, ``market_cursor``, and ``market_codex``. A value of
-    None omits the file entirely. Unspecified files default to a version-free body.
+    ``market_copilot``, ``market_grok``, ``cursor``, ``market_cursor``, and
+    ``market_codex``. A value of None omits the file entirely. Unspecified files default to a version-free body.
     """
     repo = tmp_path / "repo"
     repo.mkdir()

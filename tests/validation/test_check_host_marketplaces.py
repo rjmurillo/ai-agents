@@ -55,13 +55,13 @@ def _first_marketplace() -> str:
 def test_clean_repo_passes(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     repo = _repo(tmp_path)
     assert gate.main([str(repo)]) == 0
-    assert "4 plugin entries examined" in capsys.readouterr().out
+    assert "5 plugin entries examined" in capsys.readouterr().out
 
 
 def test_real_repo_passes_and_covers_grok_cursor_and_codex() -> None:
     violations, examined = gate.find_violations(REPO_ROOT)
     assert violations == []
-    assert examined == 4
+    assert examined == 5
     assert (REPO_ROOT / ".grok-plugin" / "marketplace.json").is_file()
     assert (REPO_ROOT / ".cursor-plugin" / "marketplace.json").is_file()
     assert (REPO_ROOT / ".agents" / "plugins" / "marketplace.json").is_file()
@@ -158,8 +158,7 @@ def test_missing_manifest_is_a_violation(tmp_path: Path) -> None:
     for _, manifest in gate.HOST_MARKETPLACES:
         (repo / "plugin" / manifest).unlink(missing_ok=True)
     violations, _ = gate.find_violations(repo)
-    claude_format = [m for m, manifest in gate.HOST_MARKETPLACES if manifest == _MANIFEST]
-    assert len(violations) == len(claude_format)
+    assert len(violations) == len(gate.HOST_MARKETPLACES)
     assert all("missing manifest" in v for v in violations)
     assert gate.main([str(repo)]) == 1
 
@@ -211,7 +210,7 @@ def test_main_returns_nonzero_on_violation(
     assert gate.main([str(repo)]) == 1
     err = capsys.readouterr().err
     assert "outside the repository" in err
-    assert "1 host marketplace violation(s) in 4 plugin entries examined" in err
+    assert "1 host marketplace violation(s) in 5 plugin entries examined" in err
 
 
 def test_missing_marketplace_file_is_a_config_error(tmp_path: Path) -> None:
