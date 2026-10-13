@@ -90,7 +90,7 @@ python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request <PR_NUMBER>
 **Decision Point:**
 
 - `MissingRequiredChecks` non-empty and `MissingRequiredQueued` false --> Follow [Required check never reported](#required-check-never-reported)
-- `MissingRequiredChecks` non-empty and `MissingRequiredQueued` true --> The head commit is under 45 minutes old, so the check may be queued. Run `get_pr_checks.py --wait --timeout-seconds 540` again; do not close and reopen yet
+- `MissingRequiredChecks` non-empty, `MissingRequiredQueued` true, and `FailedCount` 0 --> The head commit is inside the grace window (45 minutes by default), so the check may be queued. Run `get_pr_checks.py --wait --timeout-seconds 540` again; do not close and reopen yet. A failed check ends the wait at once, so take the Failures bullet instead
 - All passing --> Report success, exit
 - Pending only --> Wait or report status
 - Failures --> Continue to Phase 3
@@ -194,17 +194,20 @@ python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request <PR_NUMBER>
 ## Required check never reported
 
 A PR can look green while a required check has no run at all. `get_pr_checks.py`
-reports this as `MissingRequiredChecks` and a `MISSING` summary line, and exits 1.
+reports this as `MissingRequiredChecks` and a `MISSING` summary line. Without `--wait` it exits 1 even when the check is only queued (WARNING summary), so read `MissingRequiredQueued` rather than the exit code.
 `why_pr_blocked.py` lists the same names under `MissingRequired`. No log exists to
 fetch and no code change fixes it, so skip Phases 3 to 6.
 
 Queued is not stranded. An aggregate check such as "Run Python Tests" is created
 only after its split jobs finish, 10 to 35 minutes after a push. Both scripts read
-the head commit date and treat a missing check as queued for 45 minutes
+the head commit committer date (GraphQL `committedDate`) and treat a missing check as queued for 45 minutes
 (`--missing-grace-seconds`, default 2700). Inside that window `get_pr_checks.py`
 reports `MissingRequiredQueued: true` and `--wait` keeps polling (exit 7 at timeout);
 `why_pr_blocked.py` lists the names under `QueuedRequired`. Past the window, or when
-the date is unknown, the names are `AbsentRequired` and the recovery below applies.
+the date is unknown, `why_pr_blocked.py` lists them under `AbsentRequired` and
+`get_pr_checks.py` reports `MissingRequiredQueued: false`; the recovery below applies.
+The committer date is when the commit was made, not when it was pushed. A commit made
+locally and pushed later can skip the grace window while its aggregate check is still queued.
 
 ### Diagnose
 
@@ -214,8 +217,8 @@ python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request <PR_NUMBER> --output-f
 python3 "$SCRIPTS_DIR/pr/why_pr_blocked.py" --pull-request <PR_NUMBER> --output-format json
 ```
 
-Confirm `MissingRequiredChecks` (from `get_pr_checks.py`) or `MissingRequired`
-(from `why_pr_blocked.py`) is non-empty. Confirm no reported check is failing
+Confirm `MissingRequiredChecks` is non-empty with `MissingRequiredQueued` false (from
+`get_pr_checks.py`), or `AbsentRequired` is non-empty (from `why_pr_blocked.py`). Confirm no reported check is failing
 (`FailedCount` is 0, or `FailingRequired` is empty) and none is pending
 (`PendingRequired` is empty). If checks are failing or pending, use the standard
 workflow instead.

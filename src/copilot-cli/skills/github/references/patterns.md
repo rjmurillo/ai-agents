@@ -207,7 +207,7 @@ fi
 checks=$(python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request 50 --wait --timeout-seconds 540)
 
 if [ $? -eq 7 ]; then
-    echo "Timeout waiting for checks"
+    echo "Timeout waiting for checks (exit 7 also means ChecksIncomplete: check it before re-running)"
     exit 1
 fi
 
