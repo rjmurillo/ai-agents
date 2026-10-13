@@ -1,0 +1,198 @@
+# URL Routing Patterns
+
+## Pattern Recognition
+
+### PR URLs
+
+```text
+Standard PR:
+  https://github.com/owner/repo/pull/123
+  → get_pr_context.py --pull-request 123
+
+PR with specific review:
+  https://github.com/owner/repo/pull/123#pullrequestreview-456789
+  → gh api "repos/owner/repo/pulls/123/reviews/456789"
+
+PR with discussion comment:
+  https://github.com/owner/repo/pull/123#discussion_r987654321
+  → gh api "repos/owner/repo/pulls/comments/987654321"
+
+PR with issue-style comment:
+  https://github.com/owner/repo/pull/123#issuecomment-123456789
+  → gh api "repos/owner/repo/issues/comments/123456789"
+
+PR files tab:
+  https://github.com/owner/repo/pull/123/files
+  → get_pr_context.py --pull-request 123 --include-changed-files
+
+PR changes tab:
+  https://github.com/owner/repo/pull/123/changes#r987654321
+  → get_pr_context.py --pull-request 123 --include-diff
+
+PR commits tab:
+  https://github.com/owner/repo/pull/123/commits
+  → get_pr_context.py --pull-request 123 (includes commit count)
+
+PR checks tab:
+  https://github.com/owner/repo/pull/123/checks
+  → get_pr_checks.py --pull-request 123
+```
+
+### Issue URLs
+
+```text
+Standard issue:
+  https://github.com/owner/repo/issues/456
+  → get_issue_context.py --issue 456 --owner owner --repo repo
+
+Issue with comment:
+  https://github.com/owner/repo/issues/456#issuecomment-789123456
+  → gh api "repos/owner/repo/issues/comments/789123456"
+
+Discussion:
+  https://github.com/owner/repo/discussions/789
+  → gh api "repos/owner/repo/discussions/789"
+
+Actions run:
+  https://github.com/owner/repo/actions/runs/123
+  → gh api "repos/owner/repo/actions/runs/123"
+
+Actions job:
+  https://github.com/owner/repo/actions/runs/123/job/456
+  → gh api "repos/owner/repo/actions/jobs/456"
+```
+
+### File/Tree URLs
+
+```text
+File on branch:
+  https://github.com/owner/repo/blob/main/src/app.py
+  → gh api "repos/owner/repo/contents/src/app.py?ref=main"
+
+File at commit:
+  https://github.com/owner/repo/blob/abc123/src/app.py
+  → gh api "repos/owner/repo/contents/src/app.py?ref=abc123"
+
+Directory:
+  https://github.com/owner/repo/tree/main/src
+  → gh api "repos/owner/repo/contents/src?ref=main"
+```
+
+### Commit URLs
+
+```text
+Commit:
+  https://github.com/owner/repo/commit/abc123def456
+  → gh api "repos/owner/repo/commits/abc123def456"
+```
+
+### Compare URLs
+
+```text
+Branch comparison:
+  https://github.com/owner/repo/compare/main...feature-branch
+  → gh api "repos/owner/repo/compare/main...feature-branch"
+
+Tag comparison:
+  https://github.com/owner/repo/compare/v1.0.0...v2.0.0
+  → gh api "repos/owner/repo/compare/v1.0.0...v2.0.0"
+```
+
+### Gist URLs
+
+```text
+Standard gist:
+  https://gist.github.com/owner/0123456789abcdef0123
+  → gh api "gists/0123456789abcdef0123"
+
+Ownerless gist:
+  https://gist.github.com/0123456789abcdef0123
+  → gh api "gists/0123456789abcdef0123"
+
+Gist revisions:
+  https://gist.github.com/0123456789abcdef0123/0123456789abcdef0123456789abcdef01234567
+  → gh api "gists/0123456789abcdef0123/0123456789abcdef0123456789abcdef01234567"
+
+Gist embed:
+  https://gist.github.com/owner/0123456789abcdef0123.js
+  → gh api "gists/0123456789abcdef0123"
+
+Raw gist content:
+  https://gist.githubusercontent.com/owner/0123456789abcdef0123/raw/0123456789abcdef0123456789abcdef01234567/file.txt
+  → gh api 'https://gist.githubusercontent.com/owner/0123456789abcdef0123/raw/0123456789abcdef0123456789abcdef01234567/file.txt'
+```
+
+## Script Selection Guide
+
+### When to Use Scripts (Primary)
+
+| Need | Script | Why |
+|------|--------|-----|
+| PR overview | get_pr_context.py | Structured JSON, proper error handling |
+| Review comments | get_pr_review_comments.py | Pagination handled, threading preserved |
+| Review threads | get_pr_review_threads.py | Full thread context |
+| CI status | get_pr_checks.py | Can wait for completion, structured output |
+| Issue overview | get_issue_context.py | Structured JSON, proper error handling |
+
+### When to Use gh api (Fallback)
+
+| Need | Command Pattern | Why |
+|------|-----------------|-----|
+| Specific comment by ID | `gh api repos/{o}/{r}/pulls/comments/{id}` | No script for single comment |
+| Specific review by ID | `gh api repos/{o}/{r}/pulls/{n}/reviews/{id}` | No script for single review |
+| File contents | `gh api repos/{o}/{r}/contents/{path}` | File operations not in github skill |
+| Commit details | `gh api repos/{o}/{r}/commits/{sha}` | Commit operations not in github skill |
+| Branch comparison | `gh api repos/{o}/{r}/compare/{base}...{head}` | Compare not in github skill |
+| Gist content | `gh api gists/{id}` | Gist operations not in github skill |
+
+## Context Optimization
+
+### Size Comparison by Method
+
+| URL Type | HTML Size | API/Script Size | Savings |
+|----------|-----------|-----------------|---------|
+| PR view | 5-10 MB | 10-100 KB | 50-100x |
+| Issue view | 2-5 MB | 5-50 KB | 40-100x |
+| File blob | 1-5 MB | 1-500 KB | 2-10x |
+| Commit | 2-8 MB | 10-100 KB | 20-80x |
+| Compare | 3-10 MB | 50-500 KB | 6-20x |
+| Gist | 1-5 MB | 1-500 KB | 2-10x |
+
+### When Size Matters Most
+
+1. **Large PRs** (100+ files, 1000+ lines)
+   - Use `--diff-stat` instead of full diff
+   - Use `--include-changed-files` without `--include-diff`
+
+2. **Busy issues** (50+ comments)
+   - Get issue context first
+   - Fetch specific comments only if needed
+
+3. **Large files**
+   - API returns base64, decode only what's needed
+   - Consider line-range requests if supported
+
+## Error Handling
+
+### Common Errors and Recovery
+
+| Error | Cause | Recovery |
+|-------|-------|----------|
+| 404 Not Found | Wrong owner/repo or PR/issue | Verify URL components |
+| 403 Forbidden | Private repo, no access | Check `gh auth status` |
+| 401 Unauthorized | Token expired | Run `gh auth refresh` |
+| Rate limited | Too many requests | Wait or use authenticated requests |
+
+### Script vs API Error Handling
+
+**Scripts** (preferred):
+
+- Return structured `Success: $false` with error details
+- Exit codes indicate error type
+- Stderr contains human-readable messages
+
+**Raw gh api**:
+
+- Returns HTTP error codes
+- JSON error body with message
+- Less structured handling needed

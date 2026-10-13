@@ -32,7 +32,7 @@ from atomic_write import (  # noqa: E402
     publish_bytes_preserving_mode,
 )
 from binplace_manifest import is_bytecode_artifact  # noqa: E402
-from copilot_body_translation import translate_skill_file  # noqa: E402
+from copilot_body_translation import render_skill_file  # noqa: E402
 from lib_mirror import lib_owned_support_files  # noqa: E402
 from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
 from skill_distribution import SkillDistributionError, repo_local_names  # noqa: E402
@@ -182,7 +182,8 @@ def _copy_skill_tree(
 
     ``frontmatter_drop`` names top-level ``SKILL.md`` frontmatter keys the
     translated copy omits (the platform config's ``frontmatterDrop``). It only
-    applies with ``skills_output_dir``, the translate branch (ADR-111).
+    applies with ``skills_output_dir``, the translate branch (ADR-111). Without
+    it, a non-empty list still drops those keys and keeps the body (ADR-115).
 
     ``check``, when set, never writes either, but (unlike ``what_if``)
     counts every mismatch into ``written``: a caller running a staleness
@@ -215,13 +216,13 @@ def _copy_skill_tree(
             skipped += 1
             continue
 
-        if skills_output_dir is not None and rel == Path("SKILL.md"):
+        if rel == Path("SKILL.md") and (skills_output_dir is not None or frontmatter_drop):
             content_source = src_path
             if plugin_skill_md is not None and plugin_skill_md.is_file():
                 content_source = plugin_skill_md
             content = content_source.read_text(encoding="utf-8")
             try:
-                translated = translate_skill_file(content, skills_output_dir, frontmatter_drop)
+                translated = render_skill_file(content, skills_output_dir, frontmatter_drop)
             except ValueError as exc:
                 raise GenerateSkillsError(f"{content_source}: {exc}") from exc
             if _text_matches(dst_path, translated):

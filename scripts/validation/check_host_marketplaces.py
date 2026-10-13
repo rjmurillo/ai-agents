@@ -18,7 +18,10 @@ one row. For each plugin entry the gate checks:
 Manifest locations, read from the tree rather than assumed: the Claude and
 Copilot trees both ship ``.claude-plugin/plugin.json``
 (``src/claude`` and ``src/copilot-cli``). Grok Build reads the Claude-format
-manifest too, so its row names the same path.
+manifest too, so its row names the same path. Codex reads a root
+``plugin.json`` (``src/codex``, ADR-115 Decision 7), and
+``.agents/plugins/marketplace.json`` wins over ``.claude-plugin/marketplace.json``
+when both exist, so that row is the one Codex installs from.
 
 Stricter than ``build/scripts/check_plugin_manifest_parity.py``: that gate
 deliberately does not compare ``name``. This one does, because an install by
@@ -46,6 +49,7 @@ HOST_MARKETPLACES: tuple[tuple[str, str], ...] = (
     (".claude-plugin/marketplace.json", ".claude-plugin/plugin.json"),
     (".github/plugin/marketplace.json", ".claude-plugin/plugin.json"),
     (".grok-plugin/marketplace.json", ".claude-plugin/plugin.json"),
+    (".agents/plugins/marketplace.json", "plugin.json"),
 )
 
 _OK = 0
