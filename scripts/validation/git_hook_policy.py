@@ -151,7 +151,6 @@ ALLOWED_REPO_ROOT_ENTRIES = frozenset(
         "memory_enhancement",
         "package.json",
         "packages",
-        "pr_body.md",
         "pyproject.toml",
         "renovate.json",
         "scripts",

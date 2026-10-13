@@ -2508,6 +2508,21 @@ def test_root_hygiene_blocks_staged_root_scratch_file(
     )
 
 
+def test_root_hygiene_blocks_staged_pr_body_scratch_file(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "README.md", "tracked\n")
+    _write_lf(repo / "pr_body.md", "scratch PR body\n")
+    _git(repo, "add", "pr_body.md")
+
+    assert "pr_body.md" not in policy.ALLOWED_REPO_ROOT_ENTRIES
+    assert policy.check_root_hygiene(["pr_body.md"], repo) == 1
+    assert "pr_body.md" in capsys.readouterr().err
+
+
 def test_root_hygiene_allows_deleting_disallowed_root_file(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)
