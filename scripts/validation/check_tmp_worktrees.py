@@ -336,12 +336,7 @@ def build_report(
 
 
 def _unreadable_lines(report: TempReport) -> list[str]:
-    """Report lines for entries the scan could not examine.
-
-    Only entries with an unreadable ``.git`` marker are named, bounded by
-    ``_MAX_NAMED_UNREADABLE``. A failed entry stat, an unreadable temp root, and
-    an ``iterdir`` failure add to the count without a name.
-    """
+    """Report lines for unexaminable entries; only unreadable markers are named, bounded."""
     lines: list[str] = []
     if report.unreadable_entries:
         lines.append(
