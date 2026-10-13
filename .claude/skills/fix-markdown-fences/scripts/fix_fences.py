@@ -39,18 +39,23 @@ best-effort reading of an ambiguous file: where the author meant a wider
 container fence, the inserted closing fence is not the fix they want. The
 agent reads the report, decides, and only then writes.
 
-``--write`` carries one post-condition: a repair must never turn a balanced
-file into an unclosed one. A raw HTML block hides a fence from CommonMark but
-not from this scanner, and then the appended closing fence is a fresh opener.
-When ``markdown-it-py`` is importable the repaired text is checked against it
-and a file that would come out unclosed is refused: not written, listed under
-``refused``, exit 1. Without it the check is skipped with a note on stderr.
+``--write`` carries two guards, both in ``fence_write_guard.py``, and a file
+either one refuses is not written, is listed under ``refused`` with its reason
+under ``refusal_reasons``, and makes the run exit 1:
+
+- A raw HTML block hides a fence from CommonMark but not from this scanner, so
+  the scanner would edit a document CommonMark reads as complete. A file with a
+  fence-looking line inside an HTML block is refused. No extra package needed.
+- A repair must never turn a balanced file into an unclosed one. When
+  ``markdown-it-py`` is importable the repaired text is checked against it.
+  Without it the check is skipped with a note on stderr.
 
 EXIT CODES (ADR-035):
   0 - No defects found, or `--write` repaired every defect it found.
   1 - Report mode (the default): at least one defect found. Nothing written.
-      With `--write`: at least one file was refused because its repair would
-      have left a balanced file unclosed. Nothing was written for it.
+      With `--write`: at least one file was refused because a fence sits inside
+      a raw HTML block, or because its repair would have left a balanced file
+      unclosed. Nothing was written for it.
   2 - Configuration error: a requested path does not exist, or a file could
       not be read or written.
 """
@@ -65,7 +70,6 @@ import re
 import sys
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
-from typing import Any
 
 # ADR-047 keeps this bootstrap inline because imports need sys.path first.
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
@@ -80,7 +84,16 @@ if not os.path.isdir(_lib_dir):
     sys.exit(2)  # Config error per ADR-035
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
+# The write guard ships beside this script. Imported by path (tests, hooks) the
+# script directory is not on sys.path, so add it.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+from fence_write_guard import (  # noqa: E402,F401 (re-exported for callers and tests)
+    _load_reference,
+    leaves_fence_open,
+    refusal_reason,
+    repair_is_safe,
+)
 from hook_utilities.commonmark_containers import (  # noqa: E402
     FENCE_RE,
     ListContainers,
@@ -138,7 +151,7 @@ def _closes(line: str, open_fence: _OpenFence, containers: ListContainers) -> re
     opener. It is a VALID close when its info string is blank and a
     MALFORMED close when it is not; the caller distinguishes them.
     """
-    match = FENCE_RE.match(line)
+    match: re.Match[str] | None = FENCE_RE.match(line)
     if match is None or containers.over_indented(match.group("indent")):
         return None
     fence = match.group("fence")
@@ -337,71 +350,20 @@ def iter_markdown_files(paths: list[Path], pattern: str) -> list[Path]:
     return found
 
 
-def _load_reference() -> Any:
-    """Return the CommonMark reference parser, or None when it is not installed.
-
-    Vendored trees carry no third-party packages, so the import is optional.
-    """
-    try:
-        from markdown_it import MarkdownIt
-    except ImportError:
-        return None
-    return MarkdownIt("commonmark")
-
-
-def _reference_lines(text: str) -> list[str]:
-    """Split *text* the way the reference parser numbers lines.
-
-    Not ``str.splitlines``: its extra separators shift every later ``token.map``.
-    """
-    lines = _LINE_SPLIT_RE.sub("\n", text).split("\n")
-    if lines and lines[-1] == "":
-        lines.pop()  # text ended with a terminator; no empty final line
-    return lines
-
-
-def leaves_fence_open(reference: Any, text: str) -> bool:
-    """Return True when a fence in *text* reaches EOF with no closing marker.
-
-    Read from the token. A span longer than opener plus body was closed by a
-    marker; "no marker" alone is not "open", since a fence also ends with its
-    list item, so the token must also reach the last line.
-    """
-    source = _reference_lines(text)
-    for token in reference.parse(text):
-        if token.type != "fence" or not token.map:
-            continue
-        span = token.map[1] - token.map[0]
-        body = len(_reference_lines(token.content))
-        marked = span - 1 - body >= 1
-        if not marked and token.map[1] >= len(source):
-            return True
-    return False
-
-
-def repair_is_safe(reference: Any, before: str, after: str) -> bool:
-    """Return False when the repair would turn a balanced file unclosed.
-
-    With no reference parser there is nothing to judge against: allowed.
-    """
-    if reference is None:
-        return True
-    return leaves_fence_open(reference, before) or not leaves_fence_open(reference, after)
-
-
 def _report(
     results: dict[str, list[Defect]],
     *,
     as_json: bool,
     wrote: list[str],
-    refused: list[str],
+    refused: dict[str, str],
 ) -> None:
     if as_json:
         payload = {
             "files": {name: [asdict(d) for d in defects] for name, defects in results.items()},
             "defect_count": sum(len(d) for d in results.values()),
             "repaired": wrote,
-            "refused": refused,
+            "refused": list(refused),
+            "refusal_reasons": refused,
         }
         print(json.dumps(payload, indent=2, sort_keys=True))
         return
@@ -416,8 +378,8 @@ def _report(
     print(f"\n{total} defect(s) in {len(results)} file(s)")
     if wrote:
         print(f"Repaired {len(wrote)} file(s)")
-    for name in refused:
-        print(f"Refused {name}: the repair would turn a balanced file into an unclosed one")
+    for name, reason in refused.items():
+        print(f"Refused {name}: {reason}")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -449,7 +411,7 @@ def main(argv: list[str] | None = None) -> int:
     reference = _load_reference()
     results: dict[str, list[Defect]] = {}
     wrote: list[str] = []
-    refused: list[str] = []
+    refused: dict[str, str] = {}
     skipped_check = False
     for file_path in iter_markdown_files(paths, args.pattern):
         try:
@@ -475,8 +437,9 @@ def main(argv: list[str] | None = None) -> int:
             continue
         repaired = repair_markdown_fences(content)
         skipped_check = skipped_check or reference is None
-        if not repair_is_safe(reference, content, repaired):
-            refused.append(str(file_path))
+        reason = refusal_reason(reference, content, repaired, fence_match)
+        if reason is not None:
+            refused[str(file_path)] = reason
             continue
         bom = codecs.BOM_UTF8 if raw.startswith(codecs.BOM_UTF8) else b""
         try:

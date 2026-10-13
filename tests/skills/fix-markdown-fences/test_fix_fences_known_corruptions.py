@@ -18,6 +18,9 @@ A fifth shape, a mistaken closer next to a raw HTML block that leaves a
 tracked file unclosed, is no longer a pin. `--write` refuses it; see
 test_fix_fences_write_guard.py.
 
+Raw HTML is still pinned here, but only for what the repair FUNCTION does.
+`--write` refuses every one of its shapes; see test_fix_fences_html_guard.py.
+
 These are ratchets, not endorsements. Closing any part of a gap lowers its
 counts and fails its test. Lower the pin; never raise it.
 """
@@ -46,7 +49,11 @@ repair_markdown_fences = mod.repair_markdown_fences
 
 
 class TestRawHtmlIsADestructiveGap:
-    """Pin the one known gap where `--write` corrupts, so it cannot spread.
+    """Pin what the repair does to a fence inside raw HTML, so it cannot spread.
+
+    `--write` no longer reaches this: both write guards refuse every shape
+    (see `test_the_write_guards_refuse_every_shape`). The repair function is
+    unchanged and its output is still what the pins below measure.
 
     A raw HTML block swallows a following fence: CommonMark reads the whole
     run as HTML and sees no fence at all, so the document is balanced, while
@@ -173,14 +180,15 @@ class TestRawHtmlIsADestructiveGap:
         )
         assert find_fence_defects(text), "the scanner is supposed to report a defect here"
 
-    #: Measured with the write guard in force: of the 20 appended repairs, 7 are
-    #: refused and 13 are still written. The 13 are the shapes where the HTML
-    #: block swallows the appended fence, so the reference parser reads the
-    #: result as balanced and `repair_is_safe` cannot tell.
-    GUARDED_WRITTEN = 13
-    GUARDED_REFUSED = 7
+    #: Measured with both write guards in force: all 20 appended repairs are
+    #: refused. `repair_is_safe` alone refused 7; `wraps_fence_in_html` closes
+    #: the other 13, where the HTML block swallows the appended fence and the
+    #: reference parser reads the result as balanced. The refusal itself is
+    #: driven through `main(argv)` in test_fix_fences_html_guard.py.
+    GUARDED_WRITTEN = 0
+    GUARDED_REFUSED = 20
 
-    def test_the_write_guard_refuses_only_some_of_the_shapes(self) -> None:
+    def test_the_write_guards_refuse_every_shape(self) -> None:
         reference = mod._load_reference()
         assert reference is not None
         appended = [
@@ -189,13 +197,16 @@ class TestRawHtmlIsADestructiveGap:
             if repair_markdown_fences(text) != text
             and repair_markdown_fences(text).startswith(text)
         ]
-        refused = [t for t, r in appended if not mod.repair_is_safe(reference, t, r)]
+        refused = [
+            t
+            for t, r in appended
+            if mod.refusal_reason(reference, t, r, mod.fence_match) is not None
+        ]
         written = len(appended) - len(refused)
         assert (written, len(refused)) == (self.GUARDED_WRITTEN, self.GUARDED_REFUSED), (
-            f"guard let {written} through and refused {len(refused)}, pinned at "
-            f"{self.GUARDED_WRITTEN} and {self.GUARDED_REFUSED}. If the guard closed "
-            "more of the gap, lower the written pin and update the Known gaps text "
-            "in fix-markdown-fences.SKILL.md.tmpl."
+            f"guards let {written} through and refused {len(refused)}, pinned at "
+            f"{self.GUARDED_WRITTEN} and {self.GUARDED_REFUSED}. A shape that is "
+            "written again is a regression in `wraps_fence_in_html`."
         )
 
 
