@@ -149,7 +149,7 @@ Populate the detected template with gathered content:
 
 **Lifecycle frontmatter (ADR-073, Phase 1)**: when the destination uses this
 repo's canonical template (`.project-toolkit/architecture/ADR-TEMPLATE.md`), emit the
-<!-- vendor-portability: declared. adr-generator reads the canonical ADR template under .project-toolkit/architecture/; a consumer repo without it falls back to the bundled references/adr-template.md. Issue #2050. -->
+<!-- vendor-portability: declared. adr-generator reads the canonical ADR template under .project-toolkit/architecture/; a consumer repo without it falls back to the bundled references/adr-template.md. Phase G6 runs build/scripts/generate_adr_index.py to refresh the generated ADR index when that script exists; a consumer repo without it skips the step. Issues #2050, #5280. -->
 machine-readable YAML frontmatter block above the `# ADR-NNN:` heading with
 these safe defaults:
 
@@ -236,7 +236,26 @@ invent a correction when evidence is unavailable or a claim remains uncertain.
 
 ### Phase G6: Hand Off
 
-After the gates pass, hand the ADR and its claims ledger to `adr-review` for multi-agent validation.
+After the gates pass, refresh the ADR index, then hand the ADR and its claims
+ledger to `adr-review` for multi-agent validation.
+
+<!-- vendor-portability-exec: the refresh step invokes
+     build/scripts/generate_adr_index.py, which lives upstream in the
+     rjmurillo/ai-agents repo and ships in no plugin root. The step is guarded
+     by an existence check and skipped in a consumer checkout (issue #5280). -->
+
+The ADR index (`.project-toolkit/architecture/README.md`) is generated from the
+ADR corpus (issue #5198). It lists each record's status, title, and decision
+summary, and the gates above can edit all three. Run the generator after the
+gates so the index shows the final text instead of drifting until the next
+unrelated build:
+
+```bash
+uv run python build/scripts/generate_adr_index.py
+```
+
+If `build/scripts/generate_adr_index.py` does not exist in this checkout, skip
+the refresh. The index has not shipped there, so nothing needs regenerating.
 
 ---
 
@@ -280,6 +299,7 @@ Before delivering, confirm all items in the [quality checklist](references/quali
 - [ ] File saved to destination directory determined in Phase G2
 - [ ] Claims ledger records each factual claim and its evidence status
 - [ ] Documentation accuracy, self-consistency, and refuting-seat results recorded
+- [ ] If `build/scripts/generate_adr_index.py` exists, it ran after the gates (Phase G6)
 - [ ] ADR review hand-off includes the claims ledger path and gate escapes
 
 ---
