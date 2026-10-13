@@ -246,3 +246,65 @@ def test_main_exits_config_on_a_stale_selection_without_starting_pytest(
     monkeypatch.setenv(_rpw.ENV_SELECTED, '["tests/test_gone.py"]')
 
     assert _rpw.main([]) == _rpw.EXIT_CONFIG
+
+
+def _fake_project(root: Path) -> None:
+    """A tree with one module that only names the marker and one that applies it."""
+    tests_dir = root / "tests"
+    tests_dir.mkdir()
+    (tests_dir / "test_names_only.py").write_text(
+        "def test_detects_windows_path() -> None:\n    pass\n", encoding="utf-8"
+    )
+    (tests_dir / "test_applies.py").write_text(
+        "import pytest\n\n\n@pytest.mark.windows_path\ndef test_marked() -> None:\n    pass\n",
+        encoding="utf-8",
+    )
+
+
+def test_narrowed_run_that_selects_no_item_passes_under_real_pytest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A change that reaches only a zero-hit module must not turn the job red (exit 5)."""
+    _fake_project(tmp_path)
+    monkeypatch.setattr(_rpw, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setenv(_rpw.ENV_SELECTED, '["tests/test_names_only.py"]')
+
+    assert _rpw.main(["-p", "no:cacheprovider"]) == _rpw.EXIT_OK
+
+
+def test_whole_run_that_selects_no_item_still_fails_under_real_pytest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """With no narrowing, zero selected items means the marker suite vanished."""
+    tests_dir = tmp_path / "tests"
+    tests_dir.mkdir()
+    (tests_dir / "test_names_only.py").write_text(
+        "def test_detects_windows_path() -> None:\n    pass\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(_rpw, "PROJECT_ROOT", tmp_path)
+    monkeypatch.delenv(_rpw.ENV_SELECTED, raising=False)
+
+    assert _rpw.main(["-p", "no:cacheprovider"]) == _rpw.PYTEST_NO_TESTS
+
+
+def test_narrowed_run_with_a_failing_test_still_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _fake_project(tmp_path)
+    (tmp_path / "tests" / "test_applies.py").write_text(
+        "import pytest\n\n\n"
+        "@pytest.mark.windows_path\n"
+        "def test_marked() -> None:\n    assert False\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(_rpw, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setenv(_rpw.ENV_SELECTED, '["tests/test_applies.py"]')
+
+    assert _rpw.main(["-p", "no:cacheprovider"]) == 1
+
+
+def test_narrowed_exit_code_maps_only_no_tests_to_ok() -> None:
+    assert _rpw.exit_code(_rpw.PYTEST_NO_TESTS, narrowed=True) == _rpw.EXIT_OK
+    assert _rpw.exit_code(_rpw.PYTEST_NO_TESTS, narrowed=False) == _rpw.PYTEST_NO_TESTS
+    assert _rpw.exit_code(1, narrowed=True) == 1
+    assert _rpw.exit_code(0, narrowed=True) == 0

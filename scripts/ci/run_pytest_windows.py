@@ -24,6 +24,12 @@ unset or empty runs every marked module. A name that is not a marked module
 fails the run rather than being dropped, so a stale selection cannot shrink the
 suite unseen.
 
+A module can name the marker without applying it (a test called
+`test_detects_windows_path`), so a narrowed selection can collect zero items and
+pytest exits 5. That run proves nothing failed, so a narrowed run maps 5 to 0.
+An unnarrowed run keeps 5: zero items across every marked module means the
+suite itself is gone.
+
 Exit codes (AGENTS.md contract): 0 ok, 2 config, 3 external. Any other code is
 pytest's own and is passed through unchanged.
 """
@@ -45,6 +51,7 @@ ENV_SELECTED = "WINDOWS_TEST_FILES"
 EXIT_OK = 0
 EXIT_CONFIG = 2
 EXIT_EXTERNAL = 3
+PYTEST_NO_TESTS = 5
 
 
 class DiscoveryError(Exception):
@@ -108,6 +115,13 @@ def selected_files(raw: str, discovered: list[str]) -> list[str]:
     return [path for path in discovered if path in wanted]
 
 
+def exit_code(returncode: int, *, narrowed: bool) -> int:
+    """Map pytest's exit code; "no tests collected" is success for a narrowed run."""
+    if narrowed and returncode == PYTEST_NO_TESTS:
+        return EXIT_OK
+    return returncode
+
+
 def main(argv: list[str] | None = None) -> int:
     passthrough = list(sys.argv[1:] if argv is None else argv)
 
@@ -144,7 +158,8 @@ def main(argv: list[str] | None = None) -> int:
         # is a cap a real run can exceed. A too-low guess turns a healthy slow
         # runner red, which is worse than the outer cap this already has.
         sys.stdout.flush()
-        return subprocess.run(command, cwd=PROJECT_ROOT, check=False).returncode
+        returncode = subprocess.run(command, cwd=PROJECT_ROOT, check=False).returncode
+        return exit_code(returncode, narrowed=len(selected) < len(files))
     except OSError as exc:
         print(f"could not start pytest: {exc}", file=sys.stderr)
         return EXIT_EXTERNAL
