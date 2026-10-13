@@ -38,8 +38,10 @@ EXIT_OK = 0
 EXIT_VIOLATION = 1
 EXIT_CONFIG = 2
 
-# An agent tree that ADR-109 B1 made generated output.
-_AGENT_TREE = r"(?:src/claude/agents|\.claude/agents|\.github/agents)"
+# An agent tree that ADR-109 B1 made generated output. A path below a
+# subdirectory is not an agent file: ``.github/agents/security/references/`` is
+# a hand-maintained byte copy that ``surface-parity.yaml`` maps by identity.
+_AGENT_TREE = r"(?:src/claude/agents|\.claude/agents|\.github/agents)(?!/[^\s`/]+/)"
 
 # Source files whose prose describes the agent and rule pipeline. Rendered
 # copies (``.claude/rules``, ``src/claude/rules``, ``.github/instructions``,

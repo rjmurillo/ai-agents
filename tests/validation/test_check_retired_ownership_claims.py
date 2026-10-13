@@ -161,6 +161,20 @@ class TestFindRetiredClaims:
 
         assert find_retired_claims(repo) == []
 
+    def test_a_hand_maintained_reference_copy_under_the_agent_dir_is_not_the_claim(
+        self, tmp_path: Path
+    ) -> None:
+        """Security references under .github/agents/ are a real hand-maintained byte copy."""
+        repo = _git_repo(tmp_path)
+        _add(
+            repo,
+            ".agents/governance/GENERATOR-FILES.md",
+            "| `security-references` | `.github/agents/security/references/*.md` | "
+            "`derived` | `check_surface_parity.py` (hand-maintained byte copy) | - | - |\n",
+        )
+
+        assert find_retired_claims(repo) == []
+
     def test_hand_maintained_without_an_agent_tree_is_not_the_claim(self, tmp_path: Path) -> None:
         """Skill scripts and references are still hand-maintained (ADR-108)."""
         repo = _git_repo(tmp_path)
