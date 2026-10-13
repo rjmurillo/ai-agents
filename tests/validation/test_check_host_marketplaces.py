@@ -111,6 +111,20 @@ def test_bad_source_is_a_violation(tmp_path: Path, source: object, fragment: str
     assert gate.main([str(repo)]) == 1
 
 
+def test_manifest_symlink_outside_the_source_is_a_violation(tmp_path: Path) -> None:
+    repo = _repo(tmp_path / "repo")
+    outside = tmp_path / "outside" / "plugin.json"
+    _write_json(outside, {"name": "tool"})
+    manifest = repo / "plugin" / _MANIFEST
+    manifest.unlink()
+    manifest.symlink_to(outside)
+
+    violations, _ = gate.find_violations(repo)
+
+    assert violations
+    assert all("resolves outside the source directory" in v for v in violations)
+
+
 def test_symlink_escaping_the_repo_is_a_violation(tmp_path: Path) -> None:
     outside = tmp_path / "outside"
     (outside / ".claude-plugin").mkdir(parents=True)

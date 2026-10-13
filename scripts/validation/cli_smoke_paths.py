@@ -54,6 +54,7 @@ HOOK_E2E_GLOBS: tuple[str, ...] = (
 PLUGIN_E2E_GLOBS: tuple[str, ...] = (
     ".claude-plugin/marketplace.json",
     ".github/plugin/marketplace.json",
+    "package.json",
     ".agents/plugins/marketplace.json",
     "src/claude/**",
     "src/copilot-cli/**",
@@ -63,6 +64,7 @@ PLUGIN_E2E_GLOBS: tuple[str, ...] = (
     "templates/platforms/copilot-cli.yaml",
     "templates/platforms/codex.yaml",
     "tests/e2e/test_plugin_load_smoke.py",
+    "tests/e2e/test_pi_package_smoke.py",
     "tests/e2e/copilot_hook_probe.py",
     "tests/e2e/smoke_skip_policy.py",
     ".github/workflows/plugin-cli-smoke.yml",

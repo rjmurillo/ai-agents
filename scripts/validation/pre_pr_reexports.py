@@ -32,7 +32,12 @@ from check_serena_memory_worktree_scope import validate_serena_memory_worktree_s
 from check_skill_tree_layout import validate_skill_tree_layout
 from check_tmp_worktrees import validate_tmp_worktrees
 from check_worktree_recipes import validate_worktree_recipes
-from checks_ci_parity import validate_closure_manifest, validate_memory_placement
+from checks_ci_parity import (
+    validate_closure_manifest,
+    validate_memory_placement,
+    validate_review_axis_drift,
+    validate_skill_description_budget,
+)
 from checks_copilot import validate_copilot_routing_exclusions
 from checks_mypy import validate_mypy_changed_files
 from checks_plugin import validate_agent_content_parity, validate_agent_source_parity
@@ -90,9 +95,11 @@ __all__ = [
     "validate_promotion_exceptions",
     "validate_push_lock_paths",
     "validate_required_context_conditions",
+    "validate_review_axis_drift",
     "validate_rule_activation_coverage",
     "validate_rule_scope_declarations",
     "validate_serena_memory_worktree_scope",
+    "validate_skill_description_budget",
     "validate_skill_memory_references",
     "validate_skill_routing_roles_declarations",
     "validate_skill_skip_clauses",

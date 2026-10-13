@@ -81,8 +81,10 @@ from checks_ci_parity import (
     validate_placeholder_identity,
     validate_plugin_frontmatter_self_containment,
     validate_python3_entrypoints,
+    validate_review_axis_drift,
     validate_security_suppressions_diff,
     validate_sha_pinning,
+    validate_skill_description_budget,
     validate_skillbook,
     validate_tracked_conflict_markers,
 )
@@ -453,6 +455,11 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate("Hook Contracts", _root_only(validate_hook_contracts)),
     _Gate("Passive Context Budget", _root_only(validate_passive_context_budget)),
     _Gate("Skillbook Validation", _root_only(validate_skillbook)),
+    # The pre-push `review-axis-drift` job and the aggregate skill description
+    # budget, which pytest asserts in the pre-push test job. Both took seconds to
+    # run and cost a rejected push when pre_pr skipped them (issue #6426).
+    _Gate("Review Axis Drift", _root_only(validate_review_axis_drift)),
+    _Gate("Skill Description Budget", _root_only(validate_skill_description_budget)),
     # Advisory: the typed dependency closure of every pinned required context
     # (ADR-101 Phase 1, issue #5245). Prints the summary and any unresolved edge,
     # never fails; the job that binds runs from the default branch.

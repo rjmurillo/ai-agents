@@ -32,6 +32,7 @@ PACKAGE_VERSION_ENV = {
     "@anthropic-ai/claude-code": "CLAUDE_CODE_VERSION",
     "@github/copilot": "COPILOT_CLI_VERSION",
     "@openai/codex": "CODEX_CLI_VERSION",
+    "@earendil-works/pi-coding-agent": "PI_CLI_VERSION",
 }
 OPERATING_SYSTEMS = ["ubuntu-latest", "macos-latest", "windows-latest"]
 INSTALL_STEP = {"claude": "Install pinned Claude CLI", "copilot": "Install pinned Copilot CLI"}
