@@ -202,8 +202,9 @@ else
     echo "Pending: $pending check(s) still running"
 fi
 
-# Poll until all checks complete (or timeout)
-checks=$(python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request 50 --wait --timeout-seconds 600)
+# Poll until all checks complete (or timeout). Keep --timeout-seconds at or below
+# 570: a 600 second tool call is killed with no result.
+checks=$(python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request 50 --wait --timeout-seconds 540)
 
 if [ $? -eq 7 ]; then
     echo "Timeout waiting for checks"

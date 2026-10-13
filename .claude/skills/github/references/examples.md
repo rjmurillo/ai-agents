@@ -92,8 +92,9 @@ python3 "$SCRIPTS_DIR/pr/test_pr_merged.py" --pull-request 50
 # Get CI check status
 python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request 50
 
-# Wait for CI checks to complete (timeout 10 minutes)
-python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request 50 --wait --timeout-seconds 600
+# Wait for CI checks to complete (keep the budget at or below 570 seconds: the
+# 600 second tool call is killed with no result). Exit 7 means still waiting, so run it again.
+python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request 50 --wait --timeout-seconds 540
 
 # Get only required checks
 python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request 50 --required-only
