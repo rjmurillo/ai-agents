@@ -47,7 +47,6 @@ Derive the route from discovered context (stack, tests, verifier, harness contro
 
 | Tier | Route for | Starting effort |
 |---|---|---|
-| Deterministic | Computable answer: lint, schema, grep, count, diff, an existing validator, a yes/no or fixed label a rule can decide | No model; run the script |
 | Bounded | Explicit scope, cheap failure, objective verifier: extraction, triage, small edits, transforms | Lowest offered |
 | Specified | Known files and patterns: implementation, review, first local repair | Low or medium |
 | Judgment | Ambiguity, architecture, cross-file repair, long-horizon agentic work, acceptance | Medium; high when those dominate |
@@ -61,7 +60,7 @@ Resolve to concrete IDs | unresolved: retain harness default + record fallback |
 Preserve registered roles, mappings, role-keyed results, ADR-009, and ADR-078.
 
 Judgment tier owns ambiguity/acceptance and hard exceptions | Do not force a weaker model into judgment work with more prompts, tools, or subagents.
-Bounded: route down only when scope explicit | failure cheap | verifier objective (tests, diff, schema, security) | fan-out/context replay low | receipt compact.
+Below bounded: no model when a script, validator, or rule decides it, yes/no and fixed labels included. Bounded: route down only when scope explicit | failure cheap | verifier objective (tests, diff, schema, security) | fan-out/context replay low | receipt compact.
 Control loop: do not route everything up | constrain capable models for routine work | pre-route up when correction/review/human-wait cost wins.
 Interactive: human-blocking latency weighs more | async: token cost weighs more | fan-out adds coordination tax.
 Fixtures 2026-09-24 (single-turn): cheapest rung within 0.10 of ladder best for most agents. Relative, no pass bar (Luna qa 0.33). Only nominates a tier for a bounded leaf with a real verifier. Measured floors above the cheapest rung on a ladder: skillbook and security-review judgment; orchestrator specified; implementer judgment on one ladder.
@@ -76,8 +75,7 @@ Any model: explicit follow-through, event-driven waits, compact receipts, one ch
 ```text
 0. Recon the target stack (see Target Recon). Never route on an assumed stack.
 1. Classify complexity (Cynefin)
-2. Computable answer (script, validator, schema, rule)?
-   YES → deterministic tier: run it, no model
+2. Script or rule decides it? YES → no model
    Bounded leaf, real verifier, no consequential judgment?
    YES → bounded or specified tier by task shape
    NO  → judgment tier; continue

@@ -12,11 +12,10 @@ Skills|route autoplan|no skill -> autoplan|multi -> orchestrator|conflict -> Git
 
 ## Routing
 
-Cost|route by shape/verifier/failure|accepted-result cost = inference+retry+repair+replay/tool+verifier/review+coordination+human wait|weight judgment/correction > price|down: bounded+cheap+objective+low fan-out+compact receipt|no model/task table, labels advisory|derive effort, do not inherit vendor default
-Effort|by task shape+verifier|bounded: lowest|specified: low/medium|judgment: medium, high when ambiguity/repair/architecture/acceptance dominate|more != better, validate per task+harness|pins: ADR-080
-Cheapest first|script/validator > small model > large model|yes/no or fixed label a rule decides: no model
-Context|fresh context per separable task, inline when the brief costs more than the work|state in files, pass paths|distill a large artifact once, work from the distillation|every model call (subagent or external) gets a brief: job, needs, leave alone, return
-Tiers|effort|delegation contract|typed exceptions -> orchestrator agent, Model, Effort, and Cost Routing|intent -> autoplan
+Cost|route by shape/verifier/failure|price accepted results, not tokens|weight judgment/correction > price|down: bounded+cheap+objective+low fan-out+compact receipt|no model/task table, labels advisory
+Effort|by task shape+verifier, never vendor default|bounded: lowest|specified: low/medium|judgment: medium, high when ambiguity/repair/architecture/acceptance dominate|more != better, validate per task+harness|pins: ADR-080
+Context|script/rule before any model|fresh context per separable task unless the brief costs more|state in files, pass paths|distill once|brief every model call: job/needs/leave alone/return
+Tiers|delegation contract|detail -> orchestrator Model, Effort, and Cost Routing|intent -> autoplan
 
 ## Standards
 
