@@ -179,8 +179,8 @@ that is safe (idempotent in effect: the latest marker binds the current tip).
 
 ## Principles
 
-- **Deep review is the strict superset of CI**. In deep-review mode, `/review` surfaces every CI finding first.
-- **Drift fails closed**. If `.claude/skills/review/references/` and `.github/prompts/` diverge, the pre-push hook blocks the push. CI re-checks.
+- **Deep review is the strict superset of CI**. In deep review, `/review` surfaces every CI finding first.
+- **Drift fails closed**. If `.claude/skills/review/references/` and `.github/prompts/` diverge, pre-push blocks. CI re-checks.
 - **UNKNOWN is information**. A skill that did not evaluate is not a silent PASS. Loops, not files: `evidence-provenance`.
 - **Vendored survival**. `/review` works in a `.claude/`-only checkout. No axis or skill references `.agents/` or `.github/`.
 - **Voice**. Read `resources/writing-style.md` before writing findings (glossing, completeness scores).
