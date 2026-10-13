@@ -81,6 +81,7 @@ workflow filters on Python paths and never fires on ``marketplace.json``.
     .github/plugin/marketplace.json        (Copilot marketplace)
     .grok-plugin/marketplace.json          (Grok Build marketplace, ADR-115)
     .cursor-plugin/marketplace.json        (Cursor marketplace, ADR-115)
+    .agents/plugins/marketplace.json       (Codex marketplace, ADR-115)
 
 CLI
 ---
@@ -150,6 +151,11 @@ PLUGINS: tuple[PluginManifest, ...] = (
         source_dir="src/cursor",
         manifest="src/cursor/.cursor-plugin/plugin.json",
     ),
+    PluginManifest(
+        name="project-toolkit (codex)",
+        source_dir="src/codex",
+        manifest="src/codex/plugin.json",
+    ),
 )
 
 
@@ -161,6 +167,7 @@ MARKETPLACES: tuple[str, ...] = (
     ".github/plugin/marketplace.json",
     ".grok-plugin/marketplace.json",
     ".cursor-plugin/marketplace.json",
+    ".agents/plugins/marketplace.json",
 )
 
 

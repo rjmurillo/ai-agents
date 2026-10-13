@@ -783,6 +783,13 @@ _GENERATED_MIRRORS: tuple[tuple[str, str, tuple[str, str] | None], ...] = (
     ("src/cursor/lib/", ".claude/lib/", None),
     ("src/cursor/rules/", ".claude/rules/", (".mdc", ".md")),
     ("src/cursor/agents/", ".claude/agents/", None),
+    # ADR-115 Decision 7: the Codex plugin tree copies the same skill files and
+    # lib packages. SKILL.md differs by the dropped model keys, which carry no
+    # suppression comment; every script is a byte copy, so
+    # _drop_verbatim_mirror_violations still compares in full before it drops
+    # anything.
+    ("src/codex/lib/", ".claude/lib/", None),
+    ("src/codex/skills/", ".claude/skills/", None),
 )
 # Matcher-shim suffix appended by generate_hooks_emit._matcher_suffix.
 # Format: __{sanitized}_{6-hex-digest} or just __{6-hex-digest} before .py.

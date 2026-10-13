@@ -77,6 +77,7 @@ EXEMPTIONS: dict[str, tuple[str, int, str]] = {
     "src/claude/skills/orphan-ref-validator/scripts/filters.py": (REGISTRY, 1, _KNOWN_RETIRED),
     "src/copilot-cli/skills/orphan-ref-validator/scripts/filters.py": (REGISTRY, 1, _KNOWN_RETIRED),
     "src/cursor/skills/orphan-ref-validator/scripts/filters.py": (REGISTRY, 1, _KNOWN_RETIRED),
+    "src/codex/skills/orphan-ref-validator/scripts/filters.py": (REGISTRY, 1, _KNOWN_RETIRED),
     "scripts/validation/check_adr_links_baseline.txt": (
         REGISTRY,
         2,

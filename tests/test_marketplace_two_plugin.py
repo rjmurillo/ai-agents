@@ -20,6 +20,8 @@ CLAUDE_MARKETPLACE = REPO_ROOT / ".claude-plugin" / "marketplace.json"
 COPILOT_MARKETPLACE = REPO_ROOT / ".github" / "plugin" / "marketplace.json"
 GROK_MARKETPLACE = REPO_ROOT / ".grok-plugin" / "marketplace.json"
 CURSOR_MARKETPLACE = REPO_ROOT / ".cursor-plugin" / "marketplace.json"
+CODEX_MARKETPLACE = REPO_ROOT / ".agents" / "plugins" / "marketplace.json"
+CODEX_TOOLKIT_PLUGIN = REPO_ROOT / "src" / "codex" / "plugin.json"
 CLAUDE_TOOLKIT_PLUGIN = REPO_ROOT / "src" / "claude" / ".claude-plugin" / "plugin.json"
 COPILOT_TOOLKIT_PLUGIN = REPO_ROOT / "src" / "copilot-cli" / ".claude-plugin" / "plugin.json"
 
@@ -128,6 +130,33 @@ class TestCursorMarketplace:
     def test_does_not_point_at_a_tree_that_loads_claude_hooks(self) -> None:
         source = _load_marketplace(CURSOR_MARKETPLACE)["plugins"][0]["source"]
         assert source != "./src/claude"
+
+
+class TestCodexMarketplace:
+    """Codex reads `.agents/plugins/marketplace.json` first (ADR-115 Decision 7)."""
+
+    def test_lists_exactly_project_toolkit_at_the_codex_tree(self) -> None:
+        data = _load_marketplace(CODEX_MARKETPLACE)
+        assert [(p["name"], p["source"]) for p in data["plugins"]] == [
+            ("project-toolkit", "./src/codex")
+        ]
+
+    def test_shares_the_claude_marketplace_name_and_owner(self) -> None:
+        """Same marketplace name keeps `project-toolkit@ai-agents` installs in place."""
+        codex = _load_marketplace(CODEX_MARKETPLACE)
+        claude = _load_marketplace(CLAUDE_MARKETPLACE)
+        assert (codex["name"], codex["owner"]) == (claude["name"], claude["owner"])
+
+    def test_manifest_carries_the_agent_plugins_schema_and_no_version(self) -> None:
+        manifest = json.loads(CODEX_TOOLKIT_PLUGIN.read_text(encoding="utf-8"))
+        assert manifest["$schema"] == "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
+        assert manifest["name"] == "project-toolkit"
+        assert "version" not in manifest
+
+    def test_manifest_carries_the_openai_interface(self) -> None:
+        manifest = json.loads(CODEX_TOOLKIT_PLUGIN.read_text(encoding="utf-8"))
+        interface = manifest["extensions"]["com.openai"]["interface"]
+        assert {"displayName", "shortDescription", "developerName", "category"} <= set(interface)
 
 
 class TestMarketplaceSourceManifestParity:

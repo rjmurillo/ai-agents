@@ -42,9 +42,8 @@ def _marketplace(name: str = "tool", source: object = "./plugin") -> dict[str, o
 
 def _repo(tmp_path: Path) -> Path:
     """A repo where every host marketplace lists plugin ``tool`` at ./plugin."""
-    _write_json(tmp_path / "plugin" / _MANIFEST, {"name": "tool"})
-    _write_json(tmp_path / "plugin" / _CURSOR_MANIFEST, {"name": "tool"})
-    for marketplace, _ in gate.HOST_MARKETPLACES:
+    for marketplace, manifest in gate.HOST_MARKETPLACES:
+        _write_json(tmp_path / "plugin" / manifest, {"name": "tool"})
         _write_json(tmp_path / marketplace, _marketplace())
     return tmp_path
 
@@ -59,12 +58,14 @@ def test_clean_repo_passes(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -
     assert "4 plugin entries examined" in capsys.readouterr().out
 
 
-def test_real_repo_passes_and_covers_grok_and_cursor() -> None:
+def test_real_repo_passes_and_covers_grok_cursor_and_codex() -> None:
     violations, examined = gate.find_violations(REPO_ROOT)
     assert violations == []
     assert examined == 4
     assert (REPO_ROOT / ".grok-plugin" / "marketplace.json").is_file()
     assert (REPO_ROOT / ".cursor-plugin" / "marketplace.json").is_file()
+    assert (REPO_ROOT / ".agents" / "plugins" / "marketplace.json").is_file()
+    assert dict(gate.HOST_MARKETPLACES)[".agents/plugins/marketplace.json"] == "plugin.json"
 
 
 def test_cursor_row_reads_the_cursor_manifest_not_the_claude_one() -> None:
@@ -80,6 +81,24 @@ def test_cursor_marketplace_needs_the_cursor_manifest(tmp_path: Path) -> None:
     assert len(violations) == 1
     assert violations[0].startswith(".cursor-plugin/marketplace.json")
     assert "missing manifest .cursor-plugin/plugin.json" in violations[0]
+
+
+def test_codex_marketplace_needs_the_root_plugin_json(tmp_path: Path) -> None:
+    """The Codex row reads ``plugin.json``; a ``.claude-plugin`` manifest alone fails it."""
+    repo = _repo(tmp_path)
+    (repo / "plugin" / "plugin.json").unlink()
+    violations, _ = gate.find_violations(repo)
+    assert len(violations) == 1
+    assert violations[0].startswith(".agents/plugins/marketplace.json")
+    assert "missing manifest plugin.json" in violations[0]
+
+
+def test_codex_name_mismatch_is_a_violation(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    _write_json(repo / "plugin" / "plugin.json", {"name": "other"})
+    violations, _ = gate.find_violations(repo)
+    assert len(violations) == 1
+    assert "does not match manifest name 'other'" in violations[0]
 
 
 def test_validate_wrapper_matches_main(tmp_path: Path) -> None:
@@ -136,7 +155,8 @@ def test_symlink_escaping_the_repo_is_a_violation(tmp_path: Path) -> None:
 
 def test_missing_manifest_is_a_violation(tmp_path: Path) -> None:
     repo = _repo(tmp_path)
-    (repo / "plugin" / _MANIFEST).unlink()
+    for _, manifest in gate.HOST_MARKETPLACES:
+        (repo / "plugin" / manifest).unlink(missing_ok=True)
     violations, _ = gate.find_violations(repo)
     claude_format = [m for m, manifest in gate.HOST_MARKETPLACES if manifest == _MANIFEST]
     assert len(violations) == len(claude_format)

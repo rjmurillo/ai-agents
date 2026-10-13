@@ -105,6 +105,9 @@ _EXTRA_HISTORICAL_ROOTS = (
 _GENERATED_SKILL_MIRROR_ROOTS = (
     "src/claude/skills/",
     "src/copilot-cli/skills/",
+    "src/codex/skills/",
+    # Lib packages render from scripts/ with an import rewrite (lib_mirror.py).
+    "src/codex/lib/",
     "src/cursor/skills/",
     # ADR-115: the Cursor tree also renders rules (.mdc) and lib/ from canonical
     # sources, so a citation there is policed once at the source.

@@ -100,6 +100,7 @@ _LIB_MIRROR_ROOTS: tuple[str, ...] = (
     ".claude/lib",
     "src/claude/lib",
     "src/copilot-cli/lib",
+    "src/codex/lib",
     "src/cursor/lib",
 )
 _LIB_MIRROR_PACKAGES: tuple[str, ...] = ("hook_utilities", "github_core", "ai_review_common")
@@ -122,6 +123,7 @@ def _is_generated_lib_mirror(path_str: str) -> bool:
 _SKILL_MIRROR_ROOTS: tuple[str, ...] = (
     "src/claude/skills",
     "src/copilot-cli/skills",
+    "src/codex/skills",
     "src/cursor/skills",
 )
 _SKILL_CANONICAL_ROOT = ".claude/skills"

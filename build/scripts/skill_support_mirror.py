@@ -179,7 +179,8 @@ def _copy_skill_tree(
 
     ``frontmatter_drop`` names top-level ``SKILL.md`` frontmatter keys the
     translated copy omits (the platform config's ``frontmatterDrop``). It only
-    applies with ``skills_output_dir``, the translate branch (ADR-111).
+    applies with ``skills_output_dir``, the translate branch (ADR-111). Without
+    it, a non-empty list still drops those keys and keeps the body (ADR-115).
 
     ``frontmatter_keep`` (ADR-115 Decision 2) is Cursor's allow-list cut of the
     top-level ``SKILL.md`` frontmatter; see ``skill_md_rewrite.py``.

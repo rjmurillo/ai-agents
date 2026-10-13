@@ -165,6 +165,7 @@ ignore = []
 ".claude/skills/github/scripts/**/*.py" = ["E402"]
 "src/claude/skills/github/scripts/**/*.py" = ["E402"]
 "src/cursor/skills/github/scripts/**/*.py" = ["E402"]
+"src/codex/skills/github/scripts/**/*.py" = ["E402"]
 # Validation runners use sys.path.insert() before importing sibling modules
 "scripts/validation/pre_pr.py" = ["E402", "F401"]
 "scripts/validation/pre_pr_sequence.py" = ["E402"]
@@ -186,6 +187,8 @@ ignore = []
 # (generate_skills.py, artifacts.skills in templates/platforms/cursor.yaml), so it
 # carries the same pre-existing violations and gets the same waiver.
 "src/cursor/skills/**/*.py" = ["ANN", "E501"]
+# ADR-115: src/codex/skills/ is the same non-SKILL.md content again.
+"src/codex/skills/**/*.py" = ["ANN", "E501"]
 # Copilot CLI mirror trees are generated wholesale from the .claude sources by
 # build/scripts/build_all.py (the canonical sources above are the linted copy).
 # The generator inlines hooks into wrapper functions, which trips N-series and
