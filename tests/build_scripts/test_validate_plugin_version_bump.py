@@ -29,6 +29,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 SCRIPT = REPO_ROOT / "build" / "scripts" / "validate_plugin_version_bump.py"
 
@@ -203,24 +205,23 @@ def test_marketplace_entry_version_fails(tmp_path: Path) -> None:
     assert MARKET_CLAUDE in result.stdout
 
 
-def test_grok_marketplace_entry_version_fails(tmp_path: Path) -> None:
-    repo = _make_repo(tmp_path, market_grok=_marketplace("project-toolkit", "1.0.0"))
+@pytest.mark.parametrize(
+    ("key", "path"),
+    [
+        ("market_grok", MARKET_GROK),
+        ("market_cursor", MARKET_CURSOR),
+        ("market_codex", MARKET_CODEX),
+        ("market_copilot", MARKET_COPILOT),
+    ],
+)
+def test_host_marketplace_entry_version_fails(tmp_path: Path, key: str, path: str) -> None:
+    repo = _make_repo(tmp_path, **{key: _marketplace("project-toolkit", "1.0.0")})
 
     result = _run(repo)
 
     assert result.returncode == 1, result.stdout + result.stderr
     assert "marketplace-version-present" in result.stdout
-    assert MARKET_GROK in result.stdout
-
-
-def test_cursor_marketplace_entry_version_fails(tmp_path: Path) -> None:
-    repo = _make_repo(tmp_path, market_cursor=_marketplace("project-toolkit", "1.0.0"))
-
-    result = _run(repo)
-
-    assert result.returncode == 1, result.stdout + result.stderr
-    assert "marketplace-version-present" in result.stdout
-    assert MARKET_CURSOR in result.stdout
+    assert path in result.stdout
 
 
 def test_cursor_manifest_version_fails(tmp_path: Path) -> None:
@@ -236,25 +237,6 @@ def test_cursor_plugin_is_registered_with_its_own_manifest() -> None:
     manifests = {plugin.manifest: plugin.source_dir for plugin in vpb.PLUGINS}
     assert manifests[CURSOR] == "src/cursor"
     assert MARKET_CURSOR in vpb.MARKETPLACES
-
-
-def test_codex_marketplace_entry_version_fails(tmp_path: Path) -> None:
-    repo = _make_repo(tmp_path, market_codex=_marketplace("project-toolkit", "1.0.0"))
-
-    result = _run(repo)
-
-    assert result.returncode == 1, result.stdout + result.stderr
-    assert "marketplace-version-present" in result.stdout
-    assert MARKET_CODEX in result.stdout
-
-
-def test_copilot_marketplace_entry_version_fails(tmp_path: Path) -> None:
-    repo = _make_repo(tmp_path, market_copilot=_marketplace("project-toolkit", "1.0.0"))
-
-    result = _run(repo)
-
-    assert result.returncode == 1, result.stdout + result.stderr
-    assert MARKET_COPILOT in result.stdout
 
 
 def test_marketplace_version_is_reported_in_json(tmp_path: Path) -> None:

@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size, one row per shipped surface; check_surface_parity.py reads one flat registry, and each host tree adds rows.
 # Surface parity manifest (issue #5637).
 #
 # One row per shipped surface: where it lives, which source it answers to, which
