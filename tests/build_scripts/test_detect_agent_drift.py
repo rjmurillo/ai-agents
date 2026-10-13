@@ -438,6 +438,29 @@ def test_default_claude_path_compares_every_vendored_agent(
     assert [r["agentName"] for r in vendored if r["status"] == "NO COUNTERPART"] == []
 
 
+def test_merge_resolver_baseline_floor_matches_checked_in_prompts(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Issue #5642 AC1/AC2: the merge-resolver floors match the measured overlap.
+
+    PR #5470 removed a constraint line from both merge-resolver bodies and the
+    measured similarity fell below the recorded floor, so the weekly workflow
+    reopened the drift issue. Both comparisons must classify as baselined, and
+    the floor must not sit above the measurement (a floor above it would fail
+    here; a floor far below it would hide worsening, so the gap is bounded).
+    """
+    drift.main(["--output-format", "json"])
+
+    results = json.loads(capsys.readouterr().out)["results"]
+    pairs = [r for r in results if r["agentName"] == "merge-resolver"]
+    labels = {r["comparison"] for r in pairs}
+    assert labels == {"src-claude vs src-vscode", drift._INSTALL_COMPARISON_LABEL}
+    for r in pairs:
+        floor = drift.KNOWN_BASELINE_DRIFT[("merge-resolver", r["comparison"])]
+        assert r["status"] == "OK (baselined)", pairs
+        assert 0.0 <= r["overallSimilarity"] - floor <= 0.5, pairs
+
+
 # --- Issue #2423: changed-files scoping for pre-push -------------------------
 #
 # The pre-push hook must not block a scoped PR on pre-existing drift in agent

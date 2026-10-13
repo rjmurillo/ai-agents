@@ -159,7 +159,7 @@ _INSTALL_COMPARISON_LABEL = ".claude/agents vs .github/agents"
 # template (templates/agents/merge-resolver.shared.md), and therefore the
 # generated VS Code copy, does not carry. Reconciling the two would rewrite an
 # agent prompt and change agent behavior (architect review, out of scope for a
-# baseline-green fix). Floor is set to the measured 20.7% so the existing
+# baseline-green fix). Floor is set to the measured 20.3% so the existing
 # structure is accepted but any worsening still blocks. Re-measured for issue
 # #5074: the add/add rename-never-content-merge rule was added with identical
 # wording to both sides, which shifted the Jaccard section scores from the
@@ -169,6 +169,12 @@ _INSTALL_COMPARISON_LABEL = ".claude/agents vs .github/agents"
 # still measure 20.7%. The enrichment PR #1426 added is section structure, not
 # tier prose, and neither merge-resolver body ever carried the tier text, so
 # removing it moved nothing. The floors stay where they are.
+# Re-measured for issue #5642 on 2026-10-17 (main 44fd46a46): PR #5470 (merged
+# 2026-09-01) deleted the "HANDOFF.md is read-only" constraint line from both
+# merge-resolver bodies when it retired HANDOFF.md. Both sides lost the same
+# shared words, so the Jaccard overlap fell from 20.7% (measured at 3d304d4e2,
+# the parent of #5470) to 20.3% in both comparisons. The change was intended,
+# so the floors are lowered to the measured 20.3%.
 #
 # merge-resolver install copy (Issue #2715): the same enrichment
 # lives only in the Claude Code self-host copy (.claude/agents/merge-resolver.md);
@@ -177,12 +183,12 @@ _INSTALL_COMPARISON_LABEL = ".claude/agents vs .github/agents"
 # reconciled by resyncing .github from the generated src/copilot-cli output, but
 # merge-resolver cannot be: its richness is on the .claude side by design, so a
 # resync would delete substantive Claude-only instructions. Floor is the measured
-# 20.7% (identical to the vendored floor because both compare the same enriched
+# 20.3% (identical to the vendored floor because both compare the same enriched
 # .claude body against the same leaner template-derived body). Any worsening still
 # blocks.
 KNOWN_BASELINE_DRIFT: dict[tuple[str, str], float] = {
-    ("merge-resolver", "src-claude vs src-vscode"): 20.7,
-    ("merge-resolver", _INSTALL_COMPARISON_LABEL): 20.7,
+    ("merge-resolver", "src-claude vs src-vscode"): 20.3,
+    ("merge-resolver", _INSTALL_COMPARISON_LABEL): 20.3,
 }
 
 # Pre-existing missing sections at the time section inventory was added
