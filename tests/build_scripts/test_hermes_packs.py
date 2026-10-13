@@ -583,7 +583,8 @@ def test_every_packed_skill_md_passes_the_portable_frontmatter_rules(
     real_config: cfg.HermesConfig,
 ) -> None:
     # Rules copied from hermes_cli/agent_plugins.py:209-229 at the pinned commit:
-    # name equals the folder, description 1..1024 chars, metadata a flat string map.
+    # name equals the folder, description 1..1024 chars, metadata a flat string map,
+    # and allowed-tools, license, and compatibility strings.
     out = _REPO_ROOT / real_config.output_dir
     for pack in real_config.packs:
         for skill in pack.skills:
@@ -592,6 +593,8 @@ def test_every_packed_skill_md_passes_the_portable_frontmatter_rules(
             assert front["name"] == skill
             assert 1 <= len(front["description"]) <= 1024, skill
             assert "metadata" not in front or _flat_string_map(front["metadata"]), skill
+            for key in ("allowed-tools", "license", "compatibility"):
+                assert key not in front or isinstance(front[key], str), (skill, key)
             assert "model" not in front and "model-rationale" not in front, skill
 
 

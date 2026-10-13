@@ -3,7 +3,6 @@ name: pr-review
 version: 1.0.0
 description: Respond to review comments on one or more pull requests. Clusters the threads, fixes and pushes, then runs the dispatchable completion gate for a verdict. Use when you say `respond to PR review comments`, `pr-review 1234`, or `address the review feedback`. Do NOT use to fix a red check that carries no review comments (use pr-autofix), and do NOT use to work one PR's threads as a step inside another workflow (use pr-comment-responder).
 license: MIT
-allowed-tools: Bash(git:*), Bash(gh:*), Bash(python3:*), Bash(pwsh:*), Task, Skill, Read, Write, Edit, Glob, Grep, mcp__github__pull_request_read, mcp__github__list_pull_requests, mcp__github__issue_read, mcp__github__get_check_run, mcp__github__get_job_logs, mcp__github__add_issue_comment, mcp__github__add_reply_to_pull_request_comment, mcp__github__resolve_review_thread, mcp__github__unresolve_review_thread
 argument-hint: '<PR_NUMBERS> [--parallel --cleanup --dry-run]'
 user-invocable: true
 ---

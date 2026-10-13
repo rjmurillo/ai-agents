@@ -4,7 +4,6 @@ version: 1.0.0
 description: Fix PRs autonomously. Triage open PRs by tier, address thread feedback, fix CI failures, and enable auto-merge when the 4-condition Ready-to-Merge gate passes. Use when you say `pr-autofix`, `autofix this pr`, or `monitor open prs`. Do NOT use to answer review comments interactively on one PR (use pr-review), and do NOT use to run the six quality axes over your working changes (use pr-quality-all).
 license: MIT
 argument-hint: "[pull-request|mode]"
-allowed-tools: Bash, Read, Edit, Write, Skill, mcp__github__pull_request_read, mcp__github__issue_read, mcp__github__get_check_run, mcp__github__get_job_logs
 size-exception: true
 user-invocable: true
 ---

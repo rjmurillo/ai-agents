@@ -3,7 +3,6 @@ name: pr-quality-qa
 version: 1.0.0
 description: Judge a local diff on test coverage, error handling, and whether the tests would fail if the code regressed, and return a PASS/WARN/CRITICAL_FAIL verdict. Use when you say `qa review my changes`, `run the qa gate`, or `are these tests good enough`. Do NOT use to run all six axes (use pr-quality-all), and do NOT use to write the tests themselves (use test).
 license: MIT
-allowed-tools: Bash(git:*), Read, Grep, Glob, mcp__serena__*
 argument-hint: base-branch
 user-invocable: true
 ---

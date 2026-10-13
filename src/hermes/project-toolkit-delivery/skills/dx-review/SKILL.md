@@ -13,14 +13,6 @@ description: >
   "evaluate developer ergonomics".
 license: MIT
 user-invocable: true
-allowed-tools:
-  - Read
-  - Grep
-  - Glob
-  - AskUserQuestion
-  - Task
-  - WebSearch
-  - WebFetch
 ---
 
 # dx-review: Evidence-Based Developer Experience Audit

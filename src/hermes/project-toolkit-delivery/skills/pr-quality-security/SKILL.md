@@ -3,7 +3,6 @@ name: pr-quality-security
 version: 1.0.0
 description: Scan a local diff for vulnerabilities, secret exposure, and OWASP Top 10 anti-patterns, and return a PASS/WARN/CRITICAL_FAIL verdict. Use when you say `security review my changes`, `run the security gate`, or `check this diff for vulnerabilities`. Do NOT use to run all six axes (use pr-quality-all), and do NOT use for a full pre-merge review (use review).
 license: MIT
-allowed-tools: Bash(git:*), Read, Grep, Glob, mcp__serena__*
 argument-hint: base-branch
 user-invocable: true
 ---

@@ -3,7 +3,6 @@ name: research
 version: 1.0.0
 description: Research an external topic, write a 3000-to-5000-word analysis, map it onto this project, and draft the follow-up issue for the owner. Use when you say `research this topic`, `what does the literature say about X`, or `analyze this external practice for us`. Do NOT use to search this repository (use memory or grep), and do NOT use when no spec, issue, or artifact consumes the result.
 license: MIT
-allowed-tools: WebSearch, WebFetch, Read, Write, Glob, Grep, Bash(python3:*/skills/github/scripts/*), Bash(python3:*/skills/ai-agents-external-claims/scripts/*), mcp__serena__*, Skill
 argument-hint: topic-and-context
 user-invocable: true
 ---

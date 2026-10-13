@@ -2,12 +2,6 @@
 name: requirements-interview
 version: 0.2.0
 description: Adversarial requirements interview that walks the design tree to elicit testable requirements before any code is written (the grill-me pattern), or audits an existing multi-section spec for ambiguity with source-anchored questions. Skip any question the codebase can already answer. Use when you say "interview me on this", "grill me on the requirements", "walk the design tree", or "audit this spec for ambiguity".
-allowed-tools:
-  - Read
-  - Glob
-  - Grep
-  - Write
-  - Bash
 license: MIT
 user-invocable: true
 ---

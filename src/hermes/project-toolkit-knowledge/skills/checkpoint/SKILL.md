@@ -3,7 +3,6 @@ name: checkpoint
 version: 1.0.0
 description: Write a timestamped, secret-redacted snapshot of decisions, progress and next actions to the checkpoints directory, then link it from the active session log. Use when you say `checkpoint this`, `save a recovery point`, or `snapshot where we are` before a risky change or at the end of a working block. Do NOT use to commit or push (it never does either), and do NOT use to write a retrospective (use retro).
 license: MIT
-allowed-tools: Bash(date:*), Bash(git branch:*), Bash(python3 -m json.tool:*), Bash(python3 scripts/redact_secrets.py:*), Glob, Read, Edit, Write
 argument-hint: optional-short-label
 user-invocable: true
 ---

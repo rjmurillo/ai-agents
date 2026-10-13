@@ -3,7 +3,6 @@ name: pr-quality-all
 version: 1.0.0
 description: Run all six PR quality axes (security, QA, analyst, architect, DevOps, roadmap) against your working changes and merge their verdicts into one. Use when you say `run all the quality gates`, `pr-quality all`, or `full pre-push review`. Do NOT use to run one axis on its own (use pr-quality-security or its sibling for that axis), and do NOT use as the pre-merge gate (use review).
 license: MIT
-allowed-tools: Bash(git:*), Skill
 argument-hint: base-branch
 user-invocable: true
 ---

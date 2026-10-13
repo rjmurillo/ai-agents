@@ -3,7 +3,6 @@ name: pr-quality-analyst
 version: 1.0.0
 description: Assess a local diff for code quality, blast radius, and maintainability cost, and return a PASS/WARN/CRITICAL_FAIL verdict. Use when you say `analyst review my changes`, `run the analyst gate`, or `what does this change cost us`. Do NOT use to run all six axes (use pr-quality-all), and do NOT use to plan the work (use plan).
 license: MIT
-allowed-tools: Bash(git:*), Read, Grep, Glob, mcp__serena__*
 argument-hint: base-branch
 user-invocable: true
 ---

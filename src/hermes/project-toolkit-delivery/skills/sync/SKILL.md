@@ -3,7 +3,6 @@ name: sync
 version: 1.0.0
 description: Detect Spec-to-Code drift by scanning REQ, DESIGN and TASK specs for references to code that no longer exists, then report it for triage. Use when you say `detect spec drift`, `sync the specs`, or `did my refactor break a spec`, and run it after a hand-edit that moved or deleted code. Do NOT use to write a spec (use spec), and do NOT use to auto-rewrite specs; it reports and never edits.
 license: MIT
-allowed-tools: Task, Skill, Read, Glob, Grep, Bash(python3 scripts/sync/detect_spec_drift.py*)
 argument-hint: spec-tier-or-empty
 user-invocable: true
 ---

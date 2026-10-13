@@ -14,9 +14,13 @@ artifacts:
     # hermes-agent commit whose plugin_guard and install limits this table was
     # measured against. The guard test and the smoke test install this commit.
     hermesCommit: "63d0b94120027d487c9a5235b9ec64b696af1b26"
-    # The portable validator needs `metadata` to be a flat string map and every
-    # shipped skill nests it. The model keys have no Hermes meaning.
+    # The portable validator needs `metadata` to be a flat string map, and
+    # `allowed-tools` to be a string. Every shipped skill nests `metadata`, and 8
+    # skills write `allowed-tools` as a list, which Hermes skips at load time
+    # (measured at the pinned commit). Hermes only validates `allowed-tools` and
+    # never enforces it, so the key goes. The model keys have no Hermes meaning.
     frontmatterDrop:
+      - allowed-tools
       - metadata
       - model
       - model-rationale

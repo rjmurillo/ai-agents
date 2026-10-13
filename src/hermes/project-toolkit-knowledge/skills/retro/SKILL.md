@@ -4,7 +4,6 @@ version: 1.0.0
 description: Fill an unfilled auto-retrospective skeleton for a date, or list the skeletons still pending. Use when you say `retro fill`, `fill retro skeleton`, or `list pending retros`. Do NOT use to run the retrospective analysis itself (this hands off to the retrospective skill), and do NOT use to write a session log.
 license: MIT
 argument-hint: fill <YYYY-MM-DD>
-allowed-tools: Skill, Read, Glob
 user-invocable: true
 ---
 

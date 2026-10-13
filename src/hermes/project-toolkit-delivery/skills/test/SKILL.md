@@ -3,7 +3,6 @@ name: test
 version: 1.0.0
 description: Prove a change works across six gates covering functional, non-functional, security, DevOps, developer experience, and observability quality. Use when you say `prove this works`, `run the test gates`, or `validate this change`, and run it after build. Do NOT use to write the implementation or its first tests (use build), and do NOT use to run pre-flight and open a PR (use ship).
 license: MIT
-allowed-tools: Task, Skill, Read, Glob, Grep, Bash(*)
 argument-hint: component-or-failure-description
 user-invocable: true
 ---

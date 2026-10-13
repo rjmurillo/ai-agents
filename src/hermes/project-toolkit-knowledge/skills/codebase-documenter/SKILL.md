@@ -1,12 +1,6 @@
 ---
 name: codebase-documenter
 version: 1.0.0
-allowed-tools:
-  - Read
-  - Write
-  - Edit
-  - Glob
-  - Grep
 description: "Scaffold project documentation (README, ARCHITECTURE, API, CODE_COMMENTS) from templates with documented standards. Use when bootstrapping docs for a new or under-documented codebase."
 license: MIT
 ---
