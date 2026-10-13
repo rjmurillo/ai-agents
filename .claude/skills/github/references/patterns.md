@@ -38,6 +38,11 @@ python3 "$SCRIPTS_DIR/issue/post_issue_comment.py" --issue 123 --body "..." --ma
 
 For multi-line content, use `--body-file` to avoid escaping issues.
 
+`new_pr.py` and `edit_pr_body.py` take only a private file from the prepare
+step. Run `new_pr.py --prepare-body-file`, fill the relative path it prints,
+and pass that path. Any other path, including an absolute one, is refused.
+Other scripts still accept an arbitrary file.
+
 ---
 
 ## Thread Management Workflow

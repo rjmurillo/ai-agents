@@ -12,7 +12,10 @@ Safety behavior:
     ``new_pr.py --prepare-body-file`` (.project-toolkit/scratch/pr-body-*.md,
     mode 600). Concurrent sessions that share a fixed name such as body.md
     cannot publish each other's text, because the allocator hands each caller
-    a unique random name and this script refuses every other path.
+    a unique random name. This script refuses every other path, and also
+    refuses a matching path whose placeholder is untouched, whose mode has
+    group or other bits, that is a symlink or hard link, or that another
+    owner holds.
   - Rejects a body whose hash no longer matches the caller's expected hash.
   - No-ops when the new body is identical to the current body.
   - Warns when the resulting body contains em/en dashes, including retained
@@ -211,7 +214,7 @@ def update_body(owner: str, repo: str, pr: int, new_body: str) -> None:
 
 
 def _read_new_body(args: argparse.Namespace) -> tuple[str, str | None]:
-    """Return ``(body, error)``; ``--body-file`` must be a prepared private file."""
+    """Return ``(body, error)``; when ``--body-file`` is set it must be a prepared private file."""
     if not args.body_file:
         return args.body or "", None
     root = get_repo_root()
@@ -236,9 +239,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--body-file",
         default=None,
         help=(
-            "Private body file allocated by new_pr.py --prepare-body-file "
-            "(.project-toolkit/scratch/pr-body-*.md, mode 600). Any other "
-            "path is refused."
+            "Relative path printed by new_pr.py --prepare-body-file, for "
+            "example .project-toolkit/scratch/pr-body-<token>.md (mode 600). "
+            "Do not pass an absolute path: it is refused even when it "
+            "resolves to a valid prepared file. Any other path is refused."
         ),
     )
     p.add_argument(
