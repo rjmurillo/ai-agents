@@ -38,6 +38,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 # Imported as a MODULE, not by name, so pytest collects the class once.
 import test_fix_fences_contracts as contracts
+import test_fix_fences_known_corruptions as corruptions
 
 _has_unclosed_fence = contracts._has_unclosed_fence
 
@@ -190,6 +191,90 @@ class TestRepairsThatAreStillWritten:
     def test_a_file_with_no_defect_is_not_a_refusal(self, tmp_path: Path) -> None:
         target = _write(tmp_path, "```python\nx\n```\n")
         assert main([str(target), "--write"]) == 0
+
+
+class TestSetextUnderAListItemIsRefused:
+    """Issue #5347: `--write` never grows a balanced setext-under-item file.
+
+    The repair FUNCTION still appends a closer to six of the nine shapes held
+    in `TestSetextUnderAListItemIsDestructive`, and that class pins it. This
+    class drives `main(argv)` and asserts what the process does: it refuses
+    each of those six, leaves the bytes alone, and exits 1.
+    """
+
+    SHAPES = corruptions.TestSetextUnderAListItemIsDestructive.SHAPES
+
+    #: Balanced going in, unclosed coming out of the repair function.
+    REFUSED = (
+        "trailing dedent",
+        "body then dedent",
+        "dedent then prose",
+        "ordered marker",
+        "single equals",
+        "nested item",
+    )
+    #: The scanner reads no defect, so there is nothing to write.
+    UNTOUCHED = ("fence closed in item", "no lazy line")
+    #: Genuinely unclosed input: the repair is correct and must be written.
+    REPAIRED = ("no trailing dedent",)
+
+    def test_the_three_groups_partition_the_nine_shapes(self) -> None:
+        """Held as data, so emptying a group cannot disarm the tests below."""
+        groups = self.REFUSED + self.UNTOUCHED + self.REPAIRED
+        assert sorted(groups) == sorted(self.SHAPES)
+        assert (len(self.REFUSED), len(self.UNTOUCHED), len(self.REPAIRED)) == (6, 2, 1)
+
+    @pytest.mark.parametrize("name", REFUSED)
+    def test_each_refused_shape_is_balanced_and_its_repair_is_not(self, name: str) -> None:
+        """Judged by the reference parser, so the refusal below is not vacuous."""
+        text = self.SHAPES[name]
+        assert not _has_unclosed_fence(text)
+        assert _has_unclosed_fence(mod.repair_markdown_fences(text))
+
+    @pytest.mark.parametrize("name", REFUSED)
+    def test_write_refuses_leaves_the_bytes_and_exits_one(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str], name: str
+    ) -> None:
+        target = _write(tmp_path, self.SHAPES[name])
+        before = target.read_bytes()
+
+        assert main([str(target), "--write", "--json"]) == 1
+
+        assert target.read_bytes() == before
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["refused"] == [str(target)]
+        assert payload["repaired"] == []
+
+    def test_the_smallest_shape_is_refused_by_the_process(self, tmp_path: Path) -> None:
+        target = _write(tmp_path, self.SHAPES["trailing dedent"])
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), str(target), "--write"],
+            capture_output=True,
+            text=True,
+            check=False,
+            cwd=tmp_path,
+        )
+        assert result.returncode == 1, result.stderr
+        assert "balanced file into an unclosed one" in result.stdout
+        assert target.read_bytes() == self.SHAPES["trailing dedent"].encode("utf-8")
+
+    @pytest.mark.parametrize("name", UNTOUCHED)
+    def test_a_shape_with_no_defect_exits_zero_unchanged(self, tmp_path: Path, name: str) -> None:
+        target = _write(tmp_path, self.SHAPES[name])
+
+        assert main([str(target), "--write"]) == 0
+
+        assert target.read_bytes() == self.SHAPES[name].encode("utf-8")
+
+    @pytest.mark.parametrize("name", REPAIRED)
+    def test_a_genuinely_unclosed_shape_is_still_repaired(self, tmp_path: Path, name: str) -> None:
+        text = self.SHAPES[name]
+        target = _write(tmp_path, text)
+        assert _has_unclosed_fence(text)
+
+        assert main([str(target), "--write"]) == 0
+
+        assert not _has_unclosed_fence(target.read_text(encoding="utf-8"))
 
 
 class TestWithoutTheReferenceParser:
