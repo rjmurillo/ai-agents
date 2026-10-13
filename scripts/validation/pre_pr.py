@@ -196,6 +196,13 @@ from scripts.validation.evidence import (
 # ``patch.object(pre_pr, "_write_summary_json")`` in
 # tests/validation/test_pre_pr_evidence_states.py still intercepts the call.
 from scripts.validation.pre_pr_report import (
+    display_line,
+    display_state,
+    is_advisory,
+    print_pass_guidance,
+    state_counts,
+)
+from scripts.validation.pre_pr_report import (
     print_blocking_guidance as _print_blocking_guidance,
 )
 from scripts.validation.pre_pr_report import (
@@ -324,14 +331,17 @@ def run_validation(
 
     print()
     examined = "" if outcome.examined is None else f" (examined {outcome.examined})"
-    print(f"[{outcome.state.value}] {name} completed in {outcome.duration_seconds:.2f}s{examined}")
+    label = display_state(outcome, _POLICY)
+    print(f"[{label}] {name} completed in {outcome.duration_seconds:.2f}s{examined}")
     if outcome.state is not EvidenceState.PASS:
         # Only a non-PASS row earns the full evidence line. Printing it for
         # every gate would bury the handful that need reading, and a PASS has
         # already said the one thing a reader wants: it proved its contract.
-        print(f"  {outcome.summary_line()}")
-        label = "Error" if outcome.state is EvidenceState.FAIL else "Note"
-        print(f"{label}: {outcome.detail}")
+        print(f"  {display_line(outcome, _POLICY)}")
+        kind = "Note"
+        if outcome.state is EvidenceState.FAIL:
+            kind = "Advisory" if is_advisory(outcome, _POLICY) else "Error"
+        print(f"{kind}: {outcome.detail}")
 
     return _POLICY.accepts(outcome)
 
@@ -382,12 +392,12 @@ def _print_summary(summary: AggregateOutcome, state: ValidationState) -> None:
     tell a gate that did not apply from one whose base ref would not resolve
     without opening the log above (issue #5635).
     """
-    counts = summary.counts()
+    counts = state_counts(summary)
     print()
     print("=== Validation Summary ===")
     print(f"Duration: {summary.duration_seconds:.2f}s")
     print(f"Total Validations: {state.total}")
-    for label in ("PASS", "FAIL", "SKIP", "BLOCKED", "UNKNOWN"):
+    for label in ("PASS", "FAIL", "ADVISORY", "SKIP", "BLOCKED", "UNKNOWN"):
         print(f"{label}: {counts[label]}")
     print()
 
@@ -399,7 +409,7 @@ def _print_summary(summary: AggregateOutcome, state: ValidationState) -> None:
             print(f"[{record.status}] {record.name}{duration_str}")
             continue
         print(
-            f"[{record.status}] {record.name}{duration_str} "
+            f"[{display_state(record.outcome, _POLICY)}] {record.name}{duration_str} "
             f"reason={record.outcome.reason} {record.outcome.detail}".rstrip()
         )
     print()
@@ -466,13 +476,7 @@ def main(argv: list[str] | None = None) -> int:
     # validated its own subset and has no visibility into sibling jobs
     # (python-tests, ratchets) that may still be running or may have failed.
     # Issue #4506.
-    if os.environ.get("SKIP_AUTOFIX") == "1":
-        print("pre_pr validations passed (push outcome depends on sibling hook jobs).")
-    else:
-        print("Pre-PR checks passed. Verify the push landed before opening a PR:")
-        print("  git rev-parse HEAD")
-        print("  git ls-remote origin <branch>")
-        print("The two commands must report the same SHA.")
+    print_pass_guidance(summary, os.environ.get("SKIP_AUTOFIX") == "1")
     print()
     return 0
 
