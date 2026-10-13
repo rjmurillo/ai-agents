@@ -52,7 +52,7 @@ Derive the route from discovered context (stack, tests, verifier, harness contro
 | Judgment | Ambiguity, architecture, cross-file repair, long-horizon agentic work, acceptance | Medium; high when those dominate |
 | Escalate | `acceptance_failed`, `repair_repeated`, `cross_file_contract_missed`, `diff_scope_exceeded` | Raise effort in tier when offered, then one tier above where it failed; the top tier is escalation only, then a typed exception to the user; never more prompt text |
 
-Higher effort is not monotonically better; it can add latency and tokens without raising acceptance. Validate an effort per task shape and harness before defaulting to it.
+Below Bounded: no model if a script or rule decides; a big model on a yes/no is a classifier in an expensive coat. Higher effort is not monotonically better; it can add latency and tokens without raising acceptance. Validate an effort per task shape and harness before defaulting to it.
 Model labels and agent roles are separate | tiers and labels advisory, not agents or IDs.
 `orchestrator` coordinates | `autoplan` routes | advisory, harness-resolved aliases: `haiku` bounded (no effort control), `sonnet` specified, `opus` judgment, `fable` escalation only; other labels only when the harness resolves them, never as superiority claims.
 Pin changes pass ADR-080; this policy never justifies a pin.
@@ -75,10 +75,11 @@ Any model: explicit follow-through, event-driven waits, compact receipts, one ch
 ```text
 0. Recon the target stack (see Target Recon). Never route on an assumed stack.
 1. Classify complexity (Cynefin)
-2. Bounded leaf, real verifier, no consequential judgment?
+2. Script or rule decides it? YES → no model, route ends; NO → continue
+3. Bounded leaf, real verifier, no consequential judgment?
    YES → bounded or specified tier by task shape
    NO  → judgment tier; continue
-3. Does task need investigation first?
+4. Does task need investigation first?
    YES → analyst → synthesize → re-evaluate
    NO  → continue
-4. Is task a standard lifecycle (spec/plan/build/test/review/ship)?
+5. Is task a standard lifecycle (spec/plan/build/test/review/ship)?

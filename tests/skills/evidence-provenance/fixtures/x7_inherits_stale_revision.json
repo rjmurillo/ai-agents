@@ -1,0 +1,61 @@
+{
+  "claim": "R holds",
+  "subject": {
+    "artifact": "pkg",
+    "revision": "r2",
+    "premises": [
+      "interp:R"
+    ]
+  },
+  "evidence": [
+    {
+      "id": "implementer-test",
+      "state": "VERIFIED",
+      "premises": [
+        "interp:R"
+      ],
+      "bound_to": {
+        "artifact": "pkg",
+        "revision": "r1",
+        "validator": "pre_pr",
+        "result": "pass",
+        "command": "pre_pr.py"
+      }
+    },
+    {
+      "id": "second-agent-review",
+      "state": "VERIFIED",
+      "origin": "independent-reviewer",
+      "premises": [
+        "review:r1"
+      ],
+      "inherits_from": [
+        "implementer-test"
+      ],
+      "bound_to": {
+        "artifact": "pkg",
+        "revision": "r2",
+        "validator": "pre_pr",
+        "command": "pre_pr.py",
+        "result": "pass"
+      }
+    }
+  ],
+  "claimed_independent": 1,
+  "expect": {
+    "verdict": "SINGLE_LOOP",
+    "independent_loops": 0,
+    "exit": 1,
+    "violations": [
+      "inflated-confidence"
+    ],
+    "rejected": {
+      "implementer-test": "binding-mismatch"
+    },
+    "not_independent_because": {
+      "second-agent-review": [
+        "inherits-rejected-evidence"
+      ]
+    }
+  }
+}

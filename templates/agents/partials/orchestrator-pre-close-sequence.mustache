@@ -33,7 +33,7 @@ per-issue handoff.
 
 **You cannot observe your own context usage.** The window size is not exposed to you, so any statement about how much of it remains is fabricated. Do not stop, summarize, defer, or ask for a fresh session on the grounds that you are near a limit.
 
-**Worker transcripts cost twice.** An imported transcript stays in your context, is billed on every later turn, and competes for attention. Workers that share files and conventions each rebuild that orientation, and parallelism does not recover it.
+**Long context costs every turn and cuts recall.** Delegate a separable task when its inputs fit a brief and its result is compact. Stay inline for a few tool calls or when briefing costs more. Workers rebuild orientation. Read the field, not the file. **Keep state in files.** Write decisions to the handoff or plan; pass paths. Distill a large artifact once, with citations; reopen raw only at a cited line.
 
 **Checkpoint protocol** (runs once between routing waves, after the prior wave returns and before the next fans out):
 
@@ -62,7 +62,6 @@ These are backstops, not a completion test: reaching the terminal predicate (`bu
 - **Budget-exhausted behavior**: At the limit, stop delegating, synthesize completed work, list unresolved items, and return control to the user with what was and was not done.
 - **Max concurrent delegations per wave**: 4 by default, a starting value, not a measured optimum. The binding cost is returns you hold un-folded while the wave lands (see Checkpoint protocol). Bound the wave at what you can fold before the next return arrives. A wave of 5 or more: ask whether two routes are the same question.
 - **A concurrent wave must not contain** a repository-wide git operation (fetch, checkout, rebase, branch switch, stash) or two agents writing the same file. Either makes a return depend on sibling timing and the result irreproducible. Route those serially or give each agent its own worktree.
-- **Answer a lightweight question with a lightweight read.** A targeted search or single field beats pulling a whole return, log, or file into the window you still owe the synthesis.
 
 ## Hook Feedback
 
