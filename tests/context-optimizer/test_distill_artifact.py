@@ -26,7 +26,7 @@ sys.path.insert(0, str(scripts_dir))
 import distill_artifact as da  # noqa: E402
 
 ROOT_DIRNAME = ".project-toolkit"
-DASHES = ("–", "—")
+DASHES = ("\u2013", "\u2014")
 
 DIFF = """diff --git a/src/a.py b/src/a.py
 index 111..222 100644

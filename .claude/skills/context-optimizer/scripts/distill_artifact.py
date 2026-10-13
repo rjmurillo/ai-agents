@@ -272,7 +272,7 @@ def find_repo_root(start: Path) -> Path | None:
 def default_out_dir(cwd: Path) -> Path:
     """Digest directory via the portability helper; honors AI_AGENTS_ARTIFACT_ROOT."""
     root = find_repo_root(cwd.resolve())
-    return artifact_dir(DISTILL_SUBDIR, base=root)
+    return Path(artifact_dir(DISTILL_SUBDIR, base=root))
 
 
 def read_input(path: str) -> tuple[bytes, str]:
