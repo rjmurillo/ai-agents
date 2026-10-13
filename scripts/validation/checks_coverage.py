@@ -82,14 +82,17 @@ def validate_review_marker(repo_root: Path) -> CheckOutcome:
     required there, so the gate returns a ``SKIP`` with ``policy.exempt``
     instead of a ``FAIL`` that every clean ``origin/main`` checkout would show.
     A trailer that is present but invalid still reports as a licensed ``FAIL``.
+    Commits landed on top of a reviewed marker leave HEAD with no trailer, so
+    they take the same ``SKIP`` path; only ``/ship`` catches that case.
 
     Set ``REVIEW_MARKER_ENFORCED=1`` to escalate to BLOCKING (a non-passing
     check then blocks the push).
 
     Returns typed evidence (issue #5636). A valid marker is ``PASS``. Advisory
-    mode reports a missing or stale marker, or a failed script run, as ``FAIL``
-    with reason ``advisory.findings``, which ``pre_pr_policy`` licenses, and an
-    absent script as ``SKIP``. Enforced mode reports the same conditions as
+    mode reports a HEAD with no ``Reviewed-By`` trailer as ``SKIP`` with reason
+    ``policy.exempt``; a trailer that does not bind the parent, or a failed
+    script run, as ``FAIL`` with reason ``advisory.findings``, which
+    ``pre_pr_policy`` licenses; and an absent script as ``SKIP``. Enforced mode reports the same conditions as
     unlicensed ``FAIL`` results, so they block exactly as ``False`` did.
     """
     enforced = os.environ.get("REVIEW_MARKER_ENFORCED", "").lower() in ("1", "true")
@@ -98,6 +101,8 @@ def validate_review_marker(repo_root: Path) -> CheckOutcome:
     if not script.exists():
         return _absent_outcome(enforced)
 
+    # Advisory mode needs no marker; skip before running the script so a clean
+    # checkout reports no finding.
     if not enforced and _head_has_no_marker(repo_root):
         return _not_required_outcome()
 

@@ -77,7 +77,7 @@ def _add_stale_marker(repo: Path) -> None:
     """Append an empty marker commit that names an older SHA, not its parent.
 
     HEAD then carries a ``Reviewed-By`` trailer that does not bind the tip it
-    sits on, which is the one advisory case that is still worth a warning.
+    sits on, so advisory mode still reports it as a licensed finding.
     """
     older = _git(repo, "rev-parse", "HEAD~1")
     commit_marker(repo, "correctness", older)
@@ -139,6 +139,24 @@ def test_advisory_stale_marker_is_still_a_licensed_finding(
     assert pre_pr_policy().accepts(outcome)
     assert "[FAIL]" not in captured
     assert "[WARN]" in captured
+
+
+def test_advisory_code_commit_on_top_of_a_marker_is_a_policy_exempt_skip(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    """A code commit after a valid marker leaves HEAD with no trailer, so it skips."""
+    repo = _repo(tmp_path, with_script=True)
+    commit_marker(repo, "correctness", _git(repo, "rev-parse", "HEAD"))
+    (repo / "c.txt").write_text("z\n", encoding="utf-8")
+    _git(repo, "add", "c.txt")
+    _git(repo, "commit", "-q", "-m", "feat: three")
+    monkeypatch.delenv("REVIEW_MARKER_ENFORCED", raising=False)
+
+    outcome = validate_review_marker(repo)
+
+    assert outcome.state is EvidenceState.SKIP
+    assert outcome.reason == REASON_POLICY_EXEMPT
 
 
 def test_advisory_unreadable_repo_falls_through_to_the_script(
