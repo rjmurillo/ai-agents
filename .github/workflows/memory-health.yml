@@ -85,7 +85,6 @@ jobs:
         uses: ./.github/actions/setup-code-env
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
-          enable-pester: false
           enable-git-hooks: false
 
       - name: Run health check (JSON)

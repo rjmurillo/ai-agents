@@ -105,7 +105,6 @@ EPISODE_ID_RE = re.compile(r"^episode-[A-Za-z0-9._-]+$")
 ADR_PATH_RE = re.compile(r"(?:^|[\\/])ADR-\d+(?:-\w+)*\.md$", re.IGNORECASE)
 ALLOWED_REPO_ROOT_ENTRIES = frozenset(
     {
-        ".PSScriptAnalyzerSettings.psd1",
         ".actrc",
         ".agents",
         ".claude-mem",
