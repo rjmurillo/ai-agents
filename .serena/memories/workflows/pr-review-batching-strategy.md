@@ -26,6 +26,7 @@ Classify each PR into a tier based on the output:
 
 1. Launch one agent per tier (not per PR). Tier agents handle their batch internally.
 2. Use `isolation: "worktree"` for any agent making code changes.
+   Do not combine it with a `schema` inside a Workflow script: the worktree is silently not created. See `agent-workflow/workflow-tool-worktree-schema-trap.md`.
 3. T1 PRs: just enable auto-merge via `set_pr_auto_merge.py`.
 4. T2 PRs: get check logs, diagnose, re-run or fix.
 5. T3/T4 PRs: get unresolved threads, post replies, then push fixes in worktrees.

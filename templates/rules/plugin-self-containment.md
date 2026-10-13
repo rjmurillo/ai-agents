@@ -20,7 +20,7 @@ Three directories ship as installable plugins. Nothing else in this repository r
 
 | Plugin root | Plugin name | Marketplace |
 |---|---|---|
-| `src/claude/` | `project-toolkit` | `.claude-plugin/marketplace.json` |
+| `src/claude/` | `project-toolkit` | `.claude-plugin/marketplace.json`, and `.grok-plugin/marketplace.json` for Grok Build |
 | `src/copilot-cli/` | `project-toolkit` | `.github/plugin/marketplace.json` |
 | `.claude/` | `project-toolkit` | not separately listed; binplaced dogfood copy of `src/claude/` |
 
