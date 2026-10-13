@@ -25,41 +25,7 @@ for _extra_path in (_TEST_DIR, _REPO_ROOT / "build" / "scripts"):
 
 import hermes_pack_checks as checks  # noqa: E402
 import hermes_pack_config as cfg  # noqa: E402
-
-COMMIT = "63d0b94120027d487c9a5235b9ec64b696af1b26"
-
-
-def make_stanza(**overrides: object) -> dict[str, object]:
-    stanza: dict[str, object] = {
-        "mode": "hermes-packs",
-        "sourceDir": "src/claude/skills",
-        "outputDir": "src/hermes",
-        "packMaxFiles": 380,
-        "hermesCommit": COMMIT,
-        "frontmatterDrop": ["metadata"],
-        "packs": {
-            "one": {"description": "First pack.", "skills": ["alpha", "beta"]},
-            "two": {"description": "Second pack.", "skills": ["gamma"]},
-        },
-        "excluded": {"delta": "plugin_guard returns dangerous."},
-    }
-    stanza.update(overrides)
-    return stanza
-
-
-def make_config(**overrides: object) -> cfg.HermesConfig:
-    return cfg.parse_stanza(make_stanza(**overrides))
-
-
-def write_skill(root: Path, name: str, extra: dict[str, str] | None = None) -> None:
-    folder = root / name
-    folder.mkdir(parents=True)
-    (folder / "SKILL.md").write_text(f"---\nname: {name}\n---\nBody\n", encoding="utf-8")
-    for rel, text in (extra or {}).items():
-        target = folder / rel
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(text, encoding="utf-8")
-
+from _hermes_pack_helpers import make_config, make_stanza, write_skill  # noqa: E402
 
 # --- parse_stanza ------------------------------------------------------------
 

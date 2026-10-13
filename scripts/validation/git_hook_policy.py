@@ -3272,6 +3272,26 @@ def _hermes_pack_mirror_source(relative_path: str) -> str | None:
     return f".claude/{tree}/{remainder}"
 
 
+def _table_mirror_source(relative_path: str) -> str | None:
+    """Map a path under a ``_GENERATED_MIRRORS`` output prefix to its source, else None."""
+    for output_prefix, source_prefix, suffix_map in _GENERATED_MIRRORS:
+        if not relative_path.startswith(output_prefix):
+            continue
+        remainder = relative_path[len(output_prefix) :]
+        if suffix_map is not None:
+            output_suffix, source_suffix = suffix_map
+            if not remainder.endswith(output_suffix):
+                continue
+            remainder = remainder[: -len(output_suffix)] + source_suffix
+        # Strip matcher-shim suffix for hook shims only: generate_hooks_emit
+        # appends __{sanitized}_{6hex} to hook shims. The canonical source has
+        # no suffix, so strip before lookup. No-op when absent. Refs #4857.
+        if source_prefix == ".claude/hooks/":
+            remainder = _HOOK_MATCHER_SUFFIX_RE.sub("", remainder)
+        return source_prefix + remainder
+    return None
+
+
 def _mirror_source(relative_path: str) -> str | None:
     """Return the canonical source a generated mirror was built from, or None.
 
@@ -3296,22 +3316,7 @@ def _mirror_source(relative_path: str) -> str | None:
     if relative_path.startswith("src/hermes/"):
         return _hermes_pack_mirror_source(relative_path)
 
-    for output_prefix, source_prefix, suffix_map in _GENERATED_MIRRORS:
-        if not relative_path.startswith(output_prefix):
-            continue
-        remainder = relative_path[len(output_prefix) :]
-        if suffix_map is not None:
-            output_suffix, source_suffix = suffix_map
-            if not remainder.endswith(output_suffix):
-                continue
-            remainder = remainder[: -len(output_suffix)] + source_suffix
-        # Strip matcher-shim suffix for hook shims only: generate_hooks_emit
-        # appends __{sanitized}_{6hex} to hook shims. The canonical source has
-        # no suffix, so strip before lookup. No-op when absent. Refs #4857.
-        if source_prefix == ".claude/hooks/":
-            remainder = _HOOK_MATCHER_SUFFIX_RE.sub("", remainder)
-        return source_prefix + remainder
-    return None
+    return _table_mirror_source(relative_path)
 
 
 # Git's fatal exit. `ls-files --error-unmatch` exits 1 for a path that is simply
