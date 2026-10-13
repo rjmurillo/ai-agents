@@ -112,6 +112,9 @@ _GENERATED_PATH_SEGMENTS: tuple[tuple[str, ...], ...] = (
     # references, and tests, so that tree stays classified authored (the
     # same reason it is absent from FILE_SIZE_EXEMPT_SEGMENTS above).
     ("src", "claude", "skills"),
+    # ADR-115 Decision 7: src/codex/skills/ is the same copy again, minus the
+    # dropped model keys in SKILL.md.
+    ("src", "codex"),
 )
 _GENERATED_MARKERS = (
     "AUTO-GENERATED MATCHER SHIM",

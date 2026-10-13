@@ -1,5 +1,5 @@
 [.agents/]
-|Governance, planning, history; no plugin ships it. The one exception is `plug... (see: .project-toolkit/context/agents/details/agents.md)
+|Governance, planning, history; only `plugins/` ships. (see: .project-toolkit/context/agents/details/agents.md)
 [Matters]
 |Rules auto-load: `session-logs`,`token-economy`->`.agents/**`; `adr-records`,... (see: .project-toolkit/context/agents/details/matters.md)
 [Entry points]

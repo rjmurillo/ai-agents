@@ -109,7 +109,7 @@ class TestGrokMarketplace:
 
 
 class TestCodexMarketplace:
-    """Codex reads `.agents/plugins/marketplace.json` ahead of the Claude one (ADR-115 Decision 7)."""
+    """Codex reads `.agents/plugins/marketplace.json` first (ADR-115 Decision 7)."""
 
     def test_lists_exactly_project_toolkit_at_the_codex_tree(self) -> None:
         data = _load_marketplace(CODEX_MARKETPLACE)

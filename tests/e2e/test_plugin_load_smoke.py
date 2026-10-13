@@ -2667,7 +2667,8 @@ def _codex_install_failures(installed: Path) -> list[str]:
     )
     if installed_skills != shipped_skills:
         failures.append(
-            f"installed {len(installed_skills)} skills, src/claude/skills ships {len(shipped_skills)}"
+            f"installed {len(installed_skills)} skills, "
+            f"src/claude/skills ships {len(shipped_skills)}"
         )
     pinned = [
         name

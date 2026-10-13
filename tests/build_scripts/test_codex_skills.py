@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
@@ -104,7 +105,7 @@ def test_copy_skill_tree_check_mode_counts_a_stale_codex_skill_md(tmp_path: Path
     assert (target / "SKILL.md").read_text(encoding="utf-8") == _SKILL
 
 
-def _codex_stanza() -> dict[str, object]:
+def _codex_stanza() -> dict[str, Any]:
     config = yaml.safe_load((REPO_ROOT / "templates/platforms/codex.yaml").read_text())
     assert config["provider"] == "codex"
     assert set(config["artifacts"]) == {"skills"}, "Codex ships skills only (Decision 7)"
