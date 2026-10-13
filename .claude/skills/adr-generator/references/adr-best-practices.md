@@ -49,6 +49,13 @@ When a new ADR supersedes another:
 
 Keep superseded ADRs; never delete them. This retention rule is unanimous across all sources.
 
+When a new ADR amends another by reference, without superseding it:
+
+- Leave the amended record's decision text alone. Do not rewrite it.
+- Add a body-level `**Amended by**:` footer to the amended record in the same change. List each amending ADR with its date, a link, and the PR. A reader who opens only the amended record then sees the amendment.
+- Name every amended record in the amending ADR. Each one needs its footer; a pointer from the amending ADR alone leaves the amended record silent.
+- Use the shape ADR-005 carries at its end: a `**Amended by**:` line, then one dated list item per amendment. No frontmatter field or generator support is involved.
+
 ## File Naming Approaches
 
 Different projects use different conventions. Detect from existing files.
