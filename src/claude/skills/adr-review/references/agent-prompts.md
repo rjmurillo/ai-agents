@@ -29,7 +29,7 @@ uncontroversial is where unverified claims survive review.
 
 | Claim kind | Primary source to check |
 |------------|-------------------------|
-| Deciders, approvers, authors | The ADR's own earlier text (`git show`, `git log -p`) |
+| Deciders, approvers, authors | Commit authors, PR authors and reviewers, or an external decision record. Earlier ADR text is a secondary consistency check only. `git show` of the same ADR never marks a deciders line `VERIFIED`. |
 | Issue or PR number | Open the item. Confirm it did what the ADR says it did. |
 | "Implemented", "never implemented", "superseded" | Repository search and git history |
 | Count, path, `path:line` | Run the command or read the cited range |
@@ -103,6 +103,11 @@ Does this ADR conflate multiple distinct decisions? Consider:
 - Are there decisions that have different stakeholders?
 - Would future teams benefit from separation?
 
+## Factual Claim Verification
+
+Paste the Factual Claim Verification Block here. Check every claim in the ADR
+before you rate it, and record each in the Claims Checked table.
+
 ## Output Format
 
 ### Strengths
@@ -126,6 +131,12 @@ Does this ADR conflate multiple distinct decisions? Consider:
 | Issue | Priority | Description |
 |-------|----------|-------------|
 | [Issue] | P0/P1/P2 | [Details] |
+
+### Claims Checked
+
+| Claim | Kind | Source read | Result |
+|-------|------|-------------|--------|
+| [claim] | [kind] | [source read] | [VERIFIED / REFUTED / UNVERIFIED] |
 
 **You are the tie-breaker on structural/governance questions.**
 """)
@@ -160,6 +171,11 @@ Does this ADR try to address too many decisions at once?
 - Think of ADRs like legislation: crisp decisions are easier to enforce
 - Flag if splitting would improve clarity
 
+## Factual Claim Verification
+
+Paste the Factual Claim Verification Block here. Check every claim in the ADR
+before you rate it, and record each in the Claims Checked table.
+
 ## Output Format
 
 ### Strengths
@@ -183,6 +199,12 @@ Does this ADR try to address too many decisions at once?
 | Issue | Priority | Description |
 |-------|----------|-------------|
 | [Issue] | P0/P1/P2 | [Details] |
+
+### Claims Checked
+
+| Claim | Kind | Source read | Result |
+|-------|------|-------------|--------|
+| [claim] | [kind] | [source read] | [VERIFIED / REFUTED / UNVERIFIED] |
 
 **Focus on plan clarity, not execution details.**
 """)
@@ -217,6 +239,11 @@ ADR Review Request (Phase 1: Independent Review)
 - What alternative approaches were dismissed too quickly?
 - Is there groupthink in the decision process?
 
+## Factual Claim Verification
+
+Paste the Factual Claim Verification Block here. Check every claim in the ADR
+before you rate it, and record each in the Claims Checked table.
+
 ## Output Format
 
 ### Strengths
@@ -240,6 +267,12 @@ ADR Review Request (Phase 1: Independent Review)
 | Issue | Priority | Description |
 |-------|----------|-------------|
 | [Issue] | P0/P1/P2 | [Details] |
+
+### Claims Checked
+
+| Claim | Kind | Source read | Result |
+|-------|------|-------------|--------|
+| [claim] | [kind] | [source read] | [VERIFIED / REFUTED / UNVERIFIED] |
 
 **Be the devil's advocate. Verify, don't validate.**
 """)
@@ -276,6 +309,11 @@ ADR Review Request (Phase 1: Independent Review)
 |--------|----------|--------|------------|------------|
 | [Threat] | S/T/R/I/D/E | H/M/L | H/M/L | [Control] |
 
+## Factual Claim Verification
+
+Paste the Factual Claim Verification Block here. Check every claim in the ADR
+before you rate it, and record each in the Claims Checked table.
+
 ## Output Format
 
 ### Strengths
@@ -299,6 +337,12 @@ ADR Review Request (Phase 1: Independent Review)
 | Issue | Priority | Description |
 |-------|----------|-------------|
 | [Issue] | P0/P1/P2 | [Details] |
+
+### Claims Checked
+
+| Claim | Kind | Source read | Result |
+|-------|------|-------------|--------|
+| [claim] | [kind] | [source read] | [VERIFIED / REFUTED / UNVERIFIED] |
 
 **Assume breach, design for defense.**
 """)
@@ -333,6 +377,11 @@ ADR Review Request (Phase 1: Independent Review)
 - What prior art or industry patterns apply?
 - What are the known failure modes for this approach?
 
+## Factual Claim Verification
+
+Paste the Factual Claim Verification Block here. Check every claim in the ADR
+before you rate it, and record each in the Claims Checked table.
+
 ## Output Format
 
 ### Strengths
@@ -356,6 +405,12 @@ ADR Review Request (Phase 1: Independent Review)
 | Issue | Priority | Description |
 |-------|----------|-------------|
 | [Issue] | P0/P1/P2 | [Details] |
+
+### Claims Checked
+
+| Claim | Kind | Source read | Result |
+|-------|------|-------------|--------|
+| [claim] | [kind] | [source read] | [VERIFIED / REFUTED / UNVERIFIED] |
 
 **Distinguish facts from hypotheses.**
 """)
@@ -390,6 +445,11 @@ ADR Review Request (Phase 1: Independent Review)
 - What should we stop doing if we proceed?
 - Is there a simpler approach being overlooked?
 
+## Factual Claim Verification
+
+Paste the Factual Claim Verification Block here. Check every claim in the ADR
+before you rate it, and record each in the Claims Checked table.
+
 ## Output Format
 
 ### Strengths
@@ -413,6 +473,12 @@ ADR Review Request (Phase 1: Independent Review)
 | Issue | Priority | Description |
 |-------|----------|-------------|
 | [Issue] | P0/P1/P2 | [Details] |
+
+### Claims Checked
+
+| Claim | Kind | Source read | Result |
+|-------|------|-------------|--------|
+| [claim] | [kind] | [source read] | [VERIFIED / REFUTED / UNVERIFIED] |
 
 **You break ties between other agents. Deliver verdicts, not options.**
 """)
@@ -555,6 +621,13 @@ Provide exactly ONE position:
 **Dissent** (if D&C): [Specific reservations for the record]
 
 **Blocking Issues** (if Block): [Exact P0 issues remaining]
+
+### Claims Checked
+
+| Claim | Kind | Source read | Result |
+|-------|------|-------------|--------|
+| [claim] | [kind] | [source read] | [VERIFIED / REFUTED / UNVERIFIED] |
+
 """)
 
 ```
