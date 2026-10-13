@@ -374,7 +374,10 @@ def test_an_output_dir_outside_src_hermes_is_refused(
     assert keep.read_text(encoding="utf-8") == "repo file"
 
 
-@pytest.mark.parametrize(("link", "out"), [("src/hermes", "src/hermes"), ("src", "src/hermes")])
+@pytest.mark.parametrize(
+    ("link", "out"),
+    [("src/hermes", "src/hermes"), ("src", "src/hermes"), ("src/hermes", "src/hermes/nested")],
+)
 def test_a_symlinked_output_dir_or_ancestor_is_refused(
     tmp_path: Path, capsys: pytest.CaptureFixture[str], link: str, out: str
 ) -> None:
@@ -392,6 +395,22 @@ def test_a_symlinked_output_dir_or_ancestor_is_refused(
 
     assert code == 2
     assert "symlink" in capsys.readouterr().err
+    assert keep.read_text(encoding="utf-8") == "repo file"
+
+
+def test_a_src_hermes_link_to_the_repo_does_not_admit_output_dir_dot(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = make_repo(tmp_path)
+    keep = repo / "keep.txt"
+    keep.write_text("repo file", encoding="utf-8")
+    (repo / "src").mkdir(exist_ok=True)
+    (repo / "src/hermes").symlink_to(repo, target_is_directory=True)
+
+    code = hermes_packs.generate_hermes_packs(make_stanza(outputDir="."), repo)
+
+    assert code == 2
+    assert "src/hermes or under it" in capsys.readouterr().err
     assert keep.read_text(encoding="utf-8") == "repo file"
 
 

@@ -248,21 +248,20 @@ def _output_root(repo_root: Path, config: HermesConfig) -> Path:
     errors += validate_relative_path("sourceDir", config.source_dir)
     if errors:
         raise HermesPackError(errors)
-    # Resolving first would let a committed `src/hermes -> ..` link pass the
-    # limit check below, so refuse a linked outputDir or ancestor up front.
+    # Compare the limit on the path as written: resolving would follow a
+    # committed `src/hermes -> ..` link and pass. The ancestor walk then
+    # refuses a link at src, src/hermes, or any folder below it.
+    if Path(config.output_dir).parts[:2] != Path(_OUTPUT_ROOT_LIMIT).parts:
+        raise HermesPackError(
+            [f"outputDir must be {_OUTPUT_ROOT_LIMIT} or under it: {config.output_dir}"]
+        )
     unresolved = repo_root / config.output_dir
     link_error = reject_symlinked_ancestors(repo_root, "outputDir", unresolved / INDEX_NAME)
-    if link_error is None and unresolved.is_symlink():
-        link_error = f"outputDir {config.output_dir} is a symlink"
     if link_error is not None:
         raise HermesPackError([link_error])
     root = unresolved.resolve()
     if not root.is_relative_to(repo_root.resolve()):
         raise HermesPackError([f"outputDir escapes the repository: {config.output_dir}"])
-    if not root.is_relative_to((repo_root / _OUTPUT_ROOT_LIMIT).resolve()):
-        raise HermesPackError(
-            [f"outputDir must be {_OUTPUT_ROOT_LIMIT} or under it: {config.output_dir}"]
-        )
     return Path(root)
 
 
