@@ -231,7 +231,7 @@ Harness mode, plugin, and MCP server instructions are injected directives. Do no
 
 ### Todo-list Discipline
 
-When working through a multi-step plan, mark each task complete individually as you finish it. Do not batch-complete at the end. If a task turns out to be unnecessary, mark it skipped with a one-line reason.
+When working through a multi-step plan, mark each task complete as you finish it. Do not batch-complete at the end. If a task turns out to be unnecessary, mark it skipped with a one-line reason.
 
 Reason: batched completion hides progress, and a crash forces recovery from an empty progress picture.
 
