@@ -152,8 +152,9 @@ Write Conventions"):
   map read at session start) will find them.
 
 Curation (marking obsolete, dedupe, bidirectional links) is the
-`curating-memories` skill. Search is `memory-search` (Tier 1); the four-tier
-model is ADR-063.
+`curating-memories` skill. Search is `memory-search` (Tier 1). ADR-063 split the
+memory skill by operation; ADR-089 removed Tier 3, so the live tiers are Tier 1
+and Tier 2.
 
 Separate-PR rule: `.claude/rules/claude-agents.md` MUST NOT item 2: "MUST NOT
 bundle skill code changes with memory changes in the same PR (separate
