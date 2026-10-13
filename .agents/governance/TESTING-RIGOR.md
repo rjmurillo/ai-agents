@@ -37,6 +37,7 @@ Apply per function:
 - [ ] every error-emitting branch exercised
 - [ ] every conditional branch exercised
 - [ ] external dependencies mocked
+- [ ] bug fix: new test went red on the unfixed code, red run recorded in the PR description
 
 ---
 
@@ -71,6 +72,19 @@ Skip this step for pure internal refactors where no caller-visible behavior chan
 Security-sensitive contract flips (authentication, authorization, cryptography, error disclosure, or secret handling) require security review before merge.
 
 **Why:** Issue #2791 records this as the testing-rigor child of epic #2789. The failure shape is a false green suite: the implementation changes a contract while tests still encode the old one. ADR-077 records the trade-offs, prior art, and 90-day review checkpoint.
+
+---
+
+## Fail First: Red Before Green
+
+Same discipline as the never-delete rule above: a failing test is information, and a test that never failed proves nothing. For any bug fix, the new or changed test MUST go red against the unfixed code before the fix counts.
+
+1. Run the new or changed test against the unfixed code. Confirm it fails, and for the reason the bug describes.
+2. Record the red run in the PR description: the command, plus one line of its failing output.
+3. If the fix is already written, produce the red run in a scratch copy. Revert or stash the fix there, run the test, confirm red, then restore. Confirm the restored tree matches the fix commit.
+4. A test that passes without the fix is not evidence for the fix. It passes for some other reason. Rework the test until it goes red on the unfixed code.
+
+Skip this step for changes that fix no defect (new features, pure refactors, docs). A new feature test still needs the pos, neg, and edge evidence above.
 
 ---
 
