@@ -79,6 +79,10 @@
 | architect | Accept |
 | critic | Accept |
 
+### Post-consensus evidence
+
+On 2026-10-13 the owner pointed to the Hermes plugin developer guide. Its text at the pinned commit adds two facts to Decision 5. Native `register_skill` skills stay out of `<available_skills>`. Portable packages get `PLUGIN_ROOT`. Both support the portable form the panel accepted, so no decision changed and no new round ran.
+
 ### Next Steps
 
 The owner decides acceptance. Implementation follows Decision 11, one pull request per host, Grok Build first.
