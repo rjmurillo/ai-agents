@@ -52,6 +52,17 @@ immutable artifacts. A consumer asking for "the Decision" resolves either:
 The lifecycle gate reports `section-structure` when a record has neither
 heading for a concept. `## Status` and `## Date` are not required. The mapping
 is `SECTION_EQUIVALENTS` in `scripts/validation/check_adr_lifecycle.py`.
+
+Exempt records. Two records fail `section-structure` by design and are held in
+`scripts/validation/adr_lifecycle_baseline.json`, where the count can only fall:
+
+- ADR-030 is a research narrative (Critical Discovery, Updated Recommendation).
+  Its findings do not map to Context, Decision, and Consequences.
+- ADR-095 is a rejected-proposal record (What was proposed, Why it was
+  rejected). It documents a decision not taken, so it has no Decision section.
+
+Filling either gap edits an accepted record and needs a debate log. Both stay
+exempt until a record-level review rewrites them.
 -->
 
 ## Context
