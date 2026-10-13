@@ -620,7 +620,7 @@ class TestExtractMentionedFiles:
         strip would consume across the fence boundary and expose phantom
         change claims from inside the sample."""
         desc = (
-            "## Summary\n"
+            "## Changes\n"
             "Changed **summary.py**.\n\n"
             "```markdown\n"
             "example template snippet:\n"
@@ -661,7 +661,7 @@ class TestExtractMentionedFiles:
         descriptions sometimes use it. The mask must cover both styles or
         a sample heading inside `~~~` over-strips the surrounding document."""
         desc = (
-            "## Summary\n"
+            "## Changes\n"
             "Changed **real.py**.\n\n"
             "~~~markdown\n"
             "## Design Decisions\n"
@@ -704,7 +704,7 @@ class TestExtractMentionedFiles:
         blocks. The mask must cover them or a sample heading inside `<pre>`
         over-strips the surrounding document."""
         desc = (
-            "## Summary\n"
+            "## Changes\n"
             "Changed **real.py**.\n\n"
             '<pre lang="markdown">\n'
             "## Design Decisions\n"
@@ -1260,13 +1260,13 @@ class TestValidatePRDescription:
         critical = [i for i in issues if i.severity == "CRITICAL"]
         assert len(critical) == 1
         msg = critical[0].message
-        assert "Inline-backtick file paths outside" in msg
+        assert "only paths under it are change claims" in msg
         assert "## Changes" in msg
+        assert "## What changed" in msg
         assert "## Per-file changes" in msg
         assert "## Files Changed" in msg
         assert "## Changed Files" in msg
-        assert "- path.ext" in msg
-        assert "**path.ext**" in msg
+        assert "informational" in msg
         assert "code fence" in msg
 
     def test_issue_2252_pr_2214_shape_not_flagged(self) -> None:

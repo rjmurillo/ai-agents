@@ -1,0 +1,140 @@
+{
+  "skill_path": ".claude/skills/autoplan/SKILL.md",
+  "skill_id": "autoplan",
+  "scenarios": [
+    {
+      "id": "R1",
+      "family": "high-traffic-direct",
+      "desc": "Merge conflicts route to the merge-resolver agent, not the orchestrator or github",
+      "input": "Resolve the merge conflicts on this branch. Answer in 5 short bullets naming the route you pick. Do not modify any files.",
+      "expected_signals": ["merge-resolver"],
+      "expected_gate": "route-merge-resolver",
+      "expected_route": ["merge-resolver"],
+      "forbidden_routes": ["orchestrator", "github"],
+      "rationale": "The Phase 2 table maps merge conflicts to Agent: merge-resolver. A response that picks the orchestrator for a single-domain conflict, or the github skill, selected an adjacent route and fails the scenario."
+    },
+    {
+      "id": "R2",
+      "family": "high-traffic-direct",
+      "desc": "Review-thread replies route to pr-comment-responder, not github",
+      "input": "Respond to the unresolved review threads on PR 4821. Answer in 5 short bullets naming the route you pick. Do not modify any files.",
+      "expected_signals": ["pr-comment-responder"],
+      "expected_gate": "route-pr-comment-responder",
+      "expected_route": ["pr-comment-responder"],
+      "forbidden_routes": ["github", "orchestrator"],
+      "rationale": "The Phase 2 table has separate rows for PR, issue, label, and milestone ops (github) and for review threads (pr-comment-responder). A thread request that lands on github selected the adjacent row and fails, as does a hand-off to the orchestrator."
+    },
+    {
+      "id": "R3",
+      "family": "conditional-adjunct",
+      "desc": "Research with a durable write composes the external-claims gate",
+      "input": "Installed skills include research (writes an analysis and drafts the follow-up issue) and ai-agents-external-claims (verifies external, vendor, and third-party claims against primary sources before they land in a repo artifact). Research how a vendor reaches its published 40 percent latency claim and record the finding in docs/. Answer in 5 short bullets naming the route and any adjunct skill. Do not modify any files.",
+      "expected_signals": ["context-gather", "research", "ai-agents-external-claims"],
+      "expected_gate": "route-research-with-claim-gate",
+      "expected_route": ["context-gather", "research", "ai-agents-external-claims"],
+      "forbidden_routes": ["orchestrator", "memory-search"],
+      "rationale": "The Phase 2 table routes research to context-gather then research, and research composes ai-agents-external-claims before any durable write. A response that writes the vendor number into docs/ with no claim gate, or routes to memory-search or the orchestrator, fails."
+    },
+    {
+      "id": "R4",
+      "family": "conditional-adjunct",
+      "desc": "Silencing a linter on third-party code composes analysis-provenance first",
+      "input": "Installed skills include analysis-provenance (identifies code ownership before modifying validators or linters) and validation-authority (treats upstream validators as authoritative and aligns local config to them). Our linter flags files under vendor/. Edit the linter config so it stops flagging them. Answer in 5 short bullets naming the route and any adjunct skill. Do not modify any files.",
+      "expected_signals": ["build", "analysis-provenance", "validation-authority"],
+      "expected_gate": "route-build-with-provenance-adjunct",
+      "expected_route": ["build", "analysis-provenance", "validation-authority"],
+      "forbidden_routes": ["orchestrator"],
+      "rationale": "A bounded change to a validator config is the Standard lifecycle chain, and the validator-owner check composes analysis-provenance and validation-authority before the edit. A response that edits the linter config first, or sends the request to the orchestrator, fails."
+    },
+    {
+      "id": "R5",
+      "family": "lifecycle",
+      "desc": "A bounded bug fix with no specialist takes the Standard chain",
+      "input": "Fix the off-by-one in the pagination helper in orders.py and ship it. Answer in 5 short bullets naming the chain you pick. Do not modify any files.",
+      "expected_signals": ["/build", "/test", "/review", "/ship"],
+      "expected_gate": "route-standard-lifecycle-chain",
+      "expected_route": ["build", "test", "review", "ship"],
+      "forbidden_routes": ["orchestrator", "spec", "plan"],
+      "rationale": "With no specialist, Precedence step 4 sends a bounded change on an existing surface to the Standard tier: /build then /test then /review then /ship. Starting at /spec or /plan over-escalates the tier, and the orchestrator is reserved for multi-domain work. Either fails."
+    },
+    {
+      "id": "R6",
+      "family": "lifecycle",
+      "desc": "A new capability with ambiguous requirements takes the Feature chain",
+      "input": "We want a scheduled report that emails each team lead their open review debt, but nobody has agreed what counts as debt yet. Build it. Answer in 5 short bullets naming the chain you pick. Do not modify any files.",
+      "expected_signals": ["/spec", "/plan", "/build"],
+      "expected_gate": "route-feature-lifecycle-chain",
+      "expected_route": ["spec", "plan", "build", "test", "review", "ship"],
+      "forbidden_routes": ["orchestrator"],
+      "rationale": "Ambiguous requirements and a new capability put the request in the Feature tier: /spec then /plan then the Standard chain. Jumping straight to /build skips the tier, and the orchestrator is not a lifecycle substitute."
+    },
+    {
+      "id": "R7",
+      "family": "composition-order",
+      "desc": "Provenance runs before authority",
+      "input": "Installed skills include analysis-provenance (identifies code ownership before modifying validators or linters) and validation-authority (treats upstream validators as authoritative and aligns local config to them). The upstream schema validator rejects our config. Change the validator so the config passes. Answer in 5 short bullets listing the skills you invoke in order. Do not modify any files.",
+      "expected_signals": ["analysis-provenance", "validation-authority"],
+      "expected_gate": "order-provenance-then-authority",
+      "expected_route": ["analysis-provenance", "validation-authority"],
+      "expected_order": ["analysis-provenance", "validation-authority"],
+      "forbidden_routes": ["orchestrator"],
+      "rationale": "Order: analysis-provenance, then validation-authority. The authority step consumes the owner and category that the provenance step classifies, so provenance comes first. A response that invokes validation-authority first, or edits the validator before either skill ran, has the composition order wrong and fails. Handing the request to the orchestrator also fails."
+    },
+    {
+      "id": "R8",
+      "family": "composition-order",
+      "desc": "Context gathering, then claim verification, then incorporation",
+      "input": "Installed skills include context-gather (gathers context from memory, docs, and web before planning), ai-agents-external-claims (verifies external and vendor claims against primary sources), and research. Before we cite a vendor's reliability statistic in our design doc, gather what we already know, verify the statistic, and then work it into the doc. Answer in 5 short bullets listing the steps in order. Do not modify any files.",
+      "expected_signals": ["context-gather", "ai-agents-external-claims", "incorporat"],
+      "expected_gate": "order-context-claims-incorporation",
+      "expected_route": ["context-gather", "research", "ai-agents-external-claims"],
+      "expected_order": ["context-gather", "ai-agents-external-claims", "incorporation"],
+      "forbidden_routes": ["orchestrator"],
+      "rationale": "The statistic must be gathered, then verified, then incorporated: context-gather, then ai-agents-external-claims, then incorporation. A response that writes the number into the design doc before the claim gate ran, or verifies before gathering context, has the composition order wrong and fails. Handing the request to the orchestrator also fails."
+    },
+    {
+      "id": "R9",
+      "family": "dx-activation",
+      "desc": "A CLI onboarding friction audit routes to dx-review",
+      "input": "Audit our CLI onboarding workflow for developer friction. Answer in 5 short bullets naming the route you pick. Do not modify any files.",
+      "expected_signals": ["dx-review"],
+      "expected_gate": "route-dx-review",
+      "expected_route": ["dx-review"],
+      "forbidden_routes": ["orchestrator", "quality-grades", "review"],
+      "rationale": "Phase 2b names dx-review as the specialist for auditing a CLI, API, or onboarding workflow for developer friction. Routing to quality-grades, review, or the orchestrator selected an adjacent route and fails."
+    },
+    {
+      "id": "R10",
+      "family": "dx-activation",
+      "desc": "A user-named /review on CLI help text does not reroute to dx-review",
+      "input": "/review the diff that rewrites the help text of our CLI. Answer in 5 short bullets naming the route you pick. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "expected_route": ["review"],
+      "forbidden_routes": ["dx-review", "orchestrator"],
+      "rationale": "The user named /review, so Precedence step 1 bypasses the routing table and autoplan does not reroute. The CLI wording alone must not pull the request to dx-review, and autoplan must not hand it to the orchestrator."
+    },
+    {
+      "id": "R11",
+      "family": "advisor-vs-buy-vs-build",
+      "desc": "An existing-library question routes to programming-advisor",
+      "input": "Is there an existing library for rate limiting before we write our own? Answer in 5 short bullets naming the route you pick. Do not modify any files.",
+      "expected_signals": ["programming-advisor"],
+      "expected_gate": "route-programming-advisor",
+      "expected_route": ["programming-advisor"],
+      "forbidden_routes": ["buy-vs-build-framework", "orchestrator"],
+      "rationale": "The Phase 2 table routes new-capability prior-art discovery to programming-advisor, and buy-vs-build-framework is added only for a strategic build, buy, partner, or defer decision. An is-there-a-library question that selects buy-vs-build-framework or the orchestrator fails."
+    },
+    {
+      "id": "R12",
+      "family": "advisor-vs-buy-vs-build",
+      "desc": "A strategic build, buy, partner, or defer decision adds buy-vs-build-framework",
+      "input": "Installed skills include programming-advisor (prior-art discovery before custom development) and buy-vs-build-framework (strategic build, buy, partner, or defer decisions with TCO). Leadership wants a three-year TCO comparison to decide whether we build, buy, or partner for our feature-flag platform. Answer in 5 short bullets naming the route you pick. Do not modify any files.",
+      "expected_signals": ["buy-vs-build-framework", "programming-advisor"],
+      "expected_gate": "route-buy-vs-build-framework",
+      "expected_route": ["programming-advisor", "buy-vs-build-framework"],
+      "forbidden_routes": ["orchestrator"],
+      "rationale": "A strategic build, buy, partner, or defer decision is the one case the table adds buy-vs-build-framework after programming-advisor. A response that routes only to programming-advisor, or to the orchestrator, fails."
+    }
+  ]
+}
