@@ -21,7 +21,7 @@ The rules in this file are layered. When two appear to disagree, apply this orde
 
 1. **Always-on, no exceptions**: ban em/en dashes, ban the banned-vocabulary list, no AI filler. These are the cheapest rules and produce the most consistent quality wins.
 2. **Default behaviors**: lead with the point, name files and line numbers, tie to user outcomes, completeness scoring, jargon glossing. These are the rules you follow unless tier 3 overrides them.
-3. **User overrides**: a sticky override or a current-turn instruction from the user (caveman mode, "no glosses", "just the answer", "use em dashes in this PR because the audience expects them"). User Sovereignty (see `builder-ethos.md`) wins. State the trade-off once, follow the override, do not re-litigate.
+3. **User overrides**: a sticky override or a current-turn instruction from the user (caveman mode, "no glosses", "just the answer", "use first person in this PR because readers expect it"). User Sovereignty (see `builder-ethos.md`) wins. State the trade-off once, follow the override, do not re-litigate.
 
 The "terse vs exhaustive" tension is intentional, not a contradiction: be terse in **prose style** (short sentences, no filler, no warm-up) and exhaustive in **scope** (cover the edge cases, gloss the jargon once, flag what you saw). A terse-and-complete response is the target. A long response with no filler is fine when the scope demands it.
 
