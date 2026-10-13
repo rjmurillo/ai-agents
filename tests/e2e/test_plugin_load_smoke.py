@@ -30,6 +30,12 @@ the shipped plugin directory, and assert the plugin loads.
     and ``codex debug prompt-input`` lists every ``EXPECTED_SKILLS`` name as
     ``project-toolkit:<name>``. No model call and no credential: the commands
     read the repository and the isolated home only.
+  - Grok Build (ADR-115 Decision 9): ``grok plugin marketplace add <repo>`` and
+    ``grok plugin install project-toolkit@<marketplace> --trust`` install the
+    shipped plugin into a scratch ``GROK_HOME``; ``plugin details`` and ``plugin
+    validate`` must report the expected components and a valid manifest, and an
+    installed skill script must run with both plugin-root variables unset (a copy
+    without ``lib/`` is the negative control). No login, no model call.
   - Analyst contract (issue #3918): load the project analyst in each real CLI
     and assert its exact reviewed read-only tool set. Each probe also loads an
     execution agent that must expose shell and edit tools, so the test cannot
@@ -43,7 +49,7 @@ the shipped plugin directory, and assert the plugin loads.
 
 Startup probe (issue #6000): before the first test that needs a CLI, one
 ``<cli> --version`` runs with a 10s timeout. "Needs a CLI" means the test
-carries a ``copilot``, ``claude``, or ``codex`` marker. A CLI that hangs there
+carries a ``copilot``, ``claude``, ``codex``, or ``grok`` marker. A CLI that hangs there
 (a wrapper shim that blocks with no TTY) reports an error at setup of the first
 test that uses it, naming the resolved executable path, and the dependent tests
 skip. A hung CLI costs about 10s, not one full timeout per test.
@@ -256,7 +262,7 @@ _VERSION_TIMEOUT_SECONDS = 60
 # call. A healthy CLI answers in under 1s; a shim that blocks with no TTY never
 # does. Without the probe every test waited out its full timeout (issue #6000).
 _STARTUP_PROBE_TIMEOUT_SECONDS = 10
-_PROBED_CLIS = ("copilot", "claude", "codex")
+_PROBED_CLIS = ("copilot", "claude", "codex", "grok")
 # `copilot skill list --json` reads local plugin files and makes no model call;
 # it returns in about half a second, so a hang is a defect, not latency.
 _SKILL_LIST_TIMEOUT_SECONDS = 30
@@ -299,6 +305,7 @@ def _requires_cli(cli: str) -> Callable[[F], F]:
 requires_copilot = _requires_cli("copilot")
 requires_claude = _requires_cli("claude")
 requires_codex = _requires_cli("codex")
+requires_grok = _requires_cli("grok")
 
 
 def _clean_env() -> dict[str, str]:
@@ -2666,6 +2673,186 @@ def test_codex_plugin_loads_expected_skills(tmp_path: Path) -> None:
     )
 
 
+# --- Grok Build leg (ADR-115 Decision 9) -------------------------------------
+# `grok plugin install` needs no login and no model call. Every command runs
+# under a scratch HOME and GROK_HOME, so nothing is read from or written to the
+# developer's ~/.grok or ~/.claude (Grok also reads ~/.claude/settings.json
+# `extraKnownMarketplaces`; the throwaway HOME hides it).
+_GROK_PLUGIN_NAME = "project-toolkit"
+_GROK_COMMAND_TIMEOUT_SECONDS = 45
+_GROK_COMMAND_COUNT = 4
+_GROK_SCRIPT_TIMEOUT_SECONDS = 30
+_GROK_SCRIPT_COUNT = 2
+_GROK_INSTALLED_SCRIPT = Path("skills") / "github" / "scripts" / "pr" / "get_pr_checks.py"
+_GROK_COMPONENTS = "components: 1 skill dir(s), 0 command dir(s), 1 agent dir(s)"
+# Same allow-list as Codex, with GROK_HOME in place of CODEX_HOME. CLAUDE_PLUGIN_ROOT
+# and COPILOT_PLUGIN_ROOT are unlisted, so the installed script must find lib/ by
+# its own path (the negative control proves lib/ is what it found).
+_GROK_ENV_ALLOWLIST = (_CODEX_ENV_ALLOWLIST - {"CODEX_HOME"}) | {"GROK_HOME"}
+
+
+def _grok_env(grok_home: Path, home: Path) -> dict[str, str]:
+    """Env for a Grok subprocess: an allow-list, isolated homes, no credential."""
+    env = {key: value for key, value in os.environ.items() if key.upper() in _GROK_ENV_ALLOWLIST}
+    env["GROK_HOME"] = str(grok_home)
+    env["HOME"] = str(home)
+    env["USERPROFILE"] = str(home)
+    return env
+
+
+def _grok_marketplace_name(add_stdout: str) -> str | None:
+    """Marketplace name from ``Added marketplace source: <name> (<path>)``."""
+    match = re.search(r"Added marketplace source:\s+(\S+)", add_stdout)
+    return match.group(1) if match else None
+
+
+def _grok_details_path(details_stdout: str) -> Path | None:
+    """Install directory from the ``path:`` line of ``grok plugin details``."""
+    match = re.search(r"^\s*path:\s+(.+?)\s*$", details_stdout, flags=re.MULTILINE)
+    return Path(match.group(1)) if match else None
+
+
+def _run_grok(
+    args: list[str], *, env: dict[str, str], cwd: Path
+) -> subprocess.CompletedProcess[str]:
+    result = subprocess.run(
+        [resolve_executable("grok"), *args],
+        cwd=cwd,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=_GROK_COMMAND_TIMEOUT_SECONDS,
+        check=False,
+        env=env,
+    )
+    assert result.returncode == 0, (
+        f"grok {' '.join(args)} failed (rc={result.returncode}). "
+        f"stdout={redact(result.stdout[-600:])!r} stderr={redact(result.stderr[-600:])!r}"
+    )
+    return result
+
+
+def _run_installed_script(
+    script: Path, *, env: dict[str, str], cwd: Path
+) -> subprocess.CompletedProcess[str]:
+    """Run an installed skill script under ``python -I`` without asserting the exit."""
+    return subprocess.run(
+        [sys.executable, "-I", str(script), "--help"],
+        cwd=cwd,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=_GROK_SCRIPT_TIMEOUT_SECONDS,
+        check=False,
+        env=env,
+    )
+
+
+@pytest.mark.smoke
+@requires_grok
+@_cli_budget(
+    *([_GROK_COMMAND_TIMEOUT_SECONDS] * _GROK_COMMAND_COUNT),
+    *([_GROK_SCRIPT_TIMEOUT_SECONDS] * _GROK_SCRIPT_COUNT),
+)
+def test_grok_plugin_installs_and_runs_a_skill_script(tmp_path: Path) -> None:
+    """grok installs the shipped plugin and an installed skill script finds lib/.
+
+    Add the repository as a marketplace source, install ``project-toolkit`` from
+    it into a scratch ``GROK_HOME``, assert ``plugin details`` reports the
+    expected components, then run ``get_pr_checks.py --help`` from the installed
+    copy with both plugin-root variables unset. A copy of ``skills/`` without the
+    sibling ``lib/`` must fail with the loader message (negative control). No
+    model call, no credential (ADR-115 Decision 9).
+    """
+    home = tmp_path / "home"
+    work = tmp_path / "cwd"
+    grok_home = tmp_path / "grok-home"
+    for directory in (home, work, grok_home):
+        directory.mkdir()
+    env = _grok_env(grok_home, home)
+
+    try:
+        added = _run_grok(["plugin", "marketplace", "add", str(REPO_ROOT)], env=env, cwd=work)
+        marketplace = _grok_marketplace_name(added.stdout)
+        assert marketplace, f"no marketplace name in add output: {added.stdout[-400:]!r}"
+        _run_grok(
+            ["plugin", "install", f"{_GROK_PLUGIN_NAME}@{marketplace}", "--trust"],
+            env=env,
+            cwd=work,
+        )
+        details = _run_grok(["plugin", "details", _GROK_PLUGIN_NAME], env=env, cwd=work)
+        installed = _grok_details_path(details.stdout)
+        assert installed is not None, f"no path: line in details: {details.stdout[-400:]!r}"
+        validated = _run_grok(["plugin", "validate", str(installed)], env=env, cwd=work)
+    except subprocess.TimeoutExpired as exc:
+        pytest.fail(f"grok plugin command exceeded {_GROK_COMMAND_TIMEOUT_SECONDS}s: {exc.cmd}")
+
+    assert installed.resolve().is_relative_to(grok_home.resolve()), (
+        f"grok installed into {installed}, outside the scratch GROK_HOME {grok_home}"
+    )
+    assert _GROK_COMPONENTS in details.stdout, details.stdout[-600:]
+    assert "Plugin manifest is valid." in validated.stdout, validated.stdout[-400:]
+
+    try:
+        run = _run_installed_script(installed / _GROK_INSTALLED_SCRIPT, env=env, cwd=work)
+        control_skills = tmp_path / "no-lib" / "skills"
+        shutil.copytree(installed / "skills", control_skills)
+        control = _run_installed_script(
+            control_skills / _GROK_INSTALLED_SCRIPT.relative_to("skills"), env=env, cwd=work
+        )
+    except subprocess.TimeoutExpired as exc:
+        pytest.fail(f"installed script exceeded {_GROK_SCRIPT_TIMEOUT_SECONDS}s: {exc.cmd}")
+
+    assert run.returncode == 0, f"installed script rc={run.returncode}: {redact(run.stderr[-600:])}"
+    assert control.returncode != 0 and "Plugin lib directory not found" in control.stderr, (
+        f"negative control (no lib/) rc={control.returncode}: {redact(control.stderr[-400:])!r}"
+    )
+
+
+@pytest.mark.parametrize(
+    ("stdout", "expected"),
+    [
+        ("Added marketplace source: repo-name (/x/repo-name)\n", "repo-name"),
+        ("  Added marketplace source:   ai-agents\n", "ai-agents"),
+        ("Error: nothing added\n", None),
+        ("", None),
+    ],
+)
+def test_grok_marketplace_name_parses_the_add_output(stdout: str, expected: str | None) -> None:
+    assert _grok_marketplace_name(stdout) == expected
+
+
+@pytest.mark.parametrize(
+    ("stdout", "expected"),
+    [
+        (
+            "claude-1\n  path: /g/installed-plugins/claude-1\n  kind: local\n",
+            "/g/installed-plugins/claude-1",
+        ),
+        ("  kind: local: /src/claude\n", None),
+        ("", None),
+    ],
+)
+def test_grok_details_path_reads_the_install_directory(stdout: str, expected: str | None) -> None:
+    result = _grok_details_path(stdout)
+    assert (str(result) if result else None) == expected
+
+
+def test_grok_env_strips_credentials_and_isolates_homes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("XAI_API_KEY", "x")
+    monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", "/p")
+    monkeypatch.setenv("COPILOT_PLUGIN_ROOT", "/p")
+    monkeypatch.setenv("GROK_HOME", "/real/grok")
+    env = _grok_env(tmp_path / "gh", tmp_path / "h")
+
+    assert env["GROK_HOME"] == str(tmp_path / "gh")
+    assert env["HOME"] == env["USERPROFILE"] == str(tmp_path / "h")
+    assert not {"XAI_API_KEY", "CLAUDE_PLUGIN_ROOT", "COPILOT_PLUGIN_ROOT"} & set(env)
+    assert {key.upper() for key in env} <= _GROK_ENV_ALLOWLIST
+
+
 def test_codex_installed_entry_finds_the_plugin() -> None:
     payload = json.dumps(
         {"installed": [{"pluginId": "other@x"}, {"pluginId": _CODEX_PLUGIN_ID, "enabled": True}]}
@@ -2804,6 +2991,7 @@ def _first_call_timeout(test: Callable[..., object]) -> int:
     """
     local_only = {
         test_codex_plugin_loads_expected_skills.__name__: _CODEX_COMMAND_TIMEOUT_SECONDS,
+        test_grok_plugin_installs_and_runs_a_skill_script.__name__: _GROK_COMMAND_TIMEOUT_SECONDS,
         test_copilot_plugin_loads_expected_skills.__name__: _SKILL_LIST_TIMEOUT_SECONDS,
     }
     return local_only.get(test.__name__, _CLI_TIMEOUT_SECONDS)
@@ -2835,6 +3023,7 @@ def test_the_pre_push_bound_counts_claude_and_codex_but_not_copilot_smokes() -> 
     assert test_copilot_plugin_loads_expected_skills.__name__ not in local
     assert test_claude_plugin_loads_expected_skills.__name__ in local
     assert test_codex_plugin_loads_expected_skills.__name__ in local
+    assert test_grok_plugin_installs_and_runs_a_skill_script.__name__ in local
 
 
 def test_an_all_hang_run_fits_the_pre_push_cap() -> None:

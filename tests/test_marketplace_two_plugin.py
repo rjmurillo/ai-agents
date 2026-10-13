@@ -18,6 +18,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CLAUDE_MARKETPLACE = REPO_ROOT / ".claude-plugin" / "marketplace.json"
 COPILOT_MARKETPLACE = REPO_ROOT / ".github" / "plugin" / "marketplace.json"
+GROK_MARKETPLACE = REPO_ROOT / ".grok-plugin" / "marketplace.json"
 CLAUDE_TOOLKIT_PLUGIN = REPO_ROOT / "src" / "claude" / ".claude-plugin" / "plugin.json"
 COPILOT_TOOLKIT_PLUGIN = REPO_ROOT / "src" / "copilot-cli" / ".claude-plugin" / "plugin.json"
 
@@ -84,6 +85,25 @@ class TestMarketplaceShape:
         data = _load_marketplace(CLAUDE_MARKETPLACE)
         names = {p["name"] for p in data["plugins"]}
         assert names.isdisjoint(CLAUDE_REJECTED_PLUGIN_NAMES)
+
+
+class TestGrokMarketplace:
+    """Grok Build reads `.grok-plugin/marketplace.json` first (ADR-115 Decision 4)."""
+
+    def test_lists_exactly_project_toolkit_at_the_claude_tree(self) -> None:
+        data = _load_marketplace(GROK_MARKETPLACE)
+        assert [(p["name"], p["source"]) for p in data["plugins"]] == [
+            ("project-toolkit", "./src/claude")
+        ]
+
+    def test_names_grok_build(self) -> None:
+        data = _load_marketplace(GROK_MARKETPLACE)
+        assert "Grok Build" in data["description"]
+
+    def test_shares_the_claude_marketplace_name_and_owner(self) -> None:
+        grok = _load_marketplace(GROK_MARKETPLACE)
+        claude = _load_marketplace(CLAUDE_MARKETPLACE)
+        assert (grok["name"], grok["owner"]) == (claude["name"], claude["owner"])
 
 
 class TestMarketplaceSourceManifestParity:

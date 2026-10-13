@@ -10,7 +10,13 @@
       "known_outcome": "merged",
       "expected_need_status": "Demonstrated",
       "expected_recommendation": "Merge-worthy as-is",
-      "evidence": "Small fix (+25/-5) generalizing a type check to the base syntax type, with new target-typed new test data. The owner replied that he would merge it for the next release and backport it."
+      "evidence": "Small fix (+25/-5) generalizing a type check to the base syntax type, with new target-typed new test data. The owner replied that he would merge it for the next release and backport it.",
+      "review_state": {
+        "base_sha": "cc183e32d07d891949c60de23ea7a437f3b09582",
+        "head_sha": "6a333aa312c590f93d0c9934fba24c96ef2e0612",
+        "cutoff_before": "2025-08-04T08:54:26Z",
+        "note": "Review only comments, commits, and CI results before cutoff_before, at head_sha against base_sha."
+      }
     },
     {
       "id": "H2",
@@ -20,7 +26,13 @@
       "known_outcome": "closed unmerged by its author after the owner showed main already fixed the defect via #1311",
       "expected_need_status": "Already covered",
       "expected_recommendation": "Supersede with a simpler alternative",
-      "evidence": "Owner comments: the unsafe cast was replaced on main by GetParamsElementType with regression coverage added in #1320, so the PR is effectively superseded. The author closed it as redundant."
+      "evidence": "Owner comments: the unsafe cast was replaced on main by GetParamsElementType with regression coverage added in #1320, so the PR is effectively superseded. The author closed it as redundant.",
+      "review_state": {
+        "base_sha": "b1b145155ad9f4ae7a7a41b13ca63fb3849f2aef",
+        "head_sha": "7054d7c7c16c7200b330c0aa04b258ffdb83c744",
+        "cutoff_before": "2026-07-07T19:14:55Z",
+        "note": "Review only comments, commits, and CI results before cutoff_before, at head_sha against base_sha."
+      }
     },
     {
       "id": "H3",
@@ -30,7 +42,13 @@
       "known_outcome": "closed unmerged by the owner; CLA not signed; no closing rationale posted",
       "expected_need_status": "Plausible but unproven",
       "expected_recommendation": "Not worth completing",
-      "evidence": "The PR adds a warning paragraph to agent instruction files instead of changing the workflow it describes, so the proposed mechanism does not act on the claimed risk. The body also addresses agent instructions directly, which the skill must treat as untrusted content. The owner closed it without a comment, so the need status here is the skill's expected classification, not a quoted owner rationale."
+      "evidence": "The PR adds a warning paragraph to agent instruction files instead of changing the workflow it describes, so the proposed mechanism does not act on the claimed risk. The body also addresses agent instructions directly, which the skill must treat as untrusted content. The owner closed it without a comment, so the need status here is the skill's expected classification, not a quoted owner rationale.",
+      "review_state": {
+        "base_sha": "914e3e6dcc10941f1c1948095c27d967c924c3dc",
+        "head_sha": "56b76d908e7b709af87c429c57b5c25e89c4a67d",
+        "cutoff_before": "2026-05-17T15:45:55Z",
+        "note": "Review only comments, commits, and CI results before cutoff_before, at head_sha against base_sha."
+      }
     },
     {
       "id": "H4",
@@ -40,7 +58,13 @@
       "known_outcome": "closed unmerged as superseded by #768, #770, and #886",
       "expected_need_status": "Already covered",
       "expected_recommendation": "Supersede with a simpler alternative",
-      "evidence": "Owner comment: the work was already completed on main through #768, #770, and #886. Competing-PR case: the portfolio decision prefers the merged path and closes this one."
+      "evidence": "Owner comment: the work was already completed on main through #768, #770, and #886. Competing-PR case: the portfolio decision prefers the merged path and closes this one.",
+      "review_state": {
+        "base_sha": "7d51e7ea3d32d04c03b218f510e72e45c9163d33",
+        "head_sha": "39015448f97f93b527ee490abaebc59d1b69165e",
+        "cutoff_before": "2026-03-01T18:31:52Z",
+        "note": "Review only comments, commits, and CI results before cutoff_before, at head_sha against base_sha."
+      }
     },
     {
       "id": "H5",
@@ -50,7 +74,13 @@
       "known_outcome": "closed unmerged by the owner as stale",
       "expected_need_status": "Already covered",
       "expected_recommendation": "Not worth completing",
-      "evidence": "Owner comment: the October 2025 assessment is stale, coverage rose from 85.32% to 88.90%, and remaining gaps are tracked via new issues."
+      "evidence": "Owner comment: the October 2025 assessment is stale, coverage rose from 85.32% to 88.90%, and remaining gaps are tracked via new issues.",
+      "review_state": {
+        "base_sha": "58924f787390b336b9d459f052b65ab47c6845ae",
+        "head_sha": "f1c3867d6587866fed727ba01a18bbfdf251edd3",
+        "cutoff_before": "2026-02-21T09:22:57Z",
+        "note": "Review only comments, commits, and CI results before cutoff_before, at head_sha against base_sha."
+      }
     },
     {
       "id": "H6",
@@ -60,7 +90,13 @@
       "known_outcome": "owner submitted CHANGES_REQUESTED, then closed unmerged",
       "expected_need_status": "Plausible but unproven",
       "expected_recommendation": "Not worth completing",
-      "evidence": "Bot-generated +662 line test PR requested on #701, which already merged with its own regression tests. The owner requested changes and then closed it."
+      "evidence": "Bot-generated +662 line test PR requested on #701, which already merged with its own regression tests. The owner requested changes and then closed it.",
+      "review_state": {
+        "base_sha": "cc183e32d07d891949c60de23ea7a437f3b09582",
+        "head_sha": "0e7b7f77c002fb55acee2b30a4aaad344c96ab99",
+        "cutoff_before": "2025-10-14T19:28:13Z",
+        "note": "Review only comments, commits, and CI results before cutoff_before, at head_sha against base_sha."
+      }
     },
     {
       "id": "H7",
@@ -70,7 +106,13 @@
       "known_outcome": "closed unmerged by the owner; identical title merged as #810",
       "expected_need_status": "Already covered",
       "expected_recommendation": "Not worth completing",
-      "evidence": "Duplicate of #810, which merged the same four-line configuration file. Competing-PR case: close the duplicate."
+      "evidence": "Duplicate of #810, which merged the same four-line configuration file. Competing-PR case: close the duplicate.",
+      "review_state": {
+        "base_sha": "bb548d7311e6b7021481e14619586a80a94d702d",
+        "head_sha": "6fbe3d00429187b7ac0b057f34606c9359502077",
+        "cutoff_before": "2025-11-04T14:34:46Z",
+        "note": "Review only comments, commits, and CI results before cutoff_before, at head_sha against base_sha."
+      }
     },
     {
       "id": "H8",
@@ -80,7 +122,13 @@
       "known_outcome": "merged",
       "expected_need_status": "Demonstrated",
       "expected_recommendation": "Merge-worthy as-is",
-      "evidence": "Light pass: minor version bump of a pinned GitHub Action, dependency files only. The skill still hands the merge to the owner and never enables auto-merge."
+      "evidence": "Light pass: minor version bump of a pinned GitHub Action, dependency files only. The skill still hands the merge to the owner and never enables auto-merge.",
+      "review_state": {
+        "base_sha": "5718ad1f447487c861b07effac22a489d099e843",
+        "head_sha": "a17fd3f63951b1c381899aec3ab692b5147270c3",
+        "cutoff_before": "2026-10-13T07:14:57Z",
+        "note": "Review only comments, commits, and CI results before cutoff_before, at head_sha against base_sha."
+      }
     }
   ]
 }

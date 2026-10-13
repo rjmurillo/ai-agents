@@ -79,6 +79,7 @@ workflow filters on Python paths and never fires on ``marketplace.json``.
 
     .claude-plugin/marketplace.json        (Claude marketplace)
     .github/plugin/marketplace.json        (Copilot marketplace)
+    .grok-plugin/marketplace.json          (Grok Build marketplace, ADR-115)
 
 CLI
 ---
@@ -146,12 +147,13 @@ PLUGINS: tuple[PluginManifest, ...] = (
 )
 
 
-# The two marketplaces. A per-plugin ``version`` in an entry here is
+# The shipped marketplaces. A per-plugin ``version`` in an entry here is
 # resolution step 2, which pins freshness ahead of the commit SHA exactly as a
 # manifest version does.
 MARKETPLACES: tuple[str, ...] = (
     ".claude-plugin/marketplace.json",
     ".github/plugin/marketplace.json",
+    ".grok-plugin/marketplace.json",
 )
 
 

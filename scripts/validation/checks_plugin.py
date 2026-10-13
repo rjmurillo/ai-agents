@@ -252,15 +252,17 @@ def validate_lefthook_installed(repo_root: Path) -> bool:
     executable ``#!/bin/sh`` plus ``exit 0`` satisfies both a runtime-start check
     and an executability check while running no job at all.
 
-    Neither gate proves the shim resolves the same binary this one starts, and
-    on Windows they demonstrably differ.
+    Neither gate executes the shim, and unless ``LEFTHOOK_BIN`` is set they do
+    not disagree with it. Lefthook renders one shim template for every
+    platform, so the shim calls the configured ``lefthook_runner.py``, which
+    probes ``uv run --frozen lefthook version`` first, as this gate does, then
+    ``lefthook`` on ``PATH`` or in ``node_modules/.bin``, then exits 3. The
+    shim's own fallback (named ``lefthook.exe`` on Windows) is unreachable.
     ``tests/test_lefthook_integration.py::test_install_resets_legacy_hooks_path``
-    records that Lefthook 2.1.10 generates the default Windows template, which
-    omits the configured ``lefthook_runner.py`` runner and resolves
-    Lefthook through ``PATH``. So on Windows ``lefthook version`` through uv can
-    pass while the shim resolves a different binary, or none. Closing that needs
-    a Windows probe with the uv runtime present and the ``PATH`` binary absent,
-    which is not covered here. Issue #4789, PR #5358 review.
+    pins the shim text order (override, runner call, shim fallback) on every
+    platform. ``tests/test_lefthook_runner.py`` pins the runner's order, and
+    ``test_installed_shim_runs_the_first_binary_in_runner_order`` runs the installed
+    shim on POSIX. Issue #4789, PR #5358 review, issue #5491.
     """
     if os.environ.get("GITHUB_ACTIONS", "").lower() in ("true", "1") or os.environ.get(
         "CI", ""
