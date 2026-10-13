@@ -62,6 +62,11 @@ def test_read_only_tools_are_recognised(tool: str) -> None:
         "mcp__github__merge_pull_request",
         "mcp__serena__find_and_replace",
         "mcp__github__request_copilot_review",
+        "mcp__db__query",
+        "mcp__x__get_and_run",
+        "mcp__x__list_and_send",
+        "mcp__x__get_then_post",
+        "mcp__x__get_and_dispatch",
         "mcp__unknown",
         "mcp__server__",
         "",
@@ -77,7 +82,8 @@ def test_derive_readonly_requires_a_tools_list() -> None:
     assert atc.derive_readonly({"tools": READONLY_TOOLS})
     assert not atc.derive_readonly({})
     assert not atc.derive_readonly({"tools": []})
-    assert not atc.derive_readonly({"tools": "Read, Grep"})
+    assert atc.derive_readonly({"tools": "Read, Grep"})
+    assert not atc.derive_readonly({"tools": ""})
 
 
 def test_one_writing_tool_removes_readonly() -> None:
@@ -140,7 +146,49 @@ def test_inexpressible_restriction_needs_a_non_empty_tools_list() -> None:
     assert atc.has_inexpressible_restriction({"tools": ["Read", "Write"]})
     assert not atc.has_inexpressible_restriction({"tools": ["Read"]})
     assert not atc.has_inexpressible_restriction({})
-    assert not atc.has_inexpressible_restriction({"tools": []})
+    assert atc.has_inexpressible_restriction({"tools": []})
+    assert atc.has_inexpressible_restriction({"tools": ""})
+    assert atc.has_inexpressible_restriction({"tools": "Read, Write"})
+    assert not atc.has_inexpressible_restriction({"tools": "Read, Grep"})
+    assert not atc.has_inexpressible_restriction({"tools": None})
+
+
+@pytest.mark.parametrize("bad", [{"a": 1}, 7, True, 1.5])
+def test_declared_tools_rejects_non_list_non_string(bad: object) -> None:
+    with pytest.raises(atc.AgentCopyError, match="list or a comma-separated string"):
+        atc.declared_tools({"tools": bad})
+
+
+def test_declared_tools_splits_and_strips_a_string() -> None:
+    assert atc.declared_tools({"tools": " Read ,Grep,, "}) == ["Read", "Grep"]
+    assert atc.declared_tools({"tools": ""}) == []
+    assert atc.declared_tools({}) is None
+
+
+def test_render_string_of_read_tools_earns_readonly() -> None:
+    out = atc.render_agent(
+        _agent("name: d\ndescription: x\ntools: Read, Grep\n"),
+        KEEP, derive_readonly_flag=True, source="d.md",
+    )  # fmt: skip
+    assert out is not None
+    assert "readonly: true" in out
+
+
+def test_render_skips_a_string_with_a_writing_tool() -> None:
+    src = _agent("name: d\ndescription: x\ntools: Read, Write\n")
+    assert atc.render_agent(src, KEEP, derive_readonly_flag=True, source="d.md") is None
+
+
+@pytest.mark.parametrize("value", ["[]", '""'])
+def test_render_skips_empty_tools(value: str) -> None:
+    src = _agent(f"name: d\ndescription: x\ntools: {value}\n")
+    assert atc.render_agent(src, KEEP, derive_readonly_flag=True, source="d.md") is None
+
+
+def test_render_errors_on_a_mapping_tools_value_naming_the_source() -> None:
+    src = _agent("name: d\ndescription: x\ntools:\n  a: 1\n")
+    with pytest.raises(atc.AgentCopyError, match=r"d\.md: `tools` must be"):
+        atc.render_agent(src, KEEP, derive_readonly_flag=True, source="d.md")
 
 
 @pytest.mark.parametrize(

@@ -19,9 +19,9 @@ Stanza keys (all under ``artifacts.agents``):
 ``outputDir``         directory to write (``src/cursor/agents``)
 ``frontmatterKeep``   top-level frontmatter keys to keep, in output order
 ``deriveReadonly``    when true, emit ``readonly: true`` for an agent whose
-                      ``tools`` list names only read-only tools, and do not
-                      ship an agent whose ``tools`` list is restricted but not
-                      all read-only
+                      ``tools`` (list or comma-separated string) names only
+                      read-only tools, and do not ship an agent whose ``tools``
+                      is restricted (including empty) but not all read-only
 ``excludeFilenames``  source file names to skip
 
 ``readonly`` is derived, never guessed: an agent without a ``tools`` list gets
@@ -63,15 +63,18 @@ _DEFAULT_EXCLUDES = ("AGENTS.md", "CLAUDE.md")
 _READONLY_TOOLS = frozenset({"Read", "Glob", "Grep", "WebSearch", "WebFetch"})
 # An MCP tool name is `mcp__<server>__<words>`, the words joined by `_`. It is
 # read-only when a read verb leads the words (`get_file_contents`) or the last
-# word is `read` (`issue_read`), and no word names a mutation (`find_and_replace`).
+# word is `read` (`issue_read`), and no word names a mutation (`find_and_replace`,
+# `get_and_run`). `run` is a noun in `get_workflow_run`, so it is not a mutating
+# word; a compound name (`and`, `then`) is rejected instead. `query` is not a
+# read word: `mcp__db__query` can run a write.
 # An unfamiliar name matches neither test and never earns `readonly: true`.
-_READ_WORDS = frozenset(
-    {"get", "list", "read", "find", "search", "ask", "resolve", "initial", "query"}
-)
+_READ_WORDS = frozenset({"get", "list", "read", "find", "search", "ask", "resolve", "initial"})
+_COMPOUND_WORDS = frozenset({"and", "then"})
 _MUTATING_WORDS = frozenset(
     {
         "write", "edit", "create", "update", "delete", "add", "merge", "push", "replace",
         "insert", "rename", "remove", "apply", "move", "fork",
+        "exec", "execute", "send", "post", "set", "close", "dispatch",
     }
 )  # fmt: skip
 
@@ -106,23 +109,44 @@ def is_readonly_tool(tool: object) -> bool:
     if len(parts) < 3 or parts[0] != "mcp":
         return False
     words = parts[-1].split("_")
-    if any(word in _MUTATING_WORDS for word in words):
+    if any(word in _MUTATING_WORDS or word in _COMPOUND_WORDS for word in words):
         return False
     return words[0] in _READ_WORDS or words[-1] == "read"
 
 
+def declared_tools(frontmatter: dict[str, object]) -> list[object] | None:
+    """The agent's ``tools`` as a list, or ``None`` when it declares none.
+
+    Claude Code accepts a YAML list or a comma-separated string
+    (``tools: Read, Write``, see ``generate_agents_common.py``); both are
+    restrictions. Any other non-null type is an error, so the build fails
+    instead of shipping an unrestricted agent.
+    """
+    tools = frontmatter.get("tools")
+    if tools is None:
+        return None
+    if isinstance(tools, list):
+        return list(tools)
+    if isinstance(tools, str):
+        return [name for name in (part.strip() for part in tools.split(",")) if name]
+    raise AgentCopyError(
+        f"`tools` must be a list or a comma-separated string, got {type(tools).__name__}"
+    )
+
+
 def derive_readonly(frontmatter: dict[str, object]) -> bool:
     """True when the agent declares tools and every one is read-only."""
-    tools = frontmatter.get("tools")
-    if not isinstance(tools, list) or not tools:
-        return False
-    return all(is_readonly_tool(tool) for tool in tools)
+    tools = declared_tools(frontmatter)
+    return bool(tools) and all(is_readonly_tool(tool) for tool in tools or [])
 
 
 def has_inexpressible_restriction(frontmatter: dict[str, object]) -> bool:
-    """True when ``tools`` restricts the agent in a way ``readonly`` cannot express."""
-    tools = frontmatter.get("tools")
-    return isinstance(tools, list) and bool(tools) and not derive_readonly(frontmatter)
+    """True when ``tools`` restricts the agent in a way ``readonly`` cannot express.
+
+    An empty list or empty string restricts the agent to nothing. Cursor has no
+    way to say that, so it fails closed like any other non-read-only list.
+    """
+    return declared_tools(frontmatter) is not None and not derive_readonly(frontmatter)
 
 
 def render_agent(
@@ -143,8 +167,11 @@ def render_agent(
         raise AgentCopyError(f"{source}: unparseable frontmatter: {exc}") from exc
     if not isinstance(loaded, dict):
         raise AgentCopyError(f"{source}: frontmatter is not a mapping")
-    if derive_readonly_flag and has_inexpressible_restriction(loaded):
-        return None
+    try:
+        if derive_readonly_flag and has_inexpressible_restriction(loaded):
+            return None
+    except AgentCopyError as exc:
+        raise AgentCopyError(f"{source}: {exc}") from exc
     kept = {key: loaded[key] for key in keep if key in loaded}
     if derive_readonly_flag and derive_readonly(loaded):
         kept[_READONLY_KEY] = True
