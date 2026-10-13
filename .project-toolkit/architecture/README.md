@@ -99,7 +99,6 @@ These bind today.
 | [ADR-006](ADR-006-thin-workflows-testable-modules.md) | Thin Workflows, Testable Modules | 2026-04-29 | Chosen option: Option 1 - Thin Workflows, Testable Modules |
 | [ADR-008](ADR-008-protocol-automation-lifecycle-hooks.md) | Protocol Automation via Lifecycle Hooks | 2026-08-19 | Lifecycle hooks MUST automate SESSION-PROTOCOL enforcement. |
 | [ADR-009](ADR-009-parallel-safe-multi-agent-design.md) | Parallel-Safe Multi-Agent Design | 2025-12-20 | Multi-agent coordination MUST include consensus mechanisms for conflict resolution. |
-| [ADR-010](ADR-010-quality-gates-evaluator-optimizer.md) | Quality Gates with Evaluator-Optimizer Pattern | 2025-12-20 | All significant outputs MUST pass through a formalized evaluator-optimizer loop. |
 | [ADR-014](ADR-014-distributed-handoff-architecture.md) | Distributed Handoff Architecture | 2026-08-16 | Implement a three-tier distributed handoff architecture that eliminates centralized HANDOFF.md as a write target: |
 | [ADR-015](ADR-015-artifact-storage-minimization.md) | Artifact Storage Minimization Strategy | 2025-12-22 | Reduce artifact retention to minimum necessary duration: |
 | [ADR-016](ADR-016-workflow-execution-optimization.md) | Workflow Execution Optimization Strategy | 2025-12-22 | Implement two complementary optimizations: |
@@ -208,6 +207,7 @@ Superseded or deprecated. Do not cite these. The last column is where the decisi
 | [ADR-004](ADR-004-pre-commit-hook-architecture.md) | Pre-Commit Hook as Validation Orchestration Point | superseded | [ADR-086](ADR-086-lefthook-local-hook-orchestration.md) |
 | [ADR-005](ADR-005-powershell-only-scripting.md) | PowerShell-Only Scripting Standard | superseded | [ADR-042](ADR-042-python-migration-strategy.md) |
 | [ADR-007](ADR-007-memory-first-architecture.md) | Memory-First Architecture | superseded | [ADR-106](ADR-106-serena-only-memory-architecture.md) |
+| [ADR-010](ADR-010-quality-gates-evaluator-optimizer.md) | Quality Gates with Evaluator-Optimizer Pattern | deprecated | not recorded |
 | [ADR-024](ADR-024-github-actions-runner-selection.md) | GitHub Actions Runner Selection | superseded | [ADR-055](ADR-055-github-actions-runner-selection.md) |
 | [ADR-025](ADR-025-github-actions-arm-runners.md) | GitHub Actions ARM Runner Migration | superseded | [ADR-055](ADR-055-github-actions-runner-selection.md) |
 | [ADR-028](ADR-028-powershell-output-schema-consistency.md) | PowerShell Output Schema Consistency | superseded | [ADR-103](ADR-103-skill-output-python-contract-correction.md) (via ADR-056) |
