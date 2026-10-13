@@ -14,6 +14,10 @@ destination), and each was found the same way: by measuring the OUTPUT rather
 than only the divergence. A gap is write-safe only when a test in this file
 says so.
 
+A fifth shape, a mistaken closer next to a raw HTML block that leaves a
+tracked file unclosed, is no longer a pin. `--write` refuses it; see
+test_fix_fences_write_guard.py.
+
 These are ratchets, not endorsements. Closing any part of a gap lowers its
 counts and fails its test. Lower the pin; never raise it.
 """
@@ -395,75 +399,3 @@ class TestBlockquoteInterruptingAParagraphIsDestructive:
             assert repair_markdown_fences(text) == text, (
                 f"a fence inside a blockquote used to be left alone: {text!r}"
             )
-
-
-class TestAMistakenCloserCanLeaveTheDocumentUnclosed:
-    """The only gap on this list that a file in THIS repository reaches.
-
-    The other four are hand-constructed shapes. This one is a tracked file.
-
-    A review pointed out that the fuzz corruption ratchet classified a repair
-    by EDIT SHAPE: `repaired.startswith(text)` meant an append, anything else
-    meant a middle rewrite, and only appends were asserted against. A repair
-    that rewrites the middle AND grows the document therefore failed
-    `startswith`, landed in the middle-rewrite count, and never reached the
-    zero-append assertion.
-
-    Chasing that produced this. The tool treats a fence carrying an info
-    string inside an open block as a mistaken closer, which is a deliberate
-    divergence from CommonMark and is normally harmless: it splits one fence
-    into two and the document stays balanced. On one arrangement it does not.
-    `--write` inserts a closer before the inner fence and appends another at
-    EOF, and the appended one is a fresh OPENER with nothing to close it.
-
-    Measured on the file below, and confirmed against `markdown-it` directly
-    rather than only through the balance predicate, because that predicate has
-    carried three separate bugs on this branch:
-
-        before: 1 fence token, map=[28, 38], does not reach EOF -> balanced
-        after : 3 fence tokens, the last map=[68, 69] reaching EOF with an
-                empty body and no closer -> unclosed
-
-    Across all 4,533 tracked Markdown files this is the only one, and the
-    corpus-wide scan that establishes that takes 18.5s, which is too slow for
-    this suite. So the count lives here in prose and the file itself is the
-    pin. Re-run the sweep when this changes.
-
-    The consequence for the PR's headline claim is stated rather than hidden:
-    "`--write` appends to no balanced document" was true and was measuring the
-    wrong property. Balanced-stays-balanced is the property, and by it this
-    repository has one failing file today.
-    """
-
-    FILE = "serena/memories/prompting/prompt-engineering-merge-conflict-analysis.md"
-
-    def _path(self) -> Path:
-        # Assembled rather than written whole: a literal path to a dotfile
-        # directory in a test is the kind of string a future sweep rewrites.
-        return Path(__file__).resolve().parents[3] / f".{self.FILE}"
-
-    def test_the_file_is_still_here_and_still_balanced(self) -> None:
-        """Without this, deleting or fixing the file makes the pin vacuous."""
-        path = self._path()
-        assert path.is_file(), (
-            f"{path} is gone. The corruption pin below cannot mean anything "
-            "without it; re-run the corpus sweep and re-derive this class."
-        )
-        assert not _has_unclosed_fence(path.read_text(encoding="utf-8")), (
-            "the input is supposed to be balanced; if it is not, this is no "
-            "longer the corruption case it was written for"
-        )
-
-    def test_write_still_breaks_it(self) -> None:
-        text = self._path().read_text(encoding="utf-8")
-        repaired = repair_markdown_fences(text)
-        assert repaired != text, "the repair no longer touches this file"
-        # The shape the old assertion could not see: not an append.
-        assert not repaired.startswith(text), (
-            "this became a pure append, which the shape-based assertion would "
-            "now catch; re-derive this class"
-        )
-        assert _has_unclosed_fence(repaired), (
-            "--write no longer leaves this file unclosed. If a fix did that, "
-            "delete this class and lower the corpus count in the PR body to 0."
-        )
