@@ -194,6 +194,10 @@ FILE_MENTION_PATTERNS: list[re.Pattern[str]] = [
 # `<CITE>` before FILE_MENTION_PATTERNS runs. This prevents the path from
 # being collected as a change claim.
 #
+# The cited span may end in an optional location suffix, `:LINE` or
+# `:LINE:COL`, so a cue before a backticked path with `:71` is stripped like
+# the same cue before the bare path (issue #5550).
+#
 # INTENTIONALLY NARROW: the cue must appear on the SAME line as the path
 # and be separated only by optional whitespace / parentheses / colons.
 # This avoids suppressing list-item change claims that happen to follow
@@ -204,7 +208,7 @@ _INLINE_CITATION_PATTERN = re.compile(
     r"|as documented in|referenced by|defined in|introduced in"
     r"|reference path|cf\.|compare)"
     r"[: \t(]*"
-    r"`[^`]+\.[a-zA-Z][a-zA-Z0-9_]*`",
+    rf"`[^`]+\.[a-zA-Z][a-zA-Z0-9_]*{_LINE_SUFFIX}`",
 )
 
 # Summary text patterns that identify a <details> block as bot-generated

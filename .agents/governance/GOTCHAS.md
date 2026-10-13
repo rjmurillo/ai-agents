@@ -549,7 +549,8 @@ before the path, separated only by whitespace, colons, or an open paren. And
 the backtick span must end at the extension: `` `taste_lints.py` `` is
 suppressible, `` `taste_lints.py --rules file-size` `` is not, because the
 trailing flags push the closing backtick past the extension. Reword so the
-path stands alone in its own span.
+path stands alone in its own span. A `:LINE` or `:LINE:COL` suffix inside the
+span is allowed (`` `checks_ratchet.py:71` `` is suppressible).
 
 Do not guess at the shape and push to find out. The extractor imports and runs
 offline against a candidate body, which turns a round trip through CI into a
