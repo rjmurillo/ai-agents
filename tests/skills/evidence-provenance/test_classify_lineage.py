@@ -303,6 +303,46 @@ def test_rejected_item_cannot_link_loops_or_count() -> None:
     assert report["rejected"][0]["id"] == "old-run"
 
 
+def test_inheritance_from_a_rejected_item_is_not_independent() -> None:
+    record = load_fixture("x7_inherits_stale_revision")
+    report = classify_lineage.classify(record, False)
+    row = report["evidence"][0]
+
+    assert row["id"] == "second-agent-review"
+    assert row["independent"] is False
+    assert report["independent_loops"] == 0
+
+
+def test_inheritance_taint_follows_a_chain_through_accepted_items() -> None:
+    record = load_fixture("x7_inherits_stale_revision")
+    record["evidence"].append(
+        item(
+            "third-review",
+            premises=["review:r2"],
+            origin="human",
+            inherits_from=["second-agent-review"],
+        )
+    )
+    report = classify_lineage.classify(record, False)
+    reasons = {r["id"]: r["not_independent_because"] for r in report["evidence"]}
+
+    assert reasons["third-review"] == ["inherits-rejected-evidence"]
+    assert report["independent_loops"] == 0
+
+
+def test_inheriting_an_accepted_independent_item_stays_independent() -> None:
+    record = {
+        "subject": subject(),
+        "evidence": [
+            item("base", premises=["obs:a"], origin="human"),
+            item("child", premises=["obs:b"], origin="human", inherits_from=["base"]),
+        ],
+    }
+    report = classify_lineage.classify(record, False)
+
+    assert [r["independent"] for r in report["evidence"]] == [True, True]
+
+
 @pytest.mark.parametrize(
     "mutate, message",
     [

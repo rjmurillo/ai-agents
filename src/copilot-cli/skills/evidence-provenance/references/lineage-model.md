@@ -65,7 +65,11 @@ An item is independent when all of these hold:
 independent items that share a premise are one loop.
 
 A rejected item (`binding-mismatch`, `binding-missing`) is removed before
-grouping. It cannot link loops and cannot count.
+grouping. It cannot link loops and cannot count. Rejection does not launder
+inheritance: an item that inherits from a rejected item, directly or through a
+chain of accepted items, is not independent
+(`inherits-rejected-evidence`). The conclusion it was handed came from evidence
+that cannot speak for this artifact revision.
 
 ## Verdict order
 
@@ -100,3 +104,4 @@ carries only a conclusion drops `premises`, and the item falls to
 | Stale revision, other artifact | `x1_stale_revision`, `x2_other_artifact` | rejected |
 | Promotion bindings | `x3_promotion_complete`, `x4_promotion_missing_command` | accepted, rejected |
 | Lineage lost in a handoff | `x5_lineage_dropped_on_handoff` | not independent |
+| Reviewer inherits from a rejected item | `x6_inherits_rejected_missing_binding`, `x7_inherits_stale_revision` | not independent, claim inflated |

@@ -66,6 +66,7 @@ class Item:
     discriminating: bool = False
     used_as_support: bool = False
     bound_to: dict[str, Any] | None = None
+    inherits_rejected: bool = False
 
 
 def pick(raw: JsonObject, key: str, allowed: tuple[str, ...], default: str) -> str:
@@ -186,8 +187,23 @@ def build_loops(subject: dict[str, Any], items: list[Item]) -> LoopMap:
     return loops
 
 
+def mark_rejected_inheritance(items: list[Item], rejected_ids: set[str]) -> None:
+    """Flag every item that inherits, directly or through a chain, from a rejected item."""
+    tainted = set(rejected_ids)
+    changed = True
+    while changed:
+        changed = False
+        for item in items:
+            if item.id not in tainted and tainted.intersection(item.inherits_from):
+                tainted.add(item.id)
+                item.inherits_rejected = True
+                changed = True
+
+
 def independence_reasons(item: Item, in_subject_loop: bool) -> list[str]:
     reasons = []
+    if item.inherits_rejected:
+        reasons.append("inherits-rejected-evidence")
     if item.premises is None:
         reasons.append("lineage-missing")
     if in_subject_loop:
@@ -291,6 +307,7 @@ def classify(record: dict[str, Any], promotion: bool) -> dict[str, Any]:
     problems = {item.id: binding_problem(item, subject, promotion) for item in every}
     items = [item for item in every if not problems[item.id]]
     rejected = [{"id": i.id, "reason": problems[i.id]} for i in every if problems[i.id]]
+    mark_rejected_inheritance(items, {key for key, why in problems.items() if why})
     loops = build_loops(subject, items)
     labels = loop_labels(loops, items)
     rows = [describe(item, loops, labels) for item in items]
