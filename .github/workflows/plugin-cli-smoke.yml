@@ -347,7 +347,7 @@ jobs:
         run: |
           python -I trusted-base/scripts/validation/assert_smoke_ran.py plugin-load-report.xml \
             --smoke-substr test_plugin_load_smoke \
-            --expected-count 5 \
+            --expected-count 6 \
             --allow-skip-marker QUOTA_SKIP: \
             --require-pass test_copilot_plugin_loads_expected_skills
           python -I trusted-base/scripts/validation/smoke_quota_report.py plugin-load-report.xml \
