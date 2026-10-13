@@ -144,6 +144,7 @@ from checks_tooling import (
     validate_ci_dependency_pins,
     validate_copilot_version_pin,
     validate_effective_context_ratchet,
+    validate_external_contract_records,
     validate_instruction_budget,
     validate_instruction_bytes,
     validate_markdown_lint,
@@ -675,6 +676,14 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate(
         "Capability Graph (metadata.capability)",
         _root_only(validate_capability_graph_declarations),
+    ),
+    # Checks the short provenance record a load-bearing external contract
+    # carries beside its consumer: closed field list, a real re-check path for
+    # empirical evidence, no pasted source text. A file with no record passes
+    # (issue #5415).
+    _Gate(
+        "External Contract Records (external-contract)",
+        _root_only(validate_external_contract_records),
     ),
     # Ratchets authored duplicate normative blocks and stale derived counts in
     # natural-language artifacts; generated mirrors are excluded (issue #5397).
