@@ -97,7 +97,12 @@ _SELF_REFERENTIAL_FILES: frozenset[str] = frozenset(
 # also carries hand-maintained files with no `scripts/` canonical source
 # (`paths.py`, `qa_report.py`, and siblings), whose own suppressions, if any,
 # are original and should still count.
-_LIB_MIRROR_ROOTS: tuple[str, ...] = (".claude/lib", "src/claude/lib", "src/copilot-cli/lib")
+_LIB_MIRROR_ROOTS: tuple[str, ...] = (
+    ".claude/lib",
+    "src/claude/lib",
+    "src/copilot-cli/lib",
+    "src/codex/lib",
+)
 _LIB_MIRROR_PACKAGES: tuple[str, ...] = LIB_MIRROR_PACKAGES
 _LIB_MIRROR_PREFIXES: tuple[str, ...] = tuple(
     f"{root}/{pkg}/" for root in _LIB_MIRROR_ROOTS for pkg in _LIB_MIRROR_PACKAGES
@@ -119,7 +124,11 @@ def _is_generated_lib_mirror(path_str: str) -> bool:
 # src/copilot-cli/skills/ are byte-for-byte generated mirrors of it. Keyed on
 # the canonical source actually existing (same defense as the lib check
 # above), not on the output prefix alone.
-_SKILL_MIRROR_ROOTS: tuple[str, ...] = ("src/claude/skills", "src/copilot-cli/skills")
+_SKILL_MIRROR_ROOTS: tuple[str, ...] = (
+    "src/claude/skills",
+    "src/copilot-cli/skills",
+    "src/codex/skills",
+)
 _SKILL_CANONICAL_ROOT = ".claude/skills"
 
 

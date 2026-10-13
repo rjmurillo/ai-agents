@@ -216,6 +216,19 @@ surfaces:
     authority_exclude: [merge-resolver]
     owner: build_all.py --check
     reason: Frontmatter keys model and model-rationale drop; argument, agent, skill, and tool syntax is rewritten. merge-resolver is excluded (issue #2026).
+  - id: skills-review-sidecar-codex
+    path: src/codex/skills/review/scripts/validate_review_marker.py
+    relation: generated
+    authority: scripts/validation/validate_review_marker.py
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
+  - id: skills-codex
+    path: src/codex/skills
+    relation: translated
+    authority: .claude/skills
+    generator: build/scripts/generate_skills.py
+    owner: build_all.py --check
+    reason: Frontmatter keys model and model-rationale drop; the body ships verbatim (ADR-115 Decision 2).
 
   # ---- Lib packages -------------------------------------------------------
   - id: lib-hook-utilities-claude-plugin
@@ -269,6 +282,34 @@ surfaces:
     reason: Absolute imports are rewritten to relative imports.
   - id: lib-bootstrap-copilot-plugin
     path: src/copilot-cli/lib/bootstrap.py
+    relation: translated
+    authority: scripts/hook_utilities/bootstrap.py
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
+    reason: Absolute imports are rewritten to relative imports.
+  - id: lib-hook-utilities-codex-plugin
+    path: src/codex/lib/hook_utilities
+    relation: translated
+    authority: scripts/hook_utilities
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
+    reason: Absolute imports are rewritten to relative imports.
+  - id: lib-github-core-codex-plugin
+    path: src/codex/lib/github_core
+    relation: translated
+    authority: scripts/github_core
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
+    reason: Absolute imports are rewritten to relative imports.
+  - id: lib-ai-review-common-codex-plugin
+    path: src/codex/lib/ai_review_common
+    relation: translated
+    authority: scripts/ai_review_common
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
+    reason: Absolute imports are rewritten to relative imports.
+  - id: lib-bootstrap-codex-plugin
+    path: src/codex/lib/bootstrap.py
     relation: translated
     authority: scripts/hook_utilities/bootstrap.py
     generator: build/scripts/lib_mirror.py
@@ -380,6 +421,11 @@ surfaces:
     relation: independent
     include: ["docs/**", ".claude-plugin/**"]
     reason: Plugin documentation and plugin manifest are authored in place.
+  - id: src-codex-authored
+    path: src/codex
+    relation: independent
+    include: ["plugin.json"]
+    reason: Plugin manifest is authored in place (ADR-115 Decision 1).
   - id: claude-guides
     path: .claude
     relation: independent

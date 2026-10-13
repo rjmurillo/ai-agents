@@ -105,7 +105,14 @@ _EXTRA_HISTORICAL_ROOTS = (
 #
 # src/hermes/ (ADR-115 Decision 6) joins the list: each pack copies skills/<name>/
 # and the rendered lib/ from those same sources, so the same reasoning holds.
-_GENERATED_SKILL_MIRROR_ROOTS = ("src/claude/skills/", "src/copilot-cli/skills/", "src/hermes/")
+_GENERATED_SKILL_MIRROR_ROOTS = (
+    "src/claude/skills/",
+    "src/copilot-cli/skills/",
+    "src/hermes/",
+    "src/codex/skills/",
+    # Lib packages render from scripts/ with an import rewrite (lib_mirror.py).
+    "src/codex/lib/",
+)
 
 
 @dataclass(frozen=True)
