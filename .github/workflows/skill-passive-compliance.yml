@@ -53,6 +53,12 @@ jobs:
               - 'scripts/skill_description_budget.py'
               - 'scripts/skill_description_budget.json'
               - 'tests/test_skill_description_budget.py'
+              - 'scripts/eval/skill_collision_report.py'
+              - 'scripts/eval/_skill_collision.py'
+              - 'scripts/eval/skill_collision_baseline.json'
+              - 'tests/eval/test_skill_collision_report.py'
+              - 'tests/eval/test_skill_collision_core.py'
+              - 'tests/eval/_skill_collision_test_support.py'
 
       - name: Determine if compliance validation should run
         id: determine
@@ -90,6 +96,9 @@ jobs:
 
       - name: Run skill description budget
         run: python3 scripts/skill_description_budget.py --budget-file scripts/skill_description_budget.json
+
+      - name: Run skill collision policy
+        run: python3 scripts/eval/skill_collision_report.py --baseline scripts/eval/skill_collision_baseline.json
 
   skip-compliance:
     name: Skip compliance (no changes)

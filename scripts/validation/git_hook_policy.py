@@ -94,6 +94,7 @@ ROOT_SCRATCH_ALLOWLIST = frozenset(
         "conftest.py",
         "lefthook.yml",
         "llms.txt",
+        "package.json",
         "pyproject.toml",
         "renovate.json",
         "uv.lock",
@@ -120,6 +121,7 @@ ALLOWED_REPO_ROOT_ENTRIES = frozenset(
         ".gitattributes",
         ".github",
         ".gitignore",
+        ".grok-plugin",
         ".markdownlint-cli2.yaml",
         ".mcp.json",
         ".project-toolkit",
@@ -147,6 +149,7 @@ ALLOWED_REPO_ROOT_ENTRIES = frozenset(
         "lefthook.yml",
         "llms.txt",
         "memory_enhancement",
+        "package.json",
         "packages",
         "pr_body.md",
         "pyproject.toml",
@@ -771,6 +774,13 @@ _GENERATED_MIRRORS: tuple[tuple[str, str, tuple[str, str] | None], ...] = (
     # src/copilot-cli/skills/ row above, no _COPILOT_SKILL_EXCLUDES-style
     # filter applies here: merge-resolver ships in the Claude plugin tree.
     ("src/claude/skills/", ".claude/skills/", None),
+    # ADR-115 Decision 7: the Codex plugin tree copies the same skill files and
+    # lib packages. SKILL.md differs by the dropped model keys, which carry no
+    # suppression comment; every script is a byte copy, so
+    # _drop_verbatim_mirror_violations still compares in full before it drops
+    # anything.
+    ("src/codex/lib/", ".claude/lib/", None),
+    ("src/codex/skills/", ".claude/skills/", None),
 )
 # Matcher-shim suffix appended by generate_hooks_emit._matcher_suffix.
 # Format: __{sanitized}_{6-hex-digest} or just __{6-hex-digest} before .py.

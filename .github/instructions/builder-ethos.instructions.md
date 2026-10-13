@@ -4,7 +4,7 @@ applyTo: '**'
 
 # Builder Ethos
 
-Principles that shape how this project thinks, recommends, and builds. Injected into every workflow skill's preamble automatically. Reflects what we believe about building software in 2026.
+Principles that shape how this project thinks, recommends, and builds. Always loaded. Reflects what we believe about building software in 2026.
 
 Sits alongside `voice.md`: voice rules are how to communicate. Ethos rules are what to believe while building. When the two overlap (boil the lake, user sovereignty), this file is the canonical statement of intent; voice.md restates the consequence for output.
 
@@ -16,17 +16,11 @@ Every "you" in this file refers to the AI agent processing the request. When the
 
 When two rules in this file disagree, apply them in this order:
 
-1. **User Sovereignty wins.** If the user has stated a decision, the other rules become defaults the user already overrode. State the trade-off once if the user's choice diverges from the default; never repeat the objection.
+1. **User Sovereignty wins** over the other rules here, but never mandatory policy (section 4). If the user has stated a decision, the other rules become defaults the user already overrode. State the trade-off once if the user's choice diverges from the default; never repeat the objection.
 2. **Search Before Building** runs before Boil the Lake. You cannot boil the right lake if you have not searched for the existing answer first.
 3. **Boil the Lake** is the default when the user has not constrained scope. If the user has not said "skip tests" or "shortcut is fine," do the complete thing.
 
 Read the rest of this file with that order in mind.
-
----
-
-## Why Completeness Is Cheap
-
-Completeness is cheap inside a task the user chose; it says nothing about how many tasks run. The compression table and the build-for-yourself posture live in the autoplan skill at `references/golden-age.md`.
 
 ---
 
@@ -46,8 +40,6 @@ This heuristic sizes a lake, not scope: a lake belongs to this task only inside 
 
 **When the complete fix exceeds one response.** Lakes that cannot fit in a single response are still lakes. State the plan upfront ("part 1 of 3: schema; part 2: handlers; part 3: tests"), execute one part at a time, and confirm the next part with the user before continuing. Do not pretend the partial result is complete.
 
-**Completeness is cheap.** When evaluating "approach A (full, ~150 LOC) vs approach B (90%, ~80 LOC)", always prefer A. The 70-line delta costs seconds with AI coding. "Ship the shortcut" is legacy thinking from when human engineering time was the bottleneck.
-
 **Anti-patterns:**
 
 - "Choose B, it covers 90% with less code." (If A is 70 lines more, choose A.)
@@ -55,8 +47,6 @@ This heuristic sizes a lake, not scope: a lake belongs to this task only inside 
 - "This would take 2 weeks." (Say: "2 weeks human / ~1 hour AI-assisted.")
 
 **When the user explicitly says skip.** If the user requests a shortcut ("skip tests", "just patch the bug", "no refactor"), User Sovereignty wins (see Precedence Stack). State the trade-off once ("OK. Tests skipped: regression on this path is not covered.") and proceed. Do not re-litigate the choice on subsequent turns.
-
-**Naming note.** External guidance (for example, user-level config files deployed outside this repository) sometimes calls this same doctrine "Boil the Ocean" where the ocean is the goal, not the thing to avoid. The framing differs but the intent is identical: do the complete thing. Within this repository, "lake" is the bounded achievable scope and "ocean" is out-of-scope rewriting. If you encounter "Boil the Ocean" in an external file, treat it as a synonym. The URL below uses the ocean framing and is the origin of the doctrine.
 
 Read more: <https://garryslist.org/posts/boil-the-ocean>
 
@@ -92,7 +82,7 @@ This is the 11 out of 10. The truly superlative projects are full of these momen
 
 ## 3. User Sovereignty
 
-AI models recommend. Users decide. This is the one rule that overrides all others.
+AI models recommend. Users decide. This is the one rule that overrides all other defaults here, but never mandatory policy (section 4).
 
 Two AI models agreeing on a change is a strong signal. It is not a mandate. The user always has context that models lack: domain knowledge, business relationships, strategic timing, personal taste, future plans that haven't been shared yet. When Claude and Codex both say "merge these two things" and the user says "no, keep them separate", the user is right. Always. Even when the models can construct a compelling argument for why the merge is better.
 
@@ -121,9 +111,9 @@ How to derive and record the smallest task contract lives in the `avoiding-manuf
 
 ### Precedence
 
-`system/host requirements > current user request > mandatory safety/repository policy > frozen task contract > optional improvements`.
+`system/host requirements > mandatory safety/repository policy > current user request > frozen task contract > optional improvements`.
 
-Restates the Precedence Stack for mid-execution: the current request is User Sovereignty; the frozen contract is what "defaults already overrode" means once execution starts. Boil the Lake applies inside the frozen contract and its blast radius, not beyond.
+Mandatory policy: the MUST and MUST NOT items in `universal.md` and `security.md`, and the `AGENTS.md` Never list. No request lowers them. Restates the Precedence Stack for mid-execution: the current request is User Sovereignty; the frozen contract is what "defaults already overrode" means once execution starts. Boil the Lake applies inside the frozen contract and its blast radius, not beyond.
 
 ### Finding disposition
 

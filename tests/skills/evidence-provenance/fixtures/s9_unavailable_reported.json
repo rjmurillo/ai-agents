@@ -1,0 +1,23 @@
+{
+  "claim": "release is safe",
+  "subject": {
+    "artifact": "pkg",
+    "revision": "r2",
+    "premises": [
+      "interp:R"
+    ]
+  },
+  "evidence": [],
+  "checks": [
+    {
+      "check": "load test",
+      "state": "UNAVAILABLE",
+      "cheap": false,
+      "available": false
+    }
+  ],
+  "expect": {
+    "exit": 0,
+    "violations": []
+  }
+}

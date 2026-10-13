@@ -4,6 +4,18 @@ applyTo: scripts/validation/**,build/scripts/**,.github/prompts/**
 
 # Canonical Source Mirror Rule
 
+<!-- vendor-portability: contributor-facing rule for the rjmurillo/ai-agents repo
+     itself; it binds new components to the upstream validators, generators,
+     retrospectives, and governance docs it names. None of these exist in a consumer
+     install (issue #5298). Paths: .agents/governance,
+     .claude/skills/orphan-ref-validator/scripts/envelope.py,
+     .project-toolkit/retrospective,
+     .project-toolkit/retrospective/2026-05-05-pr-1887-iteration-paradox.md,
+     .project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md,
+     build/scripts, build/scripts/generate_rules.py, scripts/validate_session_json.py,
+     scripts/validation, scripts/validation/check_placeholder_identity.py,
+     templates/agents/implementer.shared.md, templates/platforms/copilot-cli.yaml -->
+
 When a component's docstring, comment, or README claims to "match", "mirror", "align with", or "extend" an existing source (a regex, a schema, a function signature, a set of exit codes, a JSON contract), the claim is a load-bearing assertion. The reader trusts it. So does the reviewer. So does the next maintainer who replays the contract from your code instead of from the source.
 
 This rule binds those claims to evidence. It exists because PR #1887 (the M4 evidence-rule guard) was designed against an imagined contract instead of the canonical `scripts/validate_session_json.py:CONTRADICTION_PATTERNS` regex. The error survived several reviews. Aligning M4 to canonical took 7 fix commits. The retrospective at `.project-toolkit/retrospective/2026-05-05-pr-1887-iteration-paradox.md` names this anti-pattern "confident incorrectness": partial signal, premature conclusion, confident delivery, multi-round correction.
@@ -87,7 +99,7 @@ The gate checks: the cited file must be tracked at HEAD, the cited lines must ex
 
 Everything else in this section remains manual. A claim that names a symbol, a test, or a count WITHOUT a line number is invisible to that gate, and two other gates look like they would catch it and do not:
 
-- `orphan-ref-validator` reports four kinds of finding, and its type at `.claude/skills/orphan-ref-validator/scripts/envelope.py:28-34` enumerates all of them: <!-- citation-freshness: ignore -- the checker harvests 'orphan-ref-validator' from this same sentence's file path as a spurious anchor, and the fenced code block's continuation-quote anchor carries this list's 2-space markdown indent, absent from the unindented module-level code at those lines; content verified present and correct at 28-34, 2026-09-14 -->
+- `orphan-ref-validator` reports five kinds of finding, and its type at `.claude/skills/orphan-ref-validator/scripts/envelope.py:28-35` enumerates all of them: <!-- citation-freshness: ignore -- the checker harvests 'orphan-ref-validator' from this same sentence's file path as a spurious anchor, and the fenced code block's continuation-quote anchor carries this list's 2-space markdown indent, absent from the unindented module-level code at those lines; content verified present and correct at 28-35, 2026-10-13 -->
 
   ```python
   Kind = Literal[
@@ -95,6 +107,7 @@ Everything else in this section remains manual. A claim that names a symbol, a t
       "script_path",
       "rule_path",
       "instruction_path",
+      "retired_path",
       "scan_truncated",
   ]
   ```

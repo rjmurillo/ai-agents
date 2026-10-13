@@ -60,3 +60,7 @@ PR description validation runs in CI on the PR and is not listed here.
 ## Outcome
 
 Concluded with Disagree-and-Commit from both seats. Final status: `proposed`. The owner decides acceptance.
+
+## Post-round edit, 2026-10-13
+
+ADR-117 landed on main and took FM #13. The Decision section now says the next free number at acceptance, FM #14 today. No other text changed and no seat re-reviewed the edit. Fixes #5300 is added to the PR body because this ADR is the proposal that issue asks for.

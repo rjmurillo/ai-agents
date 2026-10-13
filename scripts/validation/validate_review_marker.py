@@ -10,6 +10,14 @@ the commit, travels in every clone, and binds to a specific SHA. See Issue #1938
 MARKER CONTRACT (the single source of truth for both the writer and this reader):
 
     Reviewed-By: /review@<axis1,axis2,...> on <40-or-64-hex-sha>
+    Review-Artifact: sha256:<64-hex-digest-of-the-review-report>
+
+The commit body also carries the review report that the digest covers:
+
+    --- review report ---
+    Reviewed-SHA: <the same sha the Reviewed-By trailer names>
+    <axis>: <VERDICT>          (one row per axis in the Reviewed-By list)
+    --- end review report ---
 
 - ``/review@`` is a literal prefix.
 - ``<axis-list>`` is one or more comma-separated axis stems (``analyst``,
@@ -29,22 +37,40 @@ SHA-binding holds: HEAD is M only while the reviewed code (X) is HEAD's parent.
 Land any new code commit and HEAD moves to a commit with no binding marker, so a
 stale review cannot ship.
 
+WHY THE MARKER CARRIES A REVIEW REPORT (Issue #6438): a bare trailer is a
+sentence anyone can type, so a subagent that never ran the axes could write
+``git commit --allow-empty --trailer "Reviewed-By: ..."`` and pass every gate.
+The report is the reviewer's artifact: the reviewed SHA plus one verdict row per
+axis. The ``Review-Artifact`` digest binds the trailer to that exact text. A
+digest cannot prove who wrote the report; it makes the bare-trailer forgery
+fail and makes a fabricated report a deliberate act that review can see. Proof
+of identity needs a signing key or a CI-run review, which this gate does not
+attempt.
+
 This validator does not amend or write. It reads the ``Reviewed-By`` trailers on
 a commit (at the git I/O boundary, or passed in for tests) and answers one
 question: is the commit a marker whose trailer binds its parent (the reviewed
-code state)?
+code state) and whose report backs the trailer? ``--digest FILE`` prints the
+digest of a report file so the writer never hand-computes it.
 
 EXIT CODES (``AGENTS.md``, ADR-035):
     0 - A valid marker binds to the expected SHA.
-    1 - No marker, malformed marker, marker binds to a different SHA, or the
-        marker names an axis outside the discovered set (or names one twice).
+    1 - No marker, malformed marker, marker binds to a different SHA, the
+        marker names an axis outside the discovered set (or names one twice),
+        or the review report is missing, altered, or does not back the axes.
     2 - Configuration error (git unavailable, bad repo root, bad args, or no
         review axis directory to validate axis names against).
+
+``--digest REPORT_FILE`` mode has its own codes:
+    0 - The digest was printed.
+    1 - The file does not hold exactly one report block.
+    2 - The file cannot be read.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import re
 import shutil
 import subprocess
@@ -54,10 +80,18 @@ from dataclasses import dataclass
 from pathlib import Path
 
 # The trailer key the /review skill writes and /ship reads. Defined once here
-# and quoted verbatim in .claude/skills/review/SKILL.md and
-# .claude/skills/ship/SKILL.md so the writer and reader never drift (see
+# and quoted verbatim in .claude/skills/review/resources/marker-and-no-task.md
+# (the writer contract) and .claude/skills/ship/SKILL.md so the writer and
+# reader never drift (see
 # .claude/rules/canonical-source-mirror.md).
 MARKER_TRAILER_KEY = "Reviewed-By"
+
+# The digest trailer and the report delimiters. Quoted verbatim in
+# .claude/skills/review/resources/marker-and-no-task.md (the writer contract)
+# so the writer and this reader never drift.
+ARTIFACT_TRAILER_KEY = "Review-Artifact"
+REPORT_BEGIN = "--- review report ---"
+REPORT_END = "--- end review report ---"
 
 # Parse one marker value: "/review@<axes> on <sha>". The axis list is one or
 # more comma-separated stems; it must be non-empty. The SHA is 40 (sha1) or 64
@@ -67,6 +101,15 @@ _MARKER_VALUE_RE = re.compile(
     r"(?P<sha>[0-9A-Fa-f]{40}|[0-9A-Fa-f]{64})$"
 )
 
+_ARTIFACT_VALUE_RE = re.compile(r"^sha256:(?P<digest>[0-9a-f]{64})$")
+_REPORT_SHA_RE = re.compile(r"^Reviewed-SHA: (?P<sha>[0-9A-Fa-f]{40}|[0-9A-Fa-f]{64})$")
+_REPORT_ROW_RE = re.compile(r"^(?P<axis>[A-Za-z0-9_-]+): (?P<verdict>[A-Z_]+)$")
+
+# A report row passes the marker when its verdict is one /review writes a marker
+# for: PASS, or a WARN the reviewer acknowledged (review SKILL.md "Write the
+# SHA-bound PASS marker"). COMPLIANT and PARTIAL are the spec-compliance
+# spellings that merge into PASS and WARN.
+PASSING_VERDICTS = frozenset({"PASS", "COMPLIANT", "WARN", "PARTIAL"})
 
 # Axes that have no ``references/{stem}.md`` prompt but still appear in a marker.
 # LOCAL_AXES copies select_axes.py:55 (canonical source, review skill scripts/
@@ -245,8 +288,10 @@ def resolve_sha(ref: str, repo_root: Path) -> str | None:
     return sha
 
 
-def read_marker_values(ref: str, repo_root: Path) -> tuple[list[str] | None, str | None]:
-    """Read all ``Reviewed-By`` trailer values from the commit at ``ref``.
+def read_marker_values(
+    ref: str, repo_root: Path, key: str = MARKER_TRAILER_KEY
+) -> tuple[list[str] | None, str | None]:
+    """Read all ``key`` trailer values (default ``Reviewed-By``) from the commit at ``ref``.
 
     This is the one call in the gate whose stdout is commit trailer text
     rather than hex SHAs, so it is the one most likely to fail on a decode.
@@ -264,7 +309,7 @@ def read_marker_values(ref: str, repo_root: Path) -> tuple[list[str] | None, str
         [
             "log",
             "-1",
-            f"--format=%(trailers:key={MARKER_TRAILER_KEY},valueonly,unfold)",
+            f"--format=%(trailers:key={key},valueonly,unfold)",
             ref,
         ],
         repo_root,
@@ -280,6 +325,16 @@ def read_parent_shas(commit_sha: str, repo_root: Path) -> tuple[list[str] | None
     if exit_code != 0:
         return None, _git_failure_reason(exit_code, stderr, "git show parents")
     return stdout.split(), None
+
+
+def read_commit_message(ref: str, repo_root: Path) -> tuple[str | None, str | None]:
+    """Read the full commit message of ``ref``, preserving git's error."""
+    if _is_option_like_ref(ref):
+        return None, f"invalid ref '{ref}': refs must not start with '-'"
+    exit_code, stdout, stderr = _run_git(["log", "-1", "--format=%B", ref], repo_root)
+    if exit_code != 0:
+        return None, _git_failure_reason(exit_code, stderr, "git log message")
+    return stdout, None
 
 
 def resolve_tree_sha(commit_sha: str, repo_root: Path) -> tuple[str | None, str | None]:
@@ -298,6 +353,7 @@ class ValidationOutcome:
     ok: bool
     exit_code: int
     message: str
+    axes: tuple[str, ...] = ()
 
 
 def validate_ref_argument(ref: str) -> ValidationOutcome | None:
@@ -465,7 +521,10 @@ def validate_ref(
             message=_with_reason(f"git could not read commit '{ref}'", marker_read_error),
         )
 
-    return evaluate_marker_values(ref, head_sha, parent_sha, values, known_axes, references_dir)
+    outcome = evaluate_marker_values(ref, head_sha, parent_sha, values, known_axes, references_dir)
+    if not outcome.ok:
+        return outcome
+    return validate_review_artifact(head_sha, parent_sha, outcome.axes, repo_root) or outcome
 
 
 def evaluate_marker_values(
@@ -532,6 +591,107 @@ def evaluate_marker_values(
             f"reviewed: /review@{','.join(marker.axes)} binds {parent_sha[:12]} "
             f"({len(marker.axes)} axis/axes)"
         ),
+        axes=marker.axes,
+    )
+
+
+def extract_report(text: str) -> tuple[list[str] | None, str | None]:
+    """Return the report lines between the delimiters in ``text``, or why none.
+
+    Trailing whitespace and blank lines are dropped, because ``git commit``
+    cleans a message and the digest must survive that. Exactly one block is
+    allowed: a second block would let a reader and a writer hash different text.
+    """
+    lines = [line.rstrip() for line in text.splitlines()]
+    begins = [i for i, line in enumerate(lines) if line == REPORT_BEGIN]
+    ends = [i for i, line in enumerate(lines) if line == REPORT_END]
+    if len(begins) != 1 or len(ends) != 1 or begins[0] > ends[0]:
+        return None, (
+            f"needs exactly one '{REPORT_BEGIN}' ... '{REPORT_END}' block in the commit body"
+        )
+    return [line for line in lines[begins[0] + 1 : ends[0]] if line], None
+
+
+def report_digest(report: list[str]) -> str:
+    """Return the SHA-256 hex digest of the report lines, one per line, LF-ended."""
+    payload = "".join(f"{line}\n" for line in report).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def check_report_digest(report: list[str], digest_values: list[str]) -> str | None:
+    """Return why no ``Review-Artifact`` trailer matches ``report``, or ``None``."""
+    digests = [
+        m.group("digest") for v in digest_values if (m := _ARTIFACT_VALUE_RE.match(v.strip()))
+    ]
+    if not digests:
+        return f"no well-formed '{ARTIFACT_TRAILER_KEY}: sha256:<64 hex>' trailer"
+    if report_digest(report) not in digests:
+        return f"'{ARTIFACT_TRAILER_KEY}' digest does not match the review report text"
+    return None
+
+
+def check_report_rows(report: list[str], parent_sha: str, axes: tuple[str, ...]) -> str | None:
+    """Return why ``report`` does not back a marker over ``axes``, or ``None``.
+
+    The report must name the reviewed tip, carry exactly one passing row per
+    marker axis, and carry no other line.
+    """
+    sha_lines = [_REPORT_SHA_RE.match(line) for line in report]
+    named = [m.group("sha").lower() for m in sha_lines if m]
+    if named != [parent_sha]:
+        return f"report must name 'Reviewed-SHA: {parent_sha[:12]}' exactly once"
+    rows = [line for line, m in zip(report, sha_lines, strict=True) if m is None]
+    parsed = [_REPORT_ROW_RE.match(line) for line in rows]
+    if not all(parsed):
+        return "report has a line that is neither Reviewed-SHA nor '<axis>: <VERDICT>'"
+    verdicts = {m.group("axis"): m.group("verdict") for m in parsed if m}
+    if len(verdicts) != len(rows) or set(verdicts) != set(axes):
+        return f"report rows must be exactly the marker axes: {', '.join(axes)}"
+    failing = sorted(a for a, v in verdicts.items() if v not in PASSING_VERDICTS)
+    if failing:
+        return f"report has a non-passing verdict for: {', '.join(failing)}"
+    return None
+
+
+def check_review_artifact(
+    message: str, digest_values: list[str], parent_sha: str, axes: tuple[str, ...]
+) -> str | None:
+    """Return why the commit message does not carry a valid review artifact, or ``None``."""
+    report, failure = extract_report(message)
+    if report is None:
+        return failure
+    return check_report_digest(report, digest_values) or check_report_rows(report, parent_sha, axes)
+
+
+def validate_review_artifact(
+    head_sha: str,
+    parent_sha: str,
+    axes: tuple[str, ...],
+    repo_root: Path,
+) -> ValidationOutcome | None:
+    """Return an error outcome when the marker commit lacks a valid review artifact."""
+    message, message_error = read_commit_message(head_sha, repo_root)
+    digests, digest_error = read_marker_values(head_sha, repo_root, ARTIFACT_TRAILER_KEY)
+    if message is None or digests is None:
+        return ValidationOutcome(
+            ok=False,
+            exit_code=2,
+            message=_with_reason(
+                f"git could not read the review artifact on {head_sha[:12]}",
+                message_error or digest_error,
+            ),
+        )
+    failure = check_review_artifact(message, digests, parent_sha, axes)
+    if failure is None:
+        return None
+    return ValidationOutcome(
+        ok=False,
+        exit_code=1,
+        message=(
+            f"marker {head_sha[:12]} has no valid review artifact: {failure}. "
+            f"A bare '{MARKER_TRAILER_KEY}' trailer does not show a review ran. "
+            f"Re-run /review; it writes the report and digest."
+        ),
     )
 
 
@@ -560,6 +720,16 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--digest",
+        type=Path,
+        default=None,
+        metavar="REPORT_FILE",
+        help=(
+            "Print the Review-Artifact digest of the review report block in "
+            "REPORT_FILE and exit. The writer uses it so nobody hand-computes a hash."
+        ),
+    )
+    parser.add_argument(
         "--repo-root",
         type=Path,
         default=None,
@@ -571,9 +741,27 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def print_report_digest(report_file: Path) -> int:
+    """Print ``sha256:<digest>`` for the report block in ``report_file``; return an exit code."""
+    try:
+        text = report_file.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        print(f"[FAIL] cannot read report file {report_file}: {exc}", file=sys.stderr)
+        return 2
+    report, failure = extract_report(text)
+    if report is None:
+        print(f"[FAIL] report file {failure}", file=sys.stderr)
+        return 1
+    print(f"sha256:{report_digest(report)}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
+
+    if args.digest is not None:
+        return print_report_digest(args.digest)
 
     repo_root = args.repo_root or Path.cwd()
     repo_root = repo_root.resolve()

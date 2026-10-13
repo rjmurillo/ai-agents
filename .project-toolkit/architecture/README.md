@@ -99,7 +99,6 @@ These bind today.
 | [ADR-006](ADR-006-thin-workflows-testable-modules.md) | Thin Workflows, Testable Modules | 2026-04-29 | Chosen option: Option 1 - Thin Workflows, Testable Modules |
 | [ADR-008](ADR-008-protocol-automation-lifecycle-hooks.md) | Protocol Automation via Lifecycle Hooks | 2026-08-19 | Lifecycle hooks MUST automate SESSION-PROTOCOL enforcement. |
 | [ADR-009](ADR-009-parallel-safe-multi-agent-design.md) | Parallel-Safe Multi-Agent Design | 2025-12-20 | Multi-agent coordination MUST include consensus mechanisms for conflict resolution. |
-| [ADR-010](ADR-010-quality-gates-evaluator-optimizer.md) | Quality Gates with Evaluator-Optimizer Pattern | 2025-12-20 | All significant outputs MUST pass through a formalized evaluator-optimizer loop. |
 | [ADR-014](ADR-014-distributed-handoff-architecture.md) | Distributed Handoff Architecture | 2026-08-16 | Implement a three-tier distributed handoff architecture that eliminates centralized HANDOFF.md as a write target: |
 | [ADR-015](ADR-015-artifact-storage-minimization.md) | Artifact Storage Minimization Strategy | 2025-12-22 | Reduce artifact retention to minimum necessary duration: |
 | [ADR-016](ADR-016-workflow-execution-optimization.md) | Workflow Execution Optimization Strategy | 2025-12-22 | Implement two complementary optimizations: |
@@ -121,7 +120,6 @@ These bind today.
 | [ADR-045](ADR-045-framework-extraction-via-plugin-marketplace.md) | Framework Extraction via Plugin Marketplace | 2026-02-07 | Extract the reusable multi-agent framework from `rjmurillo/ai-agents` into a new repository `rjmurillo/awesome-ai`, published as a Claude Code plugin marketplace with 4 plugins. |
 | [ADR-046](ADR-046-planning-agent-rename.md) | Planning Agent Rename for Role Clarity | 2026-02-08 | Rename all three planning agents to reflect their distinct roles: |
 | [ADR-047](ADR-047-plugin-mode-hook-behavior.md) | Plugin-Mode Hook Behavior | 2026-04-29 | All hooks and skills run in plugin mode. |
-| [ADR-050](ADR-050-adr-protocol-sync.md) | ADR-to-Protocol Sync Process | 2026-02-21 | Establish a two-tier ADR-to-Protocol sync process: an automated audit script and a manual integration checklist. |
 | [ADR-051](ADR-051-synthesis-panel-frontmatter-standard.md) | Synthesis Panel Frontmatter Standard | 2026-03-07 | All DESIGN-REVIEW documents MUST include YAML frontmatter with structured metadata. |
 | [ADR-053](ADR-053-adr-exception-criteria.md) | ADR Exception Criteria (Chesterton's Fence) | 2026-03-07 | ADR exceptions MUST include a Chesterton's Fence analysis before approval. |
 | [ADR-054](ADR-054-local-security-scanning.md) | Local Security Scanning | 2026-07-20 | Add a Lefthook pre-push job that scans changed code files. |
@@ -195,7 +193,10 @@ Recorded, not yet binding. The last column is what each record says is holding i
 | [ADR-110](ADR-110-capability-ownership-dag.md) | Capability Ownership and the Artifact Dependency DAG | 2026-09-22 | Behavior-driving artifacts compose a capability DAG, and each capability has one canonical owner that declares itself in its own frontmatter. | review by 2027-03-22; The record defines where capability ownership is declared and what a gate may refuse. The gate ships with it and finds nothing yet, because no artifact declares a capability... |
 | [ADR-112](ADR-112-risk-tiered-action-boundaries.md) | Risk-Tiered Action Boundaries for Agent Tools | 2026-09-28 | Sort every agent action into four tiers, deny the highest tier at the Claude harness, check shared-repository mutations inside the script that performs them, and record every gap this leaves open. | review by 2027-03-28; The record was filed on 2026-09-28 for issue #5767, a child of epic #5456. It is implemented in the same change. Requirement: REQ-043. Tasks: TASK-052. |
 | [ADR-114](ADR-114-agent-workflows-approval-and-non-blocking.md) | Agent Workflows Run Only After Approval and Never Block Merges (Except the Plugin CLI Smoke) | 2026-10-08 | Approval before running, one environment per provider. | review by 2027-04-03 |
-| [ADR-116](ADR-116-unchecked-in-context-rule-violation-failure-mode.md) | Propose a Failure Mode for Unchecked In-Context Rule Violations | 2026-10-13 | Propose a class named Unchecked In-Context Rule Violation, numbered FM #13 if it is accepted next (re-check the next free number at acceptance), for `.agents/governance/FAILURE-MODES.md`. | review by 2027-04-13; The owner has not accepted the class, and `FAILURE-MODES.md` is unchanged until then. |
+| [ADR-115](ADR-115-native-plugin-support-per-host.md) | Native Plugin Support for Cursor, Codex, Grok Build, Hermes, Devin, Pi, and Muse | 2026-10-12 | A generated plugin tree for each host whose native format differs. | review by 2027-04-12; It refines ADR-072 Decision 2 and Decision 5 for seven more hosts. A reduced `adr-review` panel (architect and critic) reached consensus in round 3 on the first four hosts. The... |
+| [ADR-116](ADR-116-unchecked-in-context-rule-violation-failure-mode.md) | Propose a Failure Mode for Unchecked In-Context Rule Violations | 2026-10-13 | Propose a class named Unchecked In-Context Rule Violation, numbered with the next free FM number at acceptance (FM #14 on 2026-10-13, because ADR-117 took FM #13), for... | review by 2027-04-13; The owner has not accepted the class, and `FAILURE-MODES.md` is unchanged until then. |
+| [ADR-117](ADR-117-state-conflation-failure-mode.md) | Add FM-13, State Conflation in a Boolean Guard, to the Failure Taxonomy | 2026-10-13 | Add one class to `FAILURE-MODES.md`, FM-13, State Conflation in a Boolean Guard. | review by 2027-04-13 |
+| [ADR-118](ADR-118-widen-fm-11-to-hand-authored-cross-harness-instructions.md) | Widen FM-11 to Cover Hand-Authored Cross-Harness Instructions | 2026-10-13 | Widen FM-11. | review by 2027-04-13 |
 
 ## Retired
 
@@ -207,6 +208,7 @@ Superseded or deprecated. Do not cite these. The last column is where the decisi
 | [ADR-004](ADR-004-pre-commit-hook-architecture.md) | Pre-Commit Hook as Validation Orchestration Point | superseded | [ADR-086](ADR-086-lefthook-local-hook-orchestration.md) |
 | [ADR-005](ADR-005-powershell-only-scripting.md) | PowerShell-Only Scripting Standard | superseded | [ADR-042](ADR-042-python-migration-strategy.md) |
 | [ADR-007](ADR-007-memory-first-architecture.md) | Memory-First Architecture | superseded | [ADR-106](ADR-106-serena-only-memory-architecture.md) |
+| [ADR-010](ADR-010-quality-gates-evaluator-optimizer.md) | Quality Gates with Evaluator-Optimizer Pattern | deprecated | not recorded |
 | [ADR-024](ADR-024-github-actions-runner-selection.md) | GitHub Actions Runner Selection | superseded | [ADR-055](ADR-055-github-actions-runner-selection.md) |
 | [ADR-025](ADR-025-github-actions-arm-runners.md) | GitHub Actions ARM Runner Migration | superseded | [ADR-055](ADR-055-github-actions-runner-selection.md) |
 | [ADR-028](ADR-028-powershell-output-schema-consistency.md) | PowerShell Output Schema Consistency | superseded | [ADR-103](ADR-103-skill-output-python-contract-correction.md) (via ADR-056) |
@@ -214,6 +216,7 @@ Superseded or deprecated. Do not cite these. The last column is where the decisi
 | [ADR-037](ADR-037-memory-router-architecture.md) | Memory Router Architecture | superseded | [ADR-106](ADR-106-serena-only-memory-architecture.md) |
 | [ADR-039](ADR-039-agent-model-cost-optimization.md) | Agent Model Cost Optimization | deprecated | not recorded |
 | [ADR-044](ADR-044-copilot-cli-frontmatter-compatibility.md) | Copilot CLI Frontmatter Compatibility | superseded | [ADR-094](ADR-094-govern-copilot-cli-compatibility.md) |
+| [ADR-050](ADR-050-adr-protocol-sync.md) | ADR-to-Protocol Sync Process | deprecated | not recorded |
 | [ADR-052](ADR-052-template-strategy.md) | Template Strategy for Multi-Platform Agent Distribution | superseded | [ADR-109](ADR-109-template-first-plugin-distribution.md) |
 | [ADR-056](ADR-056-skill-output-format-standardization.md) | Skill Output Format Standardization | superseded | [ADR-103](ADR-103-skill-output-python-contract-correction.md) |
 | [ADR-079](ADR-079-merge-time-plugin-version-bump.md) | Plugin Version Bump Stays at PR Time (Reject Merge-Time Automation) | superseded | [ADR-092](ADR-092-omit-plugin-manifest-version.md) (via ADR-091) |

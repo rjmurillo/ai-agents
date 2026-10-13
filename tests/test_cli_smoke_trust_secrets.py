@@ -95,3 +95,35 @@ def test_codex_expected_count_matches_the_collected_smoke_tests(
     assert "always()" in gate["if"]
     assert _expected_count(gate) == _collected_count(SMOKE_FILES["plugin"], "codex")
     assert _collected_count(SMOKE_FILES["hook"], "codex") == 0
+
+
+def test_pi_job_has_no_environment_and_reads_no_secret(pi_job: dict[str, Any]) -> None:
+    """ADR-115 Decision 10: loading a Pi package needs no login, so the job holds no secret."""
+    assert "environment" not in pi_job
+    assert "secrets." not in yaml.safe_dump(pi_job)
+
+
+def test_pi_job_runs_on_ubuntu_only(pi_job: dict[str, Any]) -> None:
+    assert pi_job["strategy"]["matrix"]["os"] == ["ubuntu-latest"]
+
+
+def test_pi_install_uses_the_exact_pinned_version(pi_job: dict[str, Any]) -> None:
+    install = _step_by_name(pi_job, "Install pinned Pi CLI")
+
+    assert SEMVER.fullmatch(pi_job["env"]["PI_CLI_VERSION"])
+    assert '"@earendil-works/pi-coding-agent@${PI_CLI_VERSION}"' in install["run"]
+
+
+def test_pi_step_selects_only_the_pi_marker(pi_job: dict[str, Any]) -> None:
+    run = _step_by_name(pi_job, "Run real-CLI package smoke (pi)")
+    arguments = shlex.split(run["run"])
+
+    assert arguments[arguments.index("-m") + 1] == "smoke and pi"
+    assert "tests/e2e/test_pi_package_smoke.py" in arguments
+
+
+def test_pi_expected_count_matches_the_collected_smoke_tests(pi_job: dict[str, Any]) -> None:
+    gate = _step_by_name(pi_job, "Assert the Pi package smoke actually ran")
+
+    assert _expected_count(gate) == _collected_count("tests/e2e/test_pi_package_smoke.py", "pi")
+    assert "--require-pass" in gate["run"]

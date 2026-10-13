@@ -70,6 +70,8 @@ Checks, each named so the baseline tracks them separately:
     prose-frontmatter-agree      a `## Status` section, when present, opens with the frontmatter
                                   enum and says more than that word (ADR-073, amended 2026-09-29)
     status-edge-consistency      status: superseded iff a superseded-by edge resolves
+    cited-paths-exist            an `accepted` record's Decision and Implementation Notes
+                                  cite only files that are still tracked (issue #5194)
 
 `status-edge-consistency` closes a gap `supersession-reciprocal` leaves open
 (Copilot, PR #5209): reciprocity validates edges against each other, never
@@ -80,6 +82,13 @@ with no successor at all. `deprecated` is deliberately exempt from the
 record that shipped and was later abandoned with no specific named
 successor, not a supersession.
 
+`cited-paths-exist` closes the gap behind issue #5194: ADR-050 stayed `accepted`
+after the script it mandates was deleted, because no check resolved a file path
+named in an accepted record. The extraction rules live in `adr_cited_paths.py`.
+Only `accepted` records are read; `superseded`, `deprecated`, `rejected`, and
+`proposed` records are history or not yet binding, and a gate firing on them is
+the tripwire ADR-073 warns about.
+
 A check called `implemented-implies-decided` (`implemented: true` with
 `status: proposed`) was removed, not replaced by `status-edge-consistency`
 above: ADR-073's own schema defines `implemented` as flipping at first
@@ -87,8 +96,8 @@ merged change independent of decision state, and ADR-098 documents that
 exact pairing as deliberate. See `_check_lifecycle_rules` for the full
 removal rationale.
 
-Checks 2 to 8 need parseable frontmatter, so a record failing `frontmatter-parses`
-contributes one violation, not eight. The same containment runs downstream:
+Checks 2 to 9 need parseable frontmatter, so a record failing `frontmatter-parses`
+contributes one violation, not nine. The same containment runs downstream:
 `prose-frontmatter-agree` is skipped when the status section is absent
 (the record simply has no prose status, which ADR-073 prefers to a
 restatement) or the enum value is invalid (`status-enum` owns that), and
@@ -134,6 +143,11 @@ from checks_common import (  # noqa: E402
 from yaml_utils import _parse_yaml_frontmatter  # noqa: E402
 
 # Imported, not redefined, so the two ADR gates never disagree about which files are ADRs.
+from scripts.validation.adr_cited_paths import (  # noqa: E402
+    extract_cited_paths,
+    missing_paths,
+    tracked_paths,
+)
 from scripts.validation.check_adr_uniqueness import ADR_FILENAME_RE  # noqa: E402
 from scripts.validation.frontmatter_contract import FrontmatterStatus  # noqa: E402
 from scripts.validation.frontmatter_contract import (  # noqa: E402
@@ -153,6 +167,7 @@ CHECKS: tuple[str, ...] = (
     "proposed-cannot-supersede",
     "prose-frontmatter-agree",
     "status-edge-consistency",
+    "cited-paths-exist",
 )
 
 # The ADR-073 status enum. `test_lifecycle_statuses_conform_to_adr_073` fails when
@@ -758,6 +773,30 @@ def _check_lifecycle_rules(record: Record) -> list[Violation]:
     return [Violation("proposed-cannot-supersede", record.path, detail)]
 
 
+def _check_cited_paths(
+    record: Record, repo_root: Path, tracked: frozenset[str] | None
+) -> list[Violation]:
+    """`cited-paths-exist`: an accepted record names only files that still exist."""
+    if _status_of(record) != "accepted":
+        return []
+    try:
+        cited = extract_cited_paths(record.body)
+    except Exception as exc:
+        # Same rule as `_check_prose`: a body the markdown parser refuses is a
+        # counted finding, never a record that quietly skips the check.
+        detail = f"Decision and Implementation Notes could not be parsed: {exc}"
+        return [Violation("cited-paths-exist", record.path, detail)]
+    return [
+        Violation(
+            "cited-paths-exist",
+            record.path,
+            f"cites `{path}` in Decision or Implementation Notes, but no such file "
+            "is tracked. Deprecate or supersede the record, or correct the citation.",
+        )
+        for path in missing_paths(cited, repo_root, tracked)
+    ]
+
+
 def _edge_targets(
     record: Record, raw_entries: list[Any], field: str, known: set[int]
 ) -> tuple[list[int], list[Violation]]:
@@ -930,10 +969,12 @@ def scan(adr_dir: Path, repo_root: Path) -> list[Violation]:
     """Every lifecycle violation in the corpus, in check-then-path order."""
     records, violations = collect_records(adr_dir, repo_root)
     known = {record.number for record in records}
+    tracked = tracked_paths(repo_root)
     for record in records:
         if record.frontmatter is None:
             continue
         violations.extend(_check_identity(record))
+        violations.extend(_check_cited_paths(record, repo_root, tracked))
         violations.extend(_check_prose(record))
         violations.extend(_check_lifecycle_rules(record))
     by_number = {r.number: r for r in records if r.frontmatter is not None}
@@ -962,7 +1003,10 @@ def _excess(current: Baseline, allowed: Baseline) -> Baseline:
 
     A path ``allowed`` does not hold has an allowance of zero, so a violation
     in a record the baseline never recorded is excess even when the check's
-    total fell (issue #5273).
+    total fell (issue #5273). A check ``allowed`` does not name at all has no
+    excess: only the baseline read at the base ref lacks a check, because the
+    branch under test is the one adding it (issue #5194), and a live baseline
+    is validated to name every check before it reaches here.
     """
     return {
         name: {
@@ -970,12 +1014,14 @@ def _excess(current: Baseline, allowed: Baseline) -> Baseline:
             for path, count in current[name].items()
             if count > allowed[name].get(path, 0)
         }
+        if name in allowed
+        else {}
         for name in CHECKS
     }
 
 
-def _check_list_problem(names: set[str], source: str) -> str | None:
-    missing = sorted(set(CHECKS) - names)
+def _check_list_problem(names: set[str], source: str, *, new_checks_ok: bool) -> str | None:
+    missing = [] if new_checks_ok else sorted(set(CHECKS) - names)
     unknown = sorted(names - set(CHECKS))
     if not missing and not unknown:
         return None
@@ -1021,7 +1067,7 @@ def _legacy_baseline(payload: dict[str, Any], source: str, zero_ok: bool) -> Bas
 
 
 def _parse_baseline_payload(
-    text: str, source: str, *, legacy_zero_ok: bool = False
+    text: str, source: str, *, legacy_zero_ok: bool = False, new_checks_ok: bool = False
 ) -> Baseline | str:
     """Validate baseline JSON already read from ``source``, or a one-line reason.
 
@@ -1029,6 +1075,12 @@ def _parse_baseline_payload(
     identical schema check against text read from ``git show <ref>:<path>``
     instead of a live file. The two callers differ only in how the bytes
     reached them; the validation a baseline must pass is one rule, not two.
+
+    ``new_checks_ok`` is for the baseline read at the base ref, like
+    ``legacy_zero_ok``. A check the branch under test adds is absent there, so
+    the missing names are left out of the result instead of failing the read
+    (issue #5194 added the first such check). A live baseline never gets this
+    leniency: it must name every check.
     """
     try:
         payload = json.loads(text)
@@ -1039,12 +1091,13 @@ def _parse_baseline_payload(
     entries = payload.get("violations") if isinstance(payload, dict) else None
     if not isinstance(entries, dict):
         return f"baseline {source} has no `violations` mapping"
-    problem = _check_list_problem(set(entries), source)
+    problem = _check_list_problem(set(entries), source, new_checks_ok=new_checks_ok)
     for name in CHECKS:
-        problem = problem or _paths_problem(name, entries.get(name), source)
+        if name in entries:
+            problem = problem or _paths_problem(name, entries[name], source)
     if problem:
         return problem
-    return {name: dict(entries[name]) for name in CHECKS}
+    return {name: dict(entries[name]) for name in CHECKS if name in entries}
 
 
 def read_baseline(path: Path) -> Baseline | str:
@@ -1160,7 +1213,9 @@ def _baseline_at_ref(repo_root: Path, ref: str, baseline_path: Path) -> Baseline
     )
     if exit_code != 0:
         return None
-    parsed = _parse_baseline_payload(stdout, f"{ref}:{rel}", legacy_zero_ok=True)
+    parsed = _parse_baseline_payload(
+        stdout, f"{ref}:{rel}", legacy_zero_ok=True, new_checks_ok=True
+    )
     return parsed if isinstance(parsed, dict) else None
 
 

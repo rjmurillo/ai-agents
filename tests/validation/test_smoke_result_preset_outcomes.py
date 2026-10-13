@@ -11,7 +11,7 @@ from tests.lib.smoke_result_env import FORK_MESSAGE, apply_green
 
 Capsys = pytest.CaptureFixture[str]
 
-SUCCESS = "CLI smoke passed for Claude, Copilot, and Codex on all platforms."
+SUCCESS = "CLI smoke passed for Claude, Copilot, Codex, and Pi."
 QUOTA_NOTICE = (
     "::notice::CLI smoke passed with 2 prompt checks quota-skipped. Load tests passed on every leg."
 )
@@ -61,13 +61,27 @@ def test_quota_skips_print_the_count_notice(run_preset, tmp_path: Path) -> None:
             "::error::Smoke path filter result: failure",
         ),
         (
-            {"TRUSTED": "false", "SMOKE_RESULT": "skipped", "CODEX_RESULT": "skipped"},
+            {
+                "TRUSTED": "false",
+                "SMOKE_RESULT": "skipped",
+                "CODEX_RESULT": "skipped",
+                "PI_RESULT": "skipped",
+            },
             f"::error::{FORK_MESSAGE}",
         ),
         ({"SMOKE_RESULT": "failure"}, "[SMOKE_RESULT=failure]"),
         ({"CODEX_RESULT": "failure"}, "[CODEX_RESULT=failure]"),
+        ({"PI_RESULT": "failure"}, "[PI_RESULT=failure]"),
+        ({"PI_RESULT": "skipped"}, "[PI_RESULT=skipped]"),
     ],
-    ids=["broken-filter", "fork", "smoke-leg-failed", "codex-leg-failed"],
+    ids=[
+        "broken-filter",
+        "fork",
+        "smoke-leg-failed",
+        "codex-leg-failed",
+        "pi-leg-failed",
+        "pi-leg-skipped",
+    ],
 )
 def test_failing_outcomes_exit_1_and_name_the_cause(
     run_preset, overrides: dict[str, str], expected: str

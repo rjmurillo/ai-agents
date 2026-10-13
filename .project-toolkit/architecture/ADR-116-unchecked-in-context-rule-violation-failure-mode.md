@@ -37,7 +37,7 @@ The 08-25 retro cites issue #5300 as the proposal. Issue #5300 is a request to w
 
 ## Decision
 
-Propose a class named **Unchecked In-Context Rule Violation**, numbered FM #13 if it is accepted next (re-check the next free number at acceptance), for `.agents/governance/FAILURE-MODES.md`. This record only proposes it. The taxonomy file is not edited until the owner accepts this record.
+Propose a class named **Unchecked In-Context Rule Violation**, numbered with the next free FM number at acceptance (FM #14 on 2026-10-13, because ADR-117 took FM #13), for `.agents/governance/FAILURE-MODES.md`. This record only proposes it. The taxonomy file is not edited until the owner accepts this record.
 
 Proposed class entry, in the file's existing shape:
 

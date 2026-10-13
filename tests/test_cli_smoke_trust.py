@@ -66,7 +66,7 @@ def test_trust_gate_receives_the_head_repository(workflow_doc: dict[Any, Any]) -
     assert "assert_trusted_smoke_context.py" in gate["run"]
 
 
-@pytest.mark.parametrize("job_name", ["smoke", "smoke-codex"])
+@pytest.mark.parametrize("job_name", ["smoke", "smoke-codex", "smoke-pi"])
 def test_legs_wait_for_the_filter_and_the_trust_gate(
     workflow_doc: dict[Any, Any], job_name: str
 ) -> None:
