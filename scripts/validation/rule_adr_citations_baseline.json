@@ -2,11 +2,6 @@
   "schema_version": "1",
   "description": "Known rule-file citations of a non-accepted ADR as binding (issue #5200). Delete a line when its citation is repaired. Adding a line legalises a violation.",
   "known": [
-    ".claude/rules/templates.md::ADR-080",
-    ".github/instructions/templates.instructions.md::ADR-080",
-    "CLAUDE.md::ADR-078",
-    "src/claude/rules/templates.md::ADR-080",
-    "src/copilot-cli/instructions/templates.instructions.md::ADR-080",
-    "templates/rules/templates.md::ADR-080"
+    "CLAUDE.md::ADR-078"
   ]
 }

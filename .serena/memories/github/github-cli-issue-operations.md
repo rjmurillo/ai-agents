@@ -80,6 +80,22 @@ When Copilot is assigned, it reads ALL comments where @copilot is mentioned.
 
 **Evidence**: Issues #88, #90
 
+## Skill-GH-Issue-004: Reading Comments (Measured 2026-10-12)
+
+**Statement**: `gh issue view` rejects `--comments` together with `--json`. Ask for the comments field instead.
+
+```bash
+# Fails: "specify only one of --comments or --json"
+gh issue view 123 --comments --json body
+
+# Works: comments arrive as a JSON field
+gh issue view 123 --json body,comments --jq '.comments | length'
+```
+
+In this repository the skill script `get_issue_comments.py` returns the same data with the standard output envelope.
+
+**Source**: the 2026-10-12 sweep, where 10 runs hit the error on the first call. Both commands were run on 2026-10-12 with gh 2.102.0.
+
 ## Related
 
 - [github-cli-001-bidirectional-issue-linking](github-cli-001-bidirectional-issue-linking.md)
