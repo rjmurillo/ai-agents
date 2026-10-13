@@ -79,9 +79,10 @@ def body_hash(body: str) -> str:
 
 
 def hash_matches(expected: str, current_body: str) -> bool:
-    """Return True when ``expected`` hashes the current body, ignoring a trailing newline.
+    """Return True when ``expected`` hashes the current body, ignoring one extra newline.
 
-    A caller that captures the body with ``gh pr view --jq .body > f`` gets a
+    A caller that captures the body with
+    ``gh pr view <n> --json body --jq .body > f`` gets a
     file with one extra trailing newline, so its hash never equals the hash of
     the API body. Accept the exact body, the body plus one newline (the
     redirection case), and the body with trailing newlines removed.
@@ -214,9 +215,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--expected-hash",
         default="",
         help=(
-            "SHA-256 hex of the current body (LF-normalised; a trailing "
-            "newline is ignored, so hashing a file saved with "
-            "`gh pr view --jq .body > f` works). "
+            "SHA-256 hex of the current body (LF-normalised; one extra "
+            "trailing newline is ignored, so hashing a file saved with "
+            "`gh pr view <n> --json body --jq .body > f` works when the "
+            "body has LF line endings; convert CRLF to LF first). "
             "When provided and the current body does not match, the edit "
             "is aborted (exit 1) to prevent clobbering a concurrent edit."
         ),

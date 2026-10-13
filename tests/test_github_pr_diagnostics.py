@@ -1136,7 +1136,7 @@ class TestEditPrBodyStaleWriteGuard:
         assert output["Error"]["Type"] == "VerificationFailed"
 
     def test_hash_of_file_with_trailing_newline_is_accepted(self):
-        """Issue #5484: `gh pr view --jq .body > f` appends one newline."""
+        """Issue #5484: `gh pr view <n> --json body --jq .body > f` appends one newline."""
         old_body = "old body"
         expected_hash = _edit_mod.body_hash(old_body + "\n")
 
