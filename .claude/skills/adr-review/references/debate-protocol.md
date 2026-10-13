@@ -268,6 +268,12 @@ Round 10 with no consensus. A closed log accepts no round 11. Any later edit to 
 the debate closed by consensus or without it, starts a new debate in a new log.
 Rounds in the new log restart at round 1.
 
+The new log is a new file. Save it to
+`.project-toolkit/critique/ADR-NNN-debate-log-2.md` (`-3` for the next, and so on)
+and never overwrite a closed log. The first debate keeps
+`.project-toolkit/critique/ADR-NNN-debate-log.md`.
+<!-- vendor-portability: declared. This doc directs debate logs to .project-toolkit/critique/. In a vendored install without that dir the agent creates it (or writes to the consumer's chosen artifact root); the path is a write target, not a precondition. Issue #2050. -->
+
 The new log must:
 
 - Name the closed log in its `Prior debate log` field.

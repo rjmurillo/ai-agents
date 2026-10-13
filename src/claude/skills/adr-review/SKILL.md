@@ -225,15 +225,15 @@ echo "exit=$?"   # must be 0; non-zero means git error or I/O failure
 
 After skill invocation:
 
-- [ ] Debate log exists at `.project-toolkit/critique/ADR-NNN-debate-log.md`
-- [ ] If the ADR was revised after a closed debate: a new debate log exists, restarts at round 1, and names the closed log as its prior debate log
+- [ ] Debate log exists at `.project-toolkit/critique/ADR-NNN-debate-log.md` (first debate)
+- [ ] If the ADR was revised after a closed debate: a new debate log exists at `.project-toolkit/critique/ADR-NNN-debate-log-2.md` (`-3`, and so on; never overwrite the closed log), restarts at round 1, and names the closed log as its prior debate log
 - [ ] ADR status updated using the frontmatter enum below; use prose for review nuance
 - [ ] Frontmatter `status` field present and a valid enum value: one of
       `proposed | accepted | rejected | deprecated | superseded` (ADR-073).
       A missing or out-of-enum `status` is a P1 blocker; the frontmatter enum is
       authoritative for tooling, the prose `## Status` carries the human nuance.
 - [ ] If this review transitions `status` to `accepted`: the same change carries
-      adr-review debate-log evidence at `.project-toolkit/critique/ADR-NNN-debate-log.md`
+      adr-review debate-log evidence at `.project-toolkit/critique/ADR-NNN-debate-log.md` (or a later `.project-toolkit/critique/ADR-NNN-debate-log-2.md`)
       (ADR-073 Phase-3 acceptance gate). A hand-edit to `accepted` with no
       debate-log artifact is a forgeable approval signal and MUST be rejected.
 <!-- vendor-portability: declared. adr-review checks accepted-transition evidence under .project-toolkit/critique/; a consumer repo without it reports missing evidence, not a silent pass. Issue #2050. -->

@@ -4,6 +4,10 @@ Save debate artifacts to `.project-toolkit/critique/`.
 
 ## Debate Log
 
+The first debate on an ADR saves to the path below. Each later debate
+(N = 2, 3, ...) saves to `.project-toolkit/critique/ADR-NNN-debate-log-2.md`
+(`-3`, and so on) and never overwrites a closed log.
+
 Save to: `.project-toolkit/critique/ADR-NNN-debate-log.md`
 
 ```markdown

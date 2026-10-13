@@ -27,6 +27,8 @@ SKILL_TREES = (
 SOURCE_TREE = SKILL_TREES[0]
 PROTOCOL = Path("references") / "debate-protocol.md"
 ARTIFACTS = Path("references") / "artifacts.md"
+FIRST_LOG_PATH = ".project-toolkit/critique/ADR-NNN-debate-log.md"
+LATER_LOG_PATH = ".project-toolkit/critique/ADR-NNN-debate-log-2.md"
 
 
 def _read(path: Path) -> str:
@@ -98,6 +100,33 @@ def test_debate_log_template_makes_the_numbering_legible(tree: Path) -> None:
     assert "- **Rounds**: [N] of 10" in template
     assert re.search(r"- \*\*Prior debate log\*\*: none \(otherwise the path", template)
     assert "## Round [N] Summary" in template
+
+
+def test_skill_template_names_the_later_log_path_in_both_path_lines() -> None:
+    text = _read(SKILL_TEMPLATE)
+    assert text.count(LATER_LOG_PATH) >= 2, (
+        "both SKILL.md debate-log path lines must name the later-log path, "
+        "or following the checklist overwrites the closed log"
+    )
+    assert LATER_LOG_PATH in next(
+        line for line in text.splitlines() if "new debate log exists" in line
+    )
+
+
+@pytest.mark.parametrize("tree", SKILL_TREES, ids=lambda p: p.relative_to(REPO_ROOT).as_posix())
+def test_artifacts_save_to_defines_a_distinct_path_for_later_logs(tree: Path) -> None:
+    text = _read(tree / ARTIFACTS)
+    save_to = re.search(r"(?ms)^## Debate Log\n(.*?)^```markdown", text)
+    assert save_to, "artifacts.md has no Debate Log Save-to block"
+    assert FIRST_LOG_PATH in save_to.group(1)
+    assert LATER_LOG_PATH in save_to.group(1)
+
+
+@pytest.mark.parametrize("tree", SKILL_TREES, ids=lambda p: p.relative_to(REPO_ROOT).as_posix())
+def test_protocol_round_cap_names_the_later_log_path(tree: Path) -> None:
+    section = _round_cap_section(_read(tree / PROTOCOL))
+    assert LATER_LOG_PATH in section
+    assert "never overwrite" in section
 
 
 @pytest.mark.parametrize("tree", SKILL_TREES[1:], ids=lambda p: p.relative_to(REPO_ROOT).as_posix())
