@@ -225,6 +225,7 @@ Copilot equivalent.
 | `eval-rule-activation.py` | `.claude/rules/*.md` activation across baseline / description / full mechanisms. | Complementary |
 | `analyze-pr-churn.py` | Deterministic commit-churn classification across a PR cohort (degenerate vs control) to evaluate instruction/rule changes against historical PRs. No LLM; core in `_pr_churn.py`. | Complementary |
 | `eval-reviewer-asymmetry.py` | Statistical-significance test for `templates/agents/{critic,qa,implementer}.shared.md` reviewer-asymmetry framing. Fisher's exact (verdict-pass) + Mann-Whitney U (findings-count). | Complementary |
+| `eval_adr_review_catch_rate.py` | Replay defects already on record against the six adr-review roles on the pre-fix text and publish a per-role catch rate. Deterministic match rules, no judge model. Core in `_adr_catch_rate_core.py`. See `evals/adr-review-catch-rate/README.md`. | #5248, ADR-101 |
 | `eval-e2e-delivery.py` | End-to-end delivery eval (plan-rubric proxy). Feeds a vague germ, captures each agent's plan, LLM-judges it against hidden acceptance criteria. Core in `_e2e_delivery_core.py`. | #2859 |
 | `eval-model-sweep.py` | Sweep one agent's fixtures across candidate models; scored KEEP_PIN/DROP_PIN verdict with effect size, plus the lightest sufficient model for routing. Core in `_model_sweep_core.py`. | #2840 |
 | `eval_model_routing.py` | Roll per-model sweep reports for many agents and skills into `evals/model-routing/` routing tables. | #5883, #5889 |
@@ -769,6 +770,24 @@ schema that pairs `verdict_options` with optional `min_findings_count` for
 continuous metrics. See `evals/reviewer-asymmetry-spike/README.md`.
 
 Cost: ~$0.60 USD for 10 trials × 6 fixtures × 2 conditions = 120 calls.
+
+## adr-review Catch-Rate Eval
+
+`eval_adr_review_catch_rate.py` measures how often each adr-review role flags a
+defect that the ADR-100/101 debate later fixed. It feeds the ADR-101 Phase 2
+go/no-go (issues #5247 and #5248). The corpus, selection rule, arms, scoring
+strengths, and limits are in `evals/adr-review-catch-rate/README.md`.
+
+```bash
+# Check that every pre-fix commit is readable and count the calls. No model call.
+git fetch origin refs/pull/5181/head:refs/tmp/pr5181
+uv run python scripts/eval/eval_adr_review_catch_rate.py --validate-corpus --arms unassisted,assisted,control
+
+# Live run. Resume after a failure by repeating the command with the same --checkpoint.
+uv run python scripts/eval/eval_adr_review_catch_rate.py \
+    --arms unassisted,assisted --workers 4 \
+    --checkpoint /path/to/rows.jsonl --output /path/to/results.json
+```
 
 ## Rule Activation Eval
 
