@@ -9,11 +9,11 @@
 ## Safe order
 
 1. Stop the uvx MCP servers, or plan to reconnect them afterwards.
-2. Run `uv cache clean` (or prune).
-3. Re-warm with `uvx --from git+https://github.com/oraios/serena python -c "import serena"`.
+2. Run `uv cache clean` or `uv cache prune`. With the servers stopped the lock is free, so `--force` is not needed.
+3. Re-warm with the exact `--from` spec from the MCP config (`.mcp.json`), including any ref, extras, or `--python` flag. A different spec builds a different environment, so the server pays a cold install at reconnect. For example: `uvx --from git+https://github.com/oraios/serena python -c "import serena"`.
 4. Reconnect the MCP servers with `/mcp`.
 
-Find a running server's environment with `grep site-packages /proc/<child-pid>/maps`.
+Find a running server's environment with `grep site-packages /proc/<child-pid>/maps`. That lists only memory-mapped files, so it works when the server loaded a compiled extension from the environment. Fall back to `/proc/<pid>/cmdline` or `ls -l /proc/<pid>/exe`.
 
 ## Source
 

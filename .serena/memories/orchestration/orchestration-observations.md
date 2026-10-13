@@ -57,19 +57,19 @@
 
 None yet.
 
+## 2026-10-13 Issue Sweep Learnings
+
+- [HIGH] Owner correction: "drive by changes are permitted; if there are major issues, then file work items." Every delegated sweep prompt states this: minor defects are fixed inline or in a drive-by PR, and major defects are filed as issues. "Report, do not file" stranded 131 defect reports.
+- [HIGH] Budget fan-out by resources, not task count. About 16 concurrent full pre-push gates in separate worktrees exhausted root disk and /tmp tmpfs inodes twice, and Bash failed with ENOSPC. Use a semaphore (2 to 4) on heavy stages (build, address). Review and merge stages can stay wide. Check `df -BG /` and `df --output=ipcent /tmp` before each heavy step. Provider side: under "Server is temporarily limiting requests", run subagents in sequential batches of 3 to 5 with a retry pass for throttled stragglers.
+- [HIGH] Waiting for a disk or concurrency budget blocks the step and never skips it. One sweep delegation committed without running build_all.py while it waited for disk.
+- [HIGH] Never close an issue on a single-pass triage verdict. A refute-by-default skeptic overturned 22 of 38. See [triage-004-single-pass-close-verdicts-need-skeptic](../pr-review/triage-004-single-pass-close-verdicts-need-skeptic.md) (PR #6296).
+- [MED] Build the args for a Workflow tool launch (the JavaScript workflow script) before launching and never use a placeholder then patch. Two launches with "__FILL__" and "PLACEHOLDER_SEE_NEXT" failed. Assert `Array.isArray(args)` at the top of the script.
+- [MED] TaskStop does not kill subagent process trees. Afterwards kill leftovers with bracketed patterns, for example `pgrep -f '[l]efthook run pre-push'`. An unbracketed `pkill -f` matched its own monitor (exit 144).
+- [MED] Parallel agents exhaust the shared 5000 point/hr GraphQL budget (see [github-rate-limit-payload-does-not-predict-service](../ci/github-rate-limit-payload-does-not-predict-service.md)). Merge-stage polling should use REST `repos/{o}/{r}/commits/<sha>/check-runs`. Poll GraphQL-backed checks no more often than every 3 to 4 minutes per agent. One trip blocked the whole account for about 28 minutes.
+- [MED] Route background commit-security findings where the pipeline blocks: an inline thread on the open PR, or an issue comment when the commit is unpushed. There were 4 true positives this sweep: merge_pr stacked TOCTOU (#6297), verify_dispatch_closure merge-base fail-open (#6415), api_examples SSRF (#5414), prepare_pr_body symlink (#6424).
+
 ## Related Memories
 
 - [parallel-agent-execution-session-14](../parallel/parallel-agent-execution-session-14.md): Session 14 execution details
 - [adr-042-python-first-enforcement](../adr/adr-042-python-first-enforcement.md): ADR conflict resolution pattern
 - [codeql-security-integration](../codeql/codeql-security-integration.md): Tool reuse pattern
-
-## 2026-10-13 Issue Sweep Learnings
-
-- [HIGH] Owner correction: "drive by changes are permitted; if there are major issues, then file work items." Every delegated sweep prompt states this: minor defects are fixed inline or in a drive-by PR, and major defects are filed as issues. "Report, do not file" stranded 131 defect reports.
-- [HIGH] Budget fan-out by resources, not task count. About 16 concurrent full pre-push gates in separate worktrees exhausted root disk and /tmp tmpfs inodes twice, and Bash failed with ENOSPC. Use a semaphore (2 to 4) on heavy stages (build, address). Review and merge stages can stay wide. Check `df -BG /` and `df --output=ipcent /tmp` before each heavy step. Provider side: under "Server is temporarily limiting requests", run subagents in sequential batches of 3 to 5 with a retry pass for throttled stragglers.
-- [HIGH] A budget wait blocks the step and never skips it. The D26 agent committed 7dfb67e51 without build_all.py while waiting for disk.
-- [HIGH] Never close an issue on a single-pass triage verdict. A refute-by-default skeptic overturned 22 of 38. See pr-review/triage-004-single-pass-close-verdicts-need-skeptic (PR #6296).
-- [MED] Build Workflow args before launch and never use a placeholder then patch. Two launches with "__FILL__" and "PLACEHOLDER_SEE_NEXT" failed. Assert `Array.isArray(args)` at the top of the script.
-- [MED] TaskStop does not kill subagent process trees. Afterwards kill leftovers with bracketed patterns, for example `pgrep -f '[l]efthook run pre-push'`. An unbracketed `pkill -f` matched its own monitor (exit 144).
-- [MED] Parallel agents exhaust the shared 5000/hr GraphQL quota. Merge-stage polling should use REST `repos/{o}/{r}/commits/<sha>/check-runs`. Poll GraphQL-backed checks no more often than every 3 to 4 minutes per agent. One trip blocked the whole account for about 28 minutes.
-- [MED] Route background commit-security findings where the pipeline blocks: an inline thread on the open PR, or an issue comment when the commit is unpushed. There were 4 true positives this sweep: merge_pr stacked TOCTOU (#6297), verify_dispatch_closure merge-base fail-open (#6415), api_examples SSRF (#5414), prepare_pr_body symlink (#6424).
