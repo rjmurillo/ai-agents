@@ -75,7 +75,7 @@ class TestBranchNameFromKey:
 
     @pytest.mark.parametrize(
         "key",
-        ["branch.autosetupmerge", "core.bare", "branch", "branch..remote", "branch.x."],
+        ["branch.autosetupmerge", "core.editor", "branch", "branch..remote", "branch.x."],
     )
     def test_returns_none_without_subsection(self, key: str) -> None:
         assert branch_name_from_key(key) is None
