@@ -1,0 +1,22 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "project-toolkit",
+  "description": "Reusable skills and lifecycle skills (/spec to /ship) for software projects, including PR review, memory, and planning workflows",
+  "author": {
+    "name": "rjmurillo"
+  },
+  "homepage": "https://github.com/rjmurillo/ai-agents",
+  "repository": "https://github.com/rjmurillo/ai-agents",
+  "license": "MIT",
+  "keywords": ["skills", "workflow", "pull-request", "planning", "memory"],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Project Toolkit",
+        "shortDescription": "Lifecycle and review skills for software projects",
+        "developerName": "rjmurillo",
+        "category": "Coding"
+      }
+    }
+  }
+}
