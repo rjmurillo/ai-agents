@@ -197,6 +197,7 @@ Recorded, not yet binding. The last column is what each record says is holding i
 | [ADR-114](ADR-114-agent-workflows-approval-and-non-blocking.md) | Agent Workflows Run Only After Approval and Never Block Merges (Except the Plugin CLI Smoke) | 2026-10-08 | Approval before running, one environment per provider. | review by 2027-04-03 |
 | [ADR-115](ADR-115-native-plugin-support-per-host.md) | Native Plugin Support for Cursor, Codex, Grok Build, Hermes, Devin, Pi, and Muse | 2026-10-12 | A generated plugin tree for each host whose native format differs. | review by 2027-04-12; It refines ADR-072 Decision 2 and Decision 5 for seven more hosts. A reduced `adr-review` panel (architect and critic) reached consensus in round 3 on the first four hosts. The... |
 | [ADR-117](ADR-117-state-conflation-failure-mode.md) | Add FM-13, State Conflation in a Boolean Guard, to the Failure Taxonomy | 2026-10-13 | Add one class to `FAILURE-MODES.md`, FM-13, State Conflation in a Boolean Guard. | review by 2027-04-13 |
+| [ADR-118](ADR-118-widen-fm-11-to-hand-authored-cross-harness-instructions.md) | Widen FM-11 to Cover Hand-Authored Cross-Harness Instructions | 2026-10-13 | Widen FM-11. | review by 2027-04-13 |
 
 ## Retired
 

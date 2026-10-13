@@ -26,7 +26,7 @@ Trust-based compliance fails at scale. Instructions asking agents to "remember",
 | 8 | Security drift | Critical | `2026-01-04-pr760-security-suppression-failure.md` |
 | 9 | Confident-incorrectness recurrence | High | `2026-05-08-pr-1897-confident-incorrectness-recurrence.md` |
 | 10 | Silent defaults and guard-clause suppression | High | PR #1965 round-9/round-11 fixes; daniel.haxx.se 2026-05-11 |
-| 11 | Customer-facing generated artifact shipped without runtime verification | Critical | `2026-06-02-pr-2205-customer-wedge-incident.md`; ADR-071 |
+| 11 | Customer-facing artifact shipped without runtime verification | Critical | `2026-06-02-pr-2205-customer-wedge-incident.md`; ADR-071; ADR-118 |
 | 12 | Post-completion continuation | High | Issue #5404 |
 | 13 | State conflation in a boolean guard | Medium | Issues #1168, #5097, #5104; PR #5103 |
 
@@ -408,13 +408,16 @@ If the wrong outcome is visible (a red check, a blocked merge, an error message)
 
 ---
 
-## 11. Customer-Facing Generated Artifact Shipped Without Runtime Verification
+## 11. Customer-Facing Artifact Shipped Without Runtime Verification
 
 ### Description
 
-A generator produces an artifact that is installed into a customer's environment
-(plugin `hooks.json`, copied hook scripts, agent or skill files a CLI loads, MCP
-config). Tests validate the artifact's structure only. No gate ever executes the
+An artifact is installed into a customer's environment or into another harness's
+session. Either a generator produces it (plugin `hooks.json`, copied hook scripts,
+agent or skill files a CLI loads, MCP config), or a person writes it and the
+repository's own documentation publishes it as a cross-harness instruction (a
+governance doc that tells every harness to run a script, a rule that names a
+command). Tests validate the artifact's structure only. No gate ever executes the
 artifact under the runtime contract of its target host (the working directory the
 host sets, the environment variables it exports, the process model). The artifact
 ships structurally valid and behaviorally broken. The most damaging variant wedges
@@ -431,10 +434,26 @@ structural tests pass honestly AND no false completion claim was narrated, the
 incident is FM #11 even when FM #9 (author overconfidence) is absent. A careful,
 honest author still ships a wedge when the release path has no runtime gate.
 
+The hand-authored variant has no generator and no plugin manifest to gate. The
+delivery path is the documentation: the doc installs the command into the other
+harness's session. The mechanism is unchanged, so the Detection lines and the
+runtime-contract rows of the Enforcement Pattern apply. The committed-artifact
+gate and the hook smoke are specific to generated hooks. Issue #4780 is the
+worked case:
+`.agents/governance/MEMORY-MANAGEMENT.md` recommended
+`.claude-mem/scripts/import_claude_mem_memories.py` with no harness
+qualification, the script hardcoded a Claude Code plugin path, and the one test
+covering `main` asserted `result in (0, 1)`. No gate ever ran the script on a
+host without that directory, so a Copilot CLI session reported a failure for an
+optional dependency that was only not installed.
+
 ### Trigger
 
 - A generator emits a customer-facing artifact whose correctness depends on a
   runtime contract that is undocumented or assumed by analogy.
+- A hand-authored script, command, or rule is published as a cross-harness
+  instruction, and its correctness depends on one harness's runtime contract
+  (a plugin path, an environment variable, a working directory).
 - The test suite asserts the artifact's shape (valid JSON, fields present) or
   asserts the generator's own output (self-referential), but never runs the
   artifact under the host's real cwd and environment.
@@ -451,6 +470,12 @@ honest author still ships a wedge when the release path has no runtime gate.
   recover. The first fix (PR #2205) repeated the pattern: an assumed env var name
   and a self-referential string-match test that passed while the artifact was
   broken.
+- `2026-09-01-issue-4780-importer-path-resolution.md`: the hand-authored
+  Claude-Mem importer hardcoded `~/.claude/plugins/marketplaces/thedotmack/scripts/`
+  and exited 1 under Copilot CLI. The only test of `main` asserted
+  `assert result in (0, 1)`, which passes for every possible implementation.
+  PR #5459 fixed it and pinned each exit code in
+  `tests/claude_mem/test_importer_cli_contract.py`.
 
 ### Detection
 
@@ -460,6 +485,11 @@ honest author still ships a wedge when the release path has no runtime gate.
 - The committed artifact (not just the generator on a fixture) is ungated.
 - Blast-radius question unanswered: "if this artifact is wrong, does the customer
   get a degraded feature or a wedged environment?"
+- A command that governance docs recommend with no harness qualification, with no
+  test that runs it where the recommending harness's files are absent.
+- An assertion that accepts the function's entire documented return range, such
+  as `assert result in (0, 1)` for a function that returns 0 or 1. It reads like
+  coverage and cannot fail.
 
 ### Enforcement Pattern
 
@@ -469,9 +499,10 @@ honest author still ships a wedge when the release path has no runtime gate.
 | Runtime-contract test | `tests/build_scripts/test_generate_hooks_runtime_contract.py` executes the command under the real cwd/env with a negative control | CI (pytest) |
 | Committed-artifact gate | `scripts/validation/validate_hook_anchoring.py` in `pre_pr.py`; derives expected shape from the generator | Pre-PR |
 | Real-CLI smoke | Lefthook `hook-anchoring-e2e` runs `tests/e2e/test_cli_hook_e2e.py` on matching changes; skips loudly without a CLI | Pre-push (local) |
+| Exit-code contract test (hand-authored variant) | `tests/claude_mem/test_importer_cli_contract.py` asserts each documented exit code with `==`, never a set of accepted codes | CI (pytest) |
 
-The principle: **a customer-facing generated artifact MUST be executed in its
-target runtime before release.** Structural validity is not behavioral evidence.
+The principle: **a customer-facing artifact, generated or hand-authored, MUST be
+executed in its target runtime before release.** Structural validity is not behavioral evidence.
 Self-referential tests do not count. Where the runtime needs auth that bare CI
 lacks, force the smoke locally and document a release or nightly smoke; a skipped
 smoke MUST be loud.
@@ -480,9 +511,11 @@ smoke MUST be loud.
 
 - `.project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md`
 - ADR-071 (plugin hook runtime-contract verification)
+- ADR-118 (widens this class to hand-authored cross-harness instructions)
+- `.project-toolkit/retrospective/2026-09-01-issue-4780-importer-path-resolution.md`
 - `.claude/rules/generated-artifacts.md`
 - `.claude/rules/canonical-source-mirror.md` (self-referential test anti-pattern)
-- Issues #2205 (fix), #2223 (follow-up debt)
+- Issues #2205 (fix), #2223 (follow-up debt), #4780 (hand-authored case), #5461 (this widening)
 
 ---
 
