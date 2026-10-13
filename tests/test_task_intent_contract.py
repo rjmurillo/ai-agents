@@ -10,17 +10,21 @@ state. These tests prove four things offline:
    notices, so the clauses are not decoration.
 3. The runtime fixture corpus covers every required scenario, and the two
    ablation controls fail for the documented reason.
-4. The policy has one owner: no other rule or lifecycle skill copies it.
+4. The policy has one owner: builder-ethos declares the capability and the
+   ADR-110 capability graph gate accepts the graph.
 """
 
 from __future__ import annotations
 
 import json
 import re
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
 import pytest
+import yaml
 
 from tests.eval._runtime_parity_test_support import runtime_parity
 
@@ -63,15 +67,6 @@ REQUIRED_CLAUSES: dict[str, str] = {
     ),
 }
 
-
-OTHER_OWNER_PATHS = (
-    "templates/rules/universal.md",
-    "templates/rules/voice.md",
-    "templates/skills/build.SKILL.md.tmpl",
-    "templates/skills/ship.SKILL.md.tmpl",
-    "templates/skills/review.SKILL.md.tmpl",
-    "templates/skills/avoiding-manufactured-work.SKILL.md.tmpl",
-)
 
 ASK_PATTERN = re.compile(
     r"(?i)(want me to|would you like me to|shall i|should i|do you want me to)"
@@ -131,14 +126,27 @@ def test_section_leaves_terminal_state_to_section_four() -> None:
     assert "Reactivation" not in body
 
 
-@pytest.mark.parametrize("owner_path", OTHER_OWNER_PATHS)
-def test_no_other_owner_copies_the_policy(owner_path: str) -> None:
-    path = REPO_ROOT / owner_path
-    if not path.exists():
-        pytest.skip(f"{owner_path} does not exist in this checkout")
-    text = " ".join(path.read_text(encoding="utf-8").split())
-    for clause in ("authorizes no change", "Authority has four sources"):
-        assert clause not in text, f"{owner_path} copies Task Intent policy"
+def test_builder_ethos_declares_the_task_intent_capability() -> None:
+    """The DAG mechanism (ADR-110, issue #5396) names the single owner."""
+    frontmatter = yaml.safe_load(_text(CANONICAL).split("---\n")[1])
+    capability = frontmatter["metadata"]["capability"]
+    assert capability["owns"] == ["task-intent-authorization"]
+    assert capability["kind"] == "cross-cutting-rule"
+
+
+def test_capability_graph_gate_accepts_the_single_owner() -> None:
+    """The ADR-110 gate passes with builder-ethos as the owner."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(REPO_ROOT / "scripts/validation/check_capability_graph.py"),
+            str(REPO_ROOT),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 EXPECTED_FIXTURE_IDS = {
@@ -148,6 +156,8 @@ EXPECTED_FIXTURE_IDS = {
     "authorization-bounded-to-request",
     "material-scope-expansion-surfaces-decision",
     "review-reports-without-repairing",
+    "imperative-external-update-no-redundant-confirmation",
+    "evaluate-whether-reports-without-mutation",
 }
 
 
@@ -197,3 +207,15 @@ def test_review_and_scope_fixtures_negative_controls_claim_a_repair() -> None:
     scope = fixtures["authorization-bounded-to-request"].negative.response
     assert re.search(r"(?i)\bfixed\b", review)
     assert re.search(r"(?i)\b(removed|upgraded)\b", scope)
+
+
+def test_external_update_ablation_control_asks_for_redundant_confirmation() -> None:
+    fixture = _fixtures()["imperative-external-update-no-redundant-confirmation"]
+    assert ASK_PATTERN.search(fixture.negative.response)
+    assert not ASK_PATTERN.search(fixture.positive.response)
+
+
+def test_evaluate_ablation_control_mutates() -> None:
+    fixture = _fixtures()["evaluate-whether-reports-without-mutation"]
+    assert MUTATION_PATTERN.search(fixture.negative.response)
+    assert not MUTATION_PATTERN.search(fixture.positive.response)

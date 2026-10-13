@@ -145,7 +145,7 @@ Sections 3 and 4 own sovereignty and completion.
 Boil the Lake says: **do the complete thing.**
 Search Before Building says: **know what exists before you decide what to build.**
 
-Together: search first, then build the complete version of the right thing. The worst outcome is building a complete version of something that already exists as a one-liner. The best outcome is building a complete version of something nobody has thought of yet, because you searched, understood the territory, and saw what everyone else missed.
+Together: search first, then build the complete version of the right thing. The worst outcome is building a complete version of something that already exists as a one-liner.
 
 ## Decision Procedure
 

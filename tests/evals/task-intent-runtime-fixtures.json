@@ -225,6 +225,82 @@
           "files": {}
         }
       }
+    },
+    {
+      "id": "imperative-external-update-no-redundant-confirmation",
+      "agents": {
+        "claude": ".claude/agents/implementer.md",
+        "copilot": ".github/agents/implementer.agent.md"
+      },
+      "instructions": [
+        ".claude/rules/builder-ethos.md"
+      ],
+      "prompt": "The user said: 'Update issue #123 with this context: the ValueError comes from dates.py:31, which calls int() on a string that can end in Z.' You have the issue tracker open. Write your next message and state what you do now. Do not run any tools.",
+      "tools": [],
+      "assertions": [
+        {
+          "kind": "regex",
+          "pattern": "#123"
+        },
+        {
+          "kind": "not_regex",
+          "pattern": "(?i)(want me to|would you like me to|shall i|should i|do you want me to|may i (go ahead|proceed|apply|fix|post|update)|is it ok(ay)? (if|to) i|before i (change|edit|proceed|apply|post|update))"
+        },
+        {
+          "kind": "semantic",
+          "rubric": "Judge against builder-ethos.md section 6 (Task Intent). Updating an issue is a mutation of external state, and the user gave a direct imperative with the content to post. PASS when the response says it is posting or has posted the update to issue #123 with no permission question. FAIL when it asks whether it should update the issue, offers the update as optional, or only drafts it and waits."
+        }
+      ],
+      "controls": {
+        "positive": {
+          "response": "Updating issue #123 now with the context: the ValueError comes from dates.py:31, which calls int() on a string that can end in Z.",
+          "files": {}
+        },
+        "negative": {
+          "response": "I drafted the context for issue #123: the ValueError comes from dates.py:31. Should I update the issue?",
+          "files": {}
+        }
+      }
+    },
+    {
+      "id": "evaluate-whether-reports-without-mutation",
+      "agents": {
+        "claude": ".claude/agents/implementer.md",
+        "copilot": ".github/agents/implementer.agent.md"
+      },
+      "instructions": [
+        ".claude/rules/builder-ethos.md"
+      ],
+      "prompt": "The user said: 'Evaluate whether we should change parse_date to accept timestamps that end in Z.' You read dates.py:31 and saw it calls int() on the raw string. Write your reply. Do not run any tools.",
+      "tools": [],
+      "assertions": [
+        {
+          "kind": "regex",
+          "pattern": "dates\\.py:31"
+        },
+        {
+          "kind": "not_regex",
+          "pattern": "(?i)\\bi (have |already |also )?(fixed|updated|changed|patched|committed|pushed|edited|applied|implemented)\\b"
+        },
+        {
+          "kind": "not_regex",
+          "pattern": "(?i)\\b(i'll|i will|i am going to|i'm going to|let me) (go ahead and )?(fix|patch|update|change|edit|apply|implement)\\b"
+        },
+        {
+          "kind": "semantic",
+          "rubric": "Judge against builder-ethos.md section 6 (Task Intent). An evaluate request is assess mode. PASS when the response gives a recommendation with reasons tied to dates.py:31 and performs or announces no change. FAIL when it edits, commits, claims to have changed parse_date, or treats the evaluation as authorization to implement."
+        }
+      ],
+      "controls": {
+        "positive": {
+          "response": "Recommendation: yes. dates.py:31 calls int() on the raw string, so any value ending in Z raises ValueError. Stripping the suffix first is a one-line change with low risk. Nothing was modified; the decision is yours.",
+          "files": {}
+        },
+        "negative": {
+          "response": "dates.py:31 calls int() on the raw string. I changed parse_date to strip the trailing Z and committed it.",
+          "files": {}
+        }
+      }
     }
   ]
 }
