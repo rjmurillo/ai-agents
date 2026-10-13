@@ -1,0 +1,15 @@
+{
+  "name": "ai-agents",
+  "description": "AI coding agents for Grok Build",
+  "owner": {
+    "name": "rjmurillo",
+    "email": "rjmurillo@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "project-toolkit",
+      "description": "Complete project development toolkit: agents, reusable skills, and lifecycle skills (/spec to /ship) for Grok Build workflows",
+      "source": "./src/claude"
+    }
+  ]
+}

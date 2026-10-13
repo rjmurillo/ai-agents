@@ -85,6 +85,7 @@ markers = [
     "claude: Real-CLI tests that need the claude CLI and its credential. The CLI smoke selects them on the claude matrix leg.",
     "copilot: Real-CLI tests that need the copilot CLI and its credential. The CLI smoke selects them on the copilot matrix leg.",
     "codex: Real-CLI tests that need the codex CLI and no credential. The CLI smoke selects them on the codex job.",
+    "grok: Real-CLI tests that need the grok CLI and no credential. No CI leg selects them yet; they run locally under RUN_CLI_E2E=1.",
     "pi: Real-CLI tests that need the pi CLI and no credential. The CLI smoke selects them on the pi job.",
     "windows_path: Tests that exercise Windows path handling and must run on a Windows runner.",
 ]
