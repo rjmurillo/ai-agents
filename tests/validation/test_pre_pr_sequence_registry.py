@@ -140,6 +140,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     "Agent Content Parity (.claude/agents vs src/claude)",
     "Agent Source Parity",
     "Agent Tree Frontmatter (.claude/agents)",
+    "Agent Delegation (src/claude/agents)",
     "Skill Tree Layout (.claude/skills)",
     "Host Marketplaces",
     "Plugin Version Bump",
