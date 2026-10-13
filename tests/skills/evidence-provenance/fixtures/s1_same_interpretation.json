@@ -1,0 +1,36 @@
+{
+  "claim": "R holds: implementation plus new test",
+  "subject": {
+    "artifact": "pkg",
+    "revision": "r2",
+    "premises": [
+      "interp:R"
+    ]
+  },
+  "evidence": [
+    {
+      "id": "new-test",
+      "state": "VERIFIED",
+      "premises": [
+        "interp:R"
+      ]
+    },
+    {
+      "id": "self-review",
+      "state": "VERIFIED",
+      "premises": [
+        "interp:R"
+      ],
+      "origin": "independent-reviewer"
+    }
+  ],
+  "expect": {
+    "verdict": "SINGLE_LOOP",
+    "independent_loops": 0,
+    "exit": 0,
+    "loops": {
+      "new-test": "L0-subject",
+      "self-review": "L0-subject"
+    }
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "claim": "gate passed",
+  "subject": {
+    "artifact": "pkg",
+    "revision": "r2",
+    "premises": [
+      "interp:R"
+    ]
+  },
+  "evidence": [
+    {
+      "id": "ci-run",
+      "state": "VERIFIED",
+      "origin": "external-system",
+      "environment": "real",
+      "authority": "executable-runtime",
+      "premises": [
+        "observation:ci"
+      ],
+      "bound_to": {
+        "artifact": "pkg",
+        "revision": "r2",
+        "validator": "pre_pr",
+        "result": "pass"
+      }
+    }
+  ],
+  "expect": {
+    "verdict": "NO_VERIFIED_EVIDENCE",
+    "rejected": {
+      "ci-run": "binding-missing"
+    },
+    "exit": 0,
+    "promotion": true
+  }
+}
