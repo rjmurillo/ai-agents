@@ -44,7 +44,8 @@ Exit codes (AGENTS.md contract):
     2 - config error (baseline missing, bad args)
     3 - external error (git, ruff, or taste-lints could not run)
     100 - merge conflict (ratchets were not evaluated)
-    128+N - killed by signal N (SIGTERM, SIGHUP); scratch was removed first
+    128+N - killed by signal N (SIGTERM, SIGHUP); scratch removal ran first,
+            and a failed removal is reported on stderr
 """
 
 from __future__ import annotations
@@ -400,7 +401,11 @@ def _evaluate_registered_ratchets(repo_root: Path, base_oid: str, scratch_root: 
 
 
 def _measure_in_scratch(repo_root: Path, tree_oid: str, base_oid: str) -> int:
-    """Materialize the merged tree in scratch, evaluate, and always remove the scratch."""
+    """Materialize the merged tree in scratch, evaluate, and always remove the scratch.
+
+    A failed removal is reported inside the ``finally`` so a signal that is
+    unwinding through it cannot hide the error.
+    """
     try:
         scratch_root = create_scratch("merge-tree-ratchet-")
     except OSError as exc:
@@ -415,10 +420,10 @@ def _measure_in_scratch(repo_root: Path, tree_oid: str, base_oid: str) -> int:
             primary_exit = _evaluate_registered_ratchets(repo_root, base_oid, scratch_root)
     finally:
         cleanup_error = _remove_scratch(scratch_root, "merge-tree scratch")
-    if cleanup_error:
-        print(cleanup_error, file=sys.stderr)
-        if primary_exit == EXIT_OK:
-            primary_exit = EXIT_EXTERNAL
+        if cleanup_error:
+            print(cleanup_error, file=sys.stderr)
+    if cleanup_error and primary_exit == EXIT_OK:
+        primary_exit = EXIT_EXTERNAL
     return primary_exit
 
 

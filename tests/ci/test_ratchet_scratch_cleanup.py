@@ -93,7 +93,7 @@ def _wait_for_marker(marker: Path, proc: subprocess.Popen[bytes]) -> Path:
     return Path(marker.read_text())
 
 
-def _kill_mid_run(child: str, repo: Path, temp_root: Path, sig: int) -> tuple[int, Path]:
+def _kill_mid_run(child: str, repo: Path, temp_root: Path, sig: int) -> tuple[int, Path, str]:
     marker = temp_root.parent / "scratch-path.txt"
     env = {**os.environ, "TMPDIR": str(temp_root), "PYTHONPATH": str(REPO_ROOT)}
     proc = subprocess.Popen(
@@ -106,12 +106,12 @@ def _kill_mid_run(child: str, repo: Path, temp_root: Path, sig: int) -> tuple[in
         scratch = _wait_for_marker(marker, proc)
         assert scratch.is_dir() and scratch.parent == temp_root
         proc.send_signal(sig)
-        proc.wait(timeout=30)
+        _, stderr = proc.communicate(timeout=30)
     finally:
         if proc.poll() is None:
             proc.kill()
             proc.wait()
-    return proc.returncode, scratch
+    return proc.returncode, scratch, stderr.decode()
 
 
 def _aged(path: Path, seconds: float = STALE) -> Path:
@@ -139,11 +139,39 @@ def test_signal_during_run_leaves_temp_dir_empty(
     temp_root = tmp_path / "tmp"
     temp_root.mkdir()
 
-    code, scratch = _kill_mid_run(child, small_repo, temp_root, sig)
+    code, scratch, _ = _kill_mid_run(child, small_repo, temp_root, sig)
 
     assert not scratch.exists()
     assert list(temp_root.iterdir()) == []
     assert code == 128 + sig
+
+
+FAILING_REMOVAL = """
+from scripts.ci import base_derived_ratchet, merge_tree_ratchet_check
+
+def refuse(path, label):
+    return f"{label} cleanup failed: PermissionError: denied"
+
+base_derived_ratchet.remove_scratch = refuse
+merge_tree_ratchet_check._remove_scratch = refuse
+"""
+
+
+@POSIX_ONLY
+@NEEDS_GIT
+@pytest.mark.parametrize(
+    "child", [BASE_DERIVED_CHILD, MERGE_TREE_CHILD], ids=["base_derived", "merge_tree"]
+)
+def test_a_failed_removal_during_a_kill_is_reported(
+    child: str, small_repo: Path, tmp_path: Path
+) -> None:
+    temp_root = tmp_path / "tmp"
+    temp_root.mkdir()
+
+    code, _, stderr = _kill_mid_run(FAILING_REMOVAL + child, small_repo, temp_root, signal.SIGTERM)
+
+    assert code == 128 + signal.SIGTERM
+    assert "cleanup failed: PermissionError: denied" in stderr
 
 
 @POSIX_ONLY

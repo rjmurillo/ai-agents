@@ -409,7 +409,7 @@ def terminate_as_exit() -> Iterator[None]:
     Python's default action for both signals ends the process without unwinding,
     which skips the ``finally`` that removes a scratch tree. The exit status is
     128 plus the signal number, the shell convention for death by signal, so a
-    caller can tell a kill from the 0/1/2/3 result codes. After the first
+    caller can tell a kill from the script's documented result codes. After the first
     signal, later ones are ignored until the guard exits, so cleanup inside the
     guard runs to completion. Handlers can only be installed from the main
     thread; elsewhere the guard is a no-op. Windows has no SIGHUP and its
@@ -434,7 +434,9 @@ def guarded_scratch() -> Iterator[None]:
     """Sweep stale scratch, then run the body with termination signals unwinding.
 
     Create and remove the scratch tree inside the body, so a signal at any
-    point after creation still reaches the removal.
+    point after creation still reaches the removal. A signal in the few
+    bytecodes between ``mkdtemp`` returning and the caller holding the path
+    leaks the tree; the next run's sweep covers that window.
     """
     sweep_stale_scratch()
     with terminate_as_exit():

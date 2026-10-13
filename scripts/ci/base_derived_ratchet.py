@@ -34,7 +34,8 @@ Exit codes (AGENTS.md contract):
     1 - regression (count > count at the merge base)
     2 - config error (no --base-ref)
     3 - external error (counter could not run, or no fork point)
-    128+N - killed by signal N (SIGTERM, SIGHUP); scratch was removed first
+    128+N - killed by signal N (SIGTERM, SIGHUP); scratch removal ran first,
+            and a failed removal is reported on stderr
 """
 
 from __future__ import annotations
@@ -161,8 +162,9 @@ class CommitScratch:
 def measure_commit(repo_root: Path, commit: str, counter: Counter) -> int | None:
     """Count violations on the tree of ``commit``, or None when it cannot be measured.
 
-    Scratch is removed on every exit path. A failed cleanup is not a
-    measurement.
+    Scratch removal runs on every exit path, a signal included. A failed
+    removal is reported inside the ``finally`` so a kill cannot hide it, and a
+    failed cleanup is not a measurement.
     """
     with guarded_scratch():
         tip = CommitScratch(repo_root, commit)
@@ -170,8 +172,9 @@ def measure_commit(repo_root: Path, commit: str, counter: Counter) -> int | None
             count = tip.measure(counter)
         finally:
             cleanup_error = tip.close()
+            if cleanup_error:
+                sys.stderr.write(f"{cleanup_error}\n")
     if cleanup_error:
-        sys.stderr.write(f"{cleanup_error}\n")
         return None
     return count
 
