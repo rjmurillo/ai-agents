@@ -24,12 +24,16 @@ the shipped plugin directory, and assert the plugin loads.
     ``plugin details project-toolkit`` with ``cwd`` set to a neutral directory.
     Assert returncode 0, the manifest name appears, and the expected lifecycle
     skills are present in the details output.
-  - Codex (REQ-047): ``codex plugin marketplace add <repo>`` and ``codex plugin add
-    project-toolkit@ai-agents`` install the shipped plugin into an isolated
-    ``CODEX_HOME``, ``codex plugin list --json`` shows it installed and enabled,
-    and ``codex debug prompt-input`` lists every ``EXPECTED_SKILLS`` name as
-    ``project-toolkit:<name>``. No model call and no credential: the commands
-    read the repository and the isolated home only.
+  - Codex (REQ-047, ADR-115 Decisions 7 and 10): ``codex plugin marketplace add
+    <repo>`` and ``codex plugin add project-toolkit@ai-agents`` install the
+    ``src/codex`` tree named by ``.agents/plugins/marketplace.json`` into an
+    isolated ``CODEX_HOME``. ``codex plugin list --json`` shows it installed and
+    enabled, the cache holds the agent-plugins ``plugin.json`` and the same
+    skills as ``src/claude/skills`` with no ``model`` pin, ``codex debug
+    prompt-input`` lists every ``EXPECTED_SKILLS`` name as
+    ``project-toolkit:<name>``, and an installed skill script runs with the
+    plugin-root variables unset (a copy without ``lib/`` is the negative
+    control). No model call and no credential.
   - Grok Build (ADR-115 Decision 9): ``grok plugin marketplace add <repo>`` and
     ``grok plugin install project-toolkit@<marketplace> --trust`` install the
     shipped plugin into a scratch ``GROK_HOME``; ``plugin details`` and ``plugin
@@ -2538,6 +2542,14 @@ _CODEX_PLUGIN_NAME = "project-toolkit"
 # pre-push cap (test_an_all_hang_run_fits_the_pre_push_cap).
 _CODEX_COMMAND_TIMEOUT_SECONDS = 45
 _CODEX_COMMAND_COUNT = 4
+# Two runs of the installed get_pr_checks.py: the install, then the no-lib control.
+_CODEX_SCRIPT_TIMEOUT_SECONDS = 30
+_CODEX_SCRIPT_COUNT = 2
+_CODEX_INSTALLED_SCRIPT = Path("skills") / "github" / "scripts" / "pr" / "get_pr_checks.py"
+_CODEX_PLUGIN_DIR = REPO_ROOT / "src" / "codex"
+_CODEX_MANIFEST_SCHEMA = "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
+# artifacts.skills.frontmatterDrop in templates/platforms/codex.yaml.
+_CODEX_DROPPED_KEYS = frozenset({"model", "model-rationale"})
 # Allow-list, matched case-insensitively (Windows env names are case-insensitive).
 # Codex plugin commands read local files only, so the run needs a PATH to find
 # the binary, locale and temp settings, and on Windows the shell variables that
@@ -2626,18 +2638,67 @@ def _run_codex(
     return result
 
 
+def _skill_frontmatter_keys(skill_md: Path) -> set[str]:
+    """Top-level frontmatter keys of a SKILL.md. Empty when it has no frontmatter.
+
+    Parses the YAML block rather than grepping for ``model:``: a body line that
+    starts with the word "model" is prose, not the pin the Codex tree drops.
+    """
+    text = skill_md.read_text(encoding="utf-8")
+    match = re.match(r"\A---\r?\n(.*?)\r?\n---\r?\n", text, re.DOTALL)
+    if match is None:
+        return set()
+    parsed = yaml.safe_load(match.group(1))
+    return set(parsed) if isinstance(parsed, dict) else set()
+
+
+def _codex_install_failures(installed: Path) -> list[str]:
+    """Why the installed cache is not the Codex tree (ADR-115 Decision 7); [] when it is."""
+    failures: list[str] = []
+    manifest = installed / "plugin.json"
+    if not manifest.is_file():
+        return [f"no plugin.json in {installed}"]
+    schema = json.loads(manifest.read_text(encoding="utf-8")).get("$schema")
+    if schema != _CODEX_MANIFEST_SCHEMA:
+        failures.append(f"plugin.json $schema is {schema!r}, not {_CODEX_MANIFEST_SCHEMA!r}")
+    installed_skills = sorted(p.parent.name for p in (installed / "skills").glob("*/SKILL.md"))
+    shipped_skills = sorted(
+        p.parent.name for p in (_CLAUDE_PLUGIN_DIR / "skills").glob("*/SKILL.md")
+    )
+    if installed_skills != shipped_skills:
+        failures.append(
+            f"installed {len(installed_skills)} skills, src/claude/skills ships {len(shipped_skills)}"
+        )
+    pinned = [
+        name
+        for name in installed_skills
+        if _CODEX_DROPPED_KEYS & _skill_frontmatter_keys(installed / "skills" / name / "SKILL.md")
+    ]
+    if pinned:
+        failures.append(f"skills still carry a model pin in frontmatter: {pinned}")
+    return failures
+
+
 @pytest.mark.smoke
 @requires_codex
-@_cli_budget(*([_CODEX_COMMAND_TIMEOUT_SECONDS] * _CODEX_COMMAND_COUNT))
+@_cli_budget(
+    *([_CODEX_COMMAND_TIMEOUT_SECONDS] * _CODEX_COMMAND_COUNT),
+    *([_CODEX_SCRIPT_TIMEOUT_SECONDS] * _CODEX_SCRIPT_COUNT),
+)
 def test_codex_plugin_loads_expected_skills(tmp_path: Path) -> None:
-    """codex installs the shipped plugin and its prompt lists every expected skill.
+    """codex installs the Codex tree, lists every expected skill, and runs a skill script.
 
-    Install ``project-toolkit@ai-agents`` from ``.claude-plugin/marketplace.json``
-    into an isolated ``CODEX_HOME``, confirm ``plugin list --json`` reports it
-    installed and enabled from ``src/claude``, then run ``codex debug
-    prompt-input`` from a cwd outside the repository so the only source of
-    ``project-toolkit:<skill>`` lines is the installed plugin. No model call, no
-    credential (REQ-047 AC11).
+    Install ``project-toolkit@ai-agents`` from ``.agents/plugins/marketplace.json``
+    into an isolated ``CODEX_HOME``. Confirm ``plugin list --json`` reports it
+    installed and enabled from ``src/codex``, and that the installed cache holds
+    the agent-plugins ``plugin.json``, the same skills as ``src/claude/skills``,
+    and no ``model`` pin. ``codex debug prompt-input`` from a cwd outside the
+    repository must still list every ``EXPECTED_SKILLS`` name. Then run
+    ``get_pr_checks.py --help`` from the installed copy under ``python -I`` with
+    the plugin-root variables and ``GITHUB_WORKSPACE`` unset (``_codex_env``
+    allow-lists none of them). A copy of ``skills/`` without the sibling ``lib/``
+    must fail with the loader message (negative control, ADR-115 Decision 10).
+    No model call, no credential.
     """
     home = tmp_path / "home"
     work = tmp_path / "cwd"
@@ -2648,7 +2709,7 @@ def test_codex_plugin_loads_expected_skills(tmp_path: Path) -> None:
 
     try:
         _run_codex(["plugin", "marketplace", "add", str(REPO_ROOT)], env=env, cwd=work)
-        _run_codex(["plugin", "add", _CODEX_PLUGIN_ID, "--json"], env=env, cwd=work)
+        added = _run_codex(["plugin", "add", _CODEX_PLUGIN_ID, "--json"], env=env, cwd=work)
         listing = _run_codex(["plugin", "list", "--json"], env=env, cwd=work)
         prompt = _run_codex(["debug", "prompt-input", "hi"], env=env, cwd=work)
     except subprocess.TimeoutExpired as exc:
@@ -2662,8 +2723,15 @@ def test_codex_plugin_loads_expected_skills(tmp_path: Path) -> None:
     source = entry.get("source")
     source_path = source.get("path") if isinstance(source, dict) else None
     assert isinstance(source_path, str) and Path(source_path).resolve() == (
-        _CLAUDE_PLUGIN_DIR.resolve()
-    ), f"codex installed {_CODEX_PLUGIN_ID} from {source_path!r}, not {_CLAUDE_PLUGIN_DIR}"
+        _CODEX_PLUGIN_DIR.resolve()
+    ), f"codex installed {_CODEX_PLUGIN_ID} from {source_path!r}, not {_CODEX_PLUGIN_DIR}"
+
+    installed = Path(json.loads(added.stdout)["installedPath"])
+    assert installed.resolve().is_relative_to(codex_home.resolve()), (
+        f"codex installed into {installed}, outside the scratch CODEX_HOME {codex_home}"
+    )
+    failures = _codex_install_failures(installed)
+    assert not failures, f"installed cache is not the Codex tree: {failures}"
 
     loaded = _codex_prompt_skill_names(prompt.stdout, _CODEX_PLUGIN_NAME)
     missing = EXPECTED_SKILLS - loaded
@@ -2671,6 +2739,90 @@ def test_codex_plugin_loads_expected_skills(tmp_path: Path) -> None:
         f"codex prompt-input lists no {_CODEX_PLUGIN_NAME}:<skill> for {sorted(missing)}. "
         f"Loaded {len(loaded)} plugin skills."
     )
+
+    try:
+        run = _run_installed_script(installed / _CODEX_INSTALLED_SCRIPT, env=env, cwd=work)
+        control_skills = tmp_path / "no-lib" / "skills"
+        shutil.copytree(installed / "skills", control_skills)
+        control = _run_installed_script(
+            control_skills / _CODEX_INSTALLED_SCRIPT.relative_to("skills"), env=env, cwd=work
+        )
+    except subprocess.TimeoutExpired as exc:
+        pytest.fail(f"installed script exceeded {_CODEX_SCRIPT_TIMEOUT_SECONDS}s: {exc.cmd}")
+
+    assert run.returncode == 0, f"installed script rc={run.returncode}: {redact(run.stderr[-600:])}"
+    assert control.returncode != 0 and "Plugin lib directory not found" in control.stderr, (
+        f"negative control (no lib/) rc={control.returncode}: {redact(control.stderr[-400:])!r}"
+    )
+
+
+def test_codex_env_unsets_the_plugin_root_variables(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for name in ("CLAUDE_PLUGIN_ROOT", "COPILOT_PLUGIN_ROOT", "GITHUB_WORKSPACE", "OPENAI_API_KEY"):
+        monkeypatch.setenv(name, "/leak")
+    env = _codex_env(tmp_path / "ch", tmp_path / "h")
+
+    assert not {"CLAUDE_PLUGIN_ROOT", "COPILOT_PLUGIN_ROOT", "GITHUB_WORKSPACE"} & set(env)
+    assert "OPENAI_API_KEY" not in env
+    assert env["CODEX_HOME"] == str(tmp_path / "ch")
+
+
+def _write_skill(skills: Path, name: str, frontmatter: str) -> None:
+    skill = skills / name
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text(f"---\n{frontmatter}---\nBody.\nmodel prose line\n")
+
+
+def test_skill_frontmatter_keys_ignores_body_lines_that_start_with_model(tmp_path: Path) -> None:
+    _write_skill(tmp_path, "a", "name: a\ndescription: d\n")
+    _write_skill(tmp_path, "b", "name: b\nmodel: haiku\nmodel-rationale: cost\n")
+
+    assert _skill_frontmatter_keys(tmp_path / "a" / "SKILL.md") == {"name", "description"}
+    assert {"model", "model-rationale"} <= _skill_frontmatter_keys(tmp_path / "b" / "SKILL.md")
+
+
+def test_skill_frontmatter_keys_is_empty_without_frontmatter(tmp_path: Path) -> None:
+    skill = tmp_path / "SKILL.md"
+    skill.write_text("no fence here\n")
+
+    assert _skill_frontmatter_keys(skill) == set()
+
+
+def _fake_codex_cache(root: Path, *, schema: str, pin: bool, skip_skill: bool) -> Path:
+    cache = root / "cache"
+    cache.mkdir()
+    (cache / "plugin.json").write_text(json.dumps({"$schema": schema}))
+    names = sorted(p.parent.name for p in (_CLAUDE_PLUGIN_DIR / "skills").glob("*/SKILL.md"))
+    for name in names[1:] if skip_skill else names:
+        _write_skill(cache / "skills", name, "name: x\n" + ("model: haiku\n" if pin else ""))
+    return cache
+
+
+def test_codex_install_failures_accepts_a_matching_tree(tmp_path: Path) -> None:
+    cache = _fake_codex_cache(tmp_path, schema=_CODEX_MANIFEST_SCHEMA, pin=False, skip_skill=False)
+
+    assert _codex_install_failures(cache) == []
+
+
+@pytest.mark.parametrize(
+    ("schema", "pin", "skip_skill", "fragment"),
+    [
+        ("https://example.test/other.json", False, False, "$schema"),
+        (_CODEX_MANIFEST_SCHEMA, False, True, "skills,"),
+        (_CODEX_MANIFEST_SCHEMA, True, False, "model pin"),
+    ],
+)
+def test_codex_install_failures_names_each_gap(
+    tmp_path: Path, schema: str, pin: bool, skip_skill: bool, fragment: str
+) -> None:
+    cache = _fake_codex_cache(tmp_path, schema=schema, pin=pin, skip_skill=skip_skill)
+
+    assert any(fragment in failure for failure in _codex_install_failures(cache))
+
+
+def test_codex_install_failures_reports_a_missing_manifest(tmp_path: Path) -> None:
+    assert _codex_install_failures(tmp_path) == [f"no plugin.json in {tmp_path}"]
 
 
 # --- Grok Build leg (ADR-115 Decision 9) -------------------------------------
