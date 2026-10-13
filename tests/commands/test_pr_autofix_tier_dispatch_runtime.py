@@ -524,3 +524,77 @@ def test_a_comment_reword_changes_nothing(tmp_path: Path, doc: str) -> None:
         "extraction is including something it should not, or the suite is "
         "sensitive to text it has no business reading"
     )
+
+
+ORPHAN_WARNING = "1 local commit(s) ahead of live PR head abc123def. 9f8e7d6c5 drop duplicate gate"
+
+
+def _repo_with_pr_worktree(tmp_path: Path, branch: str) -> Path:
+    """A shared checkout at tmp_path plus a worktree on `branch`, as the loop sees it."""
+
+    def git(*args: str) -> None:
+        subprocess.run(
+            ["git", "-c", "user.name=t", "-c", "user.email=t@t", *args],
+            cwd=tmp_path,
+            capture_output=True,
+            check=True,
+        )
+
+    git("init", "-q", "-b", "main")
+    git("commit", "-q", "--allow-empty", "-m", "base")
+    worktree = tmp_path / "pr-worktree"
+    git("worktree", "add", "-q", "-b", branch, str(worktree))
+    return worktree.resolve()
+
+
+@pytest.mark.parametrize("doc", DISPATCH_DOCS)
+def test_round_cap_scan_is_pointed_at_the_pr_worktree(tmp_path: Path, doc: str) -> None:
+    """Issue #5447: the shared checkout's HEAD is not the PR's HEAD.
+
+    Run from the shared checkout the ancestry check exits 1 or 128 and the scan
+    reports `unverified`, so the warning never names the orphaned commits.
+    """
+    worktree = _repo_with_pr_worktree(tmp_path, "fix/5447-demo")
+    live = json.dumps({"Data": {"head_ref": "fix/5447-demo"}})
+
+    run = run_dispatch(tmp_path, doc, tier="T3", round_action="ACT", live=live)
+
+    assert run.round_cap_called
+    assert ["--worktree", str(worktree)] == json.loads(run.round_cap_argv.splitlines()[0])[-2:]
+
+
+@pytest.mark.parametrize("doc", DISPATCH_DOCS)
+def test_round_cap_without_a_matching_worktree_passes_no_worktree_path(
+    tmp_path: Path, doc: str
+) -> None:
+    live = json.dumps({"Data": {"head_ref": "no-such-branch"}})
+
+    run = run_dispatch(tmp_path, doc, tier="T3", round_action="ACT", live=live)
+
+    assert "--worktree" not in run.round_cap_argv
+
+
+@pytest.mark.parametrize("doc", DISPATCH_DOCS)
+def test_escalation_prints_the_orphaned_commit_warning(tmp_path: Path, doc: str) -> None:
+    run = run_dispatch(
+        tmp_path, doc, tier="T3", round_action="ESCALATE", orphan_warning=ORPHAN_WARNING
+    )
+
+    assert "Stopping thread-fix loop" in run.stdout
+    assert ORPHAN_WARNING in run.stdout, "the escalation threw the commit names away"
+    assert run.queue_completed
+
+
+@pytest.mark.parametrize("doc", DISPATCH_DOCS)
+def test_escalated_then_reset_act_still_prints_the_warning(tmp_path: Path, doc: str) -> None:
+    run = run_dispatch(tmp_path, doc, tier="T3", round_action="ACT", orphan_warning=ORPHAN_WARNING)
+
+    assert ORPHAN_WARNING in run.stdout
+    assert run.reached_end, "a warning must not stop an ACT verdict"
+
+
+@pytest.mark.parametrize("doc", DISPATCH_DOCS)
+def test_no_warning_prints_nothing_extra(tmp_path: Path, doc: str) -> None:
+    run = run_dispatch(tmp_path, doc, tier="T3", round_action="ESCALATE")
+
+    assert "ahead of live PR head" not in run.stdout
