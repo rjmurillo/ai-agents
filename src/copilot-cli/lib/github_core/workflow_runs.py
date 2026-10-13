@@ -12,7 +12,7 @@ mutates unless the caller explicitly calls :func:`cancel_runs`.
 from __future__ import annotations
 
 from collections.abc import Iterator, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 from urllib.parse import quote
 
@@ -27,7 +27,9 @@ __all__ = [
     "cancel_runs",
     "collect_runs_for_targets",
     "iter_paginated",
+    "run_artifact_count",
     "run_contexts",
+    "with_artifact_counts",
 ]
 
 # GitHub caps `per_page` at 100 for the Actions endpoints used here.
@@ -174,6 +176,44 @@ def run_contexts(client: GitHubClient, repository: str, run_id: int) -> tuple[st
     if not saw_any_job:
         raise JobsNotMaterializedError(f"run {run_id} in {repository!r} returned zero job records")
     return tuple(names)
+
+
+def run_artifact_count(client: GitHubClient, repository: str, run_id: int) -> int:
+    """Count the live artifacts one workflow run has uploaded.
+
+    Issue #5365. Cancelling a run orphans what it already uploaded and
+    interrupts any upload in flight, so the count belongs in the blast radius
+    the operator reads before confirming. The Actions API has no batch form of
+    this read: it is one call per run, which is why callers opt in.
+
+    Expired artifacts are excluded. GitHub keeps listing them after retention
+    deletes the payload, and counting them would overstate what a cancellation
+    puts at risk.
+    """
+    endpoint = f"repos/{_path_segment(repository)}/actions/runs/{run_id}/artifacts"
+    return sum(
+        1
+        for artifact in iter_paginated(client, endpoint, "artifacts")
+        if not artifact.get("expired")
+    )
+
+
+def with_artifact_counts(
+    client: GitHubClient, repository: str, runs: Sequence[WorkflowRun]
+) -> list[WorkflowRun]:
+    """Return ``runs`` with ``artifact_count`` measured, one API call per run.
+
+    A repeated run id is measured once. A failed read raises instead of
+    leaving a run unmeasured: the caller asked for the number, and a report
+    that silently omits it is the gap this exists to close.
+    """
+    measured: dict[int, int] = {}
+    counted: list[WorkflowRun] = []
+    for run in runs:
+        if run.run_id not in measured:
+            measured[run.run_id] = run_artifact_count(client, repository, run.run_id)
+        counted.append(replace(run, artifact_count=measured[run.run_id]))
+    return counted
 
 
 def _branch_runs(

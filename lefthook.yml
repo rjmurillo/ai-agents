@@ -632,6 +632,14 @@ pre-push:
             timeout: 2m
             run: uv run --frozen python scripts/ci/report_advisory_result.py run --validator worktree-gc-report --scope "registered worktrees" --timeout 100 --findings-exit 1 -- uv run --frozen python scripts/maintenance/gc_worktrees.py
 
+          # Issue 5360: report-only. Stale branch sections in the shared
+          # .git/config grow without bound, so every push counts them. The
+          # reporter exits 0, so this job never blocks a push and never
+          # writes. Removal stays manual: run the script with --apply.
+          - name: branch-config-prune-report
+            timeout: 2m
+            run: uv run --frozen python scripts/ci/report_advisory_result.py run --validator branch-config-prune-report --scope "branch sections in .git/config" --timeout 100 --findings-exit 1 -- uv run --frozen python scripts/maintenance/prune_branch_config.py --fail-on-stale
+
           # Runs `pytest --testmon` over tests/ (issue #6239): pytest-testmon
           # re-runs only the tests whose recorded dependencies changed since
           # its last run. `.testmondata` is git-ignored local state. With none,

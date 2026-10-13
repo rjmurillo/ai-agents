@@ -35,6 +35,13 @@ pinning it needs the publisher App ADR-101 requirement 2 describes. A legitimate
 change to a verifier reports here too, exactly as it halts the local gate until a
 human approves it.
 
+A pull request that sits behind the base ref is not reported for files it never
+touched. With `--head-sha` the check finds the merge base of the base ref and the
+head, and a file whose head blob equals the merge-base blob is skipped: the base
+ref moved it after the branch point. This applies to differing, removed, new and
+symlink findings alike. When the merge base cannot be found (a shallow checkout)
+the check compares with the base ref alone, so it reports more, never less.
+
 EXIT CODES (ADR-035):
   0 - the head's dispatch closure is byte-identical to the base ref
   1 - files differ, are removed or new, a symlink was added, or a dynamic load
@@ -172,6 +179,26 @@ def _blob_id(tool_root: Path, ref: str, path: str) -> str | None:
     return result.stdout.strip() if result.returncode == 0 else None
 
 
+def _in_ref(tool_root: Path, ref: str, path: str) -> bool:
+    """True when ``path`` exists at ``ref`` in the base checkout."""
+    return _blob_id(tool_root, ref, path) is not None
+
+
+def _unchanged_symlinks(tool_root: Path, fork: str | None, head_sha: str | None) -> set[str]:
+    """Symlinks of the merge base that the head carries with the same target.
+
+    A symlink the head retargets is the pull request's own change, so a path match
+    alone is not enough: the blob id, which holds the target, has to match too.
+    """
+    if fork is None or head_sha is None:
+        return set()
+    return {
+        path
+        for path in _base_symlinks(tool_root, fork)
+        if _blob_id(tool_root, head_sha, path) == _blob_id(tool_root, fork, path)
+    }
+
+
 def _symlinks_in_tree(root: Path) -> set[str]:
     found: set[str] = set()
     for directory, names, files in os.walk(root, followlinks=False):
@@ -193,16 +220,51 @@ def _base_symlinks(tool_root: Path, base_ref: str) -> set[str]:
     return {e.split("\t", 1)[1] for e in entries if e.startswith("120000 ") and "\t" in e}
 
 
+def _merge_base(tool_root: Path, base_ref: str, head_sha: str | None) -> str | None:
+    """The commit where the head branched from the base ref, or None when unknown.
+
+    None covers a head given as a work tree (no commit to compare), a shallow
+    history that does not reach the fork point, and an unrelated history. Every
+    caller then falls back to comparing with the base ref alone, which reports more,
+    never less.
+    """
+    if head_sha is None:
+        return None
+    result = subprocess.run(
+        ["git", *_INERT_GIT, "merge-base", base_ref, head_sha],
+        cwd=tool_root,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    return result.stdout.strip() if result.returncode == 0 and result.stdout.strip() else None
+
+
 def _differs(
-    tool_root: Path, base_ref: str, head_root: Path, head_sha: str | None, path: str
+    tool_root: Path,
+    base_ref: str,
+    head_root: Path,
+    head_sha: str | None,
+    path: str,
+    fork: str | None = None,
 ) -> bool | None:
-    """True when the head's ``path`` differs from the base, None when the base has none.
+    """True when the pull request changed ``path`` against the base, None when it added it.
 
     With a head SHA the comparison is by blob id, so a `.gitattributes` in the
     head that selects a built-in conversion cannot make the bytes written to the
     scratch tree equal the base's while the committed blob differs.
+
+    ``fork`` is the merge base. A file whose head blob equals the fork blob is not
+    something the pull request touched: the base ref moved it after the branch
+    point, and merging the base into the branch would make the two equal. It is
+    not reported, whether the base changed it or deleted it.
     """
     base_id = _blob_id(tool_root, base_ref, path)
+    if fork is not None and head_sha is not None:
+        head_id = _blob_id(tool_root, head_sha, path)
+        if head_id is not None and head_id == _blob_id(tool_root, fork, path):
+            return False
     if base_id is None:
         return None
     if head_sha is not None:
@@ -227,21 +289,21 @@ def verify(tool_root: Path, head_root: Path, base_ref: str, head_sha: str | None
     closure = gate._expand_import_closure(
         [path for path in roots if (head_root / path).is_file()], head_root
     )
+    fork = _merge_base(tool_root, base_ref, head_sha)
     report = Report(examined=len(closure))
     report.removed.extend(
         path
         for path in roots
-        if not (head_root / path).is_file() and _base_blob(tool_root, base_ref, path) is not None
+        if not (head_root / path).is_file() and _in_ref(tool_root, fork or base_ref, path)
     )
     for path in closure:
-        differs = _differs(tool_root, base_ref, head_root, head_sha, path)
+        differs = _differs(tool_root, base_ref, head_root, head_sha, path, fork)
         if differs is None:
             report.added.append(path)
         elif differs:
             report.changed.append(path)
-    report.symlinks.extend(
-        sorted(_symlinks_in_tree(head_root) - _base_symlinks(tool_root, base_ref))
-    )
+    known = _base_symlinks(tool_root, base_ref) | _unchanged_symlinks(tool_root, fork, head_sha)
+    report.symlinks.extend(sorted(_symlinks_in_tree(head_root) - known))
     report.unresolved.extend(gate._unresolvable_dynamic_sites(closure, head_root))
     return report
 
@@ -294,7 +356,6 @@ def materialize_head(
         "fetch",
         "--no-tags",
         "--no-recurse-submodules",
-        "--depth=1",
         remote,
         _HEAD_MARKER.format(number=pull_number),
     )

@@ -26,12 +26,13 @@ runner calls the same validators in the same order with the same exit
 semantics; the imports below keep ``from scripts.validation.pre_pr import X``
 working for callers and tests.
 
-The facade is not exhaustive. Measured on this tree, 15 validators that
-``pre_pr_sequence`` imports have no re-export here (``validate_traceability``,
-``validate_count_ratchets``, ``validate_mypy_changed_files`` and 12 others),
-so ``from scripts.validation.pre_pr import X`` fails for them. That gap
-predates this file's ADR work and is tracked in issue #5272; do not read the
-imports below as a promise of full coverage.
+Every ``validate_*`` name that ``pre_pr_sequence`` imports is also importable
+from this module as the identical object. The imports below cover the original
+facade; ``pre_pr_reexports`` holds the rest so this file stays under the
+500-line ceiling (issue #3073). The registry test in
+``tests/validation/test_pre_pr_sequence_registry.py`` walks
+``vars(pre_pr_sequence)`` and fails when a gate is added to the sequence
+without a matching re-export (issue #5272).
 """
 
 from __future__ import annotations
@@ -50,21 +51,8 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
-# Shared infrastructure (subprocess wrapper, SKIP signal, base-ref helpers).
+# Validators re-exported by name (the rest come from pre_pr_reexports).
 from active_plan_closeout import validate_active_plan_closeout
-
-# (issue #5197). Both are re-exported here so
-# ``from scripts.validation.pre_pr import validate_adr_lifecycle`` and the
-# matching ``validate_adr_links`` import both resolve; the ordered row that
-# RUNS each belongs in ``pre_pr_sequence._SEQUENCE``, which is where the
-# sequence moved in issue #3073. ``check_adr_links`` was wired into that
-# sequence in this PR without the re-export, breaking the second import until
-# this line was added (Copilot, PR #5209).
-#
-# This claim covers these two validators only. It is not evidence the facade
-# re-exports every validator: 15 others that ``pre_pr_sequence`` imports are
-# still missing from it, a pre-existing gap tracked in issue #5272 (see the
-# module docstring above).
 from check_adr_lifecycle import validate_adr_lifecycle
 from check_adr_links import validate_adr_links
 from check_citation_freshness import validate_citation_freshness
@@ -157,6 +145,7 @@ from checks_tooling import (
     validate_workflow_yaml,
     validate_yaml_style,
 )
+from pre_pr_reexports import *  # noqa: F403  (identity re-exports, see module docstring)
 from pre_pr_sequence import run_all_validations
 from stale_script_refs import validate_stale_script_refs
 from validate_argument_hint import validate_argument_hint
