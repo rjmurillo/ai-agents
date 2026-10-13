@@ -86,6 +86,7 @@ markers = [
     "copilot: Real-CLI tests that need the copilot CLI and its credential. The CLI smoke selects them on the copilot matrix leg.",
     "codex: Real-CLI tests that need the codex CLI and no credential. The CLI smoke selects them on the codex job.",
     "grok: Real-CLI tests that need the grok CLI and no credential. No CI leg selects them yet; they run locally under RUN_CLI_E2E=1.",
+    "cursor: Real-CLI tests that need the cursor-agent CLI and a Cursor login for the host leg. No CI leg selects them; they run locally under RUN_CLI_E2E=1.",
     "windows_path: Tests that exercise Windows path handling and must run on a Windows runner.",
 ]
 
