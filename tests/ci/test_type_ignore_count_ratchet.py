@@ -174,6 +174,8 @@ class TestGeneratedLibMirrorExclusion:
             ".claude/lib/github_core/bot_config.py",
             "src/claude/lib/github_core/bot_config.py",
             "src/copilot-cli/lib/hook_utilities/guards.py",
+            "src/hermes/project-toolkit-delivery/lib/github_core/api.py",
+            "src/hermes/project-toolkit-knowledge/lib/ai_review_common/retry.py",
         ],
     )
     def test_mirror_package_files_are_excluded(self, rel: str) -> None:
@@ -185,6 +187,18 @@ class TestGeneratedLibMirrorExclusion:
     def test_hand_maintained_lib_file_is_not_excluded(self) -> None:
         """Only the three mirrored package dirs are excluded, not the whole tree."""
         assert ratchet._is_generated_lib_mirror(".claude/lib/paths.py") is False
+
+    @pytest.mark.parametrize(
+        "rel",
+        [
+            "src/hermes/project-toolkit-delivery/lib/paths.py",
+            "src/hermes/project-toolkit-delivery/lib/other_pkg/x.py",
+            "src/hermes/not-a-pack/lib/github_core/api.py",
+            "src/hermes/project-toolkit-delivery/skills/github/lib/github_core/api.py",
+        ],
+    )
+    def test_hermes_paths_outside_the_mirrored_packages_are_not_excluded(self, rel: str) -> None:
+        assert ratchet._is_generated_lib_mirror(rel) is False
 
     def test_exclusion_is_load_bearing(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -229,6 +243,12 @@ class TestGeneratedSkillMirrorExclusion:
                 "src/copilot-cli/skills/review/scripts/run.py",
                 ".claude/skills/review/scripts/run.py",
             ),
+            (
+                "src/hermes/project-toolkit-delivery/skills/review/scripts/run.py",
+                ".claude/skills/review/scripts/run.py",
+            ),
+            ("src/hermes/project-toolkit-delivery/plugin.json", None),
+            ("src/hermes/not-a-pack/skills/review/scripts/run.py", None),
             (".claude/skills/review/scripts/run.py", None),
             ("scripts/authored/run.py", None),
         ],

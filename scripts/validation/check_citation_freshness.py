@@ -102,7 +102,10 @@ _EXTRA_HISTORICAL_ROOTS = (
 # accuracy, not byte identity, so there is nothing content comparison would
 # add here that the source's own (still-enforced) citations do not already
 # cover.
-_GENERATED_SKILL_MIRROR_ROOTS = ("src/claude/skills/", "src/copilot-cli/skills/")
+#
+# src/hermes/ (ADR-115 Decision 6) joins the list: each pack copies skills/<name>/
+# and the rendered lib/ from those same sources, so the same reasoning holds.
+_GENERATED_SKILL_MIRROR_ROOTS = ("src/claude/skills/", "src/copilot-cli/skills/", "src/hermes/")
 
 
 @dataclass(frozen=True)

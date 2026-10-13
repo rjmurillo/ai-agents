@@ -19,6 +19,7 @@ Exit codes (AGENTS.md contract):
 
 from __future__ import annotations
 
+import re
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -62,8 +63,15 @@ _SKILL_MIRROR_ROOTS: tuple[str, ...] = ("src/claude/skills", "src/copilot-cli/sk
 _SKILL_CANONICAL_ROOT = ".claude/skills"
 
 
+# A Hermes pack copies skills/<name>/ one pack directory deep (ADR-115 Decision 6).
+_HERMES_SKILL_MIRROR_RE = re.compile(r"^src/hermes/project-toolkit-[a-z0-9-]+/skills/(.+)$")
+
+
 def _skill_mirror_canonical_source(path_str: str) -> str | None:
     """Return the .claude/skills/ path a skill-mirror path maps to, if any."""
+    hermes = _HERMES_SKILL_MIRROR_RE.match(path_str)
+    if hermes is not None:
+        return f"{_SKILL_CANONICAL_ROOT}/{hermes.group(1)}"
     for root in _SKILL_MIRROR_ROOTS:
         prefix = f"{root}/"
         if path_str.startswith(prefix):

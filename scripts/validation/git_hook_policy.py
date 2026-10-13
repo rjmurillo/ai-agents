@@ -3261,6 +3261,17 @@ def extract_session_episodes(paths: Sequence[str], repo_root: Path) -> int:
     return 0
 
 
+def _hermes_pack_mirror_source(relative_path: str) -> str | None:
+    """Map ``src/hermes/<pack>/{skills,lib}/<rest>`` to its ``.claude/`` source, else None."""
+    match = _HERMES_PACK_MIRROR_RE.match(relative_path)
+    if match is None:
+        return None
+    tree, remainder = match.groups()
+    if ".." in PurePosixPath(remainder).parts:
+        return None
+    return f".claude/{tree}/{remainder}"
+
+
 def _mirror_source(relative_path: str) -> str | None:
     """Return the canonical source a generated mirror was built from, or None.
 
@@ -3282,12 +3293,8 @@ def _mirror_source(relative_path: str) -> str | None:
         if skill_name in _COPILOT_SKILL_EXCLUDES:
             return None
 
-    hermes_pack = _HERMES_PACK_MIRROR_RE.match(relative_path)
-    if hermes_pack is not None:
-        tree, remainder = hermes_pack.groups()
-        if ".." in PurePosixPath(remainder).parts:
-            return None
-        return f".claude/{tree}/{remainder}"
+    if relative_path.startswith("src/hermes/"):
+        return _hermes_pack_mirror_source(relative_path)
 
     for output_prefix, source_prefix, suffix_map in _GENERATED_MIRRORS:
         if not relative_path.startswith(output_prefix):

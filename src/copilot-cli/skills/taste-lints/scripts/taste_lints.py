@@ -91,6 +91,8 @@ FILE_SIZE_EXEMPT_SEGMENTS: tuple[tuple[str, ...], ...] = (
 
 _GENERATED_PATH_SEGMENTS: tuple[tuple[str, ...], ...] = (
     ("src", "copilot-cli"),
+    # ADR-115 Decision 6: Hermes packs copy skills and lib byte for byte.
+    ("src", "hermes"),
     ("src", "vs-code-agents"),
     (".github", "instructions"),
     # ADR-109 B1: agent trees render from templates/agents/ and binplace.
