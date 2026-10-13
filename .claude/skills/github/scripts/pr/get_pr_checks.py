@@ -2,7 +2,10 @@
 # mypy: disable-error-code="arg-type,assignment,no-any-return,type-arg,type-var", follow-imports=skip
 """Get CI check status for a GitHub Pull Request.
 
-Retrieves CI check information using GraphQL statusCheckRollup API.
+Retrieves CI check information using GraphQL statusCheckRollup API. When
+GraphQL refuses with a rate-limit body, it reads the same checks over REST
+(check runs and commit statuses) and marks required checks from the branch
+ruleset. Output field DataSource says which transport answered.
 Returns structured JSON with check states, conclusions, and summary counts.
 Supports polling until checks complete and filtering to required checks only.
 
@@ -43,7 +46,12 @@ if _lib_dir not in sys.path:
 from github_core.api import (
     assert_gh_authenticated,
     gh_graphql,
+    is_rate_limit_refusal,
     resolve_repo_params,
+)
+from github_core.checks_rest import (
+    fetch_checks_rest,
+    mark_required_from_ruleset,
 )
 from github_core.checks_rollup import (
     extract_required_check_lists,
@@ -424,12 +432,74 @@ def _paginate_contexts(
     return extras, False
 
 
+def _overall_state(checks: list[dict]) -> str:
+    """Derive a rollup state from normalized checks, for the REST transport.
+
+    GraphQL reports GitHub's own rollup state. REST has no such field, so this
+    applies the same precedence: a failing row beats a pending row beats success.
+    """
+    if not checks:
+        return "UNKNOWN"
+    if any(c.get("IsFailing") for c in checks):
+        return "FAILURE"
+    if any(c.get("IsPending") for c in checks):
+        return "PENDING"
+    return "SUCCESS"
+
+
+def _is_rest_not_found(message: str) -> bool:
+    return "HTTP 404" in message or "Not Found" in message
+
+
+def _fetch_checks_over_rest(
+    owner: str,
+    repo: str,
+    pr_number: int,
+    graphql_error: str = "",
+) -> dict:
+    """Read checks over REST and return the same dict shape as the GraphQL path.
+
+    IsRequired is False on every row here: REST has no such field. The caller
+    marks required rows from the branch ruleset once it has fetched it.
+    """
+    try:
+        snapshot = fetch_checks_rest(owner, repo, pr_number)
+    except RuntimeError as exc:
+        msg = str(exc)
+        if _is_rest_not_found(msg):
+            return {"Error": "NotFound", "Message": f"PR #{pr_number} not found in {owner}/{repo}"}
+        prefix = f"GraphQL query failed: {graphql_error}; " if graphql_error else ""
+        return {"Error": "ApiError", "Message": f"{prefix}REST fallback failed: {msg}"}
+
+    checks = dedupe_checks([c for c in map(normalize_check, snapshot["Nodes"]) if c])
+    return {
+        "Number": snapshot["Number"],
+        "BaseBranch": snapshot["BaseBranch"],
+        "MergeState": snapshot["MergeState"],
+        "MergeStateStatus": snapshot["MergeStateStatus"],
+        "Checks": checks,
+        "OverallState": _overall_state(checks),
+        "HasChecks": bool(checks),
+        "ChecksIncomplete": not snapshot["PagesComplete"],
+        "DataSource": "rest",
+    }
+
+
 def fetch_checks(
     owner: str,
     repo: str,
     pr_number: int,
+    *,
+    prefer_rest: bool = False,
 ) -> dict:
-    """Execute GraphQL query and return parsed result."""
+    """Execute the GraphQL query and return the parsed result.
+
+    A rate-limit refusal from GraphQL falls back to REST, which has its own
+    quota (issue #6391). ``prefer_rest`` skips GraphQL, so a ``--wait`` loop
+    that already fell back does not spend its retry ladder on every poll.
+    """
+    if prefer_rest:
+        return _fetch_checks_over_rest(owner, repo, pr_number)
     try:
         data = gh_graphql(
             _CHECKS_QUERY,
@@ -437,6 +507,8 @@ def fetch_checks(
         )
     except RuntimeError as exc:
         msg = str(exc)
+        if is_rate_limit_refusal(msg):
+            return _fetch_checks_over_rest(owner, repo, pr_number, graphql_error=msg)
         if "Could not resolve" in msg or "not found" in msg:
             return {"Error": "NotFound", "Message": f"PR #{pr_number} not found in {owner}/{repo}"}
         return {"Error": "ApiError", "Message": f"GraphQL query failed: {msg}"}
@@ -640,6 +712,9 @@ def build_output(
         "MergeRefUsable": merge_ref_usable,
         "MergeStateWarning": merge_state_warning,
         "HasChecks": has_checks,
+        # Which transport answered. "rest" means GraphQL was rate limited and
+        # IsRequired came from the branch ruleset, not from isRequired.
+        "DataSource": check_data.get("DataSource", "graphql"),
         "Checks": [
             {
                 "Name": c["Name"],
@@ -780,6 +855,40 @@ def _handle_fetch_error(check_data: dict, pr_number: int, fmt: object) -> int | 
     return None
 
 
+def _mark_rest_required(
+    check_data: dict,
+    ruleset_contexts: list[str] | None,
+    required_only: bool,
+    pr_number: int,
+    fmt: object,
+) -> int | None:
+    """Mark required rows on REST data from the ruleset, or return exit code 3.
+
+    REST has no per-row required flag. Without the ruleset, ``--required-only``
+    would silently drop every row, so it fails instead of reporting an empty
+    pass. Without ``--required-only`` the rows stay unmarked and the caller
+    still sees every failing check.
+    """
+    if check_data.get("DataSource") != "rest":
+        return None
+    if ruleset_contexts is not None:
+        mark_required_from_ruleset(check_data["Checks"], ruleset_contexts)
+        return None
+    if not required_only:
+        return None
+    write_skill_error(
+        "GraphQL is rate limited and REST cannot tell which checks are required "
+        "without a base branch ruleset; rerun without --required-only or without "
+        "an empty --base-branch",
+        3,
+        error_type="ApiError",
+        output_format=fmt,
+        script_name="get_pr_checks.py",
+        extra={"Number": pr_number},
+    )
+    return 3
+
+
 def _exit_code(output: dict, checks_incomplete: bool, timed_out_pending: bool) -> int:
     """Return the exit code derived from the final output dict."""
     if checks_incomplete or timed_out_pending:
@@ -829,6 +938,12 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 3
 
+    rc = _mark_rest_required(
+        check_data, ruleset_contexts, args.required_only, args.pull_request, fmt
+    )
+    if rc is not None:
+        return rc
+
     start_time = time.monotonic()
     max_iterations = math.ceil(args.timeout_seconds / 10)
     iteration = 0
@@ -864,8 +979,19 @@ def main(argv: list[str] | None = None) -> int:
             break
 
         time.sleep(10)
-        check_data = fetch_checks(owner, repo, args.pull_request)
+        # Once GraphQL has been rate limited, stay on REST: each GraphQL poll
+        # would spend its 45s retry ladder on the same refusal.
+        check_data = fetch_checks(
+            owner,
+            repo,
+            args.pull_request,
+            prefer_rest=check_data.get("DataSource") == "rest",
+        )
         rc = _handle_fetch_error(check_data, args.pull_request, fmt)
+        if rc is None:
+            rc = _mark_rest_required(
+                check_data, ruleset_contexts, args.required_only, args.pull_request, fmt
+            )
         if rc is not None:
             return rc
 
