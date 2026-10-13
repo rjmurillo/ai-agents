@@ -56,6 +56,7 @@ from check_git_hook_health import validate_git_hook_health
 from check_host_marketplaces import validate_host_marketplaces
 from check_in_root_worktrees import validate_in_root_worktrees
 from check_index_line_endings import validate_index_line_endings
+from check_measurement_anchoring import validate_measurement_anchoring
 from check_nested_tests import validate_no_nested_tests
 from check_promotion_exceptions import validate_promotion_exceptions
 from check_push_lock_paths import validate_push_lock_paths
@@ -409,6 +410,12 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # checkable claims were reaching paid AI review rounds instead (PR #5336
     # existed solely to repair four such citations; issue #5337).
     _Gate("Citation Freshness (added lines)", _root_only(validate_citation_freshness)),
+    # Fails when a line ADDED since the base ref states a tree-state count
+    # ("109 skills in `.claude/skills/`", "9,765 tracked files") with no commit
+    # SHA, ISO date, or version tag on the line. A count is a measurement of
+    # one commit; unanchored, a later reader cannot tell "still true" from
+    # "was true once" (issue #5771).
+    _Gate("Measurement Anchoring (added lines)", _root_only(validate_measurement_anchoring)),
     # Fails when a live doc tells a contributor to run a script with third-party
     # imports under a bare `python3`, which dies with ModuleNotFoundError on a
     # clean checkout. Issue #3791.
