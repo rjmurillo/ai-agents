@@ -175,7 +175,7 @@ def is_foreign_owned(candidate: Path) -> bool:
     if getuid is None:
         return False
     try:
-        return candidate.stat().st_uid != getuid()
+        return bool(candidate.stat().st_uid != getuid())
     except OSError:
         return False
 
