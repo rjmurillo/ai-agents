@@ -312,10 +312,18 @@ def generate_agents(
                 if stanza is not None:
                     config["__agents_stanza__"] = stanza
                 # ADR-115 Decision 7: a platform that ships no agents (Codex has
-                # no plugin component for them) declares no output of any kind.
-                # Skip it here; a platform with a partial declaration still
-                # reaches the allowlist check below and fails loud.
-                if not (config.get("legacy") or stanza or config.get("outputDir")):
+                # no plugin component for them) declares an `artifacts` mapping
+                # with no `agents` stanza and no legacy output. Skip only that
+                # shape; any other config with no agents output still reaches
+                # the allowlist check below and fails loud.
+                artifacts = config.get("artifacts")
+                declares_no_agents = (
+                    isinstance(artifacts, dict)
+                    and "agents" not in artifacts
+                    and not config.get("legacy")
+                    and not config.get("outputDir")
+                )
+                if declares_no_agents:
                     continue
                 platforms.append(config)
 

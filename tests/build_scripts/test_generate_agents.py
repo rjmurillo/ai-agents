@@ -95,6 +95,22 @@ def test_platform_with_an_unlisted_agents_output_still_fails(
     assert "not allowlisted: src/codex/agents" in capsys.readouterr().err
 
 
+def test_platform_with_no_artifacts_mapping_is_not_skipped(staging: Path) -> None:
+    """Only an explicit artifacts mapping without agents is skipped; a bare config is not."""
+    (staging / "templates" / "platforms" / "codex.yaml").write_text(
+        'schemaVersion: "1.0"\nprovider: "codex"\n',
+        encoding="utf-8",
+    )
+
+    rc = generate_agents.generate_agents(
+        templates_path=staging / "templates",
+        output_root=staging / "src",
+        repo_root=staging,
+    )
+
+    assert rc != 0
+
+
 def test_copilot_cli_emits_path_style_tools(staging: Path) -> None:
     """Copilot CLI uses `$toolset:editor` expanded to `path/*` patterns."""
     rc = generate_agents.generate_agents(

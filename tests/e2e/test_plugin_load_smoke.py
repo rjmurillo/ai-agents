@@ -2658,7 +2658,10 @@ def _codex_install_failures(installed: Path) -> list[str]:
     manifest = installed / "plugin.json"
     if not manifest.is_file():
         return [f"no plugin.json in {installed}"]
-    schema = json.loads(manifest.read_text(encoding="utf-8")).get("$schema")
+    try:
+        schema = json.loads(manifest.read_text(encoding="utf-8")).get("$schema")
+    except (json.JSONDecodeError, AttributeError) as exc:
+        return [f"installed plugin.json is not a JSON object: {exc}"]
     if schema != _CODEX_MANIFEST_SCHEMA:
         failures.append(f"plugin.json $schema is {schema!r}, not {_CODEX_MANIFEST_SCHEMA!r}")
     installed_skills = sorted(p.parent.name for p in (installed / "skills").glob("*/SKILL.md"))
@@ -2677,7 +2680,25 @@ def _codex_install_failures(installed: Path) -> list[str]:
     ]
     if pinned:
         failures.append(f"skills still carry a model pin in frontmatter: {pinned}")
+    drifted = [
+        name
+        for name in installed_skills
+        if name in shipped_skills
+        and _skill_body(installed / "skills" / name / "SKILL.md")
+        != _skill_body(_CLAUDE_PLUGIN_DIR / "skills" / name / "SKILL.md")
+    ]
+    if drifted:
+        failures.append(f"installed SKILL.md bodies differ from src/claude/skills: {drifted}")
     return failures
+
+
+def _skill_body(path: Path) -> str:
+    """The SKILL.md text after its frontmatter block, which the Codex copy keeps verbatim."""
+    text = path.read_text(encoding="utf-8")
+    if not text.startswith("---"):
+        return text
+    end = text.find("\n---", 3)
+    return text if end == -1 else text[end + 4 :]
 
 
 @pytest.mark.smoke
@@ -2790,14 +2811,35 @@ def test_skill_frontmatter_keys_is_empty_without_frontmatter(tmp_path: Path) -> 
     assert _skill_frontmatter_keys(skill) == set()
 
 
-def _fake_codex_cache(root: Path, *, schema: str, pin: bool, skip_skill: bool) -> Path:
+def _fake_codex_cache(
+    root: Path, *, schema: str, pin: bool, skip_skill: bool, drift: bool = False
+) -> Path:
     cache = root / "cache"
     cache.mkdir()
     (cache / "plugin.json").write_text(json.dumps({"$schema": schema}))
     names = sorted(p.parent.name for p in (_CLAUDE_PLUGIN_DIR / "skills").glob("*/SKILL.md"))
     for name in names[1:] if skip_skill else names:
-        _write_skill(cache / "skills", name, "name: x\n" + ("model: haiku\n" if pin else ""))
+        body = _skill_body(_CLAUDE_PLUGIN_DIR / "skills" / name / "SKILL.md")
+        skill = cache / "skills" / name / "SKILL.md"
+        skill.parent.mkdir(parents=True)
+        front = "name: x\n" + ("model: haiku\n" if pin else "")
+        skill.write_text(f"---\n{front}---" + body + ("drift\n" if drift else ""))
     return cache
+
+
+def test_codex_install_failures_names_a_drifted_skill_body(tmp_path: Path) -> None:
+    cache = _fake_codex_cache(
+        tmp_path, schema=_CODEX_MANIFEST_SCHEMA, pin=False, skip_skill=False, drift=True
+    )
+
+    assert any("bodies differ" in failure for failure in _codex_install_failures(cache))
+
+
+def test_codex_install_failures_names_a_malformed_manifest(tmp_path: Path) -> None:
+    cache = _fake_codex_cache(tmp_path, schema=_CODEX_MANIFEST_SCHEMA, pin=False, skip_skill=False)
+    (cache / "plugin.json").write_text("[not an object")
+
+    assert any("not a JSON object" in failure for failure in _codex_install_failures(cache))
 
 
 def test_codex_install_failures_accepts_a_matching_tree(tmp_path: Path) -> None:
