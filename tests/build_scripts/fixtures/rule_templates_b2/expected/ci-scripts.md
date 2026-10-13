@@ -58,7 +58,9 @@ Scripts under `scripts/validation/`, `build/`, and `.github/workflows/` gate eve
 
 22. **A job `name:` is a branch-protection identifier. Emit both names before requiring the new one.** GitHub matches a required status check against a workflow job's check-run name, which is the job `name:` or the job id when `name:` is absent. Composite-action metadata under `.github/actions/` does not create check runs by itself; only consuming workflow jobs do. Check the full protected-branch set, not one guessed ruleset: `gh api repos/OWNER/REPO/rules/branches/main --jq '[.[]|select(.type=="required_status_checks")|.parameters.required_status_checks[].context]'`. Compare it with check-run names from a fresh PR run, because `gh pr checks` cannot show a context that never ran. No-gap rename sequence: emit old and new names, merge to `main`, require the new context, remove the old requirement, then remove the old alias. The gap sequence is still valid but less safe: drop the old requirement, merge the rename, observe the new check, then require it. Requiring the new name before `main` emits it blocks every PR. Measured 2026-08-09: required `Session Protocol Results` and `AI Quality Gate Results` existed only on an unmerged PR, so `main` took no commits for five hours.
 
-23. **Prove the CLI exits nonzero on a failure the shell used to fail on**. A script under `scripts/ci` or `.github/scripts` that defines `main` MUST ship a test asserting a nonzero return from `main(argv)`, not only from a helper. The assertion has to sit in the same test that drives the CLI: the gate credits a nonzero assertion only where the test also calls that script's `main`, runs its path in a subprocess, or calls a local helper that does either. A `run:` block executes under `set -e`, so any command exiting nonzero fails the step. The natural Python translation returns a sentinel instead (empty string, `None`, empty list, a warning followed by `return 0`), and when no caller converts that sentinel into a nonzero exit the step goes green on a failure that used to be red. ADR-006 extraction is therefore a silent-pass generator, not only a silent-pass detector. Six instances were found in two extraction PRs, and three of them shipped tests that asserted the swallow. Every one of those tests asserted on a helper's return value, which structurally cannot catch an exit-code defect: the helper correctly reports failure, and nothing checks that the process does. `scripts/ci/cli_exit_contract_ratchet.py` enforces this as an equality ratchet from `pr-validation.yml`; the count may only fall. Refs Issue #4068.
+23. **Prove the CLI exits nonzero on a failure the shell used to fail on**. A script under `scripts/ci` or `.github/scripts` that defines `main` MUST ship a test asserting a nonzero return from `main(argv)`, not only from a helper. The assertion has to sit in the same test that drives the CLI: the gate credits a nonzero assertion only where the test also calls that script's `main`, runs its path in a subprocess, or calls a local helper that does either. A `run:` block executes under `set -e`, so any command exiting nonzero fails the step. The natural Python translation returns a sentinel instead (empty string, `None`, empty list, a warning followed by `return 0`), and when no caller converts that sentinel into a nonzero exit the step goes green on a failure that used to be red. ADR-006 extraction is therefore a silent-pass generator, not only a silent-pass detector. Six instances appeared in two extraction PRs, and three shipped tests that asserted the swallow on a helper's return value, which cannot catch an exit-code defect: the helper reports failure, and nothing checks that the process does. `scripts/ci/cli_exit_contract_ratchet.py` enforces this as an equality ratchet from `pr-validation.yml`; the count may only fall. Refs Issue #4068.
+
+24. **Gate a new workflow validator in pre-PR too**. A validator added to a pull-request workflow also needs a `pre_pr` gate: register it in `checks_ci_parity.py` and `pre_pr_sequence.py`, add its row to `test_pre_pr_sequence_registry.py` and a negative control to `_NEW_GATES` in `test_pre_pr_covers_workflow_validators.py`. Name a wrapper helper `*launch*`, `*invoke*`, or `*execute*`, or `test_validation_scripts_are_reachable.py` reports the script unreachable.
 
 ## SHOULD
 
@@ -70,17 +72,13 @@ Scripts under `scripts/validation/`, `build/`, and `.github/workflows/` gate eve
    **values** the code can see rather than which branches it has, so every existing
    case keeps passing while the new value goes unexercised. After fixing one,
    enumerate the values the repaired expression can now receive and find the one the
-   old code never saw. Measured across one defect in PR #5176, where four successive
-   repairs each introduced a different silent failure and three were caught by a
-   reviewer rather than by the suite being written for that class: redirecting stderr
-   to quieten a producer also hid its parse errors; a default operator chosen without
-   checking what it fires on triggered on `false` as well as `null`, collapsing a
-   legitimate negative into unreadable; a coercion added to fix that did not check
-   its input type, so the string `"true"` became boolean `true` and malformed
-   evidence satisfied the guard built to reject it, invisible to five passing tests;
-   and a new guard shipped without the comment skip its siblings had, so documenting
-   the defect would have failed the gate. The third is the shape to fear: converting
-   instead of validating fails open on the path the guard exists to protect.
+   old code never saw. Measured on PR #5176, where four successive repairs each
+   added a different silent failure and a reviewer caught three: redirecting stderr
+   hid parse errors; a default operator fired on `false` as well as `null`; a
+   coercion turned the string `"true"` into boolean `true`, so malformed evidence
+   satisfied the guard built to reject it; and a new guard lacked the comment skip
+   its siblings had. Converting instead of validating fails open on the path the
+   guard exists to protect.
 5. **Exempt a prose-only validator in the reachability test.** Agent prose is not an entry surface, so a new validator that agents run only from a prompt or handoff template fails `test_validation_scripts_are_reachable.py`. Add it to `_NO_CALLER` there with a reason, and update the script totals and the unreachable count in the module docstring.
 
 ## MUST NOT

@@ -124,7 +124,16 @@ _CHANGE_CLAIM_SECTION_NAMES: tuple[str, ...] = (
     r"What[ \t]+changed",
 )
 
+# Patterns limited to change headings when the body has no change heading at all:
+# inline code (0), markdown links (3), and link targets (4). Bold (1) and list
+# items (2) keep firing anywhere in that case, so a body that never declares a
+# change section still gets drift detection (ADR-067).
 _CHANGE_CLAIM_SCOPED_PATTERN_INDEXES: frozenset[int] = frozenset({0, 3, 4})
+
+# When the body declares a change heading, every pattern is limited to it. A
+# bullet or bold path under Test evidence or Flags then reads as a reference, not
+# a claim that the PR changed the file (issue #6410).
+_ALL_PATTERN_INDEXES: frozenset[int] = frozenset({0, 1, 2, 3, 4})
 
 # Section-name PREFIXES whose file mentions are proof or scope references, never
 # change claims. Matched as a prefix at a word boundary, so ANY suffix is
@@ -561,6 +570,11 @@ def _is_in_change_claim_region(position: int, regions: list[tuple[int, int]]) ->
     return any(start <= position < end for start, end in regions)
 
 
+def _scoped_pattern_indexes(regions: list[tuple[int, int]]) -> frozenset[int]:
+    """Return the pattern indexes that only count inside a change-claim region."""
+    return _ALL_PATTERN_INDEXES if regions else _CHANGE_CLAIM_SCOPED_PATTERN_INDEXES
+
+
 def extract_mentioned_files(description: str) -> list[str]:
     """Extract unique file paths mentioned in PR description text.
 
@@ -575,11 +589,12 @@ def extract_mentioned_files(description: str) -> list[str]:
 
     cleaned = _strip_informational_sections(description)
     change_claim_regions = _change_claim_regions(cleaned)
+    scoped_indexes = _scoped_pattern_indexes(change_claim_regions)
 
     mentioned: list[str] = []
     for pattern_index, pattern in enumerate(FILE_MENTION_PATTERNS):
         for match in pattern.finditer(cleaned):
-            scoped_pattern = pattern_index in _CHANGE_CLAIM_SCOPED_PATTERN_INDEXES
+            scoped_pattern = pattern_index in scoped_indexes
             outside_claim_region = not _is_in_change_claim_region(
                 match.start(), change_claim_regions
             )
@@ -1158,11 +1173,12 @@ def validate_pr_description(
                     message=(
                         "Description claims this file was changed, "
                         "but it's not in the PR diff. "
-                        "Inline-backtick file paths outside `## Changes` / "
+                        "When the body has a `## Changes` / `## What changed` / "
                         "`## Per-file changes` / `## Files Changed` / "
-                        "`## Changed Files` are informational. Move the path "
-                        "under one of those headings, use a bullet (`- path.ext`) "
-                        "or bold (`**path.ext**`), or wrap it in a code fence. "
+                        "`## Changed Files` heading, only paths under it are "
+                        "change claims; paths elsewhere are informational. "
+                        "Remove the path, move it out of that heading, or wrap "
+                        "it in a code fence. "
                         # CONTRIBUTING.md:909, section "Bypassing Description
                         # Validation", reads verbatim: "1. A human maintainer
                         # MUST add the `description-validation-bypass` label

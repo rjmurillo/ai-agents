@@ -248,7 +248,7 @@ def test_measuring_leaves_no_scratch_directory(
 def test_a_failed_scratch_cleanup_is_not_a_measurement(
     repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    monkeypatch.setattr(brd, "remove_tree", lambda _path, _label: "cleanup failed: denied")
+    monkeypatch.setattr(brd, "remove_scratch", lambda _path, _label: "cleanup failed: denied")
     assert brd.measure_commit(repo, "main", _counter) is None
     assert "cleanup failed: denied" in capsys.readouterr().err
 

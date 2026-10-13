@@ -194,3 +194,34 @@ def test_agent_content_parity_decodes_subprocess_output_with_replacement(
     assert checks_plugin.validate_agent_content_parity(tmp_path) is True
     assert captured["encoding"] == "utf-8"
     assert captured["errors"] == "replace"
+
+
+def test_agent_source_parity_fails_closed_when_script_is_absent(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert checks_plugin.validate_agent_source_parity(tmp_path) is False
+    assert "check_agent_source_parity.py not found" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(("returncode", "expected"), [(0, True), (1, False), (2, False)])
+def test_agent_source_parity_follows_script_exit_code(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    returncode: int,
+    expected: bool,
+) -> None:
+    script = tmp_path / "build" / "scripts" / "check_agent_source_parity.py"
+    script.parent.mkdir(parents=True)
+    script.write_text("print('stub')\n", encoding="utf-8")
+
+    def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        command = args[0]
+        assert isinstance(command, list)
+        assert str(script) in command
+        return subprocess.CompletedProcess(
+            args=["check_agent_source_parity.py"], returncode=returncode, stdout="out", stderr=""
+        )
+
+    monkeypatch.setattr(checks_plugin.subprocess, "run", fake_run)
+
+    assert checks_plugin.validate_agent_source_parity(tmp_path) is expected

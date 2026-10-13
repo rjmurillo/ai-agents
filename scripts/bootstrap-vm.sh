@@ -167,6 +167,31 @@ restore_origin_remote() {
 
 restore_origin_remote
 
+repair_clone_defaults() {
+    # Fresh remote-container clones are often shallow and have no
+    # origin/HEAD. A shallow clone makes push-ref-policy refuse the first
+    # push ("push validation requires complete Git history"); an unset
+    # origin/HEAD defeats branch-context-policy's merge exemption. Both are
+    # fixed by two git commands the same container class needed in three
+    # separate sessions (issue #5288), so run them here instead of waiting
+    # for a blocked commit or push. Each step is a no-op on a healthy clone
+    # and non-fatal on failure: an offline bootstrap must still finish.
+    if ! git remote get-url origin &>/dev/null; then
+        return 0
+    fi
+    if [[ "$(git rev-parse --is-shallow-repository 2>/dev/null)" == "true" ]]; then
+        git fetch --unshallow origin \
+            || echo "WARNING: 'git fetch --unshallow origin' failed; push-ref-policy will refuse pushes until it succeeds" >&2
+    fi
+    if ! git symbolic-ref --quiet refs/remotes/origin/HEAD &>/dev/null; then
+        git remote set-head origin -a \
+            || echo "WARNING: 'git remote set-head origin -a' failed; branch-context-policy cannot read origin/HEAD" >&2
+    fi
+    return 0
+}
+
+repair_clone_defaults
+
 echo "=== Python uv ==="
 export PATH="$HOME/.local/bin:$PATH"
 # Single source of truth for the interpreter version is the committed
