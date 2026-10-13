@@ -152,14 +152,14 @@ raise SystemExit(int(forced_rc) if forced_rc else (0 if tier == "T1" else 1))
         """\
 import json
 import os
+import sys
 from pathlib import Path
 
-Path(os.environ["ROUND_CAP_LOG"]).open("a", encoding="utf-8").write("called\\n")
-action = os.environ["FAKE_ROUND_ACTION"]
-print(json.dumps({
-    "Success": True,
-    "Data": {"action": action, "reason": "round cap reached"},
-}))
+# One argv line per call, so a test can see the --worktree wiring (issue #5447).
+print(json.dumps(sys.argv[1:]), file=Path(os.environ["ROUND_CAP_LOG"]).open("a", encoding="utf-8"))
+data = {"action": os.environ["FAKE_ROUND_ACTION"], "reason": "round cap reached"}
+data["orphaned_warning"] = os.environ.get("FAKE_ORPHAN_WARNING", "")
+print(json.dumps({"Success": True, "Data": data}))
 """,
         encoding="utf-8",
     )
@@ -259,6 +259,7 @@ class DispatchRun:
         self.process = process
         self.stdout = process.stdout
         self.round_cap_called = round_cap_log.exists()
+        self.round_cap_argv = round_cap_log.read_text("utf-8") if self.round_cap_called else ""
         self.disarmed = disarm_log.exists()
         self.disarm_argv = disarm_log.read_text(encoding="utf-8") if self.disarmed else ""
         self.merge_ready_argv = (
@@ -341,6 +342,8 @@ def run_dispatch(
     tier: str,
     auto_merge: str = "null",
     round_action: str = "ACT",
+    orphan_warning: str = "",
+    live: str | None = None,
     pages_complete: str = "true",
     author_is_bot: str = "false",
     merge_ready_rc: str = "",
@@ -407,6 +410,8 @@ done
             "FAKE_TIER": tier,
             "FAKE_AUTO_MERGE": auto_merge,
             "FAKE_ROUND_ACTION": round_action,
+            "FAKE_ORPHAN_WARNING": orphan_warning,
+            "LIVE": live or "",
             "FAKE_PAGES_COMPLETE": pages_complete,
             "FAKE_AUTHOR_IS_BOT": author_is_bot,
             "MERGE_READY_LOG": str(merge_ready_log),

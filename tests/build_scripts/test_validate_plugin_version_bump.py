@@ -8,7 +8,7 @@ the merge conflict measured in issue #4080.
 Covers:
 - positive: manifests with no version field pass (exit 0)
 - positive: the two shipped manifests pass the gate as committed
-- positive: both shipped marketplace files carry no version (resolution step 2)
+- positive: every shipped marketplace file carries no version (resolution step 2)
 - negative: a version in a marketplace entry fails the CLI (exit 1), which is
   the only gate that runs on a marketplace-only change
 - positive: a manifest absent at the ref is skipped
@@ -41,10 +41,12 @@ COPILOT = "src/copilot-cli/.claude-plugin/plugin.json"
 
 MARKET_CLAUDE = ".claude-plugin/marketplace.json"
 MARKET_COPILOT = ".github/plugin/marketplace.json"
+MARKET_GROK = ".grok-plugin/marketplace.json"
 
 MARKETPLACES = (
     REPO_ROOT / MARKET_CLAUDE,
     REPO_ROOT / MARKET_COPILOT,
+    REPO_ROOT / MARKET_GROK,
 )
 
 
@@ -98,8 +100,8 @@ def _marketplace(name: str, version: object = ...) -> str:
 def _make_repo(tmp_path: Path, **manifests: str | None) -> Path:
     """Build a committed repo whose manifests and marketplaces are the bodies given.
 
-    Keys are ``src_claude``, ``copilot``, ``market_claude``, and
-    ``market_copilot``. A value of None omits the file entirely. Unspecified
+    Keys are ``src_claude``, ``copilot``, ``market_claude``,
+    ``market_copilot``, and ``market_grok``. A value of None omits the file entirely. Unspecified
     files default to a version-free body.
     """
     repo = tmp_path / "repo"
@@ -111,12 +113,14 @@ def _make_repo(tmp_path: Path, **manifests: str | None) -> Path:
         COPILOT: _manifest("project-toolkit"),
         MARKET_CLAUDE: _marketplace("project-toolkit"),
         MARKET_COPILOT: _marketplace("project-toolkit"),
+        MARKET_GROK: _marketplace("project-toolkit"),
     }
     keys = {
         "src_claude": SRC_CLAUDE,
         "copilot": COPILOT,
         "market_claude": MARKET_CLAUDE,
         "market_copilot": MARKET_COPILOT,
+        "market_grok": MARKET_GROK,
     }
     for key, body in manifests.items():
         bodies[keys[key]] = body
@@ -186,6 +190,16 @@ def test_marketplace_entry_version_fails(tmp_path: Path) -> None:
     assert "VERSION FIELD PRESENT" in result.stdout
     assert "marketplace-version-present" in result.stdout
     assert MARKET_CLAUDE in result.stdout
+
+
+def test_grok_marketplace_entry_version_fails(tmp_path: Path) -> None:
+    repo = _make_repo(tmp_path, market_grok=_marketplace("project-toolkit", "1.0.0"))
+
+    result = _run(repo)
+
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "marketplace-version-present" in result.stdout
+    assert MARKET_GROK in result.stdout
 
 
 def test_copilot_marketplace_entry_version_fails(tmp_path: Path) -> None:

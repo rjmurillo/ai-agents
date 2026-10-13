@@ -89,7 +89,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Iterator, Sequence
+    from collections.abc import Iterable, Iterator, Mapping, Sequence
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_SCRIPT_DIR))
@@ -870,6 +870,67 @@ def _git_diff_paths(repo_root: Path) -> list[str]:
                 seen.add(p)
                 paths.append(p)
     return paths
+
+
+# Line printed after the drift list when some drifted paths are uncommitted
+# but byte-identical to what the generators just wrote. ``--check`` compares
+# the post-generation tree to HEAD, so a correct ``build_all.py`` run that was
+# never committed reads as drift, and the stale-path list alone cannot tell the
+# author which remedy applies (issue #6427). The pre-PR gate
+# ``scripts/validation/check_generated_staleness.py`` parses this prefix;
+# ``tests/validation/test_check_generated_staleness_evidence.py`` pins the two together.
+UNCOMMITTED_UNCHANGED_PREFIX = "UNCOMMITTED BUT UNCHANGED BY REGENERATION:"
+
+
+def _paths_unchanged_by_regeneration(
+    repo_root: Path, drifted: list[str], pre_run: Mapping[Path, bytes]
+) -> list[str]:
+    """Return the drifted paths whose bytes the generators left as they found them.
+
+    ``pre_run`` is the owned-prefix snapshot taken before any generator ran. A
+    drifted path that is present in it and byte-identical afterward differs from
+    HEAD only because it is uncommitted. A hand edit the generator reverted, a
+    file the generator wrote fresh, and a deleted file all differ from the
+    snapshot or are absent from it, so none of them lands here.
+    """
+    unchanged: list[str] = []
+    for rel in drifted:
+        path = repo_root / rel
+        before = pre_run.get(path)
+        if before is None or not path.is_file():
+            continue
+        if _read_bytes_no_redirect(path) == before:
+            unchanged.append(rel)
+    return unchanged
+
+
+def _unchanged_regeneration_message(unchanged: int, drifted: int) -> str:
+    """Return the one-line remedy for ``unchanged`` of ``drifted`` paths."""
+    head = f"{UNCOMMITTED_UNCHANGED_PREFIX} {unchanged} of {drifted} drifted path(s)"
+    if unchanged == drifted:
+        return (
+            f"{head} match the generators' output. "
+            "Commit the regenerated files, then rerun --check."
+        )
+    return (
+        f"{head} match the generators' output; commit those. The other "
+        f"{drifted - unchanged} are stale: run uv run python build/scripts/build_all.py, "
+        "then commit all of them."
+    )
+
+
+def _print_stale_paths(
+    repo_root: Path, drifted: list[str], pre_run: Mapping[Path, bytes] | None
+) -> None:
+    """Print the drift list, then the commit-or-regenerate remedy line."""
+    print("STALENESS DETECTED: uncommitted regen drift:", file=sys.stderr)
+    for rel in drifted:
+        print(f"  {rel}", file=sys.stderr)
+    if pre_run is None:
+        return
+    unchanged = _paths_unchanged_by_regeneration(repo_root, drifted, pre_run)
+    if unchanged:
+        print(_unchanged_regeneration_message(len(unchanged), len(drifted)), file=sys.stderr)
 
 
 # The .claude/ tree is off-limits to generators (REQ-003-010). It is
@@ -2122,6 +2183,7 @@ def run(
             claude_baseline=claude_baseline,
             claude_boundaries=claude_boundaries,
             claude_allowed_paths=claude_allowed_paths,
+            owned_snapshot=snapshot,
         )
     finally:
         # #2440: ALWAYS restore on --check, including on exception paths.
@@ -2226,6 +2288,7 @@ def _run_generators(
     claude_baseline: dict[Path, bytes],
     claude_boundaries: set[Path] | None = None,
     claude_allowed_paths: set[Path] | None = None,
+    owned_snapshot: Mapping[Path, bytes] | None = None,
 ) -> int:
     """Execute the generator pipeline and emit the audit log.
 
@@ -2282,6 +2345,13 @@ def _run_generators(
 
     audit.duration_s = time.monotonic() - started
 
+    # Under --check the binplace, lib-mirror, and template steps compare and
+    # never write, so a hand-edited generated file is byte-identical before
+    # and after the run. A failing generator result therefore voids the
+    # "unchanged by regeneration" evidence: the snapshot would call the hand
+    # edit generator output and tell the author to commit it.
+    regen_evidence = owned_snapshot if audit.overall_exit == 0 else None
+
     # REQ-003-010: enforce .claude/ no-write invariant.
     claude_writes = assert_no_claude_writes(
         repo_root,
@@ -2334,9 +2404,7 @@ def _run_generators(
         owned_prefixes = _effective_owned_prefixes(repo_root)
         diff = [p for p in changed if any(p.startswith(prefix) for prefix in owned_prefixes)]
         if diff:
-            print("STALENESS DETECTED: uncommitted regen drift:", file=sys.stderr)
-            for p in diff:
-                print(f"  {p}", file=sys.stderr)
+            _print_stale_paths(repo_root, diff, regen_evidence)
             audit.overall_exit = 2
         audit.overall_exit = max(audit.overall_exit, _surface_parity_exit(repo_root, diff))
 

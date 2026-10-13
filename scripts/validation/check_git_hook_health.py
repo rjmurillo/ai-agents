@@ -132,11 +132,10 @@ _POST_PROBE_PREFIX = "pre-push is live, but "
 # supported platform shares. Measured on the shim Lefthook 2.1.11 installed
 # into this repository: the last line is `call_lefthook run "pre-commit" "$@"`.
 # `tests/test_lefthook_integration.py::test_install_resets_legacy_hooks_path`
-# asserts the same line for the Windows template, which differs from the POSIX
-# one everywhere else: it omits the configured runner, the `LEFTHOOK_BIN`
-# override, and the PATH fallback. Matching this instead of parsing the shim
-# keeps the gate on Lefthook's own output rather than reimplementing a shell
-# reader, which the ADR-086 amendment debate rejected.
+# asserts the same line on every platform; the Windows shim differs only in the
+# PATH fallback's `lefthook.exe` name (issue #5491). Matching this instead of
+# parsing the shim keeps the gate on Lefthook's own output rather than
+# reimplementing a shell reader, which the ADR-086 amendment debate rejected.
 def _dispatch_command(hook_name: str) -> str:
     """The complete line Lefthook generates as ``hook_name``'s final command.
 
