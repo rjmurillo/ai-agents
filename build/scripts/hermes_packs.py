@@ -35,7 +35,11 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
-from atomic_write import publish_bytes_atomically, read_bytes_no_redirect  # noqa: E402
+from atomic_write import (  # noqa: E402
+    publish_bytes_atomically,
+    read_bytes_no_redirect,
+    reject_symlinked_ancestors,
+)
 from frontmatter_key_drop import drop_keys_from_skill_md  # noqa: E402
 from hermes_pack_checks import (  # noqa: E402
     PackFile,
@@ -57,6 +61,9 @@ from lib_render import LibRenderError, render_lib_files  # noqa: E402
 from yaml_loader import validate_relative_path  # noqa: E402
 
 INDEX_NAME = "README.md"
+# Stale pruning deletes every file under outputDir that the tree does not name, so
+# outputDir must stay inside this directory or a "." would prune the repository.
+_OUTPUT_ROOT_LIMIT = "src/hermes"
 _PLAIN_FILE_MODE = 0o644
 _EXECUTABLE_FILE_MODE = 0o755
 _SKILL_MD = "SKILL.md"
@@ -195,6 +202,17 @@ def _prune_empty_dirs(root: Path) -> None:
             directory.rmdir()
 
 
+def _refuse_symlinked_ancestors(output_root: Path, rels: list[str]) -> None:
+    """Raise when any path in ``rels`` sits below a symlinked directory of ``output_root``."""
+    problems = []
+    for rel in rels:
+        problem = reject_symlinked_ancestors(output_root, "Hermes output", output_root / rel)
+        if problem is not None:
+            problems.append(problem)
+    if problems:
+        raise HermesPackError(problems)
+
+
 def apply_tree(
     output_root: Path, tree: dict[str, PackFile], *, check: bool, what_if: bool
 ) -> tuple[int, int]:
@@ -208,6 +226,7 @@ def apply_tree(
         rel for rel, packed in sorted(tree.items()) if not _matches(output_root / rel, packed)
     ]
     stale = sorted(_existing_files(output_root) - set(tree))
+    _refuse_symlinked_ancestors(output_root, [*tree, *stale])
     for rel in changed:
         print(f"  {'DRIFT' if check else 'Copy'}: {output_root / rel}")
     for rel in stale:
@@ -232,6 +251,10 @@ def _output_root(repo_root: Path, config: HermesConfig) -> Path:
     root = (repo_root / config.output_dir).resolve()
     if not root.is_relative_to(repo_root.resolve()):
         raise HermesPackError([f"outputDir escapes the repository: {config.output_dir}"])
+    if not root.is_relative_to((repo_root / _OUTPUT_ROOT_LIMIT).resolve()):
+        raise HermesPackError(
+            [f"outputDir must be {_OUTPUT_ROOT_LIMIT} or under it: {config.output_dir}"]
+        )
     return Path(root)
 
 
@@ -249,6 +272,10 @@ def generate_hermes_packs(
         return 2
     try:
         written, removed = apply_tree(output_root, tree, check=check, what_if=what_if)
+    except HermesPackError as exc:
+        for problem in exc.problems:
+            print(f"Error: {problem}", file=sys.stderr)
+        return 2
     except OSError as exc:
         print(f"Error: cannot write the Hermes tree: {exc}", file=sys.stderr)
         return 1

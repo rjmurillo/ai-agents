@@ -359,6 +359,66 @@ def test_an_output_dir_outside_the_repo_is_refused(tmp_path: Path, bad: str) -> 
     assert hermes_packs.generate_hermes_packs(make_stanza(outputDir=bad), make_repo(tmp_path)) == 2
 
 
+@pytest.mark.parametrize("bad", [".", "src", "src/hermesx", "docs"])
+def test_an_output_dir_outside_src_hermes_is_refused(
+    tmp_path: Path, bad: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = make_repo(tmp_path)
+    keep = repo / "keep.txt"
+    keep.write_text("repo file", encoding="utf-8")
+
+    code = hermes_packs.generate_hermes_packs(make_stanza(outputDir=bad), repo)
+
+    assert code == 2
+    assert "src/hermes" in capsys.readouterr().err
+    assert keep.read_text(encoding="utf-8") == "repo file"
+
+
+def test_an_output_dir_under_src_hermes_is_accepted(tmp_path: Path) -> None:
+    repo = make_repo(tmp_path)
+
+    assert hermes_packs.generate_hermes_packs(make_stanza(outputDir="src/hermes/nested"), repo) == 0
+    assert (repo / "src/hermes/nested/README.md").is_file()
+
+
+@pytest.mark.parametrize("check", [False, True])
+def test_a_symlinked_pack_directory_is_refused_and_nothing_is_written(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], check: bool
+) -> None:
+    repo = make_repo(tmp_path)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (repo / "src/hermes").mkdir(parents=True)
+    (repo / "src/hermes/project-toolkit-one").symlink_to(outside, target_is_directory=True)
+
+    code = hermes_packs.generate_hermes_packs(make_stanza(), repo, check=check)
+
+    assert code == 2
+    assert "symlinked ancestor" in capsys.readouterr().err
+    assert list(outside.iterdir()) == []
+
+
+def test_a_stale_path_below_a_symlinked_directory_is_refused(tmp_path: Path) -> None:
+    root = tmp_path / "out"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "stale.txt").write_text("keep", encoding="utf-8")
+    root.mkdir()
+    (root / "link").symlink_to(outside, target_is_directory=True)
+
+    with pytest.raises(cfg.HermesPackError) as excinfo:
+        hermes_packs._refuse_symlinked_ancestors(root, ["link/stale.txt"])
+
+    assert "symlinked ancestor" in excinfo.value.problems[0]
+    assert (outside / "stale.txt").read_text(encoding="utf-8") == "keep"
+
+
+def test_real_directories_pass_the_symlink_guard(tmp_path: Path) -> None:
+    (tmp_path / "pack").mkdir()
+
+    hermes_packs._refuse_symlinked_ancestors(tmp_path, ["pack/file.txt", "top.txt", "new/x.txt"])
+
+
 def test_an_unwritable_output_exits_1(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     repo = make_repo(tmp_path)
     (repo / "src").mkdir(exist_ok=True)
