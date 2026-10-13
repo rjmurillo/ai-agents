@@ -7,6 +7,7 @@ supersedes: []
 superseded-by: null
 explainer: null
 implemented: true
+review-by: 2026-09-27
 ---
 
 # ADR-077: Flip Stale Contract Tests
