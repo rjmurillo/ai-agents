@@ -225,14 +225,14 @@ never have to uninstall to recover from an artifact we generated.
 
 ## References
 
-- `2026-06-02-pr-2205-customer-wedge-incident.md`, a retrospective file. The incident.
+- `2026-06-02-pr-2205-customer-wedge-incident.md` (retro). The incident.
 - `.claude/skills/agent-harness-reference/SKILL.md`. Operational contract.
 - `.claude/skills/agent-harness-reference/references/official-hook-contracts.md`. Official sources and refresh procedure.
 - `.claude/skills/ai-agents-portability-campaign/SKILL.md`. Contract change workflow.
 - `.claude/rules/canonical-source-mirror.md`. Self-referential test anti-pattern.
 - `.claude/skills/software-engineering-library/references/release-it.md`. Fail fast and loud; bound the blast radius by prevention, not by silently swallowing failures.
-- `validate_hook_anchoring.py`, a validation script. The committed-artifact gate.
+- `validate_hook_anchoring.py` (script). The committed-artifact gate.
 - `build/scripts/lib_mirror.py`. Renders `scripts/{hook_utilities,github_core,ai_review_common}/` into every lib plugin tree; the `sync_plugin_lib.py` shim is retired (issue #5790).
-- `check_plugin_lib_mirrors.py`, a validation script. The gate that catches a stale lib mirror; now a thin wrapper over `build_all.py --check`.
+- `check_plugin_lib_mirrors.py` (script). The gate that catches a stale lib mirror; now a thin wrapper over `build_all.py --check`.
 - `tests/build_scripts/test_generate_hooks_runtime_contract.py`. Runtime-contract test pattern.
 - `tests/e2e/test_cli_hook_e2e.py`. Real-CLI smoke.

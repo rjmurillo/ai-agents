@@ -108,7 +108,7 @@ Rules:
 Flag format, one sentence each, declarative rather than an opt-in question (see Completion-Tail Audit below):
 
 - `auth.ts:47: null check missing; users hit a white screen on expired sessions. One line, on a path already touched; fixing inline.`
-- `config/legacy-flags.yaml has an unused 'legacy' block from M3, marked for removal but never deleted. Out of scope for this change; needs a follow-up.` (Illustrative path, not a real file.)
+- `config/legacy-flags.yaml has an unused 'legacy' block from M3, marked for removal but never deleted. Out of scope for this change; needs a follow-up.` (example)
 - `Three skills under .claude/skills/ have SKILL.md missing the 'version' field, violating claude-agents.md MUST-2. Out of scope here; needs its own PR.`
 
 What this is not:
