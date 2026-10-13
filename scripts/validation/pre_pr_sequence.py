@@ -109,6 +109,7 @@ from checks_portability import (
     validate_hook_template_drift,
     validate_plugin_root_interpreter,
     validate_projection_invariants,
+    validate_rule_lossless_fixtures,
     validate_rule_template_drift,
     validate_skill_contract_tests,
     validate_skill_md_exec_portability,
@@ -428,6 +429,10 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate("Skill Template Drift", _root_only(validate_skill_template_drift)),
     _Gate("Agent Template Drift", _root_only(validate_agent_template_drift)),
     _Gate("Rule Template Drift", _root_only(validate_rule_template_drift)),
+    # Issue #6440: the hand-copied rule fixtures that test_rule_templates_lossless.py
+    # compares against. build_all.py never refreshes them, so a rule edit failed
+    # only in CI. On failure the gate prints the cp command per stale fixture.
+    _Gate("Rule Lossless Fixtures", _root_only(validate_rule_lossless_fixtures)),
     _Gate("Hook Template Drift", _root_only(validate_hook_template_drift)),
     _Gate("Spec ID Uniqueness", _root_only(validate_spec_id_uniqueness)),  # Issue #2068
     _Gate("Traceability", _root_only(validate_traceability)),

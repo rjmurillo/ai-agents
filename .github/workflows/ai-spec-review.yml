@@ -83,6 +83,7 @@ jobs:
         env:
           SPEC_REFS: ${{ steps.spec-ref.outputs.spec_refs }}
           ISSUE_REFS: ${{ steps.spec-ref.outputs.issue_refs }}
+          AZURE_REFS: ${{ steps.spec-ref.outputs.azure_refs }}
         run: python3 scripts/ci/spec_load_content.py
 
       - name: Prepare Spec Context
@@ -154,6 +155,7 @@ jobs:
           HAS_SPECS: ${{ steps.spec-ref.outputs.has_specs }}
           SPEC_REFS: ${{ steps.spec-ref.outputs.spec_refs }}
           ISSUE_REFS: ${{ steps.spec-ref.outputs.issue_refs }}
+          AZURE_REFS: ${{ steps.spec-ref.outputs.azure_refs }}
           TRACE_VERDICT: ${{ steps.trace.outputs.verdict }}
           TRACE_FINDINGS: ${{ steps.trace.outputs.findings }}
           COMPLETENESS_VERDICT: ${{ steps.completeness.outputs.verdict }}
