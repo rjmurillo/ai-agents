@@ -124,7 +124,7 @@
 |autonomous execution guardrails circuit breaker patch signal trust: [skills-autonomous-execution-index](skills-autonomous-execution-index.md) (153)
 |fleet contention stop order renice congestion collapse two: [decision-stop-orders-are-not-a-control-plane](decision-stop-orders-are-not-a-control-plane.md) (876)
 |worktree abandoned live agent fleet stale dirty harvest: [agent-workflow/fleet-worktree-live-versus-abandoned](agent-workflow/fleet-worktree-live-versus-abandoned.md) (608)
-|workflow tool agent isolation worktree schema StructuredOutput no-op direct Agent tool: [orchestration/workflow-worktree-plus-schema-noop](orchestration/workflow-worktree-plus-schema-noop.md) (298)
+|workflow tool agent isolation worktree schema StructuredOutput no-op direct Agent tool: [orchestration/orchestration-workflow-worktree-plus-schema-noop](orchestration/orchestration-workflow-worktree-plus-schema-noop.md) (619)
 |evidence: table handoff, session 17, orchestrator routing: [agent-workflow/agentworkflow-005-structured-handoff-formats-88](agent-workflow/agentworkflow-005-structured-handoff-formats-88.md) (146)
 
 [CI/CD and Workflows]
