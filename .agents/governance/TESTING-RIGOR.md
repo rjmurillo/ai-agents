@@ -86,6 +86,8 @@ Same discipline as the never-delete rule above: a failing test is information, a
 
 Skip this step for changes that fix no defect (new features, pure refactors, docs). A new feature test still needs the pos, neg, and edge evidence above.
 
+**Why:** Issue #5258 records the failure shape: a fix ships with a test that passes without the fix, so the test proves nothing about the defect it claims to cover.
+
 ---
 
 ## Why This Matters
