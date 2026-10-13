@@ -128,7 +128,7 @@ class TestRenderer:
         assert '"-3"' in payload
 
     def test_no_args_means_no_trailing_space(self):
-        assert render_launcher(DEMO).endswith("exit $LASTEXITCODE'")
+        assert render_launcher(DEMO).endswith("exit ($LASTEXITCODE ?? 1)'")
 
     @pytest.mark.parametrize(
         "bad",
@@ -267,6 +267,21 @@ class TestLauncherRunsUnderPwsh:
         result = _run(render_launcher(DEMO), tmp_path, _env(COPILOT_PLUGIN_ROOT=str(root)))
 
         assert result.returncode == 7
+
+    def test_no_resolvable_interpreter_exits_non_zero(self, tmp_path):
+        """Windows with no usable Python: `& $exe` raises, `$LASTEXITCODE` stays null.
+
+        `exit $null` is exit 0, which would report success for a script that never ran.
+        """
+        root = _fake_root(tmp_path)
+        command = render_launcher(DEMO)
+        for name in ("python3", "py", "python"):
+            command = command.replace(f"Get-Command {name} ", f"Get-Command {name}-absent ")
+        command = command.replace('else { "python", @() }', 'else { "python-absent", @() }')
+
+        result = _run(command, tmp_path, _env(COPILOT_PLUGIN_ROOT=str(root)))
+
+        assert result.returncode != 0, f"exit 0 with no interpreter: {result.stdout}{result.stderr}"
 
 
 @requires_pwsh

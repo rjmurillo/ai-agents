@@ -24,9 +24,12 @@ shells. It is a ``pwsh -NoProfile -CommandWithArgs '<payload>' ARGS`` command:
   ``py -3``, ``python`` that exists. ``python3`` goes first because ``py`` exists
   only on Windows.
 * **The script's exit code is the command's exit code.** ``pwsh -Command`` maps
-  any non-zero native exit to 1. ``exit $LASTEXITCODE`` restores the real value,
-  which the PR workflows branch on (``check_transport`` exits 3 for a quota
-  window and 4 for a credential fault).
+  any non-zero native exit to 1. ``exit ($LASTEXITCODE ?? 1)`` restores the real
+  value, which the PR workflows branch on (``check_transport`` exits 3 for a
+  quota window and 4 for a credential fault). When no interpreter resolves,
+  ``& $exe`` raises and ``$LASTEXITCODE`` stays ``$null``; ``exit $null`` would
+  be exit 0 and report success for a script that never ran, so the ``?? 1`` arm
+  makes that case fail.
 * **Arguments pass through.** ``-CommandWithArgs`` (PowerShell 7.4 or later)
   exposes the words after the payload as ``$args``, so a quoted multi-word value
   survives. ``-Command`` joins them into the command text and loses the quoting.
@@ -59,7 +62,7 @@ LAUNCHER_PREFIX = "pwsh -NoProfile -CommandWithArgs "
 # no escaping; `..` and a leading `/` are rejected separately.
 _SCRIPT_REL_RE = re.compile(r"skills/[A-Za-z0-9_.\-/]+\.py")
 _PAYLOAD_RE = re.compile(
-    r"'[^']*?\(Join-Path \$root \"(?P<rel>[^\"]+)\"\) @args; exit \$LASTEXITCODE'"
+    r"'[^']*?\(Join-Path \$root \"(?P<rel>[^\"]+)\"\) @args; exit \(\$LASTEXITCODE \?\? 1\)'"
     r"(?: (?P<tail>.*))?$"
 )
 
@@ -93,7 +96,7 @@ def render_payload(script_rel: str) -> str:
         raise LauncherError(f"not a plugin-root script path: {script_rel!r}")
     return (
         f"{_root_expression()}; {_interpreter_expression()}; "
-        f'& $exe @pre (Join-Path $root "{script_rel}") @args; exit $LASTEXITCODE'
+        f'& $exe @pre (Join-Path $root "{script_rel}") @args; exit ($LASTEXITCODE ?? 1)'
     )
 
 
