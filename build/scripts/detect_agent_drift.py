@@ -344,8 +344,12 @@ def remove_yaml_frontmatter(content: str) -> str:
 _FENCE_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
 
 
-def get_markdown_sections(content: str) -> dict[str, str]:
-    """Extract sections from markdown content based on ## headers.
+def get_markdown_section_list(content: str) -> list[tuple[str, str]]:
+    """Extract ``(name, body)`` pairs in document order, keeping repeated names.
+
+    ``get_markdown_sections`` folds this list into a dict, so a repeated H2
+    name overwrites the earlier body there. Callers that must see every body
+    read this list instead.
 
     Headings inside fenced code blocks are ignored so that sample output
     templates do not pollute the section inventory. Fence detection follows
@@ -353,7 +357,7 @@ def get_markdown_sections(content: str) -> dict[str, str]:
     of indentation (list-nested fences), and a closing fence must match the
     opening fence's character and be at least as long.
     """
-    sections: dict[str, str] = {}
+    sections: list[tuple[str, str]] = []
     current_section = "preamble"
     current_lines: list[str] = []
     fence_char: str | None = None
@@ -388,16 +392,25 @@ def get_markdown_sections(content: str) -> dict[str, str]:
         header_match = re.match(r"^##\s+(.+)$", line)
         if header_match:
             if current_lines:
-                sections[current_section] = "\n".join(current_lines).strip()
+                sections.append((current_section, "\n".join(current_lines).strip()))
             current_section = header_match.group(1).strip()
             current_lines = []
         else:
             current_lines.append(line)
 
     if current_lines:
-        sections[current_section] = "\n".join(current_lines).strip()
+        sections.append((current_section, "\n".join(current_lines).strip()))
 
     return sections
+
+
+def get_markdown_sections(content: str) -> dict[str, str]:
+    """Extract sections from markdown content based on ## headers.
+
+    A repeated H2 name keeps the last body. Headings inside fenced code blocks
+    are ignored; see ``get_markdown_section_list`` for the fence rules.
+    """
+    return dict(get_markdown_section_list(content))
 
 
 def normalize_content(content: str) -> str:

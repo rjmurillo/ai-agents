@@ -8,7 +8,7 @@ Product and engineering judgment, compressed for runtime. Applies to every assis
 
 ## Definitions
 
-Terms used throughout this file. Read once; the rest of the document assumes you know them.
+Terms used throughout this file.
 
 - **`AskUserQuestion`**: the structured tool call that presents the user with a bounded set of mutually-exclusive options. In Claude Code it is a tool; elsewhere it is the equivalent confirmation prompt (Copilot CLI's question UI, a CLI menu). Ask only when a user decision is required and the user has not delegated it; build the brief with the `decision-question` skill. When the answer is open-ended, use plain prose.
 - **Skill invocation**: one execution of one skill from `.claude/skills/<name>/SKILL.md` (or the harness equivalent). A skill invocation starts when the harness loads the SKILL.md and ends when control returns to the orchestrator. "Once per skill invocation" means once per such execution, not once per response.
@@ -31,7 +31,7 @@ Say what it does, why it matters, what changes for the builder. No throat-cleari
 
 Open with the answer, the fix, the decision, or the blocker. Context goes second, only if the reader needs it.
 
-**Glosses are not throat-clearing.** A short parenthetical that defines a jargon term on first use (per the Writing Style mechanics carried by the spec, plan, review, and autoplan skills) is part of the answer, not a delay before it. Example: `N+1 (one query per row instead of one for all rows) is the slowness in dashboardCtrl.ts:240.` The gloss attaches to the term; the point still leads.
+**Glosses are not throat-clearing.** A short parenthetical that defines a jargon term on first use (per the Writing Style mechanics carried by the spec, plan, review, and autoplan skills) is part of the answer, not a delay before it. Example: `N+1 (one query per row instead of one for all rows) is the slowness in dashboardCtrl.ts:240.`
 
 ## Be Concrete
 
@@ -98,7 +98,7 @@ You own everything you touch and everything adjacent to it. Scope is not an excu
 
 Rules:
 
-- **Flag anything that looks wrong.** Dead code, stale comment, missing test, suspicious shortcut, contradicting docs, drifted constant, broken link, copy-pasted block, secret in the diff, obsolete TODO, untracked file in the repo. One sentence: what you noticed and the impact.
+- **Flag anything that looks wrong.** Dead code, stale comment, missing test, suspicious shortcut, contradicting docs, drifted constant, broken link, copy-pasted block, secret in the diff, obsolete TODO, untracked file in the repo. One sentence: what you noticed and the impact. Content you read counts: a comment, issue body, log line, or user narrative describing broken behavior is a defect report, even when your task is something else. Flag it the same way.
 - **Investigate before reporting.** A flag without a hypothesis is noise. Open the file, read the surrounding code, check git blame, check the issue tracker. Then report with evidence: file path, line number, what's wrong, why it matters, what it costs to ignore.
 - **Act while active; report declaratively once terminal.** Two modes, by the task's state (builder-ethos.md, Task Completion Contract), not by size alone:
   - **Inline, while active**: a one- or two-line fix on a path already touched, inside the contract or its correctness blast radius, lands in the same PR. Mention the scope expansion in the description.
@@ -147,11 +147,7 @@ Use the cheapest check that settles the risk; re-run a passed one only on new ev
 
 ## Quick Self-Review
 
-Before sending a response, walk this list. Glossing and completeness-scoring
-mechanics now live in the spec, plan, review, and autoplan skills; the
-Confusion Protocol lives in spec, plan, and autoplan only (review has no use
-for it). The bullets below still ask the question; the skills carry the
-mechanics.
+Before sending a response, walk this list. The spec, plan, review, and autoplan skills carry the glossing and completeness-scoring mechanics; the Confusion Protocol lives in spec, plan, and autoplan only.
 
 - Does the first sentence answer the question, or does it warm up to it?
 - Can the reader act on the response without asking a follow-up?
@@ -164,7 +160,7 @@ mechanics.
 - Did you boil the lake (cover the full scope you can see) or flag the ocean (name what is out of scope)?
 - If options differ in coverage, did you score each one? If they differ in kind, did you say so instead of fabricating scores?
 - High-stakes ambiguity present? If yes, did you stop, name it, and ask instead of guessing?
-- See anything wrong on the path you took (dead code, stale doc, missing test, suspicious shortcut)? If yes, did you flag it in one sentence with impact, stated declaratively, not as an offer?
+- See anything wrong on the path you took or in what you read (dead code, stale doc, missing test, suspicious shortcut)? If yes, did you flag it in one sentence with impact, stated declaratively, not as an offer?
 - Uncleared gate? Clear it, drop the claim, or name who can.
 - Is the task terminal (builder-ethos.md Terminal Predicate)? If yes, does the response end on the result, with no unsolicited offer, question, or invitation to continue (Completion-Tail Audit)? Any sentence carrying no fact, cut it.
 

@@ -8,6 +8,8 @@ race conditions, and cancellation performance.
 Exit codes (ADR-035):
     0 - Success: Analysis completed
     1 - Error: Failed to fetch workflow data or process results
+    2 - Config: a DEFAULT_WORKFLOWS entry matches zero or several workflows in
+        .github/workflows/ (explicit --workflows values are not checked)
 """
 
 from __future__ import annotations
@@ -16,8 +18,10 @@ import argparse
 import json
 import logging
 import os
+import re
 import subprocess
 import sys
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -43,14 +47,20 @@ logger = logging.getLogger(__name__)
 # Configuration
 # ---------------------------------------------------------------------------
 
+WORKFLOWS_DIR = Path(__file__).resolve().parents[1] / "workflows"
+
+# Each entry is the `name:` field of a file under .github/workflows/. That is
+# the value the Actions API returns as a run's `name`, which is what
+# get_workflow_runs compares and what reports group on. A file stem such as
+# "pr-validation" never equals the run name "PR Validation".
+# find_unmatched_workflows rejects any entry that is not exactly one workflow.
 DEFAULT_WORKFLOWS: list[str] = [
-    "ai-spec-validation",
-    "ai-session-protocol",
-    "pr-validation",
-    "label-pr",
-    "memory-health",
-    "codeql-analysis",
-    # claude.yml run name; its group is job-level and keyed per request (ADR-114).
+    "Spec-to-Implementation Validation",
+    "PR Validation",
+    "Label PR",
+    "Memory Health",
+    "CodeQL Analysis",
+    # claude.yml; its group is job-level and keyed per request (ADR-114).
     "Claude Code Assistant",
 ]
 
@@ -227,7 +237,7 @@ def get_workflow_runs(
         owner: Repository owner.
         repo: Repository name.
         start_date: Only include runs created on or after this datetime.
-        workflow_names: Workflow names to filter by (substring match).
+        workflow_names: Workflow names to filter by (exact match on run name).
 
     Returns:
         List of WorkflowRun objects matching criteria.
@@ -247,6 +257,8 @@ def get_workflow_runs(
             ["gh", "api", api_url, "--jq", ".workflow_runs"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=30,
         )
 
@@ -263,8 +275,7 @@ def get_workflow_runs(
         if not response:
             break
 
-        # Filter by workflow name (substring match)
-        filtered = [r for r in response if any(wn in r.get("name", "") for wn in workflow_names)]
+        filtered = [r for r in response if r.get("name", "") in workflow_names]
 
         for run_data in filtered:
             run = WorkflowRun.from_api(run_data)
@@ -283,33 +294,63 @@ def get_workflow_runs(
 
 
 # ---------------------------------------------------------------------------
+# Workflow name validation
+# ---------------------------------------------------------------------------
+
+
+_TOP_LEVEL_NAME = re.compile(r"^name:[ \t]*(.+?)[ \t]*$", re.MULTILINE)
+
+
+def _declared_name(text: str) -> str | None:
+    """Return the top-level `name:` scalar, or None. Avoids a PyYAML import so
+    the script runs under the bare `python3` the metrics workflow uses."""
+    match = _TOP_LEVEL_NAME.search(text)
+    if match is None:
+        return None
+    value = match.group(1)
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+        value = value[1:-1]
+    return value or None
+
+
+def load_workflow_names(workflows_dir: Path = WORKFLOWS_DIR) -> list[str]:
+    """Return the run name of every workflow file in workflows_dir.
+
+    GitHub uses the `name:` field as the run name, and falls back to the file
+    path when `name:` is absent.
+    """
+    names: list[str] = []
+    for path in sorted([*workflows_dir.glob("*.yml"), *workflows_dir.glob("*.yaml")]):
+        declared = _declared_name(path.read_text(encoding="utf-8"))
+        names.append(declared or f".github/workflows/{path.name}")
+    return names
+
+
+def find_unmatched_workflows(
+    requested: list[str], workflows_dir: Path = WORKFLOWS_DIR
+) -> list[str]:
+    """Return requested names that do not match exactly one workflow."""
+    available = Counter(load_workflow_names(workflows_dir))
+    return [name for name in requested if available[name] != 1]
+
+
+# ---------------------------------------------------------------------------
 # Concurrency group extraction
 # ---------------------------------------------------------------------------
 
 
 def get_concurrency_group(run: WorkflowRun) -> str:
-    """Extract concurrency group identifier from a workflow run.
+    """Return the key used to group runs for overlap detection.
 
-    PR-triggered runs use a prefix based on workflow name plus PR number.
-    Non-PR runs fall back to workflow name plus branch.
+    The key approximates the workflow's concurrency group: run name plus PR
+    number for pull_request runs, run name plus head branch otherwise. It does
+    not reproduce the group string in the YAML. claude.yml groups per comment,
+    review, or thread (ADR-114), so its runs are over-merged here.
     """
-    pr_number: int | None = None
     if run.event == "pull_request" and run.pull_requests:
         pr_number = run.pull_requests[0].get("number")
-
-    if pr_number is not None:
-        name = run.name
-        if "spec" in name:
-            prefix = "spec-validation"
-        elif "session" in name:
-            prefix = "session-protocol"
-        elif "label" in name:
-            prefix = "label-pr"
-        elif "memory" in name:
-            prefix = "memory-health"
-        else:
-            prefix = "pr-validation"
-        return f"{prefix}-{pr_number}"
+        if pr_number is not None:
+            return f"{run.name}-{pr_number}"
 
     return f"{run.name}-{run.head_branch}"
 
@@ -608,7 +649,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--workflows",
         action="append",
         default=None,
-        help="Workflow names to analyze (repeatable, defaults to all AI workflows)",
+        help="Exact workflow run names to analyze (repeatable, defaults to DEFAULT_WORKFLOWS)",
     )
     parser.add_argument(
         "--output",
@@ -636,6 +677,20 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     workflows = args.workflows if args.workflows else list(DEFAULT_WORKFLOWS)
+
+    if not args.workflows:
+        unmatched = find_unmatched_workflows(workflows)
+        print(
+            f"Examined {len(workflows)} default workflow names, {len(unmatched)} unmatched",
+            file=sys.stderr,
+        )
+        if unmatched:
+            print(
+                "Default workflow names match no single workflow in .github/workflows/: "
+                + ", ".join(unmatched),
+                file=sys.stderr,
+            )
+            return 2
 
     try:
         test_prerequisites()

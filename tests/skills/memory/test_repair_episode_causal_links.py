@@ -6,32 +6,70 @@ and a resolvable commit SHA; the repair needs neither the log nor --preserve.
 
 The CLI is driven through subprocess so the exit-code contract is what is
 tested, not an in-process call that cannot see it.
+
+Every test resolves commits in a throwaway git repository built under
+``tmp_path_factory`` with fixed commit dates, and points the script at it with
+``AI_AGENTS_REPO_ROOT``. Nothing reads the live repository's HEAD, so a
+long-running suite cannot fail because HEAD moved (issue #5305).
 """
 
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = REPO_ROOT / ".claude" / "skills" / "memory" / "scripts" / "repair_episode_causal_links.py"
+REPO_ROOT_ENV = "AI_AGENTS_REPO_ROOT"
 MIDNIGHT = "2026-07-30T00:00:00+00:00"
 UNRESOLVABLE_SHA = "303c6d2aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+FIXTURE_COMMIT_DATE = "2026-08-01T12:00:00+00:00"
+FIXTURE_COMMIT_DAY = "2026-08-01"
+
+
+def _git(repo: Path, *args: str, when: str | None = None) -> str:
+    env = {**os.environ, "LC_ALL": "C"}
+    if when is not None:
+        env["GIT_AUTHOR_DATE"] = when
+        env["GIT_COMMITTER_DATE"] = when
+    return subprocess.run(
+        ["git", "-C", str(repo), *args],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
+        check=True,
+    ).stdout.strip()
+
+
+@pytest.fixture(scope="module")
+def fixture_repo(tmp_path_factory) -> Path:
+    """A throwaway repository whose one commit has a fixed committer date."""
+    repo = tmp_path_factory.mktemp("episode-repair-repo")
+    _git(repo, "init", "-q", "-b", "main")
+    _git(repo, "config", "user.email", "t@example.com")
+    _git(repo, "config", "user.name", "T")
+    _git(repo, "config", "commit.gpgsign", "false")
+    (repo / "seed.txt").write_text("seed\n", encoding="utf-8")
+    _git(repo, "add", "seed.txt")
+    _git(repo, "commit", "-q", "-m", "seed", when=FIXTURE_COMMIT_DATE)
+    return repo
+
+
+@pytest.fixture(autouse=True)
+def _point_script_at_fixture_repo(fixture_repo, monkeypatch):
+    """Every subprocess the tests start inherits the override."""
+    monkeypatch.setenv(REPO_ROOT_ENV, str(fixture_repo))
 
 
 def _resolvable_sha() -> str:
-    result = subprocess.run(
-        ["git", "-C", str(REPO_ROOT), "rev-parse", "HEAD"],
-        capture_output=True,
-        encoding="utf-8",
-        check=True,
-    )
-    return result.stdout.strip()
+    """HEAD of the fixture repository, never of the live checkout."""
+    return _git(Path(os.environ[REPO_ROOT_ENV]), "rev-parse", "HEAD")
 
 
 def _event(event_id: str, event_type: str, content: str) -> dict:
@@ -92,8 +130,8 @@ class TestRepair:
         """Cross-date milestones and commits have known ordering (issue #4847).
 
         The milestones are dated 2026-07-30 (midnight) and the commit gets a
-        real timestamp from git (today). Different dates mean the ordering is
-        not ambiguous, so edges are created.
+        fixed timestamp from the fixture repository (2026-08-01). Different
+        dates mean the ordering is not ambiguous, so edges are created.
         """
         episodes = tmp_path / "episodes"
         path = _write_episode(episodes, "flat.json", _flat_episode(_resolvable_sha()))
@@ -184,21 +222,10 @@ class TestFalseEdgeRemoval:
         # the commit's real committer date, so after restamping the pair is
         # incomparable (issue #4847) and the flattened-stamp edge between
         # them is exactly the false edge. The old guard refused this write;
-        # the rebuilt file must not carry the edge. The date is derived from
-        # the commit so the fixture cannot drift cross-date and turn the
-        # pair comparable again.
+        # the rebuilt file must not carry the edge. The fixture commit date is
+        # fixed, so the pair cannot drift cross-date and turn comparable.
         sha = _resolvable_sha()
-        commit_timestamp = subprocess.run(
-            ["git", "-C", str(REPO_ROOT), "show", "-s", "--format=%cI", sha],
-            capture_output=True,
-            encoding="utf-8",
-            errors="replace",
-            check=True,
-        ).stdout.strip()
-        commit_date = (
-            datetime.fromisoformat(commit_timestamp).astimezone(timezone.utc).date().isoformat()
-        )
-        midnight = f"{commit_date}T00:00:00+00:00"
+        midnight = f"{FIXTURE_COMMIT_DAY}T00:00:00+00:00"
         episode = _flat_episode(sha)
         for evt in episode["events"]:
             evt["timestamp"] = midnight
@@ -290,3 +317,48 @@ class TestCliContract:
 
         assert result.returncode == 1
         assert len(_summary(result)["Invalid"]) == 1
+
+
+class TestRepoIsolation:
+    """The script reads the override repository, never the live checkout."""
+
+    @pytest.mark.unit
+    def test_live_head_is_unresolvable_under_the_override(self, tmp_path):
+        """Negative control: a SHA that exists only in the live repo is not found.
+
+        If the script ignored the override, the live HEAD would resolve and the
+        episode would be repaired instead of reported.
+        """
+        try:
+            live_head = _git(REPO_ROOT, "rev-parse", "HEAD")
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            pytest.skip("live checkout has no git HEAD")
+        assert live_head != _resolvable_sha()
+        episodes = tmp_path / "episodes"
+        path = _write_episode(episodes, "live.json", _flat_episode(live_head))
+
+        result = _run("--episodes-dir", str(episodes))
+
+        assert result.returncode == 0, result.stderr
+        assert _summary(result)["Unrepairable"] == [str(path)]
+
+    @pytest.mark.unit
+    def test_repair_restamps_with_the_fixture_commit_date(self, tmp_path):
+        episodes = tmp_path / "episodes"
+        path = _write_episode(episodes, "flat.json", _flat_episode(_resolvable_sha()))
+
+        _run("--episodes-dir", str(episodes))
+
+        commit = json.loads(path.read_text(encoding="utf-8"))["events"][2]
+        assert commit["timestamp"] == FIXTURE_COMMIT_DATE
+
+    @pytest.mark.unit
+    def test_missing_override_directory_is_a_config_error(self, tmp_path, monkeypatch):
+        monkeypatch.setenv(REPO_ROOT_ENV, str(tmp_path / "nope"))
+        episodes = tmp_path / "episodes"
+        episodes.mkdir()
+
+        result = _run("--episodes-dir", str(episodes))
+
+        assert result.returncode == 2
+        assert REPO_ROOT_ENV in result.stderr

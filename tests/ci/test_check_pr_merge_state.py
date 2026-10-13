@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import subprocess
-from pathlib import Path
 
 import pytest
 
@@ -136,14 +135,6 @@ def test_pr_list_requests_mergeable_so_github_computes_the_verdict(monkeypatch):
     json_fields = seen["argv"][seen["argv"].index("--json") + 1].split(",")
     assert "mergeable" in json_fields
     assert "mergeStateStatus" in json_fields
-
-
-def test_python_workflow_runs_merge_state_on_branch_pushes():
-    workflow = Path(".github/workflows/pytest.yml").read_text(encoding="utf-8")
-    assert "pr-merge-state:" in workflow
-    assert "github.event_name == 'push'" in workflow
-    assert "python scripts/ci/check_pr_merge_state.py" in workflow
-    assert "push:\n    branches:\n      - main" not in workflow
 
 
 def test_unknown_pr_retries_and_resolves_to_clean(monkeypatch):

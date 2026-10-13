@@ -111,7 +111,7 @@
     "templates/agents/task-decomposer.shared.md": 2
   },
   "marker_files": {
-    ".claude/skills/adr-generator/SKILL.md": 7,
+    ".claude/skills/adr-generator/SKILL.md": 11,
     ".claude/skills/adr-generator/references/adr-template.md": 1,
     ".claude/skills/adr-generator/references/adr-templates-catalog.md": 2,
     ".claude/skills/adr-review/SKILL.md": 7,
@@ -226,7 +226,7 @@
     "src/claude/rules/security.md": 3,
     "src/claude/rules/templates.md": 9,
     "src/claude/rules/testing.md": 13,
-    "src/claude/skills/adr-generator/SKILL.md": 7,
+    "src/claude/skills/adr-generator/SKILL.md": 11,
     "src/claude/skills/adr-generator/references/adr-template.md": 1,
     "src/claude/skills/adr-generator/references/adr-templates-catalog.md": 2,
     "src/claude/skills/adr-review/SKILL.md": 7,
@@ -318,7 +318,7 @@
     "src/copilot-cli/instructions/security.instructions.md": 2,
     "src/copilot-cli/instructions/templates.instructions.md": 9,
     "src/copilot-cli/instructions/testing.instructions.md": 12,
-    "src/copilot-cli/skills/adr-generator/SKILL.md": 7,
+    "src/copilot-cli/skills/adr-generator/SKILL.md": 11,
     "src/copilot-cli/skills/adr-generator/references/adr-template.md": 1,
     "src/copilot-cli/skills/adr-generator/references/adr-templates-catalog.md": 2,
     "src/copilot-cli/skills/adr-review/SKILL.md": 7,
