@@ -2680,16 +2680,24 @@ def _codex_install_failures(installed: Path) -> list[str]:
     ]
     if pinned:
         failures.append(f"skills still carry a model pin in frontmatter: {pinned}")
+    failures.extend(_codex_body_drift(installed, installed_skills, shipped_skills))
+    return failures
+
+
+def _codex_body_drift(
+    installed: Path, installed_skills: list[str], shipped: list[str]
+) -> list[str]:
+    """Name installed SKILL.md bodies that differ from src/claude/skills; [] when none do."""
     drifted = [
         name
         for name in installed_skills
-        if name in shipped_skills
+        if name in shipped
         and _skill_body(installed / "skills" / name / "SKILL.md")
         != _skill_body(_CLAUDE_PLUGIN_DIR / "skills" / name / "SKILL.md")
     ]
-    if drifted:
-        failures.append(f"installed SKILL.md bodies differ from src/claude/skills: {drifted}")
-    return failures
+    return (
+        [f"installed SKILL.md bodies differ from src/claude/skills: {drifted}"] if drifted else []
+    )
 
 
 def _skill_body(path: Path) -> str:
