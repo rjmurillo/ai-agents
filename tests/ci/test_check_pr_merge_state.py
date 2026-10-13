@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import subprocess
-from pathlib import Path
 
 import pytest
-import yaml
 
 from scripts.ci import check_pr_merge_state as checker
 
@@ -137,30 +135,6 @@ def test_pr_list_requests_mergeable_so_github_computes_the_verdict(monkeypatch):
     json_fields = seen["argv"][seen["argv"].index("--json") + 1].split(",")
     assert "mergeable" in json_fields
     assert "mergeStateStatus" in json_fields
-
-
-def _load_workflow(name: str) -> dict:
-    return yaml.safe_load(Path(".github/workflows", name).read_text(encoding="utf-8"))
-
-
-def test_merge_state_workflow_runs_on_feature_branch_pushes():
-    """A conflicting PR gets no pull_request run, so only a push can report it."""
-    workflow = _load_workflow("pr-merge-state.yml")
-    on = workflow.get(True, workflow.get("on"))
-
-    assert set(on) == {"push"}
-    ignored = on["push"]["branches-ignore"]
-    assert "main" in ignored
-    assert "gh-readonly-queue/**" in ignored
-    steps = workflow["jobs"]["pr-merge-state"]["steps"]
-    assert any(step.get("run") == "python scripts/ci/check_pr_merge_state.py" for step in steps)
-
-
-def test_python_tests_no_longer_host_the_merge_state_job():
-    """Hosting it there made every PR commit run the full test matrix twice."""
-    workflow = _load_workflow("pytest.yml")
-
-    assert "pr-merge-state" not in workflow["jobs"]
 
 
 def test_unknown_pr_retries_and_resolves_to_clean(monkeypatch):

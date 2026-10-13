@@ -78,6 +78,8 @@ def double_triggered_branches(on: dict) -> list[str]:
     if not isinstance(push, dict):
         return []
     branches = push.get("branches")
+    if isinstance(branches, str):
+        branches = [branches]
     if isinstance(branches, list):
         return [b for b in branches if b in _PR_ONLY_BRANCH_GLOBS]
     if "branches-ignore" not in push and _TAG_FILTERS & push.keys():
@@ -103,19 +105,46 @@ def test_no_workflow_fires_on_both_a_branch_push_and_its_pull_request(
     )
 
 
-def test_the_detector_reports_a_double_trigger() -> None:
-    """Negative: the shape this test forbids is actually detected."""
-    on = {
-        "push": {"branches": ["main", "fix/**"]},
-        "pull_request": {"branches": ["main"]},
-    }
-    assert double_triggered_branches(on) == ["fix/**"]
+_MAIN_PR = {"branches": ["main"]}
 
 
-def test_a_push_only_workflow_is_not_double_triggered() -> None:
-    """Negative: without pull_request there is no second run to collide with."""
-    on = {"push": {"branches": ["main", "fix/**"]}}
-    assert double_triggered_branches(on) == []
+@pytest.mark.parametrize(
+    ("on", "expected"),
+    [
+        # Negative: the shapes this test forbids are detected.
+        ({"push": {"branches": ["main", "fix/**"]}, "pull_request": _MAIN_PR}, ["fix/**"]),
+        ({"push": {"branches": ["**"]}, "pull_request": _MAIN_PR}, ["**"]),
+        ({"push": None, "pull_request": _MAIN_PR}, [EVERY_BRANCH]),
+        ({"push": {"paths": ["src/**"]}, "pull_request": _MAIN_PR}, [EVERY_BRANCH]),
+        # The PR #4192 shape: ignoring the queue glob still matches feature branches.
+        (
+            {"push": {"branches-ignore": ["gh-readonly-queue/**"]}, "pull_request": _MAIN_PR},
+            [EVERY_BRANCH],
+        ),
+        (dict.fromkeys(["push", "pull_request"]), [EVERY_BRANCH]),
+        # Edge: post-merge validation on main is not what this test forbids.
+        ({"push": {"branches": ["main"]}, "pull_request": _MAIN_PR}, []),
+        ({"push": {"branches": "main"}, "pull_request": _MAIN_PR}, []),
+        # Edge: a tag filter with no branch filter fires on tag pushes only.
+        ({"push": {"tags": ["v*"]}, "pull_request": _MAIN_PR}, []),
+        # Edge: without pull_request there is no second run to collide with.
+        ({"push": {"branches": ["main", "fix/**"]}}, []),
+    ],
+    ids=[
+        "feature-glob",
+        "wildcard-glob",
+        "bare-push",
+        "paths-only",
+        "branches-ignore",
+        "list-form",
+        "main-only",
+        "main-scalar",
+        "tags-only",
+        "push-only",
+    ],
+)
+def test_the_detector_classifies_each_trigger_shape(on: dict, expected: list[str]) -> None:
+    assert double_triggered_branches(on) == expected
 
 
 def test_a_list_form_trigger_maps_each_event_to_no_filter() -> None:
@@ -123,49 +152,22 @@ def test_a_list_form_trigger_maps_each_event_to_no_filter() -> None:
     assert _triggers(WORKFLOW_DIR / "dependency-review.yml") == {"pull_request": None}
 
 
-def test_a_list_form_push_and_pull_request_is_flagged() -> None:
-    """Negative: ``on: [push, pull_request]`` fires on every branch push."""
-    on = dict.fromkeys(["push", "pull_request"])
-    assert double_triggered_branches(on) == [EVERY_BRANCH]
+def test_merge_state_runs_on_feature_branch_pushes_only() -> None:
+    """A conflicting PR gets no pull_request run, so only a push can report it."""
+    workflow = yaml.safe_load((WORKFLOW_DIR / "pr-merge-state.yml").read_text(encoding="utf-8"))
+    on = _triggers(WORKFLOW_DIR / "pr-merge-state.yml")
+
+    assert on is not None
+    assert set(on) == {"push"}
+    assert {"main", "gh-readonly-queue/**"} <= set(on["push"]["branches-ignore"])
+    steps = workflow["jobs"]["pr-merge-state"]["steps"]
+    assert any(step.get("run") == "python scripts/ci/check_pr_merge_state.py" for step in steps)
 
 
-def test_main_stays_allowed_under_push() -> None:
-    """Edge: post-merge validation on main is not what this test forbids."""
-    on = {"push": {"branches": ["main"]}, "pull_request": {"branches": ["main"]}}
-    assert double_triggered_branches(on) == []
-
-
-def test_a_paths_only_push_trigger_is_flagged() -> None:
-    """Negative: ``push:`` with only ``paths`` fires on every branch."""
-    on = {"push": {"paths": ["src/**"]}, "pull_request": {"branches": ["main"]}}
-    assert double_triggered_branches(on) == [EVERY_BRANCH]
-
-
-def test_a_bare_push_trigger_is_flagged() -> None:
-    """Negative: ``push:`` with a null body fires on every branch."""
-    on = {"push": None, "pull_request": {"branches": ["main"]}}
-    assert double_triggered_branches(on) == [EVERY_BRANCH]
-
-
-def test_a_branches_ignore_push_trigger_is_flagged() -> None:
-    """Negative: the PR #4192 shape. Ignoring one queue glob still matches feature branches."""
-    on = {
-        "push": {"branches-ignore": ["gh-readonly-queue/**"]},
-        "pull_request": {"branches": ["main"]},
-    }
-    assert double_triggered_branches(on) == [EVERY_BRANCH]
-
-
-def test_a_wildcard_branch_glob_is_flagged() -> None:
-    """Negative: ``**`` under ``branches`` matches every feature branch."""
-    on = {"push": {"branches": ["**"]}, "pull_request": {"branches": ["main"]}}
-    assert double_triggered_branches(on) == ["**"]
-
-
-def test_a_tags_only_push_trigger_is_not_flagged() -> None:
-    """Edge: a tag filter with no branch filter fires on tag pushes only."""
-    on = {"push": {"tags": ["v*"]}, "pull_request": {"branches": ["main"]}}
-    assert double_triggered_branches(on) == []
+def test_python_tests_no_longer_host_the_merge_state_job() -> None:
+    """Hosting it there made every PR commit run the full test matrix twice (PR #4192)."""
+    workflow = yaml.safe_load((WORKFLOW_DIR / "pytest.yml").read_text(encoding="utf-8"))
+    assert "pr-merge-state" not in workflow["jobs"]
 
 
 def test_every_repaired_workflow_still_validates_main() -> None:
