@@ -23,4 +23,13 @@ linked worktree, so an unborn branch keeps its settings. It never touches
 that exists), runs `git config --remove-section` for each stale branch, and
 checks that git still parses the config. On any failure it restores the copy.
 
-Exit codes: `0` success or dry run, `2` not a git repository, `3` git failed.
+Exit codes: `0` success or dry run, `1` stale sections remain and
+`--fail-on-stale` was passed, `2` not a git repository, `3` git failed.
+
+## Periodic report
+
+The `branch-config-prune-report` job in the `pre-push` hook of `lefthook.yml`
+runs the script with `--fail-on-stale` through
+`scripts/ci/report_advisory_result.py`. A push with stale sections prints a
+`FAIL advisory.findings` line and a warning. The job never blocks a push and
+never writes. Run the script with `--apply` to remove the sections.

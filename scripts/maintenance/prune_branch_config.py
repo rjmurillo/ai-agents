@@ -21,8 +21,13 @@ The default run reports only. ``--apply`` backs up the config file beside
 itself, removes each stale section with ``git config --remove-section``, and
 verifies git still parses the result, restoring the backup on failure.
 
+``--fail-on-stale`` makes a run that leaves stale sections exit 1, so a
+report-only caller such as the pre-push ``branch-config-prune-report`` job can
+tell findings from a clean config. Without it a dry run always exits 0.
+
 EXIT CODES (ADR-035):
   0 - success (including nothing to prune and a dry-run report)
+  1 - stale sections remain and --fail-on-stale was passed
   2 - configuration error (not a git repository)
   3 - external error (git failed or timed out; --apply restores the backup)
 """
@@ -39,6 +44,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 EXIT_OK = 0
+EXIT_FINDINGS = 1
 EXIT_CONFIG = 2
 EXIT_EXTERNAL = 3
 
@@ -238,6 +244,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Remove the stale sections. Without it the run only reports.",
     )
+    parser.add_argument(
+        "--fail-on-stale",
+        action="store_true",
+        help="Exit 1 when stale sections remain after the run, for report-only callers.",
+    )
     return parser
 
 
@@ -267,6 +278,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"ERROR: branch config prune failed: {exc}", file=sys.stderr)
         return EXIT_EXTERNAL
     print(format_result(result, args.apply))
+    if args.fail_on_stale and result.stale and not result.removed:
+        return EXIT_FINDINGS
     return EXIT_OK
 
 

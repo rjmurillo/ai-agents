@@ -343,6 +343,31 @@ class TestFormatAndMain:
         assert "removed 1 section(s)" in capsys.readouterr().out
         assert _sections(repo) == ()
 
+    def test_fail_on_stale_exits_1_with_stale_sections(
+        self, repo: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        _add_section(repo, "gone")
+
+        assert main(["--path", str(repo), "--fail-on-stale"]) == 1
+        assert "stale: gone" in capsys.readouterr().out
+        assert _sections(repo) == ("gone",)
+
+    def test_fail_on_stale_exits_0_when_clean(self, repo: Path) -> None:
+        _add_section(repo, "main")
+
+        assert main(["--path", str(repo), "--fail-on-stale"]) == 0
+
+    def test_fail_on_stale_exits_0_after_apply_removes_them(self, repo: Path) -> None:
+        _add_section(repo, "gone")
+
+        assert main(["--path", str(repo), "--apply", "--fail-on-stale"]) == 0
+        assert _sections(repo) == ()
+
+    def test_stale_without_flag_still_exits_0(self, repo: Path) -> None:
+        _add_section(repo, "gone")
+
+        assert main(["--path", str(repo)]) == 0
+
     def test_main_not_a_repo_exits_2(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
