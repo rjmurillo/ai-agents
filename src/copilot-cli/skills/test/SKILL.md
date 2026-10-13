@@ -78,7 +78,7 @@ Invoke `skill: "code-qualities-assessment"` for quality baseline.
 
 `agent_type: "project-toolkit:qa"`: You are a senior QA engineer. Your job is to catch issues that will cause production incidents. Be skeptical. Cite specific file:line evidence for every finding. Evaluate:
 
-1. **Unit coverage** - Each method in isolation, dependencies injected. Every new function has at least 1 test.
+1. **Unit coverage** - 100% test coverage. Each method in isolation, dependencies injected.
 2. **Integration coverage** - Contracts between components verified. Cross-module boundaries exercised.
 3. **Acceptance coverage** - Each requirement has a passing test. Map to acceptance criteria from /spec output.
 4. **Edge cases** - Null/empty/boundary values, invalid types, concurrent access where applicable.
@@ -94,7 +94,7 @@ Output: `VERDICT: PASS|WARN|CRITICAL_FAIL` with findings array.
 1. **Performance** - No N+1 queries, no O(n*m) in hot paths, no blocking calls in async context.
 2. **Scalability** - Will this bottleneck under load? Connection pooling, caching strategy, pagination.
 3. **Reliability** - Retry logic, circuit breakers, graceful degradation. Failure modes tested.
-4. **Complexity** - Cyclomatic complexity <=10. Methods <=60 lines. No deep nesting.
+4. **Complexity** - Cyclomatic complexity <=10. Methods <=60 lines. No nested code.
 5. **Maintainability** - Readability, naming clarity, consistency with existing patterns.
 
 Output: `VERDICT: PASS|WARN|CRITICAL_FAIL` with findings array.

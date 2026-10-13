@@ -309,6 +309,7 @@ This skill provides a toolkit of Python scripts for GitHub operations. Use scrip
 2. Find the corresponding script in the Script Reference
 3. Call the script with required parameters
 4. Parse the JSON output
+5. Reading an issue or PR: read the full discussion, open every linked item, and recurse until no new links appear
 
 **Example Flow:**
 
