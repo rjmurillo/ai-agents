@@ -82,7 +82,7 @@ markers = [
     "safe_push_transport: Safe-push tests that touch a non-local transport and are excluded from pre-push.",
     "security: Security-focused tests",
     "smoke: Real-CLI smoke tests (need auth/credits or an installed CLI; run on pull requests by plugin-cli-smoke.yml). The smoke gate asserts these were not skipped (issue #2231 item 4).",
-    "claude: Real-CLI tests that need the claude CLI and its credential. The CLI smoke selects them on the claude matrix leg.",
+    "claude: Real-CLI tests that need the claude CLI and its credential. The CLI smoke selects those that also carry the smoke marker on the claude matrix leg; the live security review e2e does not.",
     "copilot: Real-CLI tests that need the copilot CLI and its credential. The CLI smoke selects them on the copilot matrix leg.",
     "codex: Real-CLI tests that need the codex CLI and no credential. The CLI smoke selects them on the codex job.",
     "grok: Real-CLI tests that need the grok CLI and no credential. No CI leg selects them yet; they run locally under RUN_CLI_E2E=1.",

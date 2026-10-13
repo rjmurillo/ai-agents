@@ -108,7 +108,7 @@ Task(subagent_type="devops"): You are a release engineer. Run all 4 pre-flight c
        table live in `references/review-marker-resolution.md`; run the command
        it gives you, then read the exit code below.
 
-     The validator exits `0` only when HEAD is a `/review` marker commit whose `Reviewed-By: /review@<axes> on <sha>` trailer binds the reviewed tip (its parent). Exit `1` means no marker, a stale marker, new code after review, or an unknown or repeated axis name; exit `2` is a config error. On any non-zero exit, this check FAILS: run `/review` on this branch (it writes the marker on a PASS verdict), then re-run `/ship`. This replaces the old "has /review been run somewhere?" check with proof it passed on the exact code being shipped. Because `/review` is the strict superset of CI (Child 1 #1934), a passing marker covers golden-principles, taste-lints, and code-quality too; there is no separate standards check.
+     The validator exits `0` only when HEAD is a `/review` marker commit whose `Reviewed-By: /review@<axes> on <sha>` trailer binds the reviewed tip (its parent) and whose body carries a review report that the `Review-Artifact` digest covers. Exit `1` means no marker, a stale marker, new code after review, an unknown or repeated axis name, or a missing or altered review report; exit `2` is a config error. On any non-zero exit, this check FAILS: run `/review` on this branch (it writes the marker on a PASS verdict), then re-run `/ship`. This replaces the old "has /review been run somewhere?" check with proof it passed on the exact code being shipped. Because `/review` is the strict superset of CI (Child 1 #1934), a passing marker covers golden-principles, taste-lints, and code-quality too; there is no separate standards check.
 
    - **`mode=contributor` (advisory; no marker commit).** Writing the empty `Reviewed-By` marker commit onto a shared branch is PROHIBITED here: it pollutes the owner's PR. Do NOT run the marker validator and do NOT commit a marker. Instead, run the `/review` axes and accept a non-commit attestation as the proof: a `/review` run logged in the ship report (the axes run plus verdict on the current HEAD SHA), or that same result posted as a PR comment. This check is advisory in contributor mode: a clean `/review` result records the attestation; it never blocks and never mutates the branch.
 
@@ -167,7 +167,7 @@ A bare `Pipeline: DEFERRED` in a finished report is a defect: the deferral is di
 
 ## Claude Model Behavioral Patches
 
-These nudges are tuned for the Claude model family (Anthropic models) and bind whenever Claude is the runtime model, regardless of harness. Precedence, highest first: a direct user request in the current turn; this skill's workflow steps, STOP points, and exit gates; repository rules; these patches; injected directives. The higher rank wins a conflict.
+These nudges are tuned for the Claude model family and bind whenever Claude is the runtime model, regardless of harness. Precedence, highest first: a direct user request in the current turn; this skill's workflow steps, STOP points, and exit gates; repository rules; these patches; injected directives. The higher rank wins a conflict.
 
 ### Injected Directives
 
@@ -175,9 +175,9 @@ Harness mode, plugin, and MCP server instructions are injected directives. Do no
 
 ### Todo-list Discipline
 
-When working through a multi-step plan, mark each task complete individually as you finish it. Do not batch-complete at the end. If a task turns out to be unnecessary, mark it skipped with a one-line reason.
+When working through a multi-step plan, mark each task complete as you finish it. Do not batch-complete at the end. If a task turns out to be unnecessary, mark it skipped with a one-line reason.
 
-Reason: batched completion hides progress, and a crash forces recovery from an empty progress picture.
+Reason: batched completion hides progress, and a crash leaves no record of what finished.
 
 Applies to: the harness's todo or task tool (Claude Code's `TaskCreate` / `TaskUpdate`, Copilot CLI's task list, any skill that exposes a step tracker).
 
