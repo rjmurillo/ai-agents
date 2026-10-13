@@ -282,7 +282,7 @@ class TestMainSummaryJson:
         The chdir is load-bearing. Without it ``main`` is never told about
         ``tmp_path``, so an assertion that the directory stayed empty holds no
         matter what the writer does, which is the vacuous shape
-        ``.claude/rules/testing.md`` MUST 12 and SHOULD 14 forbid. Standing in
+        ``.claude/rules/testing.md`` MUST 14 and SHOULD 14 forbid. Standing in
         ``tmp_path`` is what makes a stray relative write land where this test
         is looking.
         """
