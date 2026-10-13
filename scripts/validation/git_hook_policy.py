@@ -2863,7 +2863,7 @@ def check_staged_dashes(paths: Sequence[str], repo_root: Path) -> int:
             violations.append(path)
     if not violations:
         return 0
-    print("ERROR: staged markdown contains prohibited Unicode dashes:", file=sys.stderr)
+    print("ERROR: staged files contain prohibited Unicode dashes:", file=sys.stderr)
     for path in violations:
         print(f"  {path}", file=sys.stderr)
     return 1

@@ -119,7 +119,7 @@ pre-commit:
           - name: staged-dash-policy
             timeout: 2m
             run: uv run --frozen python scripts/validation/git_hook_policy.py staged-dashes {staged_files}
-            glob: "**/*.md"
+            glob: "**/*.{md,py}"
             exclude:
               - "node_modules/**"
               - ".venv/**"

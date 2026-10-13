@@ -2783,6 +2783,54 @@ def test_staged_dash_policy_reads_the_index_blob(tmp_path: Path) -> None:
     assert policy.check_staged_dashes(["../doc.md"], repo) == 2
 
 
+def test_staged_dash_policy_glob_covers_every_branch_scan_suffix() -> None:
+    from scripts.validation import checks_dash
+
+    config = yaml.safe_load((PROJECT_ROOT / "lefthook.yml").read_text(encoding="utf-8"))
+    job = _job_map(config, "pre-commit")["staged-dash-policy"]
+    suffixes = ",".join(suffix.lstrip(".") for suffix in checks_dash._SCAN_SUFFIXES)
+
+    assert job["glob"] == "**/*.{" + suffixes + "}"
+    assert "tests/hooks/fixtures/**" in job["exclude"]
+
+
+def test_staged_dash_policy_blocks_a_python_blob_and_names_the_path(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "tool.py", "x = 1\n")
+    _write_file(repo, "tool.py", f"# bad {chr(0x2013)} comment\n")
+    _git(repo, "add", "tool.py")
+
+    assert policy.check_staged_dashes(["tool.py"], repo) == 1
+    err = capsys.readouterr().err
+    assert "tool.py" in err
+    assert "staged markdown" not in err
+
+
+def test_staged_dash_policy_passes_a_clean_python_blob(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "tool.py", "x = 1\n")
+    _write_file(repo, "tool.py", "# clean - comment\n")
+    _git(repo, "add", "tool.py")
+
+    assert policy.check_staged_dashes(["tool.py"], repo) == 0
+
+
+def test_staged_dash_policy_skips_fixture_python_blobs(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    fixture = "tests/hooks/fixtures/dash.py"
+    _commit_file(repo, fixture, "x = 1\n")
+    _write_file(repo, fixture, f"# {chr(0x2014)}\n")
+    _git(repo, "add", fixture)
+
+    assert policy.check_staged_dashes([fixture], repo) == 0
+
+
 def test_staged_dash_policy_uses_utf8_under_non_utf8_locale(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
