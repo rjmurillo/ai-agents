@@ -541,7 +541,7 @@ jobs:
 
       - name: Install pinned Pi CLI
         shell: bash
-        run: npm install -g "@earendil-works/pi-coding-agent@${PI_CLI_VERSION}"
+        run: npm install -g --ignore-scripts "@earendil-works/pi-coding-agent@${PI_CLI_VERSION}"
 
       - name: Run real-CLI package smoke (pi)
         shell: bash
