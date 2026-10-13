@@ -261,7 +261,7 @@ def validate_lefthook_installed(repo_root: Path) -> bool:
     ``tests/test_lefthook_integration.py::test_install_resets_legacy_hooks_path``
     pins the shim text order (override, runner call, shim fallback) on every
     platform. ``tests/test_lefthook_runner.py`` pins the runner's order, and
-    ``test_installed_shim_resolves_lefthook_in_runner_order`` runs the installed
+    ``test_installed_shim_runs_the_first_binary_in_runner_order`` runs the installed
     shim on POSIX. Issue #4789, PR #5358 review, issue #5491.
     """
     if os.environ.get("GITHUB_ACTIONS", "").lower() in ("true", "1") or os.environ.get(

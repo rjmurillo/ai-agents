@@ -1168,7 +1168,7 @@ def test_install_resets_legacy_hooks_path(tmp_path: Path) -> None:
     # The shim's own `elif test -n "<runner>"` guard is always true, so the
     # fallback chain lives in the runner. Behavior is pinned in
     # tests/test_lefthook_runner.py (issue #5431) and, through the installed
-    # shim, by test_installed_shim_resolves_lefthook_in_runner_order below.
+    # shim, by test_installed_shim_runs_the_first_binary_in_runner_order below.
 
 
 def _stub_executable(directory: Path, name: str, log: Path) -> None:
@@ -1195,7 +1195,7 @@ def _stub_executable(directory: Path, name: str, log: Path) -> None:
     ],
     ids=["uv-before-path", "path-when-uv-absent", "nothing-resolves-fails-closed"],
 )
-def test_installed_shim_resolves_lefthook_in_runner_order(
+def test_installed_shim_runs_the_first_binary_in_runner_order(
     stubs: tuple[str, ...],
     expected_log: list[str],
     expected_code: int,
