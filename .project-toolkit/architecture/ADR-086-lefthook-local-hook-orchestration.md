@@ -70,9 +70,18 @@ Use Lefthook 2.1.10 as the only local Git hook orchestrator.
 4. `lefthook.yml` `min_version` is a runtime compatibility floor. It does not
    own installation or select the repository's Lefthook artifact.
 5. `lefthook.yml` sets the top-level `lefthook` command to
-   `uv run --frozen lefthook`. Lefthook bakes this command into generated shims
-   ahead of generic `PATH` lookup, so a generic `PATH` binary cannot silently
-   replace the configured runtime.
+   `python3 scripts/validation/lefthook_runner.py` (issue #5431, PR #5988).
+   Lefthook bakes this command into generated shims ahead of generic `PATH`
+   lookup. The shim guard `test -n "<command>"` tests a non-empty literal and is
+   always true, so no fallback below it in the shim ever runs. The runner owns
+   the fallback instead. It runs `uv run --frozen lefthook` when the probe
+   `uv run --frozen lefthook version` exits 0. Otherwise it runs `lefthook` from
+   `PATH`, then `node_modules/.bin/lefthook`. With no candidate it prints a
+   diagnosis and exits 3. The frozen uv runtime always wins when it works, so a
+   generic `PATH` binary cannot silently replace it. A `PATH` binary runs only
+   when uv cannot resolve Lefthook. This holds for the POSIX shim. On Windows,
+   Lefthook emits its default template, which resolves Lefthook from `PATH` and
+   omits the configured command (issue #3289).
 6. Installation uses Lefthook's native command:
    `uv run --frozen lefthook install --reset-hooks-path`.
 7. Repository policy stays in Python. The
@@ -226,9 +235,13 @@ environment without dependency resolution.
 
 `lefthook.yml` sets `min_version: 2.1.10` only to reject incompatible runtimes.
 It does not install Lefthook or own the version pin. The top-level
-`lefthook: uv run --frozen lefthook` command is baked into generated shims after
-explicit `LEFTHOOK_BIN` and before generic `PATH` lookup. Repository setup and
-installation checks also invoke `uv run --frozen lefthook`.
+`lefthook: python3 scripts/validation/lefthook_runner.py` command is baked into
+generated shims after explicit `LEFTHOOK_BIN` and before generic `PATH` lookup.
+`scripts/validation/lefthook_runner.py` resolves the Lefthook binary at hook
+time: the frozen uv runtime first, then `PATH`, then `node_modules/.bin`.
+Repository setup and installation checks run no shim, so they still invoke
+`uv run --frozen lefthook` directly. That includes decision item 6, which
+`lefthook_runner.py` does not change.
 
 ### Staging Ownership
 
@@ -290,7 +303,8 @@ Run acceptance from the primary clone.
 uv sync --frozen --extra dev
 uv run --frozen lefthook version
 uv run --frozen lefthook check-install
-uv run --frozen pytest tests/test_lefthook_integration.py -q
+python3 scripts/validation/lefthook_runner.py version
+uv run --frozen pytest tests/test_lefthook_integration.py tests/test_lefthook_runner.py -q
 git diff --quiet
 git diff --cached --quiet
 uv run --frozen lefthook run pre-commit --force
@@ -359,7 +373,8 @@ Review this decision when any of these conditions occurs:
 - Standard input semantics, staging, filtering, group order, or timeouts change.
 - Git active-index propagation or `{staged_files}` semantics change.
 - The repository adds another Git hook event.
-- Hook execution stops using the frozen uv environment.
+- Hook execution stops preferring the frozen uv environment, or the runner's
+  fallback order changes.
 - Supported platforms report installation, execution, routing, or other accepted
   hook-contract failures, including fail-open non-execution or incorrect standard
   input, staging, filtering, active-index behavior, or failure propagation.
@@ -375,6 +390,7 @@ Review this decision when any of these conditions occurs:
 | 2026-07-20 | Accepted by 6/6 Approve consensus. Implementation is included in PR #3259. |
 | 2026-07-20 | Verified that Lefthook filters use Git's active index, so no custom alternate-index guard is required. |
 | 2026-07-20 | Clarified rollback triggers, atomic restoration, and proof requirements through 6/6 delta-review consensus. |
+| 2026-10-11 | Amended item 5 and installation notes for the `lefthook_runner.py` runner (PR #5988, issue #5989). Item 6 unchanged. |
 
 ## Related Decisions
 
