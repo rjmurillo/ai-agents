@@ -388,10 +388,12 @@ class TestBlockquoteInterruptingAParagraphIsDestructive:
     drift without failing anything. It was the one gap named in the
     acceptance criteria as pinned and in fact pinned nowhere.
 
-    The shape set below is this module's own, not the twelve the shipped
-    prose was measured over, so the counts are not comparable with that
-    entry and are not meant to be. What both measurements agree on is that
-    the family writes.
+    The shape set below is the only twelve: the shipped prose quotes it.
+    `--write` is refused for the five corrupting shapes where `markdown-it-py`
+    is installed (issue #5348; see
+    `TestBlockquoteInterruptingAParagraphIsRefused` in
+    test_fix_fences_write_guard.py). The repair function is unchanged and its
+    count stays pinned here.
     """
 
     SHAPES = {

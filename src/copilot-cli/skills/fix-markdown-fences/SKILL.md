@@ -164,8 +164,10 @@ documentation:
   shapes diverge and `--write` changes none. A blockquote INTERRUPTING a
   paragraph is worse: CommonMark ends the paragraph and lazily continues the
   quote, so a following `2.` opens a list, while we keep the paragraph open
-  and `--write` appends a closer to a balanced document. Two of twelve
-  measured shapes do that. A backslash in a link destination escapes whatever
+  and the repair function appends a closer to a balanced document. Five of
+  twelve measured shapes do that. Where `markdown-it-py` is installed,
+  `--write` refuses all five and writes none (see "Write guard"); without it
+  the five are written. A backslash in a link destination escapes whatever
   follows it, where CommonMark escapes only ASCII punctuation, so an escaped
   space and an escaped tab are read wrongly: 62 of 64 shapes agree. The spec
   rule was measured before being believed and is worse, 34 of 64 with 30
