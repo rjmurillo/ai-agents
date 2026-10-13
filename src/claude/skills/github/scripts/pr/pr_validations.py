@@ -77,6 +77,50 @@ def _resolve_validation_base(pr_base: str, explicit: str = "") -> str:
     return pr_base
 
 
+# ``git ls-remote --exit-code`` exits 2 when no ref matches.
+_LS_REMOTE_NO_MATCH = 2
+
+
+def head_on_origin(head: str) -> bool | None:
+    """Return whether origin has ``head``, or None when origin cannot be read."""
+    try:
+        result = subprocess.run(
+            ["git", "ls-remote", "--exit-code", "--heads", "--", "origin", f"refs/heads/{head}"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=60,
+            env=_git_env(),
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return None
+    if result.returncode == 0:
+        return True
+    if result.returncode == _LS_REMOTE_NO_MATCH:
+        return False
+    return None
+
+
+def require_head_on_origin(head: str) -> bool:
+    """Refuse to continue when gh would resolve a head that origin lacks."""
+    on_origin = head_on_origin(head)
+    if on_origin is None:
+        print(
+            f"Warning: could not read origin to confirm {head!r} is pushed; "
+            "continuing, gh will report a missing head.",
+            file=sys.stderr,
+        )
+        return True
+    if not on_origin:
+        print(
+            f"Branch {head!r} is not on origin. Run: git push -u origin {head}",
+            file=sys.stderr,
+        )
+        return False
+    return True
+
+
 def validate_no_escaped_newlines(body_content: str) -> None:
     """Reject a body made from literal backslash-n sequences."""
     escaped_count = body_content.count("\\n")
