@@ -2791,7 +2791,7 @@ def test_staged_dash_policy_glob_covers_every_branch_scan_suffix() -> None:
     suffixes = ",".join(suffix.lstrip(".") for suffix in checks_dash._SCAN_SUFFIXES)
 
     assert job["glob"] == "**/*.{" + suffixes + "}"
-    assert "tests/hooks/fixtures/**" in job["exclude"]
+    assert "tests/hooks/fixtures/**" in cast(list[str], job["exclude"])
 
 
 def test_staged_dash_policy_blocks_a_python_blob_and_names_the_path(
