@@ -207,6 +207,7 @@ scripts and `github_core` import with the anthropic SDK blocked.
 | Script | Purpose | Key Parameters |
 |--------|---------|----------------|
 | `get_issue_context.py` | Issue metadata (no comments) | `--issue` |
+| `list_issues.py` | List issues | `--milestone` |
 | `get_issue_comments.py` | Issue comment thread (discourse) | `--issue`, `--limit` |
 | `new_issue.py` | Create new issue; `--source` required, agent needs Step 0 | `--title`, `--body`, `--labels`, `--source`, `--blocked-by`, `--signal`, `--milestone` |
 | `close_issue.py` | Close with optional comment (`--verify-claims` aborts on a cited commit/PR the remote disproves, exit 1, and separately on one it could not check, exit 3 or 4) | `--issue`, `--reason`, `--comment`, `--verify-claims` |
