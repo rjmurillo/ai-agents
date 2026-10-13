@@ -1015,7 +1015,7 @@ the file paths, the compared text, the profile used, and a suggested fix.
 |------|------------|---------|
 | `exact` | high | Identical text. |
 | `normalized` | high | Identical after NFKC, casefold, and punctuation collapse. |
-| `truncated-identical` | high | Distinguishable in full, identical under a truncation profile. |
+| `truncated-identical` | high | Not `exact` or `normalized` in full, but the normalized (NFKC, casefold, punctuation collapse) truncated prefixes are equal. A pair with only a `near` hit in full text still reports this kind. |
 | `near` | low | Token Jaccard at or above `--near-threshold` (default 0.8). Owner review only. |
 
 Truncation profiles (`--truncate N`, default 80, 160, 320) keep the first N
@@ -1035,8 +1035,21 @@ uv run python scripts/eval/skill_collision_report.py --only memory-enhancement
 **Regression policy.** `--baseline scripts/eval/skill_collision_baseline.json`
 exits 1 when a high-confidence collision is missing from the reviewed `accepted`
 list. Each entry needs `kind`, `field`, `profile`, `skills` (two names), `reason`,
-and `owner`. Low-confidence `near` findings never fail the run. CI runs this gate in
-`skill-passive-compliance.yml` whenever a `SKILL.md` changes.
+and `owner`. `profile` is the finding's profile string (`full` or `chars:N`, such as
+`chars:80`), not the `--truncate` integer. `skills` are the skill directory names
+under the scanned root, not the frontmatter `name` when the two differ. Example:
+
+```json
+{"accepted": [{"kind": "truncated-identical", "field": "description",
+  "profile": "chars:80", "skills": ["skill-a", "skill-b"],
+  "reason": "Shared boilerplate prefix, tracked in #1234.", "owner": "team-name"}]}
+```
+
+Low-confidence `near` findings never fail the run. CI runs this gate in
+`skill-passive-compliance.yml` when that workflow's compliance job runs: a change to
+`.claude/skills/**/SKILL.md`, `src/copilot-cli/skills/**/SKILL.md`, `CLAUDE.md`,
+`AGENTS.md`, or the collision and budget scripts. The script scans `.claude/skills`
+by default, so a Copilot-tree `SKILL.md` change runs the job without being scanned.
 
 **Feeding the overlap eval.** Colliding skills group into clusters. Pass a pairs
 file that holds prompts for the skills you care about, and the script writes a pairs
@@ -1053,7 +1066,8 @@ The emitter exits 2 and writes nothing when the catalog has no cluster, or no
 cluster pair has prompts for both skills. Dry-run needs no provider credentials. A live semantic verdict still records the
 model and harness in `eval-skill-overlap.py`'s own report.
 
-Exit codes: 0 ok, 1 new high-confidence collision, 2 config error, 3 git failure.
+Exit codes: 0 ok, 1 new high-confidence collision (only with `--baseline`; without it
+high findings print and the run exits 0), 2 config error, 3 git failure.
 
 ## Model Sweep Eval
 

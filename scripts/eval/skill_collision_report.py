@@ -11,8 +11,11 @@ compares every unordered skill pair, and reports:
 
   - exact:               identical text.
   - normalized:          identical after NFKC, casefold, and punctuation collapse.
-  - truncated-identical: distinguishable in full, identical after a controlled
-                         truncation profile (`chars:N` keeps the first N characters).
+  - truncated-identical: not exact or normalized in full, but the normalized
+                         truncated text is equal under a controlled truncation
+                         profile (`chars:N` keeps the first N characters). A
+                         pair with a full-text exact or normalized hit skips
+                         truncation scanning; a full-text near hit does not.
   - near:                token Jaccard similarity at or above `--near-threshold`.
 
 exact, normalized, and truncated-identical are HIGH confidence. near is LOW
