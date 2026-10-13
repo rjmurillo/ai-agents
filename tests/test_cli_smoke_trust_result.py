@@ -24,7 +24,7 @@ def test_result_job_always_runs_and_waits_for_every_other_job(
 
     assert result["name"] == "CLI Smoke Result"
     assert result["if"] == "${{ !cancelled() }}"
-    assert set(result["needs"]) == {"changes", "authorize", "smoke", "smoke-codex"}
+    assert set(result["needs"]) == {"changes", "authorize", "smoke", "smoke-codex", "smoke-pi"}
     assert "environment" not in result
 
 
@@ -39,6 +39,7 @@ def test_result_job_checks_every_leg_and_names_the_fork(workflow_doc: dict[Any, 
         ("AUTHORIZE_RESULT", "authorize"),
         ("SMOKE_RESULT", "smoke"),
         ("CODEX_RESULT", "smoke-codex"),
+        ("PI_RESULT", "smoke-pi"),
     ]:
         assert env[variable] == f"${{{{ needs.{job}.result }}}}"
         assert f"{variable} success" in argv

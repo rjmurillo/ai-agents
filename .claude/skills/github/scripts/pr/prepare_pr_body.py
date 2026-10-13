@@ -17,6 +17,8 @@ class PreparePrBodyError(RuntimeError):
 
 _BODY_NAME_RE = re.compile(r"^pr-body-[A-Za-z0-9_-]+\.md$")
 _BODY_PLACEHOLDER = "<!-- replace with PR body -->\n"
+_TEMPLATE_PATH = Path(".github") / "PULL_REQUEST_TEMPLATE.md"
+_TEMPLATE_MAX_BYTES = 64 * 1024
 # One sentence, shared by the name check and the mode check, so a caller learns
 # both rules from whichever one fails first (#5540).
 _BODY_FILE_RULES = (
@@ -106,9 +108,74 @@ def _new_body_name() -> str:
     return f"pr-body-{secrets.token_hex(16)}.md"
 
 
+def _open_template_fd(root: Path) -> int:
+    """Open the PR template without following a symlink at any component.
+
+    ``.github`` is opened as a directory with O_NOFOLLOW, then the template is
+    opened relative to that descriptor, so neither component can be swapped for
+    a link that points outside the checkout.
+    """
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    directory_flags = os.O_RDONLY | os.O_DIRECTORY | nofollow
+    root_fd = os.open(root, directory_flags)
+    try:
+        github_fd = os.open(_TEMPLATE_PATH.parent, directory_flags, dir_fd=root_fd)
+    finally:
+        os.close(root_fd)
+    try:
+        # O_NONBLOCK keeps a FIFO planted at the template path from hanging.
+        return os.open(
+            _TEMPLATE_PATH.name,
+            os.O_RDONLY | nofollow | getattr(os, "O_NONBLOCK", 0),
+            dir_fd=github_fd,
+        )
+    finally:
+        os.close(github_fd)
+
+
+def _read_template_fd(descriptor: int) -> str:
+    """Read an owned, single-link regular file of bounded size from ``descriptor``."""
+    metadata = os.fstat(descriptor)
+    if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
+        raise PreparePrBodyError("PR template is not a plain file")
+    if hasattr(os, "getuid") and metadata.st_uid != os.getuid():
+        raise PreparePrBodyError("PR template has another owner")
+    with os.fdopen(descriptor, "rb", closefd=False) as template_file:
+        data = template_file.read(_TEMPLATE_MAX_BYTES + 1)
+    if len(data) > _TEMPLATE_MAX_BYTES:
+        raise PreparePrBodyError("PR template is too large")
+    return data.decode("utf-8")
+
+
+def _seed_content(root: Path) -> str:
+    """Return the placeholder line followed by the repository PR template.
+
+    A repository without a safe template gets the placeholder alone. Safe means
+    a regular file, one link, owned by the caller, at most 64 KiB, reached
+    without crossing a symlink.
+    """
+    if not _HAS_DIRECTORY_FDS:
+        return _BODY_PLACEHOLDER
+    try:
+        descriptor = _open_template_fd(root)
+    except OSError:
+        return _BODY_PLACEHOLDER
+    try:
+        return _BODY_PLACEHOLDER + "\n" + _read_template_fd(descriptor)
+    except (OSError, UnicodeError, PreparePrBodyError):
+        return _BODY_PLACEHOLDER
+    finally:
+        os.close(descriptor)
+
+
 def prepare_pr_body(repo_root: Path) -> Path:
-    """Return a newly created private file below ``.project-toolkit/scratch``."""
+    """Return a newly created private file below ``.project-toolkit/scratch``.
+
+    The file holds the placeholder line and the repository PR template. Delete
+    the placeholder line once the template sections are filled in.
+    """
     root = repo_root.resolve()
+    seed = _seed_content(root)
     scratch_dir, scratch_fd = _open_scratch(root)
     try:
         if scratch_fd is None:
@@ -120,7 +187,7 @@ def prepare_pr_body(repo_root: Path) -> Path:
                 dir=scratch_dir,
                 delete=False,
             ) as body_file:
-                body_file.write(_BODY_PLACEHOLDER)
+                body_file.write(seed)
                 path = Path(body_file.name)
         else:
             while True:
@@ -136,7 +203,7 @@ def prepare_pr_body(repo_root: Path) -> Path:
                 except FileExistsError:
                     continue
             with os.fdopen(descriptor, "w", encoding="utf-8") as body_file:
-                body_file.write(_BODY_PLACEHOLDER)
+                body_file.write(seed)
             path = scratch_dir / name
     finally:
         if scratch_fd is not None:
@@ -204,7 +271,7 @@ def read_prepared_pr_body(repo_root: Path, relative_path: str) -> str:
         with os.fdopen(descriptor, encoding="utf-8") as body_file:
             descriptor = -1
             content = body_file.read()
-        if content == _BODY_PLACEHOLDER:
+        if _BODY_PLACEHOLDER.strip() in content:
             raise PreparePrBodyError("body placeholder was not replaced")
         return content
     except FileNotFoundError as exc:
