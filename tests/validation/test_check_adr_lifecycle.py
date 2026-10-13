@@ -1616,8 +1616,15 @@ def test_the_shipped_baseline_covers_every_check():
     )
 
 
-def test_the_repository_corpus_does_not_exceed_the_shipped_baseline():
-    """ci-scripts.md MUST 13: the gate must pass against the full corpus."""
+def test_the_repository_corpus_does_not_exceed_the_shipped_baseline(monkeypatch):
+    """ci-scripts.md MUST 13: the gate must pass against the full corpus.
+
+    "Today" is pinned: the review-by past-due check reads the clock, and an
+    unpinned run would go red on the day any real ADR's review-by date passes,
+    for every unrelated PR. The pre_pr gate stays the forcing function.
+    """
+    monkeypatch.setattr("check_adr_lifecycle._utc_today", lambda: _TODAY)
+
     assert main(["--repo-root", str(REPO_ROOT)]) == EXIT_OK
 
 
