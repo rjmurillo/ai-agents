@@ -162,7 +162,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[FAIL] {exc}", file=sys.stderr)
         return _CONFIG_ERROR
     if violations:
-        print(f"[FAIL] {len(violations)} host marketplace violation(s):", file=sys.stderr)
+        print(
+            f"[FAIL] {len(violations)} host marketplace violation(s) in {examined} "
+            f"plugin entries examined across {len(HOST_MARKETPLACES)} files:",
+            file=sys.stderr,
+        )
         for violation in violations:
             print(f"  {violation}", file=sys.stderr)
         return _VIOLATION

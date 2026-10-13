@@ -60,8 +60,8 @@ def test_clean_repo_passes(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -
 def test_real_repo_passes_and_covers_grok() -> None:
     violations, examined = gate.find_violations(REPO_ROOT)
     assert violations == []
-    assert examined == len(gate.HOST_MARKETPLACES)
-    assert ".grok-plugin/marketplace.json" in {m for m, _ in gate.HOST_MARKETPLACES}
+    assert examined == 3
+    assert (REPO_ROOT / ".grok-plugin" / "marketplace.json").is_file()
 
 
 def test_validate_wrapper_matches_main(tmp_path: Path) -> None:
@@ -156,7 +156,9 @@ def test_main_returns_nonzero_on_violation(
     repo = _repo(tmp_path)
     _write_json(repo / _first_marketplace(), _marketplace(source="../escape"))
     assert gate.main([str(repo)]) == 1
-    assert "outside the repository" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "outside the repository" in err
+    assert "1 host marketplace violation(s) in 3 plugin entries examined" in err
 
 
 def test_missing_marketplace_file_is_a_config_error(tmp_path: Path) -> None:

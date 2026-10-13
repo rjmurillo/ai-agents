@@ -12,11 +12,10 @@ must never add one back:
 - `src/claude/.claude-plugin/plugin.json`
 
 `build/scripts/validate_plugin_version_bump.py` fails with exit 1 when any of
-them carries the key. The two marketplace files
-(`.claude-plugin/marketplace.json`, `.github/plugin/marketplace.json`) must stay
-version-free for the same reason; a test in
-`tests/build_scripts/test_validate_plugin_version_bump.py` fails if a version
-appears in either.
+them carries the key. Each `marketplace.json` under `.claude-plugin/`,
+`.github/plugin/`, and `.grok-plugin/` must stay version-free for the same
+reason; a test in `tests/build_scripts/test_validate_plugin_version_bump.py`
+fails if a version appears in any.
 
 ## Why
 
