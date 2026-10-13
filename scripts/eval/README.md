@@ -926,7 +926,7 @@ this workflow before merge.
 
 ## Autoplan Route Eval
 
-`eval_autoplan_routes.py` is parts 1 and 2 of #5389. It calls the real `resolve_route.py` `main`, not a copy of its lookup, so a change to the resolver or to any skill's `metadata.routing.intents` moves the score.
+`eval_autoplan_routes.py` is parts 1 and 2 of #5389. Part 1 scores resolver fixtures: it calls the real `resolve_route.py` `main`, not a copy of its lookup, so a change to the resolver or to any skill's `metadata.routing.intents` moves the score. Part 2 scores model-driven families from `--model-results` and never calls the resolver for them.
 
 ```bash
 uv run python scripts/eval/eval_autoplan_routes.py                  # local, about 5 seconds, no API key
@@ -959,7 +959,7 @@ uv run python scripts/eval/eval_autoplan_routes.py --model-results run.json
 
 The runner has no spend cap flag. `--dry-run` prints the call count first, and `--judge-repeats 1` cuts the plan to 72 calls. A scenario passes when its `full` cell score is at least 4.0 on the judge's 1 to 5 rubric (`full` puts the autoplan body in the system prompt, which is how autoplan runs).
 
-Each family reports `scenarios`, `reachable` (every named route is an installed skill or agent), `exercised` (the run has a result), `scored` (the cell was graded), and `passed` apart. Without `--model-results` the accuracy reads `not scored`, never zero. A model miss prints `MODEL-MISS` and leaves the exit code at 0, so CI never gates on a judge. The deterministic tests in `tests/eval/test_eval_autoplan_model_scenarios.py` load and validate the file and call no model. The per-route ratchet is #6291.
+Each family reports `scenarios`, `reachable` (every named route is an installed skill or agent), `exercised` (the run has a result), `scored` (the cell was graded), and `passed` apart. Without `--model-results` the accuracy reads `not scored`, never zero. A model miss prints `MODEL-MISS` and does not change the exit code, so CI never gates on a judge. A failed resolver fixture still exits 1. The deterministic tests in `tests/eval/test_eval_autoplan_model_scenarios.py` load and validate the file and call no model. The per-route ratchet is #6291.
 
 ## Skill Overlap Eval
 
