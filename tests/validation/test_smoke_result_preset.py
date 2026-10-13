@@ -22,7 +22,8 @@ EXPECTED_ARGV = [
     "--guarded-check", "AUTHORIZE_RESULT", "success", "TRUSTED", "true", FORK_MESSAGE,
     "--skippable-check", "SMOKE_RESULT", "success", "Claude and Copilot smoke result: {value}",
     "--skippable-check", "CODEX_RESULT", "success", "Codex smoke result: {value}",
-    "--success-message", "CLI smoke passed for Claude, Copilot, and Codex on all platforms.",
+    "--skippable-check", "PI_RESULT", "success", "Pi smoke result: {value}",
+    "--success-message", "CLI smoke passed for Claude, Copilot, Codex, and Pi.",
     "--count-dir", "quota-skips",
     "--count-message", COUNT_MESSAGE,
 ]  # fmt: skip
