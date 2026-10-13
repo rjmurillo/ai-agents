@@ -914,7 +914,8 @@ def _unchanged_regeneration_message(unchanged: int, drifted: int) -> str:
         )
     return (
         f"{head} match the generators' output; commit those. The other "
-        f"{drifted - unchanged} are stale: run uv run python build/scripts/build_all.py."
+        f"{drifted - unchanged} are stale: run uv run python build/scripts/build_all.py, "
+        "then commit all of them."
     )
 
 

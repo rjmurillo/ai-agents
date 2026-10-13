@@ -45,7 +45,8 @@ _MARKER_ALL = (
 )
 _MARKER_SOME = (
     f"{build_all.UNCOMMITTED_UNCHANGED_PREFIX} 1 of 3 drifted path(s) match the generators' "
-    "output; commit those. The other 2 are stale: run uv run python build/scripts/build_all.py."
+    "output; commit those. The other 2 are stale: run uv run python build/scripts/build_all.py, "
+    "then commit all of them."
 )
 
 

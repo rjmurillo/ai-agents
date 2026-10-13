@@ -102,13 +102,14 @@ Exit codes (ADR-035):
     3 - External error (a bounded child was killed on deadline expiry)
 
 Failure evidence (issue #6427)
------------------------------
+------------------------------
 
 ``validate_generated_staleness`` returns a typed ``CheckOutcome`` carrying the
 stale count, the first ``MAX_STALE_PATHS_SHOWN`` paths, and a reason code
-(``generated.stale`` or ``generated.uncommitted``). A bool reached the summary
+(``generated.stale`` or ``generated.uncommitted`` for drift, and the shared
+``script.failed``, ``script.absent``, and ``timeout`` codes otherwise). A bool reached the summary
 as ``reason=legacy.boolean_contract``, and ``_echo_tail`` dropped the header and
-first paths of a 300-path list. ``build_all.py --check`` diffs against HEAD, so
+first paths of a 306-path list. ``build_all.py --check`` diffs against HEAD, so
 a correct uncommitted regeneration is drift to it; the child marks paths that
 were already byte-identical, and the gate then says to commit them.
 ``generated_staleness_report.py`` parses that output.

@@ -19,7 +19,7 @@ MAX_STALE_PATHS_SHOWN = 10
 # Output contract of the child, ``build/scripts/build_all.py`` ``--check``. The
 # header opens a block of two-space-indented paths; the other two kinds are one
 # path per line; the marker line is the commit-or-regenerate remedy. The marker
-# is generated from ``build_all.UNCOMMITTEDUNCHANGED_PREFIX`` and
+# must match ``build_all.UNCOMMITTED_UNCHANGED_PREFIX``;
 # ``tests/validation/test_check_generated_staleness_evidence.py`` fails when the two
 # spellings differ.
 DRIFT_HEADER = "STALENESS DETECTED: uncommitted regen drift:"
