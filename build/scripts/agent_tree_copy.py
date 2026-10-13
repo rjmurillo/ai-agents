@@ -66,10 +66,13 @@ _READONLY_TOOLS = frozenset({"Read", "Glob", "Grep", "WebSearch", "WebFetch"})
 # word is `read` (`issue_read`), and no word names a mutation (`find_and_replace`,
 # `get_and_run`). `run` is a noun in `get_workflow_run`, so it is not a mutating
 # word; a compound name (`and`, `then`) is rejected instead. `query` is not a
-# read word: `mcp__db__query` can run a write.
+# read word: `mcp__db__query` can run a write. `resolve` and `ask` can lead a
+# state change (`resolve_review_thread`), so only the exact names in
+# _READ_NAMES earn readonly through them.
 # An unfamiliar name matches neither test and never earns `readonly: true`.
-_READ_WORDS = frozenset({"get", "list", "read", "find", "search", "ask", "resolve", "initial"})
-_COMPOUND_WORDS = frozenset({"and", "then"})
+_READ_WORDS = frozenset({"get", "list", "read", "find", "search", "initial"})
+_READ_NAMES = frozenset({"resolve_library_id"})
+_COMPOUND_WORDS = frozenset({"and", "or", "then"})
 _MUTATING_WORDS = frozenset(
     {
         "write", "edit", "create", "update", "delete", "add", "merge", "push", "replace",
@@ -111,7 +114,7 @@ def is_readonly_tool(tool: object) -> bool:
     words = parts[-1].split("_")
     if any(word in _MUTATING_WORDS or word in _COMPOUND_WORDS for word in words):
         return False
-    return words[0] in _READ_WORDS or words[-1] == "read"
+    return parts[-1] in _READ_NAMES or words[0] in _READ_WORDS or words[-1] == "read"
 
 
 def declared_tools(frontmatter: dict[str, object]) -> list[object] | None:

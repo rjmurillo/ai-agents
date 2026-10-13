@@ -52,7 +52,15 @@ _LOADER_MESSAGE = "Plugin lib directory not found"
 _SECRET_VARS = frozenset(
     {"GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN"}
 )
-_SECRET_SUFFIXES = ("_TOKEN", "_API_KEY")
+_SECRET_SUFFIXES = (
+    "_TOKEN",
+    "_API_KEY",
+    "_SECRET",
+    "_SECRET_ACCESS_KEY",
+    "_PASSWORD",
+    "_PAT",
+    "_CREDENTIALS",
+)
 _RUN = os.environ.get("RUN_CLI_E2E") == "1"
 
 
@@ -112,7 +120,9 @@ def test_host_env_drops_tokens_and_api_keys_but_keeps_login_variables(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     dropped = ("GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN",
-               "SLACK_BOT_TOKEN", "OPENAI_API_KEY", "lower_token")  # fmt: skip
+               "SLACK_BOT_TOKEN", "OPENAI_API_KEY", "lower_token", "AWS_SECRET_ACCESS_KEY",
+               "CLIENT_SECRET", "DB_PASSWORD", "AZURE_DEVOPS_PAT",
+               "GOOGLE_CREDENTIALS")  # fmt: skip
     for name in dropped:
         monkeypatch.setenv(name, "secret")
     monkeypatch.setenv("HOME", "/home/x")
