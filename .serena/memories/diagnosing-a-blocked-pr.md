@@ -60,6 +60,30 @@ context can appear twice with different conclusions. Collapsing naively kept
 the SKIPPED row and hid the SUCCESS, which produced a false report of a failing
 required check earlier in the same session.
 
+## Right after a push, do not wait on get_pr_checks.py
+
+Source: the 2026-10-12 sweep (about 20 merge phases lost 10 to 35 minutes each).
+The code facts were re-read on `origin/main` at `ec3214659`. The timings are
+sweep observations, not re-measured.
+
+- `get_pr_checks.py --wait` stops polling once nothing is pending
+  (`PendingCount == 0`). Right after a push the required contexts have not
+  registered yet, so nothing is pending. The script returns at once with
+  `MissingRequiredChecks` set, status `FAIL`, exit 1
+  (`get_pr_checks.py` lines 734 to 739 and 789 to 790). That reads as a red PR
+  and is only a late start.
+- Poll `why_pr_blocked.py` instead, at 60 seconds or slower. It cross-tabs the
+  ruleset contexts against what GitHub recorded.
+- `Run Python Tests` is the `test-result` aggregator job in `pytest.yml`. It
+  reports after its partitions and coverage job finish. The sweep saw it appear
+  10 to 35 minutes after the splits. A missing `Run Python Tests` in that window is normal.
+- `Run Python Tests` can also have a second run from the `push` event on the
+  same SHA. If that run is the red one, rerun it, not only the `pull_request`
+  run. See `ci/ci-job-names-collide-so-a-red-check-name-is-ambiguous`.
+- `merge_pr.py` rejects while `mergeable` or `mergeStateStatus` is `UNKNOWN`
+  (`_reject_unknown_merge_state`, issue #2637). The sweep saw that last about 20
+  seconds after checks settled. Retry once before treating it as a block.
+
 ## The commit ceiling: superseded, no longer a merge gate (ADR-099, 2026-08-21)
 
 **Superseded.** The block and error message quoted below no longer exist.

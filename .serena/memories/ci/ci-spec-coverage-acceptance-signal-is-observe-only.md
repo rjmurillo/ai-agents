@@ -1,5 +1,28 @@
 # Skill: Spec acceptance signal is observed, not authoritative (98%)
 
+## Update 2026-10-12: superseded when the PR links a spec
+
+PR #6278 made `Validate Spec Coverage` a pure function of the PR body.
+`scripts/ci/spec_coverage_verdict.py` now decides it, and `ai-spec-validation.yml`
+has no `continue-on-error` left. The sections below describe the pre-#6278
+state and stay as history.
+
+Current rule, from `decide()` in that script:
+
+- No linked spec or issue reference: the check passes whatever the body holds.
+- Linked reference and no `## Acceptance criteria` section with `- [ ]` or `- [x]` items: the check fails.
+- Linked reference and any unchecked box in that section: the check fails.
+- A numbered list does not count as criteria.
+- A second acceptance heading, an unclosed HTML comment, or an unclosed code fence fails the check.
+
+A rerun of a failed job replays the original event payload, and this job reads
+`github.event.pull_request.body` from it. A rerun therefore grades the old body.
+Only a body edit (the workflow listens for `edited`) grades the new one. Write
+criteria you defer as prose, not as unchecked boxes.
+
+Source: the 2026-10-12 sweep, re-verified against `origin/main` at `ec3214659`
+by reading `spec_coverage_verdict.py` and `ai-spec-validation.yml`.
+
 ## Statement
 
 The `External-signal gate (observe)` step returns `NEEDS_REVIEW` with reason
