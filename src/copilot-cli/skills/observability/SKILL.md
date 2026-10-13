@@ -4,6 +4,10 @@ version: 1.0.0
 description: Use when you say `query agent logs`, `find slow tool calls`, or `show agent errors`. Query and analyze agent JSONL event logs for debugging, performance analysis, and decision tracing.
 license: MIT
 metadata:
+  capability:
+    kind: reusable-primitive
+    owns: [operational-event-selection]
+    status: active
   routing:
     role: conditional-adjunct
     invoker: ai-agents-debugging-playbook
@@ -34,6 +38,7 @@ Use this skill when:
 - Analyzing error patterns across agent sessions
 - Comparing tool usage across sessions or agents
 - Tracing decisions from orchestrator through sub-agents
+- Deciding which operational events new code must emit, and which it must leave out (read the event-logging contract below)
 
 Use direct log file inspection instead when:
 
@@ -147,6 +152,7 @@ Domain knowledge for observability analysis:
 
 | File | Content |
 |------|---------|
+| [event-logging-contract.md](references/event-logging-contract.md) | Canonical contract for which operational events code emits and omits: decision test, MUST and MUST NOT tables, log vs metric vs trace, worked example |
 | [three-pillars-reference.md](references/three-pillars-reference.md) | Logs, metrics, traces definitions, correlation matrix, OpenTelemetry |
 | [prometheus-recording-rules.md](references/prometheus-recording-rules.md) | Recording rule patterns, CPU throttling, disk I/O, PSI, TCP metrics |
 | [otel-migration-reference.md](references/otel-migration-reference.md) | IFx to OTel migration phases, instrumentation best practices, standard metrics |
