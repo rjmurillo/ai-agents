@@ -112,4 +112,4 @@ changes the status.
 
 Score a response on whether anchors are verbatim, whether answered requirements
 are recorded instead of asked, and whether the rebuild integrates each decision
-once. Do not score by number of questions.
+once. Do not score by number of questions. A raw inconsistency count is not ground truth.
