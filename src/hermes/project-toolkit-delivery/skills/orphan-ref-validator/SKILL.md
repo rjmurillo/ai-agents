@@ -17,6 +17,7 @@ Scans structured artifacts (specs, ADRs, eval fixtures, plugin manifests, skill 
 - **Skill names** that no longer have a `.claude/skills/<name>/` directory. Emitted as `Finding(kind="skill_name", severity="critical")`.
 - **Script paths** under `build/scripts/`, `scripts/validation/`, `scripts/`, or `tests/` that are not present on disk. Emitted as `Finding(kind="script_path", severity="critical")`.
 - **Rule and instruction paths** under `.claude/rules/`, `.github/instructions/`, or `src/copilot-cli/instructions/` that are not present on disk. Emitted as `Finding(kind="rule_path" | "instruction_path", severity="critical")`.
+- **Retired-surface paths**: a citation of the slash-command directory that ADR-064 retired, in live guidance documents only (skills, rules, instruction mirrors; not source code). Emitted as `Finding(kind="retired_path", severity="critical")`. A line that says `Migrated from` or names ADR-064 records the retirement and is not flagged. Specs, ADRs, and tests are dated records and are not checked.
 
 Emits findings per the ADR-056 envelope and a final verdict line. Exit code follows ADR-035: `VERDICT: PASS` or `VERDICT: WARN` exits `0`; `VERDICT: CRITICAL_FAIL` exits `1`; usage/configuration or incomplete scan exits `2`; external failures exit `3`; permission failures exit `4`.
 
@@ -128,7 +129,7 @@ VERDICT: CRITICAL_FAIL
 ### Phase 2: Walk Files
 
 - For directory targets, recurse and yield files whose suffix matches `.md`, `.json`, `.yaml`, `.yml`.
-- Exclude paths whose any segment is in `EXCLUDE_DIR_NAMES` (`__pycache__`, `.git`, `node_modules`, `worktrees`, `cache`, `references`, `templates`). The first five are vendor/VCS directories; the last two are added because skill `references/` and `templates/` directories are progressive-disclosure docs that legitimately cite external entities.
+- Exclude paths whose any segment is in `EXCLUDE_DIR_NAMES` (`__pycache__`, `.git`, `node_modules`, `worktrees`, `cache`, `templates`). The first five are vendor/VCS directories; `templates` is added because placeholder files legitimately cite entities that do not exist. Skill `references/` directories are walked: handoff prose and relationship tables live there. A reference doc that cites an absent entity on purpose takes a line-scope `orphan-ref-ignore` directive.
 - Exclude files matching the secret denylist.
 - Mark unreadable files, broken symlinks, outside-repo symlinks, symlink loops, stat failures, walk failures, and files larger than 5 MB as incomplete scans.
 
@@ -272,6 +273,7 @@ If `/build` exits with `VERDICT: CRITICAL_FAIL` from this skill, the recovery is
    |---|---|
    | `skill_name` | restore the skill, update the reference, or remove the mention |
    | `script_path` | restore the script, update the reference, or remove the mention |
+   | `retired_path` | cite the skill that replaced it, remove the mention, or mark a retirement note with `Migrated from` |
 
    "Restore" means recover an entity that existed, from git history. It never
    means author a new one so the reference resolves. If the target never

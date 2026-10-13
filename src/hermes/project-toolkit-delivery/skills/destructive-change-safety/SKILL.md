@@ -49,8 +49,9 @@ callers and adapters are in the graph. Pass each edited function to
 | `callers_unknown` | True means the entry point lies outside the scan. Widen the scan or read the real callers by hand; the trace is not done. |
 
 Decision `unknown` (exit 1) means a file did not parse (`unparsed`) or a source
-file in a language the scan cannot read, such as PowerShell, JavaScript, C#, or
-Go, went unscanned (`unscanned`). Scope is unknown; do not treat it as `skip`.
+file the scan cannot read went unscanned (`unscanned`): a language such as
+PowerShell, JavaScript, C#, or Go, a CI or build definition (YAML, Makefile,
+Dockerfile), or any file that starts with a shebang. Scope is unknown; do not treat it as `skip`.
 Read each listed file by hand and record what you checked. A scope with no
 readable file at all exits 2. The call graph matches by simple name and over-reports
 on purpose. For callers outside the scanned set, follow the caller-reading
@@ -62,7 +63,7 @@ call sites checked.
 | Sink | Preflight |
 |------|-----------|
 | SQLite DELETE or UPDATE | `preview-sql --database <file> --statement "<sql>"` runs it on an in-memory copy. `count` is rows hit, `total_changes` includes cascades and triggers. |
-| Files | `preview-files --root <dir> --pattern "<glob>"` lists what the glob selects, refuses patterns that leave the root, and ignores symlinks that do. |
+| Files | `preview-files --root <dir> --pattern "<glob>"` lists what the glob selects (a matched directory counts every file beneath it), refuses patterns that leave the root, and ignores symlinks that do. |
 | Other engine, remote resource | Use the system's own dry run, plan, or `SELECT COUNT`. Record the command and its real output. |
 
 A preview that cannot run exits 1 with `scope unknown`. If the platform has no
