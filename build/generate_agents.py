@@ -311,6 +311,12 @@ def generate_agents(
                 stanza = read_artifacts_stanza(config_file, "agents")
                 if stanza is not None:
                     config["__agents_stanza__"] = stanza
+                # ADR-115 Decision 7: a platform that ships no agents (Codex has
+                # no plugin component for them) declares no output of any kind.
+                # Skip it here; a platform with a partial declaration still
+                # reaches the allowlist check below and fails loud.
+                if not (config.get("legacy") or stanza or config.get("outputDir")):
+                    continue
                 platforms.append(config)
 
     if not platforms:

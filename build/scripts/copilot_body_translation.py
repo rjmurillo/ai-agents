@@ -327,3 +327,19 @@ def translate_skill_file(
     # pre-existing gap generate_skills.py notes for its sibling imports.
     kept = str(drop_frontmatter_keys(translate_allowed_tools(frontmatter), drop_keys))
     return kept + translate_body(body, skills_output_dir)
+
+
+def drop_skill_frontmatter_keys(content: str, drop_keys: frozenset[str]) -> str:
+    """Drop ``drop_keys`` from a full SKILL.md and leave every other byte alone.
+
+    The Codex plugin tree (ADR-115) ships the Claude body verbatim: Codex reads
+    the same SKILL.md contract, so the Copilot body and ``allowed-tools``
+    transforms in :func:`translate_skill_file` do not apply. Only the
+    Claude-only ``model`` pin goes. Content with no frontmatter is returned
+    unchanged.
+    """
+    match = _FRONTMATTER_RE.match(content)
+    if match is None:
+        return content
+    frontmatter, body = match.group(1), match.group(2)
+    return str(drop_frontmatter_keys(frontmatter, drop_keys)) + body
