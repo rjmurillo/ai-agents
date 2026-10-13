@@ -6,6 +6,8 @@ import subprocess
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from tests.new_pr_harness import (
     build_parser,
     completed,
@@ -13,6 +15,12 @@ from tests.new_pr_harness import (
     new_pr,
     subprocess_dispatcher,
 )
+
+
+@pytest.fixture(autouse=True)
+def _head_is_on_origin(monkeypatch):
+    """Keep ordered subprocess mocks intact: the origin lookup has its own tests."""
+    monkeypatch.setattr(main.__globals__["_pr_val"], "head_on_origin", lambda head: True)
 
 
 def _git_run(repo: Path, *args: str) -> str:
