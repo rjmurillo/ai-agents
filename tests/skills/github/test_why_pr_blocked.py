@@ -56,7 +56,7 @@ def _gql_pr(
     committed_date: str | None = None,
 ) -> dict:
     """Build a minimal GraphQL response for why_pr_blocked."""
-    response = {
+    response: dict = {
         "repository": {
             "pullRequest": {
                 "number": 42,
