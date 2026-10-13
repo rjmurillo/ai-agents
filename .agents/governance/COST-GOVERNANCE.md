@@ -6,7 +6,7 @@ This document outlines cost optimization policies and practices for the AI Agent
 
 ## GitHub Actions Cost Policy
 
-### Runner Selection (ADR-014)
+### Runner Selection (ADR-055)
 
 **Policy**: All GitHub Actions workflows MUST use `ubuntu-24.04-arm` runners unless documented ARM compatibility issues exist.
 
@@ -20,7 +20,7 @@ This document outlines cost optimization policies and practices for the AI Agent
 
 **Savings**: 37.5% cost reduction on Linux workflows ($0.008 → $0.005 per minute)
 
-**See**: [ADR-024: GitHub Actions Runner Selection](../../.project-toolkit/architecture/ADR-024-github-actions-runner-selection.md)
+**See**: [ADR-055: GitHub Actions Runner Selection](../../.project-toolkit/architecture/ADR-055-github-actions-runner-selection.md)
 
 ### Current Implementation Status
 
@@ -43,14 +43,14 @@ This document outlines cost optimization policies and practices for the AI Agent
 
 ### Compliance Requirements
 
-**All workflows MUST include ADR-014 compliance comments**:
+**All workflows MUST include ADR-055 compliance comments**:
 
 ARM runners:
 
 ```yaml
 jobs:
   job-name:
-    # ADR-014: ARM runner for cost optimization (37.5% savings vs x64)
+    # ADR-055: ARM runner for cost optimization (37.5% savings vs x64)
     runs-on: ubuntu-24.04-arm
 ```
 
@@ -59,7 +59,8 @@ Windows exceptions:
 ```yaml
 jobs:
   job-name:
-    # ADR-014 Exception: Windows runner required for [specific reason]
+    # ADR-055 Exception: Windows runner required for [specific reason]
+    # Dependency: [Specific package/action that requires Windows]
     # Issue: [Link to tracking issue or upstream limitation]
     runs-on: windows-latest
 ```
@@ -69,7 +70,8 @@ x64 exceptions (if any):
 ```yaml
 jobs:
   job-name:
-    # ADR-014 Exception: [Tool/dependency name] lacks ARM support
+    # ADR-055 Exception: [Tool/dependency name] lacks ARM support
+    # Dependency: [Specific package/action that requires x64]
     # Issue: [Link to tracking issue or upstream limitation]
     runs-on: ubuntu-latest
 ```
@@ -96,7 +98,7 @@ jobs:
 
 When ARM runners cannot be used:
 
-1. **Document the reason** in workflow with ADR-014 exception comment
+1. **Document the reason** in workflow with an `# ADR-055 Exception:` comment
 2. **Link to evidence**:
    - Upstream issue for ARM support
    - Tool documentation stating x64/Windows requirement
@@ -192,6 +194,6 @@ Raise an owner-reviewed signal when the weekly report shows agent-sourced share 
 
 ## References
 
-- [ADR-024: GitHub Actions Runner Selection](../../.project-toolkit/architecture/ADR-024-github-actions-runner-selection.md)
+- [ADR-055: GitHub Actions Runner Selection](../../.project-toolkit/architecture/ADR-055-github-actions-runner-selection.md)
 - [GitHub Actions Pricing](https://docs.github.com/en/billing/managing-billing-for-github-actions/about-billing-for-github-actions)
 - [GitHub ARM Runners Documentation](https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners/about-github-hosted-runners#standard-github-hosted-runners-for-public-repositories)

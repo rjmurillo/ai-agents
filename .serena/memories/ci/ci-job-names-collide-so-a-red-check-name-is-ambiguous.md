@@ -73,6 +73,22 @@ both able to run and to fail:
 | `Validate Investigation Claims` | 2 | ai-session-protocol, investigation-claim-backstop |
 | `Debounce Workflow` | 2 | ai-pr-quality-gate, ai-spec-validation |
 
+**Same name, two events.** `pytest.yml` triggers on `push` (every branch except
+`gh-readonly-queue/**`) and on `pull_request`. One head SHA therefore carries
+two `Run Python Tests` check runs. Measured 2026-10-12 on the head of PR #6296:
+run 38213457573 (`pull_request`) and run 38213449696 (`push`), both
+`completed / success`. The 2026-10-12 sweep saw `BLOCKED` persist after a rerun
+of only the `pull_request` run while the `push` run stayed red, with every
+local script green. The blocking behavior is the sweep's observation, not a
+documented GitHub guarantee. List both before rerunning:
+
+```bash
+gh api "repos/OWNER/REPO/actions/runs?head_sha=<sha>&per_page=100" \
+  --jq '.workflow_runs[] | select(.name=="Python Tests") | [.id,.event,.conclusion] | @tsv'
+```
+
+Rerun the run whose conclusion is not `success`, whichever event it carries.
+
 ## What to do instead
 
 Resolve the name to a run before acting. The `link` field carries the run and

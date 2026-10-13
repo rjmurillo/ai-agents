@@ -13,6 +13,7 @@ paths:
   - ".claude/skills/**"
   - "tests/build_scripts/**"
   - "tests/e2e/**"
+  - "src/claude/**"
 priority: high
 ---
 
@@ -45,10 +46,8 @@ environment: plugin manifests and `hooks.json`, copied hook scripts, agent and
 skill files a CLI loads, MCP configs, instruction mirrors. It does not bind
 artifacts consumed only inside this repo's own CI.
 
-The `paths` globs target every authoring, generated, and verification surface:
-agents, skills, commands, prompts, rules, hooks, templates, generators, plugin
-trees, and runtime-contract tests. This ensures future work loads the settled
-harness contract before changing any artifact class.
+The `paths` globs cover every authoring, generated, and verification surface, so
+future work loads the settled harness contract before changing any artifact class.
 
 ## The runtime contract is part of the artifact
 
@@ -156,8 +155,8 @@ gone and no one finds out. That is the silent-failure anti-pattern.
    loud (surface the error) so it is detected and fixed, never masked by a silent
    exit 0 that hides a disabled hook. Do not add a launcher wrapper that swallows
    its own resolution failure. Treat any change to the launcher shape as
-   architecture (it is the exact surface that caused the incident); route it
-   through architect review before shipping.
+   architecture, the surface that caused the incident; route it through
+   architect review before shipping.
 
 2. **Size the blast radius before you ship.** Ask: if this artifact is wrong, what
    breaks for the customer, and how do they recover? If the answer is "everything"
@@ -165,13 +164,9 @@ gone and no one finds out. That is the silent-failure anti-pattern.
 
 ## Generator order: one command, not a sequence
 
-The plugin lib trees were once mirrored in a chain, by two scripts that did
-not call each other: a sync script rewrote the shared Python packages'
-imports and copied them into the canonical lib tree, then `build_all.py`
-separately mirrored that tree into the Copilot plugin's own copy. Running
-them in the wrong order left the Copilot copy mirroring stale content with
-**both scripts exiting 0** and no local signal; the stale mirror surfaced
-only in CI.
+The plugin lib trees were once mirrored by two scripts that had to run in a
+fixed order. The wrong order left the Copilot copy stale with both scripts
+exiting 0, and CI was the first to notice.
 
 ADR-109 B5 (TASK-035) closed that hazard by construction. `build_all.py`'s
 lib step (`build/scripts/lib_mirror.py`) now renders the shared packages
@@ -194,12 +189,8 @@ The old standalone sync entry point is retired (issue #5790). Call
 instead.
 
 The build writes under the install tree only through the binplace step, for
-the paths the binplace manifest names (each per-class generator per
-ADR-109 B1-B5: agents, rules, template-owned skill files, and the lib class
-each render into a plugin tree, then binplace copies the render onto its
-install-tree counterpart). REQ-003-010 forbids other generators from writing
-there; every class, lib included, is now a manifest row, so there is no
-longer an ordering hazard for this rule to document.
+the paths the binplace manifest names. REQ-003-010 forbids other generators
+from writing there.
 
 A skill's non-`SKILL.md` files (scripts, references, tests, and
 anything else under `.claude/skills/<name>/`) are the one exception to
@@ -208,7 +199,8 @@ never under `templates/`. `build_all.py` mirrors them into
 `src/claude/skills/<name>/` (`generate_skills.sync_claude_plugin_skill_support`)
 the same run it renders `SKILL.md` from its template, so both land in the
 plugin tree together; edit the support file at `.claude/skills/<name>/`
-directly and run `build_all.py`, same as any other lib-exception file.
+directly and run `build_all.py`. That run overwrites any edit made under
+`src/claude/skills/<name>/`, and tests import the `.claude` copy.
 
 ## Quick Self-Review
 

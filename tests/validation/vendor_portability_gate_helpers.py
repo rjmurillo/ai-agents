@@ -35,7 +35,7 @@ import checks_spec
 # here keeps that selection for the real-checker files split out of that file.
 import pre_pr_sequence  # noqa: F401
 
-# The seven wrappers live in two modules: two in ``checks_spec`` and five in
+# The eight wrappers live in two modules: two in ``checks_spec`` and six in
 # ``checks_portability`` (see that module's docstring for why they did not
 # join the first two). Resolution walks both so
 # a later move between them does not need a test edit.
@@ -75,6 +75,10 @@ EXPECTED: dict[str, tuple[str, str]] = {
         "Plugin-Root Interpreter",
         "validate_plugin_root_interpreter",
     ),
+    "python3 scripts/validation/check_projection_invariants.py": (
+        "Projection Invariants (ADR-107)",
+        "validate_projection_invariants",
+    ),
 }
 
 # Validators whose real-checker case runs in its own file. Measured on
@@ -99,7 +103,7 @@ def defining_module(name: str) -> Any:
 
 
 def validator(name: str) -> Any:
-    """Resolve a wrapper by name across the modules that define the seven."""
+    """Resolve a wrapper by name across the modules that define the eight."""
     return getattr(defining_module(name), name)
 
 

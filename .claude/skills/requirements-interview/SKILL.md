@@ -1,12 +1,13 @@
 ---
 name: requirements-interview
-version: 0.1.0
-description: Adversarial requirements interview that walks the design tree to elicit testable requirements before any code is written. Implements the grill-me pattern - ask relentlessly, recommend an answer for every question, and resolve dependencies between decisions one branch at a time. Skip any question the codebase can already answer. Use when you say "interview me on this", "grill me on the requirements", or "walk the design tree".
+version: 0.2.0
+description: Adversarial requirements interview that walks the design tree to elicit testable requirements before any code is written (the grill-me pattern), or audits an existing multi-section spec for ambiguity with source-anchored questions. Skip any question the codebase can already answer. Use when you say "interview me on this", "grill me on the requirements", "walk the design tree", or "audit this spec for ambiguity".
 allowed-tools:
   - Read
   - Glob
   - Grep
   - Write
+  - Bash
 license: MIT
 user-invocable: true
 metadata:
@@ -29,6 +30,17 @@ When this skill activates, you become an adversarial requirements interviewer. T
 | `grill me on the requirements` | Refining a vague spec |
 | `walk the design tree` | Surfacing dependent decisions |
 | `stress-test this idea` | Pre-implementation validation |
+| `audit this spec for ambiguity` | Existing multi-section specification |
+
+## Mode Selection
+
+| Input | Mode |
+|-------|------|
+| New idea or rough request | Discovery: the design-tree interview in Process below |
+| Existing multi-section specification | Ambiguity audit: see Ambiguity Audit Mode |
+| Clear, implementation-ready spec with no material ambiguity | Return `NO MATERIAL GAPS`. Do not manufacture questions. |
+
+One skill owns both modes. Do not start a second requirements skill.
 
 ## Inputs
 
@@ -55,6 +67,60 @@ When this skill activates, you become an adversarial requirements interviewer. T
 7. **Surface unknown unknowns.** For each branch, ask "what would have to be true for this to fail in production?" Capture failure modes, not just happy paths.
 8. **Stop when the design tree has no unresolved leaves.** Every branch ends with either a confirmed decision, an explicit deferral, or an out-of-scope marker.
 9. **Emit the structured output** in the format below.
+
+## Ambiguity Audit Mode
+
+Audit a written specification instead of interviewing about an idea. A sequential
+open-question flow cannot cover a long document, and a rewrite without questions
+invents answers. This mode quotes the source, asks closed decisions, and proves
+the rebuilt document integrates each answer once.
+
+1. **Cover the whole document.** Review every category: `edge_case`, `undefined_state`,
+   `permissions`, `error_behavior`, `data_constraint`, `concurrency`, `contradiction`,
+   `terminology`. Also note requirements the document or codebase already answers.
+2. **Write a ledger.** One candidate per gap, each with a source anchor: section plus an
+   exact quote or line range. A contradiction needs anchors in two sections.
+3. **Record, do not ask, what is already answered.** Use disposition `answered_in_document`
+   or `answered_in_codebase` with the evidence.
+4. **Run the check.** It rejects any anchor that is not verbatim in the source:
+
+   ```bash
+   python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/requirements-interview/scripts/spec_audit.py" check --source <spec.md> --ledger <ledger.json>
+   ```
+
+   `status: no_material_gaps` returns `NO MATERIAL GAPS`. `status: ask` returns a `batch`
+   of independent questions to present now through the `decision-question` skill's
+   bounds, which this mode composes and does not restate. Other statuses: `invalid`
+   (ledger problems), `incomplete` (a question lacks brief fields), and
+   `revise_recommendation` all exit 1 and need a ledger fix. `held` means only held
+   decisions remain. `resolved` means every live decision is answered, so step 7 starts.
+5. **Ask, record, rerun.** Record answers in the ledger and rerun until `resolved`.
+   A dependent decision is deferred until its prerequisite is answered, options are pruned, and question IDs never change across batches.
+6. **Never choose business policy for the owner.** Recommend only with repository
+   evidence or an existing contract. Otherwise the question carries `Owner decision, no evidence-backed recommendation`.
+7. **Rebuild, then verify.** Patch the spec without deleting unaffected content, keep
+   unresolved items under `Open decisions`, and run `spec_audit.py verify` with the
+   decision log. Report document growth as an observation, not a success metric.
+
+Script usage, exit codes, ledger schema, question rules, and the verify log:
+[ambiguity-audit.md](references/ambiguity-audit.md).
+
+## Scripts
+
+### spec_audit.py
+
+Entry point for the ambiguity-audit mode. It prints one JSON object.
+
+```bash
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/requirements-interview/scripts/spec_audit.py" check --source <spec.md> --ledger <ledger.json> [--repo-root <dir>] [--max-options N] [--max-questions N]
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/requirements-interview/scripts/spec_audit.py" verify --source <spec.md> --ledger <ledger.json> --log <log.json> --rebuilt <rebuilt.md>
+```
+
+Exit codes: `0` ok, `1` invalid ledger, incomplete question, or failed verification,
+`2` unreadable file or missing `decision-question` engine.
+
+`audit_check.py`, `audit_source.py`, and `audit_verify.py` are modules that
+`spec_audit.py` imports. They are not entry points.
 
 ## Question Discipline
 
@@ -115,6 +181,7 @@ Every PRD section reaches the spec-generator unchanged so it does not re-ask que
 
 - Source: <https://www.aihero.dev/my-grill-me-skill-has-gone-viral>
 - Upstream: <https://github.com/mattpocock/skills>
+- [Ambiguity audit reference](references/ambiguity-audit.md) - Ledger schema, question rules, batching, and rebuild verification for existing specs
 - [Circle of Competence](references/mental-models-circle-of-competence.md) - Calibrate confidence in a recommended answer by whether the decision sits inside the team's tested knowledge
 - Related skills: `decision-critic`, `pre-mortem`, `cynefin-classifier`
 - Related references: `software-engineering-library` clean-architecture and domain-driven-design references, plus `.claude/rules/security.md`

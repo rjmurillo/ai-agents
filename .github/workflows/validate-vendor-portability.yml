@@ -57,6 +57,9 @@ jobs:
       - name: "Check plugin-root skill invocations use bare python3 (issue #5949)"
         run: python3 scripts/validation/check_plugin_root_interpreter.py
 
+      - name: "Check ADR-107 projection invariants 6 and 8 (issue #5687)"
+        run: python3 scripts/validation/check_projection_invariants.py
+
       - name: Show remediation on failure
         if: failure()
         run: |
@@ -111,7 +114,14 @@ jobs:
           echo "     plugin-root-interpreter: <reason>"
           echo "   No baseline: every offense fails."
           echo ""
-          echo "See issues #2050, #2838, and #5949 for context."
+          echo "6. A Copilot CLI projection of push-pr or security-scan changed the"
+          echo "   allowed-tools set (ADR-107 invariant 6) or the Exit Codes table"
+          echo "   (invariant 8) of its Claude source (issue #5687). Fix the source"
+          echo "   or the transform, then regenerate:"
+          echo "     uv run python build/scripts/build_all.py"
+          echo "   No baseline: every difference fails."
+          echo ""
+          echo "See issues #2050, #2838, #5687, and #5949 for context."
 
   # Issue #5420: `.agents/` keeps only read-only canonical inputs, and agent
   # write targets live under `.project-toolkit/`. A separate job so the

@@ -50,6 +50,37 @@ def test_four_partitions_become_two_pools_and_one_serial_lane() -> None:
     assert lanes[2].commands == (tuple(SAFE_PUSH), tuple(PR_AUTOFIX))
 
 
+@pytest.mark.parametrize(
+    ("budget", "expected_pools"),
+    [(3, [1, 1]), (4, [2, 1]), (5, [2, 2]), (9, [4, 4])],
+)
+def test_process_budget_counts_the_serial_lane(budget: int, expected_pools: list[int]) -> None:
+    lanes = pytest_lanes.plan_lanes(FOUR, visible_cpus=48, process_budget=budget)
+
+    assert lanes is not None
+    assert [_workers(lane) for lane in lanes[:2]] == expected_pools
+    assert sum(expected_pools) + 1 <= budget
+
+
+@pytest.mark.parametrize("budget", [1, 2])
+def test_process_budget_too_small_for_every_lane_stays_serial(budget: int) -> None:
+    assert pytest_lanes.plan_lanes(FOUR, visible_cpus=48, process_budget=budget) is None
+
+
+def test_process_budget_without_a_serial_lane_is_all_workers() -> None:
+    lanes = pytest_lanes.plan_lanes([_bulk("8"), _mutation("8")], 48, process_budget=4)
+
+    assert lanes is not None
+    assert [_workers(lane) for lane in lanes] == [2, 2]
+
+
+def test_process_budget_above_the_command_workers_changes_nothing() -> None:
+    lanes = pytest_lanes.plan_lanes([_bulk("4"), _mutation("4"), SAFE_PUSH], 48, process_budget=64)
+
+    assert lanes is not None
+    assert [_workers(lane) for lane in lanes[:2]] == [2, 2]
+
+
 def test_safe_push_and_pr_autofix_never_get_a_worker_pool() -> None:
     lanes = pytest_lanes.plan_lanes(FOUR, visible_cpus=48)
 

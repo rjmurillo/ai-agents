@@ -671,6 +671,11 @@ PYTEST_WORKERS_ENV = "AI_AGENTS_PYTEST_WORKERS"
 # bulk subset 1.8x faster than 4, and more than 16 gains little because a few
 # slow tests set the wall-time floor.
 PYTEST_WORKER_CAP_ENV = "AI_AGENTS_PYTEST_WORKER_CAP"
+# Issue #5383: the cap above bounds this job alone. Sibling CPU-bound jobs in
+# the same Lefthook group (`pre-pr-validation` is the heaviest) draw on the same
+# cores, so the hook names how many CPUs those siblings hold. xdist gets the
+# remainder, never fewer than one worker. Read only when the cap is read.
+PYTEST_CPU_RESERVE_ENV = "AI_AGENTS_PYTEST_CPU_RESERVE"
 PYTEST_WORKER_CAP_SCALED = "scaled"
 PYTEST_SCALED_WORKERS_MIN = 4
 PYTEST_SCALED_WORKERS_MAX = 16
@@ -7570,6 +7575,64 @@ def parse_pytest_worker_cap(raw: str) -> int | None:
     return cap
 
 
+def parse_pytest_cpu_reserve(raw: str) -> int:
+    """Return the CPUs held back for sibling jobs: a non-negative integer.
+
+    Zero is valid and means no reservation.
+
+    Raises:
+        ValueError: ``raw`` is not a non-negative decimal integer.
+    """
+    candidate = raw.strip()
+    rejection = f"{PYTEST_CPU_RESERVE_ENV} must be a non-negative integer, got {raw!r}"
+    if not candidate.isdecimal():
+        raise ValueError(rejection)
+    return int(candidate)
+
+
+def local_worker_budget(cap: int, visible_cpus: int, reserve: int) -> int:
+    """Return the xdist worker count for one job sharing a CPU budget.
+
+    The result is ``min(cap, visible_cpus - reserve)``, floored at one worker so
+    a small container still runs the suite. It bounds the xdist ``-n`` value
+    only. The serial safe-push lane adds one more process when the partitions
+    overlap, so `_pytest_overlap_lanes` passes `pytest_process_budget` to the
+    lane planner, which counts that lane. Demand then never exceeds the CPUs
+    left after siblings take their share, except for the one-worker floor on a
+    machine with ``reserve >= visible_cpus``.
+    """
+    return max(1, min(cap, visible_cpus - reserve))
+
+
+def _pytest_cpu_reserve() -> int:
+    """Return the CPUs the reserve holds back, or 0 when it does not apply.
+
+    The reserve applies only when the worker cap is read: an explicit
+    ``AI_AGENTS_PYTEST_WORKERS`` wins over it, and the reserve alone changes
+    nothing.
+
+    Raises:
+        ValueError: the reserve is set to something other than a non-negative
+            integer.
+    """
+    worker_override = os.environ.get(PYTEST_WORKERS_ENV)
+    cap_raw = os.environ.get(PYTEST_WORKER_CAP_ENV)
+    if (worker_override and worker_override.strip()) or not (cap_raw and cap_raw.strip()):
+        return 0
+    reserve_raw = os.environ.get(PYTEST_CPU_RESERVE_ENV, "")
+    return parse_pytest_cpu_reserve(reserve_raw) if reserve_raw.strip() else 0
+
+
+def pytest_process_budget(visible_cpus: int) -> int | None:
+    """Return the most pytest processes to run at once, or ``None`` for no limit.
+
+    ``None`` when no reserve applies. Otherwise ``visible_cpus - reserve``,
+    floored at one process.
+    """
+    reserve = _pytest_cpu_reserve()
+    return max(1, visible_cpus - reserve) if reserve else None
+
+
 def _visible_cpu_count() -> int:
     """Return CPUs available to this process, with a Python 3.10 fallback."""
     if sys.version_info >= (3, 13):
@@ -7595,7 +7658,8 @@ def _pytest_parallel_flags() -> list[str]:
     if not (worker_override and worker_override.strip()) and cap_raw and cap_raw.strip():
         cap = parse_pytest_worker_cap(cap_raw)
         visible = _visible_cpu_count()
-        workers = str(scaled_worker_cap(visible) if cap is None else min(cap, visible))
+        cap_value = scaled_worker_cap(visible) if cap is None else cap
+        workers = str(local_worker_budget(cap_value, visible, _pytest_cpu_reserve()))
     return ["-n", workers, "--dist", PYTEST_DIST_MODE]
 
 
@@ -7869,7 +7933,8 @@ def _pytest_overlap_lanes(
             file=sys.stderr,
         )
         return None
-    return pytest_lanes.plan_lanes(commands, _visible_cpu_count())
+    visible = _visible_cpu_count()
+    return pytest_lanes.plan_lanes(commands, visible, pytest_process_budget(visible))
 
 
 def _report_partition(report: pytest_lanes.PartitionReport, budget: float) -> int:
@@ -7980,6 +8045,7 @@ def run_pytest(repo_root: Path) -> int:
         "GIT_OBJECT_DIRECTORY",
         "GIT_ALTERNATE_OBJECT_DIRECTORIES",
         PYTEST_WORKER_CAP_ENV,
+        PYTEST_CPU_RESERVE_ENV,
         PYTEST_WORKERS_ENV,
         # Consumed here, so it must not reach the child. A test that invokes
         # this policy inherits the parent's `=1` otherwise and takes the
