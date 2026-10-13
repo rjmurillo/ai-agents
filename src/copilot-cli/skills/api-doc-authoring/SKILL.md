@@ -110,8 +110,10 @@ executed request is flagged by `lint` and cannot be called verified.
 ### Phase 6: Hand off to the lifecycle
 
 Documentation written here is documentation. The `test` skill's Gate 5 and the
-`review` skill's docs axis already compose `doc-accuracy` for it; follow
-`references/doc-accuracy-gate.md` in the `test` skill. Do not run a parallel
+`review` skill's `doc-accuracy` axis (category `docs-and-instructions`) already
+compose `doc-accuracy` for it; follow
+`${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/test/references/doc-accuracy-gate.md`.
+Do not run a parallel
 accuracy gate.
 
 When an API contract changes, find the affected examples and re-run them:
@@ -129,7 +131,7 @@ prose.
 |------------|---------|------------|
 | `list` | Examples in the docs, filtered by `--touching <path prefix>` | `0` listed, `2` bad input |
 | `lint` | Missing ids or status, unverified responses, error rows without cause or action | `0` clean, `1` findings, `2` bad input |
-| `run` | Execute examples, compare status and documented response, write evidence | `0` all pass, `1` stale or failing, `2` unverifiable |
+| `run` | Execute examples, compare status and documented response, write evidence | `0` all pass, `1` stale, failing, or lint findings (verdict FAIL even when every HTTP comparison passed), `2` unverifiable |
 
 Stdlib only. `api_examples.py` imports the parser `doc_examples.py` beside it. `run` refuses a non-loopback host unless `--allow-remote` is passed,
 because a doc example can create or delete data. It sends only to the base URL host: a request path must start with `/`, and redirects are returned as replies, never followed. Exit `2` (server unreachable, no

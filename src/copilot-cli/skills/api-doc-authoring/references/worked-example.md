@@ -36,7 +36,7 @@ Expected response: the order starts as `pending`.
 
 ### Step 2: Read the order back
 
-Use the `id` from step 1. The fixture assigns `ord_1` to the first order.
+The path is fixed for this page: the fixture assigns `ord_1` to the first order. The runner does not bind the step 1 `id`, so a real guide pastes the returned id literally.
 
 ```http example=get-order expect=200
 GET /orders/ord_1

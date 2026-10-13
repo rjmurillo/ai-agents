@@ -25,7 +25,7 @@ Content-Type: application/json
 - An `<angle>` placeholder matches any string. Any other value must match.
 - Extra keys in the real response are allowed. Documented keys must exist.
 - An `http` block with neither `example` nor `expect` is illustration only and is not run.
-- Examples run top to bottom in each file, so later steps may use earlier state.
+- Examples run top to bottom in each file. The runner sends each request exactly as written and never substitutes values from earlier responses. Paste concrete ids into later requests.
 - Do not put secrets in a doc. `Authorization`, `Cookie`, and `X-API-Key` header
   values are redacted in the evidence file anyway.
 
@@ -76,8 +76,8 @@ Documentation changed by this skill flows through the existing gates:
 
 | Gate | What it adds |
 |------|--------------|
-| `test` Gate 5, `references/doc-accuracy-gate.md` | `doc-accuracy` on the changed docs (#5398) |
-| `review` docs-and-instructions axis | Claim review of the same diff |
+| `test` Gate 5, `skills/test/references/doc-accuracy-gate.md` | `doc-accuracy` on the changed docs (#5398) |
+| `review` `doc-accuracy` axis (category `docs-and-instructions`) | Claim review of the same diff |
 | This skill's `lint` and `run` | Example structure and execution evidence |
 
 The last row proves examples run. It does not replace the first two.
