@@ -4,7 +4,8 @@ Calculate weighted decision scores with sensitivity analysis.
 
 Exit codes:
   0: Clear winner (>20% score gap)
-  1: Tie requires human judgment (scores within 10%)
+  1: Tie requires human judgment (scores within 10%), or path traversal rejected
+  2: Criteria file not found, not valid JSON, or failed validation (ADR-035 config error)
 """
 
 import argparse
@@ -157,10 +158,10 @@ Example criteria file format (JSON):
             criteria = json.load(f)
     except FileNotFoundError:
         print(f"ERROR: Criteria file not found: {args.criteria_file}", file=sys.stderr)
-        sys.exit(11)
+        sys.exit(2)
     except json.JSONDecodeError as e:
         print(f"ERROR: Invalid JSON in criteria file: {e}", file=sys.stderr)
-        sys.exit(11)
+        sys.exit(2)
 
     # Validate criteria
     errors = validate_criteria(criteria)
@@ -168,7 +169,7 @@ Example criteria file format (JSON):
         print("ERROR: Validation failed", file=sys.stderr)
         for error in errors:
             print(f"  - {error}", file=sys.stderr)
-        sys.exit(11)
+        sys.exit(2)
 
     # Calculate scores
     scores = calculate_scores(criteria)
