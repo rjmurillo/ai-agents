@@ -17,10 +17,9 @@ metadata:
 > Make a maintainer decision, not a generic code-review summary.
 
 Adapted from the `maintainer-review` skill in openai/openai-agents-python
-(`.agents/skills/maintainer-review/`, MIT, Copyright (c) 2025 OpenAI). The
-attribution and full license text live in `THIRD-PARTY-NOTICES.TXT`. This
-version strips the upstream SDK-specific content and adds the safety
-invariants below.
+(upstream commit f53c624, MIT, Copyright (c) 2025 OpenAI). The attribution and
+full license text live in `THIRD-PARTY-NOTICES.TXT`. This version strips the
+upstream SDK-specific content and adds the safety invariants below.
 
 ## Triggers
 
@@ -99,9 +98,10 @@ in the PR body.
 
 ## Process
 
-Read `references/evaluation-framework.md` before the first review in a
-session. It holds the severity rubric, evidence checks, the three mandatory
-passes in full, dispositions, comment templates, and report variants.
+Read `references/workflow-detail.md` and `references/evaluation-framework.md`
+before the first review in a session. The first holds each step below in full,
+including the three mandatory passes. The second holds the severity rubric,
+evidence checks, dispositions, comment templates, and report variants.
 
 1. **Pin the target.** Resolve owner, repository, item type, and number from
    the URL. Read the remote base and head, the full patch, tests, linked
@@ -193,4 +193,5 @@ Requires owner approval: yes
 - `issue-feature-review` agent: feature request triage
 - `avoiding-manufactured-work`: consumer check for bot and agent work
 - `chestertons-fence`: history check before removing established behavior
-- `references/evaluation-framework.md`: rubric, passes, templates, reports
+- `references/workflow-detail.md`: each process step and the three passes in full
+- `references/evaluation-framework.md`: rubric, dispositions, templates, reports
