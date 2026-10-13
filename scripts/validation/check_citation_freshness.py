@@ -22,7 +22,12 @@ checks only. A slashless name is verified only when it names a file
 tracked at the repository root (``.markdownlint-cli2.yaml:138``), so
 illustrative snippets such as ``auth.ts:47`` stay ignored. Escape
 hatch: ``citation-freshness: ignore`` (with a reason) on the citing line
-or the line above; line-scoped on purpose, no whole-gate skip.
+or the line above, or, in Markdown, on the line directly above the code
+fence that holds the citation (a JSON fence cannot carry the marker
+inside); scoped to one line or one fence on purpose, no whole-gate skip.
+String literals in Python files under a ``tests`` directory are test
+data and are not checked; their comments and docstrings still are
+(``citation_scope.py``, issue #6556).
 
 EXIT CODES (ADR-035): 0 = no findings (prints examined counts so an idle
 run is distinguishable from a clean one) or no base ref resolved (prints
@@ -64,6 +69,10 @@ from citation_head_state import (  # noqa: E402
     _added_lines_since_base,
     _head_tracked_paths,
     _HeadFileCache,
+)
+from citation_scope import (  # noqa: E402
+    enclosing_fence_start,
+    string_literal_lines,
 )
 from stale_script_refs import HISTORICAL_ROOTS  # noqa: E402
 
@@ -139,16 +148,34 @@ def _is_exempt_citing_file(path: str) -> bool:
 _IGNORE_WITH_REASON = re.compile(re.escape(IGNORE_MARKER) + r"\s+--\s+\S")
 
 
-def _has_ignore_marker(citing_lines: list[str] | None, line_number: int, line_text: str) -> bool:
-    """Return whether the citation line or the one above carries a reasoned marker."""
+def _marker_on(citing_lines: list[str], line_number: int) -> bool:
+    """Return whether the 1-based line_number holds a reasoned marker."""
+    index = line_number - 1
+    return 0 <= index < len(citing_lines) and bool(_IGNORE_WITH_REASON.search(citing_lines[index]))
+
+
+def _has_ignore_marker(
+    citing_lines: list[str] | None,
+    line_number: int,
+    line_text: str,
+    markdown: bool = False,
+) -> bool:
+    """Return whether a reasoned marker exempts the citation line.
+
+    The marker counts on the citation line, on the line above it, or, in a
+    Markdown file, on the line directly above the code fence enclosing it
+    (a JSON fence cannot hold the marker inside itself).
+    """
     if _IGNORE_WITH_REASON.search(line_text):
         return True
     if citing_lines is None:
         return False
-    previous_index = line_number - 2
-    return 0 <= previous_index < len(citing_lines) and bool(
-        _IGNORE_WITH_REASON.search(citing_lines[previous_index])
-    )
+    if _marker_on(citing_lines, line_number - 1):
+        return True
+    if not markdown:
+        return False
+    fence_start = enclosing_fence_start(citing_lines, line_number)
+    return fence_start is not None and _marker_on(citing_lines, fence_start - 1)
 
 
 def _resolve_cited_range(
@@ -273,7 +300,7 @@ def _check_citation(
 
     citing_lines = head_files.lines(citing_file)
     markdown = citing_file.endswith(".md")
-    if _has_ignore_marker(citing_lines, line_number, line_text):
+    if _has_ignore_marker(citing_lines, line_number, line_text, markdown):
         return None
     cited_lines, finding = _resolve_cited_range(
         citing_file, line_number, citation_text, cited_path, start, end, tracked, head_files
@@ -344,7 +371,10 @@ def _scan_added_lines(
         if _is_exempt_citing_file(citing_file):
             continue
         files_scanned += 1
+        test_strings = string_literal_lines(citing_file, head_files.lines(citing_file))
         for line_number, line_text in added[citing_file]:
+            if line_number in test_strings:
+                continue
             # URLs are masked before scanning so an external link shaped
             # like host/org/file.py:N never reads as a repository citation.
             scannable = _URL.sub(" ", line_text)
