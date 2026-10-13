@@ -1,6 +1,6 @@
 ---
 name: fix-markdown-fences
-version: 1.3.0
+version: 1.4.0
 description: >-
   Repair malformed markdown code fence closings. Use when you say "fix markdown
   fences", "repair code block closings", "markdown rendering broken", "code
@@ -145,14 +145,22 @@ documentation:
   it ends, with no closing marker, so a line that dedents below it closes it.
   Without either rule the tool kept a block open past its real end, and
   `--write` appended a closing fence to documents already well formed.
-- Known gaps, each measured and none counted. A raw HTML block swallows a
+- Known gaps, each measured and none counted. Where `markdown-it-py` is
+  installed, `--write` refuses a file whose repair comes out unclosed (see
+  "Write guard"), which stops the shapes below whose input was balanced and
+  whose repair leaves a fence open. It does not stop a repair that the
+  reference parser still reads as balanced. Where it is not installed every
+  shape is written as described. A raw HTML block swallows a
   following fence, so a fence inside one is read as a fence here and as HTML
   by CommonMark. That one is DESTRUCTIVE, not merely a disagreement, and it is
   the worst gap on this list: the reference parser sees no fence at all, so the
-  document is balanced, and `--write` appends a closer anyway. Measured across
-  all seven CommonMark HTML block types, opener terminated and unterminated,
-  20 of 20 shapes are written to. Do not run `--write` unattended over
-  documents containing raw HTML blocks. A blockquote prefix is never stripped,
+  document is balanced, and `--write` appends a closer anyway. The appended
+  closer lands inside the same HTML block, so the guard reads the result as
+  balanced and allows it. Measured across all seven CommonMark HTML block
+  types, opener terminated and unterminated, 20 of 20 shapes are appended to,
+  7 are refused by the guard, and 13 are still written (for example
+  `<pre>`, `<!-- c`, or `<div>` followed by a fence and no closer). Do not
+  run `--write` unattended over documents containing raw HTML blocks. A blockquote prefix is never stripped,
   and that costs two different things. A fence inside `>` is invisible, which is a miss: six
   shapes diverge and `--write` changes none. A blockquote INTERRUPTING a
   paragraph is worse: CommonMark ends the paragraph and lazily continues the
@@ -188,8 +196,32 @@ a mixed-ending file is not normalized. Repair is idempotent.
 Exit codes (ADR-035):
 
 - `0` no defects found, or `--write` repaired every defect it found
-- `1` report mode found at least one defect; nothing was written
+- `1` report mode found at least one defect; nothing was written. With
+  `--write`, at least one file was refused (see "Write guard"); nothing was
+  written for it
 - `2` a requested path does not exist, or a file could not be read or written
+
+### Write guard
+
+A repair must never turn a balanced file into an unclosed one. The scanner
+reads a few shapes differently from CommonMark. The worst case is a mistaken
+closer next to a raw HTML block: the repair inserts a closing fence above the
+info-string fence, then appends another at the end of the file, and the
+appended one is a fresh opener that nothing closes. A tracked file did exactly
+that. Removing the mistaken-closer rule does not help, because the scanner
+still reads the fence after the HTML block as an opener and appends one.
+
+So `--write` checks the repaired text against `markdown-it-py` before it
+writes. A file that was balanced and would come out unclosed is refused: it is
+not written, it is listed on a `Refused` line (the `refused` key under
+`--json`), and the run exits 1. Other files in the same run are still
+repaired. A file that was already unclosed is never refused, since repair
+cannot make it worse by that measure.
+
+`markdown-it-py` is optional because this skill is vendored into trees that
+carry no third-party packages. Without it the check is skipped, stderr says so,
+and `--write` behaves as it did before the guard. Report mode never needs it.
+When a file is refused, read the report and fix the fences by hand.
 
 ## Reference: the algorithm
 

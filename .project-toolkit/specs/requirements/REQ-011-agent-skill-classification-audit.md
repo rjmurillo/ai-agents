@@ -9,7 +9,6 @@ epic: GH-1944
 source: GH-2003
 related:
   - DESIGN-011
-  - ADR-030
   - ADR-036
 created: 2026-05-10
 updated: 2026-05-10
@@ -45,7 +44,7 @@ SO THAT misclassified agents are identified and queued for Phase 2 refactor with
 - [ ] **AC-6**: THE SYSTEM SHALL set `verdict = keep-as-agent` when the agent body documents a context-isolation requirement that cannot be satisfied by `context: fork` SO THAT genuine separate-context agents (`orchestrator`, `analyst`, `critic`, `pr-comment-responder` per the issue's counter-signal section) are correctly preserved.
 - [ ] **AC-7**: THE SYSTEM SHALL include a `has_shared_template` column populated by checking for `templates/agents/{agent}.shared.md` per ADR-036 SO THAT Phase 2 refactor planning correctly targets dual-source agents.
 - [ ] **AC-8**: THE SYSTEM SHALL include a per-row `c5_frontmatter_bytes` measurement (bytes from start of file to end of YAML frontmatter delimiter) SO THAT load-budget impact of `verdict = skill` recommendations is quantified.
-- [ ] **AC-9**: THE SYSTEM SHALL include a summary footer with: total agents, count by verdict, total `c5_frontmatter_bytes` saved if all `verdict = skill` AND `verdict = context-fork-skill` rows were migrated (both are shape-mismatch refactor candidates), and citations to ADR-030, ADR-036, and `.agents/governance/agent-consolidation-process.md` SO THAT readers see authority and impact at a glance.
+- [ ] **AC-9**: THE SYSTEM SHALL include a summary footer with: total agents, count by verdict, total `c5_frontmatter_bytes` saved if all `verdict = skill` AND `verdict = context-fork-skill` rows were migrated (both are shape-mismatch refactor candidates), and citations to ADR-030 (since rejected; the Skill-first rule in `.agents/governance/SKILL-CREATION-CRITERIA.md` carries its principle), ADR-036, and `.agents/governance/agent-consolidation-process.md` SO THAT readers see authority and impact at a glance.
 - [ ] **AC-10**: THE SYSTEM SHALL produce a Phase 2 backlog list (one bullet per `verdict ≠ keep-as-agent` row, with one-line justification) committed alongside the audit table SO THAT the issue's second acceptance criterion is satisfied.
 - [ ] **AC-11**: THE SYSTEM SHALL record a verdict for every row SO THAT the issue's third acceptance criterion is satisfied; "no decision" is not a valid verdict.
 - [ ] **AC-12**: WHEN the Phase 3 CI check is referenced THE SYSTEM SHALL link to a separate filed GitHub issue (not implement the check) SO THAT the issue's fourth acceptance criterion is satisfied without expanding this audit's scope.
@@ -59,7 +58,7 @@ SO THAT misclassified agents are identified and queued for Phase 2 refactor with
 
 ## Dependencies
 
-- ADR-030 (skills-pattern-superiority), discriminator authority
+- `.agents/governance/SKILL-CREATION-CRITERIA.md` (Skill-first rule), discriminator authority
 - ADR-036 (two-source agent template architecture), `has_shared_template` column source
 - `.agents/governance/agent-consolidation-process.md`, process the audit applies and extends
 - `.agents/governance/spec-schemas.md`, schema for this REQ/DESIGN/TASK trio
