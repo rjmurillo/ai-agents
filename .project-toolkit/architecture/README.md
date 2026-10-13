@@ -137,7 +137,6 @@ These bind today.
 | [ADR-072](ADR-072-jtbd-plugin-architecture.md) | JTBD-Based Plugin Architecture with Per-Harness Emission | 2026-06-09 | Adopt two coupled changes. |
 | [ADR-073](ADR-073-adr-lifecycle-frontmatter.md) | Machine-Readable ADR Lifecycle Frontmatter | 2026-06-19 | Adopt a queryable lifecycle frontmatter schema as the machine-readable source of truth for ADR state, keeping a human-readable `## Status` prose section as an optional secondary rendering, present... |
 | [ADR-074](ADR-074-security-review-quick-pass-mode.md) | Bounded Security-Review Quick-Pass Mode | 2026-06-17 | Add a bounded quick-pass mode to security review, governed by a diff-scope classifier, a caller-enforced deadline, and an extended verdict taxonomy. |
-| [ADR-076](ADR-076-pr-autofix-branch-ownership-lease.md) | PR-Autofix Branch-Ownership Lease | 2026-06-17 | Adopt a PR-comment-backed, advisory, fail-open branch-ownership lease that `pr-autofix` (local) and remote review/autofix routines acquire before committing fix work to a shared PR branch, and... |
 | [ADR-081](ADR-081-confidence-elicitation-experiment.md) | Confidence Elicitation Is a Shadow Study, Not a Shipped Gate | 2026-07-11 | Do not ship confidence elicitation as a blocking PreToolUse hook. |
 | [ADR-082](ADR-082-claude-hook-group-dispatch.md) | Claude-Side Consolidated Hook Group Dispatch | 2026-07-16 | One process per (event, matcher) group on the Claude side. |
 | [ADR-083](ADR-083-copilot-dogfood-surface-separation.md) | Dogfood the Shipped Copilot Base and Separate Ship-vs-Internal Surface | 2026-07-20 | Adopt a per-item surface tag, split the Copilot form-factor into a shipped base plus a local-only internal overlay, and dogfood both by installing them the way a customer installs the base. |
@@ -187,7 +186,6 @@ Recorded, not yet binding. The last column is what each record says is holding i
 | [ADR-087](ADR-087-held-out-validated-improvement.md) | Held-Out Validation for Iterated Improvement Claims | 2026-07-26 | An improvement claim about an authored artifact, made by a loop that reads its own evaluation results, MUST be validated against a group whose number of consultations is bounded and counted by a... | Requested by two independent adversarial reviews on PR #3430 (gpt-5.6-sol and gemini-3.1-pro-preview), both of which concluded that the mechanism that PR adds asserts a norm the repository has not... |
 | [ADR-088](ADR-088-progressive-disclosure-book-rules.md) | Progressive Disclosure for Book-Derived Rules | 2026-07-27 | Move the eight situational book-derived rules from always-on instruction files to one progressively-disclosed skill named `software-engineering-library`. | - |
 | [ADR-089](ADR-089-remove-causal-memory-tier.md) | Remove the Tier 3 Causal Memory Graph | 2026-07-27 | Delete the Tier 3 causal graph and all machinery that exists only to maintain it: | The removal is implemented in the same change that files this ADR, so the document records a decision already carried out rather than one awaiting execution. On reversal, see the Consequences... |
-| [ADR-090](ADR-090-pr-branch-holder-lease.md) | PR Branch Holder Lease | 2026-07-27 | Adopt a fail-closed, PR-comment-backed holder lease for PR branch mutation. | This ADR amends ADR-076 for issue #3413. It records the decision before implementation because the change controls who may mutate a PR branch. |
 | [ADR-093](ADR-093-verify-red-checks-with-the-same-checker.md) | A local run clears a red remote check only when it is the same checker | 2026-08-07 | Add one MUST to `.claude/rules/universal.md`, which is always-on: | - |
 | [ADR-098](ADR-098-agent-role-metadata-replaces-tier-hierarchy.md) | Agent Role Metadata Replaces the Tier Hierarchy | 2026-08-20 | Retire the four-tier agent hierarchy. | - |
 | [ADR-104](ADR-104-gate-tier-placement-and-budgets.md) | Gate Tier Placement | 2026-08-25 | Three tiers, each with a stated job. | Six-seat adr-review debate held 2026-08-25; log at `.project-toolkit/critique/ADR-104-debate-log.md`. The first revision was blocked by two seats and this record is the rewrite. `implemented` stays... |
@@ -217,6 +215,7 @@ Superseded or deprecated. Do not cite these. The last column is where the decisi
 | [ADR-044](ADR-044-copilot-cli-frontmatter-compatibility.md) | Copilot CLI Frontmatter Compatibility | superseded | [ADR-094](ADR-094-govern-copilot-cli-compatibility.md) |
 | [ADR-052](ADR-052-template-strategy.md) | Template Strategy for Multi-Platform Agent Distribution | superseded | [ADR-109](ADR-109-template-first-plugin-distribution.md) |
 | [ADR-056](ADR-056-skill-output-format-standardization.md) | Skill Output Format Standardization | superseded | [ADR-103](ADR-103-skill-output-python-contract-correction.md) |
+| [ADR-076](ADR-076-pr-autofix-branch-ownership-lease.md) | PR-Autofix Branch-Ownership Lease | deprecated | not recorded |
 | [ADR-079](ADR-079-merge-time-plugin-version-bump.md) | Plugin Version Bump Stays at PR Time (Reject Merge-Time Automation) | superseded | [ADR-092](ADR-092-omit-plugin-manifest-version.md) (via ADR-091) |
 | [ADR-080](ADR-080-model-pin-justification-policy.md) | Model Pins Require Cited Eval Evidence | superseded | [ADR-111](ADR-111-skill-model-pins-project-per-harness.md) |
 | [ADR-091](ADR-091-post-merge-version-bot.md) | Post-Merge Bot Owns Plugin Version and Count Baselines | superseded | [ADR-092](ADR-092-omit-plugin-manifest-version.md) |
@@ -230,6 +229,7 @@ Considered and declined. Kept visible so the proposal is findable and does not r
 | [ADR-030](ADR-030-skills-pattern-superiority.md) | Skills Pattern Superiority | 2026-08-25 | - |
 | [ADR-031](ADR-031-hybrid-powershell-architecture.md) | Hybrid PowerShell Architecture for Claude Code Performance | 2026-08-25 | Implement a hybrid architecture for PowerShell skill execution: |
 | [ADR-061](ADR-061-hook-matcher-shims-delegate-pattern.md) | Hook Matcher Shims Delegate to Canonical Body | 2026-08-25 | Amend REQ-003-007 step 5 so the generator emits delegate shims, not inline-body shims. |
+| [ADR-090](ADR-090-pr-branch-holder-lease.md) | PR Branch Holder Lease | 2026-10-13 | Adopt a fail-closed, PR-comment-backed holder lease for PR branch mutation. |
 | [ADR-095](ADR-095-scoped-re-review-axes.md) | Scoped re-review runs only the axes that flagged (rejected) | 2026-08-15 | - |
 
 ## Needs backfill
