@@ -34,8 +34,15 @@ reopen by a maintainer, or an operator reset (`--reset` or a
 `/pr-autofix continue` comment). The signals are specified in
 `github_core/round_cap.py`.
 
+Orphaned local commits (issue #5447): when the record is escalated, or this
+call escalates, the output carries ``orphaned_commits``: local commits the live
+PR head does not contain, flagged when they touch CI or pre-push wiring or remove
+tests. Read-only; it never changes the exit code. Run the script from the PR's
+worktree, because the comparison uses the current directory's ``HEAD``.
+
 The pure logic (markers, reset detection, ACT/ESCALATE decision) lives in
-`github_core/round_cap.py`; this script owns the `gh` I/O and the CLI.
+`github_core/round_cap.py`; the unpushed-commit scan lives in
+`github_core/orphaned_commits.py`; this script owns the `gh` I/O and the CLI.
 
 Exit codes follow ADR-035, mirroring `check_pr_live_state.py`: 0 = round
 recorded, under both caps (ACT); 1 = a cap is exceeded (ESCALATE);
@@ -82,6 +89,7 @@ from github_core.api import (
     resolve_repo_params,
     safe_log_str,
 )
+from github_core.orphaned_commits import scan_if_escalated
 from github_core.output import (
     add_output_format_arg,
     write_skill_error,
@@ -479,6 +487,12 @@ def _post_state_marker(
         )
 
 
+def _human_summary(pr_number: int, result: dict[str, Any], orphaned: dict[str, object]) -> str:
+    summary = f"PR #{pr_number} round-cap: {result['action']} ({result['reason']})"
+    warning = orphaned["warning"]
+    return f"{summary}\n{warning}" if warning else summary
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     output_format = args.output_format
@@ -510,6 +524,17 @@ def main(argv: list[str] | None = None) -> int:
         reset=reset,
     )
 
+    orphaned = scan_if_escalated(
+        (prior_state or {}).get("escalated") is True or result["action"] == "ESCALATE",
+        head_sha,
+    )
+    if orphaned["warning"]:
+        logger.warning(
+            "op=round_cap_orphaned_commits pr=%d status=%s",
+            pr_number,
+            orphaned["status"],
+        )
+
     escalation_posted = _persist_verdict(
         owner,
         repo,
@@ -534,6 +559,7 @@ def main(argv: list[str] | None = None) -> int:
         "reason": result["reason"],
         "escalation_posted": escalation_posted,
         "reset_reason": result["reset_reason"],
+        "orphaned_commits": orphaned,
     }
 
     duration_ms = int((time.monotonic() - op_start) * 1000)
@@ -550,8 +576,8 @@ def main(argv: list[str] | None = None) -> int:
     write_skill_output(
         output,
         output_format=output_format,
-        human_summary=(f"PR #{pr_number} round-cap: {result['action']} ({result['reason']})"),
-        status="PASS" if result["action"] == "ACT" else "WARNING",
+        human_summary=_human_summary(pr_number, result, orphaned),
+        status="PASS" if result["action"] == "ACT" and not orphaned["warning"] else "WARNING",
         script_name=_SCRIPT_NAME,
     )
 
