@@ -45,6 +45,7 @@ EXPECTED_RULES = frozenset(
         "generated-artifacts",
         "governance",
         "knowledge-persistence",
+        "lossless-queue-reads",
         "lsp-first",
         "plugin-self-containment",
         "plugin-version-bump",

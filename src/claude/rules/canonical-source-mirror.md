@@ -143,12 +143,12 @@ rescoped `code-quality` and `pragmatic-programmer`. Issue #5492 narrowed
 `knowledge-persistence` to the trees it governs. PR #5498 reduced `voice`.
 Issue #5404 added completion guidance to `builder-ethos` and `voice`.
 Epic #5456 M4 moved model patches, search guidance, and much of `voice` into
-skills with narrower activation:
+skills with narrower activation. Issue #5256 added `lossless-queue-reads`:
 
 | Tree | Consumer | Always-on membership |
 |---|---|---|
-| `.github/instructions` | Copilot working in this repository | `builder-ethos`, `universal`, `voice` |
-| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | `builder-ethos`, `universal`, `voice` |
+| `.github/instructions` | Copilot working in this repository | `builder-ethos`, `lossless-queue-reads`, `universal`, `voice` |
+| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | `builder-ethos`, `lossless-queue-reads`, `universal`, `voice` |
 
 The Claude side answers the same question from the source, and it reads `paths:` alone. It ignores `applyTo:`, `globs:`, and `alwaysApply:`, all three of which `generate_rules.py` accepts, and each fails differently. `applyTo:` is remapped, so the mirror is scoped and only the Claude source leaks (the former `pragmatic-programmer` rule, before issue #5951 moved it into the `software-engineering-library` skill). `globs:` is preserved verbatim and never becomes `applyTo:`, so neither tree is scoped. `alwaysApply:` is dropped before the generator synthesizes `applyTo: '**'`, so both trees load universally and a code-only rule cannot state its scope (`code-quality`). `check_rule_scope_keys.py`, under the validation-scripts tree, now fails the build on any scope key but `paths:`, which keeps the source-side and mirror-side answers aligned. The directory prefix is omitted for the same reason the citation-freshness gate's is above: this rule ships in the plugin instruction mirrors, where an upstream-only path would dangle.
 
