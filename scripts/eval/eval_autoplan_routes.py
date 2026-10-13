@@ -390,7 +390,11 @@ def load_model_results(path: Path, skill_id: str = "autoplan") -> dict[str, dict
     items = target.get("scenarios") if isinstance(target, dict) else None
     if not isinstance(items, list):
         raise EvalConfigError(f"{path}: no rules.{skill_id}.scenarios list in the results")
-    return {item["id"]: item for item in items if isinstance(item, dict) and "id" in item}
+    return {
+        item["id"]: item
+        for item in items
+        if isinstance(item, dict) and isinstance(item.get("id"), str)
+    }
 
 
 def evaluate_model(

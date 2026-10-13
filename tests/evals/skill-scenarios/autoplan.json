@@ -78,7 +78,7 @@
       "expected_route": ["analysis-provenance", "validation-authority"],
       "expected_order": ["analysis-provenance", "validation-authority"],
       "forbidden_routes": ["orchestrator"],
-      "rationale": "validation-authority consumes the owner and category that analysis-provenance classifies, so provenance comes first. A response that invokes validation-authority first, or edits the validator before either skill ran, has the composition order wrong and fails. Handing the request to the orchestrator also fails."
+      "rationale": "Order: analysis-provenance, then validation-authority. The authority step consumes the owner and category that the provenance step classifies, so provenance comes first. A response that invokes validation-authority first, or edits the validator before either skill ran, has the composition order wrong and fails. Handing the request to the orchestrator also fails."
     },
     {
       "id": "R8",
@@ -90,7 +90,7 @@
       "expected_route": ["context-gather", "research", "ai-agents-external-claims"],
       "expected_order": ["context-gather", "ai-agents-external-claims", "incorporation"],
       "forbidden_routes": ["orchestrator"],
-      "rationale": "The statistic must be gathered, then verified, then incorporated. A response that writes the number into the design doc before the claim gate ran, or verifies before gathering context, has the composition order wrong and fails. Handing the request to the orchestrator also fails."
+      "rationale": "The statistic must be gathered, then verified, then incorporated: context-gather, then ai-agents-external-claims, then incorporation. A response that writes the number into the design doc before the claim gate ran, or verifies before gathering context, has the composition order wrong and fails. Handing the request to the orchestrator also fails."
     },
     {
       "id": "R9",

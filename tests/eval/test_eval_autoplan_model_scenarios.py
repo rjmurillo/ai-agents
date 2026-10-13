@@ -46,7 +46,7 @@ def _result(sid: str, score: float | None, **cell: Any) -> dict[str, Any]:
     return {"id": sid, "mechanisms": {"full": {"scores": scores, **cell}}}
 
 
-def _results_file(tmp_path: Path, items: list[dict[str, Any]]) -> Path:
+def _results_file(tmp_path: Path, items: list[Any]) -> Path:
     path = tmp_path / "run.json"
     path.write_text(json.dumps({"rules": {"autoplan": {"scenarios": items}}}), encoding="utf-8")
     return path
@@ -76,6 +76,15 @@ def test_forbidden_routes_are_named_in_the_rationale() -> None:
         text = (item["rationale"] + item["desc"]).lower()
         for route in item["forbidden_routes"]:
             assert route.lower() in text, f"{item['id']}: rationale omits {route}"
+
+
+def test_expected_order_is_stated_in_sequence_in_the_rationale() -> None:
+    for item in _raw()["scenarios"]:
+        order = item.get("expected_order", [])
+        text = item["rationale"]
+        positions = [text.find(step) for step in order]
+        assert all(pos >= 0 for pos in positions), f"{item['id']}: rationale omits a step"
+        assert positions == sorted(positions), f"{item['id']}: rationale states the order wrong"
 
 
 def test_expected_routes_are_signals_the_judge_looks_for() -> None:
@@ -258,6 +267,12 @@ def test_results_loader_refuses_missing_or_invalid_file(tmp_path: Path) -> None:
     bad.write_text("{", encoding="utf-8")
     with pytest.raises(ev.EvalConfigError):
         ev.load_model_results(bad)
+
+
+def test_results_loader_skips_items_without_a_string_id(tmp_path: Path) -> None:
+    items = [_result("R1", 5), {"id": [], "mechanisms": {}}, {"mechanisms": {}}, "junk"]
+    loaded = ev.load_model_results(_results_file(tmp_path, items))
+    assert set(loaded) == {"R1"}
 
 
 def test_model_miss_is_advisory_and_exit_stays_zero(
