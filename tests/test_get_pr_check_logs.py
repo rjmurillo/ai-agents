@@ -901,6 +901,8 @@ class TestGetFailedSteps:
         ) as run_mock:
             get_failed_steps("o", "r", "222")
         assert run_mock.call_args.args[0] == ["gh", "api", "repos/o/r/actions/jobs/222"]
+        assert run_mock.call_args.kwargs["encoding"] == "utf-8"
+        assert run_mock.call_args.kwargs["errors"] == "replace"
 
     def test_api_error_is_reported_not_raised(self):
         with patch(

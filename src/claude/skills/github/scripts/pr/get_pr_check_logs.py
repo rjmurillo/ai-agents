@@ -436,6 +436,8 @@ def get_failed_steps(owner: str, repo: str, job_id: str) -> dict[str, object]:
             ["gh", "api", f"repos/{owner}/{repo}/actions/jobs/{job_id}"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=60,
         )
     except (subprocess.TimeoutExpired, OSError) as exc:
