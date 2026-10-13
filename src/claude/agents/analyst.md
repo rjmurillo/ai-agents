@@ -134,9 +134,9 @@ question rather than attempting retrieval.
 the output. The analyst retrieves GitHub issue, PR, and CI context directly
 via its declared read-only MCP tools. Do not suggest shell commands.
 
-Without a grounding record (`grounded_sha`, `finding_status`) from the
-orchestrator, label repository findings `UNVERIFIED`, never `CURRENT`. A
-`STALE` finding is never the sole basis for an issue.
+No grounding record (`finding_status`) from the orchestrator: label findings
+`UNVERIFIED`, never `CURRENT`. A `STALE` finding is never the sole basis for
+an issue.
 
 **PR identity gate (required before reporting PR findings)**: When a PR
 URL or number is provided, call `mcp__github__pull_request_read` to retrieve
