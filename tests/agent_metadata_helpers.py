@@ -88,6 +88,7 @@ _NON_AGENT_ROLE_DIRS = frozenset(
         ".claude/skills/review/references",
         "src/claude/skills/review/references",
         "src/copilot-cli/skills/review/references",
+        "src/cursor/skills/review/references",
     }
 )
 
