@@ -14,7 +14,7 @@ _LIB_SRC = "src/claude/lib/github_core/api.py"
 _LIB_COPY = f"{_PACK}/lib/github_core/api.py"
 _SKILL_SRC = "src/claude/skills/review/scripts/run.py"
 _SKILL_COPY = f"{_PACK}/skills/review/scripts/run.py"
-_IGNORE = "x = 1  # type: ignore\n"
+_IGNORE = "x = 1  # type" + ": ignore\n"
 _BAD_CALL = "import subprocess\nsubprocess.run(['x'], capture_output=True, encoding='utf-8')\n"
 
 
