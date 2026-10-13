@@ -37,6 +37,21 @@ Omitting the section is never a violation.
 Where the nuance is not about lifecycle at all, name the section for what it
 holds (`## Acceptance Evidence`, `## Provenance`) so no reader mistakes it for a
 second source of truth about state.
+
+Section structures (issue #5196). Two heading sets are sanctioned. New records
+use the canonical set below. Existing records written in the MADR set stay as
+they are: rewriting accepted records to change headings is churn against
+immutable artifacts. A consumer asking for "the Decision" resolves either:
+
+| Concept      | Canonical        | MADR equivalent                                    |
+|--------------|------------------|----------------------------------------------------|
+| Context      | ## Context       | ## Context and Problem Statement                   |
+| Decision     | ## Decision      | ## Decision Outcome                                |
+| Consequences | ## Consequences | ## Consequences, or ### Consequences under Decision Outcome |
+
+The lifecycle gate reports `section-structure` when a record has neither
+heading for a concept. `## Status` and `## Date` are not required. The mapping
+is `SECTION_EQUIVALENTS` in `scripts/validation/check_adr_lifecycle.py`.
 -->
 
 ## Context

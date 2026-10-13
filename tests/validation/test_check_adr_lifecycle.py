@@ -41,6 +41,11 @@ removed with it rather than left asserting a contract the gate no longer has.
   is exempt from the no-edge direction; a dangling ``superseded-by`` is left
   to ``supersession-target-exists`` alone, not double-counted)
 
+- section-structure: pos (canonical set, MADR set, and a per-concept mix all pass; no
+  Status or Date section is needed), neg (neither set, each concept missing alone,
+  wrong heading level), edge (fenced and HTML-comment headings do not count, case and
+  closing hashes are tolerated, an unparseable body is a counted finding)
+
 - cited-paths-exist: pos (a tracked path in Decision passes), neg (a deleted path
   fails, named in the detail), edge (a fenced illustration passes, a path outside
   Decision and Implementation Notes passes, a `deprecated` or `superseded` record
@@ -75,6 +80,7 @@ from check_adr_lifecycle import (
     EXIT_CONFIG,
     EXIT_OK,
     EXIT_REGRESSION,
+    SECTION_EQUIVALENTS,
     _find_cycles,
     identities,
     main,
@@ -92,11 +98,26 @@ def _adr_dir(tmp_path: Path) -> Path:
     return path
 
 
-def _write(adr_dir: Path, number: int, frontmatter: str | None, body: str = "") -> Path:
-    """Write ADR-NNN-thing.md with an optional raw frontmatter block."""
+# The canonical section set `section-structure` requires. `_write` appends it by
+# default so a fixture exercising another check does not also raise this one.
+_SECTIONS = "\n## Context\n\nWhy.\n\n## Decision\n\nWhat.\n\n## Consequences\n\nSo.\n"
+
+
+def _write(
+    adr_dir: Path,
+    number: int,
+    frontmatter: str | None,
+    body: str = "",
+    sections: str = _SECTIONS,
+) -> Path:
+    """Write ADR-NNN-thing.md with an optional raw frontmatter block.
+
+    ``sections`` follows ``body`` and defaults to the canonical set; pass ``""``
+    to write a record with none.
+    """
     head = f"---\n{textwrap.dedent(frontmatter).strip()}\n---\n" if frontmatter else ""
     path = adr_dir / f"ADR-{number:03d}-thing.md"
-    path.write_text(f"{head}\n# ADR-{number:03d}: Thing\n{body}", encoding="utf-8")
+    path.write_text(f"{head}\n# ADR-{number:03d}: Thing\n{body}{sections}", encoding="utf-8")
     return path
 
 
@@ -666,6 +687,129 @@ def test_an_untracked_file_does_not_satisfy_a_citation_in_a_git_checkout(tmp_pat
     _write(_adr_dir(tmp_path), 1, _valid(1), _decision("`scripts/residue.py`."))
 
     assert _counts(tmp_path)["cited-paths-exist"] == 1
+
+
+# --- section-structure ------------------------------------------------------
+
+_MADR_SECTIONS = (
+    "\n## Context and Problem Statement\n\nWhy.\n\n## Considered Options\n\nA, B.\n\n"
+    "## Decision Outcome\n\nA.\n\n### Consequences\n\nSo.\n"
+)
+
+
+def test_the_canonical_heading_set_passes(tmp_path):
+    _write(_adr_dir(tmp_path), 1, _valid(1))
+
+    assert _counts(tmp_path)["section-structure"] == 0
+
+
+def test_the_madr_heading_set_passes(tmp_path):
+    _write(_adr_dir(tmp_path), 1, _valid(1), sections=_MADR_SECTIONS)
+
+    assert _counts(tmp_path)["section-structure"] == 0
+
+
+def test_a_per_concept_mix_of_the_two_sets_passes(tmp_path):
+    sections = "\n## Context\n\nWhy.\n\n## Decision Outcome\n\nA.\n\n## Consequences\n\nSo.\n"
+    _write(_adr_dir(tmp_path), 1, _valid(1), sections=sections)
+
+    assert _counts(tmp_path)["section-structure"] == 0
+
+
+def test_status_and_date_sections_are_not_required(tmp_path):
+    """ADR-073 (amended 2026-09-29) made `## Status` optional; `## Date` restates frontmatter."""
+    _write(_adr_dir(tmp_path), 1, _valid(1))
+
+    counts = _counts(tmp_path)
+
+    assert counts["section-structure"] == 0
+    assert counts["prose-frontmatter-agree"] == 0
+
+
+def test_a_record_matching_neither_set_names_every_missing_concept(tmp_path):
+    _write(_adr_dir(tmp_path), 1, _valid(1), sections="\n## Background\n\nWords.\n")
+
+    details = _hits(tmp_path, "section-structure")
+
+    assert len(details) == 1
+    assert "missing Context, Decision, Consequences" in details[0]
+    assert "ADR-TEMPLATE.md" in details[0]
+
+
+@pytest.mark.parametrize(
+    ("kept", "missing"),
+    [
+        ("## Decision\n\nD.\n\n## Consequences\n\nC.\n", "Context"),
+        ("## Context\n\nW.\n\n## Consequences\n\nC.\n", "Decision"),
+        ("## Context\n\nW.\n\n## Decision\n\nD.\n", "Consequences"),
+    ],
+)
+def test_each_missing_concept_is_named_alone(tmp_path, kept, missing):
+    _write(_adr_dir(tmp_path), 1, _valid(1), sections="\n" + kept)
+
+    details = _hits(tmp_path, "section-structure")
+
+    assert len(details) == 1
+    assert details[0].startswith(f"missing {missing}.")
+
+
+def test_a_context_heading_at_level_three_does_not_count(tmp_path):
+    sections = "\n### Context\n\nW.\n\n## Decision\n\nD.\n\n## Consequences\n\nC.\n"
+    _write(_adr_dir(tmp_path), 1, _valid(1), sections=sections)
+
+    assert _hits(tmp_path, "section-structure")[0].startswith("missing Context.")
+
+
+def test_a_consequences_heading_at_level_four_does_not_count(tmp_path):
+    sections = "\n## Context\n\nW.\n\n## Decision\n\nD.\n\n#### Consequences\n\nC.\n"
+    _write(_adr_dir(tmp_path), 1, _valid(1), sections=sections)
+
+    assert _hits(tmp_path, "section-structure")[0].startswith("missing Consequences.")
+
+
+def test_headings_in_a_fence_or_html_comment_do_not_count(tmp_path):
+    sections = "\n```markdown\n## Context\n\n## Decision\n\n```\n\n<!--\n## Consequences\n-->\n"
+    _write(_adr_dir(tmp_path), 1, _valid(1), sections=sections)
+
+    assert "missing Context, Decision, Consequences" in _hits(tmp_path, "section-structure")[0]
+
+
+def test_heading_case_and_closing_hashes_are_tolerated(tmp_path):
+    sections = "\n## CONTEXT ##\n\nW.\n\n## decision outcome\n\nD.\n\n## Consequences\n\nC.\n"
+    _write(_adr_dir(tmp_path), 1, _valid(1), sections=sections)
+
+    assert _counts(tmp_path)["section-structure"] == 0
+
+
+def test_a_record_without_frontmatter_is_left_to_frontmatter_parses_for_structure(tmp_path):
+    _write(_adr_dir(tmp_path), 1, None, sections="")
+
+    counts = _counts(tmp_path)
+
+    assert counts["section-structure"] == 0
+    assert counts["frontmatter-parses"] == 1
+
+
+def test_an_unparseable_body_is_a_structure_finding_not_a_skip(tmp_path):
+    quote = ">" * 20 + " "
+    body = "\n" + quote + "```\n" + quote + "## Decision\n" + quote + "```\n"
+    _write(_adr_dir(tmp_path), 1, _valid(1), body)
+
+    details = _hits(tmp_path, "section-structure")
+
+    assert len(details) == 1
+    assert "could not be parsed" in details[0]
+
+
+def test_the_mapping_and_the_template_agree():
+    """ADR-TEMPLATE.md documents every heading the gate accepts."""
+    template = (REPO_ROOT / ".project-toolkit" / "architecture" / "ADR-TEMPLATE.md").read_text(
+        encoding="utf-8"
+    )
+    for concept, names, _levels in SECTION_EQUIVALENTS:
+        assert concept in template
+        for name in names:
+            assert name in template.lower(), f"{name!r} is accepted by the gate but undocumented"
 
 
 # --- proposed-cannot-supersede / implemented-implies-decided ----------------

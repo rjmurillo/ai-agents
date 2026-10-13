@@ -72,6 +72,9 @@ Checks, each named so the baseline tracks them separately:
     status-edge-consistency      status: superseded iff a superseded-by edge resolves
     cited-paths-exist            an `accepted` record's Decision and Implementation Notes
                                   cite only files that are still tracked (issue #5194)
+    section-structure            Context, Decision, and Consequences are each present under a
+                                  sanctioned heading: the canonical set or the MADR set
+                                  (issue #5196)
 
 `status-edge-consistency` closes a gap `supersession-reciprocal` leaves open
 (Copilot, PR #5209): reciprocity validates edges against each other, never
@@ -96,8 +99,8 @@ merged change independent of decision state, and ADR-098 documents that
 exact pairing as deliberate. See `_check_lifecycle_rules` for the full
 removal rationale.
 
-Checks 2 to 9 need parseable frontmatter, so a record failing `frontmatter-parses`
-contributes one violation, not nine. The same containment runs downstream:
+Checks 2 to 10 need parseable frontmatter, so a record failing `frontmatter-parses`
+contributes one violation, not ten. The same containment runs downstream:
 `prose-frontmatter-agree` is skipped when the status section is absent
 (the record simply has no prose status, which ADR-073 prefers to a
 restatement) or the enum value is invalid (`status-enum` owns that), and
@@ -168,6 +171,7 @@ CHECKS: tuple[str, ...] = (
     "prose-frontmatter-agree",
     "status-edge-consistency",
     "cited-paths-exist",
+    "section-structure",
 )
 
 # The ADR-073 status enum. `test_lifecycle_statuses_conform_to_adr_073` fails when
@@ -197,6 +201,24 @@ _LEVEL_TWO_HEADING_RE = re.compile(r"(?m)^[ \t]{0,3}##[ \t]+(.+?)[ \t]*$")
 # Leading lifecycle word through any decoration: "**Accepted**", "> Superseded
 # by ADR-094 (2026-08-15)", "`Proposed`. Supersedes ADR-036."
 _LEAD_WORD_RE = re.compile(r"^[*_`~>\[\s]*([A-Za-z]+)")
+
+# Sanctioned section structures (issue #5196). The corpus runs two shapes: the
+# canonical set from `.project-toolkit/architecture/ADR-TEMPLATE.md` and the MADR
+# set (`## Context and Problem Statement`, `## Decision Outcome`, with
+# `### Consequences` nested under the outcome). Both are legal. The mapping is
+# per concept, so a consumer asking for "the Decision" resolves either heading.
+# This tuple is the machine-readable form of the table in ADR-TEMPLATE.md.
+# Each entry: concept name, accepted lowercased heading texts, accepted levels.
+SECTION_EQUIVALENTS: tuple[tuple[str, frozenset[str], tuple[int, ...]], ...] = (
+    ("Context", frozenset({"context", "context and problem statement"}), (2,)),
+    ("Decision", frozenset({"decision", "decision outcome"}), (2,)),
+    ("Consequences", frozenset({"consequences"}), (2, 3)),
+)
+
+# `##` and `###` ATX headings, optionally indented up to three spaces, with an
+# optional closing hash run. Level one is the title; level four and below are
+# never a record's own section.
+_SECTION_HEADING_RE = re.compile(r"(?m)^[ \t]{0,3}(#{2,3})[ \t]+(.+?)[ \t]*#*[ \t]*$")
 
 _BASELINE_PATH = Path(__file__).with_name("adr_lifecycle_baseline.json")
 
@@ -773,6 +795,47 @@ def _check_lifecycle_rules(record: Record) -> list[Violation]:
     return [Violation("proposed-cannot-supersede", record.path, detail)]
 
 
+def _check_structure(record: Record) -> list[Violation]:
+    """`section-structure` for one record (issue #5196).
+
+    A record passes when Context, Decision, and Consequences are each present
+    under a heading from the canonical set or the MADR set (see
+    `SECTION_EQUIVALENTS`). Resolution is per concept, so a record that opens
+    with `## Context` and decides under `## Decision Outcome` still passes:
+    a consumer reading "the Decision" finds it either way. `## Status` and
+    `## Date` are not required; ADR-073 (amended 2026-09-29) made the prose
+    status optional and the frontmatter carries both fields.
+
+    Headings inside fenced code and block-level HTML do not count, the same
+    masking `_status_prose` applies, so a template sample cannot satisfy the
+    check. A body the markdown parser rejects is reported, not skipped,
+    for the reason `_check_prose` gives.
+    """
+    try:
+        prose = blank_non_prose_block_lines(record.body)
+    except Exception as exc:
+        detail = f"section structure could not be parsed: {exc}"
+        return [Violation("section-structure", record.path, detail)]
+    present = {
+        (len(match.group(1)), match.group(2).strip().lower())
+        for match in _SECTION_HEADING_RE.finditer(prose)
+    }
+    missing = [
+        concept
+        for concept, names, levels in SECTION_EQUIVALENTS
+        if not any((level, name) in present for level in levels for name in names)
+    ]
+    if not missing:
+        return []
+    detail = (
+        f"missing {', '.join(missing)}. Use the canonical headings (`## Context`, "
+        "`## Decision`, `## Consequences`) or the MADR headings "
+        "(`## Context and Problem Statement`, `## Decision Outcome`, "
+        "`### Consequences`); see ADR-TEMPLATE.md."
+    )
+    return [Violation("section-structure", record.path, detail)]
+
+
 def _check_cited_paths(
     record: Record, repo_root: Path, tracked: frozenset[str] | None
 ) -> list[Violation]:
@@ -977,6 +1040,7 @@ def scan(adr_dir: Path, repo_root: Path) -> list[Violation]:
         violations.extend(_check_cited_paths(record, repo_root, tracked))
         violations.extend(_check_prose(record))
         violations.extend(_check_lifecycle_rules(record))
+        violations.extend(_check_structure(record))
     by_number = {r.number: r for r in records if r.frontmatter is not None}
     graph = _build_graph(by_number, known)
     violations.extend(graph.findings)

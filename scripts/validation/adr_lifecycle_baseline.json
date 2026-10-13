@@ -37,6 +37,10 @@
       ".project-toolkit/architecture/ADR-103-skill-output-python-contract-correction.md": 2,
       ".project-toolkit/architecture/ADR-108-template-owned-skill-files.md": 1,
       ".project-toolkit/architecture/ADR-109-template-first-plugin-distribution.md": 5
+    },
+    "section-structure": {
+      ".project-toolkit/architecture/ADR-030-skills-pattern-superiority.md": 1,
+      ".project-toolkit/architecture/ADR-095-scoped-re-review-axes.md": 1
     }
   }
 }
