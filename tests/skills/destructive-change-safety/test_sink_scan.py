@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -317,3 +318,92 @@ def test_real_repository_gc_path_traces_from_apply_flag() -> None:
     assert removal, "git worktree remove sink in scripts/maintenance went undetected"
     assert removal[0]["function"] == "remove_worktree"
     assert "--apply" in removal[0]["flags"]
+
+
+def write_executable(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    path.chmod(0o755)
+
+
+def test_extensionless_shebang_script_in_a_directory_is_unscanned(tmp_path: Path) -> None:
+    (tmp_path / "a.py").write_text("x = 1\n", encoding="utf-8")
+    write_executable(tmp_path / "bin" / "cleanup", '#!/bin/bash\nrm -rf "$TARGET"\n')
+    report = scan_dir(tmp_path)
+    assert report["decision"] == "unknown"
+    assert report["unscanned"] == ["bin/cleanup"]
+
+
+def test_shebang_script_with_an_unknown_suffix_is_unscanned(tmp_path: Path) -> None:
+    (tmp_path / "a.py").write_text("x = 1\n", encoding="utf-8")
+    write_executable(tmp_path / "run.cgi", "#!/usr/bin/env perl\nunlink $f;\n")
+    report = scan_dir(tmp_path)
+    assert report["decision"] == "unknown"
+    assert report["unscanned"] == ["run.cgi"]
+
+
+@pytest.mark.parametrize(
+    "relative",
+    [
+        ".github/workflows/x.yml",
+        ".github/workflows/y.yaml",
+        "Makefile",
+        "GNUmakefile",
+        "Dockerfile",
+        "docker/Dockerfile.prod",
+        "Containerfile",
+        "Jenkinsfile",
+    ],
+)
+def test_ci_and_build_definitions_in_a_directory_are_unscanned(
+    tmp_path: Path, relative: str
+) -> None:
+    (tmp_path / "a.py").write_text("x = 1\n", encoding="utf-8")
+    target = tmp_path / relative
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("run: git push -f origin main\n", encoding="utf-8")
+    report = scan_dir(tmp_path)
+    assert report["decision"] == "unknown"
+    assert report["unscanned"] == [relative]
+
+
+def test_package_with_hidden_script_and_workflow_is_not_skip(tmp_path: Path) -> None:
+    (tmp_path / "a.py").write_text("def pure(x):\n    return x\n", encoding="utf-8")
+    write_executable(tmp_path / "bin" / "cleanup", '#!/bin/bash\nrm -rf "$TARGET"\n')
+    workflow = tmp_path / ".github" / "workflows" / "x.yml"
+    workflow.parent.mkdir(parents=True)
+    workflow.write_text("jobs:\n  j:\n    steps:\n      - run: git push -f origin main\n")
+    report = scan_dir(tmp_path)
+    assert report["decision"] == "unknown"
+    assert report["unscanned"] == [".github/workflows/x.yml", "bin/cleanup"]
+
+
+def test_directory_scan_agrees_with_a_named_file_scan(tmp_path: Path) -> None:
+    write_executable(tmp_path / "bin" / "cleanup", '#!/bin/bash\nrm -rf "$TARGET"\n')
+    named = sink_scan.scan([tmp_path / "bin" / "cleanup"], tmp_path, [])
+    walked = scan_dir(tmp_path)
+    assert named["decision"] == walked["decision"] == "unknown"
+    assert named["unscanned"] == walked["unscanned"]
+
+
+def test_data_files_and_plain_extensionless_notes_stay_ignored(tmp_path: Path) -> None:
+    (tmp_path / "ok.py").write_text("x = 1\n", encoding="utf-8")
+    (tmp_path / "LICENSE").write_text("MIT\n", encoding="utf-8")
+    (tmp_path / "data.json").write_text("{}\n", encoding="utf-8")
+    (tmp_path / "blob.bin").write_bytes(b"\x00\x01\x02")
+    assert scan_dir(tmp_path)["decision"] == "skip"
+
+
+def test_unreadable_extensionless_file_is_unscanned(tmp_path: Path) -> None:
+    (tmp_path / "ok.py").write_text("x = 1\n", encoding="utf-8")
+    locked = tmp_path / "locked"
+    locked.write_text("#!/bin/sh\nrm -rf x\n", encoding="utf-8")
+    locked.chmod(0)
+    try:
+        if os.access(locked, os.R_OK):
+            pytest.skip("file permissions are not enforced for this user")
+        report = scan_dir(tmp_path)
+    finally:
+        locked.chmod(0o644)
+    assert report["decision"] == "unknown"
+    assert report["unscanned"] == ["locked"]
