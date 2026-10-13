@@ -83,7 +83,6 @@ Invoke `skill: "code-qualities-assessment"` for quality baseline.
 3. **Acceptance coverage** - Each requirement has a passing test. Map to acceptance criteria from /spec output.
 4. **Edge cases** - Null/empty/boundary values, invalid types, concurrent access where applicable.
 5. **Error paths** - Every catch/error branch tested. No silent swallowing. Resources cleaned up on failure.
-6. **Regression risk** - High-risk areas (auth, data persistence, payments) require full coverage regardless of change size.
 
 Output: `VERDICT: PASS|WARN|CRITICAL_FAIL` with findings array.
 
