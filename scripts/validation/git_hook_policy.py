@@ -786,6 +786,11 @@ _PROMPT_ROLE_FILE_RE = re.compile(r"^[a-z][a-z0-9_-]*\.md$")
 # the generator never visits must not gain an exemption merely because a
 # canonical file with the same name is tracked.
 _COPILOT_SKILL_EXCLUDES = frozenset({"AGENTS.md", "CLAUDE.md", "merge-resolver"})
+# ADR-115 Decision 6: a Hermes pack copies skills/<name>/ and lib/ byte for byte
+# from the install tree, one pack directory deep (build/scripts/hermes_packs.py).
+# A SKILL.md there is not a byte copy (the build cuts its frontmatter), so
+# `_is_verbatim_mirror` keeps flagging any suppression it carries.
+_HERMES_PACK_MIRROR_RE = re.compile(r"^src/hermes/project-toolkit-[a-z0-9-]+/(skills|lib)/(.+)$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -3276,6 +3281,13 @@ def _mirror_source(relative_path: str) -> str | None:
         skill_name = PurePosixPath(remainder).parts[0] if remainder else ""
         if skill_name in _COPILOT_SKILL_EXCLUDES:
             return None
+
+    hermes_pack = _HERMES_PACK_MIRROR_RE.match(relative_path)
+    if hermes_pack is not None:
+        tree, remainder = hermes_pack.groups()
+        if ".." in PurePosixPath(remainder).parts:
+            return None
+        return f".claude/{tree}/{remainder}"
 
     for output_prefix, source_prefix, suffix_map in _GENERATED_MIRRORS:
         if not relative_path.startswith(output_prefix):

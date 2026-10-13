@@ -46,6 +46,14 @@ class TestMirrorSourceMapping:
             ),
             ("src/copilot-cli/hooks/hooks.json", ".claude/hooks/hooks.json"),
             (
+                "src/hermes/project-toolkit-delivery/skills/github/scripts/pr/get_pr_checks.py",
+                ".claude/skills/github/scripts/pr/get_pr_checks.py",
+            ),
+            (
+                "src/hermes/project-toolkit-knowledge/lib/github_core/api.py",
+                ".claude/lib/github_core/api.py",
+            ),
+            (
                 ".github/prompts/pr-quality-gate-security.md",
                 ".claude/skills/review/references/security.md",
             ),
@@ -62,6 +70,11 @@ class TestMirrorSourceMapping:
             "scripts/ai_review_common/retry.py",
             "tests/test_ai_review.py",
             "docs/README.md",
+            "src/hermes/README.md",
+            "src/hermes/project-toolkit-delivery/plugin.json",
+            "src/hermes/other-dir/skills/github/SKILL.md",
+            "src/hermes/project-toolkit-delivery/skills/../../escape.py",
+            "src/hermes/project-toolkit-delivery/commands/x.py",
         ],
     )
     def test_non_mirror_paths_have_no_source(self, path: str) -> None:
