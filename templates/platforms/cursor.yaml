@@ -23,6 +23,9 @@ artifacts:
       - description
     # Cursor has no tool allow-list for subagents. readonly: true is the one
     # restriction it can carry, emitted only when every listed tool is read-only.
+    # An agent with a restricted tools list that is not all read-only is not
+    # shipped at all (ADR-115 Decision 3), because Cursor would run it with
+    # every tool. An agent with no tools list ships without readonly.
     deriveReadonly: true
   skills:
     sourceDir: "src/claude/skills"

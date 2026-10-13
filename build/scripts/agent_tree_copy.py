@@ -19,13 +19,20 @@ Stanza keys (all under ``artifacts.agents``):
 ``outputDir``         directory to write (``src/cursor/agents``)
 ``frontmatterKeep``   top-level frontmatter keys to keep, in output order
 ``deriveReadonly``    when true, emit ``readonly: true`` for an agent whose
-                      ``tools`` list names only read-only tools
+                      ``tools`` list names only read-only tools, and do not
+                      ship an agent whose ``tools`` list is restricted but not
+                      all read-only
 ``excludeFilenames``  source file names to skip
 
 ``readonly`` is derived, never guessed: an agent without a ``tools`` list gets
-no ``readonly`` key, and one tool outside the read-only set removes it. Cursor
-documents no tool allow-list for subagents, so ``readonly: true`` is the only
-tool restriction it can carry.
+no ``readonly`` key (it is unrestricted in Claude too). Cursor documents no
+tool allow-list for subagents, so ``readonly: true`` is the only tool
+restriction it can carry. ADR-115 Decision 3: an agent whose ``tools`` list is
+non-empty but not all read-only has a restriction ``readonly`` cannot express,
+and copying it would hand it every tool, shell included. With
+``deriveReadonly`` on, such an agent is not emitted, a skip line names it, and
+the prune step removes a copy generated earlier (``--check`` reports it as
+drift).
 
 Different from ``generate_agents.py``: no handoff or memory-prefix rewrite and
 no model pin. ``model`` is not in the keep list, so Cursor's default
@@ -81,6 +88,7 @@ class AgentCopyResult:
     written: int = 0
     drift: list[str] = field(default_factory=list)
     pruned: int = 0
+    skipped: list[str] = field(default_factory=list)
 
 
 def uses_agent_tree_copy(stanza: object) -> bool:
@@ -111,8 +119,21 @@ def derive_readonly(frontmatter: dict[str, object]) -> bool:
     return all(is_readonly_tool(tool) for tool in tools)
 
 
-def render_agent(text: str, keep: list[str], *, derive_readonly_flag: bool, source: str) -> str:
-    """Return ``text`` with its frontmatter reduced to the ``keep`` keys."""
+def has_inexpressible_restriction(frontmatter: dict[str, object]) -> bool:
+    """True when ``tools`` restricts the agent in a way ``readonly`` cannot express."""
+    tools = frontmatter.get("tools")
+    return isinstance(tools, list) and bool(tools) and not derive_readonly(frontmatter)
+
+
+def render_agent(
+    text: str, keep: list[str], *, derive_readonly_flag: bool, source: str
+) -> str | None:
+    """Return ``text`` with its frontmatter reduced to the ``keep`` keys.
+
+    Returns ``None`` when ``derive_readonly_flag`` is set and the agent carries a
+    tool restriction ``readonly`` cannot express (ADR-115 Decision 3). The caller
+    must not ship such an agent.
+    """
     parsed = read_yaml_frontmatter(text)
     if parsed is None:
         raise AgentCopyError(f"{source}: no frontmatter block")
@@ -122,6 +143,8 @@ def render_agent(text: str, keep: list[str], *, derive_readonly_flag: bool, sour
         raise AgentCopyError(f"{source}: unparseable frontmatter: {exc}") from exc
     if not isinstance(loaded, dict):
         raise AgentCopyError(f"{source}: frontmatter is not a mapping")
+    if derive_readonly_flag and has_inexpressible_restriction(loaded):
+        return None
     kept = {key: loaded[key] for key in keep if key in loaded}
     if derive_readonly_flag and derive_readonly(loaded):
         kept[_READONLY_KEY] = True
@@ -188,13 +211,19 @@ def generate_agent_copies(
         if src.name in excludes:
             continue
         result.inputs += 1
-        expected.add(src.name)
         rendered = render_agent(
             src.read_text(encoding="utf-8"),
             keep,
             derive_readonly_flag=stanza.get("deriveReadonly") is True,
             source=src.as_posix(),
         )
+        if rendered is None:
+            result.skipped.append(src.name)
+            print(
+                f"  SKIPPED: {src.name} (tools list restricts it beyond what readonly can express)"
+            )
+            continue
+        expected.add(src.name)
         _emit(output_dir / src.name, rendered, result, check=check, what_if=what_if)
     if not result.inputs:
         raise AgentCopyError(f"no agent files found under {source_dir}")

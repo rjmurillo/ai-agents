@@ -311,7 +311,7 @@ def _copy_agent_trees(repo_root: Path, result: GeneratorResult, *, check: bool) 
         if copied is None:
             continue
         result.inputs += copied.inputs
-        result.outputs += copied.inputs
+        result.outputs += copied.inputs - len(copied.skipped)
         for path in copied.drift:
             print(
                 f"STALENESS DETECTED: agent copy differs from src/claude/agents: {path}",

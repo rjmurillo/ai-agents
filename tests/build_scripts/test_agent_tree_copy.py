@@ -90,8 +90,7 @@ def test_one_writing_tool_removes_readonly() -> None:
 def test_render_keeps_listed_keys_in_order_and_the_body_verbatim() -> None:
     src = _agent(
         "name: demo\nmodel: haiku\nmodel-rationale: cost\nmetadata:\n  role: x\n"
-        "# why\nisolation_required: true\nargument-hint: Do it\ndescription: 'Does: a thing'\n"
-        "tools:\n  - Write\n",
+        "# why\nisolation_required: true\nargument-hint: Do it\ndescription: 'Does: a thing'\n",
     )
     out = atc.render_agent(src, KEEP, derive_readonly_flag=True, source="demo.md")
     assert out == (
@@ -104,6 +103,7 @@ def test_render_adds_readonly_when_every_tool_reads() -> None:
         "name: demo\ndescription: d\ntools:\n" + "".join(f"  - {t}\n" for t in READONLY_TOOLS)
     )
     out = atc.render_agent(src, KEEP, derive_readonly_flag=True, source="demo.md")
+    assert out is not None
     assert yaml.safe_load(out.split("---")[1]) == {
         "name": "demo",
         "description": "d",
@@ -114,6 +114,7 @@ def test_render_adds_readonly_when_every_tool_reads() -> None:
 def test_render_omits_readonly_when_derivation_is_off() -> None:
     src = _agent("name: demo\ndescription: d\ntools:\n  - Read\n")
     out = atc.render_agent(src, KEEP, derive_readonly_flag=False, source="demo.md")
+    assert out is not None
     assert "readonly" not in out
 
 
@@ -121,7 +122,25 @@ def test_render_omits_readonly_without_a_tools_list() -> None:
     out = atc.render_agent(
         _agent("name: d\ndescription: x\n"), KEEP, derive_readonly_flag=True, source="d.md"
     )
+    assert out is not None
     assert "readonly" not in out
+
+
+def test_render_skips_a_restricted_agent_readonly_cannot_express() -> None:
+    src = _agent("name: d\ndescription: x\ntools:\n  - Read\n  - Write\n")
+    assert atc.render_agent(src, KEEP, derive_readonly_flag=True, source="d.md") is None
+
+
+def test_render_keeps_a_restricted_agent_when_derivation_is_off() -> None:
+    src = _agent("name: d\ndescription: x\ntools:\n  - Read\n  - Write\n")
+    assert atc.render_agent(src, KEEP, derive_readonly_flag=False, source="d.md") is not None
+
+
+def test_inexpressible_restriction_needs_a_non_empty_tools_list() -> None:
+    assert atc.has_inexpressible_restriction({"tools": ["Read", "Write"]})
+    assert not atc.has_inexpressible_restriction({"tools": ["Read"]})
+    assert not atc.has_inexpressible_restriction({})
+    assert not atc.has_inexpressible_restriction({"tools": []})
 
 
 @pytest.mark.parametrize(
@@ -178,6 +197,72 @@ def test_copy_writes_each_agent_and_prunes_orphans(tmp_path: Path) -> None:
     assert (result.inputs, result.written, result.pruned) == (1, 1, 1)
     assert not (tmp_path / "out_agents" / "stale.md").exists()
     assert "model" not in (tmp_path / "out_agents" / "a.md").read_text(encoding="utf-8")
+
+
+RESTRICTED = _agent("name: r\ndescription: R\ntools:\n  - Read\n  - Write\n")
+
+
+def test_restricted_non_readonly_agent_is_skipped_with_a_notice(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _source(tmp_path, "r", RESTRICTED)
+    _source(tmp_path, "a", _agent("name: a\ndescription: A\n"))
+    result = atc.generate_agent_copies(tmp_path, _config(tmp_path))
+    assert result is not None
+    assert (result.inputs, result.written, result.skipped) == (2, 1, ["r.md"])
+    assert not (tmp_path / "out_agents" / "r.md").exists()
+    assert "SKIPPED: r.md" in capsys.readouterr().out
+
+
+def test_stale_copy_of_a_skipped_agent_is_pruned(tmp_path: Path) -> None:
+    _source(tmp_path, "r", RESTRICTED)
+    _source(tmp_path, "a", _agent("name: a\ndescription: A\n"))
+    (tmp_path / "out_agents").mkdir()
+    stale = tmp_path / "out_agents" / "r.md"
+    stale.write_text("old copy", encoding="utf-8")
+    result = atc.generate_agent_copies(tmp_path, _config(tmp_path))
+    assert result is not None
+    assert result.pruned == 1
+    assert not stale.exists()
+
+
+def test_check_reports_a_stale_copy_of_a_skipped_agent_as_drift(tmp_path: Path) -> None:
+    _source(tmp_path, "r", RESTRICTED)
+    _source(tmp_path, "a", _agent("name: a\ndescription: A\n"))
+    atc.generate_agent_copies(tmp_path, _config(tmp_path))
+    stale = tmp_path / "out_agents" / "r.md"
+    stale.write_text("old copy", encoding="utf-8")
+    result = atc.generate_agent_copies(tmp_path, _config(tmp_path), check=True)
+    assert result is not None
+    assert result.drift == [stale.as_posix()]
+    assert stale.exists()
+
+
+def test_read_only_agent_is_emitted_with_readonly_true(tmp_path: Path) -> None:
+    _source(tmp_path, "ro", _agent("name: ro\ndescription: R\ntools:\n  - Read\n  - Grep\n"))
+    atc.generate_agent_copies(tmp_path, _config(tmp_path))
+    text = (tmp_path / "out_agents" / "ro.md").read_text(encoding="utf-8")
+    assert yaml.safe_load(text.split("---")[1])["readonly"] is True
+
+
+def test_agent_without_tools_is_emitted_without_readonly(tmp_path: Path) -> None:
+    _source(tmp_path, "free", _agent("name: free\ndescription: F\n"))
+    atc.generate_agent_copies(tmp_path, _config(tmp_path))
+    text = (tmp_path / "out_agents" / "free.md").read_text(encoding="utf-8")
+    assert "readonly" not in text
+
+
+def test_restricted_agent_ships_when_derivation_is_off(tmp_path: Path) -> None:
+    _source(tmp_path, "r", RESTRICTED)
+    config = (
+        _config(tmp_path)
+        .read_text(encoding="utf-8")
+        .replace("deriveReadonly: true", "deriveReadonly: false")
+    )
+    off = tmp_path / "off.yaml"
+    off.write_text(config, encoding="utf-8")
+    atc.generate_agent_copies(tmp_path, off)
+    assert (tmp_path / "out_agents" / "r.md").is_file()
 
 
 def test_copy_is_idempotent(tmp_path: Path) -> None:
@@ -311,9 +396,20 @@ def test_generate_agents_skips_a_tree_copy_platform(tmp_path: Path) -> None:
 def test_committed_cursor_agents_match_the_claude_agents() -> None:
     source = sorted((REPO_ROOT / "src" / "claude" / "agents").glob("*.md"))
     copied = sorted((REPO_ROOT / "src" / "cursor" / "agents").glob("*.md"))
-    assert [p.name for p in copied] == [
-        p.name for p in source if p.name not in {"AGENTS.md", "CLAUDE.md"}
+    shipped = [p.name for p in source if p.name not in {"AGENTS.md", "CLAUDE.md"}]
+    restricted = [
+        n
+        for n in shipped
+        if atc.has_inexpressible_restriction(
+            yaml.safe_load(
+                (REPO_ROOT / "src" / "claude" / "agents" / n)
+                .read_text(encoding="utf-8")
+                .split("---")[1]
+            )
+        )
     ]
+    assert restricted == ["security.md"]
+    assert [p.name for p in copied] == [n for n in shipped if n not in restricted]
     for path in copied:
         frontmatter = yaml.safe_load(path.read_text(encoding="utf-8").split("---")[1])
         assert set(frontmatter) <= {"name", "description", "readonly"}, path.name
