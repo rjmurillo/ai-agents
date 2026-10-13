@@ -1,4 +1,4 @@
-# Skill: Spec acceptance signal is observed, not authoritative (98%)
+# Skill: Spec coverage fails on unchecked criteria when the PR links a spec (observe-only history below, superseded)
 
 ## Update 2026-10-12: superseded when the PR links a spec
 
@@ -12,6 +12,7 @@ Current rule, from `decide()` in that script:
 - No linked spec or issue reference: the check passes whatever the body holds.
 - Linked reference and no `## Acceptance criteria` section with `- [ ]` or `- [x]` items: the check fails.
 - Linked reference and any unchecked box in that section: the check fails.
+- An unchecked box inside an HTML comment or code block fails the check, even when the visible section is all checked (`hidden_unchecked(body)`).
 - A numbered list does not count as criteria.
 - A second acceptance heading, an unclosed HTML comment, or an unclosed code fence fails the check.
 

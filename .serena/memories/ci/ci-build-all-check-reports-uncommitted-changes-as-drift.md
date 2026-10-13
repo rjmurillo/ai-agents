@@ -14,7 +14,7 @@ Commit the template and the regenerated mirrors first. Then run `--check`. A cle
 
 The `Generated Artifact Staleness` gate in `pre_pr.py` runs this check. When it
 fails there, the report carries the reason `legacy.boolean_contract`
-(`scripts/validation/evidence.py:530`). That tag only means the validator
+(the `REASON_LEGACY_BOOLEAN` constant in `scripts/validation/evidence.py`). That tag only means the validator
 returned a bare boolean. It names no file. Run the gate script directly:
 
 ```bash

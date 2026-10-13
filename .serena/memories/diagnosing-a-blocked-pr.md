@@ -68,10 +68,14 @@ sweep observations, not re-measured.
 
 - `get_pr_checks.py --wait` stops polling once nothing is pending
   (`PendingCount == 0`). Right after a push the required contexts have not
-  registered yet, so nothing is pending. The script returns at once with
+  registered yet. The script returns as soon as the checks already registered
+  finish, even if a required context has not appeared yet, with
   `MissingRequiredChecks` set, status `FAIL`, exit 1
   (`get_pr_checks.py` lines 734 to 739 and 789 to 790). That reads as a red PR
   and is only a late start.
+- The FAIL summary appends `_MISSING_RECOVERY_HINT`, which says to close and
+  reopen the PR. Ignore it until `why_pr_blocked.py` confirms a context truly
+  never reported. Following it in this window restarts every check for nothing.
 - Poll `why_pr_blocked.py` instead, at 60 seconds or slower. It cross-tabs the
   ruleset contexts against what GitHub recorded.
 - `Run Python Tests` is the `test-result` aggregator job in `pytest.yml`. It
