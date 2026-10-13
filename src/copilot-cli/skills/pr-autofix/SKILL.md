@@ -563,11 +563,12 @@ if [ "$AUTO_MERGE" != "null" ] && [ "$TIER_TRUSTED_T1" != "yes" ]; then
     else
         echo "Auto-merge armed on non-T1 PR #$PR (method: $AUTO_MERGE); disabling before acting."
     fi
-    # No --output-format here. set_pr_auto_merge.py registers no such option,
-    # so argparse exited 2 before the mutation ran and this gate took its
-    # failure branch on every armed non-T1 PR, leaving auto-merge armed (issue
-    # #5551). The script already prints the AutoMergeEnabled object the
-    # verification checklist asks for, with no flag needed.
+    # No --output-format needed here. set_pr_auto_merge.py once registered no
+    # such option, so argparse exited 2 before the mutation ran and this gate
+    # took its failure branch on every armed non-T1 PR, leaving auto-merge
+    # armed (issue #5551). The script now accepts the flag, and the default
+    # already prints the AutoMergeEnabled object the verification checklist
+    # asks for.
     if run_pr_mutation_if_live \
         python3 "$SCRIPTS_DIR/set_pr_auto_merge.py" \
         --pull-request "$PR" --disable; then
