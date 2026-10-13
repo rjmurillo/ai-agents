@@ -95,7 +95,7 @@
 |architecture ADR model composite tool allocation producer-consumer: [skills-architecture-index](skills-architecture-index.md) (627)
 |adr decision record active proposed superseded rationale artifact: [adr-reference-index](adr-reference-index.md) (680), [adr/adr-artifact-count-verification](adr/adr-artifact-count-verification.md) (403), [adr/adr-retroactive-amendment-criteria](adr/adr-retroactive-amendment-criteria.md) (827), [adr/adr-review-observations](adr/adr-review-observations.md) (758)
 |design agent specialization entry-criteria limitation composability: [skills-design-index](skills-design-index.md) (206)
-|always-on corpus membership applyTo mirror generated synthesized internal-only: [architecture/always-on-membership-lives-in-the-mirror](architecture/always-on-membership-lives-in-the-mirror.md) (456)
+|always-on corpus membership applyTo mirror generated synthesized internal-only: [architecture/always-on-membership-lives-in-the-mirror](architecture/always-on-membership-lives-in-the-mirror.md) (472)
 |always-on rule edit invalidates corpus figures byte totals: [architecture/growing-an-always-on-rule-breaks-four-prose-documents](architecture/growing-an-always-on-rule-breaks-four-prose-documents.md) (1791)
 |github_core source scripts lib_mirror generated .claude/lib: [architecture/architecture-github-core-source-is-scripts-github-core](architecture/architecture-github-core-source-is-scripts-github-core.md) (164)
 |skill support files source .claude/skills src/claude pruned stale build_all mirror: [architecture/architecture-skill-support-files-are-sourced-in-claude-skills](architecture/architecture-skill-support-files-are-sourced-in-claude-skills.md) (349)

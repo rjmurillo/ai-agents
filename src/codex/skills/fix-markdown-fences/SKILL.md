@@ -164,8 +164,10 @@ documentation:
   shapes diverge and `--write` changes none. A blockquote INTERRUPTING a
   paragraph is worse: CommonMark ends the paragraph and lazily continues the
   quote, so a following `2.` opens a list, while we keep the paragraph open
-  and `--write` appends a closer to a balanced document. Two of twelve
-  measured shapes do that. A backslash in a link destination escapes whatever
+  and the repair function appends a closer to a balanced document. Five of
+  twelve measured shapes do that. Where `markdown-it-py` is installed,
+  `--write` refuses all five and writes none (see "Write guard"); without it
+  the five are written. A backslash in a link destination escapes whatever
   follows it, where CommonMark escapes only ASCII punctuation, so an escaped
   space and an escaped tab are read wrongly: 62 of 64 shapes agree. The spec
   rule was measured before being believed and is worse, 34 of 64 with 30
@@ -176,14 +178,17 @@ documentation:
   balanced document into an unclosed one, and the two that do not are the two
   that land on a tab stop. Escaped space and the next-line destination path
   corrupt none of eleven. And a setext `===`
-  underline
-  directly under a list item, followed by a lazy continuation and then an
-  indented fence, leaves that fence unseen. This one is DESTRUCTIVE too, and
-  it was recorded here as a miss on a measurement that did not hold: over nine
-  shapes, seven are rewritten and six go in balanced and come out unclosed.
-  The smallest is five lines, `- item` / `===` / `lazy` / two-space fence /
-  `out`, where the list item ending closes the fence for CommonMark and
-  `--write` appends a second one at top level. `---` under
+  underline directly under a list item, followed by a lazy continuation and
+  then an indented fence, leaves that fence unseen. The repair function is
+  DESTRUCTIVE here, and it was recorded as a miss on a measurement that did not
+  hold: over nine shapes, seven are rewritten and six go in balanced and come
+  out unclosed. The smallest is five lines, `- item` / `===` / `lazy` /
+  two-space fence / `out`, where the list item ending closes the fence for
+  CommonMark and the repair appends a second one at top level. Where
+  `markdown-it-py` is installed, `--write` refuses all six of those files and
+  writes none (see "Write guard"); the seventh rewritten shape is a genuinely
+  unclosed file and is repaired correctly. Without the package the six are
+  written. `---` under
   the same item already agrees. The scanners' agreement with a CommonMark
   reference is measured by the fuzz baselines in the repository's test suite.
 

@@ -25,6 +25,7 @@ Reference documentation for the GitHub skill. For usage, see `../SKILL.md`.
 | `post_pr_comment_reply.py` | `repos/{owner}/{repo}/pulls/{pr}/comments` (with in_reply_to) |
 | `resolve_pr_review_thread.py` | GraphQL: `resolveReviewThread` mutation |
 | `close_pr.py` | `gh pr close` |
+| `reopen_pr.py` | `gh pr reopen` |
 | `merge_pr.py` | `gh pr merge` |
 | `Get-IssueContext` | `gh issue view --json ...` |
 | `Set-IssueLabels` | `repos/{owner}/{repo}/labels`, `gh issue edit --add-label` |

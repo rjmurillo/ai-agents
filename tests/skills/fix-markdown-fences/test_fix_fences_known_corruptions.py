@@ -20,6 +20,8 @@ test_fix_fences_write_guard.py.
 
 Raw HTML is still pinned here, but only for what the repair FUNCTION does.
 `--write` refuses every one of its shapes; see test_fix_fences_html_guard.py.
+The same holds for the setext-under-a-list-item class: `--write` refuses all
+six corrupting shapes; see test_fix_fences_write_guard.py.
 
 These are ratchets, not endorsements. Closing any part of a gap lowers its
 counts and fails its test. Lower the pin; never raise it.
@@ -234,6 +236,11 @@ class TestSetextUnderAListItemIsDestructive:
     40,000 document corpus the branch removes 318 corruptions relative to
     main and adds none. Nothing in the tracked corpus reaches this family.
 
+    `--write` no longer reaches this: it refuses all six corrupting shapes
+    (issue #5347; see `TestSetextUnderAListItemIsRefused` in
+    test_fix_fences_write_guard.py). The repair function is unchanged and its
+    output is what the pins below measure.
+
     Ratchet, not endorsement. Closing any part of it lowers the counts and
     fails this test. Lower them; never raise.
     """
@@ -381,10 +388,12 @@ class TestBlockquoteInterruptingAParagraphIsDestructive:
     drift without failing anything. It was the one gap named in the
     acceptance criteria as pinned and in fact pinned nowhere.
 
-    The shape set below is this module's own, not the twelve the shipped
-    prose was measured over, so the counts are not comparable with that
-    entry and are not meant to be. What both measurements agree on is that
-    the family writes.
+    The shape set below is the only twelve: the shipped prose quotes it.
+    `--write` is refused for the five corrupting shapes where `markdown-it-py`
+    is installed (issue #5348; see
+    `TestBlockquoteInterruptingAParagraphIsRefused` in
+    test_fix_fences_write_guard.py). The repair function is unchanged and its
+    count stays pinned here.
     """
 
     SHAPES = {
