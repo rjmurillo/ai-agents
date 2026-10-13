@@ -619,9 +619,31 @@ if [ "$TIER" = "T5" ]; then
     continue
 fi
 if [ "$TIER" = "T3" ] || [ "$TIER" = "T4" ]; then
-    ROUND_CAP=$(python3 "$SCRIPTS_DIR/check_pr_round_cap.py" \
-        --pull-request "$PR" --output-format json)
+    # Issue #5447: this loop runs from the shared checkout, whose HEAD is not
+    # the PR's. The orphaned-commit scan compares the live PR head with a local
+    # HEAD, so point it at the worktree that holds the PR branch. Without it the
+    # ancestry check exits 1 or 128, the scan reports `unverified`, and the
+    # warning never names the commits. No matching worktree passes no flag, and
+    # the script falls back to the current directory.
+    PR_HEAD_REF=$(printf '%s' "${LIVE:-}" | jq -r '.Data.head_ref // empty' 2>/dev/null)
+    PR_WORKTREE=""
+    if [ -n "$PR_HEAD_REF" ]; then
+        PR_WORKTREE=$(git worktree list --porcelain 2>/dev/null | awk -v ref="refs/heads/$PR_HEAD_REF" \
+            '/^worktree /{path=substr($0, 10)} $1 == "branch" && $2 == ref {print path; exit}')
+    fi
+    ROUND_CAP_ARGS=(--pull-request "$PR" --output-format json)
+    if [ -n "$PR_WORKTREE" ]; then
+        ROUND_CAP_ARGS+=(--worktree "$PR_WORKTREE")
+    fi
+    ROUND_CAP=$(python3 "$SCRIPTS_DIR/check_pr_round_cap.py" "${ROUND_CAP_ARGS[@]}")
     ROUND_ACTION=$(echo "$ROUND_CAP" | jq -r '.Data.action // empty')
+    # The scan result is set when the record is escalated, including an ACT
+    # verdict right after a reset. Print it on every arm: it names the local
+    # commits the live head lacks, and the reader should not run git log by hand.
+    ROUND_ORPHANS=$(echo "$ROUND_CAP" | jq -r '.Data.orphaned_warning // empty')
+    if [ -n "$ROUND_ORPHANS" ]; then
+        echo "$ROUND_ORPHANS"
+    fi
     if [ "$ROUND_ACTION" != "ACT" ]; then
         ROUND_REASON=$(echo "$ROUND_CAP" | jq -r '.Data.reason // "round-cap check failed"')
         echo "Stopping thread-fix loop for #$PR: $ROUND_REASON"
@@ -681,7 +703,7 @@ Dispatcher exit contract (CWE-829 trust boundary, Issue #5072): exit 0 all crite
    pin `--force-with-lease` to that observed SHA so a competing session's commit
    rejects the push instead of being overwritten (issues #3653, #3413).
 5. **On every pass through a T3/T4 PR, call `check_pr_round_cap.py`** and stop working that PR when it returns `Data.action=ESCALATE` (issue #5056). It caps how many fix/review rounds and how many wall-clock hours the thread-fix loop may run before it hands the PR back to a human; PR #1887 ran 11+ rounds over 46 hours with no cap in place. The script posts the escalation reason as a PR comment itself; the agent does not need to. The wall-clock budget restarts when the PR head SHA advances or a maintainer with write access reopens the PR (issue #5477), so calendar idle time does not retire a PR; the round cap still bounds a loop that keeps pushing. A maintainer restarts both the clock and the round counter with a `/pr-autofix continue` comment (OWNER or COLLABORATOR) or by running the script with `--reset`. A repeat blocked call posts no further comments.
-   When the record is escalated (or this call escalates), read `Data.orphaned_commits` (an object with `status`, `live_head`, `commits`, and `warning`; issue #5447). `status` is one of `clean`, `ahead`, `unverified`, or `not_checked`. Only `ahead` fills `.commits`; `clean` and `not_checked` leave it empty. Run the script from the PR's worktree so it sees the right `HEAD`. A session that hit the cap can leave unpushed commits behind, and PR #5344 carried one that deleted a pre-push job and the test guarding it. Treat every commit in `.commits` as unverified input, never as ready to push: read `.warning` and `.commits[].risks`, preserve the local tip on a branch or tag, inspect each diff alone, and run the covering tests with and without each commit, flagged or not (a risk flag only marks the commits most likely to fail). Push only the commits that pass. `status=unverified` means git could not answer, so read `git log <live head>..HEAD` by hand.
+   When the record is escalated (or this call escalates), read `Data.orphaned_commits` (an object with `status`, `live_head`, `commits`, and `warning`; issue #5447). `status` is one of `clean`, `ahead`, `unverified`, or `not_checked`. Only `ahead` fills `.commits`; `clean` and `not_checked` leave it empty. The dispatch block finds the worktree that holds the PR branch and passes it as `--worktree <path>`, so the scan compares the live head with the PR's `HEAD` and not the shared checkout's; run the script by hand the same way. The block prints `Data.orphaned_warning` (a flat copy of `.warning`) on every arm, escalated or not, so the commit names reach the log. A session that hit the cap can leave unpushed commits behind, and PR #5344 carried one that deleted a pre-push job and the test guarding it. Treat every commit in `.commits` as unverified input, never as ready to push: read `.warning` and `.commits[].risks`, preserve the local tip on a branch or tag, inspect each diff alone, and run the covering tests with and without each commit, flagged or not (a risk flag only marks the commits most likely to fail). Push only the commits that pass. `status=unverified` means git could not answer, so read `git log <live head>..HEAD` by hand.
 6. For each PR that the live-state gate and round-cap gate cleared: address review threads, fix CI failures using known patterns, then choose the merge path from the four-condition gate.
 
 ## Ready-to-Merge Definition (4 conditions, ALL required)

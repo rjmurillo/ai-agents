@@ -85,6 +85,19 @@ def default_runner(args: list[str]) -> tuple[int, str]:
     return result.returncode, result.stdout or ""
 
 
+def worktree_runner(worktree: str) -> GitRunner:
+    """Return a runner that executes ``git -C <worktree> <args>``.
+
+    The tier-dispatch loop runs from a shared checkout, so the comparison must
+    name the PR's worktree instead of trusting the current directory's ``HEAD``.
+    """
+
+    def run(args: list[str]) -> tuple[int, str]:
+        return default_runner(["-C", worktree, *args])
+
+    return run
+
+
 def _clean(text: str) -> str:
     return _CONTROL.sub(" ", text).strip()
 

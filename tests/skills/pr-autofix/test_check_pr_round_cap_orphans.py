@@ -47,6 +47,7 @@ class TestOrphanedCommitsWiring(MainHarness):
         assert rc == 0
         data = json.loads(capsys.readouterr().out)["Data"]
         assert data["orphaned_commits"]["status"] == "not_checked"
+        assert data["orphaned_warning"] == ""
         git.assert_not_called()
 
     def test_escalating_call_scans_with_live_head(self, capsys):
@@ -57,6 +58,7 @@ class TestOrphanedCommitsWiring(MainHarness):
         data = json.loads(capsys.readouterr().out)["Data"]
         assert data["action"] == "ESCALATE"
         assert data["orphaned_commits"] == AHEAD
+        assert data["orphaned_warning"] == AHEAD["warning"]
 
     def test_escalated_prior_state_scans_even_after_a_reset_acts(self, capsys):
         old = datetime.now(UTC) - timedelta(hours=10)
@@ -76,6 +78,25 @@ class TestOrphanedCommitsWiring(MainHarness):
         data = json.loads(capsys.readouterr().out)["Data"]
         assert data["action"] == "ACT"
         assert data["orphaned_commits"]["status"] == "ahead"
+
+    def test_worktree_flag_scans_through_that_worktree(self, capsys):
+        patches = self._patch_common(list_comments_result=[{"body": _state(round=4)}])
+        with patch("check_pr_round_cap.worktree_runner", return_value="RUNNER") as make:
+            rc, spy = self._run(
+                patches,
+                extra_args=("--output-format", "json", "--worktree", "/wt/pr-7"),
+                scan=AHEAD,
+            )
+        assert rc == 1
+        make.assert_called_once_with("/wt/pr-7")
+        spy.assert_called_once_with(True, "sha-1", "RUNNER")
+
+    def test_no_worktree_flag_scans_the_current_directory(self):
+        patches = self._patch_common(list_comments_result=[{"body": _state(round=4)}])
+        with patch("check_pr_round_cap.worktree_runner") as make:
+            _, spy = self._run(patches, scan=AHEAD)
+        make.assert_not_called()
+        spy.assert_called_once_with(True, "sha-1")
 
     def test_unescalated_prior_state_does_not_scan(self):
         patches = self._patch_common(list_comments_result=[{"body": _state()}])

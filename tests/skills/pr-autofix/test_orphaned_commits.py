@@ -228,6 +228,51 @@ class TestScanIfEscalated:
         assert report["status"] == "ahead"
 
 
+class TestWorktreeRunner:
+    def test_runs_git_inside_the_given_worktree(self):
+        done = subprocess.CompletedProcess(args=[], returncode=0, stdout="out", stderr="")
+        with patch.object(oc.subprocess, "run", return_value=done) as run:
+            assert oc.worktree_runner("/wt/pr-7")(["status"]) == (0, "out")
+        assert run.call_args.args[0] == ["git", "-C", "/wt/pr-7", "status"]
+
+    def test_launch_failure_maps_to_127(self):
+        with patch.object(oc.subprocess, "run", side_effect=FileNotFoundError("git")):
+            assert oc.worktree_runner("/wt/pr-7")(["status"]) == (127, "")
+
+    def test_scans_the_worktree_head_not_the_callers(self, tmp_path):
+        def git(cwd, *args):
+            return subprocess.run(
+                ["git", "-c", "user.name=t", "-c", "user.email=t@t", *args],
+                cwd=cwd,
+                capture_output=True,
+                encoding="utf-8",
+                check=True,
+            ).stdout.strip()
+
+        repo = tmp_path / "repo"
+        shared = tmp_path / "shared"
+        repo.mkdir()
+        shared.mkdir()
+        git(repo, "init", "-q", "-b", "main")
+        git(shared, "init", "-q", "-b", "main")
+        (repo / "a.txt").write_text("a")
+        git(repo, "add", ".")
+        git(repo, "commit", "-q", "-m", "base")
+        live = git(repo, "rev-parse", "HEAD")
+        (repo / "b.txt").write_text("b")
+        git(repo, "add", ".")
+        git(repo, "commit", "-q", "-m", "orphan")
+        (shared / "z.txt").write_text("z")
+        git(shared, "add", ".")
+        git(shared, "commit", "-q", "-m", "unrelated")
+
+        report = oc.scan_unpushed_commits(live, oc.worktree_runner(str(repo)))
+
+        assert report["status"] == "ahead"
+        assert [c["subject"] for c in report["commits"]] == ["orphan"]
+        assert "orphan" in str(report["warning"])
+
+
 class TestDefaultRunner:
     def test_returns_exit_code_and_stdout(self):
         done = subprocess.CompletedProcess(args=[], returncode=0, stdout="out", stderr="")

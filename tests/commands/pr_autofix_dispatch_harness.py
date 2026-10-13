@@ -152,14 +152,21 @@ raise SystemExit(int(forced_rc) if forced_rc else (0 if tier == "T1" else 1))
         """\
 import json
 import os
+import sys
 from pathlib import Path
 
-Path(os.environ["ROUND_CAP_LOG"]).open("a", encoding="utf-8").write("called\\n")
+# One argv line per call: the bare fact of a call cannot show that the scan was
+# pointed at the PR's worktree, which is the whole of issue #5447's wiring.
+Path(os.environ["ROUND_CAP_LOG"]).open("a", encoding="utf-8").write(
+    json.dumps(sys.argv[1:]) + "\\n"
+)
 action = os.environ["FAKE_ROUND_ACTION"]
-print(json.dumps({
-    "Success": True,
-    "Data": {"action": action, "reason": "round cap reached"},
-}))
+data = {"action": action, "reason": "round cap reached"}
+warning = os.environ.get("FAKE_ORPHAN_WARNING", "")
+if warning:
+    data["orphaned_commits"] = {"status": "ahead", "warning": warning}
+    data["orphaned_warning"] = warning
+print(json.dumps({"Success": True, "Data": data}))
 """,
         encoding="utf-8",
     )
@@ -259,6 +266,9 @@ class DispatchRun:
         self.process = process
         self.stdout = process.stdout
         self.round_cap_called = round_cap_log.exists()
+        self.round_cap_argv = (
+            round_cap_log.read_text(encoding="utf-8") if self.round_cap_called else ""
+        )
         self.disarmed = disarm_log.exists()
         self.disarm_argv = disarm_log.read_text(encoding="utf-8") if self.disarmed else ""
         self.merge_ready_argv = (
@@ -341,6 +351,8 @@ def run_dispatch(
     tier: str,
     auto_merge: str = "null",
     round_action: str = "ACT",
+    orphan_warning: str = "",
+    live: str | None = None,
     pages_complete: str = "true",
     author_is_bot: str = "false",
     merge_ready_rc: str = "",
@@ -393,6 +405,7 @@ run_pr_mutation_if_live() {{
 
 for PR in 5176 5177; do
     printf 'visiting %s\\n' "$PR"
+    LIVE="$FAKE_LIVE"
 {block}
     printf 'reached-post-tier\\n'
 done
@@ -407,6 +420,8 @@ done
             "FAKE_TIER": tier,
             "FAKE_AUTO_MERGE": auto_merge,
             "FAKE_ROUND_ACTION": round_action,
+            "FAKE_ORPHAN_WARNING": orphan_warning,
+            "FAKE_LIVE": live or "",
             "FAKE_PAGES_COMPLETE": pages_complete,
             "FAKE_AUTHOR_IS_BOT": author_is_bot,
             "MERGE_READY_LOG": str(merge_ready_log),
