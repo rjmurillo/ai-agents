@@ -13,6 +13,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.validation._review_artifact import commit_message, marker_message
+
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 SCRIPT_PATH = REPO_ROOT / "scripts" / "validation" / "validate_review_marker.py"
 SELECT_AXES_PATH = REPO_ROOT / ".claude" / "skills" / "review" / "scripts" / "select_axes.py"
@@ -59,11 +61,11 @@ def git_repo(tmp_path: Path) -> Path:
 
 
 def _marker_commit(repo: Path, *values: str) -> None:
+    """Write a marker with one trailer per value; the report backs the last value."""
     tip = _git(repo, "rev-parse", "HEAD")
-    args = ["commit", "-q", "--allow-empty", "-m", "review: /review PASS marker"]
-    for value in values:
-        args += ["--trailer", f"Reviewed-By: /review@{value} on {tip}"]
-    _git(repo, *args)
+    message = marker_message(values[-1], tip)
+    extra = "".join(f"Reviewed-By: /review@{value} on {tip}\n" for value in values[:-1])
+    commit_message(repo, message.replace("Reviewed-By:", extra + "Reviewed-By:", 1))
 
 
 def test_check_axes_accepts_subset() -> None:

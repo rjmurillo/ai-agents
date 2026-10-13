@@ -25,6 +25,7 @@ from scripts.validation.checks_coverage import (
     validate_review_marker,
 )
 from scripts.validation.evidence import pre_pr_policy
+from tests.validation._review_artifact import commit_marker
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -151,14 +152,7 @@ def _add_valid_marker(repo: Path) -> str:
     on top of. Returns the reviewed SHA.
     """
     reviewed = _git(repo, "rev-parse", "HEAD")
-    _git(
-        repo,
-        "commit",
-        "-q",
-        "--allow-empty",
-        "-m",
-        f"chore: review marker\n\nReviewed-By: /review@correctness on {reviewed}",
-    )
+    commit_marker(repo, "correctness", reviewed)
     return reviewed
 
 

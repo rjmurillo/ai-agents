@@ -1,0 +1,105 @@
+{
+  "skill_path": ".claude/skills/api-doc-authoring/SKILL.md",
+  "skill_id": "api-doc-authoring",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Several CRUD endpoints implement one workflow and the draft docs list them alphabetically",
+      "input": "Our orders API has POST /orders, GET /orders/{id}, PUT /orders/{id}/status and DELETE /orders/{id}. Together they let a customer place an order and track it. The draft docs list the four endpoints alphabetically. How should the docs be organized? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "use case",
+        "place an order",
+        "request",
+        "response",
+        "reference after"
+      ],
+      "expected_gate": "api-doc-authoring-use-case",
+      "rationale": "The prompt describes an endpoint inventory and names no skill. A response that leads with the developer goal, orders the calls as steps with request then response then next action, and moves the alphabetical list to a secondary reference is attributable to the skill."
+    },
+    {
+      "id": "S2",
+      "desc": "Author asks for a sample response to put in the guide",
+      "input": "Write the sample 201 response for POST /orders in the guide. The service runs locally on port 8080. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "execute",
+        "run the request",
+        "evidence",
+        "not from memory"
+      ],
+      "expected_gate": "api-doc-authoring-executed-example",
+      "rationale": "A response written from memory would look fine and could be wrong. A response that runs the request against the local service, records evidence, and refuses to present unrun output as verified is attributable to the skill."
+    },
+    {
+      "id": "S3",
+      "desc": "The request shape changed and a guide example still shows the old field",
+      "input": "The orders API renamed the qty field to quantity. The guide has three examples that send qty. How do we find and fix the docs so they cannot go stale silently? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "list",
+        "touching",
+        "rerun",
+        "fail",
+        "stale"
+      ],
+      "expected_gate": "api-doc-authoring-stale-example",
+      "rationale": "The prompt describes a contract change with no skill named. A response that finds affected examples by path, re-runs them so the old field fails, and fixes the doc after the failure is attributable to the skill."
+    },
+    {
+      "id": "S4",
+      "desc": "A 422 error is documented as a status name only",
+      "input": "The guide says POST /orders can return 422 invalid_quantity and stops there. The contract says qty must be 1 or more. Improve the error section. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "cause",
+        "action",
+        "qty",
+        "1 or more"
+      ],
+      "expected_gate": "api-doc-authoring-error-recovery",
+      "rationale": "A bare status name does not tell the developer what to do. A response that adds the evidenced cause and the action from the contract is attributable to the skill."
+    },
+    {
+      "id": "S5",
+      "desc": "A 500 error has no documented cause",
+      "input": "POST /orders sometimes returns 500. The contract and the code say nothing about why. What do we write in the guide? Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "Unknown",
+        "do not invent",
+        "evidence"
+      ],
+      "expected_gate": "api-doc-authoring-unknown-error",
+      "rationale": "The urge is to write a plausible remedy. A response that records Unknown, invents no cause or fix, and does not claim exhaustive error coverage is attributable to the skill."
+    },
+    {
+      "id": "S6",
+      "desc": "Optional parameters crowd the first example",
+      "input": "The create-order docs open with a request showing all 14 parameters, 12 of them optional. How should we restructure it? Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "required",
+        "minimum",
+        "optional later",
+        "progressive"
+      ],
+      "expected_gate": "api-doc-authoring-progressive-disclosure",
+      "rationale": "A response that shows only the required inputs in the first working request and moves optional and advanced parameters after the basic workflow succeeds is attributable to the skill."
+    },
+    {
+      "id": "S7",
+      "desc": "A generated reference page does not need narrative",
+      "input": "We publish a generated schema reference for the billing API that developers only look fields up in. Should we add use-case narrative to every page? Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "reference",
+        "no narrative",
+        "do not duplicate"
+      ],
+      "expected_gate": "api-doc-authoring-reference-only",
+      "rationale": "The skill applies the use-case front door where a task exists. A response that keeps the reference as the right artifact and adds no forced narrative is attributable to the skill's reference-only rule."
+    },
+    {
+      "id": "S8",
+      "desc": "Verifying a claim in existing docs is doc-accuracy work, not authoring",
+      "input": "Check whether the claims in docs/orders.md still match the code. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "Nothing is being written. The request is claim verification, which doc-accuracy owns, so the authoring workflow must not run."
+    }
+  ]
+}

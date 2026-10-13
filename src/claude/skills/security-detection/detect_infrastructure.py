@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size -- a skill ships as a self-contained directory and cannot
+# import the review skill, so the marker checks live here; a parity test pins them.
 """Detect infrastructure and security-critical file changes.
 
 Analyzes changed files to identify those requiring security agent review.
@@ -19,6 +21,7 @@ SECURITY REVIEW MARKER (issue #5636, decision D9). The marker is the
 ``.claude/skills/review/scripts/validate_review_marker.py``:
 
     Reviewed-By: /review@<axis1,axis2,...> on <40-or-64-hex-sha>
+    Review-Artifact: sha256:<64-hex-digest-of-the-review-report>
 
     "``/review@`` is a literal prefix. ``<axis-list>`` is one or more
     comma-separated axis stems (``analyst``, ``security``, ...). It MUST be
@@ -27,13 +30,20 @@ SECURITY REVIEW MARKER (issue #5636, decision D9). The marker is the
     state the marker asserts: the reviewed tip."
 
 The marker is an empty single-parent commit whose trailer names its parent.
+Its body also carries the review report that the ``Review-Artifact`` digest
+covers (issue #6438): a bare trailer proves nothing, because any agent can type
+one. The report names the reviewed SHA and one passing row per marker axis.
 This script accepts the ref only when that commit shape holds and the trailer
 binds the ref's own parent, so any commit landed after ``/review`` moves the
 ref to a commit with no binding marker and a new push invalidates the marker.
 
 Stricter/looser/different than canonical: the same commit-shape and SHA
 binding rules as ``validate_review_marker.validate_ref``, plus one addition.
-The axis list MUST contain ``security``, because a marker for a review that
+The report and digest checks below are the same checks as
+``validate_review_marker.check_review_artifact``;
+``tests/skills/security-detection/test_security_review_artifact.py`` runs both
+on one table of messages and fails when they disagree. The axis list MUST
+contain ``security``, because a marker for a review that
 never ran the security axis does not review a CRITICAL security surface. This
 module reimplements the check rather than importing the review skill, because
 each skill ships as a self-contained directory and cannot import a sibling
@@ -45,6 +55,7 @@ marker, not by the checked-out HEAD's.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import shutil
@@ -54,6 +65,10 @@ from pathlib import Path
 from typing import Any
 
 MARKER_TRAILER_KEY = "Reviewed-By"
+ARTIFACT_TRAILER_KEY = "Review-Artifact"
+REPORT_BEGIN = "--- review report ---"
+REPORT_END = "--- end review report ---"
+PASSING_VERDICTS = frozenset({"PASS", "COMPLIANT", "WARN", "PARTIAL"})
 SECURITY_AXIS = "security"
 GIT_TIMEOUT_SECONDS = 15
 
@@ -95,6 +110,10 @@ _MARKER_VALUE_RE = re.compile(
     r"^/review@(?P<axes>[A-Za-z0-9_-]+(?:,[A-Za-z0-9_-]+)*) on "
     r"(?P<sha>[0-9A-Fa-f]{40}|[0-9A-Fa-f]{64})$"
 )
+
+_ARTIFACT_VALUE_RE = re.compile(r"^sha256:(?P<digest>[0-9a-f]{64})$")
+_REPORT_SHA_RE = re.compile(r"^Reviewed-SHA: (?P<sha>[0-9A-Fa-f]{40}|[0-9A-Fa-f]{64})$")
+_REPORT_ROW_RE = re.compile(r"^(?P<axis>[A-Za-z0-9_-]+): (?P<verdict>[A-Z_]+)$")
 
 # Critical patterns - security review REQUIRED
 CRITICAL_PATTERNS = [
@@ -265,16 +284,61 @@ def _git(args: list[str], repo_root: Path) -> str:
     return result.stdout
 
 
-def _marker_binds_security(values: list[str], parent_sha: str) -> bool:
-    """Return True when a trailer value names ``parent_sha`` and the security axis."""
+def _security_marker_axes(values: list[str], parent_sha: str) -> tuple[str, ...] | None:
+    """Return the axes of the first trailer value that names ``parent_sha`` and security."""
     for value in values:
         match = _MARKER_VALUE_RE.match(value.strip())
         if match is None:
             continue
-        axes = match.group("axes").split(",")
+        axes = tuple(match.group("axes").split(","))
         if match.group("sha").lower() == parent_sha and SECURITY_AXIS in axes:
-            return True
-    return False
+            return axes
+    return None
+
+
+def _extract_report(text: str) -> list[str] | None:
+    """Return the lines of the single report block in ``text``, or ``None``."""
+    lines = [line.rstrip() for line in text.splitlines()]
+    begins = [i for i, line in enumerate(lines) if line == REPORT_BEGIN]
+    ends = [i for i, line in enumerate(lines) if line == REPORT_END]
+    if len(begins) != 1 or len(ends) != 1 or begins[0] > ends[0]:
+        return None
+    return [line for line in lines[begins[0] + 1 : ends[0]] if line]
+
+
+def _report_digest(report: list[str]) -> str:
+    payload = "".join(f"{line}\n" for line in report).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _report_rows_back_axes(report: list[str], parent_sha: str, axes: tuple[str, ...]) -> bool:
+    """Return True when ``report`` names ``parent_sha`` and one passing row per axis."""
+    sha_lines = [_REPORT_SHA_RE.match(line) for line in report]
+    if [m.group("sha").lower() for m in sha_lines if m] != [parent_sha]:
+        return False
+    rows = [line for line, m in zip(report, sha_lines, strict=True) if m is None]
+    parsed = [_REPORT_ROW_RE.match(line) for line in rows]
+    if not all(parsed):
+        return False
+    verdicts = {m.group("axis"): m.group("verdict") for m in parsed if m}
+    return (
+        len(verdicts) == len(rows)
+        and set(verdicts) == set(axes)
+        and all(v in PASSING_VERDICTS for v in verdicts.values())
+    )
+
+
+def check_review_artifact(
+    message: str, digest_values: list[str], parent_sha: str, axes: tuple[str, ...]
+) -> bool:
+    """Return True when the message carries a report that the digest trailer covers."""
+    report = _extract_report(message)
+    if report is None:
+        return False
+    digests = [
+        m.group("digest") for v in digest_values if (m := _ARTIFACT_VALUE_RE.match(v.strip()))
+    ]
+    return _report_digest(report) in digests and _report_rows_back_axes(report, parent_sha, axes)
 
 
 def find_security_review_marker(ref: str, repo_root: Path) -> tuple[bool, str]:
@@ -297,7 +361,16 @@ def find_security_review_marker(ref: str, repo_root: Path) -> tuple[bool, str]:
     values = [
         v for v in _git(["log", "-1", trailer_format, head], repo_root).splitlines() if v.strip()
     ]
-    if _marker_binds_security(values, parents[0]):
+    axes = _security_marker_axes(values, parents[0])
+    if axes is not None:
+        message = _git(["log", "-1", "--format=%B", head], repo_root)
+        digest_format = f"--format=%(trailers:key={ARTIFACT_TRAILER_KEY},valueonly,unfold)"
+        digests = _git(["log", "-1", digest_format, head], repo_root).splitlines()
+        if not check_review_artifact(message, digests, parents[0], axes):
+            return False, (
+                f"{head[:12]} has a security marker but no valid review report: a bare "
+                f"'{MARKER_TRAILER_KEY}' trailer does not show a review ran"
+            )
         return True, f"{head[:12]} carries a security review marker binding {parents[0][:12]}"
     return False, (
         f"{head[:12]} has no '{MARKER_TRAILER_KEY}: /review@...{SECURITY_AXIS}... on "
