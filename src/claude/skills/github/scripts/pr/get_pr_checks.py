@@ -902,6 +902,68 @@ def _exit_code(output: dict, checks_incomplete: bool, timed_out_pending: bool) -
     return 0
 
 
+def _load_ruleset(
+    owner: str,
+    repo: str,
+    check_data: dict,
+    args: argparse.Namespace,
+    fmt: object,
+) -> tuple[list[str] | None, int | None]:
+    """Fetch the base branch ruleset once, before polling.
+
+    Issue #4359: a stable snapshot keeps missing-check detection relevant.
+    Returns (contexts, exit_code). ``contexts`` is None when the fetch was
+    skipped (empty base branch) or failed; a failure also sets exit code 3.
+    """
+    base_branch = (
+        args.base_branch.strip()
+        if args.base_branch is not None
+        else str(check_data.get("BaseBranch") or "")
+    )
+    if not base_branch:
+        return None, None
+    ruleset_contexts = fetch_ruleset_required_contexts(owner, repo, base_branch)
+    if ruleset_contexts is not None:
+        return ruleset_contexts, None
+    write_skill_error(
+        f"Failed to read required checks for base branch {base_branch!r}",
+        3,
+        error_type="ApiError",
+        output_format=fmt,
+        script_name="get_pr_checks.py",
+        extra={"Number": args.pull_request},
+    )
+    return None, 3
+
+
+def _poll_checks(
+    owner: str,
+    repo: str,
+    previous: dict,
+    ruleset_contexts: list[str] | None,
+    args: argparse.Namespace,
+    fmt: object,
+) -> tuple[dict, int | None]:
+    """Sleep, refetch the checks, and return (check_data, exit_code).
+
+    Once GraphQL has been rate limited, stay on REST: each GraphQL poll would
+    spend its 45s retry ladder on the same refusal (issue #6391).
+    """
+    time.sleep(10)
+    check_data = fetch_checks(
+        owner,
+        repo,
+        args.pull_request,
+        prefer_rest=previous.get("DataSource") == "rest",
+    )
+    rc = _handle_fetch_error(check_data, args.pull_request, fmt)
+    if rc is None:
+        rc = _mark_rest_required(
+            check_data, ruleset_contexts, args.required_only, args.pull_request, fmt
+        )
+    return check_data, rc
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     assert_gh_authenticated()
@@ -917,30 +979,11 @@ def main(argv: list[str] | None = None) -> int:
     if rc is not None:
         return rc
 
-    # Issue #4359: fetch the target branch ruleset once, before polling, so
-    # missing-check detection uses a stable and relevant snapshot.
-    base_branch = (
-        args.base_branch.strip()
-        if args.base_branch is not None
-        else str(check_data.get("BaseBranch") or "")
-    )
-    ruleset_contexts: list[str] | None = None
-    if base_branch:
-        ruleset_contexts = fetch_ruleset_required_contexts(owner, repo, base_branch)
-        if ruleset_contexts is None:
-            write_skill_error(
-                f"Failed to read required checks for base branch {base_branch!r}",
-                3,
-                error_type="ApiError",
-                output_format=fmt,
-                script_name="get_pr_checks.py",
-                extra={"Number": args.pull_request},
-            )
-            return 3
-
-    rc = _mark_rest_required(
-        check_data, ruleset_contexts, args.required_only, args.pull_request, fmt
-    )
+    ruleset_contexts, rc = _load_ruleset(owner, repo, check_data, args, fmt)
+    if rc is None:
+        rc = _mark_rest_required(
+            check_data, ruleset_contexts, args.required_only, args.pull_request, fmt
+        )
     if rc is not None:
         return rc
 
@@ -978,20 +1021,7 @@ def main(argv: list[str] | None = None) -> int:
                 checks_incomplete = True
             break
 
-        time.sleep(10)
-        # Once GraphQL has been rate limited, stay on REST: each GraphQL poll
-        # would spend its 45s retry ladder on the same refusal.
-        check_data = fetch_checks(
-            owner,
-            repo,
-            args.pull_request,
-            prefer_rest=check_data.get("DataSource") == "rest",
-        )
-        rc = _handle_fetch_error(check_data, args.pull_request, fmt)
-        if rc is None:
-            rc = _mark_rest_required(
-                check_data, ruleset_contexts, args.required_only, args.pull_request, fmt
-            )
+        check_data, rc = _poll_checks(owner, repo, check_data, ruleset_contexts, args, fmt)
         if rc is not None:
             return rc
 
