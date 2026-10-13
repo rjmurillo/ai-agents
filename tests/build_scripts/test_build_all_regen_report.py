@@ -16,6 +16,7 @@ Coverage:
 from __future__ import annotations
 
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -129,3 +130,71 @@ class TestRunWiring:
 
         assert code == 0
         assert seen["owned_snapshot"] is sentinel
+
+
+class TestCompareOnlyDriftWithholdsTheMarker:
+    """A hand edit a compare-only check flagged must not read as "commit it".
+
+    Under ``--check`` the binplace, lib-mirror, and template steps compare and
+    never write, so a hand-edited generated file is byte-identical before and
+    after the run. The snapshot comparison alone would call it "unchanged by
+    regeneration" and tell the author to commit the edit.
+    """
+
+    @staticmethod
+    def _drive(
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        *,
+        binplace_exit: int,
+    ) -> list[Mapping[Path, bytes] | None]:
+        seen: list[Mapping[Path, bytes] | None] = []
+        quiet = build_all.GeneratorResult(artifact="stub", platform="*")
+        binplace = build_all.GeneratorResult(
+            artifact="binplace", platform="*", exit_code=binplace_exit
+        )
+        for name in ("_build_agents", "_build_agent_catalog", "_build_adr_index", "_build_lib"):
+            monkeypatch.setattr(build_all, name, lambda *_a, **_k: quiet)
+        monkeypatch.setattr(build_all, "GENERATORS", ())
+        monkeypatch.setattr(build_all, "_run_binplace", lambda *_a, **_k: binplace)
+        monkeypatch.setattr(build_all, "assert_no_claude_writes", lambda *_a, **_k: [])
+        monkeypatch.setattr(build_all, "_load_blocklist", lambda _c: [])
+        monkeypatch.setattr(build_all, "write_audit", lambda *_a, **_k: [])
+        monkeypatch.setattr(build_all, "_git_diff_paths", lambda _r: [".claude/rules/u.md"])
+        monkeypatch.setattr(build_all, "_effective_owned_prefixes", lambda _r: (".claude/",))
+        monkeypatch.setattr(build_all, "_surface_parity_exit", lambda *_a: 0)
+        monkeypatch.setattr(
+            build_all, "_print_stale_paths", lambda _r, _d, snapshot: seen.append(snapshot)
+        )
+
+        code = build_all._run_generators(
+            tmp_path,
+            [tmp_path / "x.yaml"],
+            check=True,
+            audit_format="md",
+            claude_baseline={},
+            owned_snapshot={tmp_path / ".claude/rules/u.md": b"hand edit"},
+        )
+
+        assert code == 2
+        return seen
+
+    def test_a_flagged_install_tree_drift_drops_the_snapshot(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        assert self._drive(tmp_path, monkeypatch, binplace_exit=2) == [None]
+
+    def test_uncommitted_regeneration_keeps_the_snapshot(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        seen = self._drive(tmp_path, monkeypatch, binplace_exit=0)
+
+        assert seen == [{tmp_path / ".claude/rules/u.md": b"hand edit"}]
+
+    def test_a_hand_edited_binplaced_file_prints_no_commit_marker(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """End to end through the printer: no snapshot, so no marker line."""
+        build_all._print_stale_paths(tmp_path, [".claude/rules/u.md"], None)
+
+        assert build_all.UNCOMMITTED_UNCHANGED_PREFIX not in capsys.readouterr().err

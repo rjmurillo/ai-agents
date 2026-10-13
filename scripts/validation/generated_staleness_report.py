@@ -36,7 +36,9 @@ class StaleReport:
     ``paths`` are the stale paths in the order the child listed them. ``hint``
     is the child's commit-or-regenerate line, empty when it printed none.
     ``uncommitted_only`` is true when the hint says every drifted path is
-    uncommitted and unchanged by regeneration. ``other`` is every line that is
+    uncommitted and unchanged by regeneration and no compare-only check (install
+    tree, lib mirror) flagged a path in the same run: such a path may be a hand
+    edit, which the marker counts cannot rule out. ``other`` is every line that is
     neither, so the diagnosis of a non-staleness failure survives the filter.
     """
 
@@ -56,7 +58,8 @@ def parse_stale_report(output: str) -> StaleReport:
     paths: list[str] = []
     other: list[str] = []
     hint = ""
-    uncommitted_only = False
+    counts_all_unchanged = False
+    compare_flagged = False
     in_block = False
     for line in output.splitlines():
         in_block = in_block and _DRIFT_PATH.match(line) is not None
@@ -67,12 +70,15 @@ def parse_stale_report(output: str) -> StaleReport:
         elif line.startswith(UNCHANGED_PREFIX):
             hint = line.strip()
             counts = _UNCHANGED_COUNTS.match(line)
-            uncommitted_only = counts is not None and counts.group(1) == counts.group(2)
+            counts_all_unchanged = counts is not None and counts.group(1) == counts.group(2)
         elif (item := _STALE_ITEM.match(line)) is not None:
+            compare_flagged = True
             paths.append(item.group("item").strip())
         else:
             other.append(line)
-    return StaleReport(tuple(paths), hint, uncommitted_only, tuple(other))
+    return StaleReport(
+        tuple(paths), hint, counts_all_unchanged and not compare_flagged, tuple(other)
+    )
 
 
 def echo_stale_summary(report: StaleReport) -> None:

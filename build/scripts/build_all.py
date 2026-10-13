@@ -2345,6 +2345,13 @@ def _run_generators(
 
     audit.duration_s = time.monotonic() - started
 
+    # Under --check the binplace, lib-mirror, and template steps compare and
+    # never write, so a hand-edited generated file is byte-identical before
+    # and after the run. A failing generator result therefore voids the
+    # "unchanged by regeneration" evidence: the snapshot would call the hand
+    # edit generator output and tell the author to commit it.
+    regen_evidence = owned_snapshot if audit.overall_exit == 0 else None
+
     # REQ-003-010: enforce .claude/ no-write invariant.
     claude_writes = assert_no_claude_writes(
         repo_root,
@@ -2397,7 +2404,7 @@ def _run_generators(
         owned_prefixes = _effective_owned_prefixes(repo_root)
         diff = [p for p in changed if any(p.startswith(prefix) for prefix in owned_prefixes)]
         if diff:
-            _print_stale_paths(repo_root, diff, owned_snapshot)
+            _print_stale_paths(repo_root, diff, regen_evidence)
             audit.overall_exit = 2
         audit.overall_exit = max(audit.overall_exit, _surface_parity_exit(repo_root, diff))
 

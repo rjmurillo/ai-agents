@@ -115,6 +115,28 @@ class TestParseStaleReport:
         assert report.uncommitted_only is False
         assert report.hint == _MARKER_SOME
 
+    def test_a_full_marker_beside_an_install_tree_line_is_not_uncommitted_only(self) -> None:
+        output = "\n".join(
+            [
+                "STALENESS DETECTED: install tree differs from plugin tree: /r/.claude/rules/u.md",
+                _HEADER,
+                "  .claude/rules/u.md",
+                _MARKER_ALL,
+            ]
+        )
+
+        report = check_generated_staleness.parse_stale_report(output)
+
+        assert report.uncommitted_only is False
+        assert report.hint == _MARKER_ALL
+
+    def test_a_stale_line_after_the_marker_also_blocks_uncommitted_only(self) -> None:
+        output = _drift_output(["a", "b", "c"], _MARKER_ALL) + (
+            "\nSTALENESS DETECTED: lib mirror differs from scripts/: updated: x.py"
+        )
+
+        assert check_generated_staleness.parse_stale_report(output).uncommitted_only is False
+
     def test_no_marker_means_no_hint(self) -> None:
         report = check_generated_staleness.parse_stale_report(_drift_output(["a"]))
 
@@ -166,6 +188,16 @@ class TestTypedOutcome:
 
         assert outcome.reason == "generated.uncommitted"
         assert "Commit the regenerated files" in outcome.detail
+
+    def test_a_hand_edited_binplaced_file_is_stale_not_uncommitted(self, tmp_path: Path) -> None:
+        root = fake_repo(tmp_path, build_exit=0)
+        item = "STALENESS DETECTED: install tree differs from plugin tree: /r/.claude/rules/u.md"
+        _failing_child(root, item + "\n" + _drift_output(["a", "b", "c"], _MARKER_ALL))
+
+        outcome = check_generated_staleness.validate_generated_staleness(root)
+
+        assert outcome.reason == "generated.stale"
+        assert "already matches the generators" not in outcome.detail
 
     def test_partly_uncommitted_drift_stays_stale(self, tmp_path: Path) -> None:
         root = fake_repo(tmp_path, build_exit=0)
