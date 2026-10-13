@@ -64,13 +64,12 @@ platform template's marker reaches only that platform's output.
 ``applyTo:``, drop ``alwaysApply:``/``priority:``, preserve
 ``description:``, synthesize a universal scope when none is declared,
 skip the rule when its scope is entirely internal-only), with the body
-left untouched, the last line of that list reading verbatim: "- body
-unchanged". ``outputDirs`` (documented at that file's lines 8-14) fans the
-same transformed content out to every configured destination, including
-``src/copilot-cli/instructions``. It is scanned directly because it is
-itself the shipped artifact, not a source that generates one. See issues
-#3578 (plugin-root widening), #3646 (templates/agents
-widening), #5214 (instructions widening), #5294 (rules widening), and #5689
+left untouched (the list ends with the step "body unchanged"). ``outputDirs``
+(documented at that file's lines 8-14) fans the same transformed content out
+to every configured destination, including ``src/copilot-cli/instructions``.
+It is scanned directly because it is itself the shipped artifact, not a source
+that generates one. See issues #3578 (plugin-root widening), #3646
+(templates/agents widening), #5214 (instructions widening), #5294 (rules widening), and #5689
 (agent output widening).
 
 ``src/claude/rules`` is the rendered Claude rules tree (compiled from

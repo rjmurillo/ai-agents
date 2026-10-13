@@ -146,6 +146,7 @@ from checks_tooling import (
     validate_workflow_yaml,
     validate_yaml_style,
 )
+from pre_pr_console import enable_line_buffering
 from pre_pr_reexports import *  # noqa: F403  (identity re-exports, see module docstring)
 from pre_pr_sequence import run_all_validations
 from stale_script_refs import validate_stale_script_refs
@@ -417,6 +418,8 @@ def _print_summary(summary: AggregateOutcome, state: ValidationState) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     """Entry point. Returns ADR-035 exit code."""
+    # A redirected or piped log must track the run, not lag behind an 8 KiB buffer.
+    enable_line_buffering()
     parser = build_parser()
     args = parser.parse_args(argv)
 

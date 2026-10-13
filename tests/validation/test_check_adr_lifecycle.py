@@ -1,7 +1,7 @@
 # taste-lint: ignore file-size
 #
 # file-size suppression rationale: this file is one test per behavior across the
-# eight checks `check_adr_lifecycle.py` owns, and `.claude/rules/testing.md` MUST 1
+# nine checks `check_adr_lifecycle.py` owns, and `.claude/rules/testing.md` MUST 1
 # and the TESTING-RIGOR pos+neg+edge bar are what set its length. Its line count
 # tracks how many behaviors the gate has, not how hard the module is to read;
 # every test is independent and none shares state, so the rule's remediation
@@ -40,6 +40,11 @@ removed with it rather than left asserting a contract the gate no longer has.
   with no edge, accepted with a resolved successor edge), edge (``deprecated``
   is exempt from the no-edge direction; a dangling ``superseded-by`` is left
   to ``supersession-target-exists`` alone, not double-counted)
+
+- cited-paths-exist: pos (a tracked path in Decision passes), neg (a deleted path
+  fails, named in the detail), edge (a fenced illustration passes, a path outside
+  Decision and Implementation Notes passes, a `deprecated` or `superseded` record
+  is exempt, an unparseable body is a counted finding)
 
 Ratchet and CLI behavior: improvement passes, regression exits 1, baseline
 missing / malformed / stale exits 2, missing ADR directory exits 2,
@@ -555,6 +560,112 @@ def test_unresolved_superseded_by_does_not_double_report(tmp_path):
 
     assert counts["supersession-target-exists"] == 1
     assert counts["status-edge-consistency"] == 0
+
+
+# --- cited-paths-exist ------------------------------------------------------
+
+
+def _with_file(root: Path, rel: str) -> None:
+    target = root / rel
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("x", encoding="utf-8")
+
+
+def _decision(text: str) -> str:
+    return f"\n## Decision\n\n{text}\n"
+
+
+def test_a_live_cited_path_in_an_accepted_record_passes(tmp_path):
+    _with_file(tmp_path, "scripts/live.py")
+    _write(_adr_dir(tmp_path), 1, _valid(1), _decision("Run `scripts/live.py` first."))
+
+    assert _counts(tmp_path)["cited-paths-exist"] == 0
+
+
+def test_a_deleted_cited_path_in_an_accepted_record_fails(tmp_path):
+    _write(_adr_dir(tmp_path), 1, _valid(1), _decision("Run `scripts/gone.py` first."))
+
+    details = _hits(tmp_path, "cited-paths-exist")
+
+    assert len(details) == 1
+    assert "scripts/gone.py" in details[0]
+
+
+def test_each_missing_path_is_its_own_violation_under_one_record(tmp_path):
+    _with_file(tmp_path, "scripts/live.py")
+    body = _decision("`scripts/gone_a.py`, `scripts/live.py`, and `scripts/gone_b.py`.")
+    _write(_adr_dir(tmp_path), 1, _valid(1), body)
+
+    assert _counts(tmp_path)["cited-paths-exist"] == 2
+
+
+def test_a_missing_path_in_implementation_notes_fails(tmp_path):
+    body = "\n## Implementation Notes\n\nSee `scripts/gone.py`.\n"
+    _write(_adr_dir(tmp_path), 1, _valid(1), body)
+
+    assert _counts(tmp_path)["cited-paths-exist"] == 1
+
+
+def test_a_missing_path_in_a_fenced_illustration_is_not_a_citation(tmp_path):
+    fenced = "Shape:\n\n```yaml\npath: `scripts/illustration.py`\n```\n"
+    _write(_adr_dir(tmp_path), 1, _valid(1), _decision(fenced))
+
+    assert _counts(tmp_path)["cited-paths-exist"] == 0
+
+
+def test_a_missing_path_outside_the_binding_sections_is_not_read(tmp_path):
+    body = "\n## Context\n\nOnce there was `scripts/history.py`.\n"
+    _write(_adr_dir(tmp_path), 1, _valid(1), body)
+
+    assert _counts(tmp_path)["cited-paths-exist"] == 0
+
+
+@pytest.mark.parametrize("status", ["deprecated", "rejected", "proposed"])
+def test_a_record_that_is_not_accepted_is_exempt(tmp_path, status):
+    _write(_adr_dir(tmp_path), 1, _valid(1, status=status), _decision("`scripts/gone.py`."))
+
+    assert _counts(tmp_path)["cited-paths-exist"] == 0
+
+
+def test_a_superseded_record_is_exempt(tmp_path):
+    adr_dir = _adr_dir(tmp_path)
+    _write(
+        adr_dir,
+        1,
+        _valid(1, status="superseded", **{"superseded-by": "ADR-002"}),
+        _decision("`scripts/gone.py`."),
+    )
+    _write(adr_dir, 2, _valid(2, supersedes="[ADR-001]"))
+
+    assert _counts(tmp_path)["cited-paths-exist"] == 0
+
+
+def test_a_record_without_frontmatter_is_left_to_frontmatter_parses(tmp_path):
+    _write(_adr_dir(tmp_path), 1, None, _decision("`scripts/gone.py`."))
+
+    counts = _counts(tmp_path)
+
+    assert counts["cited-paths-exist"] == 0
+    assert counts["frontmatter-parses"] == 1
+
+
+def test_an_unparseable_body_is_a_finding_not_a_skip(tmp_path):
+    quote = ">" * 20 + " "
+    body = "\n" + quote + "```\n" + quote + "## Decision\n" + quote + "```\n"
+    _write(_adr_dir(tmp_path), 1, _valid(1), body)
+
+    details = _hits(tmp_path, "cited-paths-exist")
+
+    assert len(details) == 1
+    assert "could not be parsed" in details[0]
+
+
+def test_an_untracked_file_does_not_satisfy_a_citation_in_a_git_checkout(tmp_path):
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True, capture_output=True)
+    _with_file(tmp_path, "scripts/residue.py")
+    _write(_adr_dir(tmp_path), 1, _valid(1), _decision("`scripts/residue.py`."))
+
+    assert _counts(tmp_path)["cited-paths-exist"] == 1
 
 
 # --- proposed-cannot-supersede / implemented-implies-decided ----------------

@@ -225,3 +225,53 @@ def test_schema_1_baseline_with_debt_on_the_base_ref_is_a_config_error(tmp_path,
 
     assert _plain_run(tmp_path, baseline) == EXIT_CONFIG
     assert "could not read the baseline" in capsys.readouterr().err
+
+
+def _without_check(baseline: Path, name: str) -> None:
+    """Drop ``name`` from a schema 2 baseline, as a base ref predating that check would."""
+    payload = json.loads(baseline.read_text(encoding="utf-8"))
+    del payload["violations"][name]
+    baseline.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def test_a_check_the_base_ref_baseline_lacks_does_not_fail_the_branch_adding_it(tmp_path):
+    adr_dir, baseline = _repo(tmp_path)
+    _without_check(baseline, "cited-paths-exist")
+    _commit(tmp_path, "base baseline predates cited-paths-exist")
+    _git(tmp_path, "checkout", "-q", "-b", "feature")
+    (adr_dir / "ADR-002-stale.md").write_text(
+        _GOOD.replace("ADR-001", "ADR-002").replace(
+            "## Status\n\nAccepted (2026-08-21). Conditions were cleared in review.\n",
+            "## Decision\n\nRun `scripts/gone.py`.\n",
+        ),
+        encoding="utf-8",
+    )
+    _set_baseline(baseline, 0)
+    payload = json.loads(baseline.read_text(encoding="utf-8"))
+    payload["violations"]["cited-paths-exist"] = {
+        ".project-toolkit/architecture/ADR-002-stale.md": 1
+    }
+    baseline.write_text(json.dumps(payload), encoding="utf-8")
+    _commit(tmp_path, "add the check and record its one violation")
+
+    assert _plain_run(tmp_path, baseline) == EXIT_OK
+
+
+def test_a_missing_check_at_the_base_ref_still_guards_the_checks_it_names(tmp_path, capsys):
+    adr_dir, baseline = _repo(tmp_path)
+    _without_check(baseline, "cited-paths-exist")
+    _commit(tmp_path, "base baseline predates cited-paths-exist")
+    _git(tmp_path, "checkout", "-q", "-b", "feature")
+    (adr_dir / "ADR-002-bad.md").write_text(_BAD_FRONTMATTER, encoding="utf-8")
+    _set_baseline(baseline, 1)
+    _commit(tmp_path, "raise an existing check by hand")
+
+    assert _plain_run(tmp_path, baseline) == EXIT_REGRESSION
+    assert "frontmatter-parses" in capsys.readouterr().err
+
+
+def test_a_live_baseline_missing_a_check_is_still_refused(tmp_path):
+    _, baseline = _repo(tmp_path)
+    _without_check(baseline, "cited-paths-exist")
+
+    assert _plain_run(tmp_path, baseline) == EXIT_CONFIG

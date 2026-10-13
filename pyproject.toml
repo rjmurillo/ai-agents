@@ -76,6 +76,8 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short --import-mode=importlib --timeout=120"
+tmp_path_retention_count = 1
+tmp_path_retention_policy = "failed"
 markers = [
     "unit: Unit tests",
     "integration: Integration tests",

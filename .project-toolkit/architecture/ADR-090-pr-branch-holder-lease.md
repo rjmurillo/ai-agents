@@ -1,7 +1,7 @@
 ---
 id: ADR-090
-status: proposed
-date: 2026-07-27
+status: rejected
+date: 2026-10-13
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
@@ -12,6 +12,18 @@ implemented: false
 # ADR-090: PR Branch Holder Lease
 
 ## Status
+
+Rejected (2026-10-13). Corrected by issue #5696.
+
+This record never left proposed. It amended ADR-076, and PR #5697 removed the lease that ADR-076 authorized. Nothing was built from this record. It is kept so the proposal stays findable.
+
+The gap it describes is still open: agents that push as one GitHub user share one lease identity. This record kept ADR-076's PR-comment store, whose write rate ended that lease (issue #5160). A new proposal for issue #3413 needs a different store.
+
+The Force-Push Safety SHA gate in the `pr-autofix` skill stays the concurrency boundary.
+
+### History
+
+The status text below is kept as written. It records what was true when each step happened.
 
 Proposed. This ADR amends ADR-076 for issue #3413. It records the decision before implementation because the change controls who may mutate a PR branch.
 

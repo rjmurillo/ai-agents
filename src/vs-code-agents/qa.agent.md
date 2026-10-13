@@ -11,6 +11,7 @@ tools:
   - serena/*
   - memory
 role: executor
+isolation_required: true
 ---
 # QA Agent
 

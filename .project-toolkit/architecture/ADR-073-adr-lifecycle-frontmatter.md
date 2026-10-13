@@ -148,7 +148,6 @@ The chosen option allows a second representation only where it earns its place: 
 | `validate-adr` gate hooks | Direct | Switch to frontmatter-parse with `yaml.safe_load`; enforce enum and bidirectional supersession only after backfill and only once a consumer exists | High |
 | Existing 72 ADRs under `.project-toolkit/architecture/` | Direct | Deferred backfill with a triage pass for conditional/inline status (ADR-072, ADR-055) | Medium |
 | `src/copilot-cli/` mirrors of the adr skills | Indirect | Regenerate via `build/scripts/build_all.py` | Low |
-| `scripts/sync_adr_protocol.py` | Indirect | Confirm no prose-status assumption breaks | Low |
 
 ## Implementation Notes
 
