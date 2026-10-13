@@ -71,6 +71,10 @@ class WorkflowRun:
     GitHub will use for the recovery event rather than trusting one local
     checkout. Empty when unknown, which the live resolver treats as
     unresolvable and therefore blocked.
+
+    ``artifact_count`` is the run's live (unexpired) artifact count, or None
+    when not measured (issue #5365: one REST call per run, so opt-in). None is
+    never zero.
     """
 
     run_id: int
@@ -83,6 +87,7 @@ class WorkflowRun:
     jobs_verified: bool = True
     workflow_path: str = ""
     head_repo: str = ""
+    artifact_count: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -125,7 +130,12 @@ class RecoveryEntry:
 
 @dataclass(frozen=True, slots=True)
 class BlastRadius:
-    """What a cancellation would touch, counted before any mutation."""
+    """What a cancellation would touch, counted before any mutation.
+
+    ``artifact_count`` totals the live artifacts a cancellation would orphan.
+    None unless every run was measured (issue #5365): a partial sum understates
+    the radius, and a zero would read as "nothing to lose".
+    """
 
     run_count: int
     pr_count: int
@@ -134,6 +144,7 @@ class BlastRadius:
     queued_runs: int
     in_progress_runs: int
     required_context_count: int
+    artifact_count: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -185,7 +196,19 @@ def summarize_blast_radius(runs: Sequence[WorkflowRun], required: frozenset[str]
         queued_runs=sum(1 for run in runs if run.status == "queued"),
         in_progress_runs=sum(1 for run in runs if run.status == "in_progress"),
         required_context_count=len(required_contexts),
+        artifact_count=_total_artifacts(runs),
     )
+
+
+def _total_artifacts(runs: Sequence[WorkflowRun]) -> int | None:
+    """Sum artifact counts, or None unless every run was measured.
+
+    An empty inventory is None as well: there is nothing to measure, and a
+    zero there would put an artifact line into a report that never asked.
+    """
+    if not runs or any(run.artifact_count is None for run in runs):
+        return None
+    return sum(run.artifact_count or 0 for run in runs)
 
 
 def resolve_workflow(
@@ -431,20 +454,23 @@ def plan_recovery(
 def manifest_to_dict(manifest: RecoveryManifest) -> dict[str, Any]:
     """Serialize a manifest to a JSON-ready dict."""
     radius = manifest.blast_radius
+    blast_radius: dict[str, Any] = {
+        "runs": radius.run_count,
+        "pull_requests": radius.pr_count,
+        "branches": radius.branch_count,
+        "workflows": radius.workflow_count,
+        "queued_runs": radius.queued_runs,
+        "in_progress_runs": radius.in_progress_runs,
+        "required_contexts": radius.required_context_count,
+    }
+    if radius.artifact_count is not None:
+        blast_radius["artifacts"] = radius.artifact_count
     return {
         "version": MANIFEST_VERSION,
         "generated_at": manifest.generated_at,
         "repository": manifest.repository,
         "recovery_event": manifest.recovery_event,
-        "blast_radius": {
-            "runs": radius.run_count,
-            "pull_requests": radius.pr_count,
-            "branches": radius.branch_count,
-            "workflows": radius.workflow_count,
-            "queued_runs": radius.queued_runs,
-            "in_progress_runs": radius.in_progress_runs,
-            "required_contexts": radius.required_context_count,
-        },
+        "blast_radius": blast_radius,
         "safe": manifest.is_safe,
         "entries": [
             {
