@@ -21,7 +21,8 @@ inside it.
 
 The host leg uses the real Cursor login and runs ``--trust --force``, so the
 model can run shell commands. Its environment goes through ``_host_env``, which
-drops GitHub tokens and every ``*_TOKEN`` / ``*_API_KEY`` variable. HOME and PATH
+drops GitHub tokens and every ``_SECRET_SUFFIXES`` variable (tokens, API
+keys, secrets, passwords, PATs, credentials). HOME and PATH
 stay, because the Cursor login lives under HOME.
 """
 
