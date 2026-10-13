@@ -1,0 +1,86 @@
+{
+  "_comment": "Real historical pull requests from rjmurillo repositories with known outcomes. Use them to score maintainer-review decisions offline: run the skill against each PR as it stood before its final outcome, then compare the recommendation with expected_recommendation. known_outcome records what actually happened on GitHub; expected_recommendation is the skill-level disposition consistent with that outcome. No case is invented.",
+  "skill_id": "maintainer-review",
+  "cases": [
+    {
+      "id": "H1",
+      "pr": "rjmurillo/moq.analyzers#701",
+      "author_tier": "external",
+      "title": "fix: exception in codefix of explicit mock behavior",
+      "known_outcome": "merged",
+      "expected_need_status": "Demonstrated",
+      "expected_recommendation": "Merge-worthy as-is",
+      "evidence": "Small fix (+25/-5) generalizing a type check to the base syntax type, with new target-typed new test data. The owner replied that he would merge it for the next release and backport it."
+    },
+    {
+      "id": "H2",
+      "pr": "rjmurillo/moq.analyzers#1279",
+      "author_tier": "external",
+      "title": "Fix analyzer crash on C# 13 params collections",
+      "known_outcome": "closed unmerged by its author after the owner showed main already fixed the defect via #1311",
+      "expected_need_status": "Already covered",
+      "expected_recommendation": "Supersede with a simpler alternative",
+      "evidence": "Owner comments: the unsafe cast was replaced on main by GetParamsElementType with regression coverage added in #1320, so the PR is effectively superseded. The author closed it as redundant."
+    },
+    {
+      "id": "H3",
+      "pr": "rjmurillo/moq.analyzers#1192",
+      "author_tier": "external",
+      "title": "security: agent instructions merge unreviewed via dependabot pull_request_target pipeline",
+      "known_outcome": "closed unmerged by the owner; CLA not signed; no closing rationale posted",
+      "expected_need_status": "Plausible but unproven",
+      "expected_recommendation": "Not worth completing",
+      "evidence": "The PR adds a warning paragraph to agent instruction files instead of changing the workflow it describes, so the proposed mechanism does not act on the claimed risk. The body also addresses agent instructions directly, which the skill must treat as untrusted content. The owner closed it without a comment, so the need status here is the skill's expected classification, not a quoted owner rationale."
+    },
+    {
+      "id": "H4",
+      "pr": "rjmurillo/moq.analyzers#715",
+      "author_tier": "agent bot",
+      "title": "Replace string-based method detection with enhanced symbol-based approach in ISymbolExtensions",
+      "known_outcome": "closed unmerged as superseded by #768, #770, and #886",
+      "expected_need_status": "Already covered",
+      "expected_recommendation": "Supersede with a simpler alternative",
+      "evidence": "Owner comment: the work was already completed on main through #768, #770, and #886. Competing-PR case: the portfolio decision prefers the merged path and closes this one."
+    },
+    {
+      "id": "H5",
+      "pr": "rjmurillo/moq.analyzers#763",
+      "author_tier": "agent bot",
+      "title": "docs: assess code coverage and identify gaps in Moq.Analyzers assembly",
+      "known_outcome": "closed unmerged by the owner as stale",
+      "expected_need_status": "Already covered",
+      "expected_recommendation": "Not worth completing",
+      "evidence": "Owner comment: the October 2025 assessment is stale, coverage rose from 85.32% to 88.90%, and remaining gaps are tracked via new issues."
+    },
+    {
+      "id": "H6",
+      "pr": "rjmurillo/moq.analyzers#704",
+      "author_tier": "agent bot",
+      "title": "CodeRabbit Generated Unit Tests: Add comprehensive test cases for MockBehavior.Loose and SyntaxGeneratorExtensions",
+      "known_outcome": "owner submitted CHANGES_REQUESTED, then closed unmerged",
+      "expected_need_status": "Plausible but unproven",
+      "expected_recommendation": "Not worth completing",
+      "evidence": "Bot-generated +662 line test PR requested on #701, which already merged with its own regression tests. The owner requested changes and then closed it."
+    },
+    {
+      "id": "H7",
+      "pr": "rjmurillo/moq.analyzers#811",
+      "author_tier": "agent bot",
+      "title": "ci: add .deepsource.toml",
+      "known_outcome": "closed unmerged by the owner; identical title merged as #810",
+      "expected_need_status": "Already covered",
+      "expected_recommendation": "Not worth completing",
+      "evidence": "Duplicate of #810, which merged the same four-line configuration file. Competing-PR case: close the duplicate."
+    },
+    {
+      "id": "H8",
+      "pr": "rjmurillo/ai-agents#6422",
+      "author_tier": "dependency bot",
+      "title": "chore(deps): update step-security/harden-runner action to v2.22.0",
+      "known_outcome": "merged",
+      "expected_need_status": "Demonstrated",
+      "expected_recommendation": "Merge-worthy as-is",
+      "evidence": "Light pass: minor version bump of a pinned GitHub Action, dependency files only. The skill still hands the merge to the owner and never enables auto-merge."
+    }
+  ]
+}
