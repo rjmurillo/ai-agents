@@ -106,8 +106,9 @@ EXEMPT: dict[str, str] = {
         "Runs the pytest suite with testmon selection under a 15 minute cap. pre_pr "
         "deliberately skips the suite because CI's pytest legs run it, apart from "
         "the Rule Lossless Fixtures gate, which runs test_rule_templates_lossless.py. "
-        "Other structural tests fail here after a green pre_pr, so run the tests "
-        "that cover the files you changed before pushing."
+        "Other structural tests can still fail in this python-tests hook after a "
+        "green pre_pr, so run the tests that cover the files you changed before "
+        "pushing."
     ),
     "zero-collection-tests": (
         "One pytest collection over testpaths, about 38 seconds measured. "

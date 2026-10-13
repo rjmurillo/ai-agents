@@ -220,8 +220,8 @@ def validate_rule_lossless_fixtures(repo_root: Path) -> bool:
     """Fail when ``test_rule_templates_lossless.py`` fails (issue #6440).
 
     Runs the test through pytest, the same file CI runs. ``build_all.py``
-    leaves the hand-copied fixtures alone and no other gate read them, so a
-    rule edit passed every local gate and failed only in CI. On failure the
+    leaves the hand-copied fixtures alone. Before this gate, no other gate read
+    them, so a rule edit passed every local gate and failed only in CI. On failure the
     gate prints one ``cp`` per stale fixture, the repair the test cannot name.
     """
     if not (repo_root / _RULE_LOSSLESS_TEST).is_file():
