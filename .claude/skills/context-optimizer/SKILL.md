@@ -26,7 +26,7 @@ eliminating retrieval decisions.
 
 - `analyze skill placement` - classify and validate content as Skill vs Passive Context
 - `compress markdown` - reduce context overhead
-- `optimize context` - lower API costs and improve agent performance
+- `optimize context` - lower API costs and improve agent performance; distill a large log or diff once with distill_artifact.py, then read the digest
 - `extract and index` - split markdown into detail files with compact index
 - `audit always-on rules` - eval-gated procedure for whether a rule earns its slot, and the doctrine behind it, in [rule-audit-procedure.md](references/rule-audit-procedure.md) and [model-context-doctrine.md](references/model-context-doctrine.md). Also the entry point when a new model ships. **Requires a full rjmurillo/ai-agents checkout**: the procedure runs this repo's eval harness and rule generator, neither of which ships in a plugin install. The doctrine and the instrument write-ups are readable anywhere; only the commands need the checkout
 
@@ -52,6 +52,7 @@ eliminating retrieval decisions.
 | `compress_markdown_content.py` | Compress markdown and report the result | 0=success, 1=error, 2=config, 3=external |
 | `test_skill_passive_compliance.py` | Validate compliance with decision framework | 0=pass, 1=violations |
 | `extract_and_index.py` | Extract sections into detail files with pipe-delimited index | 0=success, 1=error, 2=config, 3=external |
+| `distill_artifact.py` | Distill a log, diff, or long text once into a cached digest with line citations; no model call | 0=success, 2=config, 3=external |
 | `path_validation.py` | Shared CWE-22 repo-root-anchored path validation | N/A (library module) |
 
 ## Prerequisites

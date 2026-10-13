@@ -128,7 +128,7 @@ Derive the route from discovered context (stack, tests, verifier, harness contro
 | Judgment | Ambiguity, architecture, cross-file repair, long-horizon agentic work, acceptance | Medium; high when those dominate |
 | Escalate | `acceptance_failed`, `repair_repeated`, `cross_file_contract_missed`, `diff_scope_exceeded` | Raise effort in tier when offered, then one tier above where it failed; the top tier is escalation only, then a typed exception to the user; never more prompt text |
 
-Higher effort is not monotonically better; it can add latency and tokens without raising acceptance. Validate an effort per task shape and harness before defaulting to it.
+Below Bounded: no model if a script or rule decides; a big model on a yes/no is a classifier in an expensive coat. Higher effort is not monotonically better; it can add latency and tokens without raising acceptance. Validate an effort per task shape and harness before defaulting to it.
 Model labels and agent roles are separate | tiers and labels advisory, not agents or IDs.
 `orchestrator` coordinates | `autoplan` routes | advisory, harness-resolved aliases: `haiku` bounded (no effort control), `sonnet` specified, `opus` judgment, `fable` escalation only; other labels only when the harness resolves them, never as superiority claims.
 Pin changes pass ADR-080; this policy never justifies a pin.
@@ -151,21 +151,22 @@ Any model: explicit follow-through, event-driven waits, compact receipts, one ch
 ```text
 0. Recon the target stack (see Target Recon). Never route on an assumed stack.
 1. Classify complexity (Cynefin)
-2. Bounded leaf, real verifier, no consequential judgment?
+2. Script or rule decides it? YES → no model, route ends; NO → continue
+3. Bounded leaf, real verifier, no consequential judgment?
    YES → bounded or specified tier by task shape
    NO  → judgment tier; continue
-3. Does task need investigation first?
+4. Does task need investigation first?
    YES → analyst → synthesize → re-evaluate
    NO  → continue
-4. Is task a standard lifecycle (spec/plan/build/test/review/ship)?
+5. Is task a standard lifecycle (spec/plan/build/test/review/ship)?
    YES → sequential routing: /spec → milestone-planner → critic (plan gate) → implementer → qa → critic (readiness)
         Plan gate: APPROVED or APPROVED_WITH_CONCERNS → implementer; NEEDS_REVISION → milestone-planner; BLOCKED → resolve the conflict first
    NO  → continue
-5. Does task have multiple independent subtasks?
+6. Does task have multiple independent subtasks?
    YES → parallel routing, fan-in synthesis
    NO  → single specialist based on capability matrix
-6. Every route: preserve handoff context, enforce output format
-7. After agents return: verify artifacts, synthesize deltas, accept or reject, stop after acceptance
+7. Every route: preserve handoff context, enforce output format
+8. After agents return: verify artifacts, synthesize deltas, accept or reject, stop after acceptance
 ```
 
 ## Handoff Contract
@@ -188,7 +189,7 @@ TIMEBOX: [if applicable]
 TODO: [ledger ID; ensure row; 1-row update]
 ```
 
-This is the single work-order contract; other agents link here and do not copy it. Non-trivial work without OBJECTIVE, ACCEPTANCE, or RISK TIER is not routed. Fields survive delegation, review, correction, and resume.
+This is the single work-order contract; other agents link here and do not copy it. It binds every model call, external ones too; a read-only bounded leaf may send JOB=OBJECTIVE, NEEDS=CONTEXT, LEAVE ALONE=NON-GOALS, RETURN=EXPECTED OUTPUT+ACCEPTANCE. Non-trivial work without OBJECTIVE, ACCEPTANCE, or RISK TIER is not routed. Fields survive delegation, review, correction, and resume.
 
 Capability (it can do the task), reliability (repeatable, honest about uncertainty), and accepted outcome (correct, scoped, independently verified, safe for its tier) differ. Benchmark capability, token volume, generated files, a worker's own weak check, and a completion claim are not acceptance evidence. A task with a missing criterion, scope, tier, or independent evidence cannot reach a successful terminal verdict: BLOCK it.
 
@@ -317,7 +318,7 @@ per-issue handoff.
 
 **You cannot observe your own context usage.** The window size is not exposed to you, so any statement about how much of it remains is fabricated. Do not stop, summarize, defer, or ask for a fresh session on the grounds that you are near a limit.
 
-**Worker transcripts cost twice.** An imported transcript stays in your context, is billed on every later turn, and competes for attention. Workers that share files and conventions each rebuild that orientation, and parallelism does not recover it.
+**Long context costs every turn and cuts recall.** Delegate a separable task when its inputs fit a brief and its result is compact. Stay inline for a few tool calls or when briefing costs more. Workers rebuild orientation. Read the field, not the file. **Keep state in files.** Write decisions to the handoff or plan; pass paths. Distill a large artifact once, with citations; reopen raw only at a cited line.
 
 **Checkpoint protocol** (runs once between routing waves, after the prior wave returns and before the next fans out):
 
@@ -346,7 +347,6 @@ These are backstops, not a completion test: reaching the terminal predicate (`bu
 - **Budget-exhausted behavior**: At the limit, stop delegating, synthesize completed work, list unresolved items, and return control to the user with what was and was not done.
 - **Max concurrent delegations per wave**: 4 by default, a starting value, not a measured optimum. The binding cost is returns you hold un-folded while the wave lands (see Checkpoint protocol). Bound the wave at what you can fold before the next return arrives. A wave of 5 or more: ask whether two routes are the same question.
 - **A concurrent wave must not contain** a repository-wide git operation (fetch, checkout, rebase, branch switch, stash) or two agents writing the same file. Either makes a return depend on sibling timing and the result irreproducible. Route those serially or give each agent its own worktree.
-- **Answer a lightweight question with a lightweight read.** A targeted search or single field beats pulling a whole return, log, or file into the window you still owe the synthesis.
 
 ## Hook Feedback
 
