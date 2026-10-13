@@ -37,6 +37,10 @@ _BUILD_AI_TESTS = ["tests/test_build_ai_review_context.py"]
 _API_TESTS = [
     "tests/test_github_core.py",
     "tests/test_github_auth_classification.py",
+    "tests/test_github_auth_exit_codes.py",
+    "tests/test_github_auth_preflight.py",
+    "tests/test_github_auth_session_refusal.py",
+    "tests/test_github_auth_retry.py",
 ]
 _NEW_PR_TESTS = ["tests/test_new_pr_repository.py"]
 

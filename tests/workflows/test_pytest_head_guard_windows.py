@@ -25,6 +25,7 @@ _WORKFLOW = Path(__file__).resolve().parents[2] / ".github" / "workflows" / "pyt
 _JOB_NAME = "test-windows-pwsh"
 _PATHS_FILTER_ACTION = "dorny/paths-filter@"
 _POLICY_FILE_INPUT = "scripts/ci/path_policy.yml"
+_POLICY_FILTER_ID = "filter"
 _WINDOWS_COMMAND = "uv run --frozen python scripts/ci/run_pytest_windows.py -v"
 _LEFTHOOK_TRIGGER_PATHS = {
     "lefthook.yml",
@@ -111,12 +112,15 @@ def test_lefthook_runtime_surfaces_trigger_windows_suite() -> None:
     # Select the step by the action it runs. A positional index, or a search for
     # the first step carrying a `with.filters` key, silently picks up whatever
     # step is inserted or grows that key first.
+    # Issue #5380 added a second paths-filter step, the per-module Windows
+    # filter, so the policy step is picked by its id.
     filter_steps = [
         step
         for step in workflow["jobs"]["check-paths"]["steps"]
         if str(step.get("uses", "")).startswith(_PATHS_FILTER_ACTION)
+        and step.get("id") == _POLICY_FILTER_ID
     ]
-    assert len(filter_steps) == 1, f"expected one {_PATHS_FILTER_ACTION} step in check-paths"
+    assert len(filter_steps) == 1, f"expected one {_PATHS_FILTER_ACTION} policy step"
     # Issue #5318 moved the list into the shared policy file, so the step
     # carries its path rather than the document. Asserting on the loaded
     # entries instead of on the raw text also stops a commented-out line from

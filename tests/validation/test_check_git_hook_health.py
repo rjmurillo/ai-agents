@@ -57,7 +57,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-# Import the way production imports (issue #2223): prepend ``scripts/validation``
+# Import the way production imports: prepend ``scripts/validation``
 # to ``sys.path`` and import by bare name.
 _VALIDATION_DIR = REPO_ROOT / "scripts" / "validation"
 if str(_VALIDATION_DIR) not in sys.path:
@@ -151,7 +151,7 @@ def _run_cli(repo: Path, guard: Path = GUARD) -> subprocess.CompletedProcess[str
     """
     env = _git_test_env()
     # The guard imports its sibling `lefthook_inventory` by bare name, the way
-    # production does (issue #2223). The negative control runs a mutated copy
+    # production does. The negative control runs a mutated copy
     # from tmp_path, which has no such sibling, so the real directory has to be
     # importable or that test fails on the import rather than on the mutation.
     # A mutated copy also needs the repository root, because the guard imports

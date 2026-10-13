@@ -49,6 +49,7 @@ from github_core.api import (
 )
 from github_core.checks_rollup import (
     MISSING_GRACE_SECONDS,
+    current_run_keys,
     extract_required_check_lists,
     extract_workflow_run_number,
     fetch_ruleset_required_contexts,
@@ -100,6 +101,7 @@ query($owner: String!, $repo: String!, $number: Int!) {
                                             workflowRun {
                                                 databaseId
                                                 runAttempt
+                                                event
                                             }
                                         }
                                         isRequired(pullRequestNumber: $number)
@@ -143,6 +145,7 @@ query($owner: String!, $repo: String!, $oid: GitObjectID!, $number: Int!, $curso
                                     workflowRun {
                                         databaseId
                                         runAttempt
+                                        event
                                     }
                                 }
                                 isRequired(pullRequestNumber: $number)
@@ -176,7 +179,8 @@ _DATA_KEYS = (
     "Owner",
     "Repo",
     "BaseBranch",
-    "OverallState",
+    "AllState",
+    "RequiredState",
     "MergeState",
     "MergeStateStatus",
     "MergeRefUsable",
@@ -237,6 +241,7 @@ def normalize_check(ctx: dict) -> dict | None:
             "DetailsUrl": ctx.get("detailsUrl", ""),
             "WorkflowRunId": workflow_run.get("databaseId"),
             "WorkflowRunAttempt": workflow_run.get("runAttempt"),
+            "WorkflowEvent": workflow_run.get("event"),
             "IsRequired": ctx.get("isRequired", False),
             "IsPending": status in _PENDING_STATUSES,
             "IsPassing": conclusion in _PASSING_CONCLUSIONS,
@@ -270,12 +275,13 @@ def normalize_check(ctx: dict) -> dict | None:
 # FailedCount for PR #2201 even though test_pr_merge_ready.py reported the PR
 # ready. Refs Issue #2208.
 #
-# This script leaves OverallState as GitHub's rollup value. Deduplication only
-# affects the per-check rows and derived counts, such as FailedCount. The
-# When each duplicate exposes a workflow run id, the latest run decides. Unknown
-# provenance keeps the previous precedence behavior: passing beats failing,
-# failing beats pending. Any pending signal is still retained for wait polling,
-# including when a same-name passing run is present.
+# AllState is GitHub's rollup value, left unchanged. Deduplication only
+# affects the per-check rows and derived counts, such as FailedCount and
+# RequiredState. When each duplicate exposes a workflow run id, the latest run
+# of each triggering event is current and the worst current state decides.
+# Unknown provenance keeps the previous precedence behavior: passing beats
+# failing, failing beats pending. Any pending signal is still retained for
+# wait polling, including when a same-name passing run is present.
 #
 # Stricter/looser/different than canonical: test_pr_merge_ready.py treats a
 # CANCELLED-only group as no-opinion (SKIP) so it neither blocks nor counts as
@@ -322,17 +328,36 @@ def _check_workflow_key(check: dict) -> tuple[int, int] | None:
     return int(run_number), int(attempt) if attempt is not None else 1
 
 
+def _cross_event_rank(check: dict) -> int:
+    """Rank current runs of different events: failing, pending, unknown, passing."""
+    order = {
+        _FAILING_RANK: 0,
+        _PENDING_RANK: 1,
+        _UNKNOWN_RANK: 2,
+        _PASSING_RANK: 3,
+    }
+    return order[_check_rank(check)]
+
+
 def _select_cross_run_winner(candidates: list[dict[Any, Any]]) -> dict[Any, Any]:
-    """Pick the latest workflow run when all candidates have run provenance."""
+    """Pick the current runs when all candidates have run provenance.
+
+    The newest run of each triggering event is current, because the ruleset
+    evaluates the ``pull_request`` and ``push`` runs of one head SHA. When
+    several events are current, the worst state wins so a red run from one
+    event is not hidden by a green run from another.
+    """
     check_run_pairs = [
         (check, _check_workflow_key(check))
         for check in candidates
         if check.get("Type") == "CheckRun"
     ]
     if check_run_pairs and all(run_key is not None for _, run_key in check_run_pairs):
-        latest_run = max(run_key for _, run_key in check_run_pairs)
-        latest_candidates = [check for check, run_key in check_run_pairs if run_key == latest_run]
-        return sorted(latest_candidates, key=_dedupe_rank)[0]
+        current = current_run_keys(
+            [(run_key, check.get("WorkflowEvent")) for check, run_key in check_run_pairs]
+        )
+        current_candidates = [check for check, run_key in check_run_pairs if run_key in current]
+        return sorted(current_candidates, key=_cross_event_rank)[0]
     return sorted(candidates, key=_dedupe_rank)[0]
 
 
@@ -493,7 +518,7 @@ def fetch_checks(
             "MergeState": merge_state,
             "MergeStateStatus": merge_state_status,
             "Checks": [],
-            "OverallState": "UNKNOWN",
+            "AllState": "UNKNOWN",
             "HasChecks": False,
             "HeadCommittedAt": None,
         }
@@ -508,12 +533,12 @@ def fetch_checks(
             "MergeState": merge_state,
             "MergeStateStatus": merge_state_status,
             "Checks": [],
-            "OverallState": "UNKNOWN",
+            "AllState": "UNKNOWN",
             "HasChecks": False,
             "HeadCommittedAt": commit_obj.get("committedDate"),
         }
 
-    overall_state = rollup.get("state", "UNKNOWN")
+    all_state = rollup.get("state", "UNKNOWN")
     contexts_obj = rollup.get("contexts", {}) or {}
     context_nodes = list(contexts_obj.get("nodes", []) or [])
     page_info = contexts_obj.get("pageInfo") or {}
@@ -545,11 +570,37 @@ def fetch_checks(
         "MergeState": merge_state,
         "MergeStateStatus": merge_state_status,
         "Checks": checks,
-        "OverallState": overall_state,
+        "AllState": all_state,
         "HasChecks": True,
         "ChecksIncomplete": not pages_complete,
         "HeadCommittedAt": commit_obj.get("committedDate"),
     }
+
+
+def derive_required_state(
+    *,
+    has_checks: bool,
+    checks_incomplete: bool,
+    failed_required: list[str],
+    pending_required: list[str],
+    missing_required: list[str] | None,
+    missing_queued: bool = False,
+) -> str:
+    """Return the rollup state over required checks only.
+
+    UNKNOWN when no checks reported or pagination did not finish, FAILURE when
+    a required check failed or a ruleset context never reported past the grace
+    window, PENDING when a required check is still running or a ruleset context
+    is only queued (issue #6389), otherwise SUCCESS. Non-required checks never
+    move this value. Issue #6396.
+    """
+    if not has_checks or checks_incomplete:
+        return "UNKNOWN"
+    if failed_required or (missing_required and not missing_queued):
+        return "FAILURE"
+    if pending_required or missing_queued:
+        return "PENDING"
+    return "SUCCESS"
 
 
 def build_output(
@@ -673,6 +724,14 @@ def build_output(
     missing_queued = bool(missing_required) and missing_checks_queued(
         check_data.get("HeadCommittedAt"), missing_grace_seconds
     )
+    required_state = derive_required_state(
+        has_checks=has_checks,
+        checks_incomplete=checks_incomplete,
+        failed_required=failed_required,
+        pending_required=pending_required,
+        missing_required=missing_required,
+        missing_queued=missing_queued,
+    )
 
     return {
         "Success": True,
@@ -680,7 +739,11 @@ def build_output(
         "Owner": owner,
         "Repo": repo,
         "BaseBranch": check_data.get("BaseBranch"),
-        "OverallState": check_data.get("OverallState", "UNKNOWN"),
+        # GitHub's rollup over every check, required or not. A red non-required
+        # check makes this FAILURE while the PR stays mergeable. Use
+        # RequiredState to decide whether a required gate blocks.
+        "AllState": check_data.get("AllState", "UNKNOWN"),
+        "RequiredState": required_state,
         "MergeState": merge_state,
         "MergeStateStatus": merge_state_status,
         "MergeRefUsable": merge_ref_usable,
@@ -921,6 +984,16 @@ def _resolve_repo_or_fail(args: argparse.Namespace, fmt: str) -> tuple[str, str]
     return resolved.owner, resolved.repo
 
 
+def _downgrade_required_state(output: dict, checks_incomplete: bool) -> None:
+    """Report a green RequiredState as UNKNOWN when polling found the set incomplete.
+
+    ``main`` learns the check set is incomplete after ``build_output`` ran, so
+    a green required set is not proven.
+    """
+    if checks_incomplete and output["RequiredState"] == "SUCCESS":
+        output["RequiredState"] = "UNKNOWN"
+
+
 def _warn_if_wait_exceeds_tool_cap(wait: bool, timeout_seconds: int) -> None:
     """Warn on stderr when a --wait budget would outlive the 600 second tool cap."""
     if wait and timeout_seconds > MAX_WAIT_TIMEOUT_SECONDS:
@@ -1037,6 +1110,7 @@ def main(argv: list[str] | None = None) -> int:
             return rc
 
     output["ChecksIncomplete"] = checks_incomplete
+    _downgrade_required_state(output, checks_incomplete)
     timed_out_pending = not settled and (
         output["PendingCount"] > 0 or _holds_wait_for_queued(output)
     )

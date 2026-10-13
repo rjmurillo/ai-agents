@@ -60,6 +60,7 @@
 |ruleset required contexts scheduled drift second baseline duplicate source contract: [decision-ruleset-drift-must-not-create-a-second-baseline](decision-ruleset-drift-must-not-create-a-second-baseline.md) (258)
 |pr context statusCheckRollup list null CheckRun StatusContext reviewThreads: [github/pr-context-authoritative-metadata](github/pr-context-authoritative-metadata.md) (195)
 |stacked pull request async merge endpoint merge-async stack GraphQL refusal: [github/stacked-pr-async-merge-endpoint](github/stacked-pr-async-merge-endpoint.md) (1084)
+|issue worktree branch existing open PR closing keyword check_existing_pr_for_issue duplicate: [github/check-existing-pr-before-issue-worktree](github/check-existing-pr-before-issue-worktree.md) (659)
 |PR validator prepare-body-file backticked path not in diff pr_description pr-number after open: [pr-review/pr-validator-needs-prepare-body-file-and-diff-backed-paths](pr-review/pr-validator-needs-prepare-body-file-and-diff-backed-paths.md) (573)
 |parallel agents shared scratch directory pr body overwritten pr1.md prepare-body-file per worktree issue 6315 Validate PR: [github/github-pr-body-files-collide-in-a-shared-scratch-directory](github/github-pr-body-files-collide-in-a-shared-scratch-directory.md) (335)
 |triage packet stale issue closed before dispatch re-check state: [pr-review/triage-packets-go-stale-within-hours](pr-review/triage-packets-go-stale-within-hours.md) (175)
@@ -123,7 +124,9 @@
 |agent workflow pipeline critic atomic commit scope MVP: [skills-agent-workflow-index](skills-agent-workflow-index.md) (351)
 |autonomous execution guardrails circuit breaker patch signal trust: [skills-autonomous-execution-index](skills-autonomous-execution-index.md) (153)
 |fleet contention stop order renice congestion collapse two: [decision-stop-orders-are-not-a-control-plane](decision-stop-orders-are-not-a-control-plane.md) (876)
+|workflow tool isolation worktree schema silent parallel wave report leak: [agent-workflow/workflow-tool-worktree-schema-trap](agent-workflow/workflow-tool-worktree-schema-trap.md) (390)
 |worktree abandoned live agent fleet stale dirty harvest: [agent-workflow/fleet-worktree-live-versus-abandoned](agent-workflow/fleet-worktree-live-versus-abandoned.md) (608)
+|workflow tool agent isolation worktree schema StructuredOutput no-op direct Agent tool: [orchestration/orchestration-workflow-worktree-plus-schema-noop](orchestration/orchestration-workflow-worktree-plus-schema-noop.md) (619)
 |evidence: table handoff, session 17, orchestrator routing: [agent-workflow/agentworkflow-005-structured-handoff-formats-88](agent-workflow/agentworkflow-005-structured-handoff-formats-88.md) (146)
 
 [CI/CD and Workflows]

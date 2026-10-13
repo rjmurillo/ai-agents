@@ -21,6 +21,12 @@ from tests.new_pr_test_support import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _head_is_on_origin(monkeypatch):
+    """Keep ordered subprocess mocks intact: the origin lookup has its own tests."""
+    monkeypatch.setattr(main.__globals__["_pr_val"], "head_on_origin", lambda head: True)
+
+
 class TestBuildParser:
     def test_missing_title_is_rejected_by_main(self):
         with patch.object(_mod, "get_repo_root", return_value="/tmp/repo"):
