@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import glob
 import os
 import re
 import shutil
@@ -297,6 +298,42 @@ def _isolate_gc_worktree_audit_log(
     monkeypatch.setattr(
         "scripts.maintenance.removal_audit.audit_log_path_for", lambda _main: log_path
     )
+
+
+@pytest.fixture
+def monkeypatch(request: pytest.FixtureRequest) -> Iterator[pytest.MonkeyPatch]:
+    """Undo every patch before ``tmp_path`` is removed.
+
+    ``tmp_path_retention_policy = "failed"`` makes the ``tmp_path`` teardown
+    call ``shutil.rmtree``. Pytest tears fixtures down in reverse setup order,
+    so a ``monkeypatch`` created before ``tmp_path`` (every autouse fixture
+    here asks for it first) would still hold its patches while ``rmtree`` ran.
+    Tests that patch ``os.scandir``, ``os.open`` or ``os.close`` then broke the
+    teardown. Creating ``tmp_path`` first puts its teardown after the undo.
+    """
+    if "tmp_path" in request.fixturenames:
+        request.getfixturevalue("tmp_path")
+    with pytest.MonkeyPatch.context() as patch:
+        yield patch
+
+
+@pytest.fixture(autouse=True)
+def _clear_stale_tmp_path_siblings(request: pytest.FixtureRequest) -> None:
+    """Remove siblings left by an earlier test that shared this ``tmp_path`` name.
+
+    The retention policy deletes a passing test's ``tmp_path``, and pytest then
+    hands the same numbered name to the next test whose truncated name matches.
+    Tests that park a fixture beside ``tmp_path`` (``<name>-outside``) are not
+    covered by that deletion, so the next owner of the name finds it present.
+    """
+    if "tmp_path" not in request.fixturenames:
+        return
+    tmp_path = request.getfixturevalue("tmp_path")
+    for stale in tmp_path.parent.glob(f"{glob.escape(tmp_path.name)}-*"):
+        if stale.is_dir() and not stale.is_symlink():
+            shutil.rmtree(stale)
+        else:
+            stale.unlink()
 
 
 @pytest.fixture

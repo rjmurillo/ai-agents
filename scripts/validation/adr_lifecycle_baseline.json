@@ -9,6 +9,34 @@
     "supersession-target-exists": {},
     "proposed-cannot-supersede": {},
     "prose-frontmatter-agree": {},
-    "status-edge-consistency": {}
+    "status-edge-consistency": {},
+    "cited-paths-exist": {
+      ".project-toolkit/architecture/ADR-014-distributed-handoff-architecture.md": 4,
+      ".project-toolkit/architecture/ADR-019-script-organization.md": 8,
+      ".project-toolkit/architecture/ADR-033-routing-level-enforcement-gates.md": 1,
+      ".project-toolkit/architecture/ADR-034-investigation-session-qa-exemption.md": 5,
+      ".project-toolkit/architecture/ADR-040-skill-frontmatter-standardization.md": 1,
+      ".project-toolkit/architecture/ADR-043-scoped-tool-execution.md": 1,
+      ".project-toolkit/architecture/ADR-047-plugin-mode-hook-behavior.md": 1,
+      ".project-toolkit/architecture/ADR-051-synthesis-panel-frontmatter-standard.md": 2,
+      ".project-toolkit/architecture/ADR-053-adr-exception-criteria.md": 1,
+      ".project-toolkit/architecture/ADR-057-prompt-behavioral-evaluation.md": 1,
+      ".project-toolkit/architecture/ADR-064-commands-to-skills-migration.md": 1,
+      ".project-toolkit/architecture/ADR-071-plugin-hook-runtime-contract-verification.md": 1,
+      ".project-toolkit/architecture/ADR-072-jtbd-plugin-architecture.md": 2,
+      ".project-toolkit/architecture/ADR-081-confidence-elicitation-experiment.md": 1,
+      ".project-toolkit/architecture/ADR-083-copilot-dogfood-surface-separation.md": 2,
+      ".project-toolkit/architecture/ADR-085-cross-harness-permission-surface-asymmetry.md": 3,
+      ".project-toolkit/architecture/ADR-092-omit-plugin-manifest-version.md": 1,
+      ".project-toolkit/architecture/ADR-094-govern-copilot-cli-compatibility.md": 2,
+      ".project-toolkit/architecture/ADR-096-relax-qa-evidence-commit-equality.md": 2,
+      ".project-toolkit/architecture/ADR-097-zero-tool-use-hooks.md": 4,
+      ".project-toolkit/architecture/ADR-099-remove-commit-limit-bypass-gate.md": 2,
+      ".project-toolkit/architecture/ADR-100-retire-pr-size-ceilings.md": 2,
+      ".project-toolkit/architecture/ADR-101-enforcement-planes.md": 3,
+      ".project-toolkit/architecture/ADR-103-skill-output-python-contract-correction.md": 2,
+      ".project-toolkit/architecture/ADR-108-template-owned-skill-files.md": 1,
+      ".project-toolkit/architecture/ADR-109-template-first-plugin-distribution.md": 5
+    }
   }
 }

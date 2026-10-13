@@ -39,9 +39,18 @@ best-effort reading of an ambiguous file: where the author meant a wider
 container fence, the inserted closing fence is not the fix they want. The
 agent reads the report, decides, and only then writes.
 
+``--write`` carries one post-condition: a repair must never turn a balanced
+file into an unclosed one. A raw HTML block hides a fence from CommonMark but
+not from this scanner, and then the appended closing fence is a fresh opener.
+When ``markdown-it-py`` is importable the repaired text is checked against it
+and a file that would come out unclosed is refused: not written, listed under
+``refused``, exit 1. Without it the check is skipped with a note on stderr.
+
 EXIT CODES (ADR-035):
   0 - No defects found, or `--write` repaired every defect it found.
   1 - Report mode (the default): at least one defect found. Nothing written.
+      With `--write`: at least one file was refused because its repair would
+      have left a balanced file unclosed. Nothing was written for it.
   2 - Configuration error: a requested path does not exist, or a file could
       not be read or written.
 """
@@ -56,6 +65,7 @@ import re
 import sys
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
+from typing import Any
 
 # ADR-047 keeps this bootstrap inline because imports need sys.path first.
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
@@ -327,12 +337,71 @@ def iter_markdown_files(paths: list[Path], pattern: str) -> list[Path]:
     return found
 
 
-def _report(results: dict[str, list[Defect]], *, as_json: bool, wrote: list[str]) -> None:
+def _load_reference() -> Any:
+    """Return the CommonMark reference parser, or None when it is not installed.
+
+    Vendored trees carry no third-party packages, so the import is optional.
+    """
+    try:
+        from markdown_it import MarkdownIt
+    except ImportError:
+        return None
+    return MarkdownIt("commonmark")
+
+
+def _reference_lines(text: str) -> list[str]:
+    """Split *text* the way the reference parser numbers lines.
+
+    Not ``str.splitlines``: its extra separators shift every later ``token.map``.
+    """
+    lines = _LINE_SPLIT_RE.sub("\n", text).split("\n")
+    if lines and lines[-1] == "":
+        lines.pop()  # text ended with a terminator; no empty final line
+    return lines
+
+
+def leaves_fence_open(reference: Any, text: str) -> bool:
+    """Return True when a fence in *text* reaches EOF with no closing marker.
+
+    Read from the token. A span longer than opener plus body was closed by a
+    marker; "no marker" alone is not "open", since a fence also ends with its
+    list item, so the token must also reach the last line.
+    """
+    source = _reference_lines(text)
+    for token in reference.parse(text):
+        if token.type != "fence" or not token.map:
+            continue
+        span = token.map[1] - token.map[0]
+        body = len(_reference_lines(token.content))
+        marked = span - 1 - body >= 1
+        if not marked and token.map[1] >= len(source):
+            return True
+    return False
+
+
+def repair_is_safe(reference: Any, before: str, after: str) -> bool:
+    """Return False when the repair would turn a balanced file unclosed.
+
+    With no reference parser there is nothing to judge against: allowed.
+    """
+    if reference is None:
+        return True
+    return leaves_fence_open(reference, before) or not leaves_fence_open(reference, after)
+
+
+def _report(
+    results: dict[str, list[Defect]],
+    *,
+    as_json: bool,
+    wrote: list[str],
+    refused: list[str],
+) -> None:
     if as_json:
         payload = {
             "files": {name: [asdict(d) for d in defects] for name, defects in results.items()},
             "defect_count": sum(len(d) for d in results.values()),
             "repaired": wrote,
+            "refused": refused,
         }
         print(json.dumps(payload, indent=2, sort_keys=True))
         return
@@ -347,6 +416,8 @@ def _report(results: dict[str, list[Defect]], *, as_json: bool, wrote: list[str]
     print(f"\n{total} defect(s) in {len(results)} file(s)")
     if wrote:
         print(f"Repaired {len(wrote)} file(s)")
+    for name in refused:
+        print(f"Refused {name}: the repair would turn a balanced file into an unclosed one")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -375,8 +446,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Error: path does not exist: {', '.join(missing)}", file=sys.stderr)
         return 2
 
+    reference = _load_reference()
     results: dict[str, list[Defect]] = {}
     wrote: list[str] = []
+    refused: list[str] = []
+    skipped_check = False
     for file_path in iter_markdown_files(paths, args.pattern):
         try:
             raw = file_path.read_bytes()
@@ -389,7 +463,7 @@ def main(argv: list[str] | None = None) -> int:
             # files had changed. In `--json` mode that meant empty stdout, so
             # a programmatic caller could not reconcile its own state either.
             # The writes that happened were correct; only the record was lost.
-            _report(results, as_json=args.json, wrote=wrote)
+            _report(results, as_json=args.json, wrote=wrote, refused=refused)
             return 2
 
         defects = find_fence_defects(content)
@@ -399,17 +473,27 @@ def main(argv: list[str] | None = None) -> int:
 
         if not args.write:
             continue
+        repaired = repair_markdown_fences(content)
+        skipped_check = skipped_check or reference is None
+        if not repair_is_safe(reference, content, repaired):
+            refused.append(str(file_path))
+            continue
         bom = codecs.BOM_UTF8 if raw.startswith(codecs.BOM_UTF8) else b""
         try:
-            file_path.write_bytes(bom + repair_markdown_fences(content).encode("utf-8"))
+            file_path.write_bytes(bom + repaired.encode("utf-8"))
         except OSError as exc:
             print(f"Error: cannot write {file_path}: {exc}", file=sys.stderr)
-            _report(results, as_json=args.json, wrote=wrote)  # same reason as above
+            _report(results, as_json=args.json, wrote=wrote, refused=refused)  # same reason
             return 2
         wrote.append(str(file_path))
 
-    _report(results, as_json=args.json, wrote=wrote)
-    return 1 if (results and not args.write) else 0
+    if skipped_check:
+        print(
+            "Note: markdown-it-py is not installed; the balanced-file check was skipped.",
+            file=sys.stderr,
+        )
+    _report(results, as_json=args.json, wrote=wrote, refused=refused)
+    return 1 if (refused or (results and not args.write)) else 0
 
 
 if __name__ == "__main__":

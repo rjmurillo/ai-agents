@@ -43,6 +43,7 @@ from active_plan_closeout import validate_active_plan_closeout
 from check_adr_exception_markers import validate_adr_exception_markers
 from check_adr_lifecycle import validate_adr_lifecycle
 from check_adr_links import validate_adr_links
+from check_agent_delegation import validate_agent_delegation
 from check_agent_tree_frontmatter import validate_agent_tree_frontmatter
 from check_agents_write_targets import validate_agents_write_targets
 from check_bypass_allowlist import validate_bypass_allowlist
@@ -600,6 +601,10 @@ _SEQUENCE: tuple[_Gate, ...] = (
         "Agent Tree Frontmatter (.claude/agents)",
         _root_only(validate_agent_tree_frontmatter),
     ),
+    # A worker's "you CANNOT delegate" prose must match a tool grant that
+    # withholds Agent; Claude Code lets subagents spawn subagents otherwise.
+    # Issue #5184; contract is MUST 9 in templates/rules/claude-agents.md.
+    _Gate("Agent Delegation (src/claude/agents)", _root_only(validate_agent_delegation)),
     # A loose file directly under .claude/skills/ registers as a skill named after
     # the file (issue #5503, CLAUDE.md registered as skill "CLAUDE").
     _Gate(
