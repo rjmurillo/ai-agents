@@ -79,22 +79,6 @@ python3 scripts/detect_skill_violation.py
 
 **Called By**: Pre-commit hook (via new_pr.py)
 
-#### detect_test_coverage_gaps.py
-
-Detects script files without corresponding test files (WARNING, non-blocking).
-
-**Usage**:
-
-```bash
-# Check staged files
-uv run --frozen python -m scripts.detect_test_coverage_gaps --staged-only
-
-# Check with ignore file
-uv run --frozen python -m scripts.detect_test_coverage_gaps --ignore-file ".testignore"
-```
-
-**Called By**: Pre-commit hook
-
 ### PR Creation
 
 #### new_validated_pr.py

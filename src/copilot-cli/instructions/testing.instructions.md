@@ -8,7 +8,6 @@ applyTo: tests/**,**/*.Tests.ps1,**/tests/**
      itself; it cites upstream test governance, steering docs, ADRs, and maintenance
      scripts. None of these exist in a consumer install (issue #5298). Paths:
      .agents/governance/TESTING-ANTI-PATTERNS.md, .agents/governance/TESTING-RIGOR.md,
-     .agents/steering/testing-approach.md,
      .project-toolkit/architecture/ADR-023-quality-gate-prompt-testing.md,
      .project-toolkit/architecture/ADR-034-investigation-session-qa-exemption.md,
      .project-toolkit/security/benchmarks,
@@ -71,5 +70,4 @@ Tests under `tests/` (including `tests/skills/<name>/`) and `.project-toolkit/se
 
 - `.project-toolkit/architecture/ADR-023-quality-gate-prompt-testing.md`. Structural contract.
 - `.project-toolkit/architecture/ADR-034-investigation-session-qa-exemption.md`. Narrow skip policy.
-- `.agents/steering/testing-approach.md`. Pester patterns and anti-patterns.
 - `.agents/governance/TESTING-ANTI-PATTERNS.md`. Forbidden patterns.
