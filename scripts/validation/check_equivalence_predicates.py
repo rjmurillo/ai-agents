@@ -43,6 +43,7 @@ import sys
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
+from typing import TypeGuard
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(_PROJECT_ROOT) not in sys.path:
@@ -225,6 +226,10 @@ def table_findings(
     return found
 
 
+def _is_count(value: object) -> TypeGuard[int]:
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
 def read_baseline(repo_root: Path) -> tuple[int, int]:
     """Return ``(none_rows, classes)`` from the baseline, or raise ``ConfigError``."""
     path = repo_root / BASELINE_PATH
@@ -232,12 +237,13 @@ def read_baseline(repo_root: Path) -> tuple[int, int]:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
         raise ConfigError(f"baseline {BASELINE_PATH} unreadable: {exc}") from exc
-    values = [data.get(key) if isinstance(data, dict) else None for key in ("none_rows", "classes")]
-    if any(not isinstance(v, int) or isinstance(v, bool) or v < 0 for v in values):
+    none_rows = data.get("none_rows") if isinstance(data, dict) else None
+    classes = data.get("classes") if isinstance(data, dict) else None
+    if not (_is_count(none_rows) and _is_count(classes)):
         raise ConfigError(
             f"baseline {BASELINE_PATH} needs non-negative integers none_rows, classes"
         )
-    return values[0], values[1]
+    return none_rows, classes
 
 
 def ratchet_findings(rows: list[Row], none_rows: int, classes: int) -> list[str]:
