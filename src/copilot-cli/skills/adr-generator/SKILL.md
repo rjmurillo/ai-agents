@@ -246,9 +246,10 @@ ledger to `adr-review` for multi-agent validation.
 
 The ADR index (`.project-toolkit/architecture/README.md`) is generated from the
 ADR corpus (issue #5198). It lists each record's status, title, and decision
-summary, and the gates above can edit all three. Run the generator after the
-gates so the index shows the final text instead of drifting until the next
-unrelated build:
+summary. The gates above can edit the title and decision summary; status stays
+proposed until `adr-review` reaches consensus. Run the generator after the
+gates so the index shows the post-gate draft instead of drifting until the next
+unrelated build. Status changes after hand-off need another run:
 
 ```bash
 uv run python build/scripts/generate_adr_index.py
