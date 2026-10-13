@@ -864,22 +864,23 @@ def _mark_rest_required(
 ) -> int | None:
     """Mark required rows on REST data from the ruleset, or return exit code 3.
 
-    REST has no per-row required flag. Without the ruleset, ``--required-only``
-    would silently drop every row, so it fails instead of reporting an empty
-    pass. Without ``--required-only`` the rows stay unmarked and the caller
-    still sees every failing check.
+    REST has no per-row required flag. When the ruleset cannot be read (``None``)
+    or lists no required checks (``[]``, which is what a branch with only classic
+    branch protection, or none, returns), ``--required-only`` would silently drop
+    every row, so it fails instead of reporting an empty pass. Without
+    ``--required-only`` the rows stay unmarked and the caller still sees every
+    failing check.
     """
     if check_data.get("DataSource") != "rest":
         return None
     if ruleset_contexts is not None:
         mark_required_from_ruleset(check_data["Checks"], ruleset_contexts)
-        return None
-    if not required_only:
+    if ruleset_contexts or not required_only:
         return None
     write_skill_error(
         "GraphQL is rate limited and REST cannot tell which checks are required "
-        "without a base branch ruleset; rerun without --required-only or without "
-        "an empty --base-branch",
+        "from a branch ruleset that lists them; rerun without --required-only, or "
+        "pass --base-branch <name> so required checks can be read from the ruleset",
         3,
         error_type="ApiError",
         output_format=fmt,
@@ -947,7 +948,7 @@ def _poll_checks(
     """Sleep, refetch the checks, and return (check_data, exit_code).
 
     Once GraphQL has been rate limited, stay on REST: each GraphQL poll would
-    spend its 45s retry ladder on the same refusal (issue #6391).
+    spend its retry ladder (up to 45s) on the same refusal (issue #6391).
     """
     time.sleep(10)
     check_data = fetch_checks(

@@ -20,13 +20,16 @@ from __future__ import annotations
 import json
 import subprocess
 
-from scripts.github_core.checks_rollup import extract_workflow_run_number
+from .checks_rollup import extract_workflow_run_number
 
 _TIMEOUT_SECONDS = 30
 _PAGE_SIZE = 100
 
-# REST ``mergeable_state`` values and the GraphQL ``MergeStateStatus`` enum
-# share one vocabulary in different case, so upper-casing maps them.
+# REST ``mergeable`` is a boolean, or null while GitHub still computes it (a
+# first read right after a push often returns null, which falls through to
+# ``UNKNOWN`` so ``MergeRefUsable`` is false until the computation finishes).
+# ``_merge_fields`` upper-cases ``mergeable_state`` separately, because it shares
+# the GraphQL ``MergeStateStatus`` vocabulary in different case.
 _MERGEABLE_BY_REST_VALUE: dict[object, str] = {True: "MERGEABLE", False: "CONFLICTING"}
 
 

@@ -225,6 +225,19 @@ class TestMarkRestRequired:
         assert rc == 3
         assert "required" in capsys.readouterr().out
 
+    def test_rest_with_empty_ruleset_fails_closed_for_required_only(self, capsys):
+        checks = [{"Name": "build", "IsRequired": False}]
+        data = {"DataSource": "rest", "Checks": checks}
+        rc = _mod._mark_rest_required(data, [], True, 42, _mod.get_output_format("json"))
+        assert rc == 3
+        assert "ruleset" in capsys.readouterr().out
+
+    def test_rest_with_empty_ruleset_is_allowed_when_not_required_only(self):
+        checks = [{"Name": "build", "IsRequired": True}]
+        data = {"DataSource": "rest", "Checks": checks}
+        assert _mod._mark_rest_required(data, [], False, 42, None) is None
+        assert checks[0]["IsRequired"] is False
+
 
 def _graphql_ok(name="build"):
     return {
