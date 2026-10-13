@@ -101,6 +101,18 @@ Exit codes (ADR-035):
     2 - Config error (invalid repository root, or a checked script is absent)
     3 - External error (a bounded child was killed on deadline expiry)
 
+Failure evidence (issue #6427)
+-----------------------------
+
+``validate_generated_staleness`` returns a typed ``CheckOutcome`` carrying the
+stale count, the first ``MAX_STALE_PATHS_SHOWN`` paths, and a reason code
+(``generated.stale`` or ``generated.uncommitted``). A bool reached the summary
+as ``reason=legacy.boolean_contract``, and ``_echo_tail`` dropped the header and
+first paths of a 300-path list. ``build_all.py --check`` diffs against HEAD, so
+a correct uncommitted regeneration is drift to it; the child marks paths that
+were already byte-identical, and the gate then says to commit them.
+``generated_staleness_report.py`` parses that output.
+
 The gate does not subdivide the child's exit code further on purpose:
 ``build_all.py`` uses 2 for both configuration errors and staleness, so a
 per-cause mapping here would assert precision the child does not provide.
@@ -115,8 +127,28 @@ import signal
 import subprocess
 import sys
 import time
+from dataclasses import dataclass
 from enum import IntEnum
 from pathlib import Path
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from scripts.validation.evidence import (  # noqa: E402
+    REASON_SCRIPT_ABSENT,
+    REASON_SCRIPT_FAILED,
+    REASON_TIMEOUT,
+    WORKING_TREE,
+    CheckOutcome,
+)
+from scripts.validation.generated_staleness_report import (  # noqa: E402
+    StaleReport,
+    echo_stale_summary,
+    failure_detail,
+    parse_stale_report,
+    remedy,
+)
 
 
 class _Status(IntEnum):
@@ -169,6 +201,13 @@ _OUTER_CAP_ENV = "PRE_PR_OUTER_CAP_SECONDS"
 _PROCESS_START = time.monotonic()
 
 _MAX_OUTPUT_LINES = 40
+
+GATE_NAME = "Generated Artifact Staleness"
+_SCOPE = "generated trees vs HEAD (build_all.py --check)"
+
+#: ``a.b`` reason codes this gate adds to the shared set in ``evidence.py``.
+REASON_GENERATED_STALE = "generated.stale"
+REASON_GENERATED_UNCOMMITTED = "generated.uncommitted"
 
 
 def _decode(stream: bytes | str | None) -> str:
@@ -284,8 +323,35 @@ def _clamped_budget(now: float) -> float:
     return min(_GATE_BUDGET_SECONDS, outer_remaining)
 
 
-def check_generated_staleness(repo_root: Path) -> _Status:
-    """Return the gate outcome for ``repo_root``.
+@dataclass(frozen=True, slots=True)
+class _Verdict:
+    """The gate outcome plus what the failure summary needs to say it.
+
+    ``status`` is the ADR-035 CLI result. ``examined`` is how many generator
+    checks ran. ``report`` holds the stale paths and hint parsed from a failed
+    child; it is empty for every other status.
+    """
+
+    status: _Status
+    examined: int
+    report: StaleReport = StaleReport()
+
+
+def _echo_failure(output: str) -> StaleReport:
+    """Print a failed child's diagnosis and return what was parsed from it.
+
+    The stale-path lines are summarised by :func:`echo_stale_summary` and
+    removed from the tail, so the 40 tail lines go to the diagnosis (a
+    generator error, a surface-parity finding) instead of to 40 repeated paths.
+    """
+    report = parse_stale_report(output)
+    echo_stale_summary(report)
+    _echo_tail("\n".join(report.other) if report.paths else output)
+    return report
+
+
+def _evaluate(repo_root: Path) -> _Verdict:
+    """Run the gate for ``repo_root`` and return the verdict.
 
     Fails closed when a checked script is absent, and reports that as CONFIG
     rather than DRIFT: an absent script means the gate could not run and the
@@ -311,7 +377,7 @@ def check_generated_staleness(repo_root: Path) -> _Status:
                 f" set. Examined {examined} of {len(_CHECKS)} checks.",
                 file=sys.stderr,
             )
-            return _Status.EXTERNAL
+            return _Verdict(_Status.EXTERNAL, examined)
         script = repo_root.joinpath(*parts)
         if not script.is_file():
             print(
@@ -319,7 +385,7 @@ def check_generated_staleness(repo_root: Path) -> _Status:
                 f"cannot run. Examined {examined} of {len(_CHECKS)} checks.",
                 file=sys.stderr,
             )
-            return _Status.CONFIG
+            return _Verdict(_Status.CONFIG, examined)
 
         exit_code, output = _run_check(script, repo_root, budget)
         examined += 1
@@ -328,7 +394,7 @@ def check_generated_staleness(repo_root: Path) -> _Status:
 
         # Only on failure. A clean run's several hundred lines of generator
         # progress would bury every other gate's output in pre_pr.py.
-        _echo_tail(output)
+        report = _echo_failure(output)
         remaining = len(_CHECKS) - examined
         unrun = (
             f" The remaining {remaining} check(s) did not run: their input is not yet known good."
@@ -341,50 +407,77 @@ def check_generated_staleness(repo_root: Path) -> _Status:
                 f"scored. Examined {examined} of {len(_CHECKS)} checks.{unrun}",
                 file=sys.stderr,
             )
-            return _Status.EXTERNAL
+            return _Verdict(_Status.EXTERNAL, examined)
         print(
             f"[FAIL] {label} failed (exit {exit_code}). "
             f"Examined {examined} of {len(_CHECKS)} checks.{unrun}",
             file=sys.stderr,
         )
-        print(
-            "Read the check's output above for the cause. If it reports"
-            " staleness or drift, regenerate and commit:\n"
-            "  uv run python build/scripts/build_all.py\n"
-            "Otherwise fix the error the check itself reported; regenerating"
-            " is not the remedy for a configuration or source failure.",
-            file=sys.stderr,
-        )
-        return _Status.DRIFT
+        print(remedy(report), file=sys.stderr)
+        return _Verdict(_Status.DRIFT, examined, report)
 
     elapsed = time.monotonic() - start
     print(
         f"generated staleness: 0 stale in {examined} generator check(s)"
         f" examined ({elapsed:.1f}s of {_GATE_BUDGET_SECONDS:.0f}s budget)"
     )
-    return _Status.OK
+    return _Verdict(_Status.OK, examined)
 
 
-def validate_generated_staleness(repo_root: Path) -> bool:
+def check_generated_staleness(repo_root: Path) -> _Status:
+    """Return the gate outcome for ``repo_root`` (see :func:`_evaluate`)."""
+    return _evaluate(repo_root).status
+
+
+def _outcome_for(verdict: _Verdict) -> CheckOutcome:
+    """Map a verdict onto the typed evidence contract (issue #5635)."""
+    status = verdict.status
+    if status is _Status.OK:
+        return CheckOutcome.passed(
+            GATE_NAME, revision=WORKING_TREE, scope=_SCOPE, examined=verdict.examined
+        )
+    if status is _Status.CONFIG:
+        return CheckOutcome.blocked(
+            GATE_NAME,
+            reason=REASON_SCRIPT_ABSENT,
+            scope=_SCOPE,
+            detail="build/scripts/build_all.py is absent, so the gate could not run.",
+        )
+    if status is _Status.EXTERNAL:
+        return CheckOutcome.unknown(
+            GATE_NAME,
+            reason=REASON_TIMEOUT,
+            scope=_SCOPE,
+            examined=verdict.examined,
+            detail="build_all.py --check hit the gate deadline; the tree was never scored.",
+        )
+    report = verdict.report
+    if not report.paths:
+        reason = REASON_SCRIPT_FAILED
+    elif report.uncommitted_only:
+        reason = REASON_GENERATED_UNCOMMITTED
+    else:
+        reason = REASON_GENERATED_STALE
+    return CheckOutcome.failed(
+        GATE_NAME,
+        reason=reason,
+        revision=WORKING_TREE,
+        scope=_SCOPE,
+        examined=verdict.examined,
+        findings=len(report.paths) or 1,
+        detail=failure_detail(report),
+    )
+
+
+def validate_generated_staleness(repo_root: Path) -> CheckOutcome:
     """Registry entry point for ``pre_pr_sequence``.
 
-            Canonical source of the consumed contract:
-            ``scripts/validation/pre_pr_sequence.py``, function ``_root_only``
-            (line 162 as of this writing; the name is the durable handle, the
-            number drifts and did, from 147, while this docstring still cited it).
-            Its adapter signature reads verbatim below, quoted at column 0 so the
-            96-character original is reproduced byte for byte rather than gaining
-            an indent this docstring would have added:
-
-    def _root_only(validator: Callable[[Path], bool]) -> Callable[[Path, argparse.Namespace], bool]:
-
-            So the registry accepts exactly ``Callable[[Path], bool]``. Different than
-            canonical: this module's own CLI keeps the richer ``_Status``, because
-            ADR-035 distinguishes drift (1) from a missing script (2) and a killed
-            child (3) and a boolean cannot carry that. The narrowing happens here and
-            nowhere else, so the registry stays uniform while the CLI stays honest.
+    Returns the typed outcome, not a bool, so the summary never reads
+    ``legacy.boolean_contract`` (issue #6427). The CLI keeps the ADR-035
+    ``_Status``: exit 1 (drift), 2 (missing script), and 3 (killed child) are
+    three remedies and a boolean carries one.
     """
-    return check_generated_staleness(repo_root) is _Status.OK
+    return _outcome_for(_evaluate(repo_root))
 
 
 def main(argv: list[str] | None = None) -> int:
