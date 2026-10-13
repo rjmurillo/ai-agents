@@ -52,6 +52,22 @@ def test_only_recorded_eval_runs_are_exempt(path: str, exempt: bool) -> None:
     assert checker._is_exempt_citing_file(path) is exempt
 
 
+@pytest.mark.parametrize(
+    ("path", "exempt"),
+    (
+        ("src/cursor/skills/review/SKILL.md", True),
+        ("src/cursor/rules/voice.mdc", True),
+        ("src/cursor/lib/github_core/output.py", True),
+        ("src/cursor/agents/analyst.md", False),
+        ("src/cursor/.cursor-plugin/plugin.json", False),
+        ("src/cursor-extras/skills/x.md", False),
+    ),
+)
+def test_cursor_generated_mirrors_are_exempt(path: str, exempt: bool) -> None:
+    """The Cursor tree's generated copies are policed once, at their source (ADR-115)."""
+    assert checker._is_exempt_citing_file(path) is exempt
+
+
 class TestFreshCitationsPass:
     def test_anchored_citation_at_the_right_line_exits_0(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]

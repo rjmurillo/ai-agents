@@ -91,6 +91,11 @@ rows:
     plugin_tree: src/copilot-cli/lib/hook_utilities
     install_tree: null
     compile: lib_mirror
+  - class: lib-hook_utilities-cursor
+    source: scripts/hook_utilities
+    plugin_tree: src/cursor/lib/hook_utilities
+    install_tree: null
+    compile: lib_mirror
   - class: lib-github_core
     source: scripts/github_core
     plugin_tree: src/claude/lib/github_core
@@ -101,6 +106,11 @@ rows:
     plugin_tree: src/copilot-cli/lib/github_core
     install_tree: null
     compile: lib_mirror
+  - class: lib-github_core-cursor
+    source: scripts/github_core
+    plugin_tree: src/cursor/lib/github_core
+    install_tree: null
+    compile: lib_mirror
   - class: lib-ai_review_common
     source: scripts/ai_review_common
     plugin_tree: src/claude/lib/ai_review_common
@@ -109,6 +119,11 @@ rows:
   - class: lib-ai_review_common-copilot
     source: scripts/ai_review_common
     plugin_tree: src/copilot-cli/lib/ai_review_common
+    install_tree: null
+    compile: lib_mirror
+  - class: lib-ai_review_common-cursor
+    source: scripts/ai_review_common
+    plugin_tree: src/cursor/lib/ai_review_common
     install_tree: null
     compile: lib_mirror
   # File-shaped rows (single registered file, not a package directory):
@@ -127,6 +142,11 @@ rows:
     plugin_tree: src/copilot-cli/lib/bootstrap.py
     install_tree: null
     compile: lib_mirror
+  - class: lib-bootstrap-cursor
+    source: scripts/hook_utilities/bootstrap.py
+    plugin_tree: src/cursor/lib/bootstrap.py
+    install_tree: null
+    compile: lib_mirror
   - class: skills-sidecar
     source: scripts/validation/validate_review_marker.py
     plugin_tree: src/claude/skills/review/scripts/validate_review_marker.py
@@ -135,5 +155,10 @@ rows:
   - class: skills-sidecar-copilot
     source: scripts/validation/validate_review_marker.py
     plugin_tree: src/copilot-cli/skills/review/scripts/validate_review_marker.py
+    install_tree: null
+    compile: lib_mirror
+  - class: skills-sidecar-cursor
+    source: scripts/validation/validate_review_marker.py
+    plugin_tree: src/cursor/skills/review/scripts/validate_review_marker.py
     install_tree: null
     compile: lib_mirror

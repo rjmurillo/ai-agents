@@ -32,11 +32,10 @@ from atomic_write import (  # noqa: E402
     publish_bytes_preserving_mode,
 )
 from binplace_manifest import is_bytecode_artifact  # noqa: E402
-from copilot_body_translation import translate_skill_file  # noqa: E402
-from frontmatter_key_drop import keep_skill_frontmatter  # noqa: E402
 from lib_mirror import lib_owned_support_files  # noqa: E402
 from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
 from skill_distribution import SkillDistributionError, repo_local_names  # noqa: E402
+from skill_md_rewrite import GenerateSkillsError, rewrite_skill_md  # noqa: E402
 
 _DEFAULT_EXCLUDES = ("AGENTS.md", "CLAUDE.md")
 
@@ -53,10 +52,6 @@ _DEFAULT_EXCLUDES = ("AGENTS.md", "CLAUDE.md")
 _CLAUDE_SUPPORT_SOURCE_REL = Path(".claude") / "skills"
 _CLAUDE_SUPPORT_TARGET_REL = Path("src") / "claude" / "skills"
 _SKILL_MD = Path("SKILL.md")
-
-
-class GenerateSkillsError(Exception):
-    """Domain error for skill generation. Wraps copy/load issues."""
 
 
 class SkillSupportSyncError(GenerateSkillsError):
@@ -133,35 +128,6 @@ def _text_matches(dst_path: Path, content: str) -> bool:
         return False
 
 
-def _skill_md_text(
-    src_path: Path,
-    rel: Path,
-    *,
-    skills_output_dir: Path | None,
-    plugin_skill_md: Path | None,
-    frontmatter_drop: frozenset[str],
-    frontmatter_keep: frozenset[str] | None,
-) -> str | None:
-    """Return the rewritten ``SKILL.md`` text, or ``None`` for a byte copy.
-
-    Only the top-level ``SKILL.md`` is ever rewritten, and only when the
-    platform asks for a Copilot translation or a frontmatter allow-list.
-    Raises :class:`GenerateSkillsError` when a rewrite refuses a skill.
-    """
-    if rel != _SKILL_MD or (skills_output_dir is None and frontmatter_keep is None):
-        return None
-    content_source = src_path
-    if plugin_skill_md is not None and plugin_skill_md.is_file():
-        content_source = plugin_skill_md
-    content = content_source.read_text(encoding="utf-8")
-    try:
-        if skills_output_dir is not None:
-            return translate_skill_file(content, skills_output_dir, frontmatter_drop)
-        return keep_skill_frontmatter(content, frontmatter_keep or frozenset())
-    except ValueError as exc:
-        raise GenerateSkillsError(f"{content_source}: {exc}") from exc
-
-
 def _copy_skill_tree(
     source: Path,
     target: Path,
@@ -215,12 +181,8 @@ def _copy_skill_tree(
     translated copy omits (the platform config's ``frontmatterDrop``). It only
     applies with ``skills_output_dir``, the translate branch (ADR-111).
 
-    ``frontmatter_keep`` (ADR-115 Decision 2), when not ``None``, is the
-    allow-list form for a host that may reject unknown keys (Cursor): the
-    top-level ``SKILL.md`` keeps only these frontmatter keys and its body is
-    copied verbatim, with no Copilot body translation. It is mutually
-    exclusive with ``skills_output_dir``; the Copilot branch wins if both are
-    set, because the translated copy is the older contract.
+    ``frontmatter_keep`` (ADR-115 Decision 2) is Cursor's allow-list cut of the
+    top-level ``SKILL.md`` frontmatter; see ``skill_md_rewrite.py``.
 
     ``check``, when set, never writes either, but (unlike ``what_if``)
     counts every mismatch into ``written``: a caller running a staleness
@@ -253,7 +215,7 @@ def _copy_skill_tree(
             skipped += 1
             continue
 
-        skill_text = _skill_md_text(
+        skill_text = rewrite_skill_md(
             src_path,
             rel,
             skills_output_dir=skills_output_dir,

@@ -102,7 +102,15 @@ _EXTRA_HISTORICAL_ROOTS = (
 # accuracy, not byte identity, so there is nothing content comparison would
 # add here that the source's own (still-enforced) citations do not already
 # cover.
-_GENERATED_SKILL_MIRROR_ROOTS = ("src/claude/skills/", "src/copilot-cli/skills/")
+_GENERATED_SKILL_MIRROR_ROOTS = (
+    "src/claude/skills/",
+    "src/copilot-cli/skills/",
+    "src/cursor/skills/",
+    # ADR-115: the Cursor tree also renders rules (.mdc) and lib/ from canonical
+    # sources, so a citation there is policed once at the source.
+    "src/cursor/rules/",
+    "src/cursor/lib/",
+)
 
 
 @dataclass(frozen=True)

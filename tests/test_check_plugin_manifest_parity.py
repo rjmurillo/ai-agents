@@ -495,11 +495,3 @@ def test_grok_marketplace_is_scanned_for_counts() -> None:
     module = _load_module()
     scanned = {path.resolve() for path in module._DESCRIBED_FILES}
     assert (REPO_ROOT / ".grok-plugin" / "marketplace.json").resolve() in scanned
-
-
-def test_cursor_marketplace_and_manifest_are_scanned_for_counts() -> None:
-    """Both Cursor files publish a description, so both are scanned."""
-    module = _load_module()
-    scanned = {path.resolve() for path in module._DESCRIBED_FILES}
-    assert (REPO_ROOT / ".cursor-plugin" / "marketplace.json").resolve() in scanned
-    assert (REPO_ROOT / "src" / "cursor" / ".cursor-plugin" / "plugin.json").resolve() in scanned

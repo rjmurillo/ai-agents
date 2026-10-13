@@ -233,3 +233,15 @@ def test_cursor_tree_has_lib_for_skill_scripts() -> None:
 
 def test_cursor_tree_ships_no_hooks() -> None:
     assert not (CURSOR_TREE / "hooks").exists()
+
+
+def test_cursor_files_are_scanned_for_component_counts() -> None:
+    """Both Cursor files publish a description, so the count gate scans both."""
+    import sys
+
+    sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
+    import check_plugin_manifest_parity as parity
+
+    scanned = {path.resolve() for path in parity._DESCRIBED_FILES}
+    assert MARKETPLACE_JSON.resolve() in scanned
+    assert PLUGIN_JSON.resolve() in scanned

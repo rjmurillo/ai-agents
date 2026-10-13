@@ -79,6 +79,7 @@ from generate_agents_common import (  # noqa: E402
     read_yaml_frontmatter,
 )
 from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
+from schema_tree_keys import RULES_OUTPUT_FORMATS  # noqa: E402
 from yaml_loader import ConfigError, load_platform_config, validate_relative_path  # noqa: E402
 
 _DEFAULT_SOURCE_SUFFIX = ".md"
@@ -90,7 +91,7 @@ _UNIVERSAL_SCOPE = "**"
 # existed); `cursor-mdc` is Cursor's `.mdc` rule frontmatter.
 OUTPUT_FORMAT_INSTRUCTIONS = "instructions"
 OUTPUT_FORMAT_CURSOR_MDC = "cursor-mdc"
-OUTPUT_FORMATS = frozenset({OUTPUT_FORMAT_INSTRUCTIONS, OUTPUT_FORMAT_CURSOR_MDC})
+OUTPUT_FORMATS = frozenset(RULES_OUTPUT_FORMATS)
 # Sentinel: returned by _remap_frontmatter when every scope glob was
 # internal-only. _process_rule detects this and returns "scope-skipped"
 # instead of emitting a rule with a universalized applyTo.

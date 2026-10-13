@@ -174,6 +174,7 @@ class TestGeneratedLibMirrorExclusion:
             ".claude/lib/github_core/bot_config.py",
             "src/claude/lib/github_core/bot_config.py",
             "src/copilot-cli/lib/hook_utilities/guards.py",
+            "src/cursor/lib/hook_utilities/guards.py",
         ],
     )
     def test_mirror_package_files_are_excluded(self, rel: str) -> None:
@@ -196,6 +197,7 @@ class TestGeneratedLibMirrorExclusion:
             tmp_path / ".claude" / "lib" / "github_core" / "bot_config.py",
             tmp_path / "src" / "claude" / "lib" / "github_core" / "bot_config.py",
             tmp_path / "src" / "copilot-cli" / "lib" / "github_core" / "bot_config.py",
+            tmp_path / "src" / "cursor" / "lib" / "github_core" / "bot_config.py",
         ]
         for mirror in mirrors:
             mirror.parent.mkdir(parents=True)
@@ -206,6 +208,7 @@ class TestGeneratedLibMirrorExclusion:
             ".claude/lib/github_core/bot_config.py",
             "src/claude/lib/github_core/bot_config.py",
             "src/copilot-cli/lib/github_core/bot_config.py",
+            "src/cursor/lib/github_core/bot_config.py",
         )
         monkeypatch.setattr(subprocess, "run", _fake_git(rels))
 
