@@ -5,7 +5,8 @@
 - **Rounds**: 5
 - **Outcome**: Consensus
 - **Final Status**: proposed (owner decides acceptance)
-- **Panel**: reduced, architect and critic. The record is new prose and changes no executable enforcement or a rule other gates read.
+- **Numbering**: decision numbers in rounds 1 to 3 predate the round 4 renumbering. Smoke was Decision 9 (now 10), the resolver rule was Decision 8 (now 9), and Hermes was Decision 5 (now 6).
+- **Panel**: reduced, architect and critic. The record is new prose and changes neither executable enforcement nor a rule other gates read.
 
 ## Round 1 Summary
 
@@ -126,6 +127,30 @@ On 2026-10-13 the owner pointed to the Hermes plugin developer guide. Its text a
 | architect | Accept |
 | critic | Accept |
 
+## Owner Review and Measurement Amendments, 2026-10-13
+
+No panel round ran for these changes. Their authority is the owner's 12 review threads on PR #6437, the host measurements recorded in the ADR, and the Cursor branch security review.
+
+### Key Issues Addressed
+
+- Owner threads: stale research date, missing Grok Build evidence, Hermes exclusions contradicting "same 97 skills", rules keys left open, Hermes enable and subdirectory install steps, the 380 versus 400 gap, the MUST 3 citation, Devin's missing marketplace file, the reversibility wording, and debate-log grammar and numbering.
+- Measurement: Hermes `PLUGIN_ROOT` reaches MCP servers only, not a skill's shell, which falsified the Decision 6 claim that resolvers can use it.
+- Security review of the Cursor branch (BLOCK): Cursor has no `tools` allow list, so a `security` agent copy lost its no-shell restriction.
+
+### Major Changes Made
+
+- Decision 3: Cursor rules keep only `description`, `alwaysApply`, and `globs`. An agent whose `tools` restriction `readonly` cannot express does not ship to Cursor.
+- Decision 6: Hermes resolvers use the install path, the stanza also drops `allowed-tools`, and each pack needs an enable step.
+- Host facts and measurements now record the Grok Build, Cursor, Hermes, and Codex runs of 2026-10-13.
+- Decision 11 and the Reversibility Assessment wording, per the owner threads.
+
+### Agent Positions
+
+| Agent | Position |
+|-------|----------|
+| owner (reviewer) | Raised the 12 threads these edits answer |
+| security | Block on the Cursor branch; the Decision 3 agent rule answers it |
+
 ### Next Steps
 
-The owner decides acceptance. Implementation follows Decision 11, one pull request per host, Grok Build first.
+The owner decides acceptance. Implementation follows Decision 12, one pull request per host, Grok Build first.
