@@ -371,7 +371,7 @@
       <extension_point>
         <location>Phase 3: Matrix formats</location>
         <purpose>Add export formats beyond Markdown (e.g., Mermaid, PlantUML, JSON for tooling)</purpose>
-        <mechanism>Create `scripts/export-cva-matrix.py` with format parameter</mechanism>
+        <mechanism>Create `scripts/export-cva-matrix.py` with format parameter</mechanism> <!-- orphan-ref-ignore -->
       </extension_point>
       <extension_point>
         <location>Phase 2: Multidimensional analysis</location>
