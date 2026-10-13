@@ -73,13 +73,20 @@ The generation script expands `$toolset:` references into individual tools using
 ### Generation Flow
 
 ```text
-templates/agents/*.shared.md     Source of truth
+templates/agents/*.shared.md     VS Code source
            |
            v
 build/generate_agents.py        Transformation
            |
            +---> src/vs-code-agents/*.agent.md    VS Code output
+
+templates/agents/*.copilot.md.tmpl   Copilot source
+           |
+           v
+build/scripts/build_all.py          Transformation (agent_templates.py, then generate_agents.py)
+           |
            +---> src/copilot-cli/agents/*.agent.md  Copilot CLI output
+           +---> .github/agents/*.agent.md          Repository Copilot agents
 
 templates/agents/*.claude.md.tmpl    Claude Code source
            |
@@ -135,14 +142,17 @@ uv run python build/generate_agents.py --validate
 
 For **universal changes** (content that applies to ALL platforms):
 
-1. Edit the source template: `templates/agents/{agent}.shared.md`
-2. Edit the Claude template: `templates/agents/{agent}.claude.md.tmpl`, or the shared `templates/agents/partials/*.mustache` file it includes
-3. Regenerate everything: `uv run python build/scripts/build_all.py`
-4. Commit the templates and every generated file together
+1. Edit the VS Code source: `templates/agents/{agent}.shared.md`. It drives only the VS Code output.
+2. Edit the Copilot template: `templates/agents/{agent}.copilot.md.tmpl`, or the shared `templates/agents/partials/*.mustache` file it includes. It drives `src/copilot-cli/agents` and `.github/agents`.
+3. Edit the Claude template: `templates/agents/{agent}.claude.md.tmpl`, or the shared `templates/agents/partials/*.mustache` file it includes
+4. Regenerate everything: `uv run python build/scripts/build_all.py`
+5. Commit the templates and every generated file together
+
+Skipping step 2 leaves the Copilot output unchanged, and `build_all.py --check` still passes.
 
 For **Claude-specific changes** (MCP tools, Serena integration):
 
-- Edit only `templates/agents/{agent}.claude.md.tmpl` (or its partial), then run step 3 and step 4 above
+- Edit only `templates/agents/{agent}.claude.md.tmpl` (or its partial), then run step 4 and step 5 above
 
 The pre-commit hook regenerates only after an edit to `agents/*.shared.md` or `platforms/**`. A `.tmpl` or partial edit triggers nothing, so run `build_all.py` yourself. `uv run python build/scripts/build_all.py --check` is the drift gate CI runs.
 
@@ -189,7 +199,7 @@ The pre-commit hook regenerates only after an edit to `agents/*.shared.md` or `p
 
 ## Drift Detection
 
-Claude agents (`src/claude/agents/`) render from `*.claude.md.tmpl` templates, while VS Code and Copilot agents render from `*.shared.md`. The two source sets can still diverge in content. To ensure consistency between Claude agents and the generated VS Code/Copilot agents:
+Claude agents (`src/claude/agents/`) render from `*.claude.md.tmpl` templates, Copilot agents (`src/copilot-cli/agents`, `.github/agents`) render from `*.copilot.md.tmpl` templates, and VS Code agents render from `*.shared.md`. The three source sets can still diverge in content. To ensure consistency between Claude agents and the generated VS Code/Copilot agents:
 
 ### Weekly CI Check
 
