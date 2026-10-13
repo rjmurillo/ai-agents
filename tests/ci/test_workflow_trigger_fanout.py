@@ -33,16 +33,26 @@ WORKFLOW_DIR = REPO_ROOT / ".github" / "workflows"
 
 # Branches that only ever exist to carry a pull request. A push to one of
 # these is always followed by the pull_request trigger for the same SHA.
-_PR_ONLY_BRANCH_GLOBS = frozenset({"feat/**", "fix/**", "chore/**", "copilot/**", "agent/**"})
+_PR_ONLY_BRANCH_GLOBS = frozenset(
+    {"feat/**", "fix/**", "chore/**", "copilot/**", "agent/**", "*", "**"}
+)
+
+# Reported when push carries no ``branches`` list. GitHub then fires it for
+# every branch push: a bare ``push:``, a ``paths``-only filter, and a
+# ``branches-ignore`` list all match feature branches. PR #4192 reopened
+# pytest.yml this way and the glob check above could not see it.
+EVERY_BRANCH = "<every branch>"
+_TAG_FILTERS = frozenset({"tags", "tags-ignore"})
 
 
 def _triggers(path: pathlib.Path) -> dict | None:
     """Return a trigger mapping, or None when the file cannot be read as one.
 
     ``on`` is the YAML 1.1 boolean ``True`` once parsed, so both keys are
-    tried. The list form (``on: [pull_request]``) carries no ``push:`` mapping
-    and so cannot double-trigger; it maps to an empty mapping rather than a
-    skip, because a skip would also hide a workflow whose YAML had broken.
+    tried. The list and string forms (``on: [push, pull_request]``) carry no
+    filters, so each event maps to ``None``, the same value a bare ``push:``
+    key parses to. Mapping them rather than skipping keeps a broken workflow
+    from hiding.
     """
     try:
         loaded = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -53,18 +63,26 @@ def _triggers(path: pathlib.Path) -> dict | None:
     on = loaded.get(True, loaded.get("on"))
     if isinstance(on, dict):
         return on
-    return {} if isinstance(on, (list, str)) else None
+    if isinstance(on, str):
+        return {on: None}
+    if isinstance(on, list):
+        return dict.fromkeys(on)
+    return None
 
 
 def double_triggered_branches(on: dict) -> list[str]:
     """Return the branch globs that make ``on`` fire twice for one commit."""
-    push = on.get("push")
-    if not isinstance(push, dict) or "pull_request" not in on:
+    if "push" not in on or "pull_request" not in on:
+        return []
+    push = on["push"] or {}
+    if not isinstance(push, dict):
         return []
     branches = push.get("branches")
-    if not isinstance(branches, list):
+    if isinstance(branches, list):
+        return [b for b in branches if b in _PR_ONLY_BRANCH_GLOBS]
+    if "branches-ignore" not in push and _TAG_FILTERS & push.keys():
         return []
-    return [b for b in branches if b in _PR_ONLY_BRANCH_GLOBS]
+    return [EVERY_BRANCH]
 
 
 def _workflows() -> list[pathlib.Path]:
@@ -100,9 +118,15 @@ def test_a_push_only_workflow_is_not_double_triggered() -> None:
     assert double_triggered_branches(on) == []
 
 
-def test_a_list_form_trigger_carries_no_push_mapping() -> None:
+def test_a_list_form_trigger_maps_each_event_to_no_filter() -> None:
     """Edge: ``on: [pull_request]`` is safe and must not be skipped."""
-    assert _triggers(WORKFLOW_DIR / "dependency-review.yml") == {}
+    assert _triggers(WORKFLOW_DIR / "dependency-review.yml") == {"pull_request": None}
+
+
+def test_a_list_form_push_and_pull_request_is_flagged() -> None:
+    """Negative: ``on: [push, pull_request]`` fires on every branch push."""
+    on = dict.fromkeys(["push", "pull_request"])
+    assert double_triggered_branches(on) == [EVERY_BRANCH]
 
 
 def test_main_stays_allowed_under_push() -> None:
@@ -111,15 +135,36 @@ def test_main_stays_allowed_under_push() -> None:
     assert double_triggered_branches(on) == []
 
 
-def test_a_push_trigger_without_branches_is_not_flagged() -> None:
-    """Edge: ``push:`` with only ``paths`` carries no branch list to read."""
+def test_a_paths_only_push_trigger_is_flagged() -> None:
+    """Negative: ``push:`` with only ``paths`` fires on every branch."""
     on = {"push": {"paths": ["src/**"]}, "pull_request": {"branches": ["main"]}}
-    assert double_triggered_branches(on) == []
+    assert double_triggered_branches(on) == [EVERY_BRANCH]
 
 
-def test_a_bare_push_trigger_is_not_flagged() -> None:
-    """Edge: ``push:`` with a null body parses to None, not a mapping."""
+def test_a_bare_push_trigger_is_flagged() -> None:
+    """Negative: ``push:`` with a null body fires on every branch."""
     on = {"push": None, "pull_request": {"branches": ["main"]}}
+    assert double_triggered_branches(on) == [EVERY_BRANCH]
+
+
+def test_a_branches_ignore_push_trigger_is_flagged() -> None:
+    """Negative: the PR #4192 shape. Ignoring one queue glob still matches feature branches."""
+    on = {
+        "push": {"branches-ignore": ["gh-readonly-queue/**"]},
+        "pull_request": {"branches": ["main"]},
+    }
+    assert double_triggered_branches(on) == [EVERY_BRANCH]
+
+
+def test_a_wildcard_branch_glob_is_flagged() -> None:
+    """Negative: ``**`` under ``branches`` matches every feature branch."""
+    on = {"push": {"branches": ["**"]}, "pull_request": {"branches": ["main"]}}
+    assert double_triggered_branches(on) == ["**"]
+
+
+def test_a_tags_only_push_trigger_is_not_flagged() -> None:
+    """Edge: a tag filter with no branch filter fires on tag pushes only."""
+    on = {"push": {"tags": ["v*"]}, "pull_request": {"branches": ["main"]}}
     assert double_triggered_branches(on) == []
 
 
@@ -142,10 +187,7 @@ def test_every_repaired_workflow_still_validates_main() -> None:
     for name in repaired:
         on = _triggers(WORKFLOW_DIR / name)
         assert on is not None, name
-        if name == "pytest.yml":
-            assert on["push"] == {"branches-ignore": ["gh-readonly-queue/**"]}, name
-        else:
-            assert on["push"]["branches"] == ["main"], name
+        assert on["push"]["branches"] == ["main"], name
         assert on["pull_request"]["branches"] == ["main"], name
 
 
