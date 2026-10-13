@@ -256,10 +256,15 @@ def build_digest(data: bytes, source: str, max_matches: int, edge_lines: int) ->
     return kind, "\n".join([*header, *body]) + "\n"
 
 
-def cache_key(data: bytes, max_matches: int, edge_lines: int) -> str:
-    """Content hash prefix plus option values."""
+def cache_key(data: bytes, source: str, max_matches: int, edge_lines: int) -> str:
+    """Content hash prefix, source hash, and option values.
+
+    The digest header names its source, so two sources with the same bytes
+    need separate cache files or each call would overwrite the other.
+    """
     prefix = hashlib.sha256(data).hexdigest()[:16]
-    return f"{prefix}-m{max_matches}-e{edge_lines}"
+    origin = hashlib.sha256(source.encode("utf-8")).hexdigest()[:8]
+    return f"{prefix}-{origin}-m{max_matches}-e{edge_lines}"
 
 
 def find_repo_root(start: Path) -> Path | None:
@@ -335,7 +340,7 @@ def atomic_write(target: Path, encoded: bytes) -> None:
 
 def distill(data: bytes, source: str, out_dir: Path, max_matches: int, edge_lines: int) -> Result:
     """Write the digest unless an identical one exists. Raises OSError on write failure."""
-    target = out_dir / f"{cache_key(data, max_matches, edge_lines)}.md"
+    target = out_dir / f"{cache_key(data, source, max_matches, edge_lines)}.md"
     kind, digest = build_digest(data, source, max_matches, edge_lines)
     encoded = digest.encode("utf-8")
     if is_trusted_cache(target, encoded):

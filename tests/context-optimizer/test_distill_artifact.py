@@ -263,8 +263,20 @@ class TestCaching:
         assert len({a.strip(), b.strip(), c.strip()}) == 3
 
     def test_different_content_different_key(self) -> None:
-        assert da.cache_key(b"a", 1, 1) != da.cache_key(b"b", 1, 1)
-        assert da.cache_key(b"a", 1, 1).startswith(da.cache_key(b"a", 2, 2)[:16])
+        assert da.cache_key(b"a", "s", 1, 1) != da.cache_key(b"b", "s", 1, 1)
+        assert da.cache_key(b"a", "s", 1, 1).startswith(da.cache_key(b"a", "s", 2, 2)[:16])
+        assert da.cache_key(b"a", "s", 1, 1) != da.cache_key(b"a", "t", 1, 1)
+
+    def test_same_bytes_from_two_sources_each_stay_cached(self, tmp_path, capsys) -> None:
+        first = write(tmp_path, "one.log", "error a\n")
+        second = write(tmp_path, "two.log", "error a\n")
+        out_dir = str(tmp_path / "o")
+        runs = [
+            json.loads(run([str(path), "--out-dir", out_dir, "--format", "json"], capsys)[1])
+            for path in (first, second, first, second)
+        ]
+        assert [r["cached"] for r in runs] == [False, False, True, True]
+        assert runs[0]["digest"] != runs[1]["digest"]
 
 
 class TestCli:
