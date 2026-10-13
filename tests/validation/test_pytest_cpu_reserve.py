@@ -9,6 +9,8 @@ The worker count is ``min(cap, visible CPUs - reserve)``, never below one.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from scripts.validation import git_hook_policy as policy
@@ -104,3 +106,59 @@ def test_invalid_cpu_reserve_is_rejected(monkeypatch: pytest.MonkeyPatch, raw: s
 def test_parse_pytest_cpu_reserve_accepts_zero_and_strips_space() -> None:
     assert policy.parse_pytest_cpu_reserve(" 0 ") == 0
     assert policy.parse_pytest_cpu_reserve("2") == 2
+
+
+def _concurrent_pytest_processes(lanes: list | None, commands: list[list[str]]) -> int:
+    """Count the pytest worker and serial processes the planned run holds at once."""
+    if lanes is None:
+        return max(int(c[c.index("-n") + 1]) if "-n" in c else 1 for c in commands)
+    return sum(
+        int(lane.commands[0][lane.commands[0].index("-n") + 1]) if "-n" in lane.commands[0] else 1
+        for lane in lanes
+    )
+
+
+@pytest.mark.parametrize("visible_cpus", range(2, 70))
+def test_overlapped_run_with_reserve_stays_inside_the_cpu_allocation(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, visible_cpus: int
+) -> None:
+    """The lane planner's serial lane counts against the reserve (issue #5383)."""
+    reserve = 3
+    monkeypatch.setenv(policy.PYTEST_WORKER_CAP_ENV, policy.PYTEST_WORKER_CAP_SCALED)
+    monkeypatch.setenv(policy.PYTEST_CPU_RESERVE_ENV, str(reserve))
+    monkeypatch.setattr(policy, "_visible_cpu_count", lambda: visible_cpus)
+    commands = policy._pytest_commands(tmp_path)
+
+    lanes = policy._pytest_overlap_lanes(commands, tmp_path, {})
+
+    held = _concurrent_pytest_processes(lanes, commands)
+    if visible_cpus > reserve:
+        assert held + reserve <= visible_cpus
+    else:
+        assert held == 1
+
+
+def test_overlapped_run_without_a_reserve_keeps_the_full_worker_budget(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv(policy.PYTEST_WORKER_CAP_ENV, policy.PYTEST_WORKER_CAP_SCALED)
+    monkeypatch.setattr(policy, "_visible_cpu_count", lambda: 8)
+    commands = policy._pytest_commands(tmp_path)
+
+    lanes = policy._pytest_overlap_lanes(commands, tmp_path, {})
+
+    assert _concurrent_pytest_processes(lanes, commands) == 5
+
+
+def test_explicit_worker_override_ignores_the_reserve_in_the_lane_budget(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv(policy.PYTEST_WORKERS_ENV, "6")
+    monkeypatch.setenv(policy.PYTEST_WORKER_CAP_ENV, "4")
+    monkeypatch.setenv(policy.PYTEST_CPU_RESERVE_ENV, "3")
+    monkeypatch.setattr(policy, "_visible_cpu_count", lambda: 8)
+    commands = policy._pytest_commands(tmp_path)
+
+    lanes = policy._pytest_overlap_lanes(commands, tmp_path, {})
+
+    assert _concurrent_pytest_processes(lanes, commands) == 7

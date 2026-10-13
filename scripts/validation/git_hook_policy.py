@@ -7594,11 +7594,43 @@ def local_worker_budget(cap: int, visible_cpus: int, reserve: int) -> int:
     """Return the xdist worker count for one job sharing a CPU budget.
 
     The result is ``min(cap, visible_cpus - reserve)``, floored at one worker so
-    a small container still runs the suite. The job's own demand therefore
-    never exceeds the CPUs left after siblings take their share, except for the
-    one-worker floor on a machine with ``reserve >= visible_cpus``.
+    a small container still runs the suite. It bounds the xdist ``-n`` value
+    only. The serial safe-push lane adds one more process when the partitions
+    overlap, so `_pytest_overlap_lanes` passes `pytest_process_budget` to the
+    lane planner, which counts that lane. Demand then never exceeds the CPUs
+    left after siblings take their share, except for the one-worker floor on a
+    machine with ``reserve >= visible_cpus``.
     """
     return max(1, min(cap, visible_cpus - reserve))
+
+
+def _pytest_cpu_reserve() -> int:
+    """Return the CPUs the reserve holds back, or 0 when it does not apply.
+
+    The reserve applies only when the worker cap is read: an explicit
+    ``AI_AGENTS_PYTEST_WORKERS`` wins over it, and the reserve alone changes
+    nothing.
+
+    Raises:
+        ValueError: the reserve is set to something other than a non-negative
+            integer.
+    """
+    worker_override = os.environ.get(PYTEST_WORKERS_ENV)
+    cap_raw = os.environ.get(PYTEST_WORKER_CAP_ENV)
+    if (worker_override and worker_override.strip()) or not (cap_raw and cap_raw.strip()):
+        return 0
+    reserve_raw = os.environ.get(PYTEST_CPU_RESERVE_ENV, "")
+    return parse_pytest_cpu_reserve(reserve_raw) if reserve_raw.strip() else 0
+
+
+def pytest_process_budget(visible_cpus: int) -> int | None:
+    """Return the most pytest processes to run at once, or ``None`` for no limit.
+
+    ``None`` when no reserve applies. Otherwise ``visible_cpus - reserve``,
+    floored at one process.
+    """
+    reserve = _pytest_cpu_reserve()
+    return max(1, visible_cpus - reserve) if reserve else None
 
 
 def _visible_cpu_count() -> int:
@@ -7627,9 +7659,7 @@ def _pytest_parallel_flags() -> list[str]:
         cap = parse_pytest_worker_cap(cap_raw)
         visible = _visible_cpu_count()
         cap_value = scaled_worker_cap(visible) if cap is None else cap
-        reserve_raw = os.environ.get(PYTEST_CPU_RESERVE_ENV, "")
-        reserve = parse_pytest_cpu_reserve(reserve_raw) if reserve_raw.strip() else 0
-        workers = str(local_worker_budget(cap_value, visible, reserve))
+        workers = str(local_worker_budget(cap_value, visible, _pytest_cpu_reserve()))
     return ["-n", workers, "--dist", PYTEST_DIST_MODE]
 
 
@@ -7903,7 +7933,8 @@ def _pytest_overlap_lanes(
             file=sys.stderr,
         )
         return None
-    return pytest_lanes.plan_lanes(commands, _visible_cpu_count())
+    visible = _visible_cpu_count()
+    return pytest_lanes.plan_lanes(commands, visible, pytest_process_budget(visible))
 
 
 def _report_partition(report: pytest_lanes.PartitionReport, budget: float) -> int:
