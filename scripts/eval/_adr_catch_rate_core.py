@@ -49,6 +49,7 @@ ENTRY_FIELDS = (
     "kind",
     "defect",
     "match",
+    "topic",
 )
 BLOCKING_PRIORITIES = ("P0", "P1")
 _SECTION_FLAGGED = ("weaknesses/gaps", "scope concerns", "questions")
@@ -92,6 +93,7 @@ class Entry:
     kind: str
     defect: str
     match: MatchRule
+    topic: tuple[str, ...]
     evidence: tuple[Evidence, ...] = ()
 
 
@@ -151,6 +153,12 @@ def _parse_evidence(raw: list[dict[str, Any]] | None, entry_id: str) -> tuple[Ev
     return tuple(items)
 
 
+def _parse_topic(raw: list[str] | None, entry_id: str) -> tuple[str, ...]:
+    if not isinstance(raw, list) or not raw or any(not str(t) for t in raw):
+        raise CorpusError(f"{entry_id}: topic needs a non-empty list of non-empty substrings")
+    return tuple(str(t).lower() for t in raw)
+
+
 def parse_entry(raw: dict[str, Any]) -> Entry:
     entry_id = str(raw.get("id", "<missing id>"))
     for name in ENTRY_FIELDS:
@@ -165,6 +173,7 @@ def parse_entry(raw: dict[str, Any]) -> Entry:
         kind=str(raw["kind"]),
         defect=str(raw["defect"]),
         match=_parse_match(raw["match"], entry_id),
+        topic=_parse_topic(raw["topic"], entry_id),
         evidence=_parse_evidence(raw.get("evidence"), entry_id),
     )
 
@@ -350,21 +359,19 @@ def _blocking_rows(lines: list[str]) -> tuple[list[str], list[str]]:
     return every, severe
 
 
-def _claim_rows(lines: list[str]) -> tuple[list[str], list[str]]:
-    """Return (UNVERIFIED or REFUTED rows, REFUTED rows)."""
-    flagged: list[str] = []
-    refuted: list[str] = []
+def _refuted_rows(lines: list[str]) -> list[str]:
+    """Claims Checked rows marked REFUTED.
+
+    UNVERIFIED rows are not findings: a review with no repository access marks
+    nearly every claim UNVERIFIED, and such a row only repeats the ADR's own
+    wording beside a verdict cell.
+    """
+    rows: list[str] = []
     for line in lines:
         cells = _table_cells(line)
-        if not cells or cells[0].lower() == "claim" or not cells[-1]:
-            continue
-        verdict = cells[-1].upper()
-        if "REFUTED" in verdict:
-            flagged.append(" ".join(cells))
-            refuted.append(" ".join(cells))
-        elif "UNVERIFIED" in verdict:
-            flagged.append(" ".join(cells))
-    return flagged, refuted
+        if cells and cells[0].lower() != "claim" and "REFUTED" in cells[-1].upper():
+            rows.append(" ".join(cells))
+    return rows
 
 
 def parse_review(raw: str) -> Review:
@@ -375,8 +382,8 @@ def parse_review(raw: str) -> Review:
     every, severe = _blocking_rows(sections.get("blocking concerns", []))
     review.flagged.extend(every)
     review.blocking.extend(severe)
-    flagged_claims, refuted = _claim_rows(sections.get("claims checked", []))
-    review.flagged.extend(flagged_claims)
+    refuted = _refuted_rows(sections.get("claims checked", []))
+    review.flagged.extend(refuted)
     review.blocking.extend(refuted)
     return review
 
@@ -386,10 +393,17 @@ class Outcome:
     flagged: bool
     blocked: bool
     matched: str = ""
+    mentioned: bool = False
 
 
 def _first_match(findings: list[str], rule: MatchRule) -> str | None:
     return next((f for f in findings if rule.matches(f)), None)
+
+
+def mentions_topic(raw: str, topic: tuple[str, ...]) -> bool:
+    """True when the full response names the defect's subject anywhere, even without a finding."""
+    text = raw.lower()
+    return any(term in text for term in topic)
 
 
 def score_review(review: Review, rule: MatchRule) -> Outcome:
@@ -401,3 +415,9 @@ def score_review(review: Review, rule: MatchRule) -> Outcome:
     if loose is not None:
         return Outcome(flagged=True, blocked=False, matched=loose[:400])
     return Outcome(flagged=False, blocked=False)
+
+
+def score_response(raw: str, rule: MatchRule, topic: tuple[str, ...]) -> Outcome:
+    """Parse one response and score it for match strength and topic mention."""
+    outcome = score_review(parse_review(raw), rule)
+    return Outcome(outcome.flagged, outcome.blocked, outcome.matched, mentions_topic(raw, topic))

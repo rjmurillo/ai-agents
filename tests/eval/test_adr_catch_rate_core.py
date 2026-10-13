@@ -29,6 +29,7 @@ def _raw_entry(**overrides):
         "kind": "factual-overclaim",
         "defect": "The sky is blue, not green.",
         "match": {"all_of": [["sky"], ["blue", "colour"]]},
+        "topic": ["the sky"],
         "evidence": [],
     }
     raw.update(overrides)
@@ -106,6 +107,16 @@ def test_parse_entry_requires_every_field(field):
 def test_parse_entry_rejects_bad_match_rules(match):
     with pytest.raises(core.CorpusError):
         core.parse_entry(_raw_entry(match=match))
+
+
+@pytest.mark.parametrize("topic", [None, [], [""], "sky"])
+def test_parse_entry_rejects_bad_topics(topic):
+    with pytest.raises(core.CorpusError, match="topic"):
+        core.parse_entry(_raw_entry(topic=topic))
+
+
+def test_parse_entry_lowercases_the_topic():
+    assert core.parse_entry(_raw_entry(topic=["The SKY"])).topic == ("the sky",)
 
 
 def test_parse_entry_reads_evidence():
@@ -299,9 +310,17 @@ def test_parse_review_collects_findings_from_every_flagging_section():
     assert "It continues on a second line" in joined
     assert "Who verified the sky" in joined
     assert "Wording only" in joined
-    assert "Grass is green" in joined
+    assert "Grass is green" not in joined
+    assert "Sky is green" in joined
     assert "Clear problem statement" not in joined
     assert "Water is wet" not in joined
+
+
+def test_unverified_claims_are_not_findings():
+    """A no-access review marks nearly every claim UNVERIFIED, so those rows prove nothing."""
+    review = core.parse_review(REVIEW)
+    assert not any("Grass is green" in row for row in review.flagged + review.blocking)
+    assert not any("Water is wet" in row for row in review.flagged + review.blocking)
 
 
 def test_parse_review_blocking_is_p0_p1_rows_and_refuted_claims():
@@ -336,6 +355,19 @@ def test_score_review_flagged_only_when_the_hit_is_a_weakness():
     rule = core.MatchRule((("second line",),))
     outcome = core.score_review(core.parse_review(REVIEW), rule)
     assert outcome.flagged and not outcome.blocked
+
+
+def test_mentions_topic_looks_at_the_whole_response():
+    assert core.mentions_topic("Intro. THE SKY is mentioned only in prose.", ("the sky",))
+    assert not core.mentions_topic("Nothing relevant.", ("the sky",))
+
+
+def test_score_response_reports_match_strength_and_mention():
+    rule = core.MatchRule((("sky",), ("blue",)))
+    hit = core.score_response(REVIEW, rule, ("the sky",))
+    assert hit.flagged and hit.blocked and hit.mentioned
+    silent = core.score_response("### Weaknesses/Gaps\n\n- Style only.", rule, ("the sky",))
+    assert not silent.flagged and not silent.mentioned
 
 
 def test_score_review_miss():

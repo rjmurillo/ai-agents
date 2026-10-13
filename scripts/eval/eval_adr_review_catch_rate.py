@@ -52,7 +52,6 @@ DEFAULT_CORPUS = "evals/adr-review-catch-rate/corpus.json"
 PROMPTS_PATH = ".claude/skills/adr-review/references/agent-prompts.md"
 ROLE_TEMPLATE = "templates/agents/{role}.shared.md"
 MAX_TOKENS = 6000
-RAW_KEEP_CHARS = 12000
 
 Caller = Callable[[str, str], str]
 
@@ -66,6 +65,7 @@ class Job:
     system: str
     user: str
     rule: core.MatchRule
+    topic: tuple[str, ...]
 
 
 def git_show(commit: str, path: str) -> str | None:
@@ -111,7 +111,16 @@ def plan_jobs(
                 user = core.build_user_prompt(templates[role], claim_block, text, evidence)
                 for trial in range(trials):
                     jobs.append(
-                        Job(item.entry.id, arm, role, trial, systems[role], user, item.entry.match)
+                        Job(
+                            item.entry.id,
+                            arm,
+                            role,
+                            trial,
+                            systems[role],
+                            user,
+                            item.entry.match,
+                            item.entry.topic,
+                        )
                     )
     return jobs
 
@@ -128,14 +137,15 @@ def run_job(job: Job, caller: Caller) -> dict[str, Any]:
     except RuntimeError as exc:
         row.update(error=str(exc)[:300], flagged=False, blocked=False)
         return row
-    outcome = core.score_review(core.parse_review(raw), job.rule)
+    outcome = core.score_response(raw, job.rule, job.topic)
     row.update(
+        mentioned=outcome.mentioned,
         flagged=outcome.flagged,
         blocked=outcome.blocked,
         matched=outcome.matched,
         raw_chars=len(raw),
         raw_sha256=hashlib.sha256(raw.encode("utf-8")).hexdigest(),
-        raw=raw[:RAW_KEEP_CHARS],
+        raw=raw,
     )
     return row
 
@@ -144,12 +154,38 @@ def job_key(row: dict[str, Any]) -> tuple[str, str, str, int]:
     return (row["entry"], row["arm"], row["role"], int(row["trial"]))
 
 
+def _is_complete(row: dict[str, Any]) -> bool:
+    """A row is complete when it has no error and its stored response is whole."""
+    return not row.get("error") and len(row.get("raw", "")) == row.get("raw_chars", -1)
+
+
 def load_checkpoint(path: Path | None) -> list[dict[str, Any]]:
-    """Rows already finished without error. Errored rows are retried."""
+    """Rows already finished. Errored or truncated rows are retried."""
     if path is None or not path.exists():
         return []
     rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
-    return [row for row in rows if not row.get("error")]
+    return [row for row in rows if _is_complete(row)]
+
+
+def rescore_rows(rows: list[dict[str, Any]], corpus: core.Corpus) -> list[dict[str, Any]]:
+    """Score stored responses again with the corpus rules as they stand now. No model call."""
+    entries = {e.id: e for e in corpus.entries}
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        entry = entries.get(row["entry"])
+        if entry is None:
+            raise core.CorpusError(f"checkpoint row names unknown entry {row['entry']}")
+        outcome = core.score_response(row["raw"], entry.match, entry.topic)
+        out.append(
+            {
+                **row,
+                "mentioned": outcome.mentioned,
+                "flagged": outcome.flagged,
+                "blocked": outcome.blocked,
+                "matched": outcome.matched,
+            }
+        )
+    return out
 
 
 def run_jobs(
@@ -202,6 +238,25 @@ def summarize(rows: list[dict[str, Any]], meta: dict[str, Any]) -> dict[str, Any
     }
 
 
+def dump_results(result: dict[str, Any]) -> str:
+    """Serialize results one row or one arm per line, so the file stays reviewable."""
+    lines = ["{"]
+    keys = list(result)
+    for index, key in enumerate(keys):
+        value = result[key]
+        tail = "," if index < len(keys) - 1 else ""
+        if isinstance(value, dict):
+            children = [f"    {json.dumps(k)}: {json.dumps(v)}" for k, v in value.items()]
+            body = ",\n".join(children)
+            lines.append(f"  {json.dumps(key)}: {{\n{body}\n  }}{tail}")
+        elif isinstance(value, list):
+            body = ",\n".join(f"    {json.dumps(item)}" for item in value)
+            lines.append(f"  {json.dumps(key)}: [\n{body}\n  ]{tail}")
+        else:
+            lines.append(f"  {json.dumps(key)}: {json.dumps(value)}{tail}")
+    return "\n".join(lines + ["}"]) + "\n"
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--corpus", default=DEFAULT_CORPUS)
@@ -220,6 +275,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--report", default=None, help="write the markdown report here")
     parser.add_argument("--report-from", default=None, help="render a report from results JSON")
+    parser.add_argument(
+        "--rescore",
+        action="store_true",
+        help="re-score the --checkpoint rows with the current corpus rules; no model call",
+    )
     parser.add_argument("--validate-corpus", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args(argv)
@@ -270,6 +330,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.report_from:
         print(render_from_results(Path(args.report_from)))
         return 0
+    if args.rescore:
+        return rescore(args)
     try:
         items, arms, roles = prepare(args)
         prompts_md = (REPO_ROOT / PROMPTS_PATH).read_text(encoding="utf-8")
@@ -281,6 +343,35 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps({"entries": len(items), "planned_calls": len(jobs)}, indent=2))
         return 0
     return execute(args, jobs, len(items))
+
+
+def _write_outputs(
+    args: argparse.Namespace, rows: list[dict[str, Any]], meta: dict[str, Any]
+) -> str:
+    result = summarize(rows, meta)
+    report: str = stats.render_report(result["table"], result["unions"], meta)
+    if args.output:
+        Path(args.output).write_text(dump_results(result), encoding="utf-8")
+    if args.report:
+        Path(args.report).write_text(report + "\n", encoding="utf-8")
+    return report
+
+
+def rescore(args: argparse.Namespace) -> int:
+    if not args.checkpoint:
+        print("ERROR: --rescore needs --checkpoint", file=sys.stderr)
+        return 2
+    try:
+        corpus = core.load_corpus(REPO_ROOT / args.corpus)
+        rows = rescore_rows(load_checkpoint(Path(args.checkpoint)), corpus)
+    except (core.CorpusError, OSError, ValueError, KeyError) as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
+    wanted = _split(args.entries)
+    rows = [r for r in rows if not wanted or r["entry"] in wanted]
+    meta = {"model": args.model, "trials": args.trials, "entries": len(corpus.entries)}
+    print(_write_outputs(args, rows, meta))
+    return 0
 
 
 def execute(args: argparse.Namespace, jobs: list[Job], entry_count: int) -> int:
@@ -299,13 +390,7 @@ def execute(args: argparse.Namespace, jobs: list[Job], entry_count: int) -> int:
         checkpoint,
     )
     meta = {"model": args.model, "trials": args.trials, "entries": entry_count}
-    result = summarize(rows, meta)
-    report = stats.render_report(result["table"], result["unions"], meta)
-    if args.output:
-        Path(args.output).write_text(json.dumps(result, indent=2), encoding="utf-8")
-    if args.report:
-        Path(args.report).write_text(report + "\n", encoding="utf-8")
-    print(report)
+    print(_write_outputs(args, rows, meta))
     return 3 if rows and all(row.get("error") for row in rows) else 0
 
 

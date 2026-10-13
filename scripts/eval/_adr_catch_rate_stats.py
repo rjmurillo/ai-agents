@@ -44,16 +44,20 @@ def aggregate(results: list[dict[str, Any]]) -> dict[str, Any]:
     """
     cells: dict[tuple[str, str], dict[str, int]] = {}
     for row in results:
-        tally = cells.setdefault((row["arm"], row["role"]), {"n": 0, "f": 0, "b": 0, "e": 0})
+        tally = cells.setdefault(
+            (row["arm"], row["role"]), {"n": 0, "f": 0, "b": 0, "m": 0, "e": 0}
+        )
         if row.get("error"):
             tally["e"] += 1
             continue
         tally["n"] += 1
         tally["f"] += 1 if row["flagged"] else 0
         tally["b"] += 1 if row["blocked"] else 0
+        tally["m"] += 1 if row.get("mentioned") else 0
     table: dict[str, dict[str, Any]] = {}
     for (arm, role), tally in sorted(cells.items()):
         table.setdefault(arm, {})[role] = {
+            "mentioned": _rate(tally["m"], tally["n"]),
             "flagged": _rate(tally["f"], tally["n"]),
             "blocked": _rate(tally["b"], tally["n"]),
             "errors": tally["e"],
@@ -67,13 +71,15 @@ def panel_union(results: list[dict[str, Any]], arm: str) -> dict[str, Any]:
     for row in results:
         if row["arm"] != arm or row.get("error"):
             continue
-        entry = caught.setdefault(row["entry"], {"flagged": False, "blocked": False})
-        entry["flagged"] = entry["flagged"] or bool(row["flagged"])
-        entry["blocked"] = entry["blocked"] or bool(row["blocked"])
+        entry = caught.setdefault(
+            row["entry"], {"mentioned": False, "flagged": False, "blocked": False}
+        )
+        for key in entry:
+            entry[key] = entry[key] or bool(row.get(key))
     total = len(caught)
     return {
-        "flagged": _rate(sum(1 for c in caught.values() if c["flagged"]), total),
-        "blocked": _rate(sum(1 for c in caught.values() if c["blocked"]), total),
+        key: _rate(sum(1 for c in caught.values() if c[key]), total)
+        for key in ("mentioned", "flagged", "blocked")
     }
 
 
@@ -85,15 +91,21 @@ def _pct(cell: dict[str, Any]) -> str:
 
 
 def _role_row(role: str, cell: dict[str, Any]) -> str:
-    flagged, blocked = _pct(cell["flagged"]), _pct(cell["blocked"])
-    return f"| {role} | {flagged} | {blocked} | {cell['errors']} |"
+    rates = " | ".join(_pct(cell[key]) for key in ("mentioned", "flagged", "blocked"))
+    return f"| {role} | {rates} | {cell['errors']} |"
 
 
 def _arm_section(arm: str, roles: dict[str, Any], union: dict[str, Any] | None) -> list[str]:
-    lines = [f"## Arm: {arm}", "", "| Role | Flagged | Blocked | Errors |", "|---|---|---|---|"]
+    lines = [
+        f"## Arm: {arm}",
+        "",
+        "| Role | Mentioned | Flagged | Blocked | Errors |",
+        "|---|---|---|---|---|",
+    ]
     lines += [_role_row(role, roles[role]) for role in ROLES if role in roles]
     if union:
-        lines.append(f"| any role | {_pct(union['flagged'])} | {_pct(union['blocked'])} | |")
+        rates = " | ".join(_pct(union[key]) for key in ("mentioned", "flagged", "blocked"))
+        lines.append(f"| any role | {rates} | |")
     return lines + [""]
 
 

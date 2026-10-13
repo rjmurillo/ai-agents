@@ -46,9 +46,10 @@
       "doc_path": ".agents/architecture/ADR-100-retire-pr-size-ceilings.md",
       "anchor": "A job skipped by a job-level `if:` reports as satisfying a required check, so a green run is cheap.",
       "kind": "internal-contradiction",
-      "defect": "ADR-100 states as settled fact that a job-level skip satisfies a required check, while ADR-101 leaves that question open.",
+      "defect": "ADR-100 states as settled fact that a job-level skip satisfies a required check, while ADR-101:129 leaves that question unresolved.",
       "evidence": [{"path": ".agents/architecture/ADR-101-enforcement-planes.md", "find": "A job inside a triggered workflow is skipped by a job-level", "lines": 3}],
-      "match": {"all_of": [["skipped", "job-level", "job level"], ["settled", "open question", "not settled", "unsettled", "unresolved", "contradict", "inconsisten"]]}
+      "match": {"all_of": [["skipped", "job-level", "job level"], ["adr-101:129", "open question", "not settled", "unsettled", "unresolved", "contradict", "inconsisten", "asserted as settled", "stated as fact"]]},
+      "topic": ["job-level `if", "job-level if", "skipped conclusion", "skipped job", "job is skipped", "satisfying a required check"]
     },
     {
       "id": "D02",
@@ -60,7 +61,8 @@
       "kind": "logic-gap",
       "defect": "Item 5's second term still selects a path whose content did not move: when the incoming side already carries the receiving side's change verbatim, the merge result equals both parents and the term flags a spurious rebind.",
       "evidence": [],
-      "match": {"all_of": [["second parent", "both parents", "merge result"], ["did not move", "already carries", "already contains", "verbatim", "spurious", "nothing more", "identical", "same content", "unchanged"]]}
+      "match": {"all_of": [["second parent", "both parents", "merge result"], ["did not move", "already carries", "already contains", "carries the receiving", "spurious rebind", "equals both parents", "equal to both parents", "same as both parents", "identical to both"]]},
+      "topic": ["second term", "merge-base", "merge base", "differs from the first", "equals the second parent"]
     },
     {
       "id": "D03",
@@ -72,7 +74,8 @@
       "kind": "internal-contradiction",
       "defect": "The sentence contradicts itself: a clean import and an incoming-side conflict resolution both equal the second parent and differ from the first, so comparing the result to its parents cannot separate them and the term readmits the false positives item 5 exists to remove.",
       "evidence": [],
-      "match": {"all_of": [["clean import", "clean merge", "clean-import"], ["indistinguishable", "cannot tell", "cannot separate", "can not tell", "contradict", "same result", "readmit", "does not distinguish", "cannot distinguish", "do not distinguish"]]}
+      "match": {"all_of": [["clean import", "clean merge", "clean-import"], ["indistinguishable", "cannot tell", "cannot separate", "can not tell", "contradict", "readmit", "does not distinguish", "cannot distinguish", "do not distinguish"]]},
+      "topic": ["clean import", "resolved-to-incoming", "second term", "indistinguishable"]
     },
     {
       "id": "D04",
@@ -84,7 +87,8 @@
       "kind": "factual-overclaim",
       "defect": "Comparing a base merge against its first parent returns exactly the paths main imported, which is the false-positive set the item exists to remove, so the proposed fix does not fix it.",
       "evidence": [],
-      "match": {"all_of": [["first parent", "first-parent"], ["main imported", "imports", "false positive", "false-positive", "base merge", "main touched", "does not fix", "would not fix", "still return", "same paths", "defeats"]]}
+      "match": {"all_of": [["first parent", "first-parent"], ["main imported", "paths main", "false-positive set", "false positive", "base merge", "does not fix", "would not fix", "defeats the"]]},
+      "topic": ["compare against the first parent", "first parent", "first-parent"]
     },
     {
       "id": "D05",
@@ -96,7 +100,8 @@
       "kind": "factual-overclaim",
       "defect": "The combined diff (-c) is not the definition of a conflict resolution: a clean same-file automerge (receiving side edits line 1, incoming side edits line 20) differs from every parent and is listed with no conflict and no author input.",
       "evidence": [],
-      "match": {"all_of": [["combined diff", "`-c`", "diff-merges", "-c flag", "-c option"], ["automerge", "auto-merge", "clean merge", "same file", "same-file", "not the conflict", "not a conflict", "over-includ", "counterexample", "not the definition", "differs from every parent", "no conflict"]]}
+      "match": {"all_of": [["combined diff", "`-c`", "diff-merges", "-c flag", "-c option"], ["automerge", "auto-merge", "clean merge", "same file", "same-file", "not the conflict", "not a conflict", "over-includ", "counterexample", "not the definition", "differs from every parent"]]},
+      "topic": ["definition of a conflict resolution", "combined diff", "`-c`", "diff-merges=combined"]
     },
     {
       "id": "D06",
@@ -108,7 +113,8 @@
       "kind": "unsupported-causality",
       "defect": "The record names a vendor-provenance gate as what held PR #4846, but Validate Vendor Provenance is not a pinned required context and mergeable_state does not name the refusing check, so the causality is unsupported.",
       "evidence": [{"path": "scripts/ci/ruleset_required_contexts.py", "find": "REQUIRED_CONTEXTS", "lines": 14}],
-      "match": {"all_of": [["4846"], ["not a required", "not a pinned", "not pinned", "required context", "mergeable_state", "unsupported", "causal", "not established", "does not name", "cannot be shown", "not verified", "unverified"]]}
+      "match": {"all_of": [["4846"], ["not a required", "not a pinned", "not pinned", "mergeable_state does not", "does not name", "not established", "unsupported causal", "causality", "cannot be shown"]]},
+      "topic": ["4846"]
     },
     {
       "id": "D07",
@@ -120,7 +126,8 @@
       "kind": "logic-gap",
       "defect": "Requirement 1 is stated syntactically (no job-level if, no path filter), so it is satisfiable by moving the same condition down to the step level while the job still reports success without running the verification.",
       "evidence": [{"path": ".github/workflows/pr-validation.yml", "find": "No job-level if condition", "lines": 6}],
-      "match": {"all_of": [["step-level", "step level", "relocat", "moved down", "moving the condition", "move the condition", "one level down", "into a step", "inside a step", "step-scoped", "syntactic"], ["if:", "condition", "filter", "job-level", "job level"]]}
+      "match": {"all_of": [["relocat", "moved down", "moving the condition", "move the condition", "one level down", "move it into a step", "moved into a step", "step-level", "step level", "syntactic", "textual"], ["evad", "bypass", "circumvent", "satisf", "loophole", "get around", "skip the verification", "without running", "still report success", "still reports success", "exit 0", "exits 0", "widen"]]},
+      "topic": ["no path filter", "requirement 1"]
     },
     {
       "id": "D08",
@@ -132,7 +139,8 @@
       "kind": "security-hole",
       "defect": "Reading the pull request diff by pull request number rather than by immutable SHA lets a contributor move the branch while the privileged run is in flight, so the publisher verifies one revision and publishes against another (CWE-367).",
       "evidence": [],
-      "match": {"all_of": [["race", "toctou", "time-of-check", "cwe-367", "moves the branch", "moved the branch", "branch moves", "branch moved", "force-push", "force push", "mutable", "head_sha", "immutable", "by number"], ["revision", "pull request number", "pr number", "head_sha", "commit sha", "diff"]]}
+      "match": {"all_of": [["race", "toctou", "time-of-check", "cwe-367", "moves the branch", "moved the branch", "branch moves", "branch moved", "force-push", "force push", "immutable", "by number"], ["diff", "revision", "pull request number", "pr number", "commit sha", "publish"]]},
+      "topic": ["by number", "diff from the api", "reads the pull request's diff", "head_sha", "immutable sha"]
     },
     {
       "id": "D09",
@@ -144,7 +152,8 @@
       "kind": "security-hole",
       "defect": "The negative mutation probe attempts to change the live ruleset and add a live bypass actor; if the credential holds the undocumented permission, the probe changes the trust anchor and becomes the incident. It must run against a canary.",
       "evidence": [],
-      "match": {"all_of": [["probe", "mutation"], ["live ruleset", "production ruleset", "real ruleset", "canary", "non-enforcing", "live bypass", "trust anchor", "side effect", "destructive", "would succeed", "actually succeed", "if it succeeds", "if the credential"]]}
+      "match": {"all_of": [["probe", "mutation"], ["live ruleset", "production ruleset", "real ruleset", "canary", "non-enforcing", "live bypass", "trust anchor", "side effect", "destructive", "would succeed", "actually succeed", "if it succeeds", "if the credential"]]},
+      "topic": ["negative mutation probe", "mutation probe"]
     },
     {
       "id": "D10",
@@ -156,7 +165,8 @@
       "kind": "internal-contradiction",
       "defect": "Requirement 2 forbids executing head code, so a runtime check such as Run Python Tests would test main rather than the candidate; requirement 1 demands the verdict come from the pull request content, so the two requirements are jointly unsatisfiable.",
       "evidence": [],
-      "match": {"all_of": [["requirement 1", "requirement 2", "requirement one", "requirement two", "req 1", "req 2"], ["contradict", "unsatisf", "conflict", "incompatib", "cannot both", "tests main", "test main", "tests the base", "tests base", "wrong tree", "mutually"]]}
+      "match": {"all_of": [["requirement 1", "requirement 2", "requirement one", "requirement two", "req 1", "req 2"], ["contradict", "unsatisf", "conflicts with", "incompatib", "cannot both", "tests main", "test main", "tests the base", "tests base", "wrong tree", "mutually"]]},
+      "topic": ["never executing head code", "requirement 2", "base-ref definition"]
     },
     {
       "id": "D11",
@@ -168,7 +178,8 @@
       "kind": "security-hole",
       "defect": "A head-defined sandbox produces a head-authored report, so a contributor emits a schema-valid all-passed result and the base-owned criterion is satisfied by fabricated data (CWE-345); criteria and digests authenticate the publisher, not that anything ran.",
       "evidence": [],
-      "match": {"all_of": [["head-defined", "head-authored", "head authored", "head controlled", "head-controlled", "candidate-authored", "contributor", "pull request author", "pr author"], ["fabricat", "forg", "self-report", "self-attest", "spoof", "cwe-345", "untrusted", "falsif", "tamper", "fake"]]}
+      "match": {"all_of": [["head-defined", "head-authored", "head authored", "head controlled", "head-controlled", "candidate-authored", "contributor", "pull request author", "pr author"], ["fabricat", "forg", "self-report", "self-attest", "spoof", "cwe-345", "falsif", "tamper", "schema-valid"]]},
+      "topic": ["consumes that run", "head-defined workflow", "make its own sandbox lie"]
     },
     {
       "id": "D12",
@@ -180,7 +191,8 @@
       "kind": "security-hole",
       "defect": "Step-scoped isolation inside the same job that holds the publishing App credential is not a trust boundary (CWE-269): candidate code can write GITHUB_PATH or GITHUB_ENV, replace a binary a later step invokes, or edit the checked-out harness.",
       "evidence": [],
-      "match": {"all_of": [["step-scoped", "step scoped", "step boundary", "step-level", "step level", "steps within the job", "same job", "same runner", "inside the job", "within the job", "single job"], ["github_path", "github_env", "trust boundary", "cwe-269", "filesystem", "same machine", "separate job", "two jobs", "split", "isolat", "credential"]]}
+      "match": {"all_of": [["step-scoped", "step scoped", "step boundary", "steps within the job", "same job as", "same job that", "inside the job that", "within the job that", "single job"], ["github_path", "github_env", "trust boundary", "cwe-269", "same machine", "same filesystem", "separate job", "two jobs", "separate runner"]]},
+      "topic": ["step whose environment", "step-scoped", "launch the candidate execution"]
     },
     {
       "id": "D13",
@@ -192,7 +204,8 @@
       "kind": "security-hole",
       "defect": "Forcing the exit from inside the harness process (for example os._exit(0) in a conftest hook) lets a run that collected nothing report success, which is closable and defeats requirement 2; calling it unclosable excuses the very property the requirement exists to establish.",
       "evidence": [],
-      "match": {"all_of": [["os._exit", "conftest", "pytest_sessionfinish", "forcing the exit", "force the exit", "exit from inside", "short-circuit", "kill the harness", "terminate the harness", "exit 0", "exit status"], ["unclosable", "cannot be closed", "not closed", "closable", "excus", "collected nothing", "absent run", "forg", "defeat", "false success", "fake", "accepted residual", "residual"]]}
+      "match": {"all_of": [["os._exit", "conftest", "pytest_sessionfinish", "forcing the exit", "force the exit", "exit from inside", "short-circuit", "kill the harness", "terminate the harness", "exit 0 without", "exits 0 without"], ["unclosable", "cannot be closed", "not closed", "closable", "excus", "collected nothing", "absent run", "false success", "accepted residual"]]},
+      "topic": ["forcing the exit", "trivial tests", "os._exit", "harness's own process"]
     },
     {
       "id": "D14",
@@ -204,7 +217,8 @@
       "kind": "arithmetic",
       "defect": "The typed closure lists six edge kinds, five of which a P1 runner can resolve once core.hooksPath is excluded, but the text says it covers the other four kinds.",
       "evidence": [],
-      "match": {"all_of": [["four kinds", "other four", "four edge", "four resolver"], ["five", "six", "miscount", "count", "edge kinds", "enumerat"]]}
+      "match": {"all_of": [["four kinds", "other four", "four edge", "four resolver"], ["five", "six", "miscount", "count", "edge kinds", "enumerat"]]},
+      "topic": ["other four kinds", "typed dependency closure", "four kinds"]
     },
     {
       "id": "D15",
@@ -216,7 +230,8 @@
       "kind": "logic-gap",
       "defect": "A job declaring needs: execute is skipped by default when execute fails or is skipped, so a failing execution job publishes nothing, the pinned context never arrives, and the pull request waits on a check that cannot report; the publication job needs if: always().",
       "evidence": [],
-      "match": {"all_of": [["needs: execute", "needs:execute", "needs.execute", "dependent job", "publication job"], ["always()", "if: always", "skipped by default", "skipped when", "skips", "is skipped", "never arrive", "never publish", "will not publish", "does not publish", "deadlock", "cannot report", "no status", "hangs", "waits forever"]]}
+      "match": {"all_of": [["needs: execute", "needs:execute", "needs.execute", "dependent job", "publication job"], ["always()", "if: always", "skipped by default", "skipped when", "will be skipped", "is skipped when", "never arrive", "never publish", "will not publish", "does not publish", "cannot report", "no status"]]},
+      "topic": ["needs: execute", "publication job"]
     },
     {
       "id": "D16",
@@ -228,7 +243,8 @@
       "kind": "security-hole",
       "defect": "The supervisor is described as running outside whatever the candidate can reach without naming a mechanism; on one runner under one uid the candidate can signal or ptrace it, overwrite its files, or replace its interpreter (CWE-269).",
       "evidence": [],
-      "match": {"all_of": [["supervisor", "parent process"], ["same uid", "same user", "ptrace", "signal the supervisor", "signal it", "trust domain", "named mechanism", "no mechanism", "not name", "unnamed", "does not specify", "not specified", "vague", "container", "virtual machine", "isolation boundary", "not a boundary", "wish"]]}
+      "match": {"all_of": [["supervisor", "parent process"], ["same uid", "same user", "ptrace", "signal the supervisor", "signal it", "trust domain", "named mechanism", "no mechanism", "does not name", "not name a", "unnamed", "not a boundary", "wish", "does not specify", "not specified"]]},
+      "topic": ["supervisor"]
     },
     {
       "id": "D17",
@@ -240,7 +256,8 @@
       "kind": "internal-contradiction",
       "defect": "The sandbox cannot authenticate that tests were collected: the candidate owns everything inside it, including the write-only result path, so it can emit a schema-valid result with a fabricated count and exit 0, and the two paragraphs on the supervisor and the runtime exit report contradict each other.",
       "evidence": [],
-      "match": {"all_of": [["collected-test", "collected test", "collection", "collected"], ["fabricat", "forg", "contradict", "cannot be authenticated", "cannot authenticate", "inconsisten", "do not compose", "does not compose", "schema-valid", "nonce"]]}
+      "match": {"all_of": [["collected-test", "collected test", "collection", "collected"], ["fabricat", "forg", "contradict", "cannot authenticate", "cannot be authenticated", "do not compose", "does not compose", "schema-valid", "nonce"]]},
+      "topic": ["collected-test count", "supervisor", "collected test"]
     },
     {
       "id": "D18",
@@ -252,7 +269,8 @@
       "kind": "factual-overclaim",
       "defect": "The record says #4954 round 15 was blocked by the CI arithmetic at 39 of 40, but the gate returns success at commit_count <= limit and the cited QA report records the author rationing the last commit, not a refusal.",
       "evidence": [{"path": "scripts/validation/pr_commit_count.py", "find": "commit_count <= limit", "lines": 8}, {"path": ".agents/qa/000-session-14706-pr-4954-round3-coordination-qa.md", "find": "| this commit |", "lines": 1}],
-      "match": {"all_of": [["39"], ["passes", "pass at", "success", "<= limit", "not blocked", "did not block", "not a refusal", "no refusal", "ration", "behavioral", "behavioural", "pressure", "under the limit", "within the limit", "below the limit", "does not block", "would pass", "passed"]]}
+      "match": {"all_of": [["39"], ["passes", "would pass", "passed", "<= limit", "not blocked", "did not block", "not a refusal", "no refusal", "ration", "behavioral pressure", "behavioural pressure", "does not block"]]},
+      "topic": ["39 of 40", "4954"]
     },
     {
       "id": "D19",
@@ -264,7 +282,8 @@
       "kind": "omission",
       "defect": "The containment scope covers repository-level secrets only, omitting organization-level secrets and the pull_request_target workflows whose trigger evaluates at the base ref and so defeats the deployment-branch restriction.",
       "evidence": [],
-      "match": {"all_of": [["organization-level", "organization level", "org-level", "org level", "organization secret", "org secret", "organisation", "pull_request_target"], ["secret", "environment", "deployment", "contain", "scope"]]}
+      "match": {"all_of": [["organization-level", "organization level", "org-level", "org level", "organization secret", "org secret", "organization-scoped", "org-scoped", "pull_request_target"], ["not covered", "omits", "omit", "missing", "excluded", "does not contain", "does not cover", "gap", "also reachable", "still reachable", "still exposes", "defeats"]]},
+      "topic": ["repository-level secret", "contain every"]
     },
     {
       "id": "D20",
@@ -276,7 +295,8 @@
       "kind": "omission",
       "defect": "The typed closure omits an edge kind: an action input that names a repository file is a dependency edge the other resolvers do not see.",
       "evidence": [{"path": ".github/workflows/codeql-analysis.yml", "find": "config-file", "lines": 4}],
-      "match": {"all_of": [["action input", "action inputs", "config-file", "`with:`", "with: inputs", "input that names", "inputs that name"], ["edge", "resolver", "closure", "missing", "omit", "not covered", "blind", "misses", "dependency"]]}
+      "match": {"all_of": [["action input", "action inputs", "config-file", "`with:`", "with: inputs", "input that names", "inputs that name"], ["missing", "omit", "not covered", "blind", "misses", "does not list", "not listed", "not enumerated", "absent", "fifth", "sixth", "additional edge", "another edge", "unlisted"]]},
+      "topic": ["typed dependency closure", "edge kind"]
     }
   ]
 }

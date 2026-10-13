@@ -56,6 +56,7 @@ def _entry(entry_id="T01", evidence=None):
         "kind": "factual-overclaim",
         "defect": "The sky is blue.",
         "match": {"all_of": [["sky"], ["blue"]]},
+        "topic": ["the sky"],
         "evidence": evidence or [],
     }
 
@@ -160,7 +161,9 @@ def test_plan_appends_evidence_only_in_the_assisted_arm(prompts_md):
 
 
 def _job(entry="T01", arm="unassisted", role="critic", trial=0):
-    return cli.Job(entry, arm, role, trial, "sys", "user", core.MatchRule((("sky",), ("blue",))))
+    return cli.Job(
+        entry, arm, role, trial, "sys", "user", core.MatchRule((("sky",), ("blue",))), ("the sky",)
+    )
 
 
 def test_run_job_scores_a_hit():
@@ -182,10 +185,41 @@ def test_run_job_records_a_provider_error_instead_of_a_miss():
     assert row["error"] == "provider down" and not row["flagged"]
 
 
-def test_run_job_truncates_stored_raw_but_scores_the_full_text():
-    tail_hit = "x" * (cli.RAW_KEEP_CHARS + 50) + "\n\n" + REVIEW_HIT
-    row = cli.run_job(_job(), lambda s, u: tail_hit)
-    assert len(row["raw"]) == cli.RAW_KEEP_CHARS and row["flagged"]
+def test_run_job_keeps_the_whole_response_and_records_topic_mention():
+    row = cli.run_job(_job(), lambda s, u: REVIEW_HIT)
+    assert row["raw"] == REVIEW_HIT and row["mentioned"]
+    quiet = cli.run_job(_job(), lambda s, u: REVIEW_MISS)
+    assert not quiet["mentioned"]
+
+
+def test_checkpoint_retries_rows_whose_stored_response_is_truncated(tmp_path):
+    ckpt = tmp_path / "rows.jsonl"
+    whole = cli.run_job(_job(trial=0), lambda s, u: REVIEW_HIT)
+    cut = {**cli.run_job(_job(trial=1), lambda s, u: REVIEW_HIT)}
+    cut["raw"] = cut["raw"][:20]
+    ckpt.write_text(json.dumps(whole) + "\n" + json.dumps(cut) + "\n", encoding="utf-8")
+    kept = cli.load_checkpoint(ckpt)
+    assert [row["trial"] for row in kept] == [0]
+
+
+def test_rescore_rows_applies_the_current_rules(tmp_path):
+    corpus = core.parse_corpus(
+        {"schema_version": 1, "selection": {"rule": "r"}, "entries": [_entry("T01")]}
+    )
+    row = cli.run_job(_job(), lambda s, u: REVIEW_MISS)
+    assert not row["flagged"]
+    row["raw"] = REVIEW_HIT
+    (out,) = cli.rescore_rows([row], corpus)
+    assert out["flagged"] and out["blocked"] and out["mentioned"]
+
+
+def test_rescore_rows_rejects_an_unknown_entry():
+    corpus = core.parse_corpus(
+        {"schema_version": 1, "selection": {"rule": "r"}, "entries": [_entry("T01")]}
+    )
+    row = cli.run_job(_job(entry="T99"), lambda s, u: REVIEW_HIT)
+    with pytest.raises(core.CorpusError, match="unknown entry"):
+        cli.rescore_rows([row], corpus)
 
 
 def test_run_jobs_runs_everything_in_parallel():
@@ -392,3 +426,63 @@ def test_script_entry_point_exits_with_the_main_code(tmp_path, monkeypatch, caps
         runpy.run_path(str(EVAL_DIR / "eval_adr_review_catch_rate.py"), run_name="__main__")
     assert exc.value.code == 0
     assert "adr-review catch rate" in capsys.readouterr().out
+
+
+def _checkpoint_with(tmp_path, reply):
+    ckpt = tmp_path / "rows.jsonl"
+    row = cli.run_job(_job(), lambda s, u: reply)
+    ckpt.write_text(json.dumps(row) + "\n", encoding="utf-8")
+    return ckpt
+
+
+def test_main_rescore_reads_the_checkpoint_without_calling_a_model(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(cli, "make_caller", lambda *a: pytest.fail("called the model"))
+    corpus = _write_corpus(tmp_path)
+    ckpt = _checkpoint_with(tmp_path, REVIEW_HIT)
+    out = tmp_path / "rescored.json"
+    code = cli.main(
+        ["--corpus", str(corpus), "--rescore", "--checkpoint", str(ckpt), "--output", str(out)]
+    )
+    assert code == 0
+    assert json.loads(out.read_text(encoding="utf-8"))["table"]["unassisted"]["critic"]
+    assert "| critic | 1/1" in capsys.readouterr().out
+
+
+def test_main_rescore_filters_entries(tmp_path, capsys):
+    corpus = _write_corpus(tmp_path, _entry("T01"), _entry("T02"))
+    ckpt = _checkpoint_with(tmp_path, REVIEW_HIT)
+    assert (
+        cli.main(
+            ["--corpus", str(corpus), "--rescore", "--checkpoint", str(ckpt), "--entries", "T02"]
+        )
+        == 0
+    )
+    assert "critic" not in capsys.readouterr().out
+
+
+def test_main_rescore_requires_a_checkpoint(tmp_path, capsys):
+    corpus = _write_corpus(tmp_path)
+    assert cli.main(["--corpus", str(corpus), "--rescore"]) == 2
+    assert "--checkpoint" in capsys.readouterr().err
+
+
+def test_main_rescore_reports_a_bad_corpus(tmp_path, capsys):
+    ckpt = _checkpoint_with(tmp_path, REVIEW_HIT)
+    code = cli.main(
+        ["--corpus", str(tmp_path / "absent.json"), "--rescore", "--checkpoint", str(ckpt)]
+    )
+    assert code == 2 and "ERROR" in capsys.readouterr().err
+
+
+def test_dump_results_is_valid_json_with_one_line_per_row_and_arm():
+    rows = [cli.run_job(_job(trial=i), lambda s, u: REVIEW_HIT) for i in range(3)]
+    text = cli.dump_results(cli.summarize(rows, {"model": "m", "trials": 1, "entries": 1}))
+    parsed = json.loads(text)
+    assert len(parsed["rows"]) == 3 and parsed["meta"]["model"] == "m"
+    assert len([line for line in text.splitlines() if '"trial"' in line]) == 3
+    assert len(text.splitlines()) < 40
+
+
+def test_dump_results_handles_scalars_and_empty_lists():
+    parsed = json.loads(cli.dump_results({"note": "x", "rows": [], "meta": {}}))
+    assert parsed == {"note": "x", "rows": [], "meta": {}}

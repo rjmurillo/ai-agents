@@ -22,8 +22,9 @@ def test_wilson_interval_bounds():
     assert high1 == 1.0 and 0.65 < low1 < 0.8
 
 
-def _row(entry, arm, role, flagged, blocked, error=None):
+def _row(entry, arm, role, flagged, blocked, error=None, mentioned=None):
     return {
+        "mentioned": flagged if mentioned is None else mentioned,
         "entry": entry,
         "arm": arm,
         "role": role,
@@ -44,6 +45,7 @@ def test_aggregate_counts_hits_and_keeps_errors_out_of_n():
     cell = stats.aggregate(rows)["unassisted"]["critic"]
     assert cell["flagged"]["hits"] == 2 and cell["flagged"]["n"] == 3
     assert cell["blocked"]["hits"] == 1
+    assert cell["mentioned"]["hits"] == 2
     assert cell["errors"] == 1
 
 
@@ -63,6 +65,7 @@ def test_panel_union_counts_an_entry_once_if_any_role_caught_it():
     union = stats.panel_union(rows, "unassisted")
     assert union["flagged"]["hits"] == 1 and union["flagged"]["n"] == 2
     assert union["blocked"]["hits"] == 1
+    assert union["mentioned"]["hits"] == 1
 
 
 def test_render_report_lists_roles_arms_and_union():
