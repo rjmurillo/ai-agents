@@ -172,3 +172,77 @@ def test_main_exits_external_when_discovery_is_incomplete(
     monkeypatch.setattr(_rpw, "marked_files", boom)
 
     assert _rpw.main([]) == _rpw.EXIT_EXTERNAL
+
+
+_DISCOVERED = ["tests/test_a.py", "tests/test_b.py", "tests/test_c.py"]
+
+
+@pytest.mark.parametrize("raw", ["", "   ", "[]"])
+def test_selected_files_runs_every_module_when_nothing_is_selected(raw: str) -> None:
+    assert _rpw.selected_files(raw, _DISCOVERED) == _DISCOVERED
+
+
+def test_selected_files_keeps_discovery_order_for_a_subset() -> None:
+    raw = '["tests/test_c.py", "tests/test_a.py"]'
+
+    assert _rpw.selected_files(raw, _DISCOVERED) == ["tests/test_a.py", "tests/test_c.py"]
+
+
+@pytest.mark.parametrize(
+    "raw", ["not json", "{}", '"tests/test_a.py"', "[1]", '["tests/test_a.py", 2]']
+)
+def test_selected_files_rejects_a_malformed_selection(raw: str) -> None:
+    with pytest.raises(_rpw.SelectionError):
+        _rpw.selected_files(raw, _DISCOVERED)
+
+
+def test_selected_files_rejects_a_module_that_is_not_marked() -> None:
+    """A stale name must fail the run, not shrink the suite unseen."""
+    with pytest.raises(_rpw.SelectionError, match="tests/test_gone.py"):
+        _rpw.selected_files('["tests/test_a.py", "tests/test_gone.py"]', _DISCOVERED)
+
+
+def test_main_hands_pytest_only_the_selected_modules(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, list[str]] = {}
+
+    def fake_run(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        captured["command"] = command
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(_rpw, "marked_files", lambda _root: _DISCOVERED)
+    monkeypatch.setattr(_rpw.subprocess, "run", fake_run)
+    monkeypatch.setenv(_rpw.ENV_SELECTED, '["tests/test_b.py"]')
+
+    assert _rpw.main([]) == 0
+    assert captured["command"][-1:] == ["tests/test_b.py"]
+    assert "tests/test_a.py" not in captured["command"]
+
+
+def test_main_runs_every_module_when_the_selection_is_unset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, list[str]] = {}
+
+    def fake_run(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        captured["command"] = command
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(_rpw, "marked_files", lambda _root: _DISCOVERED)
+    monkeypatch.setattr(_rpw.subprocess, "run", fake_run)
+    monkeypatch.delenv(_rpw.ENV_SELECTED, raising=False)
+
+    assert _rpw.main([]) == 0
+    assert captured["command"][-3:] == _DISCOVERED
+
+
+def test_main_exits_config_on_a_stale_selection_without_starting_pytest(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_run(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("pytest must not start on a bad selection")
+
+    monkeypatch.setattr(_rpw, "marked_files", lambda _root: _DISCOVERED)
+    monkeypatch.setattr(_rpw.subprocess, "run", fail_run)
+    monkeypatch.setenv(_rpw.ENV_SELECTED, '["tests/test_gone.py"]')
+
+    assert _rpw.main([]) == _rpw.EXIT_CONFIG

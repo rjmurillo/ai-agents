@@ -18,12 +18,20 @@ The backstop for the one way this can under-select, a marker applied to a file
 that never spells it, is `tests/ci/test_run_pytest_windows.py`: it collects
 both ways and fails when the node-ID sets disagree.
 
+`WINDOWS_TEST_FILES` narrows the run further. The workflow sets it to a JSON
+array of the marked modules a pull request reaches (`windows_path_filter.py`);
+unset or empty runs every marked module. A name that is not a marked module
+fails the run rather than being dropped, so a stale selection cannot shrink the
+suite unseen.
+
 Exit codes (AGENTS.md contract): 0 ok, 2 config, 3 external. Any other code is
 pytest's own and is passed through unchanged.
 """
 
 from __future__ import annotations
 
+import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -32,6 +40,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 MARKER = "windows_path"
 TESTS_DIR = "tests"
+ENV_SELECTED = "WINDOWS_TEST_FILES"
 
 EXIT_OK = 0
 EXIT_CONFIG = 2
@@ -71,6 +80,34 @@ def marked_files(repo_root: Path) -> list[str]:
     return found
 
 
+class SelectionError(Exception):
+    """``WINDOWS_TEST_FILES`` is malformed or names a module that is not marked."""
+
+
+def selected_files(raw: str, discovered: list[str]) -> list[str]:
+    """The modules ``raw`` selects out of ``discovered``; all of them when unset.
+
+    Raises:
+        SelectionError: ``raw`` is not a JSON array of strings, or names a module
+            that discovery did not find.
+    """
+    if not raw.strip():
+        return discovered
+    try:
+        requested = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise SelectionError(f"{ENV_SELECTED} is not valid JSON: {exc}") from exc
+    if not isinstance(requested, list) or not all(isinstance(item, str) for item in requested):
+        raise SelectionError(f"{ENV_SELECTED} must be a JSON array of strings")
+    if not requested:
+        return discovered
+    wanted = set(requested)
+    unknown = sorted(wanted - set(discovered))
+    if unknown:
+        raise SelectionError(f"{ENV_SELECTED} names modules that are not marked: {unknown[:5]}")
+    return [path for path in discovered if path in wanted]
+
+
 def main(argv: list[str] | None = None) -> int:
     passthrough = list(sys.argv[1:] if argv is None else argv)
 
@@ -79,7 +116,15 @@ def main(argv: list[str] | None = None) -> int:
     except DiscoveryError as exc:
         print(f"discovery is incomplete, refusing to run a partial suite: {exc}", file=sys.stderr)
         return EXIT_EXTERNAL
-    print(f"marker={MARKER} candidate_files={len(files)}", file=sys.stderr)
+    try:
+        selected = selected_files(os.environ.get(ENV_SELECTED, ""), files)
+    except SelectionError as exc:
+        print(str(exc), file=sys.stderr)
+        return EXIT_CONFIG
+    print(
+        f"marker={MARKER} candidate_files={len(files)} selected_files={len(selected)}",
+        file=sys.stderr,
+    )
     if not files:
         print(
             f"no module under {TESTS_DIR}/ names {MARKER!r}; refusing to run zero tests",
@@ -87,7 +132,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         return EXIT_CONFIG
 
-    command = [sys.executable, "-m", "pytest", "-m", MARKER, *passthrough, *files]
+    command = [sys.executable, "-m", "pytest", "-m", MARKER, *passthrough, *selected]
     try:
         # The child inherits fd 1, so anything this process queued would print
         # after pytest's own output. tests/test_stdout_flush_before_spawn.py.
