@@ -103,6 +103,10 @@ class TestParseExitCodes:
         text = EXIT.format(rows="| 0 | ok |\n| 10 | bad   news |")
         assert cpi.parse_exit_codes(text) == {"0": "ok", "10": "bad news"}
 
+    def test_keeps_every_cell_after_the_code(self) -> None:
+        text = EXIT.format(rows="| 10 | Vulns  found | Fail |")
+        assert cpi.parse_exit_codes(text) == {"10": "Vulns found | Fail"}
+
     def test_stops_at_next_heading(self) -> None:
         text = EXIT.format(rows="| 0 | ok |") + "| 9 | leaked |\n"
         assert cpi.parse_exit_codes(text) == {"0": "ok"}
@@ -169,7 +173,17 @@ class TestCheckExitCodes:
         source = EXIT.format(rows="| 10 | Vulnerabilities detected |")
         problems = cpi.check_exit_codes(source, EXIT.format(rows="| 10 | Scan clean |"))
         assert problems == [
-            "exit code 10 meaning changed: 'Vulnerabilities detected' became 'Scan clean'"
+            "exit code 10 row changed: 'Vulnerabilities detected' became 'Scan clean'"
+        ]
+
+    def test_changed_ci_behavior_fails(self) -> None:
+        source = EXIT.format(rows="| 10 | Vulnerabilities detected | Fail |")
+        problems = cpi.check_exit_codes(
+            source, EXIT.format(rows="| 10 | Vulnerabilities detected | Pass |")
+        )
+        assert problems == [
+            "exit code 10 row changed: "
+            "'Vulnerabilities detected | Fail' became 'Vulnerabilities detected | Pass'"
         ]
 
     def test_empty_source_is_unmeasurable(self) -> None:
@@ -232,6 +246,15 @@ class TestNegativeControls:
         text = _read_real(PROJECTION, "security-scan")
         result = _run(_make_repo(tmp_path, scan_projection=text.replace("| 10 |", "| 11 |", 1)))
         assert result.returncode == 1
+
+    def test_invariant_8_changed_ci_behavior_fails(self, tmp_path: Path) -> None:
+        text = _read_real(PROJECTION, "security-scan")
+        row = "| 10 | Vulnerabilities detected | Fail |"
+        assert row in text
+        changed = text.replace(row, "| 10 | Vulnerabilities detected | Pass |", 1)
+        result = _run(_make_repo(tmp_path, scan_projection=changed))
+        assert result.returncode == 1
+        assert "security-scan (invariant 8): exit code 10 row changed" in result.stderr
 
     def test_missing_projection_fails_closed(self, tmp_path: Path) -> None:
         repo = _make_repo(tmp_path)

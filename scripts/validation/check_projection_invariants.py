@@ -15,7 +15,7 @@ Asserted here (issue #5687, ADR-107 migration step M2):
   added entry widens the grant. Both fail.
 * Invariant 8, the documented exit-code contract. The ``## Exit Codes`` table
   of the source and the projection must carry the same codes with the same
-  meaning cell.
+  cells after the code (meaning and CI behavior).
 
 Pilot inputs, because one skill cannot exercise both invariants:
 
@@ -152,18 +152,18 @@ def _exit_section(text: str) -> list[str]:
 
 
 def _table_row(line: str) -> tuple[str, str] | None:
-    """Return (code, meaning) for a table row whose first cell is a number."""
+    """Return (code, remaining cells joined) for a row whose first cell is a number."""
     stripped = line.strip()
     if not stripped.startswith("|"):
         return None
     cells = [cell.strip() for cell in stripped.strip("|").split("|")]
     if len(cells) < 2 or not _DIGITS.match(cells[0]):
         return None
-    return cells[0], " ".join(cells[1].split())
+    return cells[0], " | ".join(" ".join(cell.split()) for cell in cells[1:])
 
 
 def parse_exit_codes(text: str) -> dict[str, str]:
-    """Return {code: meaning} from the ``## Exit Codes`` table."""
+    """Return {code: every later cell} from the ``## Exit Codes`` table."""
     rows = (_table_row(line) for line in _exit_section(text))
     return {row[0]: row[1] for row in rows if row is not None}
 
@@ -192,7 +192,7 @@ def check_exit_codes(source: str, projection: str) -> list[str]:
     for code in sorted(expected.keys() & actual.keys()):
         if expected[code] != actual[code]:
             problems.append(
-                f"exit code {code} meaning changed: {expected[code]!r} became {actual[code]!r}"
+                f"exit code {code} row changed: {expected[code]!r} became {actual[code]!r}"
             )
     return problems
 
