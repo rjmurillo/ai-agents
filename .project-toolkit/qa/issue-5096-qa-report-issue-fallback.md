@@ -102,7 +102,7 @@ Coverage added, negative and edge:
   token is never resolved; `main() == 1`, same as no report at all.
 
 Every exit-code assertion drives `qa_mod.main()`, not a helper, per
-`.claude/rules/ci-scripts.md` MUST 10. `scripts/ci/cli_exit_contract_ratchet.py`
+`.claude/rules/ci-scripts.md` MUST 23. `scripts/ci/cli_exit_contract_ratchet.py`
 reports `OK (count == baseline 27)`.
 
 Subprocess is mocked at the process boundary by a fake dispatched on its

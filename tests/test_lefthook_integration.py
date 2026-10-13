@@ -746,7 +746,7 @@ def test_configuration_uses_native_filters_scheduling_and_staging() -> None:
         # tests/validation/test_check_generated_staleness.py.
         "PRE_PR_OUTER_CAP_SECONDS": "240",
     }
-    assert pre_push_jobs["python-tests"]["env"] == {"AI_AGENTS_PYTEST_WORKER_CAP": "4"}
+    assert pre_push_jobs["python-tests"]["env"] == {"AI_AGENTS_PYTEST_WORKER_CAP": "scaled"}
     assert pre_push_jobs["push-ref-policy"]["use_stdin"] is True
     assert pre_push_jobs["security-scan"]["use_stdin"] is True
     assert pre_push_jobs["security-suppression-policy"]["use_stdin"] is True

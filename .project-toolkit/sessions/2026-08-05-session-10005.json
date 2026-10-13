@@ -271,7 +271,7 @@
     },
     {
       "step": "implement",
-      "evidence": "Commit fbc60b24a. .claude/rules/testing.md MUST 12 forbids a test whose fixture supplies the precondition the code under test must establish. Both generated mirrors regenerated with build/scripts/generate_rules.py. Two memories written and indexed in skills-git-index.md in the same change. No plugin manifest bump: ADR-092 removed the version key, confirmed absent from both manifests and both marketplace files."
+      "evidence": "Commit fbc60b24a. .claude/rules/testing.md MUST 14 forbids a test whose fixture supplies the precondition the code under test must establish. Both generated mirrors regenerated with build/scripts/generate_rules.py. Two memories written and indexed in skills-git-index.md in the same change. No plugin manifest bump: ADR-092 removed the version key, confirmed absent from both manifests and both marketplace files."
     },
     {
       "step": "diagnose",
