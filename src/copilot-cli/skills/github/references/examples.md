@@ -155,6 +155,10 @@ python3 "$SCRIPTS_DIR/issue/new_issue.py" --title "Bug: Login fails" --body "Ste
 # Create an issue and assign a milestone in one call
 python3 "$SCRIPTS_DIR/issue/new_issue.py" --title "Bug: Login fails" --body "Steps..." --source human --milestone v0.7.0
 
+# List a milestone's issues (composes with --state/--label/--author/--assignee;
+# ignored when --search is set)
+python3 "$SCRIPTS_DIR/issue/list_issues.py" --milestone v0.7.0 --state all --label bug
+
 # Create PR with validation
 python3 "$SCRIPTS_DIR/pr/new_pr.py" --title "feat: Add feature" --body "Description"
 
