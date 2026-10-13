@@ -16,7 +16,7 @@ supersedes: []
 superseded-by: null
 explainer: null
 implemented: false
-review-by: null           # optional: YYYY-MM-DD this record must be revisited; null when the decision carries no deadline
+review-by: null           # optional: YYYY-MM-DD this record must be revisited, also stated in the prose; null when the decision carries no deadline
 ---
 
 # ADR-NNN: [Title]
@@ -160,10 +160,18 @@ is condition-triggered rather than calendar-triggered.
 | `null` | No calendar deadline. The default. |
 | `YYYY-MM-DD` | The date by which this record must be revisited. |
 
-The field is optional and unenforced, matching the `explainer` and `implemented`
-precedent in ADR-073 Phase 1. It records the deadline the prose already states;
-it does not create one. Whichever section states the deadline stays authoritative
-prose, and the date here must match it.
+The field is optional, matching the `explainer` and `implemented` precedent in
+ADR-073. It records the deadline the prose already states; it does not create
+one. State the same date as `YYYY-MM-DD` in the prose, since the prose is what a
+reader sees and the two must not drift.
+
+The lifecycle gate reads it. It reports `review-by-format` for a value that is
+not a real `YYYY-MM-DD` date, `review-by-prose-date` for a `proposed` or
+`accepted` record whose prose does not state the date, and `review-by-past-due`
+for a `proposed` or `accepted` record whose date has passed. A past-due record
+stops being a violation when you hold the review, record its outcome in the
+prose, and set a new date, set `null`, or change the status. A `superseded`,
+`deprecated`, or `rejected` record is history, and only the format check reads it.
 
 ## Coded Consequences Convention (Optional)
 

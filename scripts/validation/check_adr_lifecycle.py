@@ -75,6 +75,13 @@ Checks, each named so the baseline tracks them separately:
     section-structure            Context, Decision, and Consequences are each present under a
                                   sanctioned heading: the canonical set or the MADR set
                                   (issue #5196)
+    review-by-format             an optional `review-by` is a calendar date written YYYY-MM-DD
+                                  (issue #5193)
+    review-by-past-due           a `proposed` or `accepted` record whose `review-by` date has
+                                  passed is overdue for its revisit (issue #5193)
+    review-by-prose-date         a live record's `review-by` date is also stated in its prose,
+                                  so the two places a deadline is written cannot drift apart
+                                  (issue #5193)
 
 `status-edge-consistency` closes a gap `supersession-reciprocal` leaves open
 (Copilot, PR #5209): reciprocity validates edges against each other, never
@@ -91,6 +98,16 @@ named in an accepted record. The extraction rules live in `adr_cited_paths.py`.
 Only `accepted` records are read; `superseded`, `deprecated`, `rejected`, and
 `proposed` records are history or not yet binding, and a gate firing on them is
 the tripwire ADR-073 warns about.
+
+`review-by` is the optional ADR-073 field for a record whose prose commits to a
+calendar revisit date. It exists because ADR-002 and ADR-039 sat seven months past a
+provisional window that only prose recorded (issue #5193). The two date checks read
+the wall clock, so `scan()` and `run()` take an injectable ``today``; the command line
+has no flag for it, because a flag would let a branch dodge the gate. A record whose
+status is `superseded`, `deprecated`, or `rejected` is history, so its date is moot
+and only the format check reads it. The checks cover calendar deadlines only. A
+condition-triggered revisit ("if the eval sets change") is not a date and carries no
+`review-by`; inventing one would make the gate fire on a deadline the prose never made.
 
 A check called `implemented-implies-decided` (`implemented: true` with
 `status: proposed`) was removed, not replaced by `status-edge-consistency`
@@ -124,6 +141,7 @@ import re
 import sys
 import tempfile
 from dataclasses import dataclass
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -172,6 +190,9 @@ CHECKS: tuple[str, ...] = (
     "status-edge-consistency",
     "cited-paths-exist",
     "section-structure",
+    "review-by-format",
+    "review-by-past-due",
+    "review-by-prose-date",
 )
 
 # The ADR-073 status enum. `test_lifecycle_statuses_conform_to_adr_073` fails when
@@ -860,6 +881,91 @@ def _check_cited_paths(
     ]
 
 
+# Statuses whose `review-by` still binds. A `superseded`, `deprecated`, or
+# `rejected` record is history: the revisit it promised is moot, and a gate that
+# fired on it would force an author to delete a field from a closed record.
+_LIVE_STATUSES: frozenset[str] = frozenset({"proposed", "accepted"})
+
+_ISO_DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
+
+
+def _parse_review_by(value: object) -> date:
+    """The calendar date a ``review-by`` value names, or ``ValueError``.
+
+    YAML resolves an unquoted ``2026-09-27`` to ``datetime.date`` and a quoted one
+    to ``str``; both are accepted. ``datetime`` subclasses ``date`` and is refused
+    first, because a time of day is not a calendar deadline. A number, a list, a
+    boolean, or a string that is not ``YYYY-MM-DD`` is refused too: a malformed
+    value that was skipped silently would never fire, which is the seven-month miss
+    this field exists to prevent.
+    """
+    if isinstance(value, (datetime, bool)):
+        raise ValueError(f"{value!r} is not a calendar date")
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str) and _ISO_DATE_RE.fullmatch(value.strip()):
+        try:
+            return date.fromisoformat(value.strip())
+        except ValueError:
+            raise ValueError(f"{value!r} is not a real calendar date") from None
+    raise ValueError(f"{value!r} is not a YYYY-MM-DD date")
+
+
+def _prose_states_date(body: str, due: date) -> bool:
+    """True when the record's prose, outside code and HTML blocks, names ``due``."""
+    prose = blank_non_prose_block_lines(body)
+    return re.search(rf"(?<!\d){re.escape(due.isoformat())}(?!\d)", prose) is not None
+
+
+def _check_review_by(record: Record, today: date) -> list[Violation]:
+    """`review-by-format`, `review-by-past-due`, and `review-by-prose-date` for one record.
+
+    An absent or null ``review-by`` is no violation: the field is optional and a
+    decision with no deadline carries none (ADR-073, amended for issue #5193). A
+    malformed value is one format finding and stops there, so one typo does not
+    also report a missing prose date. Past due means strictly before ``today``: a
+    record due today is still on time.
+    """
+    value = _frontmatter_of(record).get("review-by")
+    if value is None:
+        return []
+    try:
+        due = _parse_review_by(value)
+    except ValueError as exc:
+        detail = f"review-by {exc}. Write the revisit date as YYYY-MM-DD, or set it to null."
+        return [Violation("review-by-format", record.path, detail)]
+    if _status_of(record) not in _LIVE_STATUSES:
+        return []
+    found: list[Violation] = []
+    if due < today:
+        late = (today - due).days
+        found.append(
+            Violation(
+                "review-by-past-due",
+                record.path,
+                f"review-by {due.isoformat()} passed {late} day(s) before {today.isoformat()}. "
+                "Hold the review, record its outcome in the prose, then set a new "
+                "review-by or null, or change the status.",
+            )
+        )
+    try:
+        stated = _prose_states_date(record.body, due)
+    except Exception as exc:
+        detail = f"review-by prose could not be parsed: {exc}"
+        return [*found, Violation("review-by-prose-date", record.path, detail)]
+    if not stated:
+        found.append(
+            Violation(
+                "review-by-prose-date",
+                record.path,
+                f"review-by {due.isoformat()} appears in frontmatter only. State the same "
+                "date as YYYY-MM-DD in the prose so a reader sees the deadline and the "
+                "two places cannot drift.",
+            )
+        )
+    return found
+
+
 def _edge_targets(
     record: Record, raw_entries: list[Any], field: str, known: set[int]
 ) -> tuple[list[int], list[Violation]]:
@@ -1028,8 +1134,18 @@ def _status_edge_findings(by_number: dict[int, Record], graph: _Graph) -> list[V
     return found
 
 
-def scan(adr_dir: Path, repo_root: Path) -> list[Violation]:
-    """Every lifecycle violation in the corpus, in check-then-path order."""
+def _utc_today() -> date:
+    return datetime.now(UTC).date()
+
+
+def scan(adr_dir: Path, repo_root: Path, today: date | None = None) -> list[Violation]:
+    """Every lifecycle violation in the corpus, in check-then-path order.
+
+    ``today`` is the date the ``review-by`` checks compare against. It defaults
+    to the current UTC date; tests pass a fixed one so no result depends on the
+    day the suite runs.
+    """
+    today = today if today is not None else _utc_today()
     records, violations = collect_records(adr_dir, repo_root)
     known = {record.number for record in records}
     tracked = tracked_paths(repo_root)
@@ -1041,6 +1157,7 @@ def scan(adr_dir: Path, repo_root: Path) -> list[Violation]:
         violations.extend(_check_prose(record))
         violations.extend(_check_lifecycle_rules(record))
         violations.extend(_check_structure(record))
+        violations.extend(_check_review_by(record, today))
     by_number = {r.number: r for r in records if r.frontmatter is not None}
     graph = _build_graph(by_number, known)
     violations.extend(graph.findings)
@@ -1367,6 +1484,7 @@ def run(
     args: argparse.Namespace,
     *,
     repo_root_is_default: bool = False,
+    today: date | None = None,
 ) -> int:
     """Scan, then either write the baseline or compare against it.
 
@@ -1374,7 +1492,7 @@ def run(
     ``--repo-root`` explicitly (see ``main()``); it gates the worktree-identity
     check below.
     """
-    violations = scan(adr_dir, repo_root)
+    violations = scan(adr_dir, repo_root, today)
     found = identities(violations)
     # Read once, separately from scan()'s own collect_records() call, only for
     # the pass-report's examined-record count below: an existing but emptied
