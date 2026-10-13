@@ -79,9 +79,10 @@ Use Lefthook 2.1.10 as the only local Git hook orchestrator.
    `PATH`, then `node_modules/.bin/lefthook`. With no candidate it prints a
    diagnosis and exits 3. The frozen uv runtime always wins when it works, so a
    generic `PATH` binary cannot silently replace it. A `PATH` binary runs only
-   when uv cannot resolve Lefthook. This holds for the POSIX shim. On Windows,
-   Lefthook emits its default template, which resolves Lefthook from `PATH` and
-   omits the configured command (issue #3289).
+   when uv cannot resolve Lefthook. This holds on every platform: the shim
+   order is the `LEFTHOOK_BIN` guard, then the configured command, then the
+   `PATH` fallback, with only an `.exe` suffix difference on Windows (issue
+   #5491, PR #6428).
 6. Installation uses Lefthook's native command:
    `uv run --frozen lefthook install --reset-hooks-path`.
 7. Repository policy stays in Python. The

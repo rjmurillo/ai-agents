@@ -23,8 +23,8 @@ The reduced panel of architect and critic applies.
 
 Independence limit: the architect and critic passes below were run by the
 authoring agent in separate steps. They are not independent reviewers. The
-repository owner delegated the item 5 design choice on issue #5989 and reviews
-the PR. The checks that do not depend on the author are the 19 passing tests in
+repository owner decides the item 5 design choice when reviewing the PR for
+issue #5989. The checks that do not depend on the author are the 19 passing tests in
 `tests/test_lefthook_runner.py` and the runner behavior read from
 `scripts/validation/lefthook_runner.py`.
 
@@ -36,10 +36,12 @@ the PR. The checks that do not depend on the author are the 19 passing tests in
 - `lefthook_runner.py` resolution order: `uv run --frozen lefthook` when the
   `version` probe exits 0, then `lefthook` on `PATH`, then
   `node_modules/.bin/lefthook`, else a diagnosis and exit 3.
-- `tests/test_lefthook_integration.py` (POSIX branch) asserts the shim contains
+- `tests/test_lefthook_integration.py` asserts on every platform, Windows
+  included, that the shim contains
   `python3 scripts/validation/lefthook_runner.py "$@"` after the
-  `LEFTHOOK_BIN` guard. On Windows the shim omits the configured command
-  (issue #3289), so the amendment scopes the claim to the POSIX shim.
+  `LEFTHOOK_BIN` guard and before the `PATH` fallback (issue #5491, PR #6428).
+  The earlier Windows carve-out citing issue #3289 misread a truncated
+  assertion, so the amendment carries no platform scoping.
 - Item 6 (`uv run --frozen lefthook install --reset-hooks-path`) is run by a
   developer or setup script, never through a generated shim. The runner does not
   change it. README.md, CONTRIBUTING.md, and the integration tests all use the
@@ -59,8 +61,9 @@ the PR. The checks that do not depend on the author are the 19 passing tests in
 - Critic: the Review Triggers bullet "Hook execution stops using the frozen uv
   environment" no longer describes the runner. Reworded to cover a change in
   preference or fallback order.
-- Critic: the shim claim does not hold on Windows. Added the scoping sentence
-  with the issue #3289 reference.
+- Critic: the shim claim was first scoped to POSIX. The review found the
+  integration test checks the shim order on Windows too, so the scoping was
+  removed and the text cites issue #5491 and PR #6428.
 - Critic: Confirmation never exercised the runner. Added the runner `version`
   command and `tests/test_lefthook_runner.py`.
 
@@ -90,7 +93,7 @@ None of these is part of issue #5989. They are recorded for the owner.
 | Agent | Position |
 | --- | --- |
 | architect | Accept. The text now matches `lefthook.yml` and the runner, and item 5's no-silent-replacement guarantee is preserved. |
-| critic | Accept after changes. Windows scoping, Review Triggers wording, and runner confirmation were added. No open P0 or P1. |
+| critic | Accept after changes. Review Triggers wording, and runner confirmation were added. No open P0 or P1. |
 
 ### Next Steps
 
