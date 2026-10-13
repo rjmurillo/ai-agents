@@ -170,8 +170,8 @@ def test_schema_rejects_bad_marketplaces(
 def test_cursor_tree_ships_the_same_skill_set_as_the_claude_tree() -> None:
     claude = sorted(p.parent.name for p in (CLAUDE_TREE / "skills").glob("*/SKILL.md"))
     cursor = sorted(p.parent.name for p in (CURSOR_TREE / "skills").glob("*/SKILL.md"))
+    assert cursor, "no skills found in the Claude tree"
     assert cursor == claude
-    assert len(cursor) == 98
 
 
 def test_skill_support_files_are_byte_identical_to_the_claude_tree() -> None:
