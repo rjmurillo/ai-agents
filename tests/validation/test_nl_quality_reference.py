@@ -80,8 +80,8 @@ def test_reference_holds_model_elements(needle: str) -> None:
 
 
 def test_reference_has_no_dash_or_banned_words() -> None:
-    assert "—" not in _REF
-    assert "–" not in _REF
+    assert "\u2014" not in _REF
+    assert "\u2013" not in _REF
     for word in ("robust", "comprehensive", "fundamental", "significant", "crucial"):
         assert word not in _REF.lower()
 

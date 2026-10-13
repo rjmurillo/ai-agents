@@ -1055,7 +1055,7 @@ def clean_outputs(repo_root: Path, config_path: Path) -> int:
     if not isinstance(artifacts, dict):
         return 0
     # Only clean output dirs whose contents are exclusively generator
-    # output. Skills outputs to src/<provider>/skills/ — safe to nuke.
+    # output. Skills outputs to src/<provider>/skills/, safe to nuke.
     # Agents legacy outputDir is src/copilot-cli (not a subdir), so
     # cleaning would destroy unrelated content. Hooks and rules share dirs
     # with hand-authored files. Restrict to skills for now.

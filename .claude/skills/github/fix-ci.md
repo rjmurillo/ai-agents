@@ -89,6 +89,7 @@ python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request <PR_NUMBER>
 
 **Decision Point:**
 
+- `MissingRequiredChecks` non-empty --> Follow [Required check never reported](#required-check-never-reported)
 - All passing --> Report success, exit
 - Pending only --> Wait or report status
 - Failures --> Continue to Phase 3
@@ -186,6 +187,48 @@ python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request <PR_NUMBER>
 ```
 
 **Report final status to user.**
+
+---
+
+## Required check never reported
+
+A PR can look green while a required check has no run at all. `get_pr_checks.py`
+reports this as `MissingRequiredChecks` and a `MISSING` summary line, and exits 1.
+`why_pr_blocked.py` lists the same names under `MissingRequired`. No log exists to
+fetch and no code change fixes it, so skip Phases 3 to 6.
+
+### Diagnose
+
+```bash
+SCRIPTS_DIR="${CLAUDE_PLUGIN_ROOT:-.claude}/skills/github/scripts"
+python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request <PR_NUMBER> --output-format json
+python3 "$SCRIPTS_DIR/pr/why_pr_blocked.py" --pull-request <PR_NUMBER> --output-format json
+```
+
+Confirm `MissingRequiredChecks` (from `get_pr_checks.py`) or `MissingRequired`
+(from `why_pr_blocked.py`) is non-empty. Confirm no reported check is failing
+(`FailedCount` is 0, or `FailingRequired` is empty) and none is pending
+(`PendingRequired` is empty). If checks are failing or pending, use the standard
+workflow instead.
+
+### Recover without a new commit
+
+1. Close the PR: `python3 "$SCRIPTS_DIR/pr/close_pr.py" --pull-request <PR_NUMBER> --comment "Close and reopen to re-fire pull_request workflows"`.
+2. Reopen it from the GitHub UI ("Reopen pull request"). The github skill has no PR reopen script.
+3. Re-run `get_pr_checks.py` after a minute. `MissingRequiredChecks` should shrink to empty.
+
+Reopening fires the `reopened` pull_request event. Every active pull_request
+workflow listens for it except the close-only ones (`milestone-tracking.yml`,
+`post-pr-retrospective.yml`); `tests/workflows/test_pull_request_reopened_triggers.py`
+enforces that list (issue #4827). Observed on PRs #4009, #4110, and #4095 (issue
+#4359): 0 pull_request runs on the head SHA before reopening, 36 to 37 after.
+
+### If a check is still missing
+
+A workflow whose trigger list omits `reopened` stays silent. Read its
+`pull_request.types` in `.github/workflows/`. If it lists `edited`, edit the PR
+title or body to fire that event. Otherwise a new commit (`synchronize`) is the
+only trigger left; report it rather than pushing an empty commit unasked.
 
 ---
 

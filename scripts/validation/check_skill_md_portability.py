@@ -44,9 +44,10 @@ Baseline ratchet:
 
 Scope: ``*.md`` under the ``skills/`` tree of every plugin root listed in
 ``PLUGIN_ROOTS``, plus the flat source and generated trees in
-``EXTRA_SCAN_ROOTS`` (``templates/agents`` and
-``src/copilot-cli/instructions``). These extra directories ship or generate
-shipped output, but sit outside plugin-root ``skills/`` sources.
+``EXTRA_SCAN_ROOTS`` (``templates/agents``,
+``src/copilot-cli/instructions``, and ``src/claude/rules``). These extra
+directories ship or generate shipped output, but sit outside plugin-root
+``skills/`` sources.
 ``templates/agents`` generates
 Copilot CLI agents under ``src/copilot-cli/agents/`` via
 ``build/generate_agents.py``; this validator does not scan agent outputs, so
@@ -64,7 +65,17 @@ same transformed content out to every configured destination, including
 ``src/copilot-cli/instructions``. It is scanned directly because it is
 itself the shipped artifact, not a source that generates one. See issues
 #3578 (plugin-root widening), #3646 (templates/agents
-widening), and #5214 (instructions widening).
+widening), #5214 (instructions widening), and #5294 (rules widening).
+
+``src/claude/rules`` is the rendered Claude rules tree (compiled from
+``templates/rules`` by ``build/scripts/rule_templates.py``) of the
+``project-toolkit`` plugin root. Rules are governance prose that names this repository's own paths
+constantly, so the corpus is grandfathered in the baseline and the same
+``vendor-portability`` marker declares a rule whose subject is upstream paths.
+The edit source ``templates/rules`` and the binplaced ``.claude/rules`` copy
+are not scanned. The binplaced copy is byte-identical to the shipped tree, and
+the source differs only by the ``\\{{`` literal-brace escape, so adding either
+would count each reference twice.
 
 Exit codes:
   0 - no drift (counts at or below baseline), or --update-baseline wrote the file
@@ -322,6 +333,7 @@ REQUIRED_SKILLS_ROOTS: frozenset[str] = frozenset({".claude", "src/claude", "src
 EXTRA_SCAN_ROOTS: tuple[str, ...] = (
     "templates/agents",
     "src/copilot-cli/instructions",
+    "src/claude/rules",
 )
 
 # Extra scan roots whose absence is a broken checkout, not a legitimate minimal
@@ -332,7 +344,14 @@ EXTRA_SCAN_ROOTS: tuple[str, ...] = (
 # absence means the exact surface issue #5214 found undeclared paths in would
 # go unscanned while the run still reports clean, which is the same silent
 # fail-open shape as a missing required skills tree.
-REQUIRED_EXTRA_ROOTS: frozenset[str] = frozenset({"src/copilot-cli/instructions"})
+#
+# ``src/claude/rules`` is the same kind of shipped artifact: the rendered
+# rules tree of the ``project-toolkit`` plugin root the Claude marketplace
+# lists. Issue #5294 found it was never scanned directly, only through the
+# Copilot mirror, which drops rules whose scope is internal-only.
+REQUIRED_EXTRA_ROOTS: frozenset[str] = frozenset(
+    {"src/copilot-cli/instructions", "src/claude/rules"}
+)
 
 
 def has_portability_marker(text: str) -> bool:

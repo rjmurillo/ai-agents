@@ -242,7 +242,7 @@ class TestExitCodes:
         monkeypatch.delenv("CLAUDE_PLUGIN_ROOT", raising=False)
         monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
         monkeypatch.setattr(mod, "discover_rules_file", lambda: None)
-        path = self._write(tmp_path, "A robust plan — really.\n")
+        path = self._write(tmp_path, "A robust plan \u2014 really.\n")
         assert main([path]) == 1
         captured = capsys.readouterr()
         assert "no voice rule found" in captured.err
