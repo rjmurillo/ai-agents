@@ -106,7 +106,7 @@ Panel size follows the AGENTS.md trigger. The full six-agent panel runs when the
 | **Phase 3** | Resolution | Propose updates for P0/P1 issues |
 | **Phase 4** | Convergence check | Agents vote: Accept/D&C/Block |
 
-**Consensus**: All 6 agents Accept OR Disagree-and-Commit. Max 10 rounds.
+**Consensus**: All 6 agents Accept OR Disagree-and-Commit. Max 10 rounds per debate log. A revision of the ADR text does not reset the cap. A debate closed by consensus, or by round 10 without consensus, is followed by a new debate in a new log that restarts at round 1. See [Round Cap](references/debate-protocol.md#round-cap).
 
 See [references/debate-protocol.md](references/debate-protocol.md) for full phase details.
 
@@ -226,6 +226,7 @@ echo "exit=$?"   # must be 0; non-zero means git error or I/O failure
 After skill invocation:
 
 - [ ] Debate log exists at `.project-toolkit/critique/ADR-NNN-debate-log.md`
+- [ ] If the ADR was revised after a closed debate: a new debate log exists, restarts at round 1, and names the closed log as its prior debate log
 - [ ] ADR status updated using the frontmatter enum below; use prose for review nuance
 - [ ] Frontmatter `status` field present and a valid enum value: one of
       `proposed | accepted | rejected | deprecated | superseded` (ADR-073).

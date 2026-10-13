@@ -233,12 +233,14 @@ Provide ONE position:
 - Any agent Blocks = Another round required (if round < 10)
 - Round 10 with no consensus = Conclude with unresolved issues documented
 
+See [Round Cap](#round-cap) for what happens after a debate closes.
+
 ## Round Management
 
 ```markdown
 ## Debate State
 
-**Round**: [N] of 10
+**Round**: [N] of 10 (counted within this debate log)
 **Status**: [In Progress | Consensus | Concluded Without Consensus]
 
 ### Agent Positions
@@ -254,6 +256,26 @@ Provide ONE position:
 ### Unresolved Issues (if any)
 [List P0 issues still blocking]
 ```
+
+## Round Cap
+
+The ten-round cap is a lifetime limit per debate log. A revision of the ADR text
+does not reset it. Phase 3 fixes and Phase 4 re-votes inside one debate are
+rounds of that debate and count toward the ten.
+
+A debate is closed when it reaches consensus or ends at
+Round 10 with no consensus. A closed log accepts no round 11. Any later edit to the ADR, whether
+the debate closed by consensus or without it, starts a new debate in a new log.
+Rounds in the new log restart at round 1.
+
+The new log must:
+
+- Name the closed log in its `Prior debate log` field.
+- Carry forward the unresolved issues from the closed log as input to round 1.
+
+The author of the contested text does not choose the reading. The cap never
+resets on the author's say-so, and a closed log is never reopened to add rounds.
+An owner request for more rounds takes the same path: a new log, not an extension.
 
 ## Related Work Integration
 

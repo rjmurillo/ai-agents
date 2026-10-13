@@ -10,7 +10,8 @@ Save to: `.project-toolkit/critique/ADR-NNN-debate-log.md`
 # ADR Debate Log: [ADR Title]
 
 ## Summary
-- **Rounds**: [N]
+- **Rounds**: [N] of 10
+- **Prior debate log**: none (otherwise the path of the closed log this debate follows)
 - **Outcome**: [Consensus | Concluded Without Consensus]
 - **Final Status**: [proposed | accepted | needs-revision]
 
@@ -32,6 +33,9 @@ Save to: `.project-toolkit/critique/ADR-NNN-debate-log.md`
 ### Next Steps
 [If applicable]
 ```
+
+Rounds number from 1 within this log and never continue across logs. See
+`debate-protocol.md#round-cap`.
 
 ## Updated ADR
 
