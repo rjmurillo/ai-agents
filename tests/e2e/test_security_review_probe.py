@@ -69,6 +69,7 @@ def test_fixture_diff_is_a_patch_git_accepts(tmp_path: Path) -> None:
         cwd=tmp_path,
         capture_output=True,
         encoding="utf-8",
+        errors="replace",
         check=False,
     )
 
