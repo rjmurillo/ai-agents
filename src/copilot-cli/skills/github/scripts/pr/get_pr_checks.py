@@ -49,6 +49,7 @@ from github_core.api import (
 )
 from github_core.checks_rollup import (
     MISSING_GRACE_SECONDS,
+    current_run_keys,
     extract_required_check_lists,
     extract_workflow_run_number,
     fetch_ruleset_required_contexts,
@@ -100,6 +101,7 @@ query($owner: String!, $repo: String!, $number: Int!) {
                                             workflowRun {
                                                 databaseId
                                                 runAttempt
+                                                event
                                             }
                                         }
                                         isRequired(pullRequestNumber: $number)
@@ -143,6 +145,7 @@ query($owner: String!, $repo: String!, $oid: GitObjectID!, $number: Int!, $curso
                                     workflowRun {
                                         databaseId
                                         runAttempt
+                                        event
                                     }
                                 }
                                 isRequired(pullRequestNumber: $number)
@@ -237,6 +240,7 @@ def normalize_check(ctx: dict) -> dict | None:
             "DetailsUrl": ctx.get("detailsUrl", ""),
             "WorkflowRunId": workflow_run.get("databaseId"),
             "WorkflowRunAttempt": workflow_run.get("runAttempt"),
+            "WorkflowEvent": workflow_run.get("event"),
             "IsRequired": ctx.get("isRequired", False),
             "IsPending": status in _PENDING_STATUSES,
             "IsPassing": conclusion in _PASSING_CONCLUSIONS,
@@ -272,7 +276,8 @@ def normalize_check(ctx: dict) -> dict | None:
 #
 # This script leaves OverallState as GitHub's rollup value. Deduplication only
 # affects the per-check rows and derived counts, such as FailedCount. The
-# When each duplicate exposes a workflow run id, the latest run decides. Unknown
+# When each duplicate exposes a workflow run id, the latest run of each
+# triggering event is current and the worst current state decides. Unknown
 # provenance keeps the previous precedence behavior: passing beats failing,
 # failing beats pending. Any pending signal is still retained for wait polling,
 # including when a same-name passing run is present.
@@ -322,17 +327,36 @@ def _check_workflow_key(check: dict) -> tuple[int, int] | None:
     return int(run_number), int(attempt) if attempt is not None else 1
 
 
+def _cross_event_rank(check: dict) -> int:
+    """Rank current runs of different events: failing, pending, unknown, passing."""
+    order = {
+        _FAILING_RANK: 0,
+        _PENDING_RANK: 1,
+        _UNKNOWN_RANK: 2,
+        _PASSING_RANK: 3,
+    }
+    return order[_check_rank(check)]
+
+
 def _select_cross_run_winner(candidates: list[dict[Any, Any]]) -> dict[Any, Any]:
-    """Pick the latest workflow run when all candidates have run provenance."""
+    """Pick the current runs when all candidates have run provenance.
+
+    The newest run of each triggering event is current, because the ruleset
+    evaluates the ``pull_request`` and ``push`` runs of one head SHA. When
+    several events are current, the worst state wins so a red run from one
+    event is not hidden by a green run from another.
+    """
     check_run_pairs = [
         (check, _check_workflow_key(check))
         for check in candidates
         if check.get("Type") == "CheckRun"
     ]
     if check_run_pairs and all(run_key is not None for _, run_key in check_run_pairs):
-        latest_run = max(run_key for _, run_key in check_run_pairs)
-        latest_candidates = [check for check, run_key in check_run_pairs if run_key == latest_run]
-        return sorted(latest_candidates, key=_dedupe_rank)[0]
+        current = current_run_keys(
+            [(run_key, check.get("WorkflowEvent")) for check, run_key in check_run_pairs]
+        )
+        current_candidates = [check for check, run_key in check_run_pairs if run_key in current]
+        return sorted(current_candidates, key=_cross_event_rank)[0]
     return sorted(candidates, key=_dedupe_rank)[0]
 
 
