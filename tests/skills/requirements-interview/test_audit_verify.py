@@ -28,7 +28,7 @@ LEDGER = ledger(
         ask("Q2", "edge_case", [anchor("6. Terms", "An active user is anyone with a session.")]),
     ]
 )
-LOG = [
+LOG: list[dict[str, Any]] = [
     {"id": "Q1", "outcome": "accepted", "text": Q1_TEXT, "replaces": [Q1_OLD]},
     {"id": "Q2", "outcome": "open"},
 ]

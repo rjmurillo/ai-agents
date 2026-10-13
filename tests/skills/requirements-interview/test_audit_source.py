@@ -4,11 +4,18 @@ from __future__ import annotations
 
 import pytest
 from audit_paths import FIXTURES
-from audit_source import AnchorError, find_section, normalize, parse_sections, resolve_anchor
+from audit_source import (
+    AnchorError,
+    Section,
+    find_section,
+    normalize,
+    parse_sections,
+    resolve_anchor,
+)
 
 
 @pytest.fixture
-def spec() -> tuple[list[str], list]:
+def spec() -> tuple[list[str], list[Section]]:
     lines = (FIXTURES / "contradiction_spec.md").read_text(encoding="utf-8").splitlines()
     return lines, parse_sections(lines)
 

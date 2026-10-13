@@ -36,9 +36,9 @@ def load_decision_question() -> Any:
     """Import the decision-question engine (#5408) from the sibling skill."""
 
     path = (Path(__file__).resolve().parent / _DQ_RELATIVE).resolve()
-    if not path.is_file():
-        raise FileNotFoundError(f"decision-question engine not found at {path}")
     spec = importlib.util.spec_from_file_location("decision_question", path)
+    if spec is None or spec.loader is None or not path.is_file():
+        raise FileNotFoundError(f"decision-question engine not found at {path}")
     module = importlib.util.module_from_spec(spec)
     sys.modules.setdefault("decision_question", module)
     spec.loader.exec_module(module)
@@ -93,7 +93,7 @@ def _codebase_evidence(evidence: Any, repo_root: Path) -> None:
     total = len(target.read_text(encoding="utf-8", errors="replace").splitlines())
     span = evidence.get("lines")
     ok = isinstance(span, list) and len(span) == 2 and all(type(n) is int for n in span)
-    if not ok or not 1 <= span[0] <= span[1] <= total:
+    if not isinstance(span, list) or not ok or not 1 <= span[0] <= span[1] <= total:
         raise AnchorError(f"lines must be [start, end] within 1-{total}")
 
 
@@ -161,7 +161,7 @@ def ledger_problems(
 
 
 def _decision_dict(candidate: dict[str, Any]) -> dict[str, Any]:
-    decision = {
+    decision: dict[str, Any] = {
         key: candidate[key]
         for key in (
             "id",
@@ -227,7 +227,7 @@ def plan_questions(
     result: dict[str, Any] = {"recorded": _recorded(candidates)}
     if not asks:
         return {**result, "status": "no_material_gaps", "verdict": NO_GAPS_VERDICT}
-    brief = {
+    brief: dict[str, Any] = {
         "context": {"material_decision": True},
         "decisions": [_decision_dict(c) for c in asks.values()],
         "answers": ledger.get("answers") or {},

@@ -204,7 +204,7 @@ def test_evidence_backed_recommendation_is_accepted() -> None:
         **CONTRADICTION,
         "recommendation": "a",
         "recommendation_reason": "The code enforces 3.",
-        "recommendation_evidence": "src/limits.py:1",
+        "recommendation_evidence": "the session store enforces a limit of 3",
     }
     result = run("contradiction_spec.md", ledger([backed]))
     assert result["status"] == "ask"
@@ -279,7 +279,7 @@ def test_recommendation_removed_by_an_answer_must_be_revised() -> None:
     data["candidates"][1].update(
         recommendation="solo_only",
         recommendation_reason="Matches the code.",
-        recommendation_evidence="src/pool.py:3",
+        recommendation_evidence="the pool allocator exposes one slot",
     )
     result = run("contradiction_spec.md", data)
     assert result["status"] == "revise_recommendation"
