@@ -546,11 +546,11 @@ A citation cue is narrower than it looks, and both constraints are
 load-bearing. The cue (`see`, `per`, `defined in`, `for example`, and the rest
 of `_INLINE_CITATION_PATTERN`) must sit on the same line and immediately
 before the path, separated only by whitespace, colons, or an open paren. And
-the backtick span must end at the extension: `` `taste_lints.py` `` is
+the backtick span must end at the extension, optionally followed by a `:LINE`
+or `:LINE:COL` suffix: `` `taste_lints.py` `` and `` `taste_lints.py:71` `` are
 suppressible, `` `taste_lints.py --rules file-size` `` is not, because the
 trailing flags push the closing backtick past the extension. Reword so the
-path stands alone in its own span. A `:LINE` or `:LINE:COL` suffix inside the
-span is allowed (`` `checks_ratchet.py:71` `` is suppressible).
+path stands alone in its own span.
 
 Do not guess at the shape and push to find out. The extractor imports and runs
 offline against a candidate body, which turns a round trip through CI into a

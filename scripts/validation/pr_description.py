@@ -189,6 +189,7 @@ FILE_MENTION_PATTERNS: list[re.Pattern[str]] = [
 #   e.g. `.claude/skills/security-scan/scripts/scan_vulnerabilities.py`
 #   for example `scripts/validate_session_json.py`
 #   as documented in `scripts/ai_review_common/cache_guard.py`
+#   see `scripts/validation/checks_ratchet.py:71`
 #
 # The pattern is matched globally and the matching span is replaced with
 # `<CITE>` before FILE_MENTION_PATTERNS runs. This prevents the path from
@@ -196,7 +197,7 @@ FILE_MENTION_PATTERNS: list[re.Pattern[str]] = [
 #
 # The cited span may end in an optional location suffix, `:LINE` or
 # `:LINE:COL`, so a cue before a backticked path with `:71` is stripped like
-# the same cue before the bare path (issue #5550).
+# the same cue before the path without a suffix (issue #5550).
 #
 # INTENTIONALLY NARROW: the cue must appear on the SAME line as the path
 # and be separated only by optional whitespace / parentheses / colons.
