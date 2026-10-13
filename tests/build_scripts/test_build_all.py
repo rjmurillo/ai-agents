@@ -496,10 +496,8 @@ def test_build_skills_check_mode_reports_drift_as_staleness_without_writing(
     assert not (tmp_path / "out" / "skills").exists()
 
 
-def test_build_skills_check_mode_clean_template_still_runs_copy_loop(
-    tmp_path: Path,
-) -> None:
-    """--check with a clean (matching) template still exercises the copy loop."""
+def _seed_clean_skill_tree(tmp_path: Path) -> Path:
+    """Write a template plus matching install and plugin targets; return the install target."""
     partials_dir = tmp_path / "templates" / "skills" / "partials"
     partials_dir.mkdir(parents=True)
     (partials_dir / "greet.mustache").write_text("hi\n", encoding="utf-8")
@@ -517,13 +515,38 @@ def test_build_skills_check_mode_clean_template_still_runs_copy_loop(
     plugin_target = tmp_path / "src" / "claude" / "skills" / "sync" / "SKILL.md"
     plugin_target.parent.mkdir(parents=True)
     plugin_target.write_text("hi\n", encoding="utf-8")
+    return target
+
+
+def test_build_skills_check_mode_in_sync_mirror_passes_without_writing(
+    tmp_path: Path,
+) -> None:
+    """--check with a clean template and an in-sync mirror exits 0 and writes nothing."""
+    target = _seed_clean_skill_tree(tmp_path)
+    mirror = tmp_path / "out" / "skills" / "sync" / "SKILL.md"
+    mirror.parent.mkdir(parents=True)
+    mirror.write_text("hi\n", encoding="utf-8")
     cfg = _skills_platform_config(tmp_path)
 
     result = build_all._build_skills(tmp_path, cfg, "p", check=True)
 
     assert result.exit_code == 0
     assert target.read_text(encoding="utf-8") == "hi\n"
-    assert (tmp_path / "out" / "skills" / "sync" / "SKILL.md").is_file()
+    assert mirror.read_text(encoding="utf-8") == "hi\n"
+
+
+def test_build_skills_check_mode_missing_mirror_reports_drift_without_writing(
+    tmp_path: Path,
+) -> None:
+    """--check with a clean template but no mirror file exits 2 and creates nothing."""
+    target = _seed_clean_skill_tree(tmp_path)
+    cfg = _skills_platform_config(tmp_path)
+
+    result = build_all._build_skills(tmp_path, cfg, "p", check=True)
+
+    assert result.exit_code == 2
+    assert target.read_text(encoding="utf-8") == "hi\n"
+    assert not (tmp_path / "out" / "skills" / "sync" / "SKILL.md").exists()
 
 
 # _build_lib (ADR-109 B5) ----------------------------------------------------
