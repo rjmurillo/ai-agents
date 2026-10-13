@@ -678,6 +678,72 @@ class TestChangeClaimContextContract:
         assert offenders == ["foo.py"]
 
 
+class TestChangeHeadingScopesBulletAndBold:
+    """Issue #6410: with a change heading present, bullets and bold are references elsewhere."""
+
+    @staticmethod
+    def _critical_files(description: str, pr_files: list[str]) -> list[str]:
+        mentioned = extract_mentioned_files(description)
+        issues = validate_pr_description(pr_files=pr_files, mentioned_files=mentioned)
+        return [issue.file for issue in issues if issue.severity == "CRITICAL"]
+
+    def test_bullet_under_test_evidence_is_not_flagged(self):
+        description = (
+            "## Changes\n- `a.py`: edit\n\n"
+            "## Test evidence\n- `scripts/validation/pre_pr.py` passes\n"
+        )
+        assert self._critical_files(description, ["a.py"]) == []
+
+    def test_bold_under_flags_is_not_flagged(self):
+        description = "## Changes\n- `a.py`: edit\n\n## Flags\n**tests/foo.py** ran slowly.\n"
+        assert self._critical_files(description, ["a.py"]) == []
+
+    def test_bullet_before_change_heading_is_not_flagged(self):
+        description = "## Summary\n- `src/other.py` is context.\n\n## Changes\n- `a.py`: edit\n"
+        assert self._critical_files(description, ["a.py"]) == []
+
+    def test_bullet_under_changes_still_flags_when_missing_from_diff(self):
+        description = "## Changes\n- `ghost.py`: edit\n\n## Test evidence\n- `pre_pr.py` passes\n"
+        assert self._critical_files(description, ["a.py"]) == ["ghost.py"]
+
+    def test_bold_under_changes_still_flags_when_missing_from_diff(self):
+        description = "## Changes\nEdited **ghost.py**.\n\n## Flags\n- `other.py` noticed\n"
+        assert self._critical_files(description, ["a.py"]) == ["ghost.py"]
+
+    def test_what_changed_heading_also_scopes(self):
+        description = "## What changed\n- `a.py`: edit\n\n## Flags\n- `other.py` noticed\n"
+        assert self._critical_files(description, ["a.py"]) == []
+
+    def test_h3_inside_changes_stays_in_the_change_region(self):
+        description = "## Changes\n### Scripts\n- `ghost.py`: edit\n\n## Flags\n- `x.py`\n"
+        assert self._critical_files(description, ["a.py"]) == ["ghost.py"]
+
+    def test_no_change_heading_keeps_bullet_detection(self):
+        description = "## Summary\n- `ghost.py`\n\n## Test evidence\n- `pre_pr.py` passes\n"
+        assert self._critical_files(description, ["a.py"]) == ["ghost.py", "pre_pr.py"]
+
+    def test_no_change_heading_keeps_bold_detection(self):
+        assert self._critical_files("## Flags\nSee **ghost.py**.\n", ["a.py"]) == ["ghost.py"]
+
+    def test_pr_template_extracts_no_claims(self):
+        template = (_REPO_ROOT / ".github" / "PULL_REQUEST_TEMPLATE.md").read_text(encoding="utf-8")
+        assert extract_mentioned_files(template) == []
+
+    def test_template_pre_pr_line_is_not_flagged(self):
+        description = (
+            "## Changes\n- `a.py`: edit\n\n## Author Pre-flight\n"
+            "- `scripts/validation/pre_pr.py` passed\n"
+            "- [ ] Pre-PR validation passed (`uv run python scripts/validation/pre_pr.py`)\n"
+        )
+        assert self._critical_files(description, ["a.py"]) == []
+
+    def test_failure_message_does_not_recommend_a_bullet_or_bold(self):
+        issues = validate_pr_description(pr_files=["a.py"], mentioned_files=["ghost.py"])
+        message = issues[0].message
+        assert "use a bullet" not in message
+        assert "bold" not in message
+
+
 class TestExtractAllMentionedFiles:
     """Tests for extract_all_mentioned_files (issue #3712).
 
@@ -743,9 +809,9 @@ class TestWarningSuppressionFromReferenceSection:
     def test_critical_still_fires_for_wrong_path_in_strict_body(self) -> None:
         """CRITICAL check is not weakened by the broader extraction.
 
-        Bold paths (`**file.py**`) are extracted unconditionally (not scoped to
-        change-claim sections), so a bold path in the summary that is NOT in
-        the diff triggers CRITICAL.
+        Without a change heading, bold paths (`**file.py**`) are extracted
+        anywhere, so a bold path in the summary that is NOT in the diff
+        triggers CRITICAL.
         """
         from scripts.validation.pr_description import (
             extract_all_mentioned_files,
@@ -753,7 +819,7 @@ class TestWarningSuppressionFromReferenceSection:
             validate_pr_description,
         )
 
-        # Bold path is NOT scoped to change-claim sections, so it IS in mentioned_files
+        # The body has no change heading, so the bold path IS in mentioned_files
         desc = "## Summary\nChanged **scripts/nonexistent.py**.\n"
         pr_files = ["scripts/real.py"]
         mentioned = extract_mentioned_files(desc)

@@ -37,9 +37,29 @@ The name carries a hash of the counts. The body holds counts, never
 transcript text.
 
 Calibration status (issue #5820, AC-9): the patterns are anchored at the
-start of a turn or are fixed phrases, and were tuned on one operator's
-191 human turns. Recall was not measured. See the pull request that
-introduced this hook for the examined counts and the limits.
+start of a turn or are fixed phrases, except one bounded "use ... instead"
+window. The original set was tuned on one operator's 191 human turns.
+Recall was not measured. See the pull request that introduced this hook
+for the examined counts and the limits.
+
+The HIGH patterns under the "Adapted from claude-mem" comment adapt the
+user-side correction regexes in thedotmack/claude-mem (Apache-2.0),
+plugin/skills/agent-cost-report/scripts/acr/patterns.py and behavior.py,
+at commit 356b7c08f64c. Only fixed phrases were kept. Bare words such as
+"already", "stop", "never", and "again", and profanity other than "wtf",
+were dropped as too broad. claude-mem carries no praise regexes.
+
+The newer transcript-derived patterns (the "we don't use/open" HIGH
+phrase and the MED preference phrases) were checked against a second
+corpus from the same operator: 326 distinct human turns of Claude Code
+history over 30 days. Every new match in that corpus was read by hand and
+was a real correction or preference. The MED phrases "use ... instead"
+and "prefer" follow the MEDIUM trigger table in the reflect skill's
+references/triggers.md; "I don't want" and "I don't like" come from the
+transcripts. A cross-check on 30 days of Codex and Droid history (141 and
+97 distinct user turns) found no new false positive except "rather than",
+which matched pasted prose in 4 of 5 turns and was left out. Copilot CLI
+history held only automated prompts. Recall was not measured.
 
 References:
     - Issue #5817 (this hook), #5820 (PRD), #3184 (the no-op it replaces)
@@ -90,14 +110,34 @@ HIGH_PATTERNS = tuple(
         r"\b(?:never|always) do\b",
         r"\bdon(?:'|’)?t ever\b",
         r"\bstop (?:doing|using|adding)\b",
+        # Adapted from claude-mem acr/patterns.py and acr/behavior.py.
+        r"\b(?:i told you|like i said)\b",
+        r"\bhow many times (?:do|did|have|must|should) i\b",
+        r"\bstop asking\b",
+        r"\bi did(?:n(?:'|’)?t| not) (?:ask|say|tell you)\b",
+        r"\bnot what i (?:asked|wanted|meant)\b",
+        r"\b(?:no ?one|nobody) (?:said|asked)\b",
+        r"\bmade (?:that|it) up\b",
+        r"\bdid you (?:actually|even) (?:run|test|check|read|try|look|verify)\b",
+        r"\bwrong (?:repo|branch|file)\b",
+        r"\byou broke (?:the|this|that|my|it)\b(?!\s+down)",
+        r"\bwtf\b",
+        r"\bthat(?:'|’)?s (?:dumb|stupid)\b",
+        # Observed in operator transcripts: correcting a stated assumption.
+        r"\bwe (?:don(?:'|’)?t|do not|never) (?:use|open)\b",
     )
 )
-# MED: praise. Anchored openers only.
+# MED: praise (anchored openers) and stated preferences (fixed phrases and
+# one bounded "use ... instead" window).
 MED_PATTERNS = tuple(
     re.compile(p, re.IGNORECASE)
     for p in (
         r"^\s*(?:perfect|exactly|great|nice)\b",
         r"^\s*(?:yes[,.!]?\s+)?that(?:'|’)?s (?:it|exactly)\b",
+        r"\bi (?:also |really |just )?(?:don(?:'|’)?t|do not) (?:want|like)\b",
+        r"\buse\b[^.?!\n]{1,60}\binstead\b",
+        r"\bi(?: would|(?:'|’)d)? prefer\b",
+        r"(?:^|[;:.!]\s*)prefer\b",
     )
 )
 
@@ -153,7 +193,7 @@ def human_text(record: Mapping[str, Any]) -> str:
 
 
 def classify(text: str) -> tuple[bool, bool]:
-    """Return (is_correction, is_praise) for one human turn."""
+    """Return (is_correction, is_praise_or_preference) for one human turn."""
     return (
         any(p.search(text) for p in HIGH_PATTERNS),
         any(p.search(text) for p in MED_PATTERNS),
@@ -336,7 +376,7 @@ def build_message(result: ScanResult) -> str:
     """Counts and the skill name only. Never quotes transcript text."""
     return (
         f"{HOOK_NAME}: detected {result.high} correction and "
-        f"{result.med} praise signal(s) in this session. "
+        f"{result.med} praise or preference signal(s) in this session. "
         "Run the reflect skill to review and approve what to keep."
     )
 

@@ -25,6 +25,7 @@ def default_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, raising=False)
     monkeypatch.delenv(git_hook_policy.PYTEST_WORKERS_ENV, raising=False)
     monkeypatch.delenv(git_hook_policy.PYTEST_WORKER_CAP_ENV, raising=False)
+    monkeypatch.delenv(git_hook_policy.PYTEST_CPU_RESERVE_ENV, raising=False)
     monkeypatch.delenv("COVERAGE_CORE", raising=False)
     monkeypatch.delenv(git_hook_policy.TESTMON_NO_SEED_ENV, raising=False)
     # No test may reach the network: the seed fetch is stubbed to "no seed".

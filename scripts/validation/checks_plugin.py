@@ -154,10 +154,34 @@ def validate_agent_content_parity(repo_root: Path) -> bool:
     hard failures; a configuration error means the gate could not run, so we
     fail closed.
     """
-    script = repo_root / "build" / "scripts" / "check_agent_content_parity.py"
+    return _launch_parity_script(repo_root, "check_agent_content_parity.py")
+
+
+def validate_agent_source_parity(repo_root: Path) -> bool:
+    """Fail when an agent's shared, Claude, and Copilot sources disagree.
+
+    ``validate_agent_content_parity`` compares two generated trees. This gate
+    compares the three hand-written sources under ``templates/agents/`` under
+    the ``normalized`` predicate (ADR-107 M3, issue #5688; contract in
+    ``.agents/governance/GENERATOR-FILES.md``).
+
+    Wraps ``build/scripts/check_agent_source_parity.py``. Exit 0 = clean,
+    exit 1 = divergence, exit 2 = configuration error. All non-zero exits are
+    hard failures.
+    """
+    return _launch_parity_script(repo_root, "check_agent_source_parity.py")
+
+
+def _launch_parity_script(repo_root: Path, script_name: str) -> bool:
+    """Run a ``build/scripts/`` parity script and return True when it exits 0.
+
+    The name is a literal at each call site so the reachability scan in
+    ``tests/ci/test_validation_scripts_are_reachable.py`` sees the caller.
+    """
+    script = repo_root / "build" / "scripts" / script_name
     if not script.is_file():
         print(
-            f"[ERROR] check_agent_content_parity.py not found at {script}",
+            f"[ERROR] {script.name} not found at {script}",
             file=sys.stderr,
         )
         return False

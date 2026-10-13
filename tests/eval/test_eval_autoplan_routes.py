@@ -73,8 +73,9 @@ def test_shipped_fixtures_all_pass(capsys: pytest.CaptureFixture[str]) -> None:
     assert ev.main([]) == ev.EXIT_OK
     out = capsys.readouterr().out
     assert "orchestrator fallback: 0/" in out
-    for family in ev.NOT_EXECUTED_FAMILIES:
-        assert f"not executed {family}" in out
+    for family in ev.MODEL_FAMILIES:
+        assert f"model family {family}:" in out
+    assert "accuracy=not scored" in out
 
 
 def test_shipped_fixtures_cover_every_executed_family() -> None:
