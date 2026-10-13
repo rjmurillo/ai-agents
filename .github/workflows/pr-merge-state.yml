@@ -1,0 +1,44 @@
+# PR Merge State
+#
+# Fails loud when a pushed branch has an open PR that cannot merge.
+#
+# This job needs push events on feature branches. A PR with merge conflicts
+# gets no pull_request run, so only a push run can report it.
+#
+# It lives in its own workflow so the push trigger does not drag the full
+# Python test matrix along with it. Python Tests listens to push on main only,
+# which keeps each PR commit to one test run (tests/ci/test_workflow_trigger_fanout.py).
+#
+# Local developers and AI agents can run the same check using:
+#   GITHUB_REPOSITORY=owner/repo GITHUB_REF_NAME=<branch> python scripts/ci/check_pr_merge_state.py
+
+name: PR Merge State
+
+on:
+  push:
+    branches-ignore:
+      - main
+      - 'gh-readonly-queue/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  pr-merge-state:
+    name: PR Merge State
+    # ADR-025: ARM runner for cost optimization
+    runs-on: ubuntu-26.04-arm
+    timeout-minutes: 2
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check open PR merge state
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+        run: python scripts/ci/check_pr_merge_state.py
