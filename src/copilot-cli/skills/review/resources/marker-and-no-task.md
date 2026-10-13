@@ -18,7 +18,7 @@ Reviewed-By: /review@<comma-separated-axis-list> on <reviewed-tip-sha>
 Review-Artifact: sha256:<digest of the report lines>
 ```
 
-The report has one `<axis>: <VERDICT>` row per axis in the axis list. The verdict comes from that axis's `extract_verdict` result: `PASS`, or an acknowledged `WARN`. The validator rejects a report with a missing, extra, or failing row, a report that names another SHA, and a digest that does not match.
+The report has one `<axis>: <VERDICT>` row per axis in the axis list. The verdict is that axis's extracted token from SKILL.md Process step 6 (`extract_verdict`, or `adapt_local_axis_verdict` for the local axes `code-qualities-assessment`, `doc-accuracy`, `golden-principles`, and `taste-lints`). The validator accepts `PASS`, `COMPLIANT`, `PARTIAL`, and `WARN`; write `WARN` only when it was acknowledged. The validator rejects a report with a missing, extra, or failing row, a report that names another SHA, and a digest that does not match.
 
 ## Write steps
 
@@ -26,7 +26,7 @@ A commit cannot name its own SHA in a trailer (the SHA hashes the trailer, so wr
 
 1. `REVIEWED_TIP=$(git rev-parse HEAD)` (the code that was reviewed).
 2. Build the axis list from the axes that ran (comma-separated stems, e.g. `analyst,architect,qa,security,...`).
-3. Write `report.txt` with the report block above: `Reviewed-SHA: $REVIEWED_TIP` and one row per axis from its extracted verdict. Never write a row for an axis that did not run.
+3. Write `report.txt` with the lines from `--- review report ---` through `--- end review report ---`, delimiters included and no trailers (blank lines and trailing spaces inside the block are dropped before hashing): `Reviewed-SHA: $REVIEWED_TIP` and one row per axis from its extracted verdict. Never write a row for an axis that did not run.
 4. `DIGEST=$(python3 <validate_review_marker.py> --digest report.txt)`
 5. Write `marker-message.txt`: the subject `review: /review PASS marker`, a blank line, the contents of `report.txt`, a blank line, then the `Reviewed-By` and `Review-Artifact: $DIGEST` trailers.
 6. `git commit --allow-empty -F marker-message.txt`
@@ -36,8 +36,8 @@ A commit cannot name its own SHA in a trailer (the SHA hashes the trailer, so wr
 A subagent with no `Task` tool MUST NOT review its own diff and write the marker. Run each axis as its own `claude -p` process, so the reviewer has the axis prompt and nothing from the authoring session.
 
 ```bash
-# <axis-prompt> is the resolved references/{role}.md; context.txt starts with the CONTEXT_MODE line, then the diff.
+# <axis-prompt> is the resolved references/{role}.md, or resources/technical-review.md for the step 4c correctness pass; context.txt starts with the CONTEXT_MODE line, then the diff.
 claude -p --system-prompt-file "<axis-prompt>" --allowedTools "Read Grep Glob" < context.txt > "axis-{role}.out"
 ```
 
-Run the Stage-1 `spec-compliance` axis first, then the step 4 selection, then step 4c, one process each. Extract each verdict with `extract_verdict` exactly as in step 6, and keep every `axis-{role}.out` file as the evidence behind the report. If `claude` is not on `PATH`, record `UNKNOWN` for every axis: no verdict is a non-PASS verdict, and a non-PASS verdict writes no marker.
+Follow SKILL.md Process with these substitutions. Step 3, the complexity classifier, runs as its own `claude -p` process with the analyst prompt. Run the Stage-1 `spec-compliance` axis first, then the step 4 selection, then step 4c, one process each. Run `validate_findings_scope.py` on each `axis-{role}.out` as in step 4a before extracting its verdict, so an out-of-scope finding downgrades as it does on the Task path. The step 5 local axes run their scripts as written. Extract each verdict as in SKILL.md Process step 6, and keep every `axis-{role}.out` file as the evidence behind the report. If `claude` is not on `PATH`, record `UNKNOWN` for every axis: no verdict is a non-PASS verdict, and a non-PASS verdict writes no marker.

@@ -69,7 +69,7 @@ These paths hold threat models, benchmarks, workflows, and hooks that protect th
    Lefthook wraps the configured `lefthook:` runner in `test -n "<literal>"`,
    which is always true, so a fallback written in `lefthook.yml` or in the
    generated shim never runs. Put every fallback inside the runner (PR #5988).
-9. **End a CRITICAL-path push with the `/review` marker**. A push matching any `CRITICAL_PATTERNS` path (`detect_infrastructure.py`) must end in an empty single-parent commit trailed `Reviewed-By: /review@<axes with security> on <parent sha>`, with the review report its `Review-Artifact` digest covers. A bare trailer fails. Any later commit voids it. `pre_pr.py` only warns.
+9. **End a CRITICAL-path push with the `/review` marker**. A push matching any `CRITICAL_PATTERNS` path (`detect_infrastructure.py`) must end in an empty single-parent commit with the trailers `Reviewed-By: /review@<axes with security> on <parent sha>` and `Review-Artifact: sha256:<digest>`, and a body holding the review report that digest covers. A bare trailer fails. Any later commit voids it. `pre_pr.py` only warns.
 
 ## SHOULD
 

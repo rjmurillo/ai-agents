@@ -60,6 +60,11 @@ EXIT CODES (``AGENTS.md``, ADR-035):
         or the review report is missing, altered, or does not back the axes.
     2 - Configuration error (git unavailable, bad repo root, bad args, or no
         review axis directory to validate axis names against).
+
+``--digest REPORT_FILE`` mode has its own codes:
+    0 - The digest was printed.
+    1 - The file does not hold exactly one report block.
+    2 - The file cannot be read.
 """
 
 from __future__ import annotations
@@ -75,13 +80,15 @@ from dataclasses import dataclass
 from pathlib import Path
 
 # The trailer key the /review skill writes and /ship reads. Defined once here
-# and quoted verbatim in .claude/skills/review/SKILL.md and
-# .claude/skills/ship/SKILL.md so the writer and reader never drift (see
+# and quoted verbatim in .claude/skills/review/resources/marker-and-no-task.md
+# (the writer contract) and .claude/skills/ship/SKILL.md so the writer and
+# reader never drift (see
 # .claude/rules/canonical-source-mirror.md).
 MARKER_TRAILER_KEY = "Reviewed-By"
 
-# The digest trailer and the report delimiters. Quoted verbatim in the review
-# skill's SKILL.md (the writer) so the writer and this reader never drift.
+# The digest trailer and the report delimiters. Quoted verbatim in
+# .claude/skills/review/resources/marker-and-no-task.md (the writer contract)
+# so the writer and this reader never drift.
 ARTIFACT_TRAILER_KEY = "Review-Artifact"
 REPORT_BEGIN = "--- review report ---"
 REPORT_END = "--- end review report ---"

@@ -71,7 +71,7 @@ The skill body MUST NOT hard-fail when the `.claude/` path is missing; it MUST a
 
 | Script | Purpose | Exit codes |
 |--------|---------|------------|
-| `scripts/validate_review_marker.py` | Validates the SHA-bound `Reviewed-By: /review@...` marker `/ship` requires and the review report its `Review-Artifact` digest covers. `--digest REPORT_FILE` prints that digest for the writer. | `0` valid, `1` missing, stale, bad axis list, or no valid review report, `2` config error |
+| `scripts/validate_review_marker.py` | Validates the SHA-bound `Reviewed-By: /review@...` marker `/ship` requires and the review report its `Review-Artifact` digest covers. `--digest REPORT_FILE` prints that digest. | `0` valid, `1` missing, stale, bad axis list, or no valid review report, `2` config error |
 | `select_axes.py` (same directory) | Selects the Stage-2 canonical axes and the local-only skill axes from verified changed paths and diff effects. Emits the selection, per-axis reasons, and skips as JSON. | `0` selection emitted, `2` config error (unknown pinned axis, or references directory missing or empty) |
 
 ## Process
@@ -152,8 +152,8 @@ Categorize a finding as **Critical** if its axis verdict is `CRITICAL_FAIL`, **I
 
 On a **PASS** final verdict (or a WARN where every WARN was acknowledged), write a
 SHA-bound marker so `/ship` can prove the shipped code was reviewed at its current
-state without re-running the review. Skip this on `CRITICAL_FAIL`, on a Stage-1
-short-circuit, and on `UNKNOWN`: a non-PASS verdict must not leave a marker.
+state without re-running the review. Skip this on `CRITICAL_FAIL`, a Stage-1
+short-circuit, `UNKNOWN`, or an unacknowledged WARN: none may leave a marker.
 
 The marker is an empty commit on top of the reviewed tip. Its body holds a review
 report (the reviewed SHA plus one `<axis>: <VERDICT>` row per axis that ran), then
@@ -164,7 +164,7 @@ trailer is rejected: any agent can type one. Write the marker only as
 not run.
 
 The marker is valid only while its parent (the reviewed tip) is HEAD's parent. Land
-any new code commit and the review is correctly stale. Issues #1938 and #6438.
+any new code commit and the review is correctly stale. Issues #1938 and #6438 record the design.
 
 Re-running `/review` after the verdict is still PASS writes another marker commit;
 that is safe (idempotent in effect: the latest marker binds the current tip).
