@@ -63,18 +63,20 @@ cannot answer "was R read correctly", because both artifacts inherit one reading
    python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/evidence-provenance/scripts/classify_lineage.py" <record.json>
    ```
 
-   Add `--promotion` when the evidence gates a deployment: every item then needs
-   artifact, revision, validator, command, and result, and an item bound to a
-   different artifact or revision is rejected, not downgraded.
+   An item whose `bound_to` names a different artifact or revision is always
+   rejected (`binding-mismatch`), not downgraded. Add `--promotion` when the
+   evidence gates a deployment: every item then also needs a `bound_to` with
+   artifact, revision, validator, command, and result, or it is rejected as
+   `binding-missing`.
 4. **Read the verdict.**
 
    | Verdict | Meaning |
    |---------|---------|
    | `CORROBORATED` | At least one independent loop verified the claim. `independent_loops` is the count to cite. |
    | `SINGLE_LOOP` | Verified, but only inside the subject's loop. Cite it as one loop, however many files. |
-   | `FALSIFIED_BY_INDEPENDENT_OBSERVATION` | An independent item with normative or runtime authority failed. It wins over any same-loop pass. |
+   | `FALSIFIED_BY_INDEPENDENT_OBSERVATION` | An independent item with normative or executable-runtime authority failed. It wins over any same-loop pass. |
    | `FAILED` | An item failed without independent authority. Investigate before citing anything else. |
-   | `NO_VERIFIED_EVIDENCE` | Nothing verified, or every item was rejected for a binding mismatch. |
+   | `NO_VERIFIED_EVIDENCE` | Nothing verified, or every item was rejected for a binding problem (`binding-mismatch` or `binding-missing`). |
 
 5. **Cite the count the classifier gives.** Set `claimed_independent` to the
    number you intend to write. A claim above `independent_loops` exits 1 as
@@ -123,14 +125,18 @@ This skill owns the lineage and state semantics and nothing else.
 | Which validator governs a change | `validation-authority`, `analysis-provenance` |
 | Review verdicts and independent reviewer behavior | `review` (technical-review) |
 
-Consumers depend on this skill with `depends-on: [evidence-provenance]` and link
-here. They do not copy this skill's tables.
+Consumers name this skill by its id and link here. They do not copy this
+skill's tables.
 
 ## Scripts
 
 | Script | Purpose | Exit codes |
 |--------|---------|------------|
 | `classify_lineage.py` | Loops, independence, authority, verdict, violations | `0` classified, `1` violation or failed claim, `2` bad input |
+
+Exit `0` means classified, not passed. `NO_VERIFIED_EVIDENCE` exits `0`, even
+under `--promotion` with every item rejected. A promotion gate must also require
+a `CORROBORATED` or `SINGLE_LOOP` verdict and an empty `rejected` list.
 
 The script is stdlib-only. It trusts the lineage fields it is given, so a
 fabricated premise list defeats it. Check the fields against the diff and the

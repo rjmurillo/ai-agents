@@ -32,21 +32,49 @@ Field reference for `classify_lineage.py`. The fixtures in
 }
 ```
 
+## Record fields
+
+| Field | Values | Default | Role |
+|-------|--------|---------|------|
+| `claim` | string | empty | The statement under test. |
+| `subject` | object with `artifact`, `revision`, `premises` | required | The candidate whose loop other items are compared against. |
+| `claimed_independent` | integer | absent | The confirmation count the author will cite. Any other type exits `2`. |
+| `evidence` | list of evidence objects | empty list | Items that support or contradict the claim. |
+| `checks` | list of check objects | empty list | Named gates and their state. |
+
 ## Evidence fields
 
-| Field | Values | Role |
-|-------|--------|------|
-| `state` | `VERIFIED`, `NOT RUN`, `UNAVAILABLE`, `FAILED` | Required. Only `VERIFIED` corroborates. |
-| `origin` | `same-loop`, `independent-reviewer`, `human`, `external-system`, `pre-existing` | Who produced it. Never decides independence alone. |
-| `created` | `pre-existing`, `during-task` | Time axis. |
-| `authority` | `normative`, `executable-runtime`, `derived`, `heuristic` | How much the item can settle. Separate from independence. |
-| `environment` | `synthetic`, `real` | A fixture or the system being claimed about. |
-| `premises` | list of ids, or absent | The assumptions the item was derived from. Absent or empty means lineage unknown. |
-| `inherits_from` | evidence ids, or `subject` | Conclusions the item was handed instead of rebuilding. |
-| `changed_by_subject` | boolean | The evaluated actor edited this item. |
-| `discriminating` | boolean | A restored defect made it fail. Recorded, not counted as independence. |
-| `used_as_support` | boolean | The report leans on this item. |
-| `bound_to` | artifact, revision, validator, command, result | Ties the item to one candidate. |
+Omitted fields take the default. The defaults are the weakest values, so a
+minimal item is a same-origin synthetic artifact and fails with
+`same-origin-synthetic`.
+
+| Field | Values | Default | Role |
+|-------|--------|---------|------|
+| `id` | non-empty string, unique, not `subject` | required | Name used by `inherits_from`. |
+| `state` | `VERIFIED`, `NOT RUN`, `UNAVAILABLE`, `FAILED` | required | Only `VERIFIED` corroborates. |
+| `origin` | `same-loop`, `independent-reviewer`, `human`, `external-system`, `pre-existing` | `same-loop` | Who produced it. Never decides independence alone. |
+| `created` | `pre-existing`, `during-task` | `during-task` | Time axis. |
+| `authority` | `normative`, `executable-runtime`, `derived`, `heuristic` | `heuristic` | How much the item can settle. Separate from independence. |
+| `environment` | `synthetic`, `real` | `synthetic` | A fixture or the system being claimed about. |
+| `premises` | list of ids | absent | The assumptions the item was derived from. Absent or empty means lineage unknown. |
+| `inherits_from` | evidence ids, or `subject` | empty list | Conclusions the item was handed instead of rebuilding. |
+| `changed_by_subject` | boolean | `false` | The evaluated actor edited this item. |
+| `discriminating` | boolean | `false` | A restored defect made it fail. Recorded, not counted as independence. |
+| `used_as_support` | boolean | `false` | The report leans on this item. |
+| `bound_to` | object: artifact, revision, validator, command, result | absent | Ties the item to one candidate. Required under `--promotion`. |
+
+The boolean fields accept only JSON `true` or `false`. Any other value, such as
+the string `"false"`, exits `2`.
+
+## Check fields
+
+| Field | Values | Default | Role |
+|-------|--------|---------|------|
+| `check` | non-empty string | required | Name of the gate. |
+| `state` | `VERIFIED`, `NOT RUN`, `UNAVAILABLE`, `FAILED` | absent | Absent or any other wording exits `1` as `named-without-state`. |
+| `cheap` | boolean | absent | A cheap check that is available must be run before it is cited. |
+| `available` | boolean | absent | The tools and environment can run it. |
+| `used_as_support` | boolean | absent | A `NOT RUN` or `FAILED` check used as support exits `1` as `unverified-support`. |
 
 ## Rules
 
@@ -65,7 +93,7 @@ An item is independent when all of these hold:
 independent items that share a premise are one loop.
 
 A rejected item (`binding-mismatch`, `binding-missing`) is removed before
-grouping. It cannot link loops and cannot count. Rejection does not launder
+grouping. It cannot link loops and cannot count, but its `used_as_support` state is still checked for violations. Rejection does not launder
 inheritance: an item that inherits from a rejected item, directly or through a
 chain of accepted items, is not independent
 (`inherits-rejected-evidence`). The conclusion it was handed came from evidence
@@ -104,7 +132,7 @@ carries only a conclusion drops `premises`, and the item falls to
 | Real runtime contradicts the expectation | `s5_runtime_contradicts_generated` | independent observation wins |
 | Reviewer inherits the conclusion | `s6_reviewer_inherits_conclusion` | one loop, claim inflated |
 | Reviewer rebuilds from primary evidence | `s7_reviewer_reconstructs` | independent |
-| Cheap gate named as "should run" | `s8_should_run_pending`, `s8b_state_missing` | fails Walk-or-Don't-Name |
+| Cheap gate named as "should run" | `s8_should_run_pending`, `s8b_state_missing` | fails Walk or do not name |
 | Gate unavailable, reported as such | `s9_unavailable_reported` | passes |
 | Doubled confidence claim | `c1_negative_control_doubled_confidence` | blocked; passes if grouping is bypassed |
 | Stale revision, other artifact | `x1_stale_revision`, `x2_other_artifact` | rejected |

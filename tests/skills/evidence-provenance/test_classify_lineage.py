@@ -403,6 +403,11 @@ def test_inheriting_an_accepted_independent_item_stays_independent() -> None:
         (lambda r: r["evidence"][0].update(bound_to="x"), "bound_to must be an object"),
         (lambda r: r["evidence"][0].update(premises="x"), "list of strings"),
         (lambda r: r.update(checks="x"), "checks must be a list"),
+        (lambda r: r.update(claimed_independent="2"), "claimed_independent must be an integer"),
+        (lambda r: r.update(claimed_independent=True), "claimed_independent must be an integer"),
+        (lambda r: r["evidence"][0].update(used_as_support="false"), "must be true or false"),
+        (lambda r: r["evidence"][0].update(changed_by_subject=1), "must be true or false"),
+        (lambda r: r["evidence"][0].update(discriminating="no"), "must be true or false"),
         (lambda r: r.update(checks=[{"state": "VERIFIED"}]), "string 'check'"),
     ],
 )

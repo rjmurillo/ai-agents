@@ -4,7 +4,7 @@
 Reads one JSON record of a claim, the artifact under test, and the evidence
 offered for it. Groups evidence into loops by shared premise or inheritance,
 decides which items are independent of the artifact's own loop, and keeps
-authority as a separate axis. It also enforces the Walk-or-Don't-Name rule:
+authority as a separate axis. It also enforces the Walk or do not name rule:
 a named check carries one of VERIFIED, NOT RUN, UNAVAILABLE, or FAILED.
 
 Input shape (all keys optional unless marked):
@@ -83,6 +83,13 @@ def str_list(raw: dict[str, Any], key: str) -> list[str]:
     return list(value)
 
 
+def flag(raw: dict[str, Any], key: str) -> bool:
+    value = raw.get(key, False)
+    if not isinstance(value, bool):
+        raise ConfigError(f"{key} must be true or false, got {value!r}")
+    return value
+
+
 def parse_premises(raw: dict[str, Any]) -> list[str] | None:
     if "premises" not in raw:
         return None
@@ -106,9 +113,9 @@ def parse_item(raw: object) -> Item:
         environment=pick(raw, "environment", ENVIRONMENTS, "synthetic"),
         premises=parse_premises(raw),
         inherits_from=str_list(raw, "inherits_from"),
-        changed_by_subject=bool(raw.get("changed_by_subject", False)),
-        discriminating=bool(raw.get("discriminating", False)),
-        used_as_support=bool(raw.get("used_as_support", False)),
+        changed_by_subject=flag(raw, "changed_by_subject"),
+        discriminating=flag(raw, "discriminating"),
+        used_as_support=flag(raw, "used_as_support"),
         bound_to=bound,
     )
 
@@ -341,7 +348,9 @@ def classify(record: dict[str, Any], promotion: bool) -> dict[str, Any]:
     violations = check_violations(record, every)
     independent_loops = count_loops(rows, authoritative_only=False)
     claimed = record.get("claimed_independent")
-    if isinstance(claimed, int) and claimed > independent_loops:
+    if claimed is not None and (isinstance(claimed, bool) or not isinstance(claimed, int)):
+        raise ConfigError(f"claimed_independent must be an integer, got {claimed!r}")
+    if claimed is not None and claimed > independent_loops:
         violations.append(
             {"rule": "inflated-confidence", "subject": f"{claimed}>{independent_loops}"}
         )
