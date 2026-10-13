@@ -1,0 +1,37 @@
+{
+  "claim": "gate passed",
+  "subject": {
+    "artifact": "pkg",
+    "revision": "r2",
+    "premises": [
+      "interp:R"
+    ]
+  },
+  "evidence": [
+    {
+      "id": "old-run",
+      "state": "VERIFIED",
+      "origin": "external-system",
+      "environment": "real",
+      "authority": "executable-runtime",
+      "premises": [
+        "observation:ci"
+      ],
+      "bound_to": {
+        "artifact": "pkg",
+        "revision": "r1",
+        "validator": "pre_pr",
+        "command": "pre_pr.py",
+        "result": "pass"
+      }
+    }
+  ],
+  "expect": {
+    "verdict": "NO_VERIFIED_EVIDENCE",
+    "independent_loops": 0,
+    "rejected": {
+      "old-run": "binding-mismatch"
+    },
+    "exit": 0
+  }
+}
