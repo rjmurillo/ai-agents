@@ -15,6 +15,7 @@ until you do (issue #5272).
 
 from __future__ import annotations
 
+from check_adr_exception_markers import validate_adr_exception_markers
 from check_agent_tree_frontmatter import validate_agent_tree_frontmatter
 from check_agents_write_targets import validate_agents_write_targets
 from check_bypass_allowlist import validate_bypass_allowlist
@@ -57,6 +58,7 @@ from checks_tooling import (
 __all__ = [
     "validate_agent_content_parity",
     "validate_agent_template_drift",
+    "validate_adr_exception_markers",
     "validate_agent_tree_frontmatter",
     "validate_agents_write_targets",
     "validate_always_on_corpus_claims",
