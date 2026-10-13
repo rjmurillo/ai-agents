@@ -53,6 +53,7 @@ from github_core.api import (
     assert_gh_authenticated,
     resolve_repo_params,
 )
+from github_core.not_found import is_pr_not_found
 from github_core.output import (
     add_output_format_arg,
     get_output_format,
@@ -113,7 +114,7 @@ def fetch_current_body(owner: str, repo: str, pr: int) -> str | None:
         check=False,
     )
     if result.returncode != 0:
-        if "404" in result.stderr or "Not Found" in result.stderr:
+        if is_pr_not_found(result.stderr):
             return None
         # gh can exit non-zero with blank stderr (a signal kill, or a
         # failure mode that writes its diagnostic to stdout instead), in

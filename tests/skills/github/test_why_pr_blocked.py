@@ -845,3 +845,25 @@ class TestMain:
         out = capsys.readouterr().out
         assert rc == 0
         assert "mergeable" in out.lower() or "no blocking" in out.lower()
+
+
+class TestFetchPrDataLookupFailure:
+    @pytest.mark.parametrize(
+        "message",
+        [
+            "Could not resolve to a PullRequest with the number of 42.",
+            "gh: Not Found (HTTP 404)",
+        ],
+    )
+    def test_missing_pr_maps_to_not_found(self, message):
+        with patch("why_pr_blocked.gh_graphql", side_effect=RuntimeError(message)):
+            result = fetch_pr_data("o", "r", 42)
+        assert result["Error"] == "NotFound"
+
+    def test_transport_fault_maps_to_api_error(self):
+        with patch(
+            "why_pr_blocked.gh_graphql",
+            side_effect=RuntimeError("Could not resolve host: api.github.com"),
+        ):
+            result = fetch_pr_data("o", "r", 42)
+        assert result["Error"] == "ApiError"
