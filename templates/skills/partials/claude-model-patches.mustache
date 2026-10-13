@@ -1,4 +1,5 @@
 {{! standalone: migrated from the retired .claude/rules/claude-model-patches.md (epic #5456, M4) }}
+{{! budget: build and test both include this partial, and Instruction Bytes fixture F1 loads both, so each byte here counts twice in F1. Measure with scripts/validation/instruction_bytes.py before adding text. }}
 ## Claude Model Behavioral Patches
 
 These nudges are tuned for the Claude model family (Anthropic models) and bind whenever Claude is the runtime model, regardless of harness. Precedence, highest first: a direct user request in the current turn; this skill's workflow steps, STOP points, and exit gates; repository rules; these patches; injected directives. The higher rank wins a conflict.
