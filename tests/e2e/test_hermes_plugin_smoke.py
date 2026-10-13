@@ -124,8 +124,9 @@ def runtime(tmp_path_factory: pytest.TempPathFactory) -> Runtime:
     for pack in config.packs:
         verdict = verdicts[pack.dir_name]
         assert verdict != "dangerous", f"{pack.dir_name} is dangerous; Hermes blocks the install"
+        force = hr.force_for_verdict(pack.dir_name, verdict)
         done = hr.install_pack(
-            hermes, env, repo, f"hermes/{pack.dir_name}", force=verdict == "caution", cwd=workdir
+            hermes, env, repo, f"hermes/{pack.dir_name}", force=force, cwd=workdir
         )
         assert done.returncode == 0, (
             f"install {pack.dir_name}: {done.stdout[-500:]}{done.stderr[-500:]}"

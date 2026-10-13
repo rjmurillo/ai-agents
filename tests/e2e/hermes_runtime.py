@@ -29,6 +29,10 @@ from pathlib import Path
 INSTALL_TIMEOUT_SECONDS = 300
 QUICK_TIMEOUT_SECONDS = 120
 
+# Packs whose ``caution`` guard verdict was reviewed and accepted. Name a pack here
+# only with that review; the smoke fails for every other pack rated ``caution``.
+FORCE_ALLOWED_PACKS: frozenset[str] = frozenset({"project-toolkit-delivery"})
+
 # Snippets run with the Python that Hermes installed into, so they can import its
 # own modules. They print one JSON document on stdout.
 LIST_SKILLS_SNIPPET = """
@@ -144,6 +148,23 @@ def stage_git_repo(files_root: Path, repo: Path, *, subdir: str) -> Path:
         if done.returncode != 0:
             raise HermesRuntimeError(f"git {step[0]} failed: {done.stderr.strip()}")
     return repo
+
+
+def force_for_verdict(pack_name: str, verdict: str) -> bool:
+    """Return whether ``pack_name`` installs with ``--force`` under guard ``verdict``.
+
+    Only a ``caution`` pack named in :data:`FORCE_ALLOWED_PACKS` gets ``--force``. Any
+    other pack must be ``safe``; a ``caution`` or worse verdict on it fails the smoke,
+    so a new finding in a pack cannot be installed past the guard without a decision.
+    """
+    if verdict == "safe":
+        return False
+    if verdict == "caution" and pack_name in FORCE_ALLOWED_PACKS:
+        return True
+    raise ValueError(
+        f"{pack_name} is rated {verdict!r}; only a caution verdict on "
+        f"{sorted(FORCE_ALLOWED_PACKS)} may install with --force"
+    )
 
 
 def install_pack(
