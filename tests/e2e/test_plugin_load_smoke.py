@@ -1342,6 +1342,22 @@ def _copilot_tier_model(tier: str) -> str:
     return str(config["legacy"]["model_tiers"][tier])
 
 
+_NO_MINOR_CANONICAL_ID = "claude-opus-5"
+
+
+def _copilot_no_minor_model() -> str:
+    """The id the generator emits on Copilot CLI for a manifest pin with no minor.
+
+    ``claude-opus-5`` is a live id (``build/model_pin_manifest.py`` and
+    ``scripts/eval/panels/owner-copilot-cli.json``), and the second of the two
+    shapes ``format_model_id_for_platform`` can emit: ``claude-{tier}-{major}``.
+    """
+    tiers = {t: _copilot_tier_model(t) for t in ("opus", "sonnet", "haiku")}
+    emitted = _load_format_model_id_for_platform()(_NO_MINOR_CANONICAL_ID, tiers)
+    assert emitted is not None, f"generator emits no pin for {_NO_MINOR_CANONICAL_ID!r}"
+    return emitted
+
+
 def _rejected_models(*streams: str) -> list[str]:
     """Model ids the CLI reported as unavailable, in the order printed."""
     return [match.group("model") for text in streams for match in _MODEL_REJECTED_RE.finditer(text)]
@@ -1400,30 +1416,35 @@ def _run_copilot_model_probe(tmp_path: Path, model: str) -> subprocess.Completed
 
 @pytest.mark.smoke
 @requires_copilot
-@_cli_budget(_CLI_TIMEOUT_SECONDS, _CLI_TIMEOUT_SECONDS)
+@_cli_budget(_CLI_TIMEOUT_SECONDS, _CLI_TIMEOUT_SECONDS, _CLI_TIMEOUT_SECONDS)
 def test_copilot_accepts_the_generated_model_id_with_rejection_control(tmp_path: Path) -> None:
-    """Copilot resolves the model id the generator emits, and flags one it cannot.
+    """Copilot resolves both id shapes the generator emits, and flags one it cannot.
 
     The control runs first: a bogus id in the same harness must print the
-    rejection warning, or the warning check below proves nothing. The subject is
-    the opus-tier id from ``templates/platforms/copilot-cli.yaml``, the dot form
-    ``format_model_id_for_platform`` writes into generated frontmatter.
+    rejection warning, or the warning checks below prove nothing. The subjects
+    are the two shapes ``format_model_id_for_platform`` writes into generated
+    frontmatter: the opus-tier dot form from ``templates/platforms/copilot-cli.yaml``
+    (``claude-{tier}-{major}.{minor}``) and the no-minor form for a manifest pin
+    such as ``claude-opus-5`` (``claude-{tier}-{major}``).
     """
-    subject = _copilot_tier_model("opus")
+    subjects = {
+        "major.minor": _copilot_tier_model("opus"),
+        "major only": _copilot_no_minor_model(),
+    }
     control_run = _run_copilot_model_probe(tmp_path, _BOGUS_MODEL_ID)
-    subject_run = _run_copilot_model_probe(tmp_path, subject)
-
     assert _BOGUS_MODEL_ID in _rejected_models(control_run.stderr, control_run.stdout), (
         "negative control failed: Copilot printed no rejection for "
-        f"{_BOGUS_MODEL_ID!r}, so a clean run for {subject!r} proves nothing. "
+        f"{_BOGUS_MODEL_ID!r}, so a clean run for any subject proves nothing. "
         f"stderr={control_run.stderr[-600:]!r}"
     )
-    assert subject not in _rejected_models(subject_run.stderr, subject_run.stdout), (
-        f"Copilot CLI cannot use model {subject!r} and fell back to auto. The id is "
-        "unknown to this CLI version or not enabled for the smoke account. "
-        f"stderr={subject_run.stderr[-600:]!r}"
-    )
-    assert "READY" in _copilot_assistant_text(_json_events(subject_run))
+    for shape, subject in subjects.items():
+        subject_run = _run_copilot_model_probe(tmp_path, subject)
+        assert subject not in _rejected_models(subject_run.stderr, subject_run.stdout), (
+            f"Copilot CLI cannot use the {shape} model {subject!r} and fell back to auto. "
+            "The id is unknown to this CLI version or not enabled for the smoke account. "
+            f"stderr={subject_run.stderr[-600:]!r}"
+        )
+        assert "READY" in _copilot_assistant_text(_json_events(subject_run))
 
 
 # Always-on unit checks. They need no real CLI, so they run in bare CI and pin
@@ -1705,6 +1726,15 @@ def test_probe_ids_are_what_the_generator_emits_for_copilot(tier: str) -> None:
     canonical = f"claude-{tier}-{major_minor.group(1)}-{major_minor.group(2)}"
 
     assert fmt(canonical, tiers) == tiers[tier]
+
+
+def test_generator_emits_the_no_minor_shape_the_smoke_probes() -> None:
+    """``claude-opus-5`` has no minor; the generator must emit ``claude-opus-5``."""
+    tiers = {t: _copilot_tier_model(t) for t in ("opus", "sonnet", "haiku")}
+
+    assert _load_format_model_id_for_platform()("claude-opus-5", tiers) == "claude-opus-5"
+    assert _copilot_no_minor_model() == "claude-opus-5"
+    assert re.fullmatch(r"claude-opus-\d+", _copilot_no_minor_model()) is not None
 
 
 def test_the_bogus_control_id_is_not_a_shipped_tier_default() -> None:
