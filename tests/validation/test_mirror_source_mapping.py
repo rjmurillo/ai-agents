@@ -45,6 +45,17 @@ class TestMirrorSourceMapping:
                 ".claude/skills/merge-resolver/scripts/resolve_pr_conflicts.py",
             ),
             ("src/copilot-cli/hooks/hooks.json", ".claude/hooks/hooks.json"),
+            ("src/cursor/skills/review/SKILL.md", ".claude/skills/review/SKILL.md"),
+            (
+                "src/cursor/skills/github/scripts/pr/get_pr_checks.py",
+                ".claude/skills/github/scripts/pr/get_pr_checks.py",
+            ),
+            (
+                "src/cursor/lib/ai_review_common/retry.py",
+                ".claude/lib/ai_review_common/retry.py",
+            ),
+            ("src/cursor/rules/voice.mdc", ".claude/rules/voice.md"),
+            ("src/cursor/agents/analyst.md", ".claude/agents/analyst.md"),
             (
                 ".github/prompts/pr-quality-gate-security.md",
                 ".claude/skills/review/references/security.md",
@@ -66,6 +77,13 @@ class TestMirrorSourceMapping:
     )
     def test_non_mirror_paths_have_no_source(self, path: str) -> None:
         assert _mirror_source(path) is None
+
+    def test_cursor_rule_suffix_must_match(self) -> None:
+        """A .md file under the Cursor rules tree is not a rendered rule."""
+        assert _mirror_source("src/cursor/rules/voice.md") is None
+
+    def test_cursor_manifest_is_authored_not_mirrored(self) -> None:
+        assert _mirror_source("src/cursor/.cursor-plugin/plugin.json") is None
 
     def test_instruction_suffix_must_match(self) -> None:
         """A file under the instructions tree without the suffix is not a mirror."""

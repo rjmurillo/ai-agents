@@ -1,0 +1,61 @@
+schemaVersion: "1.0"
+provider: "cursor"
+# ADR-115 Decision 1: a generated Cursor plugin tree at src/cursor/. The
+# manifest, .cursor-plugin/plugin.json, is hand-maintained. Cursor's plugin
+# schema is closed (additionalProperties: false), so it carries only the keys
+# that schema lists. Component discovery is by directory: skills/, rules/,
+# agents/ (https://cursor.com/docs/reference/plugins).
+# No hooks stanza: the toolkit's hooks need a Cursor dispatcher that does not
+# exist, and a Claude-format hooks.json is not a Cursor one.
+artifacts:
+  agents:
+    # Reads the compiled Claude plugin tree, not templates/agents. The
+    # frontmatterKeep key makes this a build/scripts/agent_tree_copy.py
+    # platform; build/generate_agents.py skips it.
+    sourceDir: "src/claude/agents"
+    outputDir: "src/cursor/agents"
+    excludeFilenames: ["AGENTS.md", "CLAUDE.md"]
+    # Cursor documents name, description, model, readonly, is_background for
+    # subagents. model is left out so Cursor's default (inherit) applies and
+    # the ADR-080 pins stay in the Claude and Copilot trees.
+    frontmatterKeep:
+      - name
+      - description
+    # Cursor has no tool allow-list for subagents. readonly: true is the one
+    # restriction it can carry, emitted only when every listed tool is read-only.
+    deriveReadonly: true
+  skills:
+    sourceDir: "src/claude/skills"
+    outputDir: "src/cursor/skills"
+    mode: "directory-copy"
+    excludeFilenames: ["AGENTS.md", "CLAUDE.md"]
+    # https://cursor.com/docs/context/skills documents these seven SKILL.md keys
+    # and does not say whether other keys (version, license, allowed-tools,
+    # argument-hint, user-invocable, model) are ignored or rejected. An
+    # allow-list ships only the documented ones. The body is copied verbatim.
+    frontmatterKeep:
+      - name
+      - description
+      - paths
+      - disable-model-invocation
+      - icon
+      - color
+      - metadata
+  rules:
+    sourceDir: "src/claude/rules"
+    outputDir: "src/cursor/rules"
+    outputFormat: "cursor-mdc"
+    sourceSuffix: ".md"
+    outputSuffix: ".mdc"
+    # Same remap and drop as the Copilot instruction tree. cursor-mdc then turns
+    # applyTo into alwaysApply or globs. This tree is installed where .claude/
+    # does not exist, so internal-only globs are filtered, as for
+    # src/copilot-cli/instructions.
+    frontmatterRemap:
+      paths: applyTo
+    frontmatterDrop:
+      - alwaysApply
+      - priority
+  lib:
+    sourceDir: ".claude/lib"
+    outputDir: "src/cursor/lib"

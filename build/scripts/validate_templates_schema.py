@@ -52,8 +52,17 @@ AGENTS_KEYS = {
     "sourceSuffix",
     "outputSuffix",
     "excludeFilenames",
+    "frontmatterKeep",
+    "deriveReadonly",
 }
-SKILLS_KEYS = {"sourceDir", "outputDir", "mode", "excludeFilenames", "frontmatterDrop"}
+SKILLS_KEYS = {
+    "sourceDir",
+    "outputDir",
+    "mode",
+    "excludeFilenames",
+    "frontmatterDrop",
+    "frontmatterKeep",
+}
 # `lib` only supports directory-copy today; no `mode` selector. If a
 # second mode (symlink, etc.) lands later, add `mode` to LIB_KEYS and
 # enforce it in `_build_lib`. Until then, an unused field is documentation
@@ -77,7 +86,11 @@ RULES_KEYS = {
     "frontmatterRemap",
     "frontmatterDrop",
     "keepInternalGlobsFor",
+    "outputFormat",
 }
+# ADR-115 Decision 2: `artifacts.rules.outputFormat`. `instructions` is the
+# default and today's Copilot output; `cursor-mdc` writes Cursor `.mdc` rules.
+RULES_OUTPUT_FORMATS = ("instructions", "cursor-mdc")
 HOOKS_KEYS = {
     "settingsSource",
     "scriptSource",
@@ -246,6 +259,60 @@ def _validate_exclude_filenames(name: str, stanza: dict[str, object]) -> list[st
     return _validate_string_list(name, stanza, "excludeFilenames")
 
 
+def _validate_rules_output_format(name: str, stanza: dict[str, object]) -> list[str]:
+    if "outputFormat" not in stanza:
+        return []
+    value = stanza["outputFormat"]
+    if not isinstance(value, str) or value not in RULES_OUTPUT_FORMATS:
+        return [
+            f"`artifacts.{name}.outputFormat`: must be one of {list(RULES_OUTPUT_FORMATS)} "
+            f"(got {value!r})"
+        ]
+    return []
+
+
+def _validate_frontmatter_keep(name: str, stanza: dict[str, object]) -> list[str]:
+    """Check the allow-list key on a skills or agents stanza (ADR-115 Decision 2).
+
+    An allow-list is non-empty: an empty one would strip the required `name`
+    and `description` and ship a tree the host cannot load. On skills it is
+    mutually exclusive with `frontmatterDrop`, because two cuts of one block
+    leave the result order-dependent.
+    """
+    if "frontmatterKeep" not in stanza:
+        return []
+    errors = _validate_string_list(name, stanza, "frontmatterKeep")
+    keep = stanza["frontmatterKeep"]
+    if not errors and not keep:
+        errors.append(f"`artifacts.{name}.frontmatterKeep`: must not be empty")
+    if "frontmatterDrop" in stanza:
+        errors.append(
+            f"`artifacts.{name}`: `frontmatterKeep` and `frontmatterDrop` are mutually exclusive"
+        )
+    return errors
+
+
+def _validate_agents_tree_copy(name: str, stanza: dict[str, object]) -> list[str]:
+    """Check the agent tree-copy keys (ADR-115 Decision 2).
+
+    `frontmatterKeep` turns on the `src/claude/agents` copy
+    (`agent_tree_copy.py`), which reads `sourceDir` and writes `outputDir`, so
+    both are required with it. `deriveReadonly` has no meaning without it.
+    """
+    errors: list[str] = []
+    if "deriveReadonly" in stanza and not isinstance(stanza["deriveReadonly"], bool):
+        errors.append(f"`artifacts.{name}.deriveReadonly`: must be a boolean")
+    if "frontmatterKeep" not in stanza:
+        if "deriveReadonly" in stanza:
+            errors.append(f"`artifacts.{name}.deriveReadonly`: requires `frontmatterKeep`")
+        return errors
+    errors.extend(_validate_frontmatter_keep(name, stanza))
+    for required in ("sourceDir", "outputDir"):
+        if required not in stanza:
+            errors.append(f"`artifacts.{name}.frontmatterKeep`: requires `{required}`")
+    return errors
+
+
 def _validate_artifact_stanza(name: str, stanza: object) -> list[str]:
     if not isinstance(stanza, dict):
         return [f"`artifacts.{name}`: must be a mapping (got {type(stanza).__name__})"]
@@ -258,7 +325,11 @@ def _validate_artifact_stanza(name: str, stanza: object) -> list[str]:
     if name == "skills":
         # ADR-111: an explicit null would silently disable the projection.
         errors.extend(_validate_string_list(name, stanza, "frontmatterDrop"))
+        errors.extend(_validate_frontmatter_keep(name, stanza))
+    if name == "agents":
+        errors.extend(_validate_agents_tree_copy(name, stanza))
     if name == "rules":
+        errors.extend(_validate_rules_output_format(name, stanza))
         errors.extend(_validate_rules_output_dirs(name, stanza))
         errors.extend(_validate_rules_keep_internal_globs(name, stanza))
     if name == "commands":

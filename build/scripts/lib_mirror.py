@@ -10,7 +10,8 @@ run, instead of a separately invoked script whose order relative to
 "Generator order: sync before build", removed by this change).
 
 Two destinations per source, per `templates/platforms/binplace.yaml`'s
-`lib-*` and `lib-*-copilot` rows:
+`lib-*` and `lib-*-copilot` rows (a third, `src/cursor/lib`, follows ADR-115
+Decision 1 and has no binplace row because the Cursor tree has no install tree):
 
     scripts/<pkg>/*.py  --IMPORT_CONVERSIONS-->  src/claude/lib/<pkg>/*.py
     scripts/<pkg>/*.py  --IMPORT_CONVERSIONS-->  src/copilot-cli/lib/<pkg>/*.py
@@ -62,7 +63,7 @@ PACKAGES: tuple[str, ...] = ("hook_utilities", "github_core", "ai_review_common"
 # is rendered into. `.claude/lib/` is never a render target here: it is an
 # install tree, reached only via `binplace_manifest.binplace()` copying
 # `src/claude/lib/` onto it (templates/platforms/binplace.yaml `lib-*` rows).
-PLUGIN_ROOTS: tuple[str, ...] = ("src/claude/lib", "src/copilot-cli/lib")
+PLUGIN_ROOTS: tuple[str, ...] = ("src/claude/lib", "src/copilot-cli/lib", "src/cursor/lib")
 
 # Individual file copies: (source file, destination file name under each
 # PLUGIN_ROOTS entry). Byte-for-byte copies of a single module that lives at
@@ -92,10 +93,12 @@ SYNC_FILE_NAMES: tuple[tuple[str, str], ...] = (
 SKILLS_SIDECAR_SOURCE = "scripts/validation/validate_review_marker.py"
 SKILLS_SIDECAR_PLUGIN_TREE = "src/claude/skills/review/scripts/validate_review_marker.py"
 SKILLS_SIDECAR_COPILOT_TREE = "src/copilot-cli/skills/review/scripts/validate_review_marker.py"
+SKILLS_SIDECAR_CURSOR_TREE = "src/cursor/skills/review/scripts/validate_review_marker.py"
 SKILLS_SIDECAR_INSTALL_TREE = ".claude/skills/review/scripts/validate_review_marker.py"
 SKILLS_SIDECAR_PLUGIN_TREES: tuple[str, ...] = (
     SKILLS_SIDECAR_PLUGIN_TREE,
     SKILLS_SIDECAR_COPILOT_TREE,
+    SKILLS_SIDECAR_CURSOR_TREE,
 )
 SKILLS_SIDECAR_OWNED: tuple[str, str] = ("review", "scripts/validate_review_marker.py")
 

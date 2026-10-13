@@ -1,0 +1,12 @@
+{
+  "name": "project-toolkit",
+  "displayName": "Project Toolkit",
+  "description": "Complete project development toolkit: agents, reusable skills, and path-scoped rules for Cursor workflows",
+  "author": {
+    "name": "rjmurillo"
+  },
+  "homepage": "https://github.com/rjmurillo/ai-agents",
+  "repository": "https://github.com/rjmurillo/ai-agents",
+  "license": "MIT",
+  "keywords": ["agents", "skills", "rules", "workflow", "code-review"]
+}

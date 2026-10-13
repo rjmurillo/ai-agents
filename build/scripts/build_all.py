@@ -95,6 +95,7 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_SCRIPT_DIR))
 
 import agent_templates  # noqa: E402
+import agent_tree_copy  # noqa: E402
 import binplace_manifest  # noqa: E402
 import check_surface_parity  # noqa: E402
 import generate_adr_index  # noqa: E402
@@ -287,7 +288,37 @@ def _build_agents(
     if check and rc != 0:
         rc = 2
     result.exit_code = rc
+    if rc == 0:
+        _copy_agent_trees(repo_root, result, check=check)
     return result
+
+
+def _copy_agent_trees(repo_root: Path, result: GeneratorResult, *, check: bool) -> None:
+    """Render each platform's ``src/claude/agents`` copy (ADR-115 Decision 2).
+
+    A platform opts in with ``artifacts.agents.frontmatterKeep``
+    (``agent_tree_copy.py``). ``generate_agents`` skips those platforms, so the
+    ``agents`` row stays one row. Under ``check`` nothing is written and any
+    differing file makes the row exit 2.
+    """
+    for config in _select_platform_configs(repo_root / "templates" / "platforms", None):
+        try:
+            copied = agent_tree_copy.generate_agent_copies(repo_root, config, check=check)
+        except agent_tree_copy.AgentCopyError as exc:
+            print(f"Error: {config.name}: {exc}", file=sys.stderr)
+            result.exit_code = 2
+            return
+        if copied is None:
+            continue
+        result.inputs += copied.inputs
+        result.outputs += copied.inputs
+        for path in copied.drift:
+            print(
+                f"STALENESS DETECTED: agent copy differs from src/claude/agents: {path}",
+                file=sys.stderr,
+            )
+        if copied.drift:
+            result.exit_code = 2
 
 
 def _build_agent_catalog(repo_root: Path, _config_path: Path, _platform: str) -> GeneratorResult:

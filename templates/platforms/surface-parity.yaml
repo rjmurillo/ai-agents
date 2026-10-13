@@ -48,6 +48,13 @@ surfaces:
     generator: build/generate_agents.py
     include: ["*.agent.md"]
     owner: build_all.py --check; agent-drift-detection.yml
+  - id: agents-cursor
+    path: src/cursor/agents
+    relation: translated
+    authority: src/claude/agents
+    generator: build/scripts/agent_tree_copy.py
+    owner: build_all.py --check
+    reason: Frontmatter keeps only name and description, plus readonly for agents whose tools are all read-only. The body is copied unchanged.
   - id: vscode-copilot-instructions
     path: src/vs-code-agents
     relation: independent
@@ -98,6 +105,13 @@ surfaces:
     generator: build/scripts/generate_rules.py
     owner: build_all.py --check
     reason: paths frontmatter becomes applyTo; alwaysApply and priority are dropped.
+  - id: rules-cursor
+    path: src/cursor/rules
+    relation: translated
+    authority: src/claude/rules
+    generator: build/scripts/generate_rules.py
+    owner: build_all.py --check
+    reason: Rules become .mdc files. paths of ** becomes alwaysApply true; other paths become a comma-separated globs string. priority is dropped. Internal-only globs are filtered.
   - id: instructions-github
     path: .github/instructions
     relation: translated
@@ -208,6 +222,12 @@ surfaces:
     authority: scripts/validation/validate_review_marker.py
     generator: build/scripts/lib_mirror.py
     owner: build_all.py --check
+  - id: skills-review-sidecar-cursor
+    path: src/cursor/skills/review/scripts/validate_review_marker.py
+    relation: generated
+    authority: scripts/validation/validate_review_marker.py
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
   - id: skills-copilot-cli
     path: src/copilot-cli/skills
     relation: translated
@@ -216,6 +236,13 @@ surfaces:
     authority_exclude: [merge-resolver]
     owner: build_all.py --check
     reason: Frontmatter keys model and model-rationale drop; argument, agent, skill, and tool syntax is rewritten. merge-resolver is excluded (issue #2026).
+  - id: skills-cursor
+    path: src/cursor/skills
+    relation: translated
+    authority: src/claude/skills
+    generator: build/scripts/generate_skills.py
+    owner: build_all.py --check
+    reason: SKILL.md frontmatter keeps only name, description, paths, disable-model-invocation, icon, color, and metadata. The body and every support file are copied unchanged.
 
   # ---- Lib packages -------------------------------------------------------
   - id: lib-hook-utilities-claude-plugin
@@ -269,6 +296,34 @@ surfaces:
     reason: Absolute imports are rewritten to relative imports.
   - id: lib-bootstrap-copilot-plugin
     path: src/copilot-cli/lib/bootstrap.py
+    relation: translated
+    authority: scripts/hook_utilities/bootstrap.py
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
+    reason: Absolute imports are rewritten to relative imports.
+  - id: lib-hook-utilities-cursor-plugin
+    path: src/cursor/lib/hook_utilities
+    relation: translated
+    authority: scripts/hook_utilities
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
+    reason: Absolute imports are rewritten to relative imports.
+  - id: lib-github-core-cursor-plugin
+    path: src/cursor/lib/github_core
+    relation: translated
+    authority: scripts/github_core
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
+    reason: Absolute imports are rewritten to relative imports.
+  - id: lib-ai-review-common-cursor-plugin
+    path: src/cursor/lib/ai_review_common
+    relation: translated
+    authority: scripts/ai_review_common
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
+    reason: Absolute imports are rewritten to relative imports.
+  - id: lib-bootstrap-cursor-plugin
+    path: src/cursor/lib/bootstrap.py
     relation: translated
     authority: scripts/hook_utilities/bootstrap.py
     generator: build/scripts/lib_mirror.py
@@ -371,6 +426,11 @@ surfaces:
     relation: independent
     include: ["docs/**", ".claude-plugin/**"]
     reason: Plugin documentation and plugin manifest are authored in place.
+  - id: src-cursor-authored
+    path: src/cursor
+    relation: independent
+    include: [".cursor-plugin/**"]
+    reason: The Cursor plugin manifest is authored in place.
   - id: claude-guides
     path: .claude
     relation: independent
