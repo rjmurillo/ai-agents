@@ -5,7 +5,7 @@ priority: critical
 
 # Builder Ethos
 
-Principles that shape how this project thinks, recommends, and builds. Injected into every workflow skill's preamble automatically. Reflects what we believe about building software in 2026.
+Principles that shape how this project thinks, recommends, and builds. Always loaded. Reflects what we believe about building software in 2026.
 
 Sits alongside `voice.md`: voice rules are how to communicate. Ethos rules are what to believe while building. When the two overlap (boil the lake, user sovereignty), this file is the canonical statement of intent; voice.md restates the consequence for output.
 
