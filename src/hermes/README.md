@@ -77,6 +77,7 @@ Project Toolkit skills for memory, context, decisions, requirements, strategy, a
 - `cynefin-classifier`
 - `decision-critic`
 - `decision-question`
+- `domain-design`
 - `memory`
 - `memory-consolidate`
 - `memory-documentary`
