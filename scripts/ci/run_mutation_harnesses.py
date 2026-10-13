@@ -44,7 +44,7 @@ EXIT_USAGE = 2
 REPO_ROOT = Path(__file__).resolve().parents[2]
 HARNESS_DIR = Path("tests") / "mutation"
 HARNESS_GLOB = "mutation_harness_*.py"
-DEFAULT_TIMEOUT_SECONDS = 600
+DEFAULT_TIMEOUT_SECONDS = 300
 ATTRIBUTION_LINE_LIMIT = 12
 FAILURE_TAIL_LINES = 40
 

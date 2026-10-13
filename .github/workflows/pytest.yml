@@ -288,7 +288,7 @@ jobs:
     # needs this job, so the existing "Run Python Tests" required context
     # fails when a harness fails and no ruleset change is needed.
     runs-on: ubuntu-26.04-arm
-    timeout-minutes: 20
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
