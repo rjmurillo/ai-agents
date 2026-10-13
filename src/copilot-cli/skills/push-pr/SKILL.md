@@ -45,9 +45,8 @@ Based on the above changes:
 1. Create a new branch if on main.
    1. Determine the type of change that maps to a conventional commit type
       followed by a 3-5 word description (for example, `fix/parser-log-enrichment`).
-2. Push the branch to origin.
-3. Read @.github/PULL_REQUEST_TEMPLATE.md
-4. Run the secure path allocator:
+2. Read @.github/PULL_REQUEST_TEMPLATE.md
+3. Run the secure path allocator:
 
    ```bash
    python3 -I "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/new_pr.py" --prepare-body-file
@@ -55,8 +54,10 @@ Based on the above changes:
 
    - Copy the returned path exactly. Do not store it in a shell variable because
      each tool call runs in a fresh shell.
-   - Use the Edit tool to replace `<!-- replace with PR body -->` in that exact
-     file with the adapted template.
+   - The file starts with the line `<!-- replace with PR body -->`, followed by the
+     repository PR template. Use the Edit tool to fill the template sections in
+     that exact file, then delete the marker line. A body that still holds the
+     marker line is rejected.
    - **Fill in** all sections with actual change information from git diff
    - **Replace** placeholder comments with substantive content
    - **Check** appropriate Type of Change boxes based on actual changes
@@ -64,7 +65,15 @@ Based on the above changes:
    - **Do NOT** leave template comments like `<!-- Brief description -->` unfilled
    - **Do NOT** copy the template verbatim - adapt every section to your changes
    - **Include** an `## Acceptance criteria` heading with `- [ ]` or `* [ ]` bullets. The Validate Spec Coverage job reads these from the PR body, not the linked issue. When the PR links a spec or an issue, an unchecked box or a missing section makes the deterministic check report FAIL, and that FAIL does not block the merge, so check a box only once the criterion is actually met. Numbered criteria are not recognized.
-5. Create a pull request using the new_pr skill script:
+4. Check the title and body file before the push, which can take minutes:
+
+   ```bash
+   python3 -I "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/new_pr.py" --preflight --title "<conventional commit title>" --body-file ".project-toolkit/scratch/pr-body-<returned-uuid>.md"
+   ```
+
+   `--preflight` makes no network call and creates nothing. Fix a rejection here.
+5. Push the branch to origin.
+6. Create a pull request using the new_pr skill script:
 
    <!-- vendor-portability: declared. This skill reads the consumer's
    `.github/PULL_REQUEST_TEMPLATE.md` and writes the consumer's
@@ -78,7 +87,7 @@ Based on the above changes:
    python3 -I "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/new_pr.py" --title "<conventional commit title>" --body-file ".project-toolkit/scratch/pr-body-<returned-uuid>.md"
    ```
 
-- Branch checked out in a worktree outside the clone, and the command runs from another checkout (for example the primary clone): append `--head "<branch>"`. Running the command from the worktree itself needs no `--head`, because `new_pr.py` uses the current branch. Never remove the worktree to open the PR. Push the branch first, since `gh` resolves the head on the remote.
+- Branch checked out in a worktree outside the clone, and the command runs from another checkout (for example the primary clone): append `--head "<branch>"`. Running the command from the worktree itself needs no `--head`, because `new_pr.py` uses the current branch. Never remove the worktree to open the PR. Push the branch first, since `gh` resolves the head on the remote. `new_pr.py` exits 2 and prints the push command when origin lacks the branch.
 - A rejected body file names both rules at once: the file name pattern and mode 600. `--prepare-body-file` creates a file that meets both.
 - Title MUST follow conventional commit format (e.g., `feat: Add feature`, `fix(auth): Resolve bug`)
 - Body SHOULD include GitHub issue linking keywords to auto-close issues:

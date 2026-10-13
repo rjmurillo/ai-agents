@@ -242,6 +242,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Create a private .project-toolkit/scratch/pr-body-*.md path and exit",
     )
     parser.add_argument(
+        "--preflight",
+        action="store_true",
+        help=(
+            "Validate --title and --body-file, then exit without any network call, "
+            "audit log, or PR. Run it before pushing so a rejected body does not "
+            "cost a push."
+        ),
+    )
+    parser.add_argument(
         "--base",
         default="",
         help="Target branch (default: repository default branch)",
@@ -295,6 +304,16 @@ def _read_body(args: argparse.Namespace, repo_root: str) -> str | None:
             print(f"Invalid body file: {exc}", file=sys.stderr)
             return None
     return body
+
+
+def _preflight(args: argparse.Namespace, repo_root: str) -> int:
+    """Check the request without side effects, so it can run before a push."""
+    if _read_body(args, repo_root) is None:
+        return 2
+    if not validate_conventional_commit(args.title):
+        return 2
+    print("Preflight OK: title and body file accepted. Branch push not checked.")
+    return 0
 
 
 def _gh_is_available() -> bool:
@@ -444,6 +463,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.prepare_body_file:
         return _prepare_body_file(repo_root)
 
+    if args.preflight:
+        return _preflight(args, repo_root)
+
     args.base = args.base or _detect_default_branch(repo_root)
     body = _read_body(args, repo_root)
     if body is None:
@@ -453,7 +475,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     head = _resolve_head(args.head)
-    if head is None:
+    if head is None or not _pr_val.require_head_on_origin(head):
         return 2
 
     validation_exit = _run_pre_creation_validations(args, repo_root, head, body)
