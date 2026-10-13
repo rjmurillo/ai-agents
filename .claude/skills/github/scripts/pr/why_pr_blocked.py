@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+from dataclasses import dataclass
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
@@ -273,6 +274,16 @@ def _workflow_event(node: dict) -> str | None:
     return workflow_run.get("event")
 
 
+@dataclass(frozen=True)
+class _RunCandidate:
+    """One workflow attempt's verdict for a check name."""
+
+    key: tuple[int, int] | None
+    event: str | None
+    state: str
+    required: bool
+
+
 def _same_name_verdict(nodes: list[dict]) -> tuple[str, list[dict]]:
     """Return the current state for one required-check name and its blockers.
 
@@ -297,12 +308,12 @@ def _same_name_verdict(nodes: list[dict]) -> tuple[str, list[dict]]:
         )
 
     candidates = [
-        {
-            "key": _workflow_key(group[0]),
-            "event": _workflow_event(group[0]),
-            "state": _classify_rows(group),
-            "required": any(node.get("isRequired") for node in group),
-        }
+        _RunCandidate(
+            key=_workflow_key(group[0]),
+            event=_workflow_event(group[0]),
+            state=_classify_rows(group),
+            required=any(node.get("isRequired") for node in group),
+        )
         for group in partition_rows_by_run(
             prepared,
             "detailsUrl",
@@ -310,25 +321,25 @@ def _same_name_verdict(nodes: list[dict]) -> tuple[str, list[dict]]:
             "_workflow_run_attempt",
         )
     ]
-    if any(candidate["required"] for candidate in candidates):
-        candidates = [candidate for candidate in candidates if candidate["required"]]
-    known = [candidate for candidate in candidates if candidate["key"] is not None]
-    unknown_states = [candidate["state"] for candidate in candidates if candidate["key"] is None]
+    if any(candidate.required for candidate in candidates):
+        candidates = [candidate for candidate in candidates if candidate.required]
+    unknown_states = [candidate.state for candidate in candidates if candidate.key is None]
+    known = [(candidate.key, candidate) for candidate in candidates if candidate.key is not None]
     if not known:
         return _most_blocking_state(unknown_states), []
 
-    current_keys = current_run_keys([(candidate["key"], candidate["event"]) for candidate in known])
-    current = [candidate for candidate in known if candidate["key"] in current_keys]
-    state = _most_blocking_state([candidate["state"] for candidate in current] + unknown_states)
+    current_keys = current_run_keys([(key, candidate.event) for key, candidate in known])
+    current = [(key, candidate) for key, candidate in known if key in current_keys]
+    state = _most_blocking_state([candidate.state for _, candidate in current] + unknown_states)
     blocking_runs = [
         {
-            "RunId": candidate["key"][0],
-            "Attempt": candidate["key"][1],
-            "Event": candidate["event"],
-            "State": candidate["state"],
+            "RunId": key[0],
+            "Attempt": key[1],
+            "Event": candidate.event,
+            "State": candidate.state,
         }
-        for candidate in current
-        if candidate["state"] != "passing"
+        for key, candidate in current
+        if candidate.state != "passing"
     ]
     return state, blocking_runs
 

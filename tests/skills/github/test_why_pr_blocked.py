@@ -103,7 +103,7 @@ def _check_run_node(
     status: str = "COMPLETED",
     event: str | None = None,
 ) -> dict:
-    node = {
+    node: dict = {
         "__typename": "CheckRun",
         "name": name,
         "status": status,
@@ -111,15 +111,11 @@ def _check_run_node(
         "isRequired": required,
     }
     if run_number is not None:
-        node["detailsUrl"] = f"https://github.com/o/r/actions/runs/{run_number}/job/{run_number}"
-        node["checkSuite"] = {
-            "workflowRun": {
-                "databaseId": run_number,
-                "runAttempt": run_attempt,
-            }
-        }
+        workflow_run: dict = {"databaseId": run_number, "runAttempt": run_attempt}
         if event is not None:
-            node["checkSuite"]["workflowRun"]["event"] = event
+            workflow_run["event"] = event
+        node["detailsUrl"] = f"https://github.com/o/r/actions/runs/{run_number}/job/{run_number}"
+        node["checkSuite"] = {"workflowRun": workflow_run}
     return node
 
 
