@@ -180,6 +180,7 @@
 |script absolute path wrong worktree repo_root __file__ validates: [git/git-a-script-run-by-absolute-path-validates-its-own-worktree](git/git-a-script-run-by-absolute-path-validates-its-own-worktree.md) (1736)
 |merge conflict resolve ours theirs convenience wrong side: [git/git-a-conflict-resolved-for-convenience-records-a-falsehood](git/git-a-conflict-resolved-for-convenience-records-a-falsehood.md) (1189)
 |git stash shared across worktrees pop takes another: [git/git-stash-is-shared-across-every-worktree](git/git-stash-is-shared-across-every-worktree.md) (965)
+|worktree .env gitignored copy API key symlink refused missing: [git/worktree-needs-env-copy](git/worktree-needs-env-copy.md) (396)
 |mutation-active marker killed pre-push hook recover mutation_workspace push blocked timeout log file: [git/git-killed-pre-push-hook-leaves-mutation-markers-that-block-pushes](git/git-killed-pre-push-hook-leaves-mutation-markers-that-block-pushes.md) (284)
 |git shallow graft depth fetch unshallow blocks push: [git/git-shallow-is-shared-across-every-worktree](git/git-shallow-is-shared-across-every-worktree.md) (1132)
 |subagent sandbox worktree checkout moves head wrong commit: [git/git-a-subagent-in-your-worktree-moves-your-head](git/git-a-subagent-in-your-worktree-moves-your-head.md) (1729)
