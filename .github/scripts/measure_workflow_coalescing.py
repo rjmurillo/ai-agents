@@ -8,7 +8,8 @@ race conditions, and cancellation performance.
 Exit codes (ADR-035):
     0 - Success: Analysis completed
     1 - Error: Failed to fetch workflow data or process results
-    2 - Config: a default workflow name matches no workflow in .github/workflows/
+    2 - Config: a DEFAULT_WORKFLOWS entry matches zero or several workflows in
+        .github/workflows/ (explicit --workflows values are not checked)
 """
 
 from __future__ import annotations
@@ -339,11 +340,12 @@ def find_unmatched_workflows(
 
 
 def get_concurrency_group(run: WorkflowRun) -> str:
-    """Extract concurrency group identifier from a workflow run.
+    """Return the key used to group runs for overlap detection.
 
-    Both forms key on the run name, which is the workflow `name:` and is unique
-    per workflow file. PR-triggered runs add the PR number; other runs add the
-    branch.
+    The key approximates the workflow's concurrency group: run name plus PR
+    number for pull_request runs, run name plus head branch otherwise. It does
+    not reproduce the group string in the YAML. claude.yml groups per comment,
+    review, or thread (ADR-114), so its runs are over-merged here.
     """
     if run.event == "pull_request" and run.pull_requests:
         pr_number = run.pull_requests[0].get("number")
