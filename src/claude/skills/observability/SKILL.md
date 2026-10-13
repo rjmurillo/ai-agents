@@ -102,7 +102,7 @@ Agent event logs are stored at:
 | Script | Platform | Usage |
 |--------|----------|-------|
 | `scripts/query_logs.py` | Python 3.8+ | Cross-platform |
-| `scripts/check_event_logging.py` | Python 3.8+ | Check a scenario against the event-logging contract |
+| `check_event_logging.py` | Python 3.8+ | Check a scenario against the event-logging contract |
 
 | Exit Code | Meaning |
 |-----------|---------|
