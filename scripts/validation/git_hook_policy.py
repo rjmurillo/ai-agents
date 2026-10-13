@@ -48,7 +48,7 @@ from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 from scripts.ci import diff_line_scope
 from scripts.ci.run_pytest_partition import PYTEST_DIST_MODE
 from scripts.hook_utilities.utilities import recent_host_session_dates
-from scripts.validation import cli_smoke_paths, pytest_lanes, testmon_seed
+from scripts.validation import cli_smoke_paths, pytest_deferral, pytest_lanes, testmon_seed
 from scripts.validation.evidence import (
     REASON_ADVISORY_FINDINGS,
     REASON_AUTH_UNAVAILABLE,
@@ -627,7 +627,24 @@ CONTAINER_SUBPROCESS_CEILING_SECONDS = 150.0
 # budgets and lefthook caps.
 CONTAINER_PROCESS_CEILING_SECONDS = CONTAINER_SUBPROCESS_CEILING_SECONDS + 15.0
 
+# Budget for the whole-suite paths: the opt-in full run. The default path has
+# the smaller budget below.
 TEST_SUITE_TIMEOUT_SECONDS = 780
+# Issue #6200: budget for the default pre-push pytest step, the tests testmon
+# selects. ADR-104 targets 300s for a whole push. Measured in-hook on 2026-10-13
+# (a 48-thread host shared with other sessions): the stages before the expensive
+# group took about 26s, and the group's longest job, pre-pr-validation, took 170s.
+# So 26 + 180 = 206s keeps a push under 300s even when pytest becomes the longest
+# job. That is arithmetic from one run; pytest at 180s beside the siblings and
+# hosts under 48 threads were not measured. Measured selections: 0 tests in
+# 4.4s, 808 tests in 49.9s (a seed 73 files behind), and 31.1s in-hook. The
+# 2026-10-08 replay trial selected 1 to 877 tests in 4.9s to 35.6s. Measured
+# whole-suite runs: 462s cold at the scaled cap, 575s at a cap of 4. The
+# no-database case never starts (see `_should_defer_cold_selection`); a run that still
+# passes 180s, for example after a lock change, stops and fails the push.
+PRE_PUSH_SELECTION_TIMEOUT_SECONDS = 180
+# pytest exits 5 when a collect-only run finds no tests; a partition can be empty.
+_PYTEST_NO_TESTS_COLLECTED = 5
 # Opt into executing the whole suite inside pre-push, with no testmon selection.
 # Unset is the default: pre-push runs only the tests pytest-testmon selects,
 # because the whole suite duplicates CI's `pytest.yml` partition matrix on the
@@ -7820,8 +7837,9 @@ def _testmon_stand_in(repo_root: Path) -> list[list[str]]:
         "re-selected when\n"
         "  that code changes. With no .testmondata the hook first tries main's "
         "CI seed\n"
-        "  (push runs on main only); if that fails it runs everything to build "
-        "one.\n"
+        "  (push runs on main only); if that fails it collects the suite, "
+        "which checks\n"
+        "  imports, and leaves execution to CI.\n"
         "  The pytest header and summary below show what testmon selected and ran.\n"
         "  A failure here blocks the push. CI runs every test: "
         ".github/workflows/pytest.yml\n"
@@ -7861,19 +7879,35 @@ def _resolve_pytest_commands(repo_root: Path) -> list[list[str]]:
     return _testmon_stand_in(repo_root)
 
 
-def _suite_budget_seconds() -> float:
-    """Return the whole-step budget: the suite's, or the seed job's own.
+def _seed_budget_seconds(raw: str) -> int:
+    """Parse the seed job's own whole-run budget.
 
     Raises:
-        ValueError: the seed job's budget is not a positive integer.
+        ValueError: the budget is not a positive integer.
     """
-    raw = os.environ.get(TESTMON_SEED_BUDGET_ENV)
-    if not os.environ.get(TESTMON_NO_SEED_ENV) or raw is None:
-        return TEST_SUITE_TIMEOUT_SECONDS
     text = raw.strip()
     if not text.isdecimal() or int(text) < 1:
         raise ValueError(f"{TESTMON_SEED_BUDGET_ENV} must be a positive integer, got {raw!r}")
     return int(text)
+
+
+def _suite_budget_seconds() -> float:
+    """Return the whole-step budget: the seed job's own, the full suite's, or the selection's.
+
+    The seed override is read only when the seed job's marker is set. The
+    full-suite opt-in keeps the larger suite budget (issue #6200); the default
+    path gets `PRE_PUSH_SELECTION_TIMEOUT_SECONDS`.
+
+    Raises:
+        ValueError: the seed job's budget is not a positive integer, or the
+            full-suite opt-in is set to something other than blank or `1`.
+    """
+    raw = os.environ.get(TESTMON_SEED_BUDGET_ENV)
+    if os.environ.get(TESTMON_NO_SEED_ENV) and raw is not None:
+        return _seed_budget_seconds(raw)
+    if _validated_full_suite_opt_in() == "1":
+        return TEST_SUITE_TIMEOUT_SECONDS
+    return PRE_PUSH_SELECTION_TIMEOUT_SECONDS
 
 
 def _failure_code(returncode: int) -> int:
@@ -7905,7 +7939,8 @@ def _seed_testmon_database(repo_root: Path) -> None:
         return
     if "already exists" not in result.detail:
         print(
-            f"pytest: no testmon seed ({result.detail}); the first run builds the database.",
+            f"pytest: no testmon seed ({result.detail}); this push collects the suite "
+            "instead of running it.",
             file=sys.stderr,
         )
 
@@ -7970,6 +8005,13 @@ def _report_partition(report: pytest_lanes.PartitionReport, budget: float) -> in
     return code
 
 
+class _PytestOutcome(NamedTuple):
+    """What one run of the pytest partitions produced (issue #6200)."""
+
+    code: int
+    timed_out: bool
+
+
 class _ChildRegistry:
     """The pytest children one overlapping run started, so an interrupt can stop them.
 
@@ -8012,7 +8054,7 @@ def _run_pytest_lanes(
     env: Mapping[str, str],
     deadline: float,
     budget: float,
-) -> int:
+) -> _PytestOutcome:
     """Run the lanes at once under one deadline; return the worst exit code.
 
     Every lane runs to its end even when another fails, for the same reason the
@@ -8031,10 +8073,12 @@ def _run_pytest_lanes(
         )
 
     outcomes: list[tuple[str, int]] = []
+    stopped: list[bool] = []
 
     def on_done(reports: list[pytest_lanes.PartitionReport]) -> None:
         for report in reports:
             outcomes.append((report.label, _report_partition(report, budget)))
+            stopped.append(report.result is None or _timed_out(report.result))
 
     pytest_lanes.run_lanes(
         lanes,
@@ -8045,7 +8089,7 @@ def _run_pytest_lanes(
     failed = sorted(label for label, code in outcomes if code != 0)
     if failed:
         print(f"ERROR: pytest partitions failed: {', '.join(failed)}", file=sys.stderr)
-    return max((code for _, code in outcomes), default=0)
+    return _PytestOutcome(max((code for _, code in outcomes), default=0), any(stopped))
 
 
 def run_pytest(repo_root: Path) -> int:
@@ -8106,6 +8150,120 @@ def run_pytest(repo_root: Path) -> int:
         # Inside the same budget: the fetch spends at most its own short
         # deadline, then the partitions run on whatever is left.
         _seed_testmon_database(repo_root)
+    if _should_defer_cold_selection(commands, repo_root, env):
+        return _collect_instead(commands, repo_root, env, deadline, budget)
+    outcome = _run_selected_partitions(commands, repo_root, env, deadline, budget)
+    _report_selection_overrun(outcome, suite_budget, budget)
+    return outcome.code
+
+
+def _should_defer_cold_selection(
+    commands: Sequence[Sequence[str]], repo_root: Path, env: Mapping[str, str]
+) -> bool:
+    """Whether testmon has no database to select from, so the selection is the whole suite.
+
+    Issue #6200. A whole-suite run measured 462s, past the selection budget, so
+    it is not started. The seed job sets `TESTMON_NO_SEED_ENV` and exists to
+    build the database, so it is never deferred.
+    """
+    return (
+        _uses_testmon(commands)
+        and not os.environ.get(TESTMON_NO_SEED_ENV)
+        and _testmon_database_missing(repo_root, env)
+    )
+
+
+def _collect_instead(
+    commands: Sequence[Sequence[str]],
+    repo_root: Path,
+    env: Mapping[str, str],
+    deadline: float,
+    budget: float,
+) -> int:
+    """Collect every partition instead of running it; return the worst exit code.
+
+    Collection imports every test module, so a broken import still blocks the
+    push. Output is printed only for a failure: a whole-suite collection lists
+    tens of thousands of test ids. On success the notice names the deferred
+    count and says CI runs it.
+    """
+    worst = 0
+    counts: list[int | None] = []
+    for command in commands:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            print(f"ERROR: pytest collection spent the {budget:g}s budget", file=sys.stderr)
+            return max(worst, 1)
+        result = _run_command(
+            pytest_deferral.collect_only_command(command, _TESTMON_FLAGS),
+            repo_root,
+            process_env=env,
+            timeout_seconds=remaining,
+        )
+        code = _failure_code(result.returncode)
+        if code == _PYTEST_NO_TESTS_COLLECTED:
+            code = 0
+        if code:
+            _print_process_output(_tail_of_output(result))
+        worst = max(worst, code)
+        empty = result.returncode == _PYTEST_NO_TESTS_COLLECTED
+        counts.append(0 if empty else pytest_deferral.collected_count(result.stdout or ""))
+    total = pytest_deferral.total_collected(counts)
+    if worst == 0 and total == 0:
+        # Every partition empty is a broken marker or path, not a clean suite.
+        print("ERROR: pytest collected no tests in any partition", file=sys.stderr)
+        return 1
+    if worst == 0:
+        notice = pytest_deferral.deferral_notice(total, budget, PYTEST_FULL_SUITE_LOCALLY_ENV)
+        print(notice, file=sys.stderr)
+    return worst
+
+
+def _tail_of_output(
+    result: subprocess.CompletedProcess[str], lines: int = 80
+) -> subprocess.CompletedProcess[str]:
+    """Return ``result`` with stdout cut to its last ``lines`` lines.
+
+    A whole-suite collection lists tens of thousands of test ids before the
+    error that matters, and the error is at the end.
+    """
+    kept = (result.stdout or "").splitlines()[-lines:]
+    return subprocess.CompletedProcess(
+        result.args, result.returncode, "\n".join(kept), result.stderr
+    )
+
+
+def _report_selection_overrun(outcome: _PytestOutcome, suite_budget: float, budget: float) -> None:
+    """Say what to do when the selection spent its whole budget (issue #6200).
+
+    Keyed on the child having been killed, not on the clock, so a test failure
+    is never blamed on the budget. The bare timeout lines name the partition
+    but not the way through. A dependency-file change makes testmon select
+    every test, and the opt-in does not refresh the database, so the message
+    says the opt-in is needed on each push until main's seed catches up.
+    """
+    if not outcome.timed_out or suite_budget != PRE_PUSH_SELECTION_TIMEOUT_SECONDS:
+        return
+    print(
+        f"ERROR: the tests testmon selected did not finish in {budget:g}s. CI runs every test "
+        "on the pull request.\n"
+        f"  Set {PYTEST_FULL_SUITE_LOCALLY_ENV}=1 to run the whole suite here under the "
+        f"{TEST_SUITE_TIMEOUT_SECONDS}s budget (ADR-104).\n"
+        "  A change to uv.lock or pyproject.toml makes testmon select every test. The opt-in "
+        "does not refresh .testmondata, so a push that changes them needs it until main's "
+        "seed catches up. In a managed container the 150s clamp applies to the opt-in too.",
+        file=sys.stderr,
+    )
+
+
+def _run_selected_partitions(
+    commands: Sequence[Sequence[str]],
+    repo_root: Path,
+    env: Mapping[str, str],
+    deadline: float,
+    budget: float,
+) -> _PytestOutcome:
+    """Run the partitions at once when they can overlap, else in sequence."""
     # Issue #6198: partitions that can overlap do, under the same deadline. The
     # step then costs the slowest lane, not the sum of the partitions.
     lanes = _pytest_overlap_lanes(commands, repo_root, env)
@@ -8117,6 +8275,7 @@ def run_pytest(repo_root: Path) -> int:
     # re-ran all of them (about 170 tests, 3 minutes). The exit code is the
     # worst partition's.
     worst = 0
+    stopped = False
     for index, command in enumerate(commands):
         remaining = deadline - time.monotonic()
         if remaining <= 0:
@@ -8124,7 +8283,7 @@ def run_pytest(repo_root: Path) -> int:
                 f"ERROR: pytest suite exceeded the {budget}s budget before running {command}",
                 file=sys.stderr,
             )
-            return max(worst, 1)
+            return _PytestOutcome(max(worst, 1), True)
         result = _run_command(
             command,
             repo_root,
@@ -8133,6 +8292,7 @@ def run_pytest(repo_root: Path) -> int:
         )
         _print_process_output(result)
         if _timed_out(result):
+            stopped = True
             # `remaining` is always fractionally below the full budget, even on
             # the first command, because the deadline and this subtraction call
             # time.monotonic() at two different instants. Comparing the two
@@ -8159,7 +8319,7 @@ def run_pytest(repo_root: Path) -> int:
                     file=sys.stderr,
                 )
         worst = max(worst, _failure_code(result.returncode))
-    return worst
+    return _PytestOutcome(worst, stopped)
 
 
 def _workflow_local_base_ref() -> str:
