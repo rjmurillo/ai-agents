@@ -114,9 +114,9 @@ copy, or an edited one of these four, is a new violation rather than residue.
 
 ## References
 
-- `SECURITY-REVIEW-PROTOCOL.md`. Review gates.
-- `SECURITY-SEVERITY-CRITERIA.md`. Severity thresholds.
-- `security-practices.md`. OWASP patterns.
+- `SECURITY-REVIEW-PROTOCOL.md`, in the governance docs. Review gates.
+- `SECURITY-SEVERITY-CRITERIA.md`, in the governance docs. Severity thresholds.
+- `security-practices.md`, in the steering docs. OWASP patterns.
 - `.claude/skills/security-scan/`. Scanner skill.
 - `.claude/skills/threat-modeling/`. STRIDE workflow.
 - Issue #4777. AI quality gate passed after every reviewer failed authentication.
