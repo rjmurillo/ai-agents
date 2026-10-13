@@ -7,10 +7,53 @@ Detailed prompt templates for each phase of ADR review.
 
 ## Table of Contents
 
-1. [Phase 1: Independent Review Prompts](#phase-1-independent-review-prompts)
-2. [Phase 2: Consolidation Prompts](#phase-2-consolidation-prompts)
-3. [Phase 3: Resolution Prompts](#phase-3-resolution-prompts)
-4. [Phase 4: Convergence Check Prompts](#phase-4-convergence-check-prompts)
+1. [Factual Claim Verification Block](#factual-claim-verification-block)
+2. [Phase 1: Independent Review Prompts](#phase-1-independent-review-prompts)
+3. [Phase 2: Consolidation Prompts](#phase-2-consolidation-prompts)
+4. [Phase 3: Resolution Prompts](#phase-3-resolution-prompts)
+5. [Phase 4: Convergence Check Prompts](#phase-4-convergence-check-prompts)
+
+---
+
+## Factual Claim Verification Block
+
+Paste this block into the prompt of every seat in Phase 1, and into every
+Phase 4 convergence prompt. Every seat runs it, not only the analyst.
+
+```markdown
+## Factual Claim Verification (mandatory for every seat)
+
+Verify every factual claim in the ADR text against its primary source. Supporting
+prose gets the same bar as the claim framed as the decision. Prose that reads as
+uncontroversial is where unverified claims survive review.
+
+| Claim kind | Primary source to check |
+|------------|-------------------------|
+| Deciders, approvers, authors | The ADR's own earlier text (`git show`, `git log -p`) |
+| Issue or PR number | Open the item. Confirm it did what the ADR says it did. |
+| "Implemented", "never implemented", "superseded" | Repository search and git history |
+| Count, path, `path:line` | Run the command or read the cited range |
+| Cross-artifact contract | Every artifact that must agree: schema, validator, implementation |
+
+Rules:
+
+1. A claims ledger may be passed with the ADR. Claims outside it are still
+   yours to check. When no ledger is passed, build one before you review.
+2. Record each claim as `VERIFIED`, `REFUTED`, or `UNVERIFIED`, with the source
+   you read. Never mark a claim `VERIFIED` from memory or from the ADR's own text.
+3. A `REFUTED` claim is a blocking concern (P0 or P1). An `UNVERIFIED` claim is
+   a Question.
+4. In Phase 4, check every claim in text added or changed this round. A fix
+   round can introduce a new wrong claim.
+
+Add this section to your output:
+
+### Claims Checked
+
+| Claim | Kind | Source read | Result |
+|-------|------|-------------|--------|
+| [claim text] | [deciders / issue-or-PR / status / count-or-path / contract] | [file, issue, PR, or command] | [VERIFIED / REFUTED / UNVERIFIED] |
+```
 
 ---
 
@@ -481,6 +524,11 @@ ADR Convergence Check (Round {round_number})
 | Your Concern | Resolution | Addressed? |
 |--------------|------------|------------|
 | {concern} | {resolution} | {status} |
+
+## Factual Claim Verification
+
+Apply the Factual Claim Verification Block to every claim in text added or
+changed this round. Include the Claims Checked table with your position.
 
 ## Instructions
 
