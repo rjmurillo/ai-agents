@@ -35,6 +35,13 @@ the shipped plugin directory, and assert the plugin loads.
     execution agent that must expose shell and edit tools, so the test cannot
     pass when the CLI stops reporting tool availability.
 
+Startup probe (issue #6000): before the first test that needs a CLI, one
+``<cli> --version`` runs with a 10s timeout. "Needs a CLI" means the test
+carries a ``copilot``, ``claude``, or ``codex`` marker. A CLI that hangs there
+(a wrapper shim that blocks with no TTY) reports an error at setup of the first
+test that uses it, naming the resolved executable path, and the dependent tests
+skip. A hung CLI costs about 10s, not one full timeout per test.
+
 Why version-agnostic (issue #3148): earlier the smoke keyed the benign path on a
 per-version allowlist (``_COPILOT_BENIGN_NO_ENUM_VERSIONS``) plus a "zero
 source: plugin records" check. That needed a manual bump every Copilot CLI
@@ -69,10 +76,11 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 import warnings
 from collections.abc import Callable
 from pathlib import Path
-from typing import NoReturn, TypeVar
+from typing import NoReturn, Protocol, TypeVar
 
 import pytest
 import yaml
@@ -235,6 +243,11 @@ _ARGUMENT_HINT_WARNING = "argument-hint"
 # pre-push cap, CLI_E2E_TIMEOUT_SECONDS in git_hook_policy.py.
 _CLI_TIMEOUT_SECONDS = 120
 _VERSION_TIMEOUT_SECONDS = 60
+# One `--version` per CLI per session tells a hung launcher from a slow model
+# call. A healthy CLI answers in under 1s; a shim that blocks with no TTY never
+# does. Without the probe every test waited out its full timeout (issue #6000).
+_STARTUP_PROBE_TIMEOUT_SECONDS = 10
+_PROBED_CLIS = ("copilot", "claude", "codex")
 # `copilot skill list --json` reads local plugin files and makes no model call;
 # it returns in about half a second, so a hang is a defect, not latency.
 _SKILL_LIST_TIMEOUT_SECONDS = 30
@@ -309,6 +322,68 @@ def _run_cli(
         check=False,
         env=_clean_env(),
     )
+
+
+class _MarkerSource(Protocol):
+    def get_closest_marker(self, name: str) -> object | None: ...
+
+
+def _probe_cli_startup(cli: str) -> str | None:
+    """Run ``<cli> --version`` once and return a hang message, or None if it answers.
+
+    Only a timeout counts as a hang. A non-zero exit or a missing binary is left
+    to the tests, which classify those with their own policy.
+    """
+    resolved = shutil.which(cli)
+    if resolved is None:
+        return None
+    try:
+        flags = ["--no-auto-update"] if cli == "copilot" else []
+        _run_cli([resolved, *flags, "--version"], timeout=_STARTUP_PROBE_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired:
+        return (
+            f"{cli} CLI did not answer `--version` within {_STARTUP_PROBE_TIMEOUT_SECONDS}s. "
+            f"Resolved executable: {resolved}. A wrapper or shim that blocks at startup "
+            f"(for example one that loads secrets with no TTY) hangs every dependent test."
+        )
+    return None
+
+
+def _gate_on_startup_probe(cli: str, results: dict[str, str | None]) -> None:
+    """Fail once when ``cli`` hangs at startup, then skip its dependent tests.
+
+    ``results`` caches the probe per CLI for the whole session, so a hung CLI
+    costs one probe timeout instead of one full timeout per test (issue #6000).
+    """
+    if cli in results:
+        if results[cli] is not None:
+            pytest.skip(f"{cli} CLI hung at startup; reported by the first test that used it")
+        return
+    hang = _probe_cli_startup(cli)
+    results[cli] = hang
+    if hang is not None:
+        pytest.fail(hang, pytrace=False)
+
+
+def _probe_clis_marked_on(node: _MarkerSource, results: dict[str, str | None]) -> None:
+    """Gate every probed CLI whose marker the test carries."""
+    for cli in _PROBED_CLIS:
+        if node.get_closest_marker(cli) is not None:
+            _gate_on_startup_probe(cli, results)
+
+
+@pytest.fixture(scope="session")
+def _cli_startup_probe_results() -> dict[str, str | None]:
+    return {}
+
+
+@pytest.fixture(autouse=True)
+def _cli_startup_probe(
+    request: pytest.FixtureRequest, _cli_startup_probe_results: dict[str, str | None]
+) -> None:
+    """Probe each CLI before the first real-CLI test that needs it."""
+    if _RUN:
+        _probe_clis_marked_on(request.node, _cli_startup_probe_results)
 
 
 def _json_events(run: subprocess.CompletedProcess[str]) -> list[dict[str, object]]:
@@ -1460,6 +1535,119 @@ def test_copilot_commands_disable_auto_update() -> None:
     assert command[1:] == ["--no-auto-update", "skill", "list", "--json"]
 
 
+def _fake_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, body: str) -> Path:
+    """Put an executable named ``fakecli`` first on PATH and return it."""
+    exe = tmp_path / "fakecli"
+    exe.write_text(f"#!/bin/sh\n{body}\n", encoding="utf-8")
+    exe.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{tmp_path}{os.pathsep}{os.environ['PATH']}")
+    monkeypatch.setattr(sys.modules[__name__], "_STARTUP_PROBE_TIMEOUT_SECONDS", 1)
+    return exe
+
+
+_posix_only = pytest.mark.skipif(sys.platform == "win32", reason="fake CLI is a POSIX shell script")
+
+
+@_posix_only
+def test_startup_probe_reports_a_hung_cli_with_its_resolved_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    exe = _fake_cli(tmp_path, monkeypatch, "exec sleep 30")
+
+    message = _probe_cli_startup("fakecli")
+
+    assert message is not None
+    assert str(exe) in message
+    assert "did not answer `--version` within 1s" in message
+
+
+@_posix_only
+def test_startup_probe_returns_none_for_a_cli_that_answers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _fake_cli(tmp_path, monkeypatch, "echo 1.0.0")
+
+    assert _probe_cli_startup("fakecli") is None
+
+
+@_posix_only
+def test_startup_probe_leaves_a_failing_version_to_the_tests(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _fake_cli(tmp_path, monkeypatch, "exit 3")
+
+    assert _probe_cli_startup("fakecli") is None
+
+
+def test_startup_probe_returns_none_when_the_cli_is_not_installed() -> None:
+    assert _probe_cli_startup("no-such-cli-6000") is None
+
+
+@_posix_only
+def test_a_hung_cli_costs_one_probe_not_one_timeout_per_test(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Issue #6000: the first test fails naming the path, the rest skip at once."""
+    exe = _fake_cli(tmp_path, monkeypatch, "exec sleep 30")
+    results: dict[str, str | None] = {}
+
+    with pytest.raises(pytest.fail.Exception, match=re.escape(str(exe))):
+        _gate_on_startup_probe("fakecli", results)
+    started = time.monotonic()
+    for _ in range(3):
+        with pytest.raises(pytest.skip.Exception, match="hung at startup"):
+            _gate_on_startup_probe("fakecli", results)
+
+    assert time.monotonic() - started < 1
+    assert results["fakecli"] is not None
+
+
+def test_a_healthy_cli_is_probed_once_per_session(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[str] = []
+    monkeypatch.setattr(sys.modules[__name__], "_probe_cli_startup", lambda cli: calls.append(cli))
+    results: dict[str, str | None] = {}
+
+    for _ in range(3):
+        _gate_on_startup_probe("claude", results)
+
+    assert calls == ["claude"]
+
+
+class _MarkedNode:
+    def __init__(self, *markers: str) -> None:
+        self._markers = set(markers)
+
+    def get_closest_marker(self, name: str) -> object | None:
+        return object() if name in self._markers else None
+
+
+def test_probe_runs_only_for_the_clis_a_test_is_marked_with(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+    monkeypatch.setattr(sys.modules[__name__], "_probe_cli_startup", lambda cli: calls.append(cli))
+
+    _probe_clis_marked_on(_MarkedNode("claude", "smoke"), {})
+    _probe_clis_marked_on(_MarkedNode("smoke"), {})
+
+    assert calls == ["claude"]
+
+
+def test_a_hung_claude_does_not_block_the_codex_tests(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        sys.modules[__name__],
+        "_probe_cli_startup",
+        lambda cli: "hung" if cli == "claude" else None,
+    )
+    results: dict[str, str | None] = {}
+
+    with pytest.raises(pytest.fail.Exception):
+        _probe_clis_marked_on(_MarkedNode("claude"), results)
+    _probe_clis_marked_on(_MarkedNode("codex"), results)
+
+    assert results == {"claude": "hung", "codex": None}
+
+
 def test_run_cli_uses_cwd_and_decodes_utf8(tmp_path: Path) -> None:
     """The subprocess helper uses neutral cwd and UTF-8 decoding."""
     run = _run_cli(
@@ -2343,17 +2531,20 @@ def test_every_real_cli_test_outlasts_its_subprocess_timeout() -> None:
 
 
 def test_an_all_hang_run_fits_the_pre_push_cap() -> None:
-    """When every CLI hangs, each smoke test stops at its first CLI timeout.
+    """When every CLI hangs, the run still fits the pre-push cap.
 
-    One test (the Claude plugin load) runs ``--version`` before its first real
-    call. The sum must stay
+    The sum below bounds probes that answer and real calls that then hang: each
+    CLI runs one startup probe, and one test (the Claude plugin load) runs
+    ``--version`` before its first real call. The sum must stay
     under the pre-push cap, or the cap kills the run and the hung test goes
     unnamed (issue #6181).
     """
     from scripts.validation.git_hook_policy import CLI_E2E_TIMEOUT_SECONDS
 
-    worst_case = _VERSION_TIMEOUT_SECONDS + sum(
-        _first_call_timeout(test) for test in _smoke_tests()
+    worst_case = (
+        len(_PROBED_CLIS) * _STARTUP_PROBE_TIMEOUT_SECONDS
+        + _VERSION_TIMEOUT_SECONDS
+        + sum(_first_call_timeout(test) for test in _smoke_tests())
     )
 
     assert worst_case < CLI_E2E_TIMEOUT_SECONDS, (

@@ -217,10 +217,32 @@ class TestCli:
         assert code == 1
         assert "INVALID retrieved_at:" in out
 
-    def test_max_age_hours_blocks_an_old_artifact(self, tmp_path: Path) -> None:
+    @staticmethod
+    def _pin_clock(monkeypatch: pytest.MonkeyPatch, now: datetime) -> None:
+        class PinnedDatetime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return now
+
+        monkeypatch.setattr("scripts.metrics.metric_artifact.datetime", PinnedDatetime)
+
+    def test_max_age_hours_blocks_an_old_artifact(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        self._pin_clock(monkeypatch, datetime(2026, 10, 12, 13, 0, tzinfo=timezone.utc))
+
         code = main([str(self._write(tmp_path, stock_payload())), "--max-age-hours", "1"])
 
         assert code == 1
+
+    def test_max_age_hours_allows_a_recent_artifact(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        self._pin_clock(monkeypatch, datetime(2026, 10, 12, 11, 30, tzinfo=timezone.utc))
+
+        code = main([str(self._write(tmp_path, stock_payload())), "--max-age-hours", "1"])
+
+        assert code == 0
 
     def test_missing_file_exits_two(self, tmp_path: Path) -> None:
         assert main([str(tmp_path / "absent.json")]) == 2

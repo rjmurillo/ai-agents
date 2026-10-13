@@ -40,6 +40,7 @@ if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
 from active_plan_closeout import validate_active_plan_closeout
+from check_adr_exception_markers import validate_adr_exception_markers
 from check_adr_lifecycle import validate_adr_lifecycle
 from check_adr_links import validate_adr_links
 from check_agent_tree_frontmatter import validate_agent_tree_frontmatter
@@ -368,6 +369,10 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # text says ADR-NNN targets that number (issue #5197). Unwired, this gate
     # cannot stop the rot that produced the ADR-033 repairs it protects.
     _Gate("ADR Link Resolution", _root_only(validate_adr_links)),
+    # Fails when a workflow's `# ADR-NNN Exception:` marker cites an ADR that does
+    # not exist or that a later record retired (issue #5199). ADR-055 prescribed a
+    # marker nothing read, and the retired spellings outlived their records.
+    _Gate("ADR Exception Markers", _root_only(validate_adr_exception_markers)),
     # Resolves a skill's declared `metadata.adr` against that ADR's own status
     # (issue #5665). Sits with the other two ADR gates because it reads the same
     # frontmatter, but its subject is the consumer rather than the record: this
