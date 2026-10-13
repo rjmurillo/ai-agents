@@ -50,18 +50,18 @@ backend.
 
 ## MUST Emit
 
-A code path MUST emit an operational event for each row that applies to it.
+A code path MUST emit an operational event for each row that applies to it, unless a lower layer, metric, trace, or canonical event already captures it reliably (see Decision Test).
 
 | # | Trigger | Required event(s) | Load-bearing fields |
 |---|---------|-------------------|---------------------|
 | 1 | Job or process where duration or outcome matters | start + completion | id, count, duration, result |
 | 2 | Externally meaningful state transition | one transition event | id, from, to |
-| 3 | External dependency call | one outcome event | operation identity, status or outcome |
-| 4 | Retry path | one event per failed attempt + one on exhaustion; the condition that triggers backoff | attempt, cause, next delay |
+| 3 | External dependency call | one outcome event | `operation`, `status` |
+| 4 | Retry path | one event per failed attempt + one on exhaustion | attempt, cause (the condition that triggered backoff), next delay |
 | 5 | Quota or rate-limit hit | one rate-limit event | limit, scope |
 | 6 | Skip that changes observable behavior | one skip event | reason |
-| 7 | Error that is not swallowed | one error event | operation context that localizes the failure |
-| 8 | Diagnosis needs it | ids, counts, durations, branch or decision outcomes | the value being diagnosed |
+| 7 | Error that is not swallowed | one error event | operation name, input identifiers, request or correlation id |
+| 8 | Diagnosis needs a fact rows 1 to 7 and 9 do not carry | no separate event: add the fields to the events from rows 1 to 7 and 9 | ids, counts, durations, branch or decision outcomes |
 | 9 | Cancellation or timeout that differs from ordinary failure | one cancellation or timeout event | outcome kind |
 
 ## MUST NOT Emit
@@ -112,12 +112,12 @@ INFO exit parse()
 INFO exit sync()
 ```
 
-After, three events reconstruct the run (rows 1, 3, 6 of the MUST Emit table):
+After, three events reconstruct the run (rows 1 and 6 of the MUST Emit table; row 3 is covered by the HTTP client layer):
 
 ```text
 INFO sync.start job_id=j42
 INFO sync.skip job_id=j42 reason=manifest_unchanged etag=abc123
-INFO sync.done job_id=j42 count=0 duration_ms=214 result=skipped
+INFO sync.done job_id=j42 count=0 duration=214ms result=skipped
 ```
 
 The HTTP client layer already records the `GET /manifest` outcome, so the job
@@ -134,15 +134,43 @@ declares `depends-on: [operational-event-selection]`.
 
 ## Executable Guard
 
-The skill's script `check_event_logging.py` encodes the two tables above as a
-deterministic decision procedure. It reads a structured scenario (what the code
-does, what it emits) and reports missing required events and prohibited
-content. The test module `test_event_logging_contract.py` runs the nine
-reference scenarios, including the pure-helper case where no logging is
-correct and the controls that prove a missing load-bearing event is detected.
-It also fails when a table row here has no counterpart in the checker.
+The skill's script `check_event_logging.py` is a deterministic decision
+procedure for the mechanical part of the two tables above. It reads a
+structured scenario (what the code does, what it emits) and reports missing
+required events, missing load-bearing fields, and prohibited content.
 
-Stricter/looser/different than canonical: the checker is different, not
-stricter. Row 8 of MUST Emit and row 6 of MUST NOT Emit are judgment calls it does
-not adjudicate. It reads a described scenario, not source code, so it cannot
+Field checks cover only these literal keys: row 1 `count`, `duration`,
+`result` on `job_completion`; row 3 `operation`, `status`; row 4 `attempt`
+on `retry_attempt`; row 5 `limit`, `scope`; row 6 `reason`; row 7
+`operation`. The table field names are categories. The checker does not check
+row 1 `id`, row 2 `id`/`from`/`to`, row 4 `cause`/`next delay`, or row 9
+`outcome kind`, and row 9 is satisfied only by an event named `cancellation`.
+Row 8 of MUST Emit and row 6 of MUST NOT Emit are judgment calls it does not
+adjudicate. It reads a described scenario, not source code, so it cannot
 infer intent.
+
+```bash
+python3 .claude/skills/observability/scripts/check_event_logging.py scenario.json
+```
+
+```json
+{
+  "behavior": {"job_lifecycle": true, "skip_changes_behavior": true},
+  "emits": [
+    {"event": "job_start", "fields": {}},
+    {"event": "skip", "fields": {"reason": "manifest_unchanged"}},
+    {"event": "job_completion", "fields": {"count": 0, "duration": 214, "result": "skipped"}}
+  ]
+}
+```
+
+Exit 0 is compliant, 1 is non-compliant, 2 is a malformed scenario. Behavior
+flags: `job_lifecycle`, `state_transition`, `external_call`, `retry`,
+`rate_limited`, `skip_changes_behavior`, `error_not_swallowed`,
+`cancellation_differs`.
+
+The test module `test_event_logging_contract.py` runs the nine #5413 fixtures
+(job, external call, retry, skip, error, auth, pure helper, lower layer,
+cardinality). Rate limit and cancellation have no fixture. It also fails when
+a MUST Emit or MUST NOT Emit row is added or removed without a checker
+counterpart. Rewording a row passes.
