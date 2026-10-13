@@ -75,7 +75,7 @@ Against `.agents/governance/FAILURE-MODES.md`:
 |---|---|---|
 | 10-12 ~13:30 | Clone claude-mem, grep heuristics | Found correction regexes, no praise |
 | ~13:40 | Measure candidates on 326 Claude turns | Picked 13 HIGH, 5 MED |
-| ~13:55 | Edit template, build, tests, negative control | 189 pass; 22 of 22 new cases miss on main |
+| ~13:55 | Edit template, build, tests, negative control | 189 pass; first case set: 0 of 22 new cases match on main |
 | ~14:00 | Review round 1 | WARN: 4 over-matches; fixed |
 | ~14:05 | Review round 2 | WARN LOW x2; acknowledged; marker |
 | 14:09 | Push and open PR #6367 | Description not checked against the diff |
@@ -134,7 +134,7 @@ Root cause: precision was measured on a corpus with no pasted prose.
 ### Successes (Tag: helpful)
 | Strategy | Evidence | Impact | Atomicity |
 |----------|----------|--------|-----------|
-| Negative control: load the main-branch hook and run the new cases | 0 of 25 matched on main, 25 of 25 on branch | 8 | 90% |
+| Negative control: load the main-branch hook and run the new cases | Final case set: 0 of 25 matched on main, 25 of 25 on branch. The positive set went from 22 to 26 when round 1 added 2 correction and 2 preference cases, then to 25 when the `rather than` case was removed | 8 | 90% |
 | Cross-harness corpus check for regex precision | `rather than` 4 of 5 false positives in Codex and Droid | 9 | 88% |
 | Server-side branch update for base-drift closure failures | Closure check went SUCCESS after `update_pr_branch.py` | 6 | 85% |
 
@@ -169,7 +169,7 @@ Root cause: precision was measured on a corpus with no pasted prose.
 
 ### Action Sequence
 
-1. Correct the existing PR-validator memory and record this recurrence (no dependency). Done in PR #6409.
+1. Correct the existing PR-validator memory and record this recurrence (no dependency). Opened as PR #6409.
 2. Ingest the cross-harness precision learning to Hindsight (no dependency).
 3. File the tool-gap findings below. Done: #6405, #6406, and evidence on #6391.
 
@@ -220,7 +220,7 @@ Root cause: precision was measured on a corpus with no pasted prose.
 
 | Skill ID | Current | Proposed | Why |
 |----------|---------|----------|-----|
-| pr-review/pr-validator-needs-prepare-body-file-and-diff-backed-paths | Rerun the validator before opening the PR | Run it right after the PR opens | The validator requires `--pr-number`; PR #6409 |
+| pr-review/pr-validator-needs-prepare-body-file-and-diff-backed-paths | Rerun the validator before opening the PR | Run it right after the PR opens | The validator requires `--pr-number`; opened as PR #6409 |
 
 ### TAG
 
@@ -248,7 +248,7 @@ Root cause: precision was measured on a corpus with no pasted prose.
 
 | Learning | Atomicity | Existing Match | Result |
 |----------|-----------|----------------|--------|
-| Learning 1 | 90% | pr-validator-needs-prepare-body-file-and-diff-backed-paths | Updated in PR #6409 |
+| Learning 1 | 90% | pr-validator-needs-prepare-body-file-and-diff-backed-paths | Update opened as PR #6409 |
 | Learning 2 | 85% | none | Added to Hindsight; Serena skipped (needs a branch and index row) |
 | Learning 3 | 82% | none | Added to Hindsight; Serena skipped (needs a branch and index row) |
 | Learning 4 | 78% | ci-infrastructure-observations | Added to Hindsight; Serena skipped |
@@ -275,7 +275,7 @@ Root cause: precision was measured on a corpus with no pasted prose.
 
 | Item | Evidence (path:line) | Proposed action | Class |
 |------|----------------------|-----------------|-------|
-| No pre-open check compares the description to the diff | `.claude/skills/push-pr/SKILL.md:78`; `pr_description.py` requires `--pr-number` | Add a local `--body-file` mode and run it before `new_pr.py` | Filed: [#6405](https://github.com/rjmurillo/ai-agents/issues/6405) |
+| No pre-open check compares the description to the diff | `scripts/validation/pr_description.py:1254-1256` makes `--pr-number` required unless `PR_NUMBER` is set | Add a local `--body-file` mode and run it before `new_pr.py` | Filed: [#6405](https://github.com/rjmurillo/ai-agents/issues/6405) |
 | `--wait` exits 3 on a GraphQL secondary limit | `get_pr_checks.py` output: "retrying in 0.1s" then exit 3 | REST fallback | Duplicate of [#6391](https://github.com/rjmurillo/ai-agents/issues/6391); evidence comment added |
 | `test_concurrent_partitions_record_into_one_database` failed once in CI | `tests/validation/test_pre_push_testmon_concurrent_db.py:97`, job 115110944568 | Measure failure rate; find lost-row cause | Filed: [#6406](https://github.com/rjmurillo/ai-agents/issues/6406) |
 
