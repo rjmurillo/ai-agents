@@ -171,7 +171,7 @@ def check_speculation(proposal: dict[str, Any]) -> Finding:
             "speculation",
             "revise",
             f"Reject {mechanism}. No current behavior needs it. Apply the "
-            "artifact-neutral-code-quality principles.",
+            "`code-qualities-assessment` principles (YAGNI, minimal implementation).",
         )
     return Finding("speculation", "adopt", "No speculative mechanism to reject.")
 

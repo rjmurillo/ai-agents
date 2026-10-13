@@ -146,6 +146,8 @@ def test_speculative_mechanism_without_need_is_rejected() -> None:
     finding = next(f for f in ed.evaluate(p) if f.axis == "speculation")
     assert finding.verdict == "revise"
     assert "event sourcing" in finding.message
+    assert "`code-qualities-assessment`" in finding.message
+    assert "artifact-neutral-code-quality" not in finding.message
 
 
 def test_mechanism_with_behavioral_need_is_kept() -> None:
