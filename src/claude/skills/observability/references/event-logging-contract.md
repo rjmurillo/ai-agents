@@ -142,7 +142,7 @@ required events, missing load-bearing fields, and prohibited content.
 Field checks cover only these literal keys: row 1 `count`, `duration`,
 `result` on `job_completion`; row 3 `operation`, `status`; row 4 `attempt`
 on `retry_attempt`; row 5 `limit`, `scope`; row 6 `reason`; row 7
-`operation`. The table field names are categories. The checker does not check
+`operation`. The checker does not check
 row 1 `id`, row 2 `id`/`from`/`to`, row 4 `cause`/`next delay`, or row 9
 `outcome kind`, and row 9 is satisfied only by an event named `cancellation`.
 Row 8 of MUST Emit and row 6 of MUST NOT Emit are judgment calls it does not
@@ -150,7 +150,8 @@ adjudicate. It reads a described scenario, not source code, so it cannot
 infer intent.
 
 ```bash
-python3 .claude/skills/observability/scripts/check_event_logging.py scenario.json
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/observability/scripts"
+python3 "$SCRIPTS_DIR/check_event_logging.py" scenario.json
 ```
 
 ```json

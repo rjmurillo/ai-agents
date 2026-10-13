@@ -3,7 +3,7 @@ name: observability
 version: 1.0.0
 model: haiku
 model-rationale: cost. The 'haiku' rolling alias resolves via the platform model_tiers map to a tier priced below the sonnet-tier harness default; this unit is routing/mechanical work where the cheaper tier suffices (ADR-080 rule 3).
-description: Use when you say `query agent logs`, `find slow tool calls`, `show agent errors`, or `which events should this code log`. Query and analyze agent JSONL event logs for debugging, performance analysis, and decision tracing.
+description: Use when you say `query agent logs`, `find slow tool calls`, `show agent errors`, or `what to log`. Query and analyze agent JSONL event logs for debugging, performance analysis, and decision tracing.
 license: MIT
 metadata:
   capability:
@@ -102,13 +102,13 @@ Agent event logs are stored at:
 | Script | Platform | Usage |
 |--------|----------|-------|
 | `scripts/query_logs.py` | Python 3.8+ | Cross-platform |
-| `scripts/check_event_logging.py` | Python 3.8+ | Check an emission scenario against the event-logging contract |
+| `scripts/check_event_logging.py` | Python 3.8+ | Check a scenario against the event-logging contract |
 
 | Exit Code | Meaning |
 |-----------|---------|
-| 0 | Query completed and results output (`query_logs.py`), or scenario compliant (`check_event_logging.py`) |
-| 1 | File not found or invalid arguments (`query_logs.py`), or scenario non-compliant (`check_event_logging.py`) |
-| 2 | Invalid JSONL format (`query_logs.py`), or malformed scenario (`check_event_logging.py`) |
+| 0 | Query completed and results output (query) or scenario compliant (check) |
+| 1 | File not found or invalid arguments (query) or scenario non-compliant (check) |
+| 2 | Invalid JSONL format (query) or malformed scenario (check) |
 
 ## Quick Start
 
@@ -117,7 +117,7 @@ Agent event logs are stored at:
 python .claude/skills/observability/scripts/query_logs.py .project-toolkit/logs/sess-001.jsonl
 
 # Check an emission scenario against the event-logging contract
-python3 .claude/skills/observability/scripts/check_event_logging.py scenario.json
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/observability/scripts/check_event_logging.py" scenario.json
 
 # Find errors only
 python .claude/skills/observability/scripts/query_logs.py .project-toolkit/logs/sess-001.jsonl --errors-only
