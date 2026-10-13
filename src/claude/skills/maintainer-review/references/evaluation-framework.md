@@ -83,7 +83,7 @@ Assign one status before deep implementation review:
 - **Already covered**: A reasonable supported workflow already satisfies the outcome.
 - **Unsupported**: The outcome is outside the project contract or belongs at a dependency, adapter, or caller-owned layer.
 
-Only `Demonstrated` need can support a merge-worthy code recommendation. `Plausible but unproven` maps to `Needs evidence` or `Not worth completing`, even when the patch is technically correct and its remaining fixes are bounded. `Already covered` and `Unsupported` normally map to closure or a simpler non-core alternative.
+Only `Demonstrated` need can support a merge-worthy code recommendation. `Plausible but unproven` maps to `Needs evidence` for an issue, and to `Not worth completing` or a `Preliminary assessment` naming the missing evidence for a PR, even when the patch is technically correct and its remaining fixes are bounded. `Already covered` and `Unsupported` normally map to closure or a simpler non-core alternative.
 
 The need status is an evidence classification, not the issue action. Record observation validity, downstream consequence, need status, and issue action separately. A reported shape or branch difference can be confirmed while the need remains `Plausible but unproven` and the correct issue action is `Close`.
 
@@ -102,11 +102,11 @@ Use one of these evidence paths:
 | Evidence path | Required proof | Insufficient proof |
 |---|---|---|
 | **Observed impact** | A supported scenario, real-path reproduction, or credible user report shows a meaningful user-visible, operational, compatibility, or durable-state consequence. | An internal state difference without a downstream effect, a synthetic branch, or a test that only proves the patch executes. |
-| **Material prevention** | A supported or ordinary failure path reaches the condition; the violated invariant protects against intrinsically material harm; and a complete code-path trace or realistic probe establishes the concrete consequence and how the patch prevents it. | A statement that the condition "could" cause harm, an unsupported or malformed input, a mock-only scenario, or severity language without a complete consequence chain. |
+| **Material prevention** | A supported or ordinary failure path reaches the condition; the violated invariant protects against intrinsically material harm; and a complete code-path trace or existing runtime evidence establishes the concrete consequence and how the patch prevents it. | A statement that the condition "could" cause harm, an unsupported or malformed input, a mock-only scenario, or severity language without a complete consequence chain. |
 
 A known incident, user report, frequency estimate, or production reproduction is not required for a material-prevention case. Require credible reachability and a concrete consequence such as security or privacy exposure, credential leakage, persistent data or state corruption, duplicate external side effects, an unrecoverable compatibility break, deadlock or indefinite hangs, or realistically repeatable resource exhaustion. Do not wait for those outcomes to occur before accepting a proportionate preventive fix.
 
-When the trace ends in a harmless intermediate state, fully recoverable behavior without meaningful operational cost, theoretical cleanliness, or an unsupported scenario, classify the need as `Plausible but unproven`, `Unsupported`, or `No demonstrated gap` as appropriate. Prefer `Not worth completing` or `Close` over requesting implementation refinements. Use `Needs evidence` only when one specific missing reproduction or consequence trace could realistically change the practical-impact decision.
+When the trace ends in a harmless intermediate state, fully recoverable behavior without meaningful operational cost, theoretical cleanliness, or an unsupported scenario, classify the need as `Plausible but unproven` or `Unsupported`, and the gap as `No demonstrated gap`, as appropriate. Prefer `Not worth completing` or `Close` over requesting implementation refinements. Use `Needs evidence` only when one specific missing reproduction or consequence trace could realistically change the practical-impact decision.
 
 Before accepting an issue or recommending a PR, record:
 
@@ -185,7 +185,7 @@ Apply this section when a change adds validation, fail-fast behavior, cleanup, r
 
 - Identify the earliest point where all dynamic inputs needed for a correct decision are available.
 - List side effects before and after that point: listeners, tasks, connections, files, locks, caches, state mutations, and telemetry.
-- Exercise failure during construction, context-manager entry, validation, connection, and execution when those phases exist.
+- Trace failure during construction, context-manager entry, validation, connection, and execution when those phases exist.
 - Confirm that normal teardown is actually entered. If an enter or constructor fails, verify cleanup explicitly rather than assuming an exit hook runs.
 - Prefer validation after dynamic configuration is resolved but before avoidable side effects begin.
 - Require a regression test for any listener, task, connection, or state that could remain after failure.
@@ -299,6 +299,18 @@ Thanks for taking the time to investigate this. I traced the reported case throu
 I am going to close this <issue/PR>. If you can provide <specific reproduction or evidence that would change the decision>, we can revisit the underlying problem with that narrower scope.
 ```
 
+### Needs evidence
+
+```text
+Thanks for the report. I traced <path or behavior> and confirmed <observation>, but I could not establish <missing consequence>. Before we decide, could you share <one specific reproduction, log, or consequence trace>? If it shows <decisive effect>, we will <next step>; otherwise we plan to close this.
+```
+
+### Supersede, duplicate, or prefer one competing PR
+
+```text
+Thanks for working on this. #<preferred> addresses the same <issue or invariant> with <decisive advantage>, so we are going to proceed there and close this PR. If <specific case> is not covered by #<preferred>, please comment there with the scenario and we will fold it in.
+```
+
 ### Request changes
 
 ```text
@@ -337,7 +349,7 @@ Use `Maintainer decision` for a concluded review. Use `Preliminary assessment` w
 - Evidence needed: <the observable behavior or state needed to resolve the uncertainty>
 - Control: <base, release, or known-good comparison when relevant>
 
-<Suggest a separate runtime investigation without providing an exact command, requesting approval, executing code, or invoking another skill. Do not present a final positive recommendation yet.>
+<Suggest a separate runtime investigation without providing an exact command, requesting approval, executing code, or invoking a runtime-probe skill. Do not present a final positive recommendation yet.>
 ```
 
 ### Issue
@@ -354,7 +366,7 @@ Use `Maintainer decision` for a concluded review. Use `Preliminary assessment` w
 <Closest supported path, why it is or is not sufficient, and the preferred design alternative.>
 
 ## Recommendation
-<Prioritize, accept low priority, narrow, request evidence, or close.>
+<One of: `Prioritize`, `Accept, low priority`, `Narrow scope`, `Needs evidence`, `Close`.>
 
 ## Maintainer comment draft
 <Include when closure or additional evidence should be requested.>

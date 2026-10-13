@@ -130,15 +130,17 @@ evidence checks, dispositions, comment templates, and report variants.
    invariant, or fix, within a bounded search. Make one decision for the whole
    set.
 4. **Desk review, three passes.** Unmet-need and design pass, changed-behavior
-   coverage pass, and interleaving and ownership pass, each triggered and
-   completed as the framework states. Stop when more evidence cannot change
+   coverage pass, and interleaving and ownership pass. The unmet-need and
+   design pass always runs; the other two run when triggered. Complete each as
+   `references/workflow-detail.md` states. Stop when more evidence cannot change
    the decision.
 5. **Calibrate.** `Severity` describes the underlying need only. Report risk
    the patch itself creates separately as `Patch risk`.
 6. **Decide.** Pick one value from the enums below.
 7. **Report.** Use the matching compact report variant from the framework.
    Append a 60 to 160 word English comment draft whenever the decision is to
-   close, request evidence, request changes, or supersede. Hand the draft to
+   close, request evidence, request changes, supersede, or prefer one
+   competing PR over another. Hand the draft to
    the owner; do not post it.
 
 ## Decision enums
@@ -149,6 +151,10 @@ evidence checks, dispositions, comment templates, and report variants.
 - `Merge-worthy after focused changes`
 - `Supersede with a simpler alternative`
 - `Not worth completing`
+
+A PR whose need is `Plausible but unproven` gets `Not worth completing`, or a
+`Preliminary assessment` that names the missing evidence. `Needs evidence` is
+an issue action only.
 
 **Repository readiness** (merge-worthy only, one): `Ready`,
 `CI or review pending`, `Rebase or conflict resolution required`, `Blocked`.

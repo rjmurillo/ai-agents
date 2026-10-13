@@ -25,21 +25,21 @@ First assign one `Need status`:
 - **Already covered**: A reasonable supported workflow already satisfies the outcome.
 - **Unsupported**: The outcome belongs outside the project contract or at a dependency, adapter, or caller-owned layer.
 
-Only `Demonstrated` need may receive `Merge-worthy as-is` or `Merge-worthy after focused changes`. For `Plausible but unproven`, prefer `Needs evidence` or `Not worth completing`; for `Already covered` or `Unsupported`, prefer closure or the relevant simpler alternative.
+Only `Demonstrated` need may receive `Merge-worthy as-is` or `Merge-worthy after focused changes`. For `Plausible but unproven`, prefer `Needs evidence` for an issue, and `Not worth completing` or a `Preliminary assessment` that names the missing evidence for a PR; for `Already covered` or `Unsupported`, prefer closure or the relevant simpler alternative.
 
 Keep four decisions separate and record them before comparing implementations:
 
 1. **Observation validity**: whether the reported output, state, or code-path difference is real.
 2. **Downstream consequence**: what concrete user, operational, compatibility, or durable-state result changes because of it.
 3. **Need status**: one of the four evidence classifications above.
-4. **Issue action**: prioritize, accept, narrow, request evidence, or close.
+4. **Issue action**: `Prioritize`, `Accept, low priority`, `Narrow scope`, `Needs evidence`, or `Close`.
 
 A real observation can still have no demonstrated need and a `Close` action. Do not describe an issue as simply "valid" when only the observation is confirmed. If the downstream consequence is missing, do not choose among proposed semantic contracts, select a competing PR, or draft implementation changes yet.
 
 Before assigning `Demonstrated`, require one of these evidence paths:
 
 1. **Observed impact**: A supported scenario, real-path reproduction, or credible user report shows a meaningful user-visible, operational, compatibility, or durable-state consequence.
-2. **Material prevention**: A supported or ordinary failure path can reach the condition, the violated invariant protects against intrinsically material harm, and a complete code-path trace or realistic probe establishes that consequence. A known incident is not required for this path.
+2. **Material prevention**: A supported or ordinary failure path can reach the condition, the violated invariant protects against intrinsically material harm, and a complete code-path trace, or runtime evidence already present on the PR or issue, establishes that consequence. A known incident is not required for this path.
 
 For both paths, trace `realistic trigger -> supported execution path -> observable or durable effect`. A local intermediate inconsistency, constructible branch, redundant operation, defensive improvement, or theoretically cleaner invariant is not a demonstrated need without a meaningful downstream effect. A small diff, technically correct patch, or inexpensive test does not lower this threshold. Material preventive outcomes include security or privacy exposure, credential leakage, persistent data or state corruption, duplicate external side effects, unrecoverable compatibility breaks, deadlock or indefinite hangs, and realistically repeatable resource exhaustion.
 
@@ -96,7 +96,7 @@ When multiple candidates exist, compare them on need coverage, runtime correctne
 
 Always begin with a desk review. Inspect the concrete runtime path before judging a small change as either trivial or meaningful. Check callers, adjacent helpers, validation layers, fallback paths, and existing tests. Search history or documentation only when it changes the decision. Inspecting test code is part of the desk review; executing tests, imports, examples, reproductions, benchmarks, or service calls is a runtime probe.
 
-This skill does not plan or execute runtime probes. Invoking this skill, asking for a review, a pr-opened routine trigger, or supplying an issue or pull-request URL does not authorize tests, imports, examples, reproductions, benchmarks, service calls, or another runtime-probe skill. If decision-relevant runtime evidence remains after desk review, keep the assessment preliminary and suggest a separate runtime investigation. State the unresolved question, why it could change the decision, the evidence needed, and an appropriate base, release, or known-good control. Do not provide an exact command, request approval, invoke another skill, or execute code from this skill.
+This skill does not plan or execute runtime probes. Invoking this skill, asking for a review, a pr-opened routine trigger, or supplying an issue or pull-request URL does not authorize tests, imports, examples, reproductions, benchmarks, service calls, or another runtime-probe skill. If decision-relevant runtime evidence remains after desk review, keep the assessment preliminary and suggest a separate runtime investigation. State the unresolved question, why it could change the decision, the evidence needed, and an appropriate base, release, or known-good control. Do not provide an exact command, request approval, invoke a runtime-probe skill, or execute code from this skill.
 
 For repository-specific runtime invariants, read the repository's own architecture records and governance docs for the affected boundary. Treat them as read-only during review, verify each claim against the current remote change, and do not edit them as a side effect of a review.
 
@@ -146,6 +146,8 @@ Run this pass before any positive PR assessment when a patch adds, removes, or r
 6. Inspect tests for controlled interleavings using deferred futures, callbacks, or events. Require assertions about the failing and surviving operations' observable behavior and final resource coherence, not only listener counts or individual exception results.
 
 Do not mark a concurrency-sensitive patch `Merge-worthy as-is` merely because sequential reconnect, retry, failure, and close tests pass. A triggered ownership pass is incomplete unless the evidence records the complete mutation surface, concrete ownership mechanism, strongest distinct-mutator interleaving, and survivor and coherence result. If the code trace proves an unsafe interleaving, conclude from static evidence and request a focused fix and regression test. If ownership remains ambiguous, keep the result preliminary and state the exact runtime evidence needed to resolve it.
+
+#### Concluding the desk review
 
 - If the claim or PR is decisively negative from a complete reachable code-path trace, conclude the review without a runtime probe. Examples include an impossible or unsupported path, duplicated existing handling, a demonstrated no-op, a direct compatibility break, or a clearly wrong abstraction. Do not call an ambiguous result negative merely to avoid a probe.
 - If the initial result is positive and there is no unresolved runtime concern, and the triggered changed-behavior coverage and interleaving passes are complete, the desk review may be sufficient for a final maintainer decision. Do not suggest additional runtime investigation only to restate evidence that cannot plausibly change the decision.
