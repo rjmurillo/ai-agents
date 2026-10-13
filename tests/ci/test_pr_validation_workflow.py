@@ -244,10 +244,10 @@ def test_argv_rejection_still_precedes_every_write(
 _CRITICAL_OUTPUT = (
     "Fetching PR #7 data...\n"
     "\nFound 2 issue(s):\n  CRITICAL: 1\n  WARNING: 1\n\n"
-    "[WARNING] file_in_diff_not_mentioned\n  File: docs/a.md\n  Not mentioned.\n\n"
-    "[CRITICAL] file_mentioned_not_in_diff\n  File: src/gone.py\n"
+    "[WARNING] Significant file not mentioned\n  File: docs/a.md\n  Not mentioned.\n\n"
+    "[CRITICAL] File mentioned but not in diff\n  File: src/gone.py\n"
     "  Mentioned in the description but absent from the diff.\n\n"
-    "[CRITICAL] closing_link_mismatch\n  File: n/a\n  Second finding.\n"
+    "[CRITICAL] Closing keyword not linked by GitHub\n  File: n/a\n  Second finding.\n"
 )
 
 
@@ -255,11 +255,27 @@ def test_first_finding_names_the_first_critical_not_the_first_warning() -> None:
     finding = description_mod.extract_first_finding(_CRITICAL_OUTPUT)
 
     assert finding == (
-        "file_mentioned_not_in_diff File: src/gone.py "
+        "File mentioned but not in diff File: src/gone.py "
         "Mentioned in the description but absent from the diff."
     )
-    assert "closing_link_mismatch" not in finding
-    assert "file_in_diff_not_mentioned" not in finding
+    assert "Closing keyword not linked by GitHub" not in finding
+    assert "Significant file not mentioned" not in finding
+
+
+@pytest.mark.parametrize(
+    "issue_type",
+    [
+        "Em/en-dash in PR title",
+        "Closing keyword on non-default base branch",
+        "Closing keyword not linked by GitHub",
+    ],
+)
+def test_first_finding_keeps_the_full_multi_word_issue_type(issue_type: str) -> None:
+    output = f"[CRITICAL] {issue_type}\n  File: (title)\n  Title has a dash.\n"
+
+    assert description_mod.extract_first_finding(output) == (
+        f"{issue_type} File: (title) Title has a dash."
+    )
 
 
 def test_first_finding_falls_back_to_the_first_error_line() -> None:
@@ -300,10 +316,12 @@ def test_description_step_echoes_output_and_records_the_finding(
     )
 
     assert description_mod.main() == 0
-    assert "[CRITICAL] file_mentioned_not_in_diff" in capsys.readouterr().out
+    assert "[CRITICAL] File mentioned but not in diff" in capsys.readouterr().out
     lines = output.read_text(encoding="utf-8").splitlines()
     assert lines[0] == "validation_result=FAIL"
-    assert lines[1].startswith("validation_finding=file_mentioned_not_in_diff File: src/gone.py")
+    assert lines[1].startswith(
+        "validation_finding=File mentioned but not in diff File: src/gone.py"
+    )
     assert len(lines) == 2
 
 
@@ -334,12 +352,12 @@ def test_report_names_the_failing_finding_in_the_blocking_section(
     _set_output(monkeypatch, output)
     monkeypatch.setattr(report_mod, "REPORT_PATH", report)
     monkeypatch.setenv("DESCRIPTION_RESULT", "FAIL")
-    monkeypatch.setenv("DESCRIPTION_FINDING", "file_mentioned_not_in_diff File: src/gone.py")
+    monkeypatch.setenv("DESCRIPTION_FINDING", "File mentioned but not in diff File: src/gone.py")
 
     assert report_mod.main() == 0
     expected = (
         "PR description does not match actual changes: "
-        "`file_mentioned_not_in_diff File: src/gone.py`"
+        "`File mentioned but not in diff File: src/gone.py`"
     )
     assert f"- {expected}" in report.read_text(encoding="utf-8")
     assert output.read_text(encoding="utf-8") == (
@@ -416,14 +434,14 @@ def test_enforce_error_names_the_failing_sub_step(
     monkeypatch.setenv("OVERALL_STATUS", "FAIL")
     monkeypatch.setenv(
         "BLOCKING_SUMMARY",
-        "PR description does not match actual changes: `file_mentioned_not_in_diff File: a.py`",
+        "PR description does not match actual changes: `File mentioned but not in diff File: a.py`",
     )
 
     assert enforce_mod.main() == 1
     assert capsys.readouterr().err.strip() == (
         "::error::PR validation failed: FAIL "
         "(PR description does not match actual changes: "
-        "`file_mentioned_not_in_diff File: a.py`)"
+        "`File mentioned but not in diff File: a.py`)"
     )
 
 

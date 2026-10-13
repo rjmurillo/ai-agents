@@ -11,7 +11,7 @@ from pathlib import Path
 
 CONFIG_ERROR = 2
 FINDING_LIMIT = 300
-_CRITICAL_HEADER = re.compile(r"^\[CRITICAL\]\s+(\S+)")
+_CRITICAL_HEADER = re.compile(r"^\[CRITICAL\]\s+(.+)")
 _UNSAFE_CHARS = re.compile(r"[\x00-\x1f\x7f`]+")
 
 
