@@ -261,9 +261,23 @@ def test_verify_also_allow_directory_authorizes_paths_below_it(
     take_snapshot(capsys, repo, snap_path)
     write(repo, "templates/skills/a/b.tmpl")
 
-    code, _ = verify(capsys, repo, snap_path, "--also-allow", "templates/skills")
+    code, _ = verify(capsys, repo, snap_path, "--also-allow", "templates/skills/")
 
     assert code == 0
+
+
+def test_verify_also_allow_file_grant_does_not_cover_paths_below_it(
+    repo: Path, capsys: Capsys, snap_path: Path
+) -> None:
+    take_snapshot(capsys, repo, snap_path)
+    write(repo, "templates/x.tmpl/nested.txt")
+
+    code, payload = verify(capsys, repo, snap_path, "--also-allow", "templates/x.tmpl")
+
+    assert code == 1
+    assert payload["violations"] == [
+        {"kind": "outside-boundary", "path": "templates/x.tmpl/nested.txt"}
+    ]
 
 
 def test_verify_also_allow_does_not_cover_a_sibling_path(
@@ -273,7 +287,7 @@ def test_verify_also_allow_does_not_cover_a_sibling_path(
     write(repo, "templates/skills/x.tmpl")
     write(repo, "templates/skills-other/y.tmpl")
 
-    code, payload = verify(capsys, repo, snap_path, "--also-allow", "templates/skills")
+    code, payload = verify(capsys, repo, snap_path, "--also-allow", "templates/skills/")
 
     assert code == 1
     assert payload["violations"] == [
@@ -288,7 +302,7 @@ def test_verify_also_allow_repeated_authorizes_each_path(
     write(repo, "a/one.txt")
     write(repo, "b/two.txt")
 
-    code, _ = verify(capsys, repo, snap_path, "--also-allow", "a", "--also-allow", "b")
+    code, _ = verify(capsys, repo, snap_path, "--also-allow", "a/", "--also-allow", "b/")
 
     assert code == 0
 
@@ -300,7 +314,7 @@ def test_verify_also_allow_backslash_path_is_normalized(
     take_snapshot(capsys, repo, snap_path)
     write(repo, "templates/skills/x.tmpl")
 
-    code, _ = verify(capsys, repo, snap_path, "--also-allow", "templates\\skills")
+    code, _ = verify(capsys, repo, snap_path, "--also-allow", "templates\\skills\\")
 
     assert code == 0
 

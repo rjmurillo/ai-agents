@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from bootstrap_helpers import ignore, run_git, take_snapshot, verify, write
+from bootstrap_helpers import ignore, run_git, snapshot_result, take_snapshot, verify, write
 
 Capsys = pytest.CaptureFixture[str]
 
@@ -93,7 +93,7 @@ def test_verify_also_allow_directory_that_is_ignored_exits_two(
     ignore(repo, "gen/")
     take_snapshot(capsys, repo, snap_path)
 
-    code, payload = verify(capsys, repo, snap_path, "--also-allow", "gen")
+    code, payload = verify(capsys, repo, snap_path, "--also-allow", "gen/")
 
     assert code == 2
     assert "git ignores" in payload["message"]
@@ -224,3 +224,67 @@ def test_verify_new_directory_symlink_inside_a_pre_existing_nested_repo_exits_on
 
     assert code == 1
     assert {"kind": "outside-boundary", "path": "vendor"} in payload["violations"]
+
+
+def test_snapshot_refuses_a_root_whose_skill_md_files_are_ignored(
+    repo: Path, capsys: Capsys, snap_path: Path
+) -> None:
+    write(repo, ".claude/skills/.gitignore", "SKILL.md\n")
+    run_git(repo, "add", "-A")
+    run_git(repo, "commit", "-q", "-m", "chore: ignore skill files")
+
+    code, payload = snapshot_result(capsys, repo, snap_path)
+
+    assert code == 2
+    assert "ignored by git" in payload["message"]
+
+
+def test_verify_authored_file_hidden_by_a_nested_ignore_exits_one(
+    repo: Path, capsys: Capsys, snap_path: Path
+) -> None:
+    write(repo, ".claude/skills/.gitignore", "*.py\n")
+    run_git(repo, "add", "-A")
+    run_git(repo, "commit", "-q", "-m", "chore: ignore python")
+    take_snapshot(capsys, repo, snap_path)
+    write(repo, ".claude/skills/proj-new/SKILL.md")
+    write(repo, ".claude/skills/proj-new/scripts/tool.py")
+
+    code, payload = verify(capsys, repo, snap_path, "--name", "proj-new")
+
+    assert code == 1
+    assert payload["violations"] == [
+        {"kind": "ignored-in-boundary", "path": ".claude/skills/proj-new/scripts/tool.py"}
+    ]
+
+
+def test_verify_ignored_write_in_an_unauthorized_skill_exits_one(
+    repo: Path, capsys: Capsys, snap_path: Path
+) -> None:
+    write(repo, ".claude/skills/.gitignore", "*.py\n")
+    run_git(repo, "add", "-A")
+    run_git(repo, "commit", "-q", "-m", "chore: ignore python")
+    take_snapshot(capsys, repo, snap_path)
+    write(repo, ".claude/skills/existing-skill/tool.py")
+
+    code, payload = verify(capsys, repo, snap_path)
+
+    assert code == 1
+    assert {
+        "kind": "unauthorized-update",
+        "path": ".claude/skills/existing-skill/tool.py",
+    } in payload["violations"]
+
+
+def test_verify_pre_existing_ignored_file_left_alone_exits_zero(
+    repo: Path, capsys: Capsys, snap_path: Path
+) -> None:
+    write(repo, ".claude/skills/.gitignore", "*.pyc\n")
+    run_git(repo, "add", "-A")
+    run_git(repo, "commit", "-q", "-m", "chore: ignore bytecode")
+    write(repo, ".claude/skills/existing-skill/cache.pyc")
+    take_snapshot(capsys, repo, snap_path)
+    write(repo, ".claude/skills/existing-skill/SKILL.md", "updated\n")
+
+    code, payload = verify(capsys, repo, snap_path, "--update", "existing-skill")
+
+    assert code == 0, payload

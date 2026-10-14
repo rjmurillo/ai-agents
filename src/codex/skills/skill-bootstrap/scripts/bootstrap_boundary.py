@@ -32,9 +32,13 @@ Exit codes:
 
 Limits: verify compares the working tree, HEAD, the branch name, the index
 flags that hide changes (assume-unchanged, skip-worktree), and
-`info/exclude`. It does not see other ref changes (tags, other branches,
-config, push), other writes inside `.git/`, or gitignored paths, so an
-ignored output root, skill directory, or `--also-allow` path is refused. It
+`info/exclude`. Inside the output root it also hashes files git ignores; a
+new or changed ignored file in an authorized skill is reported as
+`ignored-in-boundary`, because it would not ship. It does not see other ref
+changes (tags, other branches, config, push), other writes inside `.git/`,
+or gitignored paths outside the output root, so an ignored output root,
+skill directory, or `--also-allow` path is refused. A file grant authorizes
+that exact path; end a directory grant with `/`. It
 catches accidental writes by a cooperating run; it is not a sandbox, and a
 snapshot taken after the writes proves nothing, so snapshot refuses to
 overwrite an existing file. Empty directories are invisible to git and to
@@ -60,7 +64,7 @@ from typing import Any
 ALLOWED_ROOTS = (".claude/skills", ".github/skills")
 NAME_RE = re.compile(r"^[a-z](?:[a-z0-9-]*[a-z0-9])?$")
 MAX_NAME = 64
-SNAPSHOT_SCHEMA = "skill-bootstrap-snapshot/3"
+SNAPSHOT_SCHEMA = "skill-bootstrap-snapshot/4"
 IGNORE_PROBE = "skill-bootstrap-probe/SKILL.md"
 IGNORE_CHILD = "skill-bootstrap-probe.md"
 
@@ -262,6 +266,19 @@ def _hash_tree(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _ignored_under(root: Path, rel: PurePosixPath) -> dict[str, str]:
+    """Hash every untracked file git ignores under the output root.
+
+    `git status` never reports these, so an authored file that a nested
+    ignore rule matches would otherwise change without a trace.
+    """
+    raw = _git(
+        root, "ls-files", "-z", "--others", "--ignored", "--exclude-standard", "--", str(rel)
+    )
+    paths = [p for p in raw.split("\0") if p]
+    return {p: _hash(root / Path(*PurePosixPath(p).parts)) for p in paths}
+
+
 def _index_hidden(root: Path) -> list[str]:
     """Return tracked paths flagged assume-unchanged or skip-worktree, which status skips."""
     listed = _git(root, "ls-files", "-v", "-z").split("\0")
@@ -310,6 +327,7 @@ def snapshot(args: argparse.Namespace) -> tuple[int, Payload]:
         "repo": root.as_posix(),
         "output_root": str(rel),
         "existing_skills": _skill_dirs(root, str(rel)),
+        "ignored": _ignored_under(root, rel),
         **_state(root),
     }
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -343,7 +361,8 @@ def _load_snapshot(path: str, root: Path, rel: PurePosixPath) -> Payload:
     return record
 
 
-def _also_allowed(root: Path, values: list[str]) -> list[PurePosixPath]:
+def _also_allowed(root: Path, values: list[str]) -> list[tuple[PurePosixPath, bool]]:
+    """Return each grant with whether it is a directory grant (written with a trailing `/`)."""
     allowed = []
     for value in values:
         rel = _posix(value)
@@ -357,15 +376,16 @@ def _also_allowed(root: Path, values: list[str]) -> list[PurePosixPath]:
                 raise ConfigError(
                     f"--also-allow {value!r} overlaps {skills_root}; use --name or --update"
                 )
-        allowed.append(rel)
+        allowed.append((rel, value.replace("\\", "/").endswith("/")))
     return allowed
 
 
 def _classify(path: str, rel: PurePosixPath, grants: Payload) -> str | None:
     """Return the violation kind for one changed path, or None when authorized."""
     posix = PurePosixPath(path)
-    if any(posix == extra or extra in posix.parents for extra in grants["also_allow"]):
-        return None
+    for extra, is_dir in grants["also_allow"]:
+        if posix == extra or (is_dir and extra in posix.parents):
+            return None
     if rel not in posix.parents or len(posix.relative_to(rel).parts) < 2:
         return "outside-boundary"
     skill = posix.relative_to(rel).parts[0]
@@ -387,7 +407,7 @@ def verify(args: argparse.Namespace) -> tuple[int, Payload]:
     also_allow = _also_allowed(root, args.also_allow or [])
     require_visible(
         root,
-        [f"{rel}/{n}" for n in sorted(names | updates)] + [str(a) for a in also_allow],
+        [f"{rel}/{n}" for n in sorted(names | updates)] + [str(a) for a, _ in also_allow],
     )
     grants = {
         "names": names,
@@ -406,6 +426,11 @@ def verify(args: argparse.Namespace) -> tuple[int, Payload]:
     for path in changed:
         kind = _classify(path, rel, grants)
         if kind:
+            violations.append({"kind": kind, "path": path})
+    ignored_after = _ignored_under(root, rel)
+    for path in sorted(set(before["ignored"]) | set(ignored_after)):
+        if before["ignored"].get(path) != ignored_after.get(path):
+            kind = _classify(path, rel, grants) or "ignored-in-boundary"
             violations.append({"kind": kind, "path": path})
     return (1 if violations else 0), {
         "examined": len(examined),
@@ -444,7 +469,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--update", action="append", help="authorized existing skill (repeat per name)"
     )
     p_verify.add_argument(
-        "--also-allow", action="append", help="user-authorized repo path outside the root"
+        "--also-allow",
+        action="append",
+        help="user-authorized repo path outside the root; end a directory grant with /",
     )
     return parser
 

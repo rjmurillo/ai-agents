@@ -38,7 +38,13 @@ def test_verify_corrupt_snapshot_exits_two(repo: Path, capsys: Capsys, snap_path
 
 
 @pytest.mark.parametrize(
-    "schema", ["other/1", "skill-bootstrap-snapshot/1", "skill-bootstrap-snapshot/2"]
+    "schema",
+    [
+        "other/1",
+        "skill-bootstrap-snapshot/1",
+        "skill-bootstrap-snapshot/2",
+        "skill-bootstrap-snapshot/3",
+    ],
 )
 def test_verify_snapshot_with_wrong_schema_exits_two(
     repo: Path, capsys: Capsys, snap_path: Path, schema: str
