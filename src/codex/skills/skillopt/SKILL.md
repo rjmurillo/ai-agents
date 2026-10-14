@@ -127,15 +127,22 @@ two entry scripts import. Do not call them directly.
 
 One optimization step:
 
-1. **Baseline.** Preflight each task: prompt, verifier, inputs, fixtures, and
-   permitted scope. Run the rollout under exactly the scope the task grants.
+1. **Baseline.** Split the roles first. The candidate author sees only
+   `train` tasks and their results. A separate runner, such as a fresh
+   subagent or another session, holds the `sel` prompts, verifiers, and
+   results until the candidate is frozen, and reports only the verdict back.
+   Each runner preflights its own tasks: prompt, verifier, inputs, fixtures,
+   and permitted scope. Run the rollout under exactly the scope the task grants.
    A rollout with the wrong artifact or a scope change is invalid, not a pass
    or a fail; mark the task `"status": "invalid"` and replace it. Grade the
    complete persisted output against every clause of the verifier. A runner's
    self-check or summary is not proof. A clipped or missing answer is
    `"UNVERIFIED"` in the results file, which the gate refuses to count.
    Record `{"task_id": true|false}` to `incumbent_results.json` and hash the
-   incumbent: `skillopt.py hash target.md`.
+   incumbent: `skillopt.py hash target.md`. When the manifest sets
+   `"scorer": "nondeterministic"`, the `sel` runner also reruns the
+   byte-identical incumbent into `null_results.json` now (see Before
+   promotion, step 2).
 2. **Budget.** `skillopt.py budget --step T --total N` prints L_t, the
    cosine-decayed cap on atomic patches this step.
 3. **Reflect.** Failures become corrective rules; successes become behaviors
@@ -151,8 +158,12 @@ One optimization step:
    split, an incumbent `--out`, budget overflow, a bad anchor, a protected
    fence, or marker text inside a patch.
 6. **Re-roll** every task on `candidate.md` into `candidate_results.json`.
+   The `sel` runner does the `sel` half.
 7. **Gate.** `skillopt.py pair-gate --eval eval.json --incumbent-results
-   incumbent_results.json --candidate-results candidate_results.json`.
+   incumbent_results.json --candidate-results candidate_results.json`. For a
+   nondeterministic scorer, add `--null-results null_results.json
+   --incumbent-sha256 <sha> --null-sha256 <sha>`; without them the gate exits
+   2.
    - Exit 0, `ACCEPT_PARETO`: at least one held-out gain, zero held-out
      regressions, every held-out result a literal boolean.
    - Verdict precedence: `REJECT_UNVERIFIED` first (a missing or non-boolean
@@ -178,9 +189,10 @@ semantic regression, because `pair-gate` rejects any regression.
 1. **Training review.** Run `pair-gate --split train` and read its
    `regressions`. A lost training pass on a load-bearing verifier blocks
    promotion. If fixing it changes the candidate, freeze a fresh `sel` set.
-2. **Null control** for nondeterministic scorers. Set `"scorer":
-   "nondeterministic"` in the manifest; `pair-gate` on `sel` then exits 2
-   without `--null-results`. Rerun the byte-identical incumbent (confirm with
+2. **Null control** for nondeterministic scorers. It runs at baseline and
+   feeds the step 7 gate. Set `"scorer": "nondeterministic"` in the manifest;
+   `pair-gate` on `sel` then exits 2 without `--null-results`. Rerun the
+   byte-identical incumbent (confirm with
    `skillopt.py hash target.md --expect <sha256>`, exit 1 on `MISMATCH`) into
    `null_results.json`, then pass `--null-results null_results.json
    --incumbent-sha256 <sha> --null-sha256 <sha>` to `pair-gate`, using the
