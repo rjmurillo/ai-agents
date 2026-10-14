@@ -171,3 +171,20 @@ class TestFetchChecksRestRuns:
             with pytest.raises(RuntimeError) as info:
                 checks_rest.fetch_checks_rest("o", "r", 42)
         assert not isinstance(info.value, checks_rest.PullRequestNotFoundError)
+
+
+class TestCheckRunsFilter:
+    def test_check_runs_request_asks_for_every_run_not_only_the_latest(self):
+        routes = {
+            "repos/o/r/pulls/42": _pr_payload(),
+            "repos/o/r/commits/abc123/check-runs": [{"total_count": 0, "check_runs": []}],
+            "repos/o/r/commits/abc123/status": [{"total_count": 0, "statuses": []}],
+        }
+        fake = _fake_api(routes)
+        with patch.object(checks_rest, "_run_gh_api", side_effect=fake) as api:
+            checks_rest.fetch_checks_rest("o", "r", 42)
+        check_run_calls = [
+            c.args[0][-1] for c in api.call_args_list if "/check-runs" in c.args[0][-1]
+        ]
+        assert len(check_run_calls) == 1
+        assert "filter=all" in check_run_calls[0]
