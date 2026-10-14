@@ -16,7 +16,6 @@ import re
 import shlex
 import shutil
 import signal
-import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -26,7 +25,6 @@ import unicodedata
 import warnings
 from collections import Counter
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
-from contextlib import closing
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from fnmatch import fnmatch
@@ -48,7 +46,13 @@ from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 from scripts.ci import diff_line_scope
 from scripts.ci.run_pytest_partition import PYTEST_DIST_MODE
 from scripts.hook_utilities.utilities import recent_host_session_dates
-from scripts.validation import cli_smoke_paths, pytest_deferral, pytest_lanes, testmon_seed
+from scripts.validation import (
+    cli_smoke_paths,
+    pytest_deferral,
+    pytest_lanes,
+    testmon_lane_db,
+    testmon_seed,
+)
 from scripts.validation.evidence import (
     REASON_ADVISORY_FINDINGS,
     REASON_AUTH_UNAVAILABLE,
@@ -650,8 +654,9 @@ _PYTEST_NO_TESTS_COLLECTED = 5
 # same commit while costing the push minutes it does not have; see ADR-104.
 PYTEST_FULL_SUITE_LOCALLY_ENV = "AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY"
 # The third flag loads `testmon_scoped_sync` (issue #6406): without it a partition
-# that collects after a sibling saved deletes the sibling's records. It is one
-# token (`-pNAME`) so `pytest_deferral.collect_only_command` drops it whole.
+# that shares a database and collects after a sibling saved deletes the sibling's
+# records. It is one token (`-pNAME`) so `pytest_deferral.collect_only_command`
+# drops it whole.
 _TESTMON_FLAGS = (
     "--testmon",
     "--testmon-forceselect",
@@ -6990,6 +6995,15 @@ def warn_if_push_files_incomplete(
         # because the caller named the destination explicitly.
         if ref.local_ref != ref.remote_ref:
             return
+        # Quiet path 3: first push of a new branch at checked-out HEAD with no
+        # @{push} (a worktree cut from origin/main has no remote branch of its
+        # own yet). Lefthook 2.1.17 PushFiles (internal/git/wrapper/
+        # push_files.go) then diffs <origin HEAD branch>...HEAD, or lists every
+        # file in HEAD, so {push_files} covers this branch's changes. A stale
+        # @{push} (remote branch deleted, tracking ref not pruned) still
+        # resolves, so Lefthook diffs against the stale tip; keep the warning.
+        if ref.is_new and push_base.returncode != 0:
+            return
     print(
         "WARNING: Lefthook {push_files} quality coverage may be incomplete because "
         "the pushed ref set does not match checked-out HEAD and its configured push "
@@ -7777,9 +7791,12 @@ def _testmon_commands(repo_root: Path) -> list[list[str]]:
 
     Same four partitions, worker policy, and serial safe-push and pr-autofix
     handling as `_pytest_commands`, so testmon changes which tests run and
-    nothing about how. Every partition shares one ``.testmondata`` in the
-    repository root. With no database yet testmon runs everything and builds
-    it, which is the intended first-run behavior.
+    nothing about how. Partitions that run one after another share one
+    ``.testmondata`` in the repository root. Partitions that overlap each get
+    their own copy of it (issue #6477, `testmon_lane_db`), because lanes that
+    write one database while another lane's workers read it make the workers
+    deselect different tests. With no database yet testmon runs everything and
+    builds it, which is the intended first-run behavior.
 
     Never add ``-p no:cacheprovider`` here: testmon reads pytest's cache and
     crashes with ``KeyError: 'lf'`` without it.
@@ -7951,21 +7968,18 @@ def _seed_testmon_database(repo_root: Path) -> None:
         )
 
 
+def _testmon_base_name(env: Mapping[str, str]) -> str:
+    """Return the base database name, using testmon's own location rule."""
+    return env.get("TESTMON_DATAFILE") or ".testmondata"
+
+
 def _testmon_database_missing(repo_root: Path, env: Mapping[str, str]) -> bool:
     """Whether testmon has no finished database yet, using testmon's own location rule.
 
-    testmon sets ``PRAGMA user_version`` after it creates every table, so a file
-    whose version is still 0 is an interrupted build and counts as missing.
+    An interrupted build, which leaves ``PRAGMA user_version`` at 0, counts as
+    missing (see `testmon_lane_db.database_finished`).
     """
-    path = repo_root / (env.get("TESTMON_DATAFILE") or ".testmondata")
-    if not path.exists():
-        return True
-    try:
-        with closing(sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)) as connection:
-            version = int(connection.execute("PRAGMA user_version").fetchone()[0])
-            return version == 0
-    except sqlite3.Error:
-        return True
+    return not testmon_lane_db.database_finished(repo_root / _testmon_base_name(env))
 
 
 def _pytest_overlap_lanes(
@@ -7976,12 +7990,12 @@ def _pytest_overlap_lanes(
     """Return the lanes that run at the same time, or ``None`` to run in sequence.
 
     testmon 2.2.0 creates its tables with a bare ``CREATE TABLE``, so two
-    processes that both find no database race to build it and one fails. Every
-    later write is one transaction on a WAL database with a 60s busy wait, and
-    the partitions touch disjoint test files, so only the first build is unsafe.
-    That build runs in sequence (issue #6198). testmon also deletes records of
-    tests it did not collect, so `_TESTMON_FLAGS` loads `testmon_scoped_sync` to
-    keep a partition from deleting its siblings' records (issue #6406).
+    processes that both find no database race to build it and one fails. That
+    build runs in sequence (issue #6198). Once the database exists, each lane
+    runs on its own copy of it (issue #6477, `_lane_environments`), so one
+    lane's writes cannot change what another lane's workers read.
+    `_TESTMON_FLAGS` also loads `testmon_scoped_sync`, so a run that shares a
+    database deletes only records for files it collected (issue #6406).
     """
     if _uses_testmon(commands) and _testmon_database_missing(repo_root, env):
         print(
@@ -8056,6 +8070,25 @@ class _ChildRegistry:
             self._stop(proc)
 
 
+def _lane_environments(
+    lanes: Sequence[pytest_lanes.Lane],
+    repo_root: Path,
+    env: Mapping[str, str],
+) -> dict[pytest_lanes.Lane, Mapping[str, str]]:
+    """Return the environment each lane runs with.
+
+    Under testmon every lane gets its own ``TESTMON_DATAFILE`` (issue #6477),
+    seeded from the base database, so no lane writes a database that another
+    lane's xdist workers are reading. Without testmon the lanes share ``env``.
+    """
+    if not _uses_testmon([command for lane in lanes for command in lane.commands]):
+        return {lane: env for lane in lanes}
+    names = testmon_lane_db.prepare_lane_datafiles(repo_root, _testmon_base_name(env), len(lanes))
+    return {
+        lane: {**env, "TESTMON_DATAFILE": name} for lane, name in zip(lanes, names, strict=True)
+    }
+
+
 def _run_pytest_lanes(
     lanes: Sequence[pytest_lanes.Lane],
     repo_root: Path,
@@ -8066,19 +8099,27 @@ def _run_pytest_lanes(
     """Run the lanes at once under one deadline; return the worst exit code.
 
     Every lane runs to its end even when another fails, for the same reason the
-    sequential loop does: each partition must record its tests in
-    ``.testmondata``. A failure names its partition on its own line.
+    sequential loop does: each partition must record its tests in its lane's
+    testmon database. A failure names its partition on its own line.
     """
     children = _ChildRegistry()
+    lane_envs = _lane_environments(lanes, repo_root, env)
 
-    def run_command(command: Sequence[str], remaining: float) -> subprocess.CompletedProcess[str]:
-        return _run_command(
-            command,
-            repo_root,
-            process_env=env,
-            timeout_seconds=remaining,
-            on_start=children.register,
-        )
+    def run_command_for(
+        lane_env: Mapping[str, str],
+    ) -> Callable[[Sequence[str], float], subprocess.CompletedProcess[str]]:
+        def run_command(
+            command: Sequence[str], remaining: float
+        ) -> subprocess.CompletedProcess[str]:
+            return _run_command(
+                command,
+                repo_root,
+                process_env=lane_env,
+                timeout_seconds=remaining,
+                on_start=children.register,
+            )
+
+        return run_command
 
     outcomes: list[tuple[str, int]] = []
     stopped: list[bool] = []
@@ -8090,7 +8131,9 @@ def _run_pytest_lanes(
 
     pytest_lanes.run_lanes(
         lanes,
-        lambda lane, cancel: pytest_lanes.run_lane(lane, repo_root, deadline, run_command, cancel),
+        lambda lane, cancel: pytest_lanes.run_lane(
+            lane, repo_root, deadline, run_command_for(lane_envs[lane]), cancel
+        ),
         on_done,
         children.stop_all,
     )

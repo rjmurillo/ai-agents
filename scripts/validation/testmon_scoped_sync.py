@@ -1,11 +1,12 @@
 """Keep one pytest-testmon run from deleting a sibling run's records (issue #6406).
 
-The pre-push hook runs its pytest partitions at the same time against one
-``.testmondata`` (issue #6345). testmon 2.2.0 collects in
-``TestmonData.sync_db_fs_tests``, which deletes every recorded test that this run
-neither collected nor found stable. A partition that reaches that step after a
-sibling has saved deletes the sibling's fresh rows. CI recorded 30 tests where
-60 were expected, and a real push loses the same history: the next selection
+Two pytest partitions can run at the same time against one ``.testmondata``.
+The pre-push hook did so (issue #6345) until issue #6477 gave each overlapping
+lane its own copy; a shared database still occurs when two runs overlap by hand
+or in a test. testmon 2.2.0 collects in ``TestmonData.sync_db_fs_tests``, which
+deletes every recorded test that this run neither collected nor found stable. A
+partition that reaches that step after a sibling has saved deletes the sibling's
+fresh rows. CI recorded 30 tests where 60 were expected; the next selection then
 re-runs tests it could have skipped.
 
 This plugin wraps that method so the delete covers only:
