@@ -202,3 +202,88 @@ def test_blank_and_indented_lines_in_frontmatter_are_tolerated(skills_root):
     body = good.split("---\n", 2)[2]
     skill = make_skill(skills_root, "a-skill", body=text + body)
     assert verify(skill)["status"] == "PASS"
+
+
+def approval_only_in(section):
+    text = GOOD_SKILL.format(name="a-skill", description=TRIGGER, trigger=TRIGGER)
+    text = text.replace("Ask for approval before publishing it.", "Publish it.")
+    text = text.replace("Publishing without approval.", "Publishing blindly.")
+    return text.replace(f"## {section}\n", f"## {section}\n\nConfirm with the user first.\n", 1)
+
+
+@pytest.mark.parametrize("section", ["Verification", "Pitfalls", "Anti-patterns", "Contract"])
+def test_approval_word_outside_procedure_does_not_count(skills_root, section):
+    skill = make_skill(skills_root, "a-skill", body=approval_only_in(section))
+    assert failed(verify(skill, external=True)) == {"approval_gate_present"}
+
+
+def test_approval_word_in_unnumbered_procedure_prose_does_not_count(skills_root):
+    text = approval_only_in("Procedure")
+    skill = make_skill(skills_root, "a-skill", body=text)
+    assert failed(verify(skill, external=True)) == {"approval_gate_present"}
+
+
+def test_approval_in_wrapped_numbered_step_counts(skills_root):
+    text = GOOD_SKILL.format(name="a-skill", description=TRIGGER, trigger=TRIGGER)
+    text = text.replace(
+        "Ask for approval before publishing it.", "Show the draft,\n   then get approval."
+    )
+    skill = make_skill(skills_root, "a-skill", body=text)
+    assert verify(skill, external=True)["status"] == "PASS"
+
+
+def test_approval_in_fenced_example_does_not_count(skills_root):
+    text = GOOD_SKILL.format(name="a-skill", description=TRIGGER, trigger=TRIGGER)
+    text = text.replace(
+        "2. Write the note. Ask for approval before publishing it.",
+        "2. Write the note.\n```text\n3. get approval\n```",
+    )
+    skill = make_skill(skills_root, "a-skill", body=text)
+    assert failed(verify(skill, external=True)) == {"approval_gate_present"}
+
+
+def test_missing_procedure_fails_approval_check(skills_root):
+    text = GOOD_SKILL.format(name="a-skill", description=TRIGGER, trigger=TRIGGER)
+    text = text.replace("## Procedure", "## Steps")
+    skill = make_skill(skills_root, "a-skill", body=text)
+    assert {"section_procedure", "approval_gate_present"} <= failed(verify(skill, external=True))
+
+
+def verify_recovery(path):
+    return skillify_verify.verify_skill(
+        skillify.resolve_skill_file(path), TRIGGER, False, recovery_paths=True
+    )
+
+
+def test_recovery_path_marked_optional_passes(skills_root):
+    text = GOOD_SKILL.format(name="a-skill", description=TRIGGER, trigger=TRIGGER)
+    text = text.replace("1. Read the input.", "1. Read the input. Optional: retry once.")
+    skill = make_skill(skills_root, "a-skill", body=text)
+    assert verify_recovery(skill)["status"] == "PASS"
+
+
+def test_recovery_word_in_step_passes(skills_root):
+    text = GOOD_SKILL.format(name="a-skill", description=TRIGGER, trigger=TRIGGER)
+    text = text.replace("1. Read the input.", "1. Read the input. On error use the recovery path.")
+    skill = make_skill(skills_root, "a-skill", body=text)
+    assert verify_recovery(skill)["status"] == "PASS"
+
+
+def test_recovery_required_but_unmarked_fails(skills_root):
+    skill = make_skill(skills_root, "a-skill")
+    assert failed(verify_recovery(skill)) == {"recovery_path_marked"}
+
+
+def test_recovery_word_only_in_pitfalls_fails(skills_root):
+    text = GOOD_SKILL.format(name="a-skill", description=TRIGGER, trigger=TRIGGER)
+    text = text.replace("Path with spaces", "Optional recovery note")
+    skill = make_skill(skills_root, "a-skill", body=text)
+    assert failed(verify_recovery(skill)) == {"recovery_path_marked"}
+
+
+def test_duplicate_required_section_uses_first(skills_root):
+    text = GOOD_SKILL.format(name="a-skill", description=TRIGGER, trigger=TRIGGER)
+    text = text.replace("| CRLF line endings | Read as text |\n", "")
+    text += "\n## Pitfalls\n\n- extra one\n- extra two\n- extra three\n"
+    skill = make_skill(skills_root, "a-skill", body=text)
+    assert failed(verify(skill)) == {"items_pitfalls"}

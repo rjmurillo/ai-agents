@@ -1,4 +1,4 @@
-"""Phase 0 gate: reject one-off and trivial work, proceed on real procedure."""
+"""step 2 gate: reject one-off and trivial work, proceed on real procedure."""
 
 from __future__ import annotations
 
@@ -87,7 +87,18 @@ def test_reports_every_failed_rule():
 def test_external_actions_flag_requires_approval_gate():
     assert skillify.evaluate_gate(audit(external_actions=True))["approval_gate_required"] is True
     assert skillify.evaluate_gate(audit())["approval_gate_required"] is False
-    assert skillify.evaluate_gate(audit(external_actions="yes"))["approval_gate_required"] is False
+
+
+@pytest.mark.parametrize("field", ["external_actions", "recovery_paths"])
+@pytest.mark.parametrize("bad", ["yes", 1, 0, None, []])
+def test_optional_flags_must_be_strict_bool(field, bad):
+    with pytest.raises(skillify.SkillifyError, match=field):
+        skillify.evaluate_gate(audit(**{field: bad}))
+
+
+def test_recovery_paths_flag_is_reported():
+    assert skillify.evaluate_gate(audit(recovery_paths=True))["recovery_paths_required"] is True
+    assert skillify.evaluate_gate(audit())["recovery_paths_required"] is False
 
 
 def test_proactive_eligibility_needs_five_calls_and_proceed():

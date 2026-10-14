@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import argparse
 import io
 import json
 import subprocess
 import sys
 
+import pytest
 import skillify
 from skill_fixtures import SKILL_DIR, make_skill
 
@@ -167,8 +169,93 @@ def test_script_runs_as_a_subprocess_from_unrelated_directory(tmp_path):
     assert json.loads(proc.stdout)["status"] == "PROCEED"
 
 
-def test_unknown_subcommand_exits_two_from_argparse(capsys):
-    try:
-        skillify.main(["bogus"])
-    except SystemExit as exc:
-        assert exc.code == 2
+def test_unknown_subcommand_is_json_error_exit_one(capsys):
+    code, out = run_cli(capsys, "bogus")
+    assert code == 1
+    assert out["status"] == "error"
+    assert "usage" in out["error"]
+
+
+def test_missing_required_option_is_json_error_exit_one(capsys):
+    code, out = run_cli(capsys, "gate")
+    assert (code, out["status"]) == (1, "error")
+
+
+def test_run_rejects_unregistered_command():
+    with pytest.raises(skillify.SkillifyError, match="unknown command"):
+        skillify.run(argparse.Namespace(command="bogus"), {})
+
+
+def test_usage_error_exit_code_differs_from_no_destination(tmp_path, capsys):
+    usage, _ = run_cli(capsys, "resolve", "--nope")
+    unresolved, _ = run_cli(capsys, "resolve", "--cwd", str(tmp_path))
+    assert (usage, unresolved) == (1, 2)
+
+
+def test_verify_reads_trigger_and_flags_from_audit(skills_root, tmp_path, capsys):
+    make_skill(skills_root, "meeting-ingest")
+    audit = write_json(tmp_path / "a.json", {**AUDIT, "external_actions": True})
+    code, out = run_cli(
+        capsys, "verify", "--skill", str(skills_root / "meeting-ingest"), "--audit", audit
+    )
+    assert (code, out["status"], out["trigger"]) == (0, "PASS", TRIGGER)
+    names = [c["id"] for c in out["checks"]]
+    assert "approval_gate_present" in names
+    assert "recovery_path_marked" not in names
+
+
+def test_verify_flag_overrides_audit(skills_root, tmp_path, capsys):
+    make_skill(skills_root, "meeting-ingest")
+    audit = write_json(tmp_path / "a.json", AUDIT)
+    code, out = run_cli(
+        capsys,
+        "verify",
+        "--skill",
+        str(skills_root / "meeting-ingest"),
+        "--audit",
+        audit,
+        "--trigger",
+        "something else",
+        "--recovery-paths",
+    )
+    assert code == 1
+    assert out["trigger"] == "something else"
+    assert set(out["failures"]) == {
+        "description_leads_with_trigger",
+        "recovery_path_marked",
+    }
+
+
+def test_verify_shell_metacharacters_in_audit_trigger_are_data(skills_root, tmp_path, capsys):
+    phrase = 'ingest $(touch pwned); "x"'
+    audit = write_json(tmp_path / "a.json", {**AUDIT, "trigger_phrase": phrase})
+    make_skill(skills_root, "meeting-ingest", description=phrase)
+    code, out = run_cli(
+        capsys, "verify", "--skill", str(skills_root / "meeting-ingest"), "--audit", audit
+    )
+    assert (code, out["trigger"]) == (0, phrase)
+    assert not (tmp_path / "pwned").exists()
+
+
+@pytest.mark.parametrize(
+    "audit",
+    [
+        [],
+        {"tool_call_count": 3},
+        {"trigger_phrase": 4},
+        {"trigger_phrase": "x", "recovery_paths": 1},
+    ],
+)
+def test_verify_bad_audit_exits_one(skills_root, tmp_path, capsys, audit):
+    make_skill(skills_root, "meeting-ingest")
+    path = write_json(tmp_path / "a.json", audit)
+    code, out = run_cli(
+        capsys, "verify", "--skill", str(skills_root / "meeting-ingest"), "--audit", path
+    )
+    assert (code, out["status"]) == (1, "error")
+
+
+def test_verify_needs_trigger_or_audit(skills_root, capsys):
+    make_skill(skills_root, "meeting-ingest")
+    code, out = run_cli(capsys, "verify", "--skill", str(skills_root / "meeting-ingest"))
+    assert (code, out["status"]) == (1, "error")

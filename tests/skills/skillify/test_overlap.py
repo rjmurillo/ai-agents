@@ -87,7 +87,8 @@ def test_scans_every_root_and_reports_missing_roots(tmp_path, skills_root):
 def test_skips_skills_without_frontmatter_name(skills_root):
     make_skill(skills_root, "broken", body="# no frontmatter\n")
     result = skillify.evaluate_overlap(WORKFLOW, [skills_root])
-    assert len(result["skipped"]) == 1
+    assert [s["reason"] for s in result["skipped"]] == ["no frontmatter name"]
+    assert result["skipped"][0]["path"].endswith("SKILL.md")
     assert result["scanned"] == 0
 
 
@@ -96,7 +97,7 @@ def test_skips_unreadable_skill_file(skills_root):
     directory.mkdir()
     (directory / "SKILL.md").write_bytes(b"\xff\xfe\x00bad")
     result = skillify.evaluate_overlap(WORKFLOW, [skills_root])
-    assert len(result["skipped"]) == 1
+    assert [s["reason"] for s in result["skipped"]] == ["unreadable"]
 
 
 def test_matches_capped_and_sorted_by_hits_then_name(skills_root):
@@ -136,3 +137,48 @@ def test_tokenize_drops_stopwords_short_words_and_folds_plural():
 def test_bad_workflow_raises(workflow, skills_root):
     with pytest.raises(skillify.SkillifyError):
         skillify.evaluate_overlap(workflow, [skills_root])
+
+
+def test_procedure_text_counts_toward_coverage(skills_root):
+    body = (
+        "---\nname: opaque\ndescription: Misc helper.\n---\n\n## Triggers\n\n- go\n\n"
+        "## Procedure\n\n1. Read the transcript.\n2. Extract action items.\n"
+        "3. Write meeting notes.\n\n## Pitfalls\n\n- unrelated gotcha words\n"
+    )
+    make_skill(skills_root, "opaque", body=body)
+    result = skillify.evaluate_overlap(WORKFLOW, [skills_root])
+    assert result["status"] == "PATCH"
+    assert result["skill"] == "opaque"
+
+
+def test_text_outside_triggers_and_procedure_does_not_count(skills_root):
+    body = (
+        "---\nname: opaque\ndescription: Misc helper.\n---\n\n"
+        "## Pitfalls\n\n- read transcript extract action items write meeting notes\n"
+    )
+    make_skill(skills_root, "opaque", body=body)
+    assert skillify.evaluate_overlap(WORKFLOW, [skills_root])["status"] == "CREATE"
+
+
+def test_too_few_workflow_terms_creates_with_reason(skills_root):
+    make_skill(skills_root, "exact", description="alpha beta", trigger="alpha beta")
+    result = skillify.evaluate_overlap({"terms": ["alpha beta"]}, [skills_root])
+    assert result["status"] == "CREATE"
+    assert result["skill"] is None
+    assert "at least 3" in result["reason"]
+    assert result["matches"][0]["coverage"] == 1.0
+
+
+def test_three_terms_is_enough_to_judge(skills_root):
+    make_skill(skills_root, "exact", description="alpha beta gamma", trigger="zz")
+    result = skillify.evaluate_overlap({"terms": ["alpha beta gamma"]}, [skills_root])
+    assert (result["status"], result["reason"]) == ("PATCH", None)
+
+
+def test_duplicate_headings_use_first_section(skills_root):
+    body = (
+        "---\nname: dup\ndescription: Misc.\n---\n\n## Procedure\n\n1. unrelated thing.\n\n"
+        "## Procedure\n\n1. Read transcript extract action items write meeting notes.\n"
+    )
+    make_skill(skills_root, "dup", body=body)
+    assert skillify.evaluate_overlap(WORKFLOW, [skills_root])["status"] == "CREATE"

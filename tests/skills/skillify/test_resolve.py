@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
 import pytest
@@ -179,3 +180,29 @@ def test_home_expansion_in_explicit_path(tmp_path, monkeypatch):
 )
 def test_root_kind_is_independent_of_path_flavour(path, kind):
     assert skillify.skills_root_kind(path) == kind
+
+
+def test_relative_explicit_resolves_against_cwd_and_is_absolute(tmp_path):
+    payload, code = resolve("sub/../skills here", cwd=tmp_path)
+    assert code == skillify.EXIT_OK
+    assert Path(payload["path"]).is_absolute()
+    assert Path(payload["path"]) == tmp_path.resolve() / "skills here"
+
+
+def test_relative_env_var_resolves_against_cwd(tmp_path):
+    payload, _ = resolve(None, ["S"], tmp_path, {"S": "rel/skills"})
+    assert Path(payload["path"]) == tmp_path.resolve() / "rel" / "skills"
+    assert payload["confirm_before_create"] is True
+
+
+def test_existing_root_needs_no_creation_confirmation(tmp_path):
+    payload, _ = resolve(str(tmp_path), cwd=tmp_path)
+    assert payload["confirm_before_create"] is False
+
+
+def test_relative_explicit_via_cli_cwd(tmp_path, capsys):
+    (tmp_path / "skills").mkdir()
+    code = skillify.main(["resolve", "--explicit", "skills", "--cwd", str(tmp_path)])
+    out = json.loads(capsys.readouterr().out)
+    assert code == 0
+    assert (out["exists"], Path(out["path"])) == (True, tmp_path.resolve() / "skills")
