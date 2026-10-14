@@ -12,8 +12,10 @@ from skillify_text import (
     Section,
     SkillifyError,
     Step,
+    approval_prose,
     count_items,
     first_sections,
+    outside_step_lines,
     parse_frontmatter,
     parse_steps,
     procedure_section,
@@ -119,7 +121,9 @@ def verify_skill(
     if external_actions:
         checks.append(_approval_check(parsed.steps, patching))
         checks.append(_untagged_check(parsed.steps))
-        checks.append(_outside_steps_check(parsed))
+        checks.append(_outside_steps_check(parsed, outside_step_lines(body, patching)))
+    if external_actions or not patching:
+        checks.append(_numbering_check(parsed.steps))
     if recovery_paths:
         checks.append(_recovery_check(parsed.steps, patching))
     failures = [c["id"] for c in checks if not c["ok"]]
@@ -239,7 +243,9 @@ def _approval_problem(steps: tuple[Step, ...], where: str) -> str | None:
     before it, never the same step. No step carries both tags.
     """
     external = [i for i, step in enumerate(steps) if TAG_RE.search(step.full)]
-    approval = [i for i, step in enumerate(steps) if APPROVAL_TAG_RE.search(step.text)]
+    approval = [
+        i for i, step in enumerate(steps) if APPROVAL_TAG_RE.search(approval_prose(step.text))
+    ]
     both = [i for i in external if i in approval]
     if both:
         return f"step {both[0] + 1} is tagged both (external) and (approval); split it"
@@ -278,15 +284,24 @@ def _untagged_check(steps: tuple[Step, ...]) -> dict[str, Any]:
     )
 
 
-def _outside_steps_check(parsed: ParsedSteps) -> dict[str, Any]:
-    stray = [line for line in parsed.loose if EXTERNAL_RE.search(line)]
+def _outside_steps_check(parsed: ParsedSteps, outside: list[str]) -> dict[str, Any]:
+    stray = [line for line in [*parsed.loose, *outside] if EXTERNAL_RE.search(line)]
     return _check(
         "external_outside_steps",
         not stray,
         f"external action outside a numbered step ({stray[0][:60]!r}): "
-        "move the action into a numbered step and tag it"
+        "move the action into a numbered Procedure step and tag it"
         if stray
         else "no external action outside numbered steps",
+    )
+
+
+def _numbering_check(steps: tuple[Step, ...]) -> dict[str, Any]:
+    numbers = [step.number for step in steps]
+    return _check(
+        "steps_numbered_in_order",
+        numbers == list(range(1, len(numbers) + 1)),
+        f"step numerals must run 1, 2, 3 in order; found {numbers}",
     )
 
 

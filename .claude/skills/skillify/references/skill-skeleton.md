@@ -62,3 +62,5 @@ case-insensitive. Each `(external)` step needs an `(approval)` step strictly
 before it, and no step carries both. Fenced commands belong to the step above
 them. `verify` fails an untagged step or a line outside the steps that looks
 external, so tag it or move it into a numbered step.
+
+`verify` is a read-back lint for skills written by this procedure, not a sandbox against a hostile author, and it reads CommonMark basics only.

@@ -124,8 +124,9 @@ verification failure, `2` no destination or invalid path. Harness tool names:
    `description_has_trigger` when the description lacks the trigger.
    With external actions, each `(external)` step needs an `(approval)` step
    strictly before it; approval words do not count, and no step has both tags.
-   Fenced commands count as part of their step. An untagged step, or a line
-   outside the numbered steps, that looks external fails: tag or reword it. Recovery paths need a step marked optional or
+   Fenced commands count as part of their step. An untagged step, or any
+   line outside the numbered steps and the descriptive sections, that looks
+   external fails: tag or reword it. Steps must run 1, 2, 3 in order. Recovery paths need a step marked optional or
    recovery. Create mode reads numbered Procedure steps; patch mode also
    reads a Process section. Fix every failure
    and rerun. Do not run a broader evaluation pass.
@@ -167,6 +168,9 @@ A relative `--explicit` or env-var path is anchored at `--cwd` and returned abso
   Include the heading above the block and the line after it.
 - **Section names.** Host skills often use `## Process`, which patch mode
   accepts. New skills must use `## Procedure`.
+- **Limit of `verify`.** It is a read-back lint for skills this procedure
+  wrote, not a sandbox against a hostile author, and it reads CommonMark
+  basics only.
 - **Names.** Kebab-case, at most 64 characters, equal to the directory name.
   Underscores and capitals are rejected by `verify`.
 - **Skills are global.** A user-scope skill loads in every session. Keep
