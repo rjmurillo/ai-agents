@@ -163,6 +163,19 @@ class TestTransportRouting:
         assert status == "transport_blocked"
         assert "mcp__github__" in detail
 
+    def test_graphql_only_refusal_still_routes_this_gate_off_gh(self):
+        """The suite is mostly GraphQL, so the gate keeps its answer (issue #5693).
+
+        The detail names REST, which is what lets a script that never calls
+        GraphQL keep working.
+        """
+        with patch.object(mod, "check_gh_auth", return_value=_auth(GhAuthStatus.GRAPHQL_BLOCKED)):
+            transport, code, status, detail = mod.resolve_transport()
+        assert transport == mod.TRANSPORT_MCP
+        assert code == 0
+        assert status == "graphql_blocked"
+        assert "Use REST" in detail
+
     def test_missing_gh_routes_to_mcp(self):
         """Different cause, same consequence: gh is not an option."""
         with patch.object(mod, "check_gh_auth", return_value=_auth(GhAuthStatus.MISSING_GH)):
