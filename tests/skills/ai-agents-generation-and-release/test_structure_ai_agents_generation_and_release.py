@@ -42,3 +42,25 @@ def test_no_em_or_en_dashes():
 
 def test_size_cap():
     assert len(_text().splitlines()) <= 500
+
+
+def _release_section() -> str:
+    text = _text()
+    start = text.index("### Phase 5: npm Release Path")
+    end = text.index("\n## ", start)
+    return text[start:end]
+
+
+def test_release_path_does_not_recommend_tag_push_publish():
+    """Issue 6590: publish.yml refuses the v* tag route; the skill must not route readers there."""
+    text = _text()
+    for stale in ("--tags", "git tag v", "fires on `v*` tags", "retag"):
+        assert stale not in text, f"stale tag-publish guidance: {stale!r}"
+
+
+def test_release_path_routes_to_releasing_md_and_dispatch():
+    section = _release_section()
+    assert "RELEASING.md" in section
+    assert "workflow_dispatch" in section
+    assert "dormant" in section
+    assert "ai-agents-change-control" in section
