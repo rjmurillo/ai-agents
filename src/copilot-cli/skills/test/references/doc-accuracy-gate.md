@@ -25,8 +25,9 @@ Effects: `public-api`, `cli-surface`, `config-or-defaults`,
 `generated-input`, `agent-behavior`. A code, build, or CI path activates the
 check only through an effect, so read the diff for each one before you run the
 trigger. A path the classifier cannot place, an unknown effect, and an empty
-path list all activate it. Exit `2` means the classifier could not load or the
-diff base was blank: report `VERDICT: ERROR`.
+path list all activate it. Exit `2` means the classifier could not load, the
+diff base was blank, or the build record was unreadable or malformed: report
+`VERDICT: ERROR`.
 
 ## 2. Skip
 
@@ -64,10 +65,10 @@ A FAIL is `CRITICAL_FAIL`. An UNKNOWN, a `DID_NOT_RUN`, a missing report, or an
 escalation you were required to run and did not is `ERROR`; none of them is ever
 a PASS. A finding in a `historical_paths` entry is dated evidence: report it as
 info and leave it out of the verdict. Name each `unreadable_documents` entry as
-unverified, because `doc-accuracy` cannot read it. Classify each finding's
-remediation by the artifact-neutral rules in the `code-qualities-assessment`
-skill's `references/executable-nl-artifacts.md`; a generated copy is corrected
-at its canonical source.
+unverified, because `doc-accuracy` cannot read it. Give each finding one remediation class
+from the Report block below, chosen by the artifact-neutral rules in the
+`code-qualities-assessment` skill's `references/executable-nl-artifacts.md`; a
+generated copy is corrected at its canonical source.
 
 ## Build handoff
 

@@ -245,3 +245,35 @@ def test_review_resource_names_the_owner_of_the_remediation_classes() -> None:
     assert "doc-accuracy-gate.md" in resource
     report = _section(_read(GATE_REFERENCE), "Report")
     assert all(cls in report for cls in REMEDIATION_CLASSES)
+
+
+def test_build_exit_gate_scans_only_when_changed_documents_exist() -> None:
+    gate = _section(_skill("build"), "Mandatory Exit Gates")
+    assert "a non-empty `changed_documents`" in gate
+
+
+def test_review_select_names_every_required_trigger_flag() -> None:
+    select = _read(REVIEW_RESOURCE).split("2. **Reuse.**")[0]
+    for flag in ("--diff-base", "--changed-path", "--effect", "--build-record"):
+        assert flag in select, flag
+
+
+def test_review_table_uses_only_report_block_class_names() -> None:
+    table = _read(REVIEW_RESOURCE).split("| Finding | Remediation class |")[1]
+    rows = [r for r in table.splitlines()[2:] if r.startswith("|")]
+    assert rows
+    for row in rows:
+        remediation = row.rsplit("|", 2)[-2].strip()
+        for option in remediation.split(", or "):
+            assert option.strip() in REMEDIATION_CLASSES, option
+
+
+def test_gate_verdict_takes_classes_from_the_report_block() -> None:
+    verdict = _section(_read(GATE_REFERENCE), "5. Verdict")
+    assert "from the Report block" in verdict
+
+
+def test_gate_exit_two_summary_covers_a_malformed_build_record() -> None:
+    decide = _section(_read(GATE_REFERENCE), "1. Decide")
+    summary = decide.split("Exit `2` means")[1]
+    assert "build record" in summary
