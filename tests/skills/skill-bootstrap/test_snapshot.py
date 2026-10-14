@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import sys
 from pathlib import Path
 
 import bootstrap_boundary
@@ -138,3 +140,23 @@ def test_snapshot_refuses_to_overwrite_an_existing_snapshot(
     assert code == 2
     assert "already exists" in payload["message"]
     assert snap_path.read_bytes() == first
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32" or os.geteuid() == 0,
+    reason="file mode 000 does not block reads on Windows or for root",
+)
+def test_snapshot_unreadable_user_file_exits_three_with_io_error(
+    repo: Path, capsys: pytest.CaptureFixture[str], snap_path: Path
+) -> None:
+    locked = repo / "locked.txt"
+    locked.write_text("secret\n", encoding="utf-8")
+    locked.chmod(0o000)
+    try:
+        code, payload = snapshot_result(capsys, repo, snap_path)
+    finally:
+        locked.chmod(0o600)
+
+    assert code == 3
+    assert payload["error"] == "io"
+    assert not snap_path.exists()

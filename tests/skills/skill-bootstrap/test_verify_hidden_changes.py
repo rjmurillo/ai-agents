@@ -147,3 +147,43 @@ def test_verify_staging_a_user_file_outside_the_boundary_exits_one(
 
     assert code == 1
     assert {"kind": "outside-boundary", "path": "draft.md"} in payload["violations"]
+
+
+def test_verify_mode_change_on_a_dirty_user_file_exits_one(
+    repo: Path, capsys: Capsys, snap_path: Path
+) -> None:
+    write(repo, "README.md", "user edit\n")
+    take_snapshot(capsys, repo, snap_path)
+    (repo / "README.md").chmod(0o755)
+
+    code, payload = verify(capsys, repo, snap_path)
+
+    assert code == 1
+    assert {"kind": "outside-boundary", "path": "README.md"} in payload["violations"]
+
+
+def test_verify_user_file_staged_before_the_snapshot_and_untouched_exits_zero(
+    repo: Path, capsys: Capsys, snap_path: Path
+) -> None:
+    write(repo, "draft.md", "user draft\n")
+    run_git(repo, "add", "draft.md")
+    take_snapshot(capsys, repo, snap_path)
+
+    code, payload = verify(capsys, repo, snap_path)
+
+    assert code == 0
+    assert payload["examined"] == 1
+
+
+def test_verify_unstaging_a_user_file_exits_one(
+    repo: Path, capsys: Capsys, snap_path: Path
+) -> None:
+    write(repo, "draft.md", "user draft\n")
+    run_git(repo, "add", "draft.md")
+    take_snapshot(capsys, repo, snap_path)
+    run_git(repo, "reset", "-q", "draft.md")
+
+    code, payload = verify(capsys, repo, snap_path)
+
+    assert code == 1
+    assert {"kind": "outside-boundary", "path": "draft.md"} in payload["violations"]

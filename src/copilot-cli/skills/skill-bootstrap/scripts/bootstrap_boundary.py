@@ -38,7 +38,9 @@ ignored output root, skill directory, or `--also-allow` path is refused. It
 catches accidental writes by a cooperating run; it is not a sandbox, and a
 snapshot taken after the writes proves nothing, so snapshot refuses to
 overwrite an existing file. Empty directories are invisible to git and to
-verify. A symlinked output root or skill directory fails with exit 3. Stdlib only, so the script runs from any plugin root.
+verify. A symlinked output root or skill directory fails with exit 2 or 3.
+An unreadable working-tree file stops snapshot with exit 3. Staging is
+compared by status code, not by staged content. Stdlib only, so the script runs from any plugin root.
 """
 
 from __future__ import annotations
