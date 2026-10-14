@@ -21,6 +21,7 @@ import json
 import subprocess
 
 from .checks_rollup import extract_workflow_run_number
+from .not_found import is_pr_not_found
 
 _TIMEOUT_SECONDS = 30
 _PAGE_SIZE = 100
@@ -195,7 +196,7 @@ def fetch_checks_rest(owner: str, repo: str, pr_number: int) -> dict:
     try:
         pr = _run_gh_api([f"repos/{owner}/{repo}/pulls/{pr_number}"])
     except RuntimeError as exc:
-        if "HTTP 404" in str(exc) or "Not Found" in str(exc):
+        if "HTTP 404" in str(exc) or is_pr_not_found(str(exc)):
             raise PullRequestNotFoundError(str(exc)) from exc
         raise
     if not isinstance(pr, dict):

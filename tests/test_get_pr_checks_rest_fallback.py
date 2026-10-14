@@ -119,7 +119,9 @@ class TestFetchChecksFallback:
 
     def test_not_found_over_graphql_stays_not_found(self):
         with (
-            patch.object(_mod, "gh_graphql", side_effect=RuntimeError("Could not resolve PR")),
+            patch.object(
+                _mod, "gh_graphql", side_effect=RuntimeError("Could not resolve to a PullRequest")
+            ),
             patch.object(_mod, "fetch_checks_rest") as rest,
         ):
             assert _mod.fetch_checks("o", "r", 42)["Error"] == "NotFound"
