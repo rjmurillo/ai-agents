@@ -71,3 +71,15 @@ FIXTURE_CEILINGS_BYTES: dict[str, int] = {
     "F5": 112_000,
     "F6": 120_000,
 }
+
+# Minimum headroom a pull request may leave on a fixture it grew (issue #6480).
+# Headroom is `FIXTURE_CEILINGS_BYTES[id]` minus the fixture's activated bytes.
+# Each PR passes against its own base, so two green PRs can merge into a union
+# that breaches a ceiling and reddens main for every contributor. The floor keeps
+# a margin: `instruction_bytes --ci --base-ref REF` fails a PR that grows a
+# fixture and leaves less than this many bytes free. The author trims the added
+# bytes, or raises the ceiling and records why in the same change. A fixture
+# already under the floor does not fail a PR that leaves it the same size or
+# smaller. Without `--base-ref` growth is unknown, so the floor is not enforced.
+# Override per run with `--reserve BYTES` or INSTRUCTION_BYTES_RESERVE; 0 disables.
+FIXTURE_HEADROOM_FLOOR_BYTES = 100
