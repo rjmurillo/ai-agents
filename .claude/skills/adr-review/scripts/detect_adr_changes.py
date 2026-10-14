@@ -185,10 +185,12 @@ def _has_duplicate_keys(frontmatter: str) -> bool:
         mapping: dict[Any, Any] = loader.construct_mapping(node, deep=True)
         return mapping
 
-    Stricter/looser/different than canonical: identical detection; this returns
-    a bool because callers only branch on it, and swallows a YAML parse error
-    as False because a malformed block is already handled by the callers' own
-    parse path. This file ships inside the plugin and may import only the
+    Stricter/looser/different than canonical: the same detection, but the body
+    below differs from the quote. It raises a local `_Dup` (a `yaml.YAMLError`)
+    instead of `ConstructorError`, and types the key list `list[object]`
+    instead of `list[Any]`. This returns a bool because callers only branch on
+    it, and swallows a YAML parse error as False because a malformed block is
+    already handled by the callers' own parse path. This file ships inside the plugin and may import only the
     standard library and yaml, so the loader is duplicated here rather than
     shared (`.claude/rules/plugin-self-containment.md`). Keys are compared with
     ``==`` in a list, not a set: a YAML key need not be hashable (``? [a, b]``

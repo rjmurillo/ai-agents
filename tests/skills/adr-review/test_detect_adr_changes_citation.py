@@ -96,6 +96,11 @@ class TestDetectorDocstringCitation:
         assert "yaml.constructor.ConstructorError" in quoted
         assert "_DuplicateKeyError" not in quoted
 
+    def test_divergence_note_names_the_local_exception(self, tree: str) -> None:
+        doc = _docstring(REPO_ROOT / tree, "_has_duplicate_keys")
+        note = doc.split("Stricter/looser/different than canonical:", 1)[1]
+        assert "_Dup" in note.split("Keys are compared", 1)[0]
+
 
 def _function_body(path: Path, name: str) -> list[str]:
     """Return the source lines of `name`'s body after its docstring."""
