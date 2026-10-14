@@ -5,6 +5,7 @@ description: Validate a PR title and body against conventional commit format, is
 license: MIT
 allowed-tools:
   - Bash(python3:*)
+  - Bash(uv run --frozen python -I scripts/validation/pr_description.py*)
   - Bash(git:*)
   - Read
   - Glob

@@ -227,3 +227,27 @@ class TestArgumentRules:
             }
             assert main(["--pr-number", "1", "--ci"]) == 1
             assert main(["--pr-number", "1"]) == 0
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+LOCAL_MODE_COMMAND = "uv run --frozen python -I scripts/validation/pr_description.py"
+LOCAL_MODE_GRANT = f"Bash({LOCAL_MODE_COMMAND}*)"
+
+
+def _frontmatter(text: str) -> str:
+    _, frontmatter, _ = text.split("---\n", 2)
+    return frontmatter
+
+
+@pytest.mark.parametrize(
+    "template",
+    [
+        "templates/skills/push-pr.SKILL.md.tmpl",
+        "templates/skills/validate-pr-description.SKILL.md.tmpl",
+    ],
+)
+def test_skill_that_runs_local_mode_grants_the_command(template: str) -> None:
+    """A skill that tells the agent to run local mode must grant that command."""
+    text = (REPO_ROOT / template).read_text(encoding="utf-8")
+    assert LOCAL_MODE_COMMAND in text
+    assert LOCAL_MODE_GRANT in _frontmatter(text)
