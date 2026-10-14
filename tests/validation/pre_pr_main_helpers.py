@@ -155,7 +155,7 @@ class RunBackedPopen:
         self.returncode: int | None = None
 
     def communicate(self, timeout: float | None = None) -> tuple[str, str]:
-        result = subprocess.run(self._args, capture_output=True, timeout=timeout)
+        result = subprocess.run(self._args, capture_output=True, text=True, timeout=timeout)
         self.returncode = result.returncode
         return result.stdout, result.stderr
 

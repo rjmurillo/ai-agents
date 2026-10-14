@@ -102,12 +102,13 @@ def _reap_timed_out(
     that attempt (or from the first) is returned instead of blocking.
     """
     _terminate(proc)
+    drained: tuple[bytes | str | None, bytes | str | None]
     try:
-        drained_out, drained_err = proc.communicate(timeout=_DRAIN_TIMEOUT)
+        drained = proc.communicate(timeout=_DRAIN_TIMEOUT)
     except subprocess.TimeoutExpired as still_open:
-        drained_out, drained_err = still_open.stdout, still_open.stderr
-    stdout = _decode_stream(drained_out) or _decode_stream(timed_out.stdout)
-    stderr = _decode_stream(drained_err) or _decode_stream(timed_out.stderr)
+        drained = (still_open.stdout, still_open.stderr)
+    stdout = _decode_stream(drained[0]) or _decode_stream(timed_out.stdout)
+    stderr = _decode_stream(drained[1]) or _decode_stream(timed_out.stderr)
     return stdout, stderr
 
 

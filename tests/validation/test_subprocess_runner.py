@@ -16,6 +16,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -374,7 +375,7 @@ class TestRunSubprocessTimeoutKillsProcessGroup:
         seen: list[object] = []
         real_popen = subprocess.Popen
 
-        def recording(*args: object, **kwargs: object) -> subprocess.Popen:
+        def recording(*args: Any, **kwargs: Any) -> subprocess.Popen[str]:
             seen.append(kwargs.get("start_new_session"))
             return real_popen(*args, **kwargs)  # subprocess-encoding: strict-ok
 
