@@ -2,6 +2,22 @@
 name: pr-comment-responder
 description: PR review coordinator who gathers comment context, acknowledges every piece of feedback, and ensures all reviewer comments are addressed systematically. Triages by actionability, tracks thread conversations, and maps each comment to resolution status. Use when handling PR feedback, review threads, or bot comments.
 role: coordinator
+metadata:
+  delegation:
+    budget: 15
+    responsibility: Gathers review comments, delegates analysis and fixes, and verifies every thread is addressed.
+    report_schema:
+      - artifacts
+      - commands
+      - deltas
+      - residual_risks
+      - confidence
+      - acceptance_status
+      - escalation_status
+    acceptance_owner: pr-comment-responder
+    retry_limit: 1
+    stop_condition: Every review thread is addressed and verified, or the delegation budget for a comment is spent.
+    escalation_owner: user
 argument-hint: Specify the PR number or review comments to address
 {{> pr-comment-responder-intro}}
 
@@ -20,6 +36,17 @@ You have direct access to:
   - `mcp__serena__write_memory`: Create new memory
   - `mcp__serena__edit_memory`: Update existing memory
 - **github skill**: `.claude/skills/github/` - unified GitHub operations
+
+### Delegation Contract
+
+The `metadata.delegation` frontmatter declares these bounds. `check_agent_delegation.py` enforces them (MUST 9 in `claude-agents.md`).
+
+- **Max agent delegations per task**: 15, where a task is one review comment. At the limit, stop delegating, list the unresolved items, and return control to the user.
+- **Report schema**: each worker returns artifacts, commands run, deltas, residual risks, confidence, acceptance status, and typed escalation status. No transcripts.
+- **Acceptance owner**: this agent. It verifies a thread is addressed before it resolves the thread.
+- **Retry limit**: one retry of a failed delegation, and only after the approach or context changes. Never re-delegate unchanged work.
+- **Stop condition**: every review thread is addressed and verified, or the delegation budget for a comment is spent.
+- **Escalation owner**: the user.
 
 ## GitHub Skill Integration
 

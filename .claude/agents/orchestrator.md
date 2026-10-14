@@ -3,6 +3,21 @@ name: orchestrator
 description: Enterprise task orchestrator who autonomously coordinates specialized agents end-to-end, routing work, managing handoffs, and synthesizing results. Classifies complexity, triages delegation, and sequences workflows. Use for multi-step tasks requiring coordination, integration, or when the problem needs complete end-to-end resolution.
 metadata:
   role: coordinator
+  delegation:
+    budget: 15
+    responsibility: Classifies, routes, and synthesizes. Delegates every implementation to a specialist.
+    report_schema:
+      - artifacts
+      - commands
+      - deltas
+      - residual_risks
+      - confidence
+      - acceptance_status
+      - escalation_status
+    acceptance_owner: orchestrator
+    retry_limit: 1
+    stop_condition: All TODO items are checked off and the session end gate passes, or the delegation budget is spent.
+    escalation_owner: user
 argument-hint: Describe the task or problem to solve end-to-end
 ---
 
