@@ -135,27 +135,43 @@ Use this only on Windows, and only when step 3 exits 2 with
 platform keeps the allocator mandatory. The allocator needs directory file
 descriptors and owner-only modes that Windows does not provide.
 
-`new_pr.py` accepts `--body "<text>"` in place of `--body-file`. That path
+`new_pr.py` accepts `--body '<text>'` in place of `--body-file`. That path
 never calls the allocator or its file reader. The helper still runs the same
 title, dash, and escaped newline checks, then hands the body to `gh` on
 stdin, never as a command-line argument to `gh`.
 
 1. Skip `--prepare-body-file`. Fill the PR template from step 2 into the body
    text yourself, with the same rules as step 3.
-2. Step 4 preflight: pass `--body "<body text>"` instead of `--body-file`. It
+2. Step 4 preflight: pass `--body '<body text>'` instead of `--body-file`. It
    checks the title only, since there is no file to check.
-3. Step 5: `pr_description.py --body-file` reads any readable file. Save the
-   body text to a file under `.project-toolkit/scratch/` and run step 5 on it.
-   That save is outside the scoped `Edit` grant, so expect a permission prompt.
+3. Step 5: `pr_description.py --body-file` reads any readable file. Run
+   `mkdir -p .project-toolkit/scratch` first, because the allocator refused
+   before it created that directory. Create
+   `.project-toolkit/scratch/pr-body-windows.md` with Write and expect one
+   permission prompt. Later Edit fixes after a step 5 exit 1 stay inside the
+   scoped `Edit` grant.
 4. Step 7: run the same command with the body text inline:
 
    ```bash
-   python3 -I "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/new_pr.py" --title "<conventional commit title>" --body "<body text>"
+   python3 -I "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/new_pr.py" --title "<conventional commit title>" --body '<body text>'
    ```
 
-   - Write the body literally in the command, quoted for the shell that runs
-     it. Do not build it from a shell variable, for the same fresh-shell reason
-     as step 3.
+   - Paste the file's final contents, unchanged, as the `--body` text. Step 5
+     checked the file, so every edit made there must reach this command.
+   - Quote the body so the shell passes it literally. In bash or Git Bash,
+     use single quotes and write each apostrophe as `'\''`. In PowerShell,
+     use a single-quoted here-string (`@'` ... `'@`). Never use double quotes:
+     bash runs each backtick code span as a command and expands `$name`, and
+     PowerShell treats the backtick as an escape and also expands `$`.
+   - Write the body literally in the command. Do not build it from a shell
+     variable, for the same fresh-shell reason as step 3.
+   - Use real line breaks inside the quoted text, never `\n`. If the escaped
+     newline check fails, its message says to pass `--body-file`. That is the
+     refused path on Windows, so fix the line breaks instead.
+   - Windows caps a command line near 8191 characters in cmd.exe and 32767
+     through CreateProcess. The body rides on argv twice: to `new_pr.py`, then
+     to `validate_pr_description.py`. If the command fails for length, trim
+     the body and keep every required template section.
    - Do not add `--skip-validation`. The fallback changes how the body arrives,
      not which checks it must pass.
 
