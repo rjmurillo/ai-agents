@@ -604,6 +604,7 @@ pre-push:
     # Issue #6609: the scan takes one host-wide heavy-stage slot and waits for
     # load to drop, at most 420s and inside its own 840s budget. It never skips;
     # see scripts/validation/host_headroom.py for the AI_AGENTS_HEAVY_STAGE_* knobs.
+    # Off when CI is set.
     - name: security-scan
       timeout: 15m
       run: uv run --frozen --extra dev python scripts/validation/git_hook_policy.py semgrep-push
@@ -672,7 +673,9 @@ pre-push:
           # its budget clock starts.
           # The wait is what the 15m cap leaves above the budget, less 60s; a
           # test pins PYTHON_TESTS_JOB_CAP_SECONDS to this timeout. When the
-          # wait runs out pytest still runs and the warning names load.
+          # wait runs out pytest still runs and the warning names load. Off
+          # when CI is set; see scripts/validation/host_headroom.py for the
+          # AI_AGENTS_HEAVY_STAGE_* knobs, which override the CPU-count default.
           - name: python-tests
             timeout: 15m
             run: uv run --frozen python scripts/validation/git_hook_policy.py pytest

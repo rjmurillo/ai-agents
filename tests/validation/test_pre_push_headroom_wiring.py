@@ -373,3 +373,39 @@ def test_semgrep_budget_message_names_the_headroom_wait(
     err = capsys.readouterr().err
     assert "exceeded its 0s budget" in err
     assert "wait for host headroom" in err
+
+
+# --- PR review: CI load notes ---------------------------------------------
+
+
+def test_ci_load_note_does_not_blame_other_host_work(monkeypatch: pytest.MonkeyPatch) -> None:
+    """In CI the runner's load is its own job, so the note must not blame other work."""
+    monkeypatch.setenv(host_headroom.SLOTS_ENV, "3")
+    monkeypatch.delenv(host_headroom.MAX_LOAD_ENV, raising=False)
+    monkeypatch.setenv("CI", "true")
+    monkeypatch.setattr(policy.host_headroom, "load_average", lambda: 400.0)
+    note = policy._load_note("pytest")
+    assert "400.0" in note
+    assert "likely load" not in note
+
+
+def test_local_load_note_still_blames_a_saturated_host(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(host_headroom.SLOTS_ENV, "3")
+    monkeypatch.delenv(host_headroom.MAX_LOAD_ENV, raising=False)
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.setattr(policy.host_headroom, "load_average", lambda: 400.0)
+    assert "likely load" in policy._load_note("pytest")
+
+
+def test_ci_pytest_timeout_note_does_not_blame_other_host_work(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    record_runs(monkeypatch, returncode=3, stderr=f"ERROR: pytest{policy.TIMEOUT_MARKER}180 s")
+    monkeypatch.setenv(host_headroom.SLOTS_ENV, "3")
+    monkeypatch.delenv(host_headroom.MAX_LOAD_ENV, raising=False)
+    monkeypatch.setenv("CI", "true")
+    monkeypatch.setattr(policy.host_headroom, "load_average", lambda: 400.0)
+    assert policy.run_pytest(tmp_path) == 3
+    err = capsys.readouterr().err
+    assert "NOTE: pytest: host load average is 400.0" in err
+    assert "likely load" not in err

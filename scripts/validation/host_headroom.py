@@ -56,8 +56,9 @@ DEFAULT_SLOTS = 3
 # The default load threshold is this many times the CPU count. A 1-minute load
 # at or above the CPU count means more runnable work than CPUs, so a new heavy
 # stage only slows every stage. An absolute figure would mean a quiet host on 48
-# CPUs and a saturated one on 4. The slots, not this threshold, set the cap: the
-# failures in issue #6609 came at load 10 to 13 from about 16 uncapped pushes.
+# CPUs and a saturated one on 4. The slots, not this threshold, set the cap:
+# issue #6609 reports load 10 to 13 from the operator's session (the logs do not
+# record load) while about 16 uncapped pushes ran.
 DEFAULT_MAX_LOAD_PER_CPU = 1.0
 POLL_SECONDS = 5.0
 
@@ -159,8 +160,9 @@ def load_note(
 
     Load is the likely cause when the load average is at or above the
     threshold, or when another push holds a heavy-stage slot. The second test
-    matters on a large host: issue #6609 saw failures at load 10 to 13 on 48
-    CPUs, well under saturation, while about 16 pushes ran heavy stages.
+    matters on a large host: issue #6609 reports load 10 to 13 from the
+    operator's session, well under saturation on a 48-CPU host, while about 16
+    pushes ran heavy stages.
     """
     count = cpus if cpus is not None else (os.cpu_count() or 1)
     threshold = _configured_max_load(count) if max_load is None else max_load
@@ -197,7 +199,7 @@ def load_note(
     )
 
 
-# Slots this process holds, keyed by slot file. `other_stages` skips them: a
+# Slot files this process holds. `other_stages` skips them: a
 # probe from a new descriptor would see the caller's own lock as a rival.
 _OWN_SLOTS: set[Path] = set()
 

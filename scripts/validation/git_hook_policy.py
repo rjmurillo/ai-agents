@@ -5151,7 +5151,7 @@ def _classify_semgrep_failure(
         f"{(result.stderr or '').rstrip()}\n"
         "ERROR: semgrep-core failed before it scanned any target. This is an "
         "infrastructure failure, not a scan result.\n"
-        f"{host_headroom.load_note('semgrep')}\n"
+        f"{_load_note('semgrep')}\n"
     ).lstrip()
     return subprocess.CompletedProcess(result.args, 3, result.stdout, stderr)
 
@@ -8103,7 +8103,7 @@ def _report_partition(report: pytest_lanes.PartitionReport, budget: float) -> in
             f"'{_TESTMON_LOCK_TEXT}'; a concurrent writer held its database.",
             file=sys.stderr,
         )
-        print(host_headroom.load_note("pytest"), file=sys.stderr)
+        print(_load_note("pytest"), file=sys.stderr)
     return code
 
 
@@ -8260,6 +8260,20 @@ def _headroom_settings() -> host_headroom.Settings:
     return settings
 
 
+def _load_note(stage: str) -> str:
+    """The host-load note under the gate's own settings, so CI blames no other work.
+
+    In CI the gate is off and the runner's load is its own job, so the note
+    reports the load without calling it another push's. A bad setting already
+    failed the stage as a config error; here it falls back to the defaults.
+    """
+    try:
+        settings = _headroom_settings()
+    except ValueError:
+        return host_headroom.load_note(stage)
+    return host_headroom.load_note(stage, max_load=settings.max_load, settings=settings)
+
+
 def _pytest_headroom_wait_seconds(suite_budget: float, budget: float) -> float:
     """How long pytest may wait for host headroom before its budget starts (issue #6609).
 
@@ -8349,7 +8363,7 @@ def run_pytest(repo_root: Path) -> int:
         outcome = _run_selected_partitions(commands, repo_root, env, deadline, budget)
     _report_selection_overrun(outcome, suite_budget, budget)
     if outcome.timed_out:
-        print(host_headroom.load_note("pytest"), file=sys.stderr)
+        print(_load_note("pytest"), file=sys.stderr)
     return outcome.code
 
 

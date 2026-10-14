@@ -21,12 +21,12 @@ On a base without the #6609 fix, do this by hand:
 - Keep about 3 heavy pushes running at once (see the `/tmp` inode memory).
 - Before a push, wait until the 1-minute load average in `/proc/loadavg` is below about 5.
 
-The #6609 fix is `scripts/validation/host_headroom.py`: a host-wide semaphore of 3 slots around pytest and semgrep. Each stage takes a slot first and keeps it while it waits for load below the CPU count, so a stage whose wait ran out still counts toward the cap. It then runs even if the wait ran out. The hand rule above is stricter because it has no slots. `pre_pr.py` is not gated: its 240s budget fills its 4m cap. It caps load across all branches. It does not replace the per-branch push `flock` in `.claude/rules/push-lock.md`. That rule retired an older hashed four-slot lock because different branches collided in it.
+The #6609 fix is `scripts/validation/host_headroom.py`: a host-wide semaphore of 3 slots around pytest and semgrep. It caps load across all branches. Each stage takes a slot first and keeps it while it waits for load below the CPU count, so a stage whose wait runs out still counts toward the cap and then runs anyway. A stage that gets no slot during its whole wait runs without one. On a large host the CPU count threshold sits well above the load of 10 to 13 seen here, so the slots do most of the capping, and the hand rule above is stricter. `pre_pr.py` is not gated: its 240s budget fills its 4m cap. The semaphore does not replace the per-branch push `flock` in `.claude/rules/push-lock.md`. That rule retired an older hashed four-slot lock because different branches collided in it.
 
 ## Caveats
 
 - PR #6602 (merged 2026-10-14) gives each overlapping pytest lane its own testmon database. It fixed issue #6477, an xdist "Different tests were collected" failure. The lock above came from a base that predates #6602, so the lock may no longer reproduce. That is not verified under load.
-- After #6609, pytest waits before its 180s clock starts. A semgrep-core target failure exits 3 and prints the host load.
+- After #6609, pytest waits before its 180s clock starts, and semgrep waits inside its own 840s deadline. A semgrep-core target failure exits 3 and prints the host load. A testmon `database is locked` INTERNALERROR is labelled as host contention, not mitigated.
 - Each worktree already has its own `.testmondata`. The lock was within one push, not across worktrees.
 
 ## Sources
