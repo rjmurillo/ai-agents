@@ -8,8 +8,17 @@ from pathlib import Path
 import pytest
 
 SKILL_DIR = Path(__file__).resolve().parents[3] / ".claude" / "skills" / "skillopt"
-sys.path.insert(0, str(SKILL_DIR / "scripts"))
-sys.path.insert(0, str(Path(__file__).parent))
+_IMPORT_PATHS = (str(SKILL_DIR / "scripts"), str(Path(__file__).parent))
+sys.path[:0] = _IMPORT_PATHS
+try:
+    # Cached in sys.modules so the test modules' top-level imports resolve
+    # after the paths are removed again.
+    import mine_sessions  # noqa: F401
+    import skillopt  # noqa: F401
+    import skillopt_helpers  # noqa: F401
+finally:
+    for _path in _IMPORT_PATHS:
+        sys.path.remove(_path)
 
 
 @pytest.fixture

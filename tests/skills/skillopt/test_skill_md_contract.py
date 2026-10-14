@@ -59,6 +59,8 @@ def _run(script: str, *args: str, cwd: Path) -> subprocess.CompletedProcess[str]
         cwd=cwd,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
 
@@ -79,6 +81,15 @@ def test_install_exposes_triggers_and_tooling(root: str) -> None:
         assert (skill_dir / rel).is_file(), rel
     for rel in EXCLUDED:
         assert not (skill_dir / rel).exists(), rel
+
+
+def test_every_plugin_root_install_is_a_shipped_root(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.syspath_prepend(str(REPO_ROOT / "scripts" / "validation"))
+    from check_plugin_frontmatter_self_containment import plugin_roots
+
+    installed = {root for root in plugin_roots(REPO_ROOT) if _skill_dir(root).is_dir()}
+    assert installed, "no plugin root ships skillopt"
+    assert installed - set(SHIPPED_ROOTS) == set()
 
 
 @pytest.mark.parametrize("root", SHIPPED_ROOTS)

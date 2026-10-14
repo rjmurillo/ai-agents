@@ -97,7 +97,8 @@ def pair_gate(
 
     Checks beyond the Pareto rule:
       - selection tasks listed in eval_set["exposed"] or marked invalid/exposed
-        raise SkillOptError (the gate would be measuring a leaked task);
+        raise SkillOptError on the sel split (the gate would be measuring a
+        leaked task); train may hold remediated exposed tasks;
       - a task whose result is missing or not a bool in any result set makes
         the verdict REJECT_UNVERIFIED (only literal True is a pass);
       - when null_results (a no-op rerun of the byte-identical incumbent) is
@@ -105,7 +106,8 @@ def pair_gate(
         If the null run moved and no genuine gain remains, REJECT_NULL_CONTROL.
     """
     task_ids = _split_task_ids(eval_set, split)
-    _assert_selection_usable(eval_set, task_ids)
+    if split == "sel":
+        _assert_selection_usable(eval_set, task_ids)
     result_sets = [incumbent_results, candidate_results]
     if null_results is not None:
         result_sets.append(null_results)

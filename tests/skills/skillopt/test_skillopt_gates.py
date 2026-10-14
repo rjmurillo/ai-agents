@@ -174,6 +174,11 @@ class TestPairGate:
         }
         assert skillopt.pair_gate(eval_set, self.BASE, self.ALL_PASS)["accepted"] is True
 
+    def test_exposed_tasks_moved_to_train_still_report_regressions(self) -> None:
+        eval_set = {"splits": {"sel": ["s1"], "train": ["leak"]}, "exposed": ["leak"]}
+        report = skillopt.pair_gate(eval_set, {"leak": True}, {"leak": False}, split="train")
+        assert report["regressions"] == ["leak"]
+
     def test_unhashable_status_is_not_a_crash(self) -> None:
         eval_set = {**self.EVAL, "tasks": {"s1": {"status": ["invalid"]}}}
         assert skillopt.pair_gate(eval_set, self.BASE, self.ALL_PASS)["accepted"] is True
