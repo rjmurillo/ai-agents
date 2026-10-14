@@ -81,6 +81,26 @@ def test_release_path_scopes_dispatch_to_ci_and_names_first_publish():
     assert "First publish" in section
 
 
+def test_promotion_gate_sentence_names_dispatch_not_first_publish():
+    """The gate sentence must not read as if the local First publish is gated.
+
+    RELEASING.md runs the First publish as a plain local `npm publish`, with no
+    promotion gate. A pronoun after the First publish sentence would bind to it.
+    """
+    section = _release_section()
+    bullet = next(line for line in section.splitlines() if "only live CI publish route" in line)
+    sentences = [s.strip() for s in re.split(r"(?<=\.)\s+", bullet.lstrip("- ")) if s.strip()]
+    gate_index = next(
+        i for i, s in enumerate(sentences) if "promotion gate" in s and "runs no" not in s
+    )
+    gate_sentence = sentences[gate_index]
+    assert "dispatch" in gate_sentence, gate_sentence
+    assert not gate_sentence.startswith("It "), gate_sentence
+    assert "First publish" not in sentences[gate_index - 1], sentences[gate_index - 1]
+    first_publish = next(s for s in sentences if "First publish" in s)
+    assert "no promotion gate" in first_publish, first_publish
+
+
 def test_provenance_marks_release_row_reverified():
     text = _text()
     start = text.index("## Provenance and Maintenance")

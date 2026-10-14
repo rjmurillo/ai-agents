@@ -186,7 +186,7 @@ copy its steps here, because they change with the publish gate.
 
 Durable distinctions to keep in mind:
 
-- The only live CI publish route is a manual `workflow_dispatch` run of `.github/workflows/publish.yml` on the default branch. The one-time First publish in RELEASING.md runs locally and does not use CI. It runs the ADR-113 promotion gate, enforcing for a real publish and advisory for a dry run (`dry-run` defaults to `true`).
+- The only live CI publish route is a manual `workflow_dispatch` run of `.github/workflows/publish.yml` on the default branch. That dispatch run applies the ADR-113 promotion gate, enforcing for a real publish and advisory for a dry run (`dry-run` defaults to `true`). The one-time First publish in RELEASING.md runs locally, outside CI, and runs no promotion gate.
 - The `v*` tag trigger is dormant. A tag push runs, then the first job refuses it, so pushing a tag does not publish. A `v*` tag ruleset is the owner action that would revive it (ADR-113 Resolved Question 2).
 - The candidate is the head of the default branch, so the version bump in `packages/ai-agents-cli/package.json` must merge first, through the normal PR flow (branch discipline and review per `ai-agents-change-control`).
 - Rollback is roll-forward: npm unpublish is restricted, so fix, bump the patch version, merge, and dispatch again (RELEASING.md Rollback procedures).
