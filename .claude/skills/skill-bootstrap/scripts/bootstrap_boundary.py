@@ -38,7 +38,8 @@ ignored output root, skill directory, or `--also-allow` path is refused. It
 catches accidental writes by a cooperating run; it is not a sandbox, and a
 snapshot taken after the writes proves nothing, so snapshot refuses to
 overwrite an existing file. Empty directories are invisible to git and to
-verify. A symlinked output root or skill directory fails with exit 2 or 3.
+verify. A symlink in the output root, a skill directory, or an
+`--also-allow` path fails with exit 2.
 An unreadable working-tree file stops snapshot with exit 3. Staging is
 compared by status code, not by staged content. Stdlib only, so the script runs from any plugin root.
 """
@@ -105,11 +106,25 @@ def _posix(value: str) -> PurePosixPath:
     return PurePosixPath(value.replace("\\", "/").strip("/"))
 
 
+def reject_symlinks(root: Path, rel: str) -> None:
+    """Raise when any component of a repo-relative path is a symlink.
+
+    git reports a symlink as one entry and never sees writes through it, so a
+    symlinked root, skill directory, or grant would hide those writes.
+    """
+    current = root
+    for part in PurePosixPath(rel).parts:
+        current = current / part
+        if current.is_symlink():
+            raise ConfigError(f"{rel} passes through symlink {current.relative_to(root)}")
+
+
 def check_root(root: Path, output_root: str) -> PurePosixPath:
     """Return the output root as a repo-relative path, or raise when not allowed."""
     rel = _posix(output_root)
     if str(rel) not in ALLOWED_ROOTS:
         raise ConfigError(f"output root {output_root!r} is not one of {', '.join(ALLOWED_ROOTS)}")
+    reject_symlinks(root, str(rel))
     target = (root / Path(*rel.parts)).resolve()
     if root != target and root not in target.parents:
         raise ConfigError(f"output root {output_root!r} resolves outside the repository")
@@ -127,6 +142,8 @@ def require_visible(root: Path, paths: list[str]) -> None:
     """Raise when git ignores any path, because verify cannot see writes there."""
     if not paths:
         return
+    for path in paths:
+        reject_symlinks(root, path)
     probes = [probe for path in paths for probe in (path, f"{path}/{IGNORE_CHILD}")]
     proc = _run_git(root, "check-ignore", "--no-index", "--", *probes)
     if proc.returncode == 0:
@@ -236,7 +253,9 @@ def _hash_tree(path: Path) -> str:
     """Hash a directory git reports as one entry, such as a nested repo or submodule."""
     digest = hashlib.sha256()
     for child in sorted(path.rglob("*")):
-        if ".git" in child.relative_to(path).parts or child.is_dir():
+        if ".git" in child.relative_to(path).parts:
+            continue
+        if child.is_dir() and not child.is_symlink():
             continue
         digest.update(child.relative_to(path).as_posix().encode("utf-8"))
         digest.update(_hash(child).encode("utf-8"))

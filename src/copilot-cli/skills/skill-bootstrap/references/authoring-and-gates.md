@@ -99,15 +99,21 @@ The order is fixed. Each stage reads the previous stage's output.
      acceptance conditions.
    - Check that every reference link resolves after a move.
    - Add no always-on context. Change no instruction outside the boundary.
-2. **skillopt.** `skillopt` owns the acceptance gate; follow its contract.
-   Bootstrap adds three inputs. Otherwise report `skillopt: NOT RUN` and the
-   missing item.
+2. **skillopt.** Run it only when both preconditions hold. Otherwise
+   report `skillopt: NOT RUN` and name the missing precondition.
+   - context-optimizer completed on this skill.
+   - A frozen, scored, held-out evaluation exists for this skill.
+
+   When a run starts, `skillopt` owns the acceptance gate; follow its
+   contract. Bootstrap adds two constraints:
    - The context-optimized draft is the incumbent.
-   - Freeze the scored, held-out cases before any candidate exists.
-     Verified session failures may select tasks. They never become
-     fabricated gold answers.
-   - An accepted candidate is not installed. Report it as accepted but not
-     deployed until the canonical source and its mirrors carry it.
+   - Freeze the evaluation cases before any candidate exists. Verified
+     session failures may select tasks. They never become fabricated gold
+     answers.
+
+   Reporting rule: an accepted candidate is not installed. Report it as
+   accepted but not deployed until the canonical source and its mirrors
+   carry it.
 
 ## Review
 

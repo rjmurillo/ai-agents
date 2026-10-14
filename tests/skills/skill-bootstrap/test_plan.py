@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 from pathlib import Path
 
 import bootstrap_boundary
@@ -273,3 +274,16 @@ def test_run_cli_helper_round_trips_json(repo: Path, capsys: Capsys) -> None:
 
     assert code == 0
     assert payload["proposed"] == []
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlink creation needs privileges on Windows")
+def test_plan_symlinked_output_root_exits_two(repo: Path, tmp_path: Path, capsys: Capsys) -> None:
+    target = tmp_path / "elsewhere"
+    target.mkdir()
+    (repo / ".github").mkdir()
+    (repo / ".github/skills").symlink_to(target, target_is_directory=True)
+
+    code, payload = plan(capsys, repo, "--name", "proj-x", root=".github/skills")
+
+    assert code == 2
+    assert "symlink" in payload["message"]

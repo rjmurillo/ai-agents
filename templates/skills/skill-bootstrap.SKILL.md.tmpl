@@ -1,7 +1,7 @@
 ---
 name: skill-bootstrap
 version: 1.0.0
-description: Build a small set of project-specific workflow skills from verified repository, tracker, session, and memory evidence. Use when you say `bootstrap skills`, `capture project workflow knowledge`, or `build this repo's skill library`. Reuses existing skills first, then runs skillforge, context-optimizer, and skillopt in order. Do NOT use for one skill (use skillforge) or for scored tuning (use skillopt).
+description: Build a small set of project-specific workflow skills from verified repository, tracker, session, and memory evidence. Use when you say `bootstrap skills`, `capture project workflow knowledge`, `build this repo's skill library`, or `project skill library`. Reuses existing skills first, then runs skillforge, context-optimizer, and skillopt in order. Do NOT use for one skill (use skillforge) or for scored tuning (use skillopt).
 license: MIT
 user-invocable: true
 metadata:
@@ -145,10 +145,10 @@ The `bootstrap_boundary.py` script, in this skill's scripts directory, uses only
 | Subcommand | Checks | Exit code 0 | Exit code 1 |
 |---|---|---|---|
 | `plan` | Output root, `<project>-<lens>` names, conflicts in both skills roots | No conflict | Conflict or invalid name |
-| `snapshot` | Records HEAD, branch, existing skills, and hashes of dirty and untracked paths | Written | (not used) |
+| `snapshot` | Records HEAD, branch, existing skills, staging status and hashes of dirty, untracked, and flagged paths, the assume-unchanged and skip-worktree list, and the `info/exclude` hash | Written | (not used) |
 | `verify` | Changes since the snapshot; prints the examined path count | All changes authorized | A path outside the boundary, an existing skill changed without `--update`, HEAD or branch moved, or index flags or `info/exclude` changed |
 
-Exit code 2 is a configuration error: an output root outside the allowed set; an output root, skill directory, or `--also-allow` path that git ignores; an `--also-allow` path outside the repository, under `.git`, or overlapping a skills root; an invalid `--project` or `verify` name; or a snapshot that already exists, is inside the repository, is unreadable, or is from another repository or output root. Exit code 3 means git is missing or failed, or a file could not be read. `verify` checks HEAD, the branch, the content, mode, and staging status of every path git reports, files flagged assume-unchanged or skip-worktree, submodule contents, and `info/exclude`. It does not see gitignored files, empty directories, other writes inside `.git/`, or tag, config, and push operations. It catches accidental writes by a cooperating run; it is not a sandbox. Only the Phase 1 snapshot counts, so `snapshot` refuses to overwrite an existing file. A symlinked output root or skill directory fails with exit code 2 or 3. An unreadable file in the working tree stops `snapshot` with exit code 3 before any write, so fix its permissions first.
+Exit code 2 is a configuration error: an output root outside the allowed set; an output root, skill directory, or `--also-allow` path that git ignores; an `--also-allow` path outside the repository, under `.git`, or overlapping a skills root; a symlink in any of those paths; an invalid `--project` or `verify` name; or a snapshot that already exists, is inside the repository, is unreadable, or is from another repository or output root. Exit code 3 means git is missing or failed, or a file could not be read. `verify` checks HEAD, the branch, the content, mode, and staging status of every path git reports, files flagged assume-unchanged or skip-worktree, submodule contents, and `info/exclude`. It does not see gitignored files, empty directories, other writes inside `.git/`, or tag, config, and push operations. It catches accidental writes by a cooperating run; it is not a sandbox. Only the Phase 1 snapshot counts, so `snapshot` refuses to overwrite an existing file. A symlink in the output root, a skill directory, or an `--also-allow` path fails with exit code 2. An unreadable file in the working tree stops `snapshot` with exit code 3 before any write, so fix its permissions first.
 
 On Windows PowerShell 7, set the plugin root once, then run the same subcommands with `python`. The first non-empty value wins, as in the bash form:
 

@@ -93,10 +93,11 @@ Sessions show where agents were corrected. Use them for that signal only.
 
    If `skillopt` is not installed, record `session sources: UNAVAILABLE
    (skillopt missing)` and continue with other evidence.
-2. **Narrow to this project.** The Claude source holds every project's
-   transcripts. List the printed Claude path and pick the folder whose name
-   encodes this repository's path. Then run the same script's `rank`
-   subcommand. It reports skill usage and the correction rate after each
+2. **Narrow to this project.** `sources` prints the Claude projects root,
+   which holds every project's transcripts. Do not pass that path to
+   `--root`. List its child folders, pick the one folder whose name encodes
+   this repository's path, and pass only that child. Then run the same
+   script's `rank` subcommand. It reports skill usage and the correction rate after each
    use, which is the signal this phase needs:
 
    ```bash

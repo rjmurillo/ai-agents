@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -189,3 +190,37 @@ def test_verify_unstaging_a_user_file_exits_one(
 
     assert code == 1
     assert {"kind": "outside-boundary", "path": "draft.md"} in payload["violations"]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlink creation needs privileges on Windows")
+def test_verify_symlinked_skill_directory_exits_two(
+    repo: Path, tmp_path: Path, capsys: Capsys, snap_path: Path
+) -> None:
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    take_snapshot(capsys, repo, snap_path)
+    (repo / ".claude/skills/proj-link").symlink_to(outside, target_is_directory=True)
+    (outside / "SKILL.md").write_text("hidden\n", encoding="utf-8")
+
+    code, payload = verify(capsys, repo, snap_path, "--name", "proj-link")
+
+    assert code == 2
+    assert "symlink" in payload["message"]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlink creation needs privileges on Windows")
+def test_verify_new_directory_symlink_inside_a_pre_existing_nested_repo_exits_one(
+    repo: Path, capsys: Capsys, snap_path: Path
+) -> None:
+    nested = repo / "vendor"
+    nested.mkdir()
+    subprocess.run(["git", "-C", str(nested), "init", "-q"], check=True)
+    write(repo, "vendor/y.txt", "v\n")
+    (nested / "sub").mkdir()
+    take_snapshot(capsys, repo, snap_path)
+    (nested / "link").symlink_to("sub", target_is_directory=True)
+
+    code, payload = verify(capsys, repo, snap_path)
+
+    assert code == 1
+    assert {"kind": "outside-boundary", "path": "vendor"} in payload["violations"]
