@@ -31,7 +31,7 @@ def _import_script(name: str):
 
 
 _mod = _import_script("get_pr_checks")
-
+_MISSING_PR = RuntimeError("Could not resolve to a PullRequest")
 _RATE_LIMITED = RuntimeError(
     "GraphQL request failed: API rate limit already exceeded for user ID 42."
 )
@@ -119,9 +119,7 @@ class TestFetchChecksFallback:
 
     def test_not_found_over_graphql_stays_not_found(self):
         with (
-            patch.object(
-                _mod, "gh_graphql", side_effect=RuntimeError("Could not resolve to a PullRequest")
-            ),
+            patch.object(_mod, "gh_graphql", side_effect=_MISSING_PR),
             patch.object(_mod, "fetch_checks_rest") as rest,
         ):
             assert _mod.fetch_checks("o", "r", 42)["Error"] == "NotFound"
