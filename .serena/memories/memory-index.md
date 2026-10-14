@@ -148,7 +148,7 @@
 |nl structural debt update-baseline refuses new section growth baseline json seed: [ci/ci-nl-structural-debt-update-baseline-refuses-a-new-section](ci/ci-nl-structural-debt-update-baseline-refuses-a-new-section.md) (294)
 |polling PR checks GraphQL secondary rate limit 3 minutes parallel agents outage: [ci/ci-polling-pr-checks-trips-the-graphql-secondary-limit](ci/ci-polling-pr-checks-trips-the-graphql-secondary-limit.md) (272)
 |tmp tmpfs inode cap ENOSPC parallel pre-push TMPDIR harness output issue 6292: [ci/ci-tmp-inode-cap-stops-every-tool-call-during-parallel-pushes](ci/ci-tmp-inode-cap-stops-every-tool-call-during-parallel-pushes.md) (317)
-|concurrent pre-push load average testmon database is locked 180s budget semgrep-core semaphore wait not skip issue 6609: [ci/ci-concurrent-pre-push-gates-must-wait-not-skip](ci/ci-concurrent-pre-push-gates-must-wait-not-skip.md) (664)
+|concurrent pre-push load average testmon database is locked 180s budget semgrep-core semaphore wait not skip issue 6609: [ci/ci-concurrent-pre-push-gates-must-wait-not-skip](ci/ci-concurrent-pre-push-gates-must-wait-not-skip.md) (696)
 |python 3.14 pathlib is_dir is_file OSError swallow stat _run_command FileNotFoundError dead code: [python/python-314-pathlib-swallows-oserror](python/python-314-pathlib-swallows-oserror.md) (159)
 |ratchet declared twice lefthook checks_ratchet parity add/add conflict: [ci/ci-a-ratchet-is-declared-twice-so-drop-it-twice](ci/ci-a-ratchet-is-declared-twice-so-drop-it-twice.md) (704)
 |stale detached HEAD shared checkout verify wrong commit: [workspace/workspace-shared-checkout-is-a-stale-detached-head](workspace/workspace-shared-checkout-is-a-stale-detached-head.md) (1497)

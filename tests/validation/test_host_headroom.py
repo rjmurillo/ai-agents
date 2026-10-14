@@ -173,7 +173,7 @@ def test_unwritable_slot_dir_does_not_block_the_stage(tmp_path: Path) -> None:
 def test_read_settings_defaults(tmp_path: Path) -> None:
     settings = host_headroom.read_settings({"HOME": str(tmp_path)})
     assert settings.slots == host_headroom.DEFAULT_SLOTS
-    assert settings.max_load == host_headroom.DEFAULT_MAX_LOAD
+    assert settings.max_load == host_headroom.default_max_load()
     assert settings.slot_dir == tmp_path / ".cache" / "ai-agents" / "heavy-stage-slots"
 
 
@@ -219,3 +219,87 @@ def test_load_note_clears_load_below_the_threshold() -> None:
 def test_load_note_says_when_load_is_unknown() -> None:
     note = host_headroom.load_note("semgrep", load=lambda: None, max_load=8.0, cpus=4)
     assert "unavailable" in note
+
+
+# --- review round 1: a slot bounds concurrency even when load is high ---
+
+
+def test_high_load_still_takes_a_free_slot(tmp_path: Path) -> None:
+    """A stage that waits on load holds a slot, so an overdue stage counts toward the cap."""
+    clock = _Clock()
+    stream = io.StringIO()
+    with host_headroom.heavy_stage_slot(
+        "pytest",
+        30,
+        settings=_settings(tmp_path, slots=1),
+        clock=clock,
+        sleep=clock.sleep,
+        load=lambda: 50.0,
+        stream=stream,
+    ) as grant:
+        assert grant.slot == 0
+        assert grant.headroom is False
+    assert "running pytest anyway" in stream.getvalue()
+
+
+def test_an_overdue_stage_keeps_later_stages_out_of_its_slot(tmp_path: Path) -> None:
+    settings = _settings(tmp_path, slots=1)
+    with host_headroom.heavy_stage_slot(
+        "first", 0, settings=settings, load=lambda: 50.0, stream=io.StringIO()
+    ) as first:
+        assert first.slot == 0
+        with host_headroom.heavy_stage_slot(
+            "second", 0, settings=settings, load=lambda: 1.0, stream=io.StringIO()
+        ) as second:
+            assert second.slot is None
+            assert second.headroom is False
+
+
+def test_a_slot_is_held_while_the_stage_waits_for_load(tmp_path: Path) -> None:
+    settings = _settings(tmp_path, slots=1)
+    clock = _Clock()
+    seen: list[int | None] = []
+    readings = iter([20.0, 20.0, 2.0])
+
+    def load() -> float:
+        # A rival stage probes the slot while this one waits on load.
+        with host_headroom.heavy_stage_slot(
+            "rival", 0, settings=settings, load=lambda: 1.0, stream=io.StringIO()
+        ) as rival:
+            seen.append(rival.slot)
+        return next(readings)
+
+    with host_headroom.heavy_stage_slot(
+        "pytest",
+        60,
+        settings=settings,
+        clock=clock,
+        sleep=clock.sleep,
+        load=load,
+        stream=io.StringIO(),
+    ) as grant:
+        assert grant.slot == 0
+        assert grant.headroom is True
+    assert seen[1:] == [None] * (len(seen) - 1)
+
+
+# --- review round 1: the default load threshold scales with the CPU count ---
+
+
+@pytest.mark.parametrize("cpus", [4, 48])
+def test_default_max_load_scales_with_cpus(tmp_path: Path, cpus: int) -> None:
+    settings = host_headroom.read_settings({"HOME": str(tmp_path)}, cpus=cpus)
+    assert settings.max_load == pytest.approx(cpus * host_headroom.DEFAULT_MAX_LOAD_PER_CPU)
+
+
+def test_an_explicit_max_load_ignores_the_cpu_count(tmp_path: Path) -> None:
+    settings = host_headroom.read_settings({host_headroom.MAX_LOAD_ENV: "5"}, cpus=48)
+    assert settings.max_load == 5.0
+
+
+def test_load_note_default_threshold_uses_the_cpu_count(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv(host_headroom.MAX_LOAD_ENV, raising=False)
+    busy = host_headroom.load_note("pytest", load=lambda: 12.0, cpus=4)
+    quiet = host_headroom.load_note("pytest", load=lambda: 12.0, cpus=48)
+    assert "likely load" in busy
+    assert "not the likely cause" in quiet

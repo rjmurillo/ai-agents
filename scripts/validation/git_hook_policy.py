@@ -4627,7 +4627,7 @@ def scan_pushed_heads(stream: TextIO, repo_root: Path) -> int:
     if updates is None:
         return 2
     try:
-        headroom = host_headroom.read_settings()
+        headroom = _headroom_settings()
     except ValueError as error:
         print(f"ERROR: {error}", file=sys.stderr)
         return 2
@@ -8094,7 +8094,7 @@ def _report_partition(report: pytest_lanes.PartitionReport, budget: float) -> in
         f"pytest partition {report.label}: exit {code} in {report.seconds:.1f}s{suffix}",
         file=sys.stderr,
     )
-    if _TESTMON_LOCK_TEXT in (report.result.stdout or "") + (report.result.stderr or ""):
+    if _TESTMON_LOCK_PATTERN.search((report.result.stdout or "") + (report.result.stderr or "")):
         # Issue #6609: concurrent writers locked the testmon database. That is
         # contention on the host, not a defect in the pushed diff.
         print(
@@ -8223,6 +8223,12 @@ def _run_pytest_lanes(
 
 
 _TESTMON_LOCK_TEXT = "database is locked"
+# Only pytest's own INTERNALERROR, which is how testmon's writer reports the
+# lock. A test that fails on its own SQLite lock prints an `E` line instead,
+# and that failure is the test's, not the host's.
+_TESTMON_LOCK_PATTERN = re.compile(
+    rf"^INTERNALERROR>.*sqlite3\.OperationalError: {_TESTMON_LOCK_TEXT}", re.MULTILINE
+)
 
 # Seam for tests: they replace the slot with a recorder.
 _heavy_stage_slot = host_headroom.heavy_stage_slot
@@ -8235,6 +8241,22 @@ def _start_deadline(budget: float) -> float:
 
 def _in_ci() -> bool:
     return bool(os.environ.get("CI"))
+
+
+def _headroom_settings() -> host_headroom.Settings:
+    """The heavy-stage gate's settings, turned off in CI (issue #6609).
+
+    A CI runner runs one job, so there is nothing to share a slot with, and its
+    load says nothing about other pushes. Off means no slot, no load wait, and
+    no warning.
+
+    Raises:
+        ValueError: an AI_AGENTS_HEAVY_STAGE_* variable holds a bad value.
+    """
+    settings = host_headroom.read_settings()
+    if _in_ci():
+        return host_headroom.Settings(slots=0, max_load=0.0, slot_dir=settings.slot_dir)
+    return settings
 
 
 def _pytest_headroom_wait_seconds(suite_budget: float, budget: float) -> float:
@@ -8283,7 +8305,7 @@ def run_pytest(repo_root: Path) -> int:
     try:
         commands = _resolve_pytest_commands(repo_root)
         suite_budget = _suite_budget_seconds()
-        headroom = host_headroom.read_settings()
+        headroom = _headroom_settings()
     except ValueError as error:
         print(f"ERROR: {error}", file=sys.stderr)
         return 2

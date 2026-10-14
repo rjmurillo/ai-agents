@@ -7,13 +7,17 @@ reported each failure as a defect in the diff, so an agent could not tell load
 from a broken change.
 
 This module caps how many heavy stages run on one host at once. A stage takes
-one of ``slots`` lock files before it starts its clock. It also waits for the
-1-minute load average to fall below ``max_load`` before it takes a slot, so
-waiting stages do not all start the moment load dips.
+one of ``slots`` lock files before it starts its clock, whatever the load. While
+it holds the slot it also waits for the 1-minute load average to fall below
+``max_load``. Holding the slot during that wait keeps the cap honest: a stage
+whose wait runs out still counts toward the cap, so overdue stages cannot all
+start together.
 
 The wait is bounded by the caller, which knows its lefthook cap. When the wait
 runs out, the stage still runs: a skipped gate looks green and proves nothing.
-The warning it prints names load, so a timeout that follows reads as load.
+The warning it prints names load, so a timeout that follows reads as load. A
+stage that never got a slot in its whole wait runs without one. That happens
+only when every slot stayed busy for that long.
 
 Slots are ``fcntl.flock`` locks. The kernel drops a lock when its holder dies,
 so a crashed push never leaks a slot. The slot files live under the user's
@@ -49,9 +53,12 @@ SLOT_DIR_ENV = "AI_AGENTS_HEAVY_STAGE_SLOT_DIR"
 # Issue #6609 asks for 3 to 4 slots. Three is the figure the operator memory
 # `ci-concurrent-pre-push-gates-must-wait-not-skip` uses for heavy pushes today.
 DEFAULT_SLOTS = 3
-# Observed on a 48-thread host: pushes failed at load average 10 to 13 and
-# passed at about 2. The operator's standing rule waits for load below 8.
-DEFAULT_MAX_LOAD = 8.0
+# The default load threshold is this many times the CPU count. A 1-minute load
+# at or above the CPU count means more runnable work than CPUs, so a new heavy
+# stage only slows every stage. An absolute figure would mean a quiet host on 48
+# CPUs and a saturated one on 4. The slots, not this threshold, set the cap: the
+# failures in issue #6609 came at load 10 to 13 from about 16 uncapped pushes.
+DEFAULT_MAX_LOAD_PER_CPU = 1.0
 POLL_SECONDS = 5.0
 
 
@@ -85,8 +92,16 @@ def _default_slot_dir(env: Mapping[str, str]) -> Path:
     return Path(home) / ".cache" / "ai-agents" / "heavy-stage-slots"
 
 
-def read_settings(env: Mapping[str, str] | None = None) -> Settings:
+def default_max_load(cpus: int | None = None) -> float:
+    """The load threshold when none is set: ``DEFAULT_MAX_LOAD_PER_CPU`` per CPU."""
+    count = cpus if cpus is not None else (os.cpu_count() or 1)
+    return DEFAULT_MAX_LOAD_PER_CPU * max(1, count)
+
+
+def read_settings(env: Mapping[str, str] | None = None, *, cpus: int | None = None) -> Settings:
     """Read the gate's settings from ``env``.
+
+    ``cpus`` sizes the default load threshold; it defaults to ``os.cpu_count()``.
 
     Raises:
         ValueError: a setting is not a nonnegative number. The message names
@@ -102,7 +117,7 @@ def read_settings(env: Mapping[str, str] | None = None) -> Settings:
         raise ValueError(f"{SLOTS_ENV} must be a nonnegative integer, got {raw_slots!r}")
     raw_load = source.get(MAX_LOAD_ENV, "").strip()
     if not raw_load:
-        max_load = DEFAULT_MAX_LOAD
+        max_load = default_max_load(cpus)
     else:
         try:
             max_load = float(raw_load)
@@ -125,11 +140,11 @@ def load_average() -> float | None:
         return None
 
 
-def _configured_max_load() -> float:
+def _configured_max_load(cpus: int) -> float:
     try:
-        return read_settings().max_load
+        return read_settings(cpus=cpus).max_load
     except ValueError:
-        return DEFAULT_MAX_LOAD
+        return default_max_load(cpus)
 
 
 def load_note(
@@ -140,8 +155,8 @@ def load_note(
     cpus: int | None = None,
 ) -> str:
     """One line that says whether host load likely caused a stage failure."""
-    threshold = _configured_max_load() if max_load is None else max_load
     count = cpus if cpus is not None else (os.cpu_count() or 1)
+    threshold = _configured_max_load(count) if max_load is None else max_load
     current = (load_average if load is None else load)()
     if current is None:
         return (
@@ -215,12 +230,10 @@ def heavy_stage_slot(
     index: int | None = None
     headroom = False
     while True:
-        current = load()
-        load_ok = config.max_load <= 0 or current is None or current < config.max_load
-        if load_ok:
-            if not use_slots:
-                headroom = True
-                break
+        # The slot comes first and is kept, so a stage waiting on load still
+        # counts toward the cap (issue #6609 review: overdue stages must not
+        # all run uncapped when their waits run out together).
+        if use_slots and fd is None:
             try:
                 taken = _try_slot(config)
             except OSError as error:
@@ -229,21 +242,25 @@ def heavy_stage_slot(
                     f"{config.slot_dir} ({error}); running without the host-wide cap.",
                     file=out,
                 )
-                headroom = True
-                break
+                use_slots = False
+                taken = None
             if taken is not None:
                 index, fd = taken
-                headroom = True
-                break
+        slot_ok = not use_slots or fd is not None
+        current = load()
+        load_ok = config.max_load <= 0 or current is None or current < config.max_load
+        if slot_ok and load_ok:
+            headroom = True
+            break
         remaining = wait_budget - (clock() - start)
         if remaining <= 0:
             break
         if not announced:
             reasons = []
+            if not slot_ok:
+                reasons.append(f"all {config.slots} heavy-stage slots are in use")
             if not load_ok:
                 reasons.append(f"load average {current:.1f} is at or above {config.max_load:.1f}")
-            else:
-                reasons.append(f"all {config.slots} heavy-stage slots are in use")
             print(
                 f"{stage}: waiting up to {wait_budget:g}s for host headroom: {'; '.join(reasons)}.",
                 file=out,
@@ -256,7 +273,8 @@ def heavy_stage_slot(
         shown = "unavailable" if current is None else f"{current:.1f}"
         print(
             f"WARNING: {stage}: no host headroom after {waited:g}s (load average "
-            f"{shown}, threshold {config.max_load:.1f}, {config.slots} slots); "
+            f"{shown}, threshold {config.max_load:.1f}, {config.slots} slots, "
+            f"{'holding slot ' + str(index) if index is not None else 'no free slot'}); "
             f"running {stage} anyway, since a gate is never skipped. A timeout or "
             "crash below is likely load, not this diff.",
             file=out,

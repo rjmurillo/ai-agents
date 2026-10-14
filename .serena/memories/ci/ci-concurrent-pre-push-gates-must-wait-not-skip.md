@@ -21,7 +21,7 @@ On a base without the #6609 fix, do this by hand:
 - Keep about 3 heavy pushes running at once (see the `/tmp` inode memory).
 - Before a push, wait until the 1-minute load average in `/proc/loadavg` is below about 5.
 
-The #6609 fix is `scripts/validation/host_headroom.py`: a host-wide semaphore of 3 slots around pytest and semgrep. Each stage waits for a slot and for load below 8, then runs even if the wait ran out. `pre_pr.py` is not gated: its 240s budget fills its 4m cap. It caps load across all branches. It does not replace the per-branch push `flock` in `.claude/rules/push-lock.md`. That rule retired an older hashed four-slot lock because different branches collided in it.
+The #6609 fix is `scripts/validation/host_headroom.py`: a host-wide semaphore of 3 slots around pytest and semgrep. Each stage takes a slot first and keeps it while it waits for load below the CPU count, so a stage whose wait ran out still counts toward the cap. It then runs even if the wait ran out. The hand rule above is stricter because it has no slots. `pre_pr.py` is not gated: its 240s budget fills its 4m cap. It caps load across all branches. It does not replace the per-branch push `flock` in `.claude/rules/push-lock.md`. That rule retired an older hashed four-slot lock because different branches collided in it.
 
 ## Caveats
 

@@ -668,7 +668,8 @@ pre-push:
           # count. A fixed 4 left a 48-core workstation 1.8x slower than 16
           # workers. A positive integer here is still a fixed cap.
           # Issue #6609: pytest takes one host-wide heavy-stage slot (3 by
-          # default) and waits for load below 8 BEFORE its budget clock starts.
+          # default) and, holding it, waits for load below the CPU count BEFORE
+          # its budget clock starts.
           # The wait is what the 15m cap leaves above the budget, less 60s; a
           # test pins PYTHON_TESTS_JOB_CAP_SECONDS to this timeout. When the
           # wait runs out pytest still runs and the warning names load.

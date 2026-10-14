@@ -17,6 +17,7 @@ import io
 import subprocess
 from collections.abc import Iterator
 from contextlib import contextmanager
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -308,3 +309,54 @@ def test_an_ordinary_semgrep_error_keeps_its_exit_code(
     result = policy._run_semgrep_tree(tmp_path, ["source.py"], tmp_path)
     assert result.returncode == 2
     assert "infrastructure" not in result.stderr
+
+
+# --- review round 1 -------------------------------------------------------
+
+
+def test_a_test_failure_that_mentions_a_locked_database_prints_no_load_note(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Only testmon's own INTERNALERROR is a concurrent-writer lock, not a test's assertion."""
+    result = subprocess.CompletedProcess(
+        ["pytest"],
+        1,
+        "E   sqlite3.OperationalError: database is locked\n"
+        "FAILED tests/test_store.py::test_write - sqlite3.OperationalError\n",
+        "",
+    )
+    report = pytest_lanes.PartitionReport("tests", result, 12.0)
+    assert policy._report_partition(report, 180) == 1
+    err = capsys.readouterr().err
+    assert "concurrent writer" not in err
+    assert "host load average" not in err
+
+
+def test_ci_turns_the_headroom_gate_off(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setenv(host_headroom.SLOTS_ENV, "3")
+    monkeypatch.setenv(host_headroom.MAX_LOAD_ENV, "8")
+    monkeypatch.setenv(host_headroom.SLOT_DIR_ENV, str(tmp_path / "slots"))
+    monkeypatch.setenv("CI", "true")
+    settings = policy._headroom_settings()
+    assert settings.slots == 0
+    assert settings.max_load == 0
+    monkeypatch.delenv("CI")
+    assert policy._headroom_settings().slots == 3
+
+
+def test_ci_pytest_prints_no_headroom_warning_under_high_load(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    record_runs(monkeypatch)
+    monkeypatch.setenv(host_headroom.SLOTS_ENV, "3")
+    monkeypatch.setenv(host_headroom.MAX_LOAD_ENV, "8")
+    monkeypatch.setenv(host_headroom.SLOT_DIR_ENV, str(tmp_path / "slots"))
+    monkeypatch.setenv("CI", "true")
+    # The slot binds its load reader at definition, so inject a busy host here.
+    monkeypatch.setattr(
+        policy, "_heavy_stage_slot", partial(host_headroom.heavy_stage_slot, load=lambda: 40.0)
+    )
+    assert policy.run_pytest(tmp_path) == 0
+    err = capsys.readouterr().err
+    assert "no host headroom" not in err
+    assert "waiting" not in err
