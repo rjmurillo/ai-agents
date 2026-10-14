@@ -354,7 +354,10 @@ def test_patch_mode_uses_process_section_for_gates(skills_root):
 def test_patch_mode_prefers_procedure_over_process(skills_root):
     body = HOST_SKILL + "\n## Procedure\n\n1. Plain step.\n"
     skill = make_skill(skills_root, "host-skill", body=body)
-    assert failed(verify_patch(skill, external=True)) == {"approval_gate_present"}
+    assert failed(verify_patch(skill, external=True)) == {
+        "approval_gate_present",
+        "external_outside_steps",
+    }
 
 
 def test_patch_mode_fails_missing_gate_in_process(skills_root):
@@ -370,7 +373,10 @@ def test_patch_mode_fails_missing_gate_in_process(skills_root):
 def test_patch_mode_fails_without_any_procedure_or_process(skills_root):
     body = HOST_SKILL.replace("## Process", "## Flow")
     skill = make_skill(skills_root, "host-skill", body=body)
-    assert failed(verify_patch(skill, external=True)) == {"approval_gate_present"}
+    assert failed(verify_patch(skill, external=True)) == {
+        "approval_gate_present",
+        "external_outside_steps",
+    }
 
 
 def test_create_mode_ignores_process_section(skills_root):
@@ -423,4 +429,7 @@ def test_patch_mode_accepts_process_prefixed_section(skills_root, heading):
 def test_patch_mode_does_not_treat_processing_as_process(skills_root):
     body = HOST_SKILL.replace("## Process", "## Processing Notes")
     skill = make_skill(skills_root, "host-skill", body=body)
-    assert failed(verify_patch(skill, external=True)) == {"approval_gate_present"}
+    assert failed(verify_patch(skill, external=True)) == {
+        "approval_gate_present",
+        "external_outside_steps",
+    }

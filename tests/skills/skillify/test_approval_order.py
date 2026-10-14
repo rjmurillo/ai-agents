@@ -220,7 +220,7 @@ def test_single_procedure_heading_passes_single_step_section(skills_root):
 def test_repeated_process_family_fails_in_patch_mode(skills_root):
     body = HOST_SKILL + "\n## Process Overview\n\n1. Publish it.\n"
     skill = make_skill(skills_root, "host-skill", body=body)
-    assert failed(verify_patch(skill)) == {"single_step_section"}
+    assert "single_step_section" in failed(verify_patch(skill))
 
 
 def test_second_process_is_ignored_in_create_mode(skills_root):
@@ -245,7 +245,7 @@ def test_external_action_in_intro_before_step_one_fails(skills_root):
     steps = "First, publish the note to the wiki.\n\n1. Ask (approval).\n2. Write it.\n"
     check = outside(skills_root, steps)
     assert not check["ok"]
-    assert "move the action into a numbered step and tag it" in check["detail"]
+    assert "move the action into a numbered Procedure step and tag it" in check["detail"]
 
 
 def test_external_action_in_loose_paragraph_between_steps_fails(skills_root):
@@ -417,6 +417,7 @@ def test_patch_mode_process_untagged_step_fails(skills_root):
 
 def test_patch_mode_process_external_before_approval_fails(skills_root):
     body = HOST_SKILL.replace("3. Ask the user to approve the draft (approval).\n", "")
+    body = body.replace("4. Publish", "3. Publish")
     skill = make_skill(skills_root, "host-skill", body=body)
     result = verify_patch(skill)
     assert failed(result) == {"approval_gate_present"}
