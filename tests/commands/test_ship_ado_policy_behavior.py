@@ -178,6 +178,8 @@ def _run_block(tmp_path: Path, block: str, state: dict, env_extra: dict | None =
         [_BASH, str(script)],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         env=env,
         timeout=60,
         check=False,
