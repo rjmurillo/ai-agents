@@ -6983,6 +6983,15 @@ def warn_if_push_files_incomplete(
         # because the caller named the destination explicitly.
         if ref.local_ref != ref.remote_ref:
             return
+        # Quiet path 3: first push of a new branch at checked-out HEAD with no
+        # @{push} (a worktree cut from origin/main has no remote branch of its
+        # own yet). Lefthook 2.1.17 PushFiles (internal/git/wrapper/
+        # push_files.go) then diffs <origin HEAD branch>...HEAD, or lists every
+        # file in HEAD, so {push_files} covers this branch's changes. A stale
+        # @{push} (remote branch deleted, tracking ref not pruned) still
+        # resolves, so Lefthook diffs against the stale tip; keep the warning.
+        if ref.is_new and push_base.returncode != 0:
+            return
     print(
         "WARNING: Lefthook {push_files} quality coverage may be incomplete because "
         "the pushed ref set does not match checked-out HEAD and its configured push "

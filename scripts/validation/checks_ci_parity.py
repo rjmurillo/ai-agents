@@ -198,6 +198,22 @@ def validate_memory_placement(repo_root: Path) -> bool:
     )
 
 
+def validate_route_scenario_coverage(repo_root: Path) -> bool:
+    """Fail when a new or changed autoplan route has no edited scenario.
+
+    Runs the command the ``Require a scenario for each new or changed autoplan
+    route`` step of ``Rule Activation Coverage`` runs, against the same base.
+    It diffs the committed range from the merge base, as CI does. Issue #6291.
+    """
+    base_ref = _base_ref_or_skip(repo_root, "route scenario coverage")
+    return _run_workflow_validator(
+        repo_root,
+        "scripts/validation/check_route_scenario_coverage.py",
+        "--base-ref",
+        base_ref,
+    )
+
+
 def validate_closure_manifest(repo_root: Path) -> bool:
     """Advisory: compute the enforcement closure and report unresolved edges.
 
