@@ -41,7 +41,7 @@
 |pr autofix orphaned local commits round-cap escalation verification reuse: [pr-autofix/pr-autofix-orphaned-commit-verification](pr-autofix/pr-autofix-orphaned-commit-verification.md) (380)
 |github pr issue cli gh api review comment: [skills-github-cli-index](skills-github-cli-index.md) (630), [skills-pr-review-index](skills-pr-review-index.md) (1100), [pr-review/pr-review-batch-response-pattern](pr-review/pr-review-batch-response-pattern.md) (701), [project/project-labels-milestones](project/project-labels-milestones.md) (325)
 |review axes full rerun cost ship marker amplifier scoped adr-094 claude -p system-prompt-file independent axis no Task tool: [review/review-full-rerun-cost-and-ship-marker-amplifier](review/review-full-rerun-cost-and-ship-marker-amplifier.md) (895)
-|security agent read-only no shell scope not pinned pinned diff file head SHA marker self-written independent reviewer: [review/review-read-only-reviewers-need-a-pinned-diff](review/review-read-only-reviewers-need-a-pinned-diff.md) (402)
+|security agent read-only no shell scope not pinned pinned diff file head SHA pull_request_read get_diff review scope enumeration marker self-written independent reviewer: [review/review-read-only-reviewers-need-a-pinned-diff](review/review-read-only-reviewers-need-a-pinned-diff.md) (496)
 |gist githubusercontent raw revision file selector content integrity: [github/gist-routing-content-integrity](github/gist-routing-content-integrity.md) (402)
 |github url path dotfile leading dot traversal encoded blob tree: [issues/4992-leading-dot-github-paths](issues/4992-leading-dot-github-paths.md) (145)
 |graphql mutation query resolve thread reply batch nested: [skills-graphql-index](skills-graphql-index.md) (111)

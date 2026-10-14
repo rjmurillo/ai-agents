@@ -1,18 +1,25 @@
-# Read-only reviewers need a pinned diff file, and a marker needs an independent pass
+# Read-only reviewers need a pinned scope, and a marker needs an independent pass
 
 ## What happened
 
-[2026-10-14] Security reviews handed to the `security` agent came back with "scope not pinned". The agent has no shell. Its `tools:` list in `.claude/agents/security.md` (line 30 onward) names Read, Grep, Glob, web tools, Write, GitHub MCP reads, and Serena. It has no Bash, so it cannot run `git diff` and cannot tell which head it is reviewing.
+[2026-10-14] Security reviews handed to the `security` agent came back with "scope not pinned". The agent has no shell. Its `tools:` list in `.claude/agents/security.md` has no Bash, so it cannot run `git diff` itself. It does have GitHub reads, including `pull_request_read` with `get_diff`. The failures came from prompts that named neither a PR and head SHA nor a diff file.
 
-## Rule 1: hand over the diff as a file
+## Rule 1: pin the scope before the reviewer starts
 
-Before a read-only reviewer starts, write the diff to a file and name the exact head SHA in the prompt:
+`security.md` "Review Scope Enumeration" gives two paths. Use the first one that fits:
+
+1. Open PR: name the PR number and the exact head SHA. The agent fetches the diff through its GitHub tools. No local file is needed.
+2. No PR, or GitHub reads unavailable: write the diff to a file and name the file and the head SHA.
+
+For a pushed head, path 2 looks like this:
 
 ```bash
 git diff origin/main...<head-sha> > ~/.cache/ai-agents-tmp/review-<pr>-<head-sha>.diff
 ```
 
-Tell the reviewer the file path and the head SHA. A diff pasted from memory or a branch name is not pinned. The branch can move while the review runs.
+For uncommitted local work, `security.md` path 2 wants a full worktree snapshot instead: `git diff HEAD` plus the untracked files. The three-dot recipe misses both.
+
+A branch name alone is not pinned. The branch can move while the review runs.
 
 ## Rule 2: only an independent pass writes a security marker
 
@@ -22,7 +29,7 @@ PR #6418 shipped with a marker the author wrote for itself. Its dispatch closure
 
 ## Sources
 
-- `.claude/agents/security.md`, `tools:` block.
+- `.claude/agents/security.md`, `tools:` block and "Review Scope Enumeration".
 - PR #6418, PR #6488 (body names three fail-open paths), issue #6472.
-- 2026-10-14 post-merge security audit (see `pr-review/triage-004-single-pass-close-verdicts-need-skeptic`).
+- The self-written marker on #6418 comes from the 2026-10-13 post-merge security audit report. It is not restated in a public artifact.
 - Related: `decision-agent-self-assessment-does-not-survive-review`.
