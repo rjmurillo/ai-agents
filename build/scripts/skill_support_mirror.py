@@ -179,9 +179,9 @@ def _copy_skill_tree(
             continue
         # Skip Python cache artifacts; they're build-time noise that
         # belongs in .gitignore, not in a customer-facing plugin install.
-        if is_bytecode_artifact(src_path):
-            continue
         rel = src_path.relative_to(source)
+        if is_bytecode_artifact(rel):
+            continue
         if rel in skip_filenames:
             continue
         dst_path = target / rel
@@ -251,9 +251,9 @@ def _iter_support_relpaths(skill_dir: Path) -> set[Path]:
             raise SkillSupportSyncError(f"{src_path}: symlink inside a skill directory refused")
         if src_path.is_dir():
             continue
-        if is_bytecode_artifact(src_path):
-            continue
         rel = src_path.relative_to(skill_dir)
+        if is_bytecode_artifact(rel):
+            continue
         if rel == _SKILL_MD:
             continue
         rels.add(rel)
@@ -297,7 +297,8 @@ def _prune_stale_support_files(
     for existing in sorted(target_dir.rglob("*")):
         if existing.is_dir():
             continue
-        if is_bytecode_artifact(existing):
+        rel = existing.relative_to(target_dir)
+        if is_bytecode_artifact(rel):
             continue
         if existing.name.endswith(".noregen"):
             # A NO-REGEN sidecar (regen_guard.py) is a hand-placed
@@ -305,7 +306,6 @@ def _prune_stale_support_files(
             # regen_detect_reason below; it is never itself a mirrored
             # support file, so it is never a deletion candidate on its own.
             continue
-        rel = existing.relative_to(target_dir)
         if rel == _SKILL_MD or rel in wanted:
             continue
         reason = regen_detect_reason(existing)

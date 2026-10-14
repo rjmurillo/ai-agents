@@ -2867,7 +2867,7 @@ def test_is_bytecode_artifact_matches_caches(relative: str) -> None:
     ``__pycache__`` directory matches, because tools other than CPython
     write there too.
     """
-    assert build_all._is_bytecode_artifact(Path("/repo") / relative) is True
+    assert build_all._is_bytecode_artifact(Path(relative)) is True
 
 
 @pytest.mark.parametrize(
@@ -2888,7 +2888,7 @@ def test_is_bytecode_artifact_rejects_real_files(relative: str) -> None:
     end in ``.pyc``/``.pyo``. Being a data file is not itself
     disqualifying: see the ``__pycache__/data.json`` case above.
     """
-    assert build_all._is_bytecode_artifact(Path("/repo") / relative) is False
+    assert build_all._is_bytecode_artifact(Path(relative)) is False
 
 
 def _write_bytecode(pkg: Path) -> Path:
