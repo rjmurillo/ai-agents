@@ -406,6 +406,16 @@ class TestCheckMergeReadiness:
             for r in caplog.records
         )
 
+    def test_transport_fault_exits_3(self):
+        """'Could not resolve host' is a network fault, not a missing PR."""
+        with patch(
+            "test_pr_merge_ready.gh_graphql",
+            side_effect=RuntimeError("Could not resolve host: api.github.com"),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                check_merge_readiness("o", "r", 42)
+        assert exc.value.code == 3
+
     def test_graphql_error_exits_3_with_log(self, caplog):
         """A non-'Could not resolve' RuntimeError exits 3 and logs reason=graphql_error."""
         import logging
