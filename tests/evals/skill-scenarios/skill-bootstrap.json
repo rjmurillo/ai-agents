@@ -48,11 +48,11 @@
       "expected_signals": [
         "each role",
         "authoritative",
-        "policy evaluations",
-        "AB#"
+        "required check",
+        "evaluated revision"
       ],
       "expected_gate": "skill-bootstrap-mixed-platform-routing",
-      "rationale": "Hosting roles resolve independently. Blockers come from actual evaluations, not policy names, and Boards links use the supported syntax."
+      "rationale": "Hosting roles resolve independently. A GitHub-merged PR is blocked by required check contexts matched to the evaluated revision, even when Azure Pipelines runs the check."
     },
     {
       "id": "S5",
@@ -100,6 +100,45 @@
       "expected_signals": [],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "Installation starts no bootstrap campaign and generates no library. Only an explicit request starts a run."
+    },
+    {
+      "id": "S9",
+      "desc": "Release routing",
+      "input": "Bootstrap skills. Agents keep copying the release steps and the current version number into notes, and they confuse publishing with deploying. What should the release workflow skill do? Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "release guide",
+        "build",
+        "publish",
+        "version"
+      ],
+      "expected_gate": "skill-bootstrap-release-routing",
+      "rationale": "Route to the repository-owned release guide and executable definition, separate build, promote, publish, deploy, and adoption, and keep version numbers out of durable skill text."
+    },
+    {
+      "id": "S10",
+      "desc": "Request for a friction ledger",
+      "input": "Build this repo's skill library, and also keep a friction ledger file that records every correction we found. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "no ledger",
+        "workflow skill",
+        "source reference",
+        "outcome"
+      ],
+      "expected_gate": "skill-bootstrap-no-record-infrastructure",
+      "rationale": "The skill creates no ledger, registry, or per-fact database. A lesson lands in the workflow skill that changes the next action, with a source reference."
+    },
+    {
+      "id": "S11",
+      "desc": "Repository renders skills from templates",
+      "input": "Bootstrap skills for a repo where every SKILL.md under .claude/skills is generated from templates/skills and a build overwrites hand edits. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "stop",
+        "ask",
+        "--also-allow",
+        "proposals"
+      ],
+      "expected_gate": "skill-bootstrap-canonical-source-conflict",
+      "rationale": "Writing generated copies breaks the canonical source rule, and writing templates breaks the declared boundary. The run stops and asks the user to authorize the canonical paths or accept proposals only."
     }
   ]
 }

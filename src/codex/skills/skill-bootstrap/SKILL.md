@@ -44,16 +44,17 @@ only an explicit request starts a run.
 - `bootstrap skills`
 - `capture project workflow knowledge`
 - `build this repo's skill library`
+- `project skill library`
 
 ## When Not To Use
 
 | Request | Route |
 |---|---|
-| Create or improve one skill | `skillforge` |
-| Extract one completed workflow from this session | `skillify`, when installed; else `skillforge` |
+| Create, improve, or extract one skill | `skillforge` |
 | Improve a skill against a scored eval set | `skillopt` |
 | Decide placement or compress a skill without an eval | `context-optimizer` |
 | Scaffold README or architecture templates | `codebase-documenter` |
+| Refresh an existing workflow library | This skill, with each changed skill passed as `--update` |
 
 ## Process
 
@@ -73,78 +74,88 @@ flowchart TD
     K -->|No| J[Verify accepted artifacts and deliver]
 ```
 
+In the commands below, `<output-root>` is `.claude/skills` or `.github/skills`. Pass `--name` once per skill. On Windows PowerShell, see [Scripts](#scripts).
+
 ### Phase 1: Resolve scope and accepted outcomes
 
-1. Resolve the repository root, current revision, audience, supported harnesses, and existing skills.
-2. Select one output root: `.claude/skills/` or `.github/skills/`. Follow the repository's canonical-source rules when it generates skills from templates.
-3. Choose 1 to 3 representative outcomes from real project work. For each, write the observations that prove it meets project standards. A green check or a merged change is an intermediate result, not proof.
-4. Respect explicit budgets. Bound discovery to the selected outcomes.
-5. Ask at most five questions, and only for facts that evidence cannot supply.
-6. Record the boundary before any write:
+1. **First action:** run `git rev-parse --show-toplevel` and `git rev-parse HEAD`. List the skills under `.claude/skills/` and `.github/skills/`.
+2. Find the audience and harnesses from the instruction files present, such as `AGENTS.md`, `CLAUDE.md`, and `.github/copilot-instructions.md`.
+3. Select one `<output-root>`. If the repository generates skills from another source, such as a template directory, stop. Ask the user to choose one:
+   - authorize the canonical paths, which you then pass to `verify` as `--also-allow <path>`; or
+   - receive proposals only, with no skill files written.
+4. Choose 1 to 3 accepted outcomes. Ask the user first. If the user has none, pick recent merged changes that took several review rounds, a revert, or a reopened issue. For each outcome, write the observations that prove it meets project standards. A green check or a merged change is an intermediate result, not proof.
+5. Respect explicit budgets. Ask at most five questions in total, and only for facts that evidence cannot supply.
+6. Record the boundary before any write. Put the snapshot in the system temp directory or a session scratch directory, and keep the same path for Phase 6:
 
    ```bash
-   python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_boundary.py" snapshot --repo . --out "<path outside the repo>/snapshot.json"
+   python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_boundary.py" snapshot --repo . --output-root <output-root> --out "<snapshot path>"
    ```
 
-**Authority.** Write only inside the selected output root. Keep every other file read-only. Run no mutating git command, deployment, publication, tracker mutation, or platform-setting change. Evaluation grants no extra write authority. Modify an existing skill only when it is inside the boundary and named with `--update`; otherwise compose it or report the proposed change.
+**Authority.** Write only inside `<output-root>` and the paths the user authorized in step 3. The snapshot file is the one write outside the repository. Run no mutating git command, deployment, publication, tracker mutation, or platform-setting change. Evaluation grants no extra write authority. Modify an existing skill only when it is inside the boundary and passed with `--update`; otherwise compose it or report the proposed change.
 
 ### Phase 2: Discover what changes the workflow
 
-Read [references/discovery.md](references/discovery.md). It holds the 16 discovery lenses, the workflow-gap checklist, and the session and memory procedure.
-
-1. Read maintained instructions, skills, contributor guides, build and test entry points, CI, validators, generators, and release definitions.
-2. Trace accepted work beside reverts, reopened issues, and stalled branches. Read complete threads. Paginate. Check later corrections before you accept an early diagnosis.
-3. Find session sources. For Claude and Copilot, run the `skillopt` source probe: `mine_sessions.py sources`. For other clients, use only a documented export, index, or local store. Never invent a location.
-4. Query authorized project memory within scope.
-5. Read hosted-platform routing in [references/hosted-platforms.md](references/hosted-platforms.md) when a selected outcome touches PRs, pipelines, trackers, or releases.
-
-**Evidence labels.** Mark each finding as human decision, proposal, bot finding, or measured observation. Mark retrieval you could not complete as `UNAVAILABLE`, never as absence.
+Follow [references/discovery.md](references/discovery.md): repository and discourse, the 16 discovery lenses, workflow gaps, and session and memory sources. When an outcome touches PRs, pipelines, trackers, or releases, also follow [references/hosted-platforms.md](references/hosted-platforms.md). Finish discovery before any authoring.
 
 ### Phase 3: Select shortcuts and existing features
 
-For each outcome, choose one of: reuse an existing skill, improve one inside the boundary, compose existing skills, or create a new workflow skill. Prefer an existing maintained procedure over a copied manual. A lens with no verified friction gets no skill.
+Decide per outcome. `skillforge` triage in Phase 4 makes the final call; this choice is the proposal you give it.
 
-Validate names and conflicts before authoring:
+| Evidence | Decision | Output |
+|---|---|---|
+| An existing skill reaches the outcome and no verified friction remains | Reuse | Report row only |
+| Verified friction sits inside a skill within the boundary | Improve | `--update <skill>` |
+| Two or more skills cover the outcome, but state is lost between them | Compose | One thin `<project>-<lens>` skill that sequences them |
+| No skill covers the outcome and friction is verified | Create | One `<project>-<lens>` skill |
+
+A lens with no verified friction gets no skill. Validate names and conflicts before authoring:
 
 ```bash
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_boundary.py" plan --repo . --output-root .claude/skills --project <project> --name <project>-<lens> [--update <existing-skill>]
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_boundary.py" plan --repo . --output-root <output-root> --project <project> --name <project>-<lens>
 ```
 
-Exit 1 means a name conflict or invalid name. Rename, add `--update` for an authorized improvement, or drop the skill. Never overwrite blindly.
+To improve an existing skill, pass it twice: `--name <skill> --update <skill>`. Exit code 1 means a conflict or an invalid name: rename, get authorization for `--update`, or drop the skill. Never overwrite blindly.
 
 ### Phase 4: Author through skillforge
 
-Invoke `skillforge` once per selected workflow with the brief in [references/authoring-and-gates.md](references/authoring-and-gates.md). Name each output `<project>-<lens>`, for example `snafu-change-control`. The brief requires the first useful action, discriminating observations, decision branches, outcome checks, sibling routes, and a source reference for each surprising instruction. Writing is STE-inspired unless you validated it against the ASD-STE100 dictionary.
+Invoke `skillforge` once per selected workflow with the brief in [references/authoring-and-gates.md](references/authoring-and-gates.md). Run independent workflows in parallel agents when the harness supports it; otherwise run them one at a time. If `skillforge` is unavailable, report `skillforge: UNAVAILABLE` and stop authoring.
 
 ### Phase 5: context-optimizer, then skillopt
 
-1. Run `context-optimizer` on each authored skill and its composition. Delete redundant content before you compress. Keep trigger-critical decisions in `SKILL.md`; move conditional detail to `references/`.
-2. Run `skillopt` only after step 1 completed, and only when a frozen, scored, held-out evaluation exists. The context-optimized draft is the incumbent.
-3. No scored evaluation, or a missing tool: report `skillopt: NOT RUN` with the reason. Never invent an optimization result.
+1. Run `context-optimizer` on each authored skill and its composition. If it is unavailable, report `context-optimizer: UNAVAILABLE` and `skillopt: NOT RUN`.
+2. Run `skillopt` only after step 1 completed and only when a frozen, scored, held-out evaluation exists. Otherwise report `skillopt: NOT RUN` with the missing input. Never invent an optimization result.
 
 ### Phase 6: Review, verify, and deliver
 
-1. Run independent factual, doctrine, and usability reviews on the final workflows. Self-authored approval is not review evidence.
-2. Fix blocking and important findings through Phase 4 and Phase 5 again. Recheck the changed workflows and their compositions.
-3. Prove the boundary held:
+1. Run the three independent reviews in [references/authoring-and-gates.md](references/authoring-and-gates.md#review). Self-authored approval is not review evidence.
+2. Send blocking and important fixes back through Phase 4 and Phase 5.
+3. Prove the boundary held, with the same snapshot path:
 
    ```bash
-   python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_boundary.py" verify --repo . --snapshot "<snapshot path>" --output-root .claude/skills --name <each authored or updated skill>
+   python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_boundary.py" verify --repo . --snapshot "<snapshot path>" --output-root <output-root> --name <new-skill>
    ```
 
+   Add `--update <skill>` for each authorized improvement and `--also-allow <path>` for each path the user authorized in Phase 1.
 4. Deliver the report defined in [references/authoring-and-gates.md](references/authoring-and-gates.md#bootstrap-report).
 
 ## Scripts
 
-`bootstrap_boundary.py`, in this skill's scripts directory, is stdlib-only and runs on Linux, macOS, and Windows.
+The `bootstrap_boundary.py` script, in this skill's scripts directory, uses only the Python standard library and runs on Linux, macOS, and Windows.
 
 | Subcommand | Checks | Exit code 0 | Exit code 1 |
 |---|---|---|---|
-| `plan` | Output root, `<project>-<lens>` names, existing-skill conflicts | No conflict | Conflict or invalid name |
-| `snapshot` | Records HEAD, branch, and hashes of dirty and untracked paths | Written | (not used) |
-| `verify` | Changes since the snapshot | All inside named skill directories | A path outside, or HEAD or branch moved |
+| `plan` | Output root, `<project>-<lens>` names, conflicts in both skills roots | No conflict | Conflict or invalid name |
+| `snapshot` | Records HEAD, branch, existing skills, and hashes of dirty and untracked paths | Written | (not used) |
+| `verify` | Changes since the snapshot; prints the examined path count | All changes authorized | A path outside the boundary, an existing skill changed without `--update`, or HEAD or branch moved |
 
-Exit code 2 is a configuration error, such as a root outside the allowed set or a snapshot inside the repository. Exit code 3 means git is missing or failed. `verify` cannot see changes to gitignored files.
+Exit code 2 is a configuration error: an output root outside the allowed set or ignored by git, an invalid name, or a snapshot inside the repository. Exit code 3 means git is missing or failed. `verify` checks the net state of HEAD, the branch, and the working tree. It does not see stash, tag, config, or push operations, so the no-git-mutation rule still binds you.
+
+On Windows PowerShell 7, set the plugin root once, then run the same subcommands with `python`:
+
+```powershell
+$root = $env:COPILOT_PLUGIN_ROOT ?? $env:CLAUDE_PLUGIN_ROOT ?? '.claude'
+python "$root/skills/skill-bootstrap/scripts/bootstrap_boundary.py" snapshot --repo . --output-root <output-root> --out "<snapshot path>"
+```
 
 ## Anti-Patterns
 
@@ -153,8 +164,8 @@ Exit code 2 is a configuration error, such as a root outside the allowed set or 
 | One skill per lens to fill a quota | Author only where verified friction changes the next action |
 | Copying a maintained procedure into a skill | Link to it; add only the hint that prevents a known wrong turn |
 | A friction ledger, registry, or per-fact database | Put the lesson in the workflow skill with a source reference |
-| Hand-writing skills when `skillforge` is missing | Report the stage as `UNAVAILABLE` and stop authoring |
-| Reporting an optimization that never ran | Report `skillopt: NOT RUN` with the missing input |
+| Writing generated skill copies when the repo renders from templates | Stop at Phase 1 step 3 and ask |
+| Reporting a stage that never ran | Report `UNAVAILABLE` or `NOT RUN` with the reason |
 
 ## Extension Points
 
@@ -167,5 +178,5 @@ Add a discovery lens in `references/discovery.md`. Add a hosting provider sectio
 - [ ] Existing skills were reused or composed before a new one was created.
 - [ ] `context-optimizer` ran before `skillopt`, or the report names the skipped stage.
 - [ ] Independent factual, doctrine, and usability reviews ran on the final text.
-- [ ] `bootstrap_boundary.py verify` exited 0.
+- [ ] `bootstrap_boundary.py verify` exited 0 with an examined count above zero.
 - [ ] The report separates authored, evaluated, and installed states, and lists unmeasured results.

@@ -3,7 +3,7 @@
 The SKILL.md documents triggers, a portable script path, bundled references,
 the phase order, and exit codes. These tests read the rendered SKILL.md from
 every shipped root, so prose drift goes red. The exit-code behavior itself is
-asserted in test_bootstrap_boundary.py.
+asserted in test_plan.py, test_snapshot.py, and test_verify.py.
 """
 
 from __future__ import annotations
@@ -25,6 +25,7 @@ TRIGGERS = (
     "bootstrap skills",
     "capture project workflow knowledge",
     "build this repo's skill library",
+    "project skill library",
 )
 BUNDLED = (
     "scripts/bootstrap_boundary.py",

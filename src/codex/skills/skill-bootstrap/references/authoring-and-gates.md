@@ -99,26 +99,27 @@ The order is fixed. Each stage reads the previous stage's output.
      acceptance conditions.
    - Check that every reference link resolves after a move.
    - Add no always-on context. Change no instruction outside the boundary.
-2. **skillopt.** Run it only when all of these hold. Otherwise report
-   `skillopt: NOT RUN` and the missing item.
-   - context-optimizer completed. Its output is the incumbent.
-   - Scored tasks exist with a held-out split, verifiers, and a canonical
-     deployment owner.
-   - The evaluation cases were frozen before any candidate was proposed.
+2. **skillopt.** `skillopt` owns the acceptance gate; follow its contract.
+   Bootstrap adds three inputs. Otherwise report `skillopt: NOT RUN` and the
+   missing item.
+   - The context-optimized draft is the incumbent.
+   - Freeze the scored, held-out cases before any candidate exists.
      Verified session failures may select tasks. They never become
      fabricated gold answers.
-   - Use the installed `skillopt` gate, edit budget, and rejected-candidate
-     handling. A candidate is accepted only when it adds a held-out pass and
-     loses none. Use a null control when the scorer is nondeterministic.
    - An accepted candidate is not installed. Report it as accepted but not
      deployed until the canonical source and its mirrors carry it.
 
 ## Review
 
-1. Run three independent reviews on the final workflows: factual (paths,
-   commands, provider semantics, references), doctrine (project constraints
-   and authority), and usability (a zero-context engineer or a smaller model
-   reaches the outcome).
+1. Run three independent reviews on the final workflows. Independent means
+   a separate agent context that receives only the artifacts and the
+   requirements, never the author's reasoning.
+   - Factual: paths, commands, provider semantics, references, and claims
+     against current code.
+   - Doctrine: the repository's instruction files, rules, and authority
+     limits.
+   - Usability: a zero-context engineer or a smaller model reaches the
+     outcome from the skill alone.
 2. Follow `skillforge`'s own review requirements.
 3. Check that every referenced sibling skill and script exists in the
    supported installation.
@@ -135,11 +136,12 @@ of a guess.
 
 | Section | Content |
 | --- | --- |
-| Workflows | Name, accepted outcome, state: authored, evaluated, or installed |
+| Workflows | Name, accepted outcome, state: authored (files written), evaluated (scored by skillopt), or installed (a fresh harness session lists it) |
 | Reused features | Existing skills and scripts each workflow composes |
 | Verified shortcuts | Each hint with its evidence label and source reference |
 | Source coverage | Repository, discourse, each session client, memory: read, partial, or `UNAVAILABLE` |
 | Stages | skillforge, context-optimizer, skillopt, review: ran or skipped, with the reason |
-| Evaluation | Accepted results, human corrections, rejected attempts, recovery, unnecessary discovery; tokens, tool calls, context size, elapsed time where measured |
+| Evaluation | Accepted results, human corrections, rejected attempts, recovery, unnecessary discovery; tokens, tool calls, context size, elapsed time where measured, else `UNMEASURED` |
 | Boundary | Output root, authorized names, `bootstrap_boundary.py verify` exit code |
 | Limits | Unresolved disagreements, unmeasured outcomes, smaller-model checks not run |
+| Handoff | Uncommitted files and the commands the user runs next, such as the repository's build and validation gates |

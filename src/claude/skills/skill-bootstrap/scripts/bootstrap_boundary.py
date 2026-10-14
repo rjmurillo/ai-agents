@@ -1,31 +1,38 @@
 #!/usr/bin/env python3
 """Check the write boundary of a skill-bootstrap run.
 
-A bootstrap run may write only inside one skills root (`.claude/skills` or
-`.github/skills`) and only into the skill directories it named. This script
-makes that boundary checkable on Linux, macOS, and Windows.
+A bootstrap run may write only inside one skills root of the consumer
+repository (`.claude/skills` or `.github/skills`), and only into the skill
+directories it named. Paths the user authorized beyond that root, such as a
+canonical skill template, are passed with `--also-allow`. This script makes
+the boundary checkable on Linux, macOS, and Windows.
 
 Subcommands:
 
     plan      Validate the output root and the proposed skill names. Report
-              each name as new, an authorized update, or a conflict.
-    snapshot  Record HEAD, the branch, and a content hash of every dirty or
-              untracked path. Write the record outside the repository.
+              each name as new, an authorized update, invalid, or a conflict.
+    snapshot  Record HEAD, the branch, the existing skill directories, and a
+              content hash of every dirty or untracked path. Write the record
+              outside the repository.
     verify    Compare the repository with a snapshot. Report each changed
-              path outside the authorized skill directories, and any change
-              to HEAD or the branch.
+              path outside the authorized skill directories, each change to a
+              pre-existing skill not passed with `--update`, and any change to
+              HEAD or the branch.
 
 Exit codes:
 
     0  The plan has no conflict, or verify found no violation.
     1  The plan has a conflict or an invalid name, or verify found a
        violation.
-    2  Configuration error: bad arguments, root outside the allowed set,
-       snapshot path inside the repository, unreadable snapshot.
+    2  Configuration error: bad arguments, an output root outside the allowed
+       set or ignored by git, a snapshot inside the repository, or an
+       unreadable snapshot.
     3  External error: git is missing or a git command failed.
 
-Limits: verify sees only paths that git reports. Changes to ignored files
-are not detected. Stdlib only, so the script runs from any plugin root.
+Limits: verify compares the working tree, HEAD, and the branch name. It does
+not see ref changes that leave those alone (stash, tags, other branches,
+config, push), and it cannot see gitignored paths, which is why an ignored
+output root is refused. Stdlib only, so the script runs from any plugin root.
 """
 
 from __future__ import annotations
@@ -37,11 +44,17 @@ import re
 import subprocess
 import sys
 from pathlib import Path, PurePosixPath
+from typing import Any
 
+# Consumer-workspace locations: the skills directory of the repository being
+# bootstrapped, not a path into this plugin's own tree.
 ALLOWED_ROOTS = (".claude/skills", ".github/skills")
-NAME_RE = re.compile(r"^[a-z][a-z0-9-]*[a-z0-9]$")
+NAME_RE = re.compile(r"^[a-z](?:[a-z0-9-]*[a-z0-9])?$")
 MAX_NAME = 64
-SNAPSHOT_SCHEMA = "skill-bootstrap-snapshot/1"
+SNAPSHOT_SCHEMA = "skill-bootstrap-snapshot/2"
+IGNORE_PROBE = "skill-bootstrap-probe/SKILL.md"
+
+Payload = dict[str, Any]
 
 
 class ConfigError(Exception):
@@ -52,9 +65,9 @@ class GitError(Exception):
     """git is missing or failed: exit 3."""
 
 
-def _git(repo: Path, *args: str) -> str:
+def _run_git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
     try:
-        proc = subprocess.run(
+        return subprocess.run(
             ["git", "-C", str(repo), *args],
             capture_output=True,
             encoding="utf-8",
@@ -63,6 +76,10 @@ def _git(repo: Path, *args: str) -> str:
         )
     except FileNotFoundError as exc:
         raise GitError("git is not installed or not on PATH") from exc
+
+
+def _git(repo: Path, *args: str) -> str:
+    proc = _run_git(repo, *args)
     if proc.returncode != 0:
         raise GitError(f"git {' '.join(args)} failed: {proc.stderr.strip()}")
     return proc.stdout
@@ -75,19 +92,30 @@ def repo_root(path: Path) -> Path:
     return Path(_git(path, "rev-parse", "--show-toplevel").strip()).resolve()
 
 
-def check_root(root: Path, output_root: str) -> Path:
-    """Return the absolute output root, or raise when it is not allowed."""
-    rel = PurePosixPath(output_root.replace("\\", "/").strip("/"))
+def _posix(value: str) -> PurePosixPath:
+    return PurePosixPath(value.replace("\\", "/").strip("/"))
+
+
+def check_root(root: Path, output_root: str) -> PurePosixPath:
+    """Return the output root as a repo-relative path, or raise when not allowed."""
+    rel = _posix(output_root)
     if str(rel) not in ALLOWED_ROOTS:
         raise ConfigError(f"output root {output_root!r} is not one of {', '.join(ALLOWED_ROOTS)}")
     target = (root / Path(*rel.parts)).resolve()
     if root != target and root not in target.parents:
         raise ConfigError(f"output root {output_root!r} resolves outside the repository")
-    return target
+    proc = _run_git(root, "check-ignore", "-q", f"{rel}/{IGNORE_PROBE}")
+    if proc.returncode == 0:
+        raise ConfigError(
+            f"output root {output_root!r} is ignored by git, so verify cannot see writes there"
+        )
+    if proc.returncode != 1:
+        raise GitError(f"git check-ignore failed: {proc.stderr.strip()}")
+    return rel
 
 
-def name_defects(name: str, project: str | None) -> list[str]:
-    """Return the reasons a proposed skill name is invalid."""
+def name_defects(name: str, project: str | None = None) -> list[str]:
+    """Return the reasons a skill name is invalid."""
     defects = []
     if len(name) > MAX_NAME:
         defects.append(f"longer than {MAX_NAME} characters")
@@ -98,35 +126,51 @@ def name_defects(name: str, project: str | None) -> list[str]:
     return defects
 
 
-def plan(args: argparse.Namespace) -> tuple[int, dict]:
+def _skill_dirs(root: Path, rel: str) -> list[str]:
+    path = root / Path(*PurePosixPath(rel).parts)
+    return sorted(p.name for p in path.iterdir() if p.is_dir()) if path.is_dir() else []
+
+
+def _plan_entry(
+    name: str, project: str | None, updates: set[str], here: list[str], other: dict[str, list[str]]
+) -> Payload:
+    """Classify one proposed name. An update keeps its existing name, so no prefix check."""
+    defects = name_defects(name, None if name in updates else project)
+    shadowed = [r for r, names in other.items() if name in names]
+    if defects:
+        status = "invalid"
+    elif name in updates and name in here:
+        status = "update"
+    elif name in updates:
+        status, defects = "invalid", ["--update names no existing skill in the output root"]
+    elif name in here:
+        status, defects = "conflict", ["skill exists; pass --name and --update to modify it"]
+    elif shadowed:
+        status, defects = "conflict", [f"same name exists under {', '.join(shadowed)}"]
+    else:
+        status = "new"
+    return {"name": name, "status": status, "defects": defects}
+
+
+def plan(args: argparse.Namespace) -> tuple[int, Payload]:
     root = repo_root(Path(args.repo))
-    skills_dir = check_root(root, args.output_root)
+    rel = check_root(root, args.output_root)
+    if args.project and name_defects(args.project):
+        raise ConfigError(f"--project {args.project!r} is not lowercase hyphen-case")
+    names = args.name or []
     updates = set(args.update or [])
-    entries = []
-    blocking = False
-    for name in args.name or []:
-        defects = name_defects(name, args.project)
-        exists = (skills_dir / name).exists()
-        if defects:
-            status = "invalid"
-        elif exists and name in updates:
-            status = "update"
-        elif exists:
-            status = "conflict"
-        else:
-            status = "new"
-        blocking = blocking or status in ("invalid", "conflict")
-        entries.append({"name": name, "status": status, "defects": defects})
-    for name in sorted(updates - set(args.name or [])):
-        entries.append({"name": name, "status": "invalid", "defects": ["--update without --name"]})
-        blocking = True
-    existing = (
-        sorted(p.name for p in skills_dir.iterdir() if p.is_dir()) if skills_dir.is_dir() else []
-    )
+    here = _skill_dirs(root, str(rel))
+    other = {r: _skill_dirs(root, r) for r in ALLOWED_ROOTS if r != str(rel)}
+    entries = [_plan_entry(n, args.project, updates, here, other) for n in names]
+    entries += [
+        {"name": n, "status": "invalid", "defects": ["--update without a matching --name"]}
+        for n in sorted(updates - set(names))
+    ]
+    blocking = any(e["status"] in ("invalid", "conflict") for e in entries)
     return (1 if blocking else 0), {
         "repo": root.as_posix(),
-        "output_root": args.output_root,
-        "existing_skills": existing,
+        "output_root": str(rel),
+        "existing_skills": here,
         "proposed": entries,
     }
 
@@ -162,13 +206,11 @@ def _hash(path: Path) -> str:
 
 def _head(root: Path) -> str:
     """Return the HEAD commit, or an empty string in a repository with no commit."""
-    try:
-        return _git(root, "rev-parse", "--verify", "--quiet", "HEAD").strip()
-    except GitError:
-        return ""
+    proc = _run_git(root, "rev-parse", "--verify", "--quiet", "HEAD")
+    return proc.stdout.strip() if proc.returncode == 0 else ""
 
 
-def _state(root: Path) -> dict:
+def _state(root: Path) -> Payload:
     head = _head(root)
     branch = _git(root, "rev-parse", "--abbrev-ref", "HEAD").strip() if head else ""
     return {
@@ -178,24 +220,33 @@ def _state(root: Path) -> dict:
     }
 
 
-def snapshot(args: argparse.Namespace) -> tuple[int, dict]:
+def snapshot(args: argparse.Namespace) -> tuple[int, Payload]:
     root = repo_root(Path(args.repo))
+    rel = check_root(root, args.output_root)
     out = Path(args.out).resolve()
     if out == root or root in out.parents:
         raise ConfigError(
-            "snapshot file must live outside the repository, or it changes the state it records"
+            "snapshot file must live outside the repository, or it changes the state it"
+            " records; use the system temp directory or a session scratch directory"
         )
-    record = {"schema": SNAPSHOT_SCHEMA, "repo": root.as_posix(), **_state(root)}
+    record = {
+        "schema": SNAPSHOT_SCHEMA,
+        "repo": root.as_posix(),
+        "output_root": str(rel),
+        "existing_skills": _skill_dirs(root, str(rel)),
+        **_state(root),
+    }
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return 0, {
         "snapshot": out.as_posix(),
         "head": record["head"],
+        "existing_skills": len(record["existing_skills"]),
         "dirty_paths": len(record["paths"]),
     }
 
 
-def _load_snapshot(path: str, root: Path) -> dict:
+def _load_snapshot(path: str, root: Path, rel: PurePosixPath) -> Payload:
     try:
         record = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
@@ -204,31 +255,68 @@ def _load_snapshot(path: str, root: Path) -> dict:
         raise ConfigError(f"snapshot {path} is not a {SNAPSHOT_SCHEMA} record")
     if record.get("repo") != root.as_posix():
         raise ConfigError(f"snapshot {path} records {record.get('repo')}, not {root.as_posix()}")
+    if record.get("output_root") != str(rel):
+        raise ConfigError(f"snapshot {path} records output root {record.get('output_root')}")
     return record
 
 
-def verify(args: argparse.Namespace) -> tuple[int, dict]:
+def _also_allowed(root: Path, values: list[str]) -> list[PurePosixPath]:
+    allowed = []
+    for value in values:
+        rel = _posix(value)
+        target = (root / Path(*rel.parts)).resolve()
+        if not rel.parts or ".." in rel.parts or root not in target.parents:
+            raise ConfigError(f"--also-allow {value!r} is not a path inside the repository")
+        allowed.append(rel)
+    return allowed
+
+
+def _classify(path: str, rel: PurePosixPath, grants: Payload) -> str | None:
+    """Return the violation kind for one changed path, or None when authorized."""
+    posix = PurePosixPath(path)
+    if any(posix == extra or extra in posix.parents for extra in grants["also_allow"]):
+        return None
+    if rel not in posix.parents or len(posix.relative_to(rel).parts) < 2:
+        return "outside-boundary"
+    skill = posix.relative_to(rel).parts[0]
+    if skill in grants["updates"]:
+        return None
+    if skill in grants["existing"]:
+        return "unauthorized-update"
+    return None if skill in grants["names"] else "outside-boundary"
+
+
+def verify(args: argparse.Namespace) -> tuple[int, Payload]:
     root = repo_root(Path(args.repo))
-    check_root(root, args.output_root)
-    before = _load_snapshot(args.snapshot, root)
+    rel = check_root(root, args.output_root)
+    names, updates = set(args.name or []), set(args.update or [])
+    bad = sorted(n for n in names | updates if name_defects(n))
+    if bad:
+        raise ConfigError(f"invalid skill names: {', '.join(bad)}")
+    before = _load_snapshot(args.snapshot, root, rel)
+    grants = {
+        "names": names,
+        "updates": updates,
+        "existing": set(before["existing_skills"]),
+        "also_allow": _also_allowed(root, args.also_allow or []),
+    }
     after = _state(root)
-    prefix = PurePosixPath(args.output_root.replace("\\", "/").strip("/"))
-    allowed = {prefix / name for name in (args.name or [])}
-    violations = []
-    for key in ("head", "branch"):
-        if before[key] != after[key]:
-            violations.append(
-                {"kind": f"{key}-changed", "before": before[key], "after": after[key]}
-            )
-    changed = []
-    for path in sorted(set(before["paths"]) | set(after["paths"])):
-        if before["paths"].get(path) == after["paths"].get(path):
-            continue
-        changed.append(path)
-        posix = PurePosixPath(path)
-        if not any(posix == skill or skill in posix.parents for skill in allowed):
-            violations.append({"kind": "outside-boundary", "path": path})
-    return (1 if violations else 0), {"changed": changed, "violations": violations}
+    violations: list[Payload] = [
+        {"kind": f"{key}-changed", "before": before[key], "after": after[key]}
+        for key in ("head", "branch")
+        if before[key] != after[key]
+    ]
+    examined = sorted(set(before["paths"]) | set(after["paths"]))
+    changed = [p for p in examined if before["paths"].get(p) != after["paths"].get(p)]
+    for path in changed:
+        kind = _classify(path, rel, grants)
+        if kind:
+            violations.append({"kind": kind, "path": path})
+    return (1 if violations else 0), {
+        "examined": len(examined),
+        "changed": changed,
+        "violations": violations,
+    }
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -236,25 +324,33 @@ def build_parser() -> argparse.ArgumentParser:
         prog="bootstrap_boundary", description=__doc__.split("\n\n")[0]
     )
     sub = parser.add_subparsers(dest="command", required=True)
+    roots = "one of: " + ", ".join(ALLOWED_ROOTS)
 
     p_plan = sub.add_parser("plan", help="validate the output root and proposed names")
     p_plan.add_argument("--repo", default=".")
-    p_plan.add_argument("--output-root", required=True, help="one of: " + ", ".join(ALLOWED_ROOTS))
-    p_plan.add_argument("--name", action="append", help="proposed skill name (repeatable)")
+    p_plan.add_argument("--output-root", required=True, help=roots)
+    p_plan.add_argument("--name", action="append", help="proposed skill name (repeat per name)")
     p_plan.add_argument(
-        "--update", action="append", help="existing skill the run may modify (repeatable)"
+        "--update", action="append", help="existing skill the run may modify (repeat per name)"
     )
-    p_plan.add_argument("--project", help="require the <project>-<lens> prefix")
+    p_plan.add_argument("--project", help="require the <project>-<lens> prefix on new names")
 
     p_snap = sub.add_parser("snapshot", help="record repository state before writing")
     p_snap.add_argument("--repo", default=".")
+    p_snap.add_argument("--output-root", required=True, help=roots)
     p_snap.add_argument("--out", required=True, help="snapshot file outside the repository")
 
     p_verify = sub.add_parser("verify", help="compare repository state with a snapshot")
     p_verify.add_argument("--repo", default=".")
     p_verify.add_argument("--snapshot", required=True)
-    p_verify.add_argument("--output-root", required=True)
-    p_verify.add_argument("--name", action="append", help="authorized skill directory (repeatable)")
+    p_verify.add_argument("--output-root", required=True, help=roots)
+    p_verify.add_argument("--name", action="append", help="new skill directory (repeat per name)")
+    p_verify.add_argument(
+        "--update", action="append", help="authorized existing skill (repeat per name)"
+    )
+    p_verify.add_argument(
+        "--also-allow", action="append", help="user-authorized repo path outside the root"
+    )
     return parser
 
 

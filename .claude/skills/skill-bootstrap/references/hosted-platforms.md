@@ -39,7 +39,7 @@ after you read it back from the host.
 
 | Host | Do not confuse |
 | --- | --- |
-| GitHub | REST numeric IDs, GraphQL node IDs, issue or PR numbers, internal issue IDs |
+| GitHub | REST database `id`, GraphQL `node_id`, issue or PR `number` |
 | Azure DevOps | Project name and project GUID; repository GUID; team identity |
 | Azure Boards | Classification-node integer IDs, node GUIDs, and area or iteration path strings. Each field accepts a different one. |
 | Pipelines | Build definition ID, release definition ID, run ID |
@@ -71,13 +71,17 @@ Separate four things that look alike:
 | Stored relationship | A queryable link. Read it back. |
 | Automatic transition | A state change that a keyword or merge triggers. |
 
-Verify reference syntax for the actual field, endpoint, and platform version.
-Field formats differ: plain text, HTML, and Markdown. Examples:
+The same text can produce a different form on a different surface. Verify
+reference syntax for the actual field, endpoint, and platform version. Field
+formats differ: plain text, HTML, and Markdown. Examples:
 
-- Azure DevOps: `#12345` for a work item and `!455667` for a PR, where the
-  surface supports them.
-- Connected GitHub and Azure Boards: `AB#123` on supported surfaces.
-- Repository-qualified references on GitHub: `owner/repo#123`.
+- Azure DevOps `#12345`: a mention in a work item discussion, but a stored
+  Development link in a PR description or commit message.
+- Azure DevOps `!455667`: a PR mention where the surface supports it.
+- `AB#123` in a GitHub commit or PR, with the Azure Boards app connected: a
+  stored link on the work item.
+- GitHub `owner/repo#123`: a cross-reference. Closing keywords add an
+  automatic transition on merge to the default branch.
 
 Use a full URL when shorthand is ambiguous, then confirm the destination
 relationship exists. Tracker mutations need the task's authorization.

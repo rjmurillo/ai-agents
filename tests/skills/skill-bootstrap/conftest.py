@@ -10,12 +10,13 @@ from pathlib import Path
 import pytest
 
 SKILL_DIR = Path(__file__).resolve().parents[3] / ".claude" / "skills" / "skill-bootstrap"
-_IMPORT_PATHS = (str(SKILL_DIR / "scripts"),)
+_IMPORT_PATHS = (str(SKILL_DIR / "scripts"), str(Path(__file__).parent))
 sys.path[:0] = _IMPORT_PATHS
 try:
     # Cached in sys.modules so the test modules' top-level imports resolve
     # after the paths are removed again.
     import bootstrap_boundary  # noqa: F401
+    import bootstrap_helpers  # noqa: F401
 finally:
     for _path in _IMPORT_PATHS:
         sys.path.remove(_path)
@@ -59,3 +60,9 @@ def make_repo() -> Callable[[Path], Path]:
 def repo(tmp_path: Path) -> Path:
     """A git repository with HEAD and a committed `existing-skill`."""
     return init_repo(tmp_path / "repo")
+
+
+@pytest.fixture
+def snap_path(tmp_path: Path) -> Path:
+    """A snapshot file location outside the fixture repository."""
+    return tmp_path / "snaps" / "snapshot.json"
