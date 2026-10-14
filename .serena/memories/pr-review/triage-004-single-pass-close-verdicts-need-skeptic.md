@@ -27,17 +27,18 @@ Conventional wisdom says triage is cheap and safe to automate on a small model. 
 
 ## Second data point: post-merge security audit verdicts
 
-[2026-10-14] A single-pass post-merge security audit of 104 merged PRs flagged 7 as FAIL. An independent skeptic pass checked 6 of them and refuted 5:
+[2026-10-13] A single-pass post-merge security audit of 104 merged PRs flagged 7 as FAIL. A later independent skeptic pass checked 6 of them and refuted 5:
 
-- Refuted: PR #6421, #6348, #6297, #6287, #6273.
-- Confirmed: PR #6308. Issue #6493 tracked the fail-open, and PR #6498 fixed it.
+- Refuted as FAIL: PR #6421, #6348, #6297, #6287, #6273. Some still carry low-severity residuals, tracked in #6506. Refuted does not mean clean.
+- Confirmed: PR #6308. Issue #6493 tracked its two fail-open paths, and PR #6498 fixed both.
+- Unchecked: the seventh FAIL. The report this memory came from does not name it. Treat it as open until someone checks it.
 
-The rule holds beyond triage. Never act on a single-pass FAIL or close verdict. Run an independent pass that tries to refute it first. Act only on what survives.
+The two-pass pattern holds beyond triage, but the default flips. For a close verdict, the skeptic defaults to refuted, because a wrong close hides work. For a security FAIL, a wrong refute ships the vulnerability. So the second pass must show evidence to refute a FAIL, with no default. Refuted FAILs stay on record, as #6506 does for residuals.
 
 ## Source
 
 - Triage run of 2026-10-11, 187 open issues, 38 proposed closes, 22 refuted.
-- Security audit of 2026-10-14, 104 merged PRs, 7 FAIL, 5 of 6 checked refuted.
+- Security audit of 2026-10-13, 104 merged PRs, 7 FAIL. A later skeptic pass refuted 5 of 6 checked. Confirmed: #6493. Low-severity residuals: #6506.
 
 ## Related
 
