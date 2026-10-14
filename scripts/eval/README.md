@@ -253,7 +253,14 @@ A `billing_error` type also reports `error=billing`, at any status. Any other
 `eval-prompt-change.py` exits 4 (ADR-035, the credential cannot be used) on
 `error=billing`, so CI and agents can tell exit 4 ("fund the key") from exit 3
 (any other external or API failure). Exit 4 can arrive mid-run, after some
-calls succeeded. Billing is never a skippable provider outage.
+calls succeeded. Billing is never classified as a provider outage: the billing
+check runs first and exits 4.
+
+A provider outage also exits 3 (issue #6148). The match rules live in
+`_is_provider_outage` and are listed in ADR-057. The run prints
+`ERROR: provider unavailable` instead of passing without running. A caller
+that wants to tolerate an outage reads exit 3 and decides; the script never
+reports success when it could not run.
 
 ## Harness Capability Evidence
 
@@ -979,7 +986,15 @@ uv run python scripts/eval/eval_autoplan_routes.py --model-results run.json
 
 The runner has no spend cap flag. `--dry-run` prints the call count first, and `--judge-repeats 1` cuts the plan to 72 calls. A scenario passes when its `full` cell score is at least 4.0 on the judge's 1 to 5 rubric (`full` puts the autoplan body in the system prompt, which is how autoplan runs).
 
-Each family reports `scenarios`, `reachable` (every named route is an installed skill or agent), `exercised` (the run has a result), `scored` (the cell was graded), and `passed` apart. Without `--model-results` the accuracy reads `not scored`, never zero. A model miss prints `MODEL-MISS` and does not change the exit code, so CI never gates on a judge. A failed resolver fixture still exits 1. The deterministic tests in `tests/eval/test_eval_autoplan_model_scenarios.py` load and validate the file and call no model. The per-route ratchet is #6291.
+Each family reports `scenarios`, `reachable` (every named route is an installed skill or agent), `exercised` (the run has a result), `scored` (the cell was graded), and `passed` apart. Without `--model-results` the accuracy reads `not scored`, never zero. A model miss prints `MODEL-MISS` and does not change the exit code, so CI never gates on a judge. A failed resolver fixture still exits 1. The deterministic tests in `tests/eval/test_eval_autoplan_model_scenarios.py` load and validate the file and call no model.
+
+### Route-change gate and scheduled run (#6291)
+
+Three pieces close the loop for a changed route:
+
+- `scripts/validation/check_route_scenario_coverage.py` diffs the `Intent | Route` table in `.claude/skills/autoplan/SKILL.md` against the merge base. A row that is new, or whose route text changed, needs a new or edited scenario in `autoplan.json` whose `expected_route` names one of the row's targets. A scenario counts as edited only when its `input`, `expected_route`, `expected_gate`, `expected_signals`, or `forbidden_routes` changes, so a rationale-only edit does not clear the failure. A row with no `Skill:`, `Agent:`, `subagent_type`, or `/command` target is satisfied by any edited scenario. A reworded intent with unchanged route text is a rename and is skipped. The failure names the route. Reproduce it locally with `python3 scripts/validation/check_route_scenario_coverage.py --base-ref origin/main`. Exit 1 means a route lacks a scenario, exit 2 means a bad input such as an unresolvable ref or a missing table.
+- `validate-rule-activation-coverage.yml` runs that gate on pull requests only, and runs `eval_autoplan_routes.py` without a model on every run as the fast subset (pull request, push to main, and `workflow_dispatch`, whenever the paths filter matches). The subset step has a 60 second budget and measures about 2 seconds.
+- `autoplan-route-eval.yml` runs the full model suite weekly and prints per-family accuracy to the job summary. A model miss stays advisory. The run fails when no results exist, when a resolver fixture fails, or when the results file cannot be read.
 
 ## Skill Overlap Eval
 

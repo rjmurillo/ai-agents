@@ -436,6 +436,7 @@ surfaces:
       - copilot-code-review.md
       - copilot-instructions.md
       - dependabot.yml
+      - labeler-route.yml
       - labeler.yml
     reason: Repository configuration authored in place.
   - id: github-workflows
