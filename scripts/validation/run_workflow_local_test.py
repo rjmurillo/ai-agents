@@ -18,6 +18,11 @@ catches graph/wiring errors without spending minutes; the full run catches
 logic that only fails at execution time (the class of defect that slipped
 through static checks in PR #2120's CI runner).
 
+Both act stages skip jobs whose ``runs-on`` is a ``windows-*`` runner, with a
+``[WARN]`` per skipped job. act maps those labels to a Linux container, so the
+job cannot be validated there, and ``pytest.yml``'s ``test-windows-pwsh`` ran
+tests past every timeout in the chain (Issue #6412). CI runs those jobs.
+
 Tool / environment gaps are reported, not silently skipped: a missing
 actionlint, gh, gh act, or Docker daemon yields exit 3 (external) so the caller
 can block with an actionable message. A documented bypass exists for workflows that
@@ -855,22 +860,87 @@ def _workflow_events(wf_path: Path) -> list[str]:
     return []
 
 
-def _workflow_jobs(wf_path: Path) -> list[str]:
-    """Return workflow job ids in file order, or empty when unavailable."""
+def _load_workflow(wf_path: Path) -> object:
+    """Return a workflow's parsed YAML, or ``None`` when it cannot be loaded."""
     try:
         import yaml
     except ImportError:
-        return []
+        return None
     try:
-        data = yaml.safe_load(wf_path.read_text(encoding="utf-8"))
+        return yaml.safe_load(wf_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, yaml.YAMLError):
-        return []
-    if not isinstance(data, dict):
-        return []
-    jobs = data.get("jobs")
+        return None
+
+
+def _workflow_job_bodies(wf_path: Path) -> dict[str, object]:
+    """Return ``{job id: job body}`` in file order, or empty when unavailable."""
+    data = _load_workflow(wf_path)
+    jobs = data.get("jobs") if isinstance(data, dict) else None
     if not isinstance(jobs, dict):
-        return []
-    return [str(name) for name in jobs if isinstance(name, str)]
+        return {}
+    return {name: body for name, body in jobs.items() if isinstance(name, str)}
+
+
+def _workflow_jobs(wf_path: Path) -> list[str]:
+    """Return workflow job ids in file order, or empty when unavailable."""
+    return list(_workflow_job_bodies(wf_path))
+
+
+def _windows_label(runs_on: object) -> str | None:
+    """Return the first Windows runner label in a job's ``runs-on``, else None.
+
+    ``runs-on`` is a string, a list of labels, or a mapping with ``group`` and
+    ``labels``. A label counts when it starts with ``windows``, compared
+    case-insensitively. An expression such as ``${{ matrix.os }}`` does not
+    count: it cannot be resolved without evaluating the matrix, so that job
+    keeps running instead of being skipped on a guess.
+    """
+    if isinstance(runs_on, dict):
+        runs_on = runs_on.get("labels")
+    if isinstance(runs_on, str):
+        runs_on = [runs_on]
+    if not isinstance(runs_on, list):
+        return None
+    for label in runs_on:
+        if isinstance(label, str) and label.lower().startswith("windows"):
+            return label.lower()
+    return None
+
+
+def _windows_jobs(wf_path: Path) -> dict[str, str]:
+    """Return ``{job id: Windows runner label}`` for jobs that run on Windows.
+
+    Empty when the file cannot be read or parsed, so a broken workflow falls
+    through to act's own error instead of being silently skipped.
+    """
+    found: dict[str, str] = {}
+    for name, body in _workflow_job_bodies(wf_path).items():
+        label = _windows_label(body.get("runs-on")) if isinstance(body, dict) else None
+        if label is not None:
+            found[name] = label
+    return found
+
+
+def _act_job_filters(repo_root: Path, wf: str, warnings: list[str]) -> list[list[str]]:
+    """Plan the ``-j`` filters for one workflow, skipping Windows jobs.
+
+    act maps ``windows-*`` runners to a Linux container (see the "Vanilla
+    Windows" limitation hint), so a Windows job cannot be validated locally and
+    its steps outlast every timeout (#6412). Each skipped job adds a ``[WARN]``.
+    A single-job workflow runs unfiltered, but once any job is skipped the rest
+    must carry ``-j`` or act would run the skipped job again.
+    """
+    wf_path = repo_root / wf
+    jobs = _workflow_jobs(wf_path)
+    skipped = _windows_jobs(wf_path)
+    for job, label in skipped.items():
+        warnings.append(
+            f"[WARN] {wf} job {job}: skipped, runs-on {label}. act maps Windows "
+            "runners to a Linux container, so the job cannot run locally. CI runs it."
+        )
+    if len(jobs) > 1 or skipped:
+        return [["-j", job] for job in jobs if job not in skipped]
+    return [[]]
 
 
 def _pytest_matrix_entries(data: object) -> list[object]:
@@ -1598,9 +1668,7 @@ def _run_act_workflows(
     warnings: list[str] = []
     for wf in files:
         event = _select_act_event(repo_root / wf)
-        jobs = _workflow_jobs(repo_root / wf)
-        job_args = [["-j", job] for job in jobs] if len(jobs) > 1 else [[]]
-        for job_arg in job_args:
+        for job_arg in _act_job_filters(repo_root, wf, warnings):
             cmd = [*base_cmd]
             if event is not None:
                 cmd.append(event)

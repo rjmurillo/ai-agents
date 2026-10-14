@@ -2498,3 +2498,206 @@ def test_run_passes_start_new_session_to_popen() -> None:
     assert popen_calls[0]["start_new_session"] is True, (
         f"start_new_session={popen_calls[0]['start_new_session']!r}; expected True"
     )
+
+
+# --- Windows jobs are skipped under act (#6412) ---------------------------
+
+
+def _write_runner_wf(tmp_path: Path, jobs: dict[str, object]) -> None:
+    """Write ``WF`` under ``tmp_path`` with one job per ``jobs`` entry.
+
+    The value is the job's ``runs-on``; a ``dict`` value is written as a
+    mapping so group/labels forms can be exercised.
+    """
+    doc = {
+        "name": "x",
+        "on": "push",
+        "jobs": {
+            name: {"runs-on": runner, "steps": [{"run": f"echo {name}"}]}
+            for name, runner in jobs.items()
+        },
+    }
+    wf = tmp_path / WF
+    wf.parent.mkdir(parents=True, exist_ok=True)
+    wf.write_text(yaml.safe_dump(doc, sort_keys=False), encoding="utf-8")
+
+
+def _record_calls(monkeypatch) -> list[list[str]]:
+    calls: list[list[str]] = []
+
+    def fake_run(cmd, *, timeout, cwd=None, env=None):
+        calls.append(list(cmd))
+        return 0, "", ""
+
+    monkeypatch.setattr(w, "_run", fake_run)
+    return calls
+
+
+@pytest.mark.parametrize(
+    ("runner", "expected"),
+    [
+        ("windows-latest", True),
+        ("windows-2022", True),
+        ("Windows-Latest", True),
+        (["self-hosted", "windows"], True),
+        ({"group": "g", "labels": "windows-latest"}, True),
+        ({"group": "g", "labels": ["x64", "windows-2025"]}, True),
+        ("ubuntu-latest", False),
+        ("macos-14", False),
+        (["self-hosted", "linux"], False),
+        ({"group": "linux-pool"}, False),
+        ("${{ matrix.os }}", False),
+        (None, False),
+        (42, False),
+    ],
+)
+def test_windows_label_classifies_runner_forms(runner, expected):
+    assert (w._windows_label(runner) is not None) is expected
+
+
+def test_windows_label_returns_the_matching_label_lowercased():
+    assert w._windows_label(["self-hosted", "Windows-2022"]) == "windows-2022"
+
+
+def test_windows_jobs_returns_only_windows_jobs(tmp_path):
+    _write_runner_wf(
+        tmp_path, {"lint": "ubuntu-latest", "win": "windows-latest", "mac": "macos-14"}
+    )
+    assert w._windows_jobs(tmp_path / WF) == {"win": "windows-latest"}
+
+
+@pytest.mark.parametrize("content", ["", "- a\n- b\n", "jobs: nope\n", "jobs: [a]\n", ": : :\n"])
+def test_windows_jobs_tolerates_malformed_workflows(tmp_path, content):
+    wf = tmp_path / WF
+    wf.parent.mkdir(parents=True)
+    wf.write_text(content, encoding="utf-8")
+    assert w._windows_jobs(wf) == {}
+
+
+def test_windows_jobs_missing_file_is_empty(tmp_path):
+    assert w._windows_jobs(tmp_path / "absent.yml") == {}
+
+
+def test_windows_jobs_ignores_non_mapping_job_bodies(tmp_path):
+    wf = tmp_path / WF
+    wf.parent.mkdir(parents=True)
+    wf.write_text("jobs:\n  a: nope\n  b:\n    runs-on: windows-latest\n", encoding="utf-8")
+    assert w._windows_jobs(wf) == {"b": "windows-latest"}
+
+
+def test_act_full_stage_skips_windows_job_and_warns(monkeypatch, tmp_path):
+    _write_runner_wf(
+        tmp_path, {"lint": "ubuntu-latest", "win": "windows-latest", "docs": "ubuntu-22.04"}
+    )
+    calls = _record_calls(monkeypatch)
+
+    res = w._act_full_stage([WF], tmp_path)
+
+    assert res.ok is True
+    assert calls == [
+        ["gh", "act", "-j", "lint", "-W", WF],
+        ["gh", "act", "-j", "docs", "-W", WF],
+    ]
+    assert res.detail == (
+        f"[WARN] {WF} job win: skipped, runs-on windows-latest. act maps Windows "
+        "runners to a Linux container, so the job cannot run locally. CI runs it."
+    )
+
+
+def test_act_dryrun_stage_skips_windows_job(monkeypatch, tmp_path):
+    _write_runner_wf(tmp_path, {"lint": "ubuntu-latest", "win": "windows-latest"})
+    calls = _record_calls(monkeypatch)
+
+    res = w._act_dryrun_stage([WF], tmp_path)
+
+    assert res.ok is True
+    assert calls == [["gh", "act", "-n", "-j", "lint", "-W", WF]]
+    assert "job win: skipped" in res.detail
+
+
+def test_single_remaining_job_still_gets_a_job_filter(monkeypatch, tmp_path):
+    """Dropping the windows job must not let act run the whole workflow again."""
+    _write_runner_wf(tmp_path, {"lint": "ubuntu-latest", "win": "windows-latest"})
+    calls = _record_calls(monkeypatch)
+
+    w._act_full_stage([WF], tmp_path)
+
+    assert len(calls) == 1
+    assert calls[0][calls[0].index("-j") + 1] == "lint"
+
+
+def test_windows_only_workflow_runs_no_act_and_passes(monkeypatch, tmp_path):
+    _write_runner_wf(tmp_path, {"win": "windows-latest"})
+    calls = _record_calls(monkeypatch)
+
+    res = w._act_dryrun_stage([WF], tmp_path)
+
+    assert calls == []
+    assert res.ok is True
+    assert "job win: skipped" in res.detail
+
+
+def test_every_windows_job_gets_its_own_warning(monkeypatch, tmp_path):
+    _write_runner_wf(tmp_path, {"a": "windows-latest", "b": "windows-2022", "c": "ubuntu-latest"})
+    _record_calls(monkeypatch)
+
+    res = w._act_full_stage([WF], tmp_path)
+
+    warns = [line for line in res.detail.splitlines() if line.startswith("[WARN]")]
+    assert len(warns) == 2
+    assert "job a:" in warns[0]
+    assert "job b:" in warns[1]
+
+
+def test_workflow_without_windows_jobs_is_unchanged(monkeypatch, tmp_path):
+    _write_runner_wf(tmp_path, {"only": "ubuntu-latest"})
+    calls = _record_calls(monkeypatch)
+
+    res = w._act_full_stage([WF], tmp_path)
+
+    assert calls == [["gh", "act", "-W", WF]]
+    assert res.ok is True
+    assert res.detail == ""
+
+
+def test_matrix_runner_expression_is_not_skipped(monkeypatch, tmp_path):
+    _write_runner_wf(tmp_path, {"a": "${{ matrix.os }}", "b": "ubuntu-latest"})
+    calls = _record_calls(monkeypatch)
+
+    res = w._act_full_stage([WF], tmp_path)
+
+    assert len(calls) == 2
+    assert res.detail == ""
+
+
+def test_windows_skip_does_not_hide_a_failing_linux_job(monkeypatch, tmp_path):
+    _write_runner_wf(tmp_path, {"lint": "ubuntu-latest", "win": "windows-latest"})
+
+    def fake_run(cmd, *, timeout, cwd=None, env=None):
+        return 1, "", "lint exploded"
+
+    monkeypatch.setattr(w, "_run", fake_run)
+    res = w._act_full_stage([WF], tmp_path)
+
+    assert res.ok is False
+    assert "lint exploded" in res.detail
+
+
+def test_pytest_workflow_never_dry_runs_the_windows_pwsh_job(monkeypatch):
+    """Regression for #6412: pytest.yml test-windows-pwsh ran tests past every timeout."""
+    rel = ".github/workflows/pytest.yml"
+    calls = _record_calls(monkeypatch)
+
+    res = w._act_dryrun_stage([rel], REPO_ROOT)
+
+    assert res.ok is True
+    assert calls, "pytest.yml still has Linux jobs to dry-run"
+    assert all("test-windows-pwsh" not in cmd for cmd in calls)
+    assert "job test-windows-pwsh: skipped" in res.detail
+
+
+def test_windows_jobs_is_empty_without_pyyaml(monkeypatch, tmp_path):
+    """No YAML parser means no skip decision, so act sees every job."""
+    _write_runner_wf(tmp_path, {"win": "windows-latest"})
+    monkeypatch.setitem(sys.modules, "yaml", None)
+    assert w._windows_jobs(tmp_path / WF) == {}

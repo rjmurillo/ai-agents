@@ -10,11 +10,16 @@ the timeout marker stays present.
 
 from __future__ import annotations
 
+import os
+import signal
 import subprocess
 import sys
+import time
+from pathlib import Path
 
 import pytest
 
+from scripts.validation import subprocess_runner
 from scripts.validation.subprocess_runner import _decode_stream, _run_subprocess
 
 # A child that flushes its streams, then sleeps well past any test timeout. The
@@ -28,23 +33,60 @@ def _child(body: str) -> list[str]:
     return [sys.executable, "-c", body]
 
 
-def _raise_timeout(output: bytes | str | None, stderr: bytes | str | None) -> object:
-    """Return a fake ``subprocess.run`` that raises ``TimeoutExpired``.
+class _TimedOutPopen:
+    """Fake ``Popen`` whose first ``communicate`` times out.
 
     Lets a test control the exact ``stdout``/``stderr`` types the exception
     carries, including the ``str`` values only the Windows
     kill-then-communicate path produces (unreachable on the POSIX CI host).
+    ``drained`` is what the post-kill ``communicate`` returns; ``None`` makes
+    that second call time out again, as it does when a grandchild escaped the
+    group and still holds the pipe.
     """
 
-    def _fake_run(*_args: object, **_kwargs: object) -> object:
-        raise subprocess.TimeoutExpired(
-            cmd=["fake"],
-            timeout=_TIMEOUT_SECONDS,
-            output=output,
-            stderr=stderr,
-        )
+    pid = 0
+    returncode = -9
 
-    return _fake_run
+    def __init__(
+        self,
+        output: bytes | str | None,
+        stderr: bytes | str | None,
+        drained: tuple[str, str] | None = ("", ""),
+    ) -> None:
+        self._output = output
+        self._stderr = stderr
+        self._drained = drained
+        self.calls = 0
+        self.killed = False
+        self.stdout = None
+        self.stderr = None
+
+    def communicate(self, timeout: float | None = None) -> tuple[str, str]:
+        self.calls += 1
+        if self.calls == 1 or self._drained is None:
+            raise subprocess.TimeoutExpired(
+                cmd=["fake"], timeout=_TIMEOUT_SECONDS, output=self._output, stderr=self._stderr
+            )
+        return self._drained
+
+    def kill(self) -> None:
+        self.killed = True
+
+    def wait(self, timeout: float | None = None) -> int:
+        return self.returncode
+
+    def __enter__(self) -> _TimedOutPopen:
+        return self
+
+    def __exit__(self, *_exc: object) -> None:
+        return None
+
+
+def _fake_popen(proc: _TimedOutPopen) -> object:
+    def _factory(*_args: object, **_kwargs: object) -> _TimedOutPopen:
+        return proc
+
+    return _factory
 
 
 # ---------------------------------------------------------------------------
@@ -137,10 +179,16 @@ class TestRunSubprocessTimeoutRealChild:
 
 
 class TestRunSubprocessTimeoutFaked:
+    @pytest.fixture(autouse=True)
+    def _no_real_group_kill(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The fake pid 0 must never reach a real ``killpg``."""
+        monkeypatch.setattr(subprocess_runner, "_killpg_safe", lambda _pid: None)
+
     def test_stderr_only_child_keeps_marker_after_partial(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setattr(subprocess, "run", _raise_timeout(None, b"boom"))
+        proc = _TimedOutPopen(None, b"boom")
+        monkeypatch.setattr(subprocess, "Popen", _fake_popen(proc))
         exit_code, stdout, stderr = _run_subprocess(["fake"], timeout=5)
         assert exit_code == -1
         assert stdout == ""
@@ -150,7 +198,8 @@ class TestRunSubprocessTimeoutFaked:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """The Windows path leaves ``str`` on the exception; pass it through."""
-        monkeypatch.setattr(subprocess, "run", _raise_timeout("win-out", "win-err"))
+        proc = _TimedOutPopen("win-out", "win-err")
+        monkeypatch.setattr(subprocess, "Popen", _fake_popen(proc))
         exit_code, stdout, stderr = _run_subprocess(["fake"], timeout=2)
         assert exit_code == -1
         assert stdout == "win-out"
@@ -159,6 +208,226 @@ class TestRunSubprocessTimeoutFaked:
     def test_populated_output_never_flips_timeout_to_success(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setattr(subprocess, "run", _raise_timeout(b"partial", b"partial"))
+        proc = _TimedOutPopen(b"partial", b"partial")
+        monkeypatch.setattr(subprocess, "Popen", _fake_popen(proc))
         exit_code, _stdout, _stderr = _run_subprocess(["fake"], timeout=3)
         assert exit_code == -1
+
+    def test_drained_output_wins_over_the_first_partial(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The post-kill read holds everything the child wrote, so it replaces the partial."""
+        proc = _TimedOutPopen(b"early", b"early-err", drained=("all-out", "all-err"))
+        monkeypatch.setattr(subprocess, "Popen", _fake_popen(proc))
+        exit_code, stdout, stderr = _run_subprocess(["fake"], timeout=4)
+        assert exit_code == -1
+        assert stdout == "all-out"
+        assert stderr == "all-err\nCommand timed out after 4s"
+
+    def test_drain_that_times_out_again_keeps_the_partial(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A grandchild that escaped the group still holds the pipe; do not hang."""
+        proc = _TimedOutPopen(b"seen", b"seen-err", drained=None)
+        monkeypatch.setattr(subprocess, "Popen", _fake_popen(proc))
+        exit_code, stdout, stderr = _run_subprocess(["fake"], timeout=6)
+        assert exit_code == -1
+        assert stdout == "seen"
+        assert stderr == "seen-err\nCommand timed out after 6s"
+
+    def test_non_posix_host_kills_the_direct_child_only(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        proc = _TimedOutPopen(None, None)
+        monkeypatch.setattr(subprocess_runner, "_SUPPORTS_PGROUP", False)
+        monkeypatch.setattr(subprocess, "Popen", _fake_popen(proc))
+        exit_code, _stdout, stderr = _run_subprocess(["fake"], timeout=7)
+        assert exit_code == -1
+        assert proc.killed is True
+        assert stderr == "Command timed out after 7s"
+
+    def test_interrupt_kills_the_group_and_propagates(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        killed: list[int] = []
+
+        class _Interrupted(_TimedOutPopen):
+            def communicate(self, timeout: float | None = None) -> tuple[str, str]:
+                raise KeyboardInterrupt
+
+        monkeypatch.setattr(subprocess_runner, "_killpg_safe", killed.append)
+        monkeypatch.setattr(subprocess, "Popen", _fake_popen(_Interrupted(None, None)))
+        with pytest.raises(KeyboardInterrupt):
+            _run_subprocess(["fake"], timeout=1)
+        assert killed == [0]
+
+
+# ---------------------------------------------------------------------------
+# _run_subprocess: the whole process group dies on timeout (issue #6412)
+# ---------------------------------------------------------------------------
+
+_POSIX_ONLY = pytest.mark.skipif(not hasattr(os, "killpg"), reason="process groups are POSIX-only")
+
+# Spawns a grandchild that sleeps, records its pid, flushes a marker, then sleeps
+# itself. ``{extra}`` lets a test change how the grandchild is launched.
+_GRANDCHILD_PARENT = (
+    "import subprocess, sys, time;"
+    "g = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)']{extra});"
+    "open(sys.argv[1], 'w').write(str(g.pid));"
+    "sys.stdout.write('PARENT-READY');sys.stdout.flush();"
+    "time.sleep(60)"
+)
+
+
+def _alive(pid: int) -> bool:
+    """True when ``pid`` is a running process; a zombie awaiting reaping is dead."""
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    try:
+        state = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8").rsplit(")", 1)[1].split()[0]
+    except (OSError, IndexError):
+        return True
+    return state != "Z"
+
+
+def _wait_dead(pid: int, seconds: float = 5.0) -> bool:
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        if not _alive(pid):
+            return True
+        time.sleep(0.05)
+    return not _alive(pid)
+
+
+def _read_pid(pid_file: Path) -> int:
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        text = pid_file.read_text(encoding="utf-8") if pid_file.exists() else ""
+        if text:
+            return int(text)
+        time.sleep(0.05)
+    raise AssertionError("grandchild pid file was never written")
+
+
+@_POSIX_ONLY
+class TestRunSubprocessTimeoutKillsProcessGroup:
+    def test_grandchild_does_not_outlive_the_timeout(self, tmp_path: Path) -> None:
+        pid_file = tmp_path / "grandchild.pid"
+        body = _GRANDCHILD_PARENT.format(extra="")
+        grandchild = 0
+        try:
+            exit_code, stdout, stderr = _run_subprocess(
+                [sys.executable, "-c", body, str(pid_file)], timeout=_TIMEOUT_SECONDS
+            )
+            grandchild = _read_pid(pid_file)
+            survived = not _wait_dead(grandchild)
+        finally:
+            if grandchild and _alive(grandchild):
+                os.kill(grandchild, 9)
+
+        assert exit_code == -1
+        assert "PARENT-READY" in stdout, "partial output contract (#4955) must hold"
+        assert f"Command timed out after {_TIMEOUT_SECONDS}s" in stderr
+        assert survived is False, f"grandchild {grandchild} outlived the timed-out gate"
+
+    def test_timeout_returns_promptly_when_a_grandchild_holds_the_pipe(
+        self, tmp_path: Path
+    ) -> None:
+        """The read after the kill must not wait for the grandchild's 60s sleep."""
+        pid_file = tmp_path / "grandchild.pid"
+        body = _GRANDCHILD_PARENT.format(extra="")
+        started = time.monotonic()
+        try:
+            _run_subprocess([sys.executable, "-c", body, str(pid_file)], timeout=_TIMEOUT_SECONDS)
+        finally:
+            grandchild = _read_pid(pid_file)
+            if _alive(grandchild):
+                os.kill(grandchild, 9)
+        assert time.monotonic() - started < 20
+
+    def test_grandchild_that_escaped_the_group_cannot_hang_the_gate(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A grandchild in its own session survives killpg and keeps the pipe open."""
+        monkeypatch.setattr(subprocess_runner, "_DRAIN_TIMEOUT", 1)
+        pid_file = tmp_path / "grandchild.pid"
+        body = _GRANDCHILD_PARENT.format(extra=", start_new_session=True")
+        started = time.monotonic()
+        grandchild = 0
+        try:
+            exit_code, stdout, stderr = _run_subprocess(
+                [sys.executable, "-c", body, str(pid_file)], timeout=_TIMEOUT_SECONDS
+            )
+            grandchild = _read_pid(pid_file)
+        finally:
+            if grandchild and _alive(grandchild):
+                os.kill(grandchild, 9)
+
+        assert time.monotonic() - started < 20
+        assert exit_code == -1
+        assert "PARENT-READY" in stdout
+        assert f"Command timed out after {_TIMEOUT_SECONDS}s" in stderr
+
+    def test_child_runs_in_its_own_session(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        seen: list[object] = []
+        real_popen = subprocess.Popen
+
+        def recording(*args: object, **kwargs: object) -> subprocess.Popen:
+            seen.append(kwargs.get("start_new_session"))
+            return real_popen(*args, **kwargs)  # subprocess-encoding: strict-ok
+
+        monkeypatch.setattr(subprocess, "Popen", recording)
+        _run_subprocess(_child("print('hi')"))
+        assert seen == [True]
+
+    def test_timeout_calls_killpg_safe_with_the_child_pid(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        killed: list[int] = []
+        original = subprocess_runner._killpg_safe
+
+        def recording(pid: int) -> None:
+            killed.append(pid)
+            original(pid)
+
+        monkeypatch.setattr(subprocess_runner, "_killpg_safe", recording)
+        _run_subprocess(_child(f"import time; time.sleep({_CHILD_SLEEP})"), timeout=1)
+        assert len(killed) == 1 and killed[0] > 0
+
+    def test_normal_exit_does_not_signal_any_group(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        killed: list[int] = []
+        monkeypatch.setattr(subprocess_runner, "_killpg_safe", killed.append)
+        exit_code, stdout, _stderr = _run_subprocess(_child("print('fast')"))
+        assert (exit_code, stdout.strip(), killed) == (0, "fast", [])
+
+    def test_nonzero_exit_code_is_preserved(self) -> None:
+        exit_code, _stdout, _stderr = _run_subprocess(_child("import sys; sys.exit(7)"))
+        assert exit_code == 7
+
+
+class TestKillpgSafe:
+    @_POSIX_ONLY
+    def test_signal_failures_are_swallowed(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A group that vanished between getpgid and killpg raises; do not propagate."""
+        signals: list[int] = []
+
+        def vanished(_pgid: int, sig: int) -> None:
+            signals.append(sig)
+            raise ProcessLookupError
+
+        monkeypatch.setattr(os, "getpgid", lambda pid: 0 if pid == 0 else 4242)
+        monkeypatch.setattr(os, "killpg", vanished)
+        subprocess_runner._killpg_safe(1)
+        assert signals == [signal.SIGTERM, signal.SIGKILL], "both signals are still attempted"
+
+    @_POSIX_ONLY
+    def test_never_signals_the_callers_own_group(self) -> None:
+        subprocess_runner._killpg_safe(os.getpid())  # must not raise or kill this process
+
+    @_POSIX_ONLY
+    def test_reaped_pid_is_ignored(self) -> None:
+        proc = subprocess.Popen([sys.executable, "-c", "pass"])  # subprocess-encoding: strict-ok
+        proc.wait()
+        subprocess_runner._killpg_safe(proc.pid)  # must not raise

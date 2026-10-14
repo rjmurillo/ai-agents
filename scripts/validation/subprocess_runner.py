@@ -9,11 +9,17 @@ diagnostic that explained where the child stopped.
 
 ``checks_common`` re-exports :func:`_run_subprocess`, so every existing
 ``from checks_common import _run_subprocess`` keeps resolving.
+
+On timeout the whole process group dies, not only the direct child (issue
+#6412). ``subprocess.run(timeout=)`` kills just the direct child, so a
+``gh act`` grandchild kept its ports bound after the gate that started it had
+already failed.
 """
 
 from __future__ import annotations
 
 import os
+import signal
 import subprocess
 from pathlib import Path
 
@@ -30,6 +36,15 @@ from scripts.validation.evidence import (
 # one of its own: a timeout or a missing executable. Any other non-zero value
 # came from the child itself.
 _SENTINEL_EXIT = -1
+
+# True where ``os.killpg`` exists. Where it does not (Windows), the child gets
+# no session of its own and a timeout kills the direct child only.
+_SUPPORTS_PGROUP = hasattr(os, "killpg")
+
+# Seconds to wait for the pipes to close after the kill. A grandchild that
+# started its own session survives the group kill and keeps the pipe open, so
+# an unbounded read would hang the gate this wrapper exists to bound.
+_DRAIN_TIMEOUT = 5
 
 
 def _decode_stream(data: bytes | str | None) -> str:
@@ -49,6 +64,83 @@ def _decode_stream(data: bytes | str | None) -> str:
     return data
 
 
+def _killpg_safe(pid: int) -> None:
+    """Send SIGTERM then SIGKILL to the process group containing ``pid``.
+
+    Guards against signalling the caller's own group, which is what a child
+    that never reached ``setsid`` still belongs to. A reaped pid is ignored.
+    """
+    try:
+        pgid = os.getpgid(pid)
+    except OSError:
+        return
+    if pgid == os.getpgid(0):
+        return
+    for sig in (signal.SIGTERM, signal.SIGKILL):
+        try:
+            os.killpg(pgid, sig)
+        except OSError:
+            pass
+
+
+def _terminate(proc: subprocess.Popen[str]) -> None:
+    """Kill the child's process group, or the child alone where groups are absent."""
+    if _SUPPORTS_PGROUP:
+        _killpg_safe(proc.pid)
+    else:
+        proc.kill()
+
+
+def _reap_timed_out(
+    proc: subprocess.Popen[str], timed_out: subprocess.TimeoutExpired
+) -> tuple[str, str]:
+    """Kill a timed-out child's tree and return the stdout and stderr it wrote.
+
+    The post-kill read holds everything the child flushed, including what the
+    first ``communicate`` already consumed. If a grandchild outside the group
+    keeps the pipe open the read times out too, and the partial output from
+    that attempt (or from the first) is returned instead of blocking.
+    """
+    _terminate(proc)
+    try:
+        drained_out, drained_err = proc.communicate(timeout=_DRAIN_TIMEOUT)
+    except subprocess.TimeoutExpired as still_open:
+        drained_out, drained_err = still_open.stdout, still_open.stderr
+    stdout = _decode_stream(drained_out) or _decode_stream(timed_out.stdout)
+    stderr = _decode_stream(drained_err) or _decode_stream(timed_out.stderr)
+    return stdout, stderr
+
+
+def _run_in_group(
+    command: list[str],
+    timeout: int,
+    cwd: Path | str | None,
+    env: dict[str, str] | None,
+) -> tuple[int, str, str]:
+    """Run ``command`` in its own session so a timeout can kill its whole tree."""
+    with subprocess.Popen(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        encoding="utf-8",
+        errors="replace",
+        cwd=cwd,
+        env=env,
+        start_new_session=_SUPPORTS_PGROUP,
+    ) as proc:
+        try:
+            stdout, stderr = proc.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired as timed_out:
+            partial_stdout, partial_stderr = _reap_timed_out(proc, timed_out)
+            marker = f"Command timed out after {timeout}s"
+            combined = f"{partial_stderr}\n{marker}" if partial_stderr else marker
+            return _SENTINEL_EXIT, partial_stdout, combined
+        except BaseException:
+            _terminate(proc)
+            raise
+    return proc.returncode, stdout, stderr
+
+
 def _run_subprocess(
     args: list[str],
     timeout: int = 300,
@@ -61,33 +153,19 @@ def _run_subprocess(
     callers that only want to add a variable should merge it with
     ``os.environ`` themselves before passing it in.
 
-    On ``subprocess.TimeoutExpired`` the partial stdout and stderr the child
-    flushed before the timeout are preserved (issue #4955) instead of being
-    discarded. The timeout stays a failure: the exit code is ``-1`` and the
-    ``Command timed out after Ns`` marker stays in the returned stderr, after
-    any partial stderr the child produced.
+    On a timeout the child's whole process group is killed, so a grandchild
+    such as the ``gh-act`` artifact server does not survive to hold its ports
+    (issue #6412). The partial stdout and stderr the child flushed before the
+    timeout are preserved (issue #4955) instead of being discarded. The timeout
+    stays a failure: the exit code is ``-1`` and the ``Command timed out after
+    Ns`` marker stays in the returned stderr, after any partial stderr the
+    child produced.
     """
     try:
         executable = args[0] if os.path.dirname(args[0]) else resolve_executable(args[0], env=env)
-        command = [executable, *args[1:]]
-        result = subprocess.run(
-            command,
-            capture_output=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=timeout,
-            cwd=cwd,
-            env=env,
-        )
-        return result.returncode, result.stdout, result.stderr
+        return _run_in_group([executable, *args[1:]], timeout, cwd, env)
     except FileNotFoundError:
         return -1, "", f"Command not found: {args[0]}"
-    except subprocess.TimeoutExpired as exc:
-        partial_stdout = _decode_stream(exc.stdout)
-        partial_stderr = _decode_stream(exc.stderr)
-        marker = f"Command timed out after {timeout}s"
-        combined_stderr = f"{partial_stderr}\n{marker}" if partial_stderr else marker
-        return -1, partial_stdout, combined_stderr
 
 
 def classify_subprocess_failure(exit_code: int, stderr: str, *, default: str) -> str:
