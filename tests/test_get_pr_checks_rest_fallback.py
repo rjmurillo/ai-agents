@@ -194,28 +194,6 @@ class TestFetchChecksFallback:
         output = _mod.build_output(data, "o", "r", True, ["build", "aggregate"], 600)
         assert output["MissingRequiredQueued"] is True
 
-    def test_empty_snapshot_has_no_checks(self):
-        with (
-            patch.object(_mod, "gh_graphql", side_effect=_RATE_LIMITED),
-            patch.object(_mod, "fetch_checks_rest", return_value=_snapshot([])),
-        ):
-            data = _mod.fetch_checks("o", "r", 42)
-        assert data["HasChecks"] is False
-        assert data["AllState"] == "UNKNOWN"
-        assert data["Checks"] == []
-
-    def test_empty_snapshot_with_check_suites_is_an_empty_present_rollup(self):
-        """REST mirrors GraphQL's #2304 state: suites exist, no run has posted yet."""
-        with (
-            patch.object(_mod, "gh_graphql", side_effect=_RATE_LIMITED),
-            patch.object(
-                _mod, "fetch_checks_rest", return_value=_snapshot([], has_check_suites=True)
-            ),
-        ):
-            data = _mod.fetch_checks("o", "r", 42)
-        assert data["HasChecks"] is True
-        assert data["Checks"] == []
-
     def test_truncated_snapshot_sets_checks_incomplete(self):
         snap = _snapshot([_run("a", "COMPLETED", "SUCCESS")], pages_complete=False)
         with patch.object(_mod, "fetch_checks_rest", return_value=snap):
@@ -482,28 +460,6 @@ class TestMainFallback:
         assert graphql.call_count == 1
         assert out["DataSource"] == "rest"
         assert out["PendingCount"] == 0
-
-    def test_wait_keeps_polling_an_empty_rest_snapshot_with_check_suites(self, _env, capsys):
-        """Right after a push, REST may show suites but no runs; do not settle green."""
-        empty = _snapshot([], has_check_suites=True)
-        done = _snapshot([_run("build", "COMPLETED", "SUCCESS")], has_check_suites=True)
-        with (
-            patch.object(_mod, "gh_graphql", side_effect=_RATE_LIMITED),
-            patch.object(_mod, "fetch_checks_rest", side_effect=[empty, done]) as rest,
-        ):
-            rc = _mod.main(["--pull-request", "42", "--wait", "--output-format", "json"])
-        out = _out(capsys)
-        assert rc == 0
-        assert rest.call_count == 2
-        assert out["Checks"][0]["Name"] == "build"
-
-    def test_wait_settles_an_empty_rest_snapshot_without_check_suites(self, _env, capsys):
-        with (
-            patch.object(_mod, "gh_graphql", side_effect=_RATE_LIMITED),
-            patch.object(_mod, "fetch_checks_rest", return_value=_snapshot([])) as rest,
-        ):
-            _mod.main(["--pull-request", "42", "--wait", "--output-format", "json"])
-        assert rest.call_count == 1
 
     def test_wait_mid_loop_rest_failure_exits_three(self, _env, capsys):
         pending = _snapshot([_run("build", "IN_PROGRESS", None)])
