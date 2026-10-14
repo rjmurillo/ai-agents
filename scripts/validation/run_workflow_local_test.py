@@ -342,7 +342,9 @@ def _terminate(proc: subprocess.Popen[str]) -> None:
     standalone with only ``scripts/validation`` on ``sys.path``, so it cannot
     import the ``scripts`` package.
     """
-    if not hasattr(os, "killpg"):
+    # mypy reads the sys.platform check, not the hasattr guard. Windows has no
+    # os.getpgid, os.killpg or signal.SIGKILL.
+    if sys.platform == "win32" or not hasattr(os, "killpg"):
         proc.kill()
         return
     try:
@@ -367,6 +369,8 @@ def _terminate(proc: subprocess.Popen[str]) -> None:
 
 def _signal_group(pgid: int, sig: int) -> None:
     """Send ``sig`` to ``pgid``. A group that is already gone is ignored."""
+    if sys.platform == "win32":
+        return
     try:
         os.killpg(pgid, sig)
     except OSError:

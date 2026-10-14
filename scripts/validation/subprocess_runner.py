@@ -30,6 +30,7 @@ import contextlib
 import os
 import signal
 import subprocess
+import sys
 import threading
 from collections.abc import Iterator
 from pathlib import Path
@@ -94,7 +95,14 @@ class _Child(Protocol):
 
 
 def _signal_group(pgid: int, sig: int) -> None:
-    """Send ``sig`` to process group ``pgid``. A group that is already gone is ignored."""
+    """Send ``sig`` to process group ``pgid``. A group that is already gone is ignored.
+
+    The ``sys.platform`` checks in this module exist for mypy: it cannot read a
+    ``hasattr`` guard, and ``os.killpg``, ``os.getpgid`` and ``signal.SIGKILL``
+    are absent on Windows.
+    """
+    if sys.platform == "win32":
+        return
     try:
         os.killpg(pgid, sig)
     except OSError:
@@ -107,6 +115,8 @@ def _own_group(pid: int) -> int | None:
     A reaped pid has no group. The caller's own group is excluded too, because
     that is where a child that never reached ``setsid`` still lives.
     """
+    if sys.platform == "win32":
+        return None
     try:
         pgid = os.getpgid(pid)
     except OSError:
@@ -122,7 +132,7 @@ def _terminate(proc: _Child) -> None:
     to stop a ``gh act`` it started in a session of its own, which a group kill
     from here cannot reach (issue #6412). SIGKILL then ends whatever is left.
     """
-    if not _SUPPORTS_PGROUP:
+    if sys.platform == "win32" or not _SUPPORTS_PGROUP:
         proc.kill()
         return
     pgid = _own_group(proc.pid)
