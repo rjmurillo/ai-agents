@@ -203,7 +203,7 @@ scripts and `github_core` import with the anthropic SDK blocked.
 | `reopen_pr.py` | Reopen a closed PR (merged is exit 1) | `--pull-request`, `--comment` |
 | `merge_pr.py` | Merge pinned to the reviewed head, then read back and audited (ADR-112) | `--pull-request`, `--expected-head-sha`, `--strategy`, `--delete-branch`, `--auto` |
 | `audit_closing_claims.py` | Fleet audit of open-PR closing claims: extracts closing keywords from PR bodies, commit messages, and auto-merge overrides; classifies body (Markdown) and commit/override (plain-text) context; flags a claim unsupported when it can reach the squash commit without a matching active body claim (exit 1). Needs a token with administration read (GitHub hides `squash_merge_commit_message` otherwise); without it the audit exits 3 instead of reporting a clean fleet | `--state open`, `--artifact`, `--resume-from`, `--output-format {json,human,auto}` |
-| `edit_pr_body.py` | Edit a PR body with a SHA-256 stale-write guard | `--pull-request`, `--body`/`--body-file`, `--expected-hash`, `--dry-run` |
+| `edit_pr_body.py` | PR body edit, SHA-256 guard; prepared `--body-file` | `--pull-request`, `--body`/`--body-file`, `--expected-hash`, `--dry-run` |
 
 ### Issue Operations (`scripts/issue/`)
 
@@ -303,14 +303,13 @@ Exit codes follow ADR-035: 0=success, 1=logic error, 2=config error, 3=external 
 
 ## Process
 
-This skill provides a toolkit of Python scripts for GitHub operations. Use scripts directly or compose them into workflows.
-
 **Basic Usage:**
 
 1. Identify the operation needed using the Decision Tree
 2. Find the corresponding script in the Script Reference
 3. Call the script with required parameters
 4. Parse the JSON output
+5. Reading an issue or PR: read the full discussion, open every linked item, recurse until no new links
 
 **Example Flow:**
 
@@ -412,12 +411,14 @@ that carries a secret, because it publishes the body unchanged.
 `--source human` also appends `<!-- source:human -->` as the last body line. The
 script rejects that marker in any other body.
 
-The script's check covers this script only. The GitHub MCP `issue_write` tool,
-raw `gh issue create`, and workflow steps that call the API bypass it. The
-`Label Issue Source` workflow labels those issues after they open: bots and
+Ground repo-state issues first: [guide](references/revision-grounding.md).
+
+The GitHub MCP `issue_write` tool, raw `gh issue create`, and workflow steps
+that call the API bypass this script's check. The
+`Label Issue Source` workflow labels those issues: bots and
 owner-login issues without a trailing human marker get `source:agent`, a burst
 of owner issues within ten minutes forces `source:agent`, and every other
-author gets `source:human`. It labels only. It does not close or block.
+author gets `source:human`. It only labels.
 
 ---
 

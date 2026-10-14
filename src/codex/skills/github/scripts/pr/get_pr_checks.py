@@ -58,6 +58,7 @@ from github_core.checks_rollup import (
     missing_checks_queued,
     partition_rows_by_run,
 )
+from github_core.not_found import is_pr_not_found
 from github_core.output import (
     add_output_format_arg,
     get_output_format,
@@ -498,7 +499,7 @@ def fetch_checks(
         )
     except RuntimeError as exc:
         msg = str(exc)
-        if "Could not resolve" in msg or "not found" in msg:
+        if is_pr_not_found(msg):
             return {"Error": "NotFound", "Message": f"PR #{pr_number} not found in {owner}/{repo}"}
         return {"Error": "ApiError", "Message": f"GraphQL query failed: {msg}"}
 
