@@ -349,13 +349,17 @@ def _translate_invocations(body: str, plugin_name: str) -> str:
 
     A call already wrapped in backticks (`` `Skill(skill="X")` ``) has those
     wrapping backticks absorbed, so the result is a single clean code span.
+    A balanced call that cannot be rendered is left as written, nested calls
+    included. An unbalanced call has no known end, so scanning resumes after
+    its opening paren.
     """
     out: list[str] = []
     cursor = 0
+    resume = 0
     length = len(body)
     for match in _CALL_START_RE.finditer(body):
         call_start = match.start()
-        if call_start < cursor:
+        if call_start < resume:
             continue
         open_index = match.end() - 1
         close_index = _find_matching_paren(body, open_index)
@@ -365,6 +369,7 @@ def _translate_invocations(body: str, plugin_name: str) -> str:
             match.group(1), body[open_index + 1 : close_index], plugin_name
         )
         if rendered is None:
+            resume = close_index + 1
             continue
         call_end = close_index + 1
         if (
@@ -378,7 +383,7 @@ def _translate_invocations(body: str, plugin_name: str) -> str:
             call_end += 1
         out.append(body[cursor:call_start])
         out.append(rendered)
-        cursor = call_end
+        cursor = resume = call_end
     out.append(body[cursor:])
     return "".join(out)
 

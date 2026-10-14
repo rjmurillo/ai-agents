@@ -116,6 +116,26 @@ def test_skill_call_with_triple_quoted_argument_is_left_alone() -> None:
     assert translate_body(source, _OUT) == source
 
 
+def test_call_nested_in_untranslated_skill_block_is_left_alone() -> None:
+    source = (
+        'Skill(skill="memory", args="""\n'
+        'Then run Task(subagent_type="critic", prompt="check it").\n'
+        '""")\n'
+    )
+    assert translate_body(source, _OUT) == source
+
+
+def test_call_nested_in_block_without_subagent_type_is_left_alone() -> None:
+    source = 'Task(prompt="""\nVerify with Skill(skill="reviewer-findings") first.\n""")\n'
+    assert translate_body(source, _OUT) == source
+
+
+def test_call_after_untranslated_call_is_still_translated() -> None:
+    source = 'Task(prompt="""\nbody\n""")\nThen Skill(skill="memory").\n'
+    translated = translate_body(source, _OUT)
+    assert translated == 'Task(prompt="""\nbody\n""")\nThen `skill: "memory"`.\n'
+
+
 def test_unterminated_triple_quote_is_left_alone() -> None:
     source = 'Task(subagent_type="critic", prompt="""\nnever closed\n'
     assert translate_body(source, _OUT) == source
