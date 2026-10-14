@@ -470,6 +470,28 @@ class TestMain:
                         main(["--pull-request", "999"])
         assert exc.value.code == 2
 
+    @pytest.mark.parametrize(
+        ("message", "expected"),
+        [
+            ("GraphQL: Could not resolve to a PullRequest with the number of 999.", 2),
+            ("Could not resolve host: api.github.com", 3),
+            ("network timeout", 3),
+        ],
+    )
+    def test_graphql_error_exit_codes(self, message, expected):
+        with patch("check_pr_live_state.assert_gh_authenticated"):
+            with patch(
+                "check_pr_live_state.resolve_repo_params",
+                return_value=_mod.RepoInfo(owner="o", repo="r"),
+            ):
+                with patch(
+                    "check_pr_live_state.gh_graphql",
+                    side_effect=RuntimeError(message),
+                ):
+                    with pytest.raises(SystemExit) as exc:
+                        main(["--pull-request", "999"])
+        assert exc.value.code == expected
+
     def test_open_pr_not_superseded_exits_0(self, capsys):
         pr = {
             "number": 2409,
