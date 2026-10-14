@@ -230,6 +230,71 @@ class TestGithubNeverRoutesToAdoValidator:
         assert "invoker: ship" not in routing
         assert "ship invokes pipeline-validator" not in routing
 
+    def test_validator_text_does_not_claim_automatic_invocation(self) -> None:
+        """Explicit-only routing must not sit beside text that says it auto-runs.
+
+        Agent runtimes read the frontmatter `description` to decide when to invoke a
+        skill, so a stale "invoked automatically" there brings the #6577 misroute back.
+        """
+        text = VALIDATOR_TEMPLATE_PATH.read_text(encoding="utf-8").lower()
+        for stale in ("invoked automatically", "automatically invoked", "called automatically"):
+            assert stale not in text, f"pipeline-validator still says {stale!r}"
+
+    def test_validator_description_scopes_to_azure_devops(self) -> None:
+        frontmatter = _FRONTMATTER_RE.match(VALIDATOR_TEMPLATE_PATH.read_text(encoding="utf-8"))
+        assert frontmatter is not None
+        description = next(
+            line for line in frontmatter.group(0).splitlines() if line.startswith("description:")
+        )
+        assert "Invoke explicitly" in description
+        assert "not for GitHub PRs" in description
+
+    def test_validator_integration_table_names_only_real_skills(self) -> None:
+        """Every skill the validator lists as a caller must exist as a template."""
+        table = section(
+            VALIDATOR_TEMPLATE_PATH.read_text(encoding="utf-8"), "Integration with Other Skills"
+        )
+        callers = re.findall(r"^\| `(?P<name>[a-z0-9-]+)` \|", table, re.MULTILINE)
+        assert callers, "integration table lists no callers"
+        templates = REPO_ROOT / "templates" / "skills"
+        missing = [c for c in callers if not (templates / f"{c}.SKILL.md.tmpl").exists()]
+        assert missing == []
+
+    def test_anti_pattern_row_covers_ship_on_every_host(self, ship_text: str) -> None:
+        rows = [
+            line
+            for line in section(ship_text, "Anti-Patterns").splitlines()
+            if line.startswith("| Invoking pipeline-validator")
+        ]
+        assert len(rows) == 1
+        assert rows[0].startswith("| Invoking pipeline-validator from ship |")
+        assert "#6577" in rows[0]
+        assert "ADO" in rows[0]
+
+
+class TestCheckStatusWaitTimeout:
+    """`get_pr_checks.py --wait` exits 7 while checks are still pending; that is not FAIL."""
+
+    def test_open_pr_bullet_reruns_on_exit_7(self, pipeline_item: str) -> None:
+        with_pr = [b for b in host_bullets(pipeline_item) if "`pr=#<number>`" in b]
+        assert len(with_pr) == 1
+        assert "exit code 7" in with_pr[0].lower()
+        assert "re-run the same command" in with_pr[0]
+        assert "570" in with_pr[0]
+
+    def test_discharge_reruns_on_exit_7(self, ship_text: str) -> None:
+        discharge = numbered_item(section(ship_text, "Process"), "Discharge a deferred")
+        assert "exit code 7" in discharge.lower()
+        assert "re-run the same command" in discharge
+
+    def test_discharge_command_sits_beside_the_github_flow(self, ship_text: str) -> None:
+        """The command must read as the GitHub flow, not as part of pipeline-validator."""
+        discharge = numbered_item(section(ship_text, "Process"), "Discharge a deferred")
+        command = discharge.find("get_pr_checks.py")
+        validator = discharge.find("pipeline-validator")
+        assert command != -1 and validator != -1
+        assert command < validator
+
 
 class TestProcessDischargesTheDeferral:
     def test_process_discharges_deferral_after_push_pr(self, ship_text: str) -> None:
