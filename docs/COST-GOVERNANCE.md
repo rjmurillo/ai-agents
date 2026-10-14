@@ -172,7 +172,7 @@ If monthly costs exceed $100:
 
 ### Agent Workflows (Approval-Gated, Advisory Except plugin-cli-smoke)
 
-These eleven workflows run a model or an agent. Each model job declares the environment of its provider and runs after a reviewer approves it (ADR-114). Checks from workflows listed as advisory never block merge unless the branch ruleset requires them (ADR-114 Decisions 5 and 7).
+These twelve workflows run a model or an agent. Each model job declares the environment of its provider and runs after a reviewer approves it (ADR-114). Checks from workflows listed as advisory never block merge unless the branch ruleset requires them (ADR-114 Decisions 5 and 7).
 
 | Environment | Provider | Secrets |
 |-------------|----------|---------|
@@ -190,6 +190,7 @@ All four require a reviewer. `agent-approval` is deleted (ADR-114 Decision 11 it
 - ai-metrics-analysis
 - pr-maintenance
 - artifact-insight-scanner
+- autoplan-route-eval
 - skill-overlap-eval
 - plugin-cli-smoke
 - copilot-context-synthesis

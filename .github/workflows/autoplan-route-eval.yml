@@ -1,0 +1,89 @@
+# Scheduled full autoplan route suite (issue #6291, part 3 of #5389).
+#
+# Runs every model-driven scenario in tests/evals/skill-scenarios/autoplan.json
+# against a live model, then reports per-family accuracy with
+# scripts/eval/eval_autoplan_routes.py. A model miss is advisory: the report
+# shows it, and the run fails only when no results exist (an API, auth, or
+# config failure). The pull-request side is the route-change gate and the
+# deterministic subset in validate-rule-activation-coverage.yml.
+#
+# No logic in YAML (ADR-006): every decision is made by a checked-in script.
+
+name: Autoplan Route Eval
+
+on:
+  schedule:
+    - cron: "15 6 * * 2"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: autoplan-route-eval
+  cancel-in-progress: false
+
+jobs:
+  full-suite:
+    name: Run the full autoplan route suite
+    # Owner: agent-qa. Cadence: weekly Tuesday 06:15 UTC.
+    runs-on: ubuntu-26.04-arm
+    environment: agent-claude
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
+        with:
+          enable-cache: true
+
+      - name: Run the model scenarios
+        id: live-eval
+        continue-on-error: true
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: >-
+          uv run --frozen python scripts/eval/eval-rule-activation.py
+          --scenarios tests/evals/skill-scenarios/autoplan.json
+          --output autoplan-model-results.json
+
+      - name: Report per-family accuracy
+        if: always() && hashFiles('autoplan-model-results.json') != ''
+        run: >-
+          uv run --frozen python scripts/eval/eval_autoplan_routes.py
+          --model-results autoplan-model-results.json
+          --output autoplan-route-report.json
+          > autoplan-route-report.txt
+
+      - name: Publish the report to the job summary
+        if: always() && hashFiles('autoplan-route-report.txt') != ''
+        run: |
+          {
+            echo '## Autoplan route accuracy per family'
+            echo '```'
+            cat autoplan-route-report.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: autoplan-route-eval-${{ github.run_id }}
+          path: |
+            autoplan-model-results.json
+            autoplan-route-report.json
+            autoplan-route-report.txt
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Fail when the live run produced no results
+        if: steps.live-eval.outcome == 'failure' && hashFiles('autoplan-model-results.json') == ''
+        run: |
+          echo "::error::autoplan model scenarios produced no results (API, auth, or config failure)"
+          exit 1

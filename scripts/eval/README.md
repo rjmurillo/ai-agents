@@ -979,7 +979,15 @@ uv run python scripts/eval/eval_autoplan_routes.py --model-results run.json
 
 The runner has no spend cap flag. `--dry-run` prints the call count first, and `--judge-repeats 1` cuts the plan to 72 calls. A scenario passes when its `full` cell score is at least 4.0 on the judge's 1 to 5 rubric (`full` puts the autoplan body in the system prompt, which is how autoplan runs).
 
-Each family reports `scenarios`, `reachable` (every named route is an installed skill or agent), `exercised` (the run has a result), `scored` (the cell was graded), and `passed` apart. Without `--model-results` the accuracy reads `not scored`, never zero. A model miss prints `MODEL-MISS` and does not change the exit code, so CI never gates on a judge. A failed resolver fixture still exits 1. The deterministic tests in `tests/eval/test_eval_autoplan_model_scenarios.py` load and validate the file and call no model. The per-route ratchet is #6291.
+Each family reports `scenarios`, `reachable` (every named route is an installed skill or agent), `exercised` (the run has a result), `scored` (the cell was graded), and `passed` apart. Without `--model-results` the accuracy reads `not scored`, never zero. A model miss prints `MODEL-MISS` and does not change the exit code, so CI never gates on a judge. A failed resolver fixture still exits 1. The deterministic tests in `tests/eval/test_eval_autoplan_model_scenarios.py` load and validate the file and call no model.
+
+### Route-change gate and scheduled run (#6291)
+
+Three pieces close the loop for a changed route:
+
+- `scripts/validation/check_route_scenario_coverage.py` diffs the `Intent | Route` table in `.claude/skills/autoplan/SKILL.md` against the merge base. A row that is new, or whose route text changed, needs a new or edited scenario in `autoplan.json` whose `expected_route` names one of the row's targets. The failure names the route. Exit 1 means a route lacks a scenario, exit 2 means a bad input such as an unresolvable ref or a missing table.
+- `validate-rule-activation-coverage.yml` runs that gate on pull requests, then runs `eval_autoplan_routes.py` without a model as the fast subset. The subset step has a 60 second budget and measures about 2 seconds.
+- `autoplan-route-eval.yml` runs the full model suite weekly and prints per-family accuracy to the job summary. A model miss stays advisory. The run fails only when no results exist.
 
 ## Skill Overlap Eval
 

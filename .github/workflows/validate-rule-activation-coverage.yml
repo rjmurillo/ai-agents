@@ -6,6 +6,13 @@
 # points at a deleted artifact. The ratchet only blocks NEW uncovered drift;
 # baselined debt is allowed until a scenario is added.
 #
+# Route-change gate (issue #6291): on pull requests, a new or changed row in
+# the autoplan `Intent | Route` table must come with an edited scenario in
+# tests/evals/skill-scenarios/autoplan.json. The deterministic autoplan route
+# eval then runs as a fast subset with no model call. Budget: 60 seconds for
+# the subset step (about 2 seconds measured). The full model suite runs on a
+# schedule in autoplan-route-eval.yml.
+#
 # Fail-closed: a missing inventory, an unparseable baseline, or a malformed
 # scenario exits non-zero. An unmeasured artifact must never read as clean.
 #
@@ -52,6 +59,10 @@ jobs:
               - 'tests/evals/skill-scenarios/**'
               - 'scripts/validation/check_rule_activation_coverage.py'
               - 'scripts/validation/report_rule_activation_states.py'
+              - 'scripts/validation/check_route_scenario_coverage.py'
+              - 'scripts/eval/eval_autoplan_routes.py'
+              - 'tests/evals/autoplan-routes/**'
+              - '.claude/skills/autoplan/scripts/**'
               - 'scripts/validation/rule_activation_coverage_baseline.json'
               - '.github/workflows/validate-rule-activation-coverage.yml'
 
@@ -60,16 +71,31 @@ jobs:
     needs: check-changes
     if: needs.check-changes.outputs.should-run-coverage == 'true'
     runs-on: ubuntu-26.04-arm
-    timeout-minutes: 3
+    timeout-minutes: 5
     permissions:
       contents: read
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
 
       - name: Check rule and skill activation coverage ratchet
         run: python3 scripts/validation/check_rule_activation_coverage.py
+
+      - name: Require a scenario for each new or changed autoplan route
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: uv run --frozen python scripts/validation/check_route_scenario_coverage.py --base-ref "origin/$BASE_REF"
+
+      - name: Run the deterministic autoplan route subset (budget 60 seconds)
+        timeout-minutes: 1
+        run: uv run --frozen python scripts/eval/eval_autoplan_routes.py
 
       - name: Report per-artifact evidence states
         run: python3 scripts/validation/report_rule_activation_states.py --output "$RUNNER_TEMP/rule-activation-states.json"
