@@ -215,7 +215,7 @@ validator strips a backticked path that directly follows one, so the path stays
 precise and stays where the prose needs it: `token counts written by the
 updater, see \`scripts/update_memory_index_tokens.py\`.`
 
-`scripts/validation/pr_description.py:205` (`_INLINE_CITATION_PATTERN`) accepts
+`scripts/validation/pr_description.py:206` (`_INLINE_CITATION_PATTERN`) accepts
 `see`, `per`, `e.g.`, `e.g`, `eg.`, `for example`, `as in`, `for instance`,
 `as documented in`, `referenced by`, `defined in`, `introduced in`,
 `reference path`, `cf.`, `compare`, case-insensitively. Note `e.g` without the
@@ -223,9 +223,9 @@ trailing period matches; bare `eg` does not. The cue must sit on the **same
 line** as the path, separated only by spaces, tabs, colons, and opening
 parentheses (`[: \t(]*`). A closing parenthesis between cue and path breaks the
 match. A `:LINE` or `:LINE:COL` suffix inside the backticked span is accepted, so
-a cue before `scripts/foo.py:71` is stripped like the bare path. A cue on the
-previous line does nothing, deliberately: it keeps a citation from suppressing
-the list item under it.
+a cue before `scripts/foo.py:71` is stripped like the path without a suffix. A
+cue on the previous line does nothing, deliberately: it keeps a citation from
+suppressing the list item under it.
 
 Escape hatch of last resort: the `description-validation-bypass` label. It suppresses
 **file-mention** CRITICALs and downgrades the verdict to `BYPASSED`, which is recorded

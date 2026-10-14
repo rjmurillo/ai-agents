@@ -154,7 +154,7 @@
 |stuck subagent SendMessage nudge git checkout stale local branch GH007 private email worktree identity user.email --worktree: [agent-behavior/stuck-subagent-and-worktree-recovery](agent-behavior/stuck-subagent-and-worktree-recovery.md) (205)
 |spec coverage validator verdict differs across reruns adjacent commits PASS WARN FAIL PARTIAL component: [ci/ai-spec-validator-verdicts-flip-flop-across-reruns](ci/ai-spec-validator-verdicts-flip-flop-across-reruns.md) (751)
 |gc_worktrees prune registered worktrees rescue branch admin directory unreachable commits: [workspace/gc-worktrees-report-then-apply](workspace/gc-worktrees-report-then-apply.md) (542)
-|validate PR check red advisory blocking signal DESCRIPTION_RESULT file mentioned not in diff bullet bold rerun stale payload body edit: [ci/ci-validate-pr-is-many-gates-only-some-read-the-body](ci/ci-validate-pr-is-many-gates-only-some-read-the-body.md) (3614)
+|validate PR check red advisory blocking signal DESCRIPTION_RESULT file mentioned not in diff bullet bold rerun stale payload body edit: [ci/ci-validate-pr-is-many-gates-only-some-read-the-body](ci/ci-validate-pr-is-many-gates-only-some-read-the-body.md) (3617)
 |workspace WSL native worktree uv network handshake mutation harness /mnt/c: [workspace/wsl-native-worktree-for-uv-network-access](workspace/wsl-native-worktree-for-uv-network-access.md) (352)
 |linking an issue Closes Fixes Resolves Implements Refs: [ci/ci-linking-an-issue-arms-an-ai-gate-against-your-diff](ci/ci-linking-an-issue-arms-an-ai-gate-against-your-diff.md) (1723)
 |QA report filename issue-N pr-N rename first push glob: [ci/ci-qa-report-may-be-named-for-the-issue-not-the-pr](ci/ci-qa-report-may-be-named-for-the-issue-not-the-pr.md) (1227)
