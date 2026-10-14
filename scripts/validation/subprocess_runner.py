@@ -16,6 +16,8 @@ On timeout the whole process group dies, not only the direct child (issue
 already failed. The group gets SIGTERM, a short grace window, then SIGKILL. A
 descendant that started its own session is outside the group, so the child that
 started it must forward the stop itself (``run_workflow_local_test`` does).
+While a child runs on the main thread, a SIGTERM to this process becomes
+``SystemExit`` so the same cleanup stops the child's group.
 
 Every child runs in a new session, so it has no controlling terminal. A child
 that prompts through ``/dev/tty`` (ssh passphrase, git credential prompt, gpg
@@ -24,9 +26,12 @@ pinentry) fails instead of prompting. The callers here run unattended gates.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import signal
 import subprocess
+import threading
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Protocol
 
@@ -122,13 +127,51 @@ def _terminate(proc: _Child) -> None:
         return
     pgid = _own_group(proc.pid)
     if pgid is None:
+        # No group of its own to signal. Kill the direct child, or the caller's
+        # untimed wait on it never returns. Popen.kill skips a reaped child.
+        proc.kill()
         return
     _signal_group(pgid, signal.SIGTERM)
     try:
         proc.wait(timeout=_TERM_GRACE)
     except subprocess.TimeoutExpired:
         pass
-    _signal_group(pgid, signal.SIGKILL)
+    finally:
+        # Ctrl-C or a forwarded SIGTERM can end the wait early. SIGKILL still
+        # goes out, or a child that ignores SIGTERM keeps running.
+        _signal_group(pgid, signal.SIGKILL)
+
+
+@contextlib.contextmanager
+def _sigterm_raises() -> Iterator[None]:
+    """Turn SIGTERM into ``SystemExit`` while a child runs, then restore the default.
+
+    The child runs in a session of its own, so a SIGTERM aimed at this process,
+    or at its process group, never reaches the child. Under the default action
+    this process would die at once and the child would keep running, holding
+    any ports it bound. ``SystemExit`` unwinds through the ``BaseException``
+    branch of :func:`_run_in_group`, which stops the child's group.
+
+    Only the default action is replaced: a caller that installed its own
+    handler keeps it. ``signal.signal`` works only on the main thread, so a
+    worker thread runs without the handler.
+    """
+    if (
+        not _SUPPORTS_PGROUP
+        or threading.current_thread() is not threading.main_thread()
+        or signal.getsignal(signal.SIGTERM) is not signal.SIG_DFL
+    ):
+        yield
+        return
+
+    def _stop(_signum: int, _frame: object) -> None:
+        raise SystemExit(128 + signal.SIGTERM)
+
+    signal.signal(signal.SIGTERM, _stop)
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGTERM, signal.SIG_DFL)
 
 
 def _reap_timed_out(
@@ -159,16 +202,19 @@ def _run_in_group(
     env: dict[str, str] | None,
 ) -> tuple[int, str, str]:
     """Run ``command`` in its own session so a timeout can kill its whole tree."""
-    with subprocess.Popen(
-        command,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        encoding="utf-8",
-        errors="replace",
-        cwd=cwd,
-        env=env,
-        start_new_session=_SUPPORTS_PGROUP,
-    ) as proc:
+    with (
+        _sigterm_raises(),
+        subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            encoding="utf-8",
+            errors="replace",
+            cwd=cwd,
+            env=env,
+            start_new_session=_SUPPORTS_PGROUP,
+        ) as proc,
+    ):
         try:
             stdout, stderr = proc.communicate(timeout=timeout)
         except subprocess.TimeoutExpired as timed_out:

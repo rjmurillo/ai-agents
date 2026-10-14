@@ -350,13 +350,19 @@ def _terminate(proc: subprocess.Popen[str]) -> None:
     except OSError:
         return
     if pgid == os.getpgid(0):
+        # No group of its own to signal. Kill the direct child, or the untimed
+        # communicate in _run never returns. Popen.kill skips a reaped child.
+        proc.kill()
         return
     _signal_group(pgid, signal.SIGTERM)
     try:
         proc.wait(timeout=_TERM_GRACE)
     except subprocess.TimeoutExpired:
         pass
-    _signal_group(pgid, signal.SIGKILL)
+    finally:
+        # The SIGTERM handler raises SystemExit, which can end the wait early.
+        # SIGKILL still goes out, or a gh act that ignores SIGTERM survives.
+        _signal_group(pgid, signal.SIGKILL)
 
 
 def _signal_group(pgid: int, sig: int) -> None:

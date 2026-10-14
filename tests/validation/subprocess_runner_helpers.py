@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -16,17 +17,40 @@ def child(body: str) -> list[str]:
     return [sys.executable, "-c", body]
 
 
+def _proc_state(pid: int) -> str | None:
+    """Return the state letter from ``/proc/<pid>/stat``, or None where /proc is absent."""
+    try:
+        return Path(f"/proc/{pid}/stat").read_text(encoding="utf-8").rsplit(")", 1)[1].split()[0]
+    except (OSError, IndexError):
+        return None
+
+
+def _ps_state(pid: int) -> str | None:
+    """Return the state ``ps`` reports for ``pid`` (macOS has no /proc), or None."""
+    try:
+        result = subprocess.run(
+            ["ps", "-o", "stat=", "-p", str(pid)],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return result.stdout.strip() or None
+
+
 def alive(pid: int) -> bool:
     """True when ``pid`` is a running process; a zombie awaiting reaping is dead."""
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
         return False
-    try:
-        state = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8").rsplit(")", 1)[1].split()[0]
-    except (OSError, IndexError):
+    state = _proc_state(pid) or _ps_state(pid)
+    if state is None:
         return True
-    return state != "Z"
+    return not state.startswith("Z")
 
 
 def wait_dead(pid: int, seconds: float = 5.0) -> bool:

@@ -12,6 +12,7 @@ import os
 import signal
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -19,6 +20,7 @@ import pytest
 
 from scripts.validation import subprocess_runner
 from scripts.validation.subprocess_runner import _run_subprocess
+from tests.validation import subprocess_runner_helpers
 from tests.validation.subprocess_runner_helpers import (
     POSIX_ONLY,
     alive,
@@ -58,8 +60,34 @@ class TestTerminate:
         assert signals == [signal.SIGTERM, signal.SIGKILL], "both signals are still attempted"
 
     @POSIX_ONLY
-    def test_never_signals_the_callers_own_group(self) -> None:
-        subprocess_runner._terminate(_FakeLeader(pid=os.getpid()))  # must not raise
+    def test_a_child_in_the_callers_group_is_killed_alone(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """No group to signal still means the direct child dies, or the gate hangs."""
+        signals: list[int] = []
+        monkeypatch.setattr(os, "killpg", lambda _pgid, sig: signals.append(sig))
+        leader = _FakeLeader(pid=os.getpid())
+        subprocess_runner._terminate(leader)
+        assert signals == [], "the caller's own group must never be signalled"
+        assert leader.killed is True
+
+    @POSIX_ONLY
+    @pytest.mark.parametrize("interrupt", [KeyboardInterrupt, SystemExit])
+    def test_sigkill_follows_an_interrupted_grace_wait(
+        self, monkeypatch: pytest.MonkeyPatch, interrupt: type[BaseException]
+    ) -> None:
+        """Ctrl-C or a forwarded SIGTERM during the wait must not skip SIGKILL."""
+        signals: list[int] = []
+
+        class _Interrupted(_FakeLeader):
+            def wait(self, timeout: float | None = None) -> int:
+                raise interrupt
+
+        monkeypatch.setattr(os, "getpgid", lambda pid: 0 if pid == 0 else 4242)
+        monkeypatch.setattr(os, "killpg", lambda _pgid, sig: signals.append(sig))
+        with pytest.raises(interrupt):
+            subprocess_runner._terminate(_Interrupted(pid=1))
+        assert signals == [signal.SIGTERM, signal.SIGKILL]
 
     @POSIX_ONLY
     def test_reaped_pid_is_ignored(self) -> None:
@@ -202,3 +230,94 @@ def test_outer_grace_outlasts_the_wrapper_grace() -> None:
     finally:
         sys.path.remove(validation_dir)
     assert subprocess_runner._TERM_GRACE >= wrapper._TERM_GRACE + 1.0
+
+
+# A caller of ``_run_subprocess`` that is itself stopped with SIGTERM. Its child
+# runs in a session of its own, so a signal aimed at the caller (or the caller's
+# group) never reaches the child unless the wrapper forwards it.
+_SIGTERMED_CALLER = """
+import sys
+sys.path.insert(0, sys.argv[1])
+from scripts.validation.subprocess_runner import _run_subprocess
+_run_subprocess([sys.executable, "-c", sys.argv[3], sys.argv[2]], timeout=60)
+"""
+
+
+@POSIX_ONLY
+class TestCallerStoppedWithSigterm:
+    def test_child_dies_when_the_caller_gets_sigterm(self, tmp_path: Path) -> None:
+        repo_root = str(Path(subprocess_runner.__file__).resolve().parents[2])
+        pid_file = tmp_path / "child.pid"
+        script = tmp_path / "caller.py"
+        script.write_text(_SIGTERMED_CALLER, encoding="utf-8")
+        caller = subprocess.Popen(  # subprocess-encoding: strict-ok
+            [sys.executable, str(script), repo_root, str(pid_file), _GH_ACT_STAND_IN]
+        )
+        grandchild = 0
+        try:
+            grandchild = read_pid(pid_file)
+            caller.send_signal(signal.SIGTERM)
+            caller_code = caller.wait(timeout=15)
+            survived = not wait_dead(grandchild)
+        finally:
+            if caller.poll() is None:
+                caller.kill()
+            if grandchild and alive(grandchild):
+                os.kill(grandchild, 9)
+        assert caller_code == 128 + signal.SIGTERM
+        assert survived is False, f"child {grandchild} outlived its SIGTERMed caller"
+
+    def test_a_handler_the_caller_installed_is_kept(self) -> None:
+        def mine(_signum: int, _frame: object) -> None:
+            return None
+
+        previous = signal.signal(signal.SIGTERM, mine)
+        try:
+            exit_code, _out, _err = _run_subprocess([sys.executable, "-c", "pass"], timeout=10)
+            assert signal.getsignal(signal.SIGTERM) is mine
+        finally:
+            signal.signal(signal.SIGTERM, previous)
+        assert exit_code == 0
+
+    def test_default_handler_is_restored_after_the_child_exits(self) -> None:
+        previous = signal.signal(signal.SIGTERM, signal.SIG_DFL)
+        try:
+            exit_code, _out, _err = _run_subprocess([sys.executable, "-c", "pass"], timeout=10)
+            assert signal.getsignal(signal.SIGTERM) is signal.SIG_DFL
+        finally:
+            signal.signal(signal.SIGTERM, previous)
+        assert exit_code == 0
+
+    def test_a_worker_thread_runs_without_touching_signals(self) -> None:
+        """``signal.signal`` raises off the main thread; the wrapper must not call it."""
+        results: list[tuple[int, str, str]] = []
+        errors: list[BaseException] = []
+
+        def work() -> None:
+            try:
+                results.append(_run_subprocess([sys.executable, "-c", "pass"], timeout=10))
+            except BaseException as exc:
+                errors.append(exc)
+
+        worker = threading.Thread(target=work)
+        worker.start()
+        worker.join(timeout=15)
+        assert errors == []
+        assert results and results[0][0] == 0
+
+
+class TestAliveHelper:
+    @POSIX_ONLY
+    def test_zombie_is_dead_without_proc(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """macOS has no /proc; ``ps`` must still report the zombie as dead."""
+        monkeypatch.setattr(subprocess_runner_helpers, "_proc_state", lambda _pid: None)
+        proc = subprocess.Popen([sys.executable, "-c", "pass"])  # subprocess-encoding: strict-ok
+        try:
+            assert wait_dead(proc.pid), "an exited, unreaped child must read as dead"
+        finally:
+            proc.wait()
+
+    @POSIX_ONLY
+    def test_running_process_is_alive_without_proc(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(subprocess_runner_helpers, "_proc_state", lambda _pid: None)
+        assert alive(os.getpid()) is True

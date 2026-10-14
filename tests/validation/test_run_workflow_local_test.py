@@ -12,7 +12,6 @@ import os
 import re
 import signal
 import sys
-import types
 from pathlib import Path
 from unittest import mock
 
@@ -2463,18 +2462,54 @@ def test_run_baseline_success_still_works() -> None:
     assert err == ""
 
 
-def test_run_process_group_guard_does_not_signal_own_group() -> None:
+class _FakeChild:
+    """Stand-in for a ``Popen`` whose pid and ``wait`` the test picks."""
+
+    def __init__(self, pid: int, wait_raises: type[BaseException] | None = None) -> None:
+        self.pid = pid
+        self.killed = False
+        self._wait_raises = wait_raises
+
+    def wait(self, timeout: float | None = None) -> int:
+        if self._wait_raises is not None:
+            raise self._wait_raises
+        return 0
+
+    def kill(self) -> None:
+        self.killed = True
+
+
+@pytest.mark.skipif(not hasattr(os, "killpg"), reason="POSIX-only")
+def test_run_process_group_guard_does_not_signal_own_group(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """_terminate must not signal the caller's own process group.
 
     start_new_session=True creates a new session so the child's PGID differs
-    from ours. Verify _killpg_safe with our own PID does nothing (the guard
-    compares PGIDs and returns early).
+    from ours. A child that still shares our group has no group of its own to
+    signal, so it is killed alone; returning without a kill left the untimed
+    ``communicate`` in ``_run`` waiting on a live child.
     """
-    import os
+    signals: list[int] = []
+    monkeypatch.setattr(w.os, "killpg", lambda _pgid, sig: signals.append(sig))
+    child = _FakeChild(pid=os.getpid())
+    w._terminate(child)
+    assert signals == []
+    assert child.killed is True
 
-    # If pgid == our own pgid the function returns without signalling.
-    # Calling it with our own PID must not raise or kill this process.
-    w._terminate(types.SimpleNamespace(pid=os.getpid()))  # must not raise or kill
+
+@pytest.mark.skipif(not hasattr(os, "killpg"), reason="POSIX-only")
+@pytest.mark.parametrize("interrupt", [KeyboardInterrupt, SystemExit])
+def test_terminate_sends_sigkill_when_the_grace_wait_is_interrupted(
+    monkeypatch: pytest.MonkeyPatch, interrupt: type[BaseException]
+) -> None:
+    """The SIGTERM handler raises SystemExit mid-wait; SIGKILL must still follow."""
+    signals: list[int] = []
+    monkeypatch.setattr(w.os, "getpgid", lambda pid: 0 if pid == 0 else 4242)
+    monkeypatch.setattr(w.os, "killpg", lambda _pgid, sig: signals.append(sig))
+    with pytest.raises(interrupt):
+        w._terminate(_FakeChild(pid=1, wait_raises=interrupt))
+    assert signals == [signal.SIGTERM, signal.SIGKILL]
 
 
 @pytest.mark.skipif(not hasattr(os, "killpg"), reason="POSIX-only")
