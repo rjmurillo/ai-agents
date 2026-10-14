@@ -350,6 +350,10 @@ def _terminate(proc: subprocess.Popen[str]) -> None:
     try:
         pgid = os.getpgid(proc.pid)
     except OSError:
+        # No group to look up. Kill the direct child, or the untimed communicate
+        # in _run waits on it past the stage deadline. Popen.kill skips a
+        # reaped child.
+        proc.kill()
         return
     if pgid == os.getpgid(0):
         # No group of its own to signal. Kill the direct child, or the untimed
@@ -443,10 +447,12 @@ def _run(
         _terminate(proc)
         # Collect whatever the child had written before we killed it. The act
         # stage reads this to distinguish a cold-cache run from a slow one
-        # (Issue #3949).
+        # (Issue #3949). The post-kill read holds the pre-timeout output plus
+        # what the child wrote during the grace window, so it wins. The
+        # TimeoutExpired snapshot is the fallback when that read is empty.
         stdout_raw, stderr_raw = proc.communicate()
-        out = _decode_partial(exc.stdout) or stdout_raw
-        err_head = f"{type(exc).__name__}: {exc}\n{_decode_partial(exc.stderr) or stderr_raw}"
+        out = stdout_raw or _decode_partial(exc.stdout)
+        err_head = f"{type(exc).__name__}: {exc}\n{stderr_raw or _decode_partial(exc.stderr)}"
         return -1, out, err_head.rstrip()
     except BaseException:
         _terminate(proc)

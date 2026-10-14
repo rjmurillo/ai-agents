@@ -2956,3 +2956,55 @@ def test_main_restores_the_sigterm_handler_when_the_run_raises(monkeypatch, tmp_
     with pytest.raises(SystemExit):
         w.main(["--repo-root", str(tmp_path), "--no-full"])
     assert events == ["install", "restore"]
+
+
+_SIGTERM_TAIL_CHILD = """
+import signal, sys, time
+ready = sys.argv[1]
+def bye(*_):
+    sys.stdout.write("tail-out\\n"); sys.stdout.flush()
+    sys.stderr.write("tail-err\\n"); sys.stderr.flush()
+    sys.exit(0)
+signal.signal(signal.SIGTERM, bye)
+sys.stdout.write("head-out\\n"); sys.stdout.flush()
+sys.stderr.write("head-err\\n"); sys.stderr.flush()
+open(ready, "w").write("1")
+time.sleep(60)
+"""
+
+
+@_POSIX_ONLY
+def test_run_timeout_keeps_output_written_during_the_grace_window(tmp_path):
+    # The child writes during the SIGTERM grace window. The post-kill read holds
+    # that tail plus the pre-timeout head. Preferring the TimeoutExpired snapshot
+    # dropped the tail, and with it any git clone lines the cold-cache hint counts.
+    ready = tmp_path / "ready"
+    script = tmp_path / "child.py"
+    script.write_text(_SIGTERM_TAIL_CHILD, encoding="utf-8")
+    rc, out, err = w._run([sys.executable, str(script), str(ready)], timeout=4)
+    assert ready.exists(), "child never installed its handler; raise the timeout"
+    assert rc == -1
+    assert "head-out" in out
+    assert "tail-out" in out
+    assert "head-err" in err
+    assert "tail-err" in err
+    assert err.startswith("TimeoutExpired: ")
+
+
+@_POSIX_ONLY
+def test_terminate_kills_the_child_when_the_group_lookup_fails(monkeypatch):
+    # A failed os.getpgid used to return without any kill. _run then waited on
+    # the live child with an untimed communicate, past the stage deadline.
+    signals: list[int] = []
+
+    def no_group(pid: int) -> int:
+        if pid == 0:
+            return os.getpgrp()
+        raise ProcessLookupError(pid)
+
+    monkeypatch.setattr(w.os, "getpgid", no_group)
+    monkeypatch.setattr(w.os, "killpg", lambda _pgid, sig: signals.append(sig))
+    child = _FakeChild(pid=4242)
+    w._terminate(child)
+    assert signals == []
+    assert child.killed is True
