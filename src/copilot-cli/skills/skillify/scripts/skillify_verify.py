@@ -40,20 +40,32 @@ SOURCE_ONLY_TOOLS: tuple[str, ...] = ("skills_list", "skill_view", "skill_manage
 APPROVAL_RE = re.compile(r"\b(approv\w*|confirm\w*|consent|authori[sz]\w*)\b", re.IGNORECASE)
 
 RECOVERY_RE = re.compile(r"\b(optional|recovery)\b", re.IGNORECASE)
-# Verbs that act on an external or public system. The match errs broad: a miss
-# lets a public action skip its approval gate, while a false positive only asks
-# the author to reword a step. Hyphenated forms ("force-push", "auto-merge")
-# match on purpose. The only exclusions are exact noun phrases ("merge
-# conflicts", "release notes", "shared cache"), which never hide a verb.
+# The author marks each step that acts on an external or public system with
+# this literal tag. The tag is the contract; EXTERNAL_RE below is only a
+# backstop that makes a missing tag loud.
+TAG_RE = re.compile(r"\(external\)", re.IGNORECASE)
+_GAP = r"(?:[\w-]+\s+){0,4}?"
+_PR_NOUNS = r"(?:pr|mr|pull[\s-]request|issue|ticket|bug)s?"
+_SHARED_NOUNS = (
+    r"(?:cache|state|memory|drive|folder|fixtures?|librar(?:y|ies)|config"
+    r"|modules?|code|helpers?|utils?)"
+)
+# Backstop for steps that look external but carry no tag. It errs broad: a
+# false positive asks the author to tag or reword a step, a miss only costs
+# the loud failure. Hyphenated forms ("force-push", "auto-merge") match on
+# purpose. The only exclusions are exact noun phrases ("merge conflicts",
+# "release notes", "shared cache"), which never hide a verb.
 EXTERNAL_RE = re.compile(
-    r"\b(?:(?:publish|push|send|deploy|upload|comment|e-?mail|post)(?:s|es|ed|ing)?|sent"
-    r"|merg(?:e|es|ed|ing)(?!\s+(?:conflicts?|base)\b)"
+    r"\b(?:(?:publish|push|send|deploy|upload|comment|e-?mail|mail|post)(?:s|es|ed|ing)?|sent"
+    r"|\w*merg(?:e|es|ed|ing)(?!\s+(?:conflicts?|base)\b)"
     r"|releas(?:e|es|ed|ing)(?!\s+notes?\b)"
     r"|shar(?:e|es|ing)"
-    r"|shared(?!\s+(?:cache|state|memory|drive|folder|fixtures?|librar(?:y|ies)|config"
-    r"|modules?|code|helpers?|utils?)\b)"
-    r"|(?:open|fil|creat|submitt?|rais)\w*\s+(?:[\w-]+\s+){0,3}?"
-    r"(?:pr|pull[\s-]request|issue|ticket|bug)s?)\b",
+    rf"|shared(?!\s+{_SHARED_NOUNS}\b)"
+    rf"|(?:re-?)?(?:open|fil|creat|submitt?|rais)\w*\s+{_GAP}{_PR_NOUNS}"
+    r"|gh\s+(?:pr|issue)\s+(?:create|merge|close|comment|edit)"
+    r"|clos(?:e|es|ed|ing)|repl(?:y|ies|ied|ying)|notif(?:y|ies|ied|ying)"
+    r"|announc(?:e|es|ed|ing)|ship(?:s|ped|ping)?|appl(?:y|ies|ied|ying)"
+    r"|tag(?:s|ged|ging)?\s+(?:[\w-]+\s+){0,2}?releases?)\b",
     re.IGNORECASE,
 )
 NAME_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
@@ -100,6 +112,7 @@ def verify_skill(
     steps = _procedure_steps(sections, patching)
     if external_actions:
         checks.append(_approval_check(steps, patching))
+        checks.append(_untagged_check(steps))
     if recovery_paths:
         checks.append(_recovery_check(steps, patching))
     failures = [c["id"] for c in checks if not c["ok"]]
@@ -203,27 +216,55 @@ def _where(patching: bool) -> str:
     return "Procedure (or Process)" if patching else "Procedure"
 
 
-def _approval_problem(steps: list[str]) -> str | None:
-    """Return why approval is missing or late, or None when it precedes the first external step."""
-    found = next(
-        ((i, match) for i, step in enumerate(steps) if (match := EXTERNAL_RE.search(step))),
-        None,
-    )
-    if found is None:
-        return "name the external or public action (for example publish or push) in a numbered step"
-    index, verb = found
-    earlier = [*steps[:index], steps[index][: verb.start()]]
-    if any(APPROVAL_RE.search(text) for text in earlier):
-        return None
-    return "an approval or confirmation word must come before the first external action"
+def _before_action(step: str) -> str:
+    """Text of `step` before its `(external)` tag or its matched action verb."""
+    cut = len(step)
+    for pattern in (TAG_RE, EXTERNAL_RE):
+        match = pattern.search(step)
+        if match:
+            cut = min(cut, match.start())
+    return step[:cut]
+
+
+def _approval_problem(steps: list[str], where: str) -> str | None:
+    """Return why a tagged step lacks earlier approval, or None when every one has it.
+
+    Each step tagged `(external)` needs an approval word in an earlier step, or
+    earlier in the same step before the tag or the action. The tag text never counts.
+    """
+    tagged = [i for i, step in enumerate(steps) if TAG_RE.search(step)]
+    if not tagged:
+        return f"tag each external step with (external) in a numbered {where} step"
+    for index in tagged:
+        earlier = [TAG_RE.sub("", step) for step in steps[:index]]
+        earlier.append(_before_action(steps[index]))
+        if not any(APPROVAL_RE.search(text) for text in earlier):
+            return f"step {index + 1} is tagged (external) but no approval word comes before it"
+    return None
 
 
 def _approval_check(steps: list[str], patching: bool = False) -> dict[str, Any]:
-    problem = _approval_problem(steps)
+    where = _where(patching)
+    problem = _approval_problem(steps, where)
     return _check(
         "approval_gate_present",
         problem is None,
-        problem or f"approval precedes the first external action in a {_where(patching)} step",
+        problem or f"every (external) step has an approval word before it in a {where} step",
+    )
+
+
+def _untagged_check(steps: list[str]) -> dict[str, Any]:
+    untagged = [
+        str(i + 1)
+        for i, step in enumerate(steps)
+        if EXTERNAL_RE.search(step) and not TAG_RE.search(step)
+    ]
+    return _check(
+        "external_step_untagged",
+        not untagged,
+        f"step {', '.join(untagged)} looks external: add (external) or reword the step"
+        if untagged
+        else "no untagged step looks external",
     )
 
 

@@ -53,3 +53,10 @@ Add `user-invocable: true` only for skills a user types by name.
 Draft, review, confirmation, and approval steps before an external or public
 action stay in the generated procedure, in the same order, with the same
 trigger. Say what is shown to the user and what the user must answer.
+
+Mark every numbered Procedure step that acts on an external or public system
+with the literal tag `(external)`, for example
+`4. Ask for approval, then post the summary to the channel (external).` The
+tag is case-insensitive and may sit anywhere in the step. `verify` requires an
+approval word in an earlier step, or earlier in the same step, for each tagged
+step, and fails an untagged step that looks external.

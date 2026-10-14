@@ -106,7 +106,7 @@ verification failure, `2` no destination or invalid path. Harness tool names:
    one. `CREATE` continues; fewer than 3 distinct words also gives `CREATE`.
 5. **Decompose into actions.** For each action record: input, action and the
    concrete branch rule, output evidence that proves it ran, and state
-   boundary (read-only, internal change, or external/public). Stop splitting
+   boundary (read-only, internal change, or external/public; step 6 tags the last). Stop splitting
    when an action runs on its own and its result can be checked. Keep
    mandatory actions apart from optional recovery paths. Keep approval and
    draft gates exactly where the workflow had them.
@@ -114,17 +114,18 @@ verification failure, `2` no destination or invalid path. Harness tool names:
    Create `<root>/<name>/SKILL.md` with the harness file-write tool, or patch
    with the file-edit tool using a unique old string. Inline every convention
    the skill needs; do not depend on a personal instruction file or a path
-   outside the skill. Remove secrets, tokens, auth headers, internal hostnames,
+   outside the skill. Put the literal tag `(external)` in every step that acts on an external or
+   public system. Remove secrets, tokens, auth headers, internal hostnames,
    and account IDs from captured commands and examples. Use `pathlib` in any
    script and no assumed shell.
 7. **Verify.** Run `skillify.py verify --skill <dir> --audit audit.json`
    (add `--mode patch` after a PATCH). It reads the trigger, `external_actions`,
    and `recovery_paths` from the audit. Patch mode fails
    `description_has_trigger` when the description lacks the trigger.
-   External actions need an approval word before the first step that names
-   one (publish, push, post, send, deploy, merge, release, upload, share,
-   comment, email, or open or file a PR, issue, or ticket). The match errs broad,
-   so reword a read-only step it flags. Recovery paths need a step marked optional or
+   With external actions, each step tagged `(external)` needs an approval word
+   in an earlier step, or earlier in that step. No tag fails. An untagged step
+   that looks external (publish, push, gh pr create, reopen, notify, and the
+   like) fails `external_step_untagged`: add the tag or reword it. Recovery paths need a step marked optional or
    recovery. Create mode reads numbered Procedure steps; patch mode also
    reads a Process section. Fix every failure
    and rerun. Do not run a broader evaluation pass.
