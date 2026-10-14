@@ -14,6 +14,7 @@ from skillify_text import (
     first_sections,
     numbered_steps,
     parse_frontmatter,
+    procedure_section,
 )
 
 DESCRIPTION_LEAD_CHARS = 200
@@ -60,7 +61,8 @@ def verify_skill(
     """Read back a skill and check it.
 
     `create` checks the whole skeleton. `patch` is for an existing host skill
-    that was edited: it keeps the name, description presence, source-only tool
+    that was edited: it keeps the name, description presence, the trigger anywhere
+    in the description, source-only tool
     names, and the audit-driven approval and recovery checks, and skips the
     skeleton sections and the description-lead check, because host skills use
     their own layout. In patch mode a `Process` section stands in for a
@@ -77,7 +79,7 @@ def verify_skill(
     patching = mode == MODE_PATCH
     checks = [
         *_name_checks(meta.get("name", ""), skill_file.parent.name),
-        *(_patch_checks(meta) if patching else _create_checks(meta, trigger, sections)),
+        *(_patch_checks(meta, trigger) if patching else _create_checks(meta, trigger, sections)),
         _tool_name_check(text),
     ]
     steps = _procedure_steps(sections, patching)
@@ -103,22 +105,22 @@ def _create_checks(
     return [_description_check(meta.get("description", ""), trigger), *_section_checks(sections)]
 
 
-def _patch_checks(meta: Mapping[str, str]) -> list[dict[str, Any]]:
+def _patch_checks(meta: Mapping[str, str], trigger: str) -> list[dict[str, Any]]:
+    description = _squash(meta.get("description", ""))
+    wanted = _squash(trigger)
     return [
+        _check("description_present", bool(description), "description must not be empty"),
         _check(
-            "description_present",
-            bool(meta.get("description", "").strip()),
-            "description must not be empty",
-        )
+            "description_has_trigger",
+            bool(wanted) and wanted in description,
+            "the trigger phrase must appear in the description (anywhere, not only the lead)",
+        ),
     ]
 
 
 def _procedure_steps(sections: Mapping[str, Section], patching: bool) -> list[str]:
-    names = ("procedure", "process") if patching else ("procedure",)
-    for name in names:
-        if name in sections:
-            return numbered_steps(sections[name].lines)
-    return []
+    section = procedure_section(sections, allow_process=patching)
+    return numbered_steps(section.lines) if section else []
 
 
 def _check(check_id: str, ok: bool, detail: str) -> dict[str, Any]:

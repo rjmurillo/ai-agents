@@ -47,7 +47,7 @@ workflow behind it. Starting from a goal: use `skillforge`.
 - Nothing is written until the destination resolves. Unresolved means stop and
   ask; never guess a path.
 - An existing skill whose name, description, triggers, and procedure cover at
-  least 70 percent of the workflow's terms (lexical match, minimum 3 terms) is
+  least 70 percent of the workflow's terms (lexical match, minimum 3 distinct words) is
   patched, not duplicated.
 - The written file is read back and passes `verify`; the report names the skill
   and its trigger.
@@ -104,7 +104,7 @@ verification failure, `2` no destination or invalid path. Harness tool names:
    cover the workflow, treat the result as `CREATE`. Otherwise show the user
    the target path and the planned change, and get confirmation before editing.
    A generated SKILL.md is patched at its source template when the repo has
-   one. `CREATE` continues; fewer than 3 workflow terms also gives `CREATE`.
+   one. `CREATE` continues; fewer than 3 distinct words also gives `CREATE`.
 5. **Decompose into actions.** For each action record: input, action and the
    concrete branch rule, output evidence that proves it ran, and state
    boundary (read-only, internal change, or external/public). Stop splitting
