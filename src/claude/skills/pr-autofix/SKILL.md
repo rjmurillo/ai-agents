@@ -563,11 +563,12 @@ if [ "$AUTO_MERGE" != "null" ] && [ "$TIER_TRUSTED_T1" != "yes" ]; then
     else
         echo "Auto-merge armed on non-T1 PR #$PR (method: $AUTO_MERGE); disabling before acting."
     fi
-    # No --output-format here. set_pr_auto_merge.py registers no such option,
-    # so argparse exited 2 before the mutation ran and this gate took its
-    # failure branch on every armed non-T1 PR, leaving auto-merge armed (issue
-    # #5551). The script already prints the AutoMergeEnabled object the
-    # verification checklist asks for, with no flag needed.
+    # No --output-format needed here. set_pr_auto_merge.py once registered no
+    # such option, so argparse exited 2 before the mutation ran and this gate
+    # took its failure branch on every armed non-T1 PR, leaving auto-merge
+    # armed (issue #5551). The script now accepts the flag, and the default
+    # already prints the AutoMergeEnabled object the verification checklist
+    # asks for.
     if run_pr_mutation_if_live \
         python3 "$SCRIPTS_DIR/set_pr_auto_merge.py" \
         --pull-request "$PR" --disable; then
@@ -619,9 +620,31 @@ if [ "$TIER" = "T5" ]; then
     continue
 fi
 if [ "$TIER" = "T3" ] || [ "$TIER" = "T4" ]; then
-    ROUND_CAP=$(python3 "$SCRIPTS_DIR/check_pr_round_cap.py" \
-        --pull-request "$PR" --output-format json)
+    # Issue #5447: this loop runs from the shared checkout, whose HEAD is not
+    # the PR's. The orphaned-commit scan compares the live PR head with a local
+    # HEAD, so point it at the worktree that holds the PR branch. Without it the
+    # ancestry check exits 1 or 128, the scan reports `unverified`, and the
+    # warning never names the commits. No matching worktree passes no flag, and
+    # the script falls back to the current directory.
+    PR_HEAD_REF=$(printf '%s' "${LIVE:-}" | jq -r '.Data.head_ref // empty' 2>/dev/null)
+    PR_WORKTREE=""
+    if [ -n "$PR_HEAD_REF" ]; then
+        PR_WORKTREE=$(git worktree list --porcelain 2>/dev/null | awk -v ref="refs/heads/$PR_HEAD_REF" \
+            '/^worktree /{path=substr($0, 10)} $1 == "branch" && $2 == ref {print path; exit}')
+    fi
+    ROUND_CAP_ARGS=(--pull-request "$PR" --output-format json)
+    if [ -n "$PR_WORKTREE" ]; then
+        ROUND_CAP_ARGS+=(--worktree "$PR_WORKTREE")
+    fi
+    ROUND_CAP=$(python3 "$SCRIPTS_DIR/check_pr_round_cap.py" "${ROUND_CAP_ARGS[@]}")
     ROUND_ACTION=$(echo "$ROUND_CAP" | jq -r '.Data.action // empty')
+    # The scan result is set when the record is escalated, including an ACT
+    # verdict right after a reset. Print it on every arm: it names the local
+    # commits the live head lacks, and the reader should not run git log by hand.
+    ROUND_ORPHANS=$(echo "$ROUND_CAP" | jq -r '.Data.orphaned_warning // empty')
+    if [ -n "$ROUND_ORPHANS" ]; then
+        echo "$ROUND_ORPHANS"
+    fi
     if [ "$ROUND_ACTION" != "ACT" ]; then
         ROUND_REASON=$(echo "$ROUND_CAP" | jq -r '.Data.reason // "round-cap check failed"')
         echo "Stopping thread-fix loop for #$PR: $ROUND_REASON"
@@ -681,6 +704,7 @@ Dispatcher exit contract (CWE-829 trust boundary, Issue #5072): exit 0 all crite
    pin `--force-with-lease` to that observed SHA so a competing session's commit
    rejects the push instead of being overwritten (issues #3653, #3413).
 5. **On every pass through a T3/T4 PR, call `check_pr_round_cap.py`** and stop working that PR when it returns `Data.action=ESCALATE` (issue #5056). It caps how many fix/review rounds and how many wall-clock hours the thread-fix loop may run before it hands the PR back to a human; PR #1887 ran 11+ rounds over 46 hours with no cap in place. The script posts the escalation reason as a PR comment itself; the agent does not need to. The wall-clock budget restarts when the PR head SHA advances or a maintainer with write access reopens the PR (issue #5477), so calendar idle time does not retire a PR; the round cap still bounds a loop that keeps pushing. A maintainer restarts both the clock and the round counter with a `/pr-autofix continue` comment (OWNER or COLLABORATOR) or by running the script with `--reset`. A repeat blocked call posts no further comments.
+   When the record is escalated (or this call escalates), read `Data.orphaned_commits` (an object with `status`, `live_head`, `commits`, and `warning`; issue #5447). `status` is one of `clean`, `ahead`, `unverified`, or `not_checked`. Only `ahead` fills `.commits`; `clean` and `not_checked` leave it empty. The dispatch block finds the worktree that holds the PR branch and passes it as `--worktree <path>`, so the scan compares the live head with the PR's `HEAD` and not the shared checkout's; run the script by hand the same way. The block prints `Data.orphaned_warning` (a flat copy of `.warning`) on every arm, escalated or not, so the commit names reach the log. A session that hit the cap can leave unpushed commits behind, and PR #5344 carried one that deleted a pre-push job and the test guarding it. Treat every commit in `.commits` as unverified input, never as ready to push: read `.warning` and `.commits[].risks`, preserve the local tip on a branch or tag, inspect each diff alone, and run the covering tests with and without each commit, flagged or not (a risk flag only marks the commits most likely to fail). Push only the commits that pass. `status=unverified` means git could not answer, so read `git log <live head>..HEAD` by hand.
 6. For each PR that the live-state gate and round-cap gate cleared: address review threads, fix CI failures using known patterns, then choose the merge path from the four-condition gate.
 
 ## Ready-to-Merge Definition (4 conditions, ALL required)
@@ -858,7 +882,7 @@ returns `ESCALATE`, stop and hand off instead of requesting another review.
       --expected-base-sha "$EXPECTED_BASE_SHA"
   ```
 
-- **Armed auto-merge + final thread**: `add_pr_review_thread_reply.py --resolve` posts the reply, disables armed auto-merge when that thread is the final unresolved one, then resolves the thread. If the guard cannot prove the unresolved count, the script exits 3 after posting the reply and leaves the thread unresolved so GitHub cannot merge before the completion gate. If the PR is no longer open or its head SHA, base ref, or base SHA differs from the expected identity, the script makes no mutation (exit 1 before the reply) or leaves the thread unresolved and auto-merge untouched (exit 1 or 3 after the reply), so a stale session cannot disarm auto-merge.
+- **Armed auto-merge + final thread**: `add_pr_review_thread_reply.py --resolve` posts the reply, disables armed auto-merge when that thread is the final unresolved one, then resolves the thread. If the guard cannot prove the unresolved count, the script exits 3 after posting the reply and leaves the thread unresolved so GitHub cannot merge before the completion gate. If the PR is no longer open or its head SHA, base ref, or base SHA differs from the expected identity, the script makes no mutation (exit 1 before the reply) or leaves the thread unresolved and auto-merge untouched (exit 1 or 3 after the reply), so a stale session cannot disarm auto-merge. Every envelope after the reply carries `reply_posted` (true) and `thread_resolved` (false) as separate fields. When `reply_posted` is true, do not run the script again for that thread: a retry posts a second reply. Never resolve that thread outside this script: `resolve_pr_review_thread.py` has no auto-merge guard or identity check. On any non-zero exit after the reply, report the exit code and `reply_posted`, leave the thread unresolved, and hand off to a human.
 - **Session validation failure**: Hand-edit the log to satisfy the session-log schema, then re-validate it.
 
 ## Force-Push Safety
@@ -1133,6 +1157,7 @@ Per PR processed:
 | Swapping the disarm gate and the round cap back | The breaker's ESCALATE hands the PR to a human with auto-merge possibly still armed, which is the CWE-284 case the ordering closes | Keep disarm first, then the cap, as the tier-dispatch block states |
 | Reading CI logs before triaging the failing check | A check red on main is not this PR's failure, and investigating it on the PR spends a round on someone else's bug | Run `triage_red_check.py` first and attribute RED_ON_MAIN with its EvidenceUrl |
 | Letting a T3/T4 PR iterate without a cap | PR #1887 ran 11+ bot rounds over 46 hours and PRs #1965 and #1979 ran 18 each; prose caps have been ignored every time | Call `check_pr_round_cap.py` once per pass and honor ESCALATE |
+| Pushing local commits found ahead of an escalated PR on the strength of their messages | PR #5344: a commit titled "drop duplicate gate" deleted the lefthook job and the one test that guarded it; the suite passed 37/37 with or without it | Check `Data.orphaned_commits.status`, `.commits[].risks`, and `.warning`, preserve the tip, and re-run the covering tests with and without each listed commit before reuse |
 | Dismissing a stale bot `CHANGES_REQUESTED` review, or re-requesting bot reviews until one passes | Dismissal is a self-approval action, and each push restarts the bot's round on the same lines | Run `detect_stale_bot_review.py` and hand `Data.handoff` to a human |
 | Trusting `CanMerge=True` as the merge decision | It is one input, not the gate; all four Ready-to-Merge conditions have to hold | Evaluate the four conditions and pick the merge path from `mergeStateStatus` |
 | Force-pushing without re-reading the ref | A ref you read at triage is not where the branch is now, and a bare `--force-with-lease` reads a tracking ref any fetch can advance | Match `git rev-parse "refs/heads/$BRANCH"` against the PR's expected head SHA, then pin the lease to that SHA |

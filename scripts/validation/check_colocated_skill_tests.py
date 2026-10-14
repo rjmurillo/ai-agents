@@ -24,6 +24,7 @@ SHIPPED_SKILL_ROOTS: tuple[str, ...] = (
     ".claude/skills",
     "src/copilot-cli/skills",
     "src/claude/skills",
+    "src/codex/skills",
 )
 
 # Generated mirror roots (build/scripts/generate_skills.py copies
@@ -36,6 +37,7 @@ SHIPPED_SKILL_ROOTS: tuple[str, ...] = (
 _MIRROR_SOURCE_ROOTS: tuple[str, ...] = (
     "src/copilot-cli/skills",
     "src/claude/skills",
+    "src/codex/skills",
 )
 _CANONICAL_SKILL_ROOT = ".claude/skills"
 

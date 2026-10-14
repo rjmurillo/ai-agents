@@ -26,6 +26,14 @@ script is found. A negative control proves a bare ``./hooks/...`` command
 fails the same harness, so the guard has teeth.
 """
 
+# external-contract:
+#   source: https://github.com/github/copilot-cli
+#   version: GitHub Copilot CLI 1.0.57
+#   evidence: empirical
+#   verified: 2026-06-01
+#   purpose: Hook cwd and plugin-root environment variables the launcher sets
+#   reverify: tests/build_scripts/test_generate_hooks_runtime_contract.py
+
 from __future__ import annotations
 
 import json

@@ -277,6 +277,25 @@ def test_pure_skill_agent_fails(tmp_path: Path) -> None:
     assert "FAIL" in proc.stdout
     assert "shaped" in proc.stdout
     assert mod.AUDIT_PATH in proc.stdout
+    assert mod.GOVERNANCE_PATH in proc.stdout
+    assert "ADR-030" not in proc.stdout
+
+
+def test_cited_authority_paths_exist_in_repo() -> None:
+    """The failure message points at files that exist, not a rejected ADR."""
+    assert (REPO_ROOT / mod.AUDIT_PATH).is_file()
+    assert (REPO_ROOT / mod.GOVERNANCE_PATH).is_file()
+
+
+def test_validator_source_does_not_cite_rejected_adr_030() -> None:
+    """ADR-030 is status rejected (issue #5293); no authority claim may name it."""
+    assert "ADR-030" not in SCRIPT.read_text(encoding="utf-8")
+
+
+def test_governance_doc_defines_skill_first_rule() -> None:
+    """The governance doc is the validator's authority, so it must hold the rule."""
+    doc = (REPO_ROOT / mod.GOVERNANCE_PATH).read_text(encoding="utf-8")
+    assert "### Skill-first rule" in doc
 
 
 def test_pure_agent_passes(tmp_path: Path) -> None:

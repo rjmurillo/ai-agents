@@ -18,8 +18,17 @@ def _completed(returncode: int = 0, stdout: str = "", stderr: str = ""):
     return subprocess.CompletedProcess(args=[], returncode=returncode, stdout=stdout, stderr=stderr)
 
 
+def _commit_payload(date: str | None = "2026-10-13T10:00:00Z") -> dict:
+    return {"sha": "abc123", "committer": {"date": date}}
+
+
 def _fake_api(routes: dict[str, object]):
-    """Return a ``_run_gh_api`` stand-in keyed on the endpoint argument."""
+    """Return a ``_run_gh_api`` stand-in keyed on the endpoint argument.
+
+    The head commit route defaults to a fixed committer date, so tests that do
+    not care about it still pass.
+    """
+    routes = {"repos/o/r/git/commits/abc123": _commit_payload(), **routes}
 
     def _call(args: list[str]):
         endpoint = args[-1].split("?")[0]
@@ -243,6 +252,37 @@ class TestFetchChecksRest:
         assert snap["MergeState"] == "MERGEABLE"
         assert snap["MergeStateStatus"] == "CLEAN"
         assert [n["__typename"] for n in snap["Nodes"]] == ["CheckRun", "StatusContext"]
+        assert snap["PagesComplete"] is True
+
+    def test_reports_the_head_commit_date_for_the_queued_grace_window(self):
+        routes = {
+            "repos/o/r/pulls/42": _pr_payload(),
+            "repos/o/r/commits/abc123/check-runs": [{"total_count": 0, "check_runs": []}],
+            "repos/o/r/commits/abc123/status": [{"total_count": 0, "statuses": []}],
+        }
+        with patch.object(checks_rest, "_run_gh_api", side_effect=_fake_api(routes)):
+            snap = checks_rest.fetch_checks_rest("o", "r", 42)
+        assert snap["HeadCommittedAt"] == "2026-10-13T10:00:00Z"
+
+    @pytest.mark.parametrize(
+        "commit",
+        [
+            RuntimeError("REST request failed: boom"),
+            _commit_payload(date=None),
+            {"sha": "abc123"},
+            [],
+        ],
+    )
+    def test_unknown_head_commit_date_is_none_not_an_error(self, commit):
+        routes = {
+            "repos/o/r/pulls/42": _pr_payload(),
+            "repos/o/r/commits/abc123/check-runs": [{"total_count": 0, "check_runs": []}],
+            "repos/o/r/commits/abc123/status": [{"total_count": 0, "statuses": []}],
+            "repos/o/r/git/commits/abc123": commit,
+        }
+        with patch.object(checks_rest, "_run_gh_api", side_effect=_fake_api(routes)):
+            snap = checks_rest.fetch_checks_rest("o", "r", 42)
+        assert snap["HeadCommittedAt"] is None
         assert snap["PagesComplete"] is True
 
     def test_truncated_check_runs_mark_pages_incomplete(self):

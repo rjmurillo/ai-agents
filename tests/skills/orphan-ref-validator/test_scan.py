@@ -1034,8 +1034,8 @@ def test_walk_prunes_excluded_directories(fake_repo):
     write(docs / "ok.md", "Use `alpha-skill`.\n")
     nm = docs / "node_modules" / "pkg"
     write(nm / "trap.md", "Use skill `dead-skill`.\n")
-    refs = docs / "references"
-    write(refs / "trap.md", "Use skill `dead-skill`.\n")
+    templates = docs / "templates"
+    write(templates / "trap.md", "Use skill `dead-skill`.\n")
     result = scan([docs], fake_repo)
     bad = [f for f in result.findings if f.kind == "skill_name"]
     assert bad == []

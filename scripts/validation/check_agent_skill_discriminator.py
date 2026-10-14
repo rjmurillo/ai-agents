@@ -60,8 +60,9 @@ Exit codes follow ADR-035:
         --update-baseline that would raise a recorded ceiling score
 
 Related: ADR-006 (thin workflows / testable modules), ADR-042 (Python-first),
-ADR-030 (Skills Pattern Superiority), ADR-036 (Two-Source Agent Templates),
-ADR-064 (skills are the single user-invocable surface).
+ADR-036 (Two-Source Agent Templates), ADR-064 (skills are the single
+user-invocable surface). The skill-first rule it enforces lives in
+.agents/governance/SKILL-CREATION-CRITERIA.md, "Skill-first rule".
 """
 
 from __future__ import annotations
@@ -103,7 +104,7 @@ from scripts.validation.portability_common import (  # noqa: E402
 )
 
 AUDIT_PATH = ".project-toolkit/audits/2026-05-10-agent-skill-classification-audit.md"
-ADR_PATH = ".project-toolkit/architecture/ADR-030-skills-pattern-superiority.md"
+GOVERNANCE_PATH = ".agents/governance/SKILL-CREATION-CRITERIA.md"
 
 # Reserved metadata filenames that are not agents.
 #
@@ -584,7 +585,7 @@ def print_report(result: CheckResult) -> None:
         print("(.claude/rules/ci-scripts.md, 'Count ratchets').")
     print()
     print(f"See {AUDIT_PATH}")
-    print(f"and {ADR_PATH}")
+    print(f"and {GOVERNANCE_PATH}")
 
 
 # ---------------------------------------------------------------------------

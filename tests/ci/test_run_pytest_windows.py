@@ -172,3 +172,139 @@ def test_main_exits_external_when_discovery_is_incomplete(
     monkeypatch.setattr(_rpw, "marked_files", boom)
 
     assert _rpw.main([]) == _rpw.EXIT_EXTERNAL
+
+
+_DISCOVERED = ["tests/test_a.py", "tests/test_b.py", "tests/test_c.py"]
+
+
+@pytest.mark.parametrize("raw", ["", "   ", "[]"])
+def test_selected_files_runs_every_module_when_nothing_is_selected(raw: str) -> None:
+    assert _rpw.selected_files(raw, _DISCOVERED) == _DISCOVERED
+
+
+def test_selected_files_keeps_discovery_order_for_a_subset() -> None:
+    raw = '["tests/test_c.py", "tests/test_a.py"]'
+
+    assert _rpw.selected_files(raw, _DISCOVERED) == ["tests/test_a.py", "tests/test_c.py"]
+
+
+@pytest.mark.parametrize(
+    "raw", ["not json", "{}", '"tests/test_a.py"', "[1]", '["tests/test_a.py", 2]']
+)
+def test_selected_files_rejects_a_malformed_selection(raw: str) -> None:
+    with pytest.raises(_rpw.SelectionError):
+        _rpw.selected_files(raw, _DISCOVERED)
+
+
+def test_selected_files_rejects_a_module_that_is_not_marked() -> None:
+    """A stale name must fail the run, not shrink the suite unseen."""
+    with pytest.raises(_rpw.SelectionError, match="tests/test_gone.py"):
+        _rpw.selected_files('["tests/test_a.py", "tests/test_gone.py"]', _DISCOVERED)
+
+
+def test_main_hands_pytest_only_the_selected_modules(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, list[str]] = {}
+
+    def fake_run(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        captured["command"] = command
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(_rpw, "marked_files", lambda _root: _DISCOVERED)
+    monkeypatch.setattr(_rpw.subprocess, "run", fake_run)
+    monkeypatch.setenv(_rpw.ENV_SELECTED, '["tests/test_b.py"]')
+
+    assert _rpw.main([]) == 0
+    assert captured["command"][-1:] == ["tests/test_b.py"]
+    assert "tests/test_a.py" not in captured["command"]
+
+
+def test_main_runs_every_module_when_the_selection_is_unset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, list[str]] = {}
+
+    def fake_run(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        captured["command"] = command
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(_rpw, "marked_files", lambda _root: _DISCOVERED)
+    monkeypatch.setattr(_rpw.subprocess, "run", fake_run)
+    monkeypatch.delenv(_rpw.ENV_SELECTED, raising=False)
+
+    assert _rpw.main([]) == 0
+    assert captured["command"][-3:] == _DISCOVERED
+
+
+def test_main_exits_config_on_a_stale_selection_without_starting_pytest(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_run(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("pytest must not start on a bad selection")
+
+    monkeypatch.setattr(_rpw, "marked_files", lambda _root: _DISCOVERED)
+    monkeypatch.setattr(_rpw.subprocess, "run", fail_run)
+    monkeypatch.setenv(_rpw.ENV_SELECTED, '["tests/test_gone.py"]')
+
+    assert _rpw.main([]) == _rpw.EXIT_CONFIG
+
+
+def _fake_project(root: Path) -> None:
+    """A tree with one module that only names the marker and one that applies it."""
+    tests_dir = root / "tests"
+    tests_dir.mkdir()
+    (tests_dir / "test_names_only.py").write_text(
+        "def test_detects_windows_path() -> None:\n    pass\n", encoding="utf-8"
+    )
+    (tests_dir / "test_applies.py").write_text(
+        "import pytest\n\n\n@pytest.mark.windows_path\ndef test_marked() -> None:\n    pass\n",
+        encoding="utf-8",
+    )
+
+
+def test_narrowed_run_that_selects_no_item_passes_under_real_pytest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A change that reaches only a zero-hit module must not turn the job red (exit 5)."""
+    _fake_project(tmp_path)
+    monkeypatch.setattr(_rpw, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setenv(_rpw.ENV_SELECTED, '["tests/test_names_only.py"]')
+
+    assert _rpw.main(["-p", "no:cacheprovider"]) == _rpw.EXIT_OK
+
+
+def test_whole_run_that_selects_no_item_still_fails_under_real_pytest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """With no narrowing, zero selected items means the marker suite vanished."""
+    tests_dir = tmp_path / "tests"
+    tests_dir.mkdir()
+    (tests_dir / "test_names_only.py").write_text(
+        "def test_detects_windows_path() -> None:\n    pass\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(_rpw, "PROJECT_ROOT", tmp_path)
+    monkeypatch.delenv(_rpw.ENV_SELECTED, raising=False)
+
+    assert _rpw.main(["-p", "no:cacheprovider"]) == _rpw.PYTEST_NO_TESTS
+
+
+def test_narrowed_run_with_a_failing_test_still_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _fake_project(tmp_path)
+    (tmp_path / "tests" / "test_applies.py").write_text(
+        "import pytest\n\n\n"
+        "@pytest.mark.windows_path\n"
+        "def test_marked() -> None:\n    assert False\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(_rpw, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setenv(_rpw.ENV_SELECTED, '["tests/test_applies.py"]')
+
+    assert _rpw.main(["-p", "no:cacheprovider"]) == 1
+
+
+def test_narrowed_exit_code_maps_only_no_tests_to_ok() -> None:
+    assert _rpw.exit_code(_rpw.PYTEST_NO_TESTS, narrowed=True) == _rpw.EXIT_OK
+    assert _rpw.exit_code(_rpw.PYTEST_NO_TESTS, narrowed=False) == _rpw.PYTEST_NO_TESTS
+    assert _rpw.exit_code(1, narrowed=True) == 1
+    assert _rpw.exit_code(0, narrowed=True) == 0

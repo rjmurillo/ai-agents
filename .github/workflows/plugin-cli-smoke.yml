@@ -3,7 +3,8 @@
 # items 3-4, ADR-071, issue #2736)
 #
 # Gates a pull request on proof that the shipped plugin loads in Claude,
-# Copilot, and Codex on Ubuntu, macOS, and Windows. A path filter
+# Copilot, and Codex on Ubuntu, macOS, and Windows, and that the repo root loads
+# as a Pi package on Ubuntu. A path filter
 # (scripts/validation/cli_smoke_paths.py, ADR-006: decision in Python, not YAML)
 # runs the legs only when a change can affect plugin loading. The "CLI Smoke
 # Result" job always runs, so it is the one check to require.
@@ -14,6 +15,8 @@
 #     required-reviewer approval gate, ADR-114), and receives only that
 #     provider's credential. Tests carry `claude` / `copilot` markers and each
 #     leg selects `-m "smoke and <cli>"`.
+#   - smoke-pi: one Ubuntu leg. The Pi package smoke makes no model call and
+#     reads no credential, so it has no environment and no secret (ADR-115).
 #   - smoke-codex: one leg per OS. The Codex plugin-load smoke makes no model
 #     call and reads no credential, so it has no environment and no secret.
 #
@@ -98,7 +101,7 @@ jobs:
     steps:
       - name: Harden Runner
         # yamllint disable-line rule:line-length
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1  # v2.21.1
+        uses: step-security/harden-runner@351661ca32ac09a36dc5ee2d536e3128f2a3c8ed  # v2.22.0
         with:
           egress-policy: audit
 
@@ -149,7 +152,7 @@ jobs:
     steps:
       - name: Harden Runner
         # yamllint disable-line rule:line-length
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1  # v2.21.1
+        uses: step-security/harden-runner@351661ca32ac09a36dc5ee2d536e3128f2a3c8ed  # v2.22.0
         with:
           egress-policy: audit
 
@@ -197,15 +200,15 @@ jobs:
     env:
       RUN_CLI_E2E: '1'
       # renovate: datasource=npm depName=@anthropic-ai/claude-code
-      CLAUDE_CODE_VERSION: '2.1.290'
+      CLAUDE_CODE_VERSION: '2.1.292'
       # renovate: datasource=npm depName=@github/copilot
-      COPILOT_CLI_VERSION: '1.0.91'
+      COPILOT_CLI_VERSION: '1.0.92'
     steps:
       - name: Harden Runner
         # Windows and macOS runners do not support harden-runner; gate it.
         if: runner.os == 'Linux'
         # yamllint disable-line rule:line-length
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1  # v2.21.1
+        uses: step-security/harden-runner@351661ca32ac09a36dc5ee2d536e3128f2a3c8ed  # v2.22.0
         with:
           egress-policy: audit
 
@@ -420,7 +423,7 @@ jobs:
         # Windows and macOS runners do not support harden-runner; gate it.
         if: runner.os == 'Linux'
         # yamllint disable-line rule:line-length
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1  # v2.21.1
+        uses: step-security/harden-runner@351661ca32ac09a36dc5ee2d536e3128f2a3c8ed  # v2.22.0
         with:
           egress-policy: audit
 
@@ -478,9 +481,88 @@ jobs:
           --expected-count 1
           --require-pass test_codex_plugin_loads_expected_skills
 
+  smoke-pi:
+    name: Smoke (pi, ${{ matrix.os }})
+    needs: [changes, authorize]
+    if: needs.changes.outputs.run == 'true' && needs.authorize.outputs.trusted == 'true'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+    env:
+      RUN_CLI_E2E: '1'
+      # renovate: datasource=npm depName=@earendil-works/pi-coding-agent
+      PI_CLI_VERSION: '1.2.0'
+    steps:
+      - name: Harden Runner
+        # Windows and macOS runners do not support harden-runner; gate it.
+        if: runner.os == 'Linux'
+        # yamllint disable-line rule:line-length
+        uses: step-security/harden-runner@351661ca32ac09a36dc5ee2d536e3128f2a3c8ed  # v2.22.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The gate decides pass or fail, so it runs from the base commit, not the pull
+      # request tree. It is stdlib-only, so `python -I` needs no environment.
+      - name: Checkout trusted scripts from the base commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          path: trusted-base
+          sparse-checkout: scripts/validation/assert_smoke_ran.py
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Setup Python
+        # yamllint disable-line rule:line-length
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: '3.14'
+
+      - name: Install uv
+        # yamllint disable-line rule:line-length
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
+        with:
+          enable-cache: true
+
+      - name: Setup Node
+        # yamllint disable-line rule:line-length
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: 'lts/*'
+
+      - name: Install pinned Pi CLI
+        shell: bash
+        run: npm install -g --ignore-scripts "@earendil-works/pi-coding-agent@${PI_CLI_VERSION}"
+
+      - name: Run real-CLI package smoke (pi)
+        shell: bash
+        run: >-
+          uv run --frozen pytest tests/e2e/test_pi_package_smoke.py -m "smoke and pi"
+          --junitxml=pi-package-report.xml
+
+      - name: Assert the Pi package smoke actually ran
+        # always(): a silent skip of the Pi package smoke must also fail the job.
+        if: always()
+        shell: bash
+        run: >-
+          python -I trusted-base/scripts/validation/assert_smoke_ran.py
+          pi-package-report.xml
+          --smoke-substr test_pi_package_smoke
+          --expected-count 1
+          --require-pass test_pi_package_loads_every_skill_and_a_skill_script_finds_lib
+
   smoke-result:
     name: CLI Smoke Result
-    needs: [changes, authorize, smoke, smoke-codex]
+    needs: [changes, authorize, smoke, smoke-codex, smoke-pi]
     # The one terminal status to require: it runs on every pull request, passes
     # when the path filter says nothing relevant changed, and otherwise demands
     # every leg. !cancelled() rather than always(): a newer push cancels the run
@@ -493,7 +575,7 @@ jobs:
     steps:
       - name: Harden Runner
         # yamllint disable-line rule:line-length
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1  # v2.21.1
+        uses: step-security/harden-runner@351661ca32ac09a36dc5ee2d536e3128f2a3c8ed  # v2.22.0
         with:
           egress-policy: audit
 
@@ -531,4 +613,5 @@ jobs:
           TRUSTED: ${{ needs.authorize.outputs.trusted }}
           SMOKE_RESULT: ${{ needs.smoke.result }}
           CODEX_RESULT: ${{ needs.smoke-codex.result }}
+          PI_RESULT: ${{ needs.smoke-pi.result }}
         run: python3 -I trusted-base/scripts/validation/smoke_result.py --preset plugin-cli-smoke

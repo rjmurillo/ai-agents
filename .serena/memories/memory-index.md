@@ -28,6 +28,7 @@
 |wave cap fan-out brief hand-written contract concurrent delegations 4 per wave orchestrator template inode issue 6292: [orchestration/orchestration-the-wave-cap-lives-in-the-orchestrator-template-not-in-a-hand-written-brief](orchestration/orchestration-the-wave-cap-lives-in-the-orchestrator-template-not-in-a-hand-written-brief.md) (447)
 |shared brief source path wrong tree src/claude build_all reverts edit sample edit before wave ship contract 3b: [orchestration/orchestration-a-source-path-in-a-shared-brief-was-wrong-until-one-edit-went-through-the-build](orchestration/orchestration-a-source-path-in-a-shared-brief-was-wrong-until-one-edit-went-through-the-build.md) (455)
 |rate limit 403 refusal header X-Ratelimit-Reset Remaining velocity: [ci/github-rate-limit-payload-does-not-predict-service](ci/github-rate-limit-payload-does-not-predict-service.md) (4114)
+|uv cache clean hangs lock uvx mcp serena pyright prune disk space: [ci/uv-cache-lock-held-by-uvx-mcp-servers](ci/uv-cache-lock-held-by-uvx-mcp-servers.md) (378)
 |rebase after push non-fast-forward force-push forbidden merge remote: [git/git-rebase-after-push-costs-two-cycles](git/git-rebase-after-push-costs-two-cycles.md) (1350)
 |push takes 15 minutes lefthook pre-push empty ls-remote: [git/git-empty-hook-run-means-an-empty-push](git/git-empty-hook-run-means-an-empty-push.md) (2692)
 |new_pr create stale main ref session end validation: [new-pr-stale-main-ref-trap](new-pr-stale-main-ref-trap.md) (1835)
@@ -55,11 +56,12 @@
 |adversarial review dispatched model subagent fabricated finding verify: [pr-review/dispatched-model-reviewer-reliability](pr-review/dispatched-model-reviewer-reliability.md) (2569)
 |blocked pr mergeStateStatus ruleset required contexts thread resolution get_pr_checks wait MISSING why_pr_blocked Run Python Tests aggregator merge UNKNOWN: [diagnosing-a-blocked-pr](diagnosing-a-blocked-pr.md) (1654)
 |CHANGES_REQUESTED COMMENTED dismissed review reviewDecision stale bot review auto-merge blocked: [github/github-dismissed-reviews-block-automerge](github/github-dismissed-reviews-block-automerge.md) (632)
-|em dash en dash guard scope pre_pr checks_dash .py .md staged-dash-policy: [unicode-dash-guard-scope-gap](unicode-dash-guard-scope-gap.md) (1414)
+|em dash en dash guard scope pre_pr checks_dash .py .md staged-dash-policy: [unicode-dash-guard-scope-gap](unicode-dash-guard-scope-gap.md) (1438)
 |zsh bash associative array bad substitution shell iteration: [pr-review/zsh-associative-array-bad-substitution](pr-review/zsh-associative-array-bad-substitution.md) (343)
 |ruleset required contexts scheduled drift second baseline duplicate source contract: [decision-ruleset-drift-must-not-create-a-second-baseline](decision-ruleset-drift-must-not-create-a-second-baseline.md) (258)
 |pr context statusCheckRollup list null CheckRun StatusContext reviewThreads: [github/pr-context-authoritative-metadata](github/pr-context-authoritative-metadata.md) (195)
 |stacked pull request async merge endpoint merge-async stack GraphQL refusal: [github/stacked-pr-async-merge-endpoint](github/stacked-pr-async-merge-endpoint.md) (1084)
+|issue worktree branch existing open PR closing keyword check_existing_pr_for_issue duplicate: [github/check-existing-pr-before-issue-worktree](github/check-existing-pr-before-issue-worktree.md) (659)
 |PR validator prepare-body-file backticked path not in diff pr_description pr-number after open: [pr-review/pr-validator-needs-prepare-body-file-and-diff-backed-paths](pr-review/pr-validator-needs-prepare-body-file-and-diff-backed-paths.md) (573)
 |parallel agents shared scratch directory pr body overwritten pr1.md prepare-body-file per worktree issue 6315 Validate PR: [github/github-pr-body-files-collide-in-a-shared-scratch-directory](github/github-pr-body-files-collide-in-a-shared-scratch-directory.md) (335)
 |triage packet stale issue closed before dispatch re-check state: [pr-review/triage-packets-go-stale-within-hours](pr-review/triage-packets-go-stale-within-hours.md) (175)
@@ -87,12 +89,13 @@
 [Security]
 |security vulnerability TOCTOU secret injection: [skills-security-index](skills-security-index.md) (508)
 |filesystem redirect symlink junction ancestor parent swap descriptor: [security/filesystem-redirect-boundaries](security/filesystem-redirect-boundaries.md) (154)
+|integrity gate noise stale outcome exemption merge base fail-open verifier: [security/integrity-gate-noise-needs-stale-class-not-exemption](security/integrity-gate-noise-needs-stale-class-not-exemption.md) (202)
 
 [Architecture and Design]
 |architecture ADR model composite tool allocation producer-consumer: [skills-architecture-index](skills-architecture-index.md) (627)
 |adr decision record active proposed superseded rationale artifact: [adr-reference-index](adr-reference-index.md) (680), [adr/adr-artifact-count-verification](adr/adr-artifact-count-verification.md) (403), [adr/adr-retroactive-amendment-criteria](adr/adr-retroactive-amendment-criteria.md) (827), [adr/adr-review-observations](adr/adr-review-observations.md) (758)
 |design agent specialization entry-criteria limitation composability: [skills-design-index](skills-design-index.md) (206)
-|always-on corpus membership applyTo mirror generated synthesized internal-only: [architecture/always-on-membership-lives-in-the-mirror](architecture/always-on-membership-lives-in-the-mirror.md) (456)
+|always-on corpus membership applyTo mirror generated synthesized internal-only: [architecture/always-on-membership-lives-in-the-mirror](architecture/always-on-membership-lives-in-the-mirror.md) (472)
 |always-on rule edit invalidates corpus figures byte totals: [architecture/growing-an-always-on-rule-breaks-four-prose-documents](architecture/growing-an-always-on-rule-breaks-four-prose-documents.md) (1791)
 |github_core source scripts lib_mirror generated .claude/lib: [architecture/architecture-github-core-source-is-scripts-github-core](architecture/architecture-github-core-source-is-scripts-github-core.md) (164)
 |skill support files source .claude/skills src/claude pruned stale build_all mirror: [architecture/architecture-skill-support-files-are-sourced-in-claude-skills](architecture/architecture-skill-support-files-are-sourced-in-claude-skills.md) (349)
@@ -123,7 +126,9 @@
 |agent workflow pipeline critic atomic commit scope MVP: [skills-agent-workflow-index](skills-agent-workflow-index.md) (351)
 |autonomous execution guardrails circuit breaker patch signal trust: [skills-autonomous-execution-index](skills-autonomous-execution-index.md) (153)
 |fleet contention stop order renice congestion collapse two: [decision-stop-orders-are-not-a-control-plane](decision-stop-orders-are-not-a-control-plane.md) (876)
+|workflow tool isolation worktree schema silent parallel wave report leak: [agent-workflow/workflow-tool-worktree-schema-trap](agent-workflow/workflow-tool-worktree-schema-trap.md) (390)
 |worktree abandoned live agent fleet stale dirty harvest: [agent-workflow/fleet-worktree-live-versus-abandoned](agent-workflow/fleet-worktree-live-versus-abandoned.md) (608)
+|workflow tool agent isolation worktree schema StructuredOutput no-op direct Agent tool: [orchestration/orchestration-workflow-worktree-plus-schema-noop](orchestration/orchestration-workflow-worktree-plus-schema-noop.md) (619)
 |evidence: table handoff, session 17, orchestrator routing: [agent-workflow/agentworkflow-005-structured-handoff-formats-88](agent-workflow/agentworkflow-005-structured-handoff-formats-88.md) (146)
 
 [CI/CD and Workflows]
@@ -180,6 +185,7 @@
 |script absolute path wrong worktree repo_root __file__ validates: [git/git-a-script-run-by-absolute-path-validates-its-own-worktree](git/git-a-script-run-by-absolute-path-validates-its-own-worktree.md) (1736)
 |merge conflict resolve ours theirs convenience wrong side: [git/git-a-conflict-resolved-for-convenience-records-a-falsehood](git/git-a-conflict-resolved-for-convenience-records-a-falsehood.md) (1189)
 |git stash shared across worktrees pop takes another: [git/git-stash-is-shared-across-every-worktree](git/git-stash-is-shared-across-every-worktree.md) (965)
+|worktree .env gitignored export ANTHROPIC_API_KEY copy symlink ignored key missing: [git/git-a-new-worktree-has-no-env](git/git-a-new-worktree-has-no-env.md) (542)
 |mutation-active marker killed pre-push hook recover mutation_workspace push blocked timeout log file: [git/git-killed-pre-push-hook-leaves-mutation-markers-that-block-pushes](git/git-killed-pre-push-hook-leaves-mutation-markers-that-block-pushes.md) (284)
 |git shallow graft depth fetch unshallow blocks push: [git/git-shallow-is-shared-across-every-worktree](git/git-shallow-is-shared-across-every-worktree.md) (1132)
 |subagent sandbox worktree checkout moves head wrong commit: [git/git-a-subagent-in-your-worktree-moves-your-head](git/git-a-subagent-in-your-worktree-moves-your-head.md) (1729)
@@ -202,12 +208,12 @@
 [Retrospective and Learning]
 |retrospective learning session failure skill persistence extract artifact: [skills-retrospective-index](skills-retrospective-index.md) (376), [retrospective/retrospective-artifact-efficiency-pattern](retrospective/retrospective-artifact-efficiency-pattern.md) (1019)
 |skill sidecar observations learnings eval-harness fixtures build-model parity drift prompt-optimization ci-infrastructure: [agent-prompt-optimization-observations](agent-prompt-optimization-observations.md) (2449), [eval-harness-observations](eval-harness-observations.md) (2714), [ci-infrastructure-observations](ci-infrastructure-observations.md) (1674)
-|github pr stack base branch delete-branch merge_pr dependent closed retarget sidecar: [github-observations](github-observations.md) (137)
+|github pr stack base branch delete-branch merge_pr dependent closed retarget sidecar: [github-observations](github-observations.md) (253)
 |orchestrator subagent owner approval relayed refuse approve-untrusted-config sidecar: [orchestrator-observations](orchestrator-observations.md) (118)
 |eval fixture provenance corpus closed-loop author-worded synthetic trigger-eval upper-bound: [decision-eval-fixture-provenance-closed-loop](decision-eval-fixture-provenance-closed-loop.md) (1509)
 |eval provider billing matrix harness subscription api claude-cli codex-cli copilot-api cost basis credential: [eval/eval-billing-matrix](eval/eval-billing-matrix.md) (1660)
 |eval keyword grader verbatim phrase prompt wording behavior text-pinning ADR-057 false failure: [eval/eval-keyword-graders-test-wording-not-behavior](eval/eval-keyword-graders-test-wording-not-behavior.md) (358)
-|implementation contracts PreToolUse advisory envelope hookSpecificOutput two-pipeline agent: [hooks-pretooluse-advisory-envelope-contract](hooks-pretooluse-advisory-envelope-contract.md) (393), [agents-two-pipeline-mirror-recipe](agents-two-pipeline-mirror-recipe.md) (1053), [eval/eval-multiprovider-transport](eval/eval-multiprovider-transport.md) (816), [lsp-first-enforcement-adr062](lsp-first-enforcement-adr062.md) (427)
+|implementation contracts PreToolUse advisory envelope hookSpecificOutput two-pipeline agent: [hooks-pretooluse-advisory-envelope-contract](hooks-pretooluse-advisory-envelope-contract.md) (393), [agents-two-pipeline-mirror-recipe](agents-two-pipeline-mirror-recipe.md) (1053), [eval/eval-multiprovider-transport](eval/eval-multiprovider-transport.md) (816), [lsp-first-enforcement-adr062](lsp-first-enforcement-adr062.md) (848)
 
 [Memory and Context]
 |context engineering token optimization progressive disclosure just-in-time token: [memory/context-engineering-principles](memory/context-engineering-principles.md) (600), [memory/memory-token-efficiency](memory/memory-token-efficiency.md) (862)

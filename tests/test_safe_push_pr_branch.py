@@ -985,17 +985,18 @@ def test_run_pytest_shares_one_timeout_budget_across_commands(
     assert seen[-1] < budget
 
 
-def test_run_pytest_gives_the_testmon_run_the_suite_budget(
+def test_run_pytest_gives_the_testmon_run_the_selection_budget(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    """The default pre-push path gets the suite budget, not a shorter one.
+    """The default pre-push path gets the 180s selection budget (issue #6200).
 
-    The first testmon run builds `.testmondata` over the whole suite, so a
-    collection-sized ceiling would kill it. End-to-end pin that `run_pytest`
-    hands the suite budget to the first child.
+    End-to-end pin that `run_pytest` hands the selection budget to the first
+    child, not the 780s of a whole-suite run. The cold deferral is switched off
+    so the run itself is under test.
     """
     monkeypatch.delenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, raising=False)
+    monkeypatch.setattr(git_hook_policy, "_should_defer_cold_selection", lambda *_a, **_k: False)
     # Workstation contract: the aggregate is now clamped in a container, and
     # this suite also runs inside dev containers, so the assertion would read
     # the 150s ceiling instead of the suite budget it names.
@@ -1012,8 +1013,8 @@ def test_run_pytest_gives_the_testmon_run_the_suite_budget(
     assert git_hook_policy.run_pytest(tmp_path) == 0
 
     assert len(seen) == len(git_hook_policy._testmon_commands(tmp_path))
-    assert seen[0] <= git_hook_policy.TEST_SUITE_TIMEOUT_SECONDS
-    assert seen[0] > git_hook_policy.TEST_SUITE_TIMEOUT_SECONDS - 5
+    assert seen[0] <= git_hook_policy.PRE_PUSH_SELECTION_TIMEOUT_SECONDS
+    assert seen[0] > git_hook_policy.PRE_PUSH_SELECTION_TIMEOUT_SECONDS - 5
 
 
 def test_run_pytest_refuses_to_start_a_command_past_the_budget(

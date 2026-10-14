@@ -1,0 +1,40 @@
+{
+  "skill_path": ".claude/skills/evidence-provenance/SKILL.md",
+  "skill_id": "evidence-provenance",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Implementation and its new test come from one reading, then a second agent reviews with the same conclusion",
+      "input": "I wrote the parser fix and a new test from my reading of requirement R. A second agent reviewed it after I handed it my summary and says it agrees. Can I report this as three independent confirmations? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "one loop",
+        "not independent",
+        "inherits",
+        "independent_loops"
+      ],
+      "expected_gate": "evidence-provenance-gate",
+      "rationale": "The prompt never names the skill. A response that counts the test and the handed-off review as one evidentiary loop, and says a different agent is not independence by itself, is attributable to the skill rather than generic advice."
+    },
+    {
+      "id": "S2",
+      "desc": "A cheap gate is named as pending support instead of being run",
+      "input": "My report says the change is safe and that pytest on the touched module should also pass. The module has 12 fast tests and the environment can run them. How do I word this? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "run it",
+        "VERIFIED",
+        "NOT RUN",
+        "UNAVAILABLE"
+      ],
+      "expected_gate": "evidence-provenance-gate",
+      "rationale": "A cheap, available check is named without a state. The skill requires running it or reporting an explicit state, so a response that runs the check or reports NOT RUN and refuses to cite it as support is attributable to it."
+    },
+    {
+      "id": "S3",
+      "desc": "Unrelated formatting change needs no lineage classification",
+      "input": "Rename the variable total_count to item_count in one function. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "No claim is being corroborated and no check is cited as support, so the lineage workflow has nothing to classify and must not run."
+    }
+  ]
+}

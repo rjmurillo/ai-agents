@@ -107,6 +107,22 @@ def to_graphql_status_context(status: dict) -> dict:
     }
 
 
+def _fetch_head_committed_at(owner: str, repo: str, sha: str) -> str | None:
+    """Return the head commit's committer date, or None when it cannot be read.
+
+    GraphQL reports this as ``committedDate``. The queued-required grace window
+    needs it (issue #6389), but a failed read must not fail the whole fallback:
+    None keeps an absent required check reported as never reported.
+    """
+    try:
+        commit = _run_gh_api([f"repos/{owner}/{repo}/git/commits/{sha}"])
+    except RuntimeError:
+        return None
+    committer = commit.get("committer") if isinstance(commit, dict) else None
+    date = committer.get("date") if isinstance(committer, dict) else None
+    return date if isinstance(date, str) and date else None
+
+
 def _merge_fields(pr: dict) -> tuple[str, str]:
     """Return (MergeState, MergeStateStatus) in the GraphQL vocabulary."""
     merge_state = _MERGEABLE_BY_REST_VALUE.get(pr.get("mergeable"), "UNKNOWN")
@@ -119,8 +135,9 @@ def fetch_checks_rest(owner: str, repo: str, pr_number: int) -> dict:
     """Read a PR's check runs and commit statuses over REST.
 
     Returns a snapshot dict: ``Number``, ``BaseBranch``, ``MergeState``,
-    ``MergeStateStatus``, ``Nodes`` (GraphQL-shaped contexts), and
-    ``PagesComplete`` (False when a total_count exceeds the rows collected).
+    ``MergeStateStatus``, ``Nodes`` (GraphQL-shaped contexts),
+    ``PagesComplete`` (False when a total_count exceeds the rows collected),
+    and ``HeadCommittedAt`` (None when the head commit date cannot be read).
 
     Raises:
         RuntimeError: on any REST failure, carrying gh's text. A 404 reads
@@ -148,6 +165,7 @@ def fetch_checks_rest(owner: str, repo: str, pr_number: int) -> dict:
         "MergeStateStatus": merge_state_status,
         "Nodes": nodes,
         "PagesComplete": _is_complete(runs, runs_total) and _is_complete(statuses, statuses_total),
+        "HeadCommittedAt": _fetch_head_committed_at(owner, repo, sha),
     }
 
 

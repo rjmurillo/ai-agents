@@ -28,6 +28,8 @@ The project's standard template at `.project-toolkit/architecture/ADR-TEMPLATE.m
 
 See [adr-template.md](adr-template.md) for the full template.
 
+**Sanctioned structures**: the corpus accepts two heading sets. The canonical set above is the default for new records. MADR headings (`## Context and Problem Statement`, `## Decision Outcome`, `### Consequences`) resolve to the same concepts as `## Context`, `## Decision`, and `## Consequences`. `check_adr_lifecycle.py` reports `section-structure` when a record has neither heading for a concept.
+
 ---
 
 ## MADR (Markdown Architectural Decision Records)

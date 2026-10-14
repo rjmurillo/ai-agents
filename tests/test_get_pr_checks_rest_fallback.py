@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -48,7 +49,15 @@ def _run(name, status, conclusion, *, url=""):
     }
 
 
-def _snapshot(nodes, *, pages_complete=True, base="main", merge_state="MERGEABLE", status="CLEAN"):
+def _snapshot(
+    nodes,
+    *,
+    pages_complete=True,
+    base="main",
+    merge_state="MERGEABLE",
+    status="CLEAN",
+    committed_at=None,
+):
     return {
         "Number": 42,
         "BaseBranch": base,
@@ -56,6 +65,7 @@ def _snapshot(nodes, *, pages_complete=True, base="main", merge_state="MERGEABLE
         "MergeStateStatus": status,
         "Nodes": nodes,
         "PagesComplete": pages_complete,
+        "HeadCommittedAt": committed_at,
     }
 
 
@@ -157,6 +167,30 @@ class TestFetchChecksFallback:
         ):
             data = _mod.fetch_checks("o", "r", 42, prefer_rest=True)
         assert data["Message"] == "REST fallback failed: REST request failed: boom"
+
+    def test_head_commit_date_reaches_the_check_data(self):
+        snap = _snapshot(
+            [_run("build", "COMPLETED", "SUCCESS")], committed_at="2026-10-13T10:00:00Z"
+        )
+        with (
+            patch.object(_mod, "gh_graphql", side_effect=_RATE_LIMITED),
+            patch.object(_mod, "fetch_checks_rest", return_value=snap),
+        ):
+            data = _mod.fetch_checks("o", "r", 42)
+        assert data["HeadCommittedAt"] == "2026-10-13T10:00:00Z"
+
+    def test_fresh_head_holds_an_absent_required_check_as_queued(self):
+        """Issue #6389 applies on the REST path: a just-pushed head is not stranded."""
+        committed = datetime.now(UTC).isoformat()
+        snap = _snapshot([_run("build", "COMPLETED", "SUCCESS")], committed_at=committed)
+        with (
+            patch.object(_mod, "gh_graphql", side_effect=_RATE_LIMITED),
+            patch.object(_mod, "fetch_checks_rest", return_value=snap),
+        ):
+            data = _mod.fetch_checks("o", "r", 42)
+        _mod.mark_required_from_ruleset(data["Checks"], ["build", "aggregate"])
+        output = _mod.build_output(data, "o", "r", True, ["build", "aggregate"], 600)
+        assert output["MissingRequiredQueued"] is True
 
     def test_empty_snapshot_has_no_checks(self):
         with (

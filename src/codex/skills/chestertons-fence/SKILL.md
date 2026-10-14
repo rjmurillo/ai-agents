@@ -1,0 +1,181 @@
+---
+name: chestertons-fence
+version: 1.1.0
+description: Investigate historical context of existing code, patterns, or constraints before proposing changes. Automates git archaeology, PR/ADR search, and dependency analysis to prevent removing structures without understanding their purpose. Use when you ask "why does this code/constraint exist", "is it safe to remove this". Do NOT use for forward-risk analysis (use pre-mortem).
+license: MIT
+user-invocable: true
+metadata:
+  capability:
+    kind: reusable-primitive
+    owns:
+      - code-archaeology
+    status: active
+  routing:
+    role: conditional-adjunct
+    invoker: memory-gate
+    trigger: memory-gate points here for the full four-phase investigation framework
+    user-facing: true
+---
+
+# Chesterton's Fence Investigation
+
+Enforce epistemic humility before changing existing systems. Understand original purpose before proposing changes.
+
+## Quick Start
+
+```text
+# Investigate why code exists before changing it
+/chestertons-fence "path/to/file.py" "remove unused validation"
+
+# Investigate an ADR before deprecating it
+/chestertons-fence "docs/architecture/ADR-005.md" "allow bash scripts"
+```
+
+## Triggers
+
+| Phrase | Context |
+|--------|---------|
+| `why does this exist` | Investigating existing code or patterns |
+| `chestertons fence` | Explicit investigation request |
+| `before removing` | Planning deletion or replacement |
+| `investigate history` | Researching original rationale |
+| `prior art investigation` | ADR-required investigation |
+
+## Quick Reference
+
+| Input | Output | Destination |
+|-------|--------|-------------|
+| File path or ADR number | Investigation report | `.project-toolkit/analysis/NNN-chestertons-fence-TOPIC.md` |
+| Component description | Historical context summary | stdout (JSON) |
+
+## When to Use
+
+Use this skill BEFORE proposing changes to existing:
+
+- Code patterns or architectural decisions
+- ADRs, constraints, or protocol rules
+- Workflow configurations or CI pipelines
+- Skills, hooks, or agent prompts
+
+## Process
+
+```text
+1. Identify Structure       What exists? Where is it defined?
+       |
+       v
+2. Git Archaeology          git log, git blame to find origin commit
+       |
+       v
+3. PR/ADR Search            Find the PR or ADR with original rationale
+       |
+       v
+4. Dependency Analysis      What references or depends on this?
+       |
+       v
+5. Generate Report          Fill the investigation template
+       |
+       v
+6. Decision                 REMOVE | MODIFY | PRESERVE | REPLACE
+```
+
+### Step Details
+
+**Step 1: Identify Structure.** Locate the exact file, function, pattern, or constraint under investigation. Record its current form.
+
+**Step 2: Git Archaeology.** Run `git log --follow` and `git blame` on the target. Identify the commit that introduced it, the author, and the date.
+
+**Step 3: PR/ADR Search.** Search for the originating PR using `gh pr list --search`. Check `${AWESOME_AI_ARCHITECTURE_DIR:-.project-toolkit/architecture}` for related ADRs (default `.project-toolkit/architecture`). Look for comments explaining intent.
+
+**Step 4: Dependency Analysis.** Use `grep` or `Grep` tool to find all references. Map upstream and downstream dependencies. Identify what breaks if the structure is removed.
+
+**Step 5: Generate Report.** Use the template at the bundled `templates/chestertons-fence-investigation.md` in this skill directory. Fill all sections with evidence from steps 1 through 4.
+
+**Step 6: Decision.** Based on evidence, recommend one action:
+
+| Decision | When to Use |
+|----------|-------------|
+| PRESERVE | Original rationale still applies |
+| MODIFY | Purpose valid but implementation needs updating |
+| REPLACE | Better approach exists, original concern addressed |
+| REMOVE | Original rationale no longer applies, with evidence |
+
+## Post-2023 evidence rules
+
+This skill answers one question: what evidence exists that this code or
+constraint has a real purpose? It owns capability `code-archaeology`, the
+evidence-gathering step the `review` skill's technical-review contract
+consumes for code-intent analysis.
+
+For code committed during or after calendar year 2023, apply these rules:
+
+- Git history proves provenance (who committed it, and when), not intent. A
+  commit message or a clean `git blame` does not establish why the code
+  exists.
+- Author identity does not raise the preservation prior. A senior contributor
+  or a well-reviewed PR is not evidence the code is still needed.
+- Complexity, polish, and apparent effort do not raise the preservation
+  prior. Sophisticated code is not more likely to be load-bearing than simple
+  code; it only takes longer to read.
+- Absence of rationale after this investigation runs (steps 1 through 4) is
+  itself meaningful evidence, not an inconclusive result to set aside.
+- Inconclusive evidence, meaning no found rationale and no evidence the code
+  is unused, may lead to a yell-test proposal instead of a REMOVE decision.
+  The proposal's shape belongs to the `review` skill's technical-review
+  contract; this skill supplies the evidence the proposal cites.
+
+## Usage
+
+```bash
+# Investigate a file or pattern
+python3 scripts/investigate.py --target path/to/file.py --change "remove unused validation"
+
+# Investigate an ADR
+python3 scripts/investigate.py --target docs/architecture/ADR-005.md --change "allow bash scripts"
+
+# Output as JSON (for automation)
+python3 scripts/investigate.py --target path/to/file.py --change "description" --format json
+```
+
+## Scripts
+
+| Script | Purpose | Exit codes |
+|--------|---------|------------|
+| [`scripts/investigate.py`](scripts/investigate.py) | Git archaeology (origin commit, recent changes), related-ADR search, and dependent search for a target; emits a Markdown or JSON investigation report from the bundled template. | 0=success, 1=error |
+
+## Integration with Agent Workflows
+
+| Agent | How to Integrate |
+|-------|------------------|
+| **Analyst** | Run this skill first when investigating changes. The report is a prerequisite for any change proposal. |
+| **Architect** | ADRs that deprecate or replace existing patterns MUST include a "Prior Art Investigation" section. Use this skill to generate it. |
+| **Implementer** | Before implementing deletions or major refactoring, verify an investigation report exists. If missing, route to analyst. |
+| **Critic** | When validating plans that remove or replace existing systems, check for investigation evidence. Auto-reject proposals without historical context. |
+
+## Anti-Patterns
+
+| Avoid | Why | Instead |
+|-------|-----|---------|
+| Removing code you do not understand | May break hidden invariants | Investigate first, then decide |
+| Assuming dead code is unused | Hyrum's Law: someone depends on it | Run dependency analysis |
+| Skipping PR/ADR search | Loses original design rationale | Always check git history and PRs |
+| Proposing replacement without evidence | Cannot compare tradeoffs | Document original constraints first |
+
+## Verification
+
+- [ ] Investigation ran for the target before any change proposal was made.
+- [ ] Origin commit, recent changes, related ADRs, and dependents were gathered (or explicitly recorded as none found).
+- [ ] The resulting report (template-based or inline fallback) is attached to the change proposal or the ADR Prior Art Investigation section.
+
+## Template
+
+Investigation reports use the template at the bundled `templates/chestertons-fence-investigation.md` in this skill directory.
+
+## References
+
+| File | Content |
+|------|---------|
+| `references/chestertons-fence-mental-model.md` | Core mental model, principle, investigation checklist, related models |
+| `references/boy-scout-rule.md` | Scoped improvement boundaries, connection to investigation workflow |
+| `references/legacy-code-techniques.md` | Bottom-up refactoring approach, inheritance vs composition, reading list |
+
+<!-- vendor-portability: declared. This skill writes investigation reports to .project-toolkit/analysis/ and reads .project-toolkit/architecture/ for related ADRs. The report path is a write target (created on demand); the architecture read is best-effort and returns nothing when the dir is absent in a vendored install. Issue #2050. -->

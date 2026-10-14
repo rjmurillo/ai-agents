@@ -49,6 +49,7 @@ Apply the focus areas below when the diff adds a new code path, a new agent step
 Ground findings in the project's observability artifacts. All paths are under `.claude/` and ship with vendored installs:
 
 - `observability` skill: invoke on agent and hook diffs. It queries and analyzes the agent JSONL event logs for debugging, performance analysis, and decision tracing, so you can check whether a new path emits the events that skill would need.
+- `.claude/skills/observability/references/event-logging-contract.md`: the canonical producer-side contract for which operational events code emits and omits. Check the diff against its MUST Emit and MUST NOT Emit tables. A missing required event is a finding. A pure or internal helper with no logging is not.
 - `.claude/skills/observability/references/three-pillars-reference.md`: the three pillars (logs, metrics, traces) reference. Use it to check that a new path is observable across the relevant pillars, not just one. Logs are timestamped discrete events, metrics are aggregated numeric measurements, and traces follow a request across boundaries.
 - `.claude/skills/observability/references/otel-semantic-conventions.md`: the OTel semantic-conventions reference. Use it to check that new telemetry uses standard attribute names and units (for example `http.request.method`, a duration metric with a unit) instead of inventing per-path names that break dashboard and alert portability.
 

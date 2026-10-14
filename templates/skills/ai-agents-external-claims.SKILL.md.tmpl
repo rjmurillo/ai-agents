@@ -195,11 +195,107 @@ qualified claim whose gathered sentence is still present. It also refuses a
 the checked wording, not the unreviewed draft. The JSON summary names the
 ledger and the draft, so a failure log says which gate failed.
 
+## Durable Provenance For Load-Bearing Contracts
+
+The claim ledger guards one research write. This section covers what outlives
+the write: an outside contract that future correctness depends on. Persist
+provenance for those contracts. Keep ordinary research ephemeral. Reference the
+source; do not copy it. Issue #5415.
+
+### Persist or not
+
+| Situation | Persist? |
+|-----------|----------|
+| A compiler, type, or test already proves the behavior | No. The lookup stays ephemeral |
+| A tutorial or page taught you an API and nothing cites it as a contract | No |
+| An import, schema, pinned dependency, or generated projection already carries the relationship | No. Structure is the provenance (ranks 1 to 3 in `canonical-source-mirror`) |
+| Code relies on a vendor limit, a version-specific API, a standard, or a probed runtime behavior, and nothing executable represents it | Yes. One record beside the consumer |
+
+### The record
+
+The record lives in the file whose behavior depends on the contract. There is no
+global ledger and no local ID: the source URI and the file are the identity. In
+a Markdown or template file it is a fenced block whose info string is
+`external-contract`. In code or config it is a comment block, a line holding the
+comment marker and `external-contract:` followed by comment lines with two or
+more spaces of indent.
+
+```yaml
+# Fence info string is external-contract in a real record; yaml here keeps the
+# example from counting as one.
+source: https://github.com/github/copilot-cli
+version: GitHub Copilot CLI 1.0.57
+evidence: empirical
+verified: 2026-06-01
+purpose: Hook cwd and plugin-root variables the launcher relies on
+reverify: tests/build_scripts/test_generate_hooks_runtime_contract.py
+```
+
+That record is real: the Copilot CLI hook runtime test carries it as a comment
+block, and `--source copilot-cli` finds it.
+
+```python
+# external-contract:
+#   source: https://example.org/spec/v2
+#   version: v2.1
+#   evidence: specification
+#   verified: 2026-10-11
+#   purpose: Wire format the adapter must emit
+```
+
+| Field | Rule |
+|-------|------|
+| `source` | Required. A URI. The vendor page, the spec, or the tool's repository |
+| `version` | Required. The release, API version, commit, or date the source had |
+| `evidence` | Required. `documentation`, `specification`, or `empirical` |
+| `verified` | Required. ISO date of the last check. Not in the future |
+| `purpose` | Required. One label of at most 200 characters. Never source text |
+| `reverify` | A repo path to a test, probe, or script, optionally `path::selector`. Required for `empirical`, because a runtime observation has no URL to re-read |
+| `capability` | Optional. A capability a canonical artifact owns under `metadata.capability` (ADR-110). Reuses #5396 ownership |
+
+`empirical` marks evidence that came from running the tool because the vendor
+documentation was silent or wrong. It never cites the docs as the authority.
+
+### Find the consumers of a source
+
+Run the repository's `check_external_contracts.py` validation script from the
+repository root with a query flag. Both queries print JSON with each record's file and line, so
+a changed or obsolete source maps to its consumers without a grep.
+
+| Question | Flag |
+|----------|------|
+| Which files depend on this source? | `--source docs.github.com` |
+| Which records went unchecked since a date? | `--stale-before 2026-01-01` |
+
+The pre-PR gate `External Contract Records` checks the shape of every record:
+closed field list, a real `reverify` path, no value over 200 characters. A file
+with no record never fails it.
+
+### Why not a `docs-used.md` ledger
+
+| Ledger cost | Record answer |
+|-------------|---------------|
+| One hot file every change appends to, so merge conflicts | One record per consumer file, written only when that file changes |
+| Grows with every lookup | Written only for load-bearing contracts |
+| Needs IDs copied into code to point back | The record sits in the file, so no pointer exists |
+| A second mutable artifact to keep in sync | The consumer and its provenance change in one diff |
+
+### How it composes
+
+- The claim ledger verifies a claim before a write. When code will depend on the
+  verified source, add the record from the ledger's `source` entry.
+- `ai-agents-empirical-probe-toolkit` owns the probe. The record points at the
+  probe or the durable test with `reverify`.
+- The record never holds source text, so it adds no authored copy for #5399.
+- The record states which source and version were used. Whether that evidence
+  is independent is #5406's question, not this one's.
+
 ## Scripts
 
 | Script | Purpose | Exit codes |
 |--------|---------|------------|
 | `claim_ledger.py` | Validates a claim ledger, and with `--artifact` the artifact text, before a research write. Prints a sorted JSON summary. Reads local files only. | 0 pass, 1 defects, 2 unreadable input or bad arguments |
+| `check_external_contracts.py` (repository validation scripts, not shipped) | Validates every `external-contract` record, or with `--source` and `--stale-before` lists the records that match. Reads local files only. | 0 pass or query ran, 1 malformed record, 2 bad root or date |
 
 The script ships in this skill's own script directory. The Adjunct Mode
 gate above shows the plugin-root invocation.
