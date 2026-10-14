@@ -5731,16 +5731,10 @@ def test_push_files_warning_is_quiet_for_checked_out_head(
     assert capsys.readouterr().err == ""
 
 
-def test_push_files_warning_emits_for_new_branch(
-    tmp_path: Path,
+def _stub_head_without_push_base(
     monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
+    head: str,
 ) -> None:
-    head = "1" * 40
-    refs = [
-        policy.PushRef("refs/heads/new", head, "refs/heads/new", "0" * 40),
-    ]
-
     def run_git(_repo_root: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
         if args == ["rev-parse", "HEAD"]:
             return _completed(0, f"{head}\n")
@@ -5750,9 +5744,115 @@ def test_push_files_warning_emits_for_new_branch(
 
     monkeypatch.setattr(policy, "_run_git", run_git)
 
+
+def test_push_files_warning_is_quiet_for_new_branch_at_head(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Issue #6562: the first push of checked-out HEAD has no coverage gap."""
+    head = "1" * 40
+    refs = [policy.PushRef("refs/heads/new", head, "refs/heads/new", "0" * 40)]
+    _stub_head_without_push_base(monkeypatch, head)
+
+    policy.warn_if_push_files_incomplete(refs, tmp_path)
+
+    assert capsys.readouterr().err == ""
+
+
+def test_push_files_warning_is_quiet_for_new_branch_at_head_sha256(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A SHA-256 repository's all-zero remote id also marks a new branch."""
+    head = "1" * 64
+    refs = [policy.PushRef("refs/heads/new", head, "refs/heads/new", "0" * 64)]
+    _stub_head_without_push_base(monkeypatch, head)
+
+    policy.warn_if_push_files_incomplete(refs, tmp_path)
+
+    assert capsys.readouterr().err == ""
+
+
+def test_push_files_warning_emits_for_new_branch_off_head(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A new branch whose tip is not checked-out HEAD keeps the warning."""
+    refs = [policy.PushRef("refs/heads/new", "2" * 40, "refs/heads/new", "0" * 40)]
+    _stub_head_without_push_base(monkeypatch, "1" * 40)
+
     policy.warn_if_push_files_incomplete(refs, tmp_path)
 
     assert "quality coverage may be incomplete" in capsys.readouterr().err
+
+
+def test_push_files_warning_emits_for_existing_branch_at_head_without_push_base(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A non-zero remote id with no resolvable @{push} is not a new branch."""
+    head = "1" * 40
+    refs = [policy.PushRef("refs/heads/old", head, "refs/heads/old", "3" * 40)]
+    _stub_head_without_push_base(monkeypatch, head)
+
+    policy.warn_if_push_files_incomplete(refs, tmp_path)
+
+    assert "quality coverage may be incomplete" in capsys.readouterr().err
+
+
+def test_push_files_warning_emits_for_multi_ref_with_new_branch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A multi-ref push keeps the warning even when one ref is a new HEAD branch."""
+    head = "1" * 40
+    refs = [
+        policy.PushRef("refs/heads/new", head, "refs/heads/new", "0" * 40),
+        policy.PushRef("refs/heads/other", head, "refs/heads/other", "0" * 40),
+    ]
+    _stub_head_without_push_base(monkeypatch, head)
+
+    policy.warn_if_push_files_incomplete(refs, tmp_path)
+
+    assert "quality coverage may be incomplete" in capsys.readouterr().err
+
+
+def test_push_files_warning_is_quiet_for_first_push_from_linked_worktree(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Issue #6562: a worktree branch cut from origin/main warns on first push.
+
+    `git worktree add -b` from a remote-tracking ref sets the upstream to that
+    ref, so `@{push}` fails under push.default=current until the branch exists
+    on the remote. The first push of checked-out HEAD must stay quiet.
+    """
+    origin = tmp_path / "origin.git"
+    origin.mkdir()
+    _git(origin, "init", "-q", "--bare", "-b", "main")
+    seed = tmp_path / "seed"
+    _init_repo(seed, "main")
+    _commit_file(seed, "base.txt", "base\n")
+    _git(seed, "remote", "add", "origin", str(origin))
+    _git(seed, "push", "-q", "origin", "main")
+    _git(seed, "config", "push.default", "current")
+    _git(seed, "fetch", "-q", "origin")
+    worktree = tmp_path / "linked"
+    _git(seed, "worktree", "add", "-q", str(worktree), "-b", "fix/first-push", "origin/main")
+    head = _commit_file(worktree, "change.txt", "change\n")
+    push_base = _git(worktree, "rev-parse", "--verify", "@{push}", check=False)
+    assert push_base.returncode != 0
+    new_ref = "refs/heads/fix/first-push"
+    refs = [policy.PushRef(new_ref, head, new_ref, "0" * 40)]
+
+    policy.warn_if_push_files_incomplete(refs, worktree)
+
+    assert capsys.readouterr().err == ""
 
 
 def test_push_files_warning_is_quiet_for_explicit_refspec_push(

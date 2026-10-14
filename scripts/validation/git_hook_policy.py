@@ -6983,6 +6983,12 @@ def warn_if_push_files_incomplete(
         # because the caller named the destination explicitly.
         if ref.local_ref != ref.remote_ref:
             return
+        # Quiet path 3: first push of a new branch at checked-out HEAD. There
+        # is no remote tip and often no @{push} (a worktree cut from
+        # origin/main has no remote branch of its own yet). Lefthook computes
+        # {push_files} relative to HEAD, so it already covers the whole branch.
+        if ref.is_new:
+            return
     print(
         "WARNING: Lefthook {push_files} quality coverage may be incomplete because "
         "the pushed ref set does not match checked-out HEAD and its configured push "
