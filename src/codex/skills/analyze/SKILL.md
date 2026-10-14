@@ -114,6 +114,10 @@ The script outputs REQUIRED ACTIONS at each step. Follow them exactly.
 
 ### Phase 1: Exploration (Step 1)
 
+Before exploring, record the live default-branch SHA with `scripts/validation/live_revision_grounding.py`. Carry `grounded_sha` and `finding_status` into every finding that depends on repository state. A `STALE` or `UNVERIFIED` finding is never the sole basis for an issue. The github skill's `references/revision-grounding.md` has the rules and a manual fallback.
+
+<!-- vendor-portability: declared. The helper scripts/validation/live_revision_grounding.py lives in the upstream checkout and ships in no plugin; scripts/analyze.py ships with this skill. A consumer without it follows the manual fallback in the github skill reference. Issue #5634. -->
+
 Delegate to Explore agent(s). The script determines scope and parallelism. Wait for all agents, then re-invoke `scripts/analyze.py` with `--step-number 1`, including the Explore results in `--thoughts`.
 
 ### Phase 2: Focus Selection (Step 2)
