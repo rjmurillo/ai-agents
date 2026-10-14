@@ -44,6 +44,7 @@ Reuse `github`, `reviewer-findings`, and `pr-comment-responder` only when their 
 ### Phase 1: Identify the blocker before choosing a fix
 
 Select GitHub transport through [github](../../../.claude/skills/github/SKILL.md).
+Set `PR_NUMBER` from the supplied PR, never a remembered result.
 For an available script transport, bind its installed root once:
 
 ```bash
@@ -51,7 +52,6 @@ GITHUB_SCRIPTS="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/gi
 python3 "$GITHUB_SCRIPTS/pr/why_pr_blocked.py" --owner rjmurillo --repo ai-agents --pull-request "$PR_NUMBER" --output-format json
 ```
 
-Set `PR_NUMBER` from the supplied PR, never a remembered result.
 Read the complete selected discussion and inline threads before acting on findings.
 Use `get_pr_context.py`, `get_pr_review_threads.py`, and linked causal items.
 Stop broad discovery once the blocker and responsible surface are identified.
@@ -106,7 +106,8 @@ Denied legacy-protection access remains unknown; an empty legacy result does not
 Before accepting either green or red attribution, inspect the check's producer identity.
 The triage script matches names without integration identity; its verdict is provisional.
 Use supported GitHub GET operations for the evaluated SHA's check runs:
-`repos/rjmurillo/ai-agents/commits/<sha>/check-runs?per_page=100`.
+`repos/rjmurillo/ai-agents/commits/<sha>/check-runs?filter=all&per_page=100`.
+Use `filter=all` to include historical attempts; the default returns only latest checks.
 Paginate completely; join each `name`, `app.id`, `head_sha`, and `check_suite.id`.
 Read `repos/rjmurillo/ai-agents/check-suites/<suite-id>` for its evaluated revision.
 For Actions, read `repos/rjmurillo/ai-agents/actions/runs/<run-id>`.

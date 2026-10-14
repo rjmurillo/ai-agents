@@ -88,7 +88,13 @@ Read [the runtime suite](../../../tests/build_scripts/test_generate_hooks_runtim
 and [plugin-root suite](../../../tests/build_scripts/test_generate_hooks_plugin_root.py).
 
 For the installed dispatcher, select `test_the_bundled_config_runs_its_criteria_end_to_end`.
-Require parsed `gate_ran`, execution status, trust classifications, and criterion results.
+Require exit code zero, `all_passed: true`, and the expected trust classifications.
+The fixture reports `config_trust.status: install-trusted` and `command_trust.status: trusted`.
+Require `criteria[0].passed: true`, `criteria[0].exit_code: 0`, and `criteria[0].stdout_json.gate_ran: true`.
+`gate_ran` belongs to the fixture command's JSON, not the dispatcher's top-level payload.
+For real criteria, inspect `all_passed`, `config_trust.status`, `command_trust.status`, and `criteria[].passed`.
+When JSON exists, inspect `criteria[].stdout_json` for the intended command's observable result.
+Otherwise inspect captured output against that verifier's documented contract.
 Absence of refusal text does not establish dispatch.
 This expectation comes from [the maintained installation test](../../../tests/test_run_completion_gate_install.py).
 
