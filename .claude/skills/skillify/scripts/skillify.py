@@ -35,6 +35,7 @@ from skillify_text import (
     SkillifyError,
     first_sections,
     parse_frontmatter,
+    procedure_section,
     tokenize,
 )
 from skillify_verify import MODE_CREATE, MODES, resolve_skill_file, verify_skill
@@ -304,7 +305,8 @@ def _needs_clarification(roots: list[Path], env_vars: list[str]) -> tuple[dict[s
 def read_skill(skill_file: Path, root: Path) -> SkillInfo | str:
     """Parse one SKILL.md into routing tokens, or return the reason it was skipped.
 
-    Tokens come from the name, description, Triggers section, and Procedure section.
+    Tokens come from the name, description, Triggers section, and the steps section
+    (`Procedure`, else `Process`).
     """
     try:
         text = skill_file.read_text(encoding="utf-8")
@@ -315,8 +317,9 @@ def read_skill(skill_file: Path, root: Path) -> SkillInfo | str:
     if not name:
         return "no frontmatter name"
     sections = first_sections(body)
+    steps = procedure_section(sections, allow_process=True)
     extra = "\n".join(
-        "\n".join(sections[key].lines) for key in ("triggers", "procedure") if key in sections
+        "\n".join(section.lines) for section in (sections.get("triggers"), steps) if section
     )
     tokens = tokenize(f"{name.replace('-', ' ')} {meta.get('description', '')} {extra}")
     return SkillInfo(name=name, root=str(root), path=str(skill_file), tokens=tokens)
@@ -375,7 +378,7 @@ def evaluate_overlap(workflow: Any, roots: Sequence[Path]) -> dict[str, Any]:
     if len(wanted) < MIN_WORKFLOW_TERMS:
         patch = False
         reason = (
-            f"workflow has {len(wanted)} term(s); at least {MIN_WORKFLOW_TERMS} are needed "
+            f"workflow has {len(wanted)} distinct word(s); at least {MIN_WORKFLOW_TERMS} are needed "
             "to judge overlap"
         )
     return {

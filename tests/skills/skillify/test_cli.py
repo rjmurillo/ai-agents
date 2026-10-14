@@ -262,7 +262,8 @@ def test_verify_needs_trigger_or_audit(skills_root, capsys):
 
 
 def test_verify_mode_patch_flag(skills_root, tmp_path, capsys):
-    host = "---\nname: host\ndescription: Does things.\n---\n\n## Process\n\n1. Go.\n"
+    desc = "Does things when you say ingest a meeting transcript."
+    host = f"---\nname: host\ndescription: {desc}\n---\n\n## Process\n\n1. Go.\n"
     make_skill(skills_root, "host", body=host)
     audit = write_json(tmp_path / "a.json", AUDIT)
     argv = ["verify", "--skill", str(skills_root / "host"), "--audit", audit]

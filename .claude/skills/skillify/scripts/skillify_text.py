@@ -6,7 +6,7 @@ Frontmatter, markdown sections, list counting, and tokenizing. Stdlib only.
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*#*\s*$")
@@ -17,6 +17,8 @@ NUMBERED_RE = re.compile(r"^\s*\d+[.)]\s+\S")
 BOM = "\ufeff"
 TOKEN_RE = re.compile(r"[a-z0-9]+")
 
+# Generic words are dropped so a broad skill cannot reach PATCH on them alone;
+# the cost is that a workflow made only of such words has too few terms to judge.
 STOPWORDS = frozenset(
     "a an and are as at be but by do does for from has have how in into is it its "
     "not of on or our that the their then this to use used using was when which "
@@ -109,6 +111,23 @@ def first_sections(body: str) -> dict[str, Section]:
     for section in split_sections(body):
         found.setdefault(section.name, section)
     return found
+
+
+def procedure_section(sections: Mapping[str, Section], allow_process: bool) -> Section | None:
+    """Pick the section that holds a skill's steps.
+
+    `procedure` wins. With `allow_process`, fall back to the first section
+    whose slug is `process` or starts with `process-` (document order), since
+    host skills mostly use `## Process`.
+    """
+    if "procedure" in sections:
+        return sections["procedure"]
+    if not allow_process:
+        return None
+    return next(
+        (sec for name, sec in sections.items() if name == "process" or name.startswith("process-")),
+        None,
+    )
 
 
 def numbered_steps(lines: Sequence[str]) -> list[str]:

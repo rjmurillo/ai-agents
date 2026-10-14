@@ -166,6 +166,7 @@ def test_too_few_workflow_terms_creates_with_reason(skills_root):
     assert result["status"] == "CREATE"
     assert result["skill"] is None
     assert "at least 3" in result["reason"]
+    assert "distinct word" in result["reason"]
     assert result["matches"][0]["coverage"] == 1.0
 
 
@@ -196,3 +197,38 @@ def test_generic_words_alone_do_not_reach_patch(skills_root):
 @pytest.mark.parametrize("word", ["skill", "skills", "file", "files", "write", "run", "use"])
 def test_generic_words_are_not_tokens(word):
     assert skillify.tokenize(word) == frozenset()
+
+
+STEPS = "1. Read the transcript.\n2. Extract action items.\n3. Write meeting notes.\n"
+
+
+def host(heading):
+    return (
+        "---\nname: opaque\ndescription: Misc helper.\n---\n\n## Triggers\n\n- go\n\n"
+        f"## {heading}\n\n{STEPS}"
+    )
+
+
+@pytest.mark.parametrize(
+    "heading", ["Process", "Process Overview", "Process: Progressive Disclosure"]
+)
+def test_process_section_gives_same_coverage_as_procedure(skills_root, heading):
+    make_skill(skills_root, "opaque", body=host(heading))
+    got = skillify.evaluate_overlap(WORKFLOW, [skills_root])
+    assert got["status"] == "PATCH"
+    reference = skills_root.parent / "ref"
+    reference.mkdir()
+    make_skill(reference, "opaque", body=host("Procedure"))
+    want = skillify.evaluate_overlap(WORKFLOW, [reference])
+    assert got["matches"][0]["coverage"] == want["matches"][0]["coverage"]
+
+
+def test_procedure_wins_over_process(skills_root):
+    body = host("Process") + "\n## Procedure\n\n1. Unrelated thing.\n"
+    make_skill(skills_root, "opaque", body=body)
+    assert skillify.evaluate_overlap(WORKFLOW, [skills_root])["status"] == "CREATE"
+
+
+def test_processing_heading_is_not_a_steps_section(skills_root):
+    make_skill(skills_root, "opaque", body=host("Processing Notes"))
+    assert skillify.evaluate_overlap(WORKFLOW, [skills_root])["status"] == "CREATE"

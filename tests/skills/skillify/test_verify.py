@@ -289,9 +289,10 @@ def test_duplicate_required_section_uses_first(skills_root):
     assert failed(verify(skill)) == {"items_pitfalls"}
 
 
+HOST_DESCRIPTION = "description: Route requests. Use when you say `ingest a meeting transcript`."
 HOST_SKILL = """---
 name: host-skill
-description: Route requests to the right skill.
+description: Route requests. Use when you say `ingest a meeting transcript`.
 ---
 
 # Host Skill
@@ -334,6 +335,7 @@ def test_patch_mode_skips_description_lead_and_sections(skills_root):
         "name_kebab_case",
         "name_matches_directory",
         "description_present",
+        "description_has_trigger",
         "no_source_only_tool_names",
     }
 
@@ -374,12 +376,13 @@ def test_create_mode_ignores_process_section(skills_root):
 
 def test_patch_mode_still_fails_name_description_and_tool_names(skills_root):
     body = HOST_SKILL.replace("name: host-skill", "name: Host_Skill")
-    body = body.replace("description: Route requests to the right skill.", "description:")
+    body = body.replace(HOST_DESCRIPTION, "description:")
     skill = make_skill(skills_root, "host-skill", body=body + "\nCall skill_manage().\n")
     assert failed(verify_patch(skill)) == {
         "name_kebab_case",
         "name_matches_directory",
         "description_present",
+        "description_has_trigger",
         "no_source_only_tool_names",
     }
 
@@ -388,3 +391,30 @@ def test_unknown_mode_raises(skills_root):
     skill = make_skill(skills_root, "a-skill")
     with pytest.raises(skillify.SkillifyError, match="mode"):
         skillify_verify.verify_skill(skill, TRIGGER, False, mode="bogus")
+
+
+def test_patch_mode_requires_trigger_anywhere_in_description(skills_root):
+    skill = make_skill(skills_root, "host-skill", body=HOST_SKILL)
+    assert verify_patch(skill)["status"] == "PASS"
+    assert failed(verify_patch(skill, trigger="triage a flaky test")) == {"description_has_trigger"}
+    assert failed(verify_patch(skill, trigger=" ")) == {"description_has_trigger"}
+
+
+def test_patch_mode_trigger_may_sit_past_the_lead_window(skills_root):
+    body = HOST_SKILL.replace("Route requests.", "x " * 150 + "Route requests.")
+    skill = make_skill(skills_root, "host-skill", body=body)
+    assert verify_patch(skill)["status"] == "PASS"
+    assert "description_leads_with_trigger" not in {c["id"] for c in verify_patch(skill)["checks"]}
+
+
+@pytest.mark.parametrize("heading", ["Process Overview", "Process: Progressive Disclosure"])
+def test_patch_mode_accepts_process_prefixed_section(skills_root, heading):
+    body = HOST_SKILL.replace("## Process", f"## {heading}")
+    skill = make_skill(skills_root, "host-skill", body=body)
+    assert verify_patch(skill, external=True, recovery=True)["status"] == "PASS"
+
+
+def test_patch_mode_does_not_treat_processing_as_process(skills_root):
+    body = HOST_SKILL.replace("## Process", "## Processing Notes")
+    skill = make_skill(skills_root, "host-skill", body=body)
+    assert failed(verify_patch(skill, external=True)) == {"approval_gate_present"}
