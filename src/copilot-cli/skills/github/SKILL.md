@@ -324,7 +324,7 @@ python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request 123
 # Check CI status
 python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request 123
 
-# Add comment if needed
+# Reply in a thread (new_pr_review_comment.py starts one)
 python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request 123 --comment-id 456 --body "CI failures detected"
 ```
 

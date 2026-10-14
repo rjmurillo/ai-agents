@@ -80,6 +80,10 @@ class TestBuildParser:
         assert args.line == 47
         assert args.path == "src/app.py"
 
+    def test_line_help_names_file_line_not_diff_position(self):
+        help_text = build_parser().format_help()
+        assert "File line number on the chosen side" in " ".join(help_text.split())
+
     def test_accepts_left_side(self):
         args = build_parser().parse_args([*BASE_ARGS, "--side", "LEFT"])
         assert args.side == "LEFT"
@@ -146,6 +150,17 @@ class TestMainSuccess:
             "commit_id": HEAD_SHA,
             "created_at": "2026-10-13T00:00:00Z",
         }
+
+    def test_gh_output_is_decoded_as_utf8(self, repo_ready):
+        with patch(
+            "new_pr_review_comment.subprocess.run",
+            side_effect=[_completed(stdout=HEAD_SHA), _created()],
+        ) as run:
+            assert main(BASE_ARGS) == 0
+
+        for call in run.call_args_list:
+            assert call.kwargs["encoding"] == "utf-8"
+            assert call.kwargs["errors"] == "replace"
 
     def test_left_side_is_sent(self, repo_ready, capsys):
         with patch(

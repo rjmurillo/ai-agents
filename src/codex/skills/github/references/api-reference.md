@@ -115,6 +115,7 @@ Check for merge conflicts or failing required checks. Use `get_pr_context.py` to
 
 ## update_pr_branch.py details
 
+- The script merges the base branch into the PR head through the GitHub update-branch API. It does not rebase.
 - Exit 0 with `already_up_to_date: true` means the head already contains the base.
 - With `--wait`, the wait ends only when compare shows the PR is not behind. A timeout exits 3.
 - Exit 1 with `reason: head_moved` means the head differs from `--expected-head-sha`.
@@ -126,6 +127,7 @@ Starts a new review thread on a diff line. Use `post_pr_comment_reply.py` to rep
 - `--side RIGHT` (default) targets added or unchanged lines. `--side LEFT` targets removed lines.
 - `--line` is the file line number on that side, and it must fall inside the PR diff.
 - The script reads the PR head commit and sends it as `commit_id`, so the comment anchors to the current head.
+- `body`, `path`, `commit_id`, and `side` go out as raw `-f` fields. Only `line` is a typed `-F` field. Do not switch `body` to `-F`, because a body that starts with `@` would then be read as a file.
 - Exit 0: created. The envelope carries `comment_id`, `html_url`, `commit_id`, `path`, `line`, `side`.
 - Exit 2: the PR is not found, the body is invalid, or the API returned 422 (line or path not in the diff).
 - Exit 3: another API failure, a quota refusal, or a timeout.

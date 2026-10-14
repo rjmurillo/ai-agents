@@ -86,7 +86,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--line",
         type=_positive_int,
         required=True,
-        help="Line number in the diff file to comment on",
+        help="File line number on the chosen side. It must fall inside the PR diff",
     )
     parser.add_argument(
         "--side",
@@ -138,6 +138,8 @@ def _run_gh_api(args: list[str], action: str) -> subprocess.CompletedProcess[str
             ["gh", "api", *args],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=_API_TIMEOUT_SECONDS,
             check=False,
         )

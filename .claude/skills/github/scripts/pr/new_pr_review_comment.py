@@ -86,7 +86,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--line",
         type=_positive_int,
         required=True,
-        help="Line number in the diff file to comment on",
+        help="File line number on the chosen side. It must fall inside the PR diff",
     )
     parser.add_argument(
         "--side",
