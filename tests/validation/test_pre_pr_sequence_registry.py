@@ -125,6 +125,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     "Skill Output Envelope",
     "Colocated Skill Tests",
     "Rule Activation Coverage",
+    "Route Scenario Coverage",
     "Copilot Routing Exclusions",
     "Sync Registry Provenance",
     "Agent Catalog Drift",

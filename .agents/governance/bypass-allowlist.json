@@ -121,6 +121,15 @@
     },
     {
       "kind": "continue-on-error",
+      "path": ".github/workflows/autoplan-route-eval.yml",
+      "job": "full-suite",
+      "step": "Run the model scenarios",
+      "reason": "Advisory: a model miss must not fail the run. The downstream step Fail when the live run produced no results reads the step outcome and exits 1 when no results file exists.",
+      "owner": "rjmurillo",
+      "expires": "2026-12-31"
+    },
+    {
+      "kind": "continue-on-error",
       "path": ".github/workflows/drift-detection.yml",
       "job": "detect-drift",
       "step": "Emit K2 kill-criteria event",
