@@ -20,7 +20,7 @@ TOKEN_RE = re.compile(r"[a-z0-9]+")
 STOPWORDS = frozenset(
     "a an and are as at be but by do does for from has have how in into is it its "
     "not of on or our that the their then this to use used using was when which "
-    "will with you your".split()
+    "will with you your skill skills file files write run verify check".split()
 )
 
 

@@ -59,13 +59,13 @@
       "desc": "Proactive suggestion is one declarative line",
       "input": "I finished a 9-call workflow with two error recoveries. Do you ask whether I want it saved as a skill? Answer in 4 short bullets. Do not modify any files.",
       "expected_signals": [
-        "one line",
-        "declarative",
+        "omitted",
+        "completion-tail",
         "no question",
         "no write"
       ],
       "expected_gate": "skillify-proactive-bound",
-      "rationale": "The proactive hint is at most one declarative line in the final report, never an opt-in question and never an unrequested write. A response that states this bound is attributable to skillify."
+      "rationale": "Under a completion-tail rule the proactive hint is omitted unless the user asked for capture suggestions. Where allowed it is one declarative line, never an opt-in question or an unrequested write. A response that states this bound is attributable to skillify."
     }
   ]
 }

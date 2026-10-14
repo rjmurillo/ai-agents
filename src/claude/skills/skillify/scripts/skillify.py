@@ -37,12 +37,15 @@ from skillify_text import (
     parse_frontmatter,
     tokenize,
 )
-from skillify_verify import resolve_skill_file, verify_skill
+from skillify_verify import MODE_CREATE, MODES, resolve_skill_file, verify_skill
 
 EXIT_OK = 0
 EXIT_LOGIC = 1
 EXIT_CONFIG = 2
 
+# Thresholds come from the upstream skillify skill (commit 687b380): its gate
+# rejects "trivial wrappers around a single tool call" (so 2 is the floor) and
+# proactive capture applies after "5+ tool calls".
 MIN_TOOL_CALLS = 2
 PROACTIVE_TOOL_CALLS = 5
 PATCH_THRESHOLD_PERCENT = 70
@@ -185,8 +188,9 @@ def skills_root_kind(path: PurePath) -> str:
     """Name the harness whose project layout `path` matches, else `custom`.
 
     Works on PurePath so Windows-style paths classify the same on any OS.
+    Names compare case-sensitively: `.CLAUDE/skills` is `custom`.
     """
-    parts = [part.lower() for part in path.parts[-2:]]
+    parts = list(path.parts[-2:])
     if len(parts) < 2:
         return "custom"
     return HARNESS_BY_SUFFIX.get((parts[0], parts[1]), "custom")
@@ -424,6 +428,12 @@ def build_parser() -> argparse.ArgumentParser:
     verify = sub.add_parser("verify", help="read back and check a written SKILL.md")
     verify.add_argument("--skill", required=True, help="SKILL.md path or its directory")
     verify.add_argument("--audit", help="gate audit JSON supplying trigger and flags")
+    verify.add_argument(
+        "--mode",
+        choices=MODES,
+        default=MODE_CREATE,
+        help="create checks the full skeleton; patch checks an edited host skill",
+    )
     verify.add_argument("--trigger", help="trigger phrase; overrides the audit")
     verify.add_argument(
         "--external-actions", action="store_true", help="force the approval-gate check"
@@ -459,7 +469,7 @@ def run(args: argparse.Namespace, environ: Mapping[str, str]) -> tuple[dict[str,
     if args.command == "verify":
         trigger, external, recovery = _verify_options(args)
         skill_file = resolve_skill_file(Path(args.skill))
-        result = verify_skill(skill_file, trigger, external, recovery)
+        result = verify_skill(skill_file, trigger, external, recovery, args.mode)
         return result, EXIT_LOGIC if result["status"] == "FAIL" else EXIT_OK
     raise SkillifyError(f"unknown command: {args.command}")
 
