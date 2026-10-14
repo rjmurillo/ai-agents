@@ -653,7 +653,15 @@ _PYTEST_NO_TESTS_COLLECTED = 5
 # because the whole suite duplicates CI's `pytest.yml` partition matrix on the
 # same commit while costing the push minutes it does not have; see ADR-104.
 PYTEST_FULL_SUITE_LOCALLY_ENV = "AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY"
-_TESTMON_FLAGS = ("--testmon", "--testmon-forceselect")
+# The third flag loads `testmon_scoped_sync` (issue #6406): without it a partition
+# that shares a database and collects after a sibling saved deletes the sibling's
+# records. It is one token (`-pNAME`) so `pytest_deferral.collect_only_command`
+# drops it whole.
+_TESTMON_FLAGS = (
+    "--testmon",
+    "--testmon-forceselect",
+    "-pscripts.validation.testmon_scoped_sync",
+)
 # Set by the CI seed job so its build starts from an empty database.
 TESTMON_NO_SEED_ENV = "AI_AGENTS_TESTMON_NO_SEED"
 # Whole-run budget for the CI seed job, read only when TESTMON_NO_SEED_ENV is
@@ -7986,6 +7994,8 @@ def _pytest_overlap_lanes(
     build runs in sequence (issue #6198). Once the database exists, each lane
     runs on its own copy of it (issue #6477, `_lane_environments`), so one
     lane's writes cannot change what another lane's workers read.
+    `_TESTMON_FLAGS` also loads `testmon_scoped_sync`, so a run that shares a
+    database deletes only records for files it collected (issue #6406).
     """
     if _uses_testmon(commands) and _testmon_database_missing(repo_root, env):
         print(

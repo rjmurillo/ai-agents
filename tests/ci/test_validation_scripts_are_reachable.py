@@ -403,6 +403,43 @@ def _resolve_import(
     return matches[0] if len(matches) == 1 else ()
 
 
+_PLUGIN_FLAG_RE = re.compile(r"-p([A-Za-z_][\w.]*)")
+
+
+def _plugin_flag_modules(tree: ast.AST) -> set[str]:
+    """Return module names loaded by a ``-p<module>`` pytest flag literal.
+
+    ``pytest -pNAME`` imports NAME before collection, so a string that is exactly
+    that flag is a load site no import statement or script path shows. A docstring
+    that merely mentions the flag does not match, because the whole string must be
+    the flag. ``-pno:name`` (disable) fails the identifier pattern on the colon.
+    """
+    modules: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            match = _PLUGIN_FLAG_RE.fullmatch(node.value)
+            if match:
+                modules.add(match.group(1))
+    return modules
+
+
+def _plugin_flag_edges(source: str, rel: str, index: dict[str, tuple[str, ...]]) -> set[str]:
+    """Resolve ``-p<module>`` flags in ``source`` to in-repo sources.
+
+    A source without a quoted ``-p`` skips the AST walk, so the 1300-file graph
+    build pays one substring test per file (see ``_execution_string_literals``).
+    Only an exact module name in ``index`` counts, so a third-party plugin adds
+    no edge.
+    """
+    if '"-p' not in source and "'-p" not in source:
+        return set()
+    return {
+        path
+        for module in _plugin_flag_modules(ast.parse(source, filename=rel))
+        for path in index.get(module, ())
+    }
+
+
 @functools.lru_cache(maxsize=1)
 def _reference_graph() -> dict[str, frozenset[str]]:
     """Map every Python source to every in-repo source it imports or names.
@@ -437,6 +474,7 @@ def _reference_graph() -> dict[str, frozenset[str]]:
         reached = _invoked_scripts(tree, rel) if ".py" in source else set()
         for module in _imported_modules(tree, rel):
             reached.update(_resolve_import(index, module, rel))
+        reached.update(_plugin_flag_edges(source, rel, index))
         graph[rel] = frozenset(reached - {rel})
     return graph
 
@@ -1035,3 +1073,47 @@ def test_file_without_execution_call_yields_nothing() -> None:
         'def _run_x(path):\n    return path\ndef go():\n    _run_x("scripts/validation/foo.py")\n'
     )
     assert _literals(source) == set()
+
+
+class TestPytestPluginFlags:
+    """A `-p<module>` flag loads that module, so it is a caller (issue #6406)."""
+
+    _INDEX: dict[str, tuple[str, ...]] = {
+        "scripts.validation.plug": ("scripts/validation/plug.py",)
+    }
+
+    def test_a_plugin_flag_literal_names_the_module(self) -> None:
+        tree = ast.parse('FLAGS = ("--testmon", "-pscripts.validation.plug")')
+        assert _plugin_flag_modules(tree) == {"scripts.validation.plug"}
+
+    def test_a_flag_in_a_call_argument_is_found(self) -> None:
+        tree = ast.parse('run(["pytest", "-pscripts.validation.plug"])')
+        assert _plugin_flag_modules(tree) == {"scripts.validation.plug"}
+
+    def test_a_flag_with_a_space_is_not_a_module(self) -> None:
+        tree = ast.parse('x = "-p scripts.validation.plug"')
+        assert _plugin_flag_modules(tree) == set()
+
+    def test_the_disable_form_is_not_a_module(self) -> None:
+        tree = ast.parse('x = "-pno:testmon"')
+        assert _plugin_flag_modules(tree) == set()
+
+    def test_a_docstring_that_mentions_a_flag_is_not_a_load_site(self) -> None:
+        tree = ast.parse('"""Load it with -pscripts.validation.plug on the command line."""')
+        assert _plugin_flag_modules(tree) == set()
+
+    def test_a_source_without_the_flag_skips_the_walk(self) -> None:
+        assert _plugin_flag_edges("x = 1\n", "scripts/a.py", self._INDEX) == set()
+
+    def test_a_flag_resolves_to_the_in_repo_source(self) -> None:
+        source = 'FLAGS = ("-pscripts.validation.plug",)\n'
+        assert _plugin_flag_edges(source, "scripts/a.py", self._INDEX) == {
+            "scripts/validation/plug.py"
+        }
+
+    def test_a_flag_for_an_unknown_module_adds_no_edge(self) -> None:
+        source = 'FLAGS = ("-pthird_party.plugin",)\n'
+        assert _plugin_flag_edges(source, "scripts/a.py", self._INDEX) == set()
+
+    def test_the_testmon_plugin_is_reachable_through_the_hook_policy_flag(self) -> None:
+        assert "scripts/validation/testmon_scoped_sync.py" in _reachable()
