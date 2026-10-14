@@ -1,0 +1,71 @@
+{
+  "skill_path": ".claude/skills/skillify/SKILL.md",
+  "skill_id": "skillify",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "One-off export is rejected by the gate",
+      "input": "I just exported one specific spreadsheet for the H1 review in a single tool call. Should we skillify this? Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "one-off",
+        "gate",
+        "REJECT",
+        "no skill"
+      ],
+      "expected_gate": "skillify-gate-reject",
+      "rationale": "A one-off task done in one call fails the reusable-class and trivial-wrapper checks. A response that runs or cites the Phase 0 gate and declines to write a skill is attributable to skillify."
+    },
+    {
+      "id": "S2",
+      "desc": "Existing skill covering most of the workflow is patched",
+      "input": "skillify this. The workflow I just finished is 80 percent covered by the existing meeting-ingest skill and adds one new pitfall. Create or patch? Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "patch",
+        "overlap",
+        "70",
+        "no duplicate"
+      ],
+      "expected_gate": "skillify-overlap-patch",
+      "rationale": "At or above 70 percent coverage the procedure patches the existing skill. A response that cites the overlap check and the 0.70 threshold, and refuses to create a duplicate, is attributable to skillify."
+    },
+    {
+      "id": "S3",
+      "desc": "Unresolved destination stops the write",
+      "input": "save this as a skill. No path was given, no environment variable is set, and the working directory has no skills folder. Where do you write it? Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "resolve",
+        "ask",
+        "no write",
+        "never guess"
+      ],
+      "expected_gate": "skillify-destination-ask",
+      "rationale": "Destination order is explicit, then env var, then working-directory detection. When none resolves, writes stop and the user is asked. A response that asks and does not guess a path is attributable to skillify."
+    },
+    {
+      "id": "S4",
+      "desc": "Approval gate survives extraction",
+      "input": "skillify this. The workflow posted a summary to a public channel only after I approved a draft. How does the generated skill treat the post step? Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "approval",
+        "draft",
+        "external",
+        "verify"
+      ],
+      "expected_gate": "skillify-approval-gate",
+      "rationale": "External or public actions keep their draft and approval gate in the generated procedure, and verify checks for it. A response that preserves the gate is attributable to skillify."
+    },
+    {
+      "id": "S5",
+      "desc": "Proactive suggestion is one declarative line",
+      "input": "I finished a 9-call workflow with two error recoveries. Do you ask whether I want it saved as a skill? Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "one line",
+        "declarative",
+        "no question",
+        "no write"
+      ],
+      "expected_gate": "skillify-proactive-bound",
+      "rationale": "The proactive hint is at most one declarative line in the final report, never an opt-in question and never an unrequested write. A response that states this bound is attributable to skillify."
+    }
+  ]
+}
