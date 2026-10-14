@@ -120,6 +120,27 @@ def test_overlap_bad_workflow_exits_one(tmp_path, skills_root, capsys):
     assert (code, out["status"]) == (1, "error")
 
 
+def _home(monkeypatch, path):
+    monkeypatch.setenv("HOME", str(path))
+    monkeypatch.setenv("USERPROFILE", str(path))
+
+
+def test_resolve_cwd_flag_expands_home(tmp_path, monkeypatch, capsys):
+    _home(monkeypatch, tmp_path)
+    project = tmp_path / "proj"
+    (project / ".git").mkdir(parents=True)
+    (project / ".claude" / "skills").mkdir(parents=True)
+    code, out = run_cli(capsys, "resolve", "--cwd", "~/proj")
+    assert (code, out["source"]) == (0, "cwd")
+
+
+def test_verify_skill_flag_expands_home(skills_root, monkeypatch, capsys):
+    _home(monkeypatch, skills_root)
+    make_skill(skills_root, "meeting-ingest")
+    code, out = run_cli(capsys, "verify", "--skill", "~/meeting-ingest", "--trigger", TRIGGER)
+    assert (code, out["status"]) == (0, "PASS")
+
+
 def test_verify_pass_exits_zero(skills_root, capsys):
     make_skill(skills_root, "meeting-ingest")
     code, out = run_cli(

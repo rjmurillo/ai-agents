@@ -464,14 +464,14 @@ def run(args: argparse.Namespace, environ: Mapping[str, str]) -> tuple[dict[str,
     if args.command == "gate":
         return evaluate_gate(load_json(args.audit)), EXIT_OK
     if args.command == "resolve":
-        cwd = Path(args.cwd) if args.cwd else Path.cwd()
+        cwd = Path(args.cwd).expanduser() if args.cwd else Path.cwd()
         return resolve_destination(args.explicit, args.env_var, cwd, environ)
     if args.command == "overlap":
         roots = [Path(r).expanduser() for r in args.root]
         return evaluate_overlap(load_json(args.workflow), roots), EXIT_OK
     if args.command == "verify":
         trigger, external, recovery = _verify_options(args)
-        skill_file = resolve_skill_file(Path(args.skill))
+        skill_file = resolve_skill_file(Path(args.skill).expanduser())
         result = verify_skill(skill_file, trigger, external, recovery, args.mode)
         return result, EXIT_LOGIC if result["status"] == "FAIL" else EXIT_OK
     raise SkillifyError(f"unknown command: {args.command}")
