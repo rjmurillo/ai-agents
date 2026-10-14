@@ -6,7 +6,12 @@
       "id": "S1",
       "desc": "Trusted execution is mistaken for accepted completion.",
       "input": "The ai-agents completion dispatcher returned verified true in verify-only mode. Two unresolved security threads have tracking issues. Tell me whether the PR is complete and the next action. Do not modify anything.",
-      "expected_signals": ["trust", "criteria", "zero unresolved", "owner"],
+      "expected_signals": [
+        "trust",
+        "criteria",
+        "zero unresolved",
+        "owner"
+      ],
       "expected_gate": "separate-trust-from-completion",
       "rationale": "The executable predicate requires zero unresolved threads despite its comment."
     },
@@ -14,7 +19,12 @@
       "id": "S2",
       "desc": "An already-merged PR is sent through open-PR criteria.",
       "input": "The ai-agents PR is already merged. The completion gate requires merged false. Should I rerun review or execute the gate? Give the correct first read and outcome evidence. Do not modify anything.",
-      "expected_signals": ["merged state", "before", "merged artifact", "skip"],
+      "expected_signals": [
+        "merged state",
+        "before",
+        "merged artifact",
+        "skip"
+      ],
       "expected_gate": "branch-before-open-pr-dispatch",
       "rationale": "Read current state before invoking an inapplicable acceptance gate."
     },
@@ -25,6 +35,16 @@
       "expected_signals": [],
       "expected_gate": "skip-rule-not-applicable",
       "rationale": "No reviewed PR or completion evidence is involved."
+    },
+    {
+      "id": "S4",
+      "desc": "A neighboring workflow owns the requested outcome.",
+      "input": "The installed plugin initializes, but foreign cwd produces no intended marker. Determine consumer execution proof without changing anything.",
+      "expected_signals": [
+        "repository-consumer-proof"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "Consumer proof owns runtime execution rather than PR completion."
     }
   ]
 }

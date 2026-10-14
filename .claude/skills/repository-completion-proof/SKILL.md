@@ -135,9 +135,8 @@ A successful verify-only invocation proves only the first result.
 
 ## Anti-Patterns
 
-Do not substitute a successful intermediate invocation for the requested outcome.
+Follow the [shared outcome boundary](../repository-pr-recovery/references/library.md#common-execution-contract).
 
 ## Evolution
 
-Refresh the referenced producer when its contract or selected host changes.
-Keep new acceptance requirements in their existing authoritative configuration.
+Follow the [shared maintenance policy](../repository-pr-recovery/references/library.md#maintenance).

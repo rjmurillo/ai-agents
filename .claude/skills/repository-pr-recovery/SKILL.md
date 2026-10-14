@@ -101,7 +101,7 @@ Use supported GitHub GET operations for these independent policy surfaces:
 Known ruleset `11104075` targets the default branch.
 Inspect its detail directly; refresh the collection when scope or applicability changes.
 The [ruleset](https://github.com/rjmurillo/ai-agents/rules/11104075) requires resolved threads and squash merges.
-Its nine required checks specify integration ID `15368`.
+GitHub Actions integration ID `15368` is a verified producer coordinate.
 Read current check contexts from policy instead of maintaining another list here.
 Denied legacy-protection access remains unknown; an empty legacy result does not exclude rulesets.
 
@@ -149,9 +149,8 @@ Do not report the PR accepted or merged from a successful diagnosis alone.
 
 ## Anti-Patterns
 
-Do not substitute a successful intermediate invocation for the requested outcome.
+Follow the [shared outcome boundary](references/library.md#common-execution-contract).
 
 ## Evolution
 
-Refresh the referenced producer when its contract or selected host changes.
-Keep new acceptance requirements in their existing authoritative configuration.
+Follow the [shared maintenance policy](references/library.md#maintenance).

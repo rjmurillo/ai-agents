@@ -109,13 +109,13 @@ Those cases cover cancelled baselines, missing rows, incomplete pages, and run o
 The replay reused independent repository tests rather than author-written approval assertions.
 It did not exercise live PR mutation or consumer runtime behavior.
 
-Three activation fixtures live in the maintained skill-scenario directory.
-Their six positive inputs selected the intended workflows through the existing resolver.
-Their three negative inputs selected no workflow.
+Activation fixtures live in the maintained skill-scenario directory.
+They cover positive requests, unrelated negatives, and neighboring workflow requests.
 The activation evaluator loaded all fixtures successfully in dry-run mode.
 Dry-run produced no scored model responses or live runtime evidence.
 
-The catalog contains 47,767 description characters against its existing 48,000 limit.
+Description checks passed without changing the configured limits.
+The [maintained budget](../../../../scripts/skill_description_budget.json) supplies the current ceilings.
 One existing description shrank from 944 to 325 characters.
 Its body, triggers, and other metadata remained unchanged.
 Generation propagated that edit through Claude, Copilot CLI, and Codex mirrors.
