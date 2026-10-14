@@ -29,10 +29,13 @@ Exit codes:
        unreadable snapshot.
     3  External error: git is missing or a git command failed.
 
-Limits: verify compares the working tree, HEAD, and the branch name. It does
-not see ref changes that leave those alone (stash, tags, other branches,
-config, push), writes inside `.git/`, or gitignored paths. An ignored output
-root, skill directory, or `--also-allow` path is therefore refused. Stdlib only, so the script runs from any plugin root.
+Limits: verify compares the working tree, HEAD, the branch name, the index
+flags that hide changes (assume-unchanged, skip-worktree), and
+`info/exclude`. It does not see other ref changes (tags, other branches,
+config, push), other writes inside `.git/`, or gitignored paths, so an
+ignored output root, skill directory, or `--also-allow` path is refused. It
+catches accidental writes by a cooperating run; it is not a sandbox, and a
+snapshot taken after the writes proves nothing. Stdlib only, so the script runs from any plugin root.
 """
 
 from __future__ import annotations
@@ -51,8 +54,9 @@ from typing import Any
 ALLOWED_ROOTS = (".claude/skills", ".github/skills")
 NAME_RE = re.compile(r"^[a-z](?:[a-z0-9-]*[a-z0-9])?$")
 MAX_NAME = 64
-SNAPSHOT_SCHEMA = "skill-bootstrap-snapshot/2"
+SNAPSHOT_SCHEMA = "skill-bootstrap-snapshot/3"
 IGNORE_PROBE = "skill-bootstrap-probe/SKILL.md"
+IGNORE_CHILD = "skill-bootstrap-probe.md"
 
 Payload = dict[str, Any]
 
@@ -118,7 +122,8 @@ def require_visible(root: Path, paths: list[str]) -> None:
     """Raise when git ignores any path, because verify cannot see writes there."""
     if not paths:
         return
-    proc = _run_git(root, "check-ignore", "--", *paths)
+    probes = [probe for path in paths for probe in (path, f"{path}/{IGNORE_CHILD}")]
+    proc = _run_git(root, "check-ignore", "--no-index", "--", *probes)
     if proc.returncode == 0:
         hidden = ", ".join(proc.stdout.split())
         raise ConfigError(f"git ignores {hidden}, so verify cannot see writes there")
@@ -173,7 +178,7 @@ def plan(args: argparse.Namespace) -> tuple[int, Payload]:
     updates = set(args.update or [])
     here = _skill_dirs(root, str(rel))
     other = {r: _skill_dirs(root, r) for r in ALLOWED_ROOTS if r != str(rel)}
-    require_visible(root, [f"{rel}/{n}/SKILL.md" for n in names if not name_defects(n)])
+    require_visible(root, [f"{rel}/{n}" for n in names if not name_defects(n)])
     entries = [_plan_entry(n, args.project, updates, here, other) for n in names]
     entries += [
         {"name": n, "status": "invalid", "defects": ["--update without a matching --name"]}
@@ -189,22 +194,13 @@ def plan(args: argparse.Namespace) -> tuple[int, Payload]:
 
 
 def _status_paths(root: Path) -> list[str]:
-    """Return every path git reports as changed or untracked, posix form."""
-    raw = _git(root, "status", "--porcelain=v1", "-z", "--untracked-files=all")
-    fields = raw.split("\0")
-    paths: list[str] = []
-    i = 0
-    while i < len(fields):
-        entry = fields[i]
-        i += 1
-        if len(entry) < 4:
-            continue
-        paths.append(entry[3:])
-        if entry[0] in "RC":
-            # Rename and copy entries carry the source path in the next field.
-            paths.append(fields[i])
-            i += 1
-    return sorted(set(paths))
+    """Return every path git reports as changed or untracked, posix form.
+
+    `--no-renames` reports each side of a rename as its own entry, so a
+    deleted source path is never folded into the destination.
+    """
+    raw = _git(root, "status", "--porcelain=v1", "-z", "--untracked-files=all", "--no-renames")
+    return sorted({entry[3:].rstrip("/") for entry in raw.split("\0") if len(entry) > 3})
 
 
 def _hash(path: Path) -> str:
@@ -213,8 +209,27 @@ def _hash(path: Path) -> str:
     if not path.exists():
         return "absent"
     if path.is_dir():
-        return "dir"
+        return "dir:" + _hash_tree(path)
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _hash_tree(path: Path) -> str:
+    """Hash a directory git reports as one entry, such as a nested repo or submodule."""
+    digest = hashlib.sha256()
+    for child in sorted(path.rglob("*")):
+        if ".git" in child.relative_to(path).parts or child.is_dir():
+            continue
+        digest.update(child.relative_to(path).as_posix().encode("utf-8"))
+        digest.update(_hash(child).encode("utf-8"))
+    return digest.hexdigest()
+
+
+def _git_flags(root: Path) -> Payload:
+    """Record git state that can hide a working-tree write from `git status`."""
+    listed = _git(root, "ls-files", "-v", "-z").split("\0")
+    hidden = sorted(e[2:] for e in listed if len(e) > 2 and (e[0].islower() or e[0] == "S"))
+    exclude = root / _git(root, "rev-parse", "--git-path", "info/exclude").strip()
+    return {"index_hidden": hidden, "info_exclude": _hash(exclude)}
 
 
 def _head(root: Path) -> str:
@@ -230,6 +245,7 @@ def _state(root: Path) -> Payload:
         "head": head,
         "branch": branch,
         "paths": {p: _hash(root / Path(*PurePosixPath(p).parts)) for p in _status_paths(root)},
+        "git_flags": _git_flags(root),
     }
 
 
@@ -317,7 +333,7 @@ def verify(args: argparse.Namespace) -> tuple[int, Payload]:
     also_allow = _also_allowed(root, args.also_allow or [])
     require_visible(
         root,
-        [f"{rel}/{n}/SKILL.md" for n in sorted(names | updates)] + [str(a) for a in also_allow],
+        [f"{rel}/{n}" for n in sorted(names | updates)] + [str(a) for a in also_allow],
     )
     grants = {
         "names": names,
@@ -328,7 +344,7 @@ def verify(args: argparse.Namespace) -> tuple[int, Payload]:
     after = _state(root)
     violations: list[Payload] = [
         {"kind": f"{key}-changed", "before": before[key], "after": after[key]}
-        for key in ("head", "branch")
+        for key in ("head", "branch", "git_flags")
         if before[key] != after[key]
     ]
     examined = sorted(set(before["paths"]) | set(after["paths"]))

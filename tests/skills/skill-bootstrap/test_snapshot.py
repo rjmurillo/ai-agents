@@ -38,7 +38,7 @@ def test_snapshot_outside_repo_writes_schema_root_and_head(
 
     record = json.loads(snap_path.read_text(encoding="utf-8"))
     assert code == 0
-    assert record["schema"] == "skill-bootstrap-snapshot/2"
+    assert record["schema"] == "skill-bootstrap-snapshot/3"
     assert record["output_root"] == ".claude/skills"
     assert record["head"] == run_git(repo, "rev-parse", "HEAD").strip()
     assert payload["head"] == record["head"]

@@ -37,7 +37,9 @@ def test_verify_corrupt_snapshot_exits_two(repo: Path, capsys: Capsys, snap_path
     assert payload["error"] == "config"
 
 
-@pytest.mark.parametrize("schema", ["other/1", "skill-bootstrap-snapshot/1"])
+@pytest.mark.parametrize(
+    "schema", ["other/1", "skill-bootstrap-snapshot/1", "skill-bootstrap-snapshot/2"]
+)
 def test_verify_snapshot_with_wrong_schema_exits_two(
     repo: Path, capsys: Capsys, snap_path: Path, schema: str
 ) -> None:
@@ -145,7 +147,7 @@ def test_verify_named_skill_hidden_by_a_nested_ignore_exits_two(
     code, payload = verify(capsys, repo, snap_path, "--name", "proj-release")
 
     assert code == 2
-    assert "git ignores .claude/skills/proj-release/SKILL.md" in payload["message"]
+    assert "git ignores .claude/skills/proj-release" in payload["message"]
 
 
 def test_verify_also_allow_path_hidden_by_ignore_exits_two(
