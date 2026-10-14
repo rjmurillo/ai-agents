@@ -303,14 +303,13 @@ Exit codes follow ADR-035: 0=success, 1=logic error, 2=config error, 3=external 
 
 ## Process
 
-This skill provides a toolkit of Python scripts for GitHub operations. Use scripts directly or compose them into workflows.
-
 **Basic Usage:**
 
 1. Identify the operation needed using the Decision Tree
 2. Find the corresponding script in the Script Reference
 3. Call the script with required parameters
 4. Parse the JSON output
+5. Reading an issue or PR: read the full discussion, open every linked item, recurse until no new links
 
 **Example Flow:**
 
