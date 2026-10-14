@@ -164,6 +164,7 @@ If monthly costs exceed $100:
 - agent-metrics (weekly)
 - drift-detection (weekly)
 - copilot-context-synthesis (hourly sweep)
+- autoplan-route-eval (weekly)
 
 ### Critical Workflows (Never Disable)
 
@@ -196,7 +197,7 @@ All four require a reviewer. `agent-approval` is deleted (ADR-114 Decision 11 it
 - copilot-context-synthesis
 - claude
 
-ai-metrics-analysis, pr-maintenance, and artifact-insight-scanner review with Claude in `agent-claude`. No workflow outside plugin-cli-smoke reads `COPILOT_GITHUB_TOKEN`.
+ai-metrics-analysis, pr-maintenance, artifact-insight-scanner, and autoplan-route-eval run Claude in `agent-claude`. No workflow outside plugin-cli-smoke reads `COPILOT_GITHUB_TOKEN`.
 
 plugin-cli-smoke runs on pull requests, only when a change touches a smoke path (`scripts/validation/cli_smoke_paths.py`). It runs one matrix leg per CLI. A Claude or Copilot leg runs in `agent-claude` or `agent-copilot` and receives only that provider's credential. The Codex legs read no credential and run in no environment. plugin-cli-smoke is the one blocking gated workflow (REQ-047, owner decision D2); the other gated pull-request workflows stay advisory.
 

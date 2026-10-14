@@ -985,9 +985,9 @@ Each family reports `scenarios`, `reachable` (every named route is an installed 
 
 Three pieces close the loop for a changed route:
 
-- `scripts/validation/check_route_scenario_coverage.py` diffs the `Intent | Route` table in `.claude/skills/autoplan/SKILL.md` against the merge base. A row that is new, or whose route text changed, needs a new or edited scenario in `autoplan.json` whose `expected_route` names one of the row's targets. The failure names the route. Exit 1 means a route lacks a scenario, exit 2 means a bad input such as an unresolvable ref or a missing table.
-- `validate-rule-activation-coverage.yml` runs that gate on pull requests, then runs `eval_autoplan_routes.py` without a model as the fast subset. The subset step has a 60 second budget and measures about 2 seconds.
-- `autoplan-route-eval.yml` runs the full model suite weekly and prints per-family accuracy to the job summary. A model miss stays advisory. The run fails only when no results exist.
+- `scripts/validation/check_route_scenario_coverage.py` diffs the `Intent | Route` table in `.claude/skills/autoplan/SKILL.md` against the merge base. A row that is new, or whose route text changed, needs a new or edited scenario in `autoplan.json` whose `expected_route` names one of the row's targets. A scenario counts as edited only when its `input`, `expected_route`, `expected_gate`, `expected_signals`, or `forbidden_routes` changes, so a rationale-only edit does not clear the failure. A row with no `Skill:`, `Agent:`, `subagent_type`, or `/command` target is satisfied by any edited scenario. A reworded intent with unchanged route text is a rename and is skipped. The failure names the route. Reproduce it locally with `python3 scripts/validation/check_route_scenario_coverage.py --base-ref origin/main`. Exit 1 means a route lacks a scenario, exit 2 means a bad input such as an unresolvable ref or a missing table.
+- `validate-rule-activation-coverage.yml` runs that gate on pull requests only, and runs `eval_autoplan_routes.py` without a model on every run as the fast subset (pull request, push to main, and `workflow_dispatch`, whenever the paths filter matches). The subset step has a 60 second budget and measures about 2 seconds.
+- `autoplan-route-eval.yml` runs the full model suite weekly and prints per-family accuracy to the job summary. A model miss stays advisory. The run fails when no results exist, when a resolver fixture fails, or when the results file cannot be read.
 
 ## Skill Overlap Eval
 
