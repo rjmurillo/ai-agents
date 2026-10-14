@@ -76,10 +76,13 @@ reference syntax for the actual field, endpoint, and platform version. Field
 formats differ: plain text, HTML, and Markdown. Examples:
 
 - Azure DevOps `#12345`: a mention in a work item discussion, but a stored
-  Development link in a PR description or commit message.
+  Development link in a PR description, or in a commit message when the
+  repository's commit mention linking setting is on. Imported repositories
+  can have it off; read the setting.
 - Azure DevOps `!455667`: a PR mention where the surface supports it.
-- `AB#123` in a GitHub commit or PR, with the Azure Boards app connected: a
-  stored link on the work item.
+- `AB#123` in a GitHub commit message, PR description, or issue
+  description, with the Azure Boards app connected: a stored link on the
+  work item. A PR title or comment creates no link.
 - GitHub `owner/repo#123`: a cross-reference. Closing keywords add an
   automatic transition on merge to the default branch.
 

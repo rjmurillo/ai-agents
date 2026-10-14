@@ -110,3 +110,51 @@ def test_verify_snapshot_for_github_root_checks_that_root(
     code, _ = verify(capsys, repo, snap_path, "--name", "proj-release", root=".github/skills")
 
     assert code == 0
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        ".claude/skills/existing-skill",
+        ".claude/skills",
+        ".claude",
+        "./.claude/skills",
+        ".github/skills/other",
+        ".git/hooks",
+    ],
+)
+def test_verify_also_allow_overlapping_a_skills_root_or_git_exits_two(
+    repo: Path, capsys: Capsys, snap_path: Path, path: str
+) -> None:
+    take_snapshot(capsys, repo, snap_path)
+    write(repo, ".claude/skills/existing-skill/SKILL.md", "changed\n")
+
+    code, payload = verify(capsys, repo, snap_path, "--also-allow", path)
+
+    assert code == 2
+    assert payload["error"] == "config"
+
+
+def test_verify_named_skill_hidden_by_a_nested_ignore_exits_two(
+    repo: Path, capsys: Capsys, snap_path: Path
+) -> None:
+    write(repo, ".claude/skills/.gitignore", "proj-*/\n")
+    take_snapshot(capsys, repo, snap_path)
+    write(repo, ".claude/skills/proj-release/SKILL.md")
+
+    code, payload = verify(capsys, repo, snap_path, "--name", "proj-release")
+
+    assert code == 2
+    assert "git ignores .claude/skills/proj-release/SKILL.md" in payload["message"]
+
+
+def test_verify_also_allow_path_hidden_by_ignore_exits_two(
+    repo: Path, capsys: Capsys, snap_path: Path
+) -> None:
+    ignore(repo, "templates/")
+    take_snapshot(capsys, repo, snap_path)
+
+    code, payload = verify(capsys, repo, snap_path, "--also-allow", "templates/x.tmpl")
+
+    assert code == 2
+    assert "git ignores templates/x.tmpl" in payload["message"]

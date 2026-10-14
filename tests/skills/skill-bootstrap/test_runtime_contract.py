@@ -11,9 +11,11 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 import subprocess
 from pathlib import Path
 
+import pytest
 from bootstrap_helpers import write
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -34,11 +36,9 @@ def _documented_commands(snap: Path) -> dict[str, str]:
         for placeholder, value in (
             ("<project>-<lens>", SKILL_NAME),
             ("<new-skill>", SKILL_NAME),
-            ("<each authored or updated skill>", SKILL_NAME),
             ("<output-root>", ".claude/skills"),
             ("<project>", "demo"),
             ("<snapshot path>", str(snap)),
-            ("<path outside the repo>/snapshot.json", str(snap)),
         ):
             text = text.replace(placeholder, value)
         assert "<" not in text, f"unfilled placeholder: {text}"
@@ -122,3 +122,43 @@ def test_documented_snapshot_fails_when_no_plugin_root_resolves_the_script(
 
     assert result.returncode != 0
     assert not snap.exists()
+
+
+PS_ROOT_RE = re.compile(r"^\$root = .*$", re.MULTILINE)
+PS_LINE_RE = re.compile(r'^python "\$root/.*$', re.MULTILINE)
+
+
+def _documented_powershell(snap: Path) -> str:
+    """Return the documented PowerShell root line plus its snapshot command."""
+    text = SKILL_MD.read_text(encoding="utf-8")
+    root_line = PS_ROOT_RE.search(text)
+    command = PS_LINE_RE.search(text)
+    assert root_line and command, "SKILL.md has no PowerShell form"
+    filled = command.group(0).replace("<output-root>", ".claude/skills")
+    filled = filled.replace("<snapshot path>", str(snap))
+    assert "<" not in filled, f"unfilled placeholder: {filled}"
+    return f"{root_line.group(0)}\n{filled}\nexit $LASTEXITCODE"
+
+
+@pytest.mark.skipif(shutil.which("pwsh") is None, reason="pwsh not installed")
+def test_documented_powershell_form_skips_an_empty_copilot_root(repo: Path, tmp_path: Path) -> None:
+    snap = tmp_path / "scratch" / "snapshot.json"
+    env = _host_env(PLUGIN_ROOT)
+    env["COPILOT_PLUGIN_ROOT"] = ""
+    env["PATH"] = os.pathsep.join(
+        [str(Path(shutil.which("python3") or "python3").parent), env["PATH"]]
+    )
+    script = _documented_powershell(snap).replace("python ", "python3 ", 1)
+
+    result = subprocess.run(
+        ["pwsh", "-NoProfile", "-NonInteractive", "-Command", script],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert snap.is_file()

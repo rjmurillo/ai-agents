@@ -31,8 +31,8 @@ Exit codes:
 
 Limits: verify compares the working tree, HEAD, and the branch name. It does
 not see ref changes that leave those alone (stash, tags, other branches,
-config, push), and it cannot see gitignored paths, which is why an ignored
-output root is refused. Stdlib only, so the script runs from any plugin root.
+config, push), writes inside `.git/`, or gitignored paths. An ignored output
+root, skill directory, or `--also-allow` path is therefore refused. Stdlib only, so the script runs from any plugin root.
 """
 
 from __future__ import annotations
@@ -114,6 +114,18 @@ def check_root(root: Path, output_root: str) -> PurePosixPath:
     return rel
 
 
+def require_visible(root: Path, paths: list[str]) -> None:
+    """Raise when git ignores any path, because verify cannot see writes there."""
+    if not paths:
+        return
+    proc = _run_git(root, "check-ignore", "--", *paths)
+    if proc.returncode == 0:
+        hidden = ", ".join(proc.stdout.split())
+        raise ConfigError(f"git ignores {hidden}, so verify cannot see writes there")
+    if proc.returncode != 1:
+        raise GitError(f"git check-ignore failed: {proc.stderr.strip()}")
+
+
 def name_defects(name: str, project: str | None = None) -> list[str]:
     """Return the reasons a skill name is invalid."""
     defects = []
@@ -161,6 +173,7 @@ def plan(args: argparse.Namespace) -> tuple[int, Payload]:
     updates = set(args.update or [])
     here = _skill_dirs(root, str(rel))
     other = {r: _skill_dirs(root, r) for r in ALLOWED_ROOTS if r != str(rel)}
+    require_visible(root, [f"{rel}/{n}/SKILL.md" for n in names if not name_defects(n)])
     entries = [_plan_entry(n, args.project, updates, here, other) for n in names]
     entries += [
         {"name": n, "status": "invalid", "defects": ["--update without a matching --name"]}
@@ -267,6 +280,13 @@ def _also_allowed(root: Path, values: list[str]) -> list[PurePosixPath]:
         target = (root / Path(*rel.parts)).resolve()
         if not rel.parts or ".." in rel.parts or root not in target.parents:
             raise ConfigError(f"--also-allow {value!r} is not a path inside the repository")
+        if rel.parts[0] == ".git":
+            raise ConfigError(f"--also-allow {value!r} names git internals")
+        for skills_root in map(PurePosixPath, ALLOWED_ROOTS):
+            if rel == skills_root or rel in skills_root.parents or skills_root in rel.parents:
+                raise ConfigError(
+                    f"--also-allow {value!r} overlaps {skills_root}; use --name or --update"
+                )
         allowed.append(rel)
     return allowed
 
@@ -294,11 +314,16 @@ def verify(args: argparse.Namespace) -> tuple[int, Payload]:
     if bad:
         raise ConfigError(f"invalid skill names: {', '.join(bad)}")
     before = _load_snapshot(args.snapshot, root, rel)
+    also_allow = _also_allowed(root, args.also_allow or [])
+    require_visible(
+        root,
+        [f"{rel}/{n}/SKILL.md" for n in sorted(names | updates)] + [str(a) for a in also_allow],
+    )
     grants = {
         "names": names,
         "updates": updates,
         "existing": set(before["existing_skills"]),
-        "also_allow": _also_allowed(root, args.also_allow or []),
+        "also_allow": also_allow,
     }
     after = _state(root)
     violations: list[Payload] = [

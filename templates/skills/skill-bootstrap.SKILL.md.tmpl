@@ -148,12 +148,12 @@ The `bootstrap_boundary.py` script, in this skill's scripts directory, uses only
 | `snapshot` | Records HEAD, branch, existing skills, and hashes of dirty and untracked paths | Written | (not used) |
 | `verify` | Changes since the snapshot; prints the examined path count | All changes authorized | A path outside the boundary, an existing skill changed without `--update`, or HEAD or branch moved |
 
-Exit code 2 is a configuration error: an output root outside the allowed set or ignored by git, an invalid name, or a snapshot inside the repository. Exit code 3 means git is missing or failed. `verify` checks the net state of HEAD, the branch, and the working tree. It does not see stash, tag, config, or push operations, so the no-git-mutation rule still binds you.
+Exit code 2 is a configuration error: an output root outside the allowed set, a skill or `--also-allow` path that git ignores, an `--also-allow` path that overlaps a skills root, an invalid name, or a snapshot inside the repository. Exit code 3 means git is missing or failed. `verify` checks the net state of HEAD, the branch, and the working tree that git reports. It does not see gitignored files, writes inside `.git/`, or stash, tag, config, and push operations. The authority rules in Phase 1 still bind you there.
 
-On Windows PowerShell 7, set the plugin root once, then run the same subcommands with `python`:
+On Windows PowerShell 7, set the plugin root once, then run the same subcommands with `python`. The first non-empty value wins, as in the bash form:
 
 ```powershell
-$root = $env:COPILOT_PLUGIN_ROOT ?? $env:CLAUDE_PLUGIN_ROOT ?? '.claude'
+$root = @($env:COPILOT_PLUGIN_ROOT, $env:CLAUDE_PLUGIN_ROOT, '.claude') | Where-Object { $_ } | Select-Object -First 1
 python "$root/skills/skill-bootstrap/scripts/bootstrap_boundary.py" snapshot --repo . --output-root <output-root> --out "<snapshot path>"
 ```
 
@@ -178,5 +178,5 @@ Add a discovery lens in `references/discovery.md`. Add a hosting provider sectio
 - [ ] Existing skills were reused or composed before a new one was created.
 - [ ] `context-optimizer` ran before `skillopt`, or the report names the skipped stage.
 - [ ] Independent factual, doctrine, and usability reviews ran on the final text.
-- [ ] `bootstrap_boundary.py verify` exited 0 with an examined count above zero.
+- [ ] `bootstrap_boundary.py verify` exited 0. Its examined count is above zero unless the run wrote only proposals.
 - [ ] The report separates authored, evaluated, and installed states, and lists unmeasured results.

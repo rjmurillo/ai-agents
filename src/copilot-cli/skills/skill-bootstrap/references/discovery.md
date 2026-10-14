@@ -94,14 +94,18 @@ Sessions show where agents were corrected. Use them for that signal only.
    If `skillopt` is not installed, record `session sources: UNAVAILABLE
    (skillopt missing)` and continue with other evidence.
 2. **Narrow to this project.** The Claude source holds every project's
-   transcripts, and the Copilot store is global. Pass `--root` with this
-   project's transcript folder under the printed Claude path. Then run the
-   same script's `rank` subcommand. It reports skill usage and the
-   correction rate after each use, which is the signal this phase needs:
+   transcripts. List the printed Claude path and pick the folder whose name
+   encodes this repository's path. Then run the same script's `rank`
+   subcommand. It reports skill usage and the correction rate after each
+   use, which is the signal this phase needs:
 
    ```bash
-   python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skillopt/scripts/mine_sessions.py" rank --root "<this project's transcript folder>"
+   python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skillopt/scripts/mine_sessions.py" rank --root "<this project's transcript folder>" --no-copilot
    ```
+
+   The Copilot store is global, and this script cannot filter it by
+   project. Read Copilot sessions only through a search that filters by
+   repository. Otherwise record them as `UNAVAILABLE (not project-scoped)`.
 
 3. **Other clients** (Codex, Droid, Kimi, Grok, Gemini, others): use only the
    client's documented export, search command, or index, or a location the
