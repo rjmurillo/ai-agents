@@ -298,7 +298,7 @@ Works with CLAUDE.md @import mechanism. Reference via `@AGENTS-INDEX.md`.
 <details>
 <summary><strong>Tool Details: Distill Artifact</strong></summary>
 
-**Script**: `scripts/distill_artifact.py`
+**Script**: `distill_artifact.py`
 
 Boils one log, diff, or long text down to a markdown digest with line
 citations. No model call. The digest is cached by content and source, so a
@@ -313,11 +313,13 @@ lines without a signal are omitted, so a clean `git log` digests thin: use
 **Usage**:
 
 ```bash
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/context-optimizer/scripts"
+
 # Distill a saved file; prints the digest path
-python3 scripts/distill_artifact.py build.log
+python3 "$SCRIPTS_DIR/distill_artifact.py" build.log
 
 # Distill from stdin; JSON adds cached, kind, raw and digest bytes, ratio
-some_command 2>&1 | python3 scripts/distill_artifact.py - --format json
+some_command 2>&1 | python3 "$SCRIPTS_DIR/distill_artifact.py" - --format json
 ```
 
 Read the digest, then reopen the raw source only at a cited line (`L{n}`).
