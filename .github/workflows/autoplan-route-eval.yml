@@ -4,7 +4,9 @@
 # against a live model, then reports per-family accuracy with
 # scripts/eval/eval_autoplan_routes.py. A model miss is advisory: the report
 # shows it, and the run fails only when no results exist (an API, auth, or
-# config failure). The pull-request side is the route-change gate and the
+# config failure). A run with partial judge errors still writes results and
+# stays green; the job summary then shows scored below exercised for the
+# affected families. The pull-request side is the route-change gate and the
 # deterministic subset in validate-rule-activation-coverage.yml.
 #
 # No logic in YAML (ADR-006): every decision is made by a checked-in script.

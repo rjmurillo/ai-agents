@@ -174,6 +174,47 @@ def test_intent_reword_with_same_route_is_not_a_route_change(
     assert "no autoplan route added or changed" in out
 
 
+def test_merging_two_rows_into_one_route_is_a_route_change(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    write_skill(repo, [("Merge conflicts", "Skill: pr-comment-responder"), BASE_ROWS[2]])
+    code, _, err = run_gate(repo, capsys)
+    assert code == gate.EXIT_UNCOVERED
+    assert "Merge conflicts" in err
+    assert "pr-comment-responder" in err
+
+
+def test_swapping_two_routes_is_a_route_change(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    rows = [
+        ("Merge conflicts", "Skill: pr-comment-responder"),
+        ("Respond to PR review threads", "Agent: merge-resolver"),
+        BASE_ROWS[2],
+    ]
+    write_skill(repo, rows)
+    code, _, err = run_gate(repo, capsys)
+    assert code == gate.EXIT_UNCOVERED
+    assert "2 of 2 changed routes lack a scenario" in err
+
+
+def test_swapping_two_routes_with_edited_scenarios_passes(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    rows = [
+        ("Merge conflicts", "Skill: pr-comment-responder"),
+        ("Respond to PR review threads", "Agent: merge-resolver"),
+        BASE_ROWS[2],
+    ]
+    write_skill(repo, rows)
+    write_scenarios(
+        repo, [scenario("R1", ["pr-comment-responder"]), scenario("R2", ["merge-resolver"])]
+    )
+    code, out, _ = run_gate(repo, capsys)
+    assert code == gate.EXIT_OK
+    assert "2 changed routes each have an edited scenario" in out
+
+
 def test_removed_row_is_not_a_route_change(repo: Path, capsys: pytest.CaptureFixture[str]) -> None:
     write_skill(repo, BASE_ROWS[1:])
     code, _, _ = run_gate(repo, capsys)

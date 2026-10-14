@@ -23,8 +23,10 @@ Definitions
   names (`/ship`). A cell with no targets at all, such as "Lifecycle chain per
   size tier above", is satisfied by any edited scenario.
 - Changed row: a head row whose (intent, route text) pair is absent from the
-  base. A row whose intent was reworded but whose route text is identical to a
-  removed base row is a rename, not a route change.
+  base. A row is a rename, not a route change, only when its intent is new to
+  the table and its route text equals that of a removed base row whose intent
+  no longer appears at head. Merging two rows or swapping two routes is a
+  route change.
 - Edited scenario: a scenario id absent from the base, or one whose `input`,
   `expected_route`, `expected_gate`, `expected_signals` or `forbidden_routes`
   differ from the base. A rationale or description edit does not count.
@@ -128,16 +130,27 @@ def changed_rows(base: list[RouteRow], head: list[RouteRow]) -> list[RouteRow]:
     """Return head rows that are new or whose route text changed.
 
     A reworded intent with an unchanged route is paired with its removed base
-    row and dropped, so a wording edit does not demand a scenario.
+    row and dropped, so a wording edit does not demand a scenario. A pairing
+    needs both ends to be a true rename: the head intent is new to the table,
+    and the removed base intent is gone from the head. Without that, merging two
+    rows or swapping two routes would pair a changed row with a deleted or
+    moved one and hide a real route change.
     """
-    base_pairs = Counter((r.intent, r.route) for r in base)
-    head_pairs = Counter((r.intent, r.route) for r in head)
-    added = [r for r in head if (r.intent, r.route) not in base_pairs]
-    removed_routes = Counter(r.route for r in base if (r.intent, r.route) not in head_pairs)
+    base_pairs = {(r.intent, r.route) for r in base}
+    head_pairs = {(r.intent, r.route) for r in head}
+    base_intents = {r.intent for r in base}
+    head_intents = {r.intent for r in head}
+    renamable = Counter(
+        r.route
+        for r in base
+        if (r.intent, r.route) not in head_pairs and r.intent not in head_intents
+    )
     changed: list[RouteRow] = []
-    for row in added:
-        if removed_routes[row.route] > 0:
-            removed_routes[row.route] -= 1
+    for row in head:
+        if (row.intent, row.route) in base_pairs:
+            continue
+        if row.intent not in base_intents and renamable[row.route] > 0:
+            renamable[row.route] -= 1
             continue
         changed.append(row)
     return changed
