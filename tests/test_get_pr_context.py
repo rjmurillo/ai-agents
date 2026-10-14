@@ -233,6 +233,28 @@ class TestMainErrors:
                 main(["--pull-request", "999"])
             assert exc.value.code == 2
 
+    @pytest.mark.parametrize(
+        ("stderr", "expected"),
+        [
+            ("GraphQL: Could not resolve to a PullRequest with the number of 999.", 2),
+            ("gh: Not Found (HTTP 404)", 2),
+            ("Could not resolve host: api.github.com", 3),
+        ],
+    )
+    def test_lookup_failure_exit_codes(self, stderr, expected):
+        auth_patch, repo_patch = _patch_auth_and_repo()
+        with (
+            auth_patch,
+            repo_patch,
+            patch(
+                "subprocess.run",
+                return_value=_completed(rc=1, stderr=stderr),
+            ),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "999"])
+            assert exc.value.code == expected
+
     def test_api_failure_exits_3(self):
         """Generic API error (no 'not found' in message) exits with code 3."""
         auth_patch, repo_patch = _patch_auth_and_repo()

@@ -172,6 +172,33 @@ class TestMain:
                 main(["--pull-request", "999"])
             assert exc.value.code == 2
 
+    @pytest.mark.parametrize(
+        ("stderr", "expected"),
+        [
+            ("GraphQL: Could not resolve to a PullRequest with the number of 999.", 2),
+            ("Could not resolve host: api.github.com", 3),
+        ],
+    )
+    def test_lookup_failure_exit_codes(self, stderr, expected):
+        with (
+            patch("merge_pr.assert_gh_authenticated"),
+            patch(
+                "merge_pr.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "merge_pr.get_allowed_merge_methods",
+                return_value=_ALL_METHODS_ALLOWED,
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(rc=1, stderr=stderr),
+            ),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "999"])
+            assert exc.value.code == expected
+
     def test_already_merged_returns_0(self, capsys):
         state_json = json.dumps(
             {
