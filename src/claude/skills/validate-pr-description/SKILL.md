@@ -80,17 +80,23 @@ path you took: a manual pass and a validator pass are not the same evidence.
 ### Phase 2b: Check file mentions against the diff
 
 When the body is a file and the checkout ships `scripts/validation/pr_description.py`,
-run its local mode. It is the same code the required `Validate PR` check runs, so
-a pass here predicts that check:
+run its local mode. It runs the same file-mention check the required
+`Validate PR` check runs, so a pass here rules out a `File mentioned but not in
+diff` failure. It does not cover the dash or closing-keyword checks. Local mode
+reads committed `HEAD`, so commit first:
 
 ```bash
 uv run --frozen python -I scripts/validation/pr_description.py --body-file "[path-to-body.md]" --base origin/main
 ```
 
 Exit 1 is a CRITICAL finding, usually `File mentioned but not in diff`. Report the
-path and the fix: remove it, move it out of the `## Changes` heading, or wrap it
-in a code fence. Do not suggest the `description-validation-bypass` label; a human
-maintainer decides that. Exit 2 means the check could not run, so fix the cause.
+path and the fix: remove it, move it out of the change heading (`## Changes`,
+`## What changed`, and the like), or wrap it in a code fence. With no change
+heading, a bold or bulleted path counts anywhere, so remove or fence it. Do not
+suggest the `description-validation-bypass` label; a human maintainer decides
+that. Exit 2 means the check could not run: an unreadable or non-UTF-8 body
+file, an unknown or invalid base ref, or git unavailable. For a missing
+`origin/main`, pass `--base` with the ref the PR targets.
 When the script is absent, or the body is pasted text with no file, say this
 check was not run.
 

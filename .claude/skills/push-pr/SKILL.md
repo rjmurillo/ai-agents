@@ -78,23 +78,30 @@ Based on the above changes:
    checks still run at step 7. Fix a rejection here.
 5. Check that the body names only files the diff touches, before the push. The
    required `Validate PR` check fails on a path the diff does not touch, and the
-   fix costs a CI round after the PR opens. Run the local mode, which reads the
-   same body file and `git diff origin/main...HEAD` with no network call:
+   fix costs a CI round after the PR opens. Commit first: local mode reads
+   committed `HEAD` only, so an uncommitted file reads as not in the diff. Run
+   the local mode, which reads the same body file and
+   `git diff origin/main...HEAD` with no network call:
 
    ```bash
    uv run --frozen python -I scripts/validation/pr_description.py --body-file ".project-toolkit/scratch/pr-body-<returned-uuid>.md" --base origin/main
    ```
 
    - Exit 1 means a CRITICAL finding, usually `File mentioned but not in diff`.
-     Stop. Edit the body file (remove the path, move it out of the `## Changes`
-     heading, or wrap it in a code fence), then re-run until it exits 0.
-   - Exit 2 means the check could not run (unreadable body file or unknown
-     base ref). Fix the cause; do not skip the step.
+     Stop. If every flagged path appears in `git status`, commit instead of
+     editing the body. Otherwise edit the body file (remove the path, move it
+     out of the change heading, or wrap it in a code fence), then re-run until
+     it exits 0.
+   - Exit 2 means the check could not run: an unreadable or non-UTF-8 body
+     file, an unknown or invalid base ref, or git unavailable. For a missing
+     `origin/main`, pass `--base` with the ref the PR targets, such as
+     `<remote>/<default-branch>`. Do not skip the step.
    - Do not apply the `description-validation-bypass` label. A human maintainer
      decides that.
    - A checkout without `scripts/validation/pr_description.py`, such as a plugin
      install, cannot run this step. Say it was not run, and compare every
-     backticked path in the body to `git diff --name-only origin/main...HEAD` by hand.
+     path under the change heading (inline code, bold, list item, or link) to
+     `git diff --name-only origin/main...HEAD` by hand.
 6. Push the branch to origin.
 7. Create a pull request using the new_pr skill script:
 
