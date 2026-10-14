@@ -43,7 +43,7 @@ def _environment() -> dict[str, str]:
     kept = {
         key: value
         for key, value in os.environ.items()
-        if not key.startswith(("COVERAGE", "PYTEST", "XDIST"))
+        if not key.startswith(("COVERAGE", "PYTEST", "XDIST", "TESTMON"))
     }
     # The hook forces ctrace for testmon on Python 3.14; match it.
     kept["COVERAGE_CORE"] = "ctrace"
