@@ -46,8 +46,14 @@ def test_the_testmon_commands_are_the_full_suite_partitions_plus_the_flag(
     selected = testmon(tmp_path)
     assert len(selected) == len(full)
     for with_testmon, without in zip(selected, full, strict=True):
-        flags = {"--testmon", "--testmon-forceselect"}
+        flags = set(git_hook_policy._TESTMON_FLAGS)
         assert [arg for arg in with_testmon if arg not in flags] == without
+
+
+def test_every_testmon_command_loads_the_scoped_sync_plugin(tmp_path: Path) -> None:
+    """Without it a partition deletes a sibling's records (issue #6406)."""
+    for command in testmon(tmp_path):
+        assert "-pscripts.validation.testmon_scoped_sync" in command
 
 
 def test_testmon_selection_survives_the_marker_filter(tmp_path: Path) -> None:
