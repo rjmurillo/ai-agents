@@ -23,6 +23,7 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  issues: write
 
 # Concurrency control: Attempts to cancel in-progress runs when new runs start
 
@@ -57,4 +58,12 @@ jobs:
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           configuration-path: .github/labeler.yml
+          sync-labels: false
+
+      # sync-labels is per config file, so routing labels get their own run
+      - name: Apply routing labels
+        uses: actions/labeler@bf12e9b00b37c5c0ca2b87b79b2daf7891dbda13 # v7
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          configuration-path: .github/labeler-route.yml
           sync-labels: true

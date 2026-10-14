@@ -1,4 +1,4 @@
-"""Tests for the zero-LLM routing labels in .github/labeler.yml.
+"""Tests for the zero-LLM routing labels in .github/labeler-route.yml.
 
 route:docs, route:code, and docs-touched decide whether the docs bot or the
 code bot wakes on a PR. This evaluator mirrors actions/labeler semantics:
@@ -16,7 +16,7 @@ import yaml
 glob = pytest.importorskip("wcmatch.glob")
 
 ROOT = Path(__file__).resolve().parents[1]
-CONFIG = yaml.safe_load((ROOT / ".github" / "labeler.yml").read_text(encoding="utf-8"))
+CONFIG = yaml.safe_load((ROOT / ".github" / "labeler-route.yml").read_text(encoding="utf-8"))
 FLAGS = glob.GLOBSTAR | glob.BRACE | glob.DOTGLOB
 ROUTING = ("route:docs", "route:code", "docs-touched")
 
