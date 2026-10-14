@@ -65,8 +65,6 @@ workflow behind it. Starting from a goal: use `skillforge`.
 
 ## Procedure
 
-### Process
-
 All commands run
 `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skillify/scripts/skillify.py`
 with `python3`. That form is POSIX shell. In PowerShell, use
@@ -123,8 +121,11 @@ verification failure, `2` no destination or invalid path. Harness tool names:
    (add `--mode patch` after a PATCH). It reads the trigger, `external_actions`,
    and `recovery_paths` from the audit. Patch mode fails
    `description_has_trigger` when the description lacks the trigger.
-   External actions need an approval word in a numbered Procedure (or Process) step, and
-   recovery paths need a step marked optional or recovery. Fix every failure
+   External actions need an approval word before the first step that names
+   one (publish, push, post, send, deploy, merge, release, upload, share,
+   comment, email, open a PR). Recovery paths need a step marked optional or
+   recovery. Create mode reads numbered Procedure steps; patch mode also
+   reads a Process section. Fix every failure
    and rerun. Do not run a broader evaluation pass.
 8. **Report in one line:** `Skillified as <name>. Trigger: "<phrase>".` or
    `Patched <name>. Trigger: "<phrase>".` No offers to adjust.
@@ -136,7 +137,7 @@ verification failure, `2` no destination or invalid path. Harness tool names:
 | `gate --audit FILE` | `PROCEED` or `REJECT` with reasons; `-` reads stdin | 0 |
 | `resolve [--explicit P] [--env-var N]... [--cwd D]` | Pick the skills root | 0, or 2 unresolved or not a directory |
 | `overlap --workflow FILE --root P...` | `PATCH` at 0.70 coverage else `CREATE` | 0 |
-| `verify --skill P --audit FILE [--mode patch]` (`--trigger`, `--external-actions`, `--recovery-paths` override) | Read-back checks | 0 pass, 1 fail |
+| `verify --skill P [--audit FILE] [--mode patch]` | Read-back checks. Needs `--trigger` or an audit `trigger_phrase`; `--external-actions` and `--recovery-paths` override the audit | 0 pass, 1 fail |
 
 `skillify_text.py` (parsing) and `skillify_verify.py` (read-back checks) are
 imported by `skillify.py`; run only `skillify.py`.
@@ -162,6 +163,8 @@ A relative `--explicit` or env-var path is anchored at `--cwd` and returned abso
 
 - **Unique edit anchor.** A patch fails when the old string appears twice.
   Include the heading above the block and the line after it.
+- **Section names.** Host skills often use `## Process`, which patch mode
+  accepts. New skills must use `## Procedure`.
 - **Names.** Kebab-case, at most 64 characters, equal to the directory name.
   Underscores and capitals are rejected by `verify`.
 - **Skills are global.** A user-scope skill loads in every session. Keep
