@@ -64,7 +64,7 @@ python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/golden-pr
 ```
 
 - Exit codes: 0 clean, 1 script error, 10 violations. 10 is a finding, not a crash.
-- Current baseline (as of 2026-07-29): 7912 files scanned, 109 errors, 92 warnings, exit 10. Errors break down as GP-003 `skill-frontmatter` 89, GP-001 `script-language` 16, GP-004 `agent-definition` 4. The GP-001 set is still the shell scripts under `src/copilot-cli/skills/github/scripts/gh-native/`. All 92 warnings are GP-005 `yaml-logic`. The file count tracks repo size and moves with every merge, so trend the error and warning counts; treat a changed file count alone as noise.
+- Current baseline (as of 2026-07-29): 7912 files scanned, 109 errors, 92 warnings, exit 10. Errors break down as GP-003 `skill-frontmatter` 89, GP-001 `script-language` 16, GP-004 `agent-definition` 4. All 92 warnings are GP-005 `yaml-logic`. The file count tracks repo size and moves with every merge, so trend the error and warning counts; treat a changed file count alone as noise.
 - Healthy: `--diff-scope main` clean for your branch.
 - Unhealthy: new errors on your changed files; each comes with an `AGENT_REMEDIATION` block telling you the fix.
 - Trap: findings in generated trees (`src/copilot-cli/`, `.github/instructions/`) must be fixed at the canonical source under `.claude/` and regenerated, never edited in place. Suppress a true false positive with `# golden-principle: ignore <rule>` on the flagged line.

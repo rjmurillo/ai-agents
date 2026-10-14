@@ -226,18 +226,6 @@ directly instead of raw `gh`.
 | `get_latest_semantic_milestone.py` | `.claude/skills/github/scripts/milestone/` | Get latest milestone |
 | `add_comment_reaction.py` | `.claude/skills/github/scripts/reactions/` | Add emoji reactions |
 
-#### Bash Scripts (Copilot CLI Optimized)
-
-| Skill | Location | Purpose | Overhead |
-|-------|----------|---------|----------|
-| `get-pr-context.sh` | `.claude/skills/github/scripts/gh-native/` | Get PR metadata (Copilot CLI) | 50-80ms |
-| `set-issue-labels.sh` | `.claude/skills/github/scripts/gh-native/` | Manage issue labels (Copilot CLI) | 50-80ms |
-| `set-issue-milestone.sh` | `.claude/skills/github/scripts/gh-native/` | Set issue milestone (Copilot CLI) | 50-80ms |
-| `post-issue-comment.sh` | `.claude/skills/github/scripts/gh-native/` | Post issue comment (Copilot CLI) | 50-80ms |
-| `add-comment-reaction.sh` | `.claude/skills/github/scripts/gh-native/` | Add emoji reactions (Copilot CLI) | 50-80ms |
-
-**Note**: gh-native scripts are optimized for Copilot CLI environments where PowerShell spawn overhead (183-416ms) becomes a bottleneck. For Claude Code and VS Code Agents, use Python scripts or GitHub MCP.
-
 ### GraphQL API Skills
 
 | Skill | Location | Purpose |
