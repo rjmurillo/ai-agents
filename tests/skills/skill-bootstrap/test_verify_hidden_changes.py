@@ -96,3 +96,54 @@ def test_verify_also_allow_directory_that_is_ignored_exits_two(
 
     assert code == 2
     assert "git ignores" in payload["message"]
+
+
+@pytest.mark.parametrize("flag", ["--assume-unchanged", "--skip-worktree"])
+def test_verify_write_to_a_file_flagged_before_the_snapshot_exits_one(
+    repo: Path, capsys: Capsys, snap_path: Path, flag: str
+) -> None:
+    run_git(repo, "update-index", flag, "README.md")
+    take_snapshot(capsys, repo, snap_path)
+    write(repo, "README.md", "hidden\n")
+
+    code, payload = verify(capsys, repo, snap_path)
+
+    assert code == 1
+    assert {"kind": "outside-boundary", "path": "README.md"} in payload["violations"]
+
+
+def test_verify_write_inside_a_submodule_set_to_ignore_dirty_exits_one(
+    repo: Path, tmp_path: Path, capsys: Capsys, snap_path: Path
+) -> None:
+    upstream = tmp_path / "upstream"
+    upstream.mkdir()
+    run_git(upstream, "init", "-q")
+    write(upstream, "lib.txt", "v1\n")
+    run_git(upstream, "add", "lib.txt")
+    run_git(upstream, "commit", "-q", "-m", "init")
+    run_git(
+        repo, "-c", "protocol.file.allow=always", "submodule", "add", "-q", str(upstream), "sub"
+    )
+    run_git(repo, "config", "-f", ".gitmodules", "submodule.sub.ignore", "dirty")
+    run_git(repo, "add", "-A")
+    run_git(repo, "commit", "-q", "-m", "chore: add submodule")
+    take_snapshot(capsys, repo, snap_path)
+    write(repo, "sub/lib.txt", "changed\n")
+
+    code, payload = verify(capsys, repo, snap_path)
+
+    assert code == 1
+    assert {"kind": "outside-boundary", "path": "sub"} in payload["violations"]
+
+
+def test_verify_staging_a_user_file_outside_the_boundary_exits_one(
+    repo: Path, capsys: Capsys, snap_path: Path
+) -> None:
+    write(repo, "draft.md", "user draft\n")
+    take_snapshot(capsys, repo, snap_path)
+    run_git(repo, "add", "draft.md")
+
+    code, payload = verify(capsys, repo, snap_path)
+
+    assert code == 1
+    assert {"kind": "outside-boundary", "path": "draft.md"} in payload["violations"]

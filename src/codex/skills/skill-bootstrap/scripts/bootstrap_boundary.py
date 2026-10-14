@@ -27,7 +27,8 @@ Exit codes:
     2  Configuration error: bad arguments, an output root outside the allowed
        set or ignored by git, a snapshot inside the repository, or an
        unreadable snapshot.
-    3  External error: git is missing or a git command failed.
+    3  External error: git is missing, a git command failed, or a file could
+       not be read.
 
 Limits: verify compares the working tree, HEAD, the branch name, the index
 flags that hide changes (assume-unchanged, skip-worktree), and
@@ -35,7 +36,9 @@ flags that hide changes (assume-unchanged, skip-worktree), and
 config, push), other writes inside `.git/`, or gitignored paths, so an
 ignored output root, skill directory, or `--also-allow` path is refused. It
 catches accidental writes by a cooperating run; it is not a sandbox, and a
-snapshot taken after the writes proves nothing. Stdlib only, so the script runs from any plugin root.
+snapshot taken after the writes proves nothing, so snapshot refuses to
+overwrite an existing file. Empty directories are invisible to git and to
+verify. A symlinked output root or skill directory fails with exit 3. Stdlib only, so the script runs from any plugin root.
 """
 
 from __future__ import annotations
@@ -193,14 +196,24 @@ def plan(args: argparse.Namespace) -> tuple[int, Payload]:
     }
 
 
-def _status_paths(root: Path) -> list[str]:
-    """Return every path git reports as changed or untracked, posix form.
+def _status_codes(root: Path) -> dict[str, str]:
+    """Map every path git reports as changed or untracked to its two-letter status.
 
     `--no-renames` reports each side of a rename as its own entry, so a
     deleted source path is never folded into the destination.
+    `--ignore-submodules=none` overrides config that hides submodule writes.
+    The status code is kept so a staging change counts as a change.
     """
-    raw = _git(root, "status", "--porcelain=v1", "-z", "--untracked-files=all", "--no-renames")
-    return sorted({entry[3:].rstrip("/") for entry in raw.split("\0") if len(entry) > 3})
+    raw = _git(
+        root,
+        "status",
+        "--porcelain=v1",
+        "-z",
+        "--untracked-files=all",
+        "--no-renames",
+        "--ignore-submodules=none",
+    )
+    return {e[3:].rstrip("/"): e[:2] for e in raw.split("\0") if len(e) > 3}
 
 
 def _hash(path: Path) -> str:
@@ -210,7 +223,11 @@ def _hash(path: Path) -> str:
         return "absent"
     if path.is_dir():
         return "dir:" + _hash_tree(path)
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(chunk)
+    return f"{digest.hexdigest()}:{path.stat().st_mode & 0o777:o}"
 
 
 def _hash_tree(path: Path) -> str:
@@ -224,10 +241,14 @@ def _hash_tree(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _git_flags(root: Path) -> Payload:
-    """Record git state that can hide a working-tree write from `git status`."""
+def _index_hidden(root: Path) -> list[str]:
+    """Return tracked paths flagged assume-unchanged or skip-worktree, which status skips."""
     listed = _git(root, "ls-files", "-v", "-z").split("\0")
-    hidden = sorted(e[2:] for e in listed if len(e) > 2 and (e[0].islower() or e[0] == "S"))
+    return sorted(e[2:] for e in listed if len(e) > 2 and (e[0].islower() or e[0] == "S"))
+
+
+def _git_flags(root: Path, hidden: list[str]) -> Payload:
+    """Record git state that can hide a working-tree write from `git status`."""
     exclude = root / _git(root, "rev-parse", "--git-path", "info/exclude").strip()
     return {"index_hidden": hidden, "info_exclude": _hash(exclude)}
 
@@ -241,11 +262,16 @@ def _head(root: Path) -> str:
 def _state(root: Path) -> Payload:
     head = _head(root)
     branch = _git(root, "rev-parse", "--abbrev-ref", "HEAD").strip() if head else ""
+    hidden = _index_hidden(root)
+    codes = _status_codes(root)
+    codes.update({p: "H " for p in hidden if p not in codes})
     return {
         "head": head,
         "branch": branch,
-        "paths": {p: _hash(root / Path(*PurePosixPath(p).parts)) for p in _status_paths(root)},
-        "git_flags": _git_flags(root),
+        "paths": {
+            p: f"{code}|{_hash(root / Path(*PurePosixPath(p).parts))}" for p, code in codes.items()
+        },
+        "git_flags": _git_flags(root, hidden),
     }
 
 
@@ -266,7 +292,14 @@ def snapshot(args: argparse.Namespace) -> tuple[int, Payload]:
         **_state(root),
     }
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    try:
+        with out.open("x", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, indent=2, sort_keys=True) + "\n")
+    except FileExistsError as exc:
+        raise ConfigError(
+            f"snapshot {out} already exists; keep the Phase 1 snapshot, or pick a new path"
+            " only before any write"
+        ) from exc
     return 0, {
         "snapshot": out.as_posix(),
         "head": record["head"],
@@ -405,6 +438,9 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     except GitError as exc:
         print(json.dumps({"error": "git", "message": str(exc)}))
+        return 3
+    except OSError as exc:
+        print(json.dumps({"error": "io", "message": str(exc)}))
         return 3
     print(json.dumps(payload, indent=2))
     return code

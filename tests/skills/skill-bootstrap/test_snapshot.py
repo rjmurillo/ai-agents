@@ -124,3 +124,17 @@ def test_snapshot_in_repository_without_commit_records_empty_head(
     assert code == 0
     assert record["head"] == ""
     assert record["branch"] == ""
+
+
+def test_snapshot_refuses_to_overwrite_an_existing_snapshot(
+    repo: Path, capsys: pytest.CaptureFixture[str], snap_path: Path
+) -> None:
+    take_snapshot(capsys, repo, snap_path)
+    first = snap_path.read_bytes()
+    write(repo, "docs/stray.md")
+
+    code, payload = snapshot_result(capsys, repo, snap_path)
+
+    assert code == 2
+    assert "already exists" in payload["message"]
+    assert snap_path.read_bytes() == first
