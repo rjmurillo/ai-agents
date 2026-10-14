@@ -3,7 +3,7 @@ name: push-pr
 version: 1.0.0
 description: Commit the working tree, push the branch, and open a pull request with the repository template filled in from the real diff. Use when you say `push and open a PR`, `open a pull request`, or `push this branch`. Do NOT use to run the pre-ship review gates (use ship), and do NOT use to validate PR metadata alone (use validate-pr-description).
 license: MIT
-allowed-tools: Bash(git checkout -b:*), Bash(git switch -c:*), Bash(git add:*), Bash(git status:*), Bash(git push:*), Bash(git commit:*), Bash(python3:-I */pr/new_pr.py*), Bash(git diff:*), Bash(git branch:*), Bash(mkdir:-p .project-toolkit/scratch), Edit(.project-toolkit/scratch/pr-body-*.md)
+allowed-tools: Bash(git checkout -b:*), Bash(git switch -c:*), Bash(git add:*), Bash(git status:*), Bash(git push:*), Bash(git commit:*), Bash(python3:-I */pr/new_pr.py*), Bash(uv run --frozen python -I scripts/validation/pr_description.py*), Bash(git diff:*), Bash(git branch:*), Bash(mkdir:-p .project-toolkit/scratch), Edit(.project-toolkit/scratch/pr-body-*.md)
 # Security note: python3 -I is the identity-hardened form (issue #4825).
 # The Edit entry above is scoped to the secure allocator's output file only.
 # The Bash tool executor must sanitize arguments to prevent command injection (CWE-78).
@@ -75,9 +75,35 @@ Based on the above changes:
 
    `--preflight` checks the title format and the body file name, mode, and marker.
    It makes no network call and creates nothing. The dash and escaped newline
-   checks still run at step 6. Fix a rejection here.
-5. Push the branch to origin.
-6. Create a pull request using the new_pr skill script:
+   checks still run at step 7. Fix a rejection here.
+5. Check that the body names only files the diff touches, before the push. The
+   required `Validate PR` check fails on a path the diff does not touch, and the
+   fix costs a CI round after the PR opens. Commit first: local mode reads
+   committed `HEAD` only, so an uncommitted file reads as not in the diff. Run
+   the local mode, which reads the same body file and
+   `git diff origin/main...HEAD` with no network call:
+
+   ```bash
+   uv run --frozen python -I scripts/validation/pr_description.py --body-file ".project-toolkit/scratch/pr-body-<returned-uuid>.md" --base origin/main
+   ```
+
+   - Exit 1 means a CRITICAL finding, usually `File mentioned but not in diff`.
+     Stop. If every flagged path appears in `git status`, commit instead of
+     editing the body. Otherwise edit the body file (remove the path, move it
+     out of the change heading, or wrap it in a code fence), then re-run until
+     it exits 0.
+   - Exit 2 means the check could not run: an unreadable or non-UTF-8 body
+     file, an unknown or invalid base ref, or git unavailable. For a missing
+     `origin/main`, pass `--base` with the ref the PR targets, such as
+     `<remote>/<default-branch>`. Do not skip the step.
+   - Do not apply the `description-validation-bypass` label. A human maintainer
+     decides that.
+   - A checkout without `scripts/validation/pr_description.py`, such as a plugin
+     install, cannot run this step. Say it was not run, and compare every
+     path under the change heading (inline code, bold, list item, or link) to
+     `git diff --name-only origin/main...HEAD` by hand.
+6. Push the branch to origin.
+7. Create a pull request using the new_pr skill script:
 
    <!-- vendor-portability: declared. This skill reads the consumer's
    `.github/PULL_REQUEST_TEMPLATE.md` and writes the consumer's
@@ -106,6 +132,7 @@ You have the capability to call multiple tools in a single response. You MUST do
 
 - [ ] Branch created off main when the working branch was main, never a push to main
 - [ ] Title follows conventional commit format
+- [ ] Local `pr_description.py --body-file` run exited 0 before the push, or its absence stated
 - [ ] Body written into the allocator's returned path, copied exactly, never through a shell variable
 - [ ] Every template section adapted from the real diff, with no placeholder comment left in
 - [ ] An `## Acceptance criteria` heading present with `- [ ]` bullets, checked only where met
@@ -123,7 +150,7 @@ You have the capability to call multiple tools in a single response. You MUST do
 
 ## Extension Points
 
-- **Other forges.** Steps 4 and 5 call `new_pr.py`. A non-GitHub forge swaps that
+- **Other forges.** Steps 3, 4, and 7 call `new_pr.py`. A non-GitHub forge swaps that
   helper; the template-adaptation rules in step 4 are forge-independent.
 - **Template changes.** Step 4's section list follows the repository PR
   template read in step 3. When that template gains a parsed section, add it to
@@ -133,3 +160,6 @@ You have the capability to call multiple tools in a single response. You MUST do
 
 <!-- vendor-portability: .project-toolkit/scratch is created in the consumer workspace
 for one-run PR body files. It is not an upstream repository dependency. -->
+
+<!-- vendor-portability-exec: step 5 runs scripts/validation/pr_description.py, an upstream-only validator the plugin install does not ship. Step 5 states the fallback. Issue #6405. -->
+<!-- vendor-portability: step 5 reads scripts/validation/pr_description.py only when the consumer checkout carries it, and reports the step as not run otherwise. Issue #6405. -->
