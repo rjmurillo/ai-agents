@@ -118,6 +118,8 @@ def test_verify_write_inside_a_submodule_set_to_ignore_dirty_exits_one(
     upstream = tmp_path / "upstream"
     upstream.mkdir()
     run_git(upstream, "init", "-q")
+    run_git(upstream, "config", "user.email", "fixture@example.invalid")
+    run_git(upstream, "config", "user.name", "fixture")
     write(upstream, "lib.txt", "v1\n")
     run_git(upstream, "add", "lib.txt")
     run_git(upstream, "commit", "-q", "-m", "init")
