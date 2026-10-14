@@ -28,6 +28,7 @@ import os
 import signal
 import subprocess
 from pathlib import Path
+from typing import Protocol
 
 from scripts.cli_exec import resolve_executable
 
@@ -74,6 +75,17 @@ def _decode_stream(data: bytes | str | None) -> str:
     return data
 
 
+class _Child(Protocol):
+    """The slice of ``subprocess.Popen`` that :func:`_terminate` uses."""
+
+    @property
+    def pid(self) -> int: ...
+
+    def wait(self, timeout: float | None = None) -> int: ...
+
+    def kill(self) -> None: ...
+
+
 def _signal_group(pgid: int, sig: int) -> None:
     """Send ``sig`` to process group ``pgid``. A group that is already gone is ignored."""
     try:
@@ -95,7 +107,7 @@ def _own_group(pid: int) -> int | None:
     return None if pgid == os.getpgid(0) else pgid
 
 
-def _terminate(proc: subprocess.Popen[str]) -> None:
+def _terminate(proc: _Child) -> None:
     """Stop the child's process group, or the child alone where groups are absent.
 
     SIGTERM goes first and the group leader gets ``_TERM_GRACE`` seconds to run
