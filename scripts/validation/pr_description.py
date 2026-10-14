@@ -5,10 +5,17 @@ BLOCKING validation that prevents PR description vs diff mismatches.
 Detects when PR description claims files were changed that are not in the diff,
 or when major changes are not mentioned in the description.
 
+Two modes:
+    --pr-number N              Fetch the body and diff from GitHub (CI mode).
+    --body-file F [--base REF] Read a local body file and diff ``REF...HEAD``
+                               from git. No network. Runs before the PR opens
+                               so a mismatch is found without a CI round trip.
+
 Exit codes follow ADR-035:
     0 - Success (validation passed, or warnings only)
-    1 - Logic error (CRITICAL issues found, CI mode only)
-    2 - Config error (missing dependency, failed to fetch PR data)
+    1 - Logic error (CRITICAL issues found; CI mode, or any local-mode run)
+    2 - Config error (missing dependency, failed to fetch PR data, bad body
+        file, bad base ref)
 """
 
 from __future__ import annotations
@@ -1261,17 +1268,91 @@ def print_results(issues: list[Issue], ci: bool) -> int:
 # ---------------------------------------------------------------------------
 
 
+DEFAULT_LOCAL_BASE = "origin/main"
+
+
+def get_local_diff_files(base: str) -> list[str]:
+    """Return paths changed on ``base...HEAD`` from the local git repository.
+
+    Raises RuntimeError when the ref is unsafe or git cannot produce the diff.
+    A leading ``-`` is rejected so a ref can never be read as a git option.
+    """
+    if not base or base.startswith("-"):
+        raise RuntimeError(f"Invalid base ref: {base!r}")
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--name-only", "-z", f"{base}...HEAD"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=60,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
+        raise RuntimeError("Could not run git diff") from exc
+
+    if result.returncode != 0:
+        detail = result.stderr.strip() or "git diff failed"
+        raise RuntimeError(f"Could not diff {base}...HEAD: {detail}")
+
+    return [path for path in result.stdout.split("\0") if path]
+
+
+def run_local(body_file: str, base: str) -> int:
+    """Validate a local body file against the local ``base...HEAD`` diff.
+
+    Makes no network call. Any CRITICAL finding returns 1, because a local run
+    exists to stop the push, not to report. Returns 2 on an unreadable body
+    file or an unusable base ref.
+    """
+    try:
+        description = Path(body_file).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        print(f"Error: could not read body file {body_file}: {exc}", file=sys.stderr)
+        return 2
+
+    try:
+        pr_files = get_local_diff_files(base)
+    except RuntimeError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 2
+
+    print(f"Local diff {base}...HEAD has {len(pr_files)} changed files")
+    mentioned_files = extract_mentioned_files(description)
+    all_mentioned = extract_all_mentioned_files(description)
+    print(f"Description mentions {len(mentioned_files)} files")
+
+    issues = validate_pr_description(pr_files, mentioned_files, all_mentioned_files=all_mentioned)
+    return print_results(issues, ci=True)
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the argument parser with env var defaults."""
     parser = argparse.ArgumentParser(
         description="Validate PR description matches actual code changes.",
     )
-    parser.add_argument(
+    source = parser.add_mutually_exclusive_group()
+    source.add_argument(
         "--pr-number",
         type=int,
-        required="PR_NUMBER" not in os.environ,
         default=int(os.environ.get("PR_NUMBER", "0")) or None,
-        help="PR number to validate (env: PR_NUMBER)",
+        help="PR number to validate against GitHub (env: PR_NUMBER)",
+    )
+    source.add_argument(
+        "--body-file",
+        default=None,
+        help=(
+            "Local PR body file to validate against the local git diff. "
+            "Makes no network call. Use before the PR opens."
+        ),
+    )
+    parser.add_argument(
+        "--base",
+        default=None,
+        help=(
+            "Base ref for the local diff, read as BASE...HEAD "
+            f"(only with --body-file, default: {DEFAULT_LOCAL_BASE})"
+        ),
     )
     parser.add_argument(
         "--owner",
@@ -1301,10 +1382,22 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _require_one_source(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
+    """Exit 2 unless exactly one of PR mode or local mode is selected."""
+    if args.body_file is None and args.base is not None:
+        parser.error("--base requires --body-file")
+    if args.body_file is None and args.pr_number is None:
+        parser.error("one of --pr-number or --body-file is required")
+
+
 def main(argv: list[str] | None = None) -> int:
     """Entry point. Returns ADR-035 exit code."""
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    _require_one_source(parser, args)
+    if args.body_file is not None:
+        return run_local(args.body_file, args.base or DEFAULT_LOCAL_BASE)
 
     owner: str = args.owner
     repo: str = args.repo

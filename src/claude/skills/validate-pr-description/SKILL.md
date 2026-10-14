@@ -77,6 +77,23 @@ uv run python "$SCRIPTS_DIR/validate_pr_description.py" \
 When that script is absent, validate manually against the table above. Say which
 path you took: a manual pass and a validator pass are not the same evidence.
 
+### Phase 2b: Check file mentions against the diff
+
+When the body is a file and the checkout ships `scripts/validation/pr_description.py`,
+run its local mode. It is the same code the required `Validate PR` check runs, so
+a pass here predicts that check:
+
+```bash
+uv run --frozen python -I scripts/validation/pr_description.py --body-file "[path-to-body.md]" --base origin/main
+```
+
+Exit 1 is a CRITICAL finding, usually `File mentioned but not in diff`. Report the
+path and the fix: remove it, move it out of the `## Changes` heading, or wrap it
+in a code fence. Do not suggest the `description-validation-bypass` label; a human
+maintainer decides that. Exit 2 means the check could not run, so fix the cause.
+When the script is absent, or the body is pasted text with no file, say this
+check was not run.
+
 ### Phase 3: Report
 
 Report per check, not as a single verdict. For each failure give the offending
@@ -93,6 +110,7 @@ act on.
 - [ ] Body searched for every accepted issue-linking keyword, not just `Closes`
 - [ ] All three template sections inspected, with the failing one named
 - [ ] Validator path stated: the repository script ran, or the check was manual
+- [ ] File mentions checked against the diff with `pr_description.py --body-file`, or the check stated as not run
 - [ ] Every failure reported with its offending text and a corrected form
 - [ ] Any recommended closing keyword checked against the diff first
 
@@ -116,3 +134,6 @@ act on.
 - **Other forges.** The keyword list is GitHub and GitLab behavior. On Azure
   DevOps and Bitbucket the same keywords are traceability markers with no
   auto-close, so a missing keyword is a weaker finding there.
+
+<!-- vendor-portability-exec: Phase 2b runs scripts/validation/pr_description.py, an upstream-only script a plugin install lacks. The phase says what to report then. Issue #6405. -->
+<!-- vendor-portability: Phase 2b names scripts/validation/pr_description.py only for checkouts that carry it, and reports the check as not run otherwise. Issue #6405. -->

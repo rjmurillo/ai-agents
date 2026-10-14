@@ -62,9 +62,13 @@ Validates PR description matches actual code changes (prevents Analyst CRITICAL_
 
 ```bash
 python3 scripts/validation/pr_description.py --pr-number 226 --ci
+
+# Before the PR opens: local body file vs `git diff origin/main...HEAD`, no network.
+# Exits 1 on any CRITICAL finding, 2 on an unreadable body file or unknown base.
+uv run --frozen python scripts/validation/pr_description.py --body-file path/to/body.md --base origin/main
 ```
 
-**Called By**: CI workflow (`.github/workflows/pr-validation.yml`)
+**Called By**: CI workflow (`.github/workflows/pr-validation.yml`), `/push-pr` and `/validate-pr-description` (local mode)
 
 #### detect_skill_violation.py
 

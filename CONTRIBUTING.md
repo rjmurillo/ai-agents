@@ -885,6 +885,8 @@ Routine version bumps do not require an ADR edit. See `.serena/memories/copilot/
 
 The `Validate PR` workflow runs `scripts/validation/pr_description.py` to compare files mentioned in the PR description against files in the diff. Inline-code filenames (`` `path/file.py` ``) in `## Summary` and similar sections are treated as change claims; if those files are not in the diff the validator emits a `CRITICAL` issue and the workflow fails.
 
+Check a body before the PR opens with `uv run --frozen python scripts/validation/pr_description.py --body-file <path> --base origin/main`. It reads the local diff, makes no network call, and exits 1 on the same `CRITICAL` finding.
+
 #### Contextual Reference Sections
 
 To reference an existing file as context (a pattern source, a related spec, prior art) without it being treated as a change claim, place the mention under one of these h2 sections:
