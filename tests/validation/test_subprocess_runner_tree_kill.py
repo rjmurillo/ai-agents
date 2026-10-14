@@ -146,18 +146,32 @@ import sys
 sys.path.insert(0, sys.argv[1])
 import run_workflow_local_test as w
 w._install_sigterm_handler()
-w._run(
-    [sys.executable, "-c",
-     "import os, sys, time; open(sys.argv[1], 'w').write(str(os.getpid())); time.sleep(60)",
-     sys.argv[2]],
-    timeout=60,
-)
+w._run([sys.executable, "-c", sys.argv[3], sys.argv[2]], timeout=60)
 """
+
+_GH_ACT_STAND_IN = (
+    "import os, sys, time; open(sys.argv[1], 'w').write(str(os.getpid())); time.sleep(60)"
+)
+
+# A gh act that ignores SIGTERM keeps the wrapper in its grace window until the
+# wrapper sends SIGKILL. The outer grace must outlast that window, or the outer
+# SIGKILL ends the wrapper first and this stand-in survives.
+_GH_ACT_IGNORES_SIGTERM = (
+    "import os, signal, sys, time; signal.signal(signal.SIGTERM, signal.SIG_IGN);"
+    " open(sys.argv[1], 'w').write(str(os.getpid())); time.sleep(60)"
+)
 
 
 @POSIX_ONLY
 class TestNestedSessionKill:
-    def test_session_leader_grandchild_dies_with_the_outer_timeout(self, tmp_path: Path) -> None:
+    @pytest.mark.parametrize(
+        "stand_in",
+        [_GH_ACT_STAND_IN, _GH_ACT_IGNORES_SIGTERM],
+        ids=["exits-on-sigterm", "ignores-sigterm"],
+    )
+    def test_session_leader_grandchild_dies_with_the_outer_timeout(
+        self, tmp_path: Path, stand_in: str
+    ) -> None:
         """HIGH-001: gh act runs in its own session, so killpg on the wrapper misses it."""
         validation_dir = str(Path(subprocess_runner.__file__).resolve().parent)
         pid_file = tmp_path / "gh-act.pid"
@@ -166,7 +180,8 @@ class TestNestedSessionKill:
         grandchild = 0
         try:
             exit_code, _stdout, _stderr = _run_subprocess(
-                [sys.executable, str(script), validation_dir, str(pid_file)], timeout=5
+                [sys.executable, str(script), validation_dir, str(pid_file), stand_in],
+                timeout=5,
             )
             grandchild = read_pid(pid_file)
             survived = not wait_dead(grandchild)
@@ -175,3 +190,15 @@ class TestNestedSessionKill:
                 os.kill(grandchild, 9)
         assert exit_code == -1
         assert survived is False, f"gh-act stand-in {grandchild} outlived the outer timeout"
+
+
+@POSIX_ONLY
+def test_outer_grace_outlasts_the_wrapper_grace() -> None:
+    """The wrapper needs its whole grace window plus time to send SIGKILL."""
+    validation_dir = str(Path(subprocess_runner.__file__).resolve().parent)
+    sys.path.insert(0, validation_dir)
+    try:
+        import run_workflow_local_test as wrapper
+    finally:
+        sys.path.remove(validation_dir)
+    assert subprocess_runner._TERM_GRACE >= wrapper._TERM_GRACE + 1.0

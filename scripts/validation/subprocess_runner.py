@@ -54,8 +54,10 @@ _SUPPORTS_PGROUP = hasattr(os, "killpg")
 _DRAIN_TIMEOUT = 5
 
 # Seconds the group leader gets between SIGTERM and SIGKILL to stop children
-# that live in sessions of their own.
-_TERM_GRACE = 3.0
+# that live in sessions of their own. It must outlast the 3 second window that
+# run_workflow_local_test gives gh act, plus time to send its SIGKILL. A shorter
+# window ends the wrapper mid-cleanup and gh act survives (issue #6412).
+_TERM_GRACE = 5.0
 
 
 def _decode_stream(data: bytes | str | None) -> str:
