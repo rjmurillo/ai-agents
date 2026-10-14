@@ -63,8 +63,7 @@ def _commit(repo: Path, name: str, text: str) -> str:
     return _git(repo, "rev-parse", "HEAD")
 
 
-@pytest.fixture
-def repos(tmp_path: Path) -> dict[str, Path]:
+def make_repos(tmp_path: Path) -> dict[str, Path]:
     """A bare remote, the clone under analysis, and a second clone."""
     remote = tmp_path / "remote.git"
     subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(remote)], check=True)
@@ -78,6 +77,11 @@ def repos(tmp_path: Path) -> dict[str, Path]:
     other = tmp_path / "other"
     subprocess.run(["git", "clone", "-q", str(remote), str(other)], check=True)
     return {"remote": remote, "local": local, "other": other}
+
+
+@pytest.fixture
+def repos(tmp_path: Path) -> dict[str, Path]:
+    return make_repos(tmp_path)
 
 
 def _advance_remote(repos: dict[str, Path], name: str = "a.txt", text: str | None = None) -> str:
@@ -160,6 +164,7 @@ class TestCitationRevalidation:
         assert rec["citations"] == [
             {
                 "citation": "b.txt",
+                "revision": rec["local_head"],
                 "status": "CURRENT",
                 "detail": "cited content identical at both revisions",
             }

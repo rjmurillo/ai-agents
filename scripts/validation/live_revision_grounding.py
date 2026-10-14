@@ -20,13 +20,15 @@ The record is one JSON object on stdout:
     grounded_sha       revision the findings were read at (--since, else local_head)
     live_changed       true when --since differs from live_sha, else null
     finding_status     CURRENT | STALE | UNVERIFIED
-    citations          one row per --cite with its own CURRENT/STALE/UNVERIFIED
+    citations          one row per --cite and compared revision, each CURRENT/STALE/UNVERIFIED
     reason             one sentence explaining finding_status
 
-``finding_status`` is CURRENT only when the grounded revision is the live
-revision, or when every cited file and line range is byte-identical between the
-two (an explicit revalidation). A grounded revision that differs from live with
-no citation to revalidate is UNVERIFIED, never CURRENT. A STALE or UNVERIFIED
+``finding_status`` is CURRENT only when local HEAD and the grounded revision are
+both the live revision, or when every cited file and line range is
+byte-identical between each differing revision and live (an explicit
+revalidation). A differing revision with no citation to revalidate is
+UNVERIFIED, never CURRENT. ``--since`` equal to live does not vouch for a
+checkout that is behind. A STALE or UNVERIFIED
 finding must not be the sole basis for an issue.
 
 Exit codes follow ADR-035:
@@ -73,6 +75,7 @@ _AUTH_HINTS = (
 )
 _CITE = re.compile(r"^(?P<path>[^:].*?)(?::(?P<start>\d+)(?:-(?P<end>\d+))?)?$")
 _SYMREF_PREFIX = "ref: refs/heads/"
+_SHA = re.compile(r"^[0-9a-f]{40}(?:[0-9a-f]{24})?$")
 
 
 class GroundingError(RuntimeError):
@@ -132,6 +135,14 @@ def parse_citation(text: str) -> Citation:
     if first is not None and (first < 1 or (last is not None and last < first)):
         raise GroundingError(f"Invalid line range in --cite: {text!r}", 2)
     return Citation(match.group("path"), first, last)
+
+
+def validate_inputs(remote: str, since: str | None) -> None:
+    """Reject values git would read as options, and a malformed ``--since``."""
+    if not remote or remote.startswith("-"):
+        raise GroundingError(f"Invalid --remote value: {remote!r}", 2)
+    if since is not None and not _SHA.match(since):
+        raise GroundingError(f"--since must be a full 40 or 64 hex-digit SHA: {since!r}", 2)
 
 
 def _git(repo: Path, args: list[str]) -> tuple[int, str, str]:
@@ -237,6 +248,26 @@ def _slice(lines: list[str], cite: Citation) -> list[str]:
     return lines[cite.start - 1 : cite.end]
 
 
+def _range_note(before: list[str], after: list[str], cite: Citation) -> tuple[bool, str]:
+    """Return (unreadable, note) for a line range against both revisions.
+
+    A range that starts past the end of either file cites lines that do not
+    exist there, so it cannot be revalidated. A range that only ends past the
+    end is clamped, and the note says so.
+    """
+    if cite.start is None:
+        return False, ""
+    shortest = min(len(before), len(after))
+    if cite.start > shortest:
+        return (
+            True,
+            f"cited range starts past the end of the file (shortest revision has {shortest} lines)",
+        )
+    if cite.end is not None and cite.end > shortest:
+        return False, f"; range end clamped to line {shortest}"
+    return False, ""
+
+
 def classify_citation(repo: Path, grounded: str, live: str, cite: Citation) -> tuple[str, str]:
     """Return (status, detail) for one citation between two revisions."""
     before = _file_lines(repo, grounded, cite.path)
@@ -246,31 +277,37 @@ def classify_citation(repo: Path, grounded: str, live: str, cite: Citation) -> t
     if before is None or after is None:
         side = "live revision" if after is None else "grounded revision"
         return STALE, f"path absent at {side}"
+    unreadable, note = _range_note(before, after, cite)
+    if unreadable:
+        return UNVERIFIED, note
     if _slice(before, cite) == _slice(after, cite):
-        return CURRENT, "cited content identical at both revisions"
+        return CURRENT, "cited content identical at both revisions" + note
     return STALE, "cited content changed between the revisions"
 
 
 def _revalidate(
-    repo: Path, grounded: str, live: str, cites: list[Citation]
+    repo: Path, revisions: list[str], live: str, cites: list[Citation]
 ) -> tuple[list[dict[str, str]], str, str]:
-    """Return (rows, finding_status, reason) for a grounded revision != live."""
+    """Return (rows, finding_status, reason) for revisions that differ from live."""
     if not cites:
         return (
             [],
             UNVERIFIED,
-            "Grounded revision differs from live and no --cite was revalidated.",
+            "The checkout or grounded revision differs from live and no --cite was revalidated.",
         )
     rows = []
-    for cite in cites:
-        status, detail = classify_citation(repo, grounded, live, cite)
-        rows.append({"citation": cite.label, "status": status, "detail": detail})
+    for revision in revisions:
+        for cite in cites:
+            status, detail = classify_citation(repo, revision, live, cite)
+            rows.append(
+                {"citation": cite.label, "revision": revision, "status": status, "detail": detail}
+            )
     statuses = {row["status"] for row in rows}
     if STALE in statuses:
-        return rows, STALE, "A cited file or line range changed since the grounded revision."
+        return rows, STALE, "A cited file or line range changed since the compared revision."
     if UNVERIFIED in statuses:
-        return rows, UNVERIFIED, "A citation could not be read at either revision."
-    return rows, CURRENT, "Every citation is identical at the grounded and live revisions."
+        return rows, UNVERIFIED, "A citation could not be read at both revisions."
+    return rows, CURRENT, "Every citation is identical at each compared revision and live."
 
 
 def ground(
@@ -295,13 +332,18 @@ def ground(
     record.live_changed = None if since is None else since != live
     ensure_commit(repo, remote, live)
     record.status = relation(repo, record.local_head, live)
-    if grounded == live:
+    # The findings were read from the checkout, so local HEAD must match live
+    # (or revalidate) even when --since equals live. --since adds the earlier
+    # live revision to the comparison; it never replaces local HEAD.
+    behind_live = [rev for rev in dict.fromkeys((record.local_head, grounded)) if rev != live]
+    if not behind_live:
         record.finding_status = CURRENT
-        record.reason = "Grounded revision is the live revision."
+        record.reason = "Local HEAD and the grounded revision are the live revision."
         return
-    if grounded != record.local_head:
-        ensure_commit(repo, remote, grounded)
-    rows, record.finding_status, record.reason = _revalidate(repo, grounded, live, cites)
+    for revision in behind_live:
+        if revision != record.local_head:
+            ensure_commit(repo, remote, revision)
+    rows, record.finding_status, record.reason = _revalidate(repo, behind_live, live, cites)
     record.citations = rows
 
 
@@ -330,6 +372,7 @@ def run(args: argparse.Namespace) -> tuple[Record, int]:
     """Execute one grounding pass and return (record, exit code)."""
     record = Record(remote=args.remote)
     try:
+        validate_inputs(args.remote, args.since)
         cites = [parse_citation(text) for text in args.cite]
         ground(Path(args.repo), args.remote, args.branch, args.since, cites, record)
     except GroundingError as error:
