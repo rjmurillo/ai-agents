@@ -100,9 +100,9 @@ Run from within a git repository, or provide `-Owner` and `-Repo` explicitly.
 
 Run `gh auth login` and authenticate with GitHub.
 
-### Exit code 5
+### Comment with `-Marker` already exists
 
-Expected when using `-Marker` and comment already exists. This is idempotency working correctly.
+The script skips the post and exits 0. This is idempotency working correctly.
 
 ### "Milestone not found"
 

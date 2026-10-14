@@ -164,6 +164,7 @@ _RESERVED_COMMENT = re.compile(r"^#\s+(?:[5-9]|[1-9][0-9]):", re.MULTILINE)
 def test_github_api_reference_has_no_reserved_exit_code_row() -> None:
     text = (GITHUB_REFS / "api-reference.md").read_text(encoding="utf-8")
     assert _RESERVED_ROW.search(text) is None
+    assert re.search(r"exit code 5", text, re.IGNORECASE) is None
 
 
 def test_github_patterns_says_idempotent_skip_exits_zero() -> None:
