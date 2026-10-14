@@ -174,7 +174,15 @@ class TestFetchChecksRestRuns:
 
 
 class TestCheckRunsFilter:
-    def test_check_runs_request_asks_for_every_run_not_only_the_latest(self):
+    """The check-runs read keeps the default ``filter=latest``.
+
+    ``filter=all`` returns every attempt's job under one workflow run id.
+    ``to_graphql_check_run`` stamps each row with the run's latest attempt, so
+    an old failed attempt and the new passing attempt would share one
+    (run id, attempt) key and read as concurrent siblings.
+    """
+
+    def test_check_runs_request_does_not_ask_for_every_attempt(self):
         routes = {
             "repos/o/r/pulls/42": _pr_payload(),
             "repos/o/r/commits/abc123/check-runs": [{"total_count": 0, "check_runs": []}],
@@ -187,4 +195,36 @@ class TestCheckRunsFilter:
             c.args[0][-1] for c in api.call_args_list if "/check-runs" in c.args[0][-1]
         ]
         assert len(check_run_calls) == 1
-        assert "filter=all" in check_run_calls[0]
+        assert "filter" not in check_run_calls[0]
+
+    def test_rerun_that_turned_green_reads_green(self):
+        failed_attempt = {
+            "name": "all required jobs passed",
+            "status": "completed",
+            "conclusion": "failure",
+            "details_url": _RUN_URL,
+        }
+        passed_attempt = {**failed_attempt, "conclusion": "success"}
+        run = {"id": 987654, "event": "pull_request", "run_attempt": 2}
+        base = {
+            "repos/o/r/pulls/42": _pr_payload(),
+            "repos/o/r/commits/abc123/status": [{"total_count": 0, "statuses": []}],
+            "repos/o/r/actions/runs": [{"total_count": 1, "workflow_runs": [run]}],
+        }
+        inner = _fake_api(base)
+
+        def api(args: list[str]):
+            endpoint = args[-1]
+            if endpoint.startswith("repos/o/r/commits/abc123/check-runs"):
+                rows = (
+                    [failed_attempt, passed_attempt]
+                    if "filter=all" in endpoint
+                    else [passed_attempt]
+                )
+                return [{"total_count": len(rows), "check_runs": rows}]
+            return inner(args)
+
+        with patch.object(checks_rest, "_run_gh_api", side_effect=api):
+            result = checks_rest.fetch_checks_rest("o", "r", 42)
+        conclusions = [n["conclusion"] for n in result["Nodes"]]
+        assert conclusions == ["SUCCESS"]

@@ -7,8 +7,9 @@ GraphQL refuses with a rate-limit body, it reads the same checks over REST
 (check runs and commit statuses) and marks required checks from the branch
 ruleset. Output field DataSource says which transport answered. On REST,
 --required-only exits 3 when the ruleset lists no required checks. Classic
-branch protection is invisible to REST, so a failing or pending row outside the
-ruleset is kept under --required-only and RequiredState reads UNKNOWN, not SUCCESS.
+branch protection is not read by the ruleset lookup, so a failing or pending row
+outside the ruleset is kept under --required-only and RequiredState reads UNKNOWN,
+not SUCCESS.
 Returns structured JSON with check states, conclusions, and summary counts.
 Supports polling until checks complete and filtering to required checks only.
 

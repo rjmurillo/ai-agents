@@ -205,9 +205,7 @@ def fetch_checks_rest(owner: str, repo: str, pr_number: int) -> dict:
     if not sha:
         raise RuntimeError("REST pull request response has no head sha")
 
-    runs, runs_total = _fetch_pages(
-        f"repos/{owner}/{repo}/commits/{sha}/check-runs?filter=all", "check_runs"
-    )
+    runs, runs_total = _fetch_pages(f"repos/{owner}/{repo}/commits/{sha}/check-runs", "check_runs")
     statuses, statuses_total = _fetch_pages(
         f"repos/{owner}/{repo}/commits/{sha}/status", "statuses"
     )
