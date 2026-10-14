@@ -2,12 +2,18 @@
 
 Issue #6477 moved the overlapping pre-push lanes onto separate databases, because
 a shared one let a lane change what another lane's workers read. This test
-still guards the write path: testmon 2.2.0 writes each
-run in transactions on a WAL database with a 60s busy wait, and the partitions
-cover disjoint test names. This test runs two real ``--testmon`` pytest
-processes against one database, repeatedly, after a change that makes both
-re-run and re-record their tests. The first build is not tested here because it
-is not safe (bare ``CREATE TABLE``); the hook runs it in sequence.
+still guards the write path: testmon 2.2.0 writes each run in transactions on a
+WAL database with a 60s busy wait, so two processes on one database neither fail
+nor corrupt it. This test runs two real ``--testmon`` pytest processes against
+one database, repeatedly, after a change that makes both re-run and re-record
+their tests. The first build is not tested here because it is not safe (bare
+``CREATE TABLE``); the hook runs it in sequence.
+
+A shared database does not keep both histories. testmon reads which tests
+changed when it starts, and once collection ends it deletes each changed test
+it did not collect (``sync_db_fs_tests``). A process that starts before the
+other records and ends collection after it deletes the records the other just
+wrote. Only the last process to end collection is sure to keep its own.
 """
 
 from __future__ import annotations
@@ -56,15 +62,15 @@ def _pytest(project: Path, *targets: str) -> subprocess.Popen[str]:
 
 
 def _build_project(project: Path) -> None:
-    (project / "conftest.py").write_text("")
-    (project / "pkg.py").write_text("def value():\n    return 1\n")
+    (project / "conftest.py").write_text("", encoding="utf-8")
+    (project / "pkg.py").write_text("def value():\n    return 1\n", encoding="utf-8")
     body = "from pkg import value\n\n" + "".join(
         f"def test_case_{index}():\n    assert value() == 1\n"
         for index in range(TESTS_PER_PARTITION)
     )
     for name in ("part_a", "part_b"):
         (project / name).mkdir()
-        (project / name / f"test_{name}.py").write_text(body)
+        (project / name / f"test_{name}.py").write_text(body, encoding="utf-8")
 
 
 def _finish(process: subprocess.Popen[str]) -> tuple[int, str]:
@@ -86,7 +92,8 @@ def test_concurrent_partitions_record_into_one_database(tmp_path: Path) -> None:
     for round_number in range(ROUNDS):
         # Same value, different code, so testmon re-selects every dependent test.
         (tmp_path / "pkg.py").write_text(
-            f"def value():\n    extra = {round_number}\n    return 1 + extra - extra\n"
+            f"def value():\n    extra = {round_number}\n    return 1 + extra - extra\n",
+            encoding="utf-8",
         )
         first = _pytest(tmp_path, "part_a")
         second = _pytest(tmp_path, "part_b")
@@ -96,4 +103,5 @@ def test_concurrent_partitions_record_into_one_database(tmp_path: Path) -> None:
     with sqlite3.connect(tmp_path / ".testmondata") as database:
         assert database.execute("PRAGMA integrity_check").fetchone() == ("ok",)
         recorded = database.execute("SELECT count(*) FROM test_execution").fetchone()[0]
-    assert recorded == 2 * TESTS_PER_PARTITION
+    # The last process to end collection keeps its partition; the other may not.
+    assert TESTS_PER_PARTITION <= recorded <= 2 * TESTS_PER_PARTITION

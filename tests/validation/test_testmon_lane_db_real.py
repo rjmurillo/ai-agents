@@ -60,15 +60,15 @@ def _pytest(project: Path, target: str, datafile: str | None) -> str:
 
 
 def _build_project(project: Path) -> None:
-    (project / "conftest.py").write_text("")
-    (project / "pkg.py").write_text("def value():\n    return 1\n")
+    (project / "conftest.py").write_text("", encoding="utf-8")
+    (project / "pkg.py").write_text("def value():\n    return 1\n", encoding="utf-8")
     body = "from pkg import value\n\n" + "".join(
         f"def test_case_{index}():\n    assert value() == 1\n"
         for index in range(TESTS_PER_PARTITION)
     )
     for name in ("part_a", "part_b"):
         (project / name).mkdir()
-        (project / name / f"test_{name}.py").write_text(body)
+        (project / name / f"test_{name}.py").write_text(body, encoding="utf-8")
 
 
 def _executions(path: Path) -> int:
@@ -88,7 +88,9 @@ def test_lane_copies_select_nothing_then_rerun_only_their_own_tests(tmp_path: Pa
     unchanged = [_pytest(tmp_path, "part_a", lanes[0]), _pytest(tmp_path, "part_b", lanes[1])]
     assert all("no tests ran" in output for output in unchanged), unchanged
 
-    (tmp_path / "pkg.py").write_text("def value():\n    extra = 1\n    return 1 + extra - extra\n")
+    (tmp_path / "pkg.py").write_text(
+        "def value():\n    extra = 1\n    return 1 + extra - extra\n", encoding="utf-8"
+    )
     changed = [_pytest(tmp_path, "part_a", lanes[0]), _pytest(tmp_path, "part_b", lanes[1])]
 
     assert all(f"{TESTS_PER_PARTITION} passed" in output for output in changed), changed
@@ -96,3 +98,26 @@ def test_lane_copies_select_nothing_then_rerun_only_their_own_tests(tmp_path: Pa
     for lane in lanes:
         # testmon prunes what a run did not collect, so a lane keeps its own tests.
         assert _executions(tmp_path / lane) == TESTS_PER_PARTITION
+
+
+def test_serial_commands_on_one_lane_database_keep_both_histories(tmp_path: Path) -> None:
+    """The serial lane runs its two partitions in order on one database.
+
+    testmon prunes only tests it did not collect and whose dependencies changed.
+    The first command re-records its own tests, so the second command sees them
+    as unchanged and keeps them. Both partitions then select nothing.
+    """
+    pytest.importorskip("testmon")
+    _build_project(tmp_path)
+    _pytest(tmp_path, ".", None)  # the sequential first build
+    lane = testmon_lane_db.prepare_lane_datafiles(tmp_path, BASE, 1)[0]
+
+    (tmp_path / "pkg.py").write_text(
+        "def value():\n    extra = 1\n    return 1 + extra - extra\n", encoding="utf-8"
+    )
+    changed = [_pytest(tmp_path, "part_a", lane), _pytest(tmp_path, "part_b", lane)]
+    assert all(f"{TESTS_PER_PARTITION} passed" in output for output in changed), changed
+    assert _executions(tmp_path / lane) == 2 * TESTS_PER_PARTITION
+
+    unchanged = [_pytest(tmp_path, "part_a", lane), _pytest(tmp_path, "part_b", lane)]
+    assert all("no tests ran" in output for output in unchanged), unchanged
