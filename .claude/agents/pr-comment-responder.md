@@ -88,11 +88,11 @@ exits non-zero and prints nothing, `|| true` turns that into an empty string, an
 arithmetic reads an empty string as 0. An absent map would otherwise compute zero pending
 and clear every gate with no artifact to verify.
 
-Every gate also proves the map is complete before it trusts the subtraction. A map whose
-`**Status**:` fields were stripped counts zero total and zero terminal, so the difference
-is zero pending and the gate clears a map that describes nothing. Each gate compares
-`TOTAL` against `$TOTAL_COMMENTS`, the API count Phase 1 recorded, and blocks when the two
-disagree.
+Every gate proves the map is complete before trusting the subtraction. Stripped `**Status**:`
+fields count zero total and zero terminal, so the gate clears a map that describes nothing.
+Each gate compares `TOTAL` with `$TOTAL_COMMENTS`, the API count Phase 1 recorded, then
+reconciles per comment ID: one status per `### Comment <id>` block, IDs match
+`comment_ids.txt`.
 
 No gate enumerates pending statuses. Every gate counts the terminal statuses and
 subtracts. A status outside this table therefore fails closed: it matches no terminal
@@ -130,6 +130,34 @@ esac
 
 if [ "$TOTAL" -ne "$TOTAL_COMMENTS" ]; then
   echo "[BLOCKED] Comment map carries $TOTAL status fields, API reported $TOTAL_COMMENTS"
+  exit 1
+fi
+
+# Reconcile per comment ID, not in aggregate. Matching counts cannot tell one
+# block with two status lines plus one block with none from two clean blocks,
+# or a deleted comment plus a new one from no change at all. Phase 1 recorded
+# the API comment IDs beside the count. Block when any block lacks exactly one
+# status line, or when the map's IDs differ from the recorded ones. This runs
+# at read time, in every gate, because Gate 3 guards only the writes it makes: a
+# hand edit or an external delete-plus-add never passes through it.
+IDS_FILE=".project-toolkit/pr-comments/PR-[number]/comment_ids.txt"
+if [ ! -f "$IDS_FILE" ]; then
+  echo "[BLOCKED] API comment IDs not recorded: $IDS_FILE"
+  exit 1
+fi
+BLOCK_FAULTS=$(awk '
+  function close_block() { if (id != "" && n != 1) printf "%s(%d) ", id, n }
+  /^### Comment / { close_block(); id = $3; n = 0; next }
+  /^\*\*Status\*\*: / { if (id == "") stray++; else n++ }
+  END { close_block(); if (stray) printf "unowned(%d) ", stray }
+' "$COMMENT_MAP") || { echo "[BLOCKED] Cannot read comment blocks: $COMMENT_MAP"; exit 1; }
+if [ -n "$BLOCK_FAULTS" ]; then
+  echo "[BLOCKED] Comment blocks without exactly one status line: $BLOCK_FAULTS"
+  exit 1
+fi
+if ! ID_DIFF=$(diff <(awk '/^### Comment / { print $3 }' "$COMMENT_MAP" | LC_ALL=C sort) <(LC_ALL=C sort "$IDS_FILE")); then
+  echo "[BLOCKED] Comment map IDs differ from the API IDs (< map only, > API only):"
+  echo "$ID_DIFF"
   exit 1
 fi
 ```
@@ -574,6 +602,34 @@ if [ "$TOTAL" -ne "$TOTAL_COMMENTS" ]; then
   exit 1
 fi
 
+# Reconcile per comment ID, not in aggregate. Matching counts cannot tell one
+# block with two status lines plus one block with none from two clean blocks,
+# or a deleted comment plus a new one from no change at all. Phase 1 recorded
+# the API comment IDs beside the count. Block when any block lacks exactly one
+# status line, or when the map's IDs differ from the recorded ones. This runs
+# at read time, in every gate, because Gate 3 guards only the writes it makes: a
+# hand edit or an external delete-plus-add never passes through it.
+IDS_FILE=".project-toolkit/pr-comments/PR-[number]/comment_ids.txt"
+if [ ! -f "$IDS_FILE" ]; then
+  echo "[BLOCKED] API comment IDs not recorded: $IDS_FILE"
+  exit 1
+fi
+BLOCK_FAULTS=$(awk '
+  function close_block() { if (id != "" && n != 1) printf "%s(%d) ", id, n }
+  /^### Comment / { close_block(); id = $3; n = 0; next }
+  /^\*\*Status\*\*: / { if (id == "") stray++; else n++ }
+  END { close_block(); if (stray) printf "unowned(%d) ", stray }
+' "$COMMENT_MAP") || { echo "[BLOCKED] Cannot read comment blocks: $COMMENT_MAP"; exit 1; }
+if [ -n "$BLOCK_FAULTS" ]; then
+  echo "[BLOCKED] Comment blocks without exactly one status line: $BLOCK_FAULTS"
+  exit 1
+fi
+if ! ID_DIFF=$(diff <(awk '/^### Comment / { print $3 }' "$COMMENT_MAP" | LC_ALL=C sort) <(LC_ALL=C sort "$IDS_FILE")); then
+  echo "[BLOCKED] Comment map IDs differ from the API IDs (< map only, > API only):"
+  echo "$ID_DIFF"
+  exit 1
+fi
+
 # Count unresolved review threads separately
 UNRESOLVED_API=$(gh api graphql -f query='...' --jq '.data...unresolved.length')
 
@@ -623,6 +679,34 @@ esac
 
 if [ "$TOTAL" -ne "$TOTAL_COMMENTS" ]; then
   echo "[BLOCKED] Comment map carries $TOTAL status fields, API reported $TOTAL_COMMENTS"
+  exit 1
+fi
+
+# Reconcile per comment ID, not in aggregate. Matching counts cannot tell one
+# block with two status lines plus one block with none from two clean blocks,
+# or a deleted comment plus a new one from no change at all. Phase 1 recorded
+# the API comment IDs beside the count. Block when any block lacks exactly one
+# status line, or when the map's IDs differ from the recorded ones. This runs
+# at read time, in every gate, because Gate 3 guards only the writes it makes: a
+# hand edit or an external delete-plus-add never passes through it.
+IDS_FILE=".project-toolkit/pr-comments/PR-[number]/comment_ids.txt"
+if [ ! -f "$IDS_FILE" ]; then
+  echo "[BLOCKED] API comment IDs not recorded: $IDS_FILE"
+  exit 1
+fi
+BLOCK_FAULTS=$(awk '
+  function close_block() { if (id != "" && n != 1) printf "%s(%d) ", id, n }
+  /^### Comment / { close_block(); id = $3; n = 0; next }
+  /^\*\*Status\*\*: / { if (id == "") stray++; else n++ }
+  END { close_block(); if (stray) printf "unowned(%d) ", stray }
+' "$COMMENT_MAP") || { echo "[BLOCKED] Cannot read comment blocks: $COMMENT_MAP"; exit 1; }
+if [ -n "$BLOCK_FAULTS" ]; then
+  echo "[BLOCKED] Comment blocks without exactly one status line: $BLOCK_FAULTS"
+  exit 1
+fi
+if ! ID_DIFF=$(diff <(awk '/^### Comment / { print $3 }' "$COMMENT_MAP" | LC_ALL=C sort) <(LC_ALL=C sort "$IDS_FILE")); then
+  echo "[BLOCKED] Comment map IDs differ from the API IDs (< map only, > API only):"
+  echo "$ID_DIFF"
   exit 1
 fi
 
@@ -813,6 +897,13 @@ COUNT_FILE=".project-toolkit/pr-comments/PR-[number]/total_comments.txt"
 mkdir -p "$(dirname "$COUNT_FILE")"
 printf '%s\n' "$TOTAL_COMMENTS" > "$COUNT_FILE"
 
+# Record the comment IDs beside the count, sorted. Counts cannot see a
+# duplicate-plus-missing or delete-plus-add pair, so every gate also diffs the
+# map's `### Comment <id>` headers against this list.
+IDS_FILE=".project-toolkit/pr-comments/PR-[number]/comment_ids.txt"
+( set -o pipefail; printf '%s' "$COMMENTS" | jq -r '.Comments[].Id' | LC_ALL=C sort > "$IDS_FILE" ) \
+  || { echo "[BLOCKED] Cannot record comment IDs from the payload"; exit 1; }
+
 # Returns all comments with: Id, CommentType (Review/Issue), Author, Path, Line, Body, DiffHunk, CreatedAt, InReplyToId
 ```
 
@@ -853,6 +944,12 @@ echo "Total comments: $TOTAL_COMMENTS (Review: $REVIEW_COMMENT_COUNT, Issue: $IS
 COUNT_FILE=".project-toolkit/pr-comments/PR-[number]/total_comments.txt"
 mkdir -p "$(dirname "$COUNT_FILE")"
 printf '%s\n' "$TOTAL_COMMENTS" > "$COUNT_FILE"
+
+# Record the comment IDs beside the count, sorted. Same artifact as the
+# preferred path, so every gate reconciles the map against it.
+IDS_FILE=".project-toolkit/pr-comments/PR-[number]/comment_ids.txt"
+( set -o pipefail; printf '%s\n%s\n' "$ALL_REVIEW_COMMENTS" "$ALL_ISSUE_COMMENTS" | jq -r '.[].id' | LC_ALL=C sort > "$IDS_FILE" ) \
+  || { echo "[BLOCKED] Cannot record comment IDs from the payload"; exit 1; }
 ```
 
 </details>
@@ -1586,6 +1683,34 @@ if [ "$TOTAL" -ne "$TOTAL_COMMENTS" ]; then
   exit 1
 fi
 
+# Reconcile per comment ID, not in aggregate. Matching counts cannot tell one
+# block with two status lines plus one block with none from two clean blocks,
+# or a deleted comment plus a new one from no change at all. Phase 1 recorded
+# the API comment IDs beside the count. Block when any block lacks exactly one
+# status line, or when the map's IDs differ from the recorded ones. This runs
+# at read time, in every gate, because Gate 3 guards only the writes it makes: a
+# hand edit or an external delete-plus-add never passes through it.
+IDS_FILE=".project-toolkit/pr-comments/PR-[number]/comment_ids.txt"
+if [ ! -f "$IDS_FILE" ]; then
+  echo "[BLOCKED] API comment IDs not recorded: $IDS_FILE"
+  exit 1
+fi
+BLOCK_FAULTS=$(awk '
+  function close_block() { if (id != "" && n != 1) printf "%s(%d) ", id, n }
+  /^### Comment / { close_block(); id = $3; n = 0; next }
+  /^\*\*Status\*\*: / { if (id == "") stray++; else n++ }
+  END { close_block(); if (stray) printf "unowned(%d) ", stray }
+' "$COMMENT_MAP") || { echo "[BLOCKED] Cannot read comment blocks: $COMMENT_MAP"; exit 1; }
+if [ -n "$BLOCK_FAULTS" ]; then
+  echo "[BLOCKED] Comment blocks without exactly one status line: $BLOCK_FAULTS"
+  exit 1
+fi
+if ! ID_DIFF=$(diff <(awk '/^### Comment / { print $3 }' "$COMMENT_MAP" | LC_ALL=C sort) <(LC_ALL=C sort "$IDS_FILE")); then
+  echo "[BLOCKED] Comment map IDs differ from the API IDs (< map only, > API only):"
+  echo "$ID_DIFF"
+  exit 1
+fi
+
 echo "Verification: $TERMINAL / $TOTAL comments terminal"
 
 if [ "$PENDING" -ne 0 ]; then
@@ -1640,10 +1765,10 @@ sleep 45
 # This re-fetch is the only thing that can see a comment posted since the last
 # pass, so both halves of it have to block on failure. Left unchecked, a
 # nonzero exit from the fetch or a payload jq cannot parse leaves NEW_COMMENTS
-# empty or `null`; `[ -gt ]` on a non-numeric operand then raises `integer
+# empty or `null`; `[ -ne ]` on a non-numeric operand then raises `integer
 # expression expected`, which is a nonzero exit from `[` and reads as false to
-# `if`, so the branch below never runs and the pass continues as though the API
-# reported no new comments.
+# `if`, so the append check below never fires and the pass continues as though
+# the API reported no new comments.
 RECHECK_PAYLOAD=$(python3 "$SCRIPTS_DIR/pr/get_pr_review_comments.py" --pull-request [number] --include-issue-comments)
 RECHECK_STATUS=$?
 if [ "$RECHECK_STATUS" -ne 0 ]; then
@@ -1676,17 +1801,37 @@ case "$TOTAL_COMMENTS" in
   ''|*[!0-9]*) echo "[BLOCKED] Recorded comment count is not numeric: $TOTAL_COMMENTS"; exit 1 ;;
 esac
 
-if [ "$NEW_COMMENTS" -gt "$TOTAL_COMMENTS" ]; then
-  echo "[NEW COMMENTS] $((NEW_COMMENTS - TOTAL_COMMENTS)) new comments detected"
+# Reconcile by comment ID, not by count. A count only grows when a comment is
+# added. One comment deleted plus a different one posted leaves the total where
+# it was, so a count comparison never ran the append and the map kept the
+# deleted comment's stale terminal row. Diff the map's IDs against the fresh
+# payload's IDs instead.
+COMMENT_MAP=".project-toolkit/pr-comments/PR-[number]/comments.md"
+if [ ! -f "$COMMENT_MAP" ]; then
+  echo "[BLOCKED] Comment map not found: $COMMENT_MAP"
+  exit 1
+fi
+IDS_FILE=".project-toolkit/pr-comments/PR-[number]/comment_ids.txt"
+RECHECK_IDS=$( set -o pipefail; printf '%s' "$RECHECK_PAYLOAD" | jq -r '.Comments[].Id' | LC_ALL=C sort ) \
+  || { echo "[BLOCKED] Cannot read comment IDs from the re-fetched payload"; exit 1; }
+REMOVED_IDS=$(LC_ALL=C comm -23 \
+  <(awk '/^### Comment / { print $3 }' "$COMMENT_MAP" | LC_ALL=C sort) \
+  <(printf '%s\n' "$RECHECK_IDS" | sed '/^$/d') | paste -s -d ' ' -)
+ADDED_IDS=$(LC_ALL=C comm -13 \
+  <(awk '/^### Comment / { print $3 }' "$COMMENT_MAP" | LC_ALL=C sort) \
+  <(printf '%s\n' "$RECHECK_IDS" | sed '/^$/d') | paste -s -d ' ' -)
+if [ -n "$REMOVED_IDS" ]; then
+  echo "[BLOCKED] Comments in the map are gone from the API: $REMOVED_IDS (new in the API: ${ADDED_IDS:-none})"
+  echo "Bring comments.md, total_comments.txt, and comment_ids.txt back in line with the API, then re-run."
+  exit 1
+fi
+
+if [ -n "$ADDED_IDS" ]; then
+  echo "[NEW COMMENTS] New in the API: $ADDED_IDS"
   # Append every comment the map has never seen, at status [NEW]. Every gate
   # counts `**Status**:` fields out of the map, so a comment that arrives here
   # and never lands in the map is invisible to every completion check: the pass
   # can reach Gate 4 reporting zero pending work on a comment nobody read.
-  COMMENT_MAP=".project-toolkit/pr-comments/PR-[number]/comments.md"
-  if [ ! -f "$COMMENT_MAP" ]; then
-    echo "[BLOCKED] Comment map not found: $COMMENT_MAP"
-    exit 1
-  fi
   # Comment bodies are deliberately not inlined here. A reviewer comment can
   # itself contain a line reading `**Status**: [COMPLETE]`, and the gates count
   # that field with a line-anchored grep, so an inlined body would let a comment
@@ -1732,6 +1877,9 @@ if [ "$NEW_COMMENTS" -gt "$TOTAL_COMMENTS" ]; then
     exit 1
   fi
   printf '%s\n' "$NEW_COMMENTS" > "$COUNT_FILE"
+  # The ID list moves with the count, for the same reason and in the same
+  # order: after the append is proven, never before.
+  printf '%s\n' "$RECHECK_IDS" | sed '/^$/d' > "$IDS_FILE"
 
   # Return to Phase 3 for analysis
 fi
@@ -1858,6 +2006,34 @@ esac
 
 if [ "$TOTAL" -ne "$TOTAL_COMMENTS" ]; then
   echo "[BLOCKED] Comment map carries $TOTAL status fields, API reported $TOTAL_COMMENTS"
+  exit 1
+fi
+
+# Reconcile per comment ID, not in aggregate. Matching counts cannot tell one
+# block with two status lines plus one block with none from two clean blocks,
+# or a deleted comment plus a new one from no change at all. Phase 1 recorded
+# the API comment IDs beside the count. Block when any block lacks exactly one
+# status line, or when the map's IDs differ from the recorded ones. This runs
+# at read time, in every gate, because Gate 3 guards only the writes it makes: a
+# hand edit or an external delete-plus-add never passes through it.
+IDS_FILE=".project-toolkit/pr-comments/PR-[number]/comment_ids.txt"
+if [ ! -f "$IDS_FILE" ]; then
+  echo "[BLOCKED] API comment IDs not recorded: $IDS_FILE"
+  exit 1
+fi
+BLOCK_FAULTS=$(awk '
+  function close_block() { if (id != "" && n != 1) printf "%s(%d) ", id, n }
+  /^### Comment / { close_block(); id = $3; n = 0; next }
+  /^\*\*Status\*\*: / { if (id == "") stray++; else n++ }
+  END { close_block(); if (stray) printf "unowned(%d) ", stray }
+' "$COMMENT_MAP") || { echo "[BLOCKED] Cannot read comment blocks: $COMMENT_MAP"; exit 1; }
+if [ -n "$BLOCK_FAULTS" ]; then
+  echo "[BLOCKED] Comment blocks without exactly one status line: $BLOCK_FAULTS"
+  exit 1
+fi
+if ! ID_DIFF=$(diff <(awk '/^### Comment / { print $3 }' "$COMMENT_MAP" | LC_ALL=C sort) <(LC_ALL=C sort "$IDS_FILE")); then
+  echo "[BLOCKED] Comment map IDs differ from the API IDs (< map only, > API only):"
+  echo "$ID_DIFF"
   exit 1
 fi
 

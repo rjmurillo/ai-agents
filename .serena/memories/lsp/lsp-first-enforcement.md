@@ -1,5 +1,7 @@
 # LSP-First Navigation Enforcement (ADR-062)
 
+> Historical. The runtime gate and its escape hatches (`SKIP_LSP_GATE`, `LSP_GATE_MODE`, `LSP_DOWN`) were retired in #3216. See "Status update" at the bottom before acting on anything below.
+
 **Status**: Implemented by PR #2168 (merge commit `96aafb4fa`, session 1857, 2026-05-31). Adapted from `nesaminua/claude-code-lsp-enforcement-kit` (MIT, v2.3.2), a JS kit, ported to Python.
 
 ## What it is
@@ -40,3 +42,7 @@ The bash-grep guard blocked a real `grep get_today_session <file>.py` during thi
 ## Architect-review dissent (recorded)
 
 Review recommended warn-first/measure-then-flip (the #1993 soft layer is 1 day old; ADR-061 withdrawal precedent). User chose hard-block enabled on merge; mitigated by kill switch + fail-open + LSP_GATE_MODE + audit.log.
+
+## Status update
+
+Retired in #3216. ADR-062 was amended to keep LSP-first navigation as static steering only. No LSP guard hook exists under `.claude/hooks/`, and no code reads `SKIP_LSP_GATE`, `LSP_GATE_MODE`, or `LSP_DOWN`. The "Escape hatches" section above is history, not live behavior. Current guidance: `.claude/rules/lsp-first.md`. Verified against `origin/main` by grep for `LSP_DOWN` readers; the only hits are historical text, skill retirement notes, and session artifacts.
