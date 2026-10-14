@@ -1,0 +1,30 @@
+{
+  "skill_path": ".claude/skills/repository-pr-recovery/SKILL.md",
+  "skill_id": "repository-pr-recovery",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "A missing main baseline is mistaken for a broken probe.",
+      "input": "An ai-agents PR has red Validate PR. The triage probe returns PR_ONLY. We already widened history once. Give the next action and what can be claimed. Do not modify anything.",
+      "expected_signals": ["examined history", "workflow triggers", "PR run", "not green"],
+      "expected_gate": "attribute-before-editing",
+      "rationale": "The current typed verdict distinguishes absent rows from failed retrieval."
+    },
+    {
+      "id": "S2",
+      "desc": "A green result has the wrong integration and revision.",
+      "input": "The required ai-agents check has a green same-name run from another integration on the prior head. The name-only triage probe says GREEN_ON_MAIN. Can we proceed? Give the next read. Do not modify anything.",
+      "expected_signals": ["provisional", "app.id", "head_sha", "check-runs"],
+      "expected_gate": "join-producer-and-revision",
+      "rationale": "Same-name rollups omit producer identity required for acceptance."
+    },
+    {
+      "id": "S3",
+      "desc": "Ordinary code generation does not need PR recovery.",
+      "input": "Write a pure Python function that adds two integers. Return only code.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "No hosted PR blocker or check attribution exists."
+    }
+  ]
+}
