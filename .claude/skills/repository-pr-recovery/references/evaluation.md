@@ -116,7 +116,7 @@ Dry-run produced no scored model responses or live runtime evidence.
 
 Description checks passed without changing the configured limits.
 The [maintained budget](../../../../scripts/skill_description_budget.json) supplies the current ceilings.
-One existing description shrank from 944 to 325 characters.
+One existing description was shortened to preserve the configured limits.
 Its body, triggers, and other metadata remained unchanged.
 Generation propagated that edit through Claude, Copilot CLI, and Codex mirrors.
 Neither description budgets nor portability baselines changed.
