@@ -123,7 +123,8 @@ verification failure, `2` no destination or invalid path. Harness tool names:
    `description_has_trigger` when the description lacks the trigger.
    External actions need an approval word before the first step that names
    one (publish, push, post, send, deploy, merge, release, upload, share,
-   comment, email, open a PR). Recovery paths need a step marked optional or
+   comment, email, or open or file a PR, issue, or ticket). The match errs broad,
+   so reword a read-only step it flags. Recovery paths need a step marked optional or
    recovery. Create mode reads numbered Procedure steps; patch mode also
    reads a Process section. Fix every failure
    and rerun. Do not run a broader evaluation pass.

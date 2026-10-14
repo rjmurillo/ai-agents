@@ -40,18 +40,20 @@ SOURCE_ONLY_TOOLS: tuple[str, ...] = ("skills_list", "skill_view", "skill_manage
 APPROVAL_RE = re.compile(r"\b(approv\w*|confirm\w*|consent|authori[sz]\w*)\b", re.IGNORECASE)
 
 RECOVERY_RE = re.compile(r"\b(optional|recovery)\b", re.IGNORECASE)
-# Verbs that act on an external or public system. Hyphen guards skip compounds
-# ("post-merge", "pre-release"); lookaheads skip common nouns ("merge
-# conflicts", "release notes", "shared cache"). Reword any other false positive.
+# Verbs that act on an external or public system. The match errs broad: a miss
+# lets a public action skip its approval gate, while a false positive only asks
+# the author to reword a step. Hyphenated forms ("force-push", "auto-merge")
+# match on purpose. The only exclusions are exact noun phrases ("merge
+# conflicts", "release notes", "shared cache"), which never hide a verb.
 EXTERNAL_RE = re.compile(
-    r"(?<!-)\b(?:(?:publish|push|send|deploy|upload|comment|email|post)(?:s|es|ed|ing)?|sent"
+    r"\b(?:(?:publish|push|send|deploy|upload|comment|e-?mail|post)(?:s|es|ed|ing)?|sent"
     r"|merg(?:e|es|ed|ing)(?!\s+(?:conflicts?|base)\b)"
-    r"|releas(?:e|es|ed|ing)(?!\s+notes\b)"
+    r"|releas(?:e|es|ed|ing)(?!\s+notes?\b)"
     r"|shar(?:e|es|ing)"
     r"|shared(?!\s+(?:cache|state|memory|drive|folder|fixtures?|librar(?:y|ies)|config"
-    r"|modules?|code|helpers?)\b)"
-    r"|(?:open|file|create|submit|raise)(?:s|d|ed|ted|ing)?\s+(?:(?:a|an|the)\s+)?"
-    r"(?:[\w-]+\s+)?(?:pr|pull request|issue|ticket|bug)s?)\b(?!-)",
+    r"|modules?|code|helpers?|utils?)\b)"
+    r"|(?:open|fil|creat|submitt?|rais)\w*\s+(?:[\w-]+\s+){0,3}?"
+    r"(?:pr|pull[\s-]request|issue|ticket|bug)s?)\b",
     re.IGNORECASE,
 )
 NAME_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")

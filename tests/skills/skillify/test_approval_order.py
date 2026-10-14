@@ -46,6 +46,15 @@ def test_approval_after_the_publish_step_fails(skills_root):
     assert external_failed(skills_root, steps) == {"approval_gate_present"}
 
 
+@pytest.mark.parametrize(
+    "first",
+    ["Force-push the branch to main.", "Enable auto-merge.", "Share results with the team."],
+)
+def test_late_approval_after_risky_first_step_fails(skills_root, first):
+    steps = f"1. {first}\n2. Get approval.\n3. Open a PR.\n"
+    assert external_failed(skills_root, steps) == {"approval_gate_present"}
+
+
 def test_approval_in_earlier_step_passes(skills_root):
     steps = "1. Ask for approval of the draft.\n2. Publish the note.\n"
     assert external_failed(skills_root, steps) == set()
@@ -100,6 +109,21 @@ def test_no_external_step_fails_with_naming_message(skills_root):
         "Submitted a PR",
         "Filed a bug",
         "Merge queue the PR",
+        "Force-push the branch",
+        "Enable auto-merge",
+        "Re-deploy the service",
+        "re-publish the package",
+        "cross-post to Slack",
+        "Re-open the PR",
+        "Creating a PR",
+        "Filing a ticket",
+        "Raising an issue",
+        "Submitting a PR",
+        "Open a new draft PR",
+        "Create a new GitHub issue",
+        "Open PR-42",
+        "Open a pull-request",
+        "e-mail the owner",
     ],
 )
 def test_external_verbs_are_recognized(skills_root, step):
@@ -112,12 +136,9 @@ def test_external_verbs_are_recognized(skills_root, step):
         "Postgres is read",
         "Prepare the release notes",
         "Use the shared cache",
-        "Write the post-merge note",
         "Resolve merge conflicts",
-        "Run the post-release check",
-        "Mark it pre-release",
-        "Check it is release-ready",
-        "Run the post-deploy smoke test",
+        "Write the release note",
+        "Load the shared utils",
     ],
 )
 def test_non_verbs_are_not_external(skills_root, step):
