@@ -88,7 +88,13 @@ TRANSPORT_MCP = "gh_unusable"
 
 # Statuses that mean gh cannot serve this session no matter what the operator
 # does to the token, and that a second transport is expected to cover.
-_ROUTE_TO_MCP = frozenset({GhAuthStatus.TRANSPORT_BLOCKED, GhAuthStatus.MISSING_GH})
+#
+# GRAPHQL_BLOCKED is listed because this script gates the whole gh-backed suite,
+# and most of that suite uses GraphQL. The message it carries names REST as the
+# working alternative for scripts that never call GraphQL (issue #5693).
+_ROUTE_TO_MCP = frozenset(
+    {GhAuthStatus.TRANSPORT_BLOCKED, GhAuthStatus.GRAPHQL_BLOCKED, GhAuthStatus.MISSING_GH}
+)
 
 # A repository probe landing on one of these says gh is unusable now and usable
 # later. MCP is not the answer to a quota, which is charged to the token rather
