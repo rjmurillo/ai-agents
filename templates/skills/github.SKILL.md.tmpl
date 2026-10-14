@@ -112,7 +112,7 @@ Need GitHub data?
 └─ Need to take action?
    ├─ Create issue → new_issue.py
    ├─ Create PR → new_pr.py
-   ├─ Comment on a diff line (new thread) → new_pr_review_comment.py
+   ├─ Comment on a diff line → new_pr_review_comment.py
    ├─ Reply to review → post_pr_comment_reply.py
    ├─ Reply to thread (GraphQL) → add_pr_review_thread_reply.py
    ├─ Comment on issue → post_issue_comment.py
@@ -187,7 +187,7 @@ scripts and `github_core` import with the anthropic SDK blocked.
 | `wait_for_unresolved_zero.py` | Settling gate: poll until unresolved count holds at zero across bot scans | `--pull-request`, `--interval-seconds`, `--max-wait-seconds`, `--strict-pagination` |
 | `test_pr_merged.py` | Check if PR is merged | `--pull-request` |
 | `detect_copilot_followup_pr.py` | Detect Copilot follow-up PRs | `--pr-number`, `--owner`, `--repo` |
-| `new_pr_review_comment.py` | New inline comment on a diff line | `--pull-request`, `--path`, `--line`, `--side` (LEFT or RIGHT, default RIGHT), `--body` or `--body-file` |
+| `new_pr_review_comment.py` | New diff-line comment | `--pull-request`, `--path`, `--line`, `--side` (default RIGHT), `--body` or `--body-file` |
 | `post_pr_comment_reply.py` | Thread-preserving replies | `--pull-request`, `--comment-id`, `--body` |
 | `add_pr_review_thread_reply.py` | Reply to thread by ID (GraphQL) | `--pull-request`, `--thread-id`, `--body`, `--resolve` |
 | `resolve_pr_review_thread.py` | Mark threads resolved | `--thread-id --expected-pull-request` or `--pull-request --all` |
@@ -200,7 +200,7 @@ scripts and `github_core` import with the anthropic SDK blocked.
 | `invoke_pr_comment_processing.py` | Process AI triage output | `--pr-number`, `--verdict`, `--findings-json` |
 | `new_pr.py` | Create PR with validation | `--title`, `--body`, `--body-file`, `--prepare-body-file`, `--preflight`, `--base`, `--head`, `--draft`, `--skip-validation`, `--audit-reason`, `--validation-base` |
 | `validate_pr_description.py` | Validate PR description | `--title`, `--body`, `--body-file`, `--fail-on-violation` |
-| `update_pr_branch.py` | Server-side "Update branch": merges the base into the PR head. Exit codes and `--wait` rules: `references/api-reference.md`. Unattended callers should pass `--expected-head-sha` | `--pull-request`, `--expected-head-sha`, `--wait`, `--timeout-seconds` |
+| `update_pr_branch.py` | Server-side "Update branch". Exit 0 requested, done, or already current; exit 1 PR not open or head differs from `--expected-head-sha` (`head_moved`); exit 2 not found; exit 3 other API failure or `--wait` timeout; exit 4 auth. Unattended callers pass `--expected-head-sha` | `--pull-request`, `--expected-head-sha`, `--wait`, `--timeout-seconds` |
 | `close_pr.py` | Close PR with comment | `--pull-request`, `--comment` |
 | `reopen_pr.py` | Reopen a closed PR (merged is exit 1) | `--pull-request`, `--comment` |
 | `merge_pr.py` | Merge pinned to the reviewed head, then read back and audited (ADR-112) | `--pull-request`, `--expected-head-sha`, `--strategy`, `--delete-branch`, `--auto` |

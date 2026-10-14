@@ -312,3 +312,7 @@ class TestPostFailures:
             with pytest.raises(SystemExit) as exc:
                 main(BASE_ARGS)
         assert exc.value.code == 3
+
+    @pytest.mark.parametrize("payload", ["[]", '["a"]', "null", '"text"', "42"])
+    def test_non_object_json_response_exits_3(self, repo_ready, payload: str):
+        assert self._run(_completed(stdout=payload)) == 3

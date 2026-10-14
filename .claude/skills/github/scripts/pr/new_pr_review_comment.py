@@ -191,9 +191,12 @@ def _post_comment(
     if result.returncode != 0:
         _fail(action, result, f"Pull request {owner}/{repo}#{pr} not found")
     try:
-        response: dict[str, Any] = json.loads(result.stdout)
+        parsed = json.loads(result.stdout)
     except json.JSONDecodeError:
         error_and_exit(f"GitHub returned a non-JSON response to {action}", 3)
+    if not isinstance(parsed, dict):
+        error_and_exit(f"GitHub returned a non-object response to {action}", 3)
+    response: dict[str, Any] = parsed
     return response
 
 

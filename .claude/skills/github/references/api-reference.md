@@ -113,15 +113,11 @@ The milestone must already exist in the repository. Create it via GitHub UI or `
 
 Check for merge conflicts or failing required checks. Use `get_pr_context.py` to see `Mergeable` status.
 
-## update_pr_branch.py exit codes
+## update_pr_branch.py details
 
-- Exit 0: the update was requested, completed, or the PR is already up to date (`already_up_to_date: true`).
-- Exit 1: the PR is not open, or the head differs from `--expected-head-sha` (`reason: head_moved`).
-- Exit 2: the PR is not found.
-- Exit 3: another API failure, or a `--wait` timeout. The wait ends only when compare shows the PR is not behind.
-- Exit 4: auth failure.
-
-Unattended callers should pass `--expected-head-sha`.
+- Exit 0 with `already_up_to_date: true` means the head already contains the base.
+- With `--wait`, the wait ends only when compare shows the PR is not behind. A timeout exits 3.
+- Exit 1 with `reason: head_moved` means the head differs from `--expected-head-sha`.
 
 ## new_pr_review_comment.py
 
@@ -133,6 +129,7 @@ Starts a new review thread on a diff line. Use `post_pr_comment_reply.py` to rep
 - Exit 0: created. The envelope carries `comment_id`, `html_url`, `commit_id`, `path`, `line`, `side`.
 - Exit 2: the PR is not found, the body is invalid, or the API returned 422 (line or path not in the diff).
 - Exit 3: another API failure, a quota refusal, or a timeout.
+- A timeout on the POST can still create the comment. Before retrying after exit 3, run `get_pr_review_comments.py` and look for the body, or a retry can post a duplicate thread.
 - Exit 4: not authenticated, or the token cannot write to the PR.
 
 ## Skills Applied
