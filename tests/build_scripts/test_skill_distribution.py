@@ -260,8 +260,12 @@ class TestStaleVendorCopies:
         _written, removed, _skipped, errors = generate_skills.sync_claude_plugin_skill_support(repo)
 
         assert errors == []
-        assert removed == 2
+        # local-skill's two files, plus shipped-skill's scripts/run.py: the
+        # fixture gives shipped-skill a template, so the sync discovers it and
+        # prunes the plugin-tree file that has no source.
+        assert removed == 3
         assert not stale.exists()
+        assert not (kept / "scripts" / "run.py").exists()
         assert (kept / "SKILL.md").read_text(encoding="utf-8") == "old\n"
 
     def test_sync_check_reports_but_keeps_the_stale_copy(self, repo: Path) -> None:

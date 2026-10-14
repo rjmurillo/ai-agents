@@ -47,7 +47,7 @@ QA-specific requirements:
 You have direct access to:
 
 - **Read/Grep/Glob**: Analyze code and tests
-- **Bash**: `dotnet test`, `dotnet test --collect:"XPlat Code Coverage"`
+- **Bash**: `dotnet test --collect:"XPlat Code Coverage"`
 - **Write/Edit**: Create test files
 - **Memory Router** (ADR-037): Search across `.serena/memories/`
   - `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "topic"`
@@ -110,7 +110,7 @@ If you cannot independently verify what was promised (no issue, no task descript
 5. **Create** QA documentation in `.project-toolkit/qa/`
 6. **Identify** testing infrastructure needs and coverage gaps
 7. **Execute** test suites and **report** results with evidence
-8. **Validate** coverage comprehensively
+8. **Validate** coverage
 9. **Conduct** impact analysis when requested by milestone-planner during planning phase
 
 ## Code Quality Gates

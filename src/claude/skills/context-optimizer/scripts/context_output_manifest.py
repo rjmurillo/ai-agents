@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from pathlib import Path
 
-from context_output_checker import check_generated_files
+from context_output_checker import check_generated_files, regeneration_command
 from context_output_storage import (
     _detail_names,
     _manifest_path_value,
@@ -45,6 +46,7 @@ class ManifestReport:
     details_checked: int
     details_found: int
     issues: list[str]
+    regenerate: list[str] = dataclass_field(default_factory=list)
 
 
 def load_manifest(
@@ -122,6 +124,7 @@ def check_manifest(
     effective_root = _resolved_repo_root(repo_root)
     manifest = load_manifest(manifest_path, effective_root, staged)
     issues: list[str] = []
+    regenerate: list[str] = []
     expected_details_count = 0
     found_details_count = 0
     expected_outputs: set[str] = set()
@@ -155,6 +158,10 @@ def check_manifest(
             staged,
         )
         issues.extend(f"{entry.source}: {issue}" for issue in entry_issues)
+        if entry_issues:
+            regenerate.append(
+                regeneration_command(entry.source, entry.index, entry.detail_dir, entry.detail_ref)
+            )
 
     output_root = validate_path_within_repo(Path(manifest.output_root), effective_root)
     actual_outputs = _output_files(output_root, effective_root, staged)
@@ -169,4 +176,5 @@ def check_manifest(
         details_checked=expected_details_count,
         details_found=found_details_count,
         issues=issues,
+        regenerate=regenerate,
     )

@@ -43,17 +43,20 @@ from active_plan_closeout import validate_active_plan_closeout
 from check_adr_exception_markers import validate_adr_exception_markers
 from check_adr_lifecycle import validate_adr_lifecycle
 from check_adr_links import validate_adr_links
+from check_agent_delegation import validate_agent_delegation
 from check_agent_tree_frontmatter import validate_agent_tree_frontmatter
 from check_agents_write_targets import validate_agents_write_targets
 from check_bypass_allowlist import validate_bypass_allowlist
 from check_citation_freshness import validate_citation_freshness
 from check_doc_interpreter_portability import validate_doc_interpreter_portability
 from check_duplicate_test_helpers import validate_duplicate_test_helpers
+from check_equivalence_predicates import validate_equivalence_predicates
 from check_generated_staleness import validate_generated_staleness
 from check_git_hook_health import validate_git_hook_health
 from check_host_marketplaces import validate_host_marketplaces
 from check_in_root_worktrees import validate_in_root_worktrees
 from check_index_line_endings import validate_index_line_endings
+from check_measurement_anchoring import validate_measurement_anchoring
 from check_nested_tests import validate_no_nested_tests
 from check_promotion_exceptions import validate_promotion_exceptions
 from check_push_lock_paths import validate_push_lock_paths
@@ -125,6 +128,7 @@ from checks_spec import (
     validate_commands_retired,
     validate_model_pins,
     validate_orchestrator_citations,
+    validate_retired_ownership_claims,
     validate_rule_activation_coverage,
     validate_skill_md_portability,
     validate_skill_memory_references,
@@ -143,6 +147,7 @@ from checks_tooling import (
     validate_ci_dependency_pins,
     validate_copilot_version_pin,
     validate_effective_context_ratchet,
+    validate_external_contract_records,
     validate_instruction_budget,
     validate_instruction_bytes,
     validate_markdown_lint,
@@ -406,6 +411,12 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # checkable claims were reaching paid AI review rounds instead (PR #5336
     # existed solely to repair four such citations; issue #5337).
     _Gate("Citation Freshness (added lines)", _root_only(validate_citation_freshness)),
+    # Fails when a line ADDED since the base ref states a tree-state count
+    # ("109 skills in `.claude/skills/`", "9,765 tracked files") with no commit
+    # SHA, ISO date, or version tag on the line. A count is a measurement of
+    # one commit; unanchored, a later reader cannot tell "still true" from
+    # "was true once" (issue #5771).
+    _Gate("Measurement Anchoring (added lines)", _root_only(validate_measurement_anchoring)),
     # Fails when a live doc tells a contributor to run a script with third-party
     # imports under a bare `python3`, which dies with ModuleNotFoundError on a
     # clean checkout. Issue #3791.
@@ -521,6 +532,14 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # inside it: Skill Memory References pins that it runs immediately after
     # Skill SKIP Clause Routing.
     _Gate("Commands Retired (ADR-064)", _root_only(validate_commands_retired)),
+    # Fails when a doc or docstring repeats an ownership claim ADR-109 retired
+    # (agent trees called hand-maintained, flat src/claude paths, PowerShell
+    # test docs). Issue #5788: no other gate reads prose, so the claims
+    # outlived the migration by weeks.
+    _Gate(
+        "Retired Ownership Claims (ADR-109)",
+        _root_only(validate_retired_ownership_claims),
+    ),
     # Builds envelopes with the real skill-output producers and asks
     # scripts/validate_skill_output.py to accept each, then proves the validator
     # still rejects a malformed one. Until issue #5299 no gate ran that validator.
@@ -592,6 +611,10 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # Compares the three hand-written agent sources, not the generated trees.
     # ADR-107 M3, issue #5688; contract in GENERATOR-FILES.md.
     _Gate("Agent Source Parity", _root_only(validate_agent_source_parity)),
+    # The predicate table in GENERATOR-FILES.md: legal values, gate scripts that
+    # exist, none rows with an issue and a live expiry, and the none count
+    # ratchet. ADR-107 M1, issue #5686.
+    _Gate("Equivalence Predicates", _root_only(validate_equivalence_predicates)),
     # The Claude Code plugin loader registers every .md under .claude/agents/ as
     # a dispatchable subagent, frontmatter or not. Issue #4813 answered the same
     # five files by narrowing our own validator globs, which taught CI to look
@@ -600,6 +623,10 @@ _SEQUENCE: tuple[_Gate, ...] = (
         "Agent Tree Frontmatter (.claude/agents)",
         _root_only(validate_agent_tree_frontmatter),
     ),
+    # A worker's "you CANNOT delegate" prose must match a tool grant that
+    # withholds Agent; Claude Code lets subagents spawn subagents otherwise.
+    # Issue #5184; contract is MUST 9 in templates/rules/claude-agents.md.
+    _Gate("Agent Delegation (src/claude/agents)", _root_only(validate_agent_delegation)),
     # A loose file directly under .claude/skills/ registers as a skill named after
     # the file (issue #5503, CLAUDE.md registered as skill "CLAUDE").
     _Gate(
@@ -670,6 +697,14 @@ _SEQUENCE: tuple[_Gate, ...] = (
     _Gate(
         "Capability Graph (metadata.capability)",
         _root_only(validate_capability_graph_declarations),
+    ),
+    # Checks the short provenance record a load-bearing external contract
+    # carries beside its consumer: closed field list, a real re-check path for
+    # empirical evidence, no pasted source text. A file with no record passes
+    # (issue #5415).
+    _Gate(
+        "External Contract Records (external-contract)",
+        _root_only(validate_external_contract_records),
     ),
     # Ratchets authored duplicate normative blocks and stale derived counts in
     # natural-language artifacts; generated mirrors are excluded (issue #5397).

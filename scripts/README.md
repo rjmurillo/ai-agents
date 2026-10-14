@@ -1,6 +1,6 @@
 # AI Agents Scripts
 
-PowerShell scripts for the AI Agents system.
+Python scripts for the AI Agents system (ADR-042).
 
 ## Script Organization
 
@@ -10,7 +10,7 @@ Scripts are organized by **intended audience and execution context**:
 - **`.github/scripts/`** - CI/CD automation (GitHub Actions only, not for direct use)
 - **`build/scripts/`** - Build system automation
 - **`.claude/skills/`** - AI agent skills (internal implementation, wrapped for developer use)
-- **`tests/`** - Pester test files (root-level, not under scripts/)
+- **`tests/`** - pytest test files (root-level, not under scripts/)
 
 **When to use each location**:
 
@@ -228,20 +228,17 @@ script-specific CLI help and validates the documented entry point.
 
 ## Running Tests
 
-Requires [Pester](https://pester.dev/) 5.x:
+Requires [uv](https://docs.astral.sh/uv/):
 
 ```bash
-# Install Pester
-Install-Module -Name Pester -Force -Scope CurrentUser
-
 # Run all tests
-Invoke-Pester -Path .\tests
+uv run pytest tests
 
 # Run specific test file
-Invoke-Pester -Path .\tests\Validate-SessionJson.Tests.ps1
+uv run pytest tests/ci/test_lefthook_prepush_fast_fail.py
 
 # Run with detailed output
-Invoke-Pester -Path .\tests -Output Detailed
+uv run pytest tests -v
 ```
 
 ## Full Documentation

@@ -1,7 +1,9 @@
 """Seed the local pytest-testmon database from main's CI (issue #6239, ADR-104).
 
-A first pre-push run with no ``.testmondata`` has to run the whole suite to
-build one (575 s at 4 workers). The ``testmon-seed`` job in
+A first pre-push run with no ``.testmondata`` would have to run the whole suite
+to build one (575 s at 4 workers, 462 s at the scaled cap). Without a seed the
+hook collects the suite and leaves execution to CI (issue #6200). The
+``testmon-seed`` job in
 ``.github/workflows/pytest.yml`` builds that database on every push to ``main``
 and uploads it as ``testmon-db-<key>``. This module fetches the newest such
 artifact so the first local run selects only what changed since main.
