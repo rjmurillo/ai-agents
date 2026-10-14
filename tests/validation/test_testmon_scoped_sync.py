@@ -156,7 +156,7 @@ import pytest
 def pytest_collection_modifyitems(config, items):
     gate = os.environ.get("TESTMON_TEST_GATE")
     if gate:
-        Path(gate + ".ready").write_text("ready")
+        Path(gate + ".ready").write_text("ready", encoding="utf-8")
         deadline = time.monotonic() + GATE_SECONDS
         while not Path(gate).exists() and time.monotonic() < deadline:
             time.sleep(0.05)
@@ -165,15 +165,15 @@ def pytest_collection_modifyitems(config, items):
 
 
 def _build_project(project: Path) -> None:
-    (project / "conftest.py").write_text(_GATING_CONFTEST)
-    (project / "pkg.py").write_text("def value():\n    return 1\n")
+    (project / "conftest.py").write_text(_GATING_CONFTEST, encoding="utf-8")
+    (project / "pkg.py").write_text("def value():\n    return 1\n", encoding="utf-8")
     body = "from pkg import value\n\n" + "".join(
         f"def test_case_{index}():\n    assert value() == 1\n"
         for index in range(TESTS_PER_PARTITION)
     )
     for name in ("part_a", "part_b"):
         (project / name).mkdir()
-        (project / name / f"test_{name}.py").write_text(body)
+        (project / name / f"test_{name}.py").write_text(body, encoding="utf-8")
 
 
 def _finish(process: subprocess.Popen[str]) -> str:
@@ -195,13 +195,15 @@ def _replay_losing_order(project: Path, *, plugin: bool) -> int:
     _build_project(project)
     _finish(_pytest(project, "part_a", plugin=plugin))
     _finish(_pytest(project, "part_b", plugin=plugin))
-    (project / "pkg.py").write_text("def value():\n    extra = 1\n    return 1 + extra - extra\n")
+    (project / "pkg.py").write_text(
+        "def value():\n    extra = 1\n    return 1 + extra - extra\n", encoding="utf-8"
+    )
 
     gate = project / "gate"
     first = _pytest(project, "part_a", plugin=plugin, gate=gate)
     _wait_for(Path(f"{gate}.ready"))
     _finish(_pytest(project, "part_b", plugin=plugin))
-    gate.write_text("go")
+    gate.write_text("go", encoding="utf-8")
     _finish(first)
 
     with closing(sqlite3.connect(project / ".testmondata")) as database:
@@ -257,9 +259,9 @@ class _FakeData:
 
 def test_wrapped_sync_filters_the_delete_and_restores_the_database(tmp_path: Path) -> None:
     (tmp_path / "a").mkdir()
-    (tmp_path / "a" / "t.py").write_text("")
+    (tmp_path / "a" / "t.py").write_text("", encoding="utf-8")
     (tmp_path / "b").mkdir()
-    (tmp_path / "b" / "t.py").write_text("")
+    (tmp_path / "b" / "t.py").write_text("", encoding="utf-8")
     data = _FakeData(tmp_path)
     database = data.db
     testmon_scoped_sync._scoped(_FakeData.sync_db_fs_tests)(data, {"a/t.py::alive"})

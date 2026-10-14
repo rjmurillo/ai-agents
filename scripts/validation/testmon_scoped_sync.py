@@ -15,7 +15,15 @@ This plugin wraps that method so the delete covers only:
 - tests whose file no longer exists on disk (a deleted test file).
 
 A test in an existing file this run did not collect belongs to another partition
-and stays. Pre-push loads the plugin with ``-pscripts.validation.testmon_scoped_sync``
+and stays.
+
+Known trade-off: an existing file that now holds no tests keeps its old rows.
+Under xdist the controller syncs from worker test ids alone
+(``pytest_xdist_node_collection_finished``), so it cannot tell an empty file
+from a sibling's file. Those rows are inert: testmon only selects collected
+tests. They go once the file is deleted or collects a test again.
+
+Pre-push loads the plugin with ``-pscripts.validation.testmon_scoped_sync``
 from ``git_hook_policy._TESTMON_FLAGS``.
 
 The wrapper swaps ``delete_test_executions`` on the instance's database for the
