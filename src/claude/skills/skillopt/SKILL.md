@@ -97,8 +97,10 @@ On Windows PowerShell, no Bash required:
 
 ```powershell
 $Root = if ($env:COPILOT_PLUGIN_ROOT) { $env:COPILOT_PLUGIN_ROOT } else { $env:CLAUDE_PLUGIN_ROOT }
-if (-not $Root) { throw 'Set COPILOT_PLUGIN_ROOT or CLAUDE_PLUGIN_ROOT, or set $SkillOptDir to the scripts folder beside this SKILL.md' }
-$SkillOptDir = Join-Path $Root 'skills\skillopt\scripts'
+if (-not $SkillOptDir) {
+  if (-not $Root) { throw 'Set COPILOT_PLUGIN_ROOT or CLAUDE_PLUGIN_ROOT, or set $SkillOptDir to the scripts folder beside this SKILL.md' }
+  $SkillOptDir = Join-Path $Root 'skills\skillopt\scripts'
+}
 $SkillOpt = Join-Path $SkillOptDir 'skillopt.py'
 py -3 $SkillOpt --help
 ```
