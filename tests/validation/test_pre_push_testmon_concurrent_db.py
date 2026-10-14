@@ -1,11 +1,16 @@
-"""Two real testmon processes can share one ``.testmondata`` (issue #6198).
+"""Two real testmon processes can share one ``.testmondata`` (issues #6198, #6406).
 
 The overlapping pre-push partitions rely on this: testmon 2.2.0 writes each
 run in transactions on a WAL database with a 60s busy wait, and the partitions
-cover disjoint test names. This test runs two real ``--testmon`` pytest
-processes against one database, repeatedly, after a change that makes both
-re-run and re-record their tests. The first build is not tested here because it
-is not safe (bare ``CREATE TABLE``); the hook runs it in sequence.
+cover disjoint test files. Disjoint files are not enough on their own: testmon
+deletes recorded tests it did not collect while it collects, so a partition that
+collects after a sibling saved removes the sibling's rows. The hook's flags load
+``scripts.validation.testmon_scoped_sync`` to stop that. This test runs two real
+pytest processes with the hook's flags against one database, repeatedly, after a
+change that makes both re-run and re-record their tests. The ordered replay of
+the loss is in ``test_testmon_scoped_sync.py``. The first build is not tested
+here because it is not safe (bare ``CREATE TABLE``); the hook runs it in
+sequence.
 """
 
 from __future__ import annotations
@@ -18,6 +23,9 @@ from pathlib import Path
 
 import pytest
 
+from scripts.validation import git_hook_policy
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 TESTS_PER_PARTITION = 30
 ROUNDS = 3
 
@@ -26,6 +34,8 @@ def _env() -> dict[str, str]:
     env = {key: value for key, value in os.environ.items() if not key.startswith("PYTEST_")}
     env.pop("TESTMON_DATAFILE", None)
     env["COVERAGE_CORE"] = "ctrace"
+    # The hook's flags load `scripts.validation.testmon_scoped_sync` from the repo root.
+    env["PYTHONPATH"] = str(REPO_ROOT)
     return env
 
 
@@ -35,8 +45,7 @@ def _pytest(project: Path, *targets: str) -> subprocess.Popen[str]:
             sys.executable,
             "-m",
             "pytest",
-            "--testmon",
-            "--testmon-forceselect",
+            *git_hook_policy._TESTMON_FLAGS,
             "-m",
             "not integration",
             "-q",

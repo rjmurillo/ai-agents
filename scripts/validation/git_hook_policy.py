@@ -649,7 +649,14 @@ _PYTEST_NO_TESTS_COLLECTED = 5
 # because the whole suite duplicates CI's `pytest.yml` partition matrix on the
 # same commit while costing the push minutes it does not have; see ADR-104.
 PYTEST_FULL_SUITE_LOCALLY_ENV = "AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY"
-_TESTMON_FLAGS = ("--testmon", "--testmon-forceselect")
+# The third flag loads `testmon_scoped_sync` (issue #6406): without it a partition
+# that collects after a sibling saved deletes the sibling's records. It is one
+# token (`-pNAME`) so `pytest_deferral.collect_only_command` drops it whole.
+_TESTMON_FLAGS = (
+    "--testmon",
+    "--testmon-forceselect",
+    "-pscripts.validation.testmon_scoped_sync",
+)
 # Set by the CI seed job so its build starts from an empty database.
 TESTMON_NO_SEED_ENV = "AI_AGENTS_TESTMON_NO_SEED"
 # Whole-run budget for the CI seed job, read only when TESTMON_NO_SEED_ENV is
@@ -7971,8 +7978,10 @@ def _pytest_overlap_lanes(
     testmon 2.2.0 creates its tables with a bare ``CREATE TABLE``, so two
     processes that both find no database race to build it and one fails. Every
     later write is one transaction on a WAL database with a 60s busy wait, and
-    the partitions touch disjoint test names, so only the first build is unsafe.
-    That build runs in sequence (issue #6198).
+    the partitions touch disjoint test files, so only the first build is unsafe.
+    That build runs in sequence (issue #6198). testmon also deletes records of
+    tests it did not collect, so `_TESTMON_FLAGS` loads `testmon_scoped_sync` to
+    keep a partition from deleting its siblings' records (issue #6406).
     """
     if _uses_testmon(commands) and _testmon_database_missing(repo_root, env):
         print(
