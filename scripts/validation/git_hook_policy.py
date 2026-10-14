@@ -25,6 +25,7 @@ import unicodedata
 import warnings
 from collections import Counter
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
+from contextlib import ExitStack
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from fnmatch import fnmatch
@@ -48,6 +49,7 @@ from scripts.ci.run_pytest_partition import PYTEST_DIST_MODE
 from scripts.hook_utilities.utilities import recent_host_session_dates
 from scripts.validation import (
     cli_smoke_paths,
+    host_headroom,
     pytest_deferral,
     pytest_lanes,
     testmon_lane_db,
@@ -572,6 +574,11 @@ SEMGREP_COMMAND_LENGTH_LIMIT = 24_000
 # Lefthook owns the outer deadline; these child-process budgets must finish first.
 DEFAULT_SUBPROCESS_TIMEOUT_SECONDS = 90
 SEMGREP_TIMEOUT_SECONDS = 840
+# Issue #6609: the longest a semgrep push waits for a host-wide heavy-stage slot
+# and for load to drop. The wait spends the scan's own deadline, because the
+# security-scan cap (15m) leaves only 60s above SEMGREP_TIMEOUT_SECONDS. Half the
+# budget leaves 420s to scan; one job scanned 100 files in 93 seconds.
+SEMGREP_HEADROOM_WAIT_SECONDS = SEMGREP_TIMEOUT_SECONDS // 2
 # Scoped to files differing from origin/main, so this is a handful of files,
 # not the tree. Measured 2.73s in-hook and 1.07s cold. Was 840s, which forced
 # a 15m outer cap through the ADR-086 item 9 headroom rule for no reason.
@@ -646,6 +653,12 @@ TEST_SUITE_TIMEOUT_SECONDS = 780
 # no-database case never starts (see `_should_defer_cold_selection`); a run that still
 # passes 180s, for example after a lock change, stops and fails the push.
 PRE_PUSH_SELECTION_TIMEOUT_SECONDS = 180
+# The `python-tests` job's lefthook timeout (15m); a test pins the two values.
+# Issue #6609: a pytest push waits for host headroom before its budget clock
+# starts, so the wait is what this cap leaves above the budget, less a margin
+# for setup and teardown that the budget does not cover.
+PYTHON_TESTS_JOB_CAP_SECONDS = 900
+HEADROOM_MARGIN_SECONDS = 60
 # pytest exits 5 when a collect-only run finds no tests; a partition can be empty.
 _PYTEST_NO_TESTS_COLLECTED = 5
 # Opt into executing the whole suite inside pre-push, with no testmon selection.
@@ -4613,8 +4626,30 @@ def scan_pushed_heads(stream: TextIO, repo_root: Path) -> int:
     updates = _push_updates(stream, repo_root)
     if updates is None:
         return 2
+    try:
+        headroom = host_headroom.read_settings()
+    except ValueError as error:
+        print(f"ERROR: {error}", file=sys.stderr)
+        return 2
     budget = _container_clamped(SEMGREP_TIMEOUT_SECONDS)
     deadline = time.monotonic() + budget
+    # Issue #6609: one host-wide slot for the whole job, taken at the first
+    # head with something to scan, so a push with no scannable file never
+    # waits. The wait spends this job's deadline; see SEMGREP_HEADROOM_WAIT_SECONDS.
+    with ExitStack() as slot:
+        return _scan_updates(updates, repo_root, budget, deadline, slot, headroom)
+
+
+def _scan_updates(
+    updates: Sequence[PushUpdate],
+    repo_root: Path,
+    budget: float,
+    deadline: float,
+    slot: ExitStack,
+    headroom: host_headroom.Settings,
+) -> int:
+    """The body of `scan_pushed_heads`: scan each update under the shared deadline."""
+    holding = False
     for update in updates:
         if time.monotonic() >= deadline:
             print(
@@ -4642,6 +4677,13 @@ def scan_pushed_heads(stream: TextIO, repo_root: Path) -> int:
         scan_paths = [path for path in scan_paths if path not in root_moves]
         if not scan_paths:
             continue
+        if not holding:
+            slot.enter_context(
+                _heavy_stage_slot(
+                    "semgrep", _semgrep_headroom_wait_seconds(budget), settings=headroom
+                )
+            )
+            holding = True
         result = _scan_pushed_head(update.head, scan_paths, repo_root, deadline=deadline)
         if result != 0:
             return result
@@ -5069,7 +5111,7 @@ def _run_semgrep_tree(
                 timeout_seconds=allowance,
             )
             if result.returncode not in {0, 1}:
-                return result
+                return _classify_semgrep_failure(result)
             verified = _verify_semgrep_targets(result, batch, repo_root)
             if verified.returncode == 2:
                 return verified
@@ -5083,6 +5125,34 @@ def _run_semgrep_tree(
     except OSError as error:
         return subprocess.CompletedProcess([], 2, "", f"cannot execute semgrep: {error}\n")
     return finding or last_result or subprocess.CompletedProcess([], 0, "", "")
+
+
+# Issue #6609: what semgrep prints when its core engine dies before it lists or
+# scans any target. Seen under concurrent pushes on a loaded host.
+_SEMGREP_CORE_FAILURE_TEXTS = (
+    "Failed to obtain target files from semgrep-core",
+    "semgrep-core exited with code",
+)
+
+
+def _classify_semgrep_failure(
+    result: subprocess.CompletedProcess[str],
+) -> subprocess.CompletedProcess[str]:
+    """Report a semgrep-core crash as exit 3 (infrastructure), not a scan result.
+
+    Any other failure keeps its code. A core crash scanned nothing, so it says
+    nothing about the diff; the note says whether host load is the likely cause.
+    """
+    output = f"{result.stdout or ''}\n{result.stderr or ''}"
+    if not any(text in output for text in _SEMGREP_CORE_FAILURE_TEXTS):
+        return result
+    stderr = (
+        f"{(result.stderr or '').rstrip()}\n"
+        "ERROR: semgrep-core failed before it scanned any target. This is an "
+        "infrastructure failure, not a scan result.\n"
+        f"{host_headroom.load_note('semgrep')}\n"
+    ).lstrip()
+    return subprocess.CompletedProcess(result.args, 3, result.stdout, stderr)
 
 
 def _semgrep_command(
@@ -8024,6 +8094,15 @@ def _report_partition(report: pytest_lanes.PartitionReport, budget: float) -> in
         f"pytest partition {report.label}: exit {code} in {report.seconds:.1f}s{suffix}",
         file=sys.stderr,
     )
+    if _TESTMON_LOCK_TEXT in (report.result.stdout or "") + (report.result.stderr or ""):
+        # Issue #6609: concurrent writers locked the testmon database. That is
+        # contention on the host, not a defect in the pushed diff.
+        print(
+            f"ERROR: pytest partition {report.label}: testmon reported "
+            f"'{_TESTMON_LOCK_TEXT}'; a concurrent writer held its database.",
+            file=sys.stderr,
+        )
+        print(host_headroom.load_note("pytest"), file=sys.stderr)
     return code
 
 
@@ -8143,6 +8222,40 @@ def _run_pytest_lanes(
     return _PytestOutcome(max((code for _, code in outcomes), default=0), any(stopped))
 
 
+_TESTMON_LOCK_TEXT = "database is locked"
+
+# Seam for tests: they replace the slot with a recorder.
+_heavy_stage_slot = host_headroom.heavy_stage_slot
+
+
+def _start_deadline(budget: float) -> float:
+    """Start a stage's budget clock. A seam, so a test can see when it starts."""
+    return time.monotonic() + budget
+
+
+def _in_ci() -> bool:
+    return bool(os.environ.get("CI"))
+
+
+def _pytest_headroom_wait_seconds(suite_budget: float, budget: float) -> float:
+    """How long pytest may wait for host headroom before its budget starts (issue #6609).
+
+    Zero in a managed container, where the process ceiling leaves no room, and
+    in CI, where one runner runs one job. Otherwise the part of the lefthook
+    cap that the budget and the margin do not use.
+    """
+    if budget < suite_budget or _in_ci():
+        return 0.0
+    return max(0.0, PYTHON_TESTS_JOB_CAP_SECONDS - suite_budget - HEADROOM_MARGIN_SECONDS)
+
+
+def _semgrep_headroom_wait_seconds(budget: float) -> float:
+    """How long semgrep may wait for host headroom, inside its own deadline."""
+    if budget < SEMGREP_TIMEOUT_SECONDS or _in_ci():
+        return 0.0
+    return float(SEMGREP_HEADROOM_WAIT_SECONDS)
+
+
 def run_pytest(repo_root: Path) -> int:
     env = _clean_git_env()
     for key in (
@@ -8170,6 +8283,7 @@ def run_pytest(repo_root: Path) -> int:
     try:
         commands = _resolve_pytest_commands(repo_root)
         suite_budget = _suite_budget_seconds()
+        headroom = host_headroom.read_settings()
     except ValueError as error:
         print(f"ERROR: {error}", file=sys.stderr)
         return 2
@@ -8196,15 +8310,23 @@ def run_pytest(repo_root: Path) -> int:
     # `budget`, so an unclamped aggregate told a reader their child had 780s
     # when the clamp had given it 150s.
     budget = _container_clamped(suite_budget)
-    deadline = time.monotonic() + budget
-    if _uses_testmon(commands):
-        # Inside the same budget: the fetch spends at most its own short
-        # deadline, then the partitions run on whatever is left.
-        _seed_testmon_database(repo_root)
-    if _should_defer_cold_selection(commands, repo_root, env):
-        return _collect_instead(commands, repo_root, env, deadline, budget)
-    outcome = _run_selected_partitions(commands, repo_root, env, deadline, budget)
+    # Issue #6609: wait for a host-wide slot and for load to drop BEFORE the
+    # budget clock starts, so a busy host costs wait time, not a false timeout.
+    # The wait is bounded by the lefthook cap; when it runs out pytest still
+    # runs, with a warning that names load.
+    wait = _pytest_headroom_wait_seconds(suite_budget, budget)
+    with _heavy_stage_slot("pytest", wait, settings=headroom):
+        deadline = _start_deadline(budget)
+        if _uses_testmon(commands):
+            # Inside the same budget: the fetch spends at most its own short
+            # deadline, then the partitions run on whatever is left.
+            _seed_testmon_database(repo_root)
+        if _should_defer_cold_selection(commands, repo_root, env):
+            return _collect_instead(commands, repo_root, env, deadline, budget)
+        outcome = _run_selected_partitions(commands, repo_root, env, deadline, budget)
     _report_selection_overrun(outcome, suite_budget, budget)
+    if outcome.timed_out:
+        print(host_headroom.load_note("pytest"), file=sys.stderr)
     return outcome.code
 
 
