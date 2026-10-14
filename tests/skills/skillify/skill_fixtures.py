@@ -1,13 +1,11 @@
-"""Fixture helpers for the skillify tests: path setup and skill writers."""
+"""Fixture helpers for the skillify tests: paths and skill writers."""
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SKILL_DIR = REPO_ROOT / ".claude" / "skills" / "skillify"
-sys.path.insert(0, str(SKILL_DIR / "scripts"))
 
 GOOD_SKILL = """---
 name: {name}
