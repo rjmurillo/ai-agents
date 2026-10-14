@@ -208,6 +208,9 @@ class TestLookupFailures:
             pytest.param("", "HTTP 403: Resource not accessible by integration", 4, id="auth"),
             pytest.param("", "HTTP 502: Bad Gateway", 3, id="external-error"),
             pytest.param("", _GH_MISSING_REPO, 3, id="missing-repo"),
+            pytest.param(
+                "", "Post https://api.github.com: Could not resolve host", 3, id="transport-fault"
+            ),
         ],
     )
     def test_failed_pr_view_exit_code(self, stdout, stderr, code):
