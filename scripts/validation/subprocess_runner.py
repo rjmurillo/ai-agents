@@ -13,7 +13,13 @@ diagnostic that explained where the child stopped.
 On timeout the whole process group dies, not only the direct child (issue
 #6412). ``subprocess.run(timeout=)`` kills just the direct child, so a
 ``gh act`` grandchild kept its ports bound after the gate that started it had
-already failed.
+already failed. The group gets SIGTERM, a short grace window, then SIGKILL. A
+descendant that started its own session is outside the group, so the child that
+started it must forward the stop itself (``run_workflow_local_test`` does).
+
+Every child runs in a new session, so it has no controlling terminal. A child
+that prompts through ``/dev/tty`` (ssh passphrase, git credential prompt, gpg
+pinentry) fails instead of prompting. The callers here run unattended gates.
 """
 
 from __future__ import annotations
@@ -46,6 +52,10 @@ _SUPPORTS_PGROUP = hasattr(os, "killpg")
 # an unbounded read would hang the gate this wrapper exists to bound.
 _DRAIN_TIMEOUT = 5
 
+# Seconds the group leader gets between SIGTERM and SIGKILL to stop children
+# that live in sessions of their own.
+_TERM_GRACE = 3.0
+
 
 def _decode_stream(data: bytes | str | None) -> str:
     """Decode a captured subprocess stream with UTF-8 replacement semantics.
@@ -64,31 +74,47 @@ def _decode_stream(data: bytes | str | None) -> str:
     return data
 
 
-def _killpg_safe(pid: int) -> None:
-    """Send SIGTERM then SIGKILL to the process group containing ``pid``.
+def _signal_group(pgid: int, sig: int) -> None:
+    """Send ``sig`` to process group ``pgid``. A group that is already gone is ignored."""
+    try:
+        os.killpg(pgid, sig)
+    except OSError:
+        pass
 
-    Guards against signalling the caller's own group, which is what a child
-    that never reached ``setsid`` still belongs to. A reaped pid is ignored.
+
+def _own_group(pid: int) -> int | None:
+    """Return the process group led by ``pid``, or None when signalling it is unsafe.
+
+    A reaped pid has no group. The caller's own group is excluded too, because
+    that is where a child that never reached ``setsid`` still lives.
     """
     try:
         pgid = os.getpgid(pid)
     except OSError:
-        return
-    if pgid == os.getpgid(0):
-        return
-    for sig in (signal.SIGTERM, signal.SIGKILL):
-        try:
-            os.killpg(pgid, sig)
-        except OSError:
-            pass
+        return None
+    return None if pgid == os.getpgid(0) else pgid
 
 
 def _terminate(proc: subprocess.Popen[str]) -> None:
-    """Kill the child's process group, or the child alone where groups are absent."""
-    if _SUPPORTS_PGROUP:
-        _killpg_safe(proc.pid)
-    else:
+    """Stop the child's process group, or the child alone where groups are absent.
+
+    SIGTERM goes first and the group leader gets ``_TERM_GRACE`` seconds to run
+    its handlers. A wrapper such as ``run_workflow_local_test`` uses that window
+    to stop a ``gh act`` it started in a session of its own, which a group kill
+    from here cannot reach (issue #6412). SIGKILL then ends whatever is left.
+    """
+    if not _SUPPORTS_PGROUP:
         proc.kill()
+        return
+    pgid = _own_group(proc.pid)
+    if pgid is None:
+        return
+    _signal_group(pgid, signal.SIGTERM)
+    try:
+        proc.wait(timeout=_TERM_GRACE)
+    except subprocess.TimeoutExpired:
+        pass
+    _signal_group(pgid, signal.SIGKILL)
 
 
 def _reap_timed_out(

@@ -324,28 +324,71 @@ def _decode_partial(raw: bytes | str | None) -> str:
     return raw
 
 
-def _killpg_safe(pid: int) -> None:
-    """Send SIGTERM then SIGKILL to the process group containing ``pid``.
+# Seconds the process group gets between SIGTERM and SIGKILL, so gh act and the
+# gh-act artifact server can release their ports (issue #6412).
+_TERM_GRACE = 3.0
 
-    Uses SIGTERM first (giving the group a chance to clean up open ports such
-    as the gh-act artifact server), then SIGKILL after a short grace window.
-    Guards against signalling the current process group when ``setsid`` did not
-    fire (Windows, or a failed exec where the child reuses our PGID).
+
+def _terminate(proc: subprocess.Popen[str]) -> None:
+    """Stop ``proc`` and its process group: SIGTERM, a grace window, then SIGKILL.
+
+    ``gh act`` runs in a session of its own, so this group holds gh and the
+    gh-act artifact server. Where ``setsid`` did not fire (Windows, or a failed
+    exec where the child reuses our PGID) there is no group to signal, so the
+    direct child dies alone. SIGKILL still follows the window when the leader
+    exits on SIGTERM, because the artifact server can outlive it.
+
+    ``subprocess_runner._terminate`` holds the same sequence. This script runs
+    standalone with only ``scripts/validation`` on ``sys.path``, so it cannot
+    import the ``scripts`` package.
     """
+    if not hasattr(os, "killpg"):
+        proc.kill()
+        return
     try:
-        pgid = os.getpgid(pid)
+        pgid = os.getpgid(proc.pid)
     except OSError:
         return
     if pgid == os.getpgid(0):
         return
+    _signal_group(pgid, signal.SIGTERM)
     try:
-        os.killpg(pgid, signal.SIGTERM)
+        proc.wait(timeout=_TERM_GRACE)
+    except subprocess.TimeoutExpired:
+        pass
+    _signal_group(pgid, signal.SIGKILL)
+
+
+def _signal_group(pgid: int, sig: int) -> None:
+    """Send ``sig`` to ``pgid``. A group that is already gone is ignored."""
+    try:
+        os.killpg(pgid, sig)
     except OSError:
         pass
-    try:
-        os.killpg(pgid, signal.SIGKILL)
-    except OSError:
-        pass
+
+
+def _install_sigterm_handler() -> Callable[[], None]:
+    """Turn SIGTERM into ``SystemExit`` so :func:`_run` stops its own children.
+
+    Returns a callable that puts the previous handler back, so a caller that
+    embeds :func:`main` (the tests) does not keep the handler.
+
+    The pre-PR gate stops this script with SIGTERM when its timeout fires. The
+    default action ends the process at once, before :func:`_run` reaches its
+    ``BaseException`` cleanup, so the ``gh act`` it started in a session of its
+    own kept ports 34567 and 42427 bound (issue #6412). ``SystemExit`` unwinds
+    through that cleanup instead.
+    """
+
+    def _stop(_signum: int, _frame: object) -> None:
+        raise SystemExit(128 + signal.SIGTERM)
+
+    previous = signal.signal(signal.SIGTERM, _stop)
+
+    def restore() -> None:
+        signal.signal(signal.SIGTERM, previous)
+
+    return restore
 
 
 def _run(
@@ -387,10 +430,7 @@ def _run(
     except subprocess.TimeoutExpired as exc:
         # Kill the full process group so grandchildren (gh-act artifact server)
         # do not survive to hold ports open (Issue #3948).
-        if _supports_pgroup:
-            _killpg_safe(proc.pid)
-        else:
-            proc.kill()
+        _terminate(proc)
         # Collect whatever the child had written before we killed it. The act
         # stage reads this to distinguish a cold-cache run from a slow one
         # (Issue #3949).
@@ -399,10 +439,7 @@ def _run(
         err_head = f"{type(exc).__name__}: {exc}\n{_decode_partial(exc.stderr) or stderr_raw}"
         return -1, out, err_head.rstrip()
     except BaseException:
-        if _supports_pgroup:
-            _killpg_safe(proc.pid)
-        else:
-            proc.kill()
+        _terminate(proc)
         proc.communicate()
         raise
     return proc.returncode, stdout, stderr
@@ -2039,6 +2076,14 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
+    restore_sigterm = _install_sigterm_handler()
+    try:
+        return _main(args)
+    finally:
+        restore_sigterm()
+
+
+def _main(args: argparse.Namespace) -> int:
     repo_root = (args.repo_root or _REPO_ROOT).resolve()
     if not repo_root.is_dir():
         print(f"error: repo root not found: {repo_root}", file=sys.stderr)

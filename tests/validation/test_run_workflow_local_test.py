@@ -10,7 +10,9 @@ from __future__ import annotations
 import json
 import os
 import re
+import signal
 import sys
+import types
 from pathlib import Path
 from unittest import mock
 
@@ -2432,25 +2434,25 @@ def test_actionlint_timeout_fails_with_the_cause(monkeypatch, tmp_path) -> None:
 
 
 @pytest.mark.skipif(not hasattr(os, "killpg"), reason="POSIX-only")
-def test_run_calls_killpg_safe_on_timeout() -> None:
-    """On timeout, _run calls _killpg_safe to kill the process group.
+def test_run_terminates_the_process_group_on_timeout() -> None:
+    """On timeout, _run calls _terminate to kill the process group.
 
-    Without _killpg_safe, only the direct child is killed (proc.kill() path),
+    Without _terminate, only the direct child is killed (proc.kill() path),
     and grandchildren such as the gh-act artifact server survive to hold ports
     (Issue #3948).  This mock-based test verifies the kill path fires.
     """
     killed_pids: list[int] = []
-    original = w._killpg_safe
+    original = w._terminate
 
-    def recording(pid: int) -> None:
-        killed_pids.append(pid)
-        original(pid)
+    def recording(proc) -> None:
+        killed_pids.append(proc.pid)
+        original(proc)
 
-    with mock.patch.object(w, "_killpg_safe", side_effect=recording):
+    with mock.patch.object(w, "_terminate", side_effect=recording):
         rc, _out, _err = w._run([sys.executable, "-c", "import time; time.sleep(30)"], timeout=1)
 
     assert rc == -1  # timed out
-    assert len(killed_pids) >= 1, "_killpg_safe was never called on timeout"
+    assert len(killed_pids) >= 1, "_terminate was never called on timeout"
 
 
 def test_run_baseline_success_still_works() -> None:
@@ -2462,7 +2464,7 @@ def test_run_baseline_success_still_works() -> None:
 
 
 def test_run_process_group_guard_does_not_signal_own_group() -> None:
-    """_killpg_safe must not signal the caller's own process group.
+    """_terminate must not signal the caller's own process group.
 
     start_new_session=True creates a new session so the child's PGID differs
     from ours. Verify _killpg_safe with our own PID does nothing (the guard
@@ -2472,14 +2474,14 @@ def test_run_process_group_guard_does_not_signal_own_group() -> None:
 
     # If pgid == our own pgid the function returns without signalling.
     # Calling it with our own PID must not raise or kill this process.
-    w._killpg_safe(os.getpid())  # must not raise or kill
+    w._terminate(types.SimpleNamespace(pid=os.getpid()))  # must not raise or kill
 
 
 @pytest.mark.skipif(not hasattr(os, "killpg"), reason="POSIX-only")
 def test_run_passes_start_new_session_to_popen() -> None:
     """Popen is called with start_new_session=True on POSIX (#3948 guard).
 
-    If start_new_session=False, the child's PGID matches ours. _killpg_safe
+    If start_new_session=False, the child's PGID matches ours. _terminate
     then short-circuits (same group = us), and no group kill fires.
     """
     import subprocess as _subprocess
@@ -2833,3 +2835,89 @@ def test_windows_jobs_is_empty_without_pyyaml(monkeypatch, tmp_path):
     _write_runner_wf(tmp_path, {"win": "windows-latest"})
     monkeypatch.setitem(sys.modules, "yaml", None)
     assert w._windows_jobs(tmp_path / WF) == {}
+
+
+# ---------------------------------------------------------------------------
+# SIGTERM forwarding and kill grace (issue #6412)
+# ---------------------------------------------------------------------------
+
+_POSIX_ONLY = pytest.mark.skipif(not hasattr(os, "killpg"), reason="process groups are POSIX-only")
+
+_SIGTERM_CLEANUP_CHILD = """
+import signal, sys, time
+marker, ready = sys.argv[1], sys.argv[2]
+def bye(*_):
+    open(marker, "w").write("cleaned")
+    sys.exit(0)
+signal.signal(signal.SIGTERM, bye)
+open(ready, "w").write("1")
+time.sleep(60)
+"""
+
+
+@_POSIX_ONLY
+def test_run_timeout_gives_the_child_time_to_clean_up_on_sigterm(tmp_path):
+    # LOW-001: SIGKILL used to follow SIGTERM with no wait, so a cleanup handler
+    # (the gh-act artifact server releasing its port) never ran.
+    marker, ready = tmp_path / "marker", tmp_path / "ready"
+    script = tmp_path / "child.py"
+    script.write_text(_SIGTERM_CLEANUP_CHILD, encoding="utf-8")
+    rc, _out, err = w._run([sys.executable, str(script), str(marker), str(ready)], timeout=4)
+    assert ready.exists(), "child never installed its handler; raise the timeout"
+    assert rc == -1
+    assert "TimeoutExpired" in err
+    assert marker.read_text(encoding="utf-8") == "cleaned"
+
+
+@_POSIX_ONLY
+def test_install_sigterm_handler_turns_sigterm_into_system_exit():
+    # HIGH-001: the pre-PR gate stops this script with SIGTERM. The default
+    # action ends it without running _run's cleanup, which orphans gh act.
+    previous = signal.getsignal(signal.SIGTERM)
+    try:
+        restore = w._install_sigterm_handler()
+        handler = signal.getsignal(signal.SIGTERM)
+        assert callable(handler)
+        with pytest.raises(SystemExit) as stopped:
+            handler(signal.SIGTERM, None)
+        assert stopped.value.code == 128 + signal.SIGTERM
+        restore()
+        assert signal.getsignal(signal.SIGTERM) == previous
+    finally:
+        signal.signal(signal.SIGTERM, previous)
+
+
+def test_main_installs_the_sigterm_handler(monkeypatch, tmp_path):
+    events: list[str] = []
+
+    def install():
+        events.append("install")
+        return lambda: events.append("restore")
+
+    monkeypatch.setattr(w, "_install_sigterm_handler", install)
+    monkeypatch.setattr(
+        w,
+        "run_local_test",
+        lambda files, repo_root, full: mock.Mock(exit_code=0, results=[]),
+    )
+    monkeypatch.setattr(w, "_format_text", lambda report: "")
+    assert w.main(["--repo-root", str(tmp_path), "--no-full"]) == 0
+    assert events == ["install", "restore"]
+
+
+def test_main_restores_the_sigterm_handler_when_the_run_raises(monkeypatch, tmp_path):
+    events: list[str] = []
+
+    def install():
+        events.append("install")
+        return lambda: events.append("restore")
+
+    monkeypatch.setattr(w, "_install_sigterm_handler", install)
+
+    def boom(files, repo_root, full):
+        raise SystemExit(143)
+
+    monkeypatch.setattr(w, "run_local_test", boom)
+    with pytest.raises(SystemExit):
+        w.main(["--repo-root", str(tmp_path), "--no-full"])
+    assert events == ["install", "restore"]
