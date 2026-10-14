@@ -223,3 +223,28 @@ def test_in_process_rejects_a_json_array_as_evidence(tmp_path: Path) -> None:
     path = tmp_path / "ev.json"
     path.write_text("[1]", encoding="utf-8")
     assert destructive_gate.main(["gate", "--evidence", str(path)]) == 2
+
+
+def test_directory_pattern_preview_gates_a_tree_delete(tmp_path: Path) -> None:
+    for index in range(50):
+        target = tmp_path / "build" / "sub" / f"f{index}.o"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("x", encoding="utf-8")
+    bare = run("preview-files", "--root", str(tmp_path), "--pattern", "build")
+    assert bare.returncode == 0
+    assert json.loads(bare.stdout)["count"] == 50
+
+
+def test_directory_scan_with_hidden_script_and_workflow_is_unknown(tmp_path: Path) -> None:
+    (tmp_path / "a.py").write_text("def pure(x):\n    return x\n", encoding="utf-8")
+    script = tmp_path / "bin" / "cleanup"
+    script.parent.mkdir()
+    script.write_text('#!/bin/bash\nrm -rf "$TARGET"\n', encoding="utf-8")
+    workflow = tmp_path / ".github" / "workflows" / "x.yml"
+    workflow.parent.mkdir(parents=True)
+    workflow.write_text("jobs:\n  j:\n    steps:\n      - run: git push -f origin main\n")
+    result = run("scan", ".", "--base", ".", cwd=tmp_path)
+    assert result.returncode == 1
+    report = json.loads(result.stdout)
+    assert report["decision"] == "unknown"
+    assert report["unscanned"] == [".github/workflows/x.yml", "bin/cleanup"]

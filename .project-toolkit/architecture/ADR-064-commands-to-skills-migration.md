@@ -352,3 +352,9 @@ skill and reaches Accepted only after consensus.
 - [github/copilot-cli#1113](https://github.com/github/copilot-cli/issues/1113). Request for CLI parity with IDE prompt-file behavior.
 - `build/scripts/generate_commands.py`. The current command-to-skill bridge (REQ-003-001).
 - `templates/platforms/copilot-cli.yaml`. The `artifacts.commands` stanza with `transform: command-to-skill`.
+
+---
+
+**Amended by**:
+
+- 2026-09-09: [ADR-106: Serena-Only Memory Architecture](./ADR-106-serena-only-memory-architecture.md) retires the forgetful backend and its router that this record names. The decision here survives intact. Amended by reference; the body is preserved (PR #5656).

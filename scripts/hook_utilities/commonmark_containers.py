@@ -231,10 +231,12 @@ class ListContainers:
     was the whole gap was wrong for two rounds. The other half is a blockquote
     INTERRUPTING a paragraph: CommonMark ends the paragraph there and lazily
     continues the quote, so a following `2.` opens a list, while we keep the
-    paragraph open, rule 4 vetoes the marker, and `--write` appends a closer to
-    a balanced document. Two of twelve measured shapes, and it reproduces on
+    paragraph open, rule 4 vetoes the marker, and the repair function appends
+    a closer to a balanced document. Five of the twelve shapes pinned in
+    `test_fix_fences_known_corruptions.py` do that, and it reproduces on
     `main` with no link reference definition present, so it belongs to the
-    container model rather than to rule 16. Four such markers exist in this
+    container model rather than to rule 16. `--write` refuses all five where
+    `markdown-it-py` is installed. Four such markers exist in this
     repository, in two archived session logs, and they are the whole of the
     remaining under-masking. Closing it means consuming line prefixes through
     the entire

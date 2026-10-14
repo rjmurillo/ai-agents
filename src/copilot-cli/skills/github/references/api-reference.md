@@ -11,7 +11,6 @@ Reference documentation for the GitHub skill. For usage, see `../SKILL.md`.
 | 2 | Resource not found | PR/issue/milestone doesn't exist |
 | 3 | GitHub API error | Check error message, may be rate limit |
 | 4 | gh CLI not authenticated | Run `gh auth login` |
-| 5 | Idempotency skip | Comment already exists (expected) |
 | 100 | Not mergeable (`merge_pr.py`, script-specific) | PR has conflicts or checks failing |
 
 ## API Endpoints Used
@@ -25,6 +24,7 @@ Reference documentation for the GitHub skill. For usage, see `../SKILL.md`.
 | `post_pr_comment_reply.py` | `repos/{owner}/{repo}/pulls/{pr}/comments` (with in_reply_to) |
 | `resolve_pr_review_thread.py` | GraphQL: `resolveReviewThread` mutation |
 | `close_pr.py` | `gh pr close` |
+| `reopen_pr.py` | `gh pr reopen` |
 | `merge_pr.py` | `gh pr merge` |
 | `Get-IssueContext` | `gh issue view --json ...` |
 | `Set-IssueLabels` | `repos/{owner}/{repo}/labels`, `gh issue edit --add-label` |
@@ -100,9 +100,9 @@ Run from within a git repository, or provide `-Owner` and `-Repo` explicitly.
 
 Run `gh auth login` and authenticate with GitHub.
 
-### Exit code 5
+### Comment with `-Marker` already exists
 
-Expected when using `-Marker` and comment already exists. This is idempotency working correctly.
+The script skips the post and exits 0. This is idempotency working correctly.
 
 ### "Milestone not found"
 

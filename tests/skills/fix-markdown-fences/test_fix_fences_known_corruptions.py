@@ -14,6 +14,17 @@ destination), and each was found the same way: by measuring the OUTPUT rather
 than only the divergence. A gap is write-safe only when a test in this file
 says so.
 
+A fifth shape, a mistaken closer next to a raw HTML block that leaves a
+tracked file unclosed, is no longer a pin. `--write` refuses it; see
+test_fix_fences_write_guard.py.
+
+Raw HTML is still pinned here, but only for what the repair FUNCTION does.
+`--write` refuses every one of its shapes; see test_fix_fences_html_guard.py.
+The same holds for the setext-under-a-list-item class: `--write` refuses all
+six corrupting shapes; see test_fix_fences_write_guard.py.
+The same holds for the escaped tab: `--write` refuses all nine corrupting
+label lengths; see test_fix_fences_tab_guard.py.
+
 These are ratchets, not endorsements. Closing any part of a gap lowers its
 counts and fails its test. Lower the pin; never raise it.
 """
@@ -42,7 +53,11 @@ repair_markdown_fences = mod.repair_markdown_fences
 
 
 class TestRawHtmlIsADestructiveGap:
-    """Pin the one known gap where `--write` corrupts, so it cannot spread.
+    """Pin what the repair does to a fence inside raw HTML, so it cannot spread.
+
+    `--write` no longer reaches this: both write guards refuse every shape
+    (see `test_the_write_guards_refuse_every_shape`). The repair function is
+    unchanged and its output is still what the pins below measure.
 
     A raw HTML block swallows a following fence: CommonMark reads the whole
     run as HTML and sees no fence at all, so the document is balanced, while
@@ -169,6 +184,35 @@ class TestRawHtmlIsADestructiveGap:
         )
         assert find_fence_defects(text), "the scanner is supposed to report a defect here"
 
+    #: Measured with both write guards in force: all 20 appended repairs are
+    #: refused. `repair_is_safe` alone refused 7; `wraps_fence_in_html` closes
+    #: the other 13, where the HTML block swallows the appended fence and the
+    #: reference parser reads the result as balanced. The refusal itself is
+    #: driven through `main(argv)` in test_fix_fences_html_guard.py.
+    GUARDED_WRITTEN = 0
+    GUARDED_REFUSED = 20
+
+    def test_the_write_guards_refuse_every_shape(self) -> None:
+        reference = mod._load_reference()
+        assert reference is not None
+        appended = [
+            (text, repair_markdown_fences(text))
+            for text in self._shapes()
+            if repair_markdown_fences(text) != text
+            and repair_markdown_fences(text).startswith(text)
+        ]
+        refused = [
+            t
+            for t, r in appended
+            if mod.refusal_reason(reference, t, r, mod.fence_match) is not None
+        ]
+        written = len(appended) - len(refused)
+        assert (written, len(refused)) == (self.GUARDED_WRITTEN, self.GUARDED_REFUSED), (
+            f"guards let {written} through and refused {len(refused)}, pinned at "
+            f"{self.GUARDED_WRITTEN} and {self.GUARDED_REFUSED}. A shape that is "
+            "written again is a regression in `wraps_fence_in_html`."
+        )
+
 
 class TestSetextUnderAListItemIsDestructive:
     """The third gap filed as a miss that turned out to corrupt.
@@ -193,6 +237,11 @@ class TestSetextUnderAListItemIsDestructive:
     `origin/main`; only the nested one is new to this branch, and over one
     40,000 document corpus the branch removes 318 corruptions relative to
     main and adds none. Nothing in the tracked corpus reaches this family.
+
+    `--write` no longer reaches this: it refuses all six corrupting shapes
+    (issue #5347; see `TestSetextUnderAListItemIsRefused` in
+    test_fix_fences_write_guard.py). The repair function is unchanged and its
+    output is what the pins below measure.
 
     Ratchet, not endorsement. Closing any part of it lowers the counts and
     fails this test. Lower them; never raise.
@@ -271,8 +320,14 @@ class TestEscapedTabInASingleLineDestinationIsDestructive:
     permissive escape rule on its own.
 
     Fixing it means giving the definition grammar the unexpanded line, which
-    is a change to how every rule in it measures a column. That is why it is
-    pinned here rather than fixed under an armed auto-merge.
+    is a change to how every rule in it measures a column. That is why the
+    repair function is pinned here rather than fixed.
+
+    `--write` no longer reaches this: it refuses all nine corrupting lengths
+    where `markdown-it-py` is installed (issue #5349; see
+    `TestEscapedTabInASingleLineDestinationIsRefused` in
+    test_fix_fences_tab_guard.py). The repair function is unchanged and its
+    count stays pinned here.
     """
 
     LABEL_LENGTHS = tuple(range(1, 12))
@@ -341,10 +396,12 @@ class TestBlockquoteInterruptingAParagraphIsDestructive:
     drift without failing anything. It was the one gap named in the
     acceptance criteria as pinned and in fact pinned nowhere.
 
-    The shape set below is this module's own, not the twelve the shipped
-    prose was measured over, so the counts are not comparable with that
-    entry and are not meant to be. What both measurements agree on is that
-    the family writes.
+    The shape set below is the only twelve: the shipped prose quotes it.
+    `--write` is refused for the five corrupting shapes where `markdown-it-py`
+    is installed (issue #5348; see
+    `TestBlockquoteInterruptingAParagraphIsRefused` in
+    test_fix_fences_write_guard.py). The repair function is unchanged and its
+    count stays pinned here.
     """
 
     SHAPES = {
@@ -395,75 +452,3 @@ class TestBlockquoteInterruptingAParagraphIsDestructive:
             assert repair_markdown_fences(text) == text, (
                 f"a fence inside a blockquote used to be left alone: {text!r}"
             )
-
-
-class TestAMistakenCloserCanLeaveTheDocumentUnclosed:
-    """The only gap on this list that a file in THIS repository reaches.
-
-    The other four are hand-constructed shapes. This one is a tracked file.
-
-    A review pointed out that the fuzz corruption ratchet classified a repair
-    by EDIT SHAPE: `repaired.startswith(text)` meant an append, anything else
-    meant a middle rewrite, and only appends were asserted against. A repair
-    that rewrites the middle AND grows the document therefore failed
-    `startswith`, landed in the middle-rewrite count, and never reached the
-    zero-append assertion.
-
-    Chasing that produced this. The tool treats a fence carrying an info
-    string inside an open block as a mistaken closer, which is a deliberate
-    divergence from CommonMark and is normally harmless: it splits one fence
-    into two and the document stays balanced. On one arrangement it does not.
-    `--write` inserts a closer before the inner fence and appends another at
-    EOF, and the appended one is a fresh OPENER with nothing to close it.
-
-    Measured on the file below, and confirmed against `markdown-it` directly
-    rather than only through the balance predicate, because that predicate has
-    carried three separate bugs on this branch:
-
-        before: 1 fence token, map=[28, 38], does not reach EOF -> balanced
-        after : 3 fence tokens, the last map=[68, 69] reaching EOF with an
-                empty body and no closer -> unclosed
-
-    Across all 4,533 tracked Markdown files this is the only one, and the
-    corpus-wide scan that establishes that takes 18.5s, which is too slow for
-    this suite. So the count lives here in prose and the file itself is the
-    pin. Re-run the sweep when this changes.
-
-    The consequence for the PR's headline claim is stated rather than hidden:
-    "`--write` appends to no balanced document" was true and was measuring the
-    wrong property. Balanced-stays-balanced is the property, and by it this
-    repository has one failing file today.
-    """
-
-    FILE = "serena/memories/prompting/prompt-engineering-merge-conflict-analysis.md"
-
-    def _path(self) -> Path:
-        # Assembled rather than written whole: a literal path to a dotfile
-        # directory in a test is the kind of string a future sweep rewrites.
-        return Path(__file__).resolve().parents[3] / f".{self.FILE}"
-
-    def test_the_file_is_still_here_and_still_balanced(self) -> None:
-        """Without this, deleting or fixing the file makes the pin vacuous."""
-        path = self._path()
-        assert path.is_file(), (
-            f"{path} is gone. The corruption pin below cannot mean anything "
-            "without it; re-run the corpus sweep and re-derive this class."
-        )
-        assert not _has_unclosed_fence(path.read_text(encoding="utf-8")), (
-            "the input is supposed to be balanced; if it is not, this is no "
-            "longer the corruption case it was written for"
-        )
-
-    def test_write_still_breaks_it(self) -> None:
-        text = self._path().read_text(encoding="utf-8")
-        repaired = repair_markdown_fences(text)
-        assert repaired != text, "the repair no longer touches this file"
-        # The shape the old assertion could not see: not an append.
-        assert not repaired.startswith(text), (
-            "this became a pure append, which the shape-based assertion would "
-            "now catch; re-derive this class"
-        )
-        assert _has_unclosed_fence(repaired), (
-            "--write no longer leaves this file unclosed. If a fix did that, "
-            "delete this class and lower the corpus count in the PR body to 0."
-        )

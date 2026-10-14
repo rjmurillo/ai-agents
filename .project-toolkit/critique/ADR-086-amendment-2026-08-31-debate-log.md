@@ -99,3 +99,80 @@ citation is already wrong.
   installer's output is not the shell parser this debate rejected.
 
 This resolution removes code instead of widening ADR-086's ownership boundary.
+
+## Closure of "Open against ADR-086" (issue #5490)
+
+### Summary
+
+- **Rounds**: 1
+- **Outcome**: Consensus
+- **Final status**: accepted (ADR-086 stays accepted; acceptance text amended)
+- **Panel**: reduced, architect and critic.
+- **Issue**: #5490. PR #5358 removed `check-install` from the gate.
+
+### Panel basis
+
+AGENTS.md picks the full panel only when the change touches executable
+enforcement or a rule other gates read. This edit touches neither. The gate code
+landed in PR #5358. This change makes the ADR prose match it. A search of
+`scripts/`, `tests/`, `build/`, and `.github/` for `ADR-086-lefthook` found no
+reader of the ADR body. The reduced panel applies.
+
+Independence limit: the architect and critic passes ran in separate steps by the
+authoring agent. They are not independent reviewers. The checks that do not
+depend on the author are the gate source and the pre-PR run on the PR branch.
+
+### Evidence verified
+
+- `scripts/validation/checks_plugin.py` (`_lefthook_check_command`) returns
+  `uv run --frozen lefthook version`. `validate_lefthook_installed` runs it from
+  the repo root and its docstring forbids `check-install`.
+- `scripts/validation/pre_pr_sequence.py` registers `Lefthook Installed` with
+  the same rule and cites #4789.
+- Issue #2374 owns the advisory style findings and the baseline failures in
+  `pre_pr.py`. It is not a Lefthook or worktree issue. Every `#2374` hit in
+  `scripts/` and `lefthook.yml` is about advisory style findings or accepted baselines.
+- Issue #4789 is the checksum false failure this debate recorded above.
+- `scripts/ci/verify_code_env.py` still runs `check-install` in CI setup. That
+  is a separate CI step, not the local acceptance gate, and this edit does not
+  change it.
+
+### Key Issues Addressed
+
+- Architect: the acceptance text prescribed a worktree exemption for a failure
+  mode the gate no longer has. The amendment states what the gate runs and that
+  a linked worktree is valid. It cites #4789.
+- Architect: the "Run acceptance from the primary clone" sentence and the
+  "primary-clone verification" phrase rested on the same exemption. Both now
+  say the active checkout.
+- Critic: removing only the #2374 sentence would leave `check-install` in the
+  command block with no stated requirement. The command line was removed too.
+- Critic: the amendment must not imply the shim is exercised by the gate. It
+  states only that the gate runs `lefthook version`. The reason `check-install`
+  is absent, its shared checksum, is stated once.
+
+### Major Changes Made
+
+- Confirmation intro: active checkout, primary clone or linked worktree.
+- Confirmation block: `uv run --frozen lefthook check-install` removed.
+- Acceptance paragraph: `Lefthook Installed` gate and linked worktree stated;
+  the #2374 sentence removed.
+- "primary-clone verification" reworded to "verification".
+- Update History row added.
+
+### Noticed, outside this amendment
+
+- The acceptance paragraph still says Lefthook must report version 2.1.10.
+  `pyproject.toml` pins `lefthook==2.1.17`. The 2026-10-11 debate log recorded
+  the same drift for the other 2.1.10 mentions in the ADR.
+
+### Agent Positions
+
+| Agent | Position |
+| --- | --- |
+| architect | Accept. The text matches `checks_plugin.py` and `pre_pr_sequence.py`. |
+| critic | Accept after changes. The command line removal and the primary-clone phrases were added. No open P0 or P1. |
+
+### Next Steps
+
+Owner review of the PR. No further rounds.

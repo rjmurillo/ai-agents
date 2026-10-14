@@ -46,7 +46,7 @@ This system includes **20 specialized agents** organized into 5 categories.
 
 #### orchestrator
 
-**File**: `src/claude/orchestrator.md`
+**File**: `src/claude/agents/orchestrator.md`
 
 **Role**: Central coordinator routing tasks to appropriate specialists
 
@@ -80,7 +80,7 @@ Include security review and test coverage.
 
 #### milestone-planner
 
-**File**: `src/claude/milestone-planner.md`
+**File**: `src/claude/agents/milestone-planner.md`
 
 **Role**: Creates milestones and work packages from epics and PRDs
 
@@ -115,7 +115,7 @@ with clear acceptance criteria and dependencies.
 
 #### task-decomposer
 
-**File**: `src/claude/task-decomposer.md`
+**File**: `src/claude/agents/task-decomposer.md`
 
 **Role**: Creates atomic tasks with acceptance criteria from milestones
 
@@ -150,7 +150,7 @@ Include complexity estimates and file impact.
 
 #### spec-generator
 
-**File**: `src/claude/spec-generator.md`
+**File**: `.claude/skills/spec-generator/SKILL.md`
 
 **Role**: Transforms vibe-level feature descriptions into structured 3-tier specifications
 
@@ -193,7 +193,7 @@ REQ-NNN (WHAT/WHY) → DESIGN-NNN (HOW) → TASK-NNN (IMPLEMENTATION)
 
 #### implementer
 
-**File**: `src/claude/implementer.md`
+**File**: `src/claude/agents/implementer.md`
 
 **Role**: Writes production-quality code following established patterns
 
@@ -235,7 +235,7 @@ Follow the design in ADR-015. Security-critical paths require 100% coverage.
 
 #### devops
 
-**File**: `src/claude/devops.md`
+**File**: `src/claude/agents/devops.md`
 
 **Role**: Designs CI/CD pipelines and deployment automation
 
@@ -270,7 +270,7 @@ on release tags. Include security scanning.
 
 #### security
 
-**File**: `src/claude/security.md`
+**File**: `src/claude/agents/security.md`
 
 **Role**: Vulnerability assessment and threat modeling
 
@@ -306,7 +306,7 @@ Create a threat model and identify required controls.
 
 #### merge-resolver
 
-**File**: `src/claude/merge-resolver.md`
+**File**: `src/claude/agents/merge-resolver.md`
 
 **Role**: Resolves git merge conflicts by analyzing commit history and code intent
 
@@ -342,7 +342,7 @@ from main with conflicts in 3 source files.
 
 #### critic
 
-**File**: `src/claude/critic.md`
+**File**: `src/claude/agents/critic.md`
 
 **Role**: Validates plans before implementation begins
 
@@ -377,7 +377,7 @@ Validate scope, risks, and alignment with requirements.
 
 #### qa
 
-**File**: `src/claude/qa.md`
+**File**: `src/claude/agents/qa.md`
 
 **Role**: Verifies implementation works correctly for users
 
@@ -427,7 +427,7 @@ Classify security-critical paths (auth, input validation) for 100% target.
 
 #### independent-thinker
 
-**File**: `src/claude/independent-thinker.md`
+**File**: `src/claude/agents/independent-thinker.md`
 
 **Role**: Challenges assumptions with evidence-based analysis
 
@@ -465,7 +465,7 @@ should we consider?
 
 #### architect
 
-**File**: `src/claude/architect.md`
+**File**: `src/claude/agents/architect.md`
 
 **Role**: Maintains architectural coherence and technical governance
 
@@ -500,7 +500,7 @@ Document the decision in an ADR with tradeoff analysis.
 
 #### analyst
 
-**File**: `src/claude/analyst.md`
+**File**: `src/claude/agents/analyst.md`
 
 **Role**: Research and investigation specialist
 
@@ -537,7 +537,7 @@ Identify the bottleneck and recommend solutions.
 
 #### explainer
 
-**File**: `src/claude/explainer.md`
+**File**: `src/claude/agents/explainer.md`
 
 **Role**: Creates PRDs and technical documentation
 
@@ -573,7 +573,7 @@ Ask clarifying questions before writing.
 
 #### high-level-advisor
 
-**File**: `src/claude/high-level-advisor.md`
+**File**: `src/claude/agents/high-level-advisor.md`
 
 **Role**: Brutally honest strategic advisor
 
@@ -609,7 +609,7 @@ or patching it. Team is split. Give us a verdict.
 
 #### roadmap
 
-**File**: `src/claude/roadmap.md`
+**File**: `src/claude/agents/roadmap.md`
 
 **Role**: Strategic product owner defining WHAT and WHY
 
@@ -644,7 +644,7 @@ Prioritize it against existing roadmap items.
 
 #### retrospective
 
-**File**: `src/claude/retrospective.md`
+**File**: `src/claude/agents/retrospective.md`
 
 **Role**: Extracts learnings from execution
 
@@ -717,7 +717,7 @@ implementation from previous sessions.
 
 #### skillbook
 
-**File**: `src/claude/skillbook.md`
+**File**: `src/claude/agents/skillbook.md`
 
 **Role**: Manages learned strategies and patterns
 
@@ -753,7 +753,7 @@ implementation from previous sessions.
 
 #### pr-comment-responder
 
-**File**: `src/claude/pr-comment-responder.md`
+**File**: `src/claude/agents/pr-comment-responder.md`
 
 **Role**: Handles PR review comments
 
@@ -863,7 +863,7 @@ thing this section removed.
 
 ## 3. Workflow Patterns
 
-**Reference**: These workflows are the canonical patterns defined in `../../src/claude/orchestrator.md`. The orchestrator coordinates all agent delegation using a one-level-deep pattern (orchestrator → subagent → back to orchestrator).
+**Reference**: These workflows are the canonical patterns defined in `../../src/claude/agents/orchestrator.md`. The orchestrator coordinates all agent delegation using a one-level-deep pattern (orchestrator → subagent → back to orchestrator).
 
 ### 3.1 Quick Fix Flow
 
@@ -1079,7 +1079,7 @@ flowchart TD
 
 For structured requirements management with 3-tier traceability.
 
-**Note**: This workflow integrates with Standard Flow. Orchestrator coordinates all delegation. See `../../src/claude/orchestrator.md` for delegation patterns.
+**Note**: This workflow integrates with Standard Flow. Orchestrator coordinates all delegation. See `../../src/claude/agents/orchestrator.md` for delegation patterns.
 
 ```mermaid
 flowchart TD
@@ -1767,7 +1767,7 @@ When work cannot proceed:
 
 ### 11.1 Adding New Agents
 
-1. **Create Agent Prompt**: `src/claude/[agent-name].md`
+1. **Create Agent Templates**: `templates/agents/[agent-name].claude.md.tmpl` and `templates/agents/[agent-name].copilot.md.tmpl`, then run `uv run python build/scripts/build_all.py` to render `src/claude/agents/[agent-name].md` (ADR-109; see `templates/README.md`). Body shape:
 
 ```markdown
 ---

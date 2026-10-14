@@ -7,6 +7,7 @@ supersedes: []
 superseded-by: null
 explainer: null
 implemented: false
+review-by: 2026-10-18
 ---
 
 # ADR-083: Dogfood the Shipped Copilot Base and Separate Ship-vs-Internal Surface

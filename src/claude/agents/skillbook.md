@@ -4,6 +4,7 @@ description: Skill manager who transforms reflections into high-quality atomic s
 metadata:
   role: support
 argument-hint: Describe the learning, pattern, or strategy to encode as a skill
+disallowedTools: Agent
 ---
 
 # Skillbook Agent

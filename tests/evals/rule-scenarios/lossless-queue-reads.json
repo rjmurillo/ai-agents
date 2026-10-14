@@ -1,0 +1,41 @@
+{
+  "rule_path": ".claude/rules/lossless-queue-reads.md",
+  "rule_id": "lossless-queue-reads",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Triage of open review threads where the shortcut is a small limit",
+      "input": "A PR has many review threads and I must address each unresolved one. I plan to fetch the threads with a limit of 30 and a head filter to keep output small. Is that fine? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "page",
+        "cursor",
+        "every row",
+        "head",
+        "limit"
+      ],
+      "expected_gate": "page-to-exhaustion",
+      "rationale": "Lossless-queue-reads MUST 1 requires paging until no next page, and MUST NOT 1 and 2 forbid a limit as a completeness bound and piping through head before the full set is seen."
+    },
+    {
+      "id": "S2",
+      "desc": "Pagination cursor is missing partway through a notification read",
+      "input": "I am reading my assigned notifications page by page. Page 3 came back with hasNextPage true but no end cursor. Should I proceed with the 3 pages I have and treat that as the full list? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "fail loud",
+        "not read",
+        "partial",
+        "missing pagination cursor"
+      ],
+      "expected_gate": "fail-loud-on-incomplete-read",
+      "rationale": "Lossless-queue-reads MUST 2 requires failing loud and stating what was not read when pagination cannot complete, never presenting a partial read as the full set."
+    },
+    {
+      "id": "S3",
+      "desc": "Browsing a list where no row is an obligation (negative case)",
+      "input": "Show me a quick sample of the five most recently updated public repositories of a popular open source org so I can get a feel for it. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "Browsing carries no per-row obligation, so sampling with a limit is fine and the rule must not activate."
+    }
+  ]
+}

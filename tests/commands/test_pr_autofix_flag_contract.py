@@ -8,12 +8,13 @@ makes `argparse` exit 2 with `unrecognized arguments`, so the call does no work
 at all.
 
 The instance was the auto-merge disarm gate (issue #3913, CWE-284). It passed
-`--output-format json` to `set_pr_auto_merge.py`, which registers no such
-option, so every armed non-T1 pull request took the gate's failure branch. The
-branch skips the pull request, which is the safe half, and leaves auto-merge
-armed on a pull request whose readiness the session never verified, which is the
-outcome the gate exists to prevent. The log line said the opposite: it claimed
-the pull request was skipped "to avoid unguarded merge" while the merge stayed
+`--output-format json` to `set_pr_auto_merge.py`, which then registered no such
+option (it does now, so the regression tests below use `--json` instead). Every
+armed non-T1 pull request took the gate's failure branch. The branch skips the
+pull request, which is the safe half, and leaves auto-merge armed on a pull
+request whose readiness the session never verified, which is the outcome the
+gate exists to prevent. The log line said the opposite: it claimed the pull
+request was skipped "to avoid unguarded merge" while the merge stayed
 unguarded.
 """
 
@@ -90,13 +91,13 @@ def test_disarm_gate_passes_only_options_the_script_registers(command_body: str)
 def test_the_reported_regression_is_reported() -> None:
     body = (
         'if run_pr_mutation_if_live python3 "$SCRIPTS_DIR/set_pr_auto_merge.py" '
-        '--pull-request "$PR" --disable --output-format json; then'
+        '--pull-request "$PR" --disable --json; then'
     )
 
     violations = flag_violations(body)
 
     assert len(violations) == 1
-    assert "--output-format" in violations[0]
+    assert "--json" in violations[0]
     assert "set_pr_auto_merge.py" in violations[0]
     assert "line 1" in violations[0]
 
@@ -133,7 +134,7 @@ def test_backslash_continued_invocation_is_bound_to_its_script() -> None:
     body = (
         "if run_pr_mutation_if_live \\\n"
         '    python3 "$SCRIPTS_DIR/set_pr_auto_merge.py" \\\n'
-        '    --pull-request "$PR" --disable --output-format json; then'
+        '    --pull-request "$PR" --disable --json; then'
     )
 
     violations = flag_violations(body)
@@ -227,10 +228,11 @@ def test_mutually_exclusive_group_options_count_as_registered() -> None:
 
     assert accepted is not None
     assert {"--enable", "--disable"} <= accepted
-    assert "--output-format" not in accepted, (
-        "set_pr_auto_merge.py grew an --output-format flag; the disarm gate can "
-        "pass it again and this contract should be re-derived, not deleted"
+    assert "--output-format" in accepted, (
+        "set_pr_auto_merge.py registers --output-format through "
+        "add_output_format_arg; the derivation must follow the helper call"
     )
+    assert "--json" not in accepted
 
 
 def test_missing_script_derives_no_flag_set() -> None:

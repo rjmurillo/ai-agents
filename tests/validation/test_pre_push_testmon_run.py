@@ -65,13 +65,29 @@ def test_a_failing_testmon_run_blocks_the_push(
     assert git_hook_policy.run_pytest(tmp_path) == exit_code
 
 
-def test_the_testmon_budget_is_the_suite_budget(
+def test_the_testmon_budget_is_the_selection_budget(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """The first run builds the database over the whole suite, so it needs the full budget."""
+    """Issue #6200: the selection gets 180s, not the 780s of a whole-suite run."""
     first = _captured_children(monkeypatch, tmp_path)[0]["timeout_seconds"]
-    assert git_hook_policy.TEST_SUITE_TIMEOUT_SECONDS - 5 < first
-    assert first <= git_hook_policy.TEST_SUITE_TIMEOUT_SECONDS
+    assert git_hook_policy.PRE_PUSH_SELECTION_TIMEOUT_SECONDS - 5 < first
+    assert first <= git_hook_policy.PRE_PUSH_SELECTION_TIMEOUT_SECONDS
+
+
+def test_the_selection_budget_plus_the_recorded_earlier_stages_is_under_the_target() -> None:
+    """Arithmetic over a recorded measurement, not a live check of sibling jobs.
+
+    ADR-104 targets 300s per push.
+    The stages before the expensive group took 26s in-hook (2026-10-13), so the
+    push worst case is those stages plus the longest job in the group. Pytest
+    is that job once it passes pre-pr-validation's 170s.
+    """
+    stages_before_the_group = 26
+    worst_push = stages_before_the_group + git_hook_policy.PRE_PUSH_SELECTION_TIMEOUT_SECONDS
+    assert worst_push <= 300
+    assert git_hook_policy.PRE_PUSH_SELECTION_TIMEOUT_SECONDS < (
+        git_hook_policy.TEST_SUITE_TIMEOUT_SECONDS
+    )
 
 
 def test_the_seed_budget_applies_only_to_the_seed_job(
@@ -84,7 +100,7 @@ def test_the_seed_budget_applies_only_to_the_seed_job(
     """
     monkeypatch.setenv(git_hook_policy.TESTMON_SEED_BUDGET_ENV, "3300")
     ignored = _captured_children(monkeypatch, tmp_path)[0]["timeout_seconds"]
-    assert ignored <= git_hook_policy.TEST_SUITE_TIMEOUT_SECONDS
+    assert ignored <= git_hook_policy.PRE_PUSH_SELECTION_TIMEOUT_SECONDS
     monkeypatch.setenv(git_hook_policy.TESTMON_NO_SEED_ENV, "1")
     seeded = _captured_children(monkeypatch, tmp_path)[0]["timeout_seconds"]
     assert 3290 < seeded <= 3300

@@ -47,6 +47,7 @@ from scripts.validation.evidence import (  # noqa: E402
     REASON_ENTRIES_UNREADABLE,
     REASON_VIOLATIONS_FOUND,
     CheckOutcome,
+    EvidenceState,
 )
 
 _VALIDATOR = "validate_dash_prohibition"
@@ -99,12 +100,17 @@ def _running_in_ci() -> bool:
     )
 
 
-def _report_scan_unavailable(reason: str) -> None:
-    """Say the scan could not run: BLOCKED under CI, a warning anywhere else."""
-    if _running_in_ci():
-        print(f"[BLOCKED] Em/en-dash branch scan: {reason}; no file was examined")
+def _report_scan_unavailable(unavailable: _ScanUnavailable, outcome: CheckOutcome) -> None:
+    """Say the scan could not run, in the state the typed result records.
+
+    Under CI the outcome is ``FAIL`` and the line is ``outcome.report_line()``,
+    so the printed label and the returned state cannot drift apart (issue
+    #6124). Anywhere else the outcome is ``SKIP`` and the line is a warning.
+    """
+    if outcome.state is EvidenceState.FAIL:
+        print(outcome.report_line())
     else:
-        print(f"[WARNING] Em/en-dash branch scan skipped: {reason}")
+        print(f"[WARNING] Em/en-dash branch scan skipped: {unavailable.detail}")
 
 
 def _is_vendored(path: str) -> bool:
@@ -123,12 +129,11 @@ def _branch_scan_files(repo_root: Path) -> list[str] | _ScanUnavailable:
     """Resolve branch base and return non-vendored markdown and Python paths.
 
     Returns a :class:`_ScanUnavailable` when the scan cannot run (no base ref or
-    git diff failure). The reason is reported here, as BLOCKED under CI and a
-    warning locally; the caller turns it into the matching typed result.
+    git diff failure). The caller types the result and reports it with
+    :func:`_report_scan_unavailable`.
     """
     base_ref = _resolve_branch_base_ref(repo_root)
     if base_ref is None:
-        _report_scan_unavailable("no base ref resolved")
         return _ScanUnavailable(REASON_BASE_REF_UNRESOLVED, "no base ref resolved")
 
     exit_code, stdout, stderr = _run_subprocess(
@@ -144,7 +149,6 @@ def _branch_scan_files(repo_root: Path) -> list[str] | _ScanUnavailable:
         timeout=30,
     )
     if exit_code != 0:
-        _report_scan_unavailable(f"git diff failed: {stderr}")
         return _ScanUnavailable(REASON_DIFF_FAILED, f"git diff failed: {stderr}")
 
     return [p for p in stdout.splitlines() if p.endswith(_SCAN_SUFFIXES) and not _is_vendored(p)]
@@ -273,7 +277,9 @@ def validate_dash_prohibition(repo_root: Path) -> CheckOutcome:
     """
     candidate_paths = _branch_scan_files(repo_root)
     if isinstance(candidate_paths, _ScanUnavailable):
-        return _unavailable_outcome(candidate_paths)
+        outcome = _unavailable_outcome(candidate_paths)
+        _report_scan_unavailable(candidate_paths, outcome)
+        return outcome
     if not candidate_paths:
         print("[PASS] Em/en-dash prohibition (no markdown or Python files on branch)")
         return CheckOutcome.passed(_VALIDATOR, revision=_HEAD, scope=_SCOPE, examined=0)
