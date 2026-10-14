@@ -225,3 +225,23 @@ def test_new_scenarios_carry_the_fields_the_runner_reads() -> None:
         for key in ("id", "desc", "input", "expected_signals", "expected_gate", "rationale"):
             assert item[key], (item["id"], key)
         assert "Do not modify any files" in item["input"]
+
+
+def _phase_names(text: str) -> set[str]:
+    return set(re.findall(r"Phase \d+[a-z]?", text))
+
+
+def test_build_scenarios_cite_only_phases_the_build_skill_defines() -> None:
+    """A scenario that expects a phase the skill lacks scores a made-up name."""
+    defined = _phase_names(_skill("build"))
+    cited = _phase_names(_read(SCENARIOS / "build.json"))
+    assert cited <= defined, sorted(cited - defined)
+
+
+def test_review_resource_names_the_owner_of_the_remediation_classes() -> None:
+    """The class names are authored once, in the gate reference Report block."""
+    resource = _read(REVIEW_RESOURCE)
+    assert "executable-nl-artifacts" not in resource
+    assert "doc-accuracy-gate.md" in resource
+    report = _section(_read(GATE_REFERENCE), "Report")
+    assert all(cls in report for cls in REMEDIATION_CLASSES)

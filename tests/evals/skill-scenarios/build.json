@@ -64,13 +64,13 @@
       "desc": "A code-only diff that changes a documented count saves a doc-impact record",
       "input": "My diff only changes src/filters.py: the registry now holds 4 filters, and docs/guide.md still says 'the three filters'. Implement the slice and tell me what you carry to /test. Answer in 6 short bullets. Do not modify any files.",
       "expected_signals": [
-        "Phase 2c",
+        "Build handoff",
         "doc_accuracy_trigger",
         "quantitative-claim",
         "doc-impact record"
       ],
       "expected_gate": "build-slice",
-      "rationale": "No Markdown file changed, so an extension test records no documentation impact and the stale count escapes. Phase 2c passes the verified quantitative-claim effect to doc_accuracy_trigger.py, saves the JSON as the doc-impact record, and hands its path to /test Gate 5. Naming the trigger and the record is attributable to the skill rather than to a generic reminder to update the docs."
+      "rationale": "No Markdown file changed, so an extension test records no documentation impact and the stale count escapes. Exit gate 3 passes the verified quantitative-claim effect to doc_accuracy_trigger.py, saves the JSON as the doc-impact record, and hands its path to /test Gate 5. Naming the trigger and the record is attributable to the skill rather than to a generic reminder to update the docs."
     },
     {
       "id": "S7",
@@ -82,7 +82,7 @@
         "reason"
       ],
       "expected_gate": "build-slice",
-      "rationale": "A test file cannot invalidate a durable claim, so the trigger decides skip and Phase 2c records DOC ACCURACY: SKIPPED with the reason. A generic responder either runs a full documentation audit or says nothing; quoting the trigger's skip reason is attributable to the skill."
+      "rationale": "A test file cannot invalidate a durable claim, so the trigger decides skip and exit gate 3 records DOC ACCURACY: SKIPPED with the reason. A generic responder either runs a full documentation audit or says nothing; quoting the trigger's skip reason is attributable to the skill."
     }
   ]
 }

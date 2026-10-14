@@ -167,3 +167,16 @@ def test_round_trip_build_skip_keeps_gate5_skipping(
     gate5 = json.loads(capsys.readouterr().out)
     assert gate5["decision"] == "skip"
     assert gate5["build_record"] == {"decision": "skip", "effects": []}
+
+
+def test_negative_control_stale_count_escapes_without_the_record(classifier) -> None:
+    """Issue fixture 8 at trigger level: dropping the handoff lets a stale count escape.
+
+    A code-only diff that changes a documented count carries no effect on its
+    own, so Gate 5 skips. With the build-time record the same paths activate.
+    """
+    record = {"decision": "activate", "effects": ["quantitative-claim"], "reason": "count"}
+    escaped = mod.decide(CODE_ONLY, [], BASE, classifier)
+    caught = mod.decide(CODE_ONLY, [], BASE, classifier, record)
+    assert escaped["decision"] == "skip"
+    assert caught["decision"] == "activate"

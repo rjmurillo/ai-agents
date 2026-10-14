@@ -18,8 +18,8 @@ its own (issue #5398).
 3. **Unrun.** An activated axis that did not run, or whose required phase did
    not run, is `UNKNOWN`. It is never `PASS`.
 4. **Classify.** Add a `remediation` field to each finding, with one class. The
-   `code-qualities-assessment` skill's `references/executable-nl-artifacts.md`
-   owns the classes; prefer the ones that remove a representation.
+   `test` skill's `references/doc-accuracy-gate.md` owns the classes in its
+   Report block; prefer the ones that remove a representation.
 
 | Finding | Remediation |
 |---------|-------------|
