@@ -13,7 +13,7 @@ HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*#*\s*$")
 KEY_RE = re.compile(r"^([A-Za-z0-9_-]+):\s*(.*)$")
 BULLET_RE = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+\S")
 SEPARATOR_RE = re.compile(r"^\s*\|[\s:|-]+\|?\s*$")
-NUMBERED_RE = re.compile(r"^ {0,3}(\d+)[.)]\s+\S")
+NUMBERED_RE = re.compile(r"^(\s*)(\d+)([.)])( +)\S")
 FENCE_OPEN_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
 FENCE_CLOSE_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})[ \t]*$")
 UNDERLINE_RE = re.compile(r"^ {0,3}(=+|-+)[ \t]*$")
@@ -33,8 +33,9 @@ STOPWORDS = frozenset(
 
 # Sections the skeleton (references/skill-skeleton.md, "Body sections") defines as
 # descriptive rather than instructive: Triggers, Contract, Anti-patterns,
-# Pitfalls, Verification. The framing paragraph sits under the level-1 title.
-DESCRIPTIVE_SECTIONS = ("triggers", "contract", "anti-patterns", "pitfalls", "verification")
+# Pitfalls. Verification is a checklist and can carry actions ("confirm CI is
+# green"), so it is scanned. The framing paragraph sits under the level-1 title.
+DESCRIPTIVE_SECTIONS = ("triggers", "contract", "anti-patterns", "pitfalls")
 
 MARKER = "marker"
 CONTENT = "content"
@@ -235,13 +236,15 @@ def procedure_section(sections: Mapping[str, Section], allow_process: bool) -> S
 
 @dataclass(frozen=True)
 class Step:
-    """One numbered step: its numeral, its prose, and the code under it.
+    """One numbered step: its numeral, numbering group, prose, and the code under it.
 
     `fenced` holds fenced text, multi-line HTML comments, and indented code,
     none of which can carry an `(approval)` tag but all of which the backstop reads.
+    `group` counts subheadings seen so far; numerals restart at 1 in each group.
     """
 
     number: int
+    group: int
     text: str
     fenced: str
 
@@ -252,37 +255,43 @@ class Step:
 
 @dataclass(frozen=True)
 class ParsedSteps:
-    """Numbered steps plus lines in the section that belong to no step."""
+    """Numbered steps, lines that belong to no step, and subheadings in the section."""
 
     steps: tuple[Step, ...]
     loose: tuple[str, ...]
+    headings: tuple[str, ...] = ()
 
 
 class _StepParser:
     """Single pass over a step section.
 
-    Code (fences, multi-line HTML comments, indented code after a blank line)
-    stays with the step above it and never starts a step. A line after a blank
-    line that is neither numbered nor indented detaches from the step and, with
-    every line up to the next numbered step, is loose.
+    Only list items at the outermost indent are steps; deeper numbered items are
+    children of the step above. Code (fences, multi-line HTML comments, a
+    paragraph indented 4 columns past the step's content column) stays with the
+    step above it. A line after a blank line at or left of the list indent
+    detaches from the step and, with every line up to the next numbered step,
+    is loose. A subheading starts a new numbering group.
     """
 
     def __init__(self) -> None:
-        self.numbers: list[int] = []
-        self.texts: list[str] = []
+        self.rows: list[tuple[int, int, str]] = []
         self.code: list[list[str]] = []
         self.loose: list[str] = []
-        self._fence = FenceTracker()
+        self.headings: list[str] = []
+        self._base = -1
+        self._content = 0
+        self._group = 0
         self._comment = False
         self._gap = False
         self._detached = False
 
-    def feed(self, line: str) -> None:
+    def feed(self, line: str, kind: str, heading: str | None = None) -> None:
         stripped = line.strip()
-        kind = self._fence.feed(line)
-        if kind == MARKER:
+        if heading is not None:
+            self._heading(heading)
+        elif kind == MARKER:
             return
-        if kind == CONTENT:
+        elif kind == CONTENT:
             self._code_line(stripped)
         elif not stripped:
             self._gap = True
@@ -293,7 +302,12 @@ class _StepParser:
             self._text_line(line, stripped)
 
     def _owned(self) -> bool:
-        return bool(self.texts) and not self._detached
+        return bool(self.rows) and not self._detached
+
+    def _heading(self, title: str) -> None:
+        self.headings.append(title)
+        self._group += 1
+        self._detached = True
 
     def _code_line(self, stripped: str) -> None:
         if self._owned():
@@ -303,44 +317,55 @@ class _StepParser:
 
     def _text_line(self, line: str, stripped: str) -> None:
         numbered = NUMBERED_RE.match(line)
-        if numbered:
-            self._new_step(int(numbered.group(1)), stripped)
+        if numbered and self._is_step(indent_of(line)):
+            self._new_step(numbered, indent_of(line), stripped)
         else:
             self._prose_line(line, stripped)
         opened = line.rfind("<!--")
         self._comment = opened != -1 and "-->" not in line[opened:]
 
-    def _new_step(self, number: int, stripped: str) -> None:
-        self.numbers.append(number)
-        self.texts.append(stripped)
+    def _is_step(self, indent: int) -> bool:
+        return not self._owned() or indent <= self._base
+
+    def _new_step(self, match: re.Match[str], indent: int, stripped: str) -> None:
+        self._base = indent if not self.rows or self._detached else min(self._base, indent)
+        marker = len(match.group(2)) + len(match.group(3))
+        self._content = indent + marker + min(len(match.group(4)), 4)
+        self.rows.append((int(match.group(2)), self._group, stripped))
         self.code.append([])
         self._gap = False
         self._detached = False
 
     def _prose_line(self, line: str, stripped: str) -> None:
+        indent = indent_of(line)
         if not self._owned():
             self._detached = True
             self.loose.append(stripped)
-        elif self._gap and indent_of(line) >= 4:
+        elif self._gap and indent >= self._content + 4:
             self.code[-1].append(stripped)
-        elif self._gap and indent_of(line) == 0:
+        elif self._gap and indent <= self._base:
             self._detached = True
             self.loose.append(stripped)
         else:
-            self.texts[-1] = f"{self.texts[-1]} {stripped}"
+            number, group, text = self.rows[-1]
+            self.rows[-1] = (number, group, f"{text} {stripped}")
             self._gap = False
 
 
 def parse_steps(lines: Sequence[str]) -> ParsedSteps:
-    """Split a step section into numbered steps and loose lines."""
+    """Split a step section into numbered steps, loose lines, and subheadings."""
+    kinds = line_kinds(lines)
+    titles = {head[0]: head[2] for head in heading_spans(lines, kinds)}
+    underlines = {head[3] - 1 for head in heading_spans(lines, kinds) if head[3] == head[0] + 2}
     parser = _StepParser()
-    for line in lines:
-        parser.feed(line)
+    for index, line in enumerate(lines):
+        if index in underlines:
+            continue
+        parser.feed(line, kinds[index], titles.get(index))
     steps = tuple(
-        Step(n, t, " ".join(c))
-        for n, t, c in zip(parser.numbers, parser.texts, parser.code, strict=True)
+        Step(n, g, t, " ".join(c)) for (n, g, t), c in zip(parser.rows, parser.code, strict=True)
     )
-    return ParsedSteps(steps, tuple(parser.loose))
+    return ParsedSteps(steps, tuple(parser.loose), tuple(parser.headings))
 
 
 def approval_prose(text: str) -> str:
