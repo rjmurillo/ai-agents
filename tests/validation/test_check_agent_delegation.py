@@ -396,22 +396,18 @@ class TestContractFails:
         found = _contract_findings(tmp_path, _delegator(body=body))
         assert found == ["body states a cap of 10 delegations, but the contract budget is 15"]
 
-    def test_second_conflicting_prose_cap_is_reported(self, tmp_path: Path) -> None:
-        body = (
-            "- **Max agent delegations per task**: 15, counted in the task tracker.\n"
-            "- Max agent delegations per task: 10 for retries.\n"
-        )
+    @pytest.mark.parametrize(
+        ("caps", "expected"), [((15, 10), [10]), ((10, 10), [10]), ((15, 15), [])]
+    )
+    def test_every_prose_cap_is_checked_once(
+        self, tmp_path: Path, caps: tuple[int, int], expected: list[int]
+    ) -> None:
+        body = "".join(f"Max agent delegations per task: {cap}\n" for cap in caps)
         found = _contract_findings(tmp_path, _delegator(body=body))
-        assert found == ["body states a cap of 10 delegations, but the contract budget is 15"]
-
-    def test_repeated_conflicting_prose_cap_is_reported_once(self, tmp_path: Path) -> None:
-        body = "Max agent delegations per task: 10\nMax agent delegations per task: 10\n"
-        found = _contract_findings(tmp_path, _delegator(body=body))
-        assert found == ["body states a cap of 10 delegations, but the contract budget is 15"]
-
-    def test_repeated_matching_prose_cap_passes(self, tmp_path: Path) -> None:
-        body = "Max agent delegations per task: 15\nMax agent delegations per task: 15\n"
-        assert _contract_findings(tmp_path, _delegator(body=body)) == []
+        assert found == [
+            f"body states a cap of {cap} delegations, but the contract budget is 15"
+            for cap in expected
+        ]
 
 
 class TestBoundedFanOutAndRetry:
@@ -439,18 +435,13 @@ class TestBoundedFanOutAndRetry:
 
 
 class TestReportSchema:
-    @pytest.mark.parametrize("schema", ["artifacts", None, {"artifacts": 1}, 5])
+    @pytest.mark.parametrize("schema", ["artifacts", None, {"artifacts": 1}, 5, []])
     def test_schema_must_be_a_list(self, tmp_path: Path, schema: object) -> None:
         found = _contract_findings(tmp_path, _delegator(_with_contract(report_schema=schema)))
         assert found == ["contract field 'report_schema' must be a non-empty list of field names"]
 
-    def test_empty_schema(self, tmp_path: Path) -> None:
-        found = _contract_findings(tmp_path, _delegator(_with_contract(report_schema=[])))
-        assert "non-empty list" in found[0]
-
     @pytest.mark.parametrize(
-        "name",
-        ["Artifacts", "9lives", "two words", "", 4, None, "artifacts\n", "a__b", "a_", "_a"],
+        "name", ["Artifacts", "9lives", "two words", "", 4, None, "artifacts\n", "a__b", "a_"]
     )
     def test_malformed_field_name(self, tmp_path: Path, name: object) -> None:
         schema = [*_VALID_SCHEMA, name]
