@@ -25,9 +25,19 @@ Never close an issue on a single-pass triage verdict. Closing is the irreversibl
 
 Conventional wisdom says triage is cheap and safe to automate on a small model. First principles say the cost sits in the close, not the read. A wrong close hides open work. A wrong keep costs one extra look. The checks must be asymmetric.
 
+## Second data point: post-merge security audit verdicts
+
+[2026-10-14] A single-pass post-merge security audit of 104 merged PRs flagged 7 as FAIL. An independent skeptic pass checked 6 of them and refuted 5:
+
+- Refuted: PR #6421, #6348, #6297, #6287, #6273.
+- Confirmed: PR #6308. Issue #6493 tracked the fail-open, and PR #6498 fixed it.
+
+The rule holds beyond triage. Never act on a single-pass FAIL or close verdict. Run an independent pass that tries to refute it first. Act only on what survives.
+
 ## Source
 
 - Triage run of 2026-10-11, 187 open issues, 38 proposed closes, 22 refuted.
+- Security audit of 2026-10-14, 104 merged PRs, 7 FAIL, 5 of 6 checked refuted.
 
 ## Related
 

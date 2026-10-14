@@ -50,7 +50,7 @@
 |gh extension notify combine metrics milestone webhook grep: [skills-gh-extensions-index](skills-gh-extensions-index.md) (346)
 |copilot review false-positive triage response cli agent frontmatter: [skills-copilot-index](skills-copilot-index.md) (497), [copilot/copilot-cli-frontmatter-regression-runbook](copilot/copilot-cli-frontmatter-regression-runbook.md) (1891)
 |triage stale closure verify history bot superseded duplicate: [pr-review/triage-001-verify-before-stale-closure](pr-review/triage-001-verify-before-stale-closure.md) (435), [pr-review/triage-002-bot-closure-verification](pr-review/triage-002-bot-closure-verification.md) (452)
-|triage issue close single-pass skeptic refute acceptance criteria closing keyword Refs: [pr-review/triage-004-single-pass-close-verdicts-need-skeptic](pr-review/triage-004-single-pass-close-verdicts-need-skeptic.md) (383)
+|triage issue close single-pass skeptic refute acceptance criteria closing keyword Refs security audit FAIL verdict post-merge: [pr-review/triage-004-single-pass-close-verdicts-need-skeptic](pr-review/triage-004-single-pass-close-verdicts-need-skeptic.md) (556)
 |pr validation gate status check blocker merge: [validation/validation-pr-gates](validation/validation-pr-gates.md) (1245)
 |pr checks read rollup truncation cancelled superseded severity: [pr-review/use-get-pr-checks-not-raw-rollup](pr-review/use-get-pr-checks-not-raw-rollup.md) (1974)
 |adversarial review dispatched model subagent fabricated finding verify: [pr-review/dispatched-model-reviewer-reliability](pr-review/dispatched-model-reviewer-reliability.md) (2569)
