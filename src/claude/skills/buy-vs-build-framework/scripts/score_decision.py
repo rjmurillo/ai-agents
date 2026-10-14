@@ -12,6 +12,7 @@ import argparse
 import json
 import sys
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass
@@ -24,7 +25,7 @@ class DecisionScore:
     sensitivity: dict[str, float]
 
 
-def validate_criteria(criteria: dict) -> list[str]:
+def validate_criteria(criteria: dict[str, Any]) -> list[str]:
     """Validate criteria structure and weights."""
     errors = []
 
@@ -48,7 +49,7 @@ def validate_criteria(criteria: dict) -> list[str]:
     return errors
 
 
-def calculate_scores(criteria: dict) -> dict[str, float]:
+def calculate_scores(criteria: dict[str, Any]) -> dict[str, float]:
     """Calculate weighted scores for each option."""
     scores = {}
 
@@ -78,7 +79,9 @@ def determine_confidence(scores: dict[str, float]) -> str:
         return "low"
 
 
-def sensitivity_analysis(criteria: dict, base_scores: dict[str, float]) -> dict[str, float]:
+def sensitivity_analysis(
+    criteria: dict[str, Any], base_scores: dict[str, float]
+) -> dict[str, float]:
     """Analyze how weight changes affect ranking."""
     sensitivity = {}
 

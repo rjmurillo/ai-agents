@@ -13,6 +13,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -35,12 +36,12 @@ PASS_VENDOR = {
     "customization_options": "api",
 }
 YELLOW_VENDOR = {**PASS_VENDOR, "years_in_business": 1, "funding_status": "seed"}
-RED_VENDOR: dict = {}
+RED_VENDOR: dict[str, Any] = {}
 
 WEIGHTS = {"strategic": 50.0, "risk": 50.0}
 
 
-def _option(score: int) -> dict:
+def _option(score: int) -> dict[str, Any]:
     return {"strategic": {"a": score}, "risk": {"b": score}}
 
 

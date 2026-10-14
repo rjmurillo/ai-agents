@@ -14,6 +14,7 @@ import argparse
 import json
 import sys
 from dataclasses import dataclass
+from typing import Any
 
 EXIT_PASS = 0
 EXIT_INVALID_ARGUMENT = 1
@@ -31,7 +32,7 @@ class VendorScore:
     recommendation: str
 
 
-def score_financial_stability(data: dict) -> tuple[float, list[str]]:
+def score_financial_stability(data: dict[str, Any]) -> tuple[float, list[str]]:
     """Score financial stability (0-25 points)."""
     score = 0.0
     flags = []
@@ -73,7 +74,7 @@ def score_financial_stability(data: dict) -> tuple[float, list[str]]:
     return score, flags
 
 
-def score_product_maturity(data: dict) -> tuple[float, list[str]]:
+def score_product_maturity(data: dict[str, Any]) -> tuple[float, list[str]]:
     """Score product maturity (0-25 points)."""
     score = 0.0
     flags = []
@@ -113,7 +114,7 @@ def score_product_maturity(data: dict) -> tuple[float, list[str]]:
     return score, flags
 
 
-def score_pricing_model(data: dict) -> tuple[float, list[str]]:
+def score_pricing_model(data: dict[str, Any]) -> tuple[float, list[str]]:
     """Score pricing model (0-25 points)."""
     score = 0.0
     flags = []
@@ -151,7 +152,7 @@ def score_pricing_model(data: dict) -> tuple[float, list[str]]:
     return score, flags
 
 
-def score_feature_fit(data: dict) -> tuple[float, list[str]]:
+def score_feature_fit(data: dict[str, Any]) -> tuple[float, list[str]]:
     """Score feature fit (0-25 points)."""
     score = 0.0
     flags = []
@@ -181,7 +182,7 @@ def score_feature_fit(data: dict) -> tuple[float, list[str]]:
     return score, flags
 
 
-def calculate_vendor_score(data: dict) -> VendorScore:
+def calculate_vendor_score(data: dict[str, Any]) -> VendorScore:
     """Calculate overall vendor score."""
     total_score = 0.0
     all_flags = []
