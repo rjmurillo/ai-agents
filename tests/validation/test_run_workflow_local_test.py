@@ -2683,6 +2683,131 @@ def test_windows_skip_does_not_hide_a_failing_linux_job(monkeypatch, tmp_path):
     assert "lint exploded" in res.detail
 
 
+def _write_needs_wf(tmp_path: Path, jobs: dict[str, tuple[str, object]]) -> None:
+    """Write ``WF`` where each job is ``(runs-on, needs)``; ``None`` omits ``needs``."""
+    body: dict[str, object] = {}
+    for name, (runner, needs) in jobs.items():
+        job: dict[str, object] = {"runs-on": runner, "steps": [{"run": f"echo {name}"}]}
+        if needs is not None:
+            job["needs"] = needs
+        body[name] = job
+    wf = tmp_path / WF
+    wf.parent.mkdir(parents=True, exist_ok=True)
+    wf.write_text(
+        yaml.safe_dump({"name": "x", "on": "push", "jobs": body}, sort_keys=False),
+        encoding="utf-8",
+    )
+
+
+def _planned_targets(calls: list[list[str]]) -> list[str]:
+    return [cmd[cmd.index("-j") + 1] for cmd in calls if "-j" in cmd]
+
+
+def test_job_that_needs_a_windows_job_is_skipped_with_warning(monkeypatch, tmp_path):
+    """act plans a job's ``needs`` transitively, so ``-j alert`` would rerun ``win``."""
+    _write_needs_wf(
+        tmp_path,
+        {
+            "lint": ("ubuntu-latest", None),
+            "win": ("windows-latest", None),
+            "alert": ("ubuntu-latest", ["lint", "win"]),
+        },
+    )
+    calls = _record_calls(monkeypatch)
+
+    res = w._act_dryrun_stage([WF], tmp_path)
+
+    assert _planned_targets(calls) == ["lint"]
+    assert f"[WARN] {WF} job alert: skipped, needs win" in res.detail
+    assert res.ok is True
+
+
+def test_string_needs_is_followed(monkeypatch, tmp_path):
+    _write_needs_wf(
+        tmp_path,
+        {"win": ("windows-latest", None), "after": ("ubuntu-latest", "win")},
+    )
+    calls = _record_calls(monkeypatch)
+
+    res = w._act_full_stage([WF], tmp_path)
+
+    assert calls == []
+    assert f"[WARN] {WF} job after: skipped, needs win" in res.detail
+
+
+def test_dependents_are_skipped_transitively(monkeypatch, tmp_path):
+    _write_needs_wf(
+        tmp_path,
+        {
+            "lint": ("ubuntu-latest", None),
+            "win": ("windows-latest", None),
+            "mid": ("ubuntu-latest", ["win"]),
+            "tail": ("ubuntu-latest", ["lint", "mid"]),
+            "other": ("ubuntu-latest", ["lint"]),
+        },
+    )
+    calls = _record_calls(monkeypatch)
+
+    res = w._act_full_stage([WF], tmp_path)
+
+    assert _planned_targets(calls) == ["lint", "other"]
+    warns = [line for line in res.detail.splitlines() if line.startswith("[WARN]")]
+    assert len(warns) == 3
+    assert "job mid: skipped, needs win" in warns[1]
+    assert "job tail: skipped, needs mid" in warns[2]
+
+
+def test_job_needing_only_kept_jobs_still_runs(monkeypatch, tmp_path):
+    _write_needs_wf(
+        tmp_path,
+        {
+            "lint": ("ubuntu-latest", None),
+            "win": ("windows-latest", None),
+            "after": ("ubuntu-latest", ["lint"]),
+        },
+    )
+    calls = _record_calls(monkeypatch)
+
+    w._act_full_stage([WF], tmp_path)
+
+    assert _planned_targets(calls) == ["lint", "after"]
+
+
+def test_needs_of_unknown_or_malformed_shape_is_ignored(monkeypatch, tmp_path):
+    _write_needs_wf(
+        tmp_path,
+        {
+            "win": ("windows-latest", None),
+            "a": ("ubuntu-latest", 5),
+            "b": ("ubuntu-latest", ["ghost", 7]),
+        },
+    )
+    calls = _record_calls(monkeypatch)
+
+    w._act_full_stage([WF], tmp_path)
+
+    assert _planned_targets(calls) == ["a", "b"]
+
+
+def test_job_needs_normalizes_shapes():
+    assert w._job_needs({"needs": "a"}) == ["a"]
+    assert w._job_needs({"needs": ["a", 3, "b"]}) == ["a", "b"]
+    assert w._job_needs({"needs": 3}) == []
+    assert w._job_needs({}) == []
+    assert w._job_needs("not a mapping") == []
+
+
+def _transitive_needs(bodies: dict[str, object], job: str) -> set[str]:
+    seen: set[str] = set()
+    stack = list(w._job_needs(bodies.get(job)))
+    while stack:
+        dep = stack.pop()
+        if dep not in seen:
+            seen.add(dep)
+            stack.extend(w._job_needs(bodies.get(dep)))
+    return seen
+
+
 def test_pytest_workflow_never_dry_runs_the_windows_pwsh_job(monkeypatch):
     """Regression for #6412: pytest.yml test-windows-pwsh ran tests past every timeout."""
     rel = ".github/workflows/pytest.yml"
@@ -2694,6 +2819,13 @@ def test_pytest_workflow_never_dry_runs_the_windows_pwsh_job(monkeypatch):
     assert calls, "pytest.yml still has Linux jobs to dry-run"
     assert all("test-windows-pwsh" not in cmd for cmd in calls)
     assert "job test-windows-pwsh: skipped" in res.detail
+    # act plans ``needs`` transitively, so no planned target may reach a Windows job.
+    bodies = w._workflow_job_bodies(REPO_ROOT / rel)
+    windows = set(w._windows_jobs(REPO_ROOT / rel))
+    assert windows
+    for target in _planned_targets(calls):
+        assert not (_transitive_needs(bodies, target) & windows), target
+    assert "job main-failure-alert: skipped, needs test-windows-pwsh" in res.detail
 
 
 def test_windows_jobs_is_empty_without_pyyaml(monkeypatch, tmp_path):

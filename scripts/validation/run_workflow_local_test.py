@@ -87,7 +87,7 @@ import stat
 import subprocess
 import sys
 import tempfile
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -881,11 +881,6 @@ def _workflow_job_bodies(wf_path: Path) -> dict[str, object]:
     return {name: body for name, body in jobs.items() if isinstance(name, str)}
 
 
-def _workflow_jobs(wf_path: Path) -> list[str]:
-    """Return workflow job ids in file order, or empty when unavailable."""
-    return list(_workflow_job_bodies(wf_path))
-
-
 def _windows_label(runs_on: object) -> str | None:
     """Return the first Windows runner label in a job's ``runs-on``, else None.
 
@@ -921,25 +916,67 @@ def _windows_jobs(wf_path: Path) -> dict[str, str]:
     return found
 
 
+def _job_needs(body: object) -> list[str]:
+    """Return the job ids in a job's ``needs``, accepting a string or a list."""
+    needs = body.get("needs") if isinstance(body, dict) else None
+    if isinstance(needs, str):
+        return [needs]
+    if isinstance(needs, list):
+        return [need for need in needs if isinstance(need, str)]
+    return []
+
+
+def _skipped_dependents(bodies: dict[str, object], skipped: Iterable[str]) -> dict[str, str]:
+    """Return ``{job id: skipped job it needs}`` for jobs that depend on a skipped job.
+
+    act plans a selected job's ``needs`` transitively, so ``-j alert`` reruns a
+    Windows job that ``alert`` needs. A dependent is therefore skipped too, and
+    so is anything that needs a dependent. File order is kept.
+    """
+    blocked = set(skipped)
+    found: dict[str, str] = {}
+    grew = True
+    while grew:
+        grew = False
+        for name, body in bodies.items():
+            if name in blocked:
+                continue
+            hit = next((need for need in _job_needs(body) if need in blocked), None)
+            if hit is not None:
+                blocked.add(name)
+                found[name] = hit
+                grew = True
+    return {name: found[name] for name in bodies if name in found}
+
+
 def _act_job_filters(repo_root: Path, wf: str, warnings: list[str]) -> list[list[str]]:
     """Plan the ``-j`` filters for one workflow, skipping Windows jobs.
 
     act maps ``windows-*`` runners to a Linux container (see the "Vanilla
     Windows" limitation hint), so a Windows job cannot be validated locally and
-    its steps outlast every timeout (#6412). Each skipped job adds a ``[WARN]``.
-    A single-job workflow runs unfiltered, but once any job is skipped the rest
-    must carry ``-j`` or act would run the skipped job again.
+    its steps outlast every timeout (#6412). A job that needs a skipped job is
+    skipped too, because act would plan the skipped job again through ``needs``.
+    Each skipped job adds a ``[WARN]``. A single-job workflow runs unfiltered,
+    but once any job is skipped the rest must carry ``-j`` or act would run the
+    skipped job again.
     """
     wf_path = repo_root / wf
-    jobs = _workflow_jobs(wf_path)
+    bodies = _workflow_job_bodies(wf_path)
     skipped = _windows_jobs(wf_path)
     for job, label in skipped.items():
         warnings.append(
             f"[WARN] {wf} job {job}: skipped, runs-on {label}. act maps Windows "
             "runners to a Linux container, so the job cannot run locally. CI runs it."
         )
-    if len(jobs) > 1 or skipped:
-        return [["-j", job] for job in jobs if job not in skipped]
+    dependents = _skipped_dependents(bodies, skipped)
+    for job, need in dependents.items():
+        warnings.append(
+            f"[WARN] {wf} job {job}: skipped, needs {need}, which is skipped. "
+            "act would plan that job again through needs. CI runs it."
+        )
+    dropped = {*skipped, *dependents}
+    if len(bodies) > 1 or dropped:
+        return [["-j", job] for job in bodies if job not in dropped]
     return [[]]
 
 
