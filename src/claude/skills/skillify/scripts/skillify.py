@@ -15,7 +15,7 @@ Windows. Nothing here writes a skill file; the harness file tools do that.
 Exit codes:
     0  ok. A gate REJECT, an overlap CREATE or PATCH, and a verify PASS are
        all answers, not failures.
-    1  logic failure: unreadable or malformed input, or verify found a defect.
+    1  logic failure: unreadable or malformed input, a usage error, or verify found a defect.
     2  config: no destination resolved (`needs_clarification`) or the resolved
        destination is not a directory. Nothing is written.
 """
@@ -29,12 +29,12 @@ import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePath
-from typing import Any
+from typing import Any, NoReturn
 
 from skillify_text import (
     SkillifyError,
+    first_sections,
     parse_frontmatter,
-    split_sections,
     tokenize,
 )
 from skillify_verify import resolve_skill_file, verify_skill
@@ -54,10 +54,12 @@ TOP_MATCHES = 5
 CLAUDE_CONFIG_DIR = ".claude"
 GITHUB_CONFIG_DIR = ".github"
 SKILLS_DIR = "skills"
-SKILL_ROOT_SUFFIXES: tuple[tuple[str, str], ...] = (
-    (CLAUDE_CONFIG_DIR, SKILLS_DIR),
-    (GITHUB_CONFIG_DIR, SKILLS_DIR),
-)
+HARNESS_BY_SUFFIX: dict[tuple[str, str], str] = {
+    (CLAUDE_CONFIG_DIR, SKILLS_DIR): "claude-code",
+    (GITHUB_CONFIG_DIR, SKILLS_DIR): "copilot-cli",
+}
+SKILL_ROOT_SUFFIXES: tuple[tuple[str, str], ...] = tuple(HARNESS_BY_SUFFIX)
+MIN_WORKFLOW_TERMS = 3
 
 
 @dataclass(frozen=True)
@@ -101,7 +103,7 @@ def _count_of(value: Any, field: str) -> int:
 
 
 def evaluate_gate(audit: Any) -> dict[str, Any]:
-    """Apply the Phase 0 gate to an audit of the completed workflow."""
+    """Apply the step 2 gate to an audit of the completed workflow."""
     if not isinstance(audit, dict):
         raise SkillifyError("audit must be a JSON object")
     missing = [
@@ -127,14 +129,24 @@ def evaluate_gate(audit: Any) -> dict[str, Any]:
     trigger = audit["trigger_phrase"]
     if not isinstance(trigger, str):
         raise SkillifyError("audit field 'trigger_phrase' must be a string")
+    external = _optional_bool(audit, "external_actions")
+    recovery = _optional_bool(audit, "recovery_paths")
     reasons = _gate_reasons(calls, audit["reusable_class"], decisions, gotchas, trigger)
     proceed = not reasons
     return {
         "status": "PROCEED" if proceed else "REJECT",
         "reasons": reasons,
-        "approval_gate_required": audit.get("external_actions") is True,
+        "approval_gate_required": external,
+        "recovery_paths_required": recovery,
         "proactive_eligible": proceed and calls >= PROACTIVE_TOOL_CALLS,
     }
+
+
+def _optional_bool(audit: Mapping[str, Any], field: str) -> bool:
+    value = audit.get(field, False)
+    if not isinstance(value, bool):
+        raise SkillifyError(f"audit field '{field}' must be true or false")
+    return value
 
 
 def _gate_reasons(
@@ -174,12 +186,10 @@ def skills_root_kind(path: PurePath) -> str:
 
     Works on PurePath so Windows-style paths classify the same on any OS.
     """
-    tail = tuple(part.lower() for part in path.parts[-2:])
-    if tail == SKILL_ROOT_SUFFIXES[0]:
-        return "claude-code"
-    if tail == SKILL_ROOT_SUFFIXES[1]:
-        return "copilot-cli"
-    return "custom"
+    parts = [part.lower() for part in path.parts[-2:]]
+    if len(parts) < 2:
+        return "custom"
+    return HARNESS_BY_SUFFIX.get((parts[0], parts[1]), "custom")
 
 
 def detect_cwd_roots(cwd: Path) -> list[Path]:
@@ -221,17 +231,27 @@ def resolve_destination(
     cwd: Path,
     environ: Mapping[str, str],
 ) -> tuple[dict[str, Any], int]:
-    """Resolve the skills root in order: explicit, env var, cwd detection."""
+    """Resolve the skills root in order: explicit, env var, cwd detection.
+
+    A relative explicit or env-var path is anchored at `cwd`; the result is absolute.
+    """
     if explicit is not None and explicit.strip():
-        return _resolved("explicit", Path(explicit.strip()).expanduser(), None)
+        return _resolved("explicit", _anchored(explicit.strip(), cwd), None)
     for name in env_vars:
         value = environ.get(name, "").strip()
         if value:
-            return _resolved("env", Path(value).expanduser(), name)
+            return _resolved("env", _anchored(value, cwd), name)
     roots = detect_cwd_roots(cwd)
     if len(roots) == 1:
         return _resolved("cwd", roots[0], None)
     return _needs_clarification(roots, list(env_vars))
+
+
+def _anchored(raw: str, cwd: Path) -> Path:
+    path = Path(raw).expanduser()
+    if path.is_absolute():
+        return path
+    return Path(os.path.normpath(cwd.resolve() / path))
 
 
 def _resolved(source: str, path: Path, env_var: str | None) -> tuple[dict[str, Any], int]:
@@ -249,6 +269,7 @@ def _resolved(source: str, path: Path, env_var: str | None) -> tuple[dict[str, A
         "source": source,
         "path": str(path),
         "exists": path.is_dir(),
+        "confirm_before_create": not path.is_dir(),
         "harness": skills_root_kind(path),
     }
     if env_var is not None:
@@ -276,26 +297,33 @@ def _needs_clarification(roots: list[Path], env_vars: list[str]) -> tuple[dict[s
 # ---------------------------------------------------------------------- overlap
 
 
-def read_skill(skill_file: Path, root: Path) -> SkillInfo | None:
-    """Parse one SKILL.md into routing tokens, or None when it has no frontmatter name."""
+def read_skill(skill_file: Path, root: Path) -> SkillInfo | str:
+    """Parse one SKILL.md into routing tokens, or return the reason it was skipped.
+
+    Tokens come from the name, description, Triggers section, and Procedure section.
+    """
     try:
         text = skill_file.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
-        return None
+        return "unreadable"
     meta, body = parse_frontmatter(text)
     name = meta.get("name", "").strip()
     if not name:
-        return None
-    triggers = next((s for s in split_sections(body) if s.name == "triggers"), None)
-    trigger_text = "\n".join(triggers.lines) if triggers else ""
-    tokens = tokenize(f"{name.replace('-', ' ')} {meta.get('description', '')} {trigger_text}")
+        return "no frontmatter name"
+    sections = first_sections(body)
+    extra = "\n".join(
+        "\n".join(sections[key].lines) for key in ("triggers", "procedure") if key in sections
+    )
+    tokens = tokenize(f"{name.replace('-', ' ')} {meta.get('description', '')} {extra}")
     return SkillInfo(name=name, root=str(root), path=str(skill_file), tokens=tokens)
 
 
-def scan_roots(roots: Sequence[Path]) -> tuple[list[SkillInfo], list[str], list[str]]:
-    """Scan `<root>/*/SKILL.md`. Returns skills, unparseable files, missing roots."""
+def scan_roots(
+    roots: Sequence[Path],
+) -> tuple[list[SkillInfo], list[dict[str, str]], list[str]]:
+    """Scan `<root>/*/SKILL.md`. Returns skills, skipped `{path, reason}`, missing roots."""
     skills: list[SkillInfo] = []
-    skipped: list[str] = []
+    skipped: list[dict[str, str]] = []
     missing: list[str] = []
     for root in roots:
         if not root.is_dir():
@@ -303,8 +331,8 @@ def scan_roots(roots: Sequence[Path]) -> tuple[list[SkillInfo], list[str], list[
             continue
         for skill_file in sorted(root.glob("*/SKILL.md")):
             info = read_skill(skill_file, root)
-            if info is None:
-                skipped.append(str(skill_file))
+            if isinstance(info, str):
+                skipped.append({"path": str(skill_file), "reason": info})
             else:
                 skills.append(info)
     return skills, skipped, missing
@@ -338,8 +366,16 @@ def evaluate_overlap(workflow: Any, roots: Sequence[Path]) -> dict[str, Any]:
         key=lambda row: (-row["hits"], row["name"], row["path"]),
     )
     best = scored[0] if scored else None
+    reason = None
     patch = best is not None and best["hits"] * 100 >= len(wanted) * PATCH_THRESHOLD_PERCENT
+    if len(wanted) < MIN_WORKFLOW_TERMS:
+        patch = False
+        reason = (
+            f"workflow has {len(wanted)} term(s); at least {MIN_WORKFLOW_TERMS} are needed "
+            "to judge overlap"
+        )
     return {
+        "reason": reason,
         "status": "PATCH" if patch else "CREATE",
         "skill": best["name"] if patch and best else None,
         "path": best["path"] if patch and best else None,
@@ -366,10 +402,17 @@ def _score(wanted: frozenset[str], skill: SkillInfo) -> dict[str, Any]:
 # -------------------------------------------------------------------------- cli
 
 
+class JsonArgumentParser(argparse.ArgumentParser):
+    """Report usage errors as a SkillifyError so they exit 1, not 2 (2 means no destination)."""
+
+    def error(self, message: str) -> NoReturn:
+        raise SkillifyError(f"usage: {message}")
+
+
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Skillify helper. JSON on stdout.")
+    parser = JsonArgumentParser(description="Skillify helper. JSON on stdout.")
     sub = parser.add_subparsers(dest="command", required=True)
-    gate = sub.add_parser("gate", help="Phase 0 gate on an audit JSON")
+    gate = sub.add_parser("gate", help="gate on an audit JSON")
     gate.add_argument("--audit", required=True, help="audit JSON file, or - for stdin")
     resolve = sub.add_parser("resolve", help="resolve the skills destination")
     resolve.add_argument("--explicit", help="path the user named")
@@ -380,11 +423,28 @@ def build_parser() -> argparse.ArgumentParser:
     overlap.add_argument("--root", action="append", required=True, help="skills root, repeatable")
     verify = sub.add_parser("verify", help="read back and check a written SKILL.md")
     verify.add_argument("--skill", required=True, help="SKILL.md path or its directory")
-    verify.add_argument("--trigger", required=True, help="trigger phrase to report and check")
+    verify.add_argument("--audit", help="gate audit JSON supplying trigger and flags")
+    verify.add_argument("--trigger", help="trigger phrase; overrides the audit")
     verify.add_argument(
-        "--external-actions", action="store_true", help="the skill takes external or public actions"
+        "--external-actions", action="store_true", help="force the approval-gate check"
+    )
+    verify.add_argument(
+        "--recovery-paths", action="store_true", help="force the recovery-path check"
     )
     return parser
+
+
+def _verify_options(args: argparse.Namespace) -> tuple[str, bool, bool]:
+    """Merge the audit file with flag overrides into (trigger, external, recovery)."""
+    audit = load_json(args.audit) if args.audit else {}
+    if not isinstance(audit, dict):
+        raise SkillifyError("audit must be a JSON object")
+    trigger = args.trigger if args.trigger is not None else audit.get("trigger_phrase")
+    if not isinstance(trigger, str):
+        raise SkillifyError("verify needs --trigger or an --audit with a string trigger_phrase")
+    external = args.external_actions or _optional_bool(audit, "external_actions")
+    recovery = args.recovery_paths or _optional_bool(audit, "recovery_paths")
+    return trigger, external, recovery
 
 
 def run(args: argparse.Namespace, environ: Mapping[str, str]) -> tuple[dict[str, Any], int]:
@@ -396,14 +456,17 @@ def run(args: argparse.Namespace, environ: Mapping[str, str]) -> tuple[dict[str,
     if args.command == "overlap":
         roots = [Path(r).expanduser() for r in args.root]
         return evaluate_overlap(load_json(args.workflow), roots), EXIT_OK
-    skill_file = resolve_skill_file(Path(args.skill))
-    result = verify_skill(skill_file, args.trigger, args.external_actions)
-    return result, EXIT_LOGIC if result["status"] == "FAIL" else EXIT_OK
+    if args.command == "verify":
+        trigger, external, recovery = _verify_options(args)
+        skill_file = resolve_skill_file(Path(args.skill))
+        result = verify_skill(skill_file, trigger, external, recovery)
+        return result, EXIT_LOGIC if result["status"] == "FAIL" else EXIT_OK
+    raise SkillifyError(f"unknown command: {args.command}")
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
     try:
+        args = build_parser().parse_args(argv)
         payload, code = run(args, os.environ)
     except SkillifyError as exc:
         payload, code = {"status": "error", "error": str(exc)}, EXIT_LOGIC

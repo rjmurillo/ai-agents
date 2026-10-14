@@ -13,7 +13,7 @@
         "no skill"
       ],
       "expected_gate": "skillify-gate-reject",
-      "rationale": "A one-off task done in one call fails the reusable-class and trivial-wrapper checks. A response that runs or cites the Phase 0 gate and declines to write a skill is attributable to skillify."
+      "rationale": "A one-off task done in one call fails the reusable-class and trivial-wrapper checks. A response that runs or cites the step 2 gate and declines to write a skill is attributable to skillify."
     },
     {
       "id": "S2",

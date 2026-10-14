@@ -41,23 +41,25 @@ workflow behind it. Starting from a goal: use `skillforge`.
 
 `skillify this`, `skillify`, `save this as a skill`, `make this proper`
 
-Proactive hint: after a task that met the threshold below, the final report
-may carry one declarative line naming the candidate and the phrase to run. It
-is never a question, never an offer, and never a write. Omit it when the host
-or the user restricts the report to the requested result.
-
 ## Contract
 
-- A skill is written only when the Phase 0 gate returns `PROCEED`.
+- A skill is written only when the step 2 gate returns `PROCEED`.
 - Nothing is written until the destination resolves. Unresolved means stop and
   ask; never guess a path.
-- An existing skill covering at least 70 percent of the workflow is patched,
-  not duplicated.
+- An existing skill whose name, description, triggers, and procedure cover at
+  least 70 percent of the workflow's terms (lexical match, minimum 3 terms) is
+  patched, not duplicated.
 - The written file is read back and passes `verify`; the report names the skill
   and its trigger.
 - Approval gates for external or public actions and optional recovery paths
   survive into the generated skill. Skillify never publishes, pushes, or
   shares a skill itself.
+- Proactive hint: when the gate returns `PROCEED` with `proactive_eligible: true`
+  (5 or more tool calls), the final report may carry one declarative line naming
+  the candidate and the phrase to run. Include it only when the host's completion
+  rules allow optional information in the report. Under a completion-tail rule
+  such as this repository's `voice.md`, omit it unless the user asked for capture
+  suggestions. It is never a question, an offer, or a write.
 
 ## Procedure
 
@@ -77,8 +79,8 @@ verification failure, `2` no destination. Harness tool names:
    decision points, gotchas, and note whether any action touches an external
    or public system.
 2. **Gate.** Save the audit as JSON with `tool_call_count`, `reusable_class`,
-   `decision_points`, `gotchas`, `trigger_phrase`, and optional
-   `external_actions`, then run `skillify.py gate --audit audit.json`.
+   `decision_points`, `gotchas`, `trigger_phrase`, and optional booleans
+   `external_actions` and `recovery_paths`, then run `skillify.py gate --audit audit.json`.
    `REJECT` lists reasons (`one_off`, `trivial_wrapper`, `no_real_procedure`,
    `no_trigger_phrase`). On `REJECT`, say the work did not warrant a skill and
    stop. A single tool call with arguments is a tool, not a skill.
@@ -89,13 +91,14 @@ verification failure, `2` no destination. Harness tool names:
    explicit instruction, then the named env var, then a skills root found from
    the working directory (`.claude/skills` for Claude Code, `.github/skills`
    for Copilot CLI). Exit `2` with `needs_clarification` means stop all
-   writes and ask the user for a path. Details:
+   writes and ask the user for a path. When the result has `exists: false`,
+   confirm with the user before creating that root. Details:
    [skill-skeleton.md](references/skill-skeleton.md).
 4. **Check for overlap.** Save the workflow as JSON (`actions`, `terms`,
    `trigger_phrase`) and run `skillify.py overlap --workflow w.json --root
    <resolved root> [--root <other root>]`. Add the user-scope root when the
    host has one. `PATCH` names the skill: read it and add the branch or pitfall
-   with the harness edit tool. `CREATE` continues. When in doubt, patch.
+   with the harness edit tool. `CREATE` continues; fewer than 3 workflow terms also gives `CREATE`, with a reason.
 5. **Decompose into actions.** For each action record: input, action and the
    concrete branch rule, output evidence that proves it ran, and state
    boundary (read-only, internal change, or external/public). Stop splitting
@@ -107,9 +110,11 @@ verification failure, `2` no destination. Harness tool names:
    with the file-edit tool using a unique old string. Inline every convention
    the skill needs; do not depend on a personal instruction file or a path
    outside the skill. Use `pathlib` in any script and no assumed shell.
-7. **Verify.** Run `skillify.py verify --skill <dir> --trigger "<phrase>"`
-   (add `--external-actions` when step 1 found any). Fix every failure and
-   rerun. Do not run a broader evaluation pass.
+7. **Verify.** Run `skillify.py verify --skill <dir> --audit audit.json`. It
+   reads the trigger, `external_actions`, and `recovery_paths` from the audit.
+   External actions need an approval word in a numbered Procedure step, and
+   recovery paths need a step marked optional or recovery. Fix every failure
+   and rerun. Do not run a broader evaluation pass.
 8. **Report in one line:** `Skillified as <name>. Trigger: "<phrase>".` or
    `Patched <name>. Trigger: "<phrase>".` No offers to adjust.
 
@@ -120,9 +125,13 @@ verification failure, `2` no destination. Harness tool names:
 | `gate --audit FILE` | `PROCEED` or `REJECT` with reasons; `-` reads stdin | 0 |
 | `resolve [--explicit P] [--env-var N]... [--cwd D]` | Pick the skills root | 0, or 2 unresolved or not a directory |
 | `overlap --workflow FILE --root P...` | `PATCH` at 0.70 coverage else `CREATE` | 0 |
-| `verify --skill P --trigger T [--external-actions]` | Read-back checks | 0 pass, 1 fail |
+| `verify --skill P --audit FILE` (`--trigger`, `--external-actions`, `--recovery-paths` override) | Read-back checks | 0 pass, 1 fail |
 
-Malformed or unreadable input exits `1` with `status: error`.
+`skillify_text.py` (parsing) and `skillify_verify.py` (read-back checks) are
+imported by `skillify.py`; run only `skillify.py`.
+
+Malformed input, unreadable files, and usage errors exit `1` with `status: error`.
+A relative `--explicit` or env-var path is anchored at `--cwd` and returned absolute.
 
 ## Anti-patterns
 
@@ -130,13 +139,13 @@ Malformed or unreadable input exits `1` with `status: error`.
 |-------|-----|---------|
 | Skillifying a one-off task | A script or note is the right size | Let the gate `REJECT` and stop |
 | Creating a near-duplicate | Overlapping triggers rot the catalog | Run `overlap` first; patch at 0.70 |
-| Writing a path before Phase 3 resolves | A wrong guess creates files in the wrong place | Resolve first; ask when unresolved |
+| Writing a path before step 3 resolves | A wrong guess creates files in the wrong place | Resolve first; ask when unresolved |
 | Vague description | Agents scan only the opening clause | Lead with the action and the real trigger phrase |
 | Trigger phrases nobody says | The skill never loads | Use the user's own words |
 | Dropping Anti-patterns and Pitfalls | Without them the skill is a README | Write at least two of each |
 | Removing an approval gate while simplifying | A public action then runs unreviewed | Carry every gate into the new skill |
 | Publishing the new skill automatically | Skills load in every later session | Write locally; leave sharing to the user |
-| Asking about every section | Skillify is your work | Ask at most one thing: the trigger phrase |
+| Asking about every section | Skillify is your work | Ask only for the trigger phrase, or for the destination when `resolve` needs it |
 
 ## Pitfalls
 

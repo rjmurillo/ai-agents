@@ -7,7 +7,14 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from skillify_text import Section, SkillifyError, count_items, parse_frontmatter, split_sections
+from skillify_text import (
+    Section,
+    SkillifyError,
+    count_items,
+    first_sections,
+    numbered_steps,
+    parse_frontmatter,
+)
 
 DESCRIPTION_LEAD_CHARS = 200
 MAX_NAME_CHARS = 64
@@ -28,6 +35,7 @@ SOURCE_ONLY_TOOLS: tuple[str, ...] = ("skills_list", "skill_view", "skill_manage
 
 APPROVAL_RE = re.compile(r"\b(approv\w*|confirm\w*|consent|authori[sz]\w*)\b", re.IGNORECASE)
 
+RECOVERY_RE = re.compile(r"\b(optional|recovery)\b", re.IGNORECASE)
 NAME_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 
 
@@ -39,22 +47,30 @@ def resolve_skill_file(target: Path) -> Path:
     return skill_file
 
 
-def verify_skill(skill_file: Path, trigger: str, external_actions: bool) -> dict[str, Any]:
+def verify_skill(
+    skill_file: Path,
+    trigger: str,
+    external_actions: bool,
+    recovery_paths: bool = False,
+) -> dict[str, Any]:
     """Read back a written skill and check the structural contract."""
     try:
         text = skill_file.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
         raise SkillifyError(f"cannot read {skill_file}: {exc}") from exc
     meta, body = parse_frontmatter(text)
-    sections = {s.name: s for s in split_sections(body)}
+    sections = first_sections(body)
     checks = [
         *_name_checks(meta.get("name", ""), skill_file.parent.name),
         _description_check(meta.get("description", ""), trigger),
         *_section_checks(sections),
         _tool_name_check(text),
     ]
+    steps = numbered_steps(sections["procedure"].lines) if "procedure" in sections else []
     if external_actions:
-        checks.append(_approval_check(body))
+        checks.append(_approval_check(steps))
+    if recovery_paths:
+        checks.append(_recovery_check(steps))
     failures = [c["id"] for c in checks if not c["ok"]]
     return {
         "status": "FAIL" if failures else "PASS",
@@ -127,9 +143,18 @@ def _tool_name_check(text: str) -> dict[str, Any]:
     )
 
 
-def _approval_check(body: str) -> dict[str, Any]:
+def _approval_check(steps: list[str]) -> dict[str, Any]:
     return _check(
         "approval_gate_present",
-        bool(APPROVAL_RE.search(body)),
-        "external or public actions need an approval or confirmation gate in the text",
+        any(APPROVAL_RE.search(step) for step in steps),
+        "external or public actions need an approval or confirmation word in a numbered "
+        "Procedure step",
+    )
+
+
+def _recovery_check(steps: list[str]) -> dict[str, Any]:
+    return _check(
+        "recovery_path_marked",
+        any(RECOVERY_RE.search(step) for step in steps),
+        "recovery paths must be marked 'optional' or 'recovery' in a numbered Procedure step",
     )

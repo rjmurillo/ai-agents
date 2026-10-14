@@ -13,6 +13,7 @@ HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*#*\s*$")
 KEY_RE = re.compile(r"^([A-Za-z0-9_-]+):\s*(.*)$")
 BULLET_RE = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+\S")
 SEPARATOR_RE = re.compile(r"^\s*\|[\s:|-]+\|?\s*$")
+NUMBERED_RE = re.compile(r"^\s*\d+[.)]\s+\S")
 BOM = "\ufeff"
 TOKEN_RE = re.compile(r"[a-z0-9]+")
 
@@ -30,8 +31,9 @@ class SkillifyError(Exception):
 def parse_frontmatter(text: str) -> tuple[dict[str, str], str]:
     """Split YAML-ish frontmatter into top-level string values and the body.
 
-    Reads only top-level scalar keys, folded or literal blocks, and quoted
-    strings. Nested maps fold into their parent key and are ignored.
+    Reads top-level keys with scalar, folded, literal, or quoted values.
+    Indented lines under a key, including a nested map, are appended to that
+    key's value as plain text. No nested structure is parsed.
     """
     lines = text.lstrip(BOM).splitlines()
     if not lines or lines[0].strip() != "---":
@@ -99,6 +101,31 @@ def _section_at(lines: Sequence[str], headings: Sequence[tuple[int, int, str]], 
             end = later_index
             break
     return Section(normalize_heading(title), tuple(lines[index + 1 : end]))
+
+
+def first_sections(body: str) -> dict[str, Section]:
+    """Map section name to its first occurrence; a repeated heading is ignored."""
+    found: dict[str, Section] = {}
+    for section in split_sections(body):
+        found.setdefault(section.name, section)
+    return found
+
+
+def numbered_steps(lines: Sequence[str]) -> list[str]:
+    """Group lines into numbered steps; continuation lines join the step above."""
+    steps: list[str] = []
+    fence = False
+    for line in lines:
+        if line.lstrip().startswith(("```", "~~~")):
+            fence = not fence
+            continue
+        if fence:
+            continue
+        if NUMBERED_RE.match(line):
+            steps.append(line.strip())
+        elif steps:
+            steps[-1] = f"{steps[-1]} {line.strip()}"
+    return steps
 
 
 def normalize_heading(title: str) -> str:
