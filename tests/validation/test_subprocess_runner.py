@@ -10,7 +10,6 @@ the timeout marker stays present.
 
 from __future__ import annotations
 
-import os
 import subprocess
 import sys
 import time
@@ -23,8 +22,8 @@ from scripts.validation import subprocess_runner
 from scripts.validation.subprocess_runner import _decode_stream, _run_subprocess
 from tests.validation.subprocess_runner_helpers import (
     POSIX_ONLY,
-    alive,
     child,
+    kill_if_alive,
     read_pid,
     wait_dead,
 )
@@ -294,8 +293,7 @@ class TestRunSubprocessTimeoutKillsProcessGroup:
             grandchild = read_pid(pid_file)
             survived = not wait_dead(grandchild)
         finally:
-            if grandchild and alive(grandchild):
-                os.kill(grandchild, 9)
+            kill_if_alive(grandchild)
 
         assert exit_code == -1
         assert "PARENT-READY" in stdout, "partial output contract (#4955) must hold"
@@ -313,8 +311,7 @@ class TestRunSubprocessTimeoutKillsProcessGroup:
             _run_subprocess([sys.executable, "-c", body, str(pid_file)], timeout=_TIMEOUT_SECONDS)
         finally:
             grandchild = read_pid(pid_file)
-            if alive(grandchild):
-                os.kill(grandchild, 9)
+            kill_if_alive(grandchild)
         assert time.monotonic() - started < 20
 
     def test_grandchild_that_escaped_the_group_cannot_hang_the_gate(
@@ -332,8 +329,7 @@ class TestRunSubprocessTimeoutKillsProcessGroup:
             )
             grandchild = read_pid(pid_file)
         finally:
-            if grandchild and alive(grandchild):
-                os.kill(grandchild, 9)
+            kill_if_alive(grandchild)
 
         assert time.monotonic() - started < 20
         assert exit_code == -1

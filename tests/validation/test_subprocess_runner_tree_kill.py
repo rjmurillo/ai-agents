@@ -25,6 +25,7 @@ from tests.validation.subprocess_runner_helpers import (
     POSIX_ONLY,
     alive,
     child,
+    kill_if_alive,
     read_pid,
     wait_dead,
 )
@@ -214,8 +215,7 @@ class TestNestedSessionKill:
             grandchild = read_pid(pid_file)
             survived = not wait_dead(grandchild)
         finally:
-            if grandchild and alive(grandchild):
-                os.kill(grandchild, 9)
+            kill_if_alive(grandchild)
         assert exit_code == -1
         assert survived is False, f"gh-act stand-in {grandchild} outlived the outer timeout"
 
@@ -262,8 +262,7 @@ class TestCallerStoppedWithSigterm:
         finally:
             if caller.poll() is None:
                 caller.kill()
-            if grandchild and alive(grandchild):
-                os.kill(grandchild, 9)
+            kill_if_alive(grandchild)
         assert caller_code == 128 + signal.SIGTERM
         assert survived is False, f"child {grandchild} outlived its SIGTERMed caller"
 
@@ -321,3 +320,62 @@ class TestAliveHelper:
     def test_running_process_is_alive_without_proc(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(subprocess_runner_helpers, "_proc_state", lambda _pid: None)
         assert alive(os.getpid()) is True
+
+    @POSIX_ONLY
+    def test_pid_reaped_between_probes_is_dead(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A zombie reaped after the signal-0 probe has no state left to read (issue #6621)."""
+        calls: list[int] = []
+
+        def exists_once(pid: int, sig: int) -> None:
+            calls.append(sig)
+            if len(calls) > 1:
+                raise ProcessLookupError(3, "No such process")
+
+        monkeypatch.setattr(subprocess_runner_helpers, "_proc_state", lambda _pid: None)
+        monkeypatch.setattr(subprocess_runner_helpers, "_ps_state", lambda _pid: None)
+        monkeypatch.setattr(os, "kill", exists_once)
+        assert alive(4242) is False
+
+
+@POSIX_ONLY
+class TestKillIfAlive:
+    def test_process_that_exits_before_the_kill_is_not_an_error(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The race in issue #6621: alive, then gone before SIGKILL lands."""
+        monkeypatch.setattr(subprocess_runner_helpers, "alive", lambda _pid: True)
+
+        def gone(pid: int, sig: int) -> None:
+            raise ProcessLookupError(3, "No such process")
+
+        monkeypatch.setattr(os, "kill", gone)
+        kill_if_alive(4242)
+
+    def test_other_kill_errors_still_raise(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(subprocess_runner_helpers, "alive", lambda _pid: True)
+
+        def denied(pid: int, sig: int) -> None:
+            raise PermissionError(1, "Operation not permitted")
+
+        monkeypatch.setattr(os, "kill", denied)
+        with pytest.raises(PermissionError):
+            kill_if_alive(4242)
+
+    def test_zero_pid_is_never_signalled(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Pid 0 means the pid file was never read; ``os.kill(0, 9)`` hits the test's own group."""
+        sent: list[int] = []
+        monkeypatch.setattr(os, "kill", lambda pid, _sig: sent.append(pid))
+        kill_if_alive(0)
+        assert sent == []
+
+    def test_running_process_is_killed(self) -> None:
+        proc = subprocess.Popen(  # subprocess-encoding: strict-ok
+            [sys.executable, "-c", "import time; time.sleep(60)"]
+        )
+        try:
+            kill_if_alive(proc.pid)
+            assert proc.wait(timeout=10) == -signal.SIGKILL
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait()

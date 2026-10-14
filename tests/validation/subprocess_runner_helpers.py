@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -41,16 +42,39 @@ def _ps_state(pid: int) -> str | None:
     return result.stdout.strip() or None
 
 
-def alive(pid: int) -> bool:
-    """True when ``pid`` is a running process; a zombie awaiting reaping is dead."""
+def _exists(pid: int) -> bool:
+    """True when the kernel still has an entry for ``pid``, zombie included."""
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
         return False
+    return True
+
+
+def alive(pid: int) -> bool:
+    """True when ``pid`` is a running process; a zombie awaiting reaping is dead."""
+    if not _exists(pid):
+        return False
     state = _proc_state(pid) or _ps_state(pid)
     if state is None:
-        return True
+        # No state to read: either no /proc and no ps, or the pid was reaped
+        # after the first probe (issue #6621). Probe again to tell them apart.
+        return _exists(pid)
     return not state.startswith("Z")
+
+
+def kill_if_alive(pid: int) -> None:
+    """SIGKILL ``pid`` when it still runs. A process that exits first is not an error.
+
+    The group kill can land between the ``alive`` check and ``os.kill``, so the
+    process may already be gone (issue #6621). Pid 0 means no pid was read.
+    """
+    if not pid or not alive(pid):
+        return
+    try:
+        os.kill(pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
 
 
 def wait_dead(pid: int, seconds: float = 5.0) -> bool:
