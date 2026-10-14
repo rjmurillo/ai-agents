@@ -83,7 +83,8 @@ sections, never substitute invented data.
 A session log or transcript you will read on more than one turn, or one too large to
 read whole, costs its full size on every turn that carries it. Distill it once with
 `distill_artifact.py` (usage: context-optimizer skill, Tool Details: Distill
-Artifact), work from the digest, and reopen the raw source only at a cited line.
+Artifact) and use the digest to locate evidence. When it lacks a detail, search the
+raw source for that detail and read the matching lines with their context.
 
 ---
 

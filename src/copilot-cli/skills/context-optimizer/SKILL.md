@@ -322,7 +322,9 @@ python3 "$SCRIPTS_DIR/distill_artifact.py" build.log
 some_command 2>&1 | python3 "$SCRIPTS_DIR/distill_artifact.py" - --format json
 ```
 
-Read the digest, then reopen the raw source only at a cited line (`L{n}`).
+Use the digest to locate evidence (`L{n}` cites the raw line). It omits middle
+lines without a signal, so search the raw source for any detail it lacks and
+read the matching lines with their context.
 
 </details>
 
