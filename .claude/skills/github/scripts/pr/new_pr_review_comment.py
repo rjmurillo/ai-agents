@@ -8,9 +8,14 @@ top-level comment. This one starts a thread on a diff line:
 2. POST to ``repos/{owner}/{repo}/pulls/{pr}/comments`` with the path, line,
    and side.
 
+Output: a created comment and every API failure print the standard skill
+envelope (Success, Data, Error, Metadata) to stdout. Argument and body
+validation run before any API call and report on stderr.
+
 Exit codes follow ADR-035:
     0 - Success
-    2 - Config/usage error (invalid body, PR not found, line not in the diff)
+    2 - Config/usage error (invalid body, PR not found, line not in the diff,
+        bad request, session refuses GitHub)
     3 - External error (API failure, rate limit, timeout)
     4 - Auth error (not authenticated, permission denied)
 """
@@ -24,7 +29,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 if _plugin_root and os.path.isdir(os.path.join(_plugin_root, "lib", "github_core")):
@@ -47,12 +52,30 @@ from github_core.api import (
     resolve_repo_params,
     sanitize_failure_detail,
 )
+from github_core.output import (
+    add_output_format_arg,
+    get_output_format,
+    write_skill_error,
+    write_skill_output,
+)
 from github_core.validation import assert_valid_body_file, inline_body_error
 
 _SIDES = ("LEFT", "RIGHT")
 _HEAD_SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 _HTTP_STATUS_PATTERN = re.compile(r"\bHTTP\s+(\d{3})\b|\"status\"\s*:\s*\"(\d{3})\"")
 _API_TIMEOUT_SECONDS = 30
+_SCRIPT_NAME = "new_pr_review_comment.py"
+_RATE_LIMITED = frozenset({GhAuthStatus.RATE_LIMITED, GhAuthStatus.SECONDARY_RATE_LIMITED})
+
+
+class CommentApiError(Exception):
+    """An API step failed. main() reports it as a skill error envelope."""
+
+    def __init__(self, message: str, exit_code: int, error_type: str) -> None:
+        super().__init__(message)
+        self.message = message
+        self.exit_code = exit_code
+        self.error_type = error_type
 
 
 def _positive_int(value: str) -> int:
@@ -98,6 +121,7 @@ def build_parser() -> argparse.ArgumentParser:
     body_group = parser.add_mutually_exclusive_group(required=True)
     body_group.add_argument("--body", help="Comment text (inline)")
     body_group.add_argument("--body-file", help="Path to file containing the comment")
+    add_output_format_arg(parser)
     return parser
 
 
@@ -108,28 +132,35 @@ def _http_status(text: str) -> int | None:
     return int(match.group(1) or match.group(2))
 
 
-def _failure_exit_code(status: int | None, text: str) -> int:
-    """Map an HTTP status to an ADR-035 exit code.
+def _classify_failure(status: int | None, text: str) -> tuple[int, str]:
+    """Map an HTTP status to an ADR-035 exit code and an envelope error type.
 
-    404 and 422 mean the caller named something that does not exist or is not
-    in the diff (config). 401 and 403 mean auth, unless the 403 is a quota
-    refusal, which is external and retryable.
+    400 and 422 mean the request named a path or line the API rejects
+    (usage). 401 and 403 mean auth, unless the text shows a quota refusal
+    (external, retryable) or a session that refuses GitHub (config, matching
+    the github_core auth preflight).
     """
-    if status in (404, 422):
-        return 2
+    if status in (400, 422):
+        return 2, "InvalidParams"
     if status in (401, 403):
-        invalid = classify_gh_failure_text(text) is GhAuthStatus.INVALID_CREDENTIALS
-        return 4 if invalid else 3
-    return 3
+        kind = classify_gh_failure_text(text)
+        if kind in _RATE_LIMITED:
+            return 3, "RateLimitError"
+        if kind is GhAuthStatus.TRANSPORT_BLOCKED:
+            return 2, "General"
+        if kind is GhAuthStatus.INVALID_CREDENTIALS:
+            return 4, "AuthError"
+    return 3, "ApiError"
 
 
-def _fail(action: str, result: subprocess.CompletedProcess[str], notfound: str) -> None:
+def _fail(action: str, result: subprocess.CompletedProcess[str], notfound: str) -> NoReturn:
     text = f"{result.stderr or ''}\n{result.stdout or ''}"
     status = _http_status(text)
     if status == 404:
-        error_and_exit(notfound, 2)
-    detail = sanitize_failure_detail(text, limit=400)
-    error_and_exit(f"Failed to {action}: {detail}", _failure_exit_code(status, text))
+        raise CommentApiError(notfound, 2, "NotFound")
+    detail = sanitize_failure_detail(text, limit=400) or "no output from gh"
+    exit_code, error_type = _classify_failure(status, text)
+    raise CommentApiError(f"Failed to {action}: {detail}", exit_code, error_type)
 
 
 def _run_gh_api(args: list[str], action: str) -> subprocess.CompletedProcess[str]:
@@ -144,8 +175,9 @@ def _run_gh_api(args: list[str], action: str) -> subprocess.CompletedProcess[str
             check=False,
         )
     except subprocess.TimeoutExpired:
-        print(f"Timed out after {_API_TIMEOUT_SECONDS}s trying to {action}", file=sys.stderr)
-        raise SystemExit(3) from None
+        raise CommentApiError(
+            f"Timed out after {_API_TIMEOUT_SECONDS}s trying to {action}", 3, "Timeout"
+        ) from None
 
 
 def _resolve_body(args: argparse.Namespace) -> str:
@@ -162,7 +194,9 @@ def _get_head_sha(owner: str, repo: str, pr: int) -> str:
         _fail(action, result, f"Pull request {owner}/{repo}#{pr} not found")
     sha = (result.stdout or "").strip()
     if not _HEAD_SHA_PATTERN.match(sha):
-        error_and_exit(f"Unexpected head commit for {owner}/{repo}#{pr}: {sha[:80]!r}", 3)
+        raise CommentApiError(
+            f"Unexpected head commit for {owner}/{repo}#{pr}: {sha[:80]!r}", 3, "ApiError"
+        )
     return sha
 
 
@@ -195,15 +229,18 @@ def _post_comment(
     try:
         parsed = json.loads(result.stdout)
     except json.JSONDecodeError:
-        error_and_exit(f"GitHub returned a non-JSON response to {action}", 3)
+        raise CommentApiError(
+            f"GitHub returned a non-JSON response to {action}", 3, "ApiError"
+        ) from None
     if not isinstance(parsed, dict):
-        error_and_exit(f"GitHub returned a non-object response to {action}", 3)
+        raise CommentApiError(f"GitHub returned a non-object response to {action}", 3, "ApiError")
     response: dict[str, Any] = parsed
     return response
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    fmt = get_output_format(args.output_format)
 
     assert_gh_authenticated(rest_only=True)
     resolved = resolve_repo_params(args.owner, args.repo)
@@ -214,11 +251,26 @@ def main(argv: list[str] | None = None) -> int:
     if body_error:
         error_and_exit(body_error, 2)
 
-    head_sha = _get_head_sha(owner, repo, args.pull_request)
-    response = _post_comment(owner, repo, args, body, head_sha)
+    try:
+        head_sha = _get_head_sha(owner, repo, args.pull_request)
+        response = _post_comment(owner, repo, args, body, head_sha)
+    except CommentApiError as failure:
+        write_skill_error(
+            failure.message,
+            failure.exit_code,
+            error_type=failure.error_type,
+            output_format=fmt,
+            script_name=_SCRIPT_NAME,
+            extra={
+                "pull_request": args.pull_request,
+                "path": args.path,
+                "line": args.line,
+                "side": args.side,
+            },
+        )
+        return failure.exit_code
 
     output = {
-        "success": True,
         "comment_id": response.get("id"),
         "html_url": response.get("html_url"),
         "pull_request": args.pull_request,
@@ -228,7 +280,12 @@ def main(argv: list[str] | None = None) -> int:
         "commit_id": head_sha,
         "created_at": response.get("created_at"),
     }
-    print(json.dumps(output, indent=2))
+    write_skill_output(
+        output,
+        output_format=fmt,
+        human_summary=f"Created review comment on #{args.pull_request} at {args.path}:{args.line}",
+        script_name=_SCRIPT_NAME,
+    )
     return 0
 
 

@@ -128,8 +128,12 @@ Starts a new review thread on a diff line. Use `post_pr_comment_reply.py` to rep
 - `--line` is the file line number on that side, and it must fall inside the PR diff.
 - The script reads the PR head commit and sends it as `commit_id`, so the comment anchors to the current head.
 - `body`, `path`, `commit_id`, and `side` go out as raw `-f` fields. Only `line` is a typed `-F` field. Do not switch `body` to `-F`, because a body that starts with `@` would then be read as a file.
-- Exit 0: created. The envelope carries `comment_id`, `html_url`, `commit_id`, `path`, `line`, `side`.
-- Exit 2: the PR is not found, the body is invalid, or the API returned 422 (line or path not in the diff).
+- Output uses the standard skill envelope. Pass `--output-format json` to force JSON.
+- Exit 0: created. `Data` carries `comment_id`, `html_url`, `pull_request`, `path`, `line`, `side`, `commit_id`, `created_at`.
+- On an API failure, `Error.Code` is the exit code and `Error.Type` names the cause. `Data` echoes the PR, path, line, and side.
+- Argument and body errors happen before any API call. They print plain text to stderr and exit 2.
+- Exit 2: the PR is not found, the body is invalid, or the API returned 400 or 422 (line or path not in the diff).
+- Exit 2 also covers a session whose network policy refuses GitHub.
 - Exit 3: another API failure, a quota refusal, or a timeout.
 - A timeout on the POST can still create the comment. Before retrying after exit 3, run `get_pr_review_comments.py` and look for the body, or a retry can post a duplicate thread.
 - Exit 4: not authenticated, or the token cannot write to the PR.

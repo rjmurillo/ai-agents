@@ -34,6 +34,8 @@ build_parser = _mod.build_parser
 
 HEAD_SHA = "a" * 40
 BASE_ARGS = [
+    "--output-format",
+    "json",
     "--pull-request",
     "123",
     "--path",
@@ -43,6 +45,10 @@ BASE_ARGS = [
     "--body",
     "Please rename this.",
 ]
+
+
+def _envelope(capsys) -> dict:
+    return json.loads(capsys.readouterr().out)
 
 
 def _completed(stdout: str = "", stderr: str = "", rc: int = 0):
@@ -138,9 +144,11 @@ class TestMainSuccess:
         line_index = post_args.index("line=47")
         assert post_args[line_index - 1] == "-F"
 
-        out = json.loads(capsys.readouterr().out)
-        assert out == {
-            "success": True,
+        out = _envelope(capsys)
+        assert out["Success"] is True
+        assert out["Error"] is None
+        assert out["Metadata"]["Script"] == "new_pr_review_comment.py"
+        assert out["Data"] == {
             "comment_id": 99,
             "html_url": "https://github.com/o/r/pull/123#discussion_r99",
             "pull_request": 123,
@@ -169,7 +177,17 @@ class TestMainSuccess:
         ) as run:
             assert main([*BASE_ARGS, "--side", "LEFT"]) == 0
         assert "side=LEFT" in run.call_args_list[1].args[0]
-        assert json.loads(capsys.readouterr().out)["side"] == "LEFT"
+        assert _envelope(capsys)["Data"]["side"] == "LEFT"
+
+    def test_human_format_prints_summary(self, repo_ready, capsys):
+        argv = [*BASE_ARGS[2:], "--output-format", "human"]
+        with patch(
+            "new_pr_review_comment.subprocess.run",
+            side_effect=[_completed(stdout=HEAD_SHA), _created()],
+        ):
+            assert main(argv) == 0
+        out = capsys.readouterr().out
+        assert "[PASS] Created review comment on #123 at src/app.py:47" in out
 
     def test_requests_rest_only_auth(self, repo_ready):
         with patch(
@@ -236,98 +254,143 @@ class TestMainUsageErrors:
 
 
 class TestHeadShaFailures:
+    def _run(self, result: subprocess.CompletedProcess[str], capsys) -> tuple[int, dict]:
+        with patch("new_pr_review_comment.subprocess.run", return_value=result) as run:
+            code = main(BASE_ARGS)
+        assert run.call_count == 1
+        return code, _envelope(capsys)
+
     def test_pull_request_not_found_exits_2(self, repo_ready, capsys):
-        with patch(
-            "new_pr_review_comment.subprocess.run",
-            return_value=_completed(stderr="gh: Not Found (HTTP 404)", rc=1),
-        ):
-            with pytest.raises(SystemExit) as exc:
-                main(BASE_ARGS)
-        assert exc.value.code == 2
-        assert "o/r#123 not found" in capsys.readouterr().err
+        code, out = self._run(_completed(stderr="gh: Not Found (HTTP 404)", rc=1), capsys)
+        assert code == 2
+        assert out["Success"] is False
+        assert out["Error"]["Code"] == 2
+        assert out["Error"]["Type"] == "NotFound"
+        assert "o/r#123 not found" in out["Error"]["Message"]
 
-    def test_malformed_head_sha_exits_3(self, repo_ready):
-        with patch(
-            "new_pr_review_comment.subprocess.run",
-            return_value=_completed(stdout="not-a-sha"),
-        ):
-            with pytest.raises(SystemExit) as exc:
-                main(BASE_ARGS)
-        assert exc.value.code == 3
+    def test_malformed_head_sha_exits_3(self, repo_ready, capsys):
+        code, out = self._run(_completed(stdout="not-a-sha"), capsys)
+        assert code == 3
+        assert out["Error"]["Type"] == "ApiError"
 
-    def test_head_lookup_server_error_exits_3(self, repo_ready):
-        with patch(
-            "new_pr_review_comment.subprocess.run",
-            return_value=_completed(stderr="gh: Bad Gateway (HTTP 502)", rc=1),
-        ):
-            with pytest.raises(SystemExit) as exc:
-                main(BASE_ARGS)
-        assert exc.value.code == 3
+    def test_head_lookup_server_error_exits_3(self, repo_ready, capsys):
+        code, out = self._run(_completed(stderr="gh: Bad Gateway (HTTP 502)", rc=1), capsys)
+        assert code == 3
+        assert out["Error"] == {
+            "Message": out["Error"]["Message"],
+            "Code": 3,
+            "Type": "ApiError",
+        }
+        assert out["Data"] == {
+            "pull_request": 123,
+            "path": "src/app.py",
+            "line": 47,
+            "side": "RIGHT",
+        }
 
 
 class TestPostFailures:
-    def _run(self, post_result: subprocess.CompletedProcess[str]) -> int:
+    def _run(self, post_result: subprocess.CompletedProcess[str], capsys) -> tuple[int, dict]:
         with patch(
             "new_pr_review_comment.subprocess.run",
             side_effect=[_completed(stdout=HEAD_SHA), post_result],
         ):
-            with pytest.raises(SystemExit) as exc:
-                main(BASE_ARGS)
-        code = exc.value.code
-        assert isinstance(code, int)
-        return code
+            code = main(BASE_ARGS)
+        out = _envelope(capsys)
+        assert out["Success"] is False
+        assert out["Error"]["Code"] == code
+        return code, out
 
-    def test_not_found_exits_2(self, repo_ready):
-        assert self._run(_completed(stderr="gh: Not Found (HTTP 404)", rc=1)) == 2
+    def test_not_found_exits_2(self, repo_ready, capsys):
+        code, out = self._run(_completed(stderr="gh: Not Found (HTTP 404)", rc=1), capsys)
+        assert (code, out["Error"]["Type"]) == (2, "NotFound")
 
     def test_unprocessable_line_exits_2_with_reason(self, repo_ready, capsys):
         stderr = (
             "gh: Unprocessable Entity: "
             '"pull_request_review_thread.line must be part of the diff" (HTTP 422)'
         )
-        assert self._run(_completed(stderr=stderr, rc=1)) == 2
-        err = capsys.readouterr().err
-        assert "src/app.py:47" in err
-        assert "must be part of the diff" in err
+        code, out = self._run(_completed(stderr=stderr, rc=1), capsys)
+        assert (code, out["Error"]["Type"]) == (2, "InvalidParams")
+        assert "src/app.py:47" in out["Error"]["Message"]
+        assert "must be part of the diff" in out["Error"]["Message"]
 
-    def test_unauthorized_exits_4(self, repo_ready):
-        assert self._run(_completed(stderr="gh: Bad credentials (HTTP 401)", rc=1)) == 4
+    def test_bad_request_exits_2(self, repo_ready, capsys):
+        code, out = self._run(_completed(stderr="gh: Bad Request (HTTP 400)", rc=1), capsys)
+        assert (code, out["Error"]["Type"]) == (2, "InvalidParams")
 
-    def test_forbidden_exits_4(self, repo_ready):
+    def test_unauthorized_exits_4(self, repo_ready, capsys):
+        code, out = self._run(_completed(stderr="gh: Bad credentials (HTTP 401)", rc=1), capsys)
+        assert (code, out["Error"]["Type"]) == (4, "AuthError")
+
+    def test_forbidden_exits_4(self, repo_ready, capsys):
         stderr = "gh: Resource not accessible by integration (HTTP 403)"
-        assert self._run(_completed(stderr=stderr, rc=1)) == 4
+        code, out = self._run(_completed(stderr=stderr, rc=1), capsys)
+        assert (code, out["Error"]["Type"]) == (4, "AuthError")
 
-    def test_rate_limited_forbidden_exits_3(self, repo_ready):
+    def test_rate_limited_forbidden_exits_3(self, repo_ready, capsys):
         stderr = "gh: API rate limit exceeded for user (HTTP 403)"
-        assert self._run(_completed(stderr=stderr, rc=1)) == 3
+        code, out = self._run(_completed(stderr=stderr, rc=1), capsys)
+        assert (code, out["Error"]["Type"]) == (3, "RateLimitError")
 
-    def test_server_error_exits_3(self, repo_ready):
-        assert self._run(_completed(stderr="gh: Server Error (HTTP 500)", rc=1)) == 3
+    def test_transport_blocked_forbidden_exits_2(self, repo_ready, capsys):
+        text = "gh: Forbidden (HTTP 403)"
+        with patch(
+            "new_pr_review_comment.classify_gh_failure_text",
+            return_value=_mod.GhAuthStatus.TRANSPORT_BLOCKED,
+        ):
+            code, out = self._run(_completed(stderr=text, rc=1), capsys)
+        assert (code, out["Error"]["Type"]) == (2, "General")
 
-    def test_failure_without_http_status_exits_3(self, repo_ready):
-        assert self._run(_completed(stderr="connection reset by peer", rc=1)) == 3
+    def test_transient_forbidden_exits_3(self, repo_ready, capsys):
+        text = "gh: Forbidden (HTTP 403)"
+        with patch(
+            "new_pr_review_comment.classify_gh_failure_text",
+            return_value=_mod.GhAuthStatus.TRANSIENT_ERROR,
+        ):
+            code, out = self._run(_completed(stderr=text, rc=1), capsys)
+        assert (code, out["Error"]["Type"]) == (3, "ApiError")
 
-    def test_json_body_status_422_exits_2(self, repo_ready):
+    def test_server_error_exits_3(self, repo_ready, capsys):
+        code, out = self._run(_completed(stderr="gh: Server Error (HTTP 500)", rc=1), capsys)
+        assert (code, out["Error"]["Type"]) == (3, "ApiError")
+
+    def test_failure_without_http_status_exits_3(self, repo_ready, capsys):
+        code, _ = self._run(_completed(stderr="connection reset by peer", rc=1), capsys)
+        assert code == 3
+
+    def test_failure_with_no_output_has_message(self, repo_ready, capsys):
+        code, out = self._run(_completed(rc=1), capsys)
+        assert code == 3
+        assert "no output from gh" in out["Error"]["Message"]
+
+    def test_json_body_status_422_exits_2(self, repo_ready, capsys):
         body = '{"message": "Validation Failed", "status": "422"}'
-        assert self._run(_completed(stdout=body, rc=1)) == 2
+        code, _ = self._run(_completed(stdout=body, rc=1), capsys)
+        assert code == 2
 
     def test_error_text_is_sanitized(self, repo_ready, capsys):
         stderr = "gh: boom token ghp_" + "a" * 36 + " (HTTP 500)"
-        assert self._run(_completed(stderr=stderr, rc=1)) == 3
-        assert "ghp_" not in capsys.readouterr().err
+        code, out = self._run(_completed(stderr=stderr, rc=1), capsys)
+        assert code == 3
+        assert "ghp_" not in out["Error"]["Message"]
 
-    def test_invalid_json_response_exits_3(self, repo_ready):
-        assert self._run(_completed(stdout="<html>")) == 3
+    def test_invalid_json_response_exits_3(self, repo_ready, capsys):
+        code, _ = self._run(_completed(stdout="<html>"), capsys)
+        assert code == 3
 
-    def test_timeout_exits_3(self, repo_ready):
+    def test_timeout_exits_3(self, repo_ready, capsys):
         with patch(
             "new_pr_review_comment.subprocess.run",
             side_effect=subprocess.TimeoutExpired(cmd="gh", timeout=30),
         ):
-            with pytest.raises(SystemExit) as exc:
-                main(BASE_ARGS)
-        assert exc.value.code == 3
+            code = main(BASE_ARGS)
+        out = _envelope(capsys)
+        assert code == 3
+        assert out["Error"]["Type"] == "Timeout"
+        assert "Timed out after 30s" in out["Error"]["Message"]
 
     @pytest.mark.parametrize("payload", ["[]", '["a"]', "null", '"text"', "42"])
-    def test_non_object_json_response_exits_3(self, repo_ready, payload: str):
-        assert self._run(_completed(stdout=payload)) == 3
+    def test_non_object_json_response_exits_3(self, repo_ready, capsys, payload: str):
+        code, _ = self._run(_completed(stdout=payload), capsys)
+        assert code == 3
