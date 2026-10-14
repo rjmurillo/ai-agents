@@ -122,6 +122,9 @@ local scripts, external facts, or true parallel sub-agent orchestration.
 | `SkillForge --triage {input}` | Run Phase 0 triage only |
 | `SkillForge --improve {skill}` | Enter improvement mode for existing skill |
 
+Measured improvement against a scored eval set routes to `skillopt`. Improve mode
+(`--improve`, `IMPROVE_EXISTING`) is for unscored structural edits.
+
 ---
 
 ## Phase 0: Skill Triage

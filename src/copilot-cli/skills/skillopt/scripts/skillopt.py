@@ -27,6 +27,11 @@ allowed to exist:
 Pure stdlib, no third-party deps. It is harness-agnostic and runs under any
 Python 3.10+. Exit codes: 0 = success / accept, 1 = reject / mismatch,
 2 = usage or validation error.
+
+buffer-check is the one inverted command, kept from the source contract on
+purpose: it exits 0 for KNOWN-BAD (already rejected) and 1 for NOVEL (not yet
+tried). Callers must branch on the stdout word or on the exit code explicitly,
+never chain it with `&&` as if 0 meant "safe to proceed".
 """
 
 from __future__ import annotations
@@ -148,7 +153,15 @@ def _cmd_pair_gate(args: argparse.Namespace) -> int:
     null_results = (
         _load_object(args.null_results, "pair-gate null results") if args.null_results else None
     )
-    report = pair_gate(eval_set, incumbent_results, candidate_results, args.split, null_results)
+    report = pair_gate(
+        eval_set,
+        incumbent_results,
+        candidate_results,
+        args.split,
+        null_results,
+        incumbent_sha256=args.incumbent_sha256,
+        null_sha256=args.null_sha256,
+    )
     print(json.dumps(report, indent=2))
     return 0 if report["accepted"] else 1
 
@@ -217,6 +230,10 @@ def _add_gate_parsers(sub: argparse._SubParsersAction[argparse.ArgumentParser]) 
     p.add_argument("--incumbent-results", required=True)
     p.add_argument("--candidate-results", required=True)
     p.add_argument("--null-results", help="no-op rerun of the byte-identical incumbent")
+    p.add_argument(
+        "--incumbent-sha256", help="sha256 of the incumbent (required with --null-results)"
+    )
+    p.add_argument("--null-sha256", help="sha256 of the file the null run used (must match)")
     p.add_argument("--split", default="sel")
     p.set_defaults(func=_cmd_pair_gate)
 

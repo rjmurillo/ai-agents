@@ -6,7 +6,8 @@ the gate real, so build it first.
 
 ## 1. Eval manifest (`eval.json`)
 
-Names the tasks and which task ids are held out for the gate.
+Names the tasks and which task ids are held out for the gate. The JSON below
+is an excerpt; `example-eval.json` is a full, runnable manifest.
 
 ```json
 {
@@ -16,6 +17,7 @@ Names the tasks and which task ids are held out for the gate.
     "sel": ["t7", "t8", "t9", "t10"]
   },
   "exposed": [],
+  "scorer": "deterministic",
   "tasks": {
     "t1": {
       "prompt": "Is there a stdlib way to do X in Python?",
@@ -31,12 +33,19 @@ Names the tasks and which task ids are held out for the gate.
   reflect on `sel` tasks; that is training on the test set.
 - `exposed`: optional list of task ids whose prompt, verifier, or outcome the
   candidate author saw before the candidate was frozen. `pair-gate` exits 2
-  while any of them is in the split being gated. Move them to `train` and add
-  untouched holdout tasks.
+  while any of them is in the `sel` split. The check covers `sel` only, so
+  `train` may hold exposed tasks and a `--split train` review still works.
+  Move exposed tasks to `train` and add untouched holdout tasks.
 - `tasks[id].status`: optional. `"invalid"` or `"exposed"` marks a task that
-  cannot count. `pair-gate` exits 2 while such a task is in the gated split.
+  cannot count. `pair-gate` exits 2 while such a task is in the `sel` split.
+  A `status` that is present but not a string exits 2, and so does a `tasks`
+  value that is not an object.
   Use `"invalid"` for missing inputs, a verifier that demands unsupported
   work, a scope violation, or a rollout run against the wrong artifact.
+- `scorer`: optional, `"deterministic"` or `"nondeterministic"`. Absent
+  means no extra requirement. With `"nondeterministic"`, `pair-gate` on `sel`
+  exits 2 ("nondeterministic scorer requires --null-results") until you pass a
+  null control. Any other non-null value exits 2.
 - `tasks[id].verifier`: how pass or fail is decided. Prefer a deterministic
   check (exit code, exact match, a script) over a judgment. The scripts do not
   run the verifier; you do, and you write the result into the results file.
@@ -67,6 +76,10 @@ the whole batch.
 - `insert_after`, `replace`, and `delete` require a unique `anchor`.
 - `text` may contain `\n` for multi-line insertions.
 - Any patch that would change a protected slow section is rejected.
+- A patch whose `text` contains `SLOW_UPDATE_START` or `SLOW_UPDATE_END` is
+  rejected for `append`, `insert_after`, and `replace`, so a patch cannot open,
+  close, or forge a fence. After the last patch the document's fences must
+  still be well formed.
 - CRLF documents keep their line endings.
 
 ## 3. Results (`*_results.json`)
@@ -89,13 +102,23 @@ and any null control each get their own file.
 
 ## Scoring and gating
 
+Run from the skill directory:
+
 ```bash
-python3 skillopt.py pair-gate \
-  --eval eval.json \
-  --incumbent-results incumbent_results.json \
-  --candidate-results candidate_results.json \
-  [--null-results null_results.json] [--split sel]
+python3 scripts/skillopt.py pair-gate --eval eval.json --incumbent-results incumbent_results.json --candidate-results candidate_results.json
 ```
+
+On Windows:
+
+```powershell
+py -3 scripts\skillopt.py pair-gate --eval eval.json --incumbent-results incumbent_results.json --candidate-results candidate_results.json
+```
+
+Optional flags: `--split NAME` (default `sel`) and `--null-results FILE`. A
+null control also needs `--incumbent-sha256` and `--null-sha256`, the digests
+`skillopt.py hash` printed for the incumbent and for the file the null
+run used. A missing digest, or two that differ, exits 2 ("null control did not
+run on the byte-identical incumbent").
 
 The report is JSON on stdout:
 

@@ -66,6 +66,19 @@ class TestCopilotIngestion:
         make_copilot_db(db, [(1, 1, "second", None), (1, 0, "first", None)])
         assert [ms.user_text(r) for r in ms.iter_copilot_records(db)] == ["first", "second"]
 
+    def test_boundary_when_session_id_changes(self, tmp_path: Path) -> None:
+        db = tmp_path / "s.db"
+        rows = [(1, 0, "a1", None), (1, 1, "a2", None), (2, 0, "b1", None)]
+        make_copilot_db(db, rows)
+        types = [r["type"] for r in ms.iter_copilot_records(db)]
+        assert types == ["user", "user", "session-boundary", "user"]
+
+    def test_correction_does_not_cross_copilot_sessions(self, tmp_path: Path) -> None:
+        db = tmp_path / "s.db"
+        make_copilot_db(db, [(1, 0, "go", "skill(ship)"), (2, 0, "that's wrong", "ok")])
+        stats = ms.aggregate(ms.iter_copilot_records(db), window=5)
+        assert stats["ship"] == {"invocations": 1, "corrections": 0}
+
     def test_aggregate_over_copilot(self, tmp_path: Path) -> None:
         db = tmp_path / "s.db"
         make_copilot_db(db, [(1, 0, "do it", "skill(ship) running"), (1, 1, "that's wrong", "ok")])
@@ -219,6 +232,15 @@ class TestSources:
         make_copilot_db(db, [(1, 0, "go", "skill(qa)")])
         ns = argparse.Namespace(no_claude=False, no_copilot=False, copilot=str(db), root=[str(f)])
         assert set(ms.aggregate(msrc._source_records(ns))) == {"review", "qa"}
+
+    def test_sources_are_separated_by_a_boundary(self, tmp_path: Path) -> None:
+        f = tmp_path / "t.jsonl"
+        write_jsonl(f, [skill_use("review")])
+        db = tmp_path / "s.db"
+        make_copilot_db(db, [(1, 0, "that's wrong", None)])
+        ns = argparse.Namespace(no_claude=False, no_copilot=False, copilot=str(db), root=[str(f)])
+        stats = ms.aggregate(msrc._source_records(ns), window=5)
+        assert stats["review"]["corrections"] == 0
 
 
 class TestNoSourceDegradation:

@@ -12,6 +12,8 @@ from skillopt_helpers import (
     write_json,
 )
 
+SHA_ARGS = ["--incumbent-sha256", "a" * 64, "--null-sha256", "a" * 64]
+
 
 class PairGateFiles:
     """Writes the JSON inputs for a pair-gate invocation."""
@@ -82,14 +84,58 @@ class TestCli:
     def test_pair_gate_null_results_flag(self, tmp_path: Path, capsys: Capture) -> None:
         files = PairGateFiles(tmp_path, {"splits": {"sel": ["a"]}}, {"a": False}, {"a": True})
         null = write_json(tmp_path / "null.json", {"a": True})
-        assert skillopt.main(files.argv("--null-results", str(null))) == 1
+        assert skillopt.main(files.argv("--null-results", str(null), *SHA_ARGS)) == 1
         assert json.loads(capsys.readouterr().out)["verdict"] == "REJECT_NULL_CONTROL"
 
     def test_pair_gate_null_results_accept(self, tmp_path: Path, capsys: Capture) -> None:
         files = PairGateFiles(tmp_path, {"splits": {"sel": ["a"]}}, {"a": False}, {"a": True})
         null = write_json(tmp_path / "null.json", {"a": False})
-        assert skillopt.main(files.argv("--null-results", str(null))) == 0
+        assert skillopt.main(files.argv("--null-results", str(null), *SHA_ARGS)) == 0
         assert json.loads(capsys.readouterr().out)["genuine_gains"] == ["a"]
+
+    def test_pair_gate_null_results_without_hashes_exit_two(
+        self, tmp_path: Path, capsys: Capture
+    ) -> None:
+        files = PairGateFiles(tmp_path, {"splits": {"sel": ["a"]}}, {"a": False}, {"a": True})
+        null = write_json(tmp_path / "null.json", {"a": False})
+        assert skillopt.main(files.argv("--null-results", str(null))) == 2
+        assert "--incumbent-sha256" in capsys.readouterr().err
+
+    def test_pair_gate_null_hash_mismatch_exit_two(self, tmp_path: Path, capsys: Capture) -> None:
+        files = PairGateFiles(tmp_path, {"splits": {"sel": ["a"]}}, {"a": False}, {"a": True})
+        null = write_json(tmp_path / "null.json", {"a": False})
+        argv = files.argv("--null-results", str(null))
+        argv += ["--incumbent-sha256", "a" * 64, "--null-sha256", "b" * 64]
+        assert skillopt.main(argv) == 2
+        assert "byte-identical incumbent" in capsys.readouterr().err
+
+    def test_pair_gate_nondeterministic_scorer_needs_null_exit_two(
+        self, tmp_path: Path, capsys: Capture
+    ) -> None:
+        eval_doc = {"splits": {"sel": ["a"]}, "scorer": "nondeterministic"}
+        files = PairGateFiles(tmp_path, eval_doc, {"a": False}, {"a": True})
+        assert skillopt.main(files.argv()) == 2
+        assert "nondeterministic scorer requires --null-results" in capsys.readouterr().err
+
+    def test_pair_gate_nondeterministic_scorer_with_null_runs(self, tmp_path: Path) -> None:
+        eval_doc = {"splits": {"sel": ["a"]}, "scorer": "nondeterministic"}
+        files = PairGateFiles(tmp_path, eval_doc, {"a": False}, {"a": True})
+        null = write_json(tmp_path / "null.json", {"a": False})
+        assert skillopt.main(files.argv("--null-results", str(null), *SHA_ARGS)) == 0
+
+    def test_pair_gate_unknown_scorer_exit_two(self, tmp_path: Path, capsys: Capture) -> None:
+        eval_doc = {"splits": {"sel": ["a"]}, "scorer": "flaky"}
+        files = PairGateFiles(tmp_path, eval_doc, {"a": False}, {"a": True})
+        assert skillopt.main(files.argv()) == 2
+        assert "'scorer' must be one of" in capsys.readouterr().err
+
+    def test_pair_gate_train_review_with_exposed_tasks_works(
+        self, tmp_path: Path, capsys: Capture
+    ) -> None:
+        eval_doc = {"splits": {"sel": ["s"], "train": ["a"]}, "exposed": ["a"]}
+        files = PairGateFiles(tmp_path, eval_doc, {"a": False}, {"a": True})
+        assert skillopt.main(files.argv("--split", "train")) == 0
+        assert json.loads(capsys.readouterr().out)["split"] == "train"
 
     def test_pair_gate_exposed_exit_two(self, tmp_path: Path, capsys: Capture) -> None:
         files = PairGateFiles(

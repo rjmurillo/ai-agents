@@ -71,6 +71,28 @@ class TestLoadBaseline:
         with pytest.raises(ValueError, match="must be an object"):
             mh._load_baseline(f)
 
+    def test_corrections_above_invocations_names_file_and_skill(self, tmp_path: Path) -> None:
+        f = tmp_path / "over.json"
+        f.write_text(
+            json.dumps({"stats": {"build": {"invocations": 1, "corrections": 2}}}),
+            encoding="utf-8",
+        )
+        with pytest.raises(ValueError, match=r"over\.json.*'build'.*corrections > invocations"):
+            mh._load_baseline(f)
+
+    def test_corrections_without_invocations_key_rejected(self, tmp_path: Path) -> None:
+        f = tmp_path / "over.json"
+        f.write_text(json.dumps({"stats": {"a": {"corrections": 1}}}), encoding="utf-8")
+        with pytest.raises(ValueError, match="corrections > invocations"):
+            mh._load_baseline(f)
+
+    def test_corrections_equal_to_invocations_ok(self, tmp_path: Path) -> None:
+        f = tmp_path / "eq.json"
+        f.write_text(
+            json.dumps({"stats": {"a": {"invocations": 2, "corrections": 2}}}), encoding="utf-8"
+        )
+        assert mh._load_baseline(f)[1]["a"] == {"invocations": 2, "corrections": 2}
+
     @pytest.mark.parametrize("value", ["3", 1.5, True, None, -1, [1]])
     def test_stat_values_must_be_ints(self, tmp_path: Path, value: object) -> None:
         f = tmp_path / "b.json"

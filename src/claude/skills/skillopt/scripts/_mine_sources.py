@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import argparse
-import itertools
 import sys
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
-from _mine_records import iter_copilot_records, iter_records
+from _mine_records import SESSION_BOUNDARY, iter_copilot_records, iter_records
 
 
 def _default_roots() -> list[Path]:
@@ -60,6 +59,14 @@ def _sources(args: argparse.Namespace) -> list[dict[str, Any]]:
     return found
 
 
+def _with_boundaries(streams: list[Iterator[dict[str, Any]]]) -> Iterator[dict[str, Any]]:
+    """Chain streams, marking a session boundary between consecutive ones."""
+    for index, stream in enumerate(streams):
+        if index:
+            yield dict(SESSION_BOUNDARY)
+        yield from stream
+
+
 def _source_records(args: argparse.Namespace) -> Iterator[dict[str, Any]]:
     """Chain records from every AVAILABLE source. Unavailable ones are skipped."""
     streams: list[Iterator[dict[str, Any]]] = []
@@ -70,7 +77,7 @@ def _source_records(args: argparse.Namespace) -> Iterator[dict[str, Any]]:
             streams.append(iter_copilot_records(source["path"]))
         else:
             streams.append(iter_records(_gather_paths([source["path"]])))
-    return itertools.chain(*streams)
+    return _with_boundaries(streams)
 
 
 def _note_if_no_source(args: argparse.Namespace) -> None:

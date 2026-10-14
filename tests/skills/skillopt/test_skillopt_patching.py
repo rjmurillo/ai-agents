@@ -220,6 +220,36 @@ class TestApplyPatches:
         with pytest.raises(SkillOptError, match="without"):
             skillopt.apply_patches(doc, [{"op": "delete", "anchor": "a"}], budget=1)
 
+    # --- marker text and final fence check ---
+    @pytest.mark.parametrize("op", ["append", "insert_after", "replace"])
+    @pytest.mark.parametrize(
+        "text",
+        [
+            skillopt.SLOW_START,
+            skillopt.SLOW_END,
+            "prefix SLOW_UPDATE_START suffix",
+            "a\nSLOW_UPDATE_END",
+            f"a\n{skillopt.SLOW_START}\nb\n{skillopt.SLOW_END}",
+        ],
+    )
+    def test_marker_text_in_patch_rejected(self, op: str, text: str) -> None:
+        patch = {"op": op, "anchor": "line two", "text": text}
+        with pytest.raises(SkillOptError, match="slow-section marker text"):
+            skillopt.apply_patches(self.DOC, [patch], budget=1)
+
+    def test_marker_text_in_delete_patch_is_irrelevant(self) -> None:
+        patch = {"op": "delete", "anchor": "line two", "text": skillopt.SLOW_START}
+        out = skillopt.apply_patches(self.DOC, [patch], budget=1)
+        assert out.split("\n") == ["line one", "line three"]
+
+    def test_final_check_rejects_malformed_fence_with_no_patches(self) -> None:
+        doc = "\n".join(["a", skillopt.SLOW_START, "b"])
+        with pytest.raises(SkillOptError, match="unterminated"):
+            skillopt.apply_patches(doc, [], budget=0)
+
+    def test_final_check_accepts_wellformed_fence_with_no_patches(self) -> None:
+        assert skillopt.apply_patches(self.FENCED, [], budget=0) == self.FENCED
+
     # --- CRLF ---
     def test_crlf_round_trip_preserved(self) -> None:
         doc = "line one\r\nline two\r\nline three\r\n"

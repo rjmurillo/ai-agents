@@ -93,6 +93,18 @@ def merge_stats(parts: Iterable[dict[str, dict[str, int]]]) -> dict[str, dict[st
     return total
 
 
+def _check_baseline_row(path: Path, name: str, row: object) -> None:
+    """One skill's counts: non-negative ints, and corrections never exceed invocations."""
+    if not isinstance(row, dict):
+        raise ValueError(f"baseline {path}: stats for {name!r} must be an object")
+    for key in _STAT_KEYS:
+        value = row.get(key, 0)
+        if type(value) is not int or value < 0:
+            raise ValueError(f"baseline {path}: {name}.{key} must be a non-negative integer")
+    if row.get("corrections", 0) > row.get("invocations", 0):
+        raise ValueError(f"baseline {path}: skill {name!r} has corrections > invocations")
+
+
 def _load_baseline(path: Path) -> tuple[str, dict[str, dict[str, int]]]:
     """Read one `collect` baseline; any defect raises ValueError naming the file."""
     try:
@@ -105,10 +117,5 @@ def _load_baseline(path: Path) -> tuple[str, dict[str, dict[str, int]]]:
     if not isinstance(host, str):
         raise ValueError(f"baseline {path} host must be a string")
     for name, row in doc["stats"].items():
-        if not isinstance(row, dict):
-            raise ValueError(f"baseline {path}: stats for {name!r} must be an object")
-        for key in _STAT_KEYS:
-            value = row.get(key, 0)
-            if type(value) is not int or value < 0:
-                raise ValueError(f"baseline {path}: {name}.{key} must be a non-negative integer")
+        _check_baseline_row(path, name, row)
     return host, doc["stats"]

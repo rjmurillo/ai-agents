@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any, ClassVar, cast
+
 import pytest
 import skillopt
 from skillopt import SkillOptError
@@ -21,6 +23,7 @@ class TestGate:
 class TestPairGate:
     EVAL = {"splits": {"sel": ["s1", "s2", "ctx"]}}
     ALL_PASS = {"s1": True, "s2": True, "ctx": True}
+    SHA: ClassVar[dict[str, str]] = {"incumbent_sha256": "a" * 64, "null_sha256": "a" * 64}
     BASE = {"s1": True, "s2": True, "ctx": False}
 
     def test_accepts_gain_with_no_regression(self) -> None:
@@ -79,13 +82,17 @@ class TestPairGate:
 
     def test_non_bool_null_value_is_unverified(self) -> None:
         null = {"s1": True, "s2": True, "ctx": "UNVERIFIED"}
-        report = skillopt.pair_gate(self.EVAL, self.BASE, self.ALL_PASS, null_results=null)
+        report = skillopt.pair_gate(
+            self.EVAL, self.BASE, self.ALL_PASS, null_results=null, **self.SHA
+        )
         assert report["verdict"] == "REJECT_UNVERIFIED"
         assert report["unverified"] == ["ctx"]
 
     def test_null_reproducing_the_only_gain_is_rejected(self) -> None:
         null = {"s1": True, "s2": True, "ctx": True}
-        report = skillopt.pair_gate(self.EVAL, self.BASE, self.ALL_PASS, null_results=null)
+        report = skillopt.pair_gate(
+            self.EVAL, self.BASE, self.ALL_PASS, null_results=null, **self.SHA
+        )
         assert report["verdict"] == "REJECT_NULL_CONTROL"
         assert report["accepted"] is False
         assert report["gains"] == ["ctx"]
@@ -94,7 +101,9 @@ class TestPairGate:
 
     def test_null_regression_without_genuine_gain_is_rejected(self) -> None:
         null = {"s1": False, "s2": True, "ctx": False}
-        report = skillopt.pair_gate(self.EVAL, self.BASE, dict(self.BASE), null_results=null)
+        report = skillopt.pair_gate(
+            self.EVAL, self.BASE, dict(self.BASE), null_results=null, **self.SHA
+        )
         assert report["verdict"] == "REJECT_NULL_CONTROL"
         assert report["null_regressions"] == ["s1"]
 
@@ -102,7 +111,7 @@ class TestPairGate:
         incumbent = {"s1": True, "s2": False, "ctx": False}
         null = {"s1": True, "s2": True, "ctx": False}  # noise: s2 flipped
         candidate = {"s1": True, "s2": True, "ctx": True}
-        report = skillopt.pair_gate(self.EVAL, incumbent, candidate, null_results=null)
+        report = skillopt.pair_gate(self.EVAL, incumbent, candidate, null_results=null, **self.SHA)
         assert report["verdict"] == "ACCEPT_PARETO"
         assert report["accepted"] is True
         assert report["gains"] == ["s2", "ctx"]
@@ -112,7 +121,7 @@ class TestPairGate:
 
     def test_quiet_null_control_with_gain_accepts(self) -> None:
         report = skillopt.pair_gate(
-            self.EVAL, self.BASE, self.ALL_PASS, null_results=dict(self.BASE)
+            self.EVAL, self.BASE, self.ALL_PASS, null_results=dict(self.BASE), **self.SHA
         )
         assert report["verdict"] == "ACCEPT_PARETO"
         assert report["genuine_gains"] == ["ctx"]
@@ -120,14 +129,16 @@ class TestPairGate:
 
     def test_quiet_null_control_without_gain_rejects(self) -> None:
         report = skillopt.pair_gate(
-            self.EVAL, self.BASE, dict(self.BASE), null_results=dict(self.BASE)
+            self.EVAL, self.BASE, dict(self.BASE), null_results=dict(self.BASE), **self.SHA
         )
         assert report["verdict"] == "REJECT"
 
     def test_genuine_gain_with_regression_still_rejects_under_null(self) -> None:
         incumbent = {"s1": True, "s2": False, "ctx": False}
         candidate = {"s1": False, "s2": False, "ctx": True}
-        report = skillopt.pair_gate(self.EVAL, incumbent, candidate, null_results=dict(incumbent))
+        report = skillopt.pair_gate(
+            self.EVAL, incumbent, candidate, null_results=dict(incumbent), **self.SHA
+        )
         assert report["verdict"] == "REJECT"
         assert report["regressions"] == ["s1"]
 
@@ -179,13 +190,127 @@ class TestPairGate:
         report = skillopt.pair_gate(eval_set, {"leak": True}, {"leak": False}, split="train")
         assert report["regressions"] == ["leak"]
 
-    def test_unhashable_status_is_not_a_crash(self) -> None:
-        eval_set = {**self.EVAL, "tasks": {"s1": {"status": ["invalid"]}}}
+    @pytest.mark.parametrize("status", [["invalid"], 5, True, None])
+    def test_non_string_status_errors(self, status: object) -> None:
+        eval_set = {**self.EVAL, "tasks": {"s1": {"status": status}}}
+        with pytest.raises(SkillOptError, match="status must be a string"):
+            skillopt.pair_gate(eval_set, self.BASE, self.ALL_PASS)
+
+    def test_entry_without_status_is_fine(self) -> None:
+        eval_set = {**self.EVAL, "tasks": {"s1": {"note": "x"}}}
         assert skillopt.pair_gate(eval_set, self.BASE, self.ALL_PASS)["accepted"] is True
 
-    @pytest.mark.parametrize("tasks", [["s1"], "s1", None, {"s1": "invalid"}, {"s1": None}])
-    def test_malformed_tasks_block_is_ignored(self, tasks: object) -> None:
+    @pytest.mark.parametrize("tasks", [["s1"], "s1", None, 5])
+    def test_non_dict_tasks_block_errors(self, tasks: object) -> None:
         eval_set = {**self.EVAL, "tasks": tasks}
+        with pytest.raises(SkillOptError, match="'tasks' must be an object"):
+            skillopt.pair_gate(eval_set, self.BASE, self.ALL_PASS)
+
+    @pytest.mark.parametrize("entry", ["invalid", None, 3])
+    def test_non_dict_task_entry_is_ignored(self, entry: object) -> None:
+        eval_set = {**self.EVAL, "tasks": {"s1": entry}}
+        assert skillopt.pair_gate(eval_set, self.BASE, self.ALL_PASS)["accepted"] is True
+
+    def test_exposed_and_bad_tasks_outside_sel_do_not_block_train_review(self) -> None:
+        eval_set = {
+            "splits": {"sel": ["a"], "train": ["leaked", "bad"]},
+            "exposed": ["leaked"],
+            "tasks": {"bad": {"status": "invalid"}, "leaked": {"status": "exposed"}},
+        }
+        incumbent = {"leaked": False, "bad": False}
+        candidate = {"leaked": True, "bad": False}
+        report = skillopt.pair_gate(eval_set, incumbent, candidate, split="train")
+        assert report["verdict"] == "ACCEPT_PARETO"
+
+    def test_malformed_tasks_block_ignored_off_sel(self) -> None:
+        eval_set = {"splits": {"train": ["t"]}, "tasks": ["junk"], "exposed": "junk"}
+        assert skillopt.pair_gate(eval_set, {"t": False}, {"t": True}, split="train")["accepted"]
+
+    # --- null-control provenance ---
+    @pytest.mark.parametrize(
+        ("inc", "nul"),
+        [
+            (None, None),
+            ("a" * 64, None),
+            (None, "a" * 64),
+            ("zz", "zz"),
+            (5, 5),
+            ("a" * 63, "a" * 63),
+        ],
+    )
+    def test_null_results_need_both_hashes(self, inc: object, nul: object) -> None:
+        with pytest.raises(SkillOptError, match="needs --incumbent-sha256 and --null-sha256"):
+            skillopt.pair_gate(
+                self.EVAL,
+                self.BASE,
+                self.ALL_PASS,
+                null_results=dict(self.BASE),
+                incumbent_sha256=cast(Any, inc),
+                null_sha256=cast(Any, nul),
+            )
+
+    def test_null_hash_mismatch_errors(self) -> None:
+        with pytest.raises(SkillOptError, match="did not run on the byte-identical incumbent"):
+            skillopt.pair_gate(
+                self.EVAL,
+                self.BASE,
+                self.ALL_PASS,
+                null_results=dict(self.BASE),
+                incumbent_sha256="a" * 64,
+                null_sha256="b" * 64,
+            )
+
+    def test_null_hash_comparison_ignores_case_and_whitespace(self) -> None:
+        report = skillopt.pair_gate(
+            self.EVAL,
+            self.BASE,
+            self.ALL_PASS,
+            null_results=dict(self.BASE),
+            incumbent_sha256="ab" * 32,
+            null_sha256=" " + "AB" * 32 + "\n",
+        )
+        assert report["accepted"] is True
+
+    def test_hashes_without_null_results_are_ignored(self) -> None:
+        report = skillopt.pair_gate(
+            self.EVAL, self.BASE, self.ALL_PASS, incumbent_sha256="a" * 64, null_sha256="a" * 64
+        )
+        assert "null_gains" not in report
+
+    # --- scorer declaration ---
+    def test_nondeterministic_scorer_requires_null_results(self) -> None:
+        eval_set = {**self.EVAL, "scorer": "nondeterministic"}
+        with pytest.raises(SkillOptError, match="nondeterministic scorer requires --null-results"):
+            skillopt.pair_gate(eval_set, self.BASE, self.ALL_PASS)
+
+    def test_nondeterministic_scorer_with_null_results_runs(self) -> None:
+        eval_set = {**self.EVAL, "scorer": "nondeterministic"}
+        report = skillopt.pair_gate(
+            eval_set, self.BASE, self.ALL_PASS, null_results=dict(self.BASE), **self.SHA
+        )
+        assert report["accepted"] is True
+
+    def test_nondeterministic_scorer_off_sel_needs_no_null(self) -> None:
+        eval_set = {"splits": {"train": ["t"]}, "scorer": "nondeterministic"}
+        assert skillopt.pair_gate(eval_set, {"t": False}, {"t": True}, split="train")["accepted"]
+
+    def test_deterministic_scorer_needs_no_null(self) -> None:
+        eval_set = {**self.EVAL, "scorer": "deterministic"}
+        assert skillopt.pair_gate(eval_set, self.BASE, self.ALL_PASS)["accepted"] is True
+
+    @pytest.mark.parametrize("scorer", ["Deterministic", "random", 5, True, ["deterministic"], {}])
+    def test_unknown_scorer_errors(self, scorer: object) -> None:
+        eval_set = {**self.EVAL, "scorer": scorer}
+        with pytest.raises(SkillOptError, match="'scorer' must be one of"):
+            skillopt.pair_gate(eval_set, self.BASE, self.ALL_PASS)
+
+    def test_unknown_scorer_errors_off_sel_too(self) -> None:
+        eval_set = {"splits": {"train": ["t"]}, "scorer": "random"}
+        with pytest.raises(SkillOptError, match="'scorer' must be one of"):
+            skillopt.pair_gate(eval_set, {}, {}, split="train")
+
+    def test_null_scorer_value_is_absent(self) -> None:
+        eval_set = {**self.EVAL, "scorer": None}
         assert skillopt.pair_gate(eval_set, self.BASE, self.ALL_PASS)["accepted"] is True
 
     @pytest.mark.parametrize("exposed", ["s1", {"s1": True}, 5])

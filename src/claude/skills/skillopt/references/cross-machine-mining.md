@@ -5,6 +5,13 @@ SkillOpt needs eval tasks. Real tasks come from your own session history.
 weak-correction map, and pulls the prompts that triggered a skill as
 candidate eval tasks.
 
+Commands below run from the skill directory. On Windows use `py -3` and a
+backslash path, for example:
+
+```powershell
+py -3 scripts\mine_sessions.py sources
+```
+
 ## Supported sources
 
 | Source | Default path | Notes |
@@ -20,13 +27,14 @@ their sessions as a `session-patterns/1` file instead.
 Check what this machine can read:
 
 ```bash
-python3 mine_sessions.py sources
+python3 scripts/mine_sessions.py sources
 ```
 
 A missing or unreadable source is skipped, never fatal. With no available
 source and no `--patterns`, `rank`, `tasks`, and `collect` print a note to
 stderr and return an empty result with exit 0. Each invocation earns at most
-one correction, so corrections never exceed invocations.
+one correction, so corrections never exceed invocations. Each Claude transcript file and each Copilot session is one session; a
+correction in one session never counts against a skill invoked in another.
 
 ## Handoff from a companion skill
 
@@ -50,8 +58,8 @@ A session-recall style skill can emit this local-only shape:
 ```
 
 ```bash
-python3 mine_sessions.py rank --patterns patterns.json
-python3 mine_sessions.py tasks --patterns patterns.json --skill build
+python3 scripts/mine_sessions.py rank --patterns patterns.json
+python3 scripts/mine_sessions.py tasks --patterns patterns.json --skill build
 ```
 
 The miner validates the schema: unique ids, nonempty sessions and prompts, a
@@ -61,8 +69,8 @@ invocations. A bad handoff exits 2.
 ## One machine
 
 ```bash
-python3 mine_sessions.py rank --top 15
-python3 mine_sessions.py tasks --skill build --limit 20
+python3 scripts/mine_sessions.py rank --top 15
+python3 scripts/mine_sessions.py tasks --skill build --limit 20
 ```
 
 ## Several machines
@@ -71,17 +79,18 @@ Pool aggregate counts, not transcripts. On each machine, write a baseline to a
 directory you choose, outside the installed skill:
 
 ```bash
-python3 mine_sessions.py collect --host laptop --out ~/skillopt-baselines/laptop.json
+python3 scripts/mine_sessions.py collect --host laptop --out ~/skillopt-baselines/laptop.json
 ```
 
 Then merge every baseline in that directory:
 
 ```bash
-python3 mine_sessions.py merge --baselines-dir ~/skillopt-baselines --top 20
+python3 scripts/mine_sessions.py merge --baselines-dir ~/skillopt-baselines --top 20
 ```
 
-Move baseline files between machines however you like. An unreadable or
-malformed baseline file exits 2 and names the file.
+Move baseline files between machines however you like. An unreadable,
+malformed, or inconsistent baseline file (a skill with more corrections than
+invocations) exits 2 and names the file.
 
 ## Privacy
 

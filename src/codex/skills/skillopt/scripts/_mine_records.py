@@ -91,9 +91,23 @@ def user_text(record: dict[str, Any]) -> str | None:
     return _content_text(message)
 
 
+SESSION_BOUNDARY: dict[str, Any] = {"type": "session-boundary"}
+
+
+def is_session_boundary(record: dict[str, Any]) -> bool:
+    """True for the sentinel record that separates two sessions."""
+    return bool(record.get("type") == SESSION_BOUNDARY["type"])
+
+
 def iter_records(paths: Iterable[Path]) -> Iterator[dict[str, Any]]:
-    """Stream-parse jsonl transcripts, skipping unreadable lines/files."""
-    for path in paths:
+    """Stream-parse jsonl transcripts, skipping unreadable lines/files.
+
+    Each file is one session. A SESSION_BOUNDARY record is yielded between
+    files so window state never carries from one session into the next.
+    """
+    for index, path in enumerate(paths):
+        if index:
+            yield dict(SESSION_BOUNDARY)
         try:
             with path.open(encoding="utf-8", errors="replace") as fh:
                 for line in fh:
@@ -111,7 +125,7 @@ def iter_records(paths: Iterable[Path]) -> Iterator[dict[str, Any]]:
 
 
 def _copilot_turns(db_path: Path) -> list[tuple[Any, ...]]:
-    """Read (user_message, assistant_response) rows; any failure yields none."""
+    """Read (session_id, user_message, assistant_response) rows; any failure yields none."""
     if not db_path.is_file():
         return []
     uri = db_path.resolve().as_uri() + "?mode=ro"  # as_uri also handles Windows drives
@@ -121,12 +135,16 @@ def _copilot_turns(db_path: Path) -> list[tuple[Any, ...]]:
         return []
     try:
         return con.execute(
-            "SELECT user_message, assistant_response FROM turns ORDER BY session_id, turn_index"
+            "SELECT session_id, user_message, assistant_response FROM turns "
+            "ORDER BY session_id, turn_index"
         ).fetchall()
     except sqlite3.Error:
         return []
     finally:
         con.close()
+
+
+_NO_SESSION = object()
 
 
 def iter_copilot_records(db_path: Path) -> Iterator[dict[str, Any]]:
@@ -137,9 +155,14 @@ def iter_copilot_records(db_path: Path) -> Iterator[dict[str, Any]]:
     assistant record carrying Skill tool_use blocks. Reusing the Claude record
     shape means `aggregate`, `extract_skill_invocations`, and `extract_tasks`
     work on Copilot data with no special-casing. Read-only; a missing, locked,
-    or non-SQLite file yields nothing rather than raising.
+    or non-SQLite file yields nothing rather than raising. A SESSION_BOUNDARY
+    record is yielded whenever `session_id` changes.
     """
-    for user_message, assistant_response in _copilot_turns(db_path):
+    previous_session: Any = _NO_SESSION
+    for session_id, user_message, assistant_response in _copilot_turns(db_path):
+        if previous_session is not _NO_SESSION and session_id != previous_session:
+            yield dict(SESSION_BOUNDARY)
+        previous_session = session_id
         if isinstance(user_message, str) and user_message.strip():
             yield {"type": "user", "message": {"content": user_message}}
         if isinstance(assistant_response, str):
@@ -149,6 +172,20 @@ def iter_copilot_records(db_path: Path) -> Iterator[dict[str, Any]]:
             ]
             if blocks:
                 yield {"type": "assistant", "message": {"content": blocks}}
+
+
+def _advance_window(
+    stats: dict[str, dict[str, int]], recent: list[list[Any]], text: str, window: int
+) -> list[list[Any]]:
+    """Credit a correction to each uncredited in-window invocation, then age them."""
+    if is_correction(text):
+        for entry in recent:
+            if not entry[2]:
+                stats[entry[0]]["corrections"] += 1
+                entry[2] = True
+    for entry in recent:
+        entry[1] += 1
+    return [entry for entry in recent if entry[1] < window]
 
 
 def aggregate(records: Iterable[dict[str, Any]], window: int = 2) -> dict[str, dict[str, int]]:
@@ -165,20 +202,16 @@ def aggregate(records: Iterable[dict[str, Any]], window: int = 2) -> dict[str, d
     # invocation earns at most one correction, so corrections <= invocations.
     recent: list[list[Any]] = []
     for record in records:
+        if is_session_boundary(record):
+            recent = []  # a correction in the next session is not about this one
+            continue
         for name in extract_skill_invocations(record):
             stats.setdefault(name, {"invocations": 0, "corrections": 0})
             stats[name]["invocations"] += 1
             recent.append([name, 0, False])
         text = user_text(record)
         if text is not None:  # a user turn
-            if is_correction(text):
-                for entry in recent:
-                    if not entry[2]:
-                        stats[entry[0]]["corrections"] += 1
-                        entry[2] = True
-            for entry in recent:
-                entry[1] += 1
-            recent = [entry for entry in recent if entry[1] < window]
+            recent = _advance_window(stats, recent, text, window)
     return stats
 
 
@@ -213,6 +246,9 @@ def extract_tasks(records: Iterable[dict[str, Any]], skill: str, window: int = 4
     tasks: list[str] = []
     pending: list[str] = []  # recent user prompts
     for record in records:
+        if is_session_boundary(record):
+            pending = []  # a prompt from the previous session is not this one's trigger
+            continue
         text = user_text(record)
         if text and text.strip():
             pending.append(text.strip())

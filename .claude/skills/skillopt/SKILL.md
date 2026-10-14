@@ -71,7 +71,7 @@ Freeze the `train` and `sel` task lists before authoring any candidate. Keep
 `sel` prompts, verifiers, and outcomes away from the candidate author until
 the candidate is frozen. If they were exposed, list them under `exposed` in
 the manifest, move them to `train`, and add untouched holdout tasks.
-`pair-gate` exits 2 while an exposed or invalid task sits in the split.
+`pair-gate` exits 2 while an exposed or invalid task sits in the `sel` split.
 
 ## Scripts
 
@@ -83,21 +83,36 @@ python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skillopt/
 python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skillopt/scripts/mine_sessions.py" --help
 ```
 
+If neither `COPILOT_PLUGIN_ROOT` nor `CLAUDE_PLUGIN_ROOT` is set (for example
+Codex, or a plain checkout under PowerShell), use the directory that holds
+this SKILL.md and run its `skillopt.py` from there:
+
+```bash
+cd <skill folder> && python3 scripts/skillopt.py --help
+```
+
 On Windows PowerShell, no Bash required:
 
 ```powershell
 $Root = if ($env:COPILOT_PLUGIN_ROOT) { $env:COPILOT_PLUGIN_ROOT } else { $env:CLAUDE_PLUGIN_ROOT }
-if (-not $Root) { throw 'Set CLAUDE_PLUGIN_ROOT or COPILOT_PLUGIN_ROOT to the plugin install directory' }
+if (-not $Root) { throw 'Set COPILOT_PLUGIN_ROOT or CLAUDE_PLUGIN_ROOT, or point $SkillOpt at <skill folder>\scripts\skillopt.py' }
 $SkillOpt = Join-Path $Root 'skills\skillopt\scripts\skillopt.py'
 py -3 $SkillOpt --help
 ```
 
 Below, `skillopt.py` means that resolved path.
 
-| Script | Subcommands | Exit codes |
-|--------|-------------|------------|
-| `skillopt.py` | `budget`, `apply`, `score`, `gate`, `pair-gate`, `hash`, `buffer-check`, `buffer-add` | 0 success or accept, 1 reject (or `NOVEL`, or `MISMATCH`), 2 usage or validation error |
-| `mine_sessions.py` | `sources`, `rank`, `tasks`, `collect`, `merge` | 0 success, 2 usage or validation error |
+| Command | Exit codes |
+|---------|------------|
+| `skillopt.py budget`, `apply`, `score`, `buffer-add` | 0 success, 2 usage or validation error |
+| `skillopt.py gate`, `pair-gate` | 0 accept, 1 reject, 2 usage or validation error |
+| `skillopt.py hash FILE...` | 0 digests printed |
+| `skillopt.py hash FILE --expect SHA` | 0 match, 1 `MISMATCH`, 2 usage or validation error |
+| `skillopt.py buffer-check` | 0 `KNOWN-BAD` (discard), 1 `NOVEL` (proceed), 2 usage or validation error |
+| `mine_sessions.py sources`, `rank`, `tasks`, `collect`, `merge` | 0 success, 2 usage or validation error |
+
+`buffer-check` is inverted on purpose: exit 0 means the edit was already
+rejected. Branch on the printed word or the exact code, never on `&&`.
 
 Modules named `_skillopt_*.py` and `_mine_*.py` are internal helpers the
 two entry scripts import. Do not call them directly.
@@ -126,13 +141,17 @@ One optimization step:
 5. **Apply to a candidate.** `skillopt.py apply --skill target.md --eval
    eval.json --patches patches.json --budget L_t --out candidate.md`. The
    incumbent is never written; an `--out` that resolves to the incumbent exits
-   2. Exit 2 also covers a missing or empty `sel` split, budget overflow, a missing or ambiguous anchor, and any edit inside
-   a protected fence. Exit 2 means the patch is malformed, not that it lost.
+   2. Exit 2 is a usage or validation error, not a gate loss: an empty `sel`
+   split, an incumbent `--out`, budget overflow, a bad anchor, a protected
+   fence, or marker text inside a patch.
 6. **Re-roll** every task on `candidate.md` into `candidate_results.json`.
 7. **Gate.** `skillopt.py pair-gate --eval eval.json --incumbent-results
    incumbent_results.json --candidate-results candidate_results.json`.
    - Exit 0, `ACCEPT_PARETO`: at least one held-out gain, zero held-out
      regressions, every held-out result a literal boolean.
+   - Verdict precedence: `REJECT_UNVERIFIED` first (a missing or non-boolean
+     result), then `REJECT_NULL_CONTROL` (the null run moved and no genuine
+     gain remains), then `ACCEPT_PARETO` or `REJECT`.
    - Exit 1, `REJECT`, `REJECT_UNVERIFIED`, or `REJECT_NULL_CONTROL`: record
      it with `skillopt.py buffer-add --buffer rejected.jsonl --patches
      patches.json --score <cand> --incumbent <best> --note "..." --step T`.
@@ -153,10 +172,14 @@ semantic regression, because `pair-gate` rejects any regression.
 1. **Training review.** Run `pair-gate --split train` and read its
    `regressions`. A lost training pass on a load-bearing verifier blocks
    promotion. If fixing it changes the candidate, freeze a fresh `sel` set.
-2. **Null control** for nondeterministic scorers. Rerun the byte-identical
-   incumbent (confirm with `skillopt.py hash target.md --expect <sha256>`,
-   exit 1 on `MISMATCH`) into `null_results.json`, then pass
-   `--null-results null_results.json` to `pair-gate`. A gain the no-op also
+2. **Null control** for nondeterministic scorers. Set `"scorer":
+   "nondeterministic"` in the manifest; `pair-gate` on `sel` then exits 2
+   without `--null-results`. Rerun the byte-identical incumbent (confirm with
+   `skillopt.py hash target.md --expect <sha256>`, exit 1 on `MISMATCH`) into
+   `null_results.json`, then pass `--null-results null_results.json
+   --incumbent-sha256 <sha> --null-sha256 <sha>` to `pair-gate`, using the
+   digests `hash` printed for the incumbent and for the file the null run
+   used. Both are required, and a mismatch exits 2. A gain the no-op also
    produced is noise; if no genuine gain remains the verdict is
    `REJECT_NULL_CONTROL`.
 3. **Evidence.** Keep incumbent, candidate, patches, every results file, the
@@ -167,9 +190,12 @@ semantic regression, because `pair-gate` rejects any regression.
 1. Confirm the canonical source still hashes to the evaluated incumbent.
 2. Apply the accepted candidate to the canonical source, not to an eval copy
    or a generated mirror.
-3. Regenerate mirrors, run the owner's tests, and load the skill once.
-4. Commit and push through the owner's repository workflow.
-5. Reload the live skill and confirm its hash matches the canonical file.
+3. Hash the canonical source after applying it
+   (`skillopt.py hash canonical.md --expect <candidate sha256>`). It must
+   equal the accepted candidate's hash before you check the live copy.
+4. Regenerate mirrors, run the owner's tests, and load the skill once.
+5. Commit and push through the owner's repository workflow.
+6. Reload the live skill and confirm its hash matches the canonical file.
 
 If any step stops short, report `ACCEPTED_NOT_DEPLOYED`. Never call an
 eval-workspace candidate installed.

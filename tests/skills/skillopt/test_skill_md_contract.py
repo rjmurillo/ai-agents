@@ -171,7 +171,10 @@ def test_documented_exit_codes_for_pair_gate(tmp_path: Path) -> None:
     assert gate(gain) == (0, "ACCEPT_PARETO")
     assert gate(regress) == (1, "REJECT")
     assert gate(unverified) == (1, "REJECT_UNVERIFIED")
-    assert gate(gain, "--null-results", null) == (1, "REJECT_NULL_CONTROL")
+    digest = "a" * 64
+    null_args = ("--null-results", null, "--incumbent-sha256", digest, "--null-sha256", digest)
+    assert gate(gain, *null_args) == (1, "REJECT_NULL_CONTROL")
+    assert gate(gain, "--null-results", null)[0] == 2  # null control without hashes
 
     empty = _write_json(tmp_path / "empty.json", {"splits": {"sel": []}})
     result = _run(

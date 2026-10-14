@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from _skillopt_patching import SkillOptError
 
 # Statuses that mark a selection task as unusable for gating.
 BAD_TASK_STATUSES = ("invalid", "exposed")
+
+# Values the optional eval-manifest "scorer" field may take.
+SCORER_VALUES = ("deterministic", "nondeterministic")
+
+_SHA256_RE = re.compile(r"[0-9a-fA-F]{64}")
 
 
 # --------------------------------------------------------------------------- #
@@ -22,17 +28,28 @@ def gate(candidate_score: float, incumbent_best: float) -> bool:
     return candidate_score > incumbent_best
 
 
+def _task_status(tasks: dict[str, Any], tid: str) -> str | None:
+    """The string `status` of task `tid`, or None when it has no entry or status."""
+    entry = tasks.get(tid)
+    if not isinstance(entry, dict) or "status" not in entry:
+        return None
+    status = entry["status"]
+    if not isinstance(status, str):
+        raise SkillOptError(f"task {tid!r} status must be a string")
+    return status
+
+
 def _assert_selection_usable(eval_set: dict[str, Any], task_ids: list[str]) -> None:
     """Refuse to gate on selection tasks that are exposed or marked unusable."""
     exposed = eval_set.get("exposed", [])
     if not isinstance(exposed, list):
         raise SkillOptError("eval set 'exposed' must be a list of task ids")
-    tasks = eval_set.get("tasks")
+    tasks = eval_set.get("tasks", {})
+    if not isinstance(tasks, dict):
+        raise SkillOptError("eval set 'tasks' must be an object keyed by task id")
     bad: list[str] = []
     for tid in task_ids:
-        entry = tasks.get(tid) if isinstance(tasks, dict) else None
-        status = entry.get("status") if isinstance(entry, dict) else None
-        if tid in exposed or status in BAD_TASK_STATUSES:
+        if tid in exposed or _task_status(tasks, tid) in BAD_TASK_STATUSES:
             bad.append(tid)
     if bad:
         raise SkillOptError(
@@ -81,12 +98,45 @@ def _verdict(report: dict[str, Any], has_null: bool) -> str:
     return "ACCEPT_PARETO" if gained and not report["regressions"] else "REJECT"
 
 
+def _assert_null_ran_on_incumbent(incumbent_sha256: object, null_sha256: object) -> None:
+    """The null control must come from a rerun of the byte-identical incumbent."""
+    for value in (incumbent_sha256, null_sha256):
+        if not isinstance(value, str) or not _SHA256_RE.fullmatch(value.strip()):
+            raise SkillOptError(
+                "null control needs --incumbent-sha256 and --null-sha256 "
+                "(64 hex characters each, from `skillopt.py hash`)"
+            )
+    if str(incumbent_sha256).strip().lower() != str(null_sha256).strip().lower():
+        raise SkillOptError("null control did not run on the byte-identical incumbent")
+
+
+def _assert_gate_preconditions(
+    eval_set: dict[str, Any],
+    split: str,
+    null_results: dict[str, Any] | None,
+    incumbent_sha256: object,
+    null_sha256: object,
+) -> None:
+    """Scorer declaration and null-control provenance checks, before comparing."""
+    scorer = eval_set.get("scorer")
+    if scorer is not None and scorer not in SCORER_VALUES:
+        raise SkillOptError(f"eval set 'scorer' must be one of {SCORER_VALUES}, got {scorer!r}")
+    if null_results is None:
+        if split == "sel" and scorer == "nondeterministic":
+            raise SkillOptError("nondeterministic scorer requires --null-results")
+        return
+    _assert_null_ran_on_incumbent(incumbent_sha256, null_sha256)
+
+
 def pair_gate(
     eval_set: dict[str, Any],
     incumbent_results: dict[str, Any],
     candidate_results: dict[str, Any],
     split: str = "sel",
     null_results: dict[str, Any] | None = None,
+    *,
+    incumbent_sha256: str | None = None,
+    null_sha256: str | None = None,
 ) -> dict[str, Any]:
     """Compare per-task results and accept only a strict Pareto improvement.
 
@@ -96,16 +146,23 @@ def pair_gate(
     regression.
 
     Checks beyond the Pareto rule:
-      - selection tasks listed in eval_set["exposed"] or marked invalid/exposed
-        raise SkillOptError on the sel split (the gate would be measuring a
-        leaked task); train may hold remediated exposed tasks;
+      - on the "sel" split only, tasks listed in eval_set["exposed"] or marked
+        invalid/exposed raise SkillOptError (the gate would be measuring a
+        leaked task). Other splits such as "train" may hold exposed tasks;
+      - eval_set["scorer"], when present, is "deterministic" or
+        "nondeterministic"; a nondeterministic scorer on "sel" requires
+        null_results;
       - a task whose result is missing or not a bool in any result set makes
         the verdict REJECT_UNVERIFIED (only literal True is a pass);
       - when null_results (a no-op rerun of the byte-identical incumbent) is
         given, gains the null control also shows are noise, not improvement.
         If the null run moved and no genuine gain remains, REJECT_NULL_CONTROL.
+        null_results requires incumbent_sha256 and null_sha256 (from the
+        `hash` subcommand) and they must match, proving the null run used the
+        byte-identical incumbent.
     """
     task_ids = _split_task_ids(eval_set, split)
+    _assert_gate_preconditions(eval_set, split, null_results, incumbent_sha256, null_sha256)
     if split == "sel":
         _assert_selection_usable(eval_set, task_ids)
     result_sets = [incumbent_results, candidate_results]

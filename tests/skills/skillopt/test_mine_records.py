@@ -11,6 +11,7 @@ import pytest
 from skillopt_helpers import (
     skill_use,
     user,
+    write_jsonl,
 )
 
 
@@ -142,6 +143,26 @@ class TestIterRecords:
     def test_unreadable_file_skipped(self, tmp_path: Path) -> None:
         assert list(ms.iter_records([tmp_path / "nope.jsonl"])) == []
 
+    def test_boundary_between_files_only(self, tmp_path: Path) -> None:
+        a, b = tmp_path / "a.jsonl", tmp_path / "b.jsonl"
+        write_jsonl(a, [user("one")])
+        write_jsonl(b, [user("two")])
+        recs = list(ms.iter_records([a, b]))
+        assert [r["type"] for r in recs] == ["user", "session-boundary", "user"]
+        assert mr.is_session_boundary(recs[1]) and not mr.is_session_boundary(recs[0])
+
+    def test_boundary_helpers_ignore_the_sentinel(self) -> None:
+        boundary = dict(mr.SESSION_BOUNDARY)
+        assert ms.extract_skill_invocations(boundary) == []
+        assert ms.user_text(boundary) is None
+
+    def test_sentinel_copies_are_independent(self, tmp_path: Path) -> None:
+        a, b = tmp_path / "a.jsonl", tmp_path / "b.jsonl"
+        write_jsonl(a, [user("one")])
+        write_jsonl(b, [user("two")])
+        next(r for r in ms.iter_records([a, b]) if mr.is_session_boundary(r))["x"] = 1
+        assert mr.SESSION_BOUNDARY == {"type": "session-boundary"}
+
 
 class TestAggregate:
     def test_counts_invocations(self) -> None:
@@ -162,6 +183,18 @@ class TestAggregate:
         stats = ms.aggregate(recs, window=3)
         assert stats["a"]["invocations"] == 2
         assert stats["a"]["corrections"] <= stats["a"]["invocations"]
+
+    def test_correction_does_not_cross_a_session_boundary(self, tmp_path: Path) -> None:
+        a, b = tmp_path / "a.jsonl", tmp_path / "b.jsonl"
+        write_jsonl(a, [user("go"), skill_use("a")])
+        write_jsonl(b, [user("that's wrong"), user("still broken")])
+        stats = ms.aggregate(ms.iter_records([a, b]), window=5)
+        assert stats["a"] == {"invocations": 1, "corrections": 0}
+
+    def test_correction_inside_one_session_still_counts(self, tmp_path: Path) -> None:
+        a = tmp_path / "a.jsonl"
+        write_jsonl(a, [skill_use("a"), user("that's wrong")])
+        assert ms.aggregate(ms.iter_records([a]))["a"]["corrections"] == 1
 
     def test_does_not_work_counts_as_correction(self) -> None:
         assert ms.aggregate([skill_use("a"), user("this does not work")])["a"]["corrections"] == 1
@@ -214,6 +247,13 @@ class TestExtractTasks:
     def test_captures_preceding_prompt(self) -> None:
         recs = [user("optimize the build skill"), skill_use("build")]
         assert ms.extract_tasks(recs, "build") == ["optimize the build skill"]
+
+    def test_prompt_does_not_cross_a_session_boundary(self, tmp_path: Path) -> None:
+        a, b = tmp_path / "a.jsonl", tmp_path / "b.jsonl"
+        write_jsonl(a, [user("session A prompt")])
+        write_jsonl(b, [skill_use("x"), user("session B prompt"), skill_use("x")])
+        tasks = ms.extract_tasks(ms.iter_records([a, b]), "x")
+        assert tasks == ["session B prompt"]
 
     def test_no_prompt_no_task(self) -> None:
         assert ms.extract_tasks([skill_use("x")], "x") == []

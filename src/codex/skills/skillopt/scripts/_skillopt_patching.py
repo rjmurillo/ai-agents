@@ -9,6 +9,10 @@ from typing import Any
 SLOW_START = "<!-- SLOW_UPDATE_START -->"
 SLOW_END = "<!-- SLOW_UPDATE_END -->"
 
+# Marker names a patch body may never contain: a patch cannot open, close, or
+# forge a slow-section fence.
+_MARKER_NAMES = ("SLOW_UPDATE_START", "SLOW_UPDATE_END")
+
 VALID_OPS = ("append", "insert_after", "replace", "delete")
 
 
@@ -102,6 +106,8 @@ def _patch_text_lines(patch: dict[str, Any], n: int) -> list[str]:
     text = patch.get("text", "")
     if not isinstance(text, str):
         raise SkillOptError(f"patch {n}: 'text' must be a string")
+    if any(marker in text for marker in _MARKER_NAMES):
+        raise SkillOptError(f"patch {n}: text must not contain slow-section marker text")
     return text.replace("\r\n", "\n").split("\n")
 
 
@@ -155,5 +161,6 @@ def apply_patches(doc: str, patches: list[dict[str, Any]], budget: int) -> str:
     lines = doc.replace("\r\n", "\n").split("\n")
     for n, patch in enumerate(patches):
         _apply_one(lines, patch, n)
+    protected_ranges(lines)  # final check: the fence structure is still well formed
     result = "\n".join(lines)
     return result.replace("\n", "\r\n") if crlf else result
