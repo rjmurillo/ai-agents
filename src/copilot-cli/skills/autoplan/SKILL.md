@@ -170,7 +170,6 @@ evidence (failing tests, widening diff), not on speculation.
 | Correction received, lesson learned | Skill: reflect |
 | Document a decision | Skill: adr-generator |
 | New skill wanted | Skill: skillforge |
-| "skillify this" | Skill: skillify |
 | Multi-domain, cross-cutting, or requires multiple agents | `agent_type: "project-toolkit:orchestrator"` |
 
 The user naming a skill or command bypasses this table entirely. User
