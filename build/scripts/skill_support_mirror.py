@@ -32,7 +32,10 @@ from atomic_write import (  # noqa: E402
     publish_bytes_preserving_mode,
 )
 from binplace_manifest import is_bytecode_artifact  # noqa: E402
-from copilot_body_translation import render_skill_file  # noqa: E402
+from copilot_support_translation import (  # noqa: E402
+    SupportTranslationError,
+    translated_text,
+)
 from lib_mirror import lib_owned_support_files  # noqa: E402
 from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
 from skill_copy_compare import SKILL_MD as _SKILL_MD  # noqa: E402
@@ -129,12 +132,12 @@ def _copy_skill_tree(
     "N written" useless as a signal of what actually changed.
 
     When ``skills_output_dir`` is provided (Copilot CLI target), the
-    top-level ``SKILL.md`` body is translated from Claude Code conventions
-    to Copilot CLI equivalents (issue #2743) instead of copied verbatim.
-    Every other file is copied byte-for-byte, straight from ``source``
-    (``.claude/skills/<name>/``); scripts, references, and tests are
-    hand-maintained there and never rendered by a template, so this path is
-    unchanged by ADR-109 B3.
+    top-level ``SKILL.md`` body and every ``references/*.md`` are translated
+    from Claude Code conventions to Copilot CLI equivalents (issues #2743,
+    #5657) instead of copied verbatim. Every other file is copied
+    byte-for-byte, straight from ``source`` (``.claude/skills/<name>/``);
+    scripts and tests are hand-maintained there and never rendered by a
+    template, so this path is unchanged by ADR-109 B3.
 
     ``plugin_skill_md`` (ADR-109 B3), when given and present on disk, is
     read for the ``SKILL.md`` body instead of ``source / "SKILL.md"``. It
@@ -192,15 +195,13 @@ def _copy_skill_tree(
             skipped += 1
             continue
 
-        if rel == _SKILL_MD and renders_skill_md:
-            content_source = src_path
-            if plugin_skill_md is not None and plugin_skill_md.is_file():
-                content_source = plugin_skill_md
-            content = content_source.read_text(encoding="utf-8")
-            try:
-                translated = render_skill_file(content, skills_output_dir, frontmatter_drop)
-            except ValueError as exc:
-                raise GenerateSkillsError(f"{content_source}: {exc}") from exc
+        try:
+            translated = translated_text(
+                rel, src_path, plugin_skill_md, skills_output_dir, frontmatter_drop
+            )
+        except SupportTranslationError as exc:
+            raise GenerateSkillsError(str(exc)) from exc
+        if translated is not None:
             if text_matches(dst_path, translated):
                 continue
             if check:

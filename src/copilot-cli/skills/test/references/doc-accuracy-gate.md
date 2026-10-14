@@ -28,7 +28,7 @@ On `"decision": "skip"`, do not invoke `doc-accuracy`. Record
 
 ## 3. Scan the changed documents
 
-When `changed_documents` is not empty, invoke `Skill(skill="doc-accuracy")` and
+When `changed_documents` is not empty, invoke `skill: "doc-accuracy"` and
 run its incremental scan:
 
 `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/doc-accuracy/scripts/doc_accuracy.py" --target . --diff-base "origin/<base-branch>" --format gate`

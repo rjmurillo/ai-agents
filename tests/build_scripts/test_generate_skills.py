@@ -14,6 +14,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
 
 import generate_skills  # noqa: E402
+import skill_support_mirror  # noqa: E402
 from copilot_body_translation import translate_skill_file  # noqa: E402
 
 _GATED_SKILL_TREE_MIRRORS = (
@@ -203,6 +204,57 @@ def test_nested_files_preserved(tmp_path: Path) -> None:
     rc = generate_skills.generate_skills(cfg, repo_root)
     assert rc == 0
     assert (repo_root / "out" / "gamma" / "scripts" / "run.py").is_file()
+
+
+_REFERENCE_WITH_CLAUDE_SYNTAX = (
+    "# Steps\n"
+    "Run $ARGUMENTS.\n"
+    "```python\n"
+    'Task(subagent_type="analyst", prompt="""\n'
+    "Review the change (carefully).\n"
+    '""")\n'
+    "```\n"
+)
+
+
+def _copilot_skill_with_reference(tmp_path: Path, *, provider: str) -> Path:
+    skill = _write_minimal_skill(tmp_path / "skills", "zeta")
+    (skill / "references").mkdir()
+    (skill / "references" / "steps.md").write_text(_REFERENCE_WITH_CLAUDE_SYNTAX)
+    (skill / "references" / "data.txt").write_text("Run $ARGUMENTS.\n")
+    (skill / "scripts").mkdir()
+    (skill / "scripts" / "notes.md").write_text("Run $ARGUMENTS.\n")
+    cfg = _write_config(tmp_path, source_dir="skills", output_dir="out", provider=provider)
+    assert generate_skills.generate_skills(cfg, tmp_path) == 0
+    return tmp_path / "out" / "zeta"
+
+
+def test_copilot_translates_markdown_under_references(tmp_path: Path) -> None:
+    out = _copilot_skill_with_reference(tmp_path, provider="copilot-cli")
+    translated = (out / "references" / "steps.md").read_text()
+    assert "$ARGUMENTS" not in translated
+    assert 'task(agent_type="project-toolkit:analyst", prompt="""' in translated
+    assert 'Review the change (carefully).\n""")' in translated
+
+
+def test_copilot_copies_other_files_verbatim(tmp_path: Path) -> None:
+    out = _copilot_skill_with_reference(tmp_path, provider="copilot-cli")
+    assert (out / "references" / "data.txt").read_text() == "Run $ARGUMENTS.\n"
+    assert (out / "scripts" / "notes.md").read_text() == "Run $ARGUMENTS.\n"
+
+
+def test_non_copilot_provider_copies_references_verbatim(tmp_path: Path) -> None:
+    out = _copilot_skill_with_reference(tmp_path, provider="test")
+    assert (out / "references" / "steps.md").read_text() == _REFERENCE_WITH_CLAUDE_SYNTAX
+
+
+def test_copilot_reference_check_mode_flags_untranslated_copy(tmp_path: Path) -> None:
+    out = _copilot_skill_with_reference(tmp_path, provider="copilot-cli")
+    source = tmp_path / "skills" / "zeta"
+    kwargs = {"what_if": False, "check": True, "skills_output_dir": tmp_path / "out"}
+    assert skill_support_mirror._copy_skill_tree(source, out, **kwargs) == (0, 0)
+    (out / "references" / "steps.md").write_text(_REFERENCE_WITH_CLAUDE_SYNTAX)
+    assert skill_support_mirror._copy_skill_tree(source, out, **kwargs) == (1, 0)
 
 
 def test_pycache_artifacts_excluded(tmp_path: Path) -> None:
