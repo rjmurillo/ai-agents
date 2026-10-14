@@ -138,6 +138,8 @@ def _run_gh_api(args: list[str], action: str) -> subprocess.CompletedProcess[str
             ["gh", "api", *args],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=_API_TIMEOUT_SECONDS,
             check=False,
         )
