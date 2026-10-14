@@ -28,7 +28,11 @@ def _fake_api(routes: dict[str, object]):
     The head commit route defaults to a fixed committer date, so tests that do
     not care about it still pass.
     """
-    routes = {"repos/o/r/git/commits/abc123": _commit_payload(), **routes}
+    routes = {
+        "repos/o/r/git/commits/abc123": _commit_payload(),
+        "repos/o/r/actions/runs": [{"total_count": 0, "workflow_runs": []}],
+        **routes,
+    }
 
     def _call(args: list[str]):
         endpoint = args[-1].split("?")[0]
@@ -154,7 +158,11 @@ class TestNodeConversion:
         assert node["status"] == "COMPLETED"
         assert node["conclusion"] == "SUCCESS"
         assert node["detailsUrl"] == _RUN_URL
-        assert node["checkSuite"]["workflowRun"] == {"databaseId": 987654, "runAttempt": None}
+        assert node["checkSuite"]["workflowRun"] == {
+            "databaseId": 987654,
+            "runAttempt": None,
+            "event": None,
+        }
         assert node["isRequired"] is False
 
     def test_in_progress_run_has_null_conclusion(self):

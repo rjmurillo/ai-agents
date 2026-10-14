@@ -6,7 +6,9 @@ Retrieves CI check information using GraphQL statusCheckRollup API. When
 GraphQL refuses with a rate-limit body, it reads the same checks over REST
 (check runs and commit statuses) and marks required checks from the branch
 ruleset. Output field DataSource says which transport answered. On REST,
---required-only exits 3 when the ruleset lists no required checks.
+--required-only exits 3 when the ruleset lists no required checks. Classic
+branch protection is invisible to REST, so a failing or pending row outside the
+ruleset is kept under --required-only and RequiredState reads UNKNOWN, not SUCCESS.
 Returns structured JSON with check states, conclusions, and summary counts.
 Supports polling until checks complete and filtering to required checks only.
 
@@ -53,6 +55,7 @@ from github_core.api import (
     resolve_repo_params,
 )
 from github_core.checks_rest import (
+    PullRequestNotFoundError,
     fetch_checks_rest,
     mark_required_from_ruleset,
 )
@@ -510,10 +513,6 @@ def _overall_state(checks: list[dict]) -> str:
     return "SUCCESS"
 
 
-def _is_rest_not_found(message: str) -> bool:
-    return "HTTP 404" in message or "Not Found" in message
-
-
 def _fetch_checks_over_rest(
     owner: str,
     repo: str,
@@ -527,10 +526,10 @@ def _fetch_checks_over_rest(
     """
     try:
         snapshot = fetch_checks_rest(owner, repo, pr_number)
+    except PullRequestNotFoundError:
+        return {"Error": "NotFound", "Message": f"PR #{pr_number} not found in {owner}/{repo}"}
     except RuntimeError as exc:
         msg = str(exc)
-        if _is_rest_not_found(msg):
-            return {"Error": "NotFound", "Message": f"PR #{pr_number} not found in {owner}/{repo}"}
         prefix = f"GraphQL query failed: {graphql_error}; " if graphql_error else ""
         return {"Error": "ApiError", "Message": f"{prefix}REST fallback failed: {msg}"}
 
@@ -678,6 +677,29 @@ def derive_required_state(
     return "SUCCESS"
 
 
+def _rest_unproven_names(
+    check_data: dict,
+    checks_by_name: dict[str, dict],
+    is_required_by_name: dict[str, bool],
+) -> set[str]:
+    """Return REST row names that are failing or pending but not marked required.
+
+    REST marks required rows from the branch ruleset only. A check that classic
+    branch protection requires stays unmarked, so a red or running unmarked row
+    cannot be proven non-required. ``build_output`` keeps these rows under
+    ``--required-only`` and refuses a green RequiredState while any exist.
+    GraphQL carries ``isRequired`` per row, so it never has unproven rows.
+    """
+    if check_data.get("DataSource") != "rest":
+        return set()
+    return {
+        name
+        for name, check in checks_by_name.items()
+        if not is_required_by_name.get(name, False)
+        and (check.get("IsFailing") or check.get("IsPending"))
+    }
+
+
 def build_output(
     check_data: dict,
     owner: str,
@@ -710,11 +732,12 @@ def build_output(
 
     # Apply required_only filter: keep only checks where any row for that
     # name has isRequired=true.
+    rest_unproven = _rest_unproven_names(check_data, checks_by_name, is_required_by_name)
     if required_only:
         checks_by_name = {
             name: check
             for name, check in checks_by_name.items()
-            if is_required_by_name.get(name, False)
+            if is_required_by_name.get(name, False) or name in rest_unproven
         }
 
     # Update each check with the ORed required status.
@@ -808,9 +831,13 @@ def build_output(
         missing_queued=missing_queued,
     )
     # REST has no per-row isRequired flag. Without a ruleset listing required
-    # checks, no row is marked required, so a green required set is not proven
-    # (classic branch protection is invisible to the ruleset lookup).
-    if check_data.get("DataSource") == "rest" and not ruleset_contexts:
+    # checks, no row is marked required, so a green required set is not proven.
+    # With one, a failing or pending row outside it may still be required by
+    # classic branch protection, which the ruleset lookup cannot see.
+    rest_unproven_required = check_data.get("DataSource") == "rest" and (
+        not ruleset_contexts or bool(rest_unproven)
+    )
+    if rest_unproven_required and required_state == "SUCCESS":
         required_state = "UNKNOWN"
 
     return {

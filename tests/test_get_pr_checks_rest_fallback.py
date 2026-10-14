@@ -146,7 +146,7 @@ class TestFetchChecksFallback:
             patch.object(
                 _mod,
                 "fetch_checks_rest",
-                side_effect=RuntimeError("REST request failed: Not Found (HTTP 404)"),
+                side_effect=_mod.PullRequestNotFoundError("Not Found (HTTP 404)"),
             ),
         ):
             data = _mod.fetch_checks("o", "r", 42)
@@ -411,7 +411,7 @@ class TestMainFallback:
 
     def test_required_only_filters_over_rest(self, _env, capsys):
         snap = _snapshot(
-            [_run("build", "COMPLETED", "SUCCESS"), _run("lint", "COMPLETED", "FAILURE")]
+            [_run("build", "COMPLETED", "SUCCESS"), _run("lint", "COMPLETED", "SUCCESS")]
         )
         with (
             patch.object(_mod, "gh_graphql", side_effect=_RATE_LIMITED),

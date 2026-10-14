@@ -33,6 +33,15 @@ _PAGE_SIZE = 100
 _MERGEABLE_BY_REST_VALUE: dict[object, str] = {True: "MERGEABLE", False: "CONFLICTING"}
 
 
+class PullRequestNotFoundError(RuntimeError):
+    """The pull request read returned HTTP 404.
+
+    Only the pull request read raises this. A 404 from a later call (check
+    runs, statuses, workflow runs) stays a plain RuntimeError, so a caller does
+    not report a PR as missing when only a secondary endpoint failed.
+    """
+
+
 def _run_gh_api(args: list[str]) -> object:
     """Run ``gh api`` and return the parsed JSON body.
 
@@ -77,13 +86,42 @@ def _fetch_pages(endpoint: str, items_key: str) -> tuple[list[dict], int | None]
     return items, total if isinstance(total, int) else None
 
 
-def to_graphql_check_run(run: dict) -> dict:
-    """Reshape one REST check run into a GraphQL ``CheckRun`` node."""
+def _fetch_workflow_runs(owner: str, repo: str, sha: str) -> tuple[dict[int, dict], bool]:
+    """Map workflow run id to its ``event`` and ``run_attempt`` for one head SHA.
+
+    A check run carries neither field. Without the event, the caller cannot
+    tell a ``pull_request`` run from a ``push`` run of the same check name, and
+    a newer passing run of one event would hide a failing run of the other.
+    Returns the map plus whether the pages were complete.
+
+    Raises:
+        RuntimeError: on any REST failure. The caller lets it propagate, so
+            an unreadable event fails the fallback instead of guessing.
+    """
+    runs, total = _fetch_pages(f"repos/{owner}/{repo}/actions/runs?head_sha={sha}", "workflow_runs")
+    by_id = {run["id"]: run for run in runs if isinstance(run.get("id"), int)}
+    return by_id, _is_complete(runs, total)
+
+
+def to_graphql_check_run(run: dict, workflow_runs: dict[int, dict] | None = None) -> dict:
+    """Reshape one REST check run into a GraphQL ``CheckRun`` node.
+
+    ``workflow_runs`` maps run id to the REST workflow run, which supplies the
+    ``event`` and ``runAttempt`` that a check run does not carry. A run id
+    absent from the map keeps both None.
+    """
     status = run.get("status")
     conclusion = run.get("conclusion")
     details_url = run.get("details_url") or ""
     run_id = extract_workflow_run_number(details_url)
-    workflow_run = {"databaseId": run_id, "runAttempt": None} if run_id is not None else None
+    workflow_run = None
+    if run_id is not None:
+        meta = (workflow_runs or {}).get(run_id) or {}
+        workflow_run = {
+            "databaseId": run_id,
+            "runAttempt": meta.get("run_attempt"),
+            "event": meta.get("event"),
+        }
     return {
         "__typename": "CheckRun",
         "name": run.get("name", ""),
@@ -131,22 +169,38 @@ def _merge_fields(pr: dict) -> tuple[str, str]:
     return merge_state, status
 
 
+def _dict_field(obj: dict, key: str) -> dict:
+    """Return ``obj[key]`` when it is a dict, else an empty dict.
+
+    A malformed payload then reads as a missing field (which the caller
+    reports as RuntimeError) instead of raising AttributeError.
+    """
+    value = obj.get(key)
+    return value if isinstance(value, dict) else {}
+
+
 def fetch_checks_rest(owner: str, repo: str, pr_number: int) -> dict:
     """Read a PR's check runs and commit statuses over REST.
 
     Returns a snapshot dict: ``Number``, ``BaseBranch``, ``MergeState``,
     ``MergeStateStatus``, ``Nodes`` (GraphQL-shaped contexts),
-    ``PagesComplete`` (False when a total_count exceeds the rows collected),
+    ``PagesComplete`` (False when a total_count exceeds the rows collected,
+    including the workflow runs that supply each check run's event),
     and ``HeadCommittedAt`` (None when the head commit date cannot be read).
 
     Raises:
-        RuntimeError: on any REST failure, carrying gh's text. A 404 reads
-            "Not Found" so a caller can report the PR as missing.
+        PullRequestNotFoundError: when the pull request read returns 404.
+        RuntimeError: on any other REST failure, carrying gh's text.
     """
-    pr = _run_gh_api([f"repos/{owner}/{repo}/pulls/{pr_number}"])
+    try:
+        pr = _run_gh_api([f"repos/{owner}/{repo}/pulls/{pr_number}"])
+    except RuntimeError as exc:
+        if "HTTP 404" in str(exc) or "Not Found" in str(exc):
+            raise PullRequestNotFoundError(str(exc)) from exc
+        raise
     if not isinstance(pr, dict):
         raise RuntimeError("REST pull request response is not an object")
-    sha = (pr.get("head") or {}).get("sha")
+    sha = _dict_field(pr, "head").get("sha")
     if not sha:
         raise RuntimeError("REST pull request response has no head sha")
 
@@ -154,17 +208,22 @@ def fetch_checks_rest(owner: str, repo: str, pr_number: int) -> dict:
     statuses, statuses_total = _fetch_pages(
         f"repos/{owner}/{repo}/commits/{sha}/status", "statuses"
     )
-    nodes = [to_graphql_check_run(run) for run in runs]
+    workflow_runs, workflow_runs_complete = _fetch_workflow_runs(owner, repo, sha)
+    nodes = [to_graphql_check_run(run, workflow_runs) for run in runs]
     nodes.extend(to_graphql_status_context(status) for status in statuses)
 
     merge_state, merge_state_status = _merge_fields(pr)
     return {
         "Number": pr.get("number", pr_number),
-        "BaseBranch": (pr.get("base") or {}).get("ref"),
+        "BaseBranch": _dict_field(pr, "base").get("ref"),
         "MergeState": merge_state,
         "MergeStateStatus": merge_state_status,
         "Nodes": nodes,
-        "PagesComplete": _is_complete(runs, runs_total) and _is_complete(statuses, statuses_total),
+        "PagesComplete": (
+            _is_complete(runs, runs_total)
+            and _is_complete(statuses, statuses_total)
+            and workflow_runs_complete
+        ),
         "HeadCommittedAt": _fetch_head_committed_at(owner, repo, sha),
     }
 
