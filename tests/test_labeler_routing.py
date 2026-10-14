@@ -88,6 +88,12 @@ CASES = [
     # Code plus only behavior markdown does not.
     (["scripts/a.py", ".claude/skills/x/SKILL.md"], {"route:code"}),
     (["scripts/validation/git_hook_policy.py"], {"route:code"}),
+    # Executable files under docs/ are code.
+    (["docs/tools/build.py"], {"route:code"}),
+    (["docs/guide.md", "docs/tools/build.py"], {"route:code", "docs-touched"}),
+    # Rules and instructions outside the listed trees are code.
+    ([".agents/rules/review.md"], {"route:code"}),
+    (["docs/review.instructions.md"], {"route:code"}),
 ]
 
 
@@ -113,3 +119,15 @@ def test_doc_and_behavior_lists_stay_in_sync() -> None:
     assert CONFIG["docs-touched"][0] == CONFIG["route:code"][0]
     touched = CONFIG["docs-touched"][1]["all"][0]["changed-files"][0]["all-globs-to-any-file"]
     assert touched == docs_rule
+
+
+def test_workflow_syncs_only_routing_config() -> None:
+    wf_path = ROOT / ".github" / "workflows" / "label-pr.yml"
+    wf = yaml.safe_load(wf_path.read_text(encoding="utf-8"))
+    steps = {
+        s["with"]["configuration-path"]: s["with"]["sync-labels"]
+        for s in wf["jobs"]["label"]["steps"]
+    }
+    assert steps == {".github/labeler.yml": False, ".github/labeler-route.yml": True}
+    shared = yaml.safe_load((ROOT / ".github" / "labeler.yml").read_text(encoding="utf-8"))
+    assert not set(shared) & set(ROUTING)

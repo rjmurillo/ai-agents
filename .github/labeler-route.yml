@@ -20,7 +20,8 @@
 #   .project-toolkit/**/*.csv
 #   .project-toolkit/**/*.tsv
 # BEHAVIOR globs: prompt, skill, agent, rule, hook, and instruction sources
-# plus generated mirrors and tests. They are code even when they are .md.
+# plus generated mirrors, tests, and executable or config files. They are
+# code even when they are .md or live under docs/.
 #
 # actions/labeler logic: top-level entries and entries inside all: are
 # AND-ed; entries inside any: are OR-ed. all-globs-to-all-files means every
@@ -55,6 +56,9 @@ route:docs:
           - "!**/*.agent.md"
           - "!**/*.shared.md"
           - "!**/*.tmpl"
+          - "!**/rules/**"
+          - "!**/*.instructions.md"
+          - "!**/*.{py,ps1,psm1,psd1,sh,bash,ts,tsx,js,mjs,cjs,bat,cmd,toml,yml,yaml}"
 
 # Some changed file misses DOC, or some changed file matches BEHAVIOR.
 route:code:
@@ -84,6 +88,9 @@ route:code:
               - "**/*.agent.md"
               - "**/*.shared.md"
               - "**/*.tmpl"
+              - "**/rules/**"
+              - "**/*.instructions.md"
+              - "**/*.{py,ps1,psm1,psd1,sh,bash,ts,tsx,js,mjs,cjs,bat,cmd,toml,yml,yaml}"
 
 # The route:code condition AND some file matches DOC and no BEHAVIOR glob.
 docs-touched:
@@ -113,6 +120,9 @@ docs-touched:
               - "**/*.agent.md"
               - "**/*.shared.md"
               - "**/*.tmpl"
+              - "**/rules/**"
+              - "**/*.instructions.md"
+              - "**/*.{py,ps1,psm1,psd1,sh,bash,ts,tsx,js,mjs,cjs,bat,cmd,toml,yml,yaml}"
   - all:
       - changed-files:
           - all-globs-to-any-file:
@@ -137,3 +147,6 @@ docs-touched:
               - "!**/*.agent.md"
               - "!**/*.shared.md"
               - "!**/*.tmpl"
+              - "!**/rules/**"
+              - "!**/*.instructions.md"
+              - "!**/*.{py,ps1,psm1,psd1,sh,bash,ts,tsx,js,mjs,cjs,bat,cmd,toml,yml,yaml}"
