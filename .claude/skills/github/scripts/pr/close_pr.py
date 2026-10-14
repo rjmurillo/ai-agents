@@ -41,15 +41,7 @@ from github_core.api import (
     error_and_exit,
     resolve_repo_params,
 )
-
-# Matched case-insensitively against the output of a failed PR view. gh words a
-# missing PR as "Could not resolve to a PullRequest", not "not found".
-_NOT_FOUND_MARKERS = ("could not resolve to a pullrequest", "not found")
-
-
-def _is_not_found(gh_output: str) -> bool:
-    lowered = gh_output.lower()
-    return any(marker in lowered for marker in _NOT_FOUND_MARKERS)
+from github_core.not_found import is_pr_not_found
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -97,7 +89,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if state_result.returncode != 0:
         output = state_result.stderr or state_result.stdout
-        if _is_not_found(output):
+        if is_pr_not_found(output):
             error_and_exit(f"PR #{pr} not found in {repo_flag}", 2)
         error_and_exit(f"Failed to get PR state: {output}", 3)
 

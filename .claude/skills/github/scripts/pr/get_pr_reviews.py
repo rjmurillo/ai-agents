@@ -46,6 +46,7 @@ from github_core.api import (
     resolve_repo_params,
 )
 from github_core.bot_config import canonicalize_login
+from github_core.not_found import is_pr_not_found
 from github_core.output import (
     add_output_format_arg,
     get_output_format,
@@ -143,7 +144,7 @@ def _fetch_reviews(
         raise SystemExit(3) from None
     if result.returncode != 0:
         error_str = result.stderr.strip() or result.stdout.strip()
-        not_found = "not found" in error_str.lower() or "Could not resolve" in error_str
+        not_found = is_pr_not_found(error_str)
         code, error_type = _exit_code_for(error_str, not_found=not_found)
         write_skill_error(
             f"Failed to fetch reviews for PR #{pr}: {error_str}",

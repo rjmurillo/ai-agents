@@ -30,7 +30,7 @@ This is the single work-order contract; other agents link here and do not copy i
 
 Capability (it can do the task), reliability (repeatable, honest about uncertainty), and accepted outcome (correct, scoped, independently verified, safe for its tier) differ. Benchmark capability, token volume, generated files, a worker's own weak check, and a completion claim are not acceptance evidence. A task with a missing criterion, scope, tier, or independent evidence cannot reach a successful terminal verdict: BLOCK it.
 
-Agents return a completion record: artifacts, commands run with results, deltas, residual risks, confidence, acceptance status, typed escalation status. No transcripts. Above read-only tier a return lacking the record fails closed: re-delegate with the format (consequential tier: HOLD and escalate to the human owner). A sourced read-only answer is accepted.
+Agents return a completion record, an evidence packet under 30 lines: artifacts, commands run with results, deltas, residual risks, confidence, acceptance status, typed escalation status. No transcripts. Above read-only tier a return lacking the record fails closed: re-delegate with the format (consequential tier: HOLD and escalate to the human owner). A sourced read-only answer is accepted.
 
 **Skill inheritance is harness-specific.** Claude Code workers did not inherit the parent's active skills; other harnesses are unverified. Where a worker does not inherit, name the skill file instead of pasting its body.
 

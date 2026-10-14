@@ -90,6 +90,7 @@ from github_core.checks_rollup import (
     extract_workflow_run_number,
     partition_rows_by_run,
 )
+from github_core.not_found import is_pr_not_found
 
 # ---------------------------------------------------------------------------
 # GraphQL query
@@ -576,7 +577,7 @@ def _fetch_pr_data(owner: str, repo: str, pr_number: int, op_start: float) -> di
     except RuntimeError as exc:
         msg = str(exc)
         duration_ms = int((time.monotonic() - op_start) * 1000)
-        if "Could not resolve" in msg:
+        if is_pr_not_found(msg):
             logger.warning(
                 "op=merge_ready_failed pr=%d owner=%s repo=%s reason=pr_not_found duration_ms=%d",
                 pr_number,
