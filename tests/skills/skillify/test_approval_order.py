@@ -90,6 +90,16 @@ def test_no_external_step_fails_with_naming_message(skills_root):
         "File a ticket",
         "Sent the report",
         "Share it with the team",
+        "Share results with the team",
+        "Shares the doc",
+        "Shared the doc",
+        "sharing them",
+        "Open a new PR",
+        "create a GitHub issue",
+        "open a\tPR",
+        "Submitted a PR",
+        "Filed a bug",
+        "Merge queue the PR",
     ],
 )
 def test_external_verbs_are_recognized(skills_root, step):
@@ -104,6 +114,10 @@ def test_external_verbs_are_recognized(skills_root, step):
         "Use the shared cache",
         "Write the post-merge note",
         "Resolve merge conflicts",
+        "Run the post-release check",
+        "Mark it pre-release",
+        "Check it is release-ready",
+        "Run the post-deploy smoke test",
     ],
 )
 def test_non_verbs_are_not_external(skills_root, step):

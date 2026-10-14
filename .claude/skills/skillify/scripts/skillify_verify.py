@@ -40,17 +40,18 @@ SOURCE_ONLY_TOOLS: tuple[str, ...] = ("skills_list", "skill_view", "skill_manage
 APPROVAL_RE = re.compile(r"\b(approv\w*|confirm\w*|consent|authori[sz]\w*)\b", re.IGNORECASE)
 
 RECOVERY_RE = re.compile(r"\b(optional|recovery)\b", re.IGNORECASE)
-# Verbs that act on an external or public system. Lookarounds skip common noun
-# and adjective uses ("post-merge", "merge conflicts", "release notes",
-# "shared cache"); any other false positive is fixed by rewording the step.
+# Verbs that act on an external or public system. Hyphen guards skip compounds
+# ("post-merge", "pre-release"); lookaheads skip common nouns ("merge
+# conflicts", "release notes", "shared cache"). Reword any other false positive.
 EXTERNAL_RE = re.compile(
-    r"\b(?:(?:publish|push|send|deploy|upload|comment|email)(?:s|es|ed|ing)?|sent"
-    r"|post(?:s|ed|ing)?(?!-)"
-    r"|(?<!-)merg(?:e|es|ed|ing)(?!\s+(?:conflicts?|base|queue))"
-    r"|releas(?:e|es|ed|ing)(?!\s+notes)"
-    r"|shar(?:e|es|ed|ing)\s+(?:it|this|the|a|an|with)"
-    r"|(?:open|file|create|submit|raise)(?:s|d|ed|ing)? (?:a |an |the )?"
-    r"(?:pr|pull request|issue|ticket)s?)\b",
+    r"(?<!-)\b(?:(?:publish|push|send|deploy|upload|comment|email|post)(?:s|es|ed|ing)?|sent"
+    r"|merg(?:e|es|ed|ing)(?!\s+(?:conflicts?|base)\b)"
+    r"|releas(?:e|es|ed|ing)(?!\s+notes\b)"
+    r"|shar(?:e|es|ing)"
+    r"|shared(?!\s+(?:cache|state|memory|drive|folder|fixtures?|librar(?:y|ies)|config"
+    r"|modules?|code|helpers?)\b)"
+    r"|(?:open|file|create|submit|raise)(?:s|d|ed|ted|ing)?\s+(?:(?:a|an|the)\s+)?"
+    r"(?:[\w-]+\s+)?(?:pr|pull request|issue|ticket|bug)s?)\b(?!-)",
     re.IGNORECASE,
 )
 NAME_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
