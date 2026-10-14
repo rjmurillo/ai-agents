@@ -32,6 +32,7 @@ import os
 import re
 import subprocess
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -53,7 +54,7 @@ try:
         EXIT_VULNERABILITIES,
     )
     from scan_format import format_console_output
-    from scan_patterns import CWE78_PATTERNS
+    from scan_patterns import CWE78_PATTERNS, scrub_bash_line
 finally:
     if _added_to_path:
         sys.path.remove(_SCRIPT_DIR)
@@ -74,6 +75,7 @@ __all__ = [
     "is_line_suppressed",
     "main",
     "scan_file",
+    "scrub_bash_line",
 ]
 
 # Suppression comment pattern
@@ -244,7 +246,8 @@ def scan_file(
         if cwe_filter is None or 78 in cwe_filter:
             for pattern_info in cwe78_patterns:
                 pattern = cast(re.Pattern[str], pattern_info["pattern"])
-                if pattern.search(line):
+                scrub = cast(Callable[[str], str] | None, pattern_info.get("scrub"))
+                if pattern.search(scrub(line) if scrub else line):
                     if is_line_suppressed(line, "CWE-78"):
                         suppressed.append(f"CWE-78 suppressed at {file_path}:{line_num}")
                     else:
