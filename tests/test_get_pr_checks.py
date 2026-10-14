@@ -1333,11 +1333,11 @@ class TestFetchChecks:
     def test_generic_api_error(self):
         with patch(
             "get_pr_checks.gh_graphql",
-            side_effect=RuntimeError("rate limit exceeded"),
+            side_effect=RuntimeError("upstream exploded"),
         ):
             result = fetch_checks("o", "r", 1)
         assert result["Error"] == "ApiError"
-        assert "rate limit" in result["Message"]
+        assert "upstream exploded" in result["Message"]
 
     def test_pr_none_in_response(self):
         with patch(
