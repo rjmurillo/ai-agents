@@ -80,9 +80,10 @@ activity are derived evidence that corroborate or extend it. When a source is un
 degrade gracefully: produce the artifact from the evidence you have and mark the missing
 sections, never substitute invented data.
 
-A large session log, transcript, or git log costs its full size on every turn that
-carries it. Distill it once with the context-optimizer skill's distill_artifact.py,
-work from the digest, and reopen the raw source only at a cited line.
+A session log or transcript you will read on more than one turn, or one too large to
+read whole, costs its full size on every turn that carries it. Distill it once with
+`distill_artifact.py` (usage: context-optimizer skill, Tool Details: Distill
+Artifact), work from the digest, and reopen the raw source only at a cited line.
 
 ---
 

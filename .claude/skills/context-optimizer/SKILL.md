@@ -296,6 +296,35 @@ Works with CLAUDE.md @import mechanism. Reference via `@AGENTS-INDEX.md`.
 </details>
 
 <details>
+<summary><strong>Tool Details: Distill Artifact</strong></summary>
+
+**Script**: `scripts/distill_artifact.py`
+
+Boils one log, diff, or long text down to a markdown digest with line
+citations. No model call. The digest is cached by content and source, so a
+repeat call reuses it.
+
+Use it for an artifact you will read on more than one turn, or one too large
+to read whole. The digest keeps signal lines (error, fail, warning, and
+similar), the first and last 15 lines, and per-file counts for a diff. Middle
+lines without a signal are omitted, so a clean `git log` digests thin: use
+`git log --oneline` for chronology instead.
+
+**Usage**:
+
+```bash
+# Distill a saved file; prints the digest path
+python3 scripts/distill_artifact.py build.log
+
+# Distill from stdin; JSON adds cached, kind, raw and digest bytes, ratio
+some_command 2>&1 | python3 scripts/distill_artifact.py - --format json
+```
+
+Read the digest, then reopen the raw source only at a cited line (`L{n}`).
+
+</details>
+
+<details>
 <summary><strong>Tool Details: Compliance Validator</strong></summary>
 
 **Script**: `scripts/test_skill_passive_compliance.py`
