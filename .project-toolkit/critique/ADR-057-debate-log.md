@@ -218,3 +218,31 @@ All six agents reviewed the first version, which put the whole policy in ADR-057
 ### Votes
 
 The six seats voted on the ADR-057 version in ADR-114 Round 1: six Disagree-and-Commit. The pointer text was reviewed again as part of ADR-114 Round 2.
+
+---
+
+## Amendment 2026-10-13 (issue #6148): a provider outage exits 3
+
+Issue #6148 closes security finding 19 (finding 19 and the critic dissent in the 2026-10-02 full panel above recorded the fail-open outage as accepted, with a fix required before the eval becomes a required check). `eval-prompt-change.py` now exits 3 on a provider outage and prints `ERROR: provider unavailable`. ADR-057 lists the `_is_provider_outage` match rules and the exit 3 contract. The change is not docs-only: it alters executable gate behavior, because `_run_or_exit` in `eval-prompt-change.py` now exits 3 on an outage where it exited 0. It implements the fix the 2026-10-02 full panel required, the eval leg is advisory under ADR-114, and no rule that another gate reads changes. On that basis the reduced panel (architect and critic) ran. Whether executable behavior alone calls for the full panel is the owner's call.
+
+Independence note: both seats were run by the model that wrote the change, in the same session, with no second reader. This log is a self-review record. It is not independent review evidence for this head.
+
+### Agent Positions
+
+| # | Agent | Priority | Finding | Resolution |
+|---|-------|----------|---------|------------|
+| 35 | architect | none | Exit 3 is the ADR-035 external code. The generic fault branch already uses it, and `scripts/eval/README.md` already names exit 3 as "any other external or API failure". | None. |
+| 36 | architect | none | The marker list in the ADR matches `outage_markers` in `eval-prompt-change.py`: usage limit, rate limit, too many requests, timed out, network error, and the full tokens `returned http 408`, `returned http 429`, `returned http 500`, `returned http 502`, `returned http 503`, `returned http 504`. | None. |
+| 37 | critic | P1 | A caller that relied on exit 0 during an outage would now fail. | Resolved. The only script caller, `eval-suite.py`, already turned an exit 0 with empty stdout into exit 3 (`parse_error` path), so its outage result is unchanged. The CI leg is advisory under ADR-114 and listed in `advisory_agent_workflows`, so a red outage leg blocks no merge. |
+| 38 | critic | P2 | Outage and generic fault share exit 3, so a caller tells them apart only by stderr text. | Accepted. ADR-035 has no separate code for an outage. The messages differ (`ERROR: provider unavailable` against `ERROR: eval failed`) and tests pin both. |
+| 39 | critic | P2 | Billing could be shadowed by an outage marker such as HTTP 429. | Resolved. The billing check runs first. `test_billing_wins_over_outage_markers` pins exit 4. |
+| 40 | critic | P2 | The script does not retry on an outage. | Out of scope. Unchanged behavior. Not recorded as a new issue. |
+
+### Votes
+
+| Agent | Vote |
+|-------|------|
+| architect | Accept |
+| critic | Accept |
+
+Outcome: Accepted. The critic dissent on the fail-open outage (2026-10-02 full panel) is resolved by this amendment.

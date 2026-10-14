@@ -1,0 +1,152 @@
+# ============================================================================
+# ROUTING LABELS (zero-LLM bot routing)
+#
+# Forge (code bot) wakes only on route:code. Doc Writer (docs bot) wakes only
+# on route:docs. docs-touched marks a code PR that also edits prose docs.
+#
+# DOC glob: one brace pattern listing prose files and docs trees:
+#   **/*.md
+#   **/*.mdx
+#   **/*.rst
+#   **/*.adoc
+#   docs/**
+#   **/README*
+#   **/LICENSE*
+#   **/THIRD-PARTY-NOTICES*
+#   llms.txt
+#   .project-toolkit/**/*.json
+#   .project-toolkit/**/*.jsonl
+#   .project-toolkit/**/*.txt
+#   .project-toolkit/**/*.csv
+#   .project-toolkit/**/*.tsv
+# BEHAVIOR globs: prompt, skill, agent, rule, hook, and instruction sources
+# plus generated mirrors, tests, and executable or config files. They are
+# code even when they are .md or live under docs/.
+#
+# actions/labeler logic: top-level entries and entries inside all: are
+# AND-ed; entries inside any: are OR-ed. all-globs-to-all-files means every
+# file matches every glob; all-globs-to-any-file means one file matches every
+# glob. Negations live only in all-globs-to-* matchers (labeler-001 memory).
+# Keep DOC and BEHAVIOR identical across the three labels;
+# tests/test_labeler_routing.py enforces this.
+# ============================================================================
+
+# Every changed file matches DOC and matches no BEHAVIOR glob.
+route:docs:
+  - changed-files:
+      - all-globs-to-all-files:
+          - "{**/*.md,**/*.mdx,**/*.rst,**/*.adoc,docs/**,**/README*,**/LICENSE*,**/THIRD-PARTY-NOTICES*,llms.txt,.project-toolkit/**/*.json,.project-toolkit/**/*.jsonl,.project-toolkit/**/*.txt,.project-toolkit/**/*.csv,.project-toolkit/**/*.tsv}"
+          - "!templates/**"
+          - "!src/**"
+          - "!.claude/**"
+          - "!.github/**"
+          - "!.gemini/**"
+          - "!.agents/steering/**"
+          - "!.agents/templates/**"
+          - "!.agents/hooks/**"
+          - "!tests/**"
+          - "!evals/**"
+          - "!packages/**/src/**"
+          - "!**/AGENTS.md"
+          - "!**/CLAUDE.md"
+          - "!**/GEMINI.md"
+          - "!**/AGENT-*.md"
+          - "!**/SKILL.md"
+          - "!**/*.prompt.md"
+          - "!**/*.agent.md"
+          - "!**/*.shared.md"
+          - "!**/*.tmpl"
+          - "!**/rules/**"
+          - "!**/*.instructions.md"
+          - "!**/*.{py,ps1,psm1,psd1,sh,bash,ts,tsx,js,mjs,cjs,bat,cmd,toml,yml,yaml}"
+
+# Some changed file misses DOC, or some changed file matches BEHAVIOR.
+route:code:
+  - any:
+      - changed-files:
+          - all-globs-to-any-file:
+              - "!{**/*.md,**/*.mdx,**/*.rst,**/*.adoc,docs/**,**/README*,**/LICENSE*,**/THIRD-PARTY-NOTICES*,llms.txt,.project-toolkit/**/*.json,.project-toolkit/**/*.jsonl,.project-toolkit/**/*.txt,.project-toolkit/**/*.csv,.project-toolkit/**/*.tsv}"
+      - changed-files:
+          - any-glob-to-any-file:
+              - "templates/**"
+              - "src/**"
+              - ".claude/**"
+              - ".github/**"
+              - ".gemini/**"
+              - ".agents/steering/**"
+              - ".agents/templates/**"
+              - ".agents/hooks/**"
+              - "tests/**"
+              - "evals/**"
+              - "packages/**/src/**"
+              - "**/AGENTS.md"
+              - "**/CLAUDE.md"
+              - "**/GEMINI.md"
+              - "**/AGENT-*.md"
+              - "**/SKILL.md"
+              - "**/*.prompt.md"
+              - "**/*.agent.md"
+              - "**/*.shared.md"
+              - "**/*.tmpl"
+              - "**/rules/**"
+              - "**/*.instructions.md"
+              - "**/*.{py,ps1,psm1,psd1,sh,bash,ts,tsx,js,mjs,cjs,bat,cmd,toml,yml,yaml}"
+
+# The route:code condition AND some file matches DOC and no BEHAVIOR glob.
+docs-touched:
+  - any:
+      - changed-files:
+          - all-globs-to-any-file:
+              - "!{**/*.md,**/*.mdx,**/*.rst,**/*.adoc,docs/**,**/README*,**/LICENSE*,**/THIRD-PARTY-NOTICES*,llms.txt,.project-toolkit/**/*.json,.project-toolkit/**/*.jsonl,.project-toolkit/**/*.txt,.project-toolkit/**/*.csv,.project-toolkit/**/*.tsv}"
+      - changed-files:
+          - any-glob-to-any-file:
+              - "templates/**"
+              - "src/**"
+              - ".claude/**"
+              - ".github/**"
+              - ".gemini/**"
+              - ".agents/steering/**"
+              - ".agents/templates/**"
+              - ".agents/hooks/**"
+              - "tests/**"
+              - "evals/**"
+              - "packages/**/src/**"
+              - "**/AGENTS.md"
+              - "**/CLAUDE.md"
+              - "**/GEMINI.md"
+              - "**/AGENT-*.md"
+              - "**/SKILL.md"
+              - "**/*.prompt.md"
+              - "**/*.agent.md"
+              - "**/*.shared.md"
+              - "**/*.tmpl"
+              - "**/rules/**"
+              - "**/*.instructions.md"
+              - "**/*.{py,ps1,psm1,psd1,sh,bash,ts,tsx,js,mjs,cjs,bat,cmd,toml,yml,yaml}"
+  - all:
+      - changed-files:
+          - all-globs-to-any-file:
+              - "{**/*.md,**/*.mdx,**/*.rst,**/*.adoc,docs/**,**/README*,**/LICENSE*,**/THIRD-PARTY-NOTICES*,llms.txt,.project-toolkit/**/*.json,.project-toolkit/**/*.jsonl,.project-toolkit/**/*.txt,.project-toolkit/**/*.csv,.project-toolkit/**/*.tsv}"
+              - "!templates/**"
+              - "!src/**"
+              - "!.claude/**"
+              - "!.github/**"
+              - "!.gemini/**"
+              - "!.agents/steering/**"
+              - "!.agents/templates/**"
+              - "!.agents/hooks/**"
+              - "!tests/**"
+              - "!evals/**"
+              - "!packages/**/src/**"
+              - "!**/AGENTS.md"
+              - "!**/CLAUDE.md"
+              - "!**/GEMINI.md"
+              - "!**/AGENT-*.md"
+              - "!**/SKILL.md"
+              - "!**/*.prompt.md"
+              - "!**/*.agent.md"
+              - "!**/*.shared.md"
+              - "!**/*.tmpl"
+              - "!**/rules/**"
+              - "!**/*.instructions.md"
+              - "!**/*.{py,ps1,psm1,psd1,sh,bash,ts,tsx,js,mjs,cjs,bat,cmd,toml,yml,yaml}"
