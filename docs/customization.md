@@ -79,7 +79,7 @@ This creates agent files in `src/vs-code-agents/` and `src/copilot-cli/`.
 
 ### Step 3: Add Claude Code agent (if needed)
 
-For Claude Code, create a plain markdown file at `src/claude/<agent-name>.md` without YAML frontmatter.
+For Claude Code, create `templates/agents/<agent-name>.claude.md.tmpl` and its paired `templates/agents/<agent-name>.copilot.md.tmpl`, then run `uv run python build/scripts/build_all.py`. That renders `src/claude/agents/<agent-name>.md` and binplaces it onto `.claude/agents/` (ADR-109 B1). Never create the rendered file by hand.
 
 ### Step 4: Register in marketplace
 

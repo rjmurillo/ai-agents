@@ -28,7 +28,7 @@ Workflow, hook, and skill documentation can name an entry point. Once a
 executable string literals.
 
 Under that model the scripts (128 under scripts/validation plus 30 under
-build/scripts at the time of this edit) yield two unreachable, real decisions
+build/scripts at the time of this edit) yield three unreachable, real decisions
 recorded in ``_NO_CALLER`` below rather than a bulk exemption.
 
 What this does not do: prove the caller is correct, or that the script would
@@ -42,6 +42,7 @@ from __future__ import annotations
 import ast
 import functools
 import re
+from collections.abc import Iterable
 from pathlib import Path
 
 import pytest
@@ -96,6 +97,13 @@ _NO_CALLER: dict[str, str] = {
         "CI would run it against a handoff that does not exist there, and "
         "wiring it into a SKILL.md adds a ratcheted upstream-path reference to a "
         "shipped skill (issue #5766)."
+    ),
+    "build/scripts/copilot_launcher.py": (
+        "A reference renderer, not a runner. No workflow, hook, or skill calls "
+        "it. The launcher strings in pr-review-config.yaml are pasted from "
+        "render_launcher(), and tests/build_scripts/test_copilot_launcher.py "
+        "fails any entry that drifts from that function's output (issue #5521). "
+        "Its caller is the test suite."
     ),
 }
 
@@ -216,6 +224,56 @@ def _string_literals(node: ast.AST) -> set[str]:
     }
 
 
+def _names_in(nodes: Iterable[ast.AST]) -> set[str]:
+    return {child.id for node in nodes for child in ast.walk(node) if isinstance(child, ast.Name)}
+
+
+def _forwards_parameter(
+    function: ast.FunctionDef | ast.AsyncFunctionDef, calls: list[ast.Call]
+) -> bool:
+    """True when an execution-like call inside ``function`` receives a parameter."""
+    arguments = function.args
+    params = {a.arg for a in (*arguments.posonlyargs, *arguments.args, *arguments.kwonlyargs)}
+    if arguments.vararg:
+        params.add(arguments.vararg.arg)
+    if not params:
+        return False
+    end = function.end_lineno or function.lineno
+    return any(
+        function.lineno <= call.lineno <= end
+        and params & _names_in((*call.args, *(kw.value for kw in call.keywords)))
+        for call in calls
+    )
+
+
+def _wrapper_helper_calls(
+    functions: list[ast.FunctionDef | ast.AsyncFunctionDef],
+    execution_calls: list[ast.Call],
+    other_calls: list[ast.Call],
+) -> list[ast.Call]:
+    """Return calls to same-file helpers that forward a parameter to an execution call.
+
+    A caller wired through ``_run_x("scripts/validation/x.py")`` names the script,
+    but the call name matches no execution marker, so only the helper's own body
+    was inspected and the script looked orphaned (issue #6564). Resolution is one
+    level and same-file: a helper that wraps another helper, or one imported from
+    a sibling module, is not followed. Requiring a forwarded parameter keeps an
+    unrelated function that happens to spawn a process from crediting its callers.
+    """
+    helpers = {
+        function.name.lower()
+        for function in functions
+        if _forwards_parameter(function, execution_calls)
+    }
+    return [
+        ast.Call(
+            func=call.func, args=[*call.args, *(kw.value for kw in call.keywords)], keywords=[]
+        )
+        for call in other_calls
+        if _call_name(call.func) in helpers
+    ]
+
+
 def _execution_string_literals(tree: ast.AST) -> set[str]:
     """Return strings passed positionally to execution-like calls.
 
@@ -227,19 +285,24 @@ def _execution_string_literals(tree: ast.AST) -> set[str]:
     """
     assigns: list[tuple[list[ast.expr], ast.expr]] = []
     calls: list[ast.Call] = []
+    other_calls: list[ast.Call] = []
+    functions: list[ast.FunctionDef | ast.AsyncFunctionDef] = []
     dicts: list[ast.Dict] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Assign):
             assigns.append((node.targets, node.value))
         elif isinstance(node, ast.AnnAssign) and node.value is not None:
             assigns.append(([node.target], node.value))
-        elif isinstance(node, ast.Call) and _is_execution_call(_call_name(node.func)):
-            calls.append(node)
+        elif isinstance(node, ast.Call):
+            (calls if _is_execution_call(_call_name(node.func)) else other_calls).append(node)
+        elif isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+            functions.append(node)
         elif isinstance(node, ast.Dict):
             dicts.append(node)
 
     literals: set[str] = set()
     if calls:
+        calls.extend(_wrapper_helper_calls(functions, calls, other_calls))
         bindings: dict[str, set[str]] = {}
         for targets, value in assigns:
             strings = _string_literals(value)
@@ -884,3 +947,91 @@ class TestUnreadableEntrySurfacesNameTheFile:
         assert counts, "no SKILL.md was read; the scan patterns matched nothing"
         repeated = {rel: n for rel, n in counts.items() if n != 1}
         assert not repeated, f"SKILL.md files read more than once: {repeated}"
+
+
+def _literals(source: str) -> set[str]:
+    return _execution_string_literals(ast.parse(source))
+
+
+_HELPER = """
+def _run_x(path):
+    return subprocess.run(["python", path])
+"""
+
+
+def test_literal_passed_to_wrapper_helper_is_credited() -> None:
+    """A `_run_x` helper that forwards its parameter credits its callers (issue #6564)."""
+    source = _HELPER + 'def go():\n    _run_x("scripts/validation/foo.py")\n'
+    assert "scripts/validation/foo.py" in _literals(source)
+
+
+def test_keyword_argument_to_wrapper_helper_is_credited() -> None:
+    source = _HELPER + 'def go():\n    _run_x(path="scripts/validation/foo.py")\n'
+    assert "scripts/validation/foo.py" in _literals(source)
+
+
+def test_method_and_async_wrapper_helpers_are_credited() -> None:
+    source = (
+        "class Runner:\n"
+        "    def _run_y(self, target):\n"
+        "        return subprocess.run(['python', target])\n"
+        "    def go(self):\n"
+        "        self._run_y('scripts/validation/m.py')\n"
+        "async def _run_z(target):\n"
+        "    await asyncio.create_subprocess_exec('python', target)\n"
+        "async def go():\n"
+        "    await _run_z('scripts/validation/a.py')\n"
+    )
+    assert {"scripts/validation/m.py", "scripts/validation/a.py"} <= _literals(source)
+
+
+def test_variadic_wrapper_helper_is_credited() -> None:
+    source = (
+        "def _run_all(*scripts):\n"
+        "    subprocess.run(['python', *scripts])\n"
+        "def go():\n"
+        "    _run_all('scripts/validation/v.py')\n"
+    )
+    assert "scripts/validation/v.py" in _literals(source)
+
+
+def test_call_to_non_wrapper_function_is_not_credited() -> None:
+    source = _HELPER + 'def go():\n    helper("scripts/validation/bar.py")\n'
+    assert "scripts/validation/bar.py" not in _literals(source)
+
+
+def test_function_that_does_not_forward_a_parameter_is_not_a_wrapper() -> None:
+    source = (
+        "def _run_fixed(label):\n"
+        "    subprocess.run(['git', 'status'])\n"
+        "def go():\n"
+        "    _run_fixed('scripts/validation/unrelated.py')\n"
+    )
+    assert "scripts/validation/unrelated.py" not in _literals(source)
+
+
+def test_function_without_parameters_is_not_a_wrapper() -> None:
+    source = (
+        "def _run_none():\n"
+        "    subprocess.run(['git', 'status'])\n"
+        "def go():\n"
+        "    _run_none('scripts/validation/unrelated.py')\n"
+    )
+    assert "scripts/validation/unrelated.py" not in _literals(source)
+
+
+def test_helper_wrapping_another_helper_is_not_followed() -> None:
+    """Resolution stops at one level, as the helper's docstring states."""
+    source = (
+        _HELPER
+        + "def _outer(path):\n    _run_x(path)\n"
+        + 'def go():\n    _outer("scripts/validation/deep.py")\n'
+    )
+    assert "scripts/validation/deep.py" not in _literals(source)
+
+
+def test_file_without_execution_call_yields_nothing() -> None:
+    source = (
+        'def _run_x(path):\n    return path\ndef go():\n    _run_x("scripts/validation/foo.py")\n'
+    )
+    assert _literals(source) == set()

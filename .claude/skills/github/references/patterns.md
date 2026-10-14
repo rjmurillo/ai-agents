@@ -29,7 +29,7 @@ SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/githu
 # First call: posts comment with <!-- AI-TRIAGE --> marker
 python3 "$SCRIPTS_DIR/issue/post_issue_comment.py" --issue 123 --body "..." --marker "AI-TRIAGE"
 
-# Second call: exits with code 5 (already exists)
+# Second call: skips the post and exits with code 0 (already exists)
 ```
 
 ---

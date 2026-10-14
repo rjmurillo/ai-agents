@@ -9,6 +9,56 @@
     "supersession-target-exists": {},
     "proposed-cannot-supersede": {},
     "prose-frontmatter-agree": {},
-    "status-edge-consistency": {}
+    "status-edge-consistency": {},
+    "cited-paths-exist": {
+      ".project-toolkit/architecture/ADR-014-distributed-handoff-architecture.md": 4,
+      ".project-toolkit/architecture/ADR-019-script-organization.md": 8,
+      ".project-toolkit/architecture/ADR-033-routing-level-enforcement-gates.md": 1,
+      ".project-toolkit/architecture/ADR-034-investigation-session-qa-exemption.md": 5,
+      ".project-toolkit/architecture/ADR-040-skill-frontmatter-standardization.md": 1,
+      ".project-toolkit/architecture/ADR-043-scoped-tool-execution.md": 1,
+      ".project-toolkit/architecture/ADR-047-plugin-mode-hook-behavior.md": 1,
+      ".project-toolkit/architecture/ADR-051-synthesis-panel-frontmatter-standard.md": 2,
+      ".project-toolkit/architecture/ADR-053-adr-exception-criteria.md": 1,
+      ".project-toolkit/architecture/ADR-057-prompt-behavioral-evaluation.md": 1,
+      ".project-toolkit/architecture/ADR-064-commands-to-skills-migration.md": 1,
+      ".project-toolkit/architecture/ADR-071-plugin-hook-runtime-contract-verification.md": 1,
+      ".project-toolkit/architecture/ADR-072-jtbd-plugin-architecture.md": 2,
+      ".project-toolkit/architecture/ADR-081-confidence-elicitation-experiment.md": 1,
+      ".project-toolkit/architecture/ADR-083-copilot-dogfood-surface-separation.md": 2,
+      ".project-toolkit/architecture/ADR-085-cross-harness-permission-surface-asymmetry.md": 3,
+      ".project-toolkit/architecture/ADR-092-omit-plugin-manifest-version.md": 1,
+      ".project-toolkit/architecture/ADR-094-govern-copilot-cli-compatibility.md": 2,
+      ".project-toolkit/architecture/ADR-096-relax-qa-evidence-commit-equality.md": 2,
+      ".project-toolkit/architecture/ADR-097-zero-tool-use-hooks.md": 4,
+      ".project-toolkit/architecture/ADR-099-remove-commit-limit-bypass-gate.md": 2,
+      ".project-toolkit/architecture/ADR-100-retire-pr-size-ceilings.md": 2,
+      ".project-toolkit/architecture/ADR-101-enforcement-planes.md": 3,
+      ".project-toolkit/architecture/ADR-103-skill-output-python-contract-correction.md": 2,
+      ".project-toolkit/architecture/ADR-108-template-owned-skill-files.md": 1,
+      ".project-toolkit/architecture/ADR-109-template-first-plugin-distribution.md": 5
+    },
+    "section-structure": {
+      ".project-toolkit/architecture/ADR-030-skills-pattern-superiority.md": 1,
+      ".project-toolkit/architecture/ADR-095-scoped-re-review-axes.md": 1
+    },
+    "review-by-format": {},
+    "review-by-past-due": {
+      ".project-toolkit/architecture/ADR-077-flip-stale-contract-tests.md": 1
+    },
+    "review-by-prose-date": {
+      ".project-toolkit/architecture/ADR-107-canonical-skill-contracts-and-harness-projections.md": 1,
+      ".project-toolkit/architecture/ADR-108-template-owned-skill-files.md": 1,
+      ".project-toolkit/architecture/ADR-109-template-first-plugin-distribution.md": 1,
+      ".project-toolkit/architecture/ADR-110-capability-ownership-dag.md": 1,
+      ".project-toolkit/architecture/ADR-111-skill-model-pins-project-per-harness.md": 1,
+      ".project-toolkit/architecture/ADR-112-risk-tiered-action-boundaries.md": 1,
+      ".project-toolkit/architecture/ADR-113-promotion-gate-evidence-and-exceptions.md": 1,
+      ".project-toolkit/architecture/ADR-114-agent-workflows-approval-and-non-blocking.md": 1,
+      ".project-toolkit/architecture/ADR-115-native-plugin-support-per-host.md": 1,
+      ".project-toolkit/architecture/ADR-116-unchecked-in-context-rule-violation-failure-mode.md": 1,
+      ".project-toolkit/architecture/ADR-117-state-conflation-failure-mode.md": 1,
+      ".project-toolkit/architecture/ADR-118-widen-fm-11-to-hand-authored-cross-harness-instructions.md": 1
+    }
   }
 }

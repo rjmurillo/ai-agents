@@ -25,6 +25,15 @@
 
 **Rationale**: Skill-creator spec prohibits auxiliary documentation files. Only SKILL.md, references/, scripts/, and assets/ are allowed.
 
+### Intentional divergence: assets/images/ is not vendored
+
+Upstream ships slide-deck PNGs under `assets/images/`. This repo deleted them on purpose.
+
+- Issue #5579 flagged 26 unpackaged slide PNGs, 13 per plugin tree. `.skillignore` already excluded them from installs.
+- Commit `5cad780a2` (PR #5743) removed 13 files from `.claude/skills/skillforge/assets/images/` and 13 from `src/copilot-cli/skills/skillforge/assets/images/`.
+- Only `assets/templates/` (3 files) remains under `assets/`.
+- A sync must never restore `assets/images/`. A non-empty `diff` on that path is expected, not a sign of upstream change.
+
 ---
 
 ## Content Moved to references/
@@ -88,13 +97,25 @@ For detailed implementation guides, see:
 
 When updating from upstream:
 
-1. **Delete prohibited files** (if they return):
+1. **Copy upstream files, skipping `.skillignore` paths.** This keeps `assets/images/`, `README.md`, and `LICENSE` out:
+
+   ```bash
+   rsync -a --exclude-from=.claude/skills/skillforge/.skillignore /tmp/upstream/ .claude/skills/skillforge/
+   ```
+
+   Edit the checked-in skill directory, which is the source for support files. Then mirror it into the plugin trees:
+
+   ```bash
+   uv run python build/scripts/build_all.py
+   ```
+
+2. **Delete prohibited files** (if they return):
 
    ```bash
    rm README.md LICENSE SESSION_HANDOFF.md
    ```
 
-2. **Check line count**:
+3. **Check line count**:
 
    ```bash
    wc -l SKILL.md
@@ -102,16 +123,16 @@ When updating from upstream:
 
    If >500 lines, proceed with extraction.
 
-3. **Extract details sections** (if present):
+4. **Extract details sections** (if present):
    - Identify all `<details>` sections with `grep -n "<details>" SKILL.md`
    - Extract each to corresponding `references/*.md` file using sed
    - Pattern: `sed -n 'START,ENDp' SKILL.md > references/filename.md`
 
-4. **Replace with reference links**:
+5. **Replace with reference links**:
    - Remove all `<details>` content from SKILL.md
    - Add "Deep Dives" section with links to references/
 
-5. **Verify compliance**:
+6. **Verify compliance**:
 
    ```bash
    wc -l SKILL.md  # Should be <500
@@ -180,7 +201,7 @@ ls -la references/*.md
 Expected results:
 
 - SKILL.md: ~396 lines
-- references/: 14 files (7 new + 7 existing)
+- references/: 23 files, measured 2026-10-13 (`git ls-files -- .claude/skills/skillforge/references | wc -l`)
 - No README.md, LICENSE, or SESSION_HANDOFF.md
 
 ---
@@ -263,21 +284,22 @@ Expected results:
 ### Verification (post-sync)
 
 ```bash
-# Assets identical with upstream
-diff -rq /tmp/upstream/assets .claude/skills/skillforge/assets  # empty = identical
+# Templates identical with upstream (assets/images/ is intentionally absent, see Files Deleted)
+diff -rq /tmp/upstream/assets/templates .claude/skills/skillforge/assets/templates  # empty = identical
+git ls-files -- .claude/skills/skillforge/assets/images | wc -l  # 0 = PNGs still removed
 
 # SKILL.md differs only in model field
 diff .claude/skills/skillforge/SKILL.md /tmp/upstream/SKILL.md  # 6 lines changed, all model/subagent_model
 
-# Total vendored files: 49 (up from 35 pre-sync)
-find .claude/skills/skillforge -type f | wc -l
+# Total tracked files: 40, measured 2026-10-13 (recorded 49 on 2026-04-13)
+git ls-files -- .claude/skills/skillforge | wc -l
 ```
 
 ### Known TODO for next sync
 
 1. **Script diff triage**: run a 3-way merge on the 5 shared scripts where vendored is larger. Decide per-script: keep local, adopt upstream, or cherry-pick specific improvements.
 2. **References consolidation**: decide fate of 8 v4.x legacy reference files. Either rename to `references/_v4-legacy/` to mark deprecated, delete if fully superseded by upstream's 9 new files, or merge content.
-3. **Consider rebasing on upstream**: if local enhancements matter, propose them upstream. If not, do a clean overwrite on the next sync and only preserve intentional policy deletions (README/LICENSE).
+3. **Consider rebasing on upstream**: if local enhancements matter, propose them upstream. If not, do a clean overwrite on the next sync and only preserve intentional policy deletions (README, LICENSE, `assets/images/`).
 4. **Upstream still on 4-5 models**: our 4-6 override will stay as a local fork until upstream bumps.
 
 <!-- vendor-portability: declared. These notes cite .agents/governance/skill-description-trigger-standard.md as the source of the v2.0 description/trigger convention. It is a documentation citation, not a runtime read; a vendored install without that file loses the link target, the transformation guidance stays inline. Issue #2050. -->

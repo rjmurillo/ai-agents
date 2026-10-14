@@ -1,7 +1,7 @@
 ---
 id: ADR-050
-status: accepted
-date: 2026-02-21
+status: deprecated
+date: 2026-10-13
 decision-makers: [rjmurillo]
 supersedes: []
 superseded-by: null
@@ -10,6 +10,30 @@ implemented: true
 ---
 
 # ADR-050: ADR-to-Protocol Sync Process
+
+## Status
+
+Deprecated (2026-10-13). The frontmatter `date` is the deprecation date; the
+`## Date` section below stays the original decision date.
+
+PR #5179 removed the session protocol on 2026-08-20, in commit
+`ba541c21`. That change deleted both halves of this decision: the audit script
+`scripts/sync_adr_protocol.py` and the document it synced against,
+`.agents/SESSION-PROTOCOL.md`. The requirement to propagate ADR requirements
+into the protocol no longer holds, because the target document is gone. The
+Decision and Implementation Notes below are kept as written, as the record of
+what was decided.
+
+Rebuilding the script was rejected. It needs the protocol document back first,
+and PR #5179 retired that document on purpose. Retargeting the process at a
+surviving document, such as `AGENTS.md` or `.claude/rules/`, is a new decision.
+It belongs in a new ADR that supersedes this one, not in an edit to this record.
+This record is `deprecated`, not `superseded`: it shipped, it was abandoned,
+and no successor decision names it.
+
+Issue #5194 found the stale `accepted` status. The `cited-paths-exist` check in
+`scripts/validation/check_adr_lifecycle.py` now flags this drift in any accepted
+record.
 
 ## Date
 

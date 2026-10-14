@@ -104,10 +104,10 @@ class BinplaceConfigError(Exception):
 class Row:
     """One binplace manifest row: source, optional plugin-tree hop, install target.
 
-    ``install_tree`` is ``None`` only for a Copilot-side lib row (ADR-109 B5,
-    ``lib-*-copilot`` / ``lib-bootstrap-copilot``): its ``plugin_tree`` under
-    ``src/copilot-cli/lib/`` IS the final output, with no further hop, since
-    ``.claude/`` never mirrors the Copilot tree. :func:`binplace` and
+    ``install_tree`` is ``None`` only for a Copilot-side or Codex-side lib row
+    (ADR-109 B5, ``lib-*-copilot`` / ``lib-*-codex``): its ``plugin_tree`` under
+    ``src/copilot-cli/lib/`` or ``src/codex/lib/`` IS the final output, with no
+    further hop, since ``.claude/`` never mirrors those trees. :func:`binplace` and
     :func:`claude_allowlist` both skip such a row's install side entirely.
     """
 
@@ -333,6 +333,13 @@ def _is_claude_rooted(install_tree: Path | None, repo_root: Path) -> bool:
 def is_bytecode_artifact(path: Path) -> bool:
     """Return True for paths CPython writes as import side effects.
 
+    ``path`` MUST be relative to the tree being walked (the plugin tree,
+    install tree, or repo root), never absolute. The match reads every path
+    component, so an absolute path whose ancestor happens to be named
+    ``__pycache__`` (a checkout under such a directory) would match every
+    file beneath it and silently skip real sources. An absolute ``path``
+    raises ``ValueError`` instead of guessing; callers relativize first.
+
     Any file under a ``__pycache__`` directory matches, whatever its
     extension, plus any ``.pyc`` or ``.pyo`` anywhere. Coverage and mypy
     also write into ``__pycache__``, so do not narrow this to bytecode
@@ -341,6 +348,8 @@ def is_bytecode_artifact(path: Path) -> bool:
     skill script imports a lib plugin tree and writes these caches there;
     binplace must neither copy them nor report them as drift.
     """
+    if path.is_absolute():
+        raise ValueError(f"is_bytecode_artifact needs a root-relative path, got {path}")
     return "__pycache__" in path.parts or path.suffix in (".pyc", ".pyo")
 
 
@@ -361,9 +370,9 @@ def _plugin_tree_install_paths(plugin_tree: Path, install_tree: Path) -> set[Pat
         return set()
     paths: set[Path] = set()
     for src_path in plugin_tree.rglob("*"):
-        if src_path.is_dir() or is_bytecode_artifact(src_path):
-            continue
         rel = src_path.relative_to(plugin_tree)
+        if src_path.is_dir() or is_bytecode_artifact(rel):
+            continue
         paths.add(install_tree / rel)
     return paths
 
@@ -437,9 +446,9 @@ def _binplace_one_row(
         return
     owned_relatives: set[Path] = set()
     for src_path in sorted(plugin_tree.rglob("*")):
-        if src_path.is_dir() or is_bytecode_artifact(src_path):
-            continue
         rel = src_path.relative_to(plugin_tree)
+        if src_path.is_dir() or is_bytecode_artifact(rel):
+            continue
         if rel.parts[0] in skip_top_dirs:
             continue
         owned_relatives.add(rel)
@@ -448,9 +457,9 @@ def _binplace_one_row(
     if not install_tree.is_dir():
         return
     for existing in sorted(install_tree.rglob("*")):
-        if existing.is_dir() or is_bytecode_artifact(existing):
-            continue
         rel = existing.relative_to(install_tree)
+        if existing.is_dir() or is_bytecode_artifact(rel):
+            continue
         if rel.parts[0] in skip_top_dirs:
             continue
         if rel not in owned_relatives:

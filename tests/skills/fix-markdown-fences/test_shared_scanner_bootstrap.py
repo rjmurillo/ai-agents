@@ -49,6 +49,11 @@ def _run(script: Path, cwd: Path, env_extra: dict[str, str]) -> subprocess.Compl
     return subprocess.run(args, cwd=cwd, env=env, capture_output=True, text=True, timeout=60)
 
 
+def _copy_scripts(script_rel: str, target: Path) -> None:
+    """Copy the script and its sibling modules, as the plugin build ships them."""
+    shutil.copytree((PLUGIN_TREE / script_rel).parent, target.parent, dirs_exist_ok=True)
+
+
 @pytest.fixture(params=sorted(SCRIPTS))
 def script_rel(request: pytest.FixtureRequest) -> str:
     return SCRIPTS[request.param]
@@ -96,7 +101,8 @@ def test_vendored_copy_with_its_lib_runs(script_rel: str, tmp_path: Path) -> Non
     plugin = tmp_path / "plugin"
     target = plugin / script_rel
     target.parent.mkdir(parents=True)
-    shutil.copy2(PLUGIN_TREE / script_rel, target)
+    # The whole scripts directory ships, so a sibling module goes with the script.
+    _copy_scripts(script_rel, target)
     shutil.copytree(PLUGIN_TREE / "lib" / "hook_utilities", plugin / "lib" / "hook_utilities")
 
     result = _run(target, tmp_path, {"CLAUDE_PLUGIN_ROOT": str(plugin)})
@@ -108,7 +114,8 @@ def test_vendored_copy_without_any_lib_is_a_config_error(script_rel: str, tmp_pa
     plugin = tmp_path / "plugin"
     target = plugin / script_rel
     target.parent.mkdir(parents=True)
-    shutil.copy2(PLUGIN_TREE / script_rel, target)
+    # The whole scripts directory ships, so a sibling module goes with the script.
+    _copy_scripts(script_rel, target)
 
     result = _run(target, tmp_path, {})
 

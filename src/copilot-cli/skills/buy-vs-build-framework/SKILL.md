@@ -245,8 +245,8 @@ python3 scripts/calculate_tco.py --help
 
 # Exit codes:
 #   0: Success
-#   10: Warning (negative NPV detected)
-#   11: Error (missing cost categories)
+#   1: Error (invalid inputs)
+#   2: Warning (negative NPV detected)
 ```
 
 ### score_decision.py
@@ -262,6 +262,7 @@ python3 scripts/score_decision.py --help
 # Exit codes:
 #   0: Clear winner (>20% score gap)
 #   1: Tie requires human judgment (scores within 10%)
+#   2: Criteria file not found, invalid JSON, or failed validation
 ```
 
 ### check_reassessment_triggers.py
@@ -277,8 +278,9 @@ python3 scripts/check_reassessment_triggers.py --help
 
 # Exit codes:
 #   0: Assumptions hold, stay course
-#   10: Minor drift (<20%), monitor closely
-#   11: Major drift (>20%), re-evaluation required
+#   1: Error (file not found or invalid JSON)
+#   2: Minor drift (<20%), monitor closely
+#   3: Major drift (>20%), re-evaluation required
 ```
 
 ### score_vendor.py
@@ -293,8 +295,10 @@ python3 scripts/score_vendor.py --help
 
 # Exit codes:
 #   0: Pass (score >70)
-#   10: Yellow flag (score 50-70)
-#   11: Red flag (score <50)
+#   1: Path traversal rejected for --vendor-data
+#   2: Vendor data file not found or invalid JSON
+#   100: Yellow flag (score 50-70)
+#   101: Red flag (score <50)
 ```
 
 ## Templates

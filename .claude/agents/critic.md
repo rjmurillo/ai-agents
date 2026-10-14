@@ -6,6 +6,7 @@ metadata:
 # Needs fresh context so it can challenge a plan without the planner's assumptions.
 isolation_required: true
 argument-hint: Provide the plan file path or planning artifact to review
+disallowedTools: Agent
 ---
 
 # Critic Agent

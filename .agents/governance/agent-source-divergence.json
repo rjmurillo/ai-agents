@@ -76,7 +76,7 @@
     {"agent": "pr-comment-responder", "pair": "claude-shared", "unit": "section:Workflow Protocol", "digest": "f5f429273bd129babac04be79082d55b269edff6430269fe8619f7ed39545c24"},
     {"agent": "pr-test-analyzer", "pair": "claude-shared", "unit": "capability:declaration", "digest": "802038c1543a7b0c0eb57a652ed3d7d405eabc35226a67d2c1dd1a66562d9cf2"},
     {"agent": "qa", "pair": "claude-shared", "unit": "capability:declaration", "digest": "802038c1543a7b0c0eb57a652ed3d7d405eabc35226a67d2c1dd1a66562d9cf2"},
-    {"agent": "qa", "pair": "claude-shared", "unit": "section:Key Responsibilities", "digest": "b88649ec072f2e59cf5c06ec35a98ed2efa613c2d63a7f81428701c68b102702"},
+    {"agent": "qa", "pair": "claude-shared", "unit": "section:Key Responsibilities", "digest": "b1825e023cfaeab488cb7cba768a5f4cf4958395d49844d5c55c69e55a43a001"},
     {"agent": "qa", "pair": "claude-shared", "unit": "section:Memory Protocol", "digest": "3295195f77490aa2c59c9441ab12d803c99b54f751eb3f146dff6a823b92a43e"},
     {"agent": "qa", "pair": "claude-shared", "unit": "section:Pre-PR Quality Gate (MANDATORY)", "digest": "3d24913ab6c9d8be6aaa0d2d09088c0478839f04033b874ee3d2afee1e4934e0"},
     {"agent": "qa", "pair": "claude-shared", "unit": "section:Style Guide Compliance", "digest": "72bb8986be3dc4042afa8d13776b90092e5f4729d0972b8efb4a62adc637c898"},

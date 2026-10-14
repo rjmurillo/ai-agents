@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate Copilot instruction files from ``.claude/rules/`` (REQ-003-006).
+"""Generate Copilot instruction files from ``src/claude/rules/`` (REQ-003-006).
 
 Reads ``artifacts.rules`` from a platform YAML and rewrites every Claude
 rule into a Copilot-compatible instruction file. Rules are universal
@@ -19,7 +19,8 @@ must be set.
 
 Per-rule logic (Round 3 amendment, 2026-04-29):
 
-1. Read source ``.claude/rules/<name>.md`` (frontmatter + body).
+1. Read source ``src/claude/rules/<name>.md`` (frontmatter + body), the
+   plugin tree rendered from ``templates/rules/<name>.md`` (ADR-109 B2).
 2. Emit to ``.github/instructions/<name>.instructions.md``:
    - rename ``paths:`` to ``applyTo:`` (verbatim value)
    - drop ``alwaysApply:`` and ``priority:``

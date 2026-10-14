@@ -1220,6 +1220,11 @@ def _effective_owned_prefixes(repo_root: Path) -> tuple[str, ...]:
 def _is_bytecode_artifact(path: Path) -> bool:
     """Return True for paths CPython writes as import side effects.
 
+    ``path`` MUST be relative to the repository root. An absolute path raises
+    ``ValueError`` (see :func:`binplace_manifest.is_bytecode_artifact`): a
+    checkout under a directory named ``__pycache__`` would otherwise match
+    every file in it.
+
     The rule is deliberately wider than "is a ``.pyc``": any file under a
     ``__pycache__`` directory matches, whatever its extension, plus any
     ``.pyc`` or ``.pyo`` anywhere. CPython is not the only writer into
@@ -1700,7 +1705,7 @@ def _snapshot_owned_prefixes(
             _reject_redirecting_ancestors(repo_root, root)
             for path in _iter_strict_owned_files(root):
                 if _is_ignored_path(path, ignored) or (
-                    exclude_ignored and _is_bytecode_artifact(path)
+                    exclude_ignored and _is_bytecode_artifact(path.relative_to(repo_root))
                 ):
                     continue
                 _read_into_snapshot(snapshot, path, strict=True)
@@ -1719,7 +1724,9 @@ def _snapshot_owned_prefixes(
         ):
             if is_dir or not path.is_file():
                 continue
-            if _is_ignored_path(path, ignored) or (exclude_ignored and _is_bytecode_artifact(path)):
+            if _is_ignored_path(path, ignored) or (
+                exclude_ignored and _is_bytecode_artifact(path.relative_to(repo_root))
+            ):
                 continue
             _read_into_snapshot(snapshot, path, strict=False)
     return snapshot
