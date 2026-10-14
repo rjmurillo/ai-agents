@@ -399,6 +399,21 @@ class TestAdoWaitBehavior:
         )
         assert run.returncode == 0, run.stderr
 
+    def test_not_applicable_alone_keeps_waiting(self, wait_text: str, tmp_path: Path) -> None:
+        """A notApplicable row is skipped by the evaluation, so it must not end the wait."""
+        state = _state([_policy("notApplicable", None)])
+        run = _run_block(tmp_path, _wait_block(wait_text), state, {"ADO_WAIT_DEADLINE": "1"})
+        assert run.returncode == 1
+
+    def test_not_applicable_beside_a_settled_build_ends_the_wait(
+        self, wait_text: str, tmp_path: Path
+    ) -> None:
+        state = _state([_policy("notApplicable", None), _policy("approved", 42)])
+        run = _run_block(
+            tmp_path, _wait_block(wait_text), state, {"ADO_WAIT_DEADLINE": "9999999999"}
+        )
+        assert run.returncode == 0, run.stderr
+
     def test_missing_evaluations_keep_waiting(self, wait_text: str, tmp_path: Path) -> None:
         """Right after creation ADO may list no evaluation yet; that is not settled."""
         run = _run_block(tmp_path, _wait_block(wait_text), _state([]), {"ADO_WAIT_DEADLINE": "1"})

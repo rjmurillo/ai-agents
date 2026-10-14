@@ -1,7 +1,8 @@
 # ADO first-PR policy wait
 
 `/ship` Process step 4 runs this block for `host=ado` after `az repos pr create` returns `pullRequestId` as `pr_id`.
-It waits until the PR has at least one blocking build evaluation and none is `queued` or `running`.
+It waits until the PR has at least one applied blocking build evaluation and none is `queued` or `running`.
+A `notApplicable` row does not count, because the evaluation skips it too.
 ADO may list no evaluation for a moment after creation, so an empty list keeps waiting.
 
 The total wait is 30 minutes.
@@ -19,7 +20,7 @@ while :; do
   total=0
   pending=0
   while read -r status; do
-    [ -z "$status" ] && continue
+    case "$status" in ""|notApplicable) continue ;; esac
     total=$((total + 1))
     case "$status" in queued|running) pending=$((pending + 1)) ;; esac
   done <<< "$statuses"
@@ -43,7 +44,7 @@ done
 
 | Exit | Meaning | Next step |
 |---|---|---|
-| 0 | Every blocking build evaluation left `queued` and `running` | Run the pre-flight check 1 ADO policy evaluation with the same `pr_id` |
+| 0 | At least one applied blocking build evaluation exists, and none is `queued` or `running` | Run the pre-flight check 1 ADO policy evaluation with the same `pr_id` |
 | 1 | The 30-minute deadline passed | `DEFERRED->FAIL` |
 | 3 | An `az` query failed | `DEFERRED->FAIL`, report the `az` stderr |
 | 75 | Still waiting, not a result | Run the same block again with the same `ADO_WAIT_DEADLINE` |
