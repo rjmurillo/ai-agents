@@ -61,11 +61,10 @@ def verify_skill(
     """Read back a skill and check it.
 
     `create` checks the whole skeleton. `patch` is for an existing host skill
-    that was edited: it keeps the name, description presence, the trigger anywhere
-    in the description, source-only tool
-    names, and the audit-driven approval and recovery checks, and skips the
-    skeleton sections and the description-lead check, because host skills use
-    their own layout. In patch mode a `Process` section stands in for a
+    that was edited. It keeps the name, description presence, the trigger
+    anywhere in the description, source-only tool names, and the audit-driven
+    approval and recovery checks. It skips the skeleton sections and the
+    description-lead check, because host skills use their own layout. In patch mode a `Process` section stands in for a
     missing `Procedure` section.
     """
     if mode not in MODES:
@@ -189,7 +188,7 @@ def _approval_check(steps: list[str]) -> dict[str, Any]:
         "approval_gate_present",
         any(APPROVAL_RE.search(step) for step in steps),
         "external or public actions need an approval or confirmation word in a numbered "
-        "Procedure step",
+        "Procedure (or Process) step",
     )
 
 
@@ -197,5 +196,6 @@ def _recovery_check(steps: list[str]) -> dict[str, Any]:
     return _check(
         "recovery_path_marked",
         any(RECOVERY_RE.search(step) for step in steps),
-        "recovery paths must be marked 'optional' or 'recovery' in a numbered Procedure step",
+        "recovery paths must be marked 'optional' or 'recovery' in a numbered "
+        "Procedure (or Process) step",
     )

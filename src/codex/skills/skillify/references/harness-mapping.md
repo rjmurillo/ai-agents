@@ -35,5 +35,5 @@ a prebuilt skill index at `~/.cache/skillrecommender/skill_index.json` and
 exits 2 when that index is missing. It returns a 0 to 100 score from query
 domains and keywords. Skillify needs the opposite: a scan of named skills
 roots at call time, with no cache, and a coverage ratio of workflow terms
-against each skill's name, description, triggers, and procedure. The 0.70
+against each skill's name, description, triggers, and procedure (or process). The 0.70
 patch rule needs that ratio, so `skillify.py overlap` computes its own.

@@ -46,7 +46,7 @@ workflow behind it. Starting from a goal: use `skillforge`.
 - A skill is written only when the step 2 gate returns `PROCEED`.
 - Nothing is written until the destination resolves. Unresolved means stop and
   ask; never guess a path.
-- An existing skill whose name, description, triggers, and procedure cover at
+- An existing skill whose name, description, triggers, and procedure (or process) cover at
   least 70 percent of the workflow's terms (lexical match, minimum 3 distinct words) is
   patched, not duplicated.
 - The written file is read back and passes `verify`; the report names the skill
@@ -103,6 +103,7 @@ verification failure, `2` no destination or invalid path. Harness tool names:
    host has one. `PATCH` names a skill: read it first. If its procedure does not
    cover the workflow, treat the result as `CREATE`. Otherwise show the user
    the target path and the planned change, and get confirmation before editing.
+   The planned change adds the trigger phrase to the target's description.
    A generated SKILL.md is patched at its source template when the repo has
    one. `CREATE` continues; fewer than 3 distinct words also gives `CREATE`.
 5. **Decompose into actions.** For each action record: input, action and the
@@ -120,8 +121,9 @@ verification failure, `2` no destination or invalid path. Harness tool names:
    script and no assumed shell.
 7. **Verify.** Run `skillify.py verify --skill <dir> --audit audit.json`
    (add `--mode patch` after a PATCH). It reads the trigger, `external_actions`,
-   and `recovery_paths` from the audit.
-   External actions need an approval word in a numbered Procedure step, and
+   and `recovery_paths` from the audit. Patch mode fails
+   `description_has_trigger` when the description lacks the trigger.
+   External actions need an approval word in a numbered Procedure (or Process) step, and
    recovery paths need a step marked optional or recovery. Fix every failure
    and rerun. Do not run a broader evaluation pass.
 8. **Report in one line:** `Skillified as <name>. Trigger: "<phrase>".` or
