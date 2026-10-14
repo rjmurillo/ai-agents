@@ -173,6 +173,7 @@ def _run_block(tmp_path: Path, block: str, state: dict, env_extra: dict | None =
         "pr_id": "7",
         **(env_extra or {}),
     }
+    assert _BASH is not None
     return subprocess.run(
         [_BASH, str(script)],
         capture_output=True,
