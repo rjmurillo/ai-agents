@@ -85,6 +85,7 @@ from checks_ci_parity import (
     validate_plugin_frontmatter_self_containment,
     validate_python3_entrypoints,
     validate_review_axis_drift,
+    validate_route_scenario_coverage,
     validate_security_suppressions_diff,
     validate_sha_pinning,
     validate_skill_description_budget,
@@ -551,6 +552,9 @@ _SEQUENCE: tuple[_Gate, ...] = (
     # artifact. Fail-closed on any config or structural fault so an unmeasured
     # artifact never reads as clean.
     _Gate("Rule Activation Coverage", _root_only(validate_rule_activation_coverage)),
+    # The same workflow's route-change step: a new or changed autoplan route
+    # needs an edited scenario in autoplan.json. Issue #6291.
+    _Gate("Route Scenario Coverage", _root_only(validate_route_scenario_coverage)),
     # Copilot shipped skills must not route to an excluded skill name
     # (templates/platforms/copilot-cli.yaml).
     _Gate("Copilot Routing Exclusions", _run_copilot_routing_exclusions),

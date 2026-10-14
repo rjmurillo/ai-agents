@@ -1,0 +1,66 @@
+{
+  "skill_path": ".claude/skills/review/SKILL.md",
+  "skill_id": "review",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "A stale count in prose is remediated by deleting the derived claim",
+      "input": "/review found that src/filters.py now holds 4 filters while docs/guide.md says 'the three filters'. The count is not a contract. Classify the finding and say how it is fixed. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "local axis 2",
+        "doc-accuracy",
+        "delete derived claim"
+      ],
+      "expected_gate": "review-doc-accuracy",
+      "rationale": "The count is derived mutable state, so the remediation removes the number instead of changing 3 to 4. Mapping the doc-accuracy finding to the delete derived claim class is attributable to the review skill's local axis 2 section rather than to a generic instruction to update the docs."
+    },
+    {
+      "id": "S2",
+      "desc": "A stale generated copy is fixed at its canonical source",
+      "input": "/review found that .claude/rules/voice.md differs from templates/rules/voice.md. Classify the finding and say where it is fixed. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "local axis 2",
+        "generate projection",
+        "canonical source"
+      ],
+      "expected_gate": "review-doc-accuracy",
+      "rationale": "A generated copy is never an independent authority. The review skill maps the drift to the generate projection class and fixes the template, not the copy. A generic reviewer edits the stale copy by hand."
+    },
+    {
+      "id": "S3",
+      "desc": "A direct /review of a code-only diff still runs the doc-accuracy trigger",
+      "input": "I ran /review directly on a diff that only changes the default timeout in src/client.py. No /test report exists for this head. Which documentation checks run? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "doc_accuracy_trigger",
+        "config-or-defaults",
+        "local axis 2",
+        "never a skip"
+      ],
+      "expected_gate": "review-doc-accuracy",
+      "rationale": "select_axes.py sees no documentation path, so local axis 2 would be left out. The review skill runs doc_accuracy_trigger.py itself when no Gate 5 report exists, and a missing report is never a skip. Naming the trigger and the effect is attributable to the skill."
+    },
+    {
+      "id": "S4",
+      "desc": "A dated retrospective finding stays out of the verdict",
+      "input": "/review's doc-accuracy axis flagged a 2026-03-02 measurement in .agents/retrospective/2026-03-02-sweep.md that no longer matches the code. How does it affect the verdict? Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "historical",
+        "info",
+        "verdict"
+      ],
+      "expected_gate": "review-doc-accuracy",
+      "rationale": "A dated retrospective is historical evidence, not an evergreen contract. The review skill reports it as info and leaves it out of the verdict, so no remediation class applies. A generic reviewer rewrites the old number."
+    },
+    {
+      "id": "S5",
+      "desc": "Writing the code is not a review",
+      "input": "Implement the retry loop in the uploader and add its regression test. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "implement",
+        "test"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "The request asks for new code, not a review of a finished diff. A response that starts Stage-1 spec compliance or local axis 2 is applying the review skill where it does not belong; build owns this request."
+    }
+  ]
+}

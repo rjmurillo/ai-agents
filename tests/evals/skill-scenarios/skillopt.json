@@ -1,0 +1,66 @@
+{
+  "skill_path": ".claude/skills/skillopt/SKILL.md",
+  "skill_id": "skillopt",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Optimization request with no scored eval set",
+      "input": "Make the pr-review skill better. It feels too long. We have no eval set for it. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "eval set",
+        "held-out",
+        "no gate",
+        "stop"
+      ],
+      "expected_gate": "skillopt-requires-eval",
+      "rationale": "Without a scored held-out split the gate is vacuous. The skill must refuse to edit and name the missing eval set instead of rewriting the skill by taste."
+    },
+    {
+      "id": "S2",
+      "desc": "Candidate gains three held-out passes but loses one",
+      "input": "Our candidate SKILL.md passes 7 of 10 held-out tasks; the incumbent passes 5 of 10. The candidate fails t4, which the incumbent passed. Should we promote it? Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "reject",
+        "regression",
+        "pair-gate",
+        "t4"
+      ],
+      "expected_gate": "skillopt-pair-gate-rejects-regression",
+      "rationale": "A higher aggregate score must not hide a per-task regression. The default gate rejects any held-out loss."
+    },
+    {
+      "id": "S3",
+      "desc": "Accepted candidate not yet promoted to the canonical source",
+      "input": "pair-gate accepted our candidate in the eval workspace. The canonical template is unchanged and nothing was rebuilt. Is the skill improved now? Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "ACCEPTED_NOT_DEPLOYED",
+        "canonical",
+        "mirrors",
+        "hash"
+      ],
+      "expected_gate": "skillopt-promotion-distinct-from-acceptance",
+      "rationale": "Acceptance is evidence, not deployment. The skill must report ACCEPTED_NOT_DEPLOYED until the canonical source, mirrors, and live copy match."
+    },
+    {
+      "id": "S4",
+      "desc": "Nondeterministic judge shows a gain",
+      "input": "Our grader is an LLM judge. The candidate gained one held-out pass with no losses. What must happen before we trust that? Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "null control",
+        "byte-identical",
+        "incumbent",
+        "noise"
+      ],
+      "expected_gate": "skillopt-null-control",
+      "rationale": "A nondeterministic scorer needs a no-op rerun of the byte-identical incumbent. A gain the no-op also produces is noise."
+    },
+    {
+      "id": "S5",
+      "desc": "Creating a new skill is skillforge work",
+      "input": "Create a new skill that formats Terraform plans for review. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "No incumbent exists to optimize. Skill creation belongs to skillforge, so the optimization loop must not run."
+    }
+  ]
+}

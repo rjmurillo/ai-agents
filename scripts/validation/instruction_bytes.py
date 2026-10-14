@@ -19,8 +19,9 @@ Not in scope (issue #5400 rescope of 2026-09-24): duplicated-normative-byte
 metrics (blocked on #5397) and runtime performance correlation (#5422 to #5426).
 
 Exit codes follow ADR-035:
-    0 - Success (or a ceiling breach outside ``--ci``)
-    1 - Logic error (a fixture exceeds its ceiling, ``--ci`` only)
+    0 - Success (or a ceiling or floor breach outside ``--ci``)
+    1 - Logic error (a fixture exceeds its ceiling, or a change grows a fixture
+        into the headroom floor, ``--ci`` only)
     2 - Configuration error (unreadable tree, unknown fixture entrypoint)
     3 - External error (git could not resolve or read ``--base-ref``)
 """
@@ -40,7 +41,10 @@ _VALIDATION_PACKAGE_SENTINEL = _PROJECT_ROOT / "scripts" / "validation" / "model
 if _VALIDATION_PACKAGE_SENTINEL.is_file() and str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from scripts.validation.instruction_budget_constants import FIXTURE_CEILINGS_BYTES
+from scripts.validation.instruction_budget_constants import (
+    FIXTURE_CEILINGS_BYTES,
+    FIXTURE_HEADROOM_FLOOR_BYTES,
+)
 from scripts.validation.instruction_bytes_corpus import CorpusError, group_summary, measure_corpus
 from scripts.validation.instruction_bytes_delta import (
     DEFAULT_GROWTH_THRESHOLD_BYTES,
@@ -60,7 +64,13 @@ from scripts.validation.instruction_bytes_fixtures import (
 from scripts.validation.instruction_bytes_report import format_table
 from scripts.validation.instruction_bytes_types import summarize, top_contributors
 
-__all__ = ["build_parser", "build_report", "fixture_breaches", "main"]
+__all__ = [
+    "build_parser",
+    "build_report",
+    "fixture_breaches",
+    "fixture_floor_breaches",
+    "main",
+]
 
 ESTIMATOR = "scripts.validation.token_budget.estimate_token_count"
 
@@ -135,6 +145,38 @@ def fixture_breaches(report: dict[str, Any]) -> list[str]:
     ]
 
 
+def fixture_floor_breaches(
+    report: dict[str, Any], reserve_bytes: int = FIXTURE_HEADROOM_FLOOR_BYTES
+) -> list[str]:
+    """Name every fixture this change grew into the headroom floor (issue #6480).
+
+    Needs ``report["delta"]`` (``--base-ref``); without it growth is unknown and
+    nothing is named. A fixture over its ceiling is left to ``fixture_breaches``.
+    A fixture that did not grow is never named, so one already under the floor
+    does not fail unrelated changes. Headroom equal to the floor passes. A
+    fixture whose ``fixtures.{id}.bytes`` metric is absent from ``delta["metrics"]``
+    (``compute_delta`` skips it and lists it under ``unmeasured_at_base``) counts
+    as unchanged, so it is never named.
+    """
+    delta = report.get("delta")
+    if delta is None:
+        return []
+    growth = {m["name"]: m["delta"] for m in delta["metrics"]}
+    breaches: list[str] = []
+    for fid, data in sorted(report["fixtures"].items()):
+        ceiling = data.get("ceiling_bytes")
+        grew = growth.get(f"fixtures.{fid}.bytes", 0)
+        if ceiling is None or grew <= 0:
+            continue
+        headroom = ceiling - data["bytes"]
+        if 0 <= headroom < reserve_bytes:
+            breaches.append(
+                f"{fid}: grew {grew} bytes and leaves {headroom} bytes of headroom, "
+                f"under the {reserve_bytes} byte floor"
+            )
+    return breaches
+
+
 def _measure_base(repo_root: Path, ref: str, top: int) -> tuple[str, dict[str, Any]]:
     sha = resolve_ref(repo_root, ref)
     with tempfile.TemporaryDirectory(prefix="instruction-bytes-base-") as tmp:
@@ -184,10 +226,21 @@ def build_parser() -> argparse.ArgumentParser:
         help="Warn when always-on or fixture bytes grow past this versus --base-ref",
     )
     parser.add_argument(
+        "--reserve",
+        type=_non_negative_int,
+        default=os.environ.get("INSTRUCTION_BYTES_RESERVE", str(FIXTURE_HEADROOM_FLOOR_BYTES)),
+        metavar="BYTES",
+        help=(
+            "Headroom a change must leave on each fixture it grows, so concurrent "
+            "merges cannot breach a ceiling; needs --base-ref, 0 disables "
+            f"(env: INSTRUCTION_BYTES_RESERVE, default: {FIXTURE_HEADROOM_FLOOR_BYTES})"
+        ),
+    )
+    parser.add_argument(
         "--ci",
         action="store_true",
         default=os.environ.get("CI", "").lower() in ("true", "1"),
-        help="Exit 1 when a fixture exceeds its ceiling (env: CI)",
+        help="Exit 1 on a ceiling breach or a floor breach (env: CI)",
     )
     return parser
 
@@ -212,9 +265,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Error: {exc}", file=sys.stderr)
         return 3
     breaches = fixture_breaches(report)
+    floor_breaches = fixture_floor_breaches(report, args.reserve)
     report["ceiling_breaches"] = breaches
+    report["floor_breaches"] = floor_breaches
     print(json.dumps(report, indent=2) if args.output_format == "json" else format_table(report))
-    return 1 if breaches and args.ci else 0
+    return 1 if (breaches or floor_breaches) and args.ci else 0
 
 
 if __name__ == "__main__":
