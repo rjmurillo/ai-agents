@@ -266,6 +266,38 @@ def _split_triple_quoted(args: str) -> list[tuple[str, bool]]:
     return parts
 
 
+def _rename_top_level_subagent(text: str, plugin_name: str) -> tuple[str, int]:
+    """Rewrite each top-level ``subagent_type="Y"`` as ``agent_type="<plugin>:Y"``.
+
+    String-aware: a ``subagent_type=`` that sits inside a quoted argument value
+    is prose, not a parameter, so it is left as is. Matching is anchored at
+    positions outside every literal, so a value that ends in ``subagent_type=``
+    cannot swallow the real parameter after it. Returns the text and the count.
+    """
+    out: list[str] = []
+    cursor = 0
+    index = 0
+    count = 0
+    length = len(text)
+    while index < length:
+        if text[index] in _QUOTE_CHARS:
+            end = _string_end(text, index)
+            if end == -1:
+                break
+            index = end
+            continue
+        match = _TASK_NAME_RE.match(text, index)
+        if match is None:
+            index += 1
+            continue
+        out.append(text[cursor:index])
+        out.append(f'agent_type="{plugin_name}:{match.group("value")}"')
+        cursor = index = match.end()
+        count += 1
+    out.append(text[cursor:])
+    return "".join(out), count
+
+
 def _render_multiline_task(args: str, plugin_name: str) -> str | None:
     """Rewrite a ``Task()`` call whose arguments carry a triple-quoted block.
 
@@ -276,9 +308,6 @@ def _render_multiline_task(args: str, plugin_name: str) -> str | None:
     when no ``subagent_type`` is present, so the caller leaves the call as is.
     """
 
-    def _agent_type(match: re.Match[str]) -> str:
-        return f'agent_type="{plugin_name}:{match.group("value")}"'
-
     pieces: list[str] = []
     renamed = False
     for text, is_block in _split_triple_quoted(args):
@@ -287,7 +316,7 @@ def _render_multiline_task(args: str, plugin_name: str) -> str | None:
             inner = _translate_invocations(text[3:-3], plugin_name)
             pieces.append(delimiter + inner + delimiter)
             continue
-        text, count = _TASK_NAME_RE.subn(_agent_type, text)
+        text, count = _rename_top_level_subagent(text, plugin_name)
         renamed = renamed or count > 0
         pieces.append(text)
     if not renamed:

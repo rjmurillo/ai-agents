@@ -121,6 +121,32 @@ def test_unterminated_triple_quote_is_left_alone() -> None:
     assert translate_body(source, _OUT) == source
 
 
+def test_subagent_type_inside_quoted_argument_is_not_rewritten() -> None:
+    source = (
+        "Task(description=\"use subagent_type='x' here\", "
+        'subagent_type="critic", prompt="""\nbody\n""")\n'
+    )
+    translated = translate_body(source, _OUT)
+    assert translated == (
+        "task(description=\"use subagent_type='x' here\", "
+        f'agent_type="{_PLUGIN}:critic", prompt="""\nbody\n""")\n'
+    )
+
+
+def test_quoted_value_ending_in_subagent_type_does_not_hide_the_real_one() -> None:
+    source = 'Task(description="subagent_type=", subagent_type="critic", prompt="""\nbody\n""")\n'
+    translated = translate_body(source, _OUT)
+    assert translated == (
+        f'task(description="subagent_type=", agent_type="{_PLUGIN}:critic", '
+        'prompt="""\nbody\n""")\n'
+    )
+
+
+def test_block_with_subagent_type_only_inside_a_string_is_left_alone() -> None:
+    source = 'Task(description="subagent_type=\'x\'", prompt="""\nbody\n""")\n'
+    assert translate_body(source, _OUT) == source
+
+
 def test_triple_quotes_inside_single_quoted_value_are_not_a_block() -> None:
     source = 'Task(subagent_type="critic", prompt=\'say """ now\')\n'
     translated = translate_body(source, _OUT)
