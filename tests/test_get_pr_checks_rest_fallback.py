@@ -82,7 +82,7 @@ class TestFetchChecksFallback:
         assert data["Number"] == 42
         assert data["BaseBranch"] == "main"
         assert data["HasChecks"] is True
-        assert data["OverallState"] == "SUCCESS"
+        assert data["AllState"] == "SUCCESS"
         assert data["ChecksIncomplete"] is False
         assert [c["Name"] for c in data["Checks"]] == ["build"]
         assert data["Checks"][0]["IsPassing"] is True
@@ -199,7 +199,7 @@ class TestFetchChecksFallback:
         ):
             data = _mod.fetch_checks("o", "r", 42)
         assert data["HasChecks"] is False
-        assert data["OverallState"] == "UNKNOWN"
+        assert data["AllState"] == "UNKNOWN"
         assert data["Checks"] == []
 
     def test_truncated_snapshot_sets_checks_incomplete(self):
@@ -264,7 +264,9 @@ class TestMarkRestRequired:
         data = {"DataSource": "rest", "Checks": checks}
         rc = _mod._mark_rest_required(data, [], True, 42, _mod.get_output_format("json"))
         assert rc == 3
-        assert "ruleset" in capsys.readouterr().out
+        out = capsys.readouterr().out
+        assert "lists no required checks" in out
+        assert "--base-branch" not in out
 
     def test_rest_with_empty_ruleset_is_allowed_when_not_required_only(self):
         checks = [{"Name": "build", "IsRequired": True}]
@@ -321,6 +323,42 @@ def _out(capsys):
     """Return the success payload, or the whole envelope when the run failed."""
     envelope = json.loads(capsys.readouterr().out)
     return envelope["Data"] if envelope.get("Success") else envelope
+
+
+class TestRestOutputStates:
+    def _rest_output(self, nodes, ruleset):
+        with (
+            patch.object(_mod, "gh_graphql", side_effect=_RATE_LIMITED),
+            patch.object(_mod, "fetch_checks_rest", return_value=_snapshot(nodes)),
+        ):
+            data = _mod.fetch_checks("o", "r", 42)
+        _mod._mark_rest_required(data, ruleset, False, 42, None)
+        return _mod.build_output(data, "o", "r", False, ruleset, 600)
+
+    @pytest.mark.parametrize(
+        ("status", "conclusion", "expected"),
+        [("COMPLETED", "FAILURE", "FAILURE"), ("IN_PROGRESS", None, "PENDING")],
+    )
+    def test_all_state_reports_the_rest_rollup(self, status, conclusion, expected):
+        output = self._rest_output([_run("build", status, conclusion)], ["build"])
+        assert output["AllState"] == expected
+        assert output["DataSource"] == "rest"
+        assert "OverallState" not in output
+
+    def test_required_state_is_known_when_ruleset_lists_checks(self):
+        output = self._rest_output([_run("build", "COMPLETED", "SUCCESS")], ["build"])
+        assert output["RequiredState"] == "SUCCESS"
+
+    @pytest.mark.parametrize("ruleset", [[], None])
+    def test_required_state_unknown_without_a_ruleset(self, ruleset):
+        output = self._rest_output([_run("build", "COMPLETED", "FAILURE")], ruleset)
+        assert output["RequiredState"] == "UNKNOWN"
+        assert output["FailedCount"] == 1
+
+    def test_graphql_empty_ruleset_keeps_derived_required_state(self):
+        data = {"Checks": [], "HasChecks": True, "MergeState": "MERGEABLE"}
+        output = _mod.build_output(data, "o", "r", False, [], 600)
+        assert output["RequiredState"] == "SUCCESS"
 
 
 class TestMainFallback:

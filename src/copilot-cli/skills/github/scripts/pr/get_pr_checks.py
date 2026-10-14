@@ -541,7 +541,7 @@ def _fetch_checks_over_rest(
         "MergeState": snapshot["MergeState"],
         "MergeStateStatus": snapshot["MergeStateStatus"],
         "Checks": checks,
-        "OverallState": _overall_state(checks),
+        "AllState": _overall_state(checks),
         "HasChecks": bool(checks),
         "ChecksIncomplete": not snapshot["PagesComplete"],
         "HeadCommittedAt": snapshot["HeadCommittedAt"],
@@ -807,6 +807,11 @@ def build_output(
         missing_required=missing_required,
         missing_queued=missing_queued,
     )
+    # REST has no per-row isRequired flag. Without a ruleset listing required
+    # checks, no row is marked required, so a green required set is not proven
+    # (classic branch protection is invisible to the ruleset lookup).
+    if check_data.get("DataSource") == "rest" and not ruleset_contexts:
+        required_state = "UNKNOWN"
 
     return {
         "Success": True,
@@ -1077,8 +1082,8 @@ def _mark_rest_required(
     or lists no required checks (``[]``, which is what a branch with only classic
     branch protection, or none, returns), ``--required-only`` would silently drop
     every row, so it fails instead of reporting an empty pass. Without
-    ``--required-only`` the rows stay unmarked and the caller still sees every
-    failing check.
+    ``--required-only`` the rows stay unmarked, the caller still sees every
+    failing check, and ``build_output`` reports RequiredState as UNKNOWN.
     """
     if check_data.get("DataSource") != "rest":
         return None
@@ -1087,9 +1092,9 @@ def _mark_rest_required(
     if ruleset_contexts or not required_only:
         return None
     _emit_failure(
-        "GraphQL is rate limited and REST cannot tell which checks are required "
-        "from a branch ruleset that lists them; rerun without --required-only, or "
-        "pass --base-branch <name> so required checks can be read from the ruleset",
+        "GraphQL is rate limited and REST cannot tell which checks are required: "
+        "the branch ruleset was not read or lists no required checks; "
+        "rerun without --required-only",
         3,
         "ApiError",
         fmt,
