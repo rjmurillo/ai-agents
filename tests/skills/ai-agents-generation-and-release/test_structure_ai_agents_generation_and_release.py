@@ -64,3 +64,25 @@ def test_release_path_routes_to_releasing_md_and_dispatch():
     assert "workflow_dispatch" in section
     assert "dormant" in section
     assert "ai-agents-change-control" in section
+
+
+def test_release_path_drops_closed_issue_cites():
+    """PR 6620 review: #3865 and #5636 are closed; the skill must not say they track work."""
+    section = _release_section()
+    assert "#3865" not in section
+    assert "#5636" not in section
+    assert "ADR-113 Resolved Question 2" in section
+
+
+def test_release_path_scopes_dispatch_to_ci_and_names_first_publish():
+    """RELEASING.md keeps a one-time local first publish, so dispatch is the only live CI route."""
+    section = _release_section()
+    assert "only live CI publish route" in section
+    assert "First publish" in section
+
+
+def test_provenance_marks_release_row_reverified():
+    text = _text()
+    start = text.index("## Provenance and Maintenance")
+    provenance = text[start:]
+    assert "re-verified 2026-10-14 for issue #6590" in provenance

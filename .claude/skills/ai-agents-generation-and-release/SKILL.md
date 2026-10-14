@@ -186,11 +186,11 @@ copy its steps here, because they change with the publish gate.
 
 Durable distinctions to keep in mind:
 
-- The only live publish route is a manual `workflow_dispatch` run of `.github/workflows/publish.yml` on the default branch. It runs the ADR-113 promotion gate, enforcing for a real publish and advisory for a dry run (`dry-run` defaults to `true`).
-- The `v*` tag trigger is dormant. A tag push runs, then the first job refuses it, so pushing a tag does not publish (issue #5636 tracks the tag ruleset that would revive it).
+- The only live CI publish route is a manual `workflow_dispatch` run of `.github/workflows/publish.yml` on the default branch. The one-time First publish in RELEASING.md runs locally and does not use CI. It runs the ADR-113 promotion gate, enforcing for a real publish and advisory for a dry run (`dry-run` defaults to `true`).
+- The `v*` tag trigger is dormant. A tag push runs, then the first job refuses it, so pushing a tag does not publish. A `v*` tag ruleset is the owner action that would revive it (ADR-113 Resolved Question 2).
 - The candidate is the head of the default branch, so the version bump in `packages/ai-agents-cli/package.json` must merge first, through the normal PR flow (branch discipline and review per `ai-agents-change-control`).
 - Rollback is roll-forward: npm unpublish is restricted, so fix, bump the patch version, merge, and dispatch again (RELEASING.md Rollback procedures).
-- Local sanity: `bun run build`, `bun test`, and `bun run typecheck` in `packages/ai-agents-cli`. Issue #3865 tracks a known typecheck failure; check `grep -q '"types"' packages/ai-agents-cli/tsconfig.json` before blaming your change.
+- Local sanity: `bun run build`, `bun test`, and `bun run typecheck` in `packages/ai-agents-cli`; all three should pass.
 
 ## Anti-Patterns
 
@@ -220,7 +220,7 @@ Run this checklist before pushing any change that touched a canonical or generat
 
 ## Provenance and Maintenance
 
-Verified 2026-07-29 against the working tree (re-verification pass; the 2026-07-03 pass had rotted for `build/scripts/build_all.py`, `build/generate_agents.py`, `pyproject.toml`, `.github/workflows/publish.yml`, and `.github/workflows/validate-generated-agents.yml`). Volatile facts and how to re-check them:
+Verified 2026-07-29 against the working tree (re-verification pass; the 2026-07-03 pass had rotted for `build/scripts/build_all.py`, `build/generate_agents.py`, `pyproject.toml`, `.github/workflows/publish.yml`, and `.github/workflows/validate-generated-agents.yml`). A row that names a later date was re-verified on that date. Volatile facts and how to re-check them:
 
 | Fact | Source | Re-verify |
 |------|--------|-----------|
@@ -237,7 +237,7 @@ Verified 2026-07-29 against the working tree (re-verification pass; the 2026-07-
 | Weekly semantic drift cron, threshold 80 | .github/workflows/drift-detection.yml; the drift script's own argparse default (command below) | `grep -n "cron" .github/workflows/drift-detection.yml && grep -n "default=80" build/scripts/detect_agent_drift.py` |
 | Git hook jobs, filters, and validators | `lefthook.yml` | `uv run --frozen lefthook validate` |
 | Ruff exemption for generated Python | `pyproject.toml [tool.ruff.lint.per-file-ignores]` | `grep -n "src/copilot-cli" pyproject.toml` |
-| npm package, bun build, dispatch-only publish route | packages/ai-agents-cli/package.json; RELEASING.md; the header comment of .github/workflows/publish.yml | `grep -n '"build":' packages/ai-agents-cli/package.json && grep -n "dormant" RELEASING.md .github/workflows/publish.yml` |
+| npm package, bun build, dispatch-only publish route (re-verified 2026-10-14 for issue #6590) | packages/ai-agents-cli/package.json; RELEASING.md; the header comment of .github/workflows/publish.yml | `grep -n '"build":' packages/ai-agents-cli/package.json && grep -n "dormant" RELEASING.md .github/workflows/publish.yml` |
 | Marketplace count validator retired | no dedicated count validator or marketplace counter YAML should exist | `find . -name "*marketplace*count*" -not -path "./.venv/*"` |
 | Audit log path, gitignored | .gitignore:70 | `grep -n "build/audit" .gitignore` |
 | 2025-12-15 direction story | .project-toolkit/retrospective/2025-12-15-drift-detection-disaster.md | `python3 -c "import pathlib;print([p.name for p in pathlib.Path('.project-toolkit/retrospective').glob('*drift*')])"` |
