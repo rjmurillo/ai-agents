@@ -1,5 +1,7 @@
 # LSP-first navigation enforcement (ADR-062): conditional, fail-open hooks
 
+> Historical. The runtime gate and its escape hatches (`SKIP_LSP_GATE`, `LSP_GATE_MODE`, `LSP_DOWN`) were retired in #3216. See "Status update" at the bottom before acting on anything below.
+
 The repo mandates Serena-first / LSP-first navigation via steering, but steering
 drifts. ADR-062 adds the enforcement layer: hooks that nudge agents off
 grep/glob/full-file-read toward symbol tools, designed conditional and fail-open
@@ -62,3 +64,7 @@ steering rule: rule states the preference, ADR-062 hooks enforce it.
 - ADR: `.project-toolkit/architecture/ADR-062-conditional-lsp-first-enforcement.md`;
   debate: `.project-toolkit/critique/ADR-062-debate-log.md` (6-agent review).
 - Steering: `.claude/rules/lsp-first.md`.
+
+## Status update
+
+Retired in #3216. ADR-062 was amended to keep LSP-first navigation as static steering only. No LSP guard hook exists under `.claude/hooks/`, and no code reads `SKIP_LSP_GATE`, `LSP_GATE_MODE`, or `LSP_DOWN`. The "Escape hatches" section above is history, not live behavior. Current guidance: `.claude/rules/lsp-first.md`. Verified against `origin/main` by grep for `LSP_DOWN` readers; the only hits are historical text, skill retirement notes, and session artifacts.

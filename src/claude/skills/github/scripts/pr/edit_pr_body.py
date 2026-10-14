@@ -8,6 +8,14 @@ conditional headers on this PATCH endpoint, so it cannot prevent an edit made
 between that read and the update request.
 
 Safety behavior:
+  - Reads --body-file only from a private file allocated by
+    ``new_pr.py --prepare-body-file`` (.project-toolkit/scratch/pr-body-*.md,
+    mode 600). Concurrent sessions that share a fixed name such as body.md
+    cannot publish each other's text, because the allocator hands each caller
+    a unique random name. This script refuses every other path, and also
+    refuses a matching path whose placeholder is untouched, whose mode has
+    group or other bits, that is a symlink or hard link, or that another
+    owner holds.
   - Rejects a body whose hash differs from the caller's expected hash.
   - No-ops when the new body equals the current body.
   - Warns when the resulting body contains em/en dashes, including retained
@@ -27,11 +35,13 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 import re
 import subprocess
 import sys
+from pathlib import Path
 
 _plugin_root = os.environ.get("COPILOT_PLUGIN_ROOT") or os.environ.get("CLAUDE_PLUGIN_ROOT")
 _workspace = os.environ.get("GITHUB_WORKSPACE")
@@ -60,6 +70,29 @@ from github_core.output import (
     write_skill_error,
     write_skill_output,
 )
+from github_core.repo import get_repo_root
+
+
+def _load_prepare_module():
+    """Load prepare_pr_body.py beside this script.
+
+    Loaded by path, not by name, so the bundle works under ``python -I`` and a
+    same-named module on sys.path cannot replace it. The alias is private so it
+    does not collide with the one new_pr.py registers.
+    """
+    path = Path(__file__).resolve().with_name("prepare_pr_body.py")
+    spec = importlib.util.spec_from_file_location("_edit_pr_body_prepare", path)
+    if spec is None or spec.loader is None:  # pragma: no cover - defensive
+        raise ImportError(f"cannot load required sibling module: {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+_prepare = _load_prepare_module()
+PreparePrBodyError = _prepare.PreparePrBodyError
+read_prepared_pr_body = _prepare.read_prepared_pr_body
 
 _SCRIPT_NAME = "edit_pr_body.py"
 
@@ -198,6 +231,19 @@ def update_body(owner: str, repo: str, pr: int, new_body: str) -> None:
         )
 
 
+def _read_new_body(args: argparse.Namespace) -> tuple[str, str | None]:
+    """Return ``(body, error)``; when ``--body-file`` is set it must be a prepared private file."""
+    if not args.body_file:
+        return args.body or "", None
+    root = get_repo_root()
+    if root is None:
+        return "", "Cannot resolve the repository root to locate the prepared body file"
+    try:
+        return str(read_prepared_pr_body(root, args.body_file)), None
+    except (OSError, UnicodeError, PreparePrBodyError) as exc:
+        return "", f"Invalid --body-file: {exc}"
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         description="Edit a PR body with a stale-write guard.",
@@ -210,7 +256,12 @@ def build_parser() -> argparse.ArgumentParser:
     body_group.add_argument(
         "--body-file",
         default=None,
-        help="Path to file containing new body",
+        help=(
+            "Relative path printed by new_pr.py --prepare-body-file, for "
+            "example .project-toolkit/scratch/pr-body-<token>.md (mode 600). "
+            "Do not pass an absolute path: it is refused even when it "
+            "resolves to a valid prepared file. Any other path is refused."
+        ),
     )
     p.add_argument(
         "--expected-hash",
@@ -242,21 +293,16 @@ def main(argv: list[str] | None = None) -> int:
     owner, repo = resolved.owner, resolved.repo
     pr = args.pull_request
 
-    if args.body_file:
-        try:
-            with open(args.body_file, encoding="utf-8") as f:
-                new_body = f.read()
-        except OSError as exc:
-            write_skill_error(
-                f"Cannot read --body-file: {exc}",
-                2,
-                error_type="NotFound",
-                output_format=fmt,
-                script_name=_SCRIPT_NAME,
-            )
-            return 2
-    else:
-        new_body = args.body or ""
+    new_body, read_error = _read_new_body(args)
+    if read_error is not None:
+        write_skill_error(
+            read_error,
+            2,
+            error_type="InvalidParams",
+            output_format=fmt,
+            script_name=_SCRIPT_NAME,
+        )
+        return 2
 
     try:
         current_body = fetch_current_body(owner, repo, pr)
