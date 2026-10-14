@@ -72,8 +72,9 @@ question rather than attempting retrieval.
 **Command routing (required)**: The orchestrator must run shell commands
 (git, gh, Python, tests, builds) needed for the investigation and supply
 the output. The analyst retrieves GitHub issue, PR, and CI context directly
-via its declared read-only tools. Do not suggest shell commands for the
-analyst to run.
+via its declared read-only tools. Do not suggest shell commands.
+
+{{> analyst-revision-grounding}}
 
 **PR identity gate (required before reporting PR findings)**: When a PR
 URL or number is provided, call `pull_request_read` to retrieve metadata.
