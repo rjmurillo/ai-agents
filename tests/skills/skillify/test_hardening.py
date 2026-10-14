@@ -50,9 +50,17 @@ def test_numbered_action_in_another_section_fails(skills_root, heading):
     assert "external_outside_steps" in failures(skills_root, body_with(before=before))
 
 
-def test_action_in_other_section_fails_in_patch_mode_too(skills_root):
-    before = "## Setup\n\n1. Push the branch to origin.\n\n"
-    assert "external_outside_steps" in failures(skills_root, body_with(before=before), "patch")
+def test_patch_mode_scans_only_the_step_section(skills_root):
+    before = "## Scripts\n\n| push | Push the branch |\n\n"
+    assert failures(skills_root, body_with(before=before), "patch") == set()
+    loose = body_with(GOOD_PROC + "\nThen push the branch.\n")
+    assert failures(skills_root, loose, "patch") == {"external_outside_steps"}
+
+
+def test_patch_mode_does_not_scan_subheadings_in_the_step_section(skills_root):
+    steps = "### Phase 1: Publish\n\n" + GOOD_PROC
+    assert failures(skills_root, body_with(steps), "patch") == set()
+    assert "external_outside_steps" in failures(skills_root, body_with(steps))
 
 
 def test_outside_message_says_move_into_a_numbered_procedure_step(skills_root):
@@ -65,9 +73,7 @@ def test_outside_message_says_move_into_a_numbered_procedure_step(skills_root):
     assert "move the action into a numbered Procedure step and tag it" in detail
 
 
-@pytest.mark.parametrize(
-    "section", ["Triggers", "Contract", "Anti-patterns", "Pitfalls", "Verification"]
-)
+@pytest.mark.parametrize("section", ["Triggers", "Contract", "Anti-patterns", "Pitfalls"])
 def test_descriptive_sections_are_not_scanned(skills_root, section):
     text = body_with().replace(f"## {section}\n", f"## {section}\n\n- Never push or publish.\n", 1)
     assert failures(skills_root, text) == set()
@@ -379,3 +385,110 @@ def test_four_space_indented_numeral_is_not_a_step():
 def test_indented_code_after_blank_goes_to_code_not_prose():
     parsed = skillify_text.parse_steps(["1. A", "", "       code (approval)"])
     assert "(approval)" in parsed.steps[0].fenced and "(approval)" not in parsed.steps[0].text
+
+
+def test_verification_section_is_scanned_in_create_mode(skills_root):
+    text = body_with().replace(
+        "## Verification\n", "## Verification\n\n1. Push the branch and confirm CI is green.\n", 1
+    )
+    assert failures(skills_root, text) == {"external_outside_steps"}
+
+
+def test_verification_checklist_without_actions_passes(skills_root):
+    assert failures(skills_root, body_with()) == set()
+
+
+# host layouts: nested numbering, phases, indent
+def test_nested_numbered_children_are_not_steps(skills_root):
+    steps = (
+        "1. Ask the user (approval).\n   1. Draft it.\n   2. Review it.\n"
+        "2. Publish the note (external).\n"
+    )
+    assert failures(skills_root, body_with(steps)) == set()
+
+
+def test_nested_child_text_is_scanned_with_its_step(skills_root):
+    steps = "1. Ask the user (approval).\n   1. Push the branch.\n2. Publish it (external).\n"
+    assert failures(skills_root, body_with(steps)) == {"external_step_untagged"}
+
+
+def test_child_numbers_do_not_break_numbering(skills_root):
+    parsed = skillify_text.parse_steps(["1. A", "   1. a", "   2. b", "2. B"])
+    assert [(s.number, s.group) for s in parsed.steps] == [(1, 0), (2, 0)]
+    assert "a" in parsed.steps[0].text
+
+
+def test_deeper_indent_after_a_detached_step_starts_a_new_list():
+    parsed = skillify_text.parse_steps(["", "  1. A", "  2. B"])
+    assert [s.number for s in parsed.steps] == [1, 2]
+
+
+def test_indented_steps_use_their_own_indent_as_the_base():
+    parsed = skillify_text.parse_steps(["  1. A", "     1. child", "  2. B", " 3. C"])
+    assert [s.number for s in parsed.steps] == [1, 2, 3]
+
+
+@pytest.mark.parametrize(
+    ("steps", "ok"),
+    [
+        ("### Phase 1\n\n1. A.\n2. B.\n\n### Phase 2\n\n1. C.\n2. D.\n", True),
+        ("### Phase 1\n\n1. A.\n2. B.\n\n### Phase 2\n\n3. C.\n4. D.\n", True),
+        ("### Phase 1\n\n1. A.\n2. B.\n\n### Phase 2\n\n4. C.\n", False),
+        ("### Phase 1\n\n1. A.\n2. B.\n\n### Phase 2\n\n2. C.\n", False),
+        ("### Phase 1\n\n2. A.\n\n### Phase 2\n\n1. C.\n", False),
+        ("### Phase 1\n\n1. A.\n3. B.\n", False),
+    ],
+)
+def test_numbering_restarts_or_continues_across_subheadings(skills_root, steps, ok):
+    got = "steps_numbered_in_order" not in failures(skills_root, body_with(steps))
+    assert got is ok
+
+
+def test_setext_subheading_inside_steps_starts_a_group():
+    parsed = skillify_text.parse_steps(["1. A", "2. B", "", "Phase 2", "-------", "", "1. C"])
+    assert [(s.number, s.group) for s in parsed.steps] == [(1, 0), (2, 0), (1, 1)]
+    assert parsed.headings == ("Phase 2",)
+    assert parsed.loose == ()
+
+
+def test_blank_indented_paragraph_four_columns_in_is_prose_not_code(skills_root):
+    steps = (
+        "1. Read the input.\n2. Show the draft.\n\n    Ask the user to approve it (approval).\n"
+        "3. Publish the note (external).\n"
+    )
+    assert failures(skills_root, body_with(steps)) == set()
+
+
+def test_paragraph_seven_columns_in_is_code(skills_root):
+    steps = (
+        "1. Read the input.\n2. Show the draft.\n\n       Ask the user (approval).\n"
+        "3. Publish the note (external).\n"
+    )
+    assert "approval_gate_present" in failures(skills_root, body_with(steps))
+
+
+def test_content_column_follows_the_marker_width():
+    ten = skillify_text.parse_steps(["10. A", "", "       text"])
+    assert ten.steps[0].fenced == "" and "text" in ten.steps[0].text
+    ten = skillify_text.parse_steps(["10. A", "", "        code"])
+    assert "code" in ten.steps[0].fenced
+
+
+def test_unindented_paragraph_after_blank_is_still_loose():
+    parsed = skillify_text.parse_steps(["1. A", "", "loose text"])
+    assert parsed.loose == ("loose text",)
+
+
+# backstop vocabulary
+@pytest.mark.parametrize(
+    "step",
+    [
+        "Start the deployment",
+        "Deployed to prod",
+        "Delete the branch",
+        "Deleting the tag",
+        "deletes it",
+    ],
+)
+def test_deploy_and_delete_forms_are_external(step):
+    assert skillify_verify.EXTERNAL_RE.search(step)

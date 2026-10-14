@@ -63,7 +63,8 @@ _SHARED_NOUNS = (
 # purpose. The only exclusions are exact noun phrases ("merge conflicts",
 # "release notes", "shared cache"), which never hide a verb.
 EXTERNAL_RE = re.compile(
-    r"\b(?:(?:publish|push|send|deploy|upload|comment|e-?mail|mail|post)(?:s|es|ed|ing)?|sent"
+    r"\b(?:(?:publish|push|send|upload|comment|e-?mail|mail|post)(?:s|es|ed|ing)?|sent|deploy\w*"
+    r"|delet(?:e|es|ed|ing)"
     r"|\w*merg(?:e|es|ed|ing)(?!\s+(?:conflicts?|base)\b)"
     r"|releas(?:e|es|ed|ing)(?!\s+notes?\b)"
     r"|shar(?:e|es|ing)"
@@ -121,7 +122,8 @@ def verify_skill(
     if external_actions:
         checks.append(_approval_check(parsed.steps, patching))
         checks.append(_untagged_check(parsed.steps))
-        checks.append(_outside_steps_check(parsed, outside_step_lines(body, patching)))
+        outside = [] if patching else outside_step_lines(body, patching)
+        checks.append(_outside_steps_check(parsed, outside, patching))
     if external_actions or not patching:
         checks.append(_numbering_check(parsed.steps))
     if recovery_paths:
@@ -284,8 +286,12 @@ def _untagged_check(steps: tuple[Step, ...]) -> dict[str, Any]:
     )
 
 
-def _outside_steps_check(parsed: ParsedSteps, outside: list[str]) -> dict[str, Any]:
-    stray = [line for line in [*parsed.loose, *outside] if EXTERNAL_RE.search(line)]
+def _outside_steps_check(
+    parsed: ParsedSteps, outside: list[str], patching: bool = False
+) -> dict[str, Any]:
+    """Patch mode reads only loose lines in the step section; create mode reads the whole body."""
+    headings = [] if patching else parsed.headings
+    stray = [line for line in [*parsed.loose, *headings, *outside] if EXTERNAL_RE.search(line)]
     return _check(
         "external_outside_steps",
         not stray,
@@ -297,12 +303,30 @@ def _outside_steps_check(parsed: ParsedSteps, outside: list[str]) -> dict[str, A
 
 
 def _numbering_check(steps: tuple[Step, ...]) -> dict[str, Any]:
-    numbers = [step.number for step in steps]
+    """Numerals run 1, 2, 3 in order within each subheading group.
+
+    A group starts at 1 (phases restart) or continues from the previous group.
+    """
+    groups: dict[int, list[int]] = {}
+    for step in steps:
+        groups.setdefault(step.group, []).append(step.number)
+    bad = _bad_numbering(list(groups.values()))
     return _check(
         "steps_numbered_in_order",
-        numbers == list(range(1, len(numbers) + 1)),
-        f"step numerals must run 1, 2, 3 in order; found {numbers}",
+        not bad,
+        f"step numerals must run 1, 2, 3 in order; found {bad}" if bad else "numerals in order",
     )
+
+
+def _bad_numbering(groups: list[list[int]]) -> list[int]:
+    previous_end = 0
+    for numbers in groups:
+        first = numbers[0]
+        run = list(range(first, first + len(numbers)))
+        if numbers != run or first not in (1, previous_end + 1):
+            return numbers
+        previous_end = numbers[-1]
+    return []
 
 
 def _recovery_check(steps: tuple[Step, ...], patching: bool = False) -> dict[str, Any]:
