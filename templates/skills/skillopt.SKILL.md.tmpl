@@ -81,26 +81,30 @@ directory and needs no clone of the source repository. Pure standard library.
 ```bash
 python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skillopt/scripts/skillopt.py" --help
 python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skillopt/scripts/mine_sessions.py" --help
+SKILLOPT_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skillopt/scripts"
 ```
 
 If neither `COPILOT_PLUGIN_ROOT` nor `CLAUDE_PLUGIN_ROOT` is set (for example
 Codex, or a plain checkout under PowerShell), use the directory that holds
-this SKILL.md and run its `skillopt.py` from there:
+this SKILL.md. Set `SKILLOPT_DIR` to the `scripts` folder beside it:
 
 ```bash
-cd <skill folder> && python3 scripts/skillopt.py --help
+SKILLOPT_DIR="<folder that holds this SKILL.md>/scripts"
+python3 "$SKILLOPT_DIR/skillopt.py" --help
 ```
 
 On Windows PowerShell, no Bash required:
 
 ```powershell
 $Root = if ($env:COPILOT_PLUGIN_ROOT) { $env:COPILOT_PLUGIN_ROOT } else { $env:CLAUDE_PLUGIN_ROOT }
-if (-not $Root) { throw 'Set COPILOT_PLUGIN_ROOT or CLAUDE_PLUGIN_ROOT, or point $SkillOpt at <skill folder>\scripts\skillopt.py' }
-$SkillOpt = Join-Path $Root 'skills\skillopt\scripts\skillopt.py'
+if (-not $Root) { throw 'Set COPILOT_PLUGIN_ROOT or CLAUDE_PLUGIN_ROOT, or set $SkillOptDir to the scripts folder beside this SKILL.md' }
+$SkillOptDir = Join-Path $Root 'skills\skillopt\scripts'
+$SkillOpt = Join-Path $SkillOptDir 'skillopt.py'
 py -3 $SkillOpt --help
 ```
 
-Below, `skillopt.py` means that resolved path.
+Below, `skillopt.py` means that resolved path. References use `$SKILLOPT_DIR`
+(`$SkillOptDir` in PowerShell) for the same folder.
 
 | Command | Exit codes |
 |---------|------------|

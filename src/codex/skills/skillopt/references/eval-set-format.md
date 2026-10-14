@@ -102,16 +102,16 @@ and any null control each get their own file.
 
 ## Scoring and gating
 
-Run from the skill directory:
+Run with `$SKILLOPT_DIR` from SKILL.md, from any directory:
 
 ```bash
-python3 scripts/skillopt.py pair-gate --eval eval.json --incumbent-results incumbent_results.json --candidate-results candidate_results.json
+python3 "$SKILLOPT_DIR/skillopt.py" pair-gate --eval eval.json --incumbent-results incumbent_results.json --candidate-results candidate_results.json
 ```
 
 On Windows:
 
 ```powershell
-py -3 scripts\skillopt.py pair-gate --eval eval.json --incumbent-results incumbent_results.json --candidate-results candidate_results.json
+py -3 (Join-Path $SkillOptDir 'skillopt.py') pair-gate --eval eval.json --incumbent-results incumbent_results.json --candidate-results candidate_results.json
 ```
 
 Optional flags: `--split NAME` (default `sel`) and `--null-results FILE`. A
