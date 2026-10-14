@@ -10,10 +10,11 @@ metadata:
       - untrusted-content-handling
     status: active
   routing:
-    role: lifecycle
-    invoker: ship
-    trigger: ship invokes pipeline-validator to confirm CI checks are green before completion
-    user-facing: false
+    role: explicit-only
+    invoker: user
+    trigger: a user asks to validate Azure DevOps pipelines for a branch or PR
+    user-facing: true
+    rationale: Automatic routing would be unsafe. It targets one Azure DevOps org and pushes fixes. ship checks GitHub CI through get_pr_checks.py instead.
 ---
 
 # Pipeline Validator
