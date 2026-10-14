@@ -119,7 +119,7 @@ pre-commit:
           - name: staged-dash-policy
             timeout: 2m
             run: uv run --frozen python scripts/validation/git_hook_policy.py staged-dashes {staged_files}
-            glob: "**/*.md"
+            glob: "**/*.{md,py}"
             exclude:
               - "node_modules/**"
               - ".venv/**"
@@ -644,8 +644,9 @@ pre-push:
           # re-runs only the tests whose recorded dependencies changed since
           # its last run. `.testmondata` is git-ignored local state. With none,
           # the hook first fetches main's CI seed (push runs on main only,
-          # 30s cap; see `testmon-seed` in pytest.yml) and otherwise runs
-          # everything to build it. Every partition runs even after one
+          # 30s cap; see `testmon-seed` in pytest.yml) and otherwise only
+          # collects the suite, which checks imports and leaves every test to
+          # CI (issue #6200). Every partition runs even after one
           # fails, and the exit code is the worst. Selection is
           # best effort: it misses code a test reaches only through a
           # subprocess. A failing run blocks the push. CI still runs every
@@ -654,11 +655,12 @@ pre-push:
           # COVERAGE_CORE=ctrace because testmon on Python 3.14 otherwise
           # records through sysmon and under-selects. Set
           # `AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY=1` to run the whole suite
-          # here with no selection. The 15m cap is the ceiling for both paths;
-          # the inner aggregate budget is 780s on a workstation. Inside a
-          # managed container `run_pytest` clamps the aggregate to 150s before
-          # it starts a child, so that number, not 780s, bounds a container
-          # push. See ADR-104. The worker cap is "scaled" (issue #6199): half
+          # here with no selection. The 15m cap is the ceiling for the opt-in,
+          # whose inner budget is 780s. The default path gets 180s (issue
+          # #6200), so a selection that does not finish fails the push. Inside
+          # a managed container `run_pytest` clamps the aggregate to 150s
+          # before it starts a child, so that number bounds a container push.
+          # See ADR-104. The worker cap is "scaled" (issue #6199): half
           # the visible CPUs, at least 4 and at most 16, never above the CPU
           # count. A fixed 4 left a 48-core workstation 1.8x slower than 16
           # workers. A positive integer here is still a fixed cap.
@@ -769,11 +771,14 @@ pre-push:
               - ".claude-plugin/marketplace.json"
               - ".github/plugin/marketplace.json"
               - "package.json"
+              - ".agents/plugins/marketplace.json"
               - "src/claude/**"
               - "src/copilot-cli/**"
+              - "src/codex/**"
               - ".claude/skills/**"
               - "build/scripts/generate_skills.py"
               - "templates/platforms/copilot-cli.yaml"
+              - "templates/platforms/codex.yaml"
               - "tests/e2e/test_plugin_load_smoke.py"
               - "tests/e2e/test_pi_package_smoke.py"
               - "tests/e2e/copilot_hook_probe.py"

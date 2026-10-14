@@ -214,6 +214,28 @@ def validate_commands_retired(repo_root: Path) -> bool:
     return bool(exit_code == 0)
 
 
+def validate_retired_ownership_claims(repo_root: Path) -> bool:
+    """Fail when a doc or docstring repeats an ownership claim ADR-109 retired.
+
+    Wraps ``scripts/validation/check_retired_ownership_claims.py``. Issue #5788:
+    after ADR-109 B1 the rule text, sibling READMEs, and generator docstrings
+    kept calling the agent trees hand-maintained, and no gate reads prose. The
+    wrapped script exits 0 when no retired claim is found, 1 when one is, and 2
+    on a configuration error. Exit 1 and 2 are both hard failures here.
+    """
+    script = repo_root / "scripts" / "validation" / "check_retired_ownership_claims.py"
+    if not script.exists():
+        raise MissingScriptSkip("scripts/validation/check_retired_ownership_claims.py not present")
+    exit_code, stdout, stderr = _run_subprocess(
+        [sys.executable, str(script), "--repo-root", str(repo_root)]
+    )
+    output = (stdout or "") + (stderr or "")
+    if output.strip():
+        for line in output.strip().splitlines()[:40]:
+            print(line)
+    return bool(exit_code == 0)
+
+
 def validate_skill_skip_clauses(repo_root: Path) -> bool:
     """Fail when sibling skill families lack well-formed SKIP routes.
 

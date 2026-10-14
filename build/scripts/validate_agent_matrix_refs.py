@@ -22,7 +22,7 @@ Scanned trees, all of which carry copies of the same matrices:
 
   templates/agents/       canonical shared templates
   .claude/agents/         binplaced Claude Code copy
-  .github/agents/         hand-maintained Copilot copy
+  .github/agents/         generated Copilot copy (github platform)
   src/claude/agents/      generated project-toolkit plugin copy (marketplace
                            source since ADR-109 B6)
   src/copilot-cli/agents/ generated Copilot plugin copy

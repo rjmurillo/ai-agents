@@ -1,0 +1,15 @@
+{
+  "name": "ai-agents",
+  "description": "AI coding agents for Codex",
+  "owner": {
+    "name": "rjmurillo",
+    "email": "rjmurillo@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "project-toolkit",
+      "description": "Reusable skills and lifecycle skills (/spec to /ship) for Codex workflows",
+      "source": "./src/codex"
+    }
+  ]
+}
