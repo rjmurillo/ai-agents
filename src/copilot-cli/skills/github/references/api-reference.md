@@ -133,6 +133,7 @@ Starts a new review thread on a diff line. Use `post_pr_comment_reply.py` to rep
 - On an API failure, `Error.Code` is the exit code and `Error.Type` names the cause. `Data` echoes the PR, path, line, and side.
 - Argument and body errors happen before any API call. They print plain text to stderr and exit 2.
 - Exit 2: the PR is not found, the body is invalid, or the API returned 400 or 422 (line or path not in the diff).
+- A `--body-file` that is empty, unreadable, or not UTF-8 also exits 2. The literal backslash-n check applies to an inline `--body` only.
 - Exit 2 also covers a session whose network policy refuses GitHub.
 - Exit 3: another API failure, a quota refusal, or a timeout.
 - A timeout on the POST can still create the comment. Before retrying after exit 3, run `get_pr_review_comments.py` and look for the body, or a retry can post a duplicate thread.

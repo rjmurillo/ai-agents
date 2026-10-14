@@ -181,10 +181,26 @@ def _run_gh_api(args: list[str], action: str) -> subprocess.CompletedProcess[str
 
 
 def _resolve_body(args: argparse.Namespace) -> str:
-    if args.body_file:
-        assert_valid_body_file(args.body_file)
-        return Path(args.body_file).read_text(encoding="utf-8")
-    return str(args.body)
+    """Return a usable body, or exit 2 on stderr before any API call.
+
+    A file body skips the escaped-newline check: that check exists to steer
+    an inline ``--body`` to ``--body-file``, and a file can mention a
+    literal backslash-n on purpose.
+    """
+    if not args.body_file:
+        body = str(args.body)
+        body_error = inline_body_error(body)
+        if body_error:
+            error_and_exit(body_error, 2)
+        return body
+    assert_valid_body_file(args.body_file)
+    try:
+        body = Path(args.body_file).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        error_and_exit(f"Failed to read body file {args.body_file}: {exc}", 2)
+    if not body.strip():
+        error_and_exit("Body cannot be empty.", 2)
+    return body
 
 
 def _get_head_sha(owner: str, repo: str, pr: int) -> str:
@@ -247,9 +263,6 @@ def main(argv: list[str] | None = None) -> int:
     owner, repo = resolved.owner, resolved.repo
 
     body = _resolve_body(args)
-    body_error = inline_body_error(body)
-    if body_error:
-        error_and_exit(body_error, 2)
 
     try:
         head_sha = _get_head_sha(owner, repo, args.pull_request)
