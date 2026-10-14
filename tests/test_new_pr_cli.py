@@ -390,7 +390,7 @@ class TestMain:
 
         with (
             patch("subprocess.run", side_effect=_run),
-            patch("new_pr.run_validations") as validations,
+            patch.object(_mod, "run_validations") as validations,
             patch.dict(main.__globals__, {"read_prepared_pr_body": _no_allocator}),
         ):
             rc = main(["--title", "feat: test", "--head", "feat/b", "--body", "Body text"])
