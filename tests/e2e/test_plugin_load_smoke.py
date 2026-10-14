@@ -24,20 +24,36 @@ the shipped plugin directory, and assert the plugin loads.
     ``plugin details project-toolkit`` with ``cwd`` set to a neutral directory.
     Assert returncode 0, the manifest name appears, and the expected lifecycle
     skills are present in the details output.
-  - Codex (REQ-047): ``codex plugin marketplace add <repo>`` and ``codex plugin add
-    project-toolkit@ai-agents`` install the shipped plugin into an isolated
-    ``CODEX_HOME``, ``codex plugin list --json`` shows it installed and enabled,
-    and ``codex debug prompt-input`` lists every ``EXPECTED_SKILLS`` name as
-    ``project-toolkit:<name>``. No model call and no credential: the commands
-    read the repository and the isolated home only.
+  - Codex (REQ-047, ADR-115 Decisions 7 and 10): ``codex plugin marketplace add
+    <repo>`` and ``codex plugin add project-toolkit@ai-agents`` install the
+    ``src/codex`` tree named by ``.agents/plugins/marketplace.json`` into an
+    isolated ``CODEX_HOME``. ``codex plugin list --json`` shows it installed and
+    enabled, the cache holds the agent-plugins ``plugin.json`` and the same
+    skills as ``src/claude/skills`` with no ``model`` pin, ``codex debug
+    prompt-input`` lists every ``EXPECTED_SKILLS`` name as
+    ``project-toolkit:<name>``, and an installed skill script runs with the
+    plugin-root variables unset (a copy without ``lib/`` is the negative
+    control). No model call and no credential.
+  - Grok Build (ADR-115 Decision 9): ``grok plugin marketplace add <repo>`` and
+    ``grok plugin install project-toolkit@<marketplace> --trust`` install the
+    shipped plugin into a scratch ``GROK_HOME``; ``plugin details`` and ``plugin
+    validate`` must report the expected components and a valid manifest, and an
+    installed skill script must run with both plugin-root variables unset (a copy
+    without ``lib/`` is the negative control). No login, no model call.
   - Analyst contract (issue #3918): load the project analyst in each real CLI
     and assert its exact reviewed read-only tool set. Each probe also loads an
     execution agent that must expose shell and edit tools, so the test cannot
     pass when the CLI stops reporting tool availability.
+  - Model id contract (issue #5333, ADR-080): an isolated ``--plugin-dir`` agent
+    pinned to the Copilot opus-tier id from ``templates/platforms/copilot-cli.yaml``
+    must run without the CLI's "specifies model ... which is not available"
+    warning. A bogus id in the same harness must print that warning (the negative
+    control). The CLI exits 0 and falls back to ``auto`` on a bad id, so the
+    warning, not the exit code, is the signal.
 
 Startup probe (issue #6000): before the first test that needs a CLI, one
 ``<cli> --version`` runs with a 10s timeout. "Needs a CLI" means the test
-carries a ``copilot``, ``claude``, or ``codex`` marker. A CLI that hangs there
+carries a ``copilot``, ``claude``, ``codex``, or ``grok`` marker. A CLI that hangs there
 (a wrapper shim that blocks with no TTY) reports an error at setup of the first
 test that uses it, naming the resolved executable path, and the dependent tests
 skip. A hung CLI costs about 10s, not one full timeout per test.
@@ -70,6 +86,7 @@ Copilot cases run only in CI, behind the agent-copilot environment.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import re
@@ -101,10 +118,13 @@ finally:
 from copilot_hook_probe import (  # noqa: E402
     PROBE_EVENT,
     copilot_command,
+    manifest,
+    probe_name,
     run_copilot_plugin_dir,
     write_marker_probe_plugin,
 )
 from smoke_skip_policy import (  # noqa: E402
+    PLUGIN_ROOT_ENV_KEYS,
     QUOTA_SKIP_MARKER,
     skip_or_fail_on_claude_block,
     skip_or_fail_on_copilot_block,
@@ -247,7 +267,7 @@ _VERSION_TIMEOUT_SECONDS = 60
 # call. A healthy CLI answers in under 1s; a shim that blocks with no TTY never
 # does. Without the probe every test waited out its full timeout (issue #6000).
 _STARTUP_PROBE_TIMEOUT_SECONDS = 10
-_PROBED_CLIS = ("copilot", "claude", "codex")
+_PROBED_CLIS = ("copilot", "claude", "codex", "grok")
 # `copilot skill list --json` reads local plugin files and makes no model call;
 # it returns in about half a second, so a hang is a defect, not latency.
 _SKILL_LIST_TIMEOUT_SECONDS = 30
@@ -262,8 +282,6 @@ def _cli_budget(*subprocess_timeouts: int) -> pytest.MarkDecorator:
     """pytest-timeout marker that outlasts every subprocess timeout in a test."""
     return pytest.mark.timeout(sum(subprocess_timeouts) + _PYTEST_MARGIN_SECONDS)
 
-
-_PLUGIN_ROOT_ENV_KEYS = {"CLAUDE_PLUGIN_ROOT", "CLAUDE_PROJECT_DIR", "COPILOT_PLUGIN_ROOT"}
 
 F = TypeVar("F", bound=Callable[..., object])
 
@@ -290,6 +308,7 @@ def _requires_cli(cli: str) -> Callable[[F], F]:
 requires_copilot = _requires_cli("copilot")
 requires_claude = _requires_cli("claude")
 requires_codex = _requires_cli("codex")
+requires_grok = _requires_cli("grok")
 
 
 def _clean_env() -> dict[str, str]:
@@ -301,7 +320,7 @@ def _clean_env() -> dict[str, str]:
     """
     env = os.environ.copy()
     for key in list(env):
-        if key.upper() in _PLUGIN_ROOT_ENV_KEYS:
+        if key.upper() in PLUGIN_ROOT_ENV_KEYS:
             env.pop(key, None)
     return env
 
@@ -1311,6 +1330,133 @@ def test_copilot_analyst_runtime_uses_exact_allowlist_with_executor_control() ->
     assert "COPILOT_SHELL_CONTROL" in _copilot_tool_result_text(implementer_events)
 
 
+# Manifest-resolved `model:` runtime contract (issue #5333, ADR-080 rule 5,
+# generated-artifacts.md MUST 2). The generator test proves it WROTE a model id;
+# only the real CLI proves the id RESOLVES. Copilot CLI does not fail a run on an
+# unresolvable agent model: it prints a warning on stderr, falls back to "auto",
+# and exits 0 (Copilot CLI 1.0.96, probed with a bogus id). The reply therefore
+# says nothing about the pin; the warning is the only signal.
+_COPILOT_TIER_CONFIG = REPO_ROOT / "templates" / "platforms" / "copilot-cli.yaml"
+_MODEL_REJECTED_RE = re.compile(
+    r'specifies model "(?P<model>[^"]*)" which is not available', re.IGNORECASE
+)
+# Same shape as a manifest id, but no such model exists, so the CLI must reject it.
+_BOGUS_MODEL_ID = "claude-bogus-99.99"
+_MODEL_PROBE_AGENT = "model-probe"
+_MODEL_PROBE_PROMPT = "Reply exactly READY."
+
+
+def _copilot_tier_model(tier: str) -> str:
+    """The id the generator emits for ``tier`` on Copilot CLI, from the platform YAML."""
+    config = yaml.safe_load(_COPILOT_TIER_CONFIG.read_text(encoding="utf-8"))
+    return str(config["legacy"]["model_tiers"][tier])
+
+
+_NO_MINOR_CANONICAL_ID = "claude-opus-5"
+
+
+def _copilot_no_minor_model() -> str:
+    """The id the generator emits on Copilot CLI for a manifest pin with no minor.
+
+    ``claude-opus-5`` is a live id (``build/model_pin_manifest.py`` and
+    ``scripts/eval/panels/owner-copilot-cli.json``), and the second of the two
+    shapes ``format_model_id_for_platform`` can emit: ``claude-{tier}-{major}``.
+    """
+    tiers = {t: _copilot_tier_model(t) for t in ("opus", "sonnet", "haiku")}
+    emitted = _load_format_model_id_for_platform()(_NO_MINOR_CANONICAL_ID, tiers)
+    assert emitted is not None, f"generator emits no pin for {_NO_MINOR_CANONICAL_ID!r}"
+    return emitted
+
+
+def _rejected_models(*streams: str) -> list[str]:
+    """Model ids the CLI reported as unavailable, in the order printed."""
+    return [match.group("model") for text in streams for match in _MODEL_REJECTED_RE.finditer(text)]
+
+
+def _write_model_probe_plugin(plugin_dir: Path, model: str) -> str:
+    """Write a one-agent ``--plugin-dir`` plugin pinned to ``model``.
+
+    Returns the ``--agent`` reference. Copilot namespaces plugin agents as
+    ``<plugin>:<agent>``. The plugin is isolated, so the real
+    ``.github/agents/`` and ``src/copilot-cli/agents/`` trees are untouched.
+    """
+    name = probe_name()
+    (plugin_dir / "agents").mkdir(parents=True)
+    (plugin_dir / "plugin.json").write_text(manifest(name), encoding="utf-8")
+    (plugin_dir / "agents" / f"{_MODEL_PROBE_AGENT}.agent.md").write_text(
+        f"---\nname: {_MODEL_PROBE_AGENT}\ndescription: model id runtime probe\n"
+        f"model: {model}\n---\n{_MODEL_PROBE_PROMPT}\n",
+        encoding="utf-8",
+    )
+    return f"{name}:{_MODEL_PROBE_AGENT}"
+
+
+def _run_copilot_model_probe(tmp_path: Path, model: str) -> subprocess.CompletedProcess[str]:
+    """Run the probe agent pinned to ``model`` from a neutral cwd."""
+    root = tmp_path / re.sub(r"[^a-z0-9]+", "-", model.lower())
+    cwd = root / "cwd"
+    cwd.mkdir(parents=True)
+    agent = _write_model_probe_plugin(root / "plugin", model)
+    try:
+        run = _run_cli(
+            copilot_command(
+                "--plugin-dir",
+                str(root / "plugin"),
+                "--agent",
+                agent,
+                "--no-ask-user",
+                "--allow-all-tools",
+                "--output-format",
+                "json",
+                "--prompt",
+                _MODEL_PROBE_PROMPT,
+            ),
+            cwd=cwd,
+            timeout=_CLI_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        _skip_or_fail_copilot_timeout(f"copilot model probe for {model}", exc)
+    _skip_on_copilot_block(run)
+    assert run.returncode == 0, (
+        f"copilot model probe failed for {model} (rc={run.returncode}). "
+        f"stdout={run.stdout[-600:]!r} stderr={run.stderr[-600:]!r}"
+    )
+    return run
+
+
+@pytest.mark.smoke
+@requires_copilot
+@_cli_budget(_CLI_TIMEOUT_SECONDS, _CLI_TIMEOUT_SECONDS, _CLI_TIMEOUT_SECONDS)
+def test_copilot_accepts_the_generated_model_id_with_rejection_control(tmp_path: Path) -> None:
+    """Copilot resolves both id shapes the generator emits, and flags one it cannot.
+
+    The control runs first: a bogus id in the same harness must print the
+    rejection warning, or the warning checks below prove nothing. The subjects
+    are the two shapes ``format_model_id_for_platform`` writes into generated
+    frontmatter: the opus-tier dot form from ``templates/platforms/copilot-cli.yaml``
+    (``claude-{tier}-{major}.{minor}``) and the no-minor form for a manifest pin
+    such as ``claude-opus-5`` (``claude-{tier}-{major}``).
+    """
+    subjects = {
+        "major.minor": _copilot_tier_model("opus"),
+        "major only": _copilot_no_minor_model(),
+    }
+    control_run = _run_copilot_model_probe(tmp_path, _BOGUS_MODEL_ID)
+    assert _BOGUS_MODEL_ID in _rejected_models(control_run.stderr, control_run.stdout), (
+        "negative control failed: Copilot printed no rejection for "
+        f"{_BOGUS_MODEL_ID!r}, so a clean run for any subject proves nothing. "
+        f"stderr={control_run.stderr[-600:]!r}"
+    )
+    for shape, subject in subjects.items():
+        subject_run = _run_copilot_model_probe(tmp_path, subject)
+        assert subject not in _rejected_models(subject_run.stderr, subject_run.stdout), (
+            f"Copilot CLI cannot use the {shape} model {subject!r} and fell back to auto. "
+            "The id is unknown to this CLI version or not enabled for the smoke account. "
+            f"stderr={subject_run.stderr[-600:]!r}"
+        )
+        assert "READY" in _copilot_assistant_text(_json_events(subject_run))
+
+
 # Always-on unit checks. They need no real CLI, so they run in bare CI and pin
 # the load contract the gated smoke depends on: every expected lifecycle skill
 # ships in BOTH plugin trees, and the fired-hook detector has a working positive
@@ -1525,7 +1671,7 @@ def test_clean_env_strips_plugin_root_keys_case_insensitively(
     env = _clean_env()
 
     assert "KEEP_ME" in env
-    assert not any(key.upper() in _PLUGIN_ROOT_ENV_KEYS for key in env)
+    assert not any(key.upper() in PLUGIN_ROOT_ENV_KEYS for key in env)
 
 
 def test_copilot_commands_disable_auto_update() -> None:
@@ -1533,6 +1679,154 @@ def test_copilot_commands_disable_auto_update() -> None:
     command = copilot_command("skill", "list", "--json")
 
     assert command[1:] == ["--no-auto-update", "skill", "list", "--json"]
+
+
+# Copilot CLI 1.0.96 stderr for an agent whose `model:` does not resolve.
+_REJECTION_STDERR = (
+    'Warning: Custom agent "p:model-probe" specifies model "claude-bogus-99.99" '
+    'which is not available; using "auto" instead\n'
+)
+
+
+def _load_format_model_id_for_platform() -> Callable[[str, dict[str, str]], str | None]:
+    path = REPO_ROOT / "build" / "model_pin_manifest.py"
+    spec = importlib.util.spec_from_file_location("_smoke_model_pin_manifest", path)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.format_model_id_for_platform
+
+
+def test_rejected_models_reads_the_cli_warning() -> None:
+    assert _rejected_models(_REJECTION_STDERR) == ["claude-bogus-99.99"]
+
+
+def test_rejected_models_reads_every_stream_and_every_warning() -> None:
+    second = _REJECTION_STDERR.replace("claude-bogus-99.99", "claude-opus-9.9")
+
+    assert _rejected_models("", _REJECTION_STDERR + second) == [
+        "claude-bogus-99.99",
+        "claude-opus-9.9",
+    ]
+    assert _rejected_models("", second) == ["claude-opus-9.9"]
+
+
+@pytest.mark.parametrize(
+    "stderr",
+    [
+        "",
+        "READY\n",
+        'Warning: tool "bash" is not available for this agent\n',
+        'Warning: Custom agent "p:model-probe" specifies model "" and nothing else\n',
+    ],
+)
+def test_rejected_models_ignores_output_without_the_warning(stderr: str) -> None:
+    assert _rejected_models(stderr) == []
+
+
+@pytest.mark.parametrize("tier", ["opus", "sonnet", "haiku"])
+def test_probe_ids_are_what_the_generator_emits_for_copilot(tier: str) -> None:
+    """The smoke probes the generator's own output, not a hand-copied literal."""
+    tiers = {t: _copilot_tier_model(t) for t in ("opus", "sonnet", "haiku")}
+    fmt = _load_format_model_id_for_platform()
+    major_minor = re.search(r"(\d+)\.(\d+)$", tiers[tier])
+    assert major_minor is not None
+
+    canonical = f"claude-{tier}-{major_minor.group(1)}-{major_minor.group(2)}"
+
+    assert fmt(canonical, tiers) == tiers[tier]
+
+
+def test_generator_emits_the_no_minor_shape_the_smoke_probes() -> None:
+    """``claude-opus-5`` has no minor; the generator must emit ``claude-opus-5``."""
+    tiers = {t: _copilot_tier_model(t) for t in ("opus", "sonnet", "haiku")}
+
+    assert _load_format_model_id_for_platform()("claude-opus-5", tiers) == "claude-opus-5"
+    assert _copilot_no_minor_model() == "claude-opus-5"
+    assert re.fullmatch(r"claude-opus-\d+", _copilot_no_minor_model()) is not None
+
+
+def test_the_bogus_control_id_is_not_a_shipped_tier_default() -> None:
+    shipped = {_copilot_tier_model(t) for t in ("opus", "sonnet", "haiku")}
+
+    assert _BOGUS_MODEL_ID not in shipped
+    assert re.fullmatch(r"claude-(opus|sonnet|haiku)-\d+\.\d+", _BOGUS_MODEL_ID) is None
+
+
+def test_model_probe_plugin_pins_the_model_and_names_the_agent(tmp_path: Path) -> None:
+    plugin = tmp_path / "plugin"
+
+    ref = _write_model_probe_plugin(plugin, "claude-opus-4.6")
+
+    plugin_name, agent = ref.split(":")
+    assert json.loads((plugin / "plugin.json").read_text(encoding="utf-8"))["name"] == plugin_name
+    text = (plugin / "agents" / f"{agent}.agent.md").read_text(encoding="utf-8")
+    frontmatter = yaml.safe_load(text.split("---")[1])
+    assert frontmatter == {
+        "name": "model-probe",
+        "description": "model id runtime probe",
+        "model": "claude-opus-4.6",
+    }
+
+
+def test_model_probe_plugin_names_are_unique_per_call(tmp_path: Path) -> None:
+    first = _write_model_probe_plugin(tmp_path / "a", "claude-opus-4.6")
+    second = _write_model_probe_plugin(tmp_path / "b", "claude-opus-4.6")
+
+    assert first != second
+
+
+def _stub_model_probe_run(
+    monkeypatch: pytest.MonkeyPatch, *, returncode: int, stderr: str = ""
+) -> list[dict[str, object]]:
+    calls: list[dict[str, object]] = []
+
+    def fake(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        calls.append({"args": args, **kwargs})
+        return subprocess.CompletedProcess(args, returncode, stdout="", stderr=stderr)
+
+    monkeypatch.setattr("tests.e2e.test_plugin_load_smoke._run_cli", fake)
+    monkeypatch.setattr(
+        "tests.e2e.test_plugin_load_smoke.copilot_command", lambda *args: ["copilot", *args]
+    )
+    return calls
+
+
+def test_model_probe_runs_the_isolated_plugin_from_a_neutral_cwd(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    calls = _stub_model_probe_run(monkeypatch, returncode=0)
+
+    _run_copilot_model_probe(tmp_path, "claude-opus-4.6")
+
+    args = calls[0]["args"]
+    assert isinstance(args, list)
+    plugin_dir = Path(args[args.index("--plugin-dir") + 1])
+    assert plugin_dir.is_relative_to(tmp_path)
+    assert args[args.index("--agent") + 1].endswith(":model-probe")
+    assert Path(str(calls[0]["cwd"])).is_relative_to(tmp_path)
+    assert Path(str(calls[0]["cwd"])) != REPO_ROOT
+    assert not (REPO_ROOT / "src" / "copilot-cli" / "agents" / "model-probe.agent.md").exists()
+
+
+def test_model_probe_fails_on_a_nonzero_exit(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _stub_model_probe_run(monkeypatch, returncode=1, stderr="boom")
+
+    with pytest.raises(AssertionError, match=r"model probe failed for claude-opus-4\.6 \(rc=1\)"):
+        _run_copilot_model_probe(tmp_path, "claude-opus-4.6")
+
+
+def test_model_probe_keeps_the_stderr_the_rejection_check_reads(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _stub_model_probe_run(monkeypatch, returncode=0, stderr=_REJECTION_STDERR)
+
+    run = _run_copilot_model_probe(tmp_path, _BOGUS_MODEL_ID)
+
+    assert _rejected_models(run.stderr, run.stdout) == [_BOGUS_MODEL_ID]
 
 
 def _fake_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, body: str) -> Path:
@@ -2247,6 +2541,14 @@ _CODEX_PLUGIN_NAME = "project-toolkit"
 # pre-push cap (test_an_all_hang_run_fits_the_pre_push_cap).
 _CODEX_COMMAND_TIMEOUT_SECONDS = 45
 _CODEX_COMMAND_COUNT = 4
+# Two runs of the installed get_pr_checks.py: the install, then the no-lib control.
+_CODEX_SCRIPT_TIMEOUT_SECONDS = 30
+_CODEX_SCRIPT_COUNT = 2
+_CODEX_INSTALLED_SCRIPT = Path("skills") / "github" / "scripts" / "pr" / "get_pr_checks.py"
+_CODEX_PLUGIN_DIR = REPO_ROOT / "src" / "codex"
+_CODEX_MANIFEST_SCHEMA = "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
+# artifacts.skills.frontmatterDrop in templates/platforms/codex.yaml.
+_CODEX_DROPPED_KEYS = frozenset({"model", "model-rationale"})
 # Allow-list, matched case-insensitively (Windows env names are case-insensitive).
 # Codex plugin commands read local files only, so the run needs a PATH to find
 # the binary, locale and temp settings, and on Windows the shell variables that
@@ -2335,18 +2637,97 @@ def _run_codex(
     return result
 
 
+def _skill_frontmatter_keys(skill_md: Path) -> set[str]:
+    """Top-level frontmatter keys of a SKILL.md. Empty when it has no frontmatter.
+
+    Parses the YAML block rather than grepping for ``model:``: a body line that
+    starts with the word "model" is prose, not the pin the Codex tree drops.
+    """
+    text = skill_md.read_text(encoding="utf-8")
+    match = re.match(r"\A---\r?\n(.*?)\r?\n---\r?\n", text, re.DOTALL)
+    if match is None:
+        return set()
+    parsed = yaml.safe_load(match.group(1))
+    return set(parsed) if isinstance(parsed, dict) else set()
+
+
+def _codex_install_failures(installed: Path) -> list[str]:
+    """Why the installed cache is not the Codex tree (ADR-115 Decision 7); [] when it is."""
+    failures: list[str] = []
+    manifest = installed / "plugin.json"
+    if not manifest.is_file():
+        return [f"no plugin.json in {installed}"]
+    try:
+        schema = json.loads(manifest.read_text(encoding="utf-8")).get("$schema")
+    except (json.JSONDecodeError, AttributeError) as exc:
+        return [f"installed plugin.json is not a JSON object: {exc}"]
+    if schema != _CODEX_MANIFEST_SCHEMA:
+        failures.append(f"plugin.json $schema is {schema!r}, not {_CODEX_MANIFEST_SCHEMA!r}")
+    installed_skills = sorted(p.parent.name for p in (installed / "skills").glob("*/SKILL.md"))
+    shipped_skills = sorted(
+        p.parent.name for p in (_CLAUDE_PLUGIN_DIR / "skills").glob("*/SKILL.md")
+    )
+    if installed_skills != shipped_skills:
+        failures.append(
+            f"installed {len(installed_skills)} skills, "
+            f"src/claude/skills ships {len(shipped_skills)}"
+        )
+    pinned = [
+        name
+        for name in installed_skills
+        if _CODEX_DROPPED_KEYS & _skill_frontmatter_keys(installed / "skills" / name / "SKILL.md")
+    ]
+    if pinned:
+        failures.append(f"skills still carry a model pin in frontmatter: {pinned}")
+    failures.extend(_codex_body_drift(installed, installed_skills, shipped_skills))
+    return failures
+
+
+def _codex_body_drift(
+    installed: Path, installed_skills: list[str], shipped: list[str]
+) -> list[str]:
+    """Name installed SKILL.md bodies that differ from src/claude/skills; [] when none do."""
+    drifted = [
+        name
+        for name in installed_skills
+        if name in shipped
+        and _skill_body(installed / "skills" / name / "SKILL.md")
+        != _skill_body(_CLAUDE_PLUGIN_DIR / "skills" / name / "SKILL.md")
+    ]
+    return (
+        [f"installed SKILL.md bodies differ from src/claude/skills: {drifted}"] if drifted else []
+    )
+
+
+def _skill_body(path: Path) -> str:
+    """The SKILL.md text after its frontmatter block, which the Codex copy keeps verbatim."""
+    text = path.read_text(encoding="utf-8")
+    if not text.startswith("---"):
+        return text
+    end = text.find("\n---", 3)
+    return text if end == -1 else text[end + 4 :]
+
+
 @pytest.mark.smoke
 @requires_codex
-@_cli_budget(*([_CODEX_COMMAND_TIMEOUT_SECONDS] * _CODEX_COMMAND_COUNT))
+@_cli_budget(
+    *([_CODEX_COMMAND_TIMEOUT_SECONDS] * _CODEX_COMMAND_COUNT),
+    *([_CODEX_SCRIPT_TIMEOUT_SECONDS] * _CODEX_SCRIPT_COUNT),
+)
 def test_codex_plugin_loads_expected_skills(tmp_path: Path) -> None:
-    """codex installs the shipped plugin and its prompt lists every expected skill.
+    """codex installs the Codex tree, lists every expected skill, and runs a skill script.
 
-    Install ``project-toolkit@ai-agents`` from ``.claude-plugin/marketplace.json``
-    into an isolated ``CODEX_HOME``, confirm ``plugin list --json`` reports it
-    installed and enabled from ``src/claude``, then run ``codex debug
-    prompt-input`` from a cwd outside the repository so the only source of
-    ``project-toolkit:<skill>`` lines is the installed plugin. No model call, no
-    credential (REQ-047 AC11).
+    Install ``project-toolkit@ai-agents`` from ``.agents/plugins/marketplace.json``
+    into an isolated ``CODEX_HOME``. Confirm ``plugin list --json`` reports it
+    installed and enabled from ``src/codex``, and that the installed cache holds
+    the agent-plugins ``plugin.json``, the same skills as ``src/claude/skills``,
+    and no ``model`` pin. ``codex debug prompt-input`` from a cwd outside the
+    repository must still list every ``EXPECTED_SKILLS`` name. Then run
+    ``get_pr_checks.py --help`` from the installed copy under ``python -I`` with
+    the plugin-root variables and ``GITHUB_WORKSPACE`` unset (``_codex_env``
+    allow-lists none of them). A copy of ``skills/`` without the sibling ``lib/``
+    must fail with the loader message (negative control, ADR-115 Decision 10).
+    No model call, no credential.
     """
     home = tmp_path / "home"
     work = tmp_path / "cwd"
@@ -2357,7 +2738,7 @@ def test_codex_plugin_loads_expected_skills(tmp_path: Path) -> None:
 
     try:
         _run_codex(["plugin", "marketplace", "add", str(REPO_ROOT)], env=env, cwd=work)
-        _run_codex(["plugin", "add", _CODEX_PLUGIN_ID, "--json"], env=env, cwd=work)
+        added = _run_codex(["plugin", "add", _CODEX_PLUGIN_ID, "--json"], env=env, cwd=work)
         listing = _run_codex(["plugin", "list", "--json"], env=env, cwd=work)
         prompt = _run_codex(["debug", "prompt-input", "hi"], env=env, cwd=work)
     except subprocess.TimeoutExpired as exc:
@@ -2371,8 +2752,15 @@ def test_codex_plugin_loads_expected_skills(tmp_path: Path) -> None:
     source = entry.get("source")
     source_path = source.get("path") if isinstance(source, dict) else None
     assert isinstance(source_path, str) and Path(source_path).resolve() == (
-        _CLAUDE_PLUGIN_DIR.resolve()
-    ), f"codex installed {_CODEX_PLUGIN_ID} from {source_path!r}, not {_CLAUDE_PLUGIN_DIR}"
+        _CODEX_PLUGIN_DIR.resolve()
+    ), f"codex installed {_CODEX_PLUGIN_ID} from {source_path!r}, not {_CODEX_PLUGIN_DIR}"
+
+    installed = Path(json.loads(added.stdout)["installedPath"])
+    assert installed.resolve().is_relative_to(codex_home.resolve()), (
+        f"codex installed into {installed}, outside the scratch CODEX_HOME {codex_home}"
+    )
+    failures = _codex_install_failures(installed)
+    assert not failures, f"installed cache is not the Codex tree: {failures}"
 
     loaded = _codex_prompt_skill_names(prompt.stdout, _CODEX_PLUGIN_NAME)
     missing = EXPECTED_SKILLS - loaded
@@ -2380,6 +2768,291 @@ def test_codex_plugin_loads_expected_skills(tmp_path: Path) -> None:
         f"codex prompt-input lists no {_CODEX_PLUGIN_NAME}:<skill> for {sorted(missing)}. "
         f"Loaded {len(loaded)} plugin skills."
     )
+
+    try:
+        run = _run_installed_script(installed / _CODEX_INSTALLED_SCRIPT, env=env, cwd=work)
+        control_skills = tmp_path / "no-lib" / "skills"
+        shutil.copytree(installed / "skills", control_skills)
+        control = _run_installed_script(
+            control_skills / _CODEX_INSTALLED_SCRIPT.relative_to("skills"), env=env, cwd=work
+        )
+    except subprocess.TimeoutExpired as exc:
+        pytest.fail(f"installed script exceeded {_CODEX_SCRIPT_TIMEOUT_SECONDS}s: {exc.cmd}")
+
+    assert run.returncode == 0, f"installed script rc={run.returncode}: {redact(run.stderr[-600:])}"
+    assert control.returncode != 0 and "Plugin lib directory not found" in control.stderr, (
+        f"negative control (no lib/) rc={control.returncode}: {redact(control.stderr[-400:])!r}"
+    )
+
+
+def test_codex_env_unsets_the_plugin_root_variables(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for name in ("CLAUDE_PLUGIN_ROOT", "COPILOT_PLUGIN_ROOT", "GITHUB_WORKSPACE", "OPENAI_API_KEY"):
+        monkeypatch.setenv(name, "/leak")
+    env = _codex_env(tmp_path / "ch", tmp_path / "h")
+
+    assert not {"CLAUDE_PLUGIN_ROOT", "COPILOT_PLUGIN_ROOT", "GITHUB_WORKSPACE"} & set(env)
+    assert "OPENAI_API_KEY" not in env
+    assert env["CODEX_HOME"] == str(tmp_path / "ch")
+
+
+def _write_skill(skills: Path, name: str, frontmatter: str) -> None:
+    skill = skills / name
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text(f"---\n{frontmatter}---\nBody.\nmodel prose line\n")
+
+
+def test_skill_frontmatter_keys_ignores_body_lines_that_start_with_model(tmp_path: Path) -> None:
+    _write_skill(tmp_path, "a", "name: a\ndescription: d\n")
+    _write_skill(tmp_path, "b", "name: b\nmodel: haiku\nmodel-rationale: cost\n")
+
+    assert _skill_frontmatter_keys(tmp_path / "a" / "SKILL.md") == {"name", "description"}
+    assert {"model", "model-rationale"} <= _skill_frontmatter_keys(tmp_path / "b" / "SKILL.md")
+
+
+def test_skill_frontmatter_keys_is_empty_without_frontmatter(tmp_path: Path) -> None:
+    skill = tmp_path / "SKILL.md"
+    skill.write_text("no fence here\n")
+
+    assert _skill_frontmatter_keys(skill) == set()
+
+
+def _fake_codex_cache(
+    root: Path, *, schema: str, pin: bool, skip_skill: bool, drift: bool = False
+) -> Path:
+    cache = root / "cache"
+    cache.mkdir()
+    (cache / "plugin.json").write_text(json.dumps({"$schema": schema}))
+    names = sorted(p.parent.name for p in (_CLAUDE_PLUGIN_DIR / "skills").glob("*/SKILL.md"))
+    for name in names[1:] if skip_skill else names:
+        body = _skill_body(_CLAUDE_PLUGIN_DIR / "skills" / name / "SKILL.md")
+        skill = cache / "skills" / name / "SKILL.md"
+        skill.parent.mkdir(parents=True)
+        front = "name: x\n" + ("model: haiku\n" if pin else "")
+        skill.write_text(f"---\n{front}---" + body + ("drift\n" if drift else ""))
+    return cache
+
+
+def test_codex_install_failures_names_a_drifted_skill_body(tmp_path: Path) -> None:
+    cache = _fake_codex_cache(
+        tmp_path, schema=_CODEX_MANIFEST_SCHEMA, pin=False, skip_skill=False, drift=True
+    )
+
+    assert any("bodies differ" in failure for failure in _codex_install_failures(cache))
+
+
+def test_codex_install_failures_names_a_malformed_manifest(tmp_path: Path) -> None:
+    cache = _fake_codex_cache(tmp_path, schema=_CODEX_MANIFEST_SCHEMA, pin=False, skip_skill=False)
+    (cache / "plugin.json").write_text("[not an object")
+
+    assert any("not a JSON object" in failure for failure in _codex_install_failures(cache))
+
+
+def test_codex_install_failures_accepts_a_matching_tree(tmp_path: Path) -> None:
+    cache = _fake_codex_cache(tmp_path, schema=_CODEX_MANIFEST_SCHEMA, pin=False, skip_skill=False)
+
+    assert _codex_install_failures(cache) == []
+
+
+@pytest.mark.parametrize(
+    ("schema", "pin", "skip_skill", "fragment"),
+    [
+        ("https://example.test/other.json", False, False, "$schema"),
+        (_CODEX_MANIFEST_SCHEMA, False, True, "skills,"),
+        (_CODEX_MANIFEST_SCHEMA, True, False, "model pin"),
+    ],
+)
+def test_codex_install_failures_names_each_gap(
+    tmp_path: Path, schema: str, pin: bool, skip_skill: bool, fragment: str
+) -> None:
+    cache = _fake_codex_cache(tmp_path, schema=schema, pin=pin, skip_skill=skip_skill)
+
+    assert any(fragment in failure for failure in _codex_install_failures(cache))
+
+
+def test_codex_install_failures_reports_a_missing_manifest(tmp_path: Path) -> None:
+    assert _codex_install_failures(tmp_path) == [f"no plugin.json in {tmp_path}"]
+
+
+# --- Grok Build leg (ADR-115 Decision 9) -------------------------------------
+# `grok plugin install` needs no login and no model call. Every command runs
+# under a scratch HOME and GROK_HOME, so nothing is read from or written to the
+# developer's ~/.grok or ~/.claude (Grok also reads ~/.claude/settings.json
+# `extraKnownMarketplaces`; the throwaway HOME hides it).
+_GROK_PLUGIN_NAME = "project-toolkit"
+_GROK_COMMAND_TIMEOUT_SECONDS = 45
+_GROK_COMMAND_COUNT = 4
+_GROK_SCRIPT_TIMEOUT_SECONDS = 30
+_GROK_SCRIPT_COUNT = 2
+_GROK_INSTALLED_SCRIPT = Path("skills") / "github" / "scripts" / "pr" / "get_pr_checks.py"
+_GROK_COMPONENTS = "components: 1 skill dir(s), 0 command dir(s), 1 agent dir(s)"
+# Same allow-list as Codex, with GROK_HOME in place of CODEX_HOME. CLAUDE_PLUGIN_ROOT
+# and COPILOT_PLUGIN_ROOT are unlisted, so the installed script must find lib/ by
+# its own path (the negative control proves lib/ is what it found).
+_GROK_ENV_ALLOWLIST = (_CODEX_ENV_ALLOWLIST - {"CODEX_HOME"}) | {"GROK_HOME"}
+
+
+def _grok_env(grok_home: Path, home: Path) -> dict[str, str]:
+    """Env for a Grok subprocess: an allow-list, isolated homes, no credential."""
+    env = {key: value for key, value in os.environ.items() if key.upper() in _GROK_ENV_ALLOWLIST}
+    env["GROK_HOME"] = str(grok_home)
+    env["HOME"] = str(home)
+    env["USERPROFILE"] = str(home)
+    return env
+
+
+def _grok_marketplace_name(add_stdout: str) -> str | None:
+    """Marketplace name from ``Added marketplace source: <name> (<path>)``."""
+    match = re.search(r"Added marketplace source:\s+(\S+)", add_stdout)
+    return match.group(1) if match else None
+
+
+def _grok_details_path(details_stdout: str) -> Path | None:
+    """Install directory from the ``path:`` line of ``grok plugin details``."""
+    match = re.search(r"^\s*path:\s+(.+?)\s*$", details_stdout, flags=re.MULTILINE)
+    return Path(match.group(1)) if match else None
+
+
+def _run_grok(
+    args: list[str], *, env: dict[str, str], cwd: Path
+) -> subprocess.CompletedProcess[str]:
+    result = subprocess.run(
+        [resolve_executable("grok"), *args],
+        cwd=cwd,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=_GROK_COMMAND_TIMEOUT_SECONDS,
+        check=False,
+        env=env,
+    )
+    assert result.returncode == 0, (
+        f"grok {' '.join(args)} failed (rc={result.returncode}). "
+        f"stdout={redact(result.stdout[-600:])!r} stderr={redact(result.stderr[-600:])!r}"
+    )
+    return result
+
+
+def _run_installed_script(
+    script: Path, *, env: dict[str, str], cwd: Path
+) -> subprocess.CompletedProcess[str]:
+    """Run an installed skill script under ``python -I`` without asserting the exit."""
+    return subprocess.run(
+        [sys.executable, "-I", str(script), "--help"],
+        cwd=cwd,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=_GROK_SCRIPT_TIMEOUT_SECONDS,
+        check=False,
+        env=env,
+    )
+
+
+@pytest.mark.smoke
+@requires_grok
+@_cli_budget(
+    *([_GROK_COMMAND_TIMEOUT_SECONDS] * _GROK_COMMAND_COUNT),
+    *([_GROK_SCRIPT_TIMEOUT_SECONDS] * _GROK_SCRIPT_COUNT),
+)
+def test_grok_plugin_installs_and_runs_a_skill_script(tmp_path: Path) -> None:
+    """grok installs the shipped plugin and an installed skill script finds lib/.
+
+    Add the repository as a marketplace source, install ``project-toolkit`` from
+    it into a scratch ``GROK_HOME``, assert ``plugin details`` reports the
+    expected components, then run ``get_pr_checks.py --help`` from the installed
+    copy with both plugin-root variables unset. A copy of ``skills/`` without the
+    sibling ``lib/`` must fail with the loader message (negative control). No
+    model call, no credential (ADR-115 Decision 9).
+    """
+    home = tmp_path / "home"
+    work = tmp_path / "cwd"
+    grok_home = tmp_path / "grok-home"
+    for directory in (home, work, grok_home):
+        directory.mkdir()
+    env = _grok_env(grok_home, home)
+
+    try:
+        added = _run_grok(["plugin", "marketplace", "add", str(REPO_ROOT)], env=env, cwd=work)
+        marketplace = _grok_marketplace_name(added.stdout)
+        assert marketplace, f"no marketplace name in add output: {added.stdout[-400:]!r}"
+        _run_grok(
+            ["plugin", "install", f"{_GROK_PLUGIN_NAME}@{marketplace}", "--trust"],
+            env=env,
+            cwd=work,
+        )
+        details = _run_grok(["plugin", "details", _GROK_PLUGIN_NAME], env=env, cwd=work)
+        installed = _grok_details_path(details.stdout)
+        assert installed is not None, f"no path: line in details: {details.stdout[-400:]!r}"
+        validated = _run_grok(["plugin", "validate", str(installed)], env=env, cwd=work)
+    except subprocess.TimeoutExpired as exc:
+        pytest.fail(f"grok plugin command exceeded {_GROK_COMMAND_TIMEOUT_SECONDS}s: {exc.cmd}")
+
+    assert installed.resolve().is_relative_to(grok_home.resolve()), (
+        f"grok installed into {installed}, outside the scratch GROK_HOME {grok_home}"
+    )
+    assert _GROK_COMPONENTS in details.stdout, details.stdout[-600:]
+    assert "Plugin manifest is valid." in validated.stdout, validated.stdout[-400:]
+
+    try:
+        run = _run_installed_script(installed / _GROK_INSTALLED_SCRIPT, env=env, cwd=work)
+        control_skills = tmp_path / "no-lib" / "skills"
+        shutil.copytree(installed / "skills", control_skills)
+        control = _run_installed_script(
+            control_skills / _GROK_INSTALLED_SCRIPT.relative_to("skills"), env=env, cwd=work
+        )
+    except subprocess.TimeoutExpired as exc:
+        pytest.fail(f"installed script exceeded {_GROK_SCRIPT_TIMEOUT_SECONDS}s: {exc.cmd}")
+
+    assert run.returncode == 0, f"installed script rc={run.returncode}: {redact(run.stderr[-600:])}"
+    assert control.returncode != 0 and "Plugin lib directory not found" in control.stderr, (
+        f"negative control (no lib/) rc={control.returncode}: {redact(control.stderr[-400:])!r}"
+    )
+
+
+@pytest.mark.parametrize(
+    ("stdout", "expected"),
+    [
+        ("Added marketplace source: repo-name (/x/repo-name)\n", "repo-name"),
+        ("  Added marketplace source:   ai-agents\n", "ai-agents"),
+        ("Error: nothing added\n", None),
+        ("", None),
+    ],
+)
+def test_grok_marketplace_name_parses_the_add_output(stdout: str, expected: str | None) -> None:
+    assert _grok_marketplace_name(stdout) == expected
+
+
+@pytest.mark.parametrize(
+    ("stdout", "expected"),
+    [
+        (
+            "claude-1\n  path: /g/installed-plugins/claude-1\n  kind: local\n",
+            "/g/installed-plugins/claude-1",
+        ),
+        ("  kind: local: /src/claude\n", None),
+        ("", None),
+    ],
+)
+def test_grok_details_path_reads_the_install_directory(stdout: str, expected: str | None) -> None:
+    result = _grok_details_path(stdout)
+    assert (str(result) if result else None) == expected
+
+
+def test_grok_env_strips_credentials_and_isolates_homes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("XAI_API_KEY", "x")
+    monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", "/p")
+    monkeypatch.setenv("COPILOT_PLUGIN_ROOT", "/p")
+    monkeypatch.setenv("GROK_HOME", "/real/grok")
+    env = _grok_env(tmp_path / "gh", tmp_path / "h")
+
+    assert env["GROK_HOME"] == str(tmp_path / "gh")
+    assert env["HOME"] == env["USERPROFILE"] == str(tmp_path / "h")
+    assert not {"XAI_API_KEY", "CLAUDE_PLUGIN_ROOT", "COPILOT_PLUGIN_ROOT"} & set(env)
+    assert {key.upper() for key in env} <= _GROK_ENV_ALLOWLIST
 
 
 def test_codex_installed_entry_finds_the_plugin() -> None:
@@ -2487,6 +3160,19 @@ def _smoke_tests() -> list[Callable[..., object]]:
     ]
 
 
+def _local_smoke_tests() -> list[Callable[..., object]]:
+    """Smoke tests the pre-push run executes: it selects ``-m "not copilot"``.
+
+    ``CLI_E2E_LOCAL_MARKERS`` keeps every Copilot case in CI behind the
+    agent-copilot environment, so a Copilot hang cannot cost the local push.
+    """
+    return [
+        test
+        for test in _smoke_tests()
+        if not any(mark.name == "copilot" for mark in getattr(test, "pytestmark", []))
+    ]
+
+
 def _smoke_test_named(name: str) -> Callable[..., object]:
     return globals()[name]
 
@@ -2507,6 +3193,7 @@ def _first_call_timeout(test: Callable[..., object]) -> int:
     """
     local_only = {
         test_codex_plugin_loads_expected_skills.__name__: _CODEX_COMMAND_TIMEOUT_SECONDS,
+        test_grok_plugin_installs_and_runs_a_skill_script.__name__: _GROK_COMMAND_TIMEOUT_SECONDS,
         test_copilot_plugin_loads_expected_skills.__name__: _SKILL_LIST_TIMEOUT_SECONDS,
     }
     return local_only.get(test.__name__, _CLI_TIMEOUT_SECONDS)
@@ -2530,6 +3217,17 @@ def test_every_real_cli_test_outlasts_its_subprocess_timeout() -> None:
     assert not short, f"smoke tests without a budget above the CLI timeout: {short}"
 
 
+def test_the_pre_push_bound_counts_claude_and_codex_but_not_copilot_smokes() -> None:
+    """Copilot smokes run only in CI, so they do not spend the pre-push cap (issue #5333)."""
+    local = {test.__name__ for test in _local_smoke_tests()}
+
+    assert test_copilot_accepts_the_generated_model_id_with_rejection_control.__name__ not in local
+    assert test_copilot_plugin_loads_expected_skills.__name__ not in local
+    assert test_claude_plugin_loads_expected_skills.__name__ in local
+    assert test_codex_plugin_loads_expected_skills.__name__ in local
+    assert test_grok_plugin_installs_and_runs_a_skill_script.__name__ in local
+
+
 def test_an_all_hang_run_fits_the_pre_push_cap() -> None:
     """When every CLI hangs, the run still fits the pre-push cap.
 
@@ -2537,14 +3235,15 @@ def test_an_all_hang_run_fits_the_pre_push_cap() -> None:
     CLI runs one startup probe, and one test (the Claude plugin load) runs
     ``--version`` before its first real call. The sum must stay
     under the pre-push cap, or the cap kills the run and the hung test goes
-    unnamed (issue #6181).
+    unnamed (issue #6181). Copilot smokes are not in the sum: the local run
+    deselects them (``_local_smoke_tests``).
     """
     from scripts.validation.git_hook_policy import CLI_E2E_TIMEOUT_SECONDS
 
     worst_case = (
         len(_PROBED_CLIS) * _STARTUP_PROBE_TIMEOUT_SECONDS
         + _VERSION_TIMEOUT_SECONDS
-        + sum(_first_call_timeout(test) for test in _smoke_tests())
+        + sum(_first_call_timeout(test) for test in _local_smoke_tests())
     )
 
     assert worst_case < CLI_E2E_TIMEOUT_SECONDS, (

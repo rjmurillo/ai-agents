@@ -4,6 +4,7 @@ description: Task decomposition specialist who breaks PRDs and epics into atomic
 metadata:
   role: support
 argument-hint: Provide the PRD or epic to break into tasks
+disallowedTools: Agent
 ---
 # Task Decomposer
 

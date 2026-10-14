@@ -101,13 +101,15 @@ def _copy_skills(
     repo_root: Path,
     *,
     what_if: bool,
+    check: bool = False,
     translate: bool,
     frontmatter_drop: frozenset[str],
 ) -> tuple[int, int]:
     """Copy each skill tree into ``output_dir``; return ``(written, skipped)``.
 
     ``translate`` selects the Copilot SKILL.md translation branch of
-    ``_copy_skill_tree``. Raises :class:`GenerateSkillsError` when a
+    ``_copy_skill_tree``. ``check`` writes nothing and counts every mismatched
+    file into ``written`` instead (issue #6558). Raises :class:`GenerateSkillsError` when a
     translation refuses a skill (ADR-111's frontmatter-drop guard).
     """
     # ADR-109 B3: the plugin tree src/claude/skills/<name>/SKILL.md was just
@@ -130,6 +132,7 @@ def _copy_skills(
             src,
             output_dir / src.name,
             what_if=what_if,
+            check=check,
             skills_output_dir=output_dir if translate else None,
             plugin_skill_md=plugin_skill_md,
             skip_filenames=lib_owned_support_files(src.name),
@@ -149,14 +152,15 @@ def generate_skills(
 ) -> int:
     """Generate skill outputs per the artifacts.skills stanza.
 
-    ``validate`` controls only the template compile step's write mode
-    (ADR-108): ``True`` renders every ``templates/skills/*.SKILL.md.tmpl``
+    ``validate`` makes the whole run read-only. For the template compile step
+    (ADR-108), ``True`` renders every ``templates/skills/*.SKILL.md.tmpl``
     and compares against the committed ``.claude/skills/<name>/SKILL.md``
-    without writing; ``False`` writes when the render differs. Either way
-    the copy loop below still runs once the compile step returns 0, so
-    ``build/scripts/build_all.py --check`` can pass ``validate=True`` and
-    still exercise the existing Copilot-mirror staleness detection over the
-    (untouched) compiled output. The standalone ``--validate`` CLI flag is a
+    without writing; ``False`` writes when the render differs. The copy loop
+    below still runs once the compile step returns 0, but under ``validate``
+    it compares each Copilot mirror file against its source instead of
+    writing it, and returns 1 when any file differs (issue #6558), so
+    ``build/scripts/build_all.py --check`` detects Copilot-mirror staleness
+    without mutating the working tree. The standalone ``--validate`` CLI flag is a
     separate code path in :func:`main` that skips this function entirely,
     because that flag's contract is "check templates only, do not copy".
 
@@ -251,7 +255,12 @@ def generate_skills(
 
     try:
         repo_local = repo_local_names(repo_root)
-        skills = _iter_skill_sources(source_dir, excludes, repo_local)
+        skills = _iter_skill_sources(
+            source_dir,
+            excludes,
+            repo_local,
+            frozenset(skill_templates.discover(repo_root)),
+        )
     except GenerateSkillsError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
@@ -283,11 +292,15 @@ def generate_skills(
             output_dir,
             repo_root,
             what_if=what_if,
+            check=validate,
             translate=is_copilot,
             frontmatter_drop=frontmatter_drop,
         )
     except GenerateSkillsError as exc:
         print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    if validate and total_written:
+        print(f"Skill mirror files drifted from their source: {total_written}")
         return 1
     duration = time.monotonic() - start_time
 

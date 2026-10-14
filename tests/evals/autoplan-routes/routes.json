@@ -41,6 +41,19 @@
       "rationale": "Positive dx-review activation."
     },
     {
+      "id": "lt-api-doc-authoring",
+      "family": "long-tail-single-domain",
+      "request": "Document this API for developers with a quickstart and an API guide.",
+      "expect": {
+        "kind": "specialist",
+        "route": "api-doc-authoring",
+        "routes_absent": [
+          "orchestrator"
+        ]
+      },
+      "rationale": "Positive api-doc-authoring activation (#5414); must not fall through to dx-review or the orchestrator."
+    },
+    {
       "id": "lt-programming-advisor",
       "family": "long-tail-single-domain",
       "request": "Is there an existing library for parsing YAML before we build one?",

@@ -29,7 +29,7 @@ SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/githu
 # First call: posts comment with <!-- AI-TRIAGE --> marker
 python3 "$SCRIPTS_DIR/issue/post_issue_comment.py" --issue 123 --body "..." --marker "AI-TRIAGE"
 
-# Second call: exits with code 5 (already exists)
+# Second call: skips the post and exits with code 0 (already exists)
 ```
 
 ---
@@ -202,11 +202,12 @@ else
     echo "Pending: $pending check(s) still running"
 fi
 
-# Poll until all checks complete (or timeout)
-checks=$(python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request 50 --wait --timeout-seconds 600)
+# Poll until all checks complete (or timeout). Keep --timeout-seconds at or below
+# 570: a 600 second tool call is killed with no result.
+checks=$(python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request 50 --wait --timeout-seconds 540)
 
 if [ $? -eq 7 ]; then
-    echo "Timeout waiting for checks"
+    echo "Timeout waiting for checks (exit 7 also means ChecksIncomplete: check it before re-running)"
     exit 1
 fi
 

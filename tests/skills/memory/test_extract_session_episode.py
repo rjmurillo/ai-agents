@@ -1815,6 +1815,115 @@ def _commit(repo, name, body, when=None):
     return _git(repo, "rev-parse", "HEAD")
 
 
+class TestRepoRootOverride:
+    """AI_AGENTS_REPO_ROOT redirects repository resolution (issue #5305)."""
+
+    ENV = extract_session_episode.REPO_ROOT_ENV
+
+    @staticmethod
+    def _marker_root() -> Path:
+        here = Path(extract_session_episode.__file__).resolve()
+        return next(p for p in here.parents if (p / ".agents").is_dir())
+
+    def test_default_resolution_unchanged_when_unset(self, monkeypatch):
+        monkeypatch.delenv(self.ENV, raising=False)
+
+        assert extract_session_episode._repo_root() == self._marker_root()
+
+    @pytest.mark.parametrize("blank", ["", "   ", "\t"])
+    def test_blank_override_counts_as_unset(self, monkeypatch, blank):
+        monkeypatch.setenv(self.ENV, blank)
+
+        assert extract_session_episode._repo_root() == self._marker_root()
+
+    def test_override_is_honored(self, tmp_path, monkeypatch):
+        monkeypatch.setenv(self.ENV, str(tmp_path))
+
+        assert extract_session_episode._repo_root() == tmp_path.resolve()
+
+    def test_override_value_is_stripped_and_resolved(self, tmp_path, monkeypatch):
+        link = tmp_path / "link"
+        link.symlink_to(tmp_path, target_is_directory=True)
+        monkeypatch.setenv(self.ENV, f"  {link}  ")
+
+        assert extract_session_episode._repo_root() == tmp_path.resolve()
+
+    def test_override_does_not_need_an_agents_marker(self, tmp_path, monkeypatch):
+        monkeypatch.setenv(self.ENV, str(tmp_path))
+
+        assert not (tmp_path / ".agents").exists()
+        assert extract_session_episode._repo_root() == tmp_path.resolve()
+
+    def test_default_episodes_dir_follows_the_override(self, tmp_path, monkeypatch):
+        monkeypatch.setenv(self.ENV, str(tmp_path))
+
+        expected = tmp_path.resolve() / ".project-toolkit" / "memory" / "episodes"
+        assert extract_session_episode.default_episodes_dir() == expected
+
+    def test_missing_directory_raises(self, tmp_path, monkeypatch):
+        monkeypatch.setenv(self.ENV, str(tmp_path / "nope"))
+
+        with pytest.raises(extract_session_episode.RepoRootOverrideError, match=self.ENV):
+            extract_session_episode._repo_root()
+
+    def test_file_instead_of_directory_raises(self, tmp_path, monkeypatch):
+        target = tmp_path / "file.txt"
+        target.write_text("x", encoding="utf-8")
+        monkeypatch.setenv(self.ENV, str(target))
+
+        with pytest.raises(extract_session_episode.RepoRootOverrideError):
+            extract_session_episode._repo_root()
+
+    def test_check_returns_none_when_valid_or_unset(self, tmp_path, monkeypatch):
+        monkeypatch.delenv(self.ENV, raising=False)
+        assert extract_session_episode.check_repo_root_override() is None
+
+        monkeypatch.setenv(self.ENV, str(tmp_path))
+        assert extract_session_episode.check_repo_root_override() is None
+
+    def test_check_returns_message_when_invalid(self, tmp_path, monkeypatch):
+        monkeypatch.setenv(self.ENV, str(tmp_path / "nope"))
+
+        message = extract_session_episode.check_repo_root_override()
+
+        assert message is not None
+        assert "nope" in message
+
+    def test_main_exits_2_on_invalid_override(self, tmp_path, monkeypatch, capsys):
+        monkeypatch.setenv(self.ENV, str(tmp_path / "nope"))
+        log = tmp_path / "2026-08-01-session-1.json"
+        log.write_text("{}", encoding="utf-8")
+
+        code = extract_session_episode.main([str(log)])
+
+        assert code == 2
+        assert self.ENV in capsys.readouterr().err
+
+    @pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
+    def test_commit_timestamp_reads_the_override_repo(self, tmp_path, monkeypatch):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-q", "-b", "main")
+        _git(repo, "config", "user.email", "t@example.com")
+        _git(repo, "config", "user.name", "T")
+        _git(repo, "config", "commit.gpgsign", "false")
+        sha = _commit(repo, "a.txt", "a", when="2026-08-01T12:00:00+00:00")
+        monkeypatch.setenv(self.ENV, str(repo))
+
+        stamp = extract_session_episode._git_commit_timestamp(sha)
+
+        assert stamp == "2026-08-01T12:00:00+00:00"
+
+    @pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
+    def test_commit_timestamp_unknown_sha_is_none_under_override(self, tmp_path, monkeypatch):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-q", "-b", "main")
+        monkeypatch.setenv(self.ENV, str(repo))
+
+        assert extract_session_episode._git_commit_timestamp("a" * 40) is None
+
+
 @pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
 class TestCausalCommitOrdering:
     @staticmethod
@@ -3383,6 +3492,131 @@ class TestPreserveDropsDanglingCommitEvents:
             for ref in e["caused_by"] + e["leads_to"]:
                 assert ref in ids
         assert extract_session_episode.validate_episode_file(episode_file) == []
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
+class TestShaReachabilityUnknownOnGitError:
+    """A git failure is unknown, never proof of a dangling commit (issue #6565).
+
+    ``_sha_is_reachable`` is tri-state: True (a ref reaches it), False (git
+    answered and no ref does), None (git could not answer). The event filter
+    drops only on False, so a timeout or a failed ``for-each-ref`` cannot erase
+    a real commit from a preserved episode.
+    """
+
+    SESSION = "2026-07-19-session-998"
+
+    @pytest.fixture
+    def shas(self, tmp_path, monkeypatch):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-q", "-b", "main")
+        _git(repo, "config", "user.email", "t@example.com")
+        _git(repo, "config", "user.name", "T")
+        reachable = _commit(repo, "a.txt", "a", when="2026-07-19T10:00:00+00:00")
+        _git(repo, "checkout", "-q", "-b", "side")
+        dangling = _commit(repo, "b.txt", "b", when="2026-07-19T11:00:00+00:00")
+        _git(repo, "checkout", "-q", "main")
+        _git(repo, "branch", "-D", "side")
+        monkeypatch.chdir(repo)
+        extract_session_episode._sha_is_reachable.cache_clear()
+        extract_session_episode._commit_datetime.cache_clear()
+        yield {"reachable": reachable, "dangling": dangling}
+        extract_session_episode._sha_is_reachable.cache_clear()
+        extract_session_episode._commit_datetime.cache_clear()
+
+    @staticmethod
+    def _break_for_each_ref(monkeypatch, outcome):
+        """Fail only ``git for-each-ref``; every other git call runs for real."""
+        real_run = subprocess.run
+
+        def fake_run(argv, env=None, **_ignored):
+            if argv[:2] == ["git", "for-each-ref"]:
+                if isinstance(outcome, BaseException):
+                    raise outcome
+                return outcome
+            return real_run(
+                argv,
+                capture_output=True,
+                encoding="utf-8",
+                errors="replace",
+                env=env,
+                timeout=10,
+                check=False,
+            )
+
+        monkeypatch.setattr(extract_session_episode.subprocess, "run", fake_run)
+
+    @staticmethod
+    def _failed(returncode=128, stdout=""):
+        return subprocess.CompletedProcess(
+            args=["git", "for-each-ref"], returncode=returncode, stdout=stdout, stderr="fatal"
+        )
+
+    @staticmethod
+    def _events(*shas):
+        return [
+            {
+                "id": f"e{i:03d}",
+                "timestamp": "2026-07-19T00:00:00+00:00",
+                "type": "commit",
+                "content": f"Commit: {sha}",
+                "caused_by": [],
+                "leads_to": [],
+            }
+            for i, sha in enumerate(shas, start=1)
+        ]
+
+    def test_reachable_sha_is_true(self, shas):
+        assert extract_session_episode._sha_is_reachable(shas["reachable"]) is True
+
+    def test_dangling_sha_is_false(self, shas):
+        assert extract_session_episode._sha_is_reachable(shas["dangling"]) is False
+
+    def test_empty_sha_is_unknown(self):
+        assert extract_session_episode._sha_is_reachable("") is None
+
+    @pytest.mark.parametrize(
+        "outcome",
+        [
+            OSError("git missing"),
+            subprocess.TimeoutExpired(cmd="git", timeout=10),
+            None,
+        ],
+        ids=["oserror", "timeout", "nonzero-exit"],
+    )
+    def test_git_error_is_unknown(self, shas, monkeypatch, outcome):
+        self._break_for_each_ref(monkeypatch, self._failed() if outcome is None else outcome)
+        assert extract_session_episode._sha_is_reachable(shas["reachable"]) is None
+
+    def test_nonzero_exit_with_output_is_still_unknown(self, shas, monkeypatch):
+        self._break_for_each_ref(monkeypatch, self._failed(stdout="refs/heads/main\n"))
+        assert extract_session_episode._sha_is_reachable(shas["reachable"]) is None
+
+    @pytest.mark.parametrize(
+        "outcome",
+        [OSError("git missing"), subprocess.TimeoutExpired(cmd="git", timeout=10), None],
+        ids=["oserror", "timeout", "nonzero-exit"],
+    )
+    def test_filter_keeps_events_when_git_cannot_answer(self, shas, monkeypatch, outcome):
+        self._break_for_each_ref(monkeypatch, self._failed() if outcome is None else outcome)
+        events = self._events(shas["reachable"], shas["dangling"])
+        kept = extract_session_episode._drop_dangling_commit_events(events)
+        assert [e["content"] for e in kept] == [e["content"] for e in events]
+
+    def test_filter_still_drops_proven_dangling_event(self, shas):
+        events = self._events(shas["reachable"], shas["dangling"])
+        kept = extract_session_episode._drop_dangling_commit_events(events)
+        assert [e["content"] for e in kept] == [f"Commit: {shas['reachable']}"]
+
+    def test_commit_dates_skip_sha_when_git_cannot_answer(self, shas, monkeypatch):
+        self._break_for_each_ref(monkeypatch, subprocess.TimeoutExpired(cmd="git", timeout=10))
+        events = self._events(shas["reachable"])
+        assert extract_session_episode._commit_event_dates(events) == {}
+
+    def test_commit_dates_include_reachable_sha(self, shas):
+        events = self._events(shas["reachable"], shas["dangling"])
+        assert list(extract_session_episode._commit_event_dates(events)) == ["e001"]
 
 
 class TestUnreadableEpisodeReportedOnce:

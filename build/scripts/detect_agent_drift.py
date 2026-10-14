@@ -5,22 +5,22 @@ Two comparisons run by default:
 
 1. Vendored copies: Claude agents (src/claude/agents/*.md) against VS Code agents
    (src/vs-code-agents/*.agent.md).
-2. Install copies (Issue #2267): the hand-maintained Claude Code self-host
+2. Install copies (Issue #2267): the binplaced Claude Code self-host
    copies (.claude/agents/*.md) against the GitHub Copilot self-host copies
    (.github/agents/*.agent.md), scoped to shared-template agents (the ones
    whose prose comes from templates/agents/*.shared.md). Pass
    ``--skip-install-comparison`` to run only the vendored comparison.
 
-The install copies are hand-maintained: no generator writes them
-(REQ-003-010 forbids generators under .claude/). validate_install_parity.py
-already enforces that they move together in a diff; this script adds the
+Both install copies are generated output (ADR-109 B1): binplace_manifest.py
+copies src/claude/agents onto .claude/agents, and the github platform renders
+.github/agents from the Copilot templates. validate_install_parity.py already
+enforces that they move together in a diff; this script adds the
 semantic-similarity check that parity enforcement omits.
 
 Issue #4852 asks the gate to cover "all six maintained/generated surfaces or
 document why a surface is not a runtime input." The six are src/claude/agents,
 src/vs-code-agents, src/copilot-cli/agents, .claude/agents, .github/agents,
-and templates/agents/*.shared.md (per build/AGENTS.md, "Hand-Maintained Agent
-Copies"). Two of those six (src/copilot-cli/agents and templates/agents) are
+and templates/agents/*.shared.md. Two of those six (src/copilot-cli/agents and templates/agents) are
 intentionally NOT drift-compared here: src/copilot-cli/agents and
 src/vs-code-agents are both generated from templates/agents/*.shared.md by
 ``build/generate_agents.py``, whose ``--validate`` flag (see
@@ -30,15 +30,15 @@ template source, not a similarity threshold; a generator bug there fails
 that check outright rather than drifting silently. templates/agents itself
 is the shared source both generated trees derive from, so it has no
 independent counterpart to drift against. The two comparisons this script
-does run (vendored src/claude/agents vs src/vs-code-agents, and the hand-maintained
-.claude/agents vs .github/agents) cover the pairs where two independently
-maintained or independently editable copies can diverge without any
-generator or validator catching it, which is exactly the failure mode #4852
-reported.
+does run (vendored src/claude/agents vs src/vs-code-agents, and the install
+.claude/agents vs .github/agents) cover the pairs rendered from two different
+template families, which can diverge without any generator or validator
+catching it, which is exactly the failure mode #4852 reported.
 
-Claude agents have unique content and are NOT generated from templates.
-This script detects when Claude agents diverge significantly from the
-shared content that VS Code/Copilot agents are generated from.
+Claude agents render from their own *.claude.md.tmpl templates, which carry
+Claude-specific content. This script detects when Claude agents diverge
+significantly from the shared content that VS Code/Copilot agents are
+generated from.
 
 The script ignores known platform-specific differences:
 - YAML frontmatter format differences
@@ -344,8 +344,12 @@ def remove_yaml_frontmatter(content: str) -> str:
 _FENCE_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
 
 
-def get_markdown_sections(content: str) -> dict[str, str]:
-    """Extract sections from markdown content based on ## headers.
+def get_markdown_section_list(content: str) -> list[tuple[str, str]]:
+    """Extract ``(name, body)`` pairs in document order, keeping repeated names.
+
+    ``get_markdown_sections`` folds this list into a dict, so a repeated H2
+    name overwrites the earlier body there. Callers that must see every body
+    read this list instead.
 
     Headings inside fenced code blocks are ignored so that sample output
     templates do not pollute the section inventory. Fence detection follows
@@ -353,7 +357,7 @@ def get_markdown_sections(content: str) -> dict[str, str]:
     of indentation (list-nested fences), and a closing fence must match the
     opening fence's character and be at least as long.
     """
-    sections: dict[str, str] = {}
+    sections: list[tuple[str, str]] = []
     current_section = "preamble"
     current_lines: list[str] = []
     fence_char: str | None = None
@@ -388,16 +392,25 @@ def get_markdown_sections(content: str) -> dict[str, str]:
         header_match = re.match(r"^##\s+(.+)$", line)
         if header_match:
             if current_lines:
-                sections[current_section] = "\n".join(current_lines).strip()
+                sections.append((current_section, "\n".join(current_lines).strip()))
             current_section = header_match.group(1).strip()
             current_lines = []
         else:
             current_lines.append(line)
 
     if current_lines:
-        sections[current_section] = "\n".join(current_lines).strip()
+        sections.append((current_section, "\n".join(current_lines).strip()))
 
     return sections
+
+
+def get_markdown_sections(content: str) -> dict[str, str]:
+    """Extract sections from markdown content based on ## headers.
+
+    A repeated H2 name keeps the last body. Headings inside fenced code blocks
+    are ignored; see ``get_markdown_section_list`` for the fence rules.
+    """
+    return dict(get_markdown_section_list(content))
 
 
 def normalize_content(content: str) -> str:
@@ -931,13 +944,13 @@ def run_install_detection(
     threshold: int,
     restrict_to: frozenset[str] | None = None,
 ) -> list[AgentResult]:
-    """Compare hand-maintained install copies for shared-template agents.
+    """Compare the install copies for shared-template agents.
 
-    Issue #2267: ``.claude/agents``, ``.github/agents``, and ``src/claude/agents`` are
-    hand-maintained (no generator writes them; REQ-003-010 forbids generators
-    under ``.claude/``). ``validate_install_parity.py`` already enforces that
-    the install copies move together in a diff, but it does not check semantic
-    similarity. This pass adds that check for shared-template agents: agents
+    Issue #2267: ``.claude/agents`` is binplaced from ``src/claude/agents`` and
+    ``.github/agents`` is rendered from the Copilot templates (ADR-109 B1), so
+    the two come from different template families. ``validate_install_parity.py``
+    already enforces that the install copies move together in a diff, but it
+    does not check semantic similarity. This pass adds that check for shared-template agents: agents
     whose prose comes from ``templates/agents/{name}.shared.md``. Freestanding
     Claude-only or GitHub-only agents are skipped via ``restrict_to``.
 

@@ -1,0 +1,44 @@
+{
+  "claim": "R holds",
+  "subject": {
+    "artifact": "pkg",
+    "revision": "r2",
+    "premises": [
+      "interp:R"
+    ]
+  },
+  "evidence": [
+    {
+      "id": "implementer-test",
+      "state": "VERIFIED",
+      "premises": [
+        "interp:R"
+      ]
+    },
+    {
+      "id": "second-agent-review",
+      "state": "VERIFIED",
+      "origin": "independent-reviewer",
+      "premises": [
+        "review:r1"
+      ],
+      "inherits_from": [
+        "implementer-test"
+      ]
+    }
+  ],
+  "claimed_independent": 1,
+  "expect": {
+    "verdict": "SINGLE_LOOP",
+    "independent_loops": 0,
+    "exit": 1,
+    "violations": [
+      "inflated-confidence"
+    ],
+    "not_independent_because": {
+      "second-agent-review": [
+        "shares-subject-loop"
+      ]
+    }
+  }
+}

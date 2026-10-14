@@ -15,7 +15,6 @@ fixture repository to pin the two scheduling facts the staging relies on:
 
 from __future__ import annotations
 
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -23,7 +22,9 @@ from pathlib import Path
 import pytest
 import yaml
 
-_LEFTHOOK_BIN = shutil.which("lefthook")
+from tests.support.lefthook_binary import resolve_lefthook
+
+_LEFTHOOK_BIN = resolve_lefthook()
 
 # lefthook executes `run:` strings through sh even on Windows, where a native
 # sys.executable path has its backslashes eaten. as_posix() is a no-op on

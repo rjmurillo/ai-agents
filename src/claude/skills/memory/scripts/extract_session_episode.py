@@ -16,6 +16,10 @@ per file.
 Exit codes follow ADR-035:
     0 - Success
     1 - Logic error (invalid session log or extraction failed)
+    2 - Configuration error (unsafe path, or AI_AGENTS_REPO_ROOT is not a directory)
+
+Set ``AI_AGENTS_REPO_ROOT`` to point git and archive lookups at another
+repository. Unset, the repository root is found by walking up to `.agents`.
 """
 
 from __future__ import annotations
@@ -629,7 +633,7 @@ def _commit_datetime(sha: str) -> datetime | None:
 
 
 @lru_cache(maxsize=256)
-def _sha_is_reachable(sha: str) -> bool:
+def _sha_is_reachable(sha: str) -> bool | None:
     """Return True when ``sha`` is reachable from at least one named ref.
 
     A commit that resolves (``git cat-file -t`` succeeds) but is reachable from
@@ -645,12 +649,15 @@ def _sha_is_reachable(sha: str) -> bool:
     is found; on large repositories the optional ``--format=%(refname)`` and a
     short-circuit via ``head -1`` make it faster, but the default is safe here.
 
-    Returns ``False`` on any subprocess error, missing git binary, or timeout.
-    A ``False`` is treated as unknown, matching the ``None`` contract of
-    ``_commit_datetime``.
+    Tri-state, matching the ``None`` contract of ``_commit_datetime``:
+    ``True`` when a ref reaches the commit, ``False`` when git answered and no
+    ref does, ``None`` when git could not answer (empty ``sha``, missing git
+    binary, timeout, or a non-zero exit). Only ``False`` is evidence of a
+    dangling object; a caller that removes data MUST act on ``False`` alone
+    (issue #6565).
     """
     if not sha:
-        return False
+        return None
     env = os.environ.copy()
     for var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"):
         env.pop(var, None)
@@ -666,7 +673,9 @@ def _sha_is_reachable(sha: str) -> bool:
             check=False,
         )
     except (OSError, subprocess.TimeoutExpired):
-        return False
+        return None
+    if result.returncode != 0:
+        return None
     return bool(result.stdout.strip())
 
 
@@ -1528,13 +1537,16 @@ def _drop_dangling_commit_events(events: list[dict]) -> list[dict]:
 
     A SHA that does not resolve at all is kept: absence from this clone is not
     evidence the commit is unreachable elsewhere, and a shallow or fresh clone
-    would otherwise erase real history. Ids are renumbered so they stay
-    contiguous; the caller's relink pass rebuilds the causal edges.
+    would otherwise erase real history. The same holds when git cannot answer
+    (timeout, non-zero exit): ``_sha_is_reachable`` returns ``None`` and the
+    event is kept, because only ``False`` proves the commit dangling (issue
+    #6565). Ids are renumbered so they stay contiguous; the caller's relink
+    pass rebuilds the causal edges.
     """
     kept: list[dict] = []
     for evt in events:
         sha = _commit_sha(evt) if evt.get("type") == "commit" else None
-        if sha and _commit_datetime(sha) is not None and not _sha_is_reachable(sha):
+        if sha and _commit_datetime(sha) is not None and _sha_is_reachable(sha) is False:
             continue
         kept.append(evt)
     if len(kept) != len(events):
@@ -1618,15 +1630,59 @@ def default_episodes_dir() -> Path:
     return _repo_root() / ".project-toolkit" / "memory" / "episodes"
 
 
-def _repo_root() -> Path:
-    """Locate the repository root by walking up to the nearest `.agents` dir.
+REPO_ROOT_ENV = "AI_AGENTS_REPO_ROOT"
 
-    The script is distributed verbatim at two depths: the canonical
-    `.claude/skills/memory/scripts/` copy and the generated
-    `src/copilot-cli/skills/memory/scripts/` mirror. A fixed number of
-    `.parent` hops cannot be correct at both depths, so search upward for the
-    `.agents` marker and fall back to a four-hop default when it is absent.
+
+class RepoRootOverrideError(ValueError):
+    """AI_AGENTS_REPO_ROOT is set but does not name an existing directory."""
+
+
+def _repo_root_override() -> Path | None:
+    """Return the directory named by AI_AGENTS_REPO_ROOT, or None when unset.
+
+    A blank value counts as unset. A value that is not an existing directory
+    raises instead of falling back to the marker walk: a fallback would send
+    git lookups to the live repository, which is the dependency the override
+    exists to remove (issue #5305).
     """
+    raw = os.environ.get(REPO_ROOT_ENV, "").strip()
+    if not raw:
+        return None
+    candidate = Path(raw).expanduser().resolve()
+    if not candidate.is_dir():
+        raise RepoRootOverrideError(f"{REPO_ROOT_ENV} is not an existing directory: {raw}")
+    return candidate
+
+
+def check_repo_root_override() -> str | None:
+    """Return an error message when the override is invalid, else None.
+
+    Entry points call this first so a bad override is a configuration error
+    (exit 2) before any git lookup runs, not a traceback.
+    """
+    try:
+        _repo_root_override()
+    except RepoRootOverrideError as exc:
+        return str(exc)
+    return None
+
+
+def _repo_root() -> Path:
+    """Locate the repository root.
+
+    ``AI_AGENTS_REPO_ROOT`` wins when set, so a test or a caller can point
+    every git and archive lookup at a throwaway repository.
+
+    Otherwise walk up to the nearest `.agents` dir. The script is distributed
+    verbatim at two depths: the canonical `.claude/skills/memory/scripts/`
+    copy and the generated `src/copilot-cli/skills/memory/scripts/` mirror. A
+    fixed number of `.parent` hops cannot be correct at both depths, so search
+    upward for the `.agents` marker and fall back to a four-hop default when it
+    is absent.
+    """
+    override = _repo_root_override()
+    if override is not None:
+        return override
     here = Path(__file__).resolve()
     for parent in here.parents:
         if (parent / ".agents").is_dir():
@@ -2331,7 +2387,7 @@ def _commit_event_dates(events: list) -> dict[str, datetime]:
         if entry.get("type") != "commit" or not isinstance(identifier, str):
             continue
         sha = _commit_sha(entry)
-        if not sha or not _sha_is_reachable(sha):
+        if not sha or _sha_is_reachable(sha) is not True:
             continue
         moment = _commit_datetime(sha)
         if moment is not None:
@@ -2648,6 +2704,10 @@ def run_validate(target: Path, *, fix: bool = False) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    override_error = check_repo_root_override()
+    if override_error is not None:
+        print(json.dumps({"Error": override_error}), file=sys.stderr)
+        return 2
     args = build_parser().parse_args(argv)
     if ".." in args.session_log_path.parts:
         msg = "Security: path must not contain traversal sequences."

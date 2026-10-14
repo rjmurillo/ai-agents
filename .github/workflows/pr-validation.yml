@@ -50,7 +50,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@351661ca32ac09a36dc5ee2d536e3128f2a3c8ed # v2.22.0
         with:
           egress-policy: audit
 
@@ -128,6 +128,7 @@ jobs:
         id: report
         env:
           DESCRIPTION_RESULT: ${{ steps.validate-description.outputs.validation_result }}
+          DESCRIPTION_FINDING: ${{ steps.validate-description.outputs.validation_finding }}
           BYPASS_USED: ${{ steps.validate-description.outputs.bypass_used }}
           BYPASS_LABEL: ${{ steps.validate-description.outputs.bypass_label }}
           BYPASS_COUNT: ${{ steps.validate-description.outputs.bypass_count }}
@@ -174,6 +175,7 @@ jobs:
         if: steps.should-run.outputs.skip != 'true'
         env:
           OVERALL_STATUS: ${{ steps.report.outputs.overall_status }}
+          BLOCKING_SUMMARY: ${{ steps.report.outputs.blocking_summary }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: python3 scripts/ci/enforce_pr_validation.py
 

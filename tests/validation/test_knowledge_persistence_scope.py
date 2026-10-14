@@ -97,13 +97,13 @@ def test_knowledge_persistence_points_at_the_relocated_items() -> None:
     assert ".claude/rules/universal.md" not in text
 
 
-@pytest.mark.parametrize("tree", UNIVERSAL_TREES, ids=lambda p: p.parts[-2])
+@pytest.mark.parametrize("tree", UNIVERSAL_TREES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
 @pytest.mark.parametrize("phrase", RELOCATED_PHRASES.values(), ids=RELOCATED_PHRASES.keys())
 def test_relocated_statement_survives_in_every_universal_tree(tree: Path, phrase: str) -> None:
     assert phrase in tree.read_text(encoding="utf-8")
 
 
-@pytest.mark.parametrize("tree", UNIVERSAL_TREES, ids=lambda p: p.parts[-2])
+@pytest.mark.parametrize("tree", UNIVERSAL_TREES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
 @pytest.mark.parametrize("citation", RELOCATED_EVIDENCE)
 def test_relocated_evidence_survives_in_every_universal_tree(tree: Path, citation: str) -> None:
     """Edge case: the prose can survive while the citation that proves it is cut."""
@@ -181,3 +181,67 @@ def test_the_staleness_scan_can_actually_fail() -> None:
     match = _STALE_MUST_NOT.search(sample)
     assert match is not None
     assert int(match.group(1)) > SURVIVING_MUST_NOT_COUNT
+
+
+# Issue #5261: the frozen-recommendation statement for self-authored artifacts.
+FROZEN_HEADING = "## Past artifacts are not proof"
+FROZEN_PHRASES = (
+    "is a recommendation frozen at its writing date, not proof of the current tree",
+    "re-verify it with a command against the current tree and cite the command, not the note",
+)
+FROZEN_ARTIFACT_KINDS = (
+    "a handoff",
+    "a session note",
+    "a commit message",
+    "a PR description",
+    "a memory",
+)
+KNOWLEDGE_PERSISTENCE_TREES = [
+    KNOWLEDGE_PERSISTENCE,
+    REPO_ROOT / ".github/instructions/knowledge-persistence.instructions.md",
+    REPO_ROOT / "src/copilot-cli/instructions/knowledge-persistence.instructions.md",
+]
+
+
+def _frozen_section(path: Path) -> str:
+    text = path.read_text(encoding="utf-8")
+    assert FROZEN_HEADING in text, f"{path} lacks the {FROZEN_HEADING!r} heading"
+    return text.split(FROZEN_HEADING, 1)[1].split("\n## ", 1)[0]
+
+
+@pytest.mark.parametrize(
+    "tree", KNOWLEDGE_PERSISTENCE_TREES, ids=lambda p: str(p.relative_to(REPO_ROOT))
+)
+def test_frozen_statement_follows_the_decision_checklist(tree: Path) -> None:
+    """Edge case: placement matters, the statement sits after the checklist."""
+    text = tree.read_text(encoding="utf-8")
+    assert text.index("## Net-new information decision checklist") < text.index(FROZEN_HEADING)
+    assert text.index(FROZEN_HEADING) < text.index("## MUST NOT")
+
+
+@pytest.mark.parametrize(
+    "tree", KNOWLEDGE_PERSISTENCE_TREES, ids=lambda p: str(p.relative_to(REPO_ROOT))
+)
+@pytest.mark.parametrize("phrase", FROZEN_PHRASES)
+def test_frozen_statement_phrases_survive_in_every_tree(tree: Path, phrase: str) -> None:
+    assert phrase in _frozen_section(tree)
+
+
+@pytest.mark.parametrize(
+    "tree", KNOWLEDGE_PERSISTENCE_TREES, ids=lambda p: str(p.relative_to(REPO_ROOT))
+)
+@pytest.mark.parametrize("kind", FROZEN_ARTIFACT_KINDS)
+def test_frozen_statement_names_every_artifact_kind(tree: Path, kind: str) -> None:
+    assert kind in _frozen_section(tree)
+
+
+@pytest.mark.parametrize(
+    "tree", KNOWLEDGE_PERSISTENCE_TREES, ids=lambda p: str(p.relative_to(REPO_ROOT))
+)
+def test_frozen_statement_is_two_sentences_without_dashes(tree: Path) -> None:
+    """Negative case: no em or en dash, and the statement stays two sentences."""
+    section = _frozen_section(tree).strip()
+    assert "\u2014" not in section
+    assert "\u2013" not in section
+    sentences = [s for s in re.split(r"(?<=[.])\s+", section) if s]
+    assert len(sentences) == 2

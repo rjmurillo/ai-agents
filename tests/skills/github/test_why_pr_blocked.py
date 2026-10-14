@@ -6,6 +6,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -52,9 +53,10 @@ def _gql_pr(
     context_page_info: dict | None = None,
     thread_page_info: dict | None = None,
     base_branch: str = "main",
+    committed_date: str | None = None,
 ) -> dict:
     """Build a minimal GraphQL response for why_pr_blocked."""
-    return {
+    response: dict = {
         "repository": {
             "pullRequest": {
                 "number": 42,
@@ -92,6 +94,11 @@ def _gql_pr(
         }
     }
 
+    if committed_date is not None:
+        commit = response["repository"]["pullRequest"]["commits"]["nodes"][0]["commit"]
+        commit["committedDate"] = committed_date
+    return response
+
 
 def _check_run_node(
     name: str,
@@ -101,8 +108,9 @@ def _check_run_node(
     run_number: int | None = None,
     run_attempt: int = 1,
     status: str = "COMPLETED",
+    event: str | None = None,
 ) -> dict:
-    node = {
+    node: dict = {
         "__typename": "CheckRun",
         "name": name,
         "status": status,
@@ -110,13 +118,11 @@ def _check_run_node(
         "isRequired": required,
     }
     if run_number is not None:
+        workflow_run: dict = {"databaseId": run_number, "runAttempt": run_attempt}
+        if event is not None:
+            workflow_run["event"] = event
         node["detailsUrl"] = f"https://github.com/o/r/actions/runs/{run_number}/job/{run_number}"
-        node["checkSuite"] = {
-            "workflowRun": {
-                "databaseId": run_number,
-                "runAttempt": run_attempt,
-            }
-        }
+        node["checkSuite"] = {"workflowRun": workflow_run}
     return node
 
 
@@ -326,6 +332,98 @@ class TestDiagnose:
         result = diagnose(pr_data, ["Validate PR"])
         assert result["FailingRequired"] == []
         assert result["PendingRequired"] == []
+
+    def test_older_push_failure_not_hidden_by_newer_pull_request_success(self):
+        nodes = [
+            _check_run_node("Run Python Tests", "FAILURE", run_number=100, event="push"),
+            _check_run_node("Run Python Tests", "SUCCESS", run_number=101, event="pull_request"),
+        ]
+        pr_data = {
+            "MergeStateStatus": "BLOCKED",
+            "OverallState": "FAILURE",
+            "CheckNodes": nodes,
+            "ThreadNodes": [],
+        }
+        result = diagnose(pr_data, ["Run Python Tests"])
+        assert result["FailingRequired"] == ["Run Python Tests"]
+        assert result["BlockingRuns"] == {
+            "Run Python Tests": [
+                {"RunId": 100, "Attempt": 1, "Event": "push", "State": "failing"},
+            ]
+        }
+
+    def test_older_pull_request_pending_not_hidden_by_newer_push_success(self):
+        nodes = [
+            _check_run_node(
+                "Run Python Tests",
+                "",
+                run_number=100,
+                status="IN_PROGRESS",
+                event="pull_request",
+            ),
+            _check_run_node("Run Python Tests", "SUCCESS", run_number=101, event="push"),
+        ]
+        pr_data = {
+            "MergeStateStatus": "BLOCKED",
+            "OverallState": "PENDING",
+            "CheckNodes": nodes,
+            "ThreadNodes": [],
+        }
+        result = diagnose(pr_data, ["Run Python Tests"])
+        assert result["PendingRequired"] == ["Run Python Tests"]
+        assert result["BlockingRuns"]["Run Python Tests"][0]["Event"] == "pull_request"
+
+    def test_cancelled_run_of_other_event_keeps_check_blocked_and_is_named(self):
+        nodes = [
+            _check_run_node("Run Python Tests", "CANCELLED", run_number=100, event="push"),
+            _check_run_node("Run Python Tests", "SUCCESS", run_number=101, event="pull_request"),
+        ]
+        pr_data = {
+            "MergeStateStatus": "BLOCKED",
+            "OverallState": "FAILURE",
+            "CheckNodes": nodes,
+            "ThreadNodes": [],
+        }
+        result = diagnose(pr_data, ["Run Python Tests"])
+        assert result["FailingRequired"] == ["Run Python Tests"]
+        assert result["BlockingRuns"]["Run Python Tests"][0]["RunId"] == 100
+
+    def test_rerun_within_one_event_still_supersedes_stale_failure(self):
+        nodes = [
+            _check_run_node("Run Python Tests", "FAILURE", run_number=100, event="push"),
+            _check_run_node("Run Python Tests", "SUCCESS", run_number=102, event="push"),
+            _check_run_node("Run Python Tests", "SUCCESS", run_number=101, event="pull_request"),
+        ]
+        pr_data = {
+            "MergeStateStatus": "CLEAN",
+            "OverallState": "SUCCESS",
+            "CheckNodes": nodes,
+            "ThreadNodes": [],
+        }
+        result = diagnose(pr_data, ["Run Python Tests"])
+        assert result["FailingRequired"] == []
+        assert result["PendingRequired"] == []
+        assert result["BlockingRuns"] == {}
+
+    def test_runs_without_event_keep_latest_run_precedence(self):
+        nodes = [
+            _check_run_node("Run Python Tests", "FAILURE", run_number=100),
+            _check_run_node("Run Python Tests", "SUCCESS", run_number=101),
+        ]
+        pr_data = {
+            "MergeStateStatus": "CLEAN",
+            "OverallState": "SUCCESS",
+            "CheckNodes": nodes,
+            "ThreadNodes": [],
+        }
+        result = diagnose(pr_data, ["Run Python Tests"])
+        assert result["FailingRequired"] == []
+
+    def test_fetch_requests_workflow_event(self):
+        gql = _gql_pr(check_nodes=[])
+        with patch("why_pr_blocked.gh_graphql", return_value=gql) as mock_graphql:
+            fetch_pr_data("o", "r", 42)
+        assert "event" in mock_graphql.call_args.args[0]
 
     def test_fetch_preserves_run_identity_for_latest_result(self):
         nodes = [
@@ -609,6 +707,37 @@ class TestMain:
         assert "failing required check(s)" in text
         assert "close and reopen" not in text
 
+    def test_cross_event_failure_exits_1_and_names_run_and_event(self, capsys):
+        """Issue #6408: a red push run behind a green pull_request run blocks."""
+        rc, text = self._human_output(
+            [
+                _check_run_node("Run Python Tests", "FAILURE", run_number=100, event="push"),
+                _check_run_node(
+                    "Run Python Tests", "SUCCESS", run_number=101, event="pull_request"
+                ),
+            ],
+            ["Run Python Tests"],
+            capsys,
+        )
+
+        assert rc == 1
+        assert "1 failing required check(s)" in text
+        assert "Rerun: Run Python Tests (run 100, push)" in text
+
+    def test_same_event_rerun_success_exits_0_without_rerun_hint(self, capsys):
+        """Negative control: a rerun of the same event clears the stale failure."""
+        rc, text = self._human_output(
+            [
+                _check_run_node("Run Python Tests", "FAILURE", run_number=100, event="push"),
+                _check_run_node("Run Python Tests", "SUCCESS", run_number=101, event="push"),
+            ],
+            ["Run Python Tests"],
+            capsys,
+        )
+
+        assert rc == 0
+        assert "Rerun:" not in text
+
     def test_failing_required_exits_1(self, capsys):
         gql = _gql_pr(
             merge_state_status="BLOCKED",
@@ -867,3 +996,134 @@ class TestFetchPrDataLookupFailure:
         ):
             result = fetch_pr_data("o", "r", 42)
         assert result["Error"] == "ApiError"
+
+
+# ---------------------------------------------------------------------------
+# Tests: queued vs absent required checks (issue #6389)
+# ---------------------------------------------------------------------------
+
+
+def _committed_at(age_seconds: int) -> str:
+    when = datetime.now(timezone.utc) - timedelta(seconds=age_seconds)
+    return when.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+_RULESET = ["Run Python Tests", "Validate PR"]
+
+
+class TestQueuedVsAbsent:
+    def _pr(self, age_seconds):
+        return {
+            "BaseBranch": "main",
+            "MergeStateStatus": "BLOCKED",
+            "OverallState": "SUCCESS",
+            "HeadCommittedAt": None if age_seconds is None else _committed_at(age_seconds),
+            "CheckNodes": [_check_run_node("Run Python Tests", "SUCCESS")],
+            "ThreadNodes": [],
+        }
+
+    def test_fresh_head_splits_missing_into_queued(self):
+        result = diagnose(self._pr(120), _RULESET)
+        assert result["MissingRequired"] == ["Validate PR"]
+        assert result["QueuedRequired"] == ["Validate PR"]
+        assert result["AbsentRequired"] == []
+
+    def test_stale_head_splits_missing_into_absent(self):
+        result = diagnose(self._pr(7200), _RULESET)
+        assert result["MissingRequired"] == ["Validate PR"]
+        assert result["QueuedRequired"] == []
+        assert result["AbsentRequired"] == ["Validate PR"]
+
+    def test_unknown_head_age_is_absent(self):
+        result = diagnose(self._pr(None), _RULESET)
+        assert result["QueuedRequired"] == []
+        assert result["AbsentRequired"] == ["Validate PR"]
+
+    def test_zero_grace_is_absent(self):
+        result = diagnose(self._pr(120), _RULESET, 0)
+        assert result["QueuedRequired"] == []
+        assert result["AbsentRequired"] == ["Validate PR"]
+
+    def test_nothing_missing_has_empty_lists(self):
+        result = diagnose(self._pr(120), ["Run Python Tests"])
+        assert result["QueuedRequired"] == []
+        assert result["AbsentRequired"] == []
+
+    def test_unavailable_ruleset_has_empty_lists(self):
+        result = diagnose(self._pr(120), None)
+        assert result["QueuedRequired"] == []
+        assert result["AbsentRequired"] == []
+
+    def test_fetch_pr_data_returns_head_committed_date(self):
+        gql = _gql_pr(
+            check_nodes=[_check_run_node("Run Python Tests", "SUCCESS")],
+            committed_date="2026-10-12T10:00:00Z",
+        )
+        with patch("why_pr_blocked.gh_graphql", return_value=gql):
+            data = fetch_pr_data("o", "r", 42)
+        assert data["HeadCommittedAt"] == "2026-10-12T10:00:00Z"
+
+    def test_fetch_pr_data_head_date_none_without_commits(self):
+        gql = _gql_pr()
+        gql["repository"]["pullRequest"]["commits"] = {"nodes": []}
+        with patch("why_pr_blocked.gh_graphql", return_value=gql):
+            data = fetch_pr_data("o", "r", 42)
+        assert data["HeadCommittedAt"] is None
+
+    def test_query_requests_committed_date(self):
+        assert "committedDate" in _mod._PR_QUERY
+
+    def test_parser_default_and_custom_grace(self):
+        assert build_parser().parse_args(["--pull-request", "1"]).missing_grace_seconds == 2700
+        args = build_parser().parse_args(["--pull-request", "1", "--missing-grace-seconds", "0"])
+        assert args.missing_grace_seconds == 0
+
+    def _run(self, age_seconds, capsys, fmt, extra=()):
+        gql = _gql_pr(
+            overall_state="SUCCESS",
+            check_nodes=[_check_run_node("Run Python Tests", "SUCCESS")],
+            committed_date=_committed_at(age_seconds),
+        )
+        with (
+            patch("why_pr_blocked.assert_gh_authenticated"),
+            patch(
+                "why_pr_blocked.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("why_pr_blocked.gh_graphql", return_value=gql),
+            patch("why_pr_blocked.fetch_ruleset_required_contexts", return_value=_RULESET),
+        ):
+            rc = main(["--pull-request", "42", "--output-format", fmt, *extra])
+        captured = capsys.readouterr()
+        return rc, captured.out + captured.err
+
+    def test_fresh_head_summary_says_queued_without_reopen_hint(self, capsys):
+        rc, text = self._run(120, capsys, "human")
+        assert rc == 1
+        assert "queued required check(s) not yet reported" in text
+        assert "missing required check(s)" not in text
+        assert "close and reopen the PR;" not in text
+
+    def test_stale_head_summary_keeps_reopen_hint(self, capsys):
+        rc, text = self._run(7200, capsys, "human")
+        assert rc == 1
+        assert "1 missing required check(s)" in text
+        assert "close and reopen the PR" in text
+        assert "queued required check(s)" not in text
+
+    def test_json_lists_queued_and_absent_separately(self, capsys):
+        rc, text = self._run(120, capsys, "json")
+        data = json.loads(text)["Data"]
+        assert rc == 1
+        assert data["HasBlocker"] is True
+        assert data["MissingRequired"] == ["Validate PR"]
+        assert data["QueuedRequired"] == ["Validate PR"]
+        assert data["AbsentRequired"] == []
+        assert data["HeadCommittedAt"]
+
+    def test_zero_grace_flag_reports_absent(self, capsys):
+        rc, text = self._run(120, capsys, "json", ("--missing-grace-seconds", "0"))
+        data = json.loads(text)["Data"]
+        assert rc == 1
+        assert data["QueuedRequired"] == []
+        assert data["AbsentRequired"] == ["Validate PR"]

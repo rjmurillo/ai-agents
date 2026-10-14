@@ -154,10 +154,34 @@ def validate_agent_content_parity(repo_root: Path) -> bool:
     hard failures; a configuration error means the gate could not run, so we
     fail closed.
     """
-    script = repo_root / "build" / "scripts" / "check_agent_content_parity.py"
+    return _launch_parity_script(repo_root, "check_agent_content_parity.py")
+
+
+def validate_agent_source_parity(repo_root: Path) -> bool:
+    """Fail when an agent's shared, Claude, and Copilot sources disagree.
+
+    ``validate_agent_content_parity`` compares two generated trees. This gate
+    compares the three hand-written sources under ``templates/agents/`` under
+    the ``normalized`` predicate (ADR-107 M3, issue #5688; contract in
+    ``.agents/governance/GENERATOR-FILES.md``).
+
+    Wraps ``build/scripts/check_agent_source_parity.py``. Exit 0 = clean,
+    exit 1 = divergence, exit 2 = configuration error. All non-zero exits are
+    hard failures.
+    """
+    return _launch_parity_script(repo_root, "check_agent_source_parity.py")
+
+
+def _launch_parity_script(repo_root: Path, script_name: str) -> bool:
+    """Run a ``build/scripts/`` parity script and return True when it exits 0.
+
+    The name is a literal at each call site so the reachability scan in
+    ``tests/ci/test_validation_scripts_are_reachable.py`` sees the caller.
+    """
+    script = repo_root / "build" / "scripts" / script_name
     if not script.is_file():
         print(
-            f"[ERROR] check_agent_content_parity.py not found at {script}",
+            f"[ERROR] {script.name} not found at {script}",
             file=sys.stderr,
         )
         return False
@@ -228,15 +252,17 @@ def validate_lefthook_installed(repo_root: Path) -> bool:
     executable ``#!/bin/sh`` plus ``exit 0`` satisfies both a runtime-start check
     and an executability check while running no job at all.
 
-    Neither gate proves the shim resolves the same binary this one starts, and
-    on Windows they demonstrably differ.
+    Neither gate executes the shim, and unless ``LEFTHOOK_BIN`` is set they do
+    not disagree with it. Lefthook renders one shim template for every
+    platform, so the shim calls the configured ``lefthook_runner.py``, which
+    probes ``uv run --frozen lefthook version`` first, as this gate does, then
+    ``lefthook`` on ``PATH`` or in ``node_modules/.bin``, then exits 3. The
+    shim's own fallback (named ``lefthook.exe`` on Windows) is unreachable.
     ``tests/test_lefthook_integration.py::test_install_resets_legacy_hooks_path``
-    records that Lefthook 2.1.10 generates the default Windows template, which
-    omits the configured ``lefthook_runner.py`` runner and resolves
-    Lefthook through ``PATH``. So on Windows ``lefthook version`` through uv can
-    pass while the shim resolves a different binary, or none. Closing that needs
-    a Windows probe with the uv runtime present and the ``PATH`` binary absent,
-    which is not covered here. Issue #4789, PR #5358 review.
+    pins the shim text order (override, runner call, shim fallback) on every
+    platform. ``tests/test_lefthook_runner.py`` pins the runner's order, and
+    ``test_installed_shim_runs_the_first_binary_in_runner_order`` runs the installed
+    shim on POSIX. Issue #4789, PR #5358 review, issue #5491.
     """
     if os.environ.get("GITHUB_ACTIONS", "").lower() in ("true", "1") or os.environ.get(
         "CI", ""

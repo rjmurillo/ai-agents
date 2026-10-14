@@ -9,9 +9,11 @@ sees them.
 
 ``EXCLUDE_DIR_NAMES`` prunes five vendor/VCS directory names
 (``node_modules``, ``.git``, ``worktrees``, ``cache``, ``__pycache__``)
-plus ``references`` and ``templates`` (skill-progressive-disclosure
-subtrees that legitimately cite external entities and would otherwise
-produce high-noise findings).
+plus ``templates`` (placeholder files that legitimately cite entities that
+do not exist). ``references`` is walked: skill handoff prose and
+relationship tables live there, and pruning it hid stale citations
+(issue #5947). A reference doc that cites an absent entity on purpose
+carries a line-scope ``orphan-ref-ignore`` directive.
 """
 
 from __future__ import annotations
@@ -26,7 +28,7 @@ LOGGER = logging.getLogger("orphan_ref_validator")
 
 SCAN_FILE_SUFFIXES: tuple[str, ...] = (".md", ".json", ".yaml", ".yml", ".py")
 
-# Five vendor/VCS names plus two skill-progressive-disclosure subtrees.
+# Five vendor/VCS names plus the placeholder ``templates`` subtree.
 # Frozen for safety.
 EXCLUDE_DIR_NAMES: frozenset[str] = frozenset(
     {
@@ -35,7 +37,6 @@ EXCLUDE_DIR_NAMES: frozenset[str] = frozenset(
         "worktrees",
         "cache",
         "__pycache__",
-        "references",
         "templates",
     }
 )
@@ -131,7 +132,7 @@ def walk_targets(target: Path, repo_root: Path) -> Iterable[Path]:
     Recurses with ``iterdir`` and prunes ``EXCLUDE_DIR_NAMES`` at the
     directory level rather than ``rglob('*')`` + post-filter, so excluded
     subtrees (``node_modules``, ``.git``, ``worktrees``, ``cache``,
-    ``__pycache__``, ``references``, ``templates``) are never entered.
+    ``__pycache__``, ``templates``) are never entered.
 
     Symlink targets (file or directory) are checked against ``repo_root``
     after ``resolve()``; entries that escape the repository root are

@@ -313,7 +313,9 @@ class TestEnableAutoMergeErrors:
             "set_pr_auto_merge.gh_graphql",
             return_value=enable_data,
         ):
-            rc = enable_auto_merge("o", "r", 2450, "PR_blk", "SQUASH", "", "")
+            rc = enable_auto_merge(
+                "o", "r", 2450, "PR_blk", "SQUASH", "", "", output_format="human"
+            )
         assert rc == 0
         captured = capsys.readouterr()
         # Must not have routed through either fallback message.

@@ -93,6 +93,11 @@ class TestBuildParser:
         assert args.limit == 30
         assert args.label == ""
         assert args.assignee == ""
+        assert args.milestone == ""
+
+    def test_milestone_parsed(self):
+        args = build_parser().parse_args(["--milestone", "v0.7.0"])
+        assert args.milestone == "v0.7.0"
 
     def test_all_filters(self):
         args = build_parser().parse_args(
@@ -105,6 +110,8 @@ class TestBuildParser:
                 "alice",
                 "--assignee",
                 "bob",
+                "--milestone",
+                "v0.7.0",
                 "--limit",
                 "100",
             ]
@@ -113,6 +120,7 @@ class TestBuildParser:
         assert args.label == "bug,P1"
         assert args.author == "alice"
         assert args.assignee == "bob"
+        assert args.milestone == "v0.7.0"
         assert args.limit == 100
 
     def test_invalid_state_rejected(self):
@@ -553,6 +561,89 @@ class TestMain:
         assert rc == 0
         output = json.loads(capsys.readouterr().out)["Data"]["issues"]
         assert output[0]["author"] is None
+
+
+class TestMilestoneFilter:
+    """--milestone forwards to gh and composes with the other filters (issue #5995)."""
+
+    @staticmethod
+    def _run(argv, stdout="[]"):
+        with (
+            patch("list_issues.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
+            patch("subprocess.run", return_value=_completed(stdout=stdout, rc=0)) as mock_run,
+        ):
+            rc = main(argv)
+        return rc, mock_run
+
+    def test_milestone_forwarded_with_title(self):
+        rc, mock_run = self._run(["--milestone", "v0.7.0"])
+        assert rc == 0
+        cmd = mock_run.call_args_list[0][0][0]
+        assert cmd[cmd.index("--milestone") + 1] == "v0.7.0"
+
+    def test_milestone_accepts_number(self):
+        _, mock_run = self._run(["--milestone", "12"])
+        cmd = mock_run.call_args_list[0][0][0]
+        assert cmd[cmd.index("--milestone") + 1] == "12"
+
+    def test_milestone_composes_with_state_label_author_assignee(self):
+        _, mock_run = self._run(
+            [
+                "--milestone",
+                "v0.7.0",
+                "--state",
+                "all",
+                "--label",
+                "bug,P2",
+                "--author",
+                "alice",
+                "--assignee",
+                "bob",
+            ]
+        )
+        cmd = mock_run.call_args_list[0][0][0]
+        assert cmd[cmd.index("--milestone") + 1] == "v0.7.0"
+        assert cmd[cmd.index("--state") + 1] == "all"
+        assert cmd.count("--label") == 2
+        assert cmd[cmd.index("--author") + 1] == "alice"
+        assert cmd[cmd.index("--assignee") + 1] == "bob"
+
+    def test_milestone_omitted_by_default(self):
+        _, mock_run = self._run([])
+        assert "--milestone" not in mock_run.call_args_list[0][0][0]
+
+    def test_search_ignores_milestone(self):
+        _, mock_run = self._run(["--search", "fix auth", "--milestone", "v0.7.0"])
+        cmd = mock_run.call_args_list[0][0][0]
+        assert "--search" in cmd
+        assert "--milestone" not in cmd
+
+    def test_milestone_returns_matching_issues(self, capsys):
+        issues = [_issue(7, "In milestone"), _issue(8, "Also in milestone")]
+        rc, _ = self._run(["--milestone", "v0.7.0"], stdout=json.dumps(issues))
+        assert rc == 0
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert data["count"] == 2
+        assert [i["number"] for i in data["issues"]] == [7, 8]
+
+    def test_milestone_empty_result_is_verified_then_succeeds(self, capsys):
+        rc, mock_run = self._run(["--milestone", "v9.9.9"])
+        assert rc == 0
+        assert json.loads(capsys.readouterr().out)["Data"] == {"issues": [], "count": 0}
+        assert mock_run.call_args_list[1][0][0][:4] == ["gh", "api", "graphql", "-f"]
+
+    def test_unknown_milestone_gh_failure_exits_3(self, capsys):
+        with (
+            patch("list_issues.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
+            patch(
+                "subprocess.run",
+                return_value=_completed(stderr="no milestone found with title 'nope'", rc=1),
+            ),
+            pytest.raises(SystemExit) as exc,
+        ):
+            main(["--milestone", "nope"])
+        assert exc.value.code == 3
+        assert "no milestone found" in capsys.readouterr().out
 
 
 # ---------------------------------------------------------------------------

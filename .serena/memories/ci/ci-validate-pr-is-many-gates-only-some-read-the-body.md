@@ -165,6 +165,32 @@ absent, so that advisory names the **generated** `src/copilot-cli/` copy of a
 skill file and never the canonical `.claude/` source. It is not a signal about
 which one matters.
 
+## Bullets and bold count everywhere; a rerun replays the old body
+
+Source: the 2026-10-12 sweep (about 30 of 66 runs hit the first trap),
+re-checked against `origin/main` at `ec3214659`.
+
+`FILE_MENTION_PATTERNS` has five regexes. `_CHANGE_CLAIM_SCOPED_PATTERN_INDEXES`
+(`scripts/validation/pr_description.py:127`) limits only three of them to the
+change-claim headings: inline code, markdown links, and link targets. The bold
+pattern and the list-item pattern run over the whole body. A bullet whose first
+token is a path, backticked or not, is a claim in any section except the
+informational ones the validator strips. Fix: write tool and file names in
+prose without backticks, and never as the first token of a bullet. Name a file
+as a claim only when the PR changes it.
+
+A failed-job rerun replays the original event payload. The checks differ in
+where they read the body:
+
+- `Validate PR Description vs Diff` fetches the live PR over REST
+  (`pr_description.py`), so a rerun sees the fixed body.
+- `Validate PR Description Standards` (`parse_pr_standards.py`) and
+  `Validate Spec Coverage` read `github.event.pull_request.body`
+  (`pr-validation.yml:123`, `ai-spec-validation.yml:110`). A rerun grades the old body and fails again.
+
+Both workflows listen for `edited`. A body edit starts a run with the new body.
+Edit the body instead of rerunning. It needs no push.
+
 ## Fixing the blocker
 
 The validator states its own parsing rule in the failure text: inline-backtick file

@@ -13,6 +13,12 @@ Exit codes follow ADR-035:
     2 - PR not found
     3 - External error (API failure)
     4 - Auth error
+
+``--output-format`` is the shared ADR-056 flag every sibling ``pr/`` script
+accepts. ``json`` (and ``auto`` when stdout is not a terminal) prints only the
+result object on stdout, so a pipe to ``jq`` parses. ``human`` prints only the
+summary lines. The result object keeps its existing keys; it is not wrapped in
+the ADR-056 envelope.
 """
 
 from __future__ import annotations
@@ -48,6 +54,7 @@ from github_core.api import (
     resolve_repo_params,
 )
 from github_core.not_found import is_pr_not_found
+from github_core.output import add_output_format_arg, get_output_format
 from github_core.placeholder_identity import filter_coauthor_trailers
 
 # ---------------------------------------------------------------------------
@@ -108,7 +115,16 @@ mutation($pullRequestId: ID!, $mergeMethod: PullRequestMergeMethod!,\
 # ---------------------------------------------------------------------------
 
 
-def get_pr_node_id(owner: str, repo: str, pr_number: int) -> tuple[str, dict]:
+def _emit_result(output: dict[str, Any], human_lines: list[str], output_format: str) -> None:
+    """Print the result object (json) or the summary lines (human), never both."""
+    if get_output_format(output_format) == "json":
+        print(json.dumps(output, indent=2))
+        return
+    for line in human_lines:
+        print(line)
+
+
+def get_pr_node_id(owner: str, repo: str, pr_number: int) -> tuple[str, dict[str, Any]]:
     """Get PR node ID and current state. Returns (node_id, pr_data)."""
     try:
         data = gh_graphql(
@@ -134,10 +150,10 @@ def disable_auto_merge(
     pr_number: int,
     pr_id: str,
     pr_data: dict[str, Any],
+    output_format: str = "auto",
 ) -> int:
     """Disable auto-merge. Returns exit code."""
     if pr_data.get("autoMergeRequest") is None:
-        print(f"Auto-merge is not enabled on PR #{pr_number}")
         output = {
             "Success": True,
             "Action": "NoChange",
@@ -145,7 +161,7 @@ def disable_auto_merge(
             "AutoMergeEnabled": False,
             "Message": "Auto-merge was already disabled",
         }
-        print(json.dumps(output, indent=2))
+        _emit_result(output, [f"Auto-merge is not enabled on PR #{pr_number}"], output_format)
         return 0
 
     try:
@@ -164,10 +180,10 @@ def disable_auto_merge(
         "PullRequest": pr_number,
         "AutoMergeEnabled": not disabled,
     }
-    print(json.dumps(output, indent=2))
+    human = [f"Auto-merge disabled for PR #{pr_number}"] if disabled else []
+    _emit_result(output, human, output_format)
 
     if disabled:
-        print(f"Auto-merge disabled for PR #{pr_number}")
         return 0
 
     print(f"Failed to disable auto-merge for PR #{pr_number}", file=sys.stderr)
@@ -182,6 +198,7 @@ def enable_auto_merge(
     merge_method: str,
     commit_headline: str,
     commit_body: str,
+    output_format: str = "auto",
 ) -> int:
     """Enable auto-merge. Returns exit code."""
     # Issue #2466: strip placeholder Co-authored-by trailers from commit_body
@@ -190,7 +207,7 @@ def enable_auto_merge(
     # When commit_body is empty, GitHub auto-assembles from commit subjects,
     # which are protected by the pre-push guard and worktree-bootstrap reset.
     sanitized_body = filter_coauthor_trailers(commit_body) if commit_body else ""
-    variables: dict = {
+    variables: dict[str, Any] = {
         "pullRequestId": pr_id,
         "mergeMethod": merge_method,
         "commitHeadline": commit_headline or "",
@@ -259,7 +276,7 @@ def enable_auto_merge(
     )
     enabled = auto_merge is not None
 
-    output: dict = {
+    output: dict[str, Any] = {
         "Success": enabled,
         "Action": "Enabled",
         "PullRequest": pr_number,
@@ -267,12 +284,18 @@ def enable_auto_merge(
         "MergeMethod": auto_merge["mergeMethod"] if auto_merge else None,
         "EnabledAt": auto_merge["enabledAt"] if auto_merge else None,
     }
-    print(json.dumps(output, indent=2))
+    human = (
+        [
+            f"Auto-merge enabled for PR #{pr_number}",
+            f"  Method: {auto_merge['mergeMethod']}",
+            f"  Enabled at: {auto_merge['enabledAt']}",
+        ]
+        if auto_merge
+        else []
+    )
+    _emit_result(output, human, output_format)
 
     if enabled:
-        print(f"Auto-merge enabled for PR #{pr_number}")
-        print(f"  Method: {auto_merge['mergeMethod']}")
-        print(f"  Enabled at: {auto_merge['enabledAt']}")
         return 0
 
     print(f"Failed to enable auto-merge for PR #{pr_number}", file=sys.stderr)
@@ -328,6 +351,7 @@ def build_parser() -> argparse.ArgumentParser:
         default="",
         help="Custom commit body for squash/merge commits",
     )
+    add_output_format_arg(parser)
     return parser
 
 
@@ -342,7 +366,9 @@ def main(argv: list[str] | None = None) -> int:
     pr_id, pr_data = get_pr_node_id(owner, repo, args.pull_request)
 
     if args.disable:
-        return disable_auto_merge(owner, repo, args.pull_request, pr_id, pr_data)
+        return disable_auto_merge(
+            owner, repo, args.pull_request, pr_id, pr_data, args.output_format
+        )
 
     return enable_auto_merge(
         owner,
@@ -352,6 +378,7 @@ def main(argv: list[str] | None = None) -> int:
         args.merge_method,
         args.commit_headline,
         args.commit_body,
+        args.output_format,
     )
 
 

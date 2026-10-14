@@ -9,7 +9,8 @@ from dataclasses import asdict
 from pathlib import Path
 from types import ModuleType
 
-from context_output_report import print_manifest_report
+from context_output_checker import regeneration_command
+from context_output_report import print_manifest_report, print_regeneration_hint
 
 
 def _report_error(prefix: str, error: Exception, exit_code: int) -> int:
@@ -113,6 +114,8 @@ def _run_single_check(
         print("Context output drift detected:", file=sys.stderr)
         for issue in issues:
             print(f"- {issue}", file=sys.stderr)
+        command = regeneration_command(args.input, args.output, args.detail_dir, detail_ref)
+        print_regeneration_hint([command], issues)
     return 1 if issues else 0
 
 

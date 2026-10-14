@@ -15,7 +15,7 @@ They live here rather than in ``checks_spec.py`` because adding them there took
 that file from 478 to 568 lines, past the 500-line ceiling
 ``scripts/ci/taste_count_ratchet.py`` enforces.
 
-A seventh validator belongs in this file.
+An eighth validator belongs in this file.
 ``tests/validation/test_pre_pr_covers_vendor_portability.py`` reads the workflow
 and fails until one exists for it, wherever it is defined.
 """
@@ -193,6 +193,52 @@ def validate_rule_template_drift(repo_root: Path) -> bool:
     )
 
 
+_RULE_FIXTURE_DIR = "tests/build_scripts/fixtures/rule_templates_b2/expected"
+_RULE_LOSSLESS_TEST = "tests/build_scripts/test_rule_templates_lossless.py"
+
+
+def stale_rule_fixtures(repo_root: Path) -> list[str]:
+    """Return sorted rule names whose lossless fixture differs from the built rule.
+
+    The fixture under ``tests/build_scripts/fixtures/rule_templates_b2/expected/``
+    is a hand copy of ``src/claude/rules/<name>.md``; ``build_all.py`` never
+    refreshes it. A fixture with no built rule is left to the test's own
+    count and name checks. Compares bytes, as the test does.
+    """
+    fixture_dir = repo_root / _RULE_FIXTURE_DIR
+    if not fixture_dir.is_dir():
+        return []
+    stale: list[str] = []
+    for fixture in sorted(fixture_dir.glob("*.md")):
+        built = repo_root / "src" / "claude" / "rules" / fixture.name
+        if built.is_file() and built.read_bytes() != fixture.read_bytes():
+            stale.append(fixture.stem)
+    return stale
+
+
+def validate_rule_lossless_fixtures(repo_root: Path) -> bool:
+    """Fail when ``test_rule_templates_lossless.py`` fails (issue #6440).
+
+    Runs the test through pytest, the same file CI runs. ``build_all.py``
+    leaves the hand-copied fixtures alone. Before this gate, no other gate read
+    them, so a rule edit passed every local gate and failed only in CI. On failure the
+    gate prints one ``cp`` per stale fixture, the repair the test cannot name.
+    """
+    if not (repo_root / _RULE_LOSSLESS_TEST).is_file():
+        raise MissingScriptSkip(f"{_RULE_LOSSLESS_TEST} not present")
+    exit_code, stdout, stderr = _run_subprocess(
+        [sys.executable, "-m", "pytest", _RULE_LOSSLESS_TEST, "-q", "-p", "no:cacheprovider"],
+        cwd=repo_root,
+    )
+    if exit_code == 0:
+        return True
+    for line in ((stdout or "") + (stderr or "")).strip().splitlines()[-40:]:
+        print(line)
+    for name in stale_rule_fixtures(repo_root):
+        print(f"cp src/claude/rules/{name}.md {_RULE_FIXTURE_DIR}/{name}.md")
+    return False
+
+
 def validate_hook_template_drift(repo_root: Path) -> bool:
     """Fail when a rendered hooks-class file differs from its template.
 
@@ -222,4 +268,18 @@ def validate_plugin_root_interpreter(repo_root: Path) -> bool:
     """
     return _run_portability_validator(
         repo_root, "scripts/validation/check_plugin_root_interpreter.py"
+    )
+
+
+def validate_projection_invariants(repo_root: Path) -> bool:
+    """Fail when a pilot Copilot projection drops an ADR-107 invariant (issue #5687).
+
+    Wraps ``scripts/validation/check_projection_invariants.py``, whose module
+    docstring states what it asserts (invariants 6 and 8 for ``push-pr`` and
+    ``security-scan``) and which six invariants stay advisory. Byte equality
+    after regeneration proves the generator is deterministic; this proves the
+    transform kept the allowed-tools set and the exit-code table.
+    """
+    return _run_portability_validator(
+        repo_root, "scripts/validation/check_projection_invariants.py"
     )

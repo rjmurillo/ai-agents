@@ -34,15 +34,18 @@ Exit codes (AGENTS.md contract):
     1 - regression (count > count at the merge base)
     2 - config error (no --base-ref)
     3 - external error (counter could not run, or no fork point)
+    128+N - killed by signal N (SIGTERM, SIGHUP); scratch removal ran first,
+            and a failed removal is reported on stderr
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
-import tempfile
+from collections import Counter as Tally
 from collections.abc import Callable
 from pathlib import Path
+from typing import TypeVar
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -58,9 +61,11 @@ from scripts.ci.count_ratchet import (
     is_shallow_repository,
 )
 from scripts.ci.merge_tree_materialization import (
+    create_scratch,
+    guarded_scratch,
     init_scratch_repo,
     materialize_tree,
-    remove_tree,
+    remove_scratch,
     run_git,
 )
 from scripts.ci.ratchet_registry_at_ref import (
@@ -79,11 +84,21 @@ __all__ = [
     "fork_registry_verdict",
     "introduced_at",
     "measure_commit",
+    "new_offenders_first",
     "run",
 ]
 
 Counter = Callable[[Path], int | None]
 Lister = Callable[[Path, frozenset[str]], list[str] | None]
+Identity = Callable[[str], str]
+Measured = TypeVar("Measured")
+
+NEW_MARKER = "NEW "
+
+
+def whole_line_identity(line: str) -> str:
+    """Default violation identity: the rendered line itself."""
+    return line
 
 
 def build_parser(description: str) -> argparse.ArgumentParser:
@@ -133,7 +148,7 @@ class CommitScratch:
             return False
         tree_oid = proc.stdout.strip()
         try:
-            self._scratch = Path(tempfile.mkdtemp(prefix="base-derived-ratchet-"))
+            self._scratch = create_scratch("base-derived-ratchet-")
         except OSError as exc:
             sys.stderr.write(f"scratch creation failed: {type(exc).__name__}: {exc}\n")
             return False
@@ -141,36 +156,50 @@ class CommitScratch:
             self._scratch
         )
 
-    def measure(self, counter: Counter) -> int | None:
-        """Count violations on the commit's tree, or None when it cannot be measured."""
+    def apply(self, reader: Callable[[Path], Measured | None]) -> Measured | None:
+        """Run ``reader`` on the commit's tree, or None when the tree cannot be built."""
         if self._ready is None:
             self._ready = self._materialize()
         if not self._ready or self._scratch is None:
             return None
-        return counter(self._scratch)
+        return reader(self._scratch)
+
+    def measure(self, counter: Counter) -> int | None:
+        """Count violations on the commit's tree, or None when it cannot be measured."""
+        return self.apply(counter)
 
     def close(self) -> str | None:
         """Remove the scratch directory. Returns a cleanup error, or None."""
         if self._scratch is None:
             return None
-        return remove_tree(self._scratch, "base-derived ratchet scratch")
+        return remove_scratch(self._scratch, "base-derived ratchet scratch")
+
+
+def read_commit(
+    repo_root: Path, commit: str, reader: Callable[[Path], Measured | None]
+) -> Measured | None:
+    """Run ``reader`` on the tree of ``commit``, or None when it cannot be read.
+
+    Scratch removal runs on every exit path, a signal included. A failed
+    removal is reported inside the ``finally`` so a kill cannot hide it, and a
+    failed cleanup is not a measurement.
+    """
+    with guarded_scratch():
+        tip = CommitScratch(repo_root, commit)
+        try:
+            result = tip.apply(reader)
+        finally:
+            cleanup_error = tip.close()
+            if cleanup_error:
+                sys.stderr.write(f"{cleanup_error}\n")
+    if cleanup_error:
+        return None
+    return result
 
 
 def measure_commit(repo_root: Path, commit: str, counter: Counter) -> int | None:
-    """Count violations on the tree of ``commit``, or None when it cannot be measured.
-
-    Scratch is removed on every exit path. A failed cleanup is not a
-    measurement.
-    """
-    tip = CommitScratch(repo_root, commit)
-    try:
-        count = tip.measure(counter)
-    finally:
-        cleanup_error = tip.close()
-    if cleanup_error:
-        sys.stderr.write(f"{cleanup_error}\n")
-        return None
-    return count
+    """Count violations on the tree of ``commit``, or None when it cannot be measured."""
+    return read_commit(repo_root, commit, counter)
 
 
 def introduced_at(repo_root: Path, commit: str, script: str) -> bool:
@@ -220,12 +249,65 @@ def _unreadable_fork_message(label: str, base_ref: str, *, shallow: bool) -> str
     )
 
 
-def _print_violations(lister: Lister, repo_root: Path, base_ref: str) -> None:
-    violations = lister(repo_root, changed_files(repo_root, base_ref))
+def new_offenders_first(
+    current: list[str], base: list[str], identity: Identity = whole_line_identity
+) -> tuple[list[str], int]:
+    """Order ``current`` so entries absent from ``base`` come first.
+
+    Entries are matched on ``identity``, not on the rendered line, because a
+    message can embed the measurement it reports (``File exceeds 500 lines (566
+    lines)``) and a text diff would then call every resized file new. When one
+    identity occurs more often now than at the base, the first surplus
+    occurrences in ``current`` order are the new ones. Returns the reordered
+    list, with new entries prefixed by ``NEW_MARKER``, and how many are new.
+    """
+    surplus = Tally(identity(line) for line in current)
+    surplus.subtract(Tally(identity(line) for line in base))
+    fresh: list[str] = []
+    existing: list[str] = []
+    for line in current:
+        key = identity(line)
+        if surplus[key] > 0:
+            surplus[key] -= 1
+            fresh.append(f"{NEW_MARKER}{line}")
+        else:
+            existing.append(line)
+    return fresh + existing, len(fresh)
+
+
+def _ordered_violations(
+    lister: Lister, repo_root: Path, base_ref: str, identity: Identity
+) -> tuple[list[str], int | None]:
+    """Violations to print, plus how many are new, or None when that is unknown."""
+    violations = lister(repo_root, changed_files(repo_root, base_ref)) or []
+    fork = _fork_point(repo_root, base_ref)
+    if not violations or fork is None:
+        return violations, None
+    base = read_commit(repo_root, fork, lambda root: lister(root, frozenset()))
+    if base is None:
+        return violations, None
+    ordered, fresh = new_offenders_first(violations, base, identity)
+    return ordered, fresh
+
+
+def _print_violations(
+    lister: Lister, repo_root: Path, base_ref: str, identity: Identity = whole_line_identity
+) -> None:
+    violations, fresh = _ordered_violations(lister, repo_root, base_ref, identity)
     if not violations:
         return
     max_lines = 40
     print("\nCurrent violations:", file=sys.stderr)
+    if fresh is None:
+        print(
+            "  (merge base list unavailable, so new entries are not marked)",
+            file=sys.stderr,
+        )
+    elif fresh:
+        print(
+            f"  {fresh} new since the merge base, marked {NEW_MARKER.strip()} and listed first.",
+            file=sys.stderr,
+        )
     for line in violations[:max_lines]:
         print(f"  {line}", file=sys.stderr)
     if len(violations) > max_lines:
@@ -289,11 +371,16 @@ def run(
     regression_advice: str,
     introduced_by: str,
     lister: Lister | None = None,
+    identity: Identity = whole_line_identity,
 ) -> int:
     """Evaluate one ratchet. ``counter`` returns the current count, or None.
 
     ``introduced_by`` is the repo-relative path of the ratchet's own script. A
     fork point that lacks it is the bootstrap state.
+
+    ``identity`` maps a lister line to the key used to tell new violations from
+    those already present at the merge base, so the printed list opens with the
+    violations the branch added instead of burying them under existing debt.
     """
     if not args.base_ref:
         print(
@@ -318,7 +405,7 @@ def run(
             file=sys.stderr,
         )
         if lister is not None:
-            _print_violations(lister, root, args.base_ref)
+            _print_violations(lister, root, args.base_ref, identity)
         return EXIT_REGRESSION
     if count < ceiling:
         print(

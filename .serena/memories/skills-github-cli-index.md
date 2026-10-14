@@ -1,7 +1,7 @@
 | Keywords | File |
 |----------|------|
 | pr-create pr-review pr-merge pr-list approve squash draft fill auto-merge delete-branch pr-checkout pr-diff | [github/github-cli-pr-operations](github/github-cli-pr-operations.md) |
-| issue create edit close reopen lock pin transfer lifecycle assignee milestone label copilot copilot-swe-agent assign trigger automated resolution context injection | [github/github-cli-issue-operations](github/github-cli-issue-operations.md) |
+| issue create edit close reopen lock pin transfer lifecycle assignee milestone label copilot copilot-swe-agent assign trigger automated resolution context injection comments json view | [github/github-cli-issue-operations](github/github-cli-issue-operations.md) |
 | bidirectional issue linking cross-reference comment navigation related | [github/github-cli-001-bidirectional-issue-linking](github/github-cli-001-bidirectional-issue-linking.md) |
 | run workflow list view log-failed watch trigger dispatch inputs status failure | [github/github-cli-workflow-runs](github/github-cli-workflow-runs.md) |
 | release create upload download assets generate-notes draft prerelease changelog tag | [github/github-cli-releases](github/github-cli-releases.md) |

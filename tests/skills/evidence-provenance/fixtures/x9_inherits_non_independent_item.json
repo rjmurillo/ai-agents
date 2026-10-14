@@ -1,0 +1,49 @@
+{
+  "claim": "R holds",
+  "subject": {
+    "artifact": "pkg",
+    "revision": "r2",
+    "premises": [
+      "reading-of-R"
+    ]
+  },
+  "evidence": [
+    {
+      "id": "implementer-test",
+      "state": "VERIFIED",
+      "origin": "same-loop",
+      "created": "during-task",
+      "premises": [
+        "my-test-oracle"
+      ]
+    },
+    {
+      "id": "second-agent-review",
+      "state": "VERIFIED",
+      "origin": "independent-reviewer",
+      "premises": [
+        "reviewer-notes"
+      ],
+      "inherits_from": [
+        "implementer-test"
+      ]
+    }
+  ],
+  "claimed_independent": 1,
+  "expect": {
+    "verdict": "SINGLE_LOOP",
+    "independent_loops": 0,
+    "exit": 1,
+    "violations": [
+      "inflated-confidence"
+    ],
+    "not_independent_because": {
+      "implementer-test": [
+        "same-origin-synthetic"
+      ],
+      "second-agent-review": [
+        "inherits-non-independent-evidence"
+      ]
+    }
+  }
+}

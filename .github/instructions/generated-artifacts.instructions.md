@@ -1,8 +1,11 @@
 ---
-applyTo: .claude/agents/**,build/scripts/**,templates/**,src/copilot-cli/**,.github/agents/**,.github/prompts/**,.github/skills/**,.github/instructions/**,.claude/hooks/**,.claude/rules/**,.claude/skills/**,tests/build_scripts/**,tests/e2e/**
+applyTo: .claude/agents/**,build/scripts/**,templates/**,src/copilot-cli/**,.github/agents/**,.github/prompts/**,.github/skills/**,.github/instructions/**,.claude/hooks/**,.claude/rules/**,.claude/skills/**,tests/build_scripts/**,tests/e2e/**,src/claude/**
 ---
 
 # Customer-Facing Generated Artifacts
+
+<!-- vendor-portability: upstream build scope glob and lib trees (issue #5298). Paths:
+     build/scripts, .claude/lib -->
 
 This rule exists because of a P0 incident. A generator produced the Copilot CLI
 plugin's `hooks.json` with a bare `./hooks/...` command path and explicit
@@ -11,7 +14,7 @@ directory, not the plugin install directory, so every hook failed at launch
 with "No such file or directory". The failure happened before any in-script
 handler could run. The only recovery was to uninstall the plugin. The broken
 form shipped for 33 days across six releases (v0.3.0 to v0.5.6). See
-`.project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md`.
+`2026-06-02-pr-2205-customer-wedge-incident.md`.
 
 Current official docs define hook `cwd` relative to the repository root or as
 an absolute path. The Copilot CLI changelog documents plugin-root variables.
@@ -28,10 +31,8 @@ environment: plugin manifests and `hooks.json`, copied hook scripts, agent and
 skill files a CLI loads, MCP configs, instruction mirrors. It does not bind
 artifacts consumed only inside this repo's own CI.
 
-The `paths` globs target every authoring, generated, and verification surface:
-agents, skills, commands, prompts, rules, hooks, templates, generators, plugin
-trees, and runtime-contract tests. This ensures future work loads the settled
-harness contract before changing any artifact class.
+The `paths` globs cover every authoring, generated, and verification surface, so
+future work loads the settled harness contract before changing any artifact class.
 
 ## The runtime contract is part of the artifact
 
@@ -60,8 +61,8 @@ as load-bearing as the artifact's bytes.
 3. **Gate the shipped artifact, not only the generator.** A test that exercises
    the generator on a fixture is necessary but not sufficient; a hand-edit or a
    merge can desync the committed artifact. Add a validator over the committed
-   artifact (example: `scripts/validation/validate_hook_anchoring.py`, wired into
-   `scripts/validation/pre_pr.py`). Derive the expected shape from the generator,
+   artifact (example: `validate_hook_anchoring.py`, wired into
+   `pre_pr.py`). Derive the expected shape from the generator,
    not a hardcoded copy.
 
 4. **Smoke-test in the real target runtime where feasible.** Install the vendored
@@ -139,8 +140,8 @@ gone and no one finds out. That is the silent-failure anti-pattern.
    loud (surface the error) so it is detected and fixed, never masked by a silent
    exit 0 that hides a disabled hook. Do not add a launcher wrapper that swallows
    its own resolution failure. Treat any change to the launcher shape as
-   architecture (it is the exact surface that caused the incident); route it
-   through architect review before shipping.
+   architecture, the surface that caused the incident; route it through
+   architect review before shipping.
 
 2. **Size the blast radius before you ship.** Ask: if this artifact is wrong, what
    breaks for the customer, and how do they recover? If the answer is "everything"
@@ -148,20 +149,16 @@ gone and no one finds out. That is the silent-failure anti-pattern.
 
 ## Generator order: one command, not a sequence
 
-The plugin lib trees were once mirrored in a chain, by two scripts that did
-not call each other: a sync script rewrote the shared Python packages'
-imports and copied them into the canonical lib tree, then `build_all.py`
-separately mirrored that tree into the Copilot plugin's own copy. Running
-them in the wrong order left the Copilot copy mirroring stale content with
-**both scripts exiting 0** and no local signal; the stale mirror surfaced
-only in CI.
+The plugin lib trees were once mirrored by two scripts that had to run in a
+fixed order. The wrong order left the Copilot copy stale with both scripts
+exiting 0, and CI was the first to notice.
 
 ADR-109 B5 (TASK-035) closed that hazard by construction. `build_all.py`'s
 lib step (`build/scripts/lib_mirror.py`) now renders the shared packages
 directly into every lib plugin tree in the same run that renders every other
 class, and the binplace step that follows every generator copies the
 claude-side plugin trees onto their install-tree counterparts
-(`templates/platforms/binplace.yaml`'s `lib-*` and `skills-sidecar` rows).
+(`binplace.yaml`'s `lib-*` and `skills-sidecar` rows).
 There is no second command whose order matters: `uv run python
 build/scripts/build_all.py` is the whole sequence.
 
@@ -177,12 +174,8 @@ The old standalone sync entry point is retired (issue #5790). Call
 instead.
 
 The build writes under the install tree only through the binplace step, for
-the paths the binplace manifest names (each per-class generator per
-ADR-109 B1-B5: agents, rules, template-owned skill files, and the lib class
-each render into a plugin tree, then binplace copies the render onto its
-install-tree counterpart). REQ-003-010 forbids other generators from writing
-there; every class, lib included, is now a manifest row, so there is no
-longer an ordering hazard for this rule to document.
+the paths the binplace manifest names. REQ-003-010 forbids other generators
+from writing there.
 
 A skill's non-`SKILL.md` files (scripts, references, tests, and
 anything else under `.claude/skills/<name>/`) are the one exception to
@@ -191,15 +184,16 @@ never under `templates/`. `build_all.py` mirrors them into
 `src/claude/skills/<name>/` (`generate_skills.sync_claude_plugin_skill_support`)
 the same run it renders `SKILL.md` from its template, so both land in the
 plugin tree together; edit the support file at `.claude/skills/<name>/`
-directly and run `build_all.py`, same as any other lib-exception file.
+directly and run `build_all.py`. That run overwrites any edit made under
+`src/claude/skills/<name>/`, and tests import the `.claude` copy.
 
 ## Quick Self-Review
 
 Before you merge a change to a generator or customer-facing artifact:
 
 - Did you read the settled contract before changing the artifact?
-- If the change touches a mirrored library (`scripts/hook_utilities`,
-  `scripts/github_core`, `scripts/ai_review_common`), did you run
+- If the change touches a mirrored library (`hook_utilities`,
+  `github_core`, `ai_review_common`), did you run
   `build_all.py`, and confirm all three lib trees (`src/claude/lib/`,
   `src/copilot-cli/lib/`, `.claude/lib/`) match rather than trusting the
   exit code alone?
@@ -222,14 +216,14 @@ never have to uninstall to recover from an artifact we generated.
 
 ## References
 
-- `.project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md`. The incident.
+- `2026-06-02-pr-2205-customer-wedge-incident.md` (retro). The incident.
 - `.claude/skills/agent-harness-reference/SKILL.md`. Operational contract.
 - `.claude/skills/agent-harness-reference/references/official-hook-contracts.md`. Official sources and refresh procedure.
 - `.claude/skills/ai-agents-portability-campaign/SKILL.md`. Contract change workflow.
 - `.claude/rules/canonical-source-mirror.md`. Self-referential test anti-pattern.
 - `.claude/skills/software-engineering-library/references/release-it.md`. Fail fast and loud; bound the blast radius by prevention, not by silently swallowing failures.
-- `scripts/validation/validate_hook_anchoring.py`. The committed-artifact gate.
+- `validate_hook_anchoring.py` (script). The committed-artifact gate.
 - `build/scripts/lib_mirror.py`. Renders `scripts/{hook_utilities,github_core,ai_review_common}/` into every lib plugin tree; the `sync_plugin_lib.py` shim is retired (issue #5790).
-- `scripts/ci/check_plugin_lib_mirrors.py`. The gate that catches a stale lib mirror; now a thin wrapper over `build_all.py --check`.
+- `check_plugin_lib_mirrors.py` (script). The gate that catches a stale lib mirror; now a thin wrapper over `build_all.py --check`.
 - `tests/build_scripts/test_generate_hooks_runtime_contract.py`. Runtime-contract test pattern.
 - `tests/e2e/test_cli_hook_e2e.py`. Real-CLI smoke.

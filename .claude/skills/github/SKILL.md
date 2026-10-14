@@ -173,8 +173,8 @@ scripts and `github_core` import with the anthropic SDK blocked.
 |--------|---------|----------------|
 | `get_pull_requests.py` | List PRs with filters | `--state`, `--label`, `--author`, `--base`, `--head`, `--search`, `--limit` |
 | `get_pr_context.py` | PR metadata, diff, files | `--pull-request`, `--include-changed-files`, `--include-diff` |
-| `get_pr_checks.py` | CI check status, polling | `--pull-request`, `--wait`, `--timeout-seconds`, `--required-only`, `--output-format {json,human,auto}` |
-| `get_pr_check_logs.py` | Fetch logs from failing CI checks | `--pull-request`, `--max-lines`, `--context-lines` |
+| `get_pr_checks.py` | CI check status, polling | `--pull-request`, `--wait`, `--timeout-seconds` (keep at or below 570 with `--wait`; warns above), `--missing-grace-seconds`, `--required-only`, `--output-format {json,human,auto}` |
+| `get_pr_check_logs.py` | Fetch logs from failing CI checks; names the failed step of each Actions job (`FailedSteps`) | `--pull-request`, `--check-name` (repeatable, case-insensitive), `--max-lines`, `--context-lines` |
 | `triage_red_check.py` | CI-failure triage step 1: is a failing PR check also red on main's latest run? Exit 0 green on main, exit 1 red on main (EvidenceUrl cites the main run), exit 3 cannot determine (never reported as green) | `--check-name`, `--branch`, `--history-depth`, `--pull-request` |
 | `get_pr_review_comments.py` | Paginated review comments with stale detection | `--pull-request`, `--include-issue-comments`, `--detect-stale`, `--exclude-stale`, `--only-stale` |
 | `get_pr_review_threads.py` | Thread-level review data | `--pull-request`, `--unresolved-only` |
@@ -196,12 +196,13 @@ scripts and `github_core` import with the anthropic SDK blocked.
 | `why_pr_blocked.py` | Diagnose a `mergeable_state`/`mergeStateStatus: blocked` PR: decomposes it into missing/failing/pending required checks, unresolved review threads, or merge conflicts, and says explicitly when none of those hold (the field can be stale) | `--pull-request`, `--base-branch`, `--output-format {json,human,auto}` |
 | `set_pr_auto_merge.py` | Enable/disable auto-merge | `--pull-request`, `--enable`/`--disable`, `--merge-method` |
 | `invoke_pr_comment_processing.py` | Process AI triage output | `--pr-number`, `--verdict`, `--findings-json` |
-| `new_pr.py` | Create PR with validation | `--title`, `--body`, `--body-file`, `--prepare-body-file`, `--base`, `--head`, `--draft`, `--skip-validation`, `--audit-reason`, `--validation-base` |
+| `new_pr.py` | Create PR with validation | `--title`, `--body`, `--body-file`, `--prepare-body-file`, `--preflight`, `--base`, `--head`, `--draft`, `--skip-validation`, `--audit-reason`, `--validation-base` |
 | `validate_pr_description.py` | Validate PR description | `--title`, `--body`, `--body-file`, `--fail-on-violation` |
 | `update_pr_branch.py` | Server-side "Update branch": merges the base into the PR head. Exit 0 when the update is requested, completed, or already up to date (`already_up_to_date: true`); exit 1 for a PR that is not open, or a head that differs from `--expected-head-sha` (`reason: head_moved`); exit 2 when the PR is not found; exit 3 for another API failure or a `--wait` timeout (the wait ends only when compare shows the PR is not behind); exit 4 for an auth failure. Unattended callers should pass `--expected-head-sha` | `--pull-request`, `--expected-head-sha`, `--wait`, `--timeout-seconds` |
 | `close_pr.py` | Close PR with comment | `--pull-request`, `--comment` |
+| `reopen_pr.py` | Reopen a closed PR (merged is exit 1) | `--pull-request`, `--comment` |
 | `merge_pr.py` | Merge pinned to the reviewed head, then read back and audited (ADR-112) | `--pull-request`, `--expected-head-sha`, `--strategy`, `--delete-branch`, `--auto` |
-| `audit_closing_claims.py` | Fleet audit of open-PR closing claims: extracts closing keywords from PR bodies, commit messages, and auto-merge overrides; classifies Markdown context (body) and plain-text context (commits/overrides); flags a claim unsupported when it can reach the eventual squash commit without a matching active body claim (exit 1). Needs a token with administration read: reachability depends on the repository's `squash_merge_commit_message` setting, which GitHub omits for anyone else, and the audit exits 3 rather than reporting a clean fleet it cannot verify | `--state open`, `--artifact`, `--resume-from`, `--output-format {json,human,auto}` |
+| `audit_closing_claims.py` | Fleet audit of open-PR closing claims: extracts closing keywords from PR bodies, commit messages, and auto-merge overrides; classifies body (Markdown) and commit/override (plain-text) context; flags a claim unsupported when it can reach the squash commit without a matching active body claim (exit 1). Needs a token with administration read (GitHub hides `squash_merge_commit_message` otherwise); without it the audit exits 3 instead of reporting a clean fleet | `--state open`, `--artifact`, `--resume-from`, `--output-format {json,human,auto}` |
 | `edit_pr_body.py` | Edit a PR body with a SHA-256 stale-write guard | `--pull-request`, `--body`/`--body-file`, `--expected-hash`, `--dry-run` |
 
 ### Issue Operations (`scripts/issue/`)
@@ -209,6 +210,7 @@ scripts and `github_core` import with the anthropic SDK blocked.
 | Script | Purpose | Key Parameters |
 |--------|---------|----------------|
 | `get_issue_context.py` | Issue metadata (no comments) | `--issue` |
+| `list_issues.py` | List issues | `--milestone` |
 | `get_issue_comments.py` | Issue comment thread (discourse) | `--issue`, `--limit` |
 | `new_issue.py` | Create new issue; `--source` required, agent needs Step 0 | `--title`, `--body`, `--labels`, `--source`, `--blocked-by`, `--signal`, `--milestone` |
 | `close_issue.py` | Close with optional comment (`--verify-claims` aborts on a cited commit/PR the remote disproves, exit 1, and separately on one it could not check, exit 3 or 4) | `--issue`, `--reason`, `--comment`, `--verify-claims` |

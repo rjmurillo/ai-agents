@@ -1,0 +1,43 @@
+{
+  "claim": "R holds",
+  "subject": {
+    "artifact": "pkg",
+    "revision": "r2",
+    "premises": [
+      "interp:R"
+    ]
+  },
+  "evidence": [
+    {
+      "id": "reviewer-a",
+      "state": "VERIFIED",
+      "origin": "independent-reviewer",
+      "authority": "normative",
+      "premises": []
+    },
+    {
+      "id": "reviewer-b",
+      "state": "VERIFIED",
+      "origin": "independent-reviewer",
+      "authority": "normative",
+      "premises": []
+    }
+  ],
+  "claimed_independent": 2,
+  "expect": {
+    "verdict": "SINGLE_LOOP",
+    "independent_loops": 0,
+    "exit": 1,
+    "violations": [
+      "inflated-confidence"
+    ],
+    "not_independent_because": {
+      "reviewer-a": [
+        "lineage-missing"
+      ],
+      "reviewer-b": [
+        "lineage-missing"
+      ]
+    }
+  }
+}
