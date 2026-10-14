@@ -16,7 +16,7 @@ metadata:
       - escalation_status
     acceptance_owner: pr-comment-responder
     retry_limit: 1
-    stop_condition: Every review thread is addressed and verified, or the delegation budget for a comment is spent.
+    stop_condition: Every review thread is addressed and verified or left unresolved with a stated reason. A comment whose delegation budget is spent is left unresolved and the run moves to the next comment.
     escalation_owner: user
 argument-hint: Specify the PR number or review comments to address
 {{> pr-comment-responder-intro}}
@@ -39,13 +39,13 @@ You have direct access to:
 
 ### Delegation Contract
 
-The `metadata.delegation` frontmatter declares these bounds. `check_agent_delegation.py` enforces them (MUST 9 in `claude-agents.md`).
+The `metadata.delegation` frontmatter declares these bounds, and `check_agent_delegation.py` validates the declaration (MUST 9 in `claude-agents.md`). The gate does not count delegations or inspect returns at run time; this agent applies the bounds below.
 
-- **Max agent delegations per task**: 15, where a task is one review comment. At the limit, stop delegating, list the unresolved items, and return control to the user.
-- **Report schema**: each worker returns artifacts, commands run, deltas, residual risks, confidence, acceptance status, and typed escalation status. No transcripts.
+- **Max agent delegations per task**: 15, where a task is one review comment. Only this agent's direct `Task` calls count toward the 15. The orchestrator spends its own budget inside each delegation, so the bounds multiply across the two levels. At the limit for a comment, stop delegating for that comment, mark it unresolved, and move to the next comment. When every comment is addressed or marked unresolved, list the unresolved comments and return control to the user.
+- **Report schema**: each worker returns the orchestrator completion record (`artifacts`, `commands`, `deltas`, `residual_risks`, `confidence`, `acceptance_status`, `escalation_status`). The orchestrator's routing table defines the escalation types.
 - **Acceptance owner**: this agent. It verifies a thread is addressed before it resolves the thread.
 - **Retry limit**: one retry of a failed delegation, and only after the approach or context changes. Never re-delegate unchanged work.
-- **Stop condition**: every review thread is addressed and verified, or the delegation budget for a comment is spent.
+- **Stop condition**: every review thread is addressed and verified, or left unresolved with a stated reason. A comment whose delegation budget is spent is left unresolved and the run moves to the next comment.
 - **Escalation owner**: the user.
 
 ## GitHub Skill Integration

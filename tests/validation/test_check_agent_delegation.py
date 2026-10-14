@@ -396,6 +396,23 @@ class TestContractFails:
         found = _contract_findings(tmp_path, _delegator(body=body))
         assert found == ["body states a cap of 10 delegations, but the contract budget is 15"]
 
+    def test_second_conflicting_prose_cap_is_reported(self, tmp_path: Path) -> None:
+        body = (
+            "- **Max agent delegations per task**: 15, counted in the task tracker.\n"
+            "- Max agent delegations per task: 10 for retries.\n"
+        )
+        found = _contract_findings(tmp_path, _delegator(body=body))
+        assert found == ["body states a cap of 10 delegations, but the contract budget is 15"]
+
+    def test_repeated_conflicting_prose_cap_is_reported_once(self, tmp_path: Path) -> None:
+        body = "Max agent delegations per task: 10\nMax agent delegations per task: 10\n"
+        found = _contract_findings(tmp_path, _delegator(body=body))
+        assert found == ["body states a cap of 10 delegations, but the contract budget is 15"]
+
+    def test_repeated_matching_prose_cap_passes(self, tmp_path: Path) -> None:
+        body = "Max agent delegations per task: 15\nMax agent delegations per task: 15\n"
+        assert _contract_findings(tmp_path, _delegator(body=body)) == []
+
 
 class TestBoundedFanOutAndRetry:
     @pytest.mark.parametrize("budget", [16, 100, 0, -1])
@@ -431,7 +448,10 @@ class TestReportSchema:
         found = _contract_findings(tmp_path, _delegator(_with_contract(report_schema=[])))
         assert "non-empty list" in found[0]
 
-    @pytest.mark.parametrize("name", ["Artifacts", "9lives", "two words", "", 4, None])
+    @pytest.mark.parametrize(
+        "name",
+        ["Artifacts", "9lives", "two words", "", 4, None, "artifacts\n", "a__b", "a_", "_a"],
+    )
     def test_malformed_field_name(self, tmp_path: Path, name: object) -> None:
         schema = [*_VALID_SCHEMA, name]
         found = _contract_findings(tmp_path, _delegator(_with_contract(report_schema=schema)))

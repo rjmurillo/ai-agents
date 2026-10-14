@@ -75,7 +75,7 @@ class AgentFacts:
     states_denial: bool
     grants_agent: bool
     contract: object = None
-    prose_budget: int | None = None
+    prose_budgets: tuple[int, ...] = ()
 
 
 def _split_frontmatter(text: str) -> tuple[str, str] | None:
@@ -159,7 +159,7 @@ def read_agent_facts(path: Path) -> AgentFacts:
         states_denial=bool(_DENIAL.search(prose)),
         grants_agent=grants_agent_tool(loaded),
         contract=_declared_contract(loaded),
-        prose_budget=contract_rules.prose_budget(prose),
+        prose_budgets=contract_rules.prose_budgets(prose),
     )
 
 
@@ -185,7 +185,7 @@ def _check_delegator(facts: AgentFacts, agents: Collection[str]) -> list[str]:
             "registered delegator, but its grant withholds Agent "
             "(add Agent to an explicit tools list, or remove the disallowedTools entry)"
         )
-    findings.extend(contract_rules.check_contract(facts.contract, agents, facts.prose_budget))
+    findings.extend(contract_rules.check_contract(facts.contract, agents, facts.prose_budgets))
     return findings
 
 

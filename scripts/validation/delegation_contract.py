@@ -21,15 +21,15 @@ Fields (all required, no others allowed):
   an agent that exists in the tree.
 
 The ceilings mirror the orchestrator's own prose: 15 delegations per task and
-one retry after the approach or context changes. When a body also states
-"Max agent delegations per task: N", N must equal the declared budget, so the
-prose and the declaration cannot drift apart.
+one retry after the approach or context changes. Every "Max agent delegations
+per task: N" statement in a body, outside code fences, must equal the declared
+budget, so the prose and the declaration cannot drift apart.
 """
 
 from __future__ import annotations
 
 import re
-from collections.abc import Collection
+from collections.abc import Collection, Sequence
 
 CONTRACT_KEY = "delegation"
 
@@ -42,14 +42,13 @@ TEXT_FIELDS = ("responsibility", "stop_condition")
 OWNER_FIELDS = ("acceptance_owner", "escalation_owner")
 CONTRACT_FIELDS = frozenset({"budget", "report_schema", "retry_limit", *TEXT_FIELDS, *OWNER_FIELDS})
 
-_FIELD_NAME = re.compile(r"^[a-z][a-z0-9_]*$")
+_FIELD_NAME = re.compile(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)*")
 _BUDGET_PROSE = re.compile(r"max\s+agent\s+delegations\s+per\s+task\W*(\d+)", re.IGNORECASE)
 
 
-def prose_budget(body: str) -> int | None:
-    """Return the delegation cap a body states in prose, or None when it states none."""
-    match = _BUDGET_PROSE.search(body)
-    return int(match.group(1)) if match else None
+def prose_budgets(body: str) -> tuple[int, ...]:
+    """Return every delegation cap a body states in prose, in order of appearance."""
+    return tuple(int(value) for value in _BUDGET_PROSE.findall(body))
 
 
 def _is_int(value: object) -> bool:
@@ -88,7 +87,7 @@ def _check_report_schema(contract: dict[str, object]) -> list[str]:
     schema = contract.get("report_schema")
     if not isinstance(schema, list) or not schema:
         return ["contract field 'report_schema' must be a non-empty list of field names"]
-    bad = [item for item in schema if not isinstance(item, str) or not _FIELD_NAME.match(item)]
+    bad = [item for item in schema if not isinstance(item, str) or not _FIELD_NAME.fullmatch(item)]
     if bad:
         return [f"contract field 'report_schema' has malformed names {bad!r} (use snake_case)"]
     if len(set(schema)) != len(schema):
@@ -114,13 +113,13 @@ def _check_fields(contract: dict[str, object], agents: Collection[str]) -> list[
 def check_contract(
     contract: object,
     agents: Collection[str],
-    stated_budget: int | None = None,
+    stated_budgets: Sequence[int] = (),
 ) -> list[str]:
     """Return the findings for one delegator's declared contract.
 
     ``contract`` is the raw ``metadata.delegation`` value, or None when absent.
-    ``agents`` holds the agent names an owner may reference. ``stated_budget`` is
-    the cap the agent's body states in prose, when it states one.
+    ``agents`` holds the agent names an owner may reference. ``stated_budgets``
+    holds every cap the agent's body states in prose.
     """
     if contract is None:
         return [
@@ -140,9 +139,10 @@ def check_contract(
         return findings
     findings = _check_fields(contract, agents)
     declared = contract.get("budget")
-    if stated_budget is not None and _is_int(declared) and stated_budget != declared:
-        findings.append(
-            f"body states a cap of {stated_budget} delegations, "
-            f"but the contract budget is {declared}"
-        )
+    if _is_int(declared):
+        conflicts = dict.fromkeys(value for value in stated_budgets if value != declared)
+        findings += [
+            f"body states a cap of {value} delegations, but the contract budget is {declared}"
+            for value in conflicts
+        ]
     return findings
