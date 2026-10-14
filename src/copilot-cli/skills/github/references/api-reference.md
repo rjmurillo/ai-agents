@@ -21,6 +21,7 @@ Reference documentation for the GitHub skill. For usage, see `../SKILL.md`.
 | `get_pr_review_comments.py` | `repos/{owner}/{repo}/pulls/{pr}/comments` |
 | `get_pr_review_threads.py` | GraphQL: `repository.pullRequest.reviewThreads` |
 | `get_pr_reviewers.py` | Multiple: pulls/comments, issues/comments, pr view |
+| `new_pr_review_comment.py` | `repos/{owner}/{repo}/pulls/{pr}` (head SHA), then POST `repos/{owner}/{repo}/pulls/{pr}/comments` with `commit_id`, `path`, `line`, `side` |
 | `post_pr_comment_reply.py` | `repos/{owner}/{repo}/pulls/{pr}/comments` (with in_reply_to) |
 | `resolve_pr_review_thread.py` | GraphQL: `resolveReviewThread` mutation |
 | `close_pr.py` | `gh pr close` |
@@ -111,6 +112,28 @@ The milestone must already exist in the repository. Create it via GitHub UI or `
 ### "PR is not mergeable"
 
 Check for merge conflicts or failing required checks. Use `get_pr_context.py` to see `Mergeable` status.
+
+## update_pr_branch.py exit codes
+
+- Exit 0: the update was requested, completed, or the PR is already up to date (`already_up_to_date: true`).
+- Exit 1: the PR is not open, or the head differs from `--expected-head-sha` (`reason: head_moved`).
+- Exit 2: the PR is not found.
+- Exit 3: another API failure, or a `--wait` timeout. The wait ends only when compare shows the PR is not behind.
+- Exit 4: auth failure.
+
+Unattended callers should pass `--expected-head-sha`.
+
+## new_pr_review_comment.py
+
+Starts a new review thread on a diff line. Use `post_pr_comment_reply.py` to reply to an existing thread.
+
+- `--side RIGHT` (default) targets added or unchanged lines. `--side LEFT` targets removed lines.
+- `--line` is the file line number on that side, and it must fall inside the PR diff.
+- The script reads the PR head commit and sends it as `commit_id`, so the comment anchors to the current head.
+- Exit 0: created. The envelope carries `comment_id`, `html_url`, `commit_id`, `path`, `line`, `side`.
+- Exit 2: the PR is not found, the body is invalid, or the API returned 422 (line or path not in the diff).
+- Exit 3: another API failure, a quota refusal, or a timeout.
+- Exit 4: not authenticated, or the token cannot write to the PR.
 
 ## Skills Applied
 
