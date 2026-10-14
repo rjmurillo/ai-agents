@@ -1,6 +1,8 @@
 """Two real testmon processes can share one ``.testmondata`` (issue #6198).
 
-The overlapping pre-push partitions rely on this: testmon 2.2.0 writes each
+Issue #6477 moved the overlapping pre-push lanes onto separate databases, because
+a shared one let a lane change what another lane's workers read. This test
+still guards the write path: testmon 2.2.0 writes each
 run in transactions on a WAL database with a 60s busy wait, and the partitions
 cover disjoint test names. This test runs two real ``--testmon`` pytest
 processes against one database, repeatedly, after a change that makes both
