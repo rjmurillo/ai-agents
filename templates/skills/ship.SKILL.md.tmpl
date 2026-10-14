@@ -94,26 +94,35 @@ Task(subagent_type="devops"): You are a release engineer. Run all 4 pre-flight c
      evals="$(az repos pr policy list --id "$pr_id" \
        --query "[?configuration.isBlocking && configuration.isEnabled && configuration.type.displayName=='Build'].[status, context.buildId]" \
        --output tsv)" || exit 3
-     if [ -z "$merge_commit" ] || [ -z "$evals" ]; then
-       echo "FAIL: no blocking build policy evaluation or no merge commit on PR $pr_id" >&2
+     if [ -z "$merge_commit" ]; then
+       echo "FAIL: PR $pr_id has no merge commit to compare builds against" >&2
        exit 1
      fi
      fail=0
+     applied=0
      while IFS=$'\t' read -r status build_id; do
-       if [ "$status" != "approved" ] || [ -z "$build_id" ]; then
+       if [ -z "$status" ] || [ "$status" = "notApplicable" ]; then
+         continue
+       fi
+       applied=$((applied + 1))
+       if [ "$status" != "approved" ] || [ -z "$build_id" ] || [ "$build_id" = "None" ]; then
          echo "FAIL: build policy status=$status build=$build_id" >&2; fail=1; continue
        fi
-       read -r result source_version < <(az pipelines build show --id "$build_id" \
-         --query '[result, sourceVersion]' --output tsv < /dev/null) || exit 3
+       result="$(az pipelines build show --id "$build_id" --query result --output tsv < /dev/null)" || exit 3
+       source_version="$(az pipelines build show --id "$build_id" --query sourceVersion --output tsv < /dev/null)" || exit 3
        if [ "$result" != "succeeded" ] || [ "$source_version" != "$merge_commit" ]; then
          echo "FAIL: build $build_id result=$result at $source_version, PR merge commit $merge_commit" >&2
          fail=1
        fi
      done <<< "$evals"
+     if [ "$applied" -eq 0 ]; then
+       echo "FAIL: no blocking build policy evaluation applies to PR $pr_id" >&2
+       exit 1
+     fi
      exit "$fail"
      ```
 
-     PASS only on exit 0. Exit 1 is FAIL: a required policy is queued, running, rejected, or bound to an older revision, or the PR has no blocking build policy evaluation to inspect (the same rule as a GitHub PR with no checks). Exit 3 means an `az` query failed (authentication, network, or query error); report it as FAIL with the `az` stderr, never as PASS.
+     PASS only on exit 0. Exit 1 is FAIL: a required policy is queued, running, rejected, or bound to an older revision, or the PR has no blocking build policy evaluation to inspect (the same rule as a GitHub PR with no checks). A `notApplicable` evaluation (a path-filtered build policy the PR's changes do not touch) is skipped, but at least one blocking build evaluation must apply. Each `az` call is captured before it is checked, so exit 3 means an `az` query failed (authentication, network, or query error); report it as FAIL with the `az` stderr, never as PASS. The build fields are read one per call because Azure CLI TSV prints a flat list one value per line.
    - `host=ado`, `pr=none` (no open PR; `mode=owner` only): pipeline-validator does not apply, and pipeline validation is DEFERRED, not skipped. ADO build policies evaluate a pull request, so a branch with no PR has no policy evaluation to read. A fresh branch also has no completed build. Gating here on either one stops the run before Process step 3, which creates the first PR, so the branch can never leave this state (Issue #6576, the ADO twin of #4841). Record `Pipeline: DEFERRED (pr=none; validated in Process step 4)` and run checks 2-4. Process step 4 discharges the deferral against the PR that `az repos pr create` opens; a failure there fails the ship.
 2. **Security posture** - Invoke Skill(skill="security-scan"). No new CWE findings? No secrets in diff? This check is host-agnostic: the scan is regex over the diff and applies identically to GitHub and ADO repos.
 3. **Reviewed on this SHA** - The shipped code must carry SHA-bound `/review` proof (Issue #1938). The proof shape depends on `mode`:
@@ -139,28 +148,11 @@ Task(subagent_type="devops"): You are a release engineer. Run all 4 pre-flight c
    - `mode=owner`, `host=github`: run /validate-pr-description to validate PR metadata, then run /push-pr to commit, push, and open the GitHub PR.
 
      {{> conventional-commits}}
-   - `mode=owner`, `host=ado`: run /validate-pr-description, then create the PR with `az repos pr create --output json` (the gh-based /push-pr does not apply to ADO). Push the branch first. Capture `pullRequestId` from the JSON output as `pr_id`. A non-zero exit means no PR was created: report FAIL with the `az` stderr and stop.
+   - `mode=owner`, `host=ado`: run /validate-pr-description, push the branch, then create the PR with `az repos pr create --output json` (the gh-based /push-pr does not apply to ADO). Capture `pullRequestId` from the JSON output as `pr_id`. A non-zero exit means no PR was created: report FAIL with the `az` stderr and stop.
    - `mode=contributor`: do NOT create a PR and do NOT merge. The PR already exists and is the owner's call. Emit the ship report with `RESULT: VALIDATED` and the recorded `/review` attestation.
-4. Discharge a deferred pipeline check. When check 1 recorded `Pipeline: DEFERRED` (`mode=owner`, `pr=none`), validate CI on the PR that step 3 just created. For `host=github`, that PR comes from `/push-pr`. Capture the PR number from the `/push-pr` output. The pipeline-validator skill is host-aware only for ADO; for GitHub, query CI status directly through the GitHub skill's check-status flow (`python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request <number> --wait --timeout-seconds 300`, where `SCRIPTS_DIR` is resolved per the GitHub skill pattern). The discharge requires BOTH exit code 0 AND `Data.AllPassing == true` in the structured output; a no-check PR exits 0 with `AllPassing: false`, so exit code alone is insufficient. All CI checks green and `Data.AllPassing == true` makes the check `DEFERRED->PASS`. Otherwise it is `DEFERRED->FAIL`, `RESULT: BLOCKED`, and the report names the failing checks; the PR stays open and the fix lands on the branch. A deferred check MUST NOT be reported as PASS without this run.
+4. Discharge a deferred pipeline check. When check 1 recorded `Pipeline: DEFERRED` (`mode=owner`, `pr=none`), validate CI on the PR that step 3 just created. For `host=github`, that PR comes from `/push-pr`. Capture the PR number from the `/push-pr` output. The pipeline-validator skill covers Azure DevOps pipelines only (PR, Buddy Build, Buddy Release), so neither host uses it here. For GitHub, query CI status directly through the GitHub skill's check-status flow (`python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request <number> --wait --timeout-seconds 300`, where `SCRIPTS_DIR` is resolved per the GitHub skill pattern). The discharge requires BOTH exit code 0 AND `Data.AllPassing == true` in the structured output; a no-check PR exits 0 with `AllPassing: false`, so exit code alone is insufficient. All CI checks green and `Data.AllPassing == true` makes the check `DEFERRED->PASS`. Otherwise it is `DEFERRED->FAIL`, `RESULT: BLOCKED`, and the report names the failing checks; the PR stays open and the fix lands on the branch. A deferred check MUST NOT be reported as PASS without this run.
 
-   For `host=ado`, use the `pullRequestId` captured from `az repos pr create`. Wait for the PR's blocking build policies to leave `queued` and `running`, then run the ADO policy evaluation from pre-flight check 1 with that `pr_id`:
-
-   ```bash
-   deadline=$(( $(date +%s) + 1800 ))
-   while :; do
-     pending="$(az repos pr policy list --id "$pr_id" \
-       --query "length([?configuration.isBlocking && configuration.isEnabled && configuration.type.displayName=='Build' && (status=='queued' || status=='running')])" \
-       --output tsv)" || exit 3
-     [ "$pending" = "0" ] && break
-     if [ "$(date +%s)" -ge "$deadline" ]; then
-       echo "FAIL: $pending blocking build policies still queued or running after 30 minutes" >&2
-       exit 1
-     fi
-     sleep 30
-   done
-   ```
-
-   Exit 0 from the wait and exit 0 from the evaluation make the check `DEFERRED->PASS`. Any other result, including the 30-minute timeout, an `az` query failure, or a PR with no blocking build policy evaluation, is `DEFERRED->FAIL` with `RESULT: BLOCKED`; the report names the failing policies and the PR stays open.
+   For `host=ado`, use the `pullRequestId` captured from `az repos pr create` as `pr_id`. Run the wait block in `references/ado-policy-wait.md` until the PR's blocking build evaluations exist and none is `queued` or `running` (30 minutes total, re-run on exit 75). Then run the ADO policy evaluation from pre-flight check 1 with that `pr_id`. Exit 0 from the wait and exit 0 from the evaluation make the check `DEFERRED->PASS`. Any other result, including the 30-minute timeout, an `az` query failure (exit 3), or a PR with no blocking build policy evaluation, is `DEFERRED->FAIL` with `RESULT: BLOCKED`; the report names the failing policies and the PR stays open.
 5. Report: host, mode, `pr` at pre-flight time, what was validated or shipped, PR link, any warnings.
 
 ## Principles
