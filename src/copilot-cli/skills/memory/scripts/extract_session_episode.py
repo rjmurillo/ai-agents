@@ -633,7 +633,7 @@ def _commit_datetime(sha: str) -> datetime | None:
 
 
 @lru_cache(maxsize=256)
-def _sha_is_reachable(sha: str) -> bool:
+def _sha_is_reachable(sha: str) -> bool | None:
     """Return True when ``sha`` is reachable from at least one named ref.
 
     A commit that resolves (``git cat-file -t`` succeeds) but is reachable from
@@ -649,12 +649,15 @@ def _sha_is_reachable(sha: str) -> bool:
     is found; on large repositories the optional ``--format=%(refname)`` and a
     short-circuit via ``head -1`` make it faster, but the default is safe here.
 
-    Returns ``False`` on any subprocess error, missing git binary, or timeout.
-    A ``False`` is treated as unknown, matching the ``None`` contract of
-    ``_commit_datetime``.
+    Tri-state, matching the ``None`` contract of ``_commit_datetime``:
+    ``True`` when a ref reaches the commit, ``False`` when git answered and no
+    ref does, ``None`` when git could not answer (empty ``sha``, missing git
+    binary, timeout, or a non-zero exit). Only ``False`` is evidence of a
+    dangling object; a caller that removes data MUST act on ``False`` alone
+    (issue #6565).
     """
     if not sha:
-        return False
+        return None
     env = os.environ.copy()
     for var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"):
         env.pop(var, None)
@@ -670,7 +673,9 @@ def _sha_is_reachable(sha: str) -> bool:
             check=False,
         )
     except (OSError, subprocess.TimeoutExpired):
-        return False
+        return None
+    if result.returncode != 0:
+        return None
     return bool(result.stdout.strip())
 
 
@@ -1532,13 +1537,16 @@ def _drop_dangling_commit_events(events: list[dict]) -> list[dict]:
 
     A SHA that does not resolve at all is kept: absence from this clone is not
     evidence the commit is unreachable elsewhere, and a shallow or fresh clone
-    would otherwise erase real history. Ids are renumbered so they stay
-    contiguous; the caller's relink pass rebuilds the causal edges.
+    would otherwise erase real history. The same holds when git cannot answer
+    (timeout, non-zero exit): ``_sha_is_reachable`` returns ``None`` and the
+    event is kept, because only ``False`` proves the commit dangling (issue
+    #6565). Ids are renumbered so they stay contiguous; the caller's relink
+    pass rebuilds the causal edges.
     """
     kept: list[dict] = []
     for evt in events:
         sha = _commit_sha(evt) if evt.get("type") == "commit" else None
-        if sha and _commit_datetime(sha) is not None and not _sha_is_reachable(sha):
+        if sha and _commit_datetime(sha) is not None and _sha_is_reachable(sha) is False:
             continue
         kept.append(evt)
     if len(kept) != len(events):
@@ -2379,7 +2387,7 @@ def _commit_event_dates(events: list) -> dict[str, datetime]:
         if entry.get("type") != "commit" or not isinstance(identifier, str):
             continue
         sha = _commit_sha(entry)
-        if not sha or not _sha_is_reachable(sha):
+        if not sha or _sha_is_reachable(sha) is not True:
             continue
         moment = _commit_datetime(sha)
         if moment is not None:

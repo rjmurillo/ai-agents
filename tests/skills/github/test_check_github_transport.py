@@ -528,9 +528,11 @@ class TestConfiguredLaunchersRun:
     PR #5509). These run the config's own value, from a foreign cwd, against
     the shipped Copilot tree, with a deterministic `gh` first on PATH.
 
-    Known gap: the PowerShell branch resolves `python3` on this runner. The
-    `py -3` rung it falls back to exists only on Windows, so that arm is
-    unexercised here and no Windows runner is available to exercise it.
+    The PowerShell branch resolves `python3` on this runner. The `py -3` and
+    `python` rungs are exercised by `TestInterpreterChain` in
+    `tests/build_scripts/test_copilot_launcher.py`, which renames the earlier
+    candidate in the payload and answers with a stub. What no runner here can
+    exercise is the Windows `py` launcher itself.
     """
 
     CONFIG = _project_root / ".claude" / "skills" / "pr-review" / "pr-review-config.yaml"

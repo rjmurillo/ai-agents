@@ -64,6 +64,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Space-separated issue references",
     )
     parser.add_argument(
+        "--azure-refs",
+        default=os.environ.get("AZURE_REFS", ""),
+        help="Space-separated Azure Boards references (AB#<n>)",
+    )
+    parser.add_argument(
         "--trace-verdict",
         default=os.environ.get("TRACE_VERDICT", ""),
         help="Verdict from traceability check",
@@ -227,6 +232,7 @@ def _build_full_report(
     completeness_infra: bool,
     spec_refs: str,
     issue_refs: str,
+    azure_refs: str,
     trace_findings: str,
     completeness_findings: str,
     repository: str,
@@ -319,7 +325,8 @@ This validation ensures your implementation matches the specifications:
 | Type | References |
 |:-----|:-----------|
 | **Specs** | {spec_refs} |
-| **Issues** | {issue_refs} |
+| **GitHub issues** | {issue_refs} |
+| **Azure Boards** | {azure_refs} |
 
 <details>
 <summary>Requirements Traceability Details</summary>
@@ -392,6 +399,7 @@ def main(argv: list[str] | None = None) -> int:
 
         spec_refs: str = args.spec_refs or "*None*"
         issue_refs: str = args.issue_refs or "*None*"
+        azure_refs: str = args.azure_refs or "*None*"
         trace_findings: str = args.trace_findings or "No traceability output"
         completeness_findings: str = args.completeness_findings or "No completeness output"
 
@@ -408,6 +416,7 @@ def main(argv: list[str] | None = None) -> int:
             completeness_infra=completeness_infra,
             spec_refs=spec_refs,
             issue_refs=issue_refs,
+            azure_refs=azure_refs,
             trace_findings=trace_findings,
             completeness_findings=completeness_findings,
             repository=repository,

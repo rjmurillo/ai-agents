@@ -80,18 +80,27 @@ def _normalized(path: Path) -> str:
     return " ".join(_read(path).split())
 
 
-def test_template_rules_name_only_generated_agent_trees() -> None:
+def test_template_rules_name_every_generated_agent_tree() -> None:
     for path in (_TEMPLATES_RULE, *_TEMPLATES_MIRRORS):
         text = _read(path)
         must_2 = _numbered_rule(_section(text, "## MUST"), 2)
         should_2 = _numbered_rule(_section(text, "## SHOULD"), 2)
         generated_clause = re.search(
-            r"Regenerated files under (.+?) MUST be committed", must_2, re.DOTALL
+            r"Every regenerated tree MUST be committed in the same PR as the template "
+            r"change: (.+?`)\. ",
+            must_2,
+            re.DOTALL,
         )
         assert generated_clause is not None
         must_paths = set(re.findall(r"`([^`]+/)`", generated_clause.group(1)))
 
-        expected = {"src/copilot-cli/agents/", "src/vs-code-agents/"}
+        expected = {
+            "src/claude/agents/",
+            ".claude/agents/",
+            ".github/agents/",
+            "src/copilot-cli/agents/",
+            "src/vs-code-agents/",
+        }
         assert must_paths == expected
         assert should_2 == (
             "2. **Preview per platform**. SHOULD inspect the generated output for both "
@@ -116,7 +125,7 @@ def test_claude_agents_rule_states_drift_detector_inputs() -> None:
 
         assert "It compares two pairs, and `templates/` is in neither:" in detector_section
         assert _numbered_rule(detector_section, 1) == (
-            "1. `src/claude/*.md` against `src/vs-code-agents/*.agent.md`"
+            "1. `src/claude/agents/*.md` against `src/vs-code-agents/*.agent.md`"
         )
         assert _numbered_rule(detector_section, 2) == (
             "2. `.claude/agents/*.md` against `.github/agents/*.agent.md`"
@@ -129,10 +138,14 @@ def test_other_detector_guidance_surfaces_state_actual_inputs() -> None:
         "`src/claude` against `src/vs-code-agents`, and `.claude/agents` against `.github/agents`"
     )
 
+    templates_pairs = (
+        "`src/claude/agents` against `src/vs-code-agents`, "
+        "and `.claude/agents` against `.github/agents`"
+    )
     for path in (*_TEMPLATES_MIRRORS, _TEMPLATES_RULE):
         text = _normalized(path)
         assert "does NOT compare templates against anything" in text
-        assert expected_pairs in text
+        assert templates_pairs in text
 
     for path in _ARCHITECTURE_SKILL_SURFACES:
         text = _normalized(path)

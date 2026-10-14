@@ -7,7 +7,7 @@ priority: P1
 related:
   - REQ-011
   - TASK-011
-adr: ADR-030
+adr: ADR-036
 created: 2026-05-10
 updated: 2026-05-10
 author: spec
@@ -134,7 +134,7 @@ The hard/soft split was added to reconcile (a) the originally-collapsed `isolati
   id: AUDIT-2026-05-10-agent-skill
   source: GH-2003
   parent_epic: GH-1944
-  authority: [ADR-030, ADR-036, agent-consolidation-process.md]
+  authority: [SKILL-CREATION-CRITERIA.md, ADR-036, agent-consolidation-process.md]
   created: 2026-05-10
   git_sha: <sha at audit time>
   agent_count: 23

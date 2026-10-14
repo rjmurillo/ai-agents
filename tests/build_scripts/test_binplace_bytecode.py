@@ -24,7 +24,7 @@ import binplace_manifest  # noqa: E402
 
 def fake_repo(tmp_path: Path) -> Path:
     """Create a fake repository root."""
-    (tmp_path / ".git").mkdir()
+    (tmp_path / ".git").mkdir(parents=True)
     return tmp_path
 
 
@@ -67,7 +67,7 @@ def _lib_trees(root: Path) -> tuple[Path, Path]:
 )
 def test_is_bytecode_artifact_matches_caches(relative: str) -> None:
     """is_bytecode_artifact: any file under __pycache__, or any .pyc/.pyo."""
-    assert binplace_manifest.is_bytecode_artifact(Path("/repo") / relative) is True
+    assert binplace_manifest.is_bytecode_artifact(Path(relative)) is True
 
 
 @pytest.mark.parametrize(
@@ -81,7 +81,52 @@ def test_is_bytecode_artifact_matches_caches(relative: str) -> None:
 )
 def test_is_bytecode_artifact_rejects_real_files(relative: str) -> None:
     """is_bytecode_artifact: names that only resemble caches still count as files."""
-    assert binplace_manifest.is_bytecode_artifact(Path("/repo") / relative) is False
+    assert binplace_manifest.is_bytecode_artifact(Path(relative)) is False
+
+
+@pytest.mark.parametrize(
+    "absolute",
+    [
+        "/repo/lib/api.py",
+        "/repo/lib/__pycache__/api.cpython-314.pyc",
+        "/__pycache__/repo/lib/api.py",
+    ],
+)
+def test_is_bytecode_artifact_rejects_absolute_paths(absolute: str) -> None:
+    """is_bytecode_artifact: an absolute path is a contract violation, not a guess."""
+    with pytest.raises(ValueError, match="root-relative"):
+        binplace_manifest.is_bytecode_artifact(Path(absolute))
+
+
+def test_binplace_write_mode_copies_sources_when_repo_sits_under_pycache(
+    tmp_path: Path,
+) -> None:
+    """Write mode: a __pycache__ ANCESTOR of the repo root must not hide real sources (D51)."""
+    root = fake_repo(tmp_path / "__pycache__" / "repo")
+    plugin_dir = root / "src" / "claude" / "lib" / "github_core"
+    plugin_dir.mkdir(parents=True)
+    (plugin_dir / "api.py").write_bytes(b"def f():\n    return 1\n")
+    write_manifest(root, _LIB_ROW)
+
+    result = binplace_manifest.binplace(root, check=False)
+
+    assert result.exit_code == 0
+    copied = root / ".claude" / "lib" / "github_core" / "api.py"
+    assert copied.read_bytes() == b"def f():\n    return 1\n"
+
+
+def test_binplace_check_mode_reports_drift_when_repo_sits_under_pycache(
+    tmp_path: Path,
+) -> None:
+    """Check mode: real drift is still reported when an ancestor is named __pycache__ (D51)."""
+    root = fake_repo(tmp_path / "__pycache__" / "repo")
+    plugin_dir, install_dir = _lib_trees(root)
+    (plugin_dir / "api.py").write_bytes(b"def f():\n    return 2\n")
+
+    result = binplace_manifest.binplace(root, check=True)
+
+    assert result.exit_code == 2
+    assert [Path(p) for p in result.drifted] == [install_dir / "api.py"]
 
 
 def test_binplace_check_mode_ignores_plugin_tree_bytecode(tmp_path: Path) -> None:

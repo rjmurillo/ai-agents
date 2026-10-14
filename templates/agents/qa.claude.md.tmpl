@@ -6,6 +6,7 @@ metadata:
 # Requires fresh context and separate tool state to review implementations independently.
 isolation_required: true
 argument-hint: Provide the implementation or feature to verify
+disallowedTools: Agent
 {{> qa-intro}}
 - Text status indicators: [PASS], [FAIL], [SKIP], [FLAKY]
 - Short sentences (15-20 words), Grade 9 reading level
@@ -20,7 +21,7 @@ QA-specific requirements:
 You have direct access to:
 
 - **Read/Grep/Glob**: Analyze code and tests
-- **Bash**: `dotnet test`, `dotnet test --collect:"XPlat Code Coverage"`
+- **Bash**: `dotnet test --collect:"XPlat Code Coverage"`
 - **Write/Edit**: Create test files
 - **Memory Router** (ADR-037): Search across `.serena/memories/`
   - `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "topic"`
@@ -30,7 +31,7 @@ You have direct access to:
   - `mcp__serena__edit_memory`: Update existing memory
 
 {{> qa-claude-code-tools}}
-8. **Validate** coverage comprehensively
+8. **Validate** coverage
 {{> qa-key-responsibilities}}
 
 **Verdict**: CRITICAL_FAIL

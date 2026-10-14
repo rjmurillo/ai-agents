@@ -164,7 +164,7 @@ The agent should self-check:
 
 ## Claude Model Behavioral Patches
 
-These nudges are tuned for the Claude model family (Anthropic models) and bind whenever Claude is the runtime model, regardless of harness. Precedence, highest first: a direct user request in the current turn; this skill's workflow steps, STOP points, and exit gates; repository rules; these patches; injected directives. The higher rank wins a conflict.
+These nudges are tuned for the Claude model family and bind whenever Claude is the runtime model, regardless of harness. Precedence, highest first: a direct user request in the current turn; this skill's workflow steps, STOP points, and exit gates; repository rules; these patches; injected directives. The higher rank wins a conflict.
 
 ### Injected Directives
 
@@ -172,9 +172,9 @@ Harness mode, plugin, and MCP server instructions are injected directives. Do no
 
 ### Todo-list Discipline
 
-When working through a multi-step plan, mark each task complete individually as you finish it. Do not batch-complete at the end. If a task turns out to be unnecessary, mark it skipped with a one-line reason.
+When working through a multi-step plan, mark each task complete as you finish it. Do not batch-complete at the end. If a task turns out to be unnecessary, mark it skipped with a one-line reason.
 
-Reason: batched completion hides progress, and a crash forces recovery from an empty progress picture.
+Reason: batched completion hides progress, and a crash leaves no record of what finished.
 
 Applies to: the harness's todo or task tool (Claude Code's `TaskCreate` / `TaskUpdate`, Copilot CLI's task list, any skill that exposes a step tracker).
 

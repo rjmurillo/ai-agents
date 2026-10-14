@@ -38,6 +38,7 @@ Exit codes (AGENTS.md contract):
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 from collections.abc import Sequence
@@ -65,6 +66,7 @@ __all__ = [
     "EXIT_REGRESSION",
     "current_count",
     "main",
+    "violation_identity",
 ]
 
 _SCRIPT = "scripts/ci/taste_count_ratchet.py"
@@ -134,6 +136,20 @@ def current_count(repo_root: Path) -> int | None:
 
 
 _REQUIRED_FIELDS = ("severity", "file", "rule", "message")
+
+_IDENTITY = re.compile(r"(.*?: \[[^\]]*\])")
+
+
+def violation_identity(line: str) -> str:
+    """The ``file: [rule]`` head of a listed violation, without its message.
+
+    A taste message embeds the measurement it reports (``File exceeds 500 lines
+    (566 lines)``), so two scans of one file at different lengths render
+    different text for the same violation. Matching on the head keeps a file
+    that merely grew from reading as new.
+    """
+    match = _IDENTITY.match(line)
+    return match.group(1) if match else line
 
 
 def _batch_findings(repo_root: Path, batch: Sequence[str]) -> list[object] | None:
@@ -296,6 +312,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "of the file explaining why the rule does not apply (issue #3779)."
         ),
         lister=list_violations,
+        identity=violation_identity,
         introduced_by=_SCRIPT,
     )
 

@@ -32,7 +32,41 @@ from scripts.validation.evidence import (
     AggregateOutcome,
     CheckOutcome,
     EvidenceState,
+    GatePolicy,
 )
+
+#: Label for a FAIL the pre-PR policy licenses. The typed state stays ``FAIL`` in
+#: the JSON summary and the exit code; only the console label changes, so a
+#: finding that does not block the push cannot sit beside a pass banner under the
+#: same word a blocking finding uses.
+ADVISORY_LABEL = "ADVISORY"
+
+
+def is_advisory(outcome: CheckOutcome, policy: GatePolicy) -> bool:
+    """Return True for a FAIL the policy licenses, so it reports but never blocks."""
+    return outcome.state is EvidenceState.FAIL and policy.accepts(outcome)
+
+
+def display_state(outcome: CheckOutcome, policy: GatePolicy) -> str:
+    """Return the console label for ``outcome``: ADVISORY for a licensed FAIL, else its state."""
+    return ADVISORY_LABEL if is_advisory(outcome, policy) else outcome.state.value
+
+
+def display_line(outcome: CheckOutcome, policy: GatePolicy) -> str:
+    """Return :meth:`CheckOutcome.summary_line` with a licensed FAIL relabelled ADVISORY."""
+    line = outcome.summary_line()
+    if not is_advisory(outcome, policy):
+        return line
+    return f"[{ADVISORY_LABEL}]" + line[len(f"[{outcome.state.value}]") :]
+
+
+def state_counts(summary: AggregateOutcome) -> dict[str, int]:
+    """Return the per-state counts with licensed FAIL rows moved from FAIL to ADVISORY."""
+    counts = summary.counts()
+    advisory = sum(1 for o in summary.outcomes if is_advisory(o, summary.policy))
+    counts["FAIL"] -= advisory
+    counts[ADVISORY_LABEL] = advisory
+    return counts
 
 
 def _licensed_non_pass(summary: AggregateOutcome) -> tuple[CheckOutcome, ...]:
@@ -64,10 +98,10 @@ def print_result_line(summary: AggregateOutcome) -> None:
     if not licensed:
         print("RESULT: All validations passed")
         return
-    counts = summary.counts()
+    counts = state_counts(summary)
     breakdown = ", ".join(
         f"{label}: {counts[label]}"
-        for label in ("FAIL", "UNKNOWN", "BLOCKED", "SKIP")
+        for label in ("FAIL", ADVISORY_LABEL, "UNKNOWN", "BLOCKED", "SKIP")
         if counts[label]
     )
     print(
@@ -75,8 +109,29 @@ def print_result_line(summary: AggregateOutcome) -> None:
         f"{len(summary.outcomes)} did not prove their contract ({breakdown})"
     )
     for outcome in licensed:
-        print(f"  {outcome.summary_line()}")
+        print(f"  {display_line(outcome, summary.policy)}")
     print("  Licensed by the pre-PR policy; see .project-toolkit/devops/SHIFT-LEFT.md")
+
+
+def print_pass_guidance(summary: AggregateOutcome, sibling_jobs: bool) -> None:
+    """Print the closing banner of a run that did not block.
+
+    The advisory count sits in the banner itself, so the line most readers stop
+    at cannot say "passed" while the rows above carry findings. A run with none
+    keeps the wording it has always had.
+
+    ``sibling_jobs`` is True under lefthook (``SKIP_AUTOFIX=1``), where this job
+    validated only its own subset and cannot claim the push outcome (issue #4506).
+    """
+    advisory = state_counts(summary)[ADVISORY_LABEL]
+    note = f" with {advisory} advisory finding(s), not blocking" if advisory else ""
+    if sibling_jobs:
+        print(f"pre_pr validations passed{note} (push outcome depends on sibling hook jobs).")
+        return
+    print(f"Pre-PR checks passed{note}. Verify the push landed before opening a PR:")
+    print("  git rev-parse HEAD")
+    print("  git ls-remote origin <branch>")
+    print("The two commands must report the same SHA.")
 
 
 def print_blocking_guidance(summary: AggregateOutcome) -> None:
