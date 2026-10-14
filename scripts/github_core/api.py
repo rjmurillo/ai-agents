@@ -188,6 +188,16 @@ class GhAuthStatus(Enum):
     query while ``gh api user`` returned the real account. An account-scoped
     endpoint surviving does not make the session usable for anything this
     repository's workflows do, and it is not grounds for reporting success.
+
+    ``GRAPHQL_BLOCKED`` is the narrower sandbox case (issue #5693): the
+    credential is valid, GraphQL is refused by policy, and a repository-scoped
+    REST call (``gh api repos/{owner}/{repo}``) is served. ``gh pr`` and
+    ``gh issue`` fail because they use GraphQL, but ``gh api`` REST reads and
+    writes work, so the remedy is REST rather than a different transport.
+    Callers that only use REST opt in through
+    ``assert_gh_authenticated(rest_only=True)``; every other caller keeps
+    failing. It is reached only after a repository REST call succeeds, so no
+    session that refuses repository REST can receive it.
     """
 
     AUTHENTICATED = "authenticated"
@@ -197,6 +207,7 @@ class GhAuthStatus(Enum):
     RATE_LIMITED = "rate_limited"
     SECONDARY_RATE_LIMITED = "secondary_rate_limited"
     TRANSPORT_BLOCKED = "transport_blocked"
+    GRAPHQL_BLOCKED = "graphql_blocked"
 
 
 # Statuses that are a token problem the operator can fix (exit 4). Everything
@@ -538,6 +549,31 @@ def _rest_credential_probe() -> GhAuthResult:
     return GhAuthResult(classify_gh_failure_text(combined), sanitize_failure_detail(combined))
 
 
+def _repository_rest_probe() -> GhAuthResult:
+    """Ask REST whether a repository-scoped call is served (issue #5693).
+
+    ``gh api user`` is account-scoped, so it cannot tell a session that refuses
+    only GraphQL from one that refuses repository calls as well. ``gh`` expands
+    ``{owner}`` and ``{repo}`` from the current checkout. Reached only after
+    the credential probe succeeded and GraphQL was refused by policy, so the
+    extra call lands on an already-failing path.
+    """
+    try:
+        result = _run_gh(["api", "repos/{owner}/{repo}"])
+    except FileNotFoundError:
+        logger.debug("GitHub CLI (gh) not found on PATH")
+        return GhAuthResult(GhAuthStatus.MISSING_GH)
+    except subprocess.TimeoutExpired:
+        logger.debug("gh api repository probe timed out")
+        return GhAuthResult(GhAuthStatus.TRANSIENT_ERROR, "Repository REST probe timed out")
+
+    if result.returncode == 0:
+        return GhAuthResult(GhAuthStatus.AUTHENTICATED)
+
+    combined = f"{result.stdout}\n{result.stderr}"
+    return GhAuthResult(classify_gh_failure_text(combined), sanitize_failure_detail(combined))
+
+
 def _is_session_wide_refusal(rest_text: str, graphql_text: str) -> bool:
     """Return True when the pair of failures proves the session is refused.
 
@@ -601,18 +637,29 @@ def _resolve_policy_refused_probe(rest_text: str, probe: GhAuthResult) -> GhAuth
     # AUTHENTICATED here would report success for a session that cannot
     # read a PR, and assert_gh_authenticated would pass on it.
     #
-    # The step from that evidence to TRANSPORT_BLOCKED is an inference, and
-    # it is worth naming as one: `/user` is account-scoped, so its success
-    # says nothing about repository REST, which the observed session
-    # refused separately. What is measured is a valid credential plus a
-    # policy-refused GraphQL transport. Whether a session in that state
-    # deserves its own status, rather than being folded in here, is a
-    # taxonomy question for the repository owner (Copilot review on
-    # PR #5509).
+    # `/user` is account-scoped, so its success says nothing about repository
+    # REST, which one observed session refused separately. A repository-scoped
+    # call separates the two sessions it could be (issue #5693, Copilot review
+    # on PR #5509).
     confirmation = _rest_credential_probe()
-    if confirmation.is_authenticated:
-        return GhAuthResult(GhAuthStatus.TRANSPORT_BLOCKED, probe.detail)
-    return confirmation
+    if not confirmation.is_authenticated:
+        return confirmation
+    return _classify_credentialed_graphql_refusal(probe)
+
+
+def _classify_credentialed_graphql_refusal(probe: GhAuthResult) -> GhAuthResult:
+    """Split a valid credential plus refused GraphQL by repository REST.
+
+    Repository REST served means GraphQL alone is refused, which is
+    ``GRAPHQL_BLOCKED``: REST-only callers can still work. Anything else keeps
+    the prior verdict, ``TRANSPORT_BLOCKED``: a refusal, a timeout, or an
+    unanswerable probe (such as no inferable repository) is not evidence that
+    repository REST works, and the conservative reading routes callers away
+    from ``gh`` exactly as before this probe existed.
+    """
+    if _repository_rest_probe().is_authenticated:
+        return GhAuthResult(GhAuthStatus.GRAPHQL_BLOCKED, probe.detail)
+    return GhAuthResult(GhAuthStatus.TRANSPORT_BLOCKED, probe.detail)
 
 
 def check_gh_auth() -> GhAuthResult:
@@ -627,8 +674,8 @@ def check_gh_auth() -> GhAuthResult:
 
     Returns:
         A :class:`GhAuthResult`. ``MISSING_GH`` and ``INVALID_CREDENTIALS`` map
-        to auth exit 4; ``TRANSPORT_BLOCKED`` maps to config exit 2; every
-        other non-authenticated status maps to external exit 3.
+        to auth exit 4; ``TRANSPORT_BLOCKED`` and ``GRAPHQL_BLOCKED`` map to config
+        exit 2; every other non-authenticated status maps to external exit 3.
     """
     # Empty when REST said nothing at all, which is the timeout case below.
     # Every branch after this point reads it, so it has to exist either way.
@@ -797,6 +844,20 @@ _TRANSPORT_BLOCKED_MESSAGE = (
 )
 
 
+# Names the transport that works. GitHub's own refusal body says the same
+# thing ("Use REST via `gh api repos/{owner}/{repo}/...` instead"), which the
+# TRANSPORT_BLOCKED message above contradicts for this session shape. It does
+# not claim every REST call works, only that a repository-scoped one did.
+_GRAPHQL_BLOCKED_MESSAGE = (
+    "This session's environment refuses GraphQL for the gh CLI, but a "
+    "repository REST call was served, so the credential is sound. `gh pr` and "
+    "`gh issue` use GraphQL and will fail. Use REST instead, through `gh api "
+    "repos/{owner}/{repo}/...`, or use the GitHub MCP operations (spelled "
+    "mcp__github__* in Claude Code, github/* in Copilot CLI). 'gh auth login' "
+    "and retrying are both the wrong remedy."
+)
+
+
 def describe_gh_auth_failure(result: GhAuthResult) -> tuple[str, int, str]:
     """Message, ADR-035 exit code, and error type for a non-authenticated result.
 
@@ -814,9 +875,10 @@ def describe_gh_auth_failure(result: GhAuthResult) -> tuple[str, int, str]:
         ``(message, exit_code, error_type)``. Missing ``gh`` and confirmed
         invalid credentials map to exit 4 / ``AuthError``; quota refusals and
         transport failures map to exit 3 / ``ApiError`` (the envelope vocabulary
-        in ADR-056 has no rate-limit member). A session-wide refusal maps to
-        exit 2 / ``ApiError``: it is an environment configuration fault, and
-        exit 3 would advertise it as worth retrying.
+        in ADR-056 has no rate-limit member). A session-wide refusal, or a
+        GraphQL-only refusal, maps to exit 2 / ``ApiError``: it is an
+        environment configuration fault, and exit 3 would advertise it as
+        worth retrying.
     """
     if result.status in _AUTH_FAILURE_STATUSES:
         return _MISSING_OR_INVALID_MESSAGE, 4, "AuthError"
@@ -826,6 +888,9 @@ def describe_gh_auth_failure(result: GhAuthResult) -> tuple[str, int, str]:
         # Exit 2 (config), not 3 (external): 3 invites the caller's retry
         # ladder, and no number of retries makes a refused session succeed.
         return f"{_TRANSPORT_BLOCKED_MESSAGE}{detail}", 2, "ApiError"
+    if result.status is GhAuthStatus.GRAPHQL_BLOCKED:
+        # Exit 2 for the same reason: the refusal is policy, not a reset window.
+        return f"{_GRAPHQL_BLOCKED_MESSAGE}{detail}", 2, "ApiError"
 
     remedy = _RATE_LIMIT_REMEDY.get(result.status)
     if remedy is None:
@@ -840,7 +905,7 @@ def describe_gh_auth_failure(result: GhAuthResult) -> tuple[str, int, str]:
     return f"{remedy}{detail}{evidence}", 3, "ApiError"
 
 
-def assert_gh_authenticated() -> None:
+def assert_gh_authenticated(*, rest_only: bool = False) -> None:
     """Ensure GitHub CLI can authenticate. Raises SystemExit if not.
 
     Quota refusals and transient transport failures (5xx, timeouts) exit 3
@@ -849,9 +914,18 @@ def assert_gh_authenticated() -> None:
     whose environment refuses GitHub outright exits 2 (config) and names the
     MCP transport that still works. See :func:`check_gh_auth`, issue #3139,
     and issue #4344.
+
+    Args:
+        rest_only: Pass ``True`` from a script that reaches GitHub only through
+            ``gh api`` REST calls. A ``GRAPHQL_BLOCKED`` session then passes,
+            because repository REST was measured as served (issue #5693). Every
+            other refusal still exits, and callers that use GraphQL must leave
+            this ``False``.
     """
     result = check_gh_auth()
     if result.status is GhAuthStatus.AUTHENTICATED:
+        return
+    if rest_only and result.status is GhAuthStatus.GRAPHQL_BLOCKED:
         return
     message, code, _ = describe_gh_auth_failure(result)
     error_and_exit(message, code)
