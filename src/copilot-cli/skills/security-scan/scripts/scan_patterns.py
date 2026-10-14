@@ -14,10 +14,12 @@ docstring for the buy-vs-build rationale.
 
 import re
 
-# Bash lexer modes. A stack of these tracks quote and `$( )` nesting for one line.
+# Bash lexer modes. A stack of these tracks quote and substitution nesting for one line.
 _MODE_SINGLE = "single"
 _MODE_DOUBLE = "double"
+_MODE_ANSI = "ansi"
 _MODE_SUB = "sub"
+_MODE_TICK = "tick"
 
 
 def _blank_run(line: str, i: int, width: int = 1) -> str:
@@ -43,8 +45,16 @@ def _step_single(line: str, i: int, out: list[str], stack: list[str]) -> int:
     return i + 1
 
 
+def _step_ansi(line: str, i: int, out: list[str], stack: list[str]) -> int:
+    """Consume inside `$'...'`: a backslash escapes the next character, even a quote."""
+    if line[i] == "\\":
+        out.append(_blank_run(line, i, 2))
+        return i + 2
+    return _step_single(line, i, out, stack)
+
+
 def _step_double(line: str, i: int, out: list[str], stack: list[str]) -> int:
-    """Consume inside double quotes; text is blanked, `$( )` bodies are kept."""
+    """Consume inside double quotes; text is blanked, `$( )` and backtick bodies are kept."""
     ch = line[i]
     if ch == "\\":
         out.append(_blank_run(line, i, 2))
@@ -57,25 +67,35 @@ def _step_double(line: str, i: int, out: list[str], stack: list[str]) -> int:
         stack.append(_MODE_SUB)
         out.append("$(")
         return i + 2
+    if ch == "`":
+        stack.append(_MODE_TICK)
+        out.append(ch)
+        return i + 1
     out.append(" ")
     return i + 1
 
 
 def _step_command(line: str, i: int, out: list[str], stack: list[str]) -> int:
-    """Consume one character of unquoted shell text or a `$( )` body."""
+    """Consume one character of unquoted shell text or a substitution body."""
     ch = line[i]
     if ch == "\\":
         out.append(_blank_run(line, i, 2))
         return i + 2
     if _starts_comment(line, i):
         return len(line)
-    if ch == "'":
+    if line.startswith("$'", i):
+        stack.append(_MODE_ANSI)
+        out.append("$'")
+        return i + 2
+    if ch == "`" and stack and stack[-1] == _MODE_TICK:
+        stack.pop()
+    elif ch == "'":
         stack.append(_MODE_SINGLE)
     elif ch == '"':
         stack.append(_MODE_DOUBLE)
     elif ch == "(":
         stack.append(_MODE_SUB)
-    elif ch == ")" and stack:
+    elif ch == ")" and stack and stack[-1] == _MODE_SUB:
         stack.pop()
     out.append(ch)
     return i + 1
@@ -83,19 +103,25 @@ def _step_command(line: str, i: int, out: list[str], stack: list[str]) -> int:
 
 _STEPS = {
     _MODE_SINGLE: _step_single,
+    _MODE_ANSI: _step_ansi,
     _MODE_DOUBLE: _step_double,
     _MODE_SUB: _step_command,
+    _MODE_TICK: _step_command,
 }
 
 
 def scrub_bash_line(line: str) -> str:
     """Hide text that cannot be an unquoted expansion from the `$var` regex.
 
-    Drops an unquoted `#` comment, and replaces the interior of single- and
-    double-quoted spans with spaces. Quote delimiters stay, so the regex
-    lookarounds that skip `"$var"` keep working. `$( )` bodies, even inside
-    double quotes, stay visible because they run as unquoted shell. The scan is
-    per line: a quote that spans lines is treated as open to the end of its line.
+    Drops an unquoted `#` comment, and replaces the interior of single-, double-,
+    and `$'...'`-quoted spans with spaces. Quote delimiters stay, so the regex
+    lookarounds that skip `"$var"` keep working. `$( )` and backtick bodies, even
+    inside double quotes, stay visible because they run as unquoted shell.
+
+    The scan is per line and keeps no state between lines. A line that ends with
+    a quote or substitution still open may be opening a multi-line string or
+    closing one, and the lexer cannot tell which. It returns the raw line then,
+    so code after a closing quote is never hidden.
     """
     out: list[str] = []
     stack: list[str] = []
@@ -103,7 +129,7 @@ def scrub_bash_line(line: str) -> str:
     while i < len(line):
         step = _STEPS[stack[-1]] if stack else _step_command
         i = step(line, i, out, stack)
-    return "".join(out)
+    return line if stack else "".join(out)
 
 
 # Optional per-pattern line preparation. When a pattern dict has a "scrub" key,

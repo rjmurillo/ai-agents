@@ -358,6 +358,12 @@ UNQUOTED_VAR = "Unquoted variable expansion (potential word splitting/injection)
         # Quoted `$()` inside double quotes with only quoted variables in the body.
         'echo "at $(date +%s) for $user"',
         'result="$(basename "$path")"',
+        # Quoted variable in a backtick body inside double quotes.
+        'echo "files: `ls "$dir"` for $user"',
+        'echo "at `date` for $user"',
+        # `$'...'` ANSI-C quoting keeps `$` literal, escapes included.
+        "echo $'literal $var here'",
+        "echo $'it\\'s $var'",
     ],
 )
 def test_bash_unquoted_var_ignores_comments_and_quoted_spans(line: str) -> None:
@@ -378,6 +384,17 @@ def test_bash_unquoted_var_ignores_comments_and_quoted_spans(line: str) -> None:
         'out="$(rm $target)"',
         # Nested parens in a command substitution still close at the right paren.
         'echo "$( (cd /x) ; ls $dir )"',
+        # Backtick substitution inside double quotes runs as unquoted shell.
+        'echo "files: `ls $dir`"',
+        'out="`rm $target`"',
+        # A stray `)` inside a backtick body does not end the body.
+        'echo "`echo ) ; ls $dir`"',
+        # `$'...'` ANSI-C quoting: `\\'` is an escaped quote, so `$x` is unquoted.
+        "echo $'it\\'s' $x",
+        # A line that closes a multi-line double-quoted string: the closing quote
+        # is not an opening quote, so code after it stays visible.
+        'closing words" ; rm $target',
+        "closing words' ; rm $target",
         # A comment later in the line does not hide an earlier unquoted variable.
         "rm $target # cleanup",
         # `$#` followed by text; the `#` is not a comment start.
@@ -406,6 +423,37 @@ def test_bash_unquoted_var_still_flags_real_unquoted_expansion(line: str) -> Non
 def test_bash_scrub_handles_degenerate_lines(line: str) -> None:
     scrubbed = scanner.scrub_bash_line(line)
     assert len(scrubbed) <= len(line)
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        'echo "unterminated $var',
+        "echo 'unterminated $var",
+        'echo "$(ls $dir',
+        'echo "`ls $dir',
+        "echo $'unterminated $var",
+        'closing" ; rm $target',
+    ],
+)
+def test_bash_scrub_returns_raw_line_when_quote_state_is_unresolved(line: str) -> None:
+    """A quote left open at end of line may be an opener or a closer; do not guess."""
+    assert scanner.scrub_bash_line(line) == line
+
+
+def test_scan_file_flags_code_after_closing_quote_of_multiline_string(tmp_path: Path) -> None:
+    body = 'echo "first $a\nsecond line" ; rm $target\n'
+    name = _write(tmp_path, "multiline.sh", body)
+    vulns, _ = scanner.scan_file(str(tmp_path / name))
+    assert [v.line for v in vulns if v.pattern == UNQUOTED_VAR] == [1, 2]
+
+
+def test_bash_scrub_keeps_backtick_body_inside_double_quotes() -> None:
+    assert scanner.scrub_bash_line('"a `ls $d` b"') == '"  `ls $d`  "'
+
+
+def test_bash_scrub_blanks_ansi_c_quoted_body() -> None:
+    assert scanner.scrub_bash_line("$'a\\'b' $x") == "$'    ' $x"
 
 
 def test_bash_scrub_blanks_interiors_and_keeps_delimiters() -> None:
