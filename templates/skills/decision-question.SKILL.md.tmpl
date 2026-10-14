@@ -114,6 +114,19 @@ contract.
 Field rules, option construction, split chains, Hold, and the completeness
 check: [decision-brief-protocol.md](references/decision-brief-protocol.md).
 
+## Five or more options
+
+Never drop an option. Pick one shape:
+
+- **Batch** coherent alternatives into groups of at most 4.
+- **Split** into one call per option, each answered Include, Defer, Cut, or
+  Hold. This is the default when unsure. A Hold answer stops the chain at once.
+  Check dependencies before you fire the chain.
+
+More than 6 options: first ask a meta-question (proceed, narrow, or batch).
+
+Write non-ASCII text (CJK, accents) as literal UTF-8. Never `\u`-escape it.
+
 ## Harness bound
 
 `decision_question.py` pins what the Claude Code `AskUserQuestion` schema accepts:
