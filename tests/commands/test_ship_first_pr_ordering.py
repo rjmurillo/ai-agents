@@ -104,6 +104,41 @@ def host_bullets(item_text: str) -> list[str]:
     return [b for b in bullets if "host=" in b]
 
 
+def github_bullets(item_text: str) -> list[str]:
+    """Return the `host=github` bullets of a pre-flight item."""
+    return [b for b in host_bullets(item_text) if "`host=github`" in b]
+
+
+def ado_bullets(item_text: str) -> list[str]:
+    """Return the `host=ado` bullets of a pre-flight item."""
+    return [b for b in host_bullets(item_text) if "`host=ado`" in b]
+
+
+def ado_bullets_without_pr_condition(pipeline_item: str) -> list[str]:
+    """Return `host=ado` bullets that do not branch on PR existence (#6576 shape)."""
+    return [b for b in ado_bullets(pipeline_item) if "pr=" not in b]
+
+
+def ado_item_block(pipeline_item: str, pr_marker: str) -> str:
+    """Return one `host=ado` bullet plus its indented body (code block included).
+
+    The bullet's first line names the branch; its evidence lives in the nested code
+    block, so the block runs to the next three-space bullet or the end of the item.
+    """
+    lines = pipeline_item.splitlines()
+    starts = [
+        i
+        for i, ln in enumerate(lines)
+        if ln.startswith("   - ") and "`host=ado`" in ln and pr_marker in ln
+    ]
+    assert len(starts) == 1, f"expected 1 host=ado bullet with {pr_marker!r}, got {len(starts)}"
+    end = next(
+        (j for j in range(starts[0] + 1, len(lines)) if lines[j].startswith("   - ")),
+        len(lines),
+    )
+    return "\n".join(lines[starts[0] : end])
+
+
 def invokes_pipeline_validator(text: str) -> bool:
     """True when ``text`` invokes the skill, not merely when it names the file."""
     return _INVOKE_VALIDATOR_RE.search(text) is not None
@@ -163,12 +198,12 @@ class TestPipelineHealthBranchesOnPrExistence:
 
     def test_open_pr_still_validates_in_preflight(self, pipeline_item: str) -> None:
         """Inverse guard: the fix must not disarm the gate for branches that have a PR."""
-        with_pr = [b for b in host_bullets(pipeline_item) if "`pr=#<number>`" in b]
+        with_pr = [b for b in github_bullets(pipeline_item) if "`pr=#<number>`" in b]
         assert len(with_pr) == 1
         assert invokes_pipeline_validator(with_pr[0])
 
     def test_no_pr_bullet_defers_instead_of_invoking(self, pipeline_item: str) -> None:
-        without_pr = [b for b in host_bullets(pipeline_item) if "`pr=none`" in b]
+        without_pr = [b for b in github_bullets(pipeline_item) if "`pr=none`" in b]
         assert len(without_pr) == 1
         assert not invokes_pipeline_validator(without_pr[0])
         assert "DEFERRED" in without_pr[0]
@@ -184,13 +219,55 @@ class TestPipelineHealthBranchesOnPrExistence:
         assert canonical_no_pr_contract() in ship_text
 
     def test_ado_branch_still_evaluates_build_policies(self, pipeline_item: str) -> None:
-        """Sibling non-regression: the ADO branch never had the deadlock and is untouched."""
-        ado = [b for b in host_bullets(pipeline_item) if "`host=ado`" in b]
-        assert len(ado) == 1
-        assert "pipeline-validator does not apply" in ado[0]
-        assert not invokes_pipeline_validator(ado[0])
+        """Sibling non-regression: ADO still evaluates PR build policies, not the validator."""
+        ado = ado_bullets(pipeline_item)
+        assert len(ado) == 2
+        assert all("pipeline-validator does not apply" in b for b in ado)
+        assert not any(invokes_pipeline_validator(b) for b in ado)
         assert "az repos pr policy list" in pipeline_item
-        assert "az pipelines build list" in pipeline_item
+
+
+class TestAdoFirstPrDeferral:
+    """Issue #6576: the ADO branch had the same first-PR deadlock as GitHub (#4841).
+
+    Pre-fix, an ADO branch with no PR fell back to the latest completed branch build and
+    required every policy to pass. A fresh branch has neither a PR nor a completed build,
+    and the PR is only created after the gate passes, so the first ADO PR never opened.
+    """
+
+    def test_no_ado_bullet_applies_to_every_run(self, pipeline_item: str) -> None:
+        assert ado_bullets_without_pr_condition(pipeline_item) == []
+
+    def test_ado_no_pr_bullet_defers_instead_of_failing(self, pipeline_item: str) -> None:
+        without_pr = [b for b in ado_bullets(pipeline_item) if "`pr=none`" in b]
+        assert len(without_pr) == 1
+        assert "DEFERRED" in without_pr[0]
+        assert "not skipped" in without_pr[0]
+        assert "6576" in without_pr[0]
+
+    def test_branch_build_fallback_is_gone(self, pipeline_item: str) -> None:
+        """The latest-completed-branch-build query is the deadlock; it must not return."""
+        assert "az pipelines build list" not in pipeline_item
+
+    def test_ado_open_pr_bullet_checks_blocking_build_evaluations(self, pipeline_item: str) -> None:
+        """Inverse guard: the deferral must not disarm the gate for ADO branches with a PR."""
+        with_pr = ado_item_block(pipeline_item, "`pr=#<number>`")
+        assert "az repos pr policy list" in with_pr
+        assert "isBlocking" in with_pr
+        assert "'approved'" in with_pr or '"approved"' in with_pr
+
+    def test_ado_open_pr_bullet_binds_builds_to_current_revision(self, pipeline_item: str) -> None:
+        """A green build from an older push must not clear the gate."""
+        with_pr = ado_item_block(pipeline_item, "`pr=#<number>`")
+        assert "lastMergeCommit" in with_pr
+        assert "sourceVersion" in with_pr
+        assert "az pipelines build show" in with_pr
+
+    def test_ado_query_errors_fail_instead_of_passing(self, pipeline_item: str) -> None:
+        """Auth, network, and query errors must stop the check, not read as empty."""
+        with_pr = ado_item_block(pipeline_item, "`pr=#<number>`")
+        assert with_pr.count("|| exit 3") >= 3
+        assert "no blocking build policy" in with_pr.lower()
 
 
 class TestProcessDischargesTheDeferral:
@@ -218,6 +295,23 @@ class TestProcessDischargesTheDeferral:
             "discharge must mention exit code is insufficient alone"
         )
 
+    def test_discharge_covers_ado_first_pr(self, ship_text: str) -> None:
+        """Issue #6576: the ADO deferral must be discharged against the created PR."""
+        discharge = numbered_item(section(ship_text, "Process"), "Discharge a deferred")
+        assert "`host=ado`" in discharge
+        assert "pullRequestId" in discharge
+        assert "az repos pr policy list" in discharge
+        assert "queued" in discharge
+        assert "running" in discharge
+
+    def test_ado_pr_creation_precedes_its_discharge(self, ship_text: str) -> None:
+        items = numbered_items(section(ship_text, "Process"))
+        creates = [i for i, item in enumerate(items) if "az repos pr create" in item]
+        validates = [i for i, item in enumerate(items) if "az repos pr policy list" in item]
+        assert creates
+        assert validates
+        assert min(validates) > min(creates)
+
     def test_contributor_mode_still_creates_no_pr(self, ship_text: str) -> None:
         """Inverse guard: the deferral must not leak PR creation into contributor mode."""
         process = section(ship_text, "Process")
@@ -233,6 +327,14 @@ class TestPrDetectionDistinguishesErrors:
         assert "no PR exists" in detection.lower() or "no pull requests" in detection.lower()
         # Must require stopping on non-no-PR failures
         assert "stop" in detection.lower() or "error" in detection.lower()
+
+    def test_ado_detection_distinguishes_no_pr_from_query_failure(self, ship_text: str) -> None:
+        """Issue #6576: a failed `az repos pr list` must not set `pr=none`."""
+        detection = section(ship_text, "Mode Detection")
+        ado = [ln for ln in detection.splitlines() if ln.lstrip().startswith("- `host=ado`")]
+        assert len(ado) == 1
+        assert "non-zero exit" in ado[0]
+        assert "stop with an error" in ado[0]
 
 
 class TestShipReportStatesTheDeferral:
@@ -289,3 +391,32 @@ class TestPreFixControl:
 
     def test_pre_fix_report_omits_pr_presence(self) -> None:
         assert "PR-AT-PREFLIGHT" not in _PRE_FIX_SHIP_MD
+
+
+# The pre-#6576 ADO branch, reduced to the parts these helpers read. Reproduced from
+# `.claude/skills/ship/SKILL.md` blob 24d1711e14 (origin/main, 2026-10-14).
+_PRE_6576_PIPELINE_ITEM = """1. **Pipeline health**
+   - `host=github`, `pr=#<number>` (open PR exists): Invoke Skill(skill="pipeline-validator").
+   - `host=ado`: pipeline-validator does not apply. Evaluate ADO build policies:
+
+     ```bash
+     if [ -n "$pr_id" ]; then
+       az repos pr policy list --id "$pr_id" --output table
+     else
+       az pipelines build list --branch "$branch_ref" --status completed --top 1 --output table
+     fi
+     ```
+"""
+
+
+class TestPre6576Control:
+    """The pre-#6576 ADO branch must fail the ADO checks above, or they prove nothing."""
+
+    def test_pre_fix_ado_bullet_applies_to_every_run(self) -> None:
+        assert len(ado_bullets_without_pr_condition(_PRE_6576_PIPELINE_ITEM)) == 1
+
+    def test_pre_fix_ado_has_no_deferral_branch(self) -> None:
+        assert [b for b in ado_bullets(_PRE_6576_PIPELINE_ITEM) if "`pr=none`" in b] == []
+
+    def test_pre_fix_ado_uses_branch_build_fallback(self) -> None:
+        assert "az pipelines build list" in _PRE_6576_PIPELINE_ITEM
