@@ -19,7 +19,7 @@ Not in scope (issue #5400 rescope of 2026-09-24): duplicated-normative-byte
 metrics (blocked on #5397) and runtime performance correlation (#5422 to #5426).
 
 Exit codes follow ADR-035:
-    0 - Success (or a ceiling breach outside ``--ci``)
+    0 - Success (or a ceiling or floor breach outside ``--ci``)
     1 - Logic error (a fixture exceeds its ceiling, or a change grows a fixture
         into the headroom floor, ``--ci`` only)
     2 - Configuration error (unreadable tree, unknown fixture entrypoint)
@@ -153,7 +153,10 @@ def fixture_floor_breaches(
     Needs ``report["delta"]`` (``--base-ref``); without it growth is unknown and
     nothing is named. A fixture over its ceiling is left to ``fixture_breaches``.
     A fixture that did not grow is never named, so one already under the floor
-    does not fail unrelated changes. Headroom equal to the floor passes.
+    does not fail unrelated changes. Headroom equal to the floor passes. A
+    fixture whose ``fixtures.{id}.bytes`` metric is absent from ``delta["metrics"]``
+    (``compute_delta`` skips it and lists it under ``unmeasured_at_base``) counts
+    as unchanged, so it is never named.
     """
     delta = report.get("delta")
     if delta is None:

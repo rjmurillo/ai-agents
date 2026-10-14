@@ -77,9 +77,11 @@ FIXTURE_CEILINGS_BYTES: dict[str, int] = {
 # Each PR passes against its own base, so two green PRs can merge into a union
 # that breaches a ceiling and reddens main for every contributor. The floor keeps
 # a margin: `instruction_bytes --ci --base-ref REF` fails a PR that grows a
-# fixture and leaves less than this many bytes free. The author trims the added
+# fixture and leaves between 0 and this many bytes free (a fixture over its
+# ceiling is a ceiling failure, not a floor failure). The author trims the added
 # bytes, or raises the ceiling and records why in the same change. A fixture
 # already under the floor does not fail a PR that leaves it the same size or
 # smaller. Without `--base-ref` growth is unknown, so the floor is not enforced.
 # Override per run with `--reserve BYTES` or INSTRUCTION_BYTES_RESERVE; 0 disables.
+# Unrelated to DEFAULT_RESERVE_BYTES, which `instruction_budget` uses and this floor does not.
 FIXTURE_HEADROOM_FLOOR_BYTES = 100
