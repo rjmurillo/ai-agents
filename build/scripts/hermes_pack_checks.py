@@ -78,7 +78,7 @@ def skill_files(skill_dir: Path) -> list[Path]:
     for path in sorted(skill_dir.rglob("*")):
         if path.is_symlink():
             raise HermesPackError([f"{path}: symlink inside a skill folder refused"])
-        if path.is_dir() or is_bytecode_artifact(path):
+        if path.is_dir() or is_bytecode_artifact(path.relative_to(skill_dir)):
             continue
         found.append(path)
     return found

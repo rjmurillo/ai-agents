@@ -14,6 +14,19 @@ def _count_label(count: int, singular: str) -> str:
     return f"{count} {label}"
 
 
+def print_regeneration_hint(commands: list[str], issues: list[str]) -> None:
+    """Print how to repair drift: regenerate commands and stale file cleanup."""
+    if commands:
+        print("Regenerate, then stage the rewritten outputs:", file=sys.stderr)
+        for command in commands:
+            print(f"  {command}", file=sys.stderr)
+    if any("Extra " in issue for issue in issues):
+        print(
+            "Regeneration keeps extra files. Delete each 'Extra' path listed above.",
+            file=sys.stderr,
+        )
+
+
 def print_manifest_report(report: ManifestReport) -> None:
     """Print manifest counts and any detected drift."""
     print(
@@ -27,3 +40,4 @@ def print_manifest_report(report: ManifestReport) -> None:
         print("Context output drift detected:", file=sys.stderr)
         for issue in report.issues:
             print(f"- {issue}", file=sys.stderr)
+        print_regeneration_hint(report.regenerate, report.issues)
