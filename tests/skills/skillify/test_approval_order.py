@@ -64,12 +64,15 @@ def test_external_step_before_any_approval_step_fails(skills_root):
     steps = "1. Publish the note (external).\n2. Ask the user to approve (approval).\n"
     check = gate(skills_root, steps)
     assert not check["ok"]
-    assert check["detail"] == "step 1 is tagged (external) but no (approval) step comes before it"
+    assert check["detail"] == (
+        "step 1 ('Publish the note (external).') is tagged (external) "
+        "but no (approval) step comes before it"
+    )
 
 
 def test_approval_before_step_two_but_external_at_step_one_fails(skills_root):
     steps = "1. Prepare it (external).\n2. Ask the user (approval).\n3. Send it (external).\n"
-    assert "step 1 is tagged" in gate(skills_root, steps)["detail"]
+    assert "step 1 ('Prepare it (external).') is tagged" in gate(skills_root, steps)["detail"]
 
 
 def test_two_external_steps_share_one_earlier_approval(skills_root):
@@ -104,7 +107,10 @@ def test_both_tags_on_one_step_fails_even_after_a_real_approval(skills_root):
     steps = "1. Ask the user (approval).\n2. Publish it (external) (approval).\n"
     check = gate(skills_root, steps)
     assert not check["ok"]
-    assert check["detail"] == "step 2 is tagged both (external) and (approval); split it"
+    assert check["detail"] == (
+        "step 2 ('Publish it (external) (approval).') is tagged both (external) and (approval); "
+        "split it"
+    )
 
 
 def test_approval_words_without_the_tag_do_not_satisfy_the_gate(skills_root):
@@ -147,7 +153,7 @@ def test_untagged_matched_step_fails_loudly_with_step_number(skills_root):
 def test_untagged_check_lists_every_step(skills_root):
     steps = "1. Ask (approval).\n2. Deploy it.\n3. Publish it (external).\n4. Announce it.\n"
     detail = check_of(run_steps(skills_root, steps), "external_step_untagged")["detail"]
-    assert "step 2, 4" in detail
+    assert "step 2 ('Deploy it.'); step 4 ('Announce it.')" in detail
 
 
 def test_untagged_check_passes_when_every_matched_step_is_tagged(skills_root):
@@ -190,7 +196,9 @@ def test_fence_does_not_start_a_new_step(skills_root):
     steps = "1. Ask the user (approval).\n```text\n2. Publish it (external).\n```\n"
     assert external_failed(skills_root, steps) == {"approval_gate_present"}
     # The fenced "2." stays inside step 1, so step 1 carries both tags.
-    assert "step 1 is tagged both" in gate(skills_root, steps)["detail"]
+    assert (
+        "step 1 ('Ask the user (approval).') is tagged both" in gate(skills_root, steps)["detail"]
+    )
 
 
 def test_external_tag_inside_a_fence_makes_the_step_external(skills_root):
@@ -442,3 +450,21 @@ def test_create_mode_no_tag_message_names_procedure_only(skills_root):
         "detail"
     ]
     assert "Procedure step" in detail and "Process" not in detail
+
+
+def test_label_uses_displayed_numeral_after_a_restart():
+    restarted = skillify_verify.Step(number=1, group=1, text="1. Publish the note.", fenced="")
+    assert skillify_verify._label(restarted) == "step 1 ('Publish the note.')"
+
+
+def test_outside_message_names_process_in_patch_mode():
+    parsed = skillify_verify.ParsedSteps(steps=(), loose=("Push the branch.",))
+    patch = skillify_verify._outside_steps_check(parsed, [], patching=True)
+    create = skillify_verify._outside_steps_check(parsed, [], patching=False)
+    assert "numbered Procedure (or Process) step" in patch["detail"]
+    assert "numbered Procedure step" in create["detail"]
+
+
+def test_label_keeps_text_without_a_leading_numeral():
+    bare = skillify_verify.Step(number=3, group=0, text="Publish the note.", fenced="")
+    assert skillify_verify._label(bare) == "step 3 ('Publish the note.')"

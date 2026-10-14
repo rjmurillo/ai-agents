@@ -262,15 +262,24 @@ def _approval_problem(steps: tuple[Step, ...], where: str) -> str | None:
     ]
     both = [i for i in external if i in approval]
     if both:
-        return f"step {both[0] + 1} is tagged both (external) and (approval); split it"
+        return f"{_label(steps[both[0]])} is tagged both (external) and (approval); split it"
     if not external:
         return f"tag each external step with (external) in a numbered {where} step"
     if not approval:
         return "tag the step that asks the user with (approval)"
     late = next((i for i in external if not any(j < i for j in approval)), None)
     if late is not None:
-        return f"step {late + 1} is tagged (external) but no (approval) step comes before it"
+        return f"{_label(steps[late])} is tagged (external) but no (approval) step comes before it"
     return None
+
+
+def _label(step: Step) -> str:
+    """Name a step by its displayed numeral and opening words, not its list index."""
+    words = step.text.split()
+    if words and words[0].rstrip(".)").isdigit():
+        words = words[1:]
+    lead = " ".join(words[:6])
+    return f"step {step.number} ({lead!r})"
 
 
 def _approval_check(steps: tuple[Step, ...], patching: bool = False) -> dict[str, Any]:
@@ -285,14 +294,14 @@ def _approval_check(steps: tuple[Step, ...], patching: bool = False) -> dict[str
 
 def _untagged_check(steps: tuple[Step, ...]) -> dict[str, Any]:
     untagged = [
-        str(i + 1)
-        for i, step in enumerate(steps)
+        _label(step)
+        for step in steps
         if EXTERNAL_RE.search(step.full) and not TAG_RE.search(step.full)
     ]
     return _check(
         "external_step_untagged",
         not untagged,
-        f"step {', '.join(untagged)} looks external: add (external) or reword the step"
+        f"{'; '.join(untagged)} looks external: add (external) or reword the step"
         if untagged
         else "no untagged step looks external",
     )
@@ -308,7 +317,7 @@ def _outside_steps_check(
         "external_outside_steps",
         not stray,
         f"external action outside a numbered step ({stray[0][:60]!r}): "
-        "move the action into a numbered Procedure step and tag it"
+        f"move the action into a numbered {_where(patching)} step and tag it"
         if stray
         else "no external action outside numbered steps",
     )
