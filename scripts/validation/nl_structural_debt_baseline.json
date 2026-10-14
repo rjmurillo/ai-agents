@@ -388,7 +388,7 @@
     "templates/agents/orchestrator.claude.md.tmpl|templates/agents/orchestrator.copilot.md.tmpl": 5,
     "templates/agents/orchestrator.shared.md|templates/agents/partials/orchestrator-core-behavior.mustache": 50,
     "templates/agents/orchestrator.shared.md|templates/agents/partials/orchestrator-intro.mustache": 3,
-    "templates/agents/orchestrator.shared.md|templates/agents/partials/orchestrator-pre-close-sequence.mustache": 63,
+    "templates/agents/orchestrator.shared.md|templates/agents/partials/orchestrator-pre-close-sequence.mustache": 61,
     "templates/agents/orchestrator.shared.md|templates/agents/partials/orchestrator-reasoning-protocol.mustache": 3,
     "templates/agents/orchestrator.shared.md|templates/agents/partials/orchestrator-routing-algorithm.mustache": 48,
     "templates/agents/orchestrator.shared.md|templates/agents/partials/orchestrator-target-recon-before-triage.mustache": 2,

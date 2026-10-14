@@ -93,6 +93,31 @@ class TestMain:
                 main(["--pull-request", "999"])
             assert exc.value.code == 2
 
+    @pytest.mark.parametrize(
+        ("stderr", "expected"),
+        [
+            ("GraphQL: Could not resolve to a PullRequest with the number of 999.", 2),
+            ("gh: Not Found (HTTP 404)", 2),
+            ("Could not resolve host: api.github.com", 3),
+            ("internal server error", 3),
+        ],
+    )
+    def test_lookup_failure_exit_codes(self, stderr, expected):
+        with (
+            patch("close_pr.assert_gh_authenticated"),
+            patch(
+                "close_pr.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(rc=1, stderr=stderr),
+            ),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "999"])
+            assert exc.value.code == expected
+
     def test_already_closed_returns_0(self, capsys):
         state_json = json.dumps({"state": "CLOSED"})
         with (
