@@ -355,6 +355,8 @@ def test_cli_exit_code_through_a_subprocess(repo: Path) -> None:
         [sys.executable, str(SCRIPT), "--repo-root", str(repo), "--base-ref", "HEAD"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     assert result.returncode == gate.EXIT_UNCOVERED

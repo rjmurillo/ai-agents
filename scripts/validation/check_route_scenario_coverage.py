@@ -244,7 +244,7 @@ def read_head(repo_root: Path, path: str) -> str:
     """Return a working-tree file's text."""
     try:
         return (repo_root / path).read_text(encoding="utf-8")
-    except OSError as exc:
+    except (OSError, UnicodeDecodeError) as exc:
         raise CoverageConfigError(f"cannot read {path}: {exc}") from exc
 
 
