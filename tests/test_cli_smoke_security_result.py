@@ -60,6 +60,7 @@ def test_every_job_has_a_timeout(workflow_doc: dict[Any, Any]) -> None:
         "authorize": 5,
         "smoke": 20,
         "smoke-codex": 20,
+        "smoke-pi": 20,
         "smoke-result": 5,
     }
     assert {name: job.get("timeout-minutes") for name, job in workflow_doc["jobs"].items()} == (

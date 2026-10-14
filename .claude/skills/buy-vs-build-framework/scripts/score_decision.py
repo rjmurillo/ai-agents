@@ -4,13 +4,15 @@ Calculate weighted decision scores with sensitivity analysis.
 
 Exit codes:
   0: Clear winner (>20% score gap)
-  1: Tie requires human judgment (scores within 10%)
+  1: Tie requires human judgment (scores within 10%), or path traversal rejected
+  2: Criteria file not found, not valid JSON, or failed validation (ADR-035 config error)
 """
 
 import argparse
 import json
 import sys
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass
@@ -23,7 +25,7 @@ class DecisionScore:
     sensitivity: dict[str, float]
 
 
-def validate_criteria(criteria: dict) -> list[str]:
+def validate_criteria(criteria: dict[str, Any]) -> list[str]:
     """Validate criteria structure and weights."""
     errors = []
 
@@ -47,7 +49,7 @@ def validate_criteria(criteria: dict) -> list[str]:
     return errors
 
 
-def calculate_scores(criteria: dict) -> dict[str, float]:
+def calculate_scores(criteria: dict[str, Any]) -> dict[str, float]:
     """Calculate weighted scores for each option."""
     scores = {}
 
@@ -77,7 +79,9 @@ def determine_confidence(scores: dict[str, float]) -> str:
         return "low"
 
 
-def sensitivity_analysis(criteria: dict, base_scores: dict[str, float]) -> dict[str, float]:
+def sensitivity_analysis(
+    criteria: dict[str, Any], base_scores: dict[str, float]
+) -> dict[str, float]:
     """Analyze how weight changes affect ranking."""
     sensitivity = {}
 
@@ -157,10 +161,10 @@ Example criteria file format (JSON):
             criteria = json.load(f)
     except FileNotFoundError:
         print(f"ERROR: Criteria file not found: {args.criteria_file}", file=sys.stderr)
-        sys.exit(11)
+        sys.exit(2)
     except json.JSONDecodeError as e:
         print(f"ERROR: Invalid JSON in criteria file: {e}", file=sys.stderr)
-        sys.exit(11)
+        sys.exit(2)
 
     # Validate criteria
     errors = validate_criteria(criteria)
@@ -168,7 +172,7 @@ Example criteria file format (JSON):
         print("ERROR: Validation failed", file=sys.stderr)
         for error in errors:
             print(f"  - {error}", file=sys.stderr)
-        sys.exit(11)
+        sys.exit(2)
 
     # Calculate scores
     scores = calculate_scores(criteria)

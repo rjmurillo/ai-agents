@@ -97,7 +97,7 @@ FM-11 (`2026-06-02-issue-2290-copilot-hook-payload-format.md:311-321`).
 | FM-8 | Security drift | `2026-01-04-pr760-security-suppression-failure.md` |
 | FM-9 | Confident-incorrectness recurrence (claims of "matches/mirrors" without quoting the canonical source) | `2026-05-05-pr-1887-iteration-paradox.md`, `2026-05-08-pr-1897-confident-incorrectness-recurrence.md` |
 | FM-10 | Silent defaults and guard-clause suppression | PR #1965 rounds 9-11; FM-10 section of `FAILURE-MODES.md` |
-| FM-11 | Customer-facing generated artifact shipped without runtime verification | #2205 (first), #2290 (second) |
+| FM-11 | Customer-facing artifact shipped without runtime verification | #2205 (first), #2290 (second), #4780 (third, hand-authored) |
 
 FM-10 is a mechanism that produces FM-4 symptoms; fix at the FM-10 layer
 (harden the parser), not by lecturing the agent about honesty

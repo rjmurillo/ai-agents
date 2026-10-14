@@ -39,9 +39,23 @@ best-effort reading of an ambiguous file: where the author meant a wider
 container fence, the inserted closing fence is not the fix they want. The
 agent reads the report, decides, and only then writes.
 
+``--write`` carries two guards, both in ``fence_write_guard.py``, and a file
+either one refuses is not written, is listed under ``refused`` with its reason
+under ``refusal_reasons``, and makes the run exit 1:
+
+- A raw HTML block hides a fence from CommonMark but not from this scanner, so
+  the scanner would edit a document CommonMark reads as complete. A file with a
+  fence-looking line inside an HTML block is refused. No extra package needed.
+- A repair must never turn a balanced file into an unclosed one. When
+  ``markdown-it-py`` is importable the repaired text is checked against it.
+  Without it the check is skipped with a note on stderr.
+
 EXIT CODES (ADR-035):
   0 - No defects found, or `--write` repaired every defect it found.
   1 - Report mode (the default): at least one defect found. Nothing written.
+      With `--write`: at least one file was refused because a fence sits inside
+      a raw HTML block, or because its repair would have left a balanced file
+      unclosed. Nothing was written for it.
   2 - Configuration error: a requested path does not exist, or a file could
       not be read or written.
 """
@@ -70,7 +84,16 @@ if not os.path.isdir(_lib_dir):
     sys.exit(2)  # Config error per ADR-035
 if _lib_dir not in sys.path:
     sys.path.insert(0, _lib_dir)
+# The write guard ships beside this script. Imported by path (tests, hooks) the
+# script directory is not on sys.path, so add it.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+from fence_write_guard import (  # noqa: E402,F401 (re-exported for callers and tests)
+    _load_reference,
+    leaves_fence_open,
+    refusal_reason,
+    repair_is_safe,
+)
 from hook_utilities.commonmark_containers import (  # noqa: E402
     FENCE_RE,
     ListContainers,
@@ -128,7 +151,7 @@ def _closes(line: str, open_fence: _OpenFence, containers: ListContainers) -> re
     opener. It is a VALID close when its info string is blank and a
     MALFORMED close when it is not; the caller distinguishes them.
     """
-    match = FENCE_RE.match(line)
+    match: re.Match[str] | None = FENCE_RE.match(line)
     if match is None or containers.over_indented(match.group("indent")):
         return None
     fence = match.group("fence")
@@ -327,12 +350,20 @@ def iter_markdown_files(paths: list[Path], pattern: str) -> list[Path]:
     return found
 
 
-def _report(results: dict[str, list[Defect]], *, as_json: bool, wrote: list[str]) -> None:
+def _report(
+    results: dict[str, list[Defect]],
+    *,
+    as_json: bool,
+    wrote: list[str],
+    refused: dict[str, str],
+) -> None:
     if as_json:
         payload = {
             "files": {name: [asdict(d) for d in defects] for name, defects in results.items()},
             "defect_count": sum(len(d) for d in results.values()),
             "repaired": wrote,
+            "refused": list(refused),
+            "refusal_reasons": refused,
         }
         print(json.dumps(payload, indent=2, sort_keys=True))
         return
@@ -347,6 +378,8 @@ def _report(results: dict[str, list[Defect]], *, as_json: bool, wrote: list[str]
     print(f"\n{total} defect(s) in {len(results)} file(s)")
     if wrote:
         print(f"Repaired {len(wrote)} file(s)")
+    for name, reason in refused.items():
+        print(f"Refused {name}: {reason}")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -375,8 +408,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Error: path does not exist: {', '.join(missing)}", file=sys.stderr)
         return 2
 
+    reference = _load_reference()
     results: dict[str, list[Defect]] = {}
     wrote: list[str] = []
+    refused: dict[str, str] = {}
+    skipped_check = False
     for file_path in iter_markdown_files(paths, args.pattern):
         try:
             raw = file_path.read_bytes()
@@ -389,7 +425,7 @@ def main(argv: list[str] | None = None) -> int:
             # files had changed. In `--json` mode that meant empty stdout, so
             # a programmatic caller could not reconcile its own state either.
             # The writes that happened were correct; only the record was lost.
-            _report(results, as_json=args.json, wrote=wrote)
+            _report(results, as_json=args.json, wrote=wrote, refused=refused)
             return 2
 
         defects = find_fence_defects(content)
@@ -399,17 +435,28 @@ def main(argv: list[str] | None = None) -> int:
 
         if not args.write:
             continue
+        repaired = repair_markdown_fences(content)
+        skipped_check = skipped_check or reference is None
+        reason = refusal_reason(reference, content, repaired, fence_match)
+        if reason is not None:
+            refused[str(file_path)] = reason
+            continue
         bom = codecs.BOM_UTF8 if raw.startswith(codecs.BOM_UTF8) else b""
         try:
-            file_path.write_bytes(bom + repair_markdown_fences(content).encode("utf-8"))
+            file_path.write_bytes(bom + repaired.encode("utf-8"))
         except OSError as exc:
             print(f"Error: cannot write {file_path}: {exc}", file=sys.stderr)
-            _report(results, as_json=args.json, wrote=wrote)  # same reason as above
+            _report(results, as_json=args.json, wrote=wrote, refused=refused)  # same reason
             return 2
         wrote.append(str(file_path))
 
-    _report(results, as_json=args.json, wrote=wrote)
-    return 1 if (results and not args.write) else 0
+    if skipped_check:
+        print(
+            "Note: markdown-it-py is not installed; the balanced-file check was skipped.",
+            file=sys.stderr,
+        )
+    _report(results, as_json=args.json, wrote=wrote, refused=refused)
+    return 1 if (refused or (results and not args.write)) else 0
 
 
 if __name__ == "__main__":

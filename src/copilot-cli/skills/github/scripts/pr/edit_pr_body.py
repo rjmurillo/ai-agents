@@ -16,8 +16,8 @@ Safety behavior:
     refuses a matching path whose placeholder is untouched, whose mode has
     group or other bits, that is a symlink or hard link, or that another
     owner holds.
-  - Rejects a body whose hash no longer matches the caller's expected hash.
-  - No-ops when the new body is identical to the current body.
+  - Rejects a body whose hash differs from the caller's expected hash.
+  - No-ops when the new body equals the current body.
   - Warns when the resulting body contains em/en dashes, including retained
     bytes that were already present in the current body.
   - Warns when one closing keyword has multiple bare issue references. GitHub
@@ -109,6 +109,23 @@ def body_hash(body: str) -> str:
     """Return SHA-256 hex of the body text (LF-normalised)."""
     normalised = body.replace("\r\n", "\n").replace("\r", "\n")
     return hashlib.sha256(normalised.encode("utf-8")).hexdigest()
+
+
+def hash_matches(expected: str, current_body: str) -> bool:
+    """Return True when ``expected`` hashes the current body, ignoring one extra newline.
+
+    A caller that captures the body with
+    ``gh pr view <n> --json body --jq .body > f`` gets a
+    file with one extra trailing newline, so its hash never equals the hash of
+    the API body. Accept the exact body, the body plus one newline (the
+    redirection case), and the body with trailing newlines removed.
+    """
+    accepted = {
+        body_hash(current_body),
+        body_hash(current_body + "\n"),
+        body_hash(current_body.rstrip("\r\n")),
+    }
+    return expected in accepted
 
 
 def validate_body(new_body: str) -> list[str]:
@@ -249,7 +266,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--expected-hash",
         default="",
         help=(
-            "SHA-256 hex of the current body (LF-normalised). "
+            "SHA-256 hex of the current body (LF-normalised; one extra "
+            "trailing newline is ignored, so hashing a file saved with "
+            "`gh pr view <n> --json body --jq .body > f` works when the "
+            "body has LF line endings; convert CRLF to LF first). "
             "When provided and the current body does not match, the edit "
             "is aborted (exit 1) to prevent clobbering a concurrent edit."
         ),
@@ -308,7 +328,7 @@ def main(argv: list[str] | None = None) -> int:
     current_hash = body_hash(current_body)
 
     # Stale-write guard: abort if the current body has changed since capture.
-    if args.expected_hash and args.expected_hash != current_hash:
+    if args.expected_hash and not hash_matches(args.expected_hash, current_body):
         write_skill_error(
             f"PR #{pr} body hash mismatch: expected {args.expected_hash[:12]}... "
             f"but current is {current_hash[:12]}...; concurrent edit detected, aborting",

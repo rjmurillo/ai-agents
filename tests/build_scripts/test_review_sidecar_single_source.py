@@ -30,6 +30,7 @@ CANONICAL = lib_mirror.SKILLS_SIDECAR_SOURCE
 COPIES = (
     lib_mirror.SKILLS_SIDECAR_PLUGIN_TREE,
     lib_mirror.SKILLS_SIDECAR_COPILOT_TREE,
+    lib_mirror.SKILLS_SIDECAR_CODEX_TREE,
     lib_mirror.SKILLS_SIDECAR_INSTALL_TREE,
 )
 OLD = '"""Marker v1."""\n'
@@ -160,6 +161,7 @@ def test_owned_path_matches_the_install_tree_constant() -> None:
     assert f".claude/skills/{skill}/{rel}" == lib_mirror.SKILLS_SIDECAR_INSTALL_TREE
     assert f"src/claude/skills/{skill}/{rel}" == lib_mirror.SKILLS_SIDECAR_PLUGIN_TREE
     assert f"src/copilot-cli/skills/{skill}/{rel}" == lib_mirror.SKILLS_SIDECAR_COPILOT_TREE
+    assert f"src/codex/skills/{skill}/{rel}" == lib_mirror.SKILLS_SIDECAR_CODEX_TREE
 
 
 # --check ----------------------------------------------------------------
@@ -176,7 +178,11 @@ def test_lib_check_is_clean_after_a_build(repo: Path) -> None:
 
 @pytest.mark.parametrize(
     "drifted",
-    [lib_mirror.SKILLS_SIDECAR_PLUGIN_TREE, lib_mirror.SKILLS_SIDECAR_COPILOT_TREE],
+    [
+        lib_mirror.SKILLS_SIDECAR_PLUGIN_TREE,
+        lib_mirror.SKILLS_SIDECAR_COPILOT_TREE,
+        lib_mirror.SKILLS_SIDECAR_CODEX_TREE,
+    ],
 )
 def test_lib_check_reports_a_drifted_plugin_copy(repo: Path, drifted: str) -> None:
     _build(repo)

@@ -2,16 +2,25 @@
 """
 Score vendor stability, pricing, feature fit, and support quality.
 
-Exit codes:
+Exit codes (ADR-035; 5-99 are reserved, script-specific codes start at 100):
   0: Pass (score >70)
-  10: Yellow flag (score 50-70)
-  11: Red flag (score <50)
+  1: Path traversal rejected for --vendor-data
+  2: Vendor data file not found or not valid JSON
+  100: Yellow flag (score 50-70)
+  101: Red flag (score <50)
 """
 
 import argparse
 import json
 import sys
 from dataclasses import dataclass
+from typing import Any
+
+EXIT_PASS = 0
+EXIT_INVALID_ARGUMENT = 1
+EXIT_INPUT_ERROR = 2
+EXIT_YELLOW_FLAG = 100
+EXIT_RED_FLAG = 101
 
 
 @dataclass
@@ -23,7 +32,7 @@ class VendorScore:
     recommendation: str
 
 
-def score_financial_stability(data: dict) -> tuple[float, list[str]]:
+def score_financial_stability(data: dict[str, Any]) -> tuple[float, list[str]]:
     """Score financial stability (0-25 points)."""
     score = 0.0
     flags = []
@@ -65,7 +74,7 @@ def score_financial_stability(data: dict) -> tuple[float, list[str]]:
     return score, flags
 
 
-def score_product_maturity(data: dict) -> tuple[float, list[str]]:
+def score_product_maturity(data: dict[str, Any]) -> tuple[float, list[str]]:
     """Score product maturity (0-25 points)."""
     score = 0.0
     flags = []
@@ -105,7 +114,7 @@ def score_product_maturity(data: dict) -> tuple[float, list[str]]:
     return score, flags
 
 
-def score_pricing_model(data: dict) -> tuple[float, list[str]]:
+def score_pricing_model(data: dict[str, Any]) -> tuple[float, list[str]]:
     """Score pricing model (0-25 points)."""
     score = 0.0
     flags = []
@@ -143,7 +152,7 @@ def score_pricing_model(data: dict) -> tuple[float, list[str]]:
     return score, flags
 
 
-def score_feature_fit(data: dict) -> tuple[float, list[str]]:
+def score_feature_fit(data: dict[str, Any]) -> tuple[float, list[str]]:
     """Score feature fit (0-25 points)."""
     score = 0.0
     flags = []
@@ -173,7 +182,7 @@ def score_feature_fit(data: dict) -> tuple[float, list[str]]:
     return score, flags
 
 
-def calculate_vendor_score(data: dict) -> VendorScore:
+def calculate_vendor_score(data: dict[str, Any]) -> VendorScore:
     """Calculate overall vendor score."""
     total_score = 0.0
     all_flags = []
@@ -205,6 +214,15 @@ def calculate_vendor_score(data: dict) -> VendorScore:
     return VendorScore(
         vendor_score=total_score, risk_flags=all_flags, recommendation=recommendation
     )
+
+
+def exit_code_for_score(score: float) -> int:
+    """Map a vendor score to its exit code."""
+    if score > 70:
+        return EXIT_PASS
+    if score >= 50:
+        return EXIT_YELLOW_FLAG
+    return EXIT_RED_FLAG
 
 
 def main():
@@ -249,15 +267,16 @@ Example vendor data file format (JSON):
 
         with open(vendor_data_path) as f:
             data = json.load(f)
-    except ValueError as e:
-        print(f"ERROR: {e}", file=sys.stderr)
-        sys.exit(1)
     except FileNotFoundError:
         print(f"ERROR: Vendor data file not found: {args.vendor_data}", file=sys.stderr)
-        sys.exit(11)
+        sys.exit(EXIT_INPUT_ERROR)
     except json.JSONDecodeError as e:
+        # JSONDecodeError subclasses ValueError, so it must be caught first.
         print(f"ERROR: Invalid JSON in vendor data file: {e}", file=sys.stderr)
-        sys.exit(11)
+        sys.exit(EXIT_INPUT_ERROR)
+    except ValueError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        sys.exit(EXIT_INVALID_ARGUMENT)
 
     # Calculate score
     result = calculate_vendor_score(data)
@@ -276,13 +295,7 @@ Example vendor data file format (JSON):
     print("")
     print(f"Recommendation: {result.recommendation}")
 
-    # Determine exit code
-    if result.vendor_score > 70:
-        sys.exit(0)
-    elif result.vendor_score >= 50:
-        sys.exit(10)
-    else:
-        sys.exit(11)
+    sys.exit(exit_code_for_score(result.vendor_score))
 
 
 if __name__ == "__main__":

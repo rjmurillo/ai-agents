@@ -22,7 +22,8 @@ EXPECTED_ARGV = [
     "--guarded-check", "AUTHORIZE_RESULT", "success", "TRUSTED", "true", FORK_MESSAGE,
     "--skippable-check", "SMOKE_RESULT", "success", "Claude and Copilot smoke result: {value}",
     "--skippable-check", "CODEX_RESULT", "success", "Codex smoke result: {value}",
-    "--success-message", "CLI smoke passed for Claude, Copilot, and Codex on all platforms.",
+    "--skippable-check", "PI_RESULT", "success", "Pi smoke result: {value}",
+    "--success-message", "CLI smoke passed for Claude, Copilot, Codex, and Pi.",
     "--count-dir", "quota-skips",
     "--count-message", COUNT_MESSAGE,
 ]  # fmt: skip
@@ -33,7 +34,7 @@ def env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> pytest.MonkeyPatch:
     return apply_green(monkeypatch, tmp_path)
 
 
-def test_preset_holds_the_original_argv() -> None:
+def test_preset_argv_matches_the_expected_checks_and_messages() -> None:
     assert list(PRESETS["plugin-cli-smoke"]) == EXPECTED_ARGV
 
 

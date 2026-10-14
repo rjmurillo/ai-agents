@@ -9,6 +9,7 @@ tools:
   - cloudmcp-manager/*
   - serena/*
 role: strategic
+isolation_required: true
 ---
 # Architect Agent
 

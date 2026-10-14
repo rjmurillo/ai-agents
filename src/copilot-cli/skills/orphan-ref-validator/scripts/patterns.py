@@ -59,6 +59,28 @@ INSTRUCTION_REF_RE = re.compile(
     re.IGNORECASE,
 )
 MARKDOWN_LINK_TARGET_RE = re.compile(r"\[[^\]]+\]\(([^)\s]+)\)")
+# Citations of a surface ADR-064 retired (the slash-command directory). A
+# command file can no longer exist there, and ``check_commands_retired.py``
+# only checks the disk, so prose that still cites a path under it went
+# unseen (issue #5947). The prefix is assembled from two literals so this
+# module does not cite the retired surface in its own source. Matches the
+# directory itself and any path under it; the lookbehind skips longer paths
+# such as ``src/x/...``.
+RETIRED_SURFACE_RE = re.compile(
+    r"(?<![\w/])(\.claude" + r"/commands(?:/[A-Za-z0-9_.*<>{}/-]*)?)",
+    re.IGNORECASE,
+)
+# Repo-relative roots of live guidance, where a retired-surface citation is
+# stale: skills, rules, and instruction mirrors under any plugin or host tree.
+# Dated records (specs, ADRs, tests) are outside it by design.
+LIVE_GUIDANCE_RE = re.compile(
+    r"^(?:\.claude|\.github|src/claude|src/copilot-cli)/(?:skills|rules|instructions)/"
+)
+# A line that records the retirement is history, not a live citation: the
+# ``Migrated from <old path> under ADR-064`` note carried by the converted
+# lifecycle skills, and any prose that names ADR-064 as the reason the path is
+# gone. Such a line is the only place the old path may still appear.
+RETIREMENT_HISTORY_RE = re.compile(r"\bMigrated from\b|\bADR-064\b", re.IGNORECASE)
 
 IGNORE_DIRECTIVE_RE = re.compile(r"<!--\s*orphan-ref-ignore\s*-->")
 # Prose that explicitly types a token as a skill ("the `foo` skill", "skill
@@ -240,6 +262,43 @@ def extract_instruction_refs(text: str) -> Iterable[tuple[int, str]]:
             yield lineno, path
 
 
+def retired_surface_applies(rel: str) -> bool:
+    """True when ``rel`` is live guidance the retired-surface check covers.
+
+    Specs, ADRs, and tests are dated records: a spec written before ADR-064
+    rightly cites the old path, and rewriting it would falsify the record. The
+    check covers only documents an agent loads as current guidance. A code
+    comment that explains where a path moved from is history, not guidance, so
+    source files are outside it.
+    """
+    return LIVE_GUIDANCE_RE.match(rel) is not None and not rel.endswith(".py")
+
+
+def line_records_retirement(line: str) -> bool:
+    """True when a line is a retirement-history note (see RETIREMENT_HISTORY_RE)."""
+    return bool(RETIREMENT_HISTORY_RE.search(line))
+
+
+def extract_retired_surface_refs(text: str) -> Iterable[tuple[int, str]]:
+    """Yield ``(lineno, path)`` for citations of a retired surface.
+
+    Skips example placeholders, labeled citation blocks, line-scope ignore
+    directives, and retirement-history notes (``line_records_retirement``).
+    """
+    for lineno, line in _scannable_lines(text):
+        if line_has_ignore_directive(line) or line_has_example_placeholder(line):
+            continue
+        if line_records_retirement(line):
+            continue
+        seen: set[str] = set()
+        for match in RETIRED_SURFACE_RE.finditer(line):
+            path = match.group(1).rstrip(".")
+            if path in seen:
+                continue
+            seen.add(path)
+            yield lineno, path
+
+
 def extract_directive_suppressed_refs(text: str) -> Iterable[tuple[int, str]]:
     """Yield references hidden by a line-scope ignore directive."""
     for lineno, line in enumerate(text.splitlines(), start=1):
@@ -263,6 +322,7 @@ def extract_line_reference_candidates(lineno: int, line: str) -> Iterable[tuple[
         SKILL_SCRIPT_REF_RE,
         RULE_REF_RE,
         INSTRUCTION_REF_RE,
+        RETIRED_SURFACE_RE,
         SKILL_REF_RE,
         SINGLE_WORD_SKILL_REF_RE,
     ):

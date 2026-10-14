@@ -24,7 +24,13 @@ from scripts.validation.checks_coverage import (
     _print_output,
     validate_review_marker,
 )
-from scripts.validation.evidence import pre_pr_policy
+from scripts.validation.evidence import (
+    REASON_ADVISORY_FINDINGS,
+    REASON_POLICY_EXEMPT,
+    EvidenceState,
+    pre_pr_policy,
+)
+from tests.validation._review_artifact import commit_marker
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -67,12 +73,120 @@ def _repo(tmp_path: Path, *, with_script: bool) -> Path:
     return repo
 
 
+def _add_stale_marker(repo: Path) -> None:
+    """Append an empty marker commit that names an older SHA, not its parent.
+
+    HEAD then carries a ``Reviewed-By`` trailer that does not bind the tip it
+    sits on, so advisory mode still reports it as a licensed finding.
+    """
+    older = _git(repo, "rev-parse", "HEAD~1")
+    commit_marker(repo, "correctness", older)
+
+
+def test_advisory_without_a_marker_is_a_policy_exempt_skip(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: Any,
+) -> None:
+    """No marker on HEAD means none is required here, so nothing is reported."""
+    repo = _repo(tmp_path, with_script=True)
+    monkeypatch.delenv("REVIEW_MARKER_ENFORCED", raising=False)
+
+    outcome = validate_review_marker(repo)
+
+    captured = capsys.readouterr().out
+    assert outcome.state is EvidenceState.SKIP
+    assert outcome.reason == REASON_POLICY_EXEMPT
+    assert pre_pr_policy().accepts(outcome)
+    assert "[FAIL]" not in captured
+    assert "a review marker must be an empty commit" not in captured
+
+
+def test_advisory_skip_does_not_run_the_wrapped_script(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    repo = _repo(tmp_path, with_script=True)
+    monkeypatch.delenv("REVIEW_MARKER_ENFORCED", raising=False)
+    calls: list[Any] = []
+
+    def _record(*args: Any, **kwargs: Any) -> tuple[int, str, str]:
+        calls.append(args)
+        return 0, "", ""
+
+    monkeypatch.setattr("scripts.validation.checks_coverage._run_subprocess", _record)
+
+    validate_review_marker(repo)
+
+    assert calls == []
+
+
+def test_advisory_stale_marker_is_still_a_licensed_finding(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: Any,
+) -> None:
+    """A marker that is present but does not bind its parent still warns."""
+    repo = _repo(tmp_path, with_script=True)
+    _add_stale_marker(repo)
+    monkeypatch.delenv("REVIEW_MARKER_ENFORCED", raising=False)
+
+    outcome = validate_review_marker(repo)
+
+    captured = capsys.readouterr().out
+    assert outcome.state is EvidenceState.FAIL
+    assert outcome.reason == REASON_ADVISORY_FINDINGS
+    assert pre_pr_policy().accepts(outcome)
+    assert "[FAIL]" not in captured
+    assert "[WARN]" in captured
+
+
+def test_advisory_code_commit_on_top_of_a_marker_is_a_policy_exempt_skip(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    """A code commit after a valid marker leaves HEAD with no trailer, so it skips."""
+    repo = _repo(tmp_path, with_script=True)
+    commit_marker(repo, "correctness", _git(repo, "rev-parse", "HEAD"))
+    (repo / "c.txt").write_text("z\n", encoding="utf-8")
+    _git(repo, "add", "c.txt")
+    _git(repo, "commit", "-q", "-m", "feat: three")
+    monkeypatch.delenv("REVIEW_MARKER_ENFORCED", raising=False)
+
+    outcome = validate_review_marker(repo)
+
+    assert outcome.state is EvidenceState.SKIP
+    assert outcome.reason == REASON_POLICY_EXEMPT
+
+
+def test_advisory_unreadable_repo_falls_through_to_the_script(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    """When git cannot read HEAD the gate cannot prove no marker is needed."""
+    repo = tmp_path / "plain"
+    (repo / "scripts" / "validation").mkdir(parents=True)
+    script = repo / "scripts" / "validation" / "validate_review_marker.py"
+    script.write_text("", encoding="utf-8")
+    monkeypatch.delenv("REVIEW_MARKER_ENFORCED", raising=False)
+    monkeypatch.setattr(
+        "scripts.validation.checks_coverage._run_subprocess",
+        lambda *args, **kwargs: (2, "[FAIL] cannot read", ""),
+    )
+
+    outcome = validate_review_marker(repo)
+
+    assert outcome.state is EvidenceState.FAIL
+    assert outcome.reason == REASON_ADVISORY_FINDINGS
+
+
 def test_advisory_failure_prints_warn_and_never_fail(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: Any,
 ) -> None:
     repo = _repo(tmp_path, with_script=True)
+    _add_stale_marker(repo)
     monkeypatch.delenv("REVIEW_MARKER_ENFORCED", raising=False)
 
     outcome = validate_review_marker(repo)
@@ -81,7 +195,6 @@ def test_advisory_failure_prints_warn_and_never_fail(
     assert pre_pr_policy().accepts(outcome)
     assert "[FAIL]" not in captured
     assert "[WARN]" in captured
-    assert "a review marker must be an empty commit" in captured
 
 
 def test_enforced_failure_keeps_the_fail_token(
@@ -131,11 +244,11 @@ def test_as_advisory_leaves_unrelated_lines_alone() -> None:
     assert _as_advisory("") == ""
 
 
-def _marker_line_count(captured: str) -> int:
+def _marker_line_count(
+    captured: str, verdict: str = "a review marker must be an empty commit"
+) -> int:
     """Count how many times the wrapped script's verdict line was forwarded."""
-    return sum(
-        1 for line in captured.splitlines() if "a review marker must be an empty commit" in line
-    )
+    return sum(1 for line in captured.splitlines() if verdict in line)
 
 
 def _pass_line_count(captured: str) -> int:
@@ -151,14 +264,7 @@ def _add_valid_marker(repo: Path) -> str:
     on top of. Returns the reviewed SHA.
     """
     reviewed = _git(repo, "rev-parse", "HEAD")
-    _git(
-        repo,
-        "commit",
-        "-q",
-        "--allow-empty",
-        "-m",
-        f"chore: review marker\n\nReviewed-By: /review@correctness on {reviewed}",
-    )
+    commit_marker(repo, "correctness", reviewed)
     return reviewed
 
 
@@ -175,11 +281,13 @@ def test_advisory_failure_forwards_each_line_once(
     duplicate.
     """
     repo = _repo(tmp_path, with_script=True)
+    _add_stale_marker(repo)
     monkeypatch.delenv("REVIEW_MARKER_ENFORCED", raising=False)
 
     validate_review_marker(repo)
 
-    assert _marker_line_count(capsys.readouterr().out) == 1
+    captured = capsys.readouterr().out
+    assert _marker_line_count(captured, "does not bind the reviewed tip") == 1
 
 
 def test_enforced_failure_forwards_each_line_once(

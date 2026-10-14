@@ -4,6 +4,7 @@ description: Contrarian analyst who challenges assumptions with evidence, presen
 metadata:
   role: strategic
 argument-hint: State the decision or assumption to challenge
+disallowedTools: Agent
 ---
 # Independent Thinker Agent
 

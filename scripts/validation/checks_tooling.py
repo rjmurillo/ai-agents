@@ -977,6 +977,26 @@ def validate_capability_graph_declarations(repo_root: Path) -> bool:
     return bool(validate_capability_graph(repo_root))
 
 
+def validate_external_contract_records(repo_root: Path) -> bool:
+    """Gate external-contract provenance records (issue #5415).
+
+    Reads the `external-contract` blocks under the canonical author surfaces and
+    refuses an unknown field, a missing required field, an empirical record with
+    no re-check path, a re-check path that does not exist, a capability no
+    canonical artifact owns, and a value long enough to be a copied excerpt. A
+    file with no record is not a defect. SKIP when `templates/` is absent, which
+    is a downstream install rather than a violation.
+    """
+    if not (repo_root / "templates" / "skills").is_dir():
+        raise MissingScriptSkip(
+            "templates/skills not present (downstream install); no records to check"
+        )
+    from check_external_contracts import validate_external_contracts
+
+    # bool() for the same reason the wrappers above coerce the flat import.
+    return bool(validate_external_contracts(repo_root))
+
+
 def validate_nl_structural_debt_ratchet(repo_root: Path) -> bool:
     """Gate structural debt in natural-language artifacts (issue #5397).
 

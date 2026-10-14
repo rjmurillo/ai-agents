@@ -1,0 +1,76 @@
+{
+  "skill_path": ".claude/skills/domain-design/SKILL.md",
+  "skill_id": "domain-design",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Progress is reconstructed from fact rows instead of recorded",
+      "input": "We ingest vendor usage exports into a usage_facts table. The business now asks 'which sites have we finished fetching for March?'. My plan: SELECT DISTINCT site_id FROM usage_facts WHERE month = 'March' and treat any site with rows as done. Review this design. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "explicit",
+        "progress",
+        "reconstruct",
+        "partial"
+      ],
+      "expected_gate": "domain-design-explicit-state",
+      "rationale": "The prompt describes a business question answered by probing fact rows without naming the skill. A response that proposes explicit fetch-progress state and notes that row presence cannot distinguish partial from complete work is attributable to the skill rather than generic advice."
+    },
+    {
+      "id": "S2",
+      "desc": "Multi-step mutation exposed as generic CRUD",
+      "input": "To replace a site's reporting window I plan to expose DELETE /rows and POST /rows so clients delete the old rows then insert the new ones. Is this API shape right? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "domain operation",
+        "invariant",
+        "transaction",
+        "replace"
+      ],
+      "expected_gate": "domain-design-operation",
+      "rationale": "Delete-then-insert by the client leaks multi-step mechanics and a partial-failure window. A response that prefers one replace-window operation with transaction semantics is attributable to the skill."
+    },
+    {
+      "id": "S3",
+      "desc": "Plain entity keeps CRUD",
+      "input": "I need to store tags. A tag has a unique name and nothing else; users can create, list, rename, and delete them. Should I model RegisterTag and RetireTag domain commands? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "CRUD",
+        "no invariant",
+        "ceremony"
+      ],
+      "expected_gate": "domain-design-crud-adequate",
+      "rationale": "No rule or multi-step behavior exists. The skill must not manufacture domain commands, so a response that keeps CRUD and calls the commands ceremony is attributable to it."
+    },
+    {
+      "id": "S4",
+      "desc": "Question depends on what was true at a prior time",
+      "input": "Finance asks 'which plan was each customer on when we billed them in June?'. My customers table has a current_plan column that we overwrite on upgrade. Does the schema support this? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "history",
+        "effective",
+        "overwrit"
+      ],
+      "expected_gate": "domain-design-temporal",
+      "rationale": "Overwriting current_plan loses the June answer. A response that adds effective-dated history is attributable to the skill."
+    },
+    {
+      "id": "S5",
+      "desc": "Speculative mechanism with no behavioral need is rejected",
+      "input": "Our settings screen only shows and edits the latest value of each setting. I want to add event sourcing and a separate read model so we are future proof. Good idea? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "no current",
+        "reject",
+        "YAGNI"
+      ],
+      "expected_gate": "domain-design-speculation",
+      "rationale": "No current business question needs replay. A response that rejects the mechanism until a behavior requires it is attributable to the skill consuming the quality principles."
+    },
+    {
+      "id": "S6",
+      "desc": "Unchanged contract skips the design workflow",
+      "input": "Fix the typo 'recieve' in the docstring of the existing UserRepository.get method. Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "No API, schema, or boundary changes. The skill must not run."
+    }
+  ]
+}
