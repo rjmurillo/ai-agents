@@ -130,21 +130,94 @@ def procedure_section(sections: Mapping[str, Section], allow_process: bool) -> S
     )
 
 
-def numbered_steps(lines: Sequence[str]) -> list[str]:
-    """Group lines into numbered steps; continuation lines join the step above."""
-    steps: list[str] = []
-    fence = False
-    for line in lines:
+@dataclass(frozen=True)
+class Step:
+    """One numbered step: its prose, and the fenced text that sits under it."""
+
+    text: str
+    fenced: str
+
+    @property
+    def full(self) -> str:
+        return f"{self.text} {self.fenced}".strip()
+
+
+@dataclass(frozen=True)
+class ParsedSteps:
+    """Numbered steps plus lines in the section that belong to no step."""
+
+    steps: tuple[Step, ...]
+    loose: tuple[str, ...]
+
+
+class _StepParser:
+    """Single pass over a step section.
+
+    A fence never starts a step and stays with the step above it. A line after
+    a blank line that is neither numbered nor indented detaches from the step
+    and, with every line up to the next numbered step, is loose.
+    """
+
+    def __init__(self) -> None:
+        self.texts: list[str] = []
+        self.fences: list[list[str]] = []
+        self.loose: list[str] = []
+        self._in_fence = False
+        self._gap = False
+        self._detached = False
+
+    def feed(self, line: str) -> None:
+        stripped = line.strip()
         if line.lstrip().startswith(("```", "~~~")):
-            fence = not fence
-            continue
-        if fence:
-            continue
-        if NUMBERED_RE.match(line):
-            steps.append(line.strip())
-        elif steps:
-            steps[-1] = f"{steps[-1]} {line.strip()}"
-    return steps
+            self._in_fence = not self._in_fence
+        elif self._in_fence:
+            self._fenced_line(stripped)
+        elif not stripped:
+            self._gap = True
+        elif NUMBERED_RE.match(line):
+            self._new_step(stripped)
+        else:
+            self._prose_line(line, stripped)
+
+    def _owned(self) -> bool:
+        return bool(self.texts) and not self._detached
+
+    def _fenced_line(self, stripped: str) -> None:
+        if self._owned():
+            self.fences[-1].append(stripped)
+        else:
+            self.loose.append(stripped)
+
+    def _new_step(self, stripped: str) -> None:
+        self.texts.append(stripped)
+        self.fences.append([])
+        self._gap = False
+        self._detached = False
+
+    def _prose_line(self, line: str, stripped: str) -> None:
+        if self._owned() and not (self._gap and not line[:1].isspace()):
+            self.texts[-1] = f"{self.texts[-1]} {stripped}"
+            self._gap = False
+            return
+        self._detached = True
+        self.loose.append(stripped)
+
+
+def parse_steps(lines: Sequence[str]) -> ParsedSteps:
+    """Split a step section into numbered steps and loose lines."""
+    parser = _StepParser()
+    for line in lines:
+        parser.feed(line)
+    steps = tuple(Step(t, " ".join(f)) for t, f in zip(parser.texts, parser.fences, strict=True))
+    return ParsedSteps(steps, tuple(parser.loose))
+
+
+def step_section_count(sections: Sequence[Section], allow_process: bool) -> int:
+    """Count sections that could hold the steps: `procedure`, else the Process family."""
+    names = [section.name for section in sections]
+    if "procedure" in names or not allow_process:
+        return names.count("procedure")
+    return sum(1 for name in names if name == "process" or name.startswith("process-"))
 
 
 def normalize_heading(title: str) -> str:

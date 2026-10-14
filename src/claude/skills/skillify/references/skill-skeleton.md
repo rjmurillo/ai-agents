@@ -54,9 +54,11 @@ Draft, review, confirmation, and approval steps before an external or public
 action stay in the generated procedure, in the same order, with the same
 trigger. Say what is shown to the user and what the user must answer.
 
-Mark every numbered Procedure step that acts on an external or public system
-with the literal tag `(external)`, for example
-`4. Ask for approval, then post the summary to the channel (external).` The
-tag is case-insensitive and may sit anywhere in the step. `verify` requires an
-approval word in an earlier step, or earlier in the same step, for each tagged
-step, and fails an untagged step that looks external.
+Tag every numbered Procedure step that acts on an external or public system
+with the literal `(external)`, and the step that asks the user with
+`(approval)`, for example `3. Show the draft and ask the user (approval).`
+then `4. Post the summary to the channel (external).` Tags are
+case-insensitive. Each `(external)` step needs an `(approval)` step strictly
+before it, and no step carries both. Fenced commands belong to the step above
+them. `verify` fails an untagged step or a line outside the steps that looks
+external, so tag it or move it into a numbered step.
