@@ -18,9 +18,13 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
+_SCRIPTS_PATH = str(REPO_ROOT / "build" / "scripts")
 
-from copilot_body_translation import translate_reference_file
+sys.path.insert(0, _SCRIPTS_PATH)
+try:
+    from copilot_body_translation import translate_reference_file
+finally:
+    sys.path.remove(_SCRIPTS_PATH)
 
 SKILL_TEMPLATE = REPO_ROOT / "templates" / "skills" / "adr-review.SKILL.md.tmpl"
 SKILL_TREES = (

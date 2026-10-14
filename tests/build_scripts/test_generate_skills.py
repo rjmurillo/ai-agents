@@ -220,10 +220,10 @@ _REFERENCE_WITH_CLAUDE_SYNTAX = (
 def _copilot_skill_with_reference(tmp_path: Path, *, provider: str) -> Path:
     skill = _write_minimal_skill(tmp_path / "skills", "zeta")
     (skill / "references").mkdir()
-    (skill / "references" / "steps.md").write_text(_REFERENCE_WITH_CLAUDE_SYNTAX)
-    (skill / "references" / "data.txt").write_text("Run $ARGUMENTS.\n")
+    (skill / "references" / "steps.md").write_text(_REFERENCE_WITH_CLAUDE_SYNTAX, encoding="utf-8")
+    (skill / "references" / "data.txt").write_text("Run $ARGUMENTS.\n", encoding="utf-8")
     (skill / "scripts").mkdir()
-    (skill / "scripts" / "notes.md").write_text("Run $ARGUMENTS.\n")
+    (skill / "scripts" / "notes.md").write_text("Run $ARGUMENTS.\n", encoding="utf-8")
     cfg = _write_config(tmp_path, source_dir="skills", output_dir="out", provider=provider)
     assert generate_skills.generate_skills(cfg, tmp_path) == 0
     return tmp_path / "out" / "zeta"
@@ -231,7 +231,7 @@ def _copilot_skill_with_reference(tmp_path: Path, *, provider: str) -> Path:
 
 def test_copilot_translates_markdown_under_references(tmp_path: Path) -> None:
     out = _copilot_skill_with_reference(tmp_path, provider="copilot-cli")
-    translated = (out / "references" / "steps.md").read_text()
+    translated = (out / "references" / "steps.md").read_text(encoding="utf-8")
     assert "$ARGUMENTS" not in translated
     assert 'task(agent_type="project-toolkit:analyst", prompt="""' in translated
     assert 'Review the change (carefully).\n""")' in translated
@@ -239,13 +239,15 @@ def test_copilot_translates_markdown_under_references(tmp_path: Path) -> None:
 
 def test_copilot_copies_other_files_verbatim(tmp_path: Path) -> None:
     out = _copilot_skill_with_reference(tmp_path, provider="copilot-cli")
-    assert (out / "references" / "data.txt").read_text() == "Run $ARGUMENTS.\n"
-    assert (out / "scripts" / "notes.md").read_text() == "Run $ARGUMENTS.\n"
+    assert (out / "references" / "data.txt").read_text(encoding="utf-8") == "Run $ARGUMENTS.\n"
+    assert (out / "scripts" / "notes.md").read_text(encoding="utf-8") == "Run $ARGUMENTS.\n"
 
 
 def test_non_copilot_provider_copies_references_verbatim(tmp_path: Path) -> None:
     out = _copilot_skill_with_reference(tmp_path, provider="test")
-    assert (out / "references" / "steps.md").read_text() == _REFERENCE_WITH_CLAUDE_SYNTAX
+    assert (out / "references" / "steps.md").read_text(
+        encoding="utf-8"
+    ) == _REFERENCE_WITH_CLAUDE_SYNTAX
 
 
 def test_copilot_reference_check_mode_flags_untranslated_copy(tmp_path: Path) -> None:
@@ -253,7 +255,7 @@ def test_copilot_reference_check_mode_flags_untranslated_copy(tmp_path: Path) ->
     source = tmp_path / "skills" / "zeta"
     kwargs = {"what_if": False, "check": True, "skills_output_dir": tmp_path / "out"}
     assert skill_support_mirror._copy_skill_tree(source, out, **kwargs) == (0, 0)
-    (out / "references" / "steps.md").write_text(_REFERENCE_WITH_CLAUDE_SYNTAX)
+    (out / "references" / "steps.md").write_text(_REFERENCE_WITH_CLAUDE_SYNTAX, encoding="utf-8")
     assert skill_support_mirror._copy_skill_tree(source, out, **kwargs) == (1, 0)
 
 

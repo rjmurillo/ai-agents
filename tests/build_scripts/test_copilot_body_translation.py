@@ -8,18 +8,22 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(REPO_ROOT / "build" / "scripts"))
+_SCRIPTS_PATH = str(REPO_ROOT / "build" / "scripts")
 
-from copilot_body_translation import (  # noqa: E402
-    _find_matching_paren,
-    translate_body,
-    translate_reference_file,
-)
-from copilot_support_translation import (  # noqa: E402
-    SupportTranslationError,
-    is_reference_markdown,
-    translated_text,
-)
+sys.path.insert(0, _SCRIPTS_PATH)
+try:
+    from copilot_body_translation import (
+        _find_matching_paren,
+        translate_body,
+        translate_reference_file,
+    )
+    from copilot_support_translation import (
+        SupportTranslationError,
+        is_reference_markdown,
+        translated_text,
+    )
+finally:
+    sys.path.remove(_SCRIPTS_PATH)
 
 _OUT = Path("/nonexistent/skills")
 _PLUGIN = "project-toolkit"
@@ -189,13 +193,13 @@ def test_is_reference_markdown(rel: str, expected: bool) -> None:
 
 def test_translated_text_returns_none_for_plain_copy(tmp_path: Path) -> None:
     src = tmp_path / "run.py"
-    src.write_text("print('hi')\n")
+    src.write_text("print('hi')\n", encoding="utf-8")
     assert translated_text(Path("scripts/run.py"), src, None, _OUT, frozenset()) is None
 
 
 def test_translated_text_translates_reference_on_copilot_branch(tmp_path: Path) -> None:
     src = tmp_path / "steps.md"
-    src.write_text("Run $ARGUMENTS.\n")
+    src.write_text("Run $ARGUMENTS.\n", encoding="utf-8")
     result = translated_text(Path("references/steps.md"), src, None, _OUT, frozenset())
     assert result is not None
     assert "$ARGUMENTS" not in result
@@ -203,7 +207,7 @@ def test_translated_text_translates_reference_on_copilot_branch(tmp_path: Path) 
 
 def test_translated_text_keeps_reference_verbatim_off_copilot_branch(tmp_path: Path) -> None:
     src = tmp_path / "steps.md"
-    src.write_text("Run $ARGUMENTS.\n")
+    src.write_text("Run $ARGUMENTS.\n", encoding="utf-8")
     assert translated_text(Path("references/steps.md"), src, None, None, frozenset({"x"})) is None
 
 
@@ -211,21 +215,21 @@ def test_translated_text_leaves_skill_md_alone_when_target_does_not_render(
     tmp_path: Path,
 ) -> None:
     src = tmp_path / "SKILL.md"
-    src.write_text("source $ARGUMENTS\n")
+    src.write_text("source $ARGUMENTS\n", encoding="utf-8")
     assert translated_text(Path("SKILL.md"), src, None, None, frozenset()) is None
 
 
 def test_translated_text_prefers_plugin_skill_md(tmp_path: Path) -> None:
     src = tmp_path / "SKILL.md"
-    src.write_text("source $ARGUMENTS\n")
+    src.write_text("source $ARGUMENTS\n", encoding="utf-8")
     rendered = tmp_path / "rendered.md"
-    rendered.write_text("rendered body\n")
+    rendered.write_text("rendered body\n", encoding="utf-8")
     result = translated_text(Path("SKILL.md"), src, rendered, _OUT, frozenset())
     assert result == "rendered body\n"
 
 
 def test_translated_text_wraps_frontmatter_errors(tmp_path: Path) -> None:
     src = tmp_path / "SKILL.md"
-    src.write_text("---\nmodel: {a: 1,\nb: 2}\nname: x\n---\nbody\n")
+    src.write_text("---\nmodel: {a: 1,\nb: 2}\nname: x\n---\nbody\n", encoding="utf-8")
     with pytest.raises(SupportTranslationError, match="SKILL.md"):
         translated_text(Path("SKILL.md"), src, None, _OUT, frozenset({"model"}))

@@ -24,10 +24,15 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 if TESTS_SKILLS_DIR not in sys.path:
     sys.path.insert(0, TESTS_SKILLS_DIR)
 
-sys.path.insert(0, str(PROJECT_ROOT / "build" / "scripts"))
+_SCRIPTS_PATH = str(PROJECT_ROOT / "build" / "scripts")
 
 from claude_skills_import import import_skill_script
-from copilot_body_translation import translate_reference_file
+
+sys.path.insert(0, _SCRIPTS_PATH)
+try:
+    from copilot_body_translation import translate_reference_file
+finally:
+    sys.path.remove(_SCRIPTS_PATH)
 
 from tests.lib.vendored_copy import copy_vendored_entry
 
