@@ -5,7 +5,7 @@
     {"agent": "analyst", "pair": "claude-shared", "unit": "capability:mcp:context7", "digest": "faf5f183e139c5cdfcbc95ba9dc5906abb673d58f76793b78db5b2b8b8566678"},
     {"agent": "analyst", "pair": "claude-shared", "unit": "capability:mcp:deepwiki", "digest": "e134e6f0dde032a2cfe4e4f54cffb8090491dd23f8de37ac9233f6563552e6ac"},
     {"agent": "analyst", "pair": "claude-shared", "unit": "section:Analysis Reasoning Protocol", "digest": "52a3538e1961a4bb78e674b3251fd0a4f09f3b5e10e70dbc05c8c485f2100a23"},
-    {"agent": "analyst", "pair": "claude-shared", "unit": "section:Tools", "digest": "7da61f4a785e7d9a281fbde68178a18cbf3a5c9cb3a2cd0030edf53dda09e007"},
+    {"agent": "analyst", "pair": "claude-shared", "unit": "section:Tools", "digest": "6cfefe46df333bcb3a7483e55872d3cac4ad12ae80f565e2492d7818981467b7"},
     {"agent": "architect", "pair": "claude-shared", "unit": "capability:declaration", "digest": "802038c1543a7b0c0eb57a652ed3d7d405eabc35226a67d2c1dd1a66562d9cf2"},
     {"agent": "architect", "pair": "claude-shared", "unit": "order", "digest": "87313f79a1b1e24d4f592ba82d13603e924f57c164dcfe51a2e9734ac7316fc3"},
     {"agent": "architect", "pair": "claude-shared", "unit": "section:Architectural Decision Records (ADRs)", "digest": "23d91e960a646a969c65fa818fcf1bf38245e136fe070217e5d041692497b10e"},
