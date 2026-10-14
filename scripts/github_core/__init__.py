@@ -48,6 +48,7 @@ from scripts.github_core.formatting import (
     get_reaction_emoji,
 )
 from scripts.github_core.gh_client import GhCliClient
+from scripts.github_core.not_found import is_pr_not_found
 from scripts.github_core.output import (
     get_output_format,
     write_skill_error,
@@ -112,6 +113,7 @@ __all__ = [
     "is_bot",
     "is_gh_authenticated",
     "is_github_name_valid",
+    "is_pr_not_found",
     "is_safe_file_path",
     "resolve_repo_params",
     "safe_log_str",

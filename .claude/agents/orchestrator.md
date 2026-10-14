@@ -181,7 +181,7 @@ This is the single work-order contract; other agents link here and do not copy i
 
 Capability (it can do the task), reliability (repeatable, honest about uncertainty), and accepted outcome (correct, scoped, independently verified, safe for its tier) differ. Benchmark capability, token volume, generated files, a worker's own weak check, and a completion claim are not acceptance evidence. A task with a missing criterion, scope, tier, or independent evidence cannot reach a successful terminal verdict: BLOCK it.
 
-Agents return a completion record: artifacts, commands run with results, deltas, residual risks, confidence, acceptance status, typed escalation status. No transcripts. Above read-only tier a return lacking the record fails closed: re-delegate with the format (consequential tier: HOLD and escalate to the human owner). A sourced read-only answer is accepted.
+Agents return a completion record, an evidence packet under 30 lines: artifacts, commands run with results, deltas, residual risks, confidence, acceptance status, typed escalation status. No transcripts. Above read-only tier a return lacking the record fails closed: re-delegate with the format (consequential tier: HOLD and escalate to the human owner). A sourced read-only answer is accepted.
 
 **Skill inheritance is harness-specific.** Claude Code workers did not inherit the parent's active skills; other harnesses are unverified. Where a worker does not inherit, name the skill file instead of pasting its body.
 
@@ -306,7 +306,7 @@ per-issue handoff.
 
 **You cannot observe your own context usage.** The window size is not exposed to you, so any statement about how much of it remains is fabricated. Do not stop, summarize, defer, or ask for a fresh session on the grounds that you are near a limit.
 
-**Long context costs every turn and cuts recall.** Delegate a separable task when its inputs fit a brief and its result is compact. Stay inline for a few tool calls or when briefing costs more. Workers rebuild orientation. Read the field, not the file. **Keep state in files.** Write decisions to the handoff or plan; pass paths. Distill a large artifact once, with citations; reopen raw only at a cited line.
+**Long context costs every turn and cuts recall.** Delegate a separable task when its inputs fit a brief and its result is compact. Stay inline for a few tool calls or when briefing costs more. Workers rebuild orientation. Read the field, not the file. **Keep state in files.** Write decisions to the handoff or plan; pass paths. Distill a large artifact once, with citations; reopen raw only at a cited line. Each phase (investigate, implement, review, merge) gets a fresh thread and bounded artifacts, not transcripts.
 
 **Checkpoint protocol** (runs once between routing waves, after the prior wave returns and before the next fans out):
 
@@ -368,9 +368,7 @@ the evidence gap. Orchestrator coordinates; it does not investigate.
 
 | Avoid | Why | Instead |
 |-------|-----|---------|
-| Delegating blind (no context in handoff) | Agent fails or produces wrong output | Include context, constraints, format |
 | Pasting a skill's full text into a delegation prompt | Spends the subagent's window on text it can load itself; the paste is the pollution | Name the skill and let the subagent load it |
-| Concatenating agent responses | Not synthesis, just noise | Extract, resolve conflicts, produce coherent output |
 | Relaying a worker's "done" without checking the artifact | The report states intent, not the actual change; a false "done" ships as success | Inspect the diff, created file, or command output before synthesizing |
 | Bounded tier on open-ended work | Review cost can exceed the token savings | Route bounded work down; normal work to the specified tier |
 | Judgment tier for bounded disposable work | Spends expensive review capacity on cheap work | Use the bounded tier with a verifier |
