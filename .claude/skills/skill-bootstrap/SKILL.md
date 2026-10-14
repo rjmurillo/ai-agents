@@ -50,7 +50,8 @@ only an explicit request starts a run.
 
 | Request | Route |
 |---|---|
-| Create, improve, or extract one skill | `skillforge` |
+| Create or improve one skill | `skillforge` |
+| Save a workflow you just finished as a skill | `skillify` |
 | Improve a skill against a scored eval set | `skillopt` |
 | Decide placement or compress a skill without an eval | `context-optimizer` |
 | Scaffold README or architecture templates | `codebase-documenter` |
