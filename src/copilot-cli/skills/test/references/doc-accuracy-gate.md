@@ -13,6 +13,13 @@ body. Never shell-expand the paths.
 
 `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/test/scripts/doc_accuracy_trigger.py" --diff-base "origin/<base-branch>" --changed-path <path> --effect <name>`
 
+If `/build` handed over a doc-impact record (see "Build handoff"), add
+`--build-record <doc-impact-path>`. The record's `effects` join yours, and a
+record whose `decision` was `activate` keeps this decision at `activate`, so a
+signal raised at build time is never skipped here. The output echoes both in
+`effects` and `build_record`. Exit `2` also covers an unreadable or malformed
+record: report `VERDICT: ERROR`. No record handed over: omit the option.
+
 Effects: `public-api`, `cli-surface`, `config-or-defaults`,
 `quantitative-claim`, `behavioral-claim`, `support-or-limit`, `example-change`,
 `generated-input`, `agent-behavior`. A code, build, or CI path activates the
@@ -61,6 +68,19 @@ unverified, because `doc-accuracy` cannot read it. Classify each finding's
 remediation by the artifact-neutral rules in the `code-qualities-assessment`
 skill's `references/executable-nl-artifacts.md`; a generated copy is corrected
 at its canonical source.
+
+## Build handoff
+
+`/build` runs the same trigger once, without `--build-record`, so it does not
+audit after every edit. It passes the changed paths planned or verified so far
+and each effect it verified in the diff body, then saves the JSON output as the
+doc-impact record in the plan or issue handoff, at `<doc-impact-path>`. Re-run
+and overwrite the record when later slices change the paths or effects. On
+`"decision": "skip"` the handoff quotes the `reason` field as
+`DOC ACCURACY: SKIPPED`. On `"decision": "activate"` `/build` runs the
+incremental scan from step 3 on the changed documents and stops there; the
+behavioral phases in step 4 stay with this gate. A missing record is not a
+skip: `/build` runs the trigger first.
 
 ## Report
 
