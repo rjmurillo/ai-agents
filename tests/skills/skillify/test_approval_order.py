@@ -85,13 +85,27 @@ def test_no_external_step_fails_with_naming_message(skills_root):
         "email the owner",
         "Open a PR",
         "open the pull request",
+        "Open an issue",
+        "Create a PR",
+        "File a ticket",
+        "Sent the report",
+        "Share it with the team",
     ],
 )
 def test_external_verbs_are_recognized(skills_root, step):
     assert external_failed(skills_root, f"1. {step}.\n") == {"approval_gate_present"}
 
 
-@pytest.mark.parametrize("step", ["Postgres is read", "Prepare the release notes"])
+@pytest.mark.parametrize(
+    "step",
+    [
+        "Postgres is read",
+        "Prepare the release notes",
+        "Use the shared cache",
+        "Write the post-merge note",
+        "Resolve merge conflicts",
+    ],
+)
 def test_non_verbs_are_not_external(skills_root, step):
     steps = f"1. {step}.\n2. Get approval.\n"
     check = next(
@@ -101,7 +115,7 @@ def test_non_verbs_are_not_external(skills_root, step):
         ]
         if c["id"] == "approval_gate_present"
     )
-    assert "name the external" in check["detail"] or step.startswith("Prepare")
+    assert "name the external" in check["detail"]
 
 
 def test_messages_mention_process_only_in_patch_mode(skills_root):

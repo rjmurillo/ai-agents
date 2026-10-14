@@ -40,12 +40,17 @@ SOURCE_ONLY_TOOLS: tuple[str, ...] = ("skills_list", "skill_view", "skill_manage
 APPROVAL_RE = re.compile(r"\b(approv\w*|confirm\w*|consent|authori[sz]\w*)\b", re.IGNORECASE)
 
 RECOVERY_RE = re.compile(r"\b(optional|recovery)\b", re.IGNORECASE)
-# Verbs that act on an external or public system. A release or merge noun in a
-# step is a false positive the author fixes by rewording the step.
+# Verbs that act on an external or public system. Lookarounds skip common noun
+# and adjective uses ("post-merge", "merge conflicts", "release notes",
+# "shared cache"); any other false positive is fixed by rewording the step.
 EXTERNAL_RE = re.compile(
-    r"\b(?:(?:publish|push|post|send|deploy|upload|comment|email)(?:s|es|ed|ing)?"
-    r"|(?:merg|releas|shar)(?:e|es|ed|ing)"
-    r"|open(?:s|ed|ing)? (?:a |the )?(?:pr|pull request)s?)\b",
+    r"\b(?:(?:publish|push|send|deploy|upload|comment|email)(?:s|es|ed|ing)?|sent"
+    r"|post(?:s|ed|ing)?(?!-)"
+    r"|(?<!-)merg(?:e|es|ed|ing)(?!\s+(?:conflicts?|base|queue))"
+    r"|releas(?:e|es|ed|ing)(?!\s+notes)"
+    r"|shar(?:e|es|ed|ing)\s+(?:it|this|the|a|an|with)"
+    r"|(?:open|file|create|submit|raise)(?:s|d|ed|ing)? (?:a |an |the )?"
+    r"(?:pr|pull request|issue|ticket)s?)\b",
     re.IGNORECASE,
 )
 NAME_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
@@ -197,11 +202,14 @@ def _where(patching: bool) -> str:
 
 def _approval_problem(steps: list[str]) -> str | None:
     """Return why approval is missing or late, or None when it precedes the first external step."""
-    index = next((i for i, step in enumerate(steps) if EXTERNAL_RE.search(step)), None)
-    if index is None:
+    found = next(
+        ((i, match) for i, step in enumerate(steps) if (match := EXTERNAL_RE.search(step))),
+        None,
+    )
+    if found is None:
         return "name the external or public action (for example publish or push) in a numbered step"
-    verb = EXTERNAL_RE.search(steps[index])
-    earlier = [*steps[:index], steps[index][: verb.start()] if verb else ""]
+    index, verb = found
+    earlier = [*steps[:index], steps[index][: verb.start()]]
     if any(APPROVAL_RE.search(text) for text in earlier):
         return None
     return "an approval or confirmation word must come before the first external action"
