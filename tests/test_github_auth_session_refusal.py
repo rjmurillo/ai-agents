@@ -8,8 +8,12 @@ from __future__ import annotations
 import subprocess
 from unittest.mock import patch
 
+import pytest
+
 from scripts.github_core.api import (
+    GhAuthResult,
     GhAuthStatus,
+    assert_gh_authenticated,
     check_gh_auth,
     describe_gh_auth_failure,
 )
@@ -90,6 +94,7 @@ class TestBothTransportsProveASessionRefusal:
             completed(stderr=GH_AUTH_STATUS_INVALID, rc=1),
             completed(stderr=PROXY_GRAPHQL_403, rc=1),
             completed(stdout='{"login": "rjmurillo"}', rc=0),
+            completed(stderr=PROXY_REST_403, rc=1),
         ]
         with patch("subprocess.run", side_effect=calls):
             result = check_gh_auth()
@@ -131,6 +136,7 @@ class TestBothTransportsProveASessionRefusal:
             subprocess.TimeoutExpired(cmd="gh", timeout=10),
             completed(stderr=PROXY_GRAPHQL_403, rc=1),
             completed(stdout='{"login": "rjmurillo"}', rc=0),
+            completed(stderr=PROXY_REST_403, rc=1),
         ]
         with patch("subprocess.run", side_effect=calls):
             result = check_gh_auth()
@@ -354,3 +360,107 @@ class TestBothTransportsProveASessionRefusal:
         ]
         with patch("subprocess.run", side_effect=calls):
             assert check_gh_auth().status is GhAuthStatus.INVALID_CREDENTIALS
+
+
+class TestGraphqlOnlyRefusal:
+    """A valid credential, refused GraphQL, and served repository REST (issue #5693).
+
+    ``gh api user`` is account-scoped, so only a repository call can separate
+    a GraphQL-only refusal from a session that refuses repository REST too.
+    The first three calls are the live shape measured on 2026-09-03; the
+    fourth is the repository probe and is the only thing that differs.
+    """
+
+    @staticmethod
+    def _until_user_probe() -> list:
+        return [
+            completed(stderr=GH_AUTH_STATUS_INVALID, rc=1),
+            completed(stderr=PROXY_GRAPHQL_403, rc=1),
+            completed(stdout='{"login": "rjmurillo"}', rc=0),
+        ]
+
+    def test_repository_rest_served_is_graphql_blocked(self):
+        calls = [*self._until_user_probe(), completed(stdout='{"name": "ai-agents"}', rc=0)]
+        with patch("subprocess.run", side_effect=calls) as run:
+            result = check_gh_auth()
+        assert result.status is GhAuthStatus.GRAPHQL_BLOCKED
+        assert run.call_args_list[-1].args[0] == ["gh", "api", "repos/{owner}/{repo}"]
+
+    def test_graphql_blocked_has_its_own_message_and_exit_2(self):
+        calls = [*self._until_user_probe(), completed(stdout="{}", rc=0)]
+        with patch("subprocess.run", side_effect=calls):
+            result = check_gh_auth()
+        message, exit_code, error_type = describe_gh_auth_failure(result)
+        assert exit_code == 2
+        assert error_type == "ApiError"
+        assert "Use REST" in message
+        assert "regardless of the token" not in message
+
+    def test_repository_rest_refused_stays_transport_blocked(self):
+        """Negative control: only the repository probe separates the two."""
+        calls = [*self._until_user_probe(), completed(stderr=PROXY_REST_403, rc=1)]
+        with patch("subprocess.run", side_effect=calls):
+            result = check_gh_auth()
+        assert result.status is GhAuthStatus.TRANSPORT_BLOCKED
+
+    def test_repository_probe_timeout_stays_transport_blocked(self):
+        """A probe that never answered is not evidence that REST works."""
+        calls = [*self._until_user_probe(), subprocess.TimeoutExpired(cmd="gh", timeout=10)]
+        with patch("subprocess.run", side_effect=calls):
+            result = check_gh_auth()
+        assert result.status is GhAuthStatus.TRANSPORT_BLOCKED
+
+    def test_a_failed_credential_probe_never_reaches_the_repository_probe(self):
+        """A bad token must keep exit 4 and cost no extra round trip."""
+        calls = [
+            completed(stderr=GH_AUTH_STATUS_INVALID, rc=1),
+            completed(stderr=PROXY_GRAPHQL_403, rc=1),
+            completed(stderr=BAD_CREDENTIALS, rc=1),
+        ]
+        with patch("subprocess.run", side_effect=calls) as run:
+            result = check_gh_auth()
+        assert result.status is GhAuthStatus.INVALID_CREDENTIALS
+        assert run.call_count == 3
+
+    def test_graphql_blocked_is_not_reported_as_authenticated(self):
+        calls = [*self._until_user_probe(), completed(stdout="{}", rc=0)]
+        with patch("subprocess.run", side_effect=calls):
+            assert not check_gh_auth().is_authenticated
+
+
+class TestAssertRestOnly:
+    """``rest_only`` lets REST-only scripts pass GRAPHQL_BLOCKED and nothing else."""
+
+    def _assert_with(self, status: GhAuthStatus, **kwargs) -> None:
+        with patch(
+            "scripts.github_core.api.check_gh_auth",
+            return_value=GhAuthResult(status),
+        ):
+            assert_gh_authenticated(**kwargs)
+
+    def test_rest_only_passes_graphql_blocked(self):
+        self._assert_with(GhAuthStatus.GRAPHQL_BLOCKED, rest_only=True)
+
+    def test_default_still_fails_graphql_blocked_with_exit_2(self):
+        with pytest.raises(SystemExit) as exc:
+            self._assert_with(GhAuthStatus.GRAPHQL_BLOCKED)
+        assert exc.value.code == 2
+
+    @pytest.mark.parametrize(
+        ("status", "code"),
+        [
+            (GhAuthStatus.TRANSPORT_BLOCKED, 2),
+            (GhAuthStatus.INVALID_CREDENTIALS, 4),
+            (GhAuthStatus.MISSING_GH, 4),
+            (GhAuthStatus.RATE_LIMITED, 3),
+            (GhAuthStatus.TRANSIENT_ERROR, 3),
+        ],
+    )
+    def test_rest_only_still_fails_every_other_refusal(self, status, code):
+        with pytest.raises(SystemExit) as exc:
+            self._assert_with(status, rest_only=True)
+        assert exc.value.code == code
+
+    def test_authenticated_passes_either_way(self):
+        self._assert_with(GhAuthStatus.AUTHENTICATED)
+        self._assert_with(GhAuthStatus.AUTHENTICATED, rest_only=True)
