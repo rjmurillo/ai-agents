@@ -27,7 +27,7 @@ The note exists.
 ## Procedure
 
 1. Read the input.
-2. Write the note. Ask for approval before publishing it.
+2. Write the note. Ask for approval before publishing it (external).
 
 ## Anti-patterns
 

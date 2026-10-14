@@ -128,7 +128,9 @@ def test_subsection_items_count_toward_parent(skills_root):
 
 def test_external_actions_require_approval_gate(skills_root):
     text = GOOD_SKILL.format(name="a-skill", description=TRIGGER, trigger=TRIGGER)
-    text = text.replace("Ask for approval before publishing it.", "Publish it.")
+    text = text.replace(
+        "Ask for approval before publishing it (external).", "Publish it (external)."
+    )
     text = text.replace("Publishing without approval.", "Publishing blindly.")
     skill = make_skill(skills_root, "a-skill", body=text)
     assert verify(skill, external=False)["status"] == "PASS"
@@ -206,7 +208,9 @@ def test_blank_and_indented_lines_in_frontmatter_are_tolerated(skills_root):
 
 def approval_only_in(section):
     text = GOOD_SKILL.format(name="a-skill", description=TRIGGER, trigger=TRIGGER)
-    text = text.replace("Ask for approval before publishing it.", "Publish it.")
+    text = text.replace(
+        "Ask for approval before publishing it (external).", "Publish it (external)."
+    )
     text = text.replace("Publishing without approval.", "Publishing blindly.")
     return text.replace(f"## {section}\n", f"## {section}\n\nConfirm with the user first.\n", 1)
 
@@ -226,8 +230,8 @@ def test_approval_word_in_unnumbered_procedure_prose_does_not_count(skills_root)
 def test_approval_in_wrapped_numbered_step_counts(skills_root):
     text = GOOD_SKILL.format(name="a-skill", description=TRIGGER, trigger=TRIGGER)
     text = text.replace(
-        "Ask for approval before publishing it.",
-        "Show the draft,\n   get approval, then publish it.",
+        "Write the note. Ask for approval before publishing it (external).",
+        "Show the draft,\n   get approval, then publish it (external).",
     )
     skill = make_skill(skills_root, "a-skill", body=text)
     assert verify(skill, external=True)["status"] == "PASS"
@@ -236,8 +240,8 @@ def test_approval_in_wrapped_numbered_step_counts(skills_root):
 def test_approval_in_fenced_example_does_not_count(skills_root):
     text = GOOD_SKILL.format(name="a-skill", description=TRIGGER, trigger=TRIGGER)
     text = text.replace(
-        "2. Write the note. Ask for approval before publishing it.",
-        "2. Write the note.\n```text\n3. get approval\n```",
+        "2. Write the note. Ask for approval before publishing it (external).",
+        "2. Write the note (external).\n```text\n3. get approval\n```",
     )
     skill = make_skill(skills_root, "a-skill", body=text)
     assert failed(verify(skill, external=True)) == {"approval_gate_present"}
@@ -308,7 +312,7 @@ Intro.
 
 1. Read the request.
 2. Optional recovery: when nothing matches, list skills.
-3. Ask for approval before publishing anything.
+3. Ask for approval before publishing anything (external).
 
 ## Notes
 
