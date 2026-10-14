@@ -508,7 +508,14 @@ python3 "$SCRIPTS_DIR/pr/triage_red_check.py" --check-name "[failing check name]
 # Exit 0 = GREEN_ON_MAIN: the PR introduced the failure; investigate the PR.
 # Exit 1 = RED_ON_MAIN: inherited from main; cite Data.EvidenceUrl (the main
 #          run) in the thread instead of debugging the PR.
-# Exit 3 = UNKNOWN: probe failure is not absence; never treat as green.
+# Exit 3 = cannot determine; read Data.Verdict (never treat as green):
+#          PR_ONLY: the check never reports on main (pull_request-only), so
+#          it cannot be inherited; read the PR run with
+#          `gh run view <run-id> --log-failed`. Widen --history-depth only
+#          for path-filtered or scheduled workflows.
+#          CANCELLED_ON_MAIN: main has only cancelled or stale runs; rerun
+#          Data.EvidenceRunId with `gh run rerun <run-id>`.
+#          UNKNOWN: probe failure is not absence.
 ```
 
 ```bash
