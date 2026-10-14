@@ -154,6 +154,20 @@ def test_mutation_disabling_explicit_refspec_quiet_path_is_caught() -> None:
         )
 
 
+def test_mutation_disabling_new_branch_quiet_path_is_caught() -> None:
+    """Replacing the is_new guard with False must cause
+    test_push_files_warning_is_quiet_for_new_branch_at_head to fail."""
+    old = "        if ref.is_new:\n            return\n"
+    new = "        if False:  # mutation: new-branch quiet path disabled\n            return\n"
+    with _mutated(old, new) as count:
+        assert count > 0, f"DID-NOT-APPLY: {old!r} not found in {_POLICY}"
+        result = _run_targeted("push_files_warning_is_quiet_for_new_branch_at_head")
+        _assert_ran(result)
+        assert result.returncode != 0, (
+            "Mutation survived: disabling new-branch quiet path was not caught"
+        )
+
+
 def test_inverted_multi_ref_still_warns_after_fix() -> None:
     """Multi-ref pushes must still warn even after the explicit-refspec fix.
 

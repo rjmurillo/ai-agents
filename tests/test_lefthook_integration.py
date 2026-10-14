@@ -5826,11 +5826,11 @@ def test_push_files_warning_is_quiet_for_first_push_from_linked_worktree(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """Issue #6562: a worktree branch cut from origin/main warns on first push.
+    """Issue #6562: a worktree branch cut from origin/main stays quiet on first push.
 
-    `git worktree add -b` from a remote-tracking ref sets the upstream to that
-    ref, so `@{push}` fails under push.default=current until the branch exists
-    on the remote. The first push of checked-out HEAD must stay quiet.
+    Under push.default=current, `@{push}` names the same-named remote branch,
+    so it fails until the first push creates that branch on the remote. The
+    first push of checked-out HEAD must stay quiet.
     """
     origin = tmp_path / "origin.git"
     origin.mkdir()
@@ -5883,7 +5883,9 @@ def test_push_files_warning_is_quiet_for_explicit_refspec_push(
             "refs/heads/local-repair",
             head,
             "refs/heads/pr-target-branch",
-            "0" * 40,
+            # Non-zero remote id: the ref is not new, so only the explicit
+            # refspec path can keep the warning quiet.
+            "3" * 40,
         )
     ]
     policy.warn_if_push_files_incomplete(refs, tmp_path)

@@ -6985,8 +6985,11 @@ def warn_if_push_files_incomplete(
             return
         # Quiet path 3: first push of a new branch at checked-out HEAD. There
         # is no remote tip and often no @{push} (a worktree cut from
-        # origin/main has no remote branch of its own yet). Lefthook computes
-        # {push_files} relative to HEAD, so it already covers the whole branch.
+        # origin/main has no remote branch of its own yet). With no @{push},
+        # Lefthook falls back to origin's default branch...HEAD, or to every
+        # tracked file, so {push_files} is a superset of this branch's changes.
+        # If @{push} resolves to a stale tracking ref, coverage can be partial;
+        # the immutable scans still run.
         if ref.is_new:
             return
     print(
