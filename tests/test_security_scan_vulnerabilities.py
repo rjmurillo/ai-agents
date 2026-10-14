@@ -33,6 +33,7 @@ import json
 import re
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from types import ModuleType
 from typing import cast
@@ -97,7 +98,8 @@ def _descriptions_for(language: str, line: str) -> list[str]:
     descriptions = []
     for info in scanner.CWE78_PATTERNS[language]:
         pattern = cast(re.Pattern[str], info["pattern"])
-        if pattern.search(line):
+        scrub = cast(Callable[[str], str] | None, info.get("scrub"))
+        if pattern.search(scrub(line) if scrub else line):
             descriptions.append(str(info["description"]))
     return descriptions
 
@@ -322,6 +324,126 @@ def test_scan_file_populates_vulnerability_fields(tmp_path: Path) -> None:
 )
 def test_safe_lines_not_flagged(language: str, line: str) -> None:
     assert _descriptions_for(language, line) == []
+
+
+# ---------------------------------------------------------------------------
+# Bash unquoted-variable false positives (issue #6294)
+# ---------------------------------------------------------------------------
+
+UNQUOTED_VAR = "Unquoted variable expansion (potential word splitting/injection)"
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        # Positive controls from the issue: comment, quoted argument, quoted assignment.
+        "# Config lives under $HOME",
+        'echo "Starting MCP for $server at $(date)"',
+        'export X="${X:-$PWD/.hindsight}"',
+        # Comment forms.
+        "    # indented comment with $var",
+        "cmd arg # trailing comment with $var",
+        "\t# tab-indented comment $var",
+        # Single quotes keep `$` literal.
+        "echo 'literal $var here'",
+        "grep -E '^foo$bar' file",
+        # Escapes: an escaped quote does not close the span, an escaped `$` is literal.
+        'echo "say \\"hi\\" to $name"',
+        "echo \\$literal",
+        # Mixed adjacent spans.
+        'echo "$a" \'$b\' "$c"',
+        # `#` that does not start a comment: `$#` is a variable, `${#x}` is a length.
+        'echo "$#"',
+        'echo "${#items[@]}"',
+        # Quoted `$()` inside double quotes with only quoted variables in the body.
+        'echo "at $(date +%s) for $user"',
+        'result="$(basename "$path")"',
+    ],
+)
+def test_bash_unquoted_var_ignores_comments_and_quoted_spans(line: str) -> None:
+    assert UNQUOTED_VAR not in _descriptions_for("bash", line)
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "rm $target",
+        "echo $unquoted",
+        "cmd arg$var",
+        "cmd a#b $var",
+        'echo "done" $after',
+        "echo 'x' $after",
+        # An unquoted variable sits in the body of a `$()` inside double quotes.
+        'echo "files: $(ls $dir)"',
+        'out="$(rm $target)"',
+        # Nested parens in a command substitution still close at the right paren.
+        'echo "$( (cd /x) ; ls $dir )"',
+        # A comment later in the line does not hide an earlier unquoted variable.
+        "rm $target # cleanup",
+        # `$#` followed by text; the `#` is not a comment start.
+        "echo $#x $y",
+    ],
+)
+def test_bash_unquoted_var_still_flags_real_unquoted_expansion(line: str) -> None:
+    assert UNQUOTED_VAR in _descriptions_for("bash", line)
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "",
+        "\n",
+        "#",
+        '"',
+        "'",
+        'echo "unterminated $var',
+        "echo 'unterminated $var",
+        "echo \\",
+        "echo $(",
+        "echo )",
+    ],
+)
+def test_bash_scrub_handles_degenerate_lines(line: str) -> None:
+    scrubbed = scanner.scrub_bash_line(line)
+    assert len(scrubbed) <= len(line)
+
+
+def test_bash_scrub_blanks_interiors_and_keeps_delimiters() -> None:
+    assert scanner.scrub_bash_line("echo 'ab' \"cd\" $x") == "echo '  ' \"  \" $x"
+
+
+def test_bash_scrub_keeps_command_substitution_body_inside_double_quotes() -> None:
+    assert scanner.scrub_bash_line('"a $(ls $d) b"') == '"  $(ls $d)  "'
+
+
+def test_bash_scrub_strips_comment_but_keeps_code_before_it() -> None:
+    assert scanner.scrub_bash_line("rm $t # note $u").rstrip() == "rm $t"
+
+
+def test_scan_file_does_not_flag_issue_6294_shapes(tmp_path: Path) -> None:
+    body = (
+        "#!/usr/bin/env bash\n"
+        "# Config lives under $HOME\n"
+        'echo "Starting MCP for $server at $(date)"\n'
+        'export X="${X:-$PWD/.hindsight}"\n'
+    )
+    name = _write(tmp_path, "issue6294.sh", body)
+    vulns, _ = scanner.scan_file(str(tmp_path / name))
+    assert vulns == []
+
+
+def test_scan_file_still_flags_rm_unquoted_target(tmp_path: Path) -> None:
+    body = "# Config lives under $HOME\nrm $target\n"
+    name = _write(tmp_path, "rm_target.sh", body)
+    vulns, _ = scanner.scan_file(str(tmp_path / name))
+    assert [(v.line, v.pattern) for v in vulns] == [(2, UNQUOTED_VAR)]
+
+
+def test_scan_file_applies_scrub_only_to_unquoted_var_pattern(tmp_path: Path) -> None:
+    """`eval "$cmd"` sits inside quotes yet must still be reported as CRITICAL."""
+    name = _write(tmp_path, "evalq.sh", 'eval "$cmd"\n')
+    vulns, _ = scanner.scan_file(str(tmp_path / name))
+    assert [v.severity for v in vulns] == ["CRITICAL"]
 
 
 def test_python_string_concat_pattern_requires_plus_inside_literal() -> None:
