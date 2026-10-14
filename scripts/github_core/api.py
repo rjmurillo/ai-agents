@@ -457,6 +457,17 @@ def classify_gh_failure_text(text: str) -> GhAuthStatus:
     return GhAuthStatus.INVALID_CREDENTIALS
 
 
+def is_rate_limit_refusal(text: str) -> bool:
+    """True when gh failure text is a primary or secondary rate-limit refusal.
+
+    GraphQL and REST carry separate quotas, so a caller that holds a REST path
+    for the same data can use this to decide when to switch transports (issue
+    #6391). Only rate-limit wording qualifies: a permission 403 or a 5xx does
+    not, because REST would be refused or flaky for the same reason.
+    """
+    return classify_gh_failure_text(text) in _RETRYABLE_REFUSAL_STATUSES
+
+
 def classify_gh_failure_response(
     text: str,
     headers: Mapping[str, str] | None = None,

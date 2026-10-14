@@ -65,6 +65,7 @@
     "skills/quality-grades/scripts/grade_domains.py": 6,
     "skills/retrospective/scripts/extract_evidence.py": 3,
     "skills/retrospective/scripts/run_retrospective.py": 3,
+    "skills/skill-bootstrap/scripts/bootstrap_boundary.py": 1,
     "skills/skillforge/scripts/discover_skills.py": 1,
     "skills/skillforge/scripts/init_skill.py": 1,
     "skills/skillforge/scripts/package_skill.py": 3,
