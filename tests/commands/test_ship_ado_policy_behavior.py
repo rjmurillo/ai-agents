@@ -27,16 +27,111 @@ import pytest
 from tests.commands.test_ship_first_pr_ordering import (
     COMMAND_MIRROR_PATH,
     COMMAND_PATH,
-    WAIT_REFERENCE,
-    ado_item_block,
+    ado_bullets,
     numbered_item,
+    numbered_items,
     section,
 )
+
+WAIT_REFERENCE = Path("references") / "ado-policy-wait.md"
+
+
+def ado_bullets_without_pr_condition(pipeline_item: str) -> list[str]:
+    """Return `host=ado` bullets that do not branch on PR existence (#6576 shape)."""
+    return [b for b in ado_bullets(pipeline_item) if "pr=" not in b]
+
+
+def ado_item_block(pipeline_item: str, pr_marker: str) -> str:
+    """Return one `host=ado` bullet plus its indented body (code block included).
+
+    The bullet's first line names the branch; its evidence lives in the nested code
+    block, so the block runs to the next three-space bullet or the end of the item.
+    """
+    lines = pipeline_item.splitlines()
+    starts = [
+        i
+        for i, ln in enumerate(lines)
+        if ln.startswith("   - ") and "`host=ado`" in ln and pr_marker in ln
+    ]
+    assert len(starts) == 1, f"expected 1 host=ado bullet with {pr_marker!r}, got {len(starts)}"
+    end = next(
+        (j for j in range(starts[0] + 1, len(lines)) if lines[j].startswith("   - ")),
+        len(lines),
+    )
+    return "\n".join(lines[starts[0] : end])
 
 
 @pytest.fixture(params=[COMMAND_PATH, COMMAND_MIRROR_PATH], ids=["claude", "copilot"])
 def ship_text(request: pytest.FixtureRequest) -> str:
     return Path(request.param).read_text(encoding="utf-8")
+
+
+@pytest.fixture
+def pipeline_item(ship_text: str) -> str:
+    return numbered_item(section(ship_text, "Pre-flight Checks"), "**Pipeline health**")
+
+
+class TestAdoFirstPrDeferral:
+    """Issue #6576: the ADO branch had the same first-PR deadlock as GitHub (#4841).
+
+    Pre-fix, an ADO branch with no PR fell back to the latest completed branch build and
+    required every policy to pass. A fresh branch has neither a PR nor a completed build,
+    and the PR is only created after the gate passes, so the first ADO PR never opened.
+    """
+
+    def test_no_ado_bullet_applies_to_every_run(self, pipeline_item: str) -> None:
+        assert ado_bullets_without_pr_condition(pipeline_item) == []
+
+    def test_ado_no_pr_bullet_defers_instead_of_failing(self, pipeline_item: str) -> None:
+        without_pr = [b for b in ado_bullets(pipeline_item) if "`pr=none`" in b]
+        assert len(without_pr) == 1
+        assert "DEFERRED" in without_pr[0]
+        assert "not skipped" in without_pr[0]
+        assert "6576" in without_pr[0]
+
+    def test_branch_build_fallback_is_gone(self, pipeline_item: str) -> None:
+        """The latest-completed-branch-build query is the deadlock; it must not return."""
+        assert "az pipelines build list" not in pipeline_item
+
+    def test_ado_open_pr_bullet_checks_blocking_build_evaluations(self, pipeline_item: str) -> None:
+        """Inverse guard: the deferral must not disarm the gate for ADO branches with a PR."""
+        with_pr = ado_item_block(pipeline_item, "`pr=#<number>`")
+        assert "az repos pr policy list" in with_pr
+        assert "isBlocking" in with_pr
+        assert "'approved'" in with_pr or '"approved"' in with_pr
+
+    def test_ado_open_pr_bullet_binds_builds_to_current_revision(self, pipeline_item: str) -> None:
+        """A green build from an older push must not clear the gate."""
+        with_pr = ado_item_block(pipeline_item, "`pr=#<number>`")
+        assert "lastMergeCommit" in with_pr
+        assert "sourceVersion" in with_pr
+        assert "az pipelines build show" in with_pr
+
+    def test_ado_query_errors_fail_instead_of_passing(self, pipeline_item: str) -> None:
+        """Auth, network, and query errors must stop the check, not read as empty."""
+        with_pr = ado_item_block(pipeline_item, "`pr=#<number>`")
+        assert with_pr.count("|| exit 3") >= 3
+        assert "no blocking build policy" in with_pr.lower()
+
+
+class TestAdoDischarge:
+    def test_discharge_covers_ado_first_pr(self, ship_text: str) -> None:
+        """Issue #6576: the ADO deferral must be discharged against the created PR."""
+        discharge = numbered_item(section(ship_text, "Process"), "Discharge a deferred")
+        assert "`host=ado`" in discharge
+        assert "pullRequestId" in discharge
+        assert f"`{WAIT_REFERENCE.as_posix()}`" in discharge
+        assert "queued" in discharge
+        assert "running" in discharge
+        assert "pre-flight check 1" in discharge
+
+    def test_ado_pr_creation_precedes_its_discharge(self, ship_text: str) -> None:
+        items = numbered_items(section(ship_text, "Process"))
+        creates = [i for i, item in enumerate(items) if "az repos pr create" in item]
+        validates = [i for i, item in enumerate(items) if WAIT_REFERENCE.name in item]
+        assert creates
+        assert validates
+        assert min(validates) > min(creates)
 
 
 _FAKE_AZ = r"""
@@ -357,4 +452,33 @@ class TestAdoProcessWording:
     def test_discharge_explains_validator_scope(self, ship_text: str) -> None:
         discharge = numbered_item(section(ship_text, "Process"), "Discharge a deferred")
         assert "host-aware only for ADO" not in discharge
-        assert "Azure DevOps pipelines" in discharge
+        assert "ADO-only pipeline-validator" in discharge
+
+
+# The pre-#6576 ADO branch, reduced to the parts these helpers read. Reproduced from
+# `.claude/skills/ship/SKILL.md` blob 24d1711e14 (origin/main, 2026-10-14).
+_PRE_6576_PIPELINE_ITEM = """1. **Pipeline health**
+   - `host=github`, `pr=#<number>` (open PR exists): Invoke Skill(skill="pipeline-validator").
+   - `host=ado`: pipeline-validator does not apply. Evaluate ADO build policies:
+
+     ```bash
+     if [ -n "$pr_id" ]; then
+       az repos pr policy list --id "$pr_id" --output table
+     else
+       az pipelines build list --branch "$branch_ref" --status completed --top 1 --output table
+     fi
+     ```
+"""
+
+
+class TestPre6576Control:
+    """The pre-#6576 ADO branch must fail the ADO checks above, or they prove nothing."""
+
+    def test_pre_fix_ado_bullet_applies_to_every_run(self) -> None:
+        assert len(ado_bullets_without_pr_condition(_PRE_6576_PIPELINE_ITEM)) == 1
+
+    def test_pre_fix_ado_has_no_deferral_branch(self) -> None:
+        assert [b for b in ado_bullets(_PRE_6576_PIPELINE_ITEM) if "`pr=none`" in b] == []
+
+    def test_pre_fix_ado_uses_branch_build_fallback(self) -> None:
+        assert "az pipelines build list" in _PRE_6576_PIPELINE_ITEM

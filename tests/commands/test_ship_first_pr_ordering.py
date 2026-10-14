@@ -22,10 +22,15 @@ repair into a worse defect:
 1. **Over-deferral.** Deferring pipeline validation for every GitHub run would drop the
    pre-flight CI gate on branches that already have a PR.
    `test_open_pr_still_validates_in_preflight` fails if the existing-PR branch stops
-   invoking the validator up front.
+   checking CI up front.
 2. **Silent skip.** Deferring and never discharging would let a ship report read green
-   with zero CI evidence. `test_process_discharges_deferral_after_push_pr` fails if the
-   validator is not invoked after `/push-pr`.
+   with zero CI evidence. `test_process_discharges_deferral_after_push_pr` fails if CI
+   is not checked after `/push-pr`.
+
+Issue #6577. The existing-PR GitHub branch still invoked `pipeline-validator`, which
+drives Azure DevOps only: its Step 1 runs `az repos pr list`. A GitHub caller got an ADO
+workflow. Every GitHub branch now checks CI through `get_pr_checks.py`, and
+`TestGithubNeverRoutesToAdoValidator` pins that, with its own pre-fix control.
 
 Assertions parse the document into sections and bullets rather than substring-matching the
 whole file (`.claude/rules/testing.md` MUST 9): a bare `"pipeline-validator" in text` holds
@@ -34,12 +39,12 @@ invokes it. `TestPreFixControl` feeds the pre-fix ordering back through the same
 every check here is shown to fail on the shape it was written against
 (`.claude/rules/testing.md` SHOULD 10).
 
-`.claude/skills/ship/SKILL.md` is the source; `src/copilot-cli/skills/ship/SKILL.md` is
-generated from it by `build/scripts/generate_skills.py` (see
-`.agents/governance/GENERATOR-FILES.md`). Both are asserted so the shipped Copilot copy
-cannot carry the deadlock after the Claude copy is fixed. The generator rewrites the
-invocation syntax (`Skill(skill="pipeline-validator")` becomes
-`` `skill: "pipeline-validator"` ``), so `invokes_pipeline_validator` accepts both forms.
+`templates/skills/ship.SKILL.md.tmpl` is the source; `src/copilot-cli/skills/ship/SKILL.md` is
+rendered from it by `build/scripts/build_all.py`, as is `.claude/skills/ship/SKILL.md`.
+Both rendered copies are asserted so the shipped Copilot copy cannot carry the defect
+after the Claude copy is fixed. The generator rewrites the invocation syntax
+(`Skill(skill="pipeline-validator")` becomes `` `skill: "pipeline-validator"` ``), so
+`invokes_pipeline_validator` accepts both forms.
 """
 
 from __future__ import annotations
@@ -52,8 +57,8 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 COMMAND_PATH = REPO_ROOT / ".claude" / "skills" / "ship" / "SKILL.md"
 COMMAND_MIRROR_PATH = REPO_ROOT / "src" / "copilot-cli" / "skills" / "ship" / "SKILL.md"
-WAIT_REFERENCE = Path("references") / "ado-policy-wait.md"
 VALIDATOR_SKILL_PATH = REPO_ROOT / ".claude" / "skills" / "pipeline-validator" / "SKILL.md"
+VALIDATOR_TEMPLATE_PATH = REPO_ROOT / "templates" / "skills" / "pipeline-validator.SKILL.md.tmpl"
 
 _FRONTMATTER_RE = re.compile(r"^---\r?\n.*?\r?\n---\r?\n", re.DOTALL)
 _HEADING_RE = re.compile(r"^## .+$", re.MULTILINE)
@@ -62,7 +67,6 @@ _HOST_BULLET_RE = re.compile(r"^ {3}- (?P<body>.*)$", re.MULTILINE)
 # Claude: Invoke Skill(skill="pipeline-validator"). Copilot: Invoke `skill: "pipeline-validator"`.
 _INVOKE_VALIDATOR_RE = re.compile(r'(?:Skill\(skill=|skill:\s*)"pipeline-validator"')
 _DISCHARGES_CI_RE = re.compile(r'(?:Skill\(skill=|skill:\s*)"pipeline-validator"|get_pr_checks\.py')
-_NO_PR_DECISION_RE = re.compile(r"^- (\*\*No PR found:\*\* .+)$", re.MULTILINE)
 
 
 def body_of(text: str) -> str:
@@ -115,34 +119,27 @@ def ado_bullets(item_text: str) -> list[str]:
     return [b for b in host_bullets(item_text) if "`host=ado`" in b]
 
 
-def ado_bullets_without_pr_condition(pipeline_item: str) -> list[str]:
-    """Return `host=ado` bullets that do not branch on PR existence (#6576 shape)."""
-    return [b for b in ado_bullets(pipeline_item) if "pr=" not in b]
-
-
-def ado_item_block(pipeline_item: str, pr_marker: str) -> str:
-    """Return one `host=ado` bullet plus its indented body (code block included).
-
-    The bullet's first line names the branch; its evidence lives in the nested code
-    block, so the block runs to the next three-space bullet or the end of the item.
-    """
-    lines = pipeline_item.splitlines()
-    starts = [
-        i
-        for i, ln in enumerate(lines)
-        if ln.startswith("   - ") and "`host=ado`" in ln and pr_marker in ln
-    ]
-    assert len(starts) == 1, f"expected 1 host=ado bullet with {pr_marker!r}, got {len(starts)}"
-    end = next(
-        (j for j in range(starts[0] + 1, len(lines)) if lines[j].startswith("   - ")),
-        len(lines),
-    )
-    return "\n".join(lines[starts[0] : end])
-
-
 def invokes_pipeline_validator(text: str) -> bool:
     """True when ``text`` invokes the skill, not merely when it names the file."""
     return _INVOKE_VALIDATOR_RE.search(text) is not None
+
+
+def checks_github_ci(text: str) -> bool:
+    """True when ``text`` checks CI through the GitHub-aware flow with a PASS predicate.
+
+    The predicate needs both the PR-scoped `get_pr_checks.py` call and the
+    `Data.AllPassing` gate: a no-check PR exits 0 with `AllPassing: false`.
+    """
+    return "get_pr_checks.py" in text and "--pull-request" in text and "AllPassing" in text
+
+
+def github_bullets_invoking_validator(pipeline_item: str) -> list[str]:
+    """Return `host=github` bullets that invoke the ADO-only pipeline-validator (#6577)."""
+    return [
+        b
+        for b in host_bullets(pipeline_item)
+        if "`host=github`" in b and invokes_pipeline_validator(b)
+    ]
 
 
 def github_bullets_without_pr_condition(pipeline_item: str) -> list[str]:
@@ -176,13 +173,6 @@ def deferral_discharged_after_push_pr(process_section: str) -> bool:
     return bool(creates) and bool(validates) and min(validates) > min(creates)
 
 
-def canonical_no_pr_contract() -> str:
-    """Return the verbatim 'No PR found' decision line from the pipeline-validator skill."""
-    match = _NO_PR_DECISION_RE.search(VALIDATOR_SKILL_PATH.read_text(encoding="utf-8"))
-    assert match is not None, f"no 'No PR found' decision line in {VALIDATOR_SKILL_PATH}"
-    return match.group(1)
-
-
 @pytest.fixture(params=[COMMAND_PATH, COMMAND_MIRROR_PATH], ids=["claude", "copilot"])
 def ship_text(request: pytest.FixtureRequest) -> str:
     return Path(request.param).read_text(encoding="utf-8")
@@ -201,7 +191,7 @@ class TestPipelineHealthBranchesOnPrExistence:
         """Inverse guard: the fix must not disarm the gate for branches that have a PR."""
         with_pr = [b for b in github_bullets(pipeline_item) if "`pr=#<number>`" in b]
         assert len(with_pr) == 1
-        assert invokes_pipeline_validator(with_pr[0])
+        assert checks_github_ci(with_pr[0])
 
     def test_no_pr_bullet_defers_instead_of_invoking(self, pipeline_item: str) -> None:
         without_pr = [b for b in github_bullets(pipeline_item) if "`pr=none`" in b]
@@ -210,14 +200,12 @@ class TestPipelineHealthBranchesOnPrExistence:
         assert "DEFERRED" in without_pr[0]
         assert "not skipped" in without_pr[0]
 
-    def test_no_pr_bullet_quotes_the_canonical_validator_contract(self, ship_text: str) -> None:
-        """The cited reason must be the validator's real contract, not a remembered one.
-
-        The reference uses a generic name ("the pipeline-validator skill") rather than a
-        tree-specific path, per plugin-self-containment.md.
-        """
-        assert "pipeline-validator skill" in ship_text.lower()
-        assert canonical_no_pr_contract() in ship_text
+    def test_no_pr_bullet_names_the_missing_pr_as_the_reason(self, pipeline_item: str) -> None:
+        """The deferral reason is the missing PR number the CI query needs (#4841)."""
+        without_pr = [b for b in github_bullets(pipeline_item) if "`pr=none`" in b]
+        assert len(without_pr) == 1
+        assert "get_pr_checks.py" in without_pr[0]
+        assert "#4841" in without_pr[0]
 
     def test_ado_branch_still_evaluates_build_policies(self, pipeline_item: str) -> None:
         """Sibling non-regression: ADO still evaluates PR build policies, not the validator."""
@@ -228,47 +216,93 @@ class TestPipelineHealthBranchesOnPrExistence:
         assert "az repos pr policy list" in pipeline_item
 
 
-class TestAdoFirstPrDeferral:
-    """Issue #6576: the ADO branch had the same first-PR deadlock as GitHub (#4841).
+class TestGithubNeverRoutesToAdoValidator:
+    """Issue #6577: no GitHub branch may hand CI validation to the ADO-only validator."""
 
-    Pre-fix, an ADO branch with no PR fell back to the latest completed branch build and
-    required every policy to pass. A fresh branch has neither a PR nor a completed build,
-    and the PR is only created after the gate passes, so the first ADO PR never opened.
-    """
+    def test_validator_is_ado_only(self) -> None:
+        """Premise check: the validator's first step queries Azure DevOps, not GitHub."""
+        step1 = section(VALIDATOR_SKILL_PATH.read_text(encoding="utf-8"), "Process")
+        assert "az repos pr list" in step1
+        assert "get_pr_checks.py" not in step1
 
-    def test_no_ado_bullet_applies_to_every_run(self, pipeline_item: str) -> None:
-        assert ado_bullets_without_pr_condition(pipeline_item) == []
+    def test_no_github_bullet_invokes_the_validator(self, pipeline_item: str) -> None:
+        assert github_bullets_invoking_validator(pipeline_item) == []
 
-    def test_ado_no_pr_bullet_defers_instead_of_failing(self, pipeline_item: str) -> None:
-        without_pr = [b for b in ado_bullets(pipeline_item) if "`pr=none`" in b]
-        assert len(without_pr) == 1
-        assert "DEFERRED" in without_pr[0]
-        assert "not skipped" in without_pr[0]
-        assert "6576" in without_pr[0]
+    def test_no_process_step_invokes_the_validator(self, ship_text: str) -> None:
+        assert not invokes_pipeline_validator(section(ship_text, "Process"))
 
-    def test_branch_build_fallback_is_gone(self, pipeline_item: str) -> None:
-        """The latest-completed-branch-build query is the deadlock; it must not return."""
-        assert "az pipelines build list" not in pipeline_item
+    def test_validator_routing_does_not_claim_ship_as_invoker(self) -> None:
+        """The validator's routing metadata must not say `/ship` invokes it."""
+        frontmatter = _FRONTMATTER_RE.match(VALIDATOR_TEMPLATE_PATH.read_text(encoding="utf-8"))
+        assert frontmatter is not None
+        routing = frontmatter.group(0)
+        assert "invoker: ship" not in routing
+        assert "ship invokes pipeline-validator" not in routing
 
-    def test_ado_open_pr_bullet_checks_blocking_build_evaluations(self, pipeline_item: str) -> None:
-        """Inverse guard: the deferral must not disarm the gate for ADO branches with a PR."""
-        with_pr = ado_item_block(pipeline_item, "`pr=#<number>`")
-        assert "az repos pr policy list" in with_pr
-        assert "isBlocking" in with_pr
-        assert "'approved'" in with_pr or '"approved"' in with_pr
+    def test_validator_text_does_not_claim_automatic_invocation(self) -> None:
+        """Explicit-only routing must not sit beside text that says it auto-runs.
 
-    def test_ado_open_pr_bullet_binds_builds_to_current_revision(self, pipeline_item: str) -> None:
-        """A green build from an older push must not clear the gate."""
-        with_pr = ado_item_block(pipeline_item, "`pr=#<number>`")
-        assert "lastMergeCommit" in with_pr
-        assert "sourceVersion" in with_pr
-        assert "az pipelines build show" in with_pr
+        Agent runtimes read the frontmatter `description` to decide when to invoke a
+        skill, so a stale "invoked automatically" there brings the #6577 misroute back.
+        """
+        text = VALIDATOR_TEMPLATE_PATH.read_text(encoding="utf-8").lower()
+        for stale in ("invoked automatically", "automatically invoked", "called automatically"):
+            assert stale not in text, f"pipeline-validator still says {stale!r}"
 
-    def test_ado_query_errors_fail_instead_of_passing(self, pipeline_item: str) -> None:
-        """Auth, network, and query errors must stop the check, not read as empty."""
-        with_pr = ado_item_block(pipeline_item, "`pr=#<number>`")
-        assert with_pr.count("|| exit 3") >= 3
-        assert "no blocking build policy" in with_pr.lower()
+    def test_validator_description_scopes_to_azure_devops(self) -> None:
+        frontmatter = _FRONTMATTER_RE.match(VALIDATOR_TEMPLATE_PATH.read_text(encoding="utf-8"))
+        assert frontmatter is not None
+        description = next(
+            line for line in frontmatter.group(0).splitlines() if line.startswith("description:")
+        )
+        assert "Invoke explicitly" in description
+        assert "not for GitHub PRs" in description
+
+    def test_validator_integration_table_names_only_real_skills(self) -> None:
+        """Every skill the validator lists as a caller must exist as a template."""
+        table = section(
+            VALIDATOR_TEMPLATE_PATH.read_text(encoding="utf-8"), "Integration with Other Skills"
+        )
+        callers = re.findall(r"^\| `(?P<name>[a-z0-9-]+)` \|", table, re.MULTILINE)
+        assert callers, "integration table lists no callers"
+        templates = REPO_ROOT / "templates" / "skills"
+        missing = [c for c in callers if not (templates / f"{c}.SKILL.md.tmpl").exists()]
+        assert missing == []
+
+    def test_anti_pattern_row_covers_ship_on_every_host(self, ship_text: str) -> None:
+        rows = [
+            line
+            for line in section(ship_text, "Anti-Patterns").splitlines()
+            if line.startswith("| Invoking pipeline-validator")
+        ]
+        assert len(rows) == 1
+        assert rows[0].startswith("| Invoking pipeline-validator from ship |")
+        assert "#6577" in rows[0]
+        assert "ADO" in rows[0]
+
+
+class TestCheckStatusWaitTimeout:
+    """`get_pr_checks.py --wait` exits 7 while checks are still pending; that is not FAIL."""
+
+    def test_open_pr_bullet_reruns_on_exit_7(self, pipeline_item: str) -> None:
+        with_pr = [b for b in github_bullets(pipeline_item) if "`pr=#<number>`" in b]
+        assert len(with_pr) == 1
+        assert "exit code 7" in with_pr[0].lower()
+        assert "re-run the same command" in with_pr[0]
+        assert "570" in with_pr[0]
+
+    def test_discharge_reruns_on_exit_7(self, ship_text: str) -> None:
+        discharge = numbered_item(section(ship_text, "Process"), "Discharge a deferred")
+        assert "exit code 7" in discharge.lower()
+        assert "re-run the same command" in discharge
+
+    def test_discharge_command_sits_beside_the_github_flow(self, ship_text: str) -> None:
+        """The command must read as the GitHub flow, not as part of pipeline-validator."""
+        discharge = numbered_item(section(ship_text, "Process"), "Discharge a deferred")
+        command = discharge.find("get_pr_checks.py")
+        validator = discharge.find("pipeline-validator")
+        assert command != -1 and validator != -1
+        assert command < validator
 
 
 class TestProcessDischargesTheDeferral:
@@ -295,24 +329,6 @@ class TestProcessDischargesTheDeferral:
         assert "exit code" in discharge.lower(), (
             "discharge must mention exit code is insufficient alone"
         )
-
-    def test_discharge_covers_ado_first_pr(self, ship_text: str) -> None:
-        """Issue #6576: the ADO deferral must be discharged against the created PR."""
-        discharge = numbered_item(section(ship_text, "Process"), "Discharge a deferred")
-        assert "`host=ado`" in discharge
-        assert "pullRequestId" in discharge
-        assert f"`{WAIT_REFERENCE.as_posix()}`" in discharge
-        assert "queued" in discharge
-        assert "running" in discharge
-        assert "pre-flight check 1" in discharge
-
-    def test_ado_pr_creation_precedes_its_discharge(self, ship_text: str) -> None:
-        items = numbered_items(section(ship_text, "Process"))
-        creates = [i for i, item in enumerate(items) if "az repos pr create" in item]
-        validates = [i for i, item in enumerate(items) if WAIT_REFERENCE.name in item]
-        assert creates
-        assert validates
-        assert min(validates) > min(creates)
 
     def test_contributor_mode_still_creates_no_pr(self, ship_text: str) -> None:
         """Inverse guard: the deferral must not leak PR creation into contributor mode."""
@@ -375,6 +391,31 @@ description: Ship it.
 """
 
 
+# Issue #6577 pre-fix shape: the existing-PR GitHub branch at origin/main 8e998feb1.
+_PRE_6577_PIPELINE_ITEM = (
+    "1. **Pipeline health**\n"
+    "   - `host=github`, `pr=#<number>` (open PR exists): "
+    'Invoke Skill(skill="pipeline-validator"). All CI checks green? No suppressed failures?\n'
+    "   - `host=github`, `pr=none` (no open PR; `mode=owner` only): "
+    "pipeline validation is DEFERRED, not skipped.\n"
+    "   - `host=ado`: pipeline-validator does not apply. Evaluate ADO build policies.\n"
+)
+
+
+class TestPre6577Control:
+    """The #6577 pre-fix bullet must fail the GitHub routing checks above."""
+
+    def test_pre_fix_github_bullet_invokes_the_validator(self) -> None:
+        offenders = github_bullets_invoking_validator(_PRE_6577_PIPELINE_ITEM)
+        assert len(offenders) == 1
+        assert "`pr=#<number>`" in offenders[0]
+
+    def test_pre_fix_open_pr_bullet_lacks_github_ci_check(self) -> None:
+        with_pr = [b for b in host_bullets(_PRE_6577_PIPELINE_ITEM) if "`pr=#<number>`" in b]
+        assert len(with_pr) == 1
+        assert not checks_github_ci(with_pr[0])
+
+
 class TestPreFixControl:
     """The pre-fix text must fail the checks above, or they prove nothing."""
 
@@ -393,32 +434,3 @@ class TestPreFixControl:
 
     def test_pre_fix_report_omits_pr_presence(self) -> None:
         assert "PR-AT-PREFLIGHT" not in _PRE_FIX_SHIP_MD
-
-
-# The pre-#6576 ADO branch, reduced to the parts these helpers read. Reproduced from
-# `.claude/skills/ship/SKILL.md` blob 24d1711e14 (origin/main, 2026-10-14).
-_PRE_6576_PIPELINE_ITEM = """1. **Pipeline health**
-   - `host=github`, `pr=#<number>` (open PR exists): Invoke Skill(skill="pipeline-validator").
-   - `host=ado`: pipeline-validator does not apply. Evaluate ADO build policies:
-
-     ```bash
-     if [ -n "$pr_id" ]; then
-       az repos pr policy list --id "$pr_id" --output table
-     else
-       az pipelines build list --branch "$branch_ref" --status completed --top 1 --output table
-     fi
-     ```
-"""
-
-
-class TestPre6576Control:
-    """The pre-#6576 ADO branch must fail the ADO checks above, or they prove nothing."""
-
-    def test_pre_fix_ado_bullet_applies_to_every_run(self) -> None:
-        assert len(ado_bullets_without_pr_condition(_PRE_6576_PIPELINE_ITEM)) == 1
-
-    def test_pre_fix_ado_has_no_deferral_branch(self) -> None:
-        assert [b for b in ado_bullets(_PRE_6576_PIPELINE_ITEM) if "`pr=none`" in b] == []
-
-    def test_pre_fix_ado_uses_branch_build_fallback(self) -> None:
-        assert "az pipelines build list" in _PRE_6576_PIPELINE_ITEM
