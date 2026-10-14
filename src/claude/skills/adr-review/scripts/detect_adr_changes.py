@@ -170,15 +170,17 @@ def _has_duplicate_keys(frontmatter: str) -> bool:
     #5230). A guard the forger evades with quotation marks is worse than
     none, since it reports clean.
 
-    Mirrors `_no_duplicate_keys` in build/scripts/generate_adr_index.py, which
-    is canonical. The detection is quoted verbatim from it
-    (`build/scripts/generate_adr_index.py:224-231`)::
+    Mirrors `_no_duplicate_keys` in scripts/validation/frontmatter_contract.py,
+    which is canonical. The detection is quoted verbatim from it
+    (`scripts/validation/frontmatter_contract.py:150`)::
 
         seen: list[Any] = []
-        for key_node, _ in node.value:
+        for key_node, _value_node in node.value:
             key = loader.construct_object(key_node, deep=True)
             if any(key == earlier for earlier in seen):
-                raise _DuplicateKeyError(f"duplicate key {key!r} in frontmatter mapping")
+                raise yaml.constructor.ConstructorError(
+                    None, None, f"duplicate key {key!r} in frontmatter mapping", key_node.start_mark
+                )
             seen.append(key)
         mapping: dict[Any, Any] = loader.construct_mapping(node, deep=True)
         return mapping
