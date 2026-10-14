@@ -65,7 +65,9 @@ or the user restricts the report to the requested result.
 
 All commands run
 `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skillify/scripts/skillify.py`
-with `python3`. Each prints one JSON object. Exit codes: `0` ok, `1` logic or
+with `python3`. That form is POSIX shell. In PowerShell, use
+`$env:COPILOT_PLUGIN_ROOT` or `$env:CLAUDE_PLUGIN_ROOT`, else `.claude`, and
+`python` when `python3` is absent. Each prints one JSON object. Exit codes: `0` ok, `1` logic or
 verification failure, `2` no destination. Harness tool names:
 [harness-mapping.md](references/harness-mapping.md).
 
