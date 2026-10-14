@@ -31,7 +31,8 @@ The cause is named and a rerun count is recorded.
 1. Rerun the test 20 times and record the failures.
 2. If the failure rate is above 0, bisect by disabling common fixtures.
 3. Optional recovery: when reruns never fail, capture the CI environment.
-4. Ask for approval before posting an issue on the public tracker (external).
+4. Ask the user to approve the issue text (approval).
+5. Post an issue on the public tracker (external).
 
 ## Anti-patterns
 

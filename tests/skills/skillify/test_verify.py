@@ -129,9 +129,8 @@ def test_subsection_items_count_toward_parent(skills_root):
 def test_external_actions_require_approval_gate(skills_root):
     text = GOOD_SKILL.format(name="a-skill", description=TRIGGER, trigger=TRIGGER)
     text = text.replace(
-        "Ask for approval before publishing it (external).", "Publish it (external)."
+        "Show the draft and ask the user to approve it (approval).", "Look at the draft."
     )
-    text = text.replace("Publishing without approval.", "Publishing blindly.")
     skill = make_skill(skills_root, "a-skill", body=text)
     assert verify(skill, external=False)["status"] == "PASS"
     assert failed(verify(skill, external=True)) == {"approval_gate_present"}
@@ -209,39 +208,39 @@ def test_blank_and_indented_lines_in_frontmatter_are_tolerated(skills_root):
 def approval_only_in(section):
     text = GOOD_SKILL.format(name="a-skill", description=TRIGGER, trigger=TRIGGER)
     text = text.replace(
-        "Ask for approval before publishing it (external).", "Publish it (external)."
+        "Show the draft and ask the user to approve it (approval).", "Look at the draft."
     )
-    text = text.replace("Publishing without approval.", "Publishing blindly.")
-    return text.replace(f"## {section}\n", f"## {section}\n\nConfirm with the user first.\n", 1)
+    note = "Ask the user to approve it (approval).\n"
+    return text.replace(f"## {section}\n", f"## {section}\n\n{note}", 1)
 
 
 @pytest.mark.parametrize("section", ["Verification", "Pitfalls", "Anti-patterns", "Contract"])
-def test_approval_word_outside_procedure_does_not_count(skills_root, section):
+def test_approval_tag_outside_procedure_does_not_count(skills_root, section):
     skill = make_skill(skills_root, "a-skill", body=approval_only_in(section))
     assert failed(verify(skill, external=True)) == {"approval_gate_present"}
 
 
-def test_approval_word_in_unnumbered_procedure_prose_does_not_count(skills_root):
+def test_approval_tag_in_unnumbered_procedure_prose_does_not_count(skills_root):
     text = approval_only_in("Procedure")
     skill = make_skill(skills_root, "a-skill", body=text)
     assert failed(verify(skill, external=True)) == {"approval_gate_present"}
 
 
-def test_approval_in_wrapped_numbered_step_counts(skills_root):
+def test_approval_tag_in_wrapped_numbered_step_counts(skills_root):
     text = GOOD_SKILL.format(name="a-skill", description=TRIGGER, trigger=TRIGGER)
     text = text.replace(
-        "Write the note. Ask for approval before publishing it (external).",
-        "Show the draft,\n   get approval, then publish it (external).",
+        "Show the draft and ask the user to approve it (approval).",
+        "Show the draft,\n   then ask the user to approve it (approval).",
     )
     skill = make_skill(skills_root, "a-skill", body=text)
     assert verify(skill, external=True)["status"] == "PASS"
 
 
-def test_approval_in_fenced_example_does_not_count(skills_root):
+def test_approval_tag_in_fenced_example_does_not_count(skills_root):
     text = GOOD_SKILL.format(name="a-skill", description=TRIGGER, trigger=TRIGGER)
     text = text.replace(
-        "2. Write the note. Ask for approval before publishing it (external).",
-        "2. Write the note (external).\n```text\n3. get approval\n```",
+        "2. Show the draft and ask the user to approve it (approval).",
+        "2. Write the draft.\n```text\nAsk the user (approval).\n```",
     )
     skill = make_skill(skills_root, "a-skill", body=text)
     assert failed(verify(skill, external=True)) == {"approval_gate_present"}
@@ -312,7 +311,8 @@ Intro.
 
 1. Read the request.
 2. Optional recovery: when nothing matches, list skills.
-3. Ask for approval before publishing anything (external).
+3. Ask the user to approve the draft (approval).
+4. Publish anything (external).
 
 ## Notes
 
@@ -341,6 +341,7 @@ def test_patch_mode_skips_description_lead_and_sections(skills_root):
         "name_matches_directory",
         "description_present",
         "description_has_trigger",
+        "single_step_section",
         "no_source_only_tool_names",
     }
 
@@ -357,7 +358,7 @@ def test_patch_mode_prefers_procedure_over_process(skills_root):
 
 
 def test_patch_mode_fails_missing_gate_in_process(skills_root):
-    body = HOST_SKILL.replace("Ask for approval before", "Run")
+    body = HOST_SKILL.replace("Ask the user to approve the draft (approval).", "Review the draft.")
     body = body.replace("Optional recovery", "Fallback")
     skill = make_skill(skills_root, "host-skill", body=body)
     assert failed(verify_patch(skill, external=True, recovery=True)) == {

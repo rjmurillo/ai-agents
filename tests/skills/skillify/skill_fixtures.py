@@ -27,7 +27,8 @@ The note exists.
 ## Procedure
 
 1. Read the input.
-2. Write the note. Ask for approval before publishing it (external).
+2. Show the draft and ask the user to approve it (approval).
+3. Publish the note (external).
 
 ## Anti-patterns
 
