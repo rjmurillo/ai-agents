@@ -77,6 +77,7 @@ EXTERNAL_RE = re.compile(
     re.IGNORECASE,
 )
 NAME_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+OUTSIDE_ITEM_RE = re.compile(r"^\d+[.)]\s")
 
 
 def resolve_skill_file(target: Path) -> Path:
@@ -122,7 +123,7 @@ def verify_skill(
     if external_actions:
         checks.append(_approval_check(parsed.steps, patching))
         checks.append(_untagged_check(parsed.steps))
-        outside = [] if patching else outside_step_lines(body, patching)
+        outside = _outside_lines(body, patching)
         checks.append(_outside_steps_check(parsed, outside, patching))
     if external_actions or not patching:
         checks.append(_numbering_check(parsed.steps))
@@ -162,6 +163,17 @@ def _patch_checks(meta: Mapping[str, str], trigger: str) -> list[dict[str, Any]]
 def _procedure_steps(sections: Mapping[str, Section], patching: bool) -> ParsedSteps:
     section = procedure_section(sections, allow_process=patching)
     return parse_steps(section.lines if section else [])
+
+
+def _outside_lines(body: str, patching: bool) -> list[str]:
+    """Lines outside the step section that the backstop scans.
+
+    Create mode scans every instruction line. Patch mode keeps only numbered
+    items: a host skill's tables and prose are reference text, but a numbered
+    list in another section is still a procedure an agent follows.
+    """
+    lines = outside_step_lines(body, patching)
+    return [line for line in lines if OUTSIDE_ITEM_RE.match(line)] if patching else lines
 
 
 def _single_section_check(body: str, patching: bool) -> dict[str, Any]:

@@ -126,7 +126,7 @@ verification failure, `2` no destination or invalid path. Harness tool names:
    strictly before it; approval words do not count, and no step has both tags.
    Fenced commands count as part of their step. An untagged step, or any
    line outside the numbered steps and the descriptive sections, that looks
-   external fails: tag or reword it. Patch mode scans the step section only.
+   external fails: tag or reword it. Outside the step section, patch mode scans numbered items only.
    Steps run 1, 2, 3 in order, restarting or continuing after a subheading. Recovery paths need a step marked optional or
    recovery. Create mode reads numbered Procedure steps; patch mode also
    reads a Process section. Fix every failure
