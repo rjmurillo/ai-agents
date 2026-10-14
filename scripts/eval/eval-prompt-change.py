@@ -95,6 +95,7 @@ DEFAULT_RUNS = 3
 SECURITY_RUNS = 5
 DEFAULT_BASE_RESAMPLES = 3
 FLAKINESS_BLOCK_THRESHOLD = 0.4
+EXIT_EXTERNAL = 3  # ADR-035 exit 3: an external dependency failed, including a provider outage
 EXIT_BILLING = 4  # ADR-035 exit 4: the credential cannot be used because the account has no credit
 
 # Criteria reported for human/JSON consumers but NOT part of the pass/fail
@@ -1166,10 +1167,11 @@ def _is_provider_outage(exc: Exception) -> bool:
     pass/fail verdict (exit 1), never an exception, so any error reaching the
     top-level handler is an execution fault. This narrows that to infrastructure
     outages (quota exhaustion, rate limiting, transient 5xx, timeout, network)
-    using the normalized message shapes call_api / _providers emit. The gate
-    then skips neutrally instead of red-failing on something the change under
-    test did not cause. Set a reachable EVAL_PROVIDER to keep the gate live
-    during an outage of the default transport.
+    using the normalized message shapes call_api / _providers emit. The caller
+    exits 3 (ADR-035 external) with a provider-unavailable message, so the gate
+    never reports success without running and the caller decides whether to
+    skip. Set a reachable EVAL_PROVIDER to keep the gate live during an outage
+    of the default transport.
     """
     msg = str(exc).lower()
     outage_markers = (
@@ -1210,12 +1212,12 @@ def _run_or_exit(
             sys.exit(EXIT_BILLING)
         if _is_provider_outage(error):
             print(
-                f"SKIP: behavioral eval could not run, model provider unavailable: {error}",
+                f"ERROR: provider unavailable, behavioral eval could not run: {error}",
                 file=sys.stderr,
             )
-            sys.exit(0)
+            sys.exit(EXIT_EXTERNAL)
         print(f"ERROR: eval failed: {error}", file=sys.stderr)
-        sys.exit(3)
+        sys.exit(EXIT_EXTERNAL)
 
 
 def main() -> None:
