@@ -187,10 +187,9 @@ Output: `VERDICT: PASS|WARN|CRITICAL_FAIL` with findings array.
 
 1. Identify what changed (git diff against base branch)
 2. Classify PR type (Step 0). Skip non-applicable gates.
-3. Run applicable gates sequentially. Each gate dispatches its own agent.
+3. Run applicable gates sequentially, once, at the final head. Each gate dispatches its own agent. During edits, run focused checks only.
 4. If any gate produces CRITICAL_FAIL: continue remaining gates (findings are additive). Mark overall verdict as CRITICAL_FAIL immediately.
-5. For test failures: hypothesis, verify, fix (never change code without understanding why)
-6. Invoke Skill(skill="quality-grades") to synthesize gate verdicts into overall quality score.
+5. Invoke Skill(skill="quality-grades") to synthesize gate verdicts into overall quality score.
 
 ## Output
 
@@ -321,5 +320,5 @@ If any answer is "no" or "not sure," adjust before proceeding.
   and a row in the output table together, so a gate cannot run unreported.
 - **New PR type.** Step 0's table maps patterns to gates; a new file class is a
   new row, not new prose.
-- **Different synthesis.** Process step 6 delegates to `quality-grades`. A
+- **Different synthesis.** Process step 5 delegates to `quality-grades`. A
   project scoring differently swaps that one call.
