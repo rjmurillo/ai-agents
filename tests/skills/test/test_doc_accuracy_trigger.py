@@ -24,10 +24,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 if TESTS_SKILLS_DIR not in sys.path:
     sys.path.insert(0, TESTS_SKILLS_DIR)
 
-_SCRIPTS_PATH = str(PROJECT_ROOT / "build" / "scripts")
-
 from claude_skills_import import import_skill_script
 
+_SCRIPTS_PATH = str(PROJECT_ROOT / "build" / "scripts")
 sys.path.insert(0, _SCRIPTS_PATH)
 try:
     from copilot_body_translation import translate_reference_file
@@ -352,12 +351,9 @@ def test_cli_emits_decision_from_a_foreign_cwd(shipped_script: Path, tmp_path: P
 )
 def test_shipped_copies_match_the_canonical_file(name: Path) -> None:
     canonical = (SKILLS_ROOT / name).read_bytes()
-    copilot_expected = canonical
-    if name.suffix == ".md":
-        # The Copilot mirror translates Claude call syntax in references (issue #5657).
-        copilot_expected = translate_reference_file(
-            canonical.decode("utf-8"), COPILOT_SKILLS_ROOT
-        ).encode("utf-8")
+    # The Copilot mirror translates Claude call syntax in references (issue #5657).
+    translated = translate_reference_file(canonical.decode("utf-8"), COPILOT_SKILLS_ROOT)
+    copilot_expected = translated.encode("utf-8") if name.suffix == ".md" else canonical
     assert (SRC_CLAUDE_SKILLS_ROOT / name).read_bytes() == canonical
     assert (COPILOT_SKILLS_ROOT / name).read_bytes() == copilot_expected
 
