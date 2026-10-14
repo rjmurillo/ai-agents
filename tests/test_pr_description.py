@@ -530,6 +530,29 @@ class TestInlineCitationStripping:
         body = "## Changes\nThe proper `scripts/config.py` file is part of this change."
         assert "scripts/config.py" in extract(body)
 
+    @pytest.mark.parametrize(
+        "suffix",
+        ["", ":71", ":71:9"],
+        ids=["no-location", "line", "line-and-column"],
+    )
+    @pytest.mark.parametrize(
+        "cue",
+        ["see", "per", "e.g.", "for example", "defined in", "introduced in"],
+    )
+    def test_citation_cue_strips_path_with_location_suffix(self, cue, suffix):
+        """#5550: a cited path with a line or line:column suffix is stripped like a bare path."""
+        extract = self._import_extract()
+        path = f"scripts/validation/checks_ratchet.py{suffix}"
+        body = f"## Changes\nThe anchor is valid, {cue} `{path}`, which holds it."
+        assert "scripts/validation/checks_ratchet.py" not in extract(body)
+
+    @pytest.mark.parametrize("suffix", [":71", ":71:9"], ids=["line", "line-and-column"])
+    def test_uncited_path_with_location_suffix_still_collected(self, suffix):
+        """#5550 negative control: no cue means the CRITICAL path still fires."""
+        extract = self._import_extract()
+        body = f"## Changes\nThe anchor `scripts/validation/checks_ratchet.py{suffix}` moved."
+        assert "scripts/validation/checks_ratchet.py" in extract(body)
+
     def test_citation_cue_does_not_cross_line_boundary(self):
         """A cue on one line must not suppress a claim on the next line."""
         extract = self._import_extract()
