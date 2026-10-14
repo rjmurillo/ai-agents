@@ -17,10 +17,14 @@ from pathlib import Path
 import pytest
 
 TESTS_SKILLS_DIR = str(Path(__file__).resolve().parents[1])
-if TESTS_SKILLS_DIR not in sys.path:
+_inserted_tests_skills_dir = TESTS_SKILLS_DIR not in sys.path
+if _inserted_tests_skills_dir:
     sys.path.insert(0, TESTS_SKILLS_DIR)
-
-from claude_skills_import import import_skill_script
+try:
+    from claude_skills_import import import_skill_script
+finally:
+    if _inserted_tests_skills_dir:
+        sys.path.remove(TESTS_SKILLS_DIR)
 
 mod = import_skill_script(
     ".claude/skills/test/scripts/doc_accuracy_trigger.py",
