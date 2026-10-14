@@ -5789,6 +5789,35 @@ def test_push_files_warning_emits_for_new_branch_off_head(
     assert "quality coverage may be incomplete" in capsys.readouterr().err
 
 
+def test_push_files_warning_emits_for_new_branch_with_stale_push_base(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A stale @{push} on a new remote branch keeps the warning.
+
+    The remote branch was deleted but the local tracking ref was not pruned.
+    @{push} still resolves, so Lefthook diffs HEAD against the stale tip and
+    {push_files} can miss files this push carries.
+    """
+    head = "1" * 40
+    stale_tip = "4" * 40
+    refs = [policy.PushRef("refs/heads/gone", head, "refs/heads/gone", "0" * 40)]
+
+    def run_git(_repo_root: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+        if args == ["rev-parse", "HEAD"]:
+            return _completed(0, f"{head}\n")
+        if args == ["rev-parse", "--verify", "@{push}"]:
+            return _completed(0, f"{stale_tip}\n")
+        raise AssertionError(args)
+
+    monkeypatch.setattr(policy, "_run_git", run_git)
+
+    policy.warn_if_push_files_incomplete(refs, tmp_path)
+
+    assert "quality coverage may be incomplete" in capsys.readouterr().err
+
+
 def test_push_files_warning_emits_for_existing_branch_at_head_without_push_base(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

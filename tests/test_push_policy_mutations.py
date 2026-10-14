@@ -157,7 +157,7 @@ def test_mutation_disabling_explicit_refspec_quiet_path_is_caught() -> None:
 def test_mutation_disabling_new_branch_quiet_path_is_caught() -> None:
     """Replacing the is_new guard with False must cause
     test_push_files_warning_is_quiet_for_new_branch_at_head to fail."""
-    old = "        if ref.is_new:\n            return\n"
+    old = "        if ref.is_new and push_base.returncode != 0:\n            return\n"
     new = "        if False:  # mutation: new-branch quiet path disabled\n            return\n"
     with _mutated(old, new) as count:
         assert count > 0, f"DID-NOT-APPLY: {old!r} not found in {_POLICY}"
@@ -165,6 +165,20 @@ def test_mutation_disabling_new_branch_quiet_path_is_caught() -> None:
         _assert_ran(result)
         assert result.returncode != 0, (
             "Mutation survived: disabling new-branch quiet path was not caught"
+        )
+
+
+def test_mutation_dropping_stale_push_base_guard_is_caught() -> None:
+    """Dropping the @{push} failure check from the is_new guard must cause
+    test_push_files_warning_emits_for_new_branch_with_stale_push_base to fail."""
+    old = "        if ref.is_new and push_base.returncode != 0:\n            return\n"
+    new = "        if ref.is_new:  # mutation: stale @{push} guard dropped\n            return\n"
+    with _mutated(old, new) as count:
+        assert count > 0, f"DID-NOT-APPLY: {old!r} not found in {_POLICY}"
+        result = _run_targeted("push_files_warning_emits_for_new_branch_with_stale_push_base")
+        _assert_ran(result)
+        assert result.returncode != 0, (
+            "Mutation survived: dropping the stale @{push} guard was not caught"
         )
 
 
