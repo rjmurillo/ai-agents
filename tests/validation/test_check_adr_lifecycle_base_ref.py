@@ -25,7 +25,8 @@ _BAD_FRONTMATTER = "---\nid: ADR-002\nstatus: [unclosed\n---\n\n# ADR-002: Bad\n
 _GOOD = (
     "---\nid: ADR-001\nstatus: accepted\ndate: 2026-08-21\nsupersedes: []\n"
     "superseded-by: null\nimplemented: true\n---\n\n# ADR-001: Thing\n\n"
-    "## Status\n\nAccepted (2026-08-21). Conditions were cleared in review.\n"
+    "## Status\n\nAccepted (2026-08-21). Conditions were cleared in review.\n\n"
+    "## Context\n\nWhy.\n\n## Decision\n\nWhat.\n\n## Consequences\n\nSo.\n"
 )
 
 
@@ -241,7 +242,7 @@ def test_a_check_the_base_ref_baseline_lacks_does_not_fail_the_branch_adding_it(
     _git(tmp_path, "checkout", "-q", "-b", "feature")
     (adr_dir / "ADR-002-stale.md").write_text(
         _GOOD.replace("ADR-001", "ADR-002").replace(
-            "## Status\n\nAccepted (2026-08-21). Conditions were cleared in review.\n",
+            "## Decision\n\nWhat.\n",
             "## Decision\n\nRun `scripts/gone.py`.\n",
         ),
         encoding="utf-8",

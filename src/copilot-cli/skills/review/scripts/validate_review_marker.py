@@ -47,6 +47,21 @@ fail and makes a fabricated report a deliberate act that review can see. Proof
 of identity needs a signing key or a CI-run review, which this gate does not
 attempt.
 
+WHY A CLEAN MERGE OF THE BASE REF MAY SIT ABOVE THE MARKER (Issue #6509): the
+author finishes ``/review``, then main moves, and syncing the branch adds a merge
+commit above M. That merge brings in code main already reviewed and changes none
+of the reviewed code, so demanding a new review for it only costs a full axis
+re-run. The tip is accepted when it is a clean merge of the base ref (default
+``origin/main``): two parents, the second reachable from the base ref, and a tree
+equal to what ``git merge-tree --write-tree`` computes for the two parents. The
+first parent is then judged as the marker, and merges can stack. A merge with
+conflict edits, an extra edit, or a second parent that is not on the base ref is
+new, unreviewed code and still fails. Known limit: the second parent may be any
+ancestor of the base ref, so merging an older main commit brings back code main has
+since reverted; main's own review covered that code when it landed.
+``git merge-tree --write-tree`` stores the merged tree objects in the object
+database; it moves no ref and touches no file.
+
 This validator does not amend or write. It reads the ``Reviewed-By`` trailers on
 a commit (at the git I/O boundary, or passed in for tests) and answers one
 question: is the commit a marker whose trailer binds its parent (the reviewed
@@ -76,7 +91,7 @@ import shutil
 import subprocess
 import sys
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 # The trailer key the /review skill writes and /ship reads. Defined once here
@@ -123,6 +138,11 @@ PASSING_VERDICTS = frozenset({"PASS", "COMPLIANT", "WARN", "PARTIAL"})
 # rejects unknown names passed to --pin.
 LOCAL_AXES = ("code-qualities-assessment", "doc-accuracy", "golden-principles", "taste-lints")
 ALWAYS_ON_AXES = ("correctness",)
+
+# The ref a clean merge must pull from, and the longest chain of syncs the walk
+# below a tip will follow before it gives up and asks for a fresh review.
+DEFAULT_BASE_REF = "origin/main"
+MAX_MAIN_MERGE_HOPS = 25
 
 
 @dataclass(frozen=True, slots=True)
@@ -448,6 +468,141 @@ def validate_marker_commit_shape(
     return None
 
 
+@dataclass(frozen=True, slots=True)
+class MarkerTarget:
+    """The commit to judge as the marker, found below any clean merges of the base ref."""
+
+    commit: str
+    parents: list[str]
+    merges: int = 0
+
+
+def _merge_failure(ref: str, commit_sha: str, why: str, exit_code: int = 1) -> ValidationOutcome:
+    """Return the outcome for a two-parent tip that is not a clean merge of the base ref."""
+    return ValidationOutcome(
+        ok=False,
+        exit_code=exit_code,
+        message=(
+            f"{ref} ({commit_sha[:12]}) has 2 parents; a review marker must be a "
+            f"single-parent empty commit, and only a clean merge of the base ref may sit "
+            f"above one: {why}. Re-run /review on a linear branch tip."
+        ),
+    )
+
+
+def _second_parent_on_base(
+    second: str, base_ref: str, repo_root: Path
+) -> tuple[bool, str | None, bool]:
+    """Return ``(on_base, reason, git_failed)`` for ``second`` against ``base_ref``.
+
+    ``merge-base --is-ancestor`` exits 0 for yes and 1 for no. Exit 128 means the
+    base ref does not exist, which fails the merge check without a config error:
+    a consumer that never fetched it simply has no proof the merge came from main.
+    Any other code (timeout, git missing) is a git failure.
+    """
+    if _is_option_like_ref(base_ref):
+        return False, f"invalid base ref '{base_ref}': refs must not start with '-'", False
+    exit_code, _, stderr = _run_git(["merge-base", "--is-ancestor", second, base_ref], repo_root)
+    if exit_code == 0:
+        return True, None, False
+    if exit_code == 1:
+        return False, f"its second parent {second[:12]} is not on {base_ref}", False
+    if exit_code == 128:
+        return False, f"base ref {base_ref} could not be resolved: {stderr.strip()}", False
+    return False, _git_failure_reason(exit_code, stderr, "git merge-base"), True
+
+
+def _clean_merge_tree(
+    first: str, second: str, repo_root: Path
+) -> tuple[str | None, str | None, bool]:
+    """Return ``(tree, reason, git_failed)`` for a trial merge of ``first`` and ``second``.
+
+    ``git merge-tree --write-tree`` exits 1 when the merge has conflicts, which
+    a clean sync never has.
+    """
+    exit_code, stdout, stderr = _run_git(
+        ["merge-tree", "--write-tree", "--no-messages", first, second], repo_root
+    )
+    if exit_code == 0 and stdout.strip():
+        return stdout.splitlines()[0].strip(), None, False
+    if exit_code == 1:
+        return None, "the merge needed conflict resolution", False
+    return None, _git_failure_reason(exit_code, stderr, "git merge-tree"), True
+
+
+def step_over_main_merge(
+    ref: str,
+    commit_sha: str,
+    parent_shas: list[str],
+    base_ref: str,
+    repo_root: Path,
+) -> tuple[str | None, ValidationOutcome | None]:
+    """Return ``(first_parent, None)`` when ``commit_sha`` is a clean merge of ``base_ref``.
+
+    Otherwise return ``(None, outcome)``. The outcome is exit 1 when the commit is
+    not provably a clean merge, and exit 2 when git itself failed.
+    """
+    first, second = parent_shas
+    on_base, why, git_failed = _second_parent_on_base(second, base_ref, repo_root)
+    if not on_base:
+        return None, _merge_failure(ref, commit_sha, why or "unknown", 2 if git_failed else 1)
+    merged_tree, why, git_failed = _clean_merge_tree(first, second, repo_root)
+    if merged_tree is None:
+        return None, _merge_failure(ref, commit_sha, why or "unknown", 2 if git_failed else 1)
+    tip_tree, tree_error = resolve_tree_sha(commit_sha, repo_root)
+    if tip_tree is None:
+        return None, _merge_failure(ref, commit_sha, tree_error or "tree unreadable", 2)
+    if tip_tree != merged_tree:
+        return None, _merge_failure(
+            ref, commit_sha, "the merge changes files beyond a clean merge of the base ref"
+        )
+    return first, None
+
+
+def find_marker_target(
+    ref: str,
+    head_sha: str,
+    parent_shas: list[str],
+    base_ref: str,
+    repo_root: Path,
+) -> MarkerTarget | ValidationOutcome:
+    """Walk below clean merges of ``base_ref`` to the commit that must be the marker.
+
+    A single-parent tip is its own target. Each two-parent tip must pass
+    ``step_over_main_merge``; its first parent is the next commit to judge. A
+    commit with any other parent count is returned as is, and the shape check
+    that follows reports it.
+    """
+    commit, parents, merges = head_sha, parent_shas, 0
+    while len(parents) == 2:
+        if merges >= MAX_MAIN_MERGE_HOPS:
+            return _merge_failure(
+                ref,
+                commit,
+                f"the branch stacks more than {MAX_MAIN_MERGE_HOPS} merges of the base ref",
+            )
+        first, failure = step_over_main_merge(ref, commit, parents, base_ref, repo_root)
+        if failure is not None:
+            return failure
+        assert first is not None
+        read_parents, read_error = read_parent_shas(first, repo_root)
+        parent_error = validate_parent_shas(ref, first, read_parents, read_error)
+        if parent_error is not None:
+            return parent_error
+        assert read_parents is not None
+        commit, parents, merges = first, read_parents, merges + 1
+    return MarkerTarget(commit=commit, parents=parents, merges=merges)
+
+
+def with_merge_note(outcome: ValidationOutcome, merges: int, base_ref: str) -> ValidationOutcome:
+    """Add the count of skipped merges to a passing outcome's message."""
+    if merges == 0:
+        return outcome
+    noun = "merge" if merges == 1 else "merges"
+    note = f" (above {merges} clean {noun} of {base_ref})"
+    return replace(outcome, message=outcome.message + note)
+
+
 def bound_markers(values: list[str], parent_sha: str) -> list[ReviewMarker]:
     """Return every well-formed marker among ``values`` that binds ``parent_sha``."""
     parsed = (parse_marker(value) for value in values)
@@ -477,6 +632,7 @@ def validate_ref(
     repo_root: Path,
     known_axes: frozenset[str] | None = None,
     references_dir: Path | None = None,
+    base_ref: str = DEFAULT_BASE_REF,
 ) -> ValidationOutcome:
     """Check that ``ref`` is a marker commit binding its parent (the reviewed code).
 
@@ -485,6 +641,9 @@ def validate_ref(
     equals the parent SHA. The marker is an empty commit naming the reviewed
     tip, so binding to the parent is the SHA-binding check at the heart of the
     ship gate (a commit cannot name its own SHA; see module docstring).
+
+    When ``ref`` is a clean merge of ``base_ref`` (Issue #6509), the walk first
+    steps below it, and the marker is judged on the first parent.
 
     The axis list must also name only discovered axes, each once. ``known_axes``
     defaults to the set discovered beside this script; no axis directory is a
@@ -508,12 +667,15 @@ def validate_ref(
         return parent_error
     assert parent_shas is not None
 
-    shape_error = validate_marker_commit_shape(ref, head_sha, parent_shas, repo_root)
+    target = find_marker_target(ref, head_sha, parent_shas, base_ref, repo_root)
+    if isinstance(target, ValidationOutcome):
+        return target
+
+    shape_error = validate_marker_commit_shape(ref, target.commit, target.parents, repo_root)
     if shape_error is not None:
         return shape_error
 
-    parent_sha = parent_shas[0]
-    values, marker_read_error = read_marker_values(head_sha, repo_root)
+    values, marker_read_error = read_marker_values(target.commit, repo_root)
     if values is None:
         return ValidationOutcome(
             ok=False,
@@ -521,10 +683,16 @@ def validate_ref(
             message=_with_reason(f"git could not read commit '{ref}'", marker_read_error),
         )
 
-    outcome = evaluate_marker_values(ref, head_sha, parent_sha, values, known_axes, references_dir)
+    parent_sha = target.parents[0]
+    outcome = evaluate_marker_values(
+        ref, target.commit, parent_sha, values, known_axes, references_dir
+    )
     if not outcome.ok:
         return outcome
-    return validate_review_artifact(head_sha, parent_sha, outcome.axes, repo_root) or outcome
+    outcome = (
+        validate_review_artifact(target.commit, parent_sha, outcome.axes, repo_root) or outcome
+    )
+    return with_merge_note(outcome, target.merges, base_ref) if outcome.ok else outcome
 
 
 def evaluate_marker_values(
@@ -720,6 +888,14 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--base-ref",
+        default=DEFAULT_BASE_REF,
+        help=(
+            "Ref a merge above the marker must pull from (default: origin/main). A tip "
+            "that is a clean merge of this ref keeps the marker below it valid."
+        ),
+    )
+    parser.add_argument(
         "--digest",
         type=Path,
         default=None,
@@ -769,7 +945,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[FAIL] invalid repo root: {repo_root}", file=sys.stderr)
         return 2
 
-    outcome = validate_ref(args.ref, repo_root, references_dir=args.references_dir)
+    outcome = validate_ref(
+        args.ref, repo_root, references_dir=args.references_dir, base_ref=args.base_ref
+    )
     label = "PASS" if outcome.ok else "FAIL"
     stream = sys.stdout if outcome.ok else sys.stderr
     print(f"[{label}] {outcome.message}", file=stream)

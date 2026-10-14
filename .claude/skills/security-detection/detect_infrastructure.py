@@ -48,6 +48,36 @@ never ran the security axis does not review a CRITICAL security surface. This
 module reimplements the check rather than importing the review skill, because
 each skill ships as a self-contained directory and cannot import a sibling
 skill's script at runtime (``.claude/rules/plugin-self-containment.md``).
+A clean merge of the base ref may sit above the marker (issue #6509). Syncing a
+reviewed branch with main adds a merge commit, and that merge changes none of the
+reviewed code. The ref is accepted when it is two parents, the second parent is
+reachable from ``--base-ref`` (default ``origin/main``), and its tree equals what
+``git merge-tree --write-tree`` computes for the two parents. The first parent is
+then judged as the marker, and merges can stack. A merge with conflict edits, an
+extra edit, or a second parent off the base ref is unreviewed code and still
+needs a marker. ``validate_review_marker.step_over_main_merge`` is the same rule;
+``tests/skills/security-detection/test_security_review_main_merge.py`` runs both on
+one table of histories and fails when they disagree. Known limit: the second parent
+may be any ancestor of the base ref, so merging an older main commit brings back code
+main has since reverted. Main's own review covered that code when it landed.
+
+COMMENT-ONLY EXEMPTION (issue #6509). With ``--diff-base``, a CRITICAL file whose
+diff from the base to ``--ref`` changes only plain comment and blank lines needs
+no marker, in two steps. First, every changed line is blank or a ``#`` comment
+that is not a directive: ``noqa``, ``nosec``, ``zizmor``, ``shellcheck``, a
+shebang, a PEP 723 ``# ///`` block, and the other words in ``DIRECTIVE_WORDS``
+all count as changes, and so do a mode change, a new or deleted file, and a
+trailing comment on a code line. Second, the file means the same thing before
+and after, because a ``#`` line can be content: inside a Python string, or inside
+a YAML ``run: |`` block, where editing it changes the script. A ``.py`` file must
+parse to the same AST and no hunk may start in its first two lines, where a shebang or
+coding cookie lives. A ``.yml`` or ``.yaml`` file must load to the same data
+with PyYAML; a host without PyYAML gets no YAML exemption and falls back to the
+marker. Every other file kind (``.json``, ``.toml``, shell, no extension) is
+never exempt. A file over 1 MB, a Python file with a PEP 723 block, and a YAML file
+with an anchor or alias are never exempt either. Out of scope: a suppression keyed on a
+line number in a separate config moves when a line is inserted above it.
+
 The scope is the ref only, HEAD by default. The pre-push hook passes each
 pushed SHA as ``--ref`` (issue #6076), so a pushed branch is judged by its own
 marker, not by the checked-out HEAD's.
@@ -55,6 +85,7 @@ marker, not by the checked-out HEAD's.
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import re
@@ -71,6 +102,37 @@ REPORT_END = "--- end review report ---"
 PASSING_VERDICTS = frozenset({"PASS", "COMPLIANT", "WARN", "PARTIAL"})
 SECURITY_AXIS = "security"
 GIT_TIMEOUT_SECONDS = 15
+DEFAULT_BASE_REF = "origin/main"
+MAX_MAIN_MERGE_HOPS = 25
+
+# Files the comment-only exemption can judge, each with a structural equality check.
+COMMENT_ONLY_SUFFIXES = (".yml", ".yaml", ".py")
+# A comment that carries one of these words can change what a tool checks or how
+# a file is read, so editing it is a change, not a comment edit. The match is a
+# substring on the lowercased comment: a harmless comment that mentions one of
+# them needs a marker, which is the safe direction to be wrong.
+DIRECTIVE_WORDS = (
+    "noqa", "nosec", "nosemgrep", "semgrep", "zizmor", "pragma", "type:", "pylint", "///", "renovate",
+    "ruff", "codeql", "lgtm", "skipcq", "yamllint", "shellcheck", "actionlint",
+    "taste-lint", "bandit", "mypy", "pyright", "isort", "fmt:", "coding:", "coding=",
+    "-*-", "vim:", "gitleaks", "trufflehog", "detect-secrets", "trivy", "checkov",
+    "tfsec", "snyk", "sonar", "noinspection", "ignore", "disable", "suppress", "lint",
+    "skip", "sourcery", "yapf", "pytype", "pyre", "flake8", "pycodestyle", "cspell",
+    "codespell", "black", "secret", "allow", "exempt", "unsafe", "{{", "{%",
+)  # fmt: skip
+# Largest file the structural check will parse, and the shapes it will not: a YAML
+# anchor or alias lets a small file expand into data that takes exponential time
+# to compare, and a PEP 723 block is a comment that ``uv run`` installs from.
+MAX_STRUCTURE_BYTES = 1_000_000
+REGULAR_FILE_MODES = frozenset({"100644", "100755"})
+# A comment shaped ``word: ...`` or ``word=...`` is read as a directive even when no
+# listed word matches, so a tool this list has never heard of still needs a marker.
+_DIRECTIVE_SHAPE_RE = re.compile(r"^#+\s*[\w./-]+\s*[:=]")
+_YAML_ANCHOR_RE = re.compile(r"(?:^|[\s\[{,])[&*][A-Za-z0-9_-]", re.MULTILINE)
+_PEP723_RE = re.compile(r"^#\s*///", re.MULTILINE)
+_HUNK_START_RE = re.compile(r"^@@ -(\d+)(?:,\d+)? \+(\d+)", re.MULTILINE)
+PYTHON_HEAD_LINES = 2
+_DIFF_HEADER_PREFIXES = ("diff --git ", "index ", "--- ", "+++ ")
 
 # Typed result vocabulary for the ``security_review`` object. Mirrored, not
 # imported, from ``scripts/validation/evidence.py``: this skill ships as a
@@ -246,15 +308,18 @@ class GitReadError(Exception):
         self.reason = reason
 
 
-def _git(args: list[str], repo_root: Path) -> str:
-    """Run git in ``repo_root`` and return stdout, or raise ``GitReadError``."""
+def _git_result(args: list[str], repo_root: Path) -> subprocess.CompletedProcess[str]:
+    """Run git in ``repo_root`` and return the result, or raise ``GitReadError``.
+
+    Raises only when git never answered. A non-zero exit is the caller's to read.
+    """
     if shutil.which("git") is None:
         raise GitReadError(
             "git not found on PATH", state=_V["BLOCKED"], reason=_V["REASON_TOOL_ABSENT"]
         )
     try:
-        result = subprocess.run(  # subprocess-encoding: strict-ok
-            ["git", "-C", str(repo_root), *args],
+        return subprocess.run(  # subprocess-encoding: strict-ok
+            ["git", "--literal-pathspecs", "-C", str(repo_root), *args],
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -278,9 +343,18 @@ def _git(args: list[str], repo_root: Path) -> str:
             state=_V["BLOCKED"],
             reason=_V["REASON_TOOL_ABSENT"],
         ) from exc
+
+
+def _failed(args: list[str], result: subprocess.CompletedProcess[str]) -> GitReadError:
+    detail = result.stderr.strip() or f"exit {result.returncode}"
+    return GitReadError(f"git {args[0]} failed: {detail}")
+
+
+def _git(args: list[str], repo_root: Path) -> str:
+    """Run git in ``repo_root`` and return stdout, or raise ``GitReadError``."""
+    result = _git_result(args, repo_root)
     if result.returncode != 0:
-        detail = result.stderr.strip() or f"exit {result.returncode}"
-        raise GitReadError(f"git {args[0]} failed: {detail}")
+        raise _failed(args, result)
     return result.stdout
 
 
@@ -341,40 +415,248 @@ def check_review_artifact(
     return _report_digest(report) in digests and _report_rows_back_axes(report, parent_sha, axes)
 
 
-def find_security_review_marker(ref: str, repo_root: Path) -> tuple[bool, str]:
+def _merge_below(
+    commit: str, parents: list[str], base_ref: str, repo_root: Path
+) -> tuple[str | None, str]:
+    """Return ``(first_parent, "")`` when ``commit`` is a clean merge of ``base_ref``.
+
+    Otherwise return ``(None, reason)``. Raises ``GitReadError`` when git cannot
+    answer. Same rule as ``validate_review_marker.step_over_main_merge``.
+    """
+    first, second = parents
+    ancestor_args = ["merge-base", "--is-ancestor", second, base_ref]
+    ancestor = _git_result(ancestor_args, repo_root)
+    if ancestor.returncode == 1:
+        return None, f"its second parent {second[:12]} is not on {base_ref}"
+    if ancestor.returncode == 128:
+        return None, f"base ref {base_ref} could not be resolved"
+    if ancestor.returncode != 0:
+        raise _failed(ancestor_args, ancestor)
+    trial_args = ["merge-tree", "--write-tree", "--no-messages", first, second]
+    trial = _git_result(trial_args, repo_root)
+    if trial.returncode == 1:
+        return None, "the merge needed conflict resolution"
+    if trial.returncode != 0 or not trial.stdout.strip():
+        raise _failed(trial_args, trial)
+    tree = _git(["show", "-s", "--format=%T", commit], repo_root).strip()
+    if tree != trial.stdout.splitlines()[0].strip():
+        return None, "the merge changes files beyond a clean merge of the base ref"
+    return first, ""
+
+
+def _marker_commit_below_merges(
+    head: str, base_ref: str, repo_root: Path
+) -> tuple[str, list[str], int, str]:
+    """Walk below clean merges of ``base_ref``; return ``(commit, parents, merges, failure)``.
+
+    ``failure`` is empty when the walk reached a commit that is not a two-parent
+    merge. Otherwise it says why a two-parent commit is not a clean merge.
+    """
+    commit, merges = head, 0
+    while True:
+        parents = _git(["show", "-s", "--format=%P", commit], repo_root).split()
+        if len(parents) != 2:
+            return commit, parents, merges, ""
+        if merges >= MAX_MAIN_MERGE_HOPS:
+            return (
+                commit,
+                parents,
+                merges,
+                (f"the branch stacks more than {MAX_MAIN_MERGE_HOPS} merges of the base ref"),
+            )
+        first, why = _merge_below(commit, parents, base_ref, repo_root)
+        if first is None:
+            return commit, parents, merges, why
+        commit, merges = first, merges + 1
+
+
+def find_security_review_marker(
+    ref: str, repo_root: Path, base_ref: str = DEFAULT_BASE_REF
+) -> tuple[bool, str]:
     """Report whether ``ref`` is a marker commit binding its parent with the security axis.
 
-    Returns ``(satisfied, detail)``. Raises ``GitReadError`` when git cannot
-    answer, which the caller maps to exit 3 and never treats as satisfied.
+    A clean merge of ``base_ref`` above the marker is stepped over first (issue
+    #6509). Returns ``(satisfied, detail)``. Raises ``GitReadError`` when git
+    cannot answer, which the caller maps to exit 3 and never treats as satisfied.
     """
-    if ref.startswith("-"):
+    if ref.startswith("-") or base_ref.startswith("-"):
         raise GitReadError(f"invalid ref {ref!r}: refs must not start with '-'")
     head = _git(["rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"], repo_root).strip()
-    parents = _git(["show", "-s", "--format=%P", head], repo_root).split()
+    commit, parents, merges, failure = _marker_commit_below_merges(head, base_ref, repo_root)
+    if failure:
+        return False, (
+            f"{commit[:12]} has 2 parents; a marker is a single-parent commit, and only a "
+            f"clean merge of {base_ref} may sit above one: {failure}"
+        )
     if len(parents) != 1:
-        return False, f"{head[:12]} has {len(parents)} parents; a marker is a single-parent commit"
-    tree = _git(["show", "-s", "--format=%T", head], repo_root).strip()
+        return (
+            False,
+            f"{commit[:12]} has {len(parents)} parents; a marker is a single-parent commit",
+        )
+    tree = _git(["show", "-s", "--format=%T", commit], repo_root).strip()
     parent_tree = _git(["show", "-s", "--format=%T", parents[0]], repo_root).strip()
     if tree != parent_tree:
-        return False, f"{head[:12]} changes files; a marker is an empty commit"
+        return False, f"{commit[:12]} changes files; a marker is an empty commit"
     trailer_format = f"--format=%(trailers:key={MARKER_TRAILER_KEY},valueonly,unfold)"
     values = [
-        v for v in _git(["log", "-1", trailer_format, head], repo_root).splitlines() if v.strip()
+        v for v in _git(["log", "-1", trailer_format, commit], repo_root).splitlines() if v.strip()
     ]
     axes = _security_marker_axes(values, parents[0])
-    if axes is not None:
-        message = _git(["log", "-1", "--format=%B", head], repo_root)
-        digest_format = f"--format=%(trailers:key={ARTIFACT_TRAILER_KEY},valueonly,unfold)"
-        digests = _git(["log", "-1", digest_format, head], repo_root).splitlines()
-        if not check_review_artifact(message, digests, parents[0], axes):
-            return False, (
-                f"{head[:12]} has a security marker but no valid review report: a bare "
-                f"'{MARKER_TRAILER_KEY}' trailer does not show a review ran"
-            )
-        return True, f"{head[:12]} carries a security review marker binding {parents[0][:12]}"
-    return False, (
-        f"{head[:12]} has no '{MARKER_TRAILER_KEY}: /review@...{SECURITY_AXIS}... on "
-        f"{parents[0][:12]}' trailer"
+    if axes is None:
+        return False, (
+            f"{commit[:12]} has no '{MARKER_TRAILER_KEY}: /review@...{SECURITY_AXIS}... on "
+            f"{parents[0][:12]}' trailer"
+        )
+    message = _git(["log", "-1", "--format=%B", commit], repo_root)
+    digest_format = f"--format=%(trailers:key={ARTIFACT_TRAILER_KEY},valueonly,unfold)"
+    digests = _git(["log", "-1", digest_format, commit], repo_root).splitlines()
+    if not check_review_artifact(message, digests, parents[0], axes):
+        return False, (
+            f"{commit[:12]} has a security marker but no valid review report: a bare "
+            f"'{MARKER_TRAILER_KEY}' trailer does not show a review ran"
+        )
+    note = f", below {merges} clean merge(s) of {base_ref}" if merges else ""
+    return True, f"{commit[:12]} carries a security review marker binding {parents[0][:12]}{note}"
+
+
+def _is_plain_comment(content: str) -> bool:
+    """Return True for a blank line or a ``#`` comment that is not a directive."""
+    text = content.strip()
+    if not text:
+        return True
+    if not text.startswith("#") or text.startswith("#!"):
+        return False
+    if _DIRECTIVE_SHAPE_RE.match(text):
+        return False
+    lowered = text.lower()
+    return not any(word in lowered for word in DIRECTIVE_WORDS)
+
+
+def _diff_is_comment_only(diff_text: str) -> bool:
+    """Return True when a ``--unified=0`` diff of one file changes only plain comments.
+
+    Header lines before the first hunk must be the four plain ones; a mode
+    change, a new or deleted file, or a binary marker is a change. A diff with no
+    changed line is not comment-only, so an empty diff never exempts.
+    """
+    in_hunk = False
+    changed = 0
+    for line in diff_text.splitlines():
+        if line.startswith("@@"):
+            in_hunk = True
+        elif not in_hunk:
+            if not line.startswith(_DIFF_HEADER_PREFIXES):
+                return False
+        elif line.startswith("\\"):
+            continue
+        elif line[:1] in ("+", "-") and _is_plain_comment(line[1:]):
+            changed += 1
+        else:
+            return False
+    return changed > 0
+
+
+def _file_at(rev: str, path: str, repo_root: Path) -> str:
+    """Return ``path`` as it was at ``rev``; raise ``GitReadError`` when git cannot read it.
+
+    The caller has already seen the path in the tree at ``rev``, so a failure here is
+    a git failure, not a missing file. ``cat-file blob`` reads the stored bytes;
+    ``git show`` could run a configured textconv and read different bytes than the
+    diff step did.
+    """
+    return _git(["cat-file", "blob", f"{rev}:{path}"], repo_root)
+
+
+def _same_python(old: str, new: str) -> bool:
+    """Return True when both texts parse to one AST and neither holds a PEP 723 block."""
+    if _PEP723_RE.search(old) or _PEP723_RE.search(new):
+        return False
+    try:
+        return ast.dump(ast.parse(old)) == ast.dump(ast.parse(new))
+    except (SyntaxError, ValueError, RecursionError, MemoryError, OverflowError):
+        return False
+
+
+def _same_yaml(old: str, new: str) -> bool:
+    """Return True when both texts load to equal data; False without PyYAML.
+
+    Known limit: PyYAML reads YAML 1.1, and the consumer of a workflow may read it
+    differently. A construct the two parsers split on is not covered.
+    """
+    if _YAML_ANCHOR_RE.search(old) or _YAML_ANCHOR_RE.search(new):
+        return False
+    try:
+        import yaml
+    except ImportError:
+        return False
+    try:
+        return list(yaml.safe_load_all(old)) == list(yaml.safe_load_all(new))
+    except (yaml.YAMLError, ValueError, RecursionError, MemoryError, OverflowError):
+        return False
+
+
+def _is_regular_file(rev: str, path: str, repo_root: Path) -> bool:
+    """Return True when ``path`` is a regular file at ``rev``, not a symlink or submodule.
+
+    A symlink retarget keeps its mode, so the diff header does not show it, and the
+    blob is the link target text, which can look like a comment.
+    """
+    listing = _git(["ls-tree", rev, "--", path], repo_root)
+    return listing.split(" ", 1)[0] in REGULAR_FILE_MODES
+
+
+def _means_the_same(path: str, diff_base: str, ref: str, repo_root: Path) -> bool:
+    """Return True when ``path`` parses to the same structure at ``diff_base`` and ``ref``."""
+    if not (
+        _is_regular_file(diff_base, path, repo_root) and _is_regular_file(ref, path, repo_root)
+    ):
+        return False
+    old = _file_at(diff_base, path, repo_root)
+    new = _file_at(ref, path, repo_root)
+    if max(len(old), len(new)) > MAX_STRUCTURE_BYTES:
+        return False
+    if path.lower().endswith(".py"):
+        return _same_python(old, new)
+    return _same_yaml(old, new)
+
+
+def _touches_file_head(diff_text: str) -> bool:
+    """Return True when a hunk starts in the first lines of either side of the file.
+
+    A shebang binds on line 1 and a PEP 263 coding cookie on line 1 or 2, so a blank
+    or comment line added above them switches them off without touching their text.
+    """
+    return any(
+        int(old) <= PYTHON_HEAD_LINES or int(new) <= PYTHON_HEAD_LINES
+        for old, new in _HUNK_START_RE.findall(diff_text)
+    )
+
+
+def _file_change_is_comment_only(path: str, diff_base: str, ref: str, repo_root: Path) -> bool:
+    """Return True when ``path`` differs between ``diff_base`` and ``ref`` by comments only."""
+    if not path.lower().endswith(COMMENT_ONLY_SUFFIXES):
+        return False
+    diff = _git(
+        [
+            "diff", "--no-color", "--no-ext-diff", "--no-textconv", "--no-renames",
+            "--unified=0", diff_base, ref, "--", path,
+        ],
+        repo_root,
+    )  # fmt: skip
+    if path.lower().endswith(".py") and _touches_file_head(diff):
+        return False
+    return _diff_is_comment_only(diff) and _means_the_same(path, diff_base, ref, repo_root)
+
+
+def critical_changes_are_comment_only(
+    result: dict[str, Any], ref: str, diff_base: str, repo_root: Path
+) -> bool:
+    """Return True when every CRITICAL finding is a comment-only change (issue #6509)."""
+    if diff_base.startswith("-") or ref.startswith("-"):
+        raise GitReadError(f"invalid ref {diff_base!r}: refs must not start with '-'")
+    critical = [f["File"] for f in result["findings"] if f["RiskLevel"] == "critical"]
+    return bool(critical) and all(
+        _file_change_is_comment_only(path, diff_base, ref, repo_root) for path in critical
     )
 
 
@@ -391,13 +673,21 @@ def _review_result(
     }
 
 
-def enforce_security_review(result: dict[str, Any], ref: str, repo_root: Path) -> int:
+def enforce_security_review(
+    result: dict[str, Any],
+    ref: str,
+    repo_root: Path,
+    base_ref: str = DEFAULT_BASE_REF,
+    diff_base: str | None = None,
+) -> int:
     """Return the exit code for ``--require-security-review`` and annotate ``result``.
 
     The annotation types every path. No CRITICAL finding is ``SKIP`` with
-    ``policy.exempt`` (the review does not apply). A bound marker is ``PASS``.
-    A CRITICAL finding without one is ``FAIL`` with ``violations.found``. A git
-    read that failed carries its own state and reason and exits 3.
+    ``policy.exempt`` (the review does not apply), and so is a set of CRITICAL
+    findings that changed comments only when ``diff_base`` is given. A bound
+    marker is ``PASS``. A CRITICAL finding without one is ``FAIL`` with
+    ``violations.found``. A git read that failed carries its own state and
+    reason and exits 3.
     """
     if result["highest_risk"] != "critical":
         result["security_review"] = _review_result(
@@ -409,7 +699,18 @@ def enforce_security_review(result: dict[str, Any], ref: str, repo_root: Path) -
         )
         return 0
     try:
-        satisfied, detail = find_security_review_marker(ref, repo_root)
+        if diff_base is not None and critical_changes_are_comment_only(
+            result, ref, diff_base, repo_root
+        ):
+            result["security_review"] = _review_result(
+                required=False,
+                satisfied=True,
+                state=_V["SKIP"],
+                reason=_V["REASON_POLICY_EXEMPT"],
+                detail="every CRITICAL file changed comments only",
+            )
+            return 0
+        satisfied, detail = find_security_review_marker(ref, repo_root, base_ref)
     except GitReadError as exc:
         result["security_review"] = _review_result(
             required=True, satisfied=False, state=exc.state, reason=exc.reason, detail=str(exc)
@@ -459,6 +760,18 @@ def main() -> int:
         "--ref", default="HEAD", help="Commit whose marker is checked (default: HEAD)"
     )
     parser.add_argument(
+        "--base-ref",
+        default=DEFAULT_BASE_REF,
+        help="Ref a merge above the marker must pull from (default: origin/main). A clean "
+        "merge of it keeps the marker below it valid.",
+    )
+    parser.add_argument(
+        "--diff-base",
+        default=None,
+        help="Commit the changed files are measured from. With it, a CRITICAL file that "
+        "changed only plain comments needs no marker.",
+    )
+    parser.add_argument(
         "--repo-root", type=Path, default=None, help="Repository root (default: cwd)"
     )
     args = parser.parse_args()
@@ -472,7 +785,9 @@ def main() -> int:
     exit_code = 0
     if args.require_security_review:
         repo_root = (args.repo_root or Path.cwd()).resolve()
-        exit_code = enforce_security_review(result, args.ref, repo_root)
+        exit_code = enforce_security_review(
+            result, args.ref, repo_root, args.base_ref, args.diff_base
+        )
         if not args.json:
             _report_exempt(result)
 

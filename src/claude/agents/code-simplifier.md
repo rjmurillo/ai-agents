@@ -4,6 +4,7 @@ description: Use this agent when code has been written or modified and needs to 
 metadata:
   role: support
 argument-hint: Point to the recently modified code to simplify
+disallowedTools: Agent
 ---
 
 # Code Simplifier Agent

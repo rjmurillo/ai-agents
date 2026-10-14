@@ -258,3 +258,69 @@ class TestMain:
                 ]
             )
         assert rc == 0
+
+
+class TestNotFound:
+    """A 404 from the replies endpoint exits 2 with a one-line message (D29)."""
+
+    _GH_BODY = (
+        '{"message":"Not Found","documentation_url":"https://docs.github.com","status":"404"}'
+    )
+
+    def _run(self, argv, stdout="", stderr=""):
+        with (
+            patch("post_pr_comment_reply.assert_gh_authenticated"),
+            patch(
+                "post_pr_comment_reply.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(stdout=stdout, stderr=stderr, rc=1),
+            ),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(argv)
+        return exc.value.code
+
+    def test_missing_review_comment_exits_2_with_one_line(self, capsys):
+        code = self._run(
+            ["--pull-request", "50", "--comment-id", "123", "--body", "x"],
+            stdout=self._GH_BODY,
+            stderr="gh: Not Found (HTTP 404)",
+        )
+        assert code == 2
+        err = capsys.readouterr().err
+        assert err.strip() == "Comment 123 not found on o/r#50"
+        assert "}" not in err
+
+    def test_missing_pull_request_exits_2(self, capsys):
+        code = self._run(
+            ["--pull-request", "50", "--body", "x"],
+            stderr="gh: Not Found (HTTP 404)",
+        )
+        assert code == 2
+        assert capsys.readouterr().err.strip() == "Pull request o/r#50 not found"
+
+    def test_404_detected_from_json_body_alone(self, capsys):
+        code = self._run(
+            ["--pull-request", "50", "--comment-id", "9", "--body", "x"],
+            stdout=self._GH_BODY,
+        )
+        assert code == 2
+        assert "Comment 9 not found" in capsys.readouterr().err
+
+    def test_non_404_failure_still_exits_3(self, capsys):
+        code = self._run(
+            ["--pull-request", "50", "--comment-id", "9", "--body", "x"],
+            stderr="gh: Server Error (HTTP 500)",
+        )
+        assert code == 3
+        assert "Failed to post comment" in capsys.readouterr().err
+
+    def test_forbidden_is_not_reported_as_not_found(self):
+        code = self._run(
+            ["--pull-request", "50", "--comment-id", "9", "--body", "x"],
+            stderr="gh: Forbidden (HTTP 403)",
+        )
+        assert code == 3

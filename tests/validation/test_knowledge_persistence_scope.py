@@ -241,7 +241,7 @@ def test_frozen_statement_names_every_artifact_kind(tree: Path, kind: str) -> No
 def test_frozen_statement_is_two_sentences_without_dashes(tree: Path) -> None:
     """Negative case: no em or en dash, and the statement stays two sentences."""
     section = _frozen_section(tree).strip()
-    assert "—" not in section
-    assert "–" not in section
+    assert "\u2014" not in section
+    assert "\u2013" not in section
     sentences = [s for s in re.split(r"(?<=[.])\s+", section) if s]
     assert len(sentences) == 2

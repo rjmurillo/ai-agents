@@ -68,7 +68,7 @@ def test_a_failed_fetch_falls_back_to_the_full_testmon_run(
     assert git_hook_policy.run_pytest(tmp_path) == 0
     assert seen == testmon(tmp_path)
     err = capsys.readouterr().err
-    assert (f"no testmon seed ({detail}); the first run builds the database" in err) is announced
+    assert (f"no testmon seed ({detail}); this push collects the suite" in err) is announced
 
 
 @pytest.mark.parametrize(

@@ -64,5 +64,5 @@ def test_section_avoids_raw_gh(section: str) -> None:
 
 
 def test_section_has_no_em_or_en_dash(section: str) -> None:
-    assert "—" not in section
-    assert "–" not in section
+    assert "\u2014" not in section
+    assert "\u2013" not in section

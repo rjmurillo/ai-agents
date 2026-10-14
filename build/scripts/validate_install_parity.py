@@ -268,7 +268,7 @@ def _is_shared_agent_group(
     """Heuristic: a name is a SHARED_AGENT group iff the template anchor is
     present on disk OR the template path is in the touched set.
 
-    Used when a hand-maintained install path (e.g. ``.github/agents/code-reviewer.agent.md``)
+    Used when an install path (e.g. ``.github/agents/code-reviewer.agent.md``)
     is touched. If the template anchor is absent on disk, treat the file as a
     freestanding one-member group rather than enforcing missing siblings,
     UNLESS the diff itself touches the template (delete or rename), in which

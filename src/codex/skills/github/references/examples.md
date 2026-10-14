@@ -165,6 +165,9 @@ python3 "$SCRIPTS_DIR/pr/new_pr.py" --title "feat: Add feature" --body "Descript
 # Close PR with comment
 python3 "$SCRIPTS_DIR/pr/close_pr.py" --pull-request 50 --comment "Superseded by #51"
 
+# Reopen a closed PR (fires the reopened event)
+python3 "$SCRIPTS_DIR/pr/reopen_pr.py" --pull-request 50
+
 # Merge PR with squash
 python3 "$SCRIPTS_DIR/pr/merge_pr.py" --pull-request 50 --strategy squash --delete-branch
 

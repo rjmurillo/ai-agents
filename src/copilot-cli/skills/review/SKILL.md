@@ -163,8 +163,7 @@ trailer is rejected: any agent can type one. Write the marker only as
 `resources/marker-and-no-task.md` says, and never add a row for an axis that did
 not run.
 
-The marker is valid only while its parent (the reviewed tip) is HEAD's parent. Land
-any new code commit and the review is correctly stale. Issues #1938 and #6438 record the design.
+The marker is valid only while its parent (the reviewed tip) is HEAD's parent or a clean `origin/main` merge sits above it. New code makes it stale. Design: #1938, #6438, #6509.
 
 Re-running `/review` after the verdict is still PASS writes another marker commit;
 that is safe (idempotent in effect: the latest marker binds the current tip).

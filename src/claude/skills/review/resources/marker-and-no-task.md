@@ -24,6 +24,8 @@ The report has one `<axis>: <VERDICT>` row per axis in the axis list. The verdic
 
 A commit cannot name its own SHA in a trailer (the SHA hashes the trailer, so writing the SHA changes the SHA, with no fixed point). Record the reviewed tip, then write an empty marker commit on top of it.
 
+After the marker lands, you may merge `origin/main` into the branch without a new review. The validator and the security-review gate step over a merge commit when its second parent is on `origin/main` (change it with `--base-ref`) and its tree equals what `git merge-tree --write-tree` computes for its two parents. A merge that needed conflict edits, carries an extra edit, or pulls in another branch is new code: run `/review` again. Rebasing or amending rewrites the reviewed tip and always needs a new review.
+
 1. `REVIEWED_TIP=$(git rev-parse HEAD)` (the code that was reviewed).
 2. Build the axis list from the axes that ran (comma-separated stems, e.g. `analyst,architect,qa,security,...`).
 3. Write `report.txt` with the lines from `--- review report ---` through `--- end review report ---`, delimiters included and no trailers (blank lines and trailing spaces inside the block are dropped before hashing): `Reviewed-SHA: $REVIEWED_TIP` and one row per axis from its extracted verdict. Never write a row for an axis that did not run.

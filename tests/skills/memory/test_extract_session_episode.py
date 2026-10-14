@@ -3494,6 +3494,131 @@ class TestPreserveDropsDanglingCommitEvents:
         assert extract_session_episode.validate_episode_file(episode_file) == []
 
 
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
+class TestShaReachabilityUnknownOnGitError:
+    """A git failure is unknown, never proof of a dangling commit (issue #6565).
+
+    ``_sha_is_reachable`` is tri-state: True (a ref reaches it), False (git
+    answered and no ref does), None (git could not answer). The event filter
+    drops only on False, so a timeout or a failed ``for-each-ref`` cannot erase
+    a real commit from a preserved episode.
+    """
+
+    SESSION = "2026-07-19-session-998"
+
+    @pytest.fixture
+    def shas(self, tmp_path, monkeypatch):
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-q", "-b", "main")
+        _git(repo, "config", "user.email", "t@example.com")
+        _git(repo, "config", "user.name", "T")
+        reachable = _commit(repo, "a.txt", "a", when="2026-07-19T10:00:00+00:00")
+        _git(repo, "checkout", "-q", "-b", "side")
+        dangling = _commit(repo, "b.txt", "b", when="2026-07-19T11:00:00+00:00")
+        _git(repo, "checkout", "-q", "main")
+        _git(repo, "branch", "-D", "side")
+        monkeypatch.chdir(repo)
+        extract_session_episode._sha_is_reachable.cache_clear()
+        extract_session_episode._commit_datetime.cache_clear()
+        yield {"reachable": reachable, "dangling": dangling}
+        extract_session_episode._sha_is_reachable.cache_clear()
+        extract_session_episode._commit_datetime.cache_clear()
+
+    @staticmethod
+    def _break_for_each_ref(monkeypatch, outcome):
+        """Fail only ``git for-each-ref``; every other git call runs for real."""
+        real_run = subprocess.run
+
+        def fake_run(argv, env=None, **_ignored):
+            if argv[:2] == ["git", "for-each-ref"]:
+                if isinstance(outcome, BaseException):
+                    raise outcome
+                return outcome
+            return real_run(
+                argv,
+                capture_output=True,
+                encoding="utf-8",
+                errors="replace",
+                env=env,
+                timeout=10,
+                check=False,
+            )
+
+        monkeypatch.setattr(extract_session_episode.subprocess, "run", fake_run)
+
+    @staticmethod
+    def _failed(returncode=128, stdout=""):
+        return subprocess.CompletedProcess(
+            args=["git", "for-each-ref"], returncode=returncode, stdout=stdout, stderr="fatal"
+        )
+
+    @staticmethod
+    def _events(*shas):
+        return [
+            {
+                "id": f"e{i:03d}",
+                "timestamp": "2026-07-19T00:00:00+00:00",
+                "type": "commit",
+                "content": f"Commit: {sha}",
+                "caused_by": [],
+                "leads_to": [],
+            }
+            for i, sha in enumerate(shas, start=1)
+        ]
+
+    def test_reachable_sha_is_true(self, shas):
+        assert extract_session_episode._sha_is_reachable(shas["reachable"]) is True
+
+    def test_dangling_sha_is_false(self, shas):
+        assert extract_session_episode._sha_is_reachable(shas["dangling"]) is False
+
+    def test_empty_sha_is_unknown(self):
+        assert extract_session_episode._sha_is_reachable("") is None
+
+    @pytest.mark.parametrize(
+        "outcome",
+        [
+            OSError("git missing"),
+            subprocess.TimeoutExpired(cmd="git", timeout=10),
+            None,
+        ],
+        ids=["oserror", "timeout", "nonzero-exit"],
+    )
+    def test_git_error_is_unknown(self, shas, monkeypatch, outcome):
+        self._break_for_each_ref(monkeypatch, self._failed() if outcome is None else outcome)
+        assert extract_session_episode._sha_is_reachable(shas["reachable"]) is None
+
+    def test_nonzero_exit_with_output_is_still_unknown(self, shas, monkeypatch):
+        self._break_for_each_ref(monkeypatch, self._failed(stdout="refs/heads/main\n"))
+        assert extract_session_episode._sha_is_reachable(shas["reachable"]) is None
+
+    @pytest.mark.parametrize(
+        "outcome",
+        [OSError("git missing"), subprocess.TimeoutExpired(cmd="git", timeout=10), None],
+        ids=["oserror", "timeout", "nonzero-exit"],
+    )
+    def test_filter_keeps_events_when_git_cannot_answer(self, shas, monkeypatch, outcome):
+        self._break_for_each_ref(monkeypatch, self._failed() if outcome is None else outcome)
+        events = self._events(shas["reachable"], shas["dangling"])
+        kept = extract_session_episode._drop_dangling_commit_events(events)
+        assert [e["content"] for e in kept] == [e["content"] for e in events]
+
+    def test_filter_still_drops_proven_dangling_event(self, shas):
+        events = self._events(shas["reachable"], shas["dangling"])
+        kept = extract_session_episode._drop_dangling_commit_events(events)
+        assert [e["content"] for e in kept] == [f"Commit: {shas['reachable']}"]
+
+    def test_commit_dates_skip_sha_when_git_cannot_answer(self, shas, monkeypatch):
+        self._break_for_each_ref(monkeypatch, subprocess.TimeoutExpired(cmd="git", timeout=10))
+        events = self._events(shas["reachable"])
+        assert extract_session_episode._commit_event_dates(events) == {}
+
+    def test_commit_dates_include_reachable_sha(self, shas):
+        events = self._events(shas["reachable"], shas["dangling"])
+        assert list(extract_session_episode._commit_event_dates(events)) == ["e001"]
+
+
 class TestUnreadableEpisodeReportedOnce:
     """`--fix` runs repair then validation, and both read the file the same way.
 

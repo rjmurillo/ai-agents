@@ -16,10 +16,12 @@ until you do (issue #5272).
 from __future__ import annotations
 
 from check_adr_exception_markers import validate_adr_exception_markers
+from check_agent_delegation import validate_agent_delegation
 from check_agent_tree_frontmatter import validate_agent_tree_frontmatter
 from check_agents_write_targets import validate_agents_write_targets
 from check_bypass_allowlist import validate_bypass_allowlist
 from check_duplicate_test_helpers import validate_duplicate_test_helpers
+from check_equivalence_predicates import validate_equivalence_predicates
 from check_generated_staleness import validate_generated_staleness
 from check_git_hook_health import validate_git_hook_health
 from check_host_marketplaces import validate_host_marketplaces
@@ -49,6 +51,7 @@ from checks_portability import (
 from checks_ratchet import validate_count_ratchets
 from checks_spec import (
     validate_commands_retired,
+    validate_retired_ownership_claims,
     validate_rule_activation_coverage,
     validate_skill_memory_references,
     validate_skill_skip_clauses,
@@ -58,6 +61,7 @@ from checks_tooling import (
     validate_always_on_corpus_claims,
     validate_capability_graph_declarations,
     validate_effective_context_ratchet,
+    validate_external_contract_records,
     validate_instruction_budget,
     validate_instruction_bytes,
     validate_nl_structural_debt_ratchet,
@@ -70,6 +74,7 @@ __all__ = [
     "validate_agent_source_parity",
     "validate_agent_template_drift",
     "validate_adr_exception_markers",
+    "validate_agent_delegation",
     "validate_agent_tree_frontmatter",
     "validate_agents_write_targets",
     "validate_always_on_corpus_claims",
@@ -81,6 +86,8 @@ __all__ = [
     "validate_count_ratchets",
     "validate_duplicate_test_helpers",
     "validate_effective_context_ratchet",
+    "validate_equivalence_predicates",
+    "validate_external_contract_records",
     "validate_generated_staleness",
     "validate_git_hook_health",
     "validate_in_root_worktrees",
@@ -95,6 +102,7 @@ __all__ = [
     "validate_promotion_exceptions",
     "validate_push_lock_paths",
     "validate_required_context_conditions",
+    "validate_retired_ownership_claims",
     "validate_review_axis_drift",
     "validate_rule_activation_coverage",
     "validate_rule_scope_declarations",
