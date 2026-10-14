@@ -81,7 +81,7 @@ directory and needs no clone of the source repository. Pure standard library.
 ```bash
 python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skillopt/scripts/skillopt.py" --help
 python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skillopt/scripts/mine_sessions.py" --help
-SKILLOPT_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skillopt/scripts"
+SKILLOPT_DIR="${SKILLOPT_DIR:-${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skillopt/scripts}"
 ```
 
 If neither `COPILOT_PLUGIN_ROOT` nor `CLAUDE_PLUGIN_ROOT` is set (for example
@@ -96,10 +96,10 @@ python3 "$SKILLOPT_DIR/skillopt.py" --help
 On Windows PowerShell, no Bash required:
 
 ```powershell
-$Root = if ($env:COPILOT_PLUGIN_ROOT) { $env:COPILOT_PLUGIN_ROOT } else { $env:CLAUDE_PLUGIN_ROOT }
 if (-not $SkillOptDir) {
-  if (-not $Root) { throw 'Set COPILOT_PLUGIN_ROOT or CLAUDE_PLUGIN_ROOT, or set $SkillOptDir to the scripts folder beside this SKILL.md' }
-  $SkillOptDir = Join-Path $Root 'skills\skillopt\scripts'
+    $Root = if ($env:COPILOT_PLUGIN_ROOT) { $env:COPILOT_PLUGIN_ROOT } else { $env:CLAUDE_PLUGIN_ROOT }
+    if (-not $Root) { throw 'Set COPILOT_PLUGIN_ROOT or CLAUDE_PLUGIN_ROOT, or set $SkillOptDir to the scripts folder beside this SKILL.md' }
+    $SkillOptDir = Join-Path $Root 'skills\skillopt\scripts'
 }
 $SkillOpt = Join-Path $SkillOptDir 'skillopt.py'
 py -3 $SkillOpt --help
