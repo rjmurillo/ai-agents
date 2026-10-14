@@ -146,10 +146,9 @@ stdin, never as a command-line argument to `gh`.
    checks the title only, since there is no file to check.
 3. Step 5: `pr_description.py --body-file` reads any readable file. Run
    `mkdir -p .project-toolkit/scratch` first, because the allocator refused
-   before it created that directory. Create
-   `.project-toolkit/scratch/pr-body-windows.md` with Write and expect one
-   permission prompt. Later Edit fixes after a step 5 exit 1 stay inside the
-   scoped `Edit` grant.
+   before it created that directory. Create `pr-body-windows.md` in it with
+   Write and expect one permission prompt. Later Edit fixes after a step 5
+   exit 1 stay inside the scoped `Edit` grant.
 4. Step 7: run the same command with the body text inline:
 
    ```bash

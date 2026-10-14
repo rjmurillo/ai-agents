@@ -64,7 +64,7 @@ def test_fallback_names_shell_safe_quoting() -> None:
 def test_fallback_creates_scratch_dir_and_names_the_file() -> None:
     section = _windows_section()
     assert "mkdir -p .project-toolkit/scratch" in section
-    assert ".project-toolkit/scratch/pr-body-windows.md" in section
+    assert "`pr-body-windows.md` in it" in section
     assert "Write" in section
 
 
