@@ -253,7 +253,8 @@ A `billing_error` type also reports `error=billing`, at any status. Any other
 `eval-prompt-change.py` exits 4 (ADR-035, the credential cannot be used) on
 `error=billing`, so CI and agents can tell exit 4 ("fund the key") from exit 3
 (any other external or API failure). Exit 4 can arrive mid-run, after some
-calls succeeded. Billing is never a skippable provider outage.
+calls succeeded. Billing is never classified as a provider outage: the billing
+check runs first and exits 4.
 
 A provider outage also exits 3 (issue #6148). The match rules live in
 `_is_provider_outage` and are listed in ADR-057. The run prints
