@@ -259,3 +259,19 @@ def test_verify_needs_trigger_or_audit(skills_root, capsys):
     make_skill(skills_root, "meeting-ingest")
     code, out = run_cli(capsys, "verify", "--skill", str(skills_root / "meeting-ingest"))
     assert (code, out["status"]) == (1, "error")
+
+
+def test_verify_mode_patch_flag(skills_root, tmp_path, capsys):
+    host = "---\nname: host\ndescription: Does things.\n---\n\n## Process\n\n1. Go.\n"
+    make_skill(skills_root, "host", body=host)
+    audit = write_json(tmp_path / "a.json", AUDIT)
+    argv = ["verify", "--skill", str(skills_root / "host"), "--audit", audit]
+    code, out = run_cli(capsys, *argv)
+    assert (code, out["mode"]) == (1, "create")
+    code, out = run_cli(capsys, *argv, "--mode", "patch")
+    assert (code, out["status"], out["mode"]) == (0, "PASS", "patch")
+
+
+def test_verify_mode_rejects_unknown_value(skills_root, capsys):
+    code, out = run_cli(capsys, "verify", "--skill", "x", "--trigger", "t", "--mode", "bogus")
+    assert (code, out["status"]) == (1, "error")

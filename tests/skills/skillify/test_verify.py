@@ -287,3 +287,104 @@ def test_duplicate_required_section_uses_first(skills_root):
     text += "\n## Pitfalls\n\n- extra one\n- extra two\n- extra three\n"
     skill = make_skill(skills_root, "a-skill", body=text)
     assert failed(verify(skill)) == {"items_pitfalls"}
+
+
+HOST_SKILL = """---
+name: host-skill
+description: Route requests to the right skill.
+---
+
+# Host Skill
+
+## Quick Start
+
+Intro.
+
+## Process
+
+### Phase 1
+
+1. Read the request.
+2. Optional recovery: when nothing matches, list skills.
+3. Ask for approval before publishing anything.
+
+## Notes
+
+Free-form.
+"""
+
+
+def verify_patch(path, external=False, recovery=False, trigger=TRIGGER):
+    return skillify_verify.verify_skill(
+        skillify.resolve_skill_file(path), trigger, external, recovery, mode="patch"
+    )
+
+
+def test_patch_mode_accepts_host_layout_that_create_mode_rejects(skills_root):
+    skill = make_skill(skills_root, "host-skill", body=HOST_SKILL)
+    assert verify(skill)["status"] == "FAIL"
+    result = verify_patch(skill)
+    assert (result["status"], result["mode"], result["failures"]) == ("PASS", "patch", [])
+
+
+def test_patch_mode_skips_description_lead_and_sections(skills_root):
+    skill = make_skill(skills_root, "host-skill", body=HOST_SKILL)
+    ids = {c["id"] for c in verify_patch(skill)["checks"]}
+    assert ids == {
+        "name_kebab_case",
+        "name_matches_directory",
+        "description_present",
+        "no_source_only_tool_names",
+    }
+
+
+def test_patch_mode_uses_process_section_for_gates(skills_root):
+    skill = make_skill(skills_root, "host-skill", body=HOST_SKILL)
+    assert verify_patch(skill, external=True, recovery=True)["status"] == "PASS"
+
+
+def test_patch_mode_prefers_procedure_over_process(skills_root):
+    body = HOST_SKILL + "\n## Procedure\n\n1. Plain step.\n"
+    skill = make_skill(skills_root, "host-skill", body=body)
+    assert failed(verify_patch(skill, external=True)) == {"approval_gate_present"}
+
+
+def test_patch_mode_fails_missing_gate_in_process(skills_root):
+    body = HOST_SKILL.replace("Ask for approval before", "Run")
+    body = body.replace("Optional recovery", "Fallback")
+    skill = make_skill(skills_root, "host-skill", body=body)
+    assert failed(verify_patch(skill, external=True, recovery=True)) == {
+        "approval_gate_present",
+        "recovery_path_marked",
+    }
+
+
+def test_patch_mode_fails_without_any_procedure_or_process(skills_root):
+    body = HOST_SKILL.replace("## Process", "## Flow")
+    skill = make_skill(skills_root, "host-skill", body=body)
+    assert failed(verify_patch(skill, external=True)) == {"approval_gate_present"}
+
+
+def test_create_mode_ignores_process_section(skills_root):
+    text = GOOD_SKILL.format(name="a-skill", description=TRIGGER, trigger=TRIGGER)
+    text = text.replace("## Procedure", "## Process")
+    skill = make_skill(skills_root, "a-skill", body=text)
+    assert {"section_procedure", "approval_gate_present"} <= failed(verify(skill, external=True))
+
+
+def test_patch_mode_still_fails_name_description_and_tool_names(skills_root):
+    body = HOST_SKILL.replace("name: host-skill", "name: Host_Skill")
+    body = body.replace("description: Route requests to the right skill.", "description:")
+    skill = make_skill(skills_root, "host-skill", body=body + "\nCall skill_manage().\n")
+    assert failed(verify_patch(skill)) == {
+        "name_kebab_case",
+        "name_matches_directory",
+        "description_present",
+        "no_source_only_tool_names",
+    }
+
+
+def test_unknown_mode_raises(skills_root):
+    skill = make_skill(skills_root, "a-skill")
+    with pytest.raises(skillify.SkillifyError, match="mode"):
+        skillify_verify.verify_skill(skill, TRIGGER, False, mode="bogus")

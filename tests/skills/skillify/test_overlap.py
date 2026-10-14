@@ -182,3 +182,17 @@ def test_duplicate_headings_use_first_section(skills_root):
     )
     make_skill(skills_root, "dup", body=body)
     assert skillify.evaluate_overlap(WORKFLOW, [skills_root])["status"] == "CREATE"
+
+
+def test_generic_words_alone_do_not_reach_patch(skills_root):
+    broad = "skill skills file files write run use verify check"
+    make_skill(skills_root, "broad", description=broad, trigger=broad)
+    workflow = {"terms": ["skill file write run verify check", "triage flaky test", "bisect"]}
+    result = skillify.evaluate_overlap(workflow, [skills_root])
+    assert result["status"] == "CREATE"
+    assert result["matches"][0]["covered"] == []
+
+
+@pytest.mark.parametrize("word", ["skill", "skills", "file", "files", "write", "run", "use"])
+def test_generic_words_are_not_tokens(word):
+    assert skillify.tokenize(word) == frozenset()

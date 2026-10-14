@@ -19,6 +19,9 @@ from skillify_text import (
 DESCRIPTION_LEAD_CHARS = 200
 MAX_NAME_CHARS = 64
 MIN_LIST_ITEMS = 2
+MODE_CREATE = "create"
+MODE_PATCH = "patch"
+MODES = (MODE_CREATE, MODE_PATCH)
 
 REQUIRED_SECTIONS: tuple[str, ...] = (
     "triggers",
@@ -52,21 +55,32 @@ def verify_skill(
     trigger: str,
     external_actions: bool,
     recovery_paths: bool = False,
+    mode: str = MODE_CREATE,
 ) -> dict[str, Any]:
-    """Read back a written skill and check the structural contract."""
+    """Read back a skill and check it.
+
+    `create` checks the whole skeleton. `patch` is for an existing host skill
+    that was edited: it keeps the name, description presence, source-only tool
+    names, and the audit-driven approval and recovery checks, and skips the
+    skeleton sections and the description-lead check, because host skills use
+    their own layout. In patch mode a `Process` section stands in for a
+    missing `Procedure` section.
+    """
+    if mode not in MODES:
+        raise SkillifyError(f"mode must be one of: {', '.join(MODES)}")
     try:
         text = skill_file.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
         raise SkillifyError(f"cannot read {skill_file}: {exc}") from exc
     meta, body = parse_frontmatter(text)
     sections = first_sections(body)
+    patching = mode == MODE_PATCH
     checks = [
         *_name_checks(meta.get("name", ""), skill_file.parent.name),
-        _description_check(meta.get("description", ""), trigger),
-        *_section_checks(sections),
+        *(_patch_checks(meta) if patching else _create_checks(meta, trigger, sections)),
         _tool_name_check(text),
     ]
-    steps = numbered_steps(sections["procedure"].lines) if "procedure" in sections else []
+    steps = _procedure_steps(sections, patching)
     if external_actions:
         checks.append(_approval_check(steps))
     if recovery_paths:
@@ -76,10 +90,35 @@ def verify_skill(
         "status": "FAIL" if failures else "PASS",
         "name": meta.get("name", ""),
         "trigger": trigger,
+        "mode": mode,
         "path": str(skill_file),
         "failures": failures,
         "checks": checks,
     }
+
+
+def _create_checks(
+    meta: Mapping[str, str], trigger: str, sections: Mapping[str, Section]
+) -> list[dict[str, Any]]:
+    return [_description_check(meta.get("description", ""), trigger), *_section_checks(sections)]
+
+
+def _patch_checks(meta: Mapping[str, str]) -> list[dict[str, Any]]:
+    return [
+        _check(
+            "description_present",
+            bool(meta.get("description", "").strip()),
+            "description must not be empty",
+        )
+    ]
+
+
+def _procedure_steps(sections: Mapping[str, Section], patching: bool) -> list[str]:
+    names = ("procedure", "process") if patching else ("procedure",)
+    for name in names:
+        if name in sections:
+            return numbered_steps(sections[name].lines)
+    return []
 
 
 def _check(check_id: str, ok: bool, detail: str) -> dict[str, Any]:

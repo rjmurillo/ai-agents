@@ -169,7 +169,8 @@ def test_home_expansion_in_explicit_path(tmp_path, monkeypatch):
     ("path", "kind"),
     [
         (PureWindowsPath(r"C:\Users\dev\proj\.claude\skills"), "claude-code"),
-        (PureWindowsPath(r"C:\Users\dev\proj\.CLAUDE\Skills"), "claude-code"),
+        (PureWindowsPath(r"C:\Users\dev\proj\.CLAUDE\skills"), "custom"),
+        (PureWindowsPath(r"C:\Users\dev\proj\.claude\Skills"), "custom"),
         (PureWindowsPath(r"D:\work tree\.github\skills"), "copilot-cli"),
         (PureWindowsPath(r"C:\custom\skills"), "custom"),
         (PurePosixPath("/home/dev/proj/.claude/skills"), "claude-code"),
