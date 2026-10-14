@@ -226,7 +226,8 @@ def test_approval_word_in_unnumbered_procedure_prose_does_not_count(skills_root)
 def test_approval_in_wrapped_numbered_step_counts(skills_root):
     text = GOOD_SKILL.format(name="a-skill", description=TRIGGER, trigger=TRIGGER)
     text = text.replace(
-        "Ask for approval before publishing it.", "Show the draft,\n   then get approval."
+        "Ask for approval before publishing it.",
+        "Show the draft,\n   get approval, then publish it.",
     )
     skill = make_skill(skills_root, "a-skill", body=text)
     assert verify(skill, external=True)["status"] == "PASS"
@@ -418,3 +419,106 @@ def test_patch_mode_does_not_treat_processing_as_process(skills_root):
     body = HOST_SKILL.replace("## Process", "## Processing Notes")
     skill = make_skill(skills_root, "host-skill", body=body)
     assert failed(verify_patch(skill, external=True)) == {"approval_gate_present"}
+
+
+def order_skill(procedure):
+    text = GOOD_SKILL.format(name="a-skill", description=TRIGGER, trigger=TRIGGER)
+    head, rest = text.split("## Procedure\n", 1)
+    tail = rest.split("## Anti-patterns", 1)[1]
+    return head + "## Procedure\n\n" + procedure + "\n## Anti-patterns" + tail
+
+
+def external_failed(skills_root, procedure):
+    skill = make_skill(skills_root, "a-skill", body=order_skill(procedure))
+    return failed(verify(skill, external=True))
+
+
+def test_approval_after_the_publish_step_fails(skills_root):
+    steps = "1. Write the note.\n2. Publish the note.\n3. Get approval.\n"
+    assert external_failed(skills_root, steps) == {"approval_gate_present"}
+
+
+def test_approval_in_earlier_step_passes(skills_root):
+    steps = "1. Ask for approval of the draft.\n2. Publish the note.\n"
+    assert external_failed(skills_root, steps) == set()
+
+
+def test_approval_earlier_in_same_step_passes(skills_root):
+    assert external_failed(skills_root, "1. Confirm with the user, then push it.\n") == set()
+
+
+def test_approval_after_verb_in_same_step_fails(skills_root):
+    steps = "1. Publish the note after approval.\n"
+    assert external_failed(skills_root, steps) == {"approval_gate_present"}
+
+
+def test_no_external_step_fails_with_naming_message(skills_root):
+    skill = make_skill(
+        skills_root, "a-skill", body=order_skill("1. Write the note.\n2. Get approval.\n")
+    )
+    result = verify(skill, external=True)
+    check = next(c for c in result["checks"] if c["id"] == "approval_gate_present")
+    assert not check["ok"]
+    assert "name the external" in check["detail"]
+
+
+@pytest.mark.parametrize(
+    "step",
+    [
+        "Publishes the page",
+        "pushed to origin",
+        "Posting a comment",
+        "Send the report",
+        "Deploy it",
+        "Merging the branch",
+        "Release the build",
+        "Upload the file",
+        "Share the link",
+        "email the owner",
+        "Open a PR",
+        "open the pull request",
+    ],
+)
+def test_external_verbs_are_recognized(skills_root, step):
+    assert external_failed(skills_root, f"1. {step}.\n") == {"approval_gate_present"}
+
+
+@pytest.mark.parametrize("step", ["Postgres is read", "Prepare the release notes"])
+def test_non_verbs_are_not_external(skills_root, step):
+    steps = f"1. {step}.\n2. Get approval.\n"
+    check = next(
+        c
+        for c in verify(make_skill(skills_root, "a-skill", body=order_skill(steps)), external=True)[
+            "checks"
+        ]
+        if c["id"] == "approval_gate_present"
+    )
+    assert "name the external" in check["detail"] or step.startswith("Prepare")
+
+
+def test_messages_mention_process_only_in_patch_mode(skills_root):
+    skill = make_skill(skills_root, "host-skill", body=HOST_SKILL)
+
+    def details(result):
+        return " ".join(
+            c["detail"] for c in result["checks"] if c["id"] != "name_matches_directory"
+        )
+
+    create = verify(skill, external=True)
+    assert "(or Process)" not in details(create)
+    patch = skillify_verify.verify_skill(
+        skillify.resolve_skill_file(skill), TRIGGER, True, True, mode="patch"
+    )
+    assert "(or Process)" in " ".join(c["detail"] for c in patch["checks"])
+    bad = HOST_SKILL.replace("Ask for approval before", "Run").replace("Optional recovery", "Fall")
+    skill2 = make_skill(skills_root, "host-skill", body=bad)
+    create_fail = skillify_verify.verify_skill(
+        skillify.resolve_skill_file(skill2), TRIGGER, True, True
+    )
+    patch_fail = skillify_verify.verify_skill(
+        skillify.resolve_skill_file(skill2), TRIGGER, True, True, mode="patch"
+    )
+    create_msgs = [c["detail"] for c in create_fail["checks"] if not c["ok"]]
+    patch_msgs = [c["detail"] for c in patch_fail["checks"] if c["id"] == "recovery_path_marked"]
+    assert not any("(or Process)" in m for m in create_msgs)
+    assert "(or Process)" in patch_msgs[0]

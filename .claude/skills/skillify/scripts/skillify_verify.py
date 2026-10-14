@@ -40,6 +40,14 @@ SOURCE_ONLY_TOOLS: tuple[str, ...] = ("skills_list", "skill_view", "skill_manage
 APPROVAL_RE = re.compile(r"\b(approv\w*|confirm\w*|consent|authori[sz]\w*)\b", re.IGNORECASE)
 
 RECOVERY_RE = re.compile(r"\b(optional|recovery)\b", re.IGNORECASE)
+# Verbs that act on an external or public system. A release or merge noun in a
+# step is a false positive the author fixes by rewording the step.
+EXTERNAL_RE = re.compile(
+    r"\b(?:(?:publish|push|post|send|deploy|upload|comment|email)(?:s|es|ed|ing)?"
+    r"|(?:merg|releas|shar)(?:e|es|ed|ing)"
+    r"|open(?:s|ed|ing)? (?:a |the )?(?:pr|pull request)s?)\b",
+    re.IGNORECASE,
+)
 NAME_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 
 
@@ -83,9 +91,9 @@ def verify_skill(
     ]
     steps = _procedure_steps(sections, patching)
     if external_actions:
-        checks.append(_approval_check(steps))
+        checks.append(_approval_check(steps, patching))
     if recovery_paths:
-        checks.append(_recovery_check(steps))
+        checks.append(_recovery_check(steps, patching))
     failures = [c["id"] for c in checks if not c["ok"]]
     return {
         "status": "FAIL" if failures else "PASS",
@@ -183,19 +191,35 @@ def _tool_name_check(text: str) -> dict[str, Any]:
     )
 
 
-def _approval_check(steps: list[str]) -> dict[str, Any]:
+def _where(patching: bool) -> str:
+    return "Procedure (or Process)" if patching else "Procedure"
+
+
+def _approval_problem(steps: list[str]) -> str | None:
+    """Return why approval is missing or late, or None when it precedes the first external step."""
+    index = next((i for i, step in enumerate(steps) if EXTERNAL_RE.search(step)), None)
+    if index is None:
+        return "name the external or public action (for example publish or push) in a numbered step"
+    verb = EXTERNAL_RE.search(steps[index])
+    earlier = [*steps[:index], steps[index][: verb.start()] if verb else ""]
+    if any(APPROVAL_RE.search(text) for text in earlier):
+        return None
+    return "an approval or confirmation word must come before the first external action"
+
+
+def _approval_check(steps: list[str], patching: bool = False) -> dict[str, Any]:
+    problem = _approval_problem(steps)
     return _check(
         "approval_gate_present",
-        any(APPROVAL_RE.search(step) for step in steps),
-        "external or public actions need an approval or confirmation word in a numbered "
-        "Procedure (or Process) step",
+        problem is None,
+        problem or f"approval precedes the first external action in a {_where(patching)} step",
     )
 
 
-def _recovery_check(steps: list[str]) -> dict[str, Any]:
+def _recovery_check(steps: list[str], patching: bool = False) -> dict[str, Any]:
     return _check(
         "recovery_path_marked",
         any(RECOVERY_RE.search(step) for step in steps),
-        "recovery paths must be marked 'optional' or 'recovery' in a numbered "
-        "Procedure (or Process) step",
+        f"recovery paths must be marked 'optional' or 'recovery' in a numbered "
+        f"{_where(patching)} step",
     )
