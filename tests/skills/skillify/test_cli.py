@@ -163,6 +163,8 @@ def test_script_runs_as_a_subprocess_from_unrelated_directory(tmp_path):
         cwd=tmp_path,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     assert proc.returncode == 0
