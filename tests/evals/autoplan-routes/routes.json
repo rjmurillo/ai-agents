@@ -82,6 +82,21 @@
       "rationale": "Positive skillify activation (#6578): `save this as a skill` resolves to skillify, not skillforge, and is not ambiguous."
     },
     {
+      "id": "lt-skillopt",
+      "family": "long-tail-single-domain",
+      "request": "Optimize this skill against an eval so we can compress these skills safely.",
+      "expect": {
+        "kind": "specialist",
+        "route": "skillopt",
+        "routes_absent": [
+          "orchestrator",
+          "skillforge",
+          "context-optimizer"
+        ]
+      },
+      "rationale": "Positive skillopt activation (#6579); measured optimization must not fall through to skillforge, context-optimizer, or the orchestrator."
+    },
+    {
       "id": "lt-programming-advisor",
       "family": "long-tail-single-domain",
       "request": "Is there an existing library for parsing YAML before we build one?",
