@@ -69,6 +69,21 @@
       "rationale": "Positive skillopt activation (#6579); measured optimization must not fall through to skillforge, context-optimizer, or the orchestrator."
     },
     {
+      "id": "lt-skill-bootstrap",
+      "family": "long-tail-single-domain",
+      "request": "Bootstrap skills for this repo so agents stop rediscovering our PR and release workflow.",
+      "expect": {
+        "kind": "specialist",
+        "route": "skill-bootstrap",
+        "routes_absent": [
+          "orchestrator",
+          "skillforge",
+          "codebase-documenter"
+        ]
+      },
+      "rationale": "Positive skill-bootstrap activation (#6580); a project library request must not fall through to single-skill authoring, doc scaffolding, or the orchestrator."
+    },
+    {
       "id": "lt-programming-advisor",
       "family": "long-tail-single-domain",
       "request": "Is there an existing library for parsing YAML before we build one?",
