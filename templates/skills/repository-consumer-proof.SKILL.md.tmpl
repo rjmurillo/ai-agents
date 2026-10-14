@@ -1,9 +1,7 @@
 ---
 name: repository-consumer-proof
 version: 1.0.0
-description: >-
-  Verify ai-agents hooks, installed dispatch, and behavior beyond green builds.
-  Do NOT use for PR blockers (use repository-pr-recovery).
+description: Verify ai-agents hooks, installed dispatch, and behavior beyond green builds. Do NOT use for PR blockers (use repository-pr-recovery).
 license: MIT
 metadata:
   distribution: repo-local

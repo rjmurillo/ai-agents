@@ -1,12 +1,7 @@
 ---
 name: software-engineering-library
 version: 1.0.0
-description: >-
-  Route design and code-risk tasks to engineering references.
-  Use for architecture boundaries, interfaces, domain modeling, refactoring, and legacy tests.
-  Also cover data consistency, resilience, and forbidden patterns.
-  Route prior-art questions to programming-advisor.
-  Route scoring to code-qualities-assessment, and CVA to cva-analysis.
+description: Route design and code-risk tasks to engineering references. Use for architecture boundaries, interfaces, domain modeling, refactoring, and legacy tests. Also cover data consistency, resilience, and forbidden patterns. Route prior-art questions to programming-advisor. Route scoring to code-qualities-assessment, and CVA to cva-analysis.
 license: MIT
 metadata:
   routing:

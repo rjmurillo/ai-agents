@@ -1,9 +1,7 @@
 ---
 name: repository-pr-recovery
 version: 1.0.0
-description: >-
-  Attribute blocked ai-agents PRs, missing checks, and cancelled baselines.
-  Do NOT use for completion proof (use repository-completion-proof).
+description: Attribute blocked ai-agents PRs, missing checks, and cancelled baselines. Do NOT use for completion proof (use repository-completion-proof).
 license: MIT
 metadata:
   distribution: repo-local
