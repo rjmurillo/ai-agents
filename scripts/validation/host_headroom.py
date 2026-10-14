@@ -153,8 +153,15 @@ def load_note(
     load: Callable[[], float | None] | None = None,
     max_load: float | None = None,
     cpus: int | None = None,
+    settings: Settings | None = None,
 ) -> str:
-    """One line that says whether host load likely caused a stage failure."""
+    """One line that says whether host load likely caused a stage failure.
+
+    Load is the likely cause when the load average is at or above the
+    threshold, or when another push holds a heavy-stage slot. The second test
+    matters on a large host: issue #6609 saw failures at load 10 to 13 on 48
+    CPUs, well under saturation, while about 16 pushes ran heavy stages.
+    """
     count = cpus if cpus is not None else (os.cpu_count() or 1)
     threshold = _configured_max_load(count) if max_load is None else max_load
     current = (load_average if load is None else load)()
@@ -163,14 +170,71 @@ def load_note(
             f"NOTE: {stage}: host load average is unavailable here, so load "
             "cannot be ruled in or out as the cause."
         )
+    if settings is None:
+        try:
+            settings = read_settings(cpus=count)
+        except ValueError:
+            settings = None
+    others = 0 if settings is None else other_stages(settings)
     measured = f"host load average is {current:.1f} on {count} CPUs"
+    if others:
+        verb = "is" if others == 1 else "are"
+        plural = "" if others == 1 else "s"
+        return (
+            f"NOTE: {stage}: {measured}, and {others} other heavy pre-push "
+            f"stage{plural} {verb} running on this host. This failure is likely "
+            "load from other work on the host, not this diff. Retry when load drops."
+        )
     if threshold > 0 and current >= threshold:
         return (
             f"NOTE: {stage}: {measured}, at or above the {threshold:.1f} headroom "
             "threshold. This failure is likely load from other work on the "
             "host, not this diff. Retry when load drops."
         )
-    return f"NOTE: {stage}: {measured}, so host load is not the likely cause."
+    return (
+        f"NOTE: {stage}: {measured} and no other heavy pre-push stage holds a "
+        "slot, so host load is not the likely cause."
+    )
+
+
+# Slots this process holds, keyed by slot file. `other_stages` skips them: a
+# probe from a new descriptor would see the caller's own lock as a rival.
+_OWN_SLOTS: set[Path] = set()
+
+
+def _slot_path(settings: Settings, index: int) -> Path:
+    return settings.slot_dir / f"slot-{index}.lock"
+
+
+def other_stages(settings: Settings) -> int:
+    """How many heavy-stage slots other processes hold right now.
+
+    A free slot is locked and unlocked at once, so a rival that polls in that
+    instant waits one more poll. Never creates the slot directory. Returns 0
+    when slots are off, flock is missing, or a slot file cannot be read.
+    """
+    if settings.slots <= 0 or not _HAS_FLOCK:
+        return 0
+    held = 0
+    for index in range(settings.slots):
+        path = _slot_path(settings, index)
+        if path in _OWN_SLOTS:
+            continue
+        try:
+            fd = os.open(path, os.O_RDWR)
+        except OSError:
+            continue
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            held += 1
+        except OSError:
+            pass
+        else:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        finally:
+            os.close(fd)
+    return held
 
 
 def _try_slot(settings: Settings) -> tuple[int, int] | None:
@@ -181,8 +245,7 @@ def _try_slot(settings: Settings) -> tuple[int, int] | None:
     """
     settings.slot_dir.mkdir(parents=True, exist_ok=True)
     for index in range(settings.slots):
-        path = settings.slot_dir / f"slot-{index}.lock"
-        fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o600)
+        fd = os.open(_slot_path(settings, index), os.O_RDWR | os.O_CREAT, 0o600)
         try:
             fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
@@ -246,6 +309,7 @@ def heavy_stage_slot(
                 taken = None
             if taken is not None:
                 index, fd = taken
+                _OWN_SLOTS.add(_slot_path(config, index))
         slot_ok = not use_slots or fd is not None
         current = load()
         load_ok = config.max_load <= 0 or current is None or current < config.max_load
@@ -285,4 +349,6 @@ def heavy_stage_slot(
         yield Grant(slot=index, headroom=headroom, waited=waited)
     finally:
         if fd is not None:
+            if index is not None:
+                _OWN_SLOTS.discard(_slot_path(config, index))
             _release(fd)

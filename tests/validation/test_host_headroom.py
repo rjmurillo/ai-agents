@@ -17,7 +17,10 @@ Coverage:
 from __future__ import annotations
 
 import io
+import os
 import sys
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -42,6 +45,20 @@ class _Clock:
     def sleep(self, seconds: float) -> None:
         self.sleeps.append(seconds)
         self.now += seconds
+
+
+@contextmanager
+def _foreign_hold(settings: host_headroom.Settings, index: int) -> Iterator[None]:
+    """Hold one slot the way another push's process would: a bare flock on its file."""
+    import fcntl
+
+    settings.slot_dir.mkdir(parents=True, exist_ok=True)
+    fd = os.open(settings.slot_dir / f"slot-{index}.lock", os.O_RDWR | os.O_CREAT, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        yield
+    finally:
+        os.close(fd)
 
 
 def _settings(tmp_path: Path, *, slots: int = 2, max_load: float = 8.0) -> host_headroom.Settings:
@@ -280,7 +297,8 @@ def test_a_slot_is_held_while_the_stage_waits_for_load(tmp_path: Path) -> None:
     ) as grant:
         assert grant.slot == 0
         assert grant.headroom is True
-    assert seen[1:] == [None] * (len(seen) - 1)
+    assert len(seen) == 3
+    assert seen == [None, None, None]
 
 
 # --- review round 1: the default load threshold scales with the CPU count ---
@@ -303,3 +321,63 @@ def test_load_note_default_threshold_uses_the_cpu_count(monkeypatch: pytest.Monk
     quiet = host_headroom.load_note("pytest", load=lambda: 12.0, cpus=48)
     assert "likely load" in busy
     assert "not the likely cause" in quiet
+
+
+# --- review round 2: the note blames load when other heavy stages run ---
+
+
+def test_load_note_blames_load_when_other_stages_hold_slots(tmp_path: Path) -> None:
+    """The issue's own case: load 13 on 48 CPUs while other pushes run heavy stages."""
+    settings = _settings(tmp_path, slots=3, max_load=48.0)
+    with _foreign_hold(settings, 1):
+        note = host_headroom.load_note(
+            "pytest", load=lambda: 13.0, max_load=48.0, cpus=48, settings=settings
+        )
+    assert "13.0 on 48 CPUs" in note
+    assert "1 other heavy pre-push stage" in note
+    assert "likely load" in note
+
+
+def test_load_note_does_not_count_the_callers_own_slot(tmp_path: Path) -> None:
+    settings = _settings(tmp_path, slots=3, max_load=48.0)
+    with host_headroom.heavy_stage_slot(
+        "pytest", 0, settings=settings, load=lambda: 1.0, stream=io.StringIO()
+    ) as grant:
+        assert grant.slot == 0
+        note = host_headroom.load_note(
+            "pytest", load=lambda: 13.0, max_load=48.0, cpus=48, settings=settings
+        )
+    assert "no other heavy pre-push stage" in note
+    assert "not the likely cause" in note
+
+
+def test_load_note_with_no_rivals_and_low_load_clears_load(tmp_path: Path) -> None:
+    settings = _settings(tmp_path, slots=3, max_load=48.0)
+    note = host_headroom.load_note(
+        "pytest", load=lambda: 13.0, max_load=48.0, cpus=48, settings=settings
+    )
+    assert "not the likely cause" in note
+    assert not settings.slot_dir.exists()
+
+
+def test_other_stages_counts_foreign_holders_only(tmp_path: Path) -> None:
+    settings = _settings(tmp_path, slots=3)
+    assert host_headroom.other_stages(settings) == 0
+    with _foreign_hold(settings, 0), _foreign_hold(settings, 2):
+        assert host_headroom.other_stages(settings) == 2
+        with host_headroom.heavy_stage_slot(
+            "mine", 0, settings=settings, load=lambda: 1.0, stream=io.StringIO()
+        ) as grant:
+            assert grant.slot == 1
+            assert host_headroom.other_stages(settings) == 2
+    assert host_headroom.other_stages(settings) == 0
+    assert host_headroom.other_stages(_settings(tmp_path, slots=0)) == 0
+
+
+def test_a_foreign_holder_still_takes_a_slot_from_the_cap(tmp_path: Path) -> None:
+    settings = _settings(tmp_path, slots=1)
+    with _foreign_hold(settings, 0):
+        with host_headroom.heavy_stage_slot(
+            "pytest", 0, settings=settings, load=lambda: 1.0, stream=io.StringIO()
+        ) as grant:
+            assert grant.slot is None

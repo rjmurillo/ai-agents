@@ -360,3 +360,16 @@ def test_ci_pytest_prints_no_headroom_warning_under_high_load(
     err = capsys.readouterr().err
     assert "no host headroom" not in err
     assert "waiting" not in err
+
+
+def test_semgrep_budget_message_names_the_headroom_wait(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The headroom wait spends the scan's deadline, so the overrun message must say so."""
+    events: list[Any] = []
+    _arrange_scan(monkeypatch, ["source.py"], events)
+    monkeypatch.setattr(policy, "_container_clamped", lambda _seconds: 0)
+    assert policy.scan_pushed_heads(io.StringIO(""), tmp_path) == 1
+    err = capsys.readouterr().err
+    assert "exceeded its 0s budget" in err
+    assert "wait for host headroom" in err

@@ -4654,8 +4654,9 @@ def _scan_updates(
         if time.monotonic() >= deadline:
             print(
                 f"ERROR: security scan exceeded its {budget:g}s budget before "
-                f"reaching {update.head}. Earlier refs in this push consumed "
-                "it. Push fewer refs at once, or raise the budget with a "
+                f"reaching {update.head}. Earlier refs in this push, and any "
+                "wait for host headroom (issue #6609), consumed it. Push fewer "
+                "refs at once, or raise the budget with a "
                 "measurement behind it (ci-scripts.md MUST-16).",
                 file=sys.stderr,
             )
