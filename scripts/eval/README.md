@@ -255,6 +255,12 @@ A `billing_error` type also reports `error=billing`, at any status. Any other
 (any other external or API failure). Exit 4 can arrive mid-run, after some
 calls succeeded. Billing is never a skippable provider outage.
 
+A provider outage also exits 3 (issue #6148). The match rules live in
+`_is_provider_outage` and are listed in ADR-057. The run prints
+`ERROR: provider unavailable` instead of passing without running. A caller
+that wants to tolerate an outage reads exit 3 and decides; the script never
+reports success when it could not run.
+
 ## Harness Capability Evidence
 
 Use a JSON plan when live runtime evidence is authorized. The plan supplies a
