@@ -35,7 +35,7 @@ _MERGEABLE_BY_REST_VALUE: dict[object, str] = {True: "MERGEABLE", False: "CONFLI
 
 
 class PullRequestNotFoundError(RuntimeError):
-    """The pull request read returned HTTP 404.
+    """The pull request read returned HTTP 404 on a readable repository.
 
     Only the pull request read raises this. A 404 from a later call (check
     runs, statuses, workflow runs) stays a plain RuntimeError, so a caller does
@@ -162,6 +162,44 @@ def _fetch_head_committed_at(owner: str, repo: str, sha: str) -> str | None:
     return date if isinstance(date, str) and date else None
 
 
+def _has_check_suites(owner: str, repo: str, sha: str) -> bool:
+    """Return whether any check suite exists for the head SHA.
+
+    GraphQL returns a ``statusCheckRollup`` with no contexts when check suites
+    exist but no run has posted yet, and ``--wait`` keeps polling that state
+    (#2304). An empty check-runs list cannot show it, so this reads the suites.
+    One row is enough: ``total_count`` carries the full count.
+
+    Raises:
+        RuntimeError: on a REST failure or a malformed body, so the fallback
+            fails closed instead of reading a fresh push as a no-CI PR.
+    """
+    body = _run_gh_api([f"repos/{owner}/{repo}/commits/{sha}/check-suites?per_page=1"])
+    if not isinstance(body, dict):
+        raise RuntimeError("REST check-suites response is not an object")
+    total = body.get("total_count")
+    if isinstance(total, int):
+        return total > 0
+    return bool(body.get("check_suites"))
+
+
+def _pr_read_error(owner: str, repo: str, exc: RuntimeError) -> RuntimeError:
+    """Classify a failed pull request read.
+
+    REST answers 404 both for a missing PR and for a repository the token
+    cannot see. GraphQL words those apart, and only a missing PR exits as not
+    found, so a not-found read here probes the repository before claiming
+    the PR is missing.
+    """
+    if not is_pr_not_found(str(exc)):
+        return exc
+    try:
+        _run_gh_api([f"repos/{owner}/{repo}"])
+    except RuntimeError as repo_exc:
+        return RuntimeError(f"Cannot read repository {owner}/{repo}: {repo_exc}")
+    return PullRequestNotFoundError(str(exc))
+
+
 def _merge_fields(pr: dict) -> tuple[str, str]:
     """Return (MergeState, MergeStateStatus) in the GraphQL vocabulary."""
     merge_state = _MERGEABLE_BY_REST_VALUE.get(pr.get("mergeable"), "UNKNOWN")
@@ -187,18 +225,21 @@ def fetch_checks_rest(owner: str, repo: str, pr_number: int) -> dict:
     ``MergeStateStatus``, ``Nodes`` (GraphQL-shaped contexts),
     ``PagesComplete`` (False when a total_count exceeds the rows collected,
     including the workflow runs that supply each check run's event),
-    and ``HeadCommittedAt`` (None when the head commit date cannot be read).
+    ``HeadCommittedAt`` (None when the head commit date cannot be read),
+    and ``HasCheckSuites`` (True when a check suite exists, even with no run).
 
     Raises:
-        PullRequestNotFoundError: when the pull request read returns 404.
+        PullRequestNotFoundError: when the pull request read returns 404 and
+            the repository itself is readable.
         RuntimeError: on any other REST failure, carrying gh's text.
     """
     try:
         pr = _run_gh_api([f"repos/{owner}/{repo}/pulls/{pr_number}"])
     except RuntimeError as exc:
-        if "HTTP 404" in str(exc) or is_pr_not_found(str(exc)):
-            raise PullRequestNotFoundError(str(exc)) from exc
-        raise
+        classified = _pr_read_error(owner, repo, exc)
+        if classified is exc:
+            raise
+        raise classified from exc
     if not isinstance(pr, dict):
         raise RuntimeError("REST pull request response is not an object")
     sha = _dict_field(pr, "head").get("sha")
@@ -226,6 +267,7 @@ def fetch_checks_rest(owner: str, repo: str, pr_number: int) -> dict:
             and workflow_runs_complete
         ),
         "HeadCommittedAt": _fetch_head_committed_at(owner, repo, sha),
+        "HasCheckSuites": _has_check_suites(owner, repo, sha),
     }
 
 

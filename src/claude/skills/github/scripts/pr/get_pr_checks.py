@@ -543,7 +543,8 @@ def _fetch_checks_over_rest(
         "MergeStateStatus": snapshot["MergeStateStatus"],
         "Checks": checks,
         "AllState": _overall_state(checks),
-        "HasChecks": bool(checks),
+        # A suite with no run yet is GraphQL's empty present rollup (#2304).
+        "HasChecks": bool(checks) or snapshot["HasCheckSuites"],
         "ChecksIncomplete": not snapshot["PagesComplete"],
         "HeadCommittedAt": snapshot["HeadCommittedAt"],
         "DataSource": "rest",

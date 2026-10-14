@@ -31,6 +31,8 @@ def _fake_api(routes: dict[str, object]):
     routes = {
         "repos/o/r/git/commits/abc123": _commit_payload(),
         "repos/o/r/actions/runs": [{"total_count": 0, "workflow_runs": []}],
+        "repos/o/r/commits/abc123/check-suites": {"total_count": 0, "check_suites": []},
+        "repos/o/r": {"full_name": "o/r"},
         **routes,
     }
 
@@ -330,6 +332,64 @@ class TestFetchChecksRest:
         routes = {"repos/o/r/pulls/42": RuntimeError("REST request failed: Not Found (HTTP 404)")}
         with patch.object(checks_rest, "_run_gh_api", side_effect=_fake_api(routes)):
             with pytest.raises(RuntimeError, match="HTTP 404"):
+                checks_rest.fetch_checks_rest("o", "r", 42)
+
+    def test_pr_404_on_a_readable_repo_is_pull_request_not_found(self):
+        routes = {"repos/o/r/pulls/42": RuntimeError("REST request failed: Not Found (HTTP 404)")}
+        with patch.object(checks_rest, "_run_gh_api", side_effect=_fake_api(routes)):
+            with pytest.raises(checks_rest.PullRequestNotFoundError):
+                checks_rest.fetch_checks_rest("o", "r", 42)
+
+    def test_pr_404_on_an_unreadable_repo_is_not_pull_request_not_found(self):
+        """A private repo the token cannot see also 404s; that is not a missing PR."""
+        missing = RuntimeError("REST request failed: Not Found (HTTP 404)")
+        routes = {"repos/o/r/pulls/42": missing, "repos/o/r": missing}
+        with patch.object(checks_rest, "_run_gh_api", side_effect=_fake_api(routes)):
+            with pytest.raises(RuntimeError, match="repository o/r") as info:
+                checks_rest.fetch_checks_rest("o", "r", 42)
+        assert not isinstance(info.value, checks_rest.PullRequestNotFoundError)
+
+    def test_pr_read_failure_other_than_404_does_not_probe_the_repo(self):
+        routes = {
+            "repos/o/r/pulls/42": RuntimeError("REST request failed: Server Error (HTTP 502)"),
+            "repos/o/r": AssertionError("repo probe must not run"),
+        }
+        with patch.object(checks_rest, "_run_gh_api", side_effect=_fake_api(routes)):
+            with pytest.raises(RuntimeError, match="HTTP 502") as info:
+                checks_rest.fetch_checks_rest("o", "r", 42)
+        assert not isinstance(info.value, checks_rest.PullRequestNotFoundError)
+
+    @pytest.mark.parametrize(
+        ("suites", "expected"),
+        [
+            ({"total_count": 3, "check_suites": [{"id": 1}]}, True),
+            ({"total_count": 0, "check_suites": []}, False),
+            ({"check_suites": [{"id": 1}]}, True),
+            ({"check_suites": []}, False),
+        ],
+    )
+    def test_reports_whether_the_head_has_check_suites(self, suites, expected):
+        """A suite with no run yet is GraphQL's empty present rollup (#2304)."""
+        routes = {
+            "repos/o/r/pulls/42": _pr_payload(),
+            "repos/o/r/commits/abc123/check-runs": [{"total_count": 0, "check_runs": []}],
+            "repos/o/r/commits/abc123/status": [{"total_count": 0, "statuses": []}],
+            "repos/o/r/commits/abc123/check-suites": suites,
+        }
+        with patch.object(checks_rest, "_run_gh_api", side_effect=_fake_api(routes)):
+            snap = checks_rest.fetch_checks_rest("o", "r", 42)
+        assert snap["HasCheckSuites"] is expected
+
+    @pytest.mark.parametrize("suites", [[], "x", RuntimeError("REST request failed: boom")])
+    def test_unreadable_check_suites_fail_the_fallback(self, suites):
+        routes = {
+            "repos/o/r/pulls/42": _pr_payload(),
+            "repos/o/r/commits/abc123/check-runs": [{"total_count": 0, "check_runs": []}],
+            "repos/o/r/commits/abc123/status": [{"total_count": 0, "statuses": []}],
+            "repos/o/r/commits/abc123/check-suites": suites,
+        }
+        with patch.object(checks_rest, "_run_gh_api", side_effect=_fake_api(routes)):
+            with pytest.raises(RuntimeError):
                 checks_rest.fetch_checks_rest("o", "r", 42)
 
     def test_status_endpoint_failure_is_not_swallowed(self):
