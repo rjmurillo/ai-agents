@@ -1,0 +1,204 @@
+"""Read-back verification of a written SKILL.md."""
+
+from __future__ import annotations
+
+import pytest
+import skillify
+import skillify_verify
+from skill_fixtures import GOOD_SKILL, make_skill
+
+TRIGGER = "ingest a meeting transcript"
+
+
+def verify(path, trigger=TRIGGER, external=False):
+    return skillify.verify_skill(skillify.resolve_skill_file(path), trigger, external)
+
+
+def failed(result):
+    return set(result["failures"])
+
+
+def test_good_skill_passes_and_reports_name_and_trigger(skills_root):
+    skill = make_skill(skills_root, "meeting-ingest")
+    result = verify(skill)
+    assert result["status"] == "PASS"
+    assert result["name"] == "meeting-ingest"
+    assert result["trigger"] == TRIGGER
+    assert result["failures"] == []
+
+
+def test_accepts_directory_path(skills_root):
+    make_skill(skills_root, "meeting-ingest")
+    assert verify(skills_root / "meeting-ingest")["status"] == "PASS"
+
+
+@pytest.mark.parametrize("name", ["Meeting_Ingest", "meeting--ingest", "-lead", "x" * 65, ""])
+def test_rejects_bad_names(skills_root, name):
+    body = GOOD_SKILL.format(name=name, description=f"{TRIGGER}.", trigger=TRIGGER)
+    skill = make_skill(skills_root, "dir-name", body=body)
+    assert "name_kebab_case" in failed(verify(skill))
+
+
+def test_rejects_name_that_differs_from_directory(skills_root):
+    body = GOOD_SKILL.format(name="other-name", description=TRIGGER, trigger=TRIGGER)
+    skill = make_skill(skills_root, "dir-name", body=body)
+    assert failed(verify(skill)) == {"name_matches_directory"}
+
+
+def test_rejects_empty_description(skills_root):
+    body = GOOD_SKILL.format(name="a-skill", description="", trigger=TRIGGER)
+    skill = make_skill(skills_root, "a-skill", body=body)
+    assert "description_leads_with_trigger" in failed(verify(skill))
+
+
+def test_rejects_trigger_buried_after_lead_window(skills_root):
+    description = "x" * 220 + f" {TRIGGER}"
+    skill = make_skill(skills_root, "a-skill", description=description)
+    assert failed(verify(skill)) == {"description_leads_with_trigger"}
+
+
+def test_trigger_match_ignores_case_and_whitespace(skills_root):
+    skill = make_skill(skills_root, "a-skill", description="Please   INGEST a  Meeting transcript")
+    assert verify(skill)["status"] == "PASS"
+
+
+def test_blank_trigger_argument_fails(skills_root):
+    skill = make_skill(skills_root, "a-skill")
+    assert "description_leads_with_trigger" in failed(verify(skill, trigger="  "))
+
+
+@pytest.mark.parametrize("section", list(skillify_verify.REQUIRED_SECTIONS))
+def test_each_missing_required_section_fails(skills_root, section):
+    heading = "Anti-patterns" if section == "anti-patterns" else section.capitalize()
+    text = GOOD_SKILL.format(name="a-skill", description=TRIGGER, trigger=TRIGGER)
+    text = text.replace(f"## {heading}\n", f"## Renamed {section}\n")
+    skill = make_skill(skills_root, "a-skill", body=text)
+    assert f"section_{section}" in failed(verify(skill))
+
+
+def test_heading_variants_are_accepted(skills_root):
+    text = GOOD_SKILL.format(name="a-skill", description=TRIGGER, trigger=TRIGGER)
+    text = text.replace("## Anti-patterns", "### Anti Patterns:")
+    skill = make_skill(skills_root, "a-skill", body=text)
+    assert "section_anti-patterns" not in failed(verify(skill))
+
+
+def test_anti_patterns_needs_two_items(skills_root):
+    text = GOOD_SKILL.format(name="a-skill", description=TRIGGER, trigger=TRIGGER)
+    text = text.replace("- Publishing without approval.\n", "")
+    skill = make_skill(skills_root, "a-skill", body=text)
+    assert failed(verify(skill)) == {"items_anti-patterns"}
+
+
+def test_pitfalls_table_counts_data_rows_only(skills_root):
+    text = GOOD_SKILL.format(name="a-skill", description=TRIGGER, trigger=TRIGGER)
+    text = text.replace("| CRLF line endings | Read as text |\n", "")
+    skill = make_skill(skills_root, "a-skill", body=text)
+    assert failed(verify(skill)) == {"items_pitfalls"}
+
+
+def test_numbered_items_count(skills_root):
+    text = GOOD_SKILL.format(name="a-skill", description=TRIGGER, trigger=TRIGGER)
+    text = text.replace(
+        "- Guessing the destination.\n- Publishing without approval.\n", "1. one\n2) two\n"
+    )
+    skill = make_skill(skills_root, "a-skill", body=text)
+    assert verify(skill)["status"] == "PASS"
+
+
+def test_bullets_inside_code_fence_do_not_count(skills_root):
+    text = GOOD_SKILL.format(name="a-skill", description=TRIGGER, trigger=TRIGGER)
+    text = text.replace(
+        "- Guessing the destination.\n- Publishing without approval.\n",
+        "```text\n- one\n- two\n# not a heading\n```\n",
+    )
+    skill = make_skill(skills_root, "a-skill", body=text)
+    assert failed(verify(skill)) == {"items_anti-patterns"}
+
+
+def test_subsection_items_count_toward_parent(skills_root):
+    text = GOOD_SKILL.format(name="a-skill", description=TRIGGER, trigger=TRIGGER)
+    text = text.replace(
+        "- Guessing the destination.\n- Publishing without approval.\n",
+        "### Paths\n\n- one\n- two\n",
+    )
+    skill = make_skill(skills_root, "a-skill", body=text)
+    assert verify(skill)["status"] == "PASS"
+
+
+def test_external_actions_require_approval_gate(skills_root):
+    text = GOOD_SKILL.format(name="a-skill", description=TRIGGER, trigger=TRIGGER)
+    text = text.replace("Ask for approval before publishing it.", "Publish it.")
+    text = text.replace("Publishing without approval.", "Publishing blindly.")
+    skill = make_skill(skills_root, "a-skill", body=text)
+    assert verify(skill, external=False)["status"] == "PASS"
+    assert failed(verify(skill, external=True)) == {"approval_gate_present"}
+
+
+def test_external_actions_pass_when_gate_present(skills_root):
+    skill = make_skill(skills_root, "a-skill", trigger=TRIGGER)
+    assert verify(skill, external=True)["status"] == "PASS"
+
+
+@pytest.mark.parametrize("tool", list(skillify_verify.SOURCE_ONLY_TOOLS))
+def test_source_only_tool_names_fail(skills_root, tool):
+    text = GOOD_SKILL.format(name="a-skill", description=TRIGGER, trigger=TRIGGER)
+    skill = make_skill(skills_root, "a-skill", body=text + f"\nCall {tool}().\n")
+    assert failed(verify(skill)) == {"no_source_only_tool_names"}
+
+
+def test_missing_frontmatter_fails_name_and_description(skills_root):
+    skill = make_skill(skills_root, "a-skill", body="# Just a body\n")
+    result = verify(skill)
+    assert result["status"] == "FAIL"
+    assert {"name_kebab_case", "description_leads_with_trigger"} <= failed(result)
+
+
+def test_unterminated_frontmatter_is_treated_as_missing(skills_root):
+    skill = make_skill(skills_root, "a-skill", body="---\nname: a-skill\n# never closed\n")
+    assert "name_kebab_case" in failed(verify(skill))
+
+
+def test_crlf_file_with_quoted_description_passes(skills_root):
+    text = GOOD_SKILL.format(
+        name="a-skill", description=f'"Please \\"{TRIGGER}\\" now"', trigger=TRIGGER
+    ).replace("\n", "\r\n")
+    skill = make_skill(skills_root, "a-skill", body=text)
+    assert verify(skill)["status"] == "PASS"
+
+
+def test_single_quoted_description_is_unwrapped(skills_root):
+    text = GOOD_SKILL.format(name="a-skill", description=f"'{TRIGGER}'", trigger=TRIGGER)
+    skill = make_skill(skills_root, "a-skill", body=text)
+    assert verify(skill)["status"] == "PASS"
+
+
+def test_directory_name_with_spaces_in_path_still_matches(tmp_path):
+    root = tmp_path / "my skills root"
+    root.mkdir()
+    skill = make_skill(root, "a-skill")
+    assert verify(skill)["status"] == "PASS"
+
+
+def test_missing_skill_file_raises(tmp_path):
+    with pytest.raises(skillify.SkillifyError, match="no SKILL.md"):
+        skillify.resolve_skill_file(tmp_path / "nope")
+
+
+def test_unreadable_skill_file_raises(skills_root):
+    directory = skills_root / "bin"
+    directory.mkdir()
+    (directory / "SKILL.md").write_bytes(b"\xff\xfe\x00")
+    with pytest.raises(skillify.SkillifyError, match="cannot read"):
+        verify(directory)
+
+
+def test_blank_and_indented_lines_in_frontmatter_are_tolerated(skills_root):
+    text = (
+        f"---\n\n  stray: indented before any key\nname: a-skill\n\n"
+        f"description: {TRIGGER}\nmetadata:\n  nested: value\n---\n"
+    )
+    good = GOOD_SKILL.format(name="a-skill", description=TRIGGER, trigger=TRIGGER)
+    body = good.split("---\n", 2)[2]
+    skill = make_skill(skills_root, "a-skill", body=text + body)
+    assert verify(skill)["status"] == "PASS"
