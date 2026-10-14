@@ -48,6 +48,7 @@ from github_core.api import (
     resolve_repo_params,
     sanitize_failure_detail,
 )
+from github_core.not_found import is_pr_not_found
 from github_core.output import (
     add_output_format_arg,
     write_skill_error,
@@ -56,10 +57,6 @@ from github_core.output import (
 
 _SCRIPT_NAME = "reopen_pr.py"
 _GH_TIMEOUT_SECONDS = 30
-
-# Matched case-insensitively against the gh stdout and stderr of a failed view.
-# gh words a missing PR as "Could not resolve to a PullRequest", not "not found".
-_NOT_FOUND_MARKERS = ("could not resolve to a pullrequest", "not found")
 
 
 @dataclass(frozen=True)
@@ -137,7 +134,7 @@ def _fail_gh(result: subprocess.CompletedProcess[str], ctx: _Context, what: str)
     detail = sanitize_failure_detail(text)
     if is_auth_failure_text(text):
         _emit_error(f"{what} not authorized: {detail}", 4, "AuthError", ctx.output_format, ctx.pr)
-    if any(marker in text.lower() for marker in _NOT_FOUND_MARKERS):
+    if is_pr_not_found(text):
         _emit_error(
             f"PR #{ctx.pr} not found in {ctx.repo_flag}",
             2,
