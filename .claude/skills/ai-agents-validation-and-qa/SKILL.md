@@ -161,7 +161,7 @@ session log.
 - [ ] All git-mutating tests isolated in `tmp_path` repos (the #2316 guard will fail you otherwise).
 - [ ] Prove collection: `uv run pytest PATH --collect-only -q` shows your tests; then run them; then run the coverage pin form from Phase 4 on changed files.
 - [ ] Run `uv run python scripts/validation/pre_pr.py` before the PR (the local shift-left aggregate; see `ai-agents-change-control` for the full gate ladder).
-- [ ] Send the `pre_pr.py` output to a file, distill it once with the context-optimizer skill's distill_artifact.py, and read the digest. Reopen the raw log only at a cited line.
+- [ ] Save the `pre_pr.py` output and its exit code to a file, then distill the file with `distill_artifact.py` (usage: context-optimizer skill, Tool Details: Distill Artifact), and use the digest to locate failures; search the raw log for any detail it omits.
 
 ## Anti-Patterns
 

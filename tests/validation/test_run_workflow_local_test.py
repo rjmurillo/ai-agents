@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import signal
 import sys
 from pathlib import Path
 from unittest import mock
@@ -2432,25 +2433,25 @@ def test_actionlint_timeout_fails_with_the_cause(monkeypatch, tmp_path) -> None:
 
 
 @pytest.mark.skipif(not hasattr(os, "killpg"), reason="POSIX-only")
-def test_run_calls_killpg_safe_on_timeout() -> None:
-    """On timeout, _run calls _killpg_safe to kill the process group.
+def test_run_terminates_the_process_group_on_timeout() -> None:
+    """On timeout, _run calls _terminate to kill the process group.
 
-    Without _killpg_safe, only the direct child is killed (proc.kill() path),
+    Without _terminate, only the direct child is killed (proc.kill() path),
     and grandchildren such as the gh-act artifact server survive to hold ports
     (Issue #3948).  This mock-based test verifies the kill path fires.
     """
     killed_pids: list[int] = []
-    original = w._killpg_safe
+    original = w._terminate
 
-    def recording(pid: int) -> None:
-        killed_pids.append(pid)
-        original(pid)
+    def recording(proc) -> None:
+        killed_pids.append(proc.pid)
+        original(proc)
 
-    with mock.patch.object(w, "_killpg_safe", side_effect=recording):
+    with mock.patch.object(w, "_terminate", side_effect=recording):
         rc, _out, _err = w._run([sys.executable, "-c", "import time; time.sleep(30)"], timeout=1)
 
     assert rc == -1  # timed out
-    assert len(killed_pids) >= 1, "_killpg_safe was never called on timeout"
+    assert len(killed_pids) >= 1, "_terminate was never called on timeout"
 
 
 def test_run_baseline_success_still_works() -> None:
@@ -2461,25 +2462,61 @@ def test_run_baseline_success_still_works() -> None:
     assert err == ""
 
 
-def test_run_process_group_guard_does_not_signal_own_group() -> None:
-    """_killpg_safe must not signal the caller's own process group.
+class _FakeChild:
+    """Stand-in for a ``Popen`` whose pid and ``wait`` the test picks."""
+
+    def __init__(self, pid: int, wait_raises: type[BaseException] | None = None) -> None:
+        self.pid = pid
+        self.killed = False
+        self._wait_raises = wait_raises
+
+    def wait(self, timeout: float | None = None) -> int:
+        if self._wait_raises is not None:
+            raise self._wait_raises
+        return 0
+
+    def kill(self) -> None:
+        self.killed = True
+
+
+@pytest.mark.skipif(not hasattr(os, "killpg"), reason="POSIX-only")
+def test_run_process_group_guard_does_not_signal_own_group(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """_terminate must not signal the caller's own process group.
 
     start_new_session=True creates a new session so the child's PGID differs
-    from ours. Verify _killpg_safe with our own PID does nothing (the guard
-    compares PGIDs and returns early).
+    from ours. A child that still shares our group has no group of its own to
+    signal, so it is killed alone; returning without a kill left the untimed
+    ``communicate`` in ``_run`` waiting on a live child.
     """
-    import os
+    signals: list[int] = []
+    monkeypatch.setattr(w.os, "killpg", lambda _pgid, sig: signals.append(sig))
+    child = _FakeChild(pid=os.getpid())
+    w._terminate(child)
+    assert signals == []
+    assert child.killed is True
 
-    # If pgid == our own pgid the function returns without signalling.
-    # Calling it with our own PID must not raise or kill this process.
-    w._killpg_safe(os.getpid())  # must not raise or kill
+
+@pytest.mark.skipif(not hasattr(os, "killpg"), reason="POSIX-only")
+@pytest.mark.parametrize("interrupt", [KeyboardInterrupt, SystemExit])
+def test_terminate_sends_sigkill_when_the_grace_wait_is_interrupted(
+    monkeypatch: pytest.MonkeyPatch, interrupt: type[BaseException]
+) -> None:
+    """The SIGTERM handler raises SystemExit mid-wait; SIGKILL must still follow."""
+    signals: list[int] = []
+    monkeypatch.setattr(w.os, "getpgid", lambda pid: 0 if pid == 0 else 4242)
+    monkeypatch.setattr(w.os, "killpg", lambda _pgid, sig: signals.append(sig))
+    with pytest.raises(interrupt):
+        w._terminate(_FakeChild(pid=1, wait_raises=interrupt))
+    assert signals == [signal.SIGTERM, signal.SIGKILL]
 
 
 @pytest.mark.skipif(not hasattr(os, "killpg"), reason="POSIX-only")
 def test_run_passes_start_new_session_to_popen() -> None:
     """Popen is called with start_new_session=True on POSIX (#3948 guard).
 
-    If start_new_session=False, the child's PGID matches ours. _killpg_safe
+    If start_new_session=False, the child's PGID matches ours. _terminate
     then short-circuits (same group = us), and no group kill fires.
     """
     import subprocess as _subprocess
@@ -2498,3 +2535,476 @@ def test_run_passes_start_new_session_to_popen() -> None:
     assert popen_calls[0]["start_new_session"] is True, (
         f"start_new_session={popen_calls[0]['start_new_session']!r}; expected True"
     )
+
+
+# --- Windows jobs are skipped under act (#6412) ---------------------------
+
+
+def _write_runner_wf(tmp_path: Path, jobs: dict[str, object]) -> None:
+    """Write ``WF`` under ``tmp_path`` with one job per ``jobs`` entry.
+
+    The value is the job's ``runs-on``; a ``dict`` value is written as a
+    mapping so group/labels forms can be exercised.
+    """
+    doc = {
+        "name": "x",
+        "on": "push",
+        "jobs": {
+            name: {"runs-on": runner, "steps": [{"run": f"echo {name}"}]}
+            for name, runner in jobs.items()
+        },
+    }
+    wf = tmp_path / WF
+    wf.parent.mkdir(parents=True, exist_ok=True)
+    wf.write_text(yaml.safe_dump(doc, sort_keys=False), encoding="utf-8")
+
+
+def _record_calls(monkeypatch) -> list[list[str]]:
+    calls: list[list[str]] = []
+
+    def fake_run(cmd, *, timeout, cwd=None, env=None):
+        calls.append(list(cmd))
+        return 0, "", ""
+
+    monkeypatch.setattr(w, "_run", fake_run)
+    return calls
+
+
+@pytest.mark.parametrize(
+    ("runner", "expected"),
+    [
+        ("windows-latest", True),
+        ("windows-2022", True),
+        ("Windows-Latest", True),
+        (["self-hosted", "windows"], True),
+        ({"group": "g", "labels": "windows-latest"}, True),
+        ({"group": "g", "labels": ["x64", "windows-2025"]}, True),
+        ("ubuntu-latest", False),
+        ("macos-14", False),
+        (["self-hosted", "linux"], False),
+        ({"group": "linux-pool"}, False),
+        ("${{ matrix.os }}", False),
+        (None, False),
+        (42, False),
+    ],
+)
+def test_windows_label_classifies_runner_forms(runner, expected):
+    assert (w._windows_label(runner) is not None) is expected
+
+
+def test_windows_label_returns_the_matching_label_lowercased():
+    assert w._windows_label(["self-hosted", "Windows-2022"]) == "windows-2022"
+
+
+def test_windows_jobs_returns_only_windows_jobs(tmp_path):
+    _write_runner_wf(
+        tmp_path, {"lint": "ubuntu-latest", "win": "windows-latest", "mac": "macos-14"}
+    )
+    assert w._windows_jobs(tmp_path / WF) == {"win": "windows-latest"}
+
+
+@pytest.mark.parametrize("content", ["", "- a\n- b\n", "jobs: nope\n", "jobs: [a]\n", ": : :\n"])
+def test_windows_jobs_tolerates_malformed_workflows(tmp_path, content):
+    wf = tmp_path / WF
+    wf.parent.mkdir(parents=True)
+    wf.write_text(content, encoding="utf-8")
+    assert w._windows_jobs(wf) == {}
+
+
+def test_windows_jobs_missing_file_is_empty(tmp_path):
+    assert w._windows_jobs(tmp_path / "absent.yml") == {}
+
+
+def test_windows_jobs_ignores_non_mapping_job_bodies(tmp_path):
+    wf = tmp_path / WF
+    wf.parent.mkdir(parents=True)
+    wf.write_text("jobs:\n  a: nope\n  b:\n    runs-on: windows-latest\n", encoding="utf-8")
+    assert w._windows_jobs(wf) == {"b": "windows-latest"}
+
+
+def test_act_full_stage_skips_windows_job_and_warns(monkeypatch, tmp_path):
+    _write_runner_wf(
+        tmp_path, {"lint": "ubuntu-latest", "win": "windows-latest", "docs": "ubuntu-22.04"}
+    )
+    calls = _record_calls(monkeypatch)
+
+    res = w._act_full_stage([WF], tmp_path)
+
+    assert res.ok is True
+    assert calls == [
+        ["gh", "act", "-j", "lint", "-W", WF],
+        ["gh", "act", "-j", "docs", "-W", WF],
+    ]
+    assert res.detail == (
+        f"[WARN] {WF} job win: skipped, runs-on windows-latest. act maps Windows "
+        "runners to a Linux container, so the job cannot run locally. CI runs it."
+    )
+
+
+def test_act_dryrun_stage_skips_windows_job(monkeypatch, tmp_path):
+    _write_runner_wf(tmp_path, {"lint": "ubuntu-latest", "win": "windows-latest"})
+    calls = _record_calls(monkeypatch)
+
+    res = w._act_dryrun_stage([WF], tmp_path)
+
+    assert res.ok is True
+    assert calls == [["gh", "act", "-n", "-j", "lint", "-W", WF]]
+    assert "job win: skipped" in res.detail
+
+
+def test_single_remaining_job_still_gets_a_job_filter(monkeypatch, tmp_path):
+    """Dropping the windows job must not let act run the whole workflow again."""
+    _write_runner_wf(tmp_path, {"lint": "ubuntu-latest", "win": "windows-latest"})
+    calls = _record_calls(monkeypatch)
+
+    w._act_full_stage([WF], tmp_path)
+
+    assert len(calls) == 1
+    assert calls[0][calls[0].index("-j") + 1] == "lint"
+
+
+def test_windows_only_workflow_runs_no_act_and_passes(monkeypatch, tmp_path):
+    _write_runner_wf(tmp_path, {"win": "windows-latest"})
+    calls = _record_calls(monkeypatch)
+
+    res = w._act_dryrun_stage([WF], tmp_path)
+
+    assert calls == []
+    assert res.ok is True
+    assert "job win: skipped" in res.detail
+
+
+def test_every_windows_job_gets_its_own_warning(monkeypatch, tmp_path):
+    _write_runner_wf(tmp_path, {"a": "windows-latest", "b": "windows-2022", "c": "ubuntu-latest"})
+    _record_calls(monkeypatch)
+
+    res = w._act_full_stage([WF], tmp_path)
+
+    warns = [line for line in res.detail.splitlines() if line.startswith("[WARN]")]
+    assert len(warns) == 2
+    assert "job a:" in warns[0]
+    assert "job b:" in warns[1]
+
+
+def test_workflow_without_windows_jobs_is_unchanged(monkeypatch, tmp_path):
+    _write_runner_wf(tmp_path, {"only": "ubuntu-latest"})
+    calls = _record_calls(monkeypatch)
+
+    res = w._act_full_stage([WF], tmp_path)
+
+    assert calls == [["gh", "act", "-W", WF]]
+    assert res.ok is True
+    assert res.detail == ""
+
+
+def test_matrix_runner_expression_is_not_skipped(monkeypatch, tmp_path):
+    _write_runner_wf(tmp_path, {"a": "${{ matrix.os }}", "b": "ubuntu-latest"})
+    calls = _record_calls(monkeypatch)
+
+    res = w._act_full_stage([WF], tmp_path)
+
+    assert len(calls) == 2
+    assert res.detail == ""
+
+
+def test_windows_skip_does_not_hide_a_failing_linux_job(monkeypatch, tmp_path):
+    _write_runner_wf(tmp_path, {"lint": "ubuntu-latest", "win": "windows-latest"})
+
+    def fake_run(cmd, *, timeout, cwd=None, env=None):
+        return 1, "", "lint exploded"
+
+    monkeypatch.setattr(w, "_run", fake_run)
+    res = w._act_full_stage([WF], tmp_path)
+
+    assert res.ok is False
+    assert "lint exploded" in res.detail
+
+
+def _write_needs_wf(tmp_path: Path, jobs: dict[str, tuple[str, object]]) -> None:
+    """Write ``WF`` where each job is ``(runs-on, needs)``; ``None`` omits ``needs``."""
+    body: dict[str, object] = {}
+    for name, (runner, needs) in jobs.items():
+        job: dict[str, object] = {"runs-on": runner, "steps": [{"run": f"echo {name}"}]}
+        if needs is not None:
+            job["needs"] = needs
+        body[name] = job
+    wf = tmp_path / WF
+    wf.parent.mkdir(parents=True, exist_ok=True)
+    wf.write_text(
+        yaml.safe_dump({"name": "x", "on": "push", "jobs": body}, sort_keys=False),
+        encoding="utf-8",
+    )
+
+
+def _planned_targets(calls: list[list[str]]) -> list[str]:
+    return [cmd[cmd.index("-j") + 1] for cmd in calls if "-j" in cmd]
+
+
+def test_job_that_needs_a_windows_job_is_skipped_with_warning(monkeypatch, tmp_path):
+    """act plans a job's ``needs`` transitively, so ``-j alert`` would rerun ``win``."""
+    _write_needs_wf(
+        tmp_path,
+        {
+            "lint": ("ubuntu-latest", None),
+            "win": ("windows-latest", None),
+            "alert": ("ubuntu-latest", ["lint", "win"]),
+        },
+    )
+    calls = _record_calls(monkeypatch)
+
+    res = w._act_dryrun_stage([WF], tmp_path)
+
+    assert _planned_targets(calls) == ["lint"]
+    assert f"[WARN] {WF} job alert: skipped, needs win" in res.detail
+    assert res.ok is True
+
+
+def test_string_needs_is_followed(monkeypatch, tmp_path):
+    _write_needs_wf(
+        tmp_path,
+        {"win": ("windows-latest", None), "after": ("ubuntu-latest", "win")},
+    )
+    calls = _record_calls(monkeypatch)
+
+    res = w._act_full_stage([WF], tmp_path)
+
+    assert calls == []
+    assert f"[WARN] {WF} job after: skipped, needs win" in res.detail
+
+
+def test_dependents_are_skipped_transitively(monkeypatch, tmp_path):
+    _write_needs_wf(
+        tmp_path,
+        {
+            "lint": ("ubuntu-latest", None),
+            "win": ("windows-latest", None),
+            "mid": ("ubuntu-latest", ["win"]),
+            "tail": ("ubuntu-latest", ["lint", "mid"]),
+            "other": ("ubuntu-latest", ["lint"]),
+        },
+    )
+    calls = _record_calls(monkeypatch)
+
+    res = w._act_full_stage([WF], tmp_path)
+
+    assert _planned_targets(calls) == ["lint", "other"]
+    warns = [line for line in res.detail.splitlines() if line.startswith("[WARN]")]
+    assert len(warns) == 3
+    assert "job mid: skipped, needs win" in warns[1]
+    assert "job tail: skipped, needs mid" in warns[2]
+
+
+def test_job_needing_only_kept_jobs_still_runs(monkeypatch, tmp_path):
+    _write_needs_wf(
+        tmp_path,
+        {
+            "lint": ("ubuntu-latest", None),
+            "win": ("windows-latest", None),
+            "after": ("ubuntu-latest", ["lint"]),
+        },
+    )
+    calls = _record_calls(monkeypatch)
+
+    w._act_full_stage([WF], tmp_path)
+
+    assert _planned_targets(calls) == ["lint", "after"]
+
+
+def test_needs_of_unknown_or_malformed_shape_is_ignored(monkeypatch, tmp_path):
+    _write_needs_wf(
+        tmp_path,
+        {
+            "win": ("windows-latest", None),
+            "a": ("ubuntu-latest", 5),
+            "b": ("ubuntu-latest", ["ghost", 7]),
+        },
+    )
+    calls = _record_calls(monkeypatch)
+
+    w._act_full_stage([WF], tmp_path)
+
+    assert _planned_targets(calls) == ["a", "b"]
+
+
+def test_job_needs_normalizes_shapes():
+    assert w._job_needs({"needs": "a"}) == ["a"]
+    assert w._job_needs({"needs": ["a", 3, "b"]}) == ["a", "b"]
+    assert w._job_needs({"needs": 3}) == []
+    assert w._job_needs({}) == []
+    assert w._job_needs("not a mapping") == []
+
+
+def _transitive_needs(bodies: dict[str, object], job: str) -> set[str]:
+    seen: set[str] = set()
+    stack = list(w._job_needs(bodies.get(job)))
+    while stack:
+        dep = stack.pop()
+        if dep not in seen:
+            seen.add(dep)
+            stack.extend(w._job_needs(bodies.get(dep)))
+    return seen
+
+
+def test_pytest_workflow_never_dry_runs_the_windows_pwsh_job(monkeypatch):
+    """Regression for #6412: pytest.yml test-windows-pwsh ran tests past every timeout."""
+    rel = ".github/workflows/pytest.yml"
+    calls = _record_calls(monkeypatch)
+
+    res = w._act_dryrun_stage([rel], REPO_ROOT)
+
+    assert res.ok is True
+    assert calls, "pytest.yml still has Linux jobs to dry-run"
+    assert all("test-windows-pwsh" not in cmd for cmd in calls)
+    assert "job test-windows-pwsh: skipped" in res.detail
+    # act plans ``needs`` transitively, so no planned target may reach a Windows job.
+    bodies = w._workflow_job_bodies(REPO_ROOT / rel)
+    windows = set(w._windows_jobs(REPO_ROOT / rel))
+    assert windows
+    for target in _planned_targets(calls):
+        assert not (_transitive_needs(bodies, target) & windows), target
+    assert "job main-failure-alert: skipped, needs test-windows-pwsh" in res.detail
+
+
+def test_windows_jobs_is_empty_without_pyyaml(monkeypatch, tmp_path):
+    """No YAML parser means no skip decision, so act sees every job."""
+    _write_runner_wf(tmp_path, {"win": "windows-latest"})
+    monkeypatch.setitem(sys.modules, "yaml", None)
+    assert w._windows_jobs(tmp_path / WF) == {}
+
+
+# ---------------------------------------------------------------------------
+# SIGTERM forwarding and kill grace (issue #6412)
+# ---------------------------------------------------------------------------
+
+_POSIX_ONLY = pytest.mark.skipif(not hasattr(os, "killpg"), reason="process groups are POSIX-only")
+
+_SIGTERM_CLEANUP_CHILD = """
+import signal, sys, time
+marker, ready = sys.argv[1], sys.argv[2]
+def bye(*_):
+    open(marker, "w").write("cleaned")
+    sys.exit(0)
+signal.signal(signal.SIGTERM, bye)
+open(ready, "w").write("1")
+time.sleep(60)
+"""
+
+
+@_POSIX_ONLY
+def test_run_timeout_gives_the_child_time_to_clean_up_on_sigterm(tmp_path):
+    # LOW-001: SIGKILL used to follow SIGTERM with no wait, so a cleanup handler
+    # (the gh-act artifact server releasing its port) never ran.
+    marker, ready = tmp_path / "marker", tmp_path / "ready"
+    script = tmp_path / "child.py"
+    script.write_text(_SIGTERM_CLEANUP_CHILD, encoding="utf-8")
+    rc, _out, err = w._run([sys.executable, str(script), str(marker), str(ready)], timeout=4)
+    assert ready.exists(), "child never installed its handler; raise the timeout"
+    assert rc == -1
+    assert "TimeoutExpired" in err
+    assert marker.read_text(encoding="utf-8") == "cleaned"
+
+
+@_POSIX_ONLY
+def test_install_sigterm_handler_turns_sigterm_into_system_exit():
+    # HIGH-001: the pre-PR gate stops this script with SIGTERM. The default
+    # action ends it without running _run's cleanup, which orphans gh act.
+    previous = signal.getsignal(signal.SIGTERM)
+    try:
+        restore = w._install_sigterm_handler()
+        handler = signal.getsignal(signal.SIGTERM)
+        assert callable(handler)
+        with pytest.raises(SystemExit) as stopped:
+            handler(signal.SIGTERM, None)
+        assert stopped.value.code == 128 + signal.SIGTERM
+        restore()
+        assert signal.getsignal(signal.SIGTERM) == previous
+    finally:
+        signal.signal(signal.SIGTERM, previous)
+
+
+def test_main_installs_the_sigterm_handler(monkeypatch, tmp_path):
+    events: list[str] = []
+
+    def install():
+        events.append("install")
+        return lambda: events.append("restore")
+
+    monkeypatch.setattr(w, "_install_sigterm_handler", install)
+    monkeypatch.setattr(
+        w,
+        "run_local_test",
+        lambda files, repo_root, full: mock.Mock(exit_code=0, results=[]),
+    )
+    monkeypatch.setattr(w, "_format_text", lambda report: "")
+    assert w.main(["--repo-root", str(tmp_path), "--no-full"]) == 0
+    assert events == ["install", "restore"]
+
+
+def test_main_restores_the_sigterm_handler_when_the_run_raises(monkeypatch, tmp_path):
+    events: list[str] = []
+
+    def install():
+        events.append("install")
+        return lambda: events.append("restore")
+
+    monkeypatch.setattr(w, "_install_sigterm_handler", install)
+
+    def boom(files, repo_root, full):
+        raise SystemExit(143)
+
+    monkeypatch.setattr(w, "run_local_test", boom)
+    with pytest.raises(SystemExit):
+        w.main(["--repo-root", str(tmp_path), "--no-full"])
+    assert events == ["install", "restore"]
+
+
+_SIGTERM_TAIL_CHILD = """
+import signal, sys, time
+ready = sys.argv[1]
+def bye(*_):
+    sys.stdout.write("tail-out\\n"); sys.stdout.flush()
+    sys.stderr.write("tail-err\\n"); sys.stderr.flush()
+    sys.exit(0)
+signal.signal(signal.SIGTERM, bye)
+sys.stdout.write("head-out\\n"); sys.stdout.flush()
+sys.stderr.write("head-err\\n"); sys.stderr.flush()
+open(ready, "w").write("1")
+time.sleep(60)
+"""
+
+
+@_POSIX_ONLY
+def test_run_timeout_keeps_output_written_during_the_grace_window(tmp_path):
+    # The child writes during the SIGTERM grace window. The post-kill read holds
+    # that tail plus the pre-timeout head. Preferring the TimeoutExpired snapshot
+    # dropped the tail, and with it any git clone lines the cold-cache hint counts.
+    ready = tmp_path / "ready"
+    script = tmp_path / "child.py"
+    script.write_text(_SIGTERM_TAIL_CHILD, encoding="utf-8")
+    rc, out, err = w._run([sys.executable, str(script), str(ready)], timeout=4)
+    assert ready.exists(), "child never installed its handler; raise the timeout"
+    assert rc == -1
+    assert "head-out" in out
+    assert "tail-out" in out
+    assert "head-err" in err
+    assert "tail-err" in err
+    assert err.startswith("TimeoutExpired: ")
+
+
+@_POSIX_ONLY
+def test_terminate_kills_the_child_when_the_group_lookup_fails(monkeypatch):
+    # A failed os.getpgid used to return without any kill. _run then waited on
+    # the live child with an untimed communicate, past the stage deadline.
+    signals: list[int] = []
+
+    def no_group(pid: int) -> int:
+        if pid == 0:
+            return os.getpgrp()
+        raise ProcessLookupError(pid)
+
+    monkeypatch.setattr(w.os, "getpgid", no_group)
+    monkeypatch.setattr(w.os, "killpg", lambda _pgid, sig: signals.append(sig))
+    child = _FakeChild(pid=4242)
+    w._terminate(child)
+    assert signals == []
+    assert child.killed is True

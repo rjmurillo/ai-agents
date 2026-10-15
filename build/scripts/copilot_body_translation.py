@@ -18,7 +18,9 @@ Runtime contract verified empirically against GitHub Copilot CLI 1.0.66-1
   - `mcp__github__<op>`        -> not a Copilot tool name; Copilot spells the
                                   same server `github/<op>` (`templates/toolsets.yaml`)
 
-The translation applies five transforms, all in place:
+The translation applies five transforms, all in place. Transforms 1 to 3 also
+run over ``references/*.md`` (`translate_reference_file`), which ship beside
+``SKILL.md`` and describe the same Claude surface:
 
   1. `@file` includes -> a Copilot note (instructions load via the plugin tree).
   2. `$ARGUMENTS`      -> a conversation instruction (no argument vector).
@@ -26,6 +28,9 @@ The translation applies five transforms, all in place:
      `Skill(skill="X")`        -> `` `skill: "X"` ``
      `Task(subagent_type="Y")` -> `` `agent_type: "<plugin>:Y"` ``
      A `prompt="Z"` argument is preserved as ` with prompt "Z"`.
+     A `Task()` call whose prompt is a triple-quoted block keeps its shape and
+     its body: `Task(subagent_type="Y", prompt=<triple-quoted block>)` ->
+     `task(agent_type="<plugin>:Y", prompt=<same block>)` (issue #5657).
   4. `allowed-tools` frontmatter -> MCP names respelled for Copilot:
      `mcp__github__*` -> `github/*`, `mcp__serena__find_symbol` ->
      `serena/find_symbol`. Transforms 1 to 3 skip frontmatter, so before this
@@ -182,27 +187,49 @@ def _translate_arguments(body: str) -> str:
     )
 
 
+_QUOTE_CHARS = ("'", '"')
+_TRIPLE_QUOTES = ('"""', "'''")
+
+
+def _string_end(text: str, open_index: int) -> int:
+    """Return the index just past the string literal that opens at ``open_index``.
+
+    Handles single-, double-, and triple-quoted literals, and skips backslash
+    escapes. Returns -1 when the literal is unterminated. A triple-quoted
+    literal may span lines and hold unbalanced parens and bare quotes, which a
+    per-character quote toggle misreads as several short strings.
+    """
+    opener = text[open_index : open_index + 3]
+    delimiter = opener if opener in _TRIPLE_QUOTES else text[open_index]
+    cursor = open_index + len(delimiter)
+    length = len(text)
+    while cursor < length:
+        if text[cursor] == "\\":
+            cursor += 2
+            continue
+        if text.startswith(delimiter, cursor):
+            return cursor + len(delimiter)
+        cursor += 1
+    return -1
+
+
 def _find_matching_paren(text: str, open_index: int) -> int:
     """Return the index of the ``)`` that closes the ``(`` at ``open_index``.
 
-    Quote-aware: parens inside single- or double-quoted argument strings do
-    not change the depth. Returns -1 when the call is unbalanced.
+    String-aware: parens inside single-, double-, or triple-quoted argument
+    strings do not change the depth. Returns -1 when the call is unbalanced.
     """
     depth = 0
-    quote: str | None = None
     index = open_index
     length = len(text)
     while index < length:
         char = text[index]
-        if quote is not None:
-            if char == "\\":
-                index += 2
-                continue
-            if char == quote:
-                quote = None
-        elif char in ("'", '"'):
-            quote = char
-        elif char == "(":
+        if char in _QUOTE_CHARS:
+            index = _string_end(text, index)
+            if index == -1:
+                return -1
+            continue
+        if char == "(":
             depth += 1
         elif char == ")":
             depth -= 1
@@ -212,13 +239,101 @@ def _find_matching_paren(text: str, open_index: int) -> int:
     return -1
 
 
+def _split_triple_quoted(args: str) -> list[tuple[str, bool]]:
+    """Split call arguments into ``(text, is_triple_quoted)`` segments.
+
+    A triple-quoted segment keeps its delimiters. Other string literals stay
+    inside the surrounding plain segment, so triple quotes inside a
+    single-quoted value are never mistaken for a block.
+    """
+    parts: list[tuple[str, bool]] = []
+    cursor = 0
+    index = 0
+    length = len(args)
+    while index < length:
+        if args[index] not in _QUOTE_CHARS:
+            index += 1
+            continue
+        end = _string_end(args, index)
+        if end == -1:
+            break
+        if args[index : index + 3] in _TRIPLE_QUOTES:
+            parts.append((args[cursor:index], False))
+            parts.append((args[index:end], True))
+            cursor = end
+        index = end
+    parts.append((args[cursor:], False))
+    return parts
+
+
+def _rename_top_level_subagent(text: str, plugin_name: str) -> tuple[str, int]:
+    """Rewrite each top-level ``subagent_type="Y"`` as ``agent_type="<plugin>:Y"``.
+
+    String-aware: a ``subagent_type=`` that sits inside a quoted argument value
+    is prose, not a parameter, so it is left as is. Matching is anchored at
+    positions outside every literal, so a value that ends in ``subagent_type=``
+    cannot swallow the real parameter after it. Returns the text and the count.
+    """
+    out: list[str] = []
+    cursor = 0
+    index = 0
+    count = 0
+    length = len(text)
+    while index < length:
+        if text[index] in _QUOTE_CHARS:
+            end = _string_end(text, index)
+            if end == -1:
+                break
+            index = end
+            continue
+        match = _TASK_NAME_RE.match(text, index)
+        if match is None:
+            index += 1
+            continue
+        out.append(text[cursor:index])
+        out.append(f'agent_type="{plugin_name}:{match.group("value")}"')
+        cursor = index = match.end()
+        count += 1
+    out.append(text[cursor:])
+    return "".join(out), count
+
+
+def _render_multiline_task(args: str, plugin_name: str) -> str | None:
+    """Rewrite a ``Task()`` call whose arguments carry a triple-quoted block.
+
+    The call keeps its shape and its prompt body verbatim: ``Task`` becomes
+    ``task`` and ``subagent_type="Y"`` becomes ``agent_type="<plugin>:Y"``.
+    Collapsing the block into a one-line span would drop every line of it
+    (issue #5657). Calls inside the body are translated in turn. Returns None
+    when no ``subagent_type`` is present, so the caller leaves the call as is.
+    """
+
+    pieces: list[str] = []
+    renamed = False
+    for text, is_block in _split_triple_quoted(args):
+        if is_block:
+            delimiter = text[:3]
+            inner = _translate_invocations(text[3:-3], plugin_name)
+            pieces.append(delimiter + inner + delimiter)
+            continue
+        text, count = _rename_top_level_subagent(text, plugin_name)
+        renamed = renamed or count > 0
+        pieces.append(text)
+    if not renamed:
+        return None
+    return "task(" + "".join(pieces) + ")"
+
+
 def _render_invocation(kind: str, args: str, plugin_name: str) -> str | None:
     """Render the Copilot tool-input span for one call, or None if unparseable."""
+    has_block = any(is_block for _, is_block in _split_triple_quoted(args))
     if kind == "Skill":
         name = _SKILL_NAME_RE.search(args)
-        if name is None:
+        if name is None or has_block:
             return None
         return f'`skill: "{name.group("value")}"`'
+    if has_block:
+        return _render_multiline_task(args, plugin_name)
     name = _TASK_NAME_RE.search(args)
     if name is None:
         return None
@@ -234,13 +349,17 @@ def _translate_invocations(body: str, plugin_name: str) -> str:
 
     A call already wrapped in backticks (`` `Skill(skill="X")` ``) has those
     wrapping backticks absorbed, so the result is a single clean code span.
+    A balanced call that cannot be rendered is left as written, nested calls
+    included. An unbalanced call has no known end, so scanning resumes after
+    its opening paren.
     """
     out: list[str] = []
     cursor = 0
+    resume = 0
     length = len(body)
     for match in _CALL_START_RE.finditer(body):
         call_start = match.start()
-        if call_start < cursor:
+        if call_start < resume:
             continue
         open_index = match.end() - 1
         close_index = _find_matching_paren(body, open_index)
@@ -250,10 +369,12 @@ def _translate_invocations(body: str, plugin_name: str) -> str:
             match.group(1), body[open_index + 1 : close_index], plugin_name
         )
         if rendered is None:
+            resume = close_index + 1
             continue
         call_end = close_index + 1
         if (
-            call_start - 1 >= cursor
+            rendered.startswith("`")
+            and call_start - 1 >= cursor
             and body[call_start - 1] == "`"
             and call_end < length
             and body[call_end] == "`"
@@ -262,7 +383,7 @@ def _translate_invocations(body: str, plugin_name: str) -> str:
             call_end += 1
         out.append(body[cursor:call_start])
         out.append(rendered)
-        cursor = call_end
+        cursor = resume = call_end
     out.append(body[cursor:])
     return "".join(out)
 
@@ -305,6 +426,19 @@ def translate_allowed_tools(frontmatter: str) -> str:
         lambda line: respell_mcp_tool_names(line.group(0)),
         frontmatter,
     )
+
+
+def translate_reference_file(content: str, skills_output_dir: Path) -> str:
+    """Translate a skill ``references/*.md`` file, preserving its frontmatter.
+
+    A reference file is prose a Copilot consumer reads beside ``SKILL.md``, so
+    it gets the same body transforms (1 to 3). It has no ``allowed-tools`` or
+    droppable keys: any frontmatter passes through untouched.
+    """
+    match = _FRONTMATTER_RE.match(content)
+    if match is None:
+        return translate_body(content, skills_output_dir)
+    return match.group(1) + translate_body(match.group(2), skills_output_dir)
 
 
 def translate_skill_file(

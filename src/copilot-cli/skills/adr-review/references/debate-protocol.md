@@ -7,7 +7,7 @@ Detailed phases for multi-agent ADR validation.
 Before launching independent reviews, use analyst agent to search for related work:
 
 ````text
-Task(subagent_type="analyst", prompt="""
+task(agent_type="project-toolkit:analyst", prompt="""
 ADR Related Work Research
 
 ## ADR Being Reviewed
@@ -100,8 +100,8 @@ P0 = blocking, P1 = important, P2 = nice-to-have
 **Agent Invocation Pattern:**
 
 ```python
-Task(
-    subagent_type="architect",
+task(
+    agent_type="project-toolkit:architect",
     prompt="""
 ADR Review Request (Phase 1: Independent Review)
 
@@ -151,8 +151,8 @@ After all 6 reviews complete:
 **Conflict Resolution Pattern:**
 
 ```python
-Task(
-    subagent_type="high-level-advisor",
+task(
+    agent_type="project-toolkit:high-level-advisor",
     prompt="""
 ADR Conflict Resolution Required
 
@@ -202,8 +202,8 @@ If 2+ agents flag scope concerns, recommend splitting:
 Re-invoke each agent to review proposed updates:
 
 ```python
-Task(
-    subagent_type="[agent]",
+task(
+    agent_type="project-toolkit:[agent]",
     prompt="""
 ADR Convergence Check (Round [N])
 

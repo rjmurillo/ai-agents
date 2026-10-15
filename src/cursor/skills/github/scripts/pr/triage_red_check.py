@@ -14,16 +14,24 @@ step instead of the last.
 
 Given a check name as it appears on the PR, the script walks origin/main's
 recent commits newest-first and reports the latest completed run of the same
-check name, with the run's URL as evidence. Three verdicts:
+check name, with the run's URL as evidence. Five verdicts:
 
 - GREEN_ON_MAIN: the check passes on main's latest completed run. The
   failure is introduced by the PR; investigate the PR.
 - RED_ON_MAIN: the check fails on main's latest completed run. The failure
   is inherited; cite EvidenceUrl instead of debugging the PR.
+- PR_ONLY: the check name has no row on any examined main commit. A
+  pull_request-only workflow never reports on the base branch, so the
+  failure cannot be inherited from it. Widen --history-depth only when the
+  workflow is path-filtered or scheduled. Exit 3, never green.
+- CANCELLED_ON_MAIN: the check has rows on main but every one is CANCELLED
+  or STALE, so main holds no completed evidence either way. The output
+  carries the newest cancelled run (EvidenceUrl, EvidenceRunId) to rerun.
+  Exit 3, never green.
 - UNKNOWN: the probe could not determine main's state (API failure,
-  incomplete pagination, or the check never reported on recent main
-  commits, which happens for pull_request-only workflows). Probe failure is
-  not absence: UNKNOWN is never reported as green.
+  incomplete pagination, no examined commits, or rows that are only skipped
+  or still pending). Probe failure is not absence: UNKNOWN is never reported
+  as green.
 
 Check names are GitHub job names and are not unique across workflows in
 this repository (eleven display names are shared by two or more job
@@ -55,7 +63,8 @@ Exit codes (ADR-035):
     0 - GREEN_ON_MAIN (check passes on main; investigate the PR)
     1 - RED_ON_MAIN (failure inherited from main; cite EvidenceUrl)
     2 - Config error (branch not found, invalid arguments)
-    3 - UNKNOWN / API error (probe failure is not absence)
+    3 - PR_ONLY / CANCELLED_ON_MAIN / UNKNOWN / API error (probe failure is
+        not absence; none of these is evidence of green)
     4 - Auth error (from assert_gh_authenticated)
 """
 
@@ -192,11 +201,14 @@ _MAX_CONTEXT_PAGES = 50
 # divergence (CANCELLED, STALE, and SKIPPED are non-evidence here).
 _RED_CONCLUSIONS = {"FAILURE", "TIMED_OUT", "ACTION_REQUIRED", "STARTUP_FAILURE"}
 _GREEN_CONCLUSIONS = {"SUCCESS", "NEUTRAL"}
+_CANCELLED_CONCLUSIONS = {"CANCELLED", "STALE"}
 _RED_STATUS_STATES = {"FAILURE", "ERROR"}
 _GREEN_STATUS_STATES = {"SUCCESS"}
 
 _VERDICT_GREEN = "GREEN_ON_MAIN"
 _VERDICT_RED = "RED_ON_MAIN"
+_VERDICT_PR_ONLY = "PR_ONLY"
+_VERDICT_CANCELLED = "CANCELLED_ON_MAIN"
 _VERDICT_UNKNOWN = "UNKNOWN"
 
 _GUIDANCE = {
@@ -208,6 +220,21 @@ _GUIDANCE = {
         "Check is red on the base branch. The failure is inherited from the "
         "base branch, not introduced by the PR: cite EvidenceUrl and fix or "
         "wait out the base branch instead of debugging the PR."
+    ),
+    _VERDICT_PR_ONLY: (
+        "Check name has no row on the examined base-branch commits. A "
+        "pull_request-only check never reports on the base branch, so the "
+        "failure cannot be inherited from it: read the PR run's log with "
+        "`gh run view <run-id> --log-failed`. If the workflow is "
+        "path-filtered or scheduled, widen --history-depth (max 50) and "
+        "probe again."
+    ),
+    _VERDICT_CANCELLED: (
+        "Every base-branch row for this check is CANCELLED or STALE, so the "
+        "base branch holds no completed evidence. Not green: rerun the "
+        "newest cancelled run with `gh run rerun <run-id>` (EvidenceRunId) "
+        "or read its log with `gh run view <run-id> --log-failed`, then "
+        "probe again."
     ),
     _VERDICT_UNKNOWN: (
         "Could not determine the check's state on the base branch. Probe "
@@ -468,6 +495,67 @@ def fetch_branch_history(owner: str, repo: str, branch: str, depth: int) -> dict
 # ---------------------------------------------------------------------------
 
 
+def _is_cancelled_row(row: dict) -> bool:
+    """True for a CheckRun whose conclusion is CANCELLED or STALE."""
+    return row.get("Type") == "CheckRun" and row.get("Conclusion") in _CANCELLED_CONCLUSIONS
+
+
+def _run_sort_key(row: dict) -> int:
+    run_id = row.get("WorkflowRunId")
+    return run_id if isinstance(run_id, int) else 0
+
+
+def _result(
+    verdict: str,
+    reason: str,
+    commit: dict | None,
+    commits_examined: int,
+    *,
+    evidence: dict | None = None,
+    ambiguous: bool = False,
+    rows: list[dict] | None = None,
+) -> dict:
+    return {
+        "Verdict": verdict,
+        "Reason": reason,
+        "EvidenceUrl": (evidence or {}).get("DetailsUrl") or None,
+        "EvidenceRunId": (evidence or {}).get("WorkflowRunId"),
+        "EvidenceCommit": commit["Oid"] if commit else None,
+        "EvidenceCommitDate": commit["CommittedDate"] if commit else None,
+        "CommitsExamined": commits_examined,
+        "AmbiguousDefinitions": ambiguous,
+        "MatchedRows": rows or [],
+    }
+
+
+def _classify_exhausted_walk(
+    commits_examined: int,
+    newest_cancelled: tuple[dict, dict] | None,
+    any_rows: bool,
+    all_cancelled: bool,
+) -> dict:
+    """Classify a walk that found neither a red nor a green row.
+
+    PR_ONLY needs at least one examined commit and no matched row anywhere.
+    CANCELLED_ON_MAIN needs matched rows that are all CANCELLED or STALE.
+    Anything else (no commits, skipped or pending rows) stays UNKNOWN.
+    """
+    if commits_examined == 0:
+        return _result(_VERDICT_UNKNOWN, "no_commits_examined", None, 0)
+    if not any_rows:
+        return _result(_VERDICT_PR_ONLY, "not_observed_on_branch", None, commits_examined)
+    if all_cancelled and newest_cancelled is not None:
+        commit, row = newest_cancelled
+        return _result(
+            _VERDICT_CANCELLED,
+            "only_cancelled_runs",
+            commit,
+            commits_examined,
+            evidence=row,
+        )
+    return _result(_VERDICT_UNKNOWN, "no_completed_evidence", None, commits_examined)
+
+
 def triage(commits: list[dict], check_name: str) -> dict:
     """Walk commits newest-first and report the latest completed run's verdict.
 
@@ -475,8 +563,15 @@ def triage(commits: list[dict], check_name: str) -> dict:
     the check's newest state may sit in the pages that never arrived, and an
     older commit's answer would misreport "latest". Probe failure is not
     absence.
+
+    When no commit yields a red or green row, the matched rows kept across
+    the walk separate PR_ONLY (no row anywhere) from CANCELLED_ON_MAIN (only
+    cancelled or stale rows) and UNKNOWN (skipped or pending rows).
     """
     commits_examined = 0
+    any_rows = False
+    all_cancelled = True
+    newest_cancelled: tuple[dict, dict] | None = None
     for commit in commits:
         commits_examined += 1
         rows = [
@@ -485,42 +580,26 @@ def triage(commits: list[dict], check_name: str) -> dict:
             if row is not None and row.get("Name") == check_name
         ]
         if not commit["PagesComplete"]:
-            return {
-                "Verdict": _VERDICT_UNKNOWN,
-                "Reason": "contexts_incomplete",
-                "EvidenceUrl": None,
-                "EvidenceRunId": None,
-                "EvidenceCommit": commit["Oid"],
-                "EvidenceCommitDate": commit["CommittedDate"],
-                "CommitsExamined": commits_examined,
-                "AmbiguousDefinitions": False,
-                "MatchedRows": rows,
-            }
+            return _result(
+                _VERDICT_UNKNOWN, "contexts_incomplete", commit, commits_examined, rows=rows
+            )
         verdict, evidence, ambiguous = evaluate_commit_rows(rows)
-        if verdict is None:
-            continue
-        return {
-            "Verdict": _VERDICT_RED if verdict == "red" else _VERDICT_GREEN,
-            "Reason": "",
-            "EvidenceUrl": (evidence or {}).get("DetailsUrl") or None,
-            "EvidenceRunId": (evidence or {}).get("WorkflowRunId"),
-            "EvidenceCommit": commit["Oid"],
-            "EvidenceCommitDate": commit["CommittedDate"],
-            "CommitsExamined": commits_examined,
-            "AmbiguousDefinitions": ambiguous,
-            "MatchedRows": rows,
-        }
-    return {
-        "Verdict": _VERDICT_UNKNOWN,
-        "Reason": "not_observed_on_branch",
-        "EvidenceUrl": None,
-        "EvidenceRunId": None,
-        "EvidenceCommit": None,
-        "EvidenceCommitDate": None,
-        "CommitsExamined": commits_examined,
-        "AmbiguousDefinitions": False,
-        "MatchedRows": [],
-    }
+        if verdict is not None:
+            return _result(
+                _VERDICT_RED if verdict == "red" else _VERDICT_GREEN,
+                "",
+                commit,
+                commits_examined,
+                evidence=evidence,
+                ambiguous=ambiguous,
+                rows=rows,
+            )
+        any_rows = any_rows or bool(rows)
+        cancelled = [row for row in rows if _is_cancelled_row(row)]
+        all_cancelled = all_cancelled and len(cancelled) == len(rows)
+        if cancelled and newest_cancelled is None:
+            newest_cancelled = (commit, max(cancelled, key=_run_sort_key))
+    return _classify_exhausted_walk(commits_examined, newest_cancelled, any_rows, all_cancelled)
 
 
 # ---------------------------------------------------------------------------
@@ -579,6 +658,20 @@ def _summary(check_name: str, branch: str, result: dict) -> tuple[str, str]:
             f"Check {check_name!r} is RED on {branch}: inherited failure, "
             f"see {result['EvidenceUrl'] or 'the base branch run'}",
             "FAIL",
+        )
+    if verdict == _VERDICT_PR_ONLY:
+        return (
+            f"Check {check_name!r} never reported on {branch} "
+            f"({result['CommitsExamined']} commits examined): PR-only check, "
+            "the failure cannot be inherited from the base branch",
+            "WARNING",
+        )
+    if verdict == _VERDICT_CANCELLED:
+        return (
+            f"Check {check_name!r} on {branch} has only CANCELLED or STALE "
+            f"runs, see {result['EvidenceUrl'] or 'the base branch run'}: "
+            "no completed evidence, not green",
+            "WARNING",
         )
     return (
         f"Check {check_name!r} state on {branch} is UNKNOWN "
@@ -650,6 +743,7 @@ def main(argv: list[str] | None = None) -> int:
         "Guidance": _GUIDANCE[verdict],
         "Reason": result["Reason"],
         "EvidenceUrl": result["EvidenceUrl"],
+        "EvidenceRunId": result["EvidenceRunId"],
         "EvidenceCommit": result["EvidenceCommit"],
         "EvidenceCommitDate": result["EvidenceCommitDate"],
         "CommitsExamined": result["CommitsExamined"],

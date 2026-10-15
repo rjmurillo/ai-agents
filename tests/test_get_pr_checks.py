@@ -426,11 +426,29 @@ class TestMain:
             ),
             patch(
                 "get_pr_checks.gh_graphql",
-                side_effect=RuntimeError("Could not resolve PR"),
+                side_effect=RuntimeError(
+                    "Could not resolve to a PullRequest with the number of 999."
+                ),
             ),
         ):
             rc = main(["--pull-request", "999"])
         assert rc == 2
+
+    def test_transport_fault_returns_3(self, capsys):
+        """'Could not resolve host' is a network fault, not a missing PR."""
+        with (
+            patch("get_pr_checks.assert_gh_authenticated"),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_pr_checks.gh_graphql",
+                side_effect=RuntimeError("Could not resolve host: api.github.com"),
+            ),
+        ):
+            rc = main(["--pull-request", "999"])
+        assert rc == 3
 
     def test_all_passing_returns_0(self, capsys):
         gql_data = {
@@ -1315,11 +1333,11 @@ class TestFetchChecks:
     def test_generic_api_error(self):
         with patch(
             "get_pr_checks.gh_graphql",
-            side_effect=RuntimeError("rate limit exceeded"),
+            side_effect=RuntimeError("upstream exploded"),
         ):
             result = fetch_checks("o", "r", 1)
         assert result["Error"] == "ApiError"
-        assert "rate limit" in result["Message"]
+        assert "upstream exploded" in result["Message"]
 
     def test_pr_none_in_response(self):
         with patch(
@@ -3484,7 +3502,12 @@ class TestFailureEnvelopeSchema:
         with (
             patch("get_pr_checks.assert_gh_authenticated"),
             patch("get_pr_checks.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
-            patch("get_pr_checks.gh_graphql", side_effect=RuntimeError("Could not resolve PR")),
+            patch(
+                "get_pr_checks.gh_graphql",
+                side_effect=RuntimeError(
+                    "Could not resolve to a PullRequest with the number of 999."
+                ),
+            ),
         ):
             rc = main(["--pull-request", "999", "--output-format", "json"])
         captured = capsys.readouterr()
@@ -3536,7 +3559,10 @@ class TestFailureEnvelopeSchema:
             patch("get_pr_checks.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
             patch(
                 "get_pr_checks.gh_graphql",
-                side_effect=[pending, RuntimeError("Could not resolve PR")],
+                side_effect=[
+                    pending,
+                    RuntimeError("Could not resolve to a PullRequest with the number of 5."),
+                ],
             ),
             patch("get_pr_checks.time.sleep"),
         ):

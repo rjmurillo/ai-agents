@@ -16,7 +16,6 @@ import re
 import shlex
 import shutil
 import signal
-import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -26,7 +25,7 @@ import unicodedata
 import warnings
 from collections import Counter
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
-from contextlib import closing
+from contextlib import ExitStack
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from fnmatch import fnmatch
@@ -48,7 +47,14 @@ from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 from scripts.ci import diff_line_scope
 from scripts.ci.run_pytest_partition import PYTEST_DIST_MODE
 from scripts.hook_utilities.utilities import recent_host_session_dates
-from scripts.validation import cli_smoke_paths, pytest_deferral, pytest_lanes, testmon_seed
+from scripts.validation import (
+    cli_smoke_paths,
+    host_headroom,
+    pytest_deferral,
+    pytest_lanes,
+    testmon_lane_db,
+    testmon_seed,
+)
 from scripts.validation.evidence import (
     REASON_ADVISORY_FINDINGS,
     REASON_AUTH_UNAVAILABLE,
@@ -569,6 +575,11 @@ SEMGREP_COMMAND_LENGTH_LIMIT = 24_000
 # Lefthook owns the outer deadline; these child-process budgets must finish first.
 DEFAULT_SUBPROCESS_TIMEOUT_SECONDS = 90
 SEMGREP_TIMEOUT_SECONDS = 840
+# Issue #6609: the longest a semgrep push waits for a host-wide heavy-stage slot
+# and for load to drop. The wait spends the scan's own deadline, because the
+# security-scan cap (15m) leaves only 60s above SEMGREP_TIMEOUT_SECONDS. Half the
+# budget leaves 420s to scan; one job scanned 100 files in 93 seconds.
+SEMGREP_HEADROOM_WAIT_SECONDS = SEMGREP_TIMEOUT_SECONDS // 2
 # Scoped to files differing from origin/main, so this is a handful of files,
 # not the tree. Measured 2.73s in-hook and 1.07s cold. Was 840s, which forced
 # a 15m outer cap through the ADR-086 item 9 headroom rule for no reason.
@@ -643,6 +654,12 @@ TEST_SUITE_TIMEOUT_SECONDS = 780
 # no-database case never starts (see `_should_defer_cold_selection`); a run that still
 # passes 180s, for example after a lock change, stops and fails the push.
 PRE_PUSH_SELECTION_TIMEOUT_SECONDS = 180
+# The `python-tests` job's lefthook timeout (15m); a test pins the two values.
+# Issue #6609: a pytest push waits for host headroom before its budget clock
+# starts, so the wait is what this cap leaves above the budget, less a margin
+# for setup and teardown that the budget does not cover.
+PYTHON_TESTS_JOB_CAP_SECONDS = 900
+HEADROOM_MARGIN_SECONDS = 60
 # pytest exits 5 when a collect-only run finds no tests; a partition can be empty.
 _PYTEST_NO_TESTS_COLLECTED = 5
 # Opt into executing the whole suite inside pre-push, with no testmon selection.
@@ -650,7 +667,15 @@ _PYTEST_NO_TESTS_COLLECTED = 5
 # because the whole suite duplicates CI's `pytest.yml` partition matrix on the
 # same commit while costing the push minutes it does not have; see ADR-104.
 PYTEST_FULL_SUITE_LOCALLY_ENV = "AI_AGENTS_PYTEST_FULL_SUITE_LOCALLY"
-_TESTMON_FLAGS = ("--testmon", "--testmon-forceselect")
+# The third flag loads `testmon_scoped_sync` (issue #6406): without it a partition
+# that shares a database and collects after a sibling saved deletes the sibling's
+# records. It is one token (`-pNAME`) so `pytest_deferral.collect_only_command`
+# drops it whole.
+_TESTMON_FLAGS = (
+    "--testmon",
+    "--testmon-forceselect",
+    "-pscripts.validation.testmon_scoped_sync",
+)
 # Set by the CI seed job so its build starts from an empty database.
 TESTMON_NO_SEED_ENV = "AI_AGENTS_TESTMON_NO_SEED"
 # Whole-run budget for the CI seed job, read only when TESTMON_NO_SEED_ENV is
@@ -4610,14 +4635,37 @@ def scan_pushed_heads(stream: TextIO, repo_root: Path) -> int:
     updates = _push_updates(stream, repo_root)
     if updates is None:
         return 2
+    try:
+        headroom = _headroom_settings()
+    except ValueError as error:
+        print(f"ERROR: {error}", file=sys.stderr)
+        return 2
     budget = _container_clamped(SEMGREP_TIMEOUT_SECONDS)
     deadline = time.monotonic() + budget
+    # Issue #6609: one host-wide slot for the whole job, taken at the first
+    # head with something to scan, so a push with no scannable file never
+    # waits. The wait spends this job's deadline; see SEMGREP_HEADROOM_WAIT_SECONDS.
+    with ExitStack() as slot:
+        return _scan_updates(updates, repo_root, budget, deadline, slot, headroom)
+
+
+def _scan_updates(
+    updates: Sequence[PushUpdate],
+    repo_root: Path,
+    budget: float,
+    deadline: float,
+    slot: ExitStack,
+    headroom: host_headroom.Settings,
+) -> int:
+    """The body of `scan_pushed_heads`: scan each update under the shared deadline."""
+    holding = False
     for update in updates:
         if time.monotonic() >= deadline:
             print(
                 f"ERROR: security scan exceeded its {budget:g}s budget before "
-                f"reaching {update.head}. Earlier refs in this push consumed "
-                "it. Push fewer refs at once, or raise the budget with a "
+                f"reaching {update.head}. Earlier refs in this push, and any "
+                "wait for host headroom (issue #6609), consumed it. Push fewer "
+                "refs at once, or raise the budget with a "
                 "measurement behind it (ci-scripts.md MUST-16).",
                 file=sys.stderr,
             )
@@ -4639,6 +4687,13 @@ def scan_pushed_heads(stream: TextIO, repo_root: Path) -> int:
         scan_paths = [path for path in scan_paths if path not in root_moves]
         if not scan_paths:
             continue
+        if not holding:
+            slot.enter_context(
+                _heavy_stage_slot(
+                    "semgrep", _semgrep_headroom_wait_seconds(budget), settings=headroom
+                )
+            )
+            holding = True
         result = _scan_pushed_head(update.head, scan_paths, repo_root, deadline=deadline)
         if result != 0:
             return result
@@ -5066,7 +5121,7 @@ def _run_semgrep_tree(
                 timeout_seconds=allowance,
             )
             if result.returncode not in {0, 1}:
-                return result
+                return _classify_semgrep_failure(result)
             verified = _verify_semgrep_targets(result, batch, repo_root)
             if verified.returncode == 2:
                 return verified
@@ -5080,6 +5135,34 @@ def _run_semgrep_tree(
     except OSError as error:
         return subprocess.CompletedProcess([], 2, "", f"cannot execute semgrep: {error}\n")
     return finding or last_result or subprocess.CompletedProcess([], 0, "", "")
+
+
+# Issue #6609: what semgrep prints when its core engine dies before it lists or
+# scans any target. Seen under concurrent pushes on a loaded host.
+_SEMGREP_CORE_FAILURE_TEXTS = (
+    "Failed to obtain target files from semgrep-core",
+    "semgrep-core exited with code",
+)
+
+
+def _classify_semgrep_failure(
+    result: subprocess.CompletedProcess[str],
+) -> subprocess.CompletedProcess[str]:
+    """Report a semgrep-core crash as exit 3 (infrastructure), not a scan result.
+
+    Any other failure keeps its code. A core crash scanned nothing, so it says
+    nothing about the diff; the note says whether host load is the likely cause.
+    """
+    output = f"{result.stdout or ''}\n{result.stderr or ''}"
+    if not any(text in output for text in _SEMGREP_CORE_FAILURE_TEXTS):
+        return result
+    stderr = (
+        f"{(result.stderr or '').rstrip()}\n"
+        "ERROR: semgrep-core failed before it scanned any target. This is an "
+        "infrastructure failure, not a scan result.\n"
+        f"{_load_note('semgrep')}\n"
+    ).lstrip()
+    return subprocess.CompletedProcess(result.args, 3, result.stdout, stderr)
 
 
 def _semgrep_command(
@@ -6992,6 +7075,15 @@ def warn_if_push_files_incomplete(
         # because the caller named the destination explicitly.
         if ref.local_ref != ref.remote_ref:
             return
+        # Quiet path 3: first push of a new branch at checked-out HEAD with no
+        # @{push} (a worktree cut from origin/main has no remote branch of its
+        # own yet). Lefthook 2.1.17 PushFiles (internal/git/wrapper/
+        # push_files.go) then diffs <origin HEAD branch>...HEAD, or lists every
+        # file in HEAD, so {push_files} covers this branch's changes. A stale
+        # @{push} (remote branch deleted, tracking ref not pruned) still
+        # resolves, so Lefthook diffs against the stale tip; keep the warning.
+        if ref.is_new and push_base.returncode != 0:
+            return
     print(
         "WARNING: Lefthook {push_files} quality coverage may be incomplete because "
         "the pushed ref set does not match checked-out HEAD and its configured push "
@@ -7779,9 +7871,12 @@ def _testmon_commands(repo_root: Path) -> list[list[str]]:
 
     Same four partitions, worker policy, and serial safe-push and pr-autofix
     handling as `_pytest_commands`, so testmon changes which tests run and
-    nothing about how. Every partition shares one ``.testmondata`` in the
-    repository root. With no database yet testmon runs everything and builds
-    it, which is the intended first-run behavior.
+    nothing about how. Partitions that run one after another share one
+    ``.testmondata`` in the repository root. Partitions that overlap each get
+    their own copy of it (issue #6477, `testmon_lane_db`), because lanes that
+    write one database while another lane's workers read it make the workers
+    deselect different tests. With no database yet testmon runs everything and
+    builds it, which is the intended first-run behavior.
 
     Never add ``-p no:cacheprovider`` here: testmon reads pytest's cache and
     crashes with ``KeyError: 'lf'`` without it.
@@ -7953,21 +8048,18 @@ def _seed_testmon_database(repo_root: Path) -> None:
         )
 
 
+def _testmon_base_name(env: Mapping[str, str]) -> str:
+    """Return the base database name, using testmon's own location rule."""
+    return env.get("TESTMON_DATAFILE") or ".testmondata"
+
+
 def _testmon_database_missing(repo_root: Path, env: Mapping[str, str]) -> bool:
     """Whether testmon has no finished database yet, using testmon's own location rule.
 
-    testmon sets ``PRAGMA user_version`` after it creates every table, so a file
-    whose version is still 0 is an interrupted build and counts as missing.
+    An interrupted build, which leaves ``PRAGMA user_version`` at 0, counts as
+    missing (see `testmon_lane_db.database_finished`).
     """
-    path = repo_root / (env.get("TESTMON_DATAFILE") or ".testmondata")
-    if not path.exists():
-        return True
-    try:
-        with closing(sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)) as connection:
-            version = int(connection.execute("PRAGMA user_version").fetchone()[0])
-            return version == 0
-    except sqlite3.Error:
-        return True
+    return not testmon_lane_db.database_finished(repo_root / _testmon_base_name(env))
 
 
 def _pytest_overlap_lanes(
@@ -7978,10 +8070,12 @@ def _pytest_overlap_lanes(
     """Return the lanes that run at the same time, or ``None`` to run in sequence.
 
     testmon 2.2.0 creates its tables with a bare ``CREATE TABLE``, so two
-    processes that both find no database race to build it and one fails. Every
-    later write is one transaction on a WAL database with a 60s busy wait, and
-    the partitions touch disjoint test names, so only the first build is unsafe.
-    That build runs in sequence (issue #6198).
+    processes that both find no database race to build it and one fails. That
+    build runs in sequence (issue #6198). Once the database exists, each lane
+    runs on its own copy of it (issue #6477, `_lane_environments`), so one
+    lane's writes cannot change what another lane's workers read.
+    `_TESTMON_FLAGS` also loads `testmon_scoped_sync`, so a run that shares a
+    database deletes only records for files it collected (issue #6406).
     """
     if _uses_testmon(commands) and _testmon_database_missing(repo_root, env):
         print(
@@ -8010,6 +8104,15 @@ def _report_partition(report: pytest_lanes.PartitionReport, budget: float) -> in
         f"pytest partition {report.label}: exit {code} in {report.seconds:.1f}s{suffix}",
         file=sys.stderr,
     )
+    if _TESTMON_LOCK_PATTERN.search((report.result.stdout or "") + (report.result.stderr or "")):
+        # Issue #6609: concurrent writers locked the testmon database. That is
+        # contention on the host, not a defect in the pushed diff.
+        print(
+            f"ERROR: pytest partition {report.label}: testmon reported "
+            f"'{_TESTMON_LOCK_TEXT}'; a concurrent writer held its database.",
+            file=sys.stderr,
+        )
+        print(_load_note("pytest"), file=sys.stderr)
     return code
 
 
@@ -8056,6 +8159,25 @@ class _ChildRegistry:
             self._stop(proc)
 
 
+def _lane_environments(
+    lanes: Sequence[pytest_lanes.Lane],
+    repo_root: Path,
+    env: Mapping[str, str],
+) -> dict[pytest_lanes.Lane, Mapping[str, str]]:
+    """Return the environment each lane runs with.
+
+    Under testmon every lane gets its own ``TESTMON_DATAFILE`` (issue #6477),
+    seeded from the base database, so no lane writes a database that another
+    lane's xdist workers are reading. Without testmon the lanes share ``env``.
+    """
+    if not _uses_testmon([command for lane in lanes for command in lane.commands]):
+        return {lane: env for lane in lanes}
+    names = testmon_lane_db.prepare_lane_datafiles(repo_root, _testmon_base_name(env), len(lanes))
+    return {
+        lane: {**env, "TESTMON_DATAFILE": name} for lane, name in zip(lanes, names, strict=True)
+    }
+
+
 def _run_pytest_lanes(
     lanes: Sequence[pytest_lanes.Lane],
     repo_root: Path,
@@ -8066,19 +8188,27 @@ def _run_pytest_lanes(
     """Run the lanes at once under one deadline; return the worst exit code.
 
     Every lane runs to its end even when another fails, for the same reason the
-    sequential loop does: each partition must record its tests in
-    ``.testmondata``. A failure names its partition on its own line.
+    sequential loop does: each partition must record its tests in its lane's
+    testmon database. A failure names its partition on its own line.
     """
     children = _ChildRegistry()
+    lane_envs = _lane_environments(lanes, repo_root, env)
 
-    def run_command(command: Sequence[str], remaining: float) -> subprocess.CompletedProcess[str]:
-        return _run_command(
-            command,
-            repo_root,
-            process_env=env,
-            timeout_seconds=remaining,
-            on_start=children.register,
-        )
+    def run_command_for(
+        lane_env: Mapping[str, str],
+    ) -> Callable[[Sequence[str], float], subprocess.CompletedProcess[str]]:
+        def run_command(
+            command: Sequence[str], remaining: float
+        ) -> subprocess.CompletedProcess[str]:
+            return _run_command(
+                command,
+                repo_root,
+                process_env=lane_env,
+                timeout_seconds=remaining,
+                on_start=children.register,
+            )
+
+        return run_command
 
     outcomes: list[tuple[str, int]] = []
     stopped: list[bool] = []
@@ -8090,7 +8220,9 @@ def _run_pytest_lanes(
 
     pytest_lanes.run_lanes(
         lanes,
-        lambda lane, cancel: pytest_lanes.run_lane(lane, repo_root, deadline, run_command, cancel),
+        lambda lane, cancel: pytest_lanes.run_lane(
+            lane, repo_root, deadline, run_command_for(lane_envs[lane]), cancel
+        ),
         on_done,
         children.stop_all,
     )
@@ -8098,6 +8230,76 @@ def _run_pytest_lanes(
     if failed:
         print(f"ERROR: pytest partitions failed: {', '.join(failed)}", file=sys.stderr)
     return _PytestOutcome(max((code for _, code in outcomes), default=0), any(stopped))
+
+
+_TESTMON_LOCK_TEXT = "database is locked"
+# Only pytest's own INTERNALERROR, which is how testmon's writer reports the
+# lock. A test that fails on its own SQLite lock prints an `E` line instead,
+# and that failure is the test's, not the host's.
+_TESTMON_LOCK_PATTERN = re.compile(
+    rf"^INTERNALERROR>.*sqlite3\.OperationalError: {_TESTMON_LOCK_TEXT}", re.MULTILINE
+)
+
+# Seam for tests: they replace the slot with a recorder.
+_heavy_stage_slot = host_headroom.heavy_stage_slot
+
+
+def _start_deadline(budget: float) -> float:
+    """Start a stage's budget clock. A seam, so a test can see when it starts."""
+    return time.monotonic() + budget
+
+
+def _in_ci() -> bool:
+    return bool(os.environ.get("CI"))
+
+
+def _headroom_settings() -> host_headroom.Settings:
+    """The heavy-stage gate's settings, turned off in CI (issue #6609).
+
+    A CI runner runs one job, so there is nothing to share a slot with, and its
+    load says nothing about other pushes. Off means no slot, no load wait, and
+    no warning.
+
+    Raises:
+        ValueError: an AI_AGENTS_HEAVY_STAGE_* variable holds a bad value.
+    """
+    settings = host_headroom.read_settings()
+    if _in_ci():
+        return host_headroom.Settings(slots=0, max_load=0.0, slot_dir=settings.slot_dir)
+    return settings
+
+
+def _load_note(stage: str) -> str:
+    """The host-load note under the gate's own settings, so CI blames no other work.
+
+    In CI the gate is off and the runner's load is its own job, so the note
+    reports the load without calling it another push's. A bad setting already
+    failed the stage as a config error; here it falls back to the defaults.
+    """
+    try:
+        settings = _headroom_settings()
+    except ValueError:
+        return host_headroom.load_note(stage)
+    return host_headroom.load_note(stage, max_load=settings.max_load, settings=settings)
+
+
+def _pytest_headroom_wait_seconds(suite_budget: float, budget: float) -> float:
+    """How long pytest may wait for host headroom before its budget starts (issue #6609).
+
+    Zero in a managed container, where the process ceiling leaves no room, and
+    in CI, where one runner runs one job. Otherwise the part of the lefthook
+    cap that the budget and the margin do not use.
+    """
+    if budget < suite_budget or _in_ci():
+        return 0.0
+    return max(0.0, PYTHON_TESTS_JOB_CAP_SECONDS - suite_budget - HEADROOM_MARGIN_SECONDS)
+
+
+def _semgrep_headroom_wait_seconds(budget: float) -> float:
+    """How long semgrep may wait for host headroom, inside its own deadline."""
+    if budget < SEMGREP_TIMEOUT_SECONDS or _in_ci():
+        return 0.0
+    return float(SEMGREP_HEADROOM_WAIT_SECONDS)
 
 
 def run_pytest(repo_root: Path) -> int:
@@ -8127,6 +8329,7 @@ def run_pytest(repo_root: Path) -> int:
     try:
         commands = _resolve_pytest_commands(repo_root)
         suite_budget = _suite_budget_seconds()
+        headroom = _headroom_settings()
     except ValueError as error:
         print(f"ERROR: {error}", file=sys.stderr)
         return 2
@@ -8153,15 +8356,23 @@ def run_pytest(repo_root: Path) -> int:
     # `budget`, so an unclamped aggregate told a reader their child had 780s
     # when the clamp had given it 150s.
     budget = _container_clamped(suite_budget)
-    deadline = time.monotonic() + budget
-    if _uses_testmon(commands):
-        # Inside the same budget: the fetch spends at most its own short
-        # deadline, then the partitions run on whatever is left.
-        _seed_testmon_database(repo_root)
-    if _should_defer_cold_selection(commands, repo_root, env):
-        return _collect_instead(commands, repo_root, env, deadline, budget)
-    outcome = _run_selected_partitions(commands, repo_root, env, deadline, budget)
+    # Issue #6609: wait for a host-wide slot and for load to drop BEFORE the
+    # budget clock starts, so a busy host costs wait time, not a false timeout.
+    # The wait is bounded by the lefthook cap; when it runs out pytest still
+    # runs, with a warning that names load.
+    wait = _pytest_headroom_wait_seconds(suite_budget, budget)
+    with _heavy_stage_slot("pytest", wait, settings=headroom):
+        deadline = _start_deadline(budget)
+        if _uses_testmon(commands):
+            # Inside the same budget: the fetch spends at most its own short
+            # deadline, then the partitions run on whatever is left.
+            _seed_testmon_database(repo_root)
+        if _should_defer_cold_selection(commands, repo_root, env):
+            return _collect_instead(commands, repo_root, env, deadline, budget)
+        outcome = _run_selected_partitions(commands, repo_root, env, deadline, budget)
     _report_selection_overrun(outcome, suite_budget, budget)
+    if outcome.timed_out:
+        print(_load_note("pytest"), file=sys.stderr)
     return outcome.code
 
 

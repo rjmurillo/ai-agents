@@ -1286,6 +1286,24 @@ class TestEditPrBodyStaleWriteGuard:
 
         assert result == body
 
+    @pytest.mark.parametrize("stderr", ["gh: Not Found (HTTP 404)", "HTTP 404: Not Found"])
+    def test_fetch_current_body_returns_none_for_missing_pr(self, stderr):
+        with patch(
+            f"{_edit_mod.__name__}.subprocess.run",
+            return_value=_completed(rc=1, stderr=stderr),
+        ):
+            assert _edit_mod.fetch_current_body("owner", "repo", 42) is None
+
+    def test_fetch_current_body_raises_on_other_failure(self):
+        with (
+            patch(
+                f"{_edit_mod.__name__}.subprocess.run",
+                return_value=_completed(rc=1, stderr="HTTP 500: Server Error"),
+            ),
+            pytest.raises(RuntimeError),
+        ):
+            _edit_mod.fetch_current_body("owner", "repo", 42)
+
     def test_update_body_sends_body_via_stdin(self):
         body = "@/path/that/must/not/be/read"
         with patch(

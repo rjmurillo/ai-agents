@@ -601,6 +601,10 @@ pre-push:
     # forbids `use_stdin: true` under `parallel: true`, and the piped top
     # level delivers the same full payload here as a piped group would
     # (verified on lefthook 2.1.10). Runs only after the fast stage passes.
+    # Issue #6609: the scan takes one host-wide heavy-stage slot and waits for
+    # load to drop, at most 420s and inside its own 840s budget. It never skips;
+    # see scripts/validation/host_headroom.py for the AI_AGENTS_HEAVY_STAGE_* knobs.
+    # Off when CI is set.
     - name: security-scan
       timeout: 15m
       run: uv run --frozen --extra dev python scripts/validation/git_hook_policy.py semgrep-push
@@ -664,6 +668,14 @@ pre-push:
           # the visible CPUs, at least 4 and at most 16, never above the CPU
           # count. A fixed 4 left a 48-core workstation 1.8x slower than 16
           # workers. A positive integer here is still a fixed cap.
+          # Issue #6609: pytest takes one host-wide heavy-stage slot (3 by
+          # default) and, holding it, waits for load below the CPU count BEFORE
+          # its budget clock starts.
+          # The wait is what the 15m cap leaves above the budget, less 60s; a
+          # test pins PYTHON_TESTS_JOB_CAP_SECONDS to this timeout. When the
+          # wait runs out pytest still runs and the warning names load. Off
+          # when CI is set; see scripts/validation/host_headroom.py for the
+          # AI_AGENTS_HEAVY_STAGE_* knobs, which override the CPU-count default.
           - name: python-tests
             timeout: 15m
             run: uv run --frozen python scripts/validation/git_hook_policy.py pytest

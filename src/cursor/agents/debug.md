@@ -30,7 +30,7 @@ Agent-specific requirements:
 
 1. **Gather Context**: Read error messages, stack traces, failure reports. Examine codebase structure and recent changes. Identify expected vs actual behavior.
 
-2. **Reproduce the Bug**: Run the application or tests to confirm. Document exact reproduction steps. Capture error outputs and logs.
+2. **Reproduce and Triage**: Run the application or tests against current code to confirm. Document exact reproduction steps. Capture error outputs and logs. Judge priority and decide if a fix is merited. If not, report and stop.
 
 ## Phase 2: Investigation
 
@@ -40,7 +40,7 @@ Agent-specific requirements:
 
 ## Phase 3: Resolution
 
-5. **Implement Fix**: Make targeted, minimal changes. Follow existing code patterns. Consider edge cases and side effects.
+5. **Implement Fix**: Take the narrowest change that still closes every open problem in the report. Follow existing code patterns. Consider edge cases and side effects.
 
 6. **Verification**: Run tests to verify the fix. Execute original reproduction steps. Run broader test suites for regressions.
 

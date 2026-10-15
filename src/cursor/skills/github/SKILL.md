@@ -110,6 +110,7 @@ Need GitHub data?
 └─ Need to take action?
    ├─ Create issue → new_issue.py
    ├─ Create PR → new_pr.py
+   ├─ Comment on a diff line → new_pr_review_comment.py
    ├─ Reply to review → post_pr_comment_reply.py
    ├─ Reply to thread (GraphQL) → add_pr_review_thread_reply.py
    ├─ Comment on issue → post_issue_comment.py
@@ -171,7 +172,7 @@ scripts and `github_core` import with the anthropic SDK blocked.
 |--------|---------|----------------|
 | `get_pull_requests.py` | List PRs with filters | `--state`, `--label`, `--author`, `--base`, `--head`, `--search`, `--limit` |
 | `get_pr_context.py` | PR metadata, diff, files | `--pull-request`, `--include-changed-files`, `--include-diff` |
-| `get_pr_checks.py` | CI check status, polling | `--pull-request`, `--wait`, `--timeout-seconds` (keep at or below 570 with `--wait`; warns above), `--missing-grace-seconds`, `--required-only`, `--output-format {json,human,auto}` |
+| `get_pr_checks.py` | CI check status, polling; REST on rate limit (`DataSource`; REST `--required-only` with no ruleset exits 3) | `--pull-request`, `--wait`, `--timeout-seconds` (keep at or below 570 with `--wait`; warns above), `--missing-grace-seconds`, `--required-only`, `--output-format {json,human,auto}` |
 | `get_pr_check_logs.py` | Fetch logs from failing CI checks; names the failed step of each Actions job (`FailedSteps`) | `--pull-request`, `--check-name` (repeatable, case-insensitive), `--max-lines`, `--context-lines` |
 | `triage_red_check.py` | CI-failure triage step 1: is a failing PR check also red on main's latest run? Exit 0 green on main, exit 1 red on main (EvidenceUrl cites the main run), exit 3 cannot determine (never reported as green) | `--check-name`, `--branch`, `--history-depth`, `--pull-request` |
 | `get_pr_review_comments.py` | Paginated review comments with stale detection | `--pull-request`, `--include-issue-comments`, `--detect-stale`, `--exclude-stale`, `--only-stale` |
@@ -184,6 +185,7 @@ scripts and `github_core` import with the anthropic SDK blocked.
 | `wait_for_unresolved_zero.py` | Settling gate: poll until unresolved count holds at zero across bot scans | `--pull-request`, `--interval-seconds`, `--max-wait-seconds`, `--strict-pagination` |
 | `test_pr_merged.py` | Check if PR is merged | `--pull-request` |
 | `detect_copilot_followup_pr.py` | Detect Copilot follow-up PRs | `--pr-number`, `--owner`, `--repo` |
+| `new_pr_review_comment.py` | New diff-line comment | `--pull-request`, `--path`, `--line`, `--side` (default RIGHT), `--body` or `--body-file` |
 | `post_pr_comment_reply.py` | Thread-preserving replies | `--pull-request`, `--comment-id`, `--body` |
 | `add_pr_review_thread_reply.py` | Reply to thread by ID (GraphQL) | `--pull-request`, `--thread-id`, `--body`, `--resolve` |
 | `resolve_pr_review_thread.py` | Mark threads resolved | `--thread-id --expected-pull-request` or `--pull-request --all` |
@@ -196,12 +198,12 @@ scripts and `github_core` import with the anthropic SDK blocked.
 | `invoke_pr_comment_processing.py` | Process AI triage output | `--pr-number`, `--verdict`, `--findings-json` |
 | `new_pr.py` | Create PR with validation | `--title`, `--body`, `--body-file`, `--prepare-body-file`, `--preflight`, `--base`, `--head`, `--draft`, `--skip-validation`, `--audit-reason`, `--validation-base` |
 | `validate_pr_description.py` | Validate PR description | `--title`, `--body`, `--body-file`, `--fail-on-violation` |
-| `update_pr_branch.py` | Server-side "Update branch": merges the base into the PR head. Exit 0 when the update is requested, completed, or already up to date (`already_up_to_date: true`); exit 1 for a PR that is not open, or a head that differs from `--expected-head-sha` (`reason: head_moved`); exit 2 when the PR is not found; exit 3 for another API failure or a `--wait` timeout (the wait ends only when compare shows the PR is not behind); exit 4 for an auth failure. Unattended callers should pass `--expected-head-sha` | `--pull-request`, `--expected-head-sha`, `--wait`, `--timeout-seconds` |
+| `update_pr_branch.py` | Server-side "Update branch". Exit 0 requested, done, or already current; exit 1 PR not open or head differs from `--expected-head-sha` (`head_moved`); exit 2 not found; exit 3 other API failure or `--wait` timeout; exit 4 auth. Unattended callers pass `--expected-head-sha` | `--pull-request`, `--expected-head-sha`, `--wait`, `--timeout-seconds` |
 | `close_pr.py` | Close PR with comment | `--pull-request`, `--comment` |
 | `reopen_pr.py` | Reopen a closed PR (merged is exit 1) | `--pull-request`, `--comment` |
 | `merge_pr.py` | Merge pinned to the reviewed head, then read back and audited (ADR-112) | `--pull-request`, `--expected-head-sha`, `--strategy`, `--delete-branch`, `--auto` |
 | `audit_closing_claims.py` | Fleet audit of open-PR closing claims: extracts closing keywords from PR bodies, commit messages, and auto-merge overrides; classifies body (Markdown) and commit/override (plain-text) context; flags a claim unsupported when it can reach the squash commit without a matching active body claim (exit 1). Needs a token with administration read (GitHub hides `squash_merge_commit_message` otherwise); without it the audit exits 3 instead of reporting a clean fleet | `--state open`, `--artifact`, `--resume-from`, `--output-format {json,human,auto}` |
-| `edit_pr_body.py` | Edit a PR body with a SHA-256 stale-write guard | `--pull-request`, `--body`/`--body-file`, `--expected-hash`, `--dry-run` |
+| `edit_pr_body.py` | PR body edit, SHA-256 guard; prepared `--body-file` | `--pull-request`, `--body`/`--body-file`, `--expected-hash`, `--dry-run` |
 
 ### Issue Operations (`scripts/issue/`)
 
@@ -301,14 +303,13 @@ Exit codes follow ADR-035: 0=success, 1=logic error, 2=config error, 3=external 
 
 ## Process
 
-This skill provides a toolkit of Python scripts for GitHub operations. Use scripts directly or compose them into workflows.
-
 **Basic Usage:**
 
 1. Identify the operation needed using the Decision Tree
 2. Find the corresponding script in the Script Reference
 3. Call the script with required parameters
 4. Parse the JSON output
+5. Reading an issue or PR: read the full discussion, open every linked item, recurse until no new links
 
 **Example Flow:**
 
@@ -321,7 +322,7 @@ python3 "$SCRIPTS_DIR/pr/get_pr_context.py" --pull-request 123
 # Check CI status
 python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request 123
 
-# Add comment if needed
+# Reply in a thread (new_pr_review_comment.py starts one)
 python3 "$SCRIPTS_DIR/pr/post_pr_comment_reply.py" --pull-request 123 --comment-id 456 --body "CI failures detected"
 ```
 
@@ -410,12 +411,14 @@ that carries a secret, because it publishes the body unchanged.
 `--source human` also appends `<!-- source:human -->` as the last body line. The
 script rejects that marker in any other body.
 
-The script's check covers this script only. The GitHub MCP `issue_write` tool,
-raw `gh issue create`, and workflow steps that call the API bypass it. The
-`Label Issue Source` workflow labels those issues after they open: bots and
+Ground repo-state issues first: [guide](references/revision-grounding.md).
+
+The GitHub MCP `issue_write` tool, raw `gh issue create`, and workflow steps
+that call the API bypass this script's check. The
+`Label Issue Source` workflow labels those issues: bots and
 owner-login issues without a trailing human marker get `source:agent`, a burst
 of owner issues within ten minutes forces `source:agent`, and every other
-author gets `source:human`. It labels only. It does not close or block.
+author gets `source:human`. It only labels.
 
 ---
 
@@ -436,7 +439,7 @@ author gets `source:human`. It labels only. It does not close or block.
 | Raw `gh notify` or notifications API | 403 with app tokens | Use `get_actionable_items.py` |
 | Retrying `gh` after a session refusal | The refusal has no reset; retries only burn the budget | Run the transport preflight, then use the GitHub MCP operations |
 | Reporting a PR blocked because a call failed | An unreachable API is an unknown, not a verdict | Name the transport failure as the cause |
-| Treating `mergeable_state`/`mergeStateStatus: blocked` as self-explanatory (e.g. guessing "pending approval" without checking) | It is a cached, frequently-stale field. `why_pr_blocked.py` decomposes it into required checks, review threads, and merge conflicts, but does not query `reviewDecision` or the required-approving-review count, so a repo that requires approvals can still be blocked on that even when the script reports no cause | Run `why_pr_blocked.py` first. GitHub's "A conversation must be resolved before this pull request can be merged" message means unresolved review threads: resolve them (`resolve_pr_review_thread.py`). If the script reports no cause but the PR is still blocked, also check `get_pr_context.py`'s `review_decision` field against the target branch's required-approving-review count before reporting nothing to act on |
+| Treating `mergeable_state`/`mergeStateStatus: blocked` as self-explanatory | It is a cached, frequently-stale field. `why_pr_blocked.py` decomposes it into required checks, review threads, and merge conflicts, but does not query `reviewDecision` or the required-approving-review count, so a repo that requires approvals can still be blocked on that even when the script reports no cause | Run `why_pr_blocked.py` first. GitHub's "A conversation must be resolved before this pull request can be merged" message means unresolved review threads: resolve them (`resolve_pr_review_thread.py`). If the script reports no cause but the PR is still blocked, also check `get_pr_context.py`'s `review_decision` field against the target branch's required-approving-review count |
 
 ---
 
