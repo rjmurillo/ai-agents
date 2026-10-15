@@ -315,12 +315,18 @@ lines without a signal are omitted, so a clean `git log` digests thin: use
 ```bash
 SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/context-optimizer/scripts"
 
-# Distill a saved file; prints the digest path
+# Save the output and its exit code first, so the raw stays searchable
+some_command > build.log 2>&1; echo "exit=$?"
+
+# Distill the saved file; prints the digest path
 python3 "$SCRIPTS_DIR/distill_artifact.py" build.log
 
-# Distill from stdin; JSON adds cached, kind, raw and digest bytes, ratio
-some_command 2>&1 | python3 "$SCRIPTS_DIR/distill_artifact.py" - --format json
+# JSON adds cached, kind, raw and digest bytes, ratio
+python3 "$SCRIPTS_DIR/distill_artifact.py" build.log --format json
 ```
+
+`-` reads stdin, but then no raw copy remains to search, and a pipe reports
+the distiller's exit code, not the command's. Save to a file first.
 
 Use the digest to locate evidence (`L{n}` cites the raw line). It omits middle
 lines without a signal, so search the raw source for any detail it lacks and
