@@ -94,7 +94,10 @@ Project Toolkit skills for memory, context, decisions, requirements, strategy, a
 - `requirements-interview`
 - `retro`
 - `retrospective`
+- `skill-bootstrap`
 - `skillforge`
+- `skillify`
+- `skillopt`
 - `software-engineering-library`
 - `spec`
 - `using-serena-symbols`

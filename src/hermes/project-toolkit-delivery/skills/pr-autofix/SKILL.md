@@ -851,7 +851,7 @@ returns `ESCALATE`, stop and hand off instead of requesting another review.
 
 ## Fix Patterns
 
-- **CI-failure triage step 1 (issue #5073)**: for every failing check name, run `triage_red_check.py --check-name "<name>" --pull-request {pr}` before any log reading or local investigation. `RED_ON_MAIN` (exit 1) means the failure is inherited from main: cite the `EvidenceUrl` main run, do not debug the PR, and re-run checks after main recovers. `GREEN_ON_MAIN` (exit 0) means the PR introduced it: proceed to logs. `UNKNOWN` (exit 3) is a probe failure, never evidence of green.
+- **CI-failure triage step 1 (issue #5073)**: for every failing check name, run `triage_red_check.py --check-name "<name>" --pull-request {pr}` before any log reading or local investigation. `RED_ON_MAIN` (exit 1) means the failure is inherited from main: cite the `EvidenceUrl` main run, do not debug the PR, and re-run checks after main recovers. `GREEN_ON_MAIN` (exit 0) means the PR introduced it: proceed to logs. `PR_ONLY` (exit 3) means the check never reports on main (a pull_request-only job), so it cannot be inherited: read the PR run with `gh run view <run-id> --log-failed`, and widen `--history-depth` only for path-filtered or scheduled workflows. `CANCELLED_ON_MAIN` (exit 3) means main holds only cancelled or stale runs for the name, so there is no completed evidence: rerun the `EvidenceRunId` run with `gh run rerun <run-id>` and probe again. `UNKNOWN` (exit 3) is a probe failure, never evidence of green.
 - **PR description mismatch**: Remove file references not in the diff (use GitHub API to PATCH body).
 - **Branch behind main**: Run each base refresh command through the late live-state wrapper:
 
@@ -986,8 +986,11 @@ python3 "$SCRIPTS_DIR/check_pr_round_cap.py" --pull-request {pr} --output-format
 # starting any local investigation, ask whether the same check is red on
 # origin/main. Exit 0 = green on main (the PR introduced it; investigate the
 # PR). Exit 1 = red on main (inherited; cite Data.EvidenceUrl and fix or wait
-# out main instead of debugging the PR). Exit 3 = cannot determine (probe
-# failure is not absence; never treat UNKNOWN as green).
+# out main instead of debugging the PR). Exit 3 = cannot determine; read
+# Data.Verdict. PR_ONLY: the check never reports on main, so read the PR run
+# with `gh run view <run-id> --log-failed`. CANCELLED_ON_MAIN: main has only
+# cancelled or stale runs, so `gh run rerun <run-id>` the Data.EvidenceRunId
+# run. UNKNOWN: probe failure is not absence; never treat it as green.
 python3 "$SCRIPTS_DIR/triage_red_check.py" --check-name "<failing check name>" --pull-request {pr}
 
 # Stale bot CHANGES_REQUESTED review (issue #5950). Read-only classifier: exit 0

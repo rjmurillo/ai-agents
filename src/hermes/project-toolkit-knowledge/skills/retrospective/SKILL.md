@@ -67,6 +67,12 @@ activity are derived evidence that corroborate or extend it. When a source is un
 degrade gracefully: produce the artifact from the evidence you have and mark the missing
 sections, never substitute invented data.
 
+A session log or transcript you will read on more than one turn, or one too large to
+read whole, costs its full size on every turn that carries it. Distill it once with
+`distill_artifact.py` (usage: context-optimizer skill, Tool Details: Distill
+Artifact) and use the digest to locate evidence. When it lacks a detail, search the
+raw source for that detail and read the matching lines with their context.
+
 ---
 
 ## Process

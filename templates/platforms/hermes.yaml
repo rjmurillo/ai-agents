@@ -50,7 +50,8 @@ artifacts:
            curating-memories, cynefin-classifier, decision-critic, decision-question, domain-design,
            evidence-provenance, memory, memory-consolidate, memory-documentary, memory-enhancement, negotiation,
            panning-for-gold, pre-mortem, programming-advisor, prompt-engineer, prose-self-check,
-           reflect, requirements-interview, retro, retrospective, skillforge,
+           reflect, requirements-interview, retro, retrospective, skill-bootstrap, skillforge,
+           skillify, skillopt,
            software-engineering-library, spec, using-serena-symbols, work-operating-model,
            world-model-diagnostic]
     # Hermes runs plugin_guard on every install and blocks a dangerous verdict.

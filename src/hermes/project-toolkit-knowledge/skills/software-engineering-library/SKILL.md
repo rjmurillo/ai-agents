@@ -1,7 +1,7 @@
 ---
 name: software-engineering-library
 version: 1.0.0
-description: Route software engineering design and discovered code-risk tasks to on-demand book references. Use for `architecture review`, `layer boundary change`, `dependency boundary`, `module interface shape`, `domain modeling`, `bounded context`, `refactoring`, `code smell`, `legacy code`, `low test coverage`, `old file`, `characterization test`, `external API calls`, `queues`, `retries`, `transactions`, `event ordering`, `data layer`, `storage design`, `consistency`, `schema evolution`, `timeout`, `circuit breaker`, `bulkhead`, `DRY at the knowledge level`, `orthogonality`, `tracer bullet`, `broken windows`, `design by contract`, and a forbidden-patterns blocklist review in .py, .cs, .ts, .tsx, .js, .ps1, .sql, and service design docs. Do NOT use for reinventing-the-wheel or build-vs-buy, use programming-advisor. Do NOT use for single-file maintainability scoring, use code-qualities-assessment. Do NOT use for CVA design, use cva-analysis.
+description: Route design and code-risk tasks to engineering references. Use for architecture boundaries, interfaces, domain modeling, refactoring, and legacy tests. Also cover data consistency, resilience, and forbidden patterns. Route prior-art questions to programming-advisor. Route scoring to code-qualities-assessment, and CVA to cva-analysis.
 license: MIT
 ---
 
