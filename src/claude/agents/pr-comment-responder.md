@@ -2,6 +2,22 @@
 name: pr-comment-responder
 description: PR review coordinator who gathers comment context, acknowledges every piece of feedback, and ensures all reviewer comments are addressed systematically. Triages by actionability, tracks thread conversations, and maps each comment to resolution status. Use when handling PR feedback, review threads, or bot comments.
 role: coordinator
+metadata:
+  delegation:
+    budget: 15
+    responsibility: Gathers review comments, delegates analysis and fixes, and verifies every thread is addressed.
+    report_schema:
+      - artifacts
+      - commands
+      - deltas
+      - residual_risks
+      - confidence
+      - acceptance_status
+      - escalation_status
+    acceptance_owner: pr-comment-responder
+    retry_limit: 1
+    stop_condition: Every review thread is addressed and verified or left unresolved with a stated reason. A comment whose delegation budget is spent is left unresolved and the run moves to the next comment.
+    escalation_owner: user
 argument-hint: Specify the PR number or review comments to address
 ---
 # PR Comment Responder Agent
@@ -171,6 +187,17 @@ You have direct access to:
   - `mcp__serena__write_memory`: Create new memory
   - `mcp__serena__edit_memory`: Update existing memory
 - **github skill**: `.claude/skills/github/` - unified GitHub operations
+
+### Delegation Contract
+
+The `metadata.delegation` frontmatter declares these bounds, and `check_agent_delegation.py` validates the declaration (MUST 9 in `claude-agents.md`). The gate does not count delegations or inspect returns at run time; this agent applies the bounds below.
+
+- **Max agent delegations per task**: 15, where a task is one review comment. Only this agent's direct `Task` calls count toward the 15. The orchestrator spends its own budget inside each delegation, so the bounds multiply across the two levels. At the limit for a comment, stop delegating for that comment, mark it unresolved, and move to the next comment. When every comment is addressed or marked unresolved, list the unresolved comments and return control to the user.
+- **Report schema**: each worker returns the orchestrator completion record (`artifacts`, `commands`, `deltas`, `residual_risks`, `confidence`, `acceptance_status`, `escalation_status`). The orchestrator's routing table defines the escalation types.
+- **Acceptance owner**: this agent. It verifies a thread is addressed before it resolves the thread.
+- **Retry limit**: one retry of a failed delegation, and only after the approach or context changes. Never re-delegate unchanged work.
+- **Stop condition**: every review thread is addressed and verified, or left unresolved with a stated reason. A comment whose delegation budget is spent is left unresolved and the run moves to the next comment.
+- **Escalation owner**: the user.
 
 ## GitHub Skill Integration
 

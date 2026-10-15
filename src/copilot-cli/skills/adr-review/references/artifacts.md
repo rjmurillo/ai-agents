@@ -117,8 +117,8 @@ Review this ADR: .project-toolkit/architecture/ADR-005-api-versioning.md
 
 ```python
 # When architect creates/updates ADR
-Task(
-    subagent_type="orchestrator",
+task(
+    agent_type="project-toolkit:orchestrator",
     prompt="""
 Trigger adr-review skill for: .project-toolkit/architecture/ADR-005-api-versioning.md
 

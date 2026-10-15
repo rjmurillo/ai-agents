@@ -18,6 +18,11 @@ catches graph/wiring errors without spending minutes; the full run catches
 logic that only fails at execution time (the class of defect that slipped
 through static checks in PR #2120's CI runner).
 
+Both act stages skip jobs whose ``runs-on`` is a ``windows-*`` runner, with a
+``[WARN]`` per skipped job. act maps those labels to a Linux container, so the
+job cannot be validated there, and ``pytest.yml``'s ``test-windows-pwsh`` ran
+tests past every timeout in the chain (Issue #6412). CI runs those jobs.
+
 Tool / environment gaps are reported, not silently skipped: a missing
 actionlint, gh, gh act, or Docker daemon yields exit 3 (external) so the caller
 can block with an actionable message. A documented bypass exists for workflows that
@@ -82,7 +87,7 @@ import stat
 import subprocess
 import sys
 import tempfile
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -319,28 +324,85 @@ def _decode_partial(raw: bytes | str | None) -> str:
     return raw
 
 
-def _killpg_safe(pid: int) -> None:
-    """Send SIGTERM then SIGKILL to the process group containing ``pid``.
+# Seconds the process group gets between SIGTERM and SIGKILL, so gh act and the
+# gh-act artifact server can release their ports (issue #6412).
+_TERM_GRACE = 3.0
 
-    Uses SIGTERM first (giving the group a chance to clean up open ports such
-    as the gh-act artifact server), then SIGKILL after a short grace window.
-    Guards against signalling the current process group when ``setsid`` did not
-    fire (Windows, or a failed exec where the child reuses our PGID).
+
+def _terminate(proc: subprocess.Popen[str]) -> None:
+    """Stop ``proc`` and its process group: SIGTERM, a grace window, then SIGKILL.
+
+    ``gh act`` runs in a session of its own, so this group holds gh and the
+    gh-act artifact server. Where ``setsid`` did not fire (Windows, or a failed
+    exec where the child reuses our PGID) there is no group to signal, so the
+    direct child dies alone. SIGKILL still follows the window when the leader
+    exits on SIGTERM, because the artifact server can outlive it.
+
+    ``subprocess_runner._terminate`` holds the same sequence. This script runs
+    standalone with only ``scripts/validation`` on ``sys.path``, so it cannot
+    import the ``scripts`` package.
     """
+    # mypy reads the sys.platform check, not the hasattr guard. Windows has no
+    # os.getpgid, os.killpg or signal.SIGKILL.
+    if sys.platform == "win32" or not hasattr(os, "killpg"):
+        proc.kill()
+        return
     try:
-        pgid = os.getpgid(pid)
+        pgid = os.getpgid(proc.pid)
     except OSError:
+        # No group to look up. Kill the direct child, or the untimed communicate
+        # in _run waits on it past the stage deadline. Popen.kill skips a
+        # reaped child.
+        proc.kill()
         return
     if pgid == os.getpgid(0):
+        # No group of its own to signal. Kill the direct child, or the untimed
+        # communicate in _run never returns. Popen.kill skips a reaped child.
+        proc.kill()
+        return
+    _signal_group(pgid, signal.SIGTERM)
+    try:
+        proc.wait(timeout=_TERM_GRACE)
+    except subprocess.TimeoutExpired:
+        pass
+    finally:
+        # The SIGTERM handler raises SystemExit, which can end the wait early.
+        # SIGKILL still goes out, or a gh act that ignores SIGTERM survives.
+        _signal_group(pgid, signal.SIGKILL)
+
+
+def _signal_group(pgid: int, sig: int) -> None:
+    """Send ``sig`` to ``pgid``. A group that is already gone is ignored."""
+    if sys.platform == "win32":
         return
     try:
-        os.killpg(pgid, signal.SIGTERM)
+        os.killpg(pgid, sig)
     except OSError:
         pass
-    try:
-        os.killpg(pgid, signal.SIGKILL)
-    except OSError:
-        pass
+
+
+def _install_sigterm_handler() -> Callable[[], None]:
+    """Turn SIGTERM into ``SystemExit`` so :func:`_run` stops its own children.
+
+    Returns a callable that puts the previous handler back, so a caller that
+    embeds :func:`main` (the tests) does not keep the handler.
+
+    The pre-PR gate stops this script with SIGTERM when its timeout fires. The
+    default action ends the process at once, before :func:`_run` reaches its
+    ``BaseException`` cleanup, so the ``gh act`` it started in a session of its
+    own kept ports 34567 and 42427 bound (issue #6412). ``SystemExit`` unwinds
+    through that cleanup instead.
+    """
+
+    def _stop(_signum: int, _frame: object) -> None:
+        raise SystemExit(128 + signal.SIGTERM)
+
+    previous = signal.signal(signal.SIGTERM, _stop)
+
+    def restore() -> None:
+        signal.signal(signal.SIGTERM, previous)
+
+    return restore
 
 
 def _run(
@@ -382,22 +444,18 @@ def _run(
     except subprocess.TimeoutExpired as exc:
         # Kill the full process group so grandchildren (gh-act artifact server)
         # do not survive to hold ports open (Issue #3948).
-        if _supports_pgroup:
-            _killpg_safe(proc.pid)
-        else:
-            proc.kill()
+        _terminate(proc)
         # Collect whatever the child had written before we killed it. The act
         # stage reads this to distinguish a cold-cache run from a slow one
-        # (Issue #3949).
+        # (Issue #3949). The post-kill read holds the pre-timeout output plus
+        # what the child wrote during the grace window, so it wins. The
+        # TimeoutExpired snapshot is the fallback when that read is empty.
         stdout_raw, stderr_raw = proc.communicate()
-        out = _decode_partial(exc.stdout) or stdout_raw
-        err_head = f"{type(exc).__name__}: {exc}\n{_decode_partial(exc.stderr) or stderr_raw}"
+        out = stdout_raw or _decode_partial(exc.stdout)
+        err_head = f"{type(exc).__name__}: {exc}\n{stderr_raw or _decode_partial(exc.stderr)}"
         return -1, out, err_head.rstrip()
     except BaseException:
-        if _supports_pgroup:
-            _killpg_safe(proc.pid)
-        else:
-            proc.kill()
+        _terminate(proc)
         proc.communicate()
         raise
     return proc.returncode, stdout, stderr
@@ -855,22 +913,124 @@ def _workflow_events(wf_path: Path) -> list[str]:
     return []
 
 
-def _workflow_jobs(wf_path: Path) -> list[str]:
-    """Return workflow job ids in file order, or empty when unavailable."""
+def _load_workflow(wf_path: Path) -> object:
+    """Return a workflow's parsed YAML, or ``None`` when it cannot be loaded."""
     try:
         import yaml
     except ImportError:
-        return []
+        return None
     try:
-        data = yaml.safe_load(wf_path.read_text(encoding="utf-8"))
+        return yaml.safe_load(wf_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, yaml.YAMLError):
-        return []
-    if not isinstance(data, dict):
-        return []
-    jobs = data.get("jobs")
+        return None
+
+
+def _workflow_job_bodies(wf_path: Path) -> dict[str, object]:
+    """Return ``{job id: job body}`` in file order, or empty when unavailable."""
+    data = _load_workflow(wf_path)
+    jobs = data.get("jobs") if isinstance(data, dict) else None
     if not isinstance(jobs, dict):
-        return []
-    return [str(name) for name in jobs if isinstance(name, str)]
+        return {}
+    return {name: body for name, body in jobs.items() if isinstance(name, str)}
+
+
+def _windows_label(runs_on: object) -> str | None:
+    """Return the first Windows runner label in a job's ``runs-on``, else None.
+
+    ``runs-on`` is a string, a list of labels, or a mapping with ``group`` and
+    ``labels``. A label counts when it starts with ``windows``, compared
+    case-insensitively. An expression such as ``${{ matrix.os }}`` does not
+    count: it cannot be resolved without evaluating the matrix, so that job
+    keeps running instead of being skipped on a guess.
+    """
+    if isinstance(runs_on, dict):
+        runs_on = runs_on.get("labels")
+    if isinstance(runs_on, str):
+        runs_on = [runs_on]
+    if not isinstance(runs_on, list):
+        return None
+    for label in runs_on:
+        if isinstance(label, str) and label.lower().startswith("windows"):
+            return label.lower()
+    return None
+
+
+def _windows_jobs(wf_path: Path) -> dict[str, str]:
+    """Return ``{job id: Windows runner label}`` for jobs that run on Windows.
+
+    Empty when the file cannot be read or parsed, so a broken workflow falls
+    through to act's own error instead of being silently skipped.
+    """
+    found: dict[str, str] = {}
+    for name, body in _workflow_job_bodies(wf_path).items():
+        label = _windows_label(body.get("runs-on")) if isinstance(body, dict) else None
+        if label is not None:
+            found[name] = label
+    return found
+
+
+def _job_needs(body: object) -> list[str]:
+    """Return the job ids in a job's ``needs``, accepting a string or a list."""
+    needs = body.get("needs") if isinstance(body, dict) else None
+    if isinstance(needs, str):
+        return [needs]
+    if isinstance(needs, list):
+        return [need for need in needs if isinstance(need, str)]
+    return []
+
+
+def _skipped_dependents(bodies: dict[str, object], skipped: Iterable[str]) -> dict[str, str]:
+    """Return ``{job id: skipped job it needs}`` for jobs that depend on a skipped job.
+
+    act plans a selected job's ``needs`` transitively, so ``-j alert`` reruns a
+    Windows job that ``alert`` needs. A dependent is therefore skipped too, and
+    so is anything that needs a dependent. File order is kept.
+    """
+    blocked = set(skipped)
+    found: dict[str, str] = {}
+    grew = True
+    while grew:
+        grew = False
+        for name, body in bodies.items():
+            if name in blocked:
+                continue
+            hit = next((need for need in _job_needs(body) if need in blocked), None)
+            if hit is not None:
+                blocked.add(name)
+                found[name] = hit
+                grew = True
+    return {name: found[name] for name in bodies if name in found}
+
+
+def _act_job_filters(repo_root: Path, wf: str, warnings: list[str]) -> list[list[str]]:
+    """Plan the ``-j`` filters for one workflow, skipping Windows jobs.
+
+    act maps ``windows-*`` runners to a Linux container (see the "Vanilla
+    Windows" limitation hint), so a Windows job cannot be validated locally and
+    its steps outlast every timeout (#6412). A job that needs a skipped job is
+    skipped too, because act would plan the skipped job again through ``needs``.
+    Each skipped job adds a ``[WARN]``. A single-job workflow runs unfiltered,
+    but once any job is skipped the rest must carry ``-j`` or act would run the
+    skipped job again.
+    """
+    wf_path = repo_root / wf
+    bodies = _workflow_job_bodies(wf_path)
+    skipped = _windows_jobs(wf_path)
+    for job, label in skipped.items():
+        warnings.append(
+            f"[WARN] {wf} job {job}: skipped, runs-on {label}. act maps Windows "
+            "runners to a Linux container, so the job cannot run locally. CI runs it."
+        )
+    dependents = _skipped_dependents(bodies, skipped)
+    for job, need in dependents.items():
+        warnings.append(
+            f"[WARN] {wf} job {job}: skipped, needs {need}, which is skipped. "
+            "act would plan that job again through needs. CI runs it."
+        )
+    dropped = {*skipped, *dependents}
+    if len(bodies) > 1 or dropped:
+        return [["-j", job] for job in bodies if job not in dropped]
+    return [[]]
 
 
 def _pytest_matrix_entries(data: object) -> list[object]:
@@ -1598,9 +1758,7 @@ def _run_act_workflows(
     warnings: list[str] = []
     for wf in files:
         event = _select_act_event(repo_root / wf)
-        jobs = _workflow_jobs(repo_root / wf)
-        job_args = [["-j", job] for job in jobs] if len(jobs) > 1 else [[]]
-        for job_arg in job_args:
+        for job_arg in _act_job_filters(repo_root, wf, warnings):
             cmd = [*base_cmd]
             if event is not None:
                 cmd.append(event)
@@ -1934,6 +2092,14 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
+    restore_sigterm = _install_sigterm_handler()
+    try:
+        return _main(args)
+    finally:
+        restore_sigterm()
+
+
+def _main(args: argparse.Namespace) -> int:
     repo_root = (args.repo_root or _REPO_ROOT).resolve()
     if not repo_root.is_dir():
         print(f"error: repo root not found: {repo_root}", file=sys.stderr)

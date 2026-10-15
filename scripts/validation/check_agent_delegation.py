@@ -19,6 +19,11 @@ The contract, owned by ``templates/rules/claude-agents.md`` (MUST 9):
 - A worker's body may stay silent about delegation, because the grant answers.
   When a worker does say it cannot delegate, the grant must back the sentence.
 - A delegator states no such denial, and its grant includes ``Agent``.
+- A delegator declares a bounded-delegation contract under
+  ``metadata.delegation`` (budget, responsibility, report schema, acceptance
+  owner, retry limit, stop condition, escalation owner), validated by
+  ``delegation_contract.py``. A worker declares none: a contract on a worker is
+  unauthorized delegation.
 
 Two spellings of the statement exist in the agent bodies: ``**As a subagent,
 you CANNOT delegate**`` and ``You cannot delegate.`` The check matches the
@@ -45,9 +50,11 @@ from __future__ import annotations
 
 import re
 import sys
+from collections.abc import Collection
 from dataclasses import dataclass
 from pathlib import Path
 
+import delegation_contract as contract_rules
 import yaml
 
 AGENT_TREE = Path("src/claude/agents")
@@ -67,6 +74,8 @@ class AgentFacts:
 
     states_denial: bool
     grants_agent: bool
+    contract: object = None
+    prose_budgets: tuple[int, ...] = ()
 
 
 def _split_frontmatter(text: str) -> tuple[str, str] | None:
@@ -125,6 +134,15 @@ def grants_agent_tool(frontmatter: dict[str, object]) -> bool:
     return _has_delegation_tool(tools)
 
 
+def _declared_contract(frontmatter: dict[str, object]) -> object:
+    """Return ``metadata.delegation``: None when absent, ``{}`` when declared empty."""
+    metadata = frontmatter.get("metadata")
+    if not isinstance(metadata, dict) or contract_rules.CONTRACT_KEY not in metadata:
+        return None
+    declared = metadata[contract_rules.CONTRACT_KEY]
+    return {} if declared is None else declared
+
+
 def read_agent_facts(path: Path) -> AgentFacts:
     """Parse one agent file. Raises ``ValueError`` when it cannot be read as an agent."""
     parts = _split_frontmatter(path.read_text(encoding="utf-8"))
@@ -136,20 +154,26 @@ def read_agent_facts(path: Path) -> AgentFacts:
         raise ValueError(f"frontmatter is not valid YAML: {exc}") from exc
     if not isinstance(loaded, dict):
         raise ValueError("frontmatter is not a mapping")
+    prose = _strip_fences(parts[1])
     return AgentFacts(
-        states_denial=bool(_DENIAL.search(_strip_fences(parts[1]))),
+        states_denial=bool(_DENIAL.search(prose)),
         grants_agent=grants_agent_tool(loaded),
+        contract=_declared_contract(loaded),
+        prose_budgets=contract_rules.prose_budgets(prose),
     )
 
 
-def check_agent(name: str, facts: AgentFacts) -> list[str]:
-    """Return the findings for one agent, empty when prose and grant agree."""
+def check_agent(name: str, facts: AgentFacts, agents: Collection[str] = ()) -> list[str]:
+    """Return the findings for one agent, empty when prose, grant, and contract agree.
+
+    ``agents`` holds the agent names a contract owner may reference.
+    """
     if name in DELEGATORS:
-        return _check_delegator(facts)
+        return _check_delegator(facts, agents)
     return _check_worker(facts)
 
 
-def _check_delegator(facts: AgentFacts) -> list[str]:
+def _check_delegator(facts: AgentFacts, agents: Collection[str]) -> list[str]:
     findings: list[str] = []
     if facts.states_denial:
         findings.append(
@@ -161,10 +185,22 @@ def _check_delegator(facts: AgentFacts) -> list[str]:
             "registered delegator, but its grant withholds Agent "
             "(add Agent to an explicit tools list, or remove the disallowedTools entry)"
         )
+    findings.extend(contract_rules.check_contract(facts.contract, agents, facts.prose_budgets))
     return findings
 
 
 def _check_worker(facts: AgentFacts) -> list[str]:
+    findings: list[str] = []
+    if facts.contract is not None:
+        findings.append(
+            "worker declares a bounded-delegation contract, which only a registered "
+            "delegator may (remove metadata.delegation, or add the agent to DELEGATORS)"
+        )
+    findings.extend(_check_worker_grant(facts))
+    return findings
+
+
+def _check_worker_grant(facts: AgentFacts) -> list[str]:
     if not facts.grants_agent:
         return []
     fix = "add 'disallowedTools: Agent', or list tools without Agent/Task"
@@ -187,15 +223,14 @@ def find_delegation_findings(repo_root: Path) -> list[tuple[str, str]]:
         raise FileNotFoundError(f"agent tree yields no Markdown files: {tree}")
 
     findings: list[tuple[str, str]] = []
-    seen: set[str] = set()
+    seen = {path.stem for path in files}
     for path in files:
-        seen.add(path.stem)
         try:
             facts = read_agent_facts(path)
         except ValueError as exc:
             findings.append((path.stem, f"cannot read delegation facts: {exc}"))
             continue
-        findings.extend((path.stem, text) for text in check_agent(path.stem, facts))
+        findings.extend((path.stem, text) for text in check_agent(path.stem, facts, seen))
     findings.extend(
         (name, "listed in DELEGATORS but no such agent file exists")
         for name in sorted(DELEGATORS - seen)

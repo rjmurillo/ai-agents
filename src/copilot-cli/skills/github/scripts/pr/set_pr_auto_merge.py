@@ -53,6 +53,7 @@ from github_core.api import (
     gh_graphql,
     resolve_repo_params,
 )
+from github_core.not_found import is_pr_not_found
 from github_core.output import add_output_format_arg, get_output_format
 from github_core.placeholder_identity import filter_coauthor_trailers
 
@@ -132,7 +133,7 @@ def get_pr_node_id(owner: str, repo: str, pr_number: int) -> tuple[str, dict[str
         )
     except RuntimeError as exc:
         msg = str(exc)
-        if "Could not resolve" in msg:
+        if is_pr_not_found(msg):
             error_and_exit(f"PR #{pr_number} not found in {owner}/{repo}", 2)
         error_and_exit(f"Failed to get PR info: {msg}", 3)
 

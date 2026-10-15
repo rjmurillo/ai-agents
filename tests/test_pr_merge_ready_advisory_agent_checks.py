@@ -418,6 +418,7 @@ EXPECTED_JOB_ENVIRONMENTS = {
     ("ai-metrics-analysis.yml", "analyze-metrics"): "agent-claude",
     ("ai-spec-review.yml", "review-spec"): "agent-claude",
     ("artifact-insight-scanner.yml", "scan-artifacts"): "agent-claude",
+    ("autoplan-route-eval.yml", "full-suite"): "agent-claude",
     ("claude.yml", "claude-response"): "agent-claude",
     ("copilot-context-synthesis.yml", "synthesize-single"): "agent-copilot",
     ("copilot-context-synthesis.yml", "sweep-missed"): "agent-copilot",
@@ -633,7 +634,7 @@ def test_the_matrix_environment_resolves_to_provider_environments_only() -> None
     assert {f"agent-{cli}" for cli in clis} <= PROVIDER_ENVIRONMENTS
 
 
-def test_the_eleven_gated_workflows_are_exactly_the_policy_set() -> None:
+def test_the_twelve_gated_workflows_are_exactly_the_policy_set() -> None:
     gated = {path for path, doc in _workflow_docs().items() if _gated_jobs(doc)}
     assert gated == {
         f".github/workflows/{name}.yml"
@@ -645,6 +646,7 @@ def test_the_eleven_gated_workflows_are_exactly_the_policy_set() -> None:
             "ai-metrics-analysis",
             "pr-maintenance",
             "artifact-insight-scanner",
+            "autoplan-route-eval",
             "skill-overlap-eval",
             "plugin-cli-smoke",
             "copilot-context-synthesis",

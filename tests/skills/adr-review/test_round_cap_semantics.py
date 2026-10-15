@@ -12,11 +12,20 @@ identical copies of the references.
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+_SCRIPTS_PATH = str(REPO_ROOT / "build" / "scripts")
+
+sys.path.insert(0, _SCRIPTS_PATH)
+try:
+    from copilot_body_translation import translate_reference_file
+finally:
+    sys.path.remove(_SCRIPTS_PATH)
+
 SKILL_TEMPLATE = REPO_ROOT / "templates" / "skills" / "adr-review.SKILL.md.tmpl"
 SKILL_TREES = (
     REPO_ROOT / ".claude" / "skills" / "adr-review",
@@ -132,4 +141,8 @@ def test_protocol_round_cap_names_the_later_log_path(tree: Path) -> None:
 @pytest.mark.parametrize("tree", SKILL_TREES[1:], ids=lambda p: p.relative_to(REPO_ROOT).as_posix())
 @pytest.mark.parametrize("reference", [PROTOCOL, ARTIFACTS], ids=lambda p: p.name)
 def test_shipped_trees_mirror_the_source_references(tree: Path, reference: Path) -> None:
-    assert _read(tree / reference) == _read(SOURCE_TREE / reference)
+    expected = _read(SOURCE_TREE / reference)
+    if tree.parts[-3] == "copilot-cli":
+        # The Copilot mirror translates Claude call syntax (issue #5657).
+        expected = translate_reference_file(expected, tree.parent)
+    assert _read(tree / reference) == expected

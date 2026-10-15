@@ -96,6 +96,19 @@ def _clear_ci_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
+def _disable_heavy_stage_headroom_gate(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Turn off the host-wide pre-push headroom gate in every test (issue #6609).
+
+    The pre-push hook runs this suite while the hook itself holds a heavy-stage
+    slot, on a host whose load the suite raises. A test that calls `run_pytest`
+    or `scan_pushed_heads` would otherwise wait on that slot or that load.
+    `tests/validation/test_host_headroom.py` passes its own settings.
+    """
+    monkeypatch.setenv("AI_AGENTS_HEAVY_STAGE_SLOTS", "0")
+    monkeypatch.setenv("AI_AGENTS_HEAVY_STAGE_MAX_LOAD", "0")
+
+
+@pytest.fixture(autouse=True)
 def _default_project_repo(monkeypatch: pytest.MonkeyPatch) -> None:
     """Default every test to the ai-agents project repo (issue #2610).
 
