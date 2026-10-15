@@ -199,6 +199,28 @@ class TestQueryRelevance:
     def test_duplicate_terms_counted_once(self):
         assert query_relevance("alpha alpha beta", "alpha-only") == 0.5
 
+    @pytest.mark.unit
+    def test_hyphenated_term_matches_its_own_memory(self):
+        assert query_relevance("pr-autofix rounds", "pr-autofix-round-cap") == 1.0
+
+    @pytest.mark.unit
+    def test_compound_term_needs_every_word(self):
+        assert query_relevance("decision-foo", "decision-lefthook") == 0.0
+        assert query_relevance("decision-lefthook", "decision-lefthook") == 1.0
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize("term", ["skills_index", "skills.index"])
+    def test_underscore_and_dot_terms_split_like_labels(self, term: str):
+        assert query_relevance(term, "skills-index") == 1.0
+
+    @pytest.mark.unit
+    def test_terms_with_same_words_counted_once(self):
+        assert query_relevance("pr-autofix pr_autofix other", "pr-autofix") == 0.5
+
+    @pytest.mark.unit
+    def test_punctuation_only_term_is_ignored(self):
+        assert query_relevance("lefthook --", "decision-lefthook") == 1.0
+
 
 class TestMinRelevance:
     """The relevance floor drops weak matches before the result cap."""

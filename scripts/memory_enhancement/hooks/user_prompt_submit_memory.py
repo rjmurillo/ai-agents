@@ -82,8 +82,11 @@ _MIN_QUERY_TERMS = 1
 # Minimum fraction of query terms that must name a memory (id or title) for it
 # to be injected. The file search matches any one term anywhere in a file, so
 # without this floor every prompt recalls its three highest-confidence
-# candidates. Measured on .serena/memories: unrelated prompts peak at 0.40,
-# prompts with a real target score 0.60 or higher; 0.50 sits in that gap.
+# candidates. The floor is inclusive: a score of exactly 0.50 is injected, so
+# a two term prompt needs only one term to name the memory. In the prompts we
+# measured on .serena/memories, unrelated prompts peaked at 0.40 and prompts
+# with a real target scored 0.60 or higher. Those figures come from that
+# sample, not a bound.
 _MIN_RELEVANCE = 0.5
 
 

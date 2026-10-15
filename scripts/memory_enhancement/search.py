@@ -41,24 +41,36 @@ class SearchResult:
 def query_relevance(query: str, label: str) -> float:
     """Return the fraction of distinct query terms that name the memory.
 
-    ``label`` is the memory id plus title. A term matches when a label word
-    equals it or shares its first ``_STEM_LENGTH`` characters (both at least
-    that long), so "guards" matches "guard". Body text is ignored on
-    purpose: the file search matches any term anywhere in a file, so a body
-    hit says almost nothing about relevance (measured: 3 of 5 terms of an
-    unrelated prompt appear in most large memories).
+    ``label`` is the memory id plus title. Both sides split into words on
+    every character outside ``[a-z0-9]``, so ``pr-autofix`` becomes
+    ``pr`` and ``autofix``. A word matches when a label word equals it or
+    shares its first ``_STEM_LENGTH`` characters (both at least that long),
+    so "guards" matches "guard". A term matches when every one of its words
+    matches. A compound term such as a memory id still counts as one term.
+    Body text is ignored on purpose: the file search matches any term
+    anywhere in a file, so a body hit says almost nothing about relevance
+    (measured: 3 of 5 terms of an unrelated prompt appear in most large
+    memories).
 
-    Terms rejected by ``_sanitize_term`` are ignored, as in the file search.
+    Terms rejected by ``_sanitize_term``, or with no letters or digits, are
+    ignored. Terms with the same words count once.
 
     Returns:
         A value in [0.0, 1.0]. 0.0 when the query has no usable terms.
     """
-    terms = {t.lower() for t in _split_query_terms(query)}
+    terms = {words for t in _split_query_terms(query) if (words := _label_words(t))}
     if not terms:
         return 0.0
-    label_words = re.findall(r"[a-z0-9]+", label.lower())
-    hits = sum(1 for term in terms if any(_stem_match(term, w) for w in label_words))
+    label_words = _label_words(label)
+    hits = sum(
+        1 for words in terms if all(any(_stem_match(w, lw) for lw in label_words) for w in words)
+    )
     return hits / len(terms)
+
+
+def _label_words(text: str) -> tuple[str, ...]:
+    """Return the lowercase ``[a-z0-9]`` runs of text, in order."""
+    return tuple(re.findall(r"[a-z0-9]+", text.lower()))
 
 
 def _stem_match(term: str, word: str) -> bool:
@@ -129,7 +141,8 @@ def rank_results(
     query: str = "",
     min_relevance: float = 0.0,
 ) -> list[SearchResult]:
-    """Load each matched file, score with confidence, and sort descending.
+    """Load each matched file, score relevance and confidence, drop results
+    below ``min_relevance``, and sort descending.
 
     Args:
         paths: File paths matching the search query.
