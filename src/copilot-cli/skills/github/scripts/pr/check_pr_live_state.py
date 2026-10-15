@@ -87,6 +87,7 @@ from github_core.api import (
     resolve_repo_params,
     safe_log_str,
 )
+from github_core.not_found import is_pr_not_found
 from github_core.output import (
     add_output_format_arg,
     write_skill_error,
@@ -187,7 +188,7 @@ def _query_live_pr(
     except RuntimeError as exc:
         msg = str(exc)
         duration_ms = int((time.monotonic() - op_start) * 1000)
-        if "Could not resolve" in msg:
+        if is_pr_not_found(msg):
             logger.warning(
                 "op=live_state_failed pr=%d owner=%s repo=%s reason=pr_not_found duration_ms=%d",
                 pr_number,

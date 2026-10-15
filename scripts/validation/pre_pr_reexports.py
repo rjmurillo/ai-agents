@@ -38,6 +38,7 @@ from checks_ci_parity import (
     validate_closure_manifest,
     validate_memory_placement,
     validate_review_axis_drift,
+    validate_route_scenario_coverage,
     validate_skill_description_budget,
 )
 from checks_copilot import validate_copilot_routing_exclusions
@@ -104,6 +105,7 @@ __all__ = [
     "validate_required_context_conditions",
     "validate_retired_ownership_claims",
     "validate_review_axis_drift",
+    "validate_route_scenario_coverage",
     "validate_rule_activation_coverage",
     "validate_rule_scope_declarations",
     "validate_serena_memory_worktree_scope",

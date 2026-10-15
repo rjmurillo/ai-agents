@@ -99,5 +99,12 @@ def format_table(report: dict[str, Any]) -> str:
         sections.append(
             ["FAIL: fixture ceiling exceeded", *(f"  {b}" for b in report["ceiling_breaches"])]
         )
+    if report.get("floor_breaches"):
+        sections.append(
+            [
+                "FAIL: fixture headroom floor breached",
+                *(f"  {b}" for b in report["floor_breaches"]),
+            ]
+        )
     sections.append([f"Estimator: {report['estimator']}"])
     return "\n\n".join("\n".join(lines) for lines in sections)

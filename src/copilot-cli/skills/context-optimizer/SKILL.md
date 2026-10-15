@@ -296,6 +296,45 @@ Works with CLAUDE.md @import mechanism. Reference via `@AGENTS-INDEX.md`.
 </details>
 
 <details>
+<summary><strong>Tool Details: Distill Artifact</strong></summary>
+
+**Script**: `distill_artifact.py`
+
+Boils one log, diff, or long text down to a markdown digest with line
+citations. No model call. The digest is cached by content and source, so a
+repeat call reuses it.
+
+Use it for an artifact you will read on more than one turn, or one too large
+to read whole. The digest keeps signal lines (error, fail, warning, and
+similar), the first and last 15 lines, and per-file counts for a diff. Middle
+lines without a signal are omitted, so a clean `git log` digests thin: use
+`git log --oneline` for chronology instead.
+
+**Usage**:
+
+```bash
+SCRIPTS_DIR="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/context-optimizer/scripts"
+
+# Save the output and its exit code first, so the raw stays searchable
+some_command > build.log 2>&1; echo "exit=$?"
+
+# Distill the saved file; prints the digest path
+python3 "$SCRIPTS_DIR/distill_artifact.py" build.log
+
+# JSON adds cached, kind, raw and digest bytes, ratio
+python3 "$SCRIPTS_DIR/distill_artifact.py" build.log --format json
+```
+
+`-` reads stdin, but then no raw copy remains to search, and a pipe reports
+the distiller's exit code, not the command's. Save to a file first.
+
+Use the digest to locate evidence (`L{n}` cites the raw line). It omits middle
+lines without a signal, so search the raw source for any detail it lacks and
+read the matching lines with their context.
+
+</details>
+
+<details>
 <summary><strong>Tool Details: Compliance Validator</strong></summary>
 
 **Script**: `scripts/test_skill_passive_compliance.py`

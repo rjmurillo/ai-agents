@@ -87,7 +87,7 @@ Fixed in [commit_hash].
 
 ### Premise Refuted
 
-Use when `Skill(skill="reviewer-findings")` refutes a finding's factual claim
+Use when `skill: "reviewer-findings"` refutes a finding's factual claim
 against the PR head or its history. Not a Won't Fix: the claim about the code
 was false, not merely a suggestion declined. Resolve the thread after posting.
 
