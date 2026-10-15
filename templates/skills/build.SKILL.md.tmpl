@@ -58,7 +58,7 @@ translation:
 
 ## Process
 
-### Phase 0: Existing-PR check (issue work)
+### Phase 0: Existing-PR check
 
 Before branching for an issue, run `check_existing_pr_for_issue.py --issue <N>`
 (github skill; `gh_unusable`: MCP PR search). Exit `1`: an open PR claims it;
@@ -228,7 +228,7 @@ the rationale in the PR body or issue handoff and flag the item to the owner.
   behind the existing design. This is a soft BLOCKING check: if the gate returns findings, address
   or explicitly acknowledge them in the active plan or issue handoff before proceeding.
 - Favor delegation over inheritance. A makes B, or A uses B. Never both.
-- Verify CLI flags and argparse patterns against live output before committing. Run the command, observe the actual behavior, confirm it matches intent.
+- Verify CLI flags and argparse patterns against live output before committing.
 - Use the real repo as the integration test bed. Run new scripts against an open or recent PR before declaring done. Synthetic fixtures can only validate the wrapper; real data validates the semantic.
 
 ## Extension Points

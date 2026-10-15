@@ -99,9 +99,9 @@ public-API work through those gates: land an API proposal and maintainer
 review before writing the implementation.
 
 **Issue already has an in-flight blocking PR.** Run `check_existing_pr_for_issue.py --owner <O> --repo <R> --issue <N>`
-(github skill; args from the URL)
-before routing an `autoplan <issue-url>` request into a fresh implementation;
-exit `1` means an open PR claims it. If an open PR
+(github skill; args from URL)
+before routing an `autoplan <issue-url>` request into new work;
+exit `1`: an open PR claims it. If an open PR
 already carries a closing keyword for the issue, do not treat "avoid
 duplicating that work" and "resolve the issue" as the same goal; they diverge
 whenever the PR bundles the requested scope with unrelated scope that has not
