@@ -4,6 +4,7 @@ description: Review GitHub feature requests with constructive skepticism. Summar
 metadata:
   role: coordinator
 argument-hint: Provide the issue title, issue body, and any known repository context
+disallowedTools: Agent
 ---
 
 # Issue Feature Review Agent

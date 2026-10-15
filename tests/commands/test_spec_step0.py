@@ -357,35 +357,37 @@ def test_step0_block_identical(spec_text: str, skill_text: str) -> None:
 
 
 def test_step1_paragraph_identical(spec_prior_art_text: str, skill_prior_art_text: str) -> None:
-    """AC-10: Step 1 paragraph is verbatim-identical in both reference files.
+    """AC-10: Step 1 paragraph matches in both reference files after translation.
 
-    After issue #3632, Step 1 lives in spec-prior-art-schema.md, which is
-    copied verbatim (no translation) into the Copilot mirror. The identity
-    check therefore uses raw equality, not _translated().
+    After issue #3632, Step 1 lives in spec-prior-art-schema.md. Since issue
+    #5657 the Copilot mirror translates references/, so the source paragraph
+    goes through _translated() before the comparison.
     """
     src = extract_step1_paragraph(spec_prior_art_text)
     dst = extract_step1_paragraph(skill_prior_art_text)
     assert src is not None, "extract_step1_paragraph returned None for spec-prior-art-schema.md"
     assert dst is not None, "extract_step1_paragraph returned None for skill-prior-art-schema.md"
-    assert src == dst, "Step 1 paragraph differs between spec and skill reference files"
+    assert _translated(src) == dst, (
+        "Step 1 paragraph differs between spec and skill reference files"
+    )
 
 
 def test_tier5_bullet_identical(spec_prior_art_text: str, skill_prior_art_text: str) -> None:
-    """AC-10: Tier 5 bullet is verbatim-identical in both reference files."""
+    """AC-10: Tier 5 bullet matches in both reference files after translation."""
     src = extract_tier5_bullet(spec_prior_art_text)
     dst = extract_tier5_bullet(skill_prior_art_text)
     assert src is not None, "extract_tier5_bullet returned None for spec-prior-art-schema.md"
     assert dst is not None, "extract_tier5_bullet returned None for skill-prior-art-schema.md"
-    assert src == dst, "Tier 5 bullet differs between spec and skill reference files"
+    assert _translated(src) == dst, "Tier 5 bullet differs between spec and skill reference files"
 
 
 def test_step9_block_identical(spec_prior_art_text: str, skill_prior_art_text: str) -> None:
-    """AC-10: Step 9 block is verbatim-identical in both reference files."""
+    """AC-10: Step 9 block matches in both reference files after translation."""
     src = extract_step9_block(spec_prior_art_text)
     dst = extract_step9_block(skill_prior_art_text)
     assert src is not None, "extract_step9_block returned None for spec-prior-art-schema.md"
     assert dst is not None, "extract_step9_block returned None for skill-prior-art-schema.md"
-    assert src == dst, "Step 9 block differs between spec and skill reference files"
+    assert _translated(src) == dst, "Step 9 block differs between spec and skill reference files"
 
 
 # ---------------------------------------------------------------------------

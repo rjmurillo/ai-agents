@@ -4,6 +4,9 @@ applyTo: .project-toolkit/security/**,**/Auth/**,*.env*,**/*.secrets.*,.github/w
 
 # Security File Rules
 
+<!-- vendor-portability: upstream scope globs (issue #5298). Paths: .project-toolkit/security,
+     scripts/validation/git_hook_policy.py -->
+
 These paths hold threat models, benchmarks, workflows, and hooks that protect the supply chain. Changes need evidence, not opinion.
 
 ## MUST
@@ -16,17 +19,17 @@ These paths hold threat models, benchmarks, workflows, and hooks that protect th
 6. **Test coverage**. Security-critical code MUST have 100% coverage per `AGENTS.md` standards.
 7. **Eureka: gate availability is gate correctness**. A required security review
    that does not run MUST produce a blocking verdict. Infrastructure failure is
-   not a security pass. Issue #4777 records the failure where ten missing
-   reviews produced a green required check.
-8. **Keep hook fallback logic in the `lefthook_runner.py` validation script**.
+   not a security pass. Issue #4777: ten missing reviews produced a green
+   required check.
+8. **Keep hook fallback logic in `lefthook_runner.py`**.
    Lefthook wraps the configured `lefthook:` runner in `test -n "<literal>"`,
-   which is always true, so a fallback written in `lefthook.yml` or in the
-   generated shim never runs. Put every fallback inside the runner (PR #5988).
-9. **End a CRITICAL-path push with the `/review` marker**. A push matching any `CRITICAL_PATTERNS` path (`detect_infrastructure.py`) must end in an empty single-parent commit trailed `Reviewed-By: /review@<axes with security> on <parent sha>` trailer. Any later commit voids it. `pre_pr.py` only warns.
+   always true, so a fallback in `lefthook.yml` or the generated shim never
+   runs. Put every fallback inside the runner (PR #5988).
+9. **End a CRITICAL-path push with the `/review` marker**. A push matching any `CRITICAL_PATTERNS` path (`detect_infrastructure.py`) must end in an empty single-parent commit trailed `Reviewed-By: /review@<axes with security> on <parent sha>` and `Review-Artifact: sha256:<digest>`, its body the report. A bare trailer fails. Any later commit voids it. `pre_pr.py` only warns.
 
 ## SHOULD
 
-1. **Run security scan locally**. SHOULD run the `security-scan` skill (`.claude/skills/security-scan/scripts/scan_vulnerabilities.py`) before pushing. The internal scanner detects CWE-78 (command injection) only; CWE-22 (path traversal) detection is delegated to CodeQL in CI per ADR-054 amendment 2026-05-02.
+1. **Run security scan locally**. SHOULD run the `security-scan` skill (`scan_vulnerabilities.py`) before pushing. The internal scanner detects CWE-78 (command injection) only; CWE-22 (path traversal) detection is delegated to CodeQL in CI per ADR-054 amendment 2026-05-02.
 2. **Use the `security-detection` skill**. SHOULD detect security-relevant file changes via the skill and route to the security agent.
 3. **Threat modeling**. SHOULD use the `threat-modeling` skill (OWASP STRIDE) for non-trivial changes.
 
@@ -64,8 +67,8 @@ copy, or an edited one of these four, is a new violation rather than residue.
 
 ## References
 
-- `.agents/governance/SECURITY-REVIEW-PROTOCOL.md`. Review gates.
-- `.agents/governance/SECURITY-SEVERITY-CRITERIA.md`. Severity thresholds.
-- `.agents/steering/security-practices.md`. OWASP patterns.
+- `SECURITY-REVIEW-PROTOCOL.md`. Review gates.
+- `SECURITY-SEVERITY-CRITERIA.md`. Severity thresholds.
+- `security-practices.md`. OWASP patterns.
 - `.claude/skills/security-scan/`. Scanner skill.
 - `.claude/skills/threat-modeling/`. STRIDE workflow.

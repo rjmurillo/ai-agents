@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from pathlib import Path
 
 import pytest
@@ -92,10 +93,19 @@ SKILL_PRIOR_ART_SCHEMA = (
     / "references"
     / "spec-prior-art-schema.md"
 )
-# The #2743 translation import and its SKILLS_DIR anchor are gone with the
-# assertion that used them. ADR-064 (issue #5632) moved the Step 0.5 block into
-# `references/`, which `generate_skills.py` copies byte-for-byte rather than
-# translating, so the mirror comparison is raw equality and needs neither.
+# Issue #5657: `generate_skills.py` translates `references/*.md` as well as
+# `SKILL.md`, so the mirror comparison applies the production translation to the
+# source block (the #2743 contract) before comparing.
+SKILLS_DIR = SKILL_MD.parent.parent
+
+_build_scripts_dir = str(PROJECT_ROOT / "build" / "scripts")
+_original_sys_path = sys.path.copy()
+try:
+    if _build_scripts_dir not in sys.path:
+        sys.path.insert(0, _build_scripts_dir)
+    import copilot_body_translation
+finally:
+    sys.path[:] = _original_sys_path
 
 SPEC_SCENARIOS_JSON = PROJECT_ROOT / "tests" / "evals" / "spec-scenarios.json"
 
@@ -123,7 +133,7 @@ def spec_prior_art_text() -> str:
 
 @pytest.fixture(scope="module")
 def skill_prior_art_text() -> str:
-    """Return the Copilot verbatim mirror of spec-prior-art-schema.md."""
+    """Return the translated Copilot mirror of spec-prior-art-schema.md."""
     return SKILL_PRIOR_ART_SCHEMA.read_text(encoding="utf-8")
 
 
@@ -886,24 +896,15 @@ def test_entity_adjudication_applies_aliases_to_entity_and_answer_spans():
 
 
 def test_step0_5_block_byte_identical_across_spec_and_skill(spec_text: str, skill_text: str):
-    """The Step 0.5 block must match between the two trees.
+    """The Step 0.5 block must match between the two trees after translation.
 
-    Raw equality, not the #2743 translation. ADR-064 (issue #5632) moved this
-    block out of the command body and into `references/step-0-5-memory-gate.md`,
-    and `generate_skills.py` translates `SKILL.md` only: every other file in a
-    skill directory is copied byte-for-byte. So the mirror of a reference is its
-    source, and the comparison is raw.
-
-    Known consequence, tracked rather than fixed here: the block still carries
-    `Skill(skill="...")` calls, which now reach Copilot consumers untranslated.
-    Four shipped reference files carry 22 such calls, 19 of them predating this
-    migration. Teaching the generator to translate references was tried and
-    reverted: the translation drops a multi-line triple-quoted prompt body, so it
-    silently deleted a 60-line instruction block from
-    `pr-comment-responder/references/workflow.md`. Fixing the reference gap
-    needs that translation bug fixed first.
+    The block lives in `references/step-0-5-memory-gate.md` (ADR-064, issue
+    #5632). Since issue #5657 `generate_skills.py` translates references like
+    `SKILL.md`, so the Copilot mirror is the production translation of the
+    source block, as in `tests/commands/test_spec_step0.py`.
     """
-    assert extract_step0_5_block(skill_text) == extract_step0_5_block(spec_text)
+    expected = copilot_body_translation.translate_body(extract_step0_5_block(spec_text), SKILLS_DIR)
+    assert extract_step0_5_block(skill_text) == expected
 
 
 # ---------------------------------------------------------------------------

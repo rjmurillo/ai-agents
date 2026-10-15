@@ -33,7 +33,7 @@ per-issue handoff.
 
 **You cannot observe your own context usage.** The window size is not exposed to you, so any statement about how much of it remains is fabricated. Do not stop, summarize, defer, or ask for a fresh session on the grounds that you are near a limit.
 
-**Worker transcripts cost twice.** An imported transcript stays in your context, is billed on every later turn, and competes for attention. Workers that share files and conventions each rebuild that orientation, and parallelism does not recover it.
+**Long context costs every turn and cuts recall.** Delegate a separable task when its inputs fit a brief and its result is compact. Stay inline for a few tool calls or when briefing costs more. Workers rebuild orientation. Read the field, not the file. **Keep state in files.** Write decisions to the handoff or plan; pass paths. Distill a large artifact once, with citations; reopen raw only at a cited line. Each phase (investigate, implement, review, merge) gets a fresh thread and bounded artifacts, not transcripts.
 
 **Checkpoint protocol** (runs once between routing waves, after the prior wave returns and before the next fans out):
 
@@ -62,7 +62,6 @@ These are backstops, not a completion test: reaching the terminal predicate (`bu
 - **Budget-exhausted behavior**: At the limit, stop delegating, synthesize completed work, list unresolved items, and return control to the user with what was and was not done.
 - **Max concurrent delegations per wave**: 4 by default, a starting value, not a measured optimum. The binding cost is returns you hold un-folded while the wave lands (see Checkpoint protocol). Bound the wave at what you can fold before the next return arrives. A wave of 5 or more: ask whether two routes are the same question.
 - **A concurrent wave must not contain** a repository-wide git operation (fetch, checkout, rebase, branch switch, stash) or two agents writing the same file. Either makes a return depend on sibling timing and the result irreproducible. Route those serially or give each agent its own worktree.
-- **Answer a lightweight question with a lightweight read.** A targeted search or single field beats pulling a whole return, log, or file into the window you still owe the synthesis.
 
 ## Hook Feedback
 
@@ -96,9 +95,7 @@ the evidence gap. Orchestrator coordinates; it does not investigate.
 
 | Avoid | Why | Instead |
 |-------|-----|---------|
-| Delegating blind (no context in handoff) | Agent fails or produces wrong output | Include context, constraints, format |
 | Pasting a skill's full text into a delegation prompt | Spends the subagent's window on text it can load itself; the paste is the pollution | Name the skill and let the subagent load it |
-| Concatenating agent responses | Not synthesis, just noise | Extract, resolve conflicts, produce coherent output |
 | Relaying a worker's "done" without checking the artifact | The report states intent, not the actual change; a false "done" ships as success | Inspect the diff, created file, or command output before synthesizing |
 | Bounded tier on open-ended work | Review cost can exceed the token savings | Route bounded work down; normal work to the specified tier |
 | Judgment tier for bounded disposable work | Spends expensive review capacity on cheap work | Use the bounded tier with a verifier |

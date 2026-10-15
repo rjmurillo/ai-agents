@@ -34,6 +34,7 @@ Audience: a zero-context contributor (human or model) about to write, run, or sk
 | Measure drift, budgets, telemetry, coverage trends | `ai-agents-diagnostics-toolkit` |
 | Probe an external tool's runtime behavior empirically | `ai-agents-empirical-probe-toolkit` |
 | Understand which gates a change class triggers | `ai-agents-change-control` |
+| Decide whether two pieces of evidence are independent, or whether a named check ran | `evidence-provenance` |
 | Session-log mechanics beyond the QA row | `.claude/rules/session-logs.md` |
 
 ## Process
@@ -82,7 +83,7 @@ uv run pytest tests/skills/NAME/ --collect-only -q         # prove new skill tes
 uv run pytest tests/skills/prose-self-check/ -q            # one skill's suite
 ```
 
-Markers (`pyproject.toml [tool.pytest.ini_options].markers`): `unit`, `integration`, `safe_push_transport`, `security`, `smoke`, `claude`, `copilot`, `codex`, `windows_path`. `safe_push_transport` means the test touches a non-local transport and is excluded from pre-push. `smoke` means real-CLI tests needing auth/credits or an installed CLI, run on pull requests by `plugin-cli-smoke.yml`; the smoke gate asserts they were not skipped (issue #2231 item 4). `claude`, `copilot`, and `codex` name the CLI a real-CLI test needs; each CLI smoke leg selects `smoke and <cli>`. `windows_path` means the test exercises Windows path handling and must run on a Windows runner. Always `uv run pytest`, never bare `pytest` or `python3 -m pytest` outside the venv: PyYAML and friends live in the uv venv (see `ai-agents-build-and-env`).
+Markers (`pyproject.toml [tool.pytest.ini_options].markers`): `unit`, `integration`, `safe_push_transport`, `security`, `smoke`, `claude`, `copilot`, `codex`, `grok`, `pi`, `windows_path`. `safe_push_transport` means the test touches a non-local transport and is excluded from pre-push. `smoke` means real-CLI tests needing auth/credits or an installed CLI, run on pull requests by `plugin-cli-smoke.yml` (except `grok`, which no CI leg selects: run it locally with `RUN_CLI_E2E=1`); the smoke gate asserts they were not skipped (issue #2231 item 4). `claude`, `copilot`, and `codex` name the CLI a real-CLI test needs; each CLI smoke leg selects `smoke and <cli>`. `windows_path` means the test exercises Windows path handling and must run on a Windows runner. Always `uv run pytest`, never bare `pytest` or `python3 -m pytest` outside the venv: PyYAML and friends live in the uv venv (see `ai-agents-build-and-env`).
 
 Stale doc warning: `.agents/governance/test-location-standards.md` still describes a Pester/`*.Tests.ps1` layout. Zero `*.Tests.ps1` files exist (as of 2026-07-03; ADR-042 Python migration). Trust the table above and pyproject.toml, not that file.
 
@@ -154,6 +155,7 @@ session log.
 - [ ] All git-mutating tests isolated in `tmp_path` repos (the #2316 guard will fail you otherwise).
 - [ ] Prove collection: `uv run pytest PATH --collect-only -q` shows your tests; then run them; then run the coverage pin form from Phase 4 on changed files.
 - [ ] Run `uv run python scripts/validation/pre_pr.py` before the PR (the local shift-left aggregate; see `ai-agents-change-control` for the full gate ladder).
+- [ ] Save the `pre_pr.py` output and its exit code to a file, then distill the file with `distill_artifact.py` (usage: context-optimizer skill, Tool Details: Distill Artifact), and use the digest to locate failures; search the raw log for any detail it omits.
 
 ## Anti-Patterns
 

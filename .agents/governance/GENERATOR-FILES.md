@@ -13,7 +13,7 @@ matching "Source" instead.
 | Generator | Source (edit here) | Output (do not edit) | Spec |
 |-----------|--------------------|----------------------|------|
 | `build/generate_agents.py` | `templates/agents/*.shared.md` | `src/copilot-cli/agents/`, `src/vs-code-agents/` (per platform YAML) | ADR-002 |
-| `build/scripts/generate_rules.py` | `.claude/rules/*.md` | `.github/instructions/*.instructions.md`, `src/copilot-cli/instructions/*.instructions.md` | REQ-003-006 |
+| `build/scripts/generate_rules.py` | `src/claude/rules/*.md` (`.claude/rules/` is the binplaced install copy) | `.github/instructions/*.instructions.md`, `src/copilot-cli/instructions/*.instructions.md` | REQ-003-006 |
 | `build/scripts/generate_skills.py` | `.claude/skills/<name>/` (SKILL.md read from `src/claude/skills/<name>/SKILL.md` when that skill has a template) | `src/copilot-cli/skills/<name>/` (except `review/scripts/validate_review_marker.py`, rendered from `scripts/validation/` by `lib_mirror.py`) | REQ-003-001 |
 | `build/scripts/skill_templates.py` | `templates/skills/<name>.SKILL.md.tmpl` + `templates/skills/partials/*.mustache` | `src/claude/skills/<name>/SKILL.md` and through the binplace step to `.claude/skills/<name>/SKILL.md`, template-owned skills only | ADR-108, ADR-109 |
 | `build/scripts/generate_skills.py` (`sync_claude_plugin_skill_support`) | `.claude/skills/<name>/` (every file except SKILL.md and the review sidecar validator; merge-resolver included, unlike the Copilot mirror row above) | `src/claude/skills/<name>/` (SKILL.md itself is never touched here; that is `skill_templates.py`'s target; `review/scripts/validate_review_marker.py` is skipped, rendered from `scripts/validation/` by `lib_mirror.py`) | ADR-109 B3 follow-up |
@@ -24,7 +24,9 @@ matching "Source" instead.
 | `build/scripts/hook_templates.py` | `templates/hooks/` (14 executables, `dispatch_groups.json`, `hooks.json`) plus `templates/hooks/settings.tmpl` | `src/claude/hooks/<rel>`, `src/claude/hooks.json` (plugin root, not nested), and directly `.claude/settings.json` (no plugin-tree hop) | ADR-109 |
 | `build/scripts/generate_hooks.py` with `build/scripts/generate_dispatcher.py` | `src/claude/hooks/` + `src/claude/hooks.json` (repointed from `.claude/hooks/` by ADR-109 B4; `hook_templates.compile_all` runs first) | `src/copilot-cli/hooks/` + `src/copilot-cli/hooks/hooks.json`, and through the binplace step to `.github/hooks/*.json` (first binplaced in B4) | REQ-003-007, ADR-068, ADR-109 |
 | `build/scripts/build_all.py` (`_build_lib`, via `build/scripts/lib_mirror.py`) | `scripts/{hook_utilities,github_core,ai_review_common}/`, `scripts/hook_utilities/bootstrap.py`, `scripts/validation/validate_review_marker.py` | `src/claude/lib/`, `src/copilot-cli/lib/`, `src/claude/skills/review/scripts/`, `src/copilot-cli/skills/review/scripts/` (then binplaced onto `.claude/lib/` and `.claude/skills/review/scripts/` per `templates/platforms/binplace.yaml`'s `lib-*` and `skills-sidecar` rows; the `skills-sidecar-copilot` row has no install tree) | REQ-003-001, REQ-003-002, ADR-109 B5 |
-| `build/scripts/generate_pr_quality_prompts.py` | `.claude/skills/review/references/{role}.md` | `.github/prompts/pr-quality-gate-{role}.md` | REQ-008-01 |
+| `build/generate_agent_catalog.py` (`agent-catalog` in `GENERATORS`) | `templates/agents/*.shared.md` | `docs/agent-catalog.md` | `build_all.py` |
+| `build/scripts/generate_adr_index.py` (`adr-index` in `GENERATORS`) | `.project-toolkit/architecture/ADR-*.md` frontmatter | `.project-toolkit/architecture/README.md` | `build_all.py` |
+| `build/scripts/generate_pr_quality_prompts.py` (not in `GENERATORS`; run by `run_drift_check_ci.py` and the lefthook dry run) | `.claude/skills/review/references/{role}.md` | `.github/prompts/pr-quality-gate-{role}.md` | REQ-008-01 |
 
 ## Hand-maintained sibling copies (NOT generated)
 
@@ -58,6 +60,59 @@ runs the same checks. A new output path in `binplace.yaml`, a platform YAML, or
 `src/`, `.claude/`, or `.github/` that no row owns fails as `UNCLASSIFIED`.
 
 ADR-109 B1 moved `.claude/agents/<name>.md`, `.github/agents/<name>.agent.md`, and `src/claude/agents/<stem>.md` into generated output via the agent_templates.py and binplace_manifest.py generators above. ADR-109 B2 moved every `.claude/rules/<name>.md` file (28) the same way via rule_templates.py; `testing.md` is template-owned too, its GitHub Actions example written with the `\{{` escape. ADR-109 B3 gave skills the same two-hop shape: `skill_templates.compile_all` renders `src/claude/skills/<name>/SKILL.md`, and the binplace step copies it onto `.claude/skills/<name>/SKILL.md`; the manifest also gained a `prompts` row (`source: .claude/skills/review/references`, `compile: generate_pr_quality_prompts`, `plugin_tree: null`) that documents the twelve `pr-quality-gate-*.md` files without changing how they are generated. ADR-109 B4 moved the 16-file hooks class (14 executables, `hooks.json`, `dispatch_groups.json`) plus `.claude/settings.json` into generated output via hook_templates.py: `src/claude/hooks/` and `src/claude/hooks.json` render for the first time, `.github/hooks/*.json` is binplaced for the first time, and `.claude/settings.json` renders directly from `templates/hooks/settings.tmpl` with no plugin-tree hop, since it ships in no plugin.
+
+## Equivalence predicates
+
+ADR-107 section 4 requires every artifact class to declare an equivalence
+predicate: the statement of what "the projection matches its source" means and
+the gate that checks it. This table is that declaration, one row per class. It
+covers every entry of `GENERATORS` in `build/scripts/build_all.py` (the Class
+column uses the `GENERATORS` name), the generator that runs outside it, and the
+hand-maintained trees.
+
+- `derived`: the projection equals `transform(source)` recomputed by the
+  generator. An identity transform is legal. Regenerate, then diff.
+- `normalized`: the projection equals the source after a declared normalization.
+  Normalize both sides, then diff.
+- `none`: no predicate. Legal only as a recorded baseline with an owning issue
+  and an expiry date. A `none` row whose expiry passes is a finding, not a
+  renewal.
+
+There is no `byte` value. Byte equality is `derived` with an identity transform.
+
+| Class | Trees | Predicate | Gate | Issue | Expiry |
+|-------|-------|-----------|------|-------|--------|
+| `agents` | `src/claude/agents/`, `.claude/agents/`, `.github/agents/`, `src/copilot-cli/agents/`, `src/vs-code-agents/` | `derived` | `build/scripts/build_all.py` with `--check` (pre-PR gate Generated Artifact Staleness) | - | - |
+| `agent-catalog` | `docs/agent-catalog.md` | `derived` | `build/scripts/build_all.py` with `--check` | - | - |
+| `adr-index` | `.project-toolkit/architecture/README.md` | `derived` | `build/scripts/build_all.py` with `--check` | - | - |
+| `lib` | `src/claude/lib/`, `src/copilot-cli/lib/`, `src/codex/lib/` packages, `.claude/lib/` packages, the `review` sidecar validator | `derived` | `build/scripts/build_all.py` with `--check` | - | - |
+| `skills` | `src/claude/skills/`, `.claude/skills/`, `src/copilot-cli/skills/`, `src/codex/skills/` | `derived` | `build/scripts/build_all.py` with `--check` | - | - |
+| `rules` | `src/claude/rules/`, `.claude/rules/`, `.github/instructions/`, `src/copilot-cli/instructions/` | `derived` | `build/scripts/build_all.py` with `--check` | - | - |
+| `hooks` | `src/claude/hooks/`, `.claude/hooks/`, `.claude/settings.json`, `src/copilot-cli/hooks/`, `.github/hooks/` | `derived` | `build/scripts/build_all.py` with `--check` | - | - |
+| `pr-quality-prompts` | `.github/prompts/pr-quality-gate-*.md` | `derived` | `build/scripts/run_drift_check_ci.py` (runs the generator with `--dry-run`) | - | - |
+| `agent-sources` | `templates/agents/<stem>.shared.md`, `.claude.md.tmpl`, `.copilot.md.tmpl` | `normalized` | `build/scripts/check_agent_source_parity.py` (pre-PR gate Agent Source Parity) | - | - |
+| `security-references` | `.github/agents/security/references/*.md` | `derived` | `build/scripts/check_surface_parity.py` (hand-maintained byte copy, identity transform) | - | - |
+| `copilot-lib-modules` | `src/copilot-cli/lib/*.py` top-level modules | `derived` | `build/scripts/check_surface_parity.py` (identity transform; `paths.py` is the one `divergent` file the manifest excuses) | - | - |
+
+ADR-107 expected a `none` baseline for three hand-maintained agent trees
+(`.claude/agents/`, `.github/agents/`, `src/claude/agents/`). ADR-109 B1 made all
+three generated output of the `agents` class, and issue #5688 added the
+`agent-sources` predicate for the sources behind them. The table therefore
+carries no `none` row today, and the baseline ceiling is zero.
+
+A `none` row writes the owning issue as `#N` and the expiry as `YYYY-MM-DD`; a
+`derived` or `normalized` row writes `-` in both cells and opens its Gate cell
+with the repo-relative path of the script that checks it, in backticks.
+`scripts/validation/check_equivalence_predicates.py` (pre-PR gate Equivalence
+Predicates) parses this table and fails on an unknown predicate value, a gate
+script that does not exist, a `none` row without an issue or an expiry, a
+lapsed expiry, a duplicate class, a `GENERATORS` entry with no row, and any
+change to the number of `none` rows that the baseline
+`scripts/validation/equivalence_predicates_baseline.json` does not record. The
+same baseline holds a floor on the number of rows, so a class row cannot be
+deleted to dodge its expiry. Authored-in-place surfaces (relation `independent`
+in `templates/platforms/surface-parity.yaml`) are sources with no projection and
+carry no row.
 
 ## Agent source equivalence (normalized)
 
@@ -179,6 +234,7 @@ removed after the transaction commits.
 - `templates/README.md`: template structure.
 - `build/scripts/validate_install_parity.py`: hand-maintained sibling guard.
 - `build/scripts/check_agent_source_parity.py`: agent source equivalence gate (issue #5688).
+- `scripts/validation/check_equivalence_predicates.py`: predicate table gate (ADR-107 M1, issue #5686).
 - `.claude/rules/canonical-source-mirror.md`: claims of parity must cite and
   quote the canonical source.
 - Issue #1921: this inventory.

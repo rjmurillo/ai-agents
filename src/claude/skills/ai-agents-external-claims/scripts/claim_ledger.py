@@ -5,7 +5,7 @@ The ``research`` skill writes durable artifacts: an analysis document, a
 Serena memory, and an issue body. Before each write it records every external
 claim (vendor, API, statistic, legal, project status, comparative) in a JSON
 ledger and runs this script. The script checks that each claim names its
-source, dates, and confidence, and that its disposition matches the evidence.
+source, dates, and confidence, and that its disposition follows from the evidence.
 With ``--artifact`` it also checks that the artifact carries the checked
 wording, not the unreviewed draft.
 

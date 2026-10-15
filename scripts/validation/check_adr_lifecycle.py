@@ -70,6 +70,18 @@ Checks, each named so the baseline tracks them separately:
     prose-frontmatter-agree      a `## Status` section, when present, opens with the frontmatter
                                   enum and says more than that word (ADR-073, amended 2026-09-29)
     status-edge-consistency      status: superseded iff a superseded-by edge resolves
+    cited-paths-exist            an `accepted` record's Decision and Implementation Notes
+                                  cite only files that are still tracked (issue #5194)
+    section-structure            Context, Decision, and Consequences are each present under a
+                                  sanctioned heading: the canonical set or the MADR set
+                                  (issue #5196)
+    review-by-format             an optional `review-by` is a calendar date written YYYY-MM-DD
+                                  (issue #5193)
+    review-by-past-due           a `proposed` or `accepted` record whose `review-by` date has
+                                  passed is overdue for its revisit (issue #5193)
+    review-by-prose-date         a live record's `review-by` date is also stated in its prose,
+                                  so the two places a deadline is written cannot drift apart
+                                  (issue #5193)
 
 `status-edge-consistency` closes a gap `supersession-reciprocal` leaves open
 (Copilot, PR #5209): reciprocity validates edges against each other, never
@@ -80,6 +92,23 @@ with no successor at all. `deprecated` is deliberately exempt from the
 record that shipped and was later abandoned with no specific named
 successor, not a supersession.
 
+`cited-paths-exist` closes the gap behind issue #5194: ADR-050 stayed `accepted`
+after the script it mandates was deleted, because no check resolved a file path
+named in an accepted record. The extraction rules live in `adr_cited_paths.py`.
+Only `accepted` records are read; `superseded`, `deprecated`, `rejected`, and
+`proposed` records are history or not yet binding, and a gate firing on them is
+the tripwire ADR-073 warns about.
+
+`review-by` is the optional ADR-073 field for a record whose prose commits to a
+calendar revisit date. It exists because ADR-002 and ADR-039 sat seven months past a
+provisional window that only prose recorded (issue #5193). The two date checks read
+the wall clock, so `scan()` and `run()` take an injectable ``today``; the command line
+has no flag for it, because a flag would let a branch dodge the gate. A record whose
+status is `superseded`, `deprecated`, or `rejected` is history, so its date is moot
+and only the format check reads it. The checks cover calendar deadlines only. A
+condition-triggered revisit ("if the eval sets change") is not a date and carries no
+`review-by`; inventing one would make the gate fire on a deadline the prose never made.
+
 A check called `implemented-implies-decided` (`implemented: true` with
 `status: proposed`) was removed, not replaced by `status-edge-consistency`
 above: ADR-073's own schema defines `implemented` as flipping at first
@@ -87,8 +116,8 @@ merged change independent of decision state, and ADR-098 documents that
 exact pairing as deliberate. See `_check_lifecycle_rules` for the full
 removal rationale.
 
-Checks 2 to 8 need parseable frontmatter, so a record failing `frontmatter-parses`
-contributes one violation, not eight. The same containment runs downstream:
+Checks 2 to 10 need parseable frontmatter, so a record failing `frontmatter-parses`
+contributes one violation, not ten. The same containment runs downstream:
 `prose-frontmatter-agree` is skipped when the status section is absent
 (the record simply has no prose status, which ADR-073 prefers to a
 restatement) or the enum value is invalid (`status-enum` owns that), and
@@ -112,6 +141,7 @@ import re
 import sys
 import tempfile
 from dataclasses import dataclass
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -134,6 +164,11 @@ from checks_common import (  # noqa: E402
 from yaml_utils import _parse_yaml_frontmatter  # noqa: E402
 
 # Imported, not redefined, so the two ADR gates never disagree about which files are ADRs.
+from scripts.validation.adr_cited_paths import (  # noqa: E402
+    extract_cited_paths,
+    missing_paths,
+    tracked_paths,
+)
 from scripts.validation.check_adr_uniqueness import ADR_FILENAME_RE  # noqa: E402
 from scripts.validation.frontmatter_contract import FrontmatterStatus  # noqa: E402
 from scripts.validation.frontmatter_contract import (  # noqa: E402
@@ -153,6 +188,11 @@ CHECKS: tuple[str, ...] = (
     "proposed-cannot-supersede",
     "prose-frontmatter-agree",
     "status-edge-consistency",
+    "cited-paths-exist",
+    "section-structure",
+    "review-by-format",
+    "review-by-past-due",
+    "review-by-prose-date",
 )
 
 # The ADR-073 status enum. `test_lifecycle_statuses_conform_to_adr_073` fails when
@@ -182,6 +222,24 @@ _LEVEL_TWO_HEADING_RE = re.compile(r"(?m)^[ \t]{0,3}##[ \t]+(.+?)[ \t]*$")
 # Leading lifecycle word through any decoration: "**Accepted**", "> Superseded
 # by ADR-094 (2026-08-15)", "`Proposed`. Supersedes ADR-036."
 _LEAD_WORD_RE = re.compile(r"^[*_`~>\[\s]*([A-Za-z]+)")
+
+# Sanctioned section structures (issue #5196). The corpus runs two shapes: the
+# canonical set from `.project-toolkit/architecture/ADR-TEMPLATE.md` and the MADR
+# set (`## Context and Problem Statement`, `## Decision Outcome`, with
+# `### Consequences` nested under the outcome). Both are legal. The mapping is
+# per concept, so a consumer asking for "the Decision" resolves either heading.
+# This tuple is the machine-readable form of the table in ADR-TEMPLATE.md.
+# Each entry: concept name, accepted lowercased heading texts, accepted levels.
+SECTION_EQUIVALENTS: tuple[tuple[str, frozenset[str], tuple[int, ...]], ...] = (
+    ("Context", frozenset({"context", "context and problem statement"}), (2,)),
+    ("Decision", frozenset({"decision", "decision outcome"}), (2,)),
+    ("Consequences", frozenset({"consequences"}), (2, 3)),
+)
+
+# `##` and `###` ATX headings, optionally indented up to three spaces, with an
+# optional closing hash run. Level one is the title; level four and below are
+# never a record's own section.
+_SECTION_HEADING_RE = re.compile(r"(?m)^[ \t]{0,3}(#{2,3})[ \t]+(.+?)[ \t]*#*[ \t]*$")
 
 _BASELINE_PATH = Path(__file__).with_name("adr_lifecycle_baseline.json")
 
@@ -758,6 +816,156 @@ def _check_lifecycle_rules(record: Record) -> list[Violation]:
     return [Violation("proposed-cannot-supersede", record.path, detail)]
 
 
+def _check_structure(record: Record) -> list[Violation]:
+    """`section-structure` for one record (issue #5196).
+
+    A record passes when Context, Decision, and Consequences are each present
+    under a heading from the canonical set or the MADR set (see
+    `SECTION_EQUIVALENTS`). Resolution is per concept, so a record that opens
+    with `## Context` and decides under `## Decision Outcome` still passes:
+    a consumer reading "the Decision" finds it either way. `## Status` and
+    `## Date` are not required; ADR-073 (amended 2026-09-29) made the prose
+    status optional and the frontmatter carries both fields.
+
+    Headings inside fenced code and block-level HTML do not count, the same
+    masking `_status_prose` applies, so a template sample cannot satisfy the
+    check. A body the markdown parser rejects is reported, not skipped,
+    for the reason `_check_prose` gives.
+    """
+    try:
+        prose = blank_non_prose_block_lines(record.body)
+    except Exception as exc:
+        detail = f"section structure could not be parsed: {exc}"
+        return [Violation("section-structure", record.path, detail)]
+    present = {
+        (len(match.group(1)), match.group(2).strip().lower())
+        for match in _SECTION_HEADING_RE.finditer(prose)
+    }
+    missing = [
+        concept
+        for concept, names, levels in SECTION_EQUIVALENTS
+        if not any((level, name) in present for level in levels for name in names)
+    ]
+    if not missing:
+        return []
+    detail = (
+        f"missing {', '.join(missing)}. Use the canonical headings (`## Context`, "
+        "`## Decision`, `## Consequences`) or the MADR headings "
+        "(`## Context and Problem Statement`, `## Decision Outcome`, "
+        "`### Consequences`); see ADR-TEMPLATE.md."
+    )
+    return [Violation("section-structure", record.path, detail)]
+
+
+def _check_cited_paths(
+    record: Record, repo_root: Path, tracked: frozenset[str] | None
+) -> list[Violation]:
+    """`cited-paths-exist`: an accepted record names only files that still exist."""
+    if _status_of(record) != "accepted":
+        return []
+    try:
+        cited = extract_cited_paths(record.body)
+    except Exception as exc:
+        # Same rule as `_check_prose`: a body the markdown parser refuses is a
+        # counted finding, never a record that quietly skips the check.
+        detail = f"Decision and Implementation Notes could not be parsed: {exc}"
+        return [Violation("cited-paths-exist", record.path, detail)]
+    return [
+        Violation(
+            "cited-paths-exist",
+            record.path,
+            f"cites `{path}` in Decision or Implementation Notes, but no such file "
+            "is tracked. Deprecate or supersede the record, or correct the citation.",
+        )
+        for path in missing_paths(cited, repo_root, tracked)
+    ]
+
+
+# Statuses whose `review-by` still binds. A `superseded`, `deprecated`, or
+# `rejected` record is history: the revisit it promised is moot, and a gate that
+# fired on it would force an author to delete a field from a closed record.
+_LIVE_STATUSES: frozenset[str] = frozenset({"proposed", "accepted"})
+
+_ISO_DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
+
+
+def _parse_review_by(value: object) -> date:
+    """The calendar date a ``review-by`` value names, or ``ValueError``.
+
+    YAML resolves an unquoted ``2026-09-27`` to ``datetime.date`` and a quoted one
+    to ``str``; both are accepted. ``datetime`` subclasses ``date`` and is refused
+    first, because a time of day is not a calendar deadline. A number, a list, a
+    boolean, or a string that is not ``YYYY-MM-DD`` is refused too: a malformed
+    value that was skipped silently would never fire, which is the seven-month miss
+    this field exists to prevent.
+    """
+    if isinstance(value, (datetime, bool)):
+        raise ValueError(f"{value!r} is not a calendar date")
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str) and _ISO_DATE_RE.fullmatch(value.strip()):
+        try:
+            return date.fromisoformat(value.strip())
+        except ValueError:
+            raise ValueError(f"{value!r} is not a real calendar date") from None
+    raise ValueError(f"{value!r} is not a YYYY-MM-DD date")
+
+
+def _prose_states_date(body: str, due: date) -> bool:
+    """True when the record's prose, outside code and HTML blocks, names ``due``."""
+    prose = blank_non_prose_block_lines(body)
+    return re.search(rf"(?<!\d){re.escape(due.isoformat())}(?!\d)", prose) is not None
+
+
+def _check_review_by(record: Record, today: date) -> list[Violation]:
+    """`review-by-format`, `review-by-past-due`, and `review-by-prose-date` for one record.
+
+    An absent or null ``review-by`` is no violation: the field is optional and a
+    decision with no deadline carries none (ADR-073, amended for issue #5193). A
+    malformed value is one format finding and stops there, so one typo does not
+    also report a missing prose date. Past due means strictly before ``today``: a
+    record due today is still on time.
+    """
+    value = _frontmatter_of(record).get("review-by")
+    if value is None:
+        return []
+    try:
+        due = _parse_review_by(value)
+    except ValueError as exc:
+        detail = f"review-by {exc}. Write the revisit date as YYYY-MM-DD, or set it to null."
+        return [Violation("review-by-format", record.path, detail)]
+    if _status_of(record) not in _LIVE_STATUSES:
+        return []
+    found: list[Violation] = []
+    if due < today:
+        late = (today - due).days
+        found.append(
+            Violation(
+                "review-by-past-due",
+                record.path,
+                f"review-by {due.isoformat()} passed {late} day(s) before {today.isoformat()}. "
+                "Hold the review, record its outcome in the prose, then set a new "
+                "review-by or null, or change the status.",
+            )
+        )
+    try:
+        stated = _prose_states_date(record.body, due)
+    except Exception as exc:
+        detail = f"review-by prose could not be parsed: {exc}"
+        return [*found, Violation("review-by-prose-date", record.path, detail)]
+    if not stated:
+        found.append(
+            Violation(
+                "review-by-prose-date",
+                record.path,
+                f"review-by {due.isoformat()} appears in frontmatter only. State the same "
+                "date as YYYY-MM-DD in the prose so a reader sees the deadline and the "
+                "two places cannot drift.",
+            )
+        )
+    return found
+
+
 def _edge_targets(
     record: Record, raw_entries: list[Any], field: str, known: set[int]
 ) -> tuple[list[int], list[Violation]]:
@@ -926,16 +1134,30 @@ def _status_edge_findings(by_number: dict[int, Record], graph: _Graph) -> list[V
     return found
 
 
-def scan(adr_dir: Path, repo_root: Path) -> list[Violation]:
-    """Every lifecycle violation in the corpus, in check-then-path order."""
+def _utc_today() -> date:
+    return datetime.now(UTC).date()
+
+
+def scan(adr_dir: Path, repo_root: Path, today: date | None = None) -> list[Violation]:
+    """Every lifecycle violation in the corpus, in check-then-path order.
+
+    ``today`` is the date the ``review-by`` checks compare against. It defaults
+    to the current UTC date; tests pass a fixed one so no result depends on the
+    day the suite runs.
+    """
+    today = today if today is not None else _utc_today()
     records, violations = collect_records(adr_dir, repo_root)
     known = {record.number for record in records}
+    tracked = tracked_paths(repo_root)
     for record in records:
         if record.frontmatter is None:
             continue
         violations.extend(_check_identity(record))
+        violations.extend(_check_cited_paths(record, repo_root, tracked))
         violations.extend(_check_prose(record))
         violations.extend(_check_lifecycle_rules(record))
+        violations.extend(_check_structure(record))
+        violations.extend(_check_review_by(record, today))
     by_number = {r.number: r for r in records if r.frontmatter is not None}
     graph = _build_graph(by_number, known)
     violations.extend(graph.findings)
@@ -962,7 +1184,10 @@ def _excess(current: Baseline, allowed: Baseline) -> Baseline:
 
     A path ``allowed`` does not hold has an allowance of zero, so a violation
     in a record the baseline never recorded is excess even when the check's
-    total fell (issue #5273).
+    total fell (issue #5273). A check ``allowed`` does not name at all has no
+    excess: only the baseline read at the base ref lacks a check, because the
+    branch under test is the one adding it (issue #5194), and a live baseline
+    is validated to name every check before it reaches here.
     """
     return {
         name: {
@@ -970,12 +1195,14 @@ def _excess(current: Baseline, allowed: Baseline) -> Baseline:
             for path, count in current[name].items()
             if count > allowed[name].get(path, 0)
         }
+        if name in allowed
+        else {}
         for name in CHECKS
     }
 
 
-def _check_list_problem(names: set[str], source: str) -> str | None:
-    missing = sorted(set(CHECKS) - names)
+def _check_list_problem(names: set[str], source: str, *, new_checks_ok: bool) -> str | None:
+    missing = [] if new_checks_ok else sorted(set(CHECKS) - names)
     unknown = sorted(names - set(CHECKS))
     if not missing and not unknown:
         return None
@@ -1021,7 +1248,7 @@ def _legacy_baseline(payload: dict[str, Any], source: str, zero_ok: bool) -> Bas
 
 
 def _parse_baseline_payload(
-    text: str, source: str, *, legacy_zero_ok: bool = False
+    text: str, source: str, *, legacy_zero_ok: bool = False, new_checks_ok: bool = False
 ) -> Baseline | str:
     """Validate baseline JSON already read from ``source``, or a one-line reason.
 
@@ -1029,6 +1256,12 @@ def _parse_baseline_payload(
     identical schema check against text read from ``git show <ref>:<path>``
     instead of a live file. The two callers differ only in how the bytes
     reached them; the validation a baseline must pass is one rule, not two.
+
+    ``new_checks_ok`` is for the baseline read at the base ref, like
+    ``legacy_zero_ok``. A check the branch under test adds is absent there, so
+    the missing names are left out of the result instead of failing the read
+    (issue #5194 added the first such check). A live baseline never gets this
+    leniency: it must name every check.
     """
     try:
         payload = json.loads(text)
@@ -1039,12 +1272,13 @@ def _parse_baseline_payload(
     entries = payload.get("violations") if isinstance(payload, dict) else None
     if not isinstance(entries, dict):
         return f"baseline {source} has no `violations` mapping"
-    problem = _check_list_problem(set(entries), source)
+    problem = _check_list_problem(set(entries), source, new_checks_ok=new_checks_ok)
     for name in CHECKS:
-        problem = problem or _paths_problem(name, entries.get(name), source)
+        if name in entries:
+            problem = problem or _paths_problem(name, entries[name], source)
     if problem:
         return problem
-    return {name: dict(entries[name]) for name in CHECKS}
+    return {name: dict(entries[name]) for name in CHECKS if name in entries}
 
 
 def read_baseline(path: Path) -> Baseline | str:
@@ -1160,7 +1394,9 @@ def _baseline_at_ref(repo_root: Path, ref: str, baseline_path: Path) -> Baseline
     )
     if exit_code != 0:
         return None
-    parsed = _parse_baseline_payload(stdout, f"{ref}:{rel}", legacy_zero_ok=True)
+    parsed = _parse_baseline_payload(
+        stdout, f"{ref}:{rel}", legacy_zero_ok=True, new_checks_ok=True
+    )
     return parsed if isinstance(parsed, dict) else None
 
 
@@ -1248,6 +1484,7 @@ def run(
     args: argparse.Namespace,
     *,
     repo_root_is_default: bool = False,
+    today: date | None = None,
 ) -> int:
     """Scan, then either write the baseline or compare against it.
 
@@ -1255,7 +1492,7 @@ def run(
     ``--repo-root`` explicitly (see ``main()``); it gates the worktree-identity
     check below.
     """
-    violations = scan(adr_dir, repo_root)
+    violations = scan(adr_dir, repo_root, today)
     found = identities(violations)
     # Read once, separately from scan()'s own collect_records() call, only for
     # the pass-report's examined-record count below: an existing but emptied

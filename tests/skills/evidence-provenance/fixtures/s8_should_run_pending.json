@@ -1,0 +1,34 @@
+{
+  "claim": "tests pass",
+  "subject": {
+    "artifact": "pkg",
+    "revision": "r2",
+    "premises": [
+      "interp:R"
+    ]
+  },
+  "evidence": [
+    {
+      "id": "new-test",
+      "state": "VERIFIED",
+      "premises": [
+        "interp:R"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "check": "pytest tests/test_x.py (should run)",
+      "state": "pending",
+      "cheap": true,
+      "available": true,
+      "used_as_support": true
+    }
+  ],
+  "expect": {
+    "exit": 1,
+    "violations": [
+      "named-without-state"
+    ]
+  }
+}

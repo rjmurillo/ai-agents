@@ -1,0 +1,144 @@
+{
+  "skill_path": ".claude/skills/skill-bootstrap/SKILL.md",
+  "skill_id": "skill-bootstrap",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Existing library covers the outcome",
+      "input": "Bootstrap skills for this repo. It already has a change-control skill that covers our PR route, and the review threads show no new corrections there. What happens to change control? Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "reuse",
+        "existing",
+        "no new skill",
+        "evidence"
+      ],
+      "expected_gate": "skill-bootstrap-reuse-before-create",
+      "rationale": "A lens with no verified friction gets no skill. Reuse or compose the existing skill instead of authoring a duplicate."
+    },
+    {
+      "id": "S2",
+      "desc": "Session history is incomplete",
+      "input": "Build this repo's skill library. Copilot sessions exist, but the Codex and Gemini stores are not on this machine and skillopt is not installed. How do you report session coverage? Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "UNAVAILABLE",
+        "not proof",
+        "documented",
+        "coverage"
+      ],
+      "expected_gate": "skill-bootstrap-incomplete-history",
+      "rationale": "Missing retrieval is reported as unavailable evidence, never as absence of history, and no store location is invented."
+    },
+    {
+      "id": "S3",
+      "desc": "Output name collides with an existing skill",
+      "input": "Bootstrap skills. The plan proposes snafu-change-control, but .claude/skills/snafu-change-control already exists and the user did not authorize changing it. What do you do? Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "conflict",
+        "bootstrap_boundary.py plan",
+        "--update",
+        "never overwrite"
+      ],
+      "expected_gate": "skill-bootstrap-output-conflict",
+      "rationale": "The plan subcommand exits 1 on a conflict. The run renames, gets authorization for --update, or drops the skill."
+    },
+    {
+      "id": "S4",
+      "desc": "GitHub source with Azure DevOps pipelines and Boards",
+      "input": "Capture project workflow knowledge. Source and PRs are on GitHub, required checks run in Azure Pipelines, and work items live in Azure Boards. How should the workflow route a blocked PR? Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "each role",
+        "authoritative",
+        "required check",
+        "evaluated revision"
+      ],
+      "expected_gate": "skill-bootstrap-mixed-platform-routing",
+      "rationale": "Hosting roles resolve independently. A GitHub-merged PR is blocked by required check contexts matched to the evaluated revision, even when Azure Pipelines runs the check."
+    },
+    {
+      "id": "S5",
+      "desc": "Known IDs remove repeated discovery",
+      "input": "Bootstrap skills. Agents rediscover the Azure DevOps project GUID, repository GUID, and build definition ID on every task. What goes into the workflow skill? Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "known ID",
+        "read back",
+        "value type",
+        "task context"
+      ],
+      "expected_gate": "skill-bootstrap-known-id-reuse",
+      "rationale": "Stable verified IDs live beside the instruction with their scope and type. Run IDs and active iterations stay in task context."
+    },
+    {
+      "id": "S6",
+      "desc": "Optimization requested without a scored eval",
+      "input": "Build this repo's skill library and optimize every new skill with skillopt. We have no scored eval set. Context-optimizer has not run yet. What order and outcome? Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "context-optimizer",
+        "before",
+        "NOT RUN",
+        "held-out"
+      ],
+      "expected_gate": "skill-bootstrap-optimizer-order",
+      "rationale": "context-optimizer runs first. Without a frozen, scored, held-out evaluation, skillopt is reported as NOT RUN, never invented."
+    },
+    {
+      "id": "S7",
+      "desc": "Tracker link versus text mention",
+      "input": "Bootstrap skills. Agents write 'blocked by #812' in the work item description and assume the dependency exists. What should the workflow require? Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "stored relationship",
+        "direction",
+        "read-back",
+        "text mention"
+      ],
+      "expected_gate": "skill-bootstrap-tracker-link-semantics",
+      "rationale": "A text mention creates no stored link. The workflow names the relationship direction, API form, and read-back check."
+    },
+    {
+      "id": "S8",
+      "desc": "Installing the skill is not a request to run it",
+      "input": "I just installed the project-toolkit plugin, which includes skill-bootstrap. Should anything run now? Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "Installation starts no bootstrap campaign and generates no library. Only an explicit request starts a run."
+    },
+    {
+      "id": "S9",
+      "desc": "Release routing",
+      "input": "Bootstrap skills. Agents keep copying the release steps and the current version number into notes, and they confuse publishing with deploying. What should the release workflow skill do? Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "release guide",
+        "build",
+        "publish",
+        "version"
+      ],
+      "expected_gate": "skill-bootstrap-release-routing",
+      "rationale": "Route to the repository-owned release guide and executable definition, separate build, promote, publish, deploy, and adoption, and keep version numbers out of durable skill text."
+    },
+    {
+      "id": "S10",
+      "desc": "Request for a friction ledger",
+      "input": "Build this repo's skill library, and also keep a friction ledger file that records every correction we found. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "no ledger",
+        "workflow skill",
+        "source reference",
+        "outcome"
+      ],
+      "expected_gate": "skill-bootstrap-no-record-infrastructure",
+      "rationale": "The skill creates no ledger, registry, or per-fact database. A lesson lands in the workflow skill that changes the next action, with a source reference."
+    },
+    {
+      "id": "S11",
+      "desc": "Repository renders skills from templates",
+      "input": "Bootstrap skills for a repo where every SKILL.md under .claude/skills is generated from templates/skills and a build overwrites hand edits. Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "stop",
+        "ask",
+        "--also-allow",
+        "proposals"
+      ],
+      "expected_gate": "skill-bootstrap-canonical-source-conflict",
+      "rationale": "Writing generated copies breaks the canonical source rule, and writing templates breaks the declared boundary. The run stops and asks the user to authorize the canonical paths or accept proposals only."
+    }
+  ]
+}

@@ -44,6 +44,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import stat
 import subprocess
@@ -69,6 +70,9 @@ DEFAULT_MIN_FREE_GIB = 2.0
 DEFAULT_TEMP_ROOT = Path("/tmp")
 _BYTES_PER_GIB = 1024**3
 _GIT_TIMEOUT_SECONDS = 10
+# Cap on unreadable paths named in the report, so a host with many locked
+# directories prints a bounded line count.
+_MAX_NAMED_UNREADABLE = 5
 
 RULE_CITATION = ".claude/rules/universal.md MUST NOT 6 (git worktrees MUST be external)"
 
@@ -93,6 +97,8 @@ class TempReport:
     worktrees: list[TempWorktree] = field(default_factory=list)
     git_listing_failed: bool = False
     unreadable_entries: int = 0
+    unreadable_paths: list[str] = field(default_factory=list)
+    foreign_entries: int = 0
 
     @property
     def free_space_low(self) -> bool:
@@ -151,6 +157,30 @@ def worktree_marker_state(candidate: Path) -> str:
     except OSError:
         return MARKER_UNREADABLE
     return MARKER_WORKTREE if first_line.startswith("gitdir:") else MARKER_NOT_WORKTREE
+
+
+def is_foreign_owned(candidate: Path) -> bool:
+    """True when another user owns ``candidate``.
+
+    The caller applies this only to entries whose ``.git`` marker is unreadable.
+    Hosts running systemd or snapd keep root-owned mode 0700 directories directly under
+    the temp root (``systemd-private-*`` from systemd, ``snap-private-tmp`` from
+    snapd). The marker stat
+    inside them raises ``PermissionError`` for every other user, which made the
+    gate ``BLOCKED`` with ``entries.unreadable`` on every run (issue #6487). An
+    unreadable marker inside a directory another user owns can never be
+    classified by this user's scan, and this user cannot move the directory, so
+    it is disclosed by count rather than treated as a hole in the scan.
+    A stat failure or a platform without ``getuid`` answers False: the entry
+    then stays unreadable, never silently skipped.
+    """
+    getuid = getattr(os, "getuid", None)
+    if getuid is None:
+        return False
+    try:
+        return bool(candidate.stat().st_uid != getuid())
+    except OSError:
+        return False
 
 
 def is_worktree_dir(candidate: Path) -> bool:
@@ -256,7 +286,11 @@ def scan_temp_root(
             continue
         marker_state = worktree_marker_state(entry)
         if marker_state == MARKER_UNREADABLE:
-            report.unreadable_entries += 1
+            if is_foreign_owned(entry):
+                report.foreign_entries += 1
+            else:
+                report.unreadable_entries += 1
+                report.unreadable_paths.append(str(entry))
             continue
         report.examined += 1
         if marker_state != MARKER_WORKTREE:
@@ -301,6 +335,28 @@ def build_report(
     )
 
 
+def _unreadable_lines(report: TempReport) -> list[str]:
+    """Report lines for unexaminable entries; only unreadable markers are named, bounded."""
+    lines: list[str] = []
+    if report.unreadable_entries:
+        lines.append(
+            f"tmp-worktrees: {report.unreadable_entries} entry/entries under "
+            f"{report.temp_root} were unreadable and were not examined."
+        )
+        named = report.unreadable_paths[:_MAX_NAMED_UNREADABLE]
+        lines.extend(f"  unreadable: {path}" for path in named)
+        hidden = len(report.unreadable_paths) - len(named)
+        if hidden > 0:
+            lines.append(f"  ... and {hidden} more")
+    if report.foreign_entries:
+        lines.append(
+            f"tmp-worktrees: {report.foreign_entries} entry/entries under "
+            f"{report.temp_root} are owned by another user and were not examined "
+            "(their .git marker could not be read)."
+        )
+    return lines
+
+
 def format_report(report: TempReport) -> str:
     """Render the human-readable report. Always names the examined count."""
     lines: list[str] = []
@@ -333,11 +389,7 @@ def format_report(report: TempReport) -> str:
             "tmp-worktrees: git worktree list failed; the registered half of this "
             "report is incomplete (the filesystem half still ran)."
         )
-    if report.unreadable_entries:
-        lines.append(
-            f"tmp-worktrees: {report.unreadable_entries} entry/entries under "
-            f"{report.temp_root} were unreadable and were not examined."
-        )
+    lines.extend(_unreadable_lines(report))
 
     free_note = (
         f"{report.free_bytes / _BYTES_PER_GIB:.2f} GiB free"

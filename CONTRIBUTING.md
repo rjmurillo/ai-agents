@@ -574,10 +574,15 @@ hooks are fine.
   command. It proves Git will run a hook that dispatches Lefthook, which an
   executable but inert hook would not.
 
-Neither gate proves the shim resolves the binary the first gate started. On
-Windows the generated shim omits the configured `uv run --frozen lefthook`
-runner and resolves through `PATH`, so the two can disagree. See
-`scripts/validation/checks_plugin.py`.
+Neither gate executes the shim. Unless `LEFTHOOK_BIN` is set, the shim does
+resolve the binary the first gate starts, on every platform: Lefthook renders
+one template, which calls the configured `lefthook_runner.py`, and the runner
+tries `uv run --frozen lefthook`, then `lefthook` on `PATH` or in
+`node_modules/.bin`, then exits 3 with a diagnosis. `tests/test_lefthook_integration.py`
+pins the shim's order (`LEFTHOOK_BIN`, the runner, its own unreachable `PATH`
+fallback, named `lefthook.exe` on Windows) on Linux, macOS, and Windows CI, and
+runs the installed shim on POSIX to record which binary the runner picks
+(issue #5491).
 
 CI skips both local-clone checks because workflows invoke validation directly.
 Run `uv run --frozen lefthook check-install` by hand when you want the checksum
@@ -878,7 +883,9 @@ Routine version bumps do not require an ADR edit. See `.serena/memories/copilot/
 
 ### PR Description Validation
 
-The `Validate PR` workflow runs `scripts/validation/pr_description.py` to compare files mentioned in the PR description against files in the diff. Inline-code filenames (`` `path/file.py` ``) in `## Summary` and similar sections are treated as change claims; if those files are not in the diff the validator emits a `CRITICAL` issue and the workflow fails.
+The `Validate PR` workflow runs `scripts/validation/pr_description.py` to compare files mentioned in the PR description against files in the diff. Paths under a change heading (`## Changes`, `## What changed`, `## Per-file changes`, `## Files Changed`, `## Changed Files`) are change claims, whether inline code, bold, list items, or links. With no change heading, bold and list-item paths anywhere are claims. If a claimed file is not in the diff the validator emits a `CRITICAL` issue and the workflow fails.
+
+Check a body before the PR opens with `uv run --frozen python -I scripts/validation/pr_description.py --body-file <path> --base origin/main`. It reads the local diff, makes no network call, and exits 1 on the same `CRITICAL` finding.
 
 #### Contextual Reference Sections
 
@@ -899,7 +906,7 @@ The validator strips these sections before extracting file mentions, so any inli
 
 #### Bypassing Description Validation
 
-For PRs where the contextual section allowlist does not fit (e.g. inline pattern reference inside `## Summary`), ask a human maintainer to apply the `description-validation-bypass` label. Do not apply it yourself.
+For PRs where the contextual section allowlist does not fit (e.g. a bold or bulleted path in a body with no change heading), ask a human maintainer to apply the `description-validation-bypass` label. Do not apply it yourself.
 
 1. A human maintainer MUST add the `description-validation-bypass` label (case-insensitive match)
 2. The validator still runs and prints all issues for visibility, but exits 0

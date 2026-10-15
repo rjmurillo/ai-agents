@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reject commits in a push range whose author/committer matches the placeholder denylist.
+"""Reject commits in a push range whose author/committer is on the placeholder denylist.
 
 Prevents the test@test.com leak pattern (issue #2466) from reaching
 origin. Pytest fixtures occasionally write placeholder identities into

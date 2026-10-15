@@ -4,6 +4,7 @@ description: CEO of the product, strategic product owner who defines what to bui
 metadata:
   role: strategic
 argument-hint: Describe the product area, feature set, or strategic question
+disallowedTools: Agent
 ---
 
 # Roadmap Agent

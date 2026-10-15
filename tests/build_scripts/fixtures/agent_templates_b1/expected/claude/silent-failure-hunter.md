@@ -4,6 +4,7 @@ description: Use this agent when reviewing code changes in a pull request to ide
 metadata:
   role: executor
 argument-hint: Point to the PR, diff, or files whose error handling to audit
+disallowedTools: Agent
 ---
 
 # Silent Failure Hunter Agent

@@ -4,6 +4,7 @@ description: Documentation specialist who writes PRDs, explainers, and technical
 metadata:
   role: support
 argument-hint: Name the feature, concept, or topic to document
+disallowedTools: Agent
 ---
 
 # Explainer Agent
