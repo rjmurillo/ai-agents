@@ -193,6 +193,11 @@ ignores:
   - "src/cursor/skills/spec-generator/references/spec-step0-gates.md"
   - "src/cursor/skills/spec-generator/references/spec-prior-art-schema.md"
 
+  # Hermes packs (ADR-115) are byte copies of src/claude/skills content, so the
+  # lint findings in them are the source files' own. Linting the copy would
+  # report each one a second time, in a tree no one edits.
+  - "src/hermes/**"
+
   # XML specification document stored with .md extension for GitHub rendering.
   # The file is valid XML (skill specification schema), not authored Markdown.
   # Its 4-space-indented XML structure produces false-positive MD046 violations

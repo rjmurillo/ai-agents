@@ -27,6 +27,9 @@ _FRONTMATTER_FENCE_RE = re.compile(r"\A---\r?\n|^---\r?\n\Z", re.MULTILINE)
 # the colon. Group 2 is the key name. Its value lines are found by
 # `_drop_key_lines`, not by this pattern.
 _TOP_LEVEL_KEY_RE = re.compile(r"""^(["']?)([^\s"':#][^"':]*?)\1[ \t]*:(?:[ \t]|$)""")
+# A whole SKILL.md: fenced frontmatter (group 1, fences included) and the body.
+# Same shape `copilot_body_translation` splits on.
+_SKILL_MD_RE = re.compile(r"\A(---\r?\n.*?\r?\n---\r?\n)(.*)\Z", re.DOTALL)
 
 
 def drop_frontmatter_keys(frontmatter: str, keys: frozenset[str]) -> str:
@@ -45,6 +48,20 @@ def drop_frontmatter_keys(frontmatter: str, keys: frozenset[str]) -> str:
     result = _drop_key_lines(frontmatter, keys)
     _check_only_keys_dropped(frontmatter, result, keys)
     return result
+
+
+def drop_keys_from_skill_md(content: str, keys: frozenset[str]) -> str:
+    """Return a whole ``SKILL.md`` with the named frontmatter keys removed.
+
+    The body passes through byte for byte. Hermes (ADR-115 Decision 6) wants no
+    body rewrite, only a frontmatter cut. Raises ValueError when the file has no
+    fenced frontmatter, because a skill without one cannot load in Hermes, and
+    when the cut would change any other key (see :func:`drop_frontmatter_keys`).
+    """
+    match = _SKILL_MD_RE.match(content)
+    if match is None:
+        raise ValueError("SKILL.md has no fenced frontmatter")
+    return drop_frontmatter_keys(match.group(1), keys) + match.group(2)
 
 
 def _names_listed_key(text: str, keys: frozenset[str]) -> bool:

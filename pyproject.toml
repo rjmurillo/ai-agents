@@ -88,6 +88,7 @@ markers = [
     "copilot: Real-CLI tests that need the copilot CLI and its credential. The CLI smoke selects them on the copilot matrix leg.",
     "codex: Real-CLI tests that need the codex CLI and no credential. The CLI smoke selects them on the codex job.",
     "grok: Real-CLI tests that need the grok CLI and no credential. No CI leg selects them yet; they run locally under RUN_CLI_E2E=1.",
+    "hermes: Real-CLI tests that need the hermes CLI at the pinned commit and no credential. Run them with RUN_CLI_E2E=1.",
     "pi: Real-CLI tests that need the pi CLI and no credential. The CLI smoke selects them on the pi job.",
     "cursor: Real-CLI tests that need the cursor-agent CLI and a Cursor login for the host leg. No CI leg selects them; they run locally under RUN_CLI_E2E=1.",
     "windows_path: Tests that exercise Windows path handling and must run on a Windows runner.",
@@ -200,6 +201,9 @@ ignore = []
 # moment the file enters a changed-set.
 "src/copilot-cli/hooks/**/*.py" = ["E", "F", "W", "I", "N", "UP", "B", "ANN", "RUF100"]
 "src/copilot-cli/skills/**/*.py" = ["E", "F", "W", "I", "N", "UP", "B", "ANN", "RUF100"]
+# Hermes packs (ADR-115) hold byte copies of the .claude skill scripts and the
+# rendered lib, so the linted sources above are the copy that matters.
+"src/hermes/**/*.py" = ["E", "F", "W", "I", "N", "UP", "B", "ANN", "RUF100"]
 "packages/**/*.py" = ["ANN", "E501"]
 # The skillbook schema checker validates values of arbitrary JSON type;
 # `Any` is the honest annotation for an instance the checker will narrow.

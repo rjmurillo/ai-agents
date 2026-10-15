@@ -6,8 +6,8 @@ directory (one whose top-level entry contains a ``SKILL.md``) into the
 configured output directory. Honors NO-REGEN sentinels (REQ-003-008) and
 the AGENTS.md/CLAUDE.md exclude policy (REQ-003-010).
 
-Mode supported: ``directory-copy`` (whole tree). Other modes raise
-:class:`ValueError`.
+Modes supported: ``directory-copy`` (whole tree) and ``hermes-packs``
+(ADR-115 Decision 6, rendered by ``hermes_packs.py``). Other modes exit 2.
 
 Before the copy loop, :func:`generate_skills` runs
 ``skill_templates.compile_all`` (ADR-108, "Template-Owned Skill Files Under
@@ -51,6 +51,7 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_SCRIPT_DIR))
 
 import skill_templates  # noqa: E402
+from hermes_packs import generate_hermes_packs  # noqa: E402
 from lib_mirror import lib_owned_support_files  # noqa: E402
 from skill_distribution import SkillDistributionError, repo_local_names  # noqa: E402
 
@@ -251,9 +252,15 @@ def generate_skills(
         return 2
 
     mode = str(stanza.get("mode", "directory-copy"))
+    if mode == "hermes-packs":
+        # The Hermes tree reads src/claude/skills, which the compile and
+        # support-file mirror above just refreshed, and owns all of src/hermes.
+        # int(...): same sibling-import typing gap as compile_result above.
+        return int(generate_hermes_packs(stanza, repo_root, what_if=what_if, check=validate))
     if mode != "directory-copy":
         print(
-            f"Error: unsupported skills mode '{mode}' (only 'directory-copy' implemented)",
+            f"Error: unsupported skills mode '{mode}' "
+            "(implemented: 'directory-copy', 'hermes-packs')",
             file=sys.stderr,
         )
         return 2

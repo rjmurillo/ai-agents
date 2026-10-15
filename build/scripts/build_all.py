@@ -250,7 +250,9 @@ def _build_skills(
         result.inputs = sum(1 for _ in src.glob("*/SKILL.md"))
     if out.is_dir():
         # Count skill targets, not every nested file. One SKILL.md per output.
-        result.outputs = sum(1 for _ in out.glob("*/SKILL.md"))
+        # A Hermes pack nests its skills one level deeper (ADR-115 Decision 6).
+        pattern = "*/skills/*/SKILL.md" if stanza.get("mode") == "hermes-packs" else "*/SKILL.md"
+        result.outputs = sum(1 for _ in out.glob(pattern))
     return result
 
 

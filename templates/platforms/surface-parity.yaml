@@ -419,6 +419,15 @@ surfaces:
     include: ["CLAUDE.md"]
     reason: Per-package guide authored in place.
 
+  # ---- Hermes packs (ADR-115 Decision 6) ----------------------------------
+  - id: skills-hermes-packs
+    path: src/hermes
+    relation: generated
+    authority: src/claude/skills
+    generator: build/scripts/hermes_packs.py
+    owner: build_all.py --check
+    reason: Skills split across packs under the Hermes install cap; SKILL.md drops metadata, allowed-tools, and the model keys. Each pack also carries a byte-identical copy of the shared lib packages (lib_render.render_lib_files), its plugin.json, and the README index; one generator owns the whole tree, so no second row covers lib/.
+
   # ---- Prompts ------------------------------------------------------------
   - id: prompts-pr-quality-gate
     path: .github/prompts

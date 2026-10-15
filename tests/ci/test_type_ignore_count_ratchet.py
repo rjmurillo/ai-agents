@@ -187,6 +187,16 @@ class TestGeneratedLibMirrorExclusion:
         """Only the three mirrored package dirs are excluded, not the whole tree."""
         assert ratchet._is_generated_lib_mirror(".claude/lib/paths.py") is False
 
+    @pytest.mark.parametrize(
+        "rel",
+        [
+            "src/hermes/project-toolkit-delivery/lib/github_core/api.py",
+            "src/hermes/project-toolkit-knowledge/lib/ai_review_common/retry.py",
+        ],
+    )
+    def test_hermes_paths_are_not_excluded_by_name(self, rel: str) -> None:
+        assert ratchet._is_generated_lib_mirror(rel) is False
+
     def test_exclusion_is_load_bearing(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -232,6 +242,9 @@ class TestGeneratedSkillMirrorExclusion:
                 "src/copilot-cli/skills/review/scripts/run.py",
                 ".claude/skills/review/scripts/run.py",
             ),
+            ("src/hermes/project-toolkit-delivery/skills/review/scripts/run.py", None),
+            ("src/hermes/project-toolkit-delivery/plugin.json", None),
+            ("src/hermes/not-a-pack/skills/review/scripts/run.py", None),
             (".claude/skills/review/scripts/run.py", None),
             ("scripts/authored/run.py", None),
         ],

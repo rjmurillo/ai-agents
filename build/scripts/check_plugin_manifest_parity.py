@@ -68,6 +68,8 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 _MANIFESTS: tuple[Path, ...] = (
     _REPO_ROOT / "src" / "copilot-cli" / ".claude-plugin" / "plugin.json",
     _REPO_ROOT / "src" / "cursor" / ".cursor-plugin" / "plugin.json",
+    _REPO_ROOT / "src" / "hermes" / "project-toolkit-delivery" / "plugin.json",
+    _REPO_ROOT / "src" / "hermes" / "project-toolkit-knowledge" / "plugin.json",
     _REPO_ROOT / "src" / "codex" / "plugin.json",
 )
 
