@@ -23,8 +23,7 @@ upstream SDK-specific content and adds the safety invariants below.
 
 ## Triggers
 
-`maintainer decision on this PR`, `should I merge or close this`,
-`run maintainer-review on this PR`, `is this PR worth merging`
+`maintainer decision on this PR`, `run maintainer-review on this PR`
 
 ## Routing: disposition gate, not quality gate
 
