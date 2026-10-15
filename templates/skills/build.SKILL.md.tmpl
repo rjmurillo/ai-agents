@@ -61,8 +61,8 @@ translation:
 ### Phase 0: Existing-PR check (issue work)
 
 Before branching for an issue, run `check_existing_pr_for_issue.py --issue <N>`
-(github skill). Exit `1`: an open PR claims it; stop, report
-it, continue on that PR. Exit `2`, `3`, `4`: failure, not a clear.
+(github skill; `gh_unusable`: MCP PR search). Exit `1`: an open PR claims it;
+stop, report it, use that PR. Exit `2`-`4`: failure, not a clear.
 
 ### Phase 1: Assess complexity
 
