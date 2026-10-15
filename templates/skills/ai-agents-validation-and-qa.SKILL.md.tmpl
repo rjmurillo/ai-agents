@@ -34,6 +34,7 @@ Audience: a zero-context contributor (human or model) about to write, run, or sk
 | Measure drift, budgets, telemetry, coverage trends | `ai-agents-diagnostics-toolkit` |
 | Probe an external tool's runtime behavior empirically | `ai-agents-empirical-probe-toolkit` |
 | Understand which gates a change class triggers | `ai-agents-change-control` |
+| Decide whether two pieces of evidence are independent, or whether a named check ran | `evidence-provenance` |
 | Session-log mechanics beyond the QA row | `.claude/rules/session-logs.md` |
 
 ## Process
@@ -154,6 +155,7 @@ session log.
 - [ ] All git-mutating tests isolated in `tmp_path` repos (the #2316 guard will fail you otherwise).
 - [ ] Prove collection: `uv run pytest PATH --collect-only -q` shows your tests; then run them; then run the coverage pin form from Phase 4 on changed files.
 - [ ] Run `uv run python scripts/validation/pre_pr.py` before the PR (the local shift-left aggregate; see `ai-agents-change-control` for the full gate ladder).
+- [ ] Save the `pre_pr.py` output and its exit code to a file, then distill the file with `distill_artifact.py` (usage: context-optimizer skill, Tool Details: Distill Artifact), and use the digest to locate failures; search the raw log for any detail it omits.
 
 ## Anti-Patterns
 

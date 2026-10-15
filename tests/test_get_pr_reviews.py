@@ -228,6 +228,9 @@ class TestMain:
         [
             ("server error", 3),
             ("Could not resolve not found", 2),
+            ("gh: Not Found (HTTP 404)", 2),
+            ("GraphQL: Could not resolve to a PullRequest", 2),
+            ("Could not resolve host: api.github.com", 3),
             ("not logged in", 4),
         ],
     )

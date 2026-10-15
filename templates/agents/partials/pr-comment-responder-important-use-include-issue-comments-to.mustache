@@ -6,6 +6,13 @@ COUNT_FILE=".project-toolkit/pr-comments/PR-[number]/total_comments.txt"
 mkdir -p "$(dirname "$COUNT_FILE")"
 printf '%s\n' "$TOTAL_COMMENTS" > "$COUNT_FILE"
 
+# Record the comment IDs beside the count, sorted. Counts cannot see a
+# duplicate-plus-missing or delete-plus-add pair, so every gate also diffs the
+# map's `### Comment <id>` headers against this list.
+IDS_FILE=".project-toolkit/pr-comments/PR-[number]/comment_ids.txt"
+( set -o pipefail; printf '%s' "$COMMENTS" | jq -r '.Comments[].Id' | LC_ALL=C sort > "$IDS_FILE" ) \
+  || { echo "[BLOCKED] Cannot record comment IDs from the payload"; exit 1; }
+
 # Returns all comments with: Id, CommentType (Review/Issue), Author, Path, Line, Body, DiffHunk, CreatedAt, InReplyToId
 ```
 
@@ -46,6 +53,12 @@ echo "Total comments: $TOTAL_COMMENTS (Review: $REVIEW_COMMENT_COUNT, Issue: $IS
 COUNT_FILE=".project-toolkit/pr-comments/PR-[number]/total_comments.txt"
 mkdir -p "$(dirname "$COUNT_FILE")"
 printf '%s\n' "$TOTAL_COMMENTS" > "$COUNT_FILE"
+
+# Record the comment IDs beside the count, sorted. Same artifact as the
+# preferred path, so every gate reconciles the map against it.
+IDS_FILE=".project-toolkit/pr-comments/PR-[number]/comment_ids.txt"
+( set -o pipefail; printf '%s\n%s\n' "$ALL_REVIEW_COMMENTS" "$ALL_ISSUE_COMMENTS" | jq -r '.[].id' | LC_ALL=C sort > "$IDS_FILE" ) \
+  || { echo "[BLOCKED] Cannot record comment IDs from the payload"; exit 1; }
 ```
 
 </details>

@@ -563,11 +563,12 @@ if [ "$AUTO_MERGE" != "null" ] && [ "$TIER_TRUSTED_T1" != "yes" ]; then
     else
         echo "Auto-merge armed on non-T1 PR #$PR (method: $AUTO_MERGE); disabling before acting."
     fi
-    # No --output-format here. set_pr_auto_merge.py registers no such option,
-    # so argparse exited 2 before the mutation ran and this gate took its
-    # failure branch on every armed non-T1 PR, leaving auto-merge armed (issue
-    # #5551). The script already prints the AutoMergeEnabled object the
-    # verification checklist asks for, with no flag needed.
+    # No --output-format needed here. set_pr_auto_merge.py once registered no
+    # such option, so argparse exited 2 before the mutation ran and this gate
+    # took its failure branch on every armed non-T1 PR, leaving auto-merge
+    # armed (issue #5551). The script now accepts the flag, and the default
+    # already prints the AutoMergeEnabled object the verification checklist
+    # asks for.
     if run_pr_mutation_if_live \
         python3 "$SCRIPTS_DIR/set_pr_auto_merge.py" \
         --pull-request "$PR" --disable; then
@@ -857,7 +858,7 @@ returns `ESCALATE`, stop and hand off instead of requesting another review.
 
 ## Fix Patterns
 
-- **CI-failure triage step 1 (issue #5073)**: for every failing check name, run `triage_red_check.py --check-name "<name>" --pull-request {pr}` before any log reading or local investigation. `RED_ON_MAIN` (exit 1) means the failure is inherited from main: cite the `EvidenceUrl` main run, do not debug the PR, and re-run checks after main recovers. `GREEN_ON_MAIN` (exit 0) means the PR introduced it: proceed to logs. `UNKNOWN` (exit 3) is a probe failure, never evidence of green.
+- **CI-failure triage step 1 (issue #5073)**: for every failing check name, run `triage_red_check.py --check-name "<name>" --pull-request {pr}` before any log reading or local investigation. `RED_ON_MAIN` (exit 1) means the failure is inherited from main: cite the `EvidenceUrl` main run, do not debug the PR, and re-run checks after main recovers. `GREEN_ON_MAIN` (exit 0) means the PR introduced it: proceed to logs. `PR_ONLY` (exit 3) means the check never reports on main (a pull_request-only job), so it cannot be inherited: read the PR run with `gh run view <run-id> --log-failed`, and widen `--history-depth` only for path-filtered or scheduled workflows. `CANCELLED_ON_MAIN` (exit 3) means main holds only cancelled or stale runs for the name, so there is no completed evidence: rerun the `EvidenceRunId` run with `gh run rerun <run-id>` and probe again. `UNKNOWN` (exit 3) is a probe failure, never evidence of green.
 - **PR description mismatch**: Remove file references not in the diff (use GitHub API to PATCH body).
 - **Branch behind main**: Run each base refresh command through the late live-state wrapper:
 
@@ -881,7 +882,7 @@ returns `ESCALATE`, stop and hand off instead of requesting another review.
       --expected-base-sha "$EXPECTED_BASE_SHA"
   ```
 
-- **Armed auto-merge + final thread**: `add_pr_review_thread_reply.py --resolve` posts the reply, disables armed auto-merge when that thread is the final unresolved one, then resolves the thread. If the guard cannot prove the unresolved count, the script exits 3 after posting the reply and leaves the thread unresolved so GitHub cannot merge before the completion gate. If the PR is no longer open or its head SHA, base ref, or base SHA differs from the expected identity, the script makes no mutation (exit 1 before the reply) or leaves the thread unresolved and auto-merge untouched (exit 1 or 3 after the reply), so a stale session cannot disarm auto-merge.
+- **Armed auto-merge + final thread**: `add_pr_review_thread_reply.py --resolve` posts the reply, disables armed auto-merge when that thread is the final unresolved one, then resolves the thread. If the guard cannot prove the unresolved count, the script exits 3 after posting the reply and leaves the thread unresolved so GitHub cannot merge before the completion gate. If the PR is no longer open or its head SHA, base ref, or base SHA differs from the expected identity, the script makes no mutation (exit 1 before the reply) or leaves the thread unresolved and auto-merge untouched (exit 1 or 3 after the reply), so a stale session cannot disarm auto-merge. Every envelope after the reply carries `reply_posted` (true) and `thread_resolved` (false) as separate fields. When `reply_posted` is true, do not run the script again for that thread: a retry posts a second reply. Never resolve that thread outside this script: `resolve_pr_review_thread.py` has no auto-merge guard or identity check. On any non-zero exit after the reply, report the exit code and `reply_posted`, leave the thread unresolved, and hand off to a human.
 - **Session validation failure**: Hand-edit the log to satisfy the session-log schema, then re-validate it.
 
 ## Force-Push Safety
@@ -992,8 +993,11 @@ python3 "$SCRIPTS_DIR/check_pr_round_cap.py" --pull-request {pr} --output-format
 # starting any local investigation, ask whether the same check is red on
 # origin/main. Exit 0 = green on main (the PR introduced it; investigate the
 # PR). Exit 1 = red on main (inherited; cite Data.EvidenceUrl and fix or wait
-# out main instead of debugging the PR). Exit 3 = cannot determine (probe
-# failure is not absence; never treat UNKNOWN as green).
+# out main instead of debugging the PR). Exit 3 = cannot determine; read
+# Data.Verdict. PR_ONLY: the check never reports on main, so read the PR run
+# with `gh run view <run-id> --log-failed`. CANCELLED_ON_MAIN: main has only
+# cancelled or stale runs, so `gh run rerun <run-id>` the Data.EvidenceRunId
+# run. UNKNOWN: probe failure is not absence; never treat it as green.
 python3 "$SCRIPTS_DIR/triage_red_check.py" --check-name "<failing check name>" --pull-request {pr}
 
 # Stale bot CHANGES_REQUESTED review (issue #5950). Read-only classifier: exit 0

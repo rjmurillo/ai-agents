@@ -615,6 +615,20 @@ class TestCheckExistingMain:
                 code = exc.code
         assert code == 1
 
+    def test_preflight_runs_rest_only_because_every_call_is_gh_api(self):
+        """No GraphQL here, so a GraphQL-only refusal must not abort (issue #5693)."""
+        run = _gh_dispatch(user=_proc(0, "alice\n"), pulls=_proc(0, json.dumps([[]])))
+        with (
+            patch.object(_check, "assert_gh_authenticated", return_value=None) as preflight,
+            patch.object(_check, "resolve_repo_params") as resolve,
+            patch.object(_check, "current_branch", return_value=""),
+            patch.object(_check.subprocess, "run", side_effect=run),
+        ):
+            resolve.return_value.owner = "o"
+            resolve.return_value.repo = "r"
+            _check.main(["--issue", "5", "--output-format", "json"])
+        preflight.assert_called_once_with(rest_only=True)
+
     def test_api_error_is_not_reported_as_no_pr(self):
         # A failed gh pulls call must surface an external error, never a clean
         # "no PR". Dispatch by command so the pulls failure, not a misordered

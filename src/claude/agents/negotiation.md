@@ -4,6 +4,7 @@ description: Negotiation specialist who analyzes offers, drafts counter-proposal
 metadata:
   role: support
 argument-hint: Paste the offer text or describe the negotiation situation
+disallowedTools: Agent
 ---
 
 # Negotiation Agent

@@ -61,6 +61,7 @@ from github_core.api import (
     resolve_repo_params,
     sanitize_failure_detail,
 )
+from github_core.not_found import is_pr_not_found
 from github_core.output import (
     add_output_format_arg,
     write_skill_error,
@@ -76,7 +77,6 @@ _DEFAULT_WAIT_SECONDS = 120
 # Matched case-insensitively against the gh stdout and stderr of a failed PUT.
 _HEAD_MOVED_MARKERS = ("expected head sha",)
 _UP_TO_DATE_MARKERS = ("no new commits",)
-_NOT_FOUND_MARKERS = ("not found", "could not resolve to a pullrequest")
 
 # Injection points for tests; production uses the real clock.
 _monotonic = time.monotonic
@@ -252,7 +252,7 @@ def _fail_lookup(result: subprocess.CompletedProcess[str], ctx: _Context) -> NoR
             ctx.output_format,
             ctx.pr,
         )
-    if _has_marker(text, _NOT_FOUND_MARKERS):
+    if is_pr_not_found(text):
         _emit_error(
             f"PR #{ctx.pr} not found in {ctx.repo_flag}",
             2,
@@ -352,7 +352,7 @@ def _fail_update(
             ctx.output_format,
             ctx.pr,
         )
-    if _has_marker(text, _NOT_FOUND_MARKERS):
+    if is_pr_not_found(text):
         _emit_error(
             f"PR #{ctx.pr} not found in {ctx.repo_flag} when updating",
             2,

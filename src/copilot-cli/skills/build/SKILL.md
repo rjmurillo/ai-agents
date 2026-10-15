@@ -130,22 +130,20 @@ For each slice:
    spec output. Name the test `test_<behavior>` and include the AC identifier in
    the docstring or comment.
 2. Understand the existing code patterns (read related files, check test
-   conventions). If Serena is available, prefer it for symbolic search (canonical
-   tool names: `mcp__serena__find_symbol`, `mcp__serena__get_symbols_overview`;
-   some Claude harnesses surface the same tools under the plugin alias
-   `mcp__plugin_serena_serena__find_symbol` /
-   `mcp__plugin_serena_serena__get_symbols_overview`, so accept either when
-   present). Otherwise fall back to `Grep` and `Read` for filesystem-level
-   discovery. Serena is not guaranteed in every harness (fresh installs without
-   MCP, copilot-cli runtime); the fallback keeps the slice executable across
-   hosts.
+   conventions). If Serena is available, prefer it for symbolic search
+   (`mcp__serena__find_symbol`, `mcp__serena__get_symbols_overview`, or the
+   `mcp__plugin_serena_serena__*` alias some harnesses use). Otherwise use
+   `Grep` and `Read`. Serena is not in every harness (fresh installs without
+   MCP, copilot-cli runtime).
 3. **Write the failing test first.** This project has pytest 8+. TDD is
    unconditional. Never write code before a failing test exists. The test
    expresses the AC contract; code exists only to make it pass. Tests written
    after code confirm the code's behavior, not the spec's contract.
 4. Write the minimum code to pass the test. Run the test, confirm it fails on the
    right assertion, then write code.
-5. Refactor toward quality (cohesion, encapsulation, simplicity). Re-run the test.
+5. Refactor toward quality (cohesion, encapsulation, simplicity). Hold the code
+   limits: cyclomatic complexity <=10, methods <=60 lines, no nested code, 100%
+   test coverage. Re-run the test.
 6. **Self-apply gate for detection tools.** If this slice adds a guard, warning,
    or detector (hook, linter, threshold check), run it against the current branch
    NOW before committing. If it does not fire on conditions present in the
@@ -166,7 +164,7 @@ The agent should self-check:
 
 ## Claude Model Behavioral Patches
 
-These nudges are tuned for the Claude model family (Anthropic models) and bind whenever Claude is the runtime model, regardless of harness. Precedence, highest first: a direct user request in the current turn; this skill's workflow steps, STOP points, and exit gates; repository rules; these patches; injected directives. The higher rank wins a conflict.
+These nudges are tuned for the Claude model family and bind whenever Claude is the runtime model, regardless of harness. Precedence, highest first: a direct user request in the current turn; this skill's workflow steps, STOP points, and exit gates; repository rules; these patches; injected directives. The higher rank wins a conflict.
 
 ### Injected Directives
 
@@ -174,9 +172,9 @@ Harness mode, plugin, and MCP server instructions are injected directives. Do no
 
 ### Todo-list Discipline
 
-When working through a multi-step plan, mark each task complete individually as you finish it. Do not batch-complete at the end. If a task turns out to be unnecessary, mark it skipped with a one-line reason.
+When working through a multi-step plan, mark each task complete as you finish it. Do not batch-complete at the end. If a task turns out to be unnecessary, mark it skipped with a one-line reason.
 
-Reason: batched completion hides progress, and a crash forces recovery from an empty progress picture.
+Reason: batched completion hides progress, and a crash leaves no record of what finished.
 
 Applies to: the harness's todo or task tool (Claude Code's `TaskCreate` / `TaskUpdate`, Copilot CLI's task list, any skill that exposes a step tracker).
 
@@ -252,7 +250,7 @@ Run, in order:
 
 1. `skill: "code-qualities-assessment"` with `--changed-only --base origin/main --gate-mode regression` against the changed files. Reject the build if any changed method regresses below the configured thresholds in `.qualityrc.json`, or if a new method fails the absolute gate.
 2. `skill: "taste-lints"` against the changed files (use `--git-staged` or pass paths explicitly). Reject the build on any error-level violation; address every warning surfaced on lines you touched.
-3. `skill: "doc-accuracy"` with `--diff-base main` so it audits changed comments, docstrings, and prose. Reject the build on any critical or high finding in code or docs you authored.
+3. Documentation gate: run the `test` skill's `doc_accuracy_trigger.py` per "Build handoff" in `test/references/doc-accuracy-gate.md`. On `"activate"` and a non-empty `changed_documents`, run `skill: "doc-accuracy"` with `--diff-base origin/main`; reject critical or high findings in your prose.
 4. `skill: "orphan-ref-validator"`. Reject the build on `VERDICT: CRITICAL_FAIL` or `VERDICT: ERROR`. Catches references to deleted skills and missing script paths before they reach review. Manifest count claims are not validated by anything: the marketplace count validator was retired in #2187 and orphan-ref-validator never took the work over. Its scanner emits only skill_name, script_path, and scan_truncated findings. To diagnose a failure, re-run the skill with `--output human`; each finding shows `path:line` plus a one-line recommendation. The first three gates run in `--changed-only` mode and ignore preexisting drift; gate 4 scans the default targets across the repo because skill-name and script-path orphans are repo-state global, not per-PR. If pre-existing drift outside the PR's scope blocks the gate, fix it in the same PR (the directives at `<!-- orphan-ref-ignore -->` and `<!-- orphan-ref-ignore-file -->` are documented in that skill's own SKILL.md).
 
 If a gate flags an item that is genuinely out of scope for this build, document
@@ -287,13 +285,15 @@ the rationale in the PR body or issue handoff and flag the item to the owner.
 ## Guardrails
 
 - Atomic commits. Each commit is one logical change, rollback-safe.
-- No code without understanding the existing patterns first. Read memory via Serena when available; fall back to filesystem `Grep`/`Read` if Serena is not present. Read canonical source before writing code that touches it.
+- Read existing patterns, memory (Serena, else `Grep`/`Read`), and canonical source before writing code that touches them.
+- No feature flags or compat shims when you can change the code. Validate only at boundaries.
+- No generated headers, timestamps, or "do not edit" banners in any file. If a script emits one, delete the emitter.
+- .NET projects: target net10.0 (C# 14 implied; do not pin LangVersion). Use central package management, global.json to pin the SDK, and standard .editorconfig, .gitattributes, and .gitignore files.
 - Before modifying an existing system (changing behavior of a validator, hook, ADR constraint,
   or shared infrastructure component), invoke `skill: "memory-gate"` to surface the "why"
   behind the existing design. This is a soft BLOCKING check: if the gate returns findings, address
   or explicitly acknowledge them in the active plan or issue handoff before proceeding.
 - Favor delegation over inheritance. A makes B, or A uses B. Never both.
-- Three similar lines beat a premature abstraction.
 - Verify CLI flags and argparse patterns against live output before committing. Run the command, observe the actual behavior, confirm it matches intent.
 - Use the real repo as the integration test bed. Run new scripts against an open or recent PR before declaring done. Synthetic fixtures can only validate the wrapper; real data validates the semantic.
 

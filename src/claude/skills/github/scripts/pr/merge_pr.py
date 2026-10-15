@@ -81,6 +81,7 @@ from github_core.api import (
     resolve_repo_params,
     sanitize_failure_detail,
 )
+from github_core.not_found import is_pr_not_found
 from github_core.output import (
     add_output_format_arg,
     write_skill_error,
@@ -91,8 +92,6 @@ from github_core.placeholder_identity import filter_coauthor_trailers
 _SCRIPT_NAME = "merge_pr.py"
 # Script-specific exit code per ADR-035 (100+), documented in the header above.
 _EXIT_NOT_MERGEABLE = 100
-# Matched case-insensitively against the stdout and stderr of a failed PR view.
-_NOT_FOUND_MARKERS = ("could not resolve to a pullrequest", "not found")
 # gh reports a missing repository as "Could not resolve to a Repository".
 # A wrong repository never resolves on retry, so it is a config error (ADR-035).
 _REPO_NOT_FOUND_MARKER = "could not resolve to a repository"
@@ -332,16 +331,6 @@ def _emit_error(
     raise SystemExit(code)
 
 
-def _is_not_found(gh_output: str) -> bool:
-    """Return True when failed gh output says the PR does not exist.
-
-    gh reports a missing PR as "Could not resolve to a PullRequest", not
-    "not found", so both markers are matched case-insensitively.
-    """
-    lowered = gh_output.lower()
-    return any(marker in lowered for marker in _NOT_FOUND_MARKERS)
-
-
 def _is_repo_not_found(gh_output: str) -> bool:
     """Return True when failed gh output says the repository does not exist."""
     return _REPO_NOT_FOUND_MARKER in gh_output.lower()
@@ -381,7 +370,7 @@ def _fetch_pr_state(
                 output_format,
                 pr,
             )
-        if _is_not_found(combined):
+        if is_pr_not_found(combined):
             # Keep gh's words: a 404 from a wrong host or repo also lands here.
             _emit_error(
                 f"PR #{pr} not found in {repo_flag}: {sanitize_failure_detail(combined)}",
@@ -1340,8 +1329,9 @@ def _resolve_strategy(
     try:
         repo_settings = get_allowed_merge_methods(repo_flag)
     except (RuntimeError, ValueError) as exc:
-        if _is_not_found(str(exc)):
+        if is_pr_not_found(str(exc)):
             # repos/<owner>/<repo> answers 404 only when the repository is absent.
+            # The REST "Not Found" wording is the one marker the classifier shares.
             _emit_error(
                 f"Repository {repo_flag} not found: {sanitize_failure_detail(str(exc))}",
                 2,

@@ -12,6 +12,7 @@ from unittest.mock import patch
 
 from scripts.validation.pre_pr import main
 from tests.validation.pre_pr_main_helpers import (
+    RunBackedPopen,
     healthy_git_run,
     sequence_with_passing_corpus_gates,
 )
@@ -27,6 +28,7 @@ class TestMain:
         "pre_pr_sequence._SEQUENCE",
         new_callable=sequence_with_passing_corpus_gates,
     )
+    @patch("subprocess.Popen", new=RunBackedPopen)
     @patch("subprocess.run")
     @patch("shutil.which")
     def test_quick_mode_skips_slow_checks(
@@ -46,6 +48,7 @@ class TestMain:
         "pre_pr_sequence._SEQUENCE",
         new_callable=sequence_with_passing_corpus_gates,
     )
+    @patch("subprocess.Popen", new=RunBackedPopen)
     @patch("subprocess.run")
     @patch("shutil.which")
     def test_all_pass_returns_zero(

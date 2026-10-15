@@ -28,6 +28,12 @@ try:
 finally:
     sys.path[:] = _original_sys_path
 
+# Env vars a parent session may export that point the CLI under test at a different
+# plugin tree. The CLI smokes strip them before spawning the CLI.
+PLUGIN_ROOT_ENV_KEYS = frozenset(
+    {"CLAUDE_PLUGIN_ROOT", "CLAUDE_PROJECT_DIR", "COPILOT_PLUGIN_ROOT"}
+)
+
 # Prefix of a skip reason for budget exhaustion only (owner decision D26): a
 # spent Copilot monthly quota (HTTP 402) or a spent Claude credit balance. The
 # Copilot and Claude CI legs pass it to

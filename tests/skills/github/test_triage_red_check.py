@@ -340,7 +340,7 @@ class TestRedOnMain:
 
 
 class TestUnknown:
-    def test_check_never_observed_exits_three_not_green(self):
+    def test_check_never_observed_is_pr_only_not_green(self):
         response = history_response(
             [
                 commit_node("aaa", [check_run("Other Check", "SUCCESS")]),
@@ -350,16 +350,16 @@ class TestUnknown:
         rc, envelope = _run_main(_single_response(response))
         assert rc == 3
         data = envelope["Data"]
-        assert data["Verdict"] == "UNKNOWN"
+        assert data["Verdict"] == "PR_ONLY"
         assert data["Reason"] == "not_observed_on_branch"
         assert data["Verdict"] != "GREEN_ON_MAIN"
         assert data["CommitsExamined"] == 2
 
-    def test_empty_rollup_on_every_commit_is_unknown(self):
+    def test_empty_rollup_on_every_commit_is_pr_only(self):
         response = history_response([commit_node("aaa", None), commit_node("bbb", None)])
         rc, envelope = _run_main(_single_response(response))
         assert rc == 3
-        assert envelope["Data"]["Verdict"] == "UNKNOWN"
+        assert envelope["Data"]["Verdict"] == "PR_ONLY"
 
     def test_incomplete_pagination_is_unknown_even_with_green_row_visible(self):
         # A green row in the fetched page must not produce GREEN when later
@@ -431,11 +431,205 @@ class TestUnknown:
         assert rc == 3
         assert envelope.get("Success") is False
 
-    def test_stale_only_rows_are_unknown(self):
-        response = history_response([commit_node("aaa", [check_run("Run Python Tests", "STALE")])])
+    def test_skipped_only_rows_are_unknown(self):
+        response = history_response(
+            [commit_node("aaa", [check_run("Run Python Tests", "SKIPPED")])]
+        )
+        rc, envelope = _run_main(_single_response(response))
+        assert rc == 3
+        data = envelope["Data"]
+        assert data["Verdict"] == "UNKNOWN"
+        assert data["Reason"] == "no_completed_evidence"
+
+    def test_pending_only_rows_are_unknown(self):
+        response = history_response(
+            [commit_node("aaa", [check_run("Run Python Tests", "", status="IN_PROGRESS")])]
+        )
         rc, envelope = _run_main(_single_response(response))
         assert rc == 3
         assert envelope["Data"]["Verdict"] == "UNKNOWN"
+
+    def test_empty_history_is_unknown_not_pr_only(self):
+        rc, envelope = _run_main(_single_response(history_response([])))
+        assert rc == 3
+        data = envelope["Data"]
+        assert data["Verdict"] == "UNKNOWN"
+        assert data["Reason"] == "no_commits_examined"
+
+
+# ---------------------------------------------------------------------------
+# Verdicts: PR_ONLY and CANCELLED_ON_MAIN (exit 3, issue #6473)
+# ---------------------------------------------------------------------------
+
+
+class TestPrOnly:
+    def test_no_row_on_any_commit_is_pr_only_with_guidance(self):
+        response = history_response(
+            [commit_node("aaa", [check_run("Other", "SUCCESS")]), commit_node("bbb", None)]
+        )
+        rc, envelope = _run_main(
+            _single_response(response),
+            ["--check-name", "Validate PR", "--output-format", "json"],
+        )
+        assert rc == 3
+        data = envelope["Data"]
+        assert data["Verdict"] == "PR_ONLY"
+        assert data["EvidenceUrl"] is None
+        assert data["EvidenceRunId"] is None
+        assert data["EvidenceCommit"] is None
+        assert data["MatchedRows"] == []
+        assert "gh run view <run-id> --log-failed" in data["Guidance"]
+        assert "--history-depth" in data["Guidance"]
+
+    def test_incomplete_pagination_is_not_pr_only(self):
+        commits = [
+            {
+                "Oid": "aaa",
+                "CommittedDate": "2026-08-15T00:00:00Z",
+                "ContextNodes": [check_run("Other", "SUCCESS")],
+                "PagesComplete": False,
+            }
+        ]
+        result = triage(commits, "Validate PR")
+        assert result["Verdict"] == "UNKNOWN"
+        assert result["Reason"] == "contexts_incomplete"
+
+    def test_row_on_older_commit_beats_pr_only(self):
+        response = history_response(
+            [
+                commit_node("aaa", [check_run("Other", "SUCCESS")]),
+                commit_node("bbb", [check_run("Run Python Tests", "SUCCESS")]),
+            ]
+        )
+        rc, envelope = _run_main(_single_response(response))
+        assert rc == 0
+        assert envelope["Data"]["Verdict"] == "GREEN_ON_MAIN"
+
+    def test_status_context_row_means_not_pr_only(self):
+        response = history_response([commit_node("aaa", [status_context("ci/x", "PENDING")])])
+        rc, envelope = _run_main(
+            _single_response(response), ["--check-name", "ci/x", "--output-format", "json"]
+        )
+        assert rc == 3
+        assert envelope["Data"]["Verdict"] == "UNKNOWN"
+
+
+class TestCancelledOnMain:
+    def test_cancelled_only_rows_report_newest_run(self):
+        response = history_response(
+            [
+                commit_node("aaa", [check_run("Run Python Tests", "CANCELLED", run_id=300)]),
+                commit_node("bbb", [check_run("Run Python Tests", "CANCELLED", run_id=200)]),
+            ]
+        )
+        rc, envelope = _run_main(_single_response(response))
+        assert rc == 3
+        data = envelope["Data"]
+        assert data["Verdict"] == "CANCELLED_ON_MAIN"
+        assert data["Reason"] == "only_cancelled_runs"
+        assert data["EvidenceCommit"] == "aaa"
+        assert data["EvidenceRunId"] == 300
+        assert data["EvidenceUrl"] == _RUN_URL.format(run_id=300, job_id=1)
+        assert data["CommitsExamined"] == 2
+        assert "gh run rerun <run-id>" in data["Guidance"]
+        assert "--log-failed" in data["Guidance"]
+
+    def test_stale_only_rows_are_cancelled_on_main(self):
+        response = history_response([commit_node("aaa", [check_run("Run Python Tests", "STALE")])])
+        rc, envelope = _run_main(_single_response(response))
+        assert rc == 3
+        assert envelope["Data"]["Verdict"] == "CANCELLED_ON_MAIN"
+
+    def test_newest_commit_wins_and_highest_run_id_within_commit(self):
+        commits = [
+            {
+                "Oid": "aaa",
+                "CommittedDate": "2026-08-15T00:00:00Z",
+                "ContextNodes": [
+                    check_run("N", "CANCELLED", run_id=10),
+                    check_run("N", "STALE", run_id=40),
+                    check_run("N", "CANCELLED", run_id=20),
+                ],
+                "PagesComplete": True,
+            },
+            {
+                "Oid": "bbb",
+                "CommittedDate": "2026-08-14T00:00:00Z",
+                "ContextNodes": [check_run("N", "CANCELLED", run_id=99)],
+                "PagesComplete": True,
+            },
+        ]
+        result = triage(commits, "N")
+        assert result["Verdict"] == "CANCELLED_ON_MAIN"
+        assert result["EvidenceCommit"] == "aaa"
+        assert result["EvidenceRunId"] == 40
+
+    def test_cancelled_then_older_success_is_green(self):
+        response = history_response(
+            [
+                commit_node("aaa", [check_run("Run Python Tests", "CANCELLED", run_id=300)]),
+                commit_node("bbb", [check_run("Run Python Tests", "SUCCESS", run_id=200)]),
+            ]
+        )
+        rc, envelope = _run_main(_single_response(response))
+        assert rc == 0
+        assert envelope["Data"]["Verdict"] == "GREEN_ON_MAIN"
+
+    def test_cancelled_then_older_failure_is_red(self):
+        response = history_response(
+            [
+                commit_node("aaa", [check_run("Run Python Tests", "CANCELLED", run_id=300)]),
+                commit_node("bbb", [check_run("Run Python Tests", "FAILURE", run_id=200)]),
+            ]
+        )
+        rc, envelope = _run_main(_single_response(response))
+        assert rc == 1
+        assert envelope["Data"]["Verdict"] == "RED_ON_MAIN"
+
+    def test_cancelled_mixed_with_skipped_is_unknown(self):
+        response = history_response(
+            [
+                commit_node("aaa", [check_run("Run Python Tests", "CANCELLED", run_id=300)]),
+                commit_node("bbb", [check_run("Run Python Tests", "SKIPPED", run_id=200)]),
+            ]
+        )
+        rc, envelope = _run_main(_single_response(response))
+        assert rc == 3
+        assert envelope["Data"]["Verdict"] == "UNKNOWN"
+
+    def test_cancelled_run_without_url_builds_run_url(self):
+        response = history_response(
+            [
+                commit_node(
+                    "aaa",
+                    [check_run("Run Python Tests", "CANCELLED", run_id=300, with_url=False)],
+                )
+            ]
+        )
+        rc, envelope = _run_main(_single_response(response))
+        assert rc == 3
+        data = envelope["Data"]
+        assert data["EvidenceUrl"] == "https://github.com/o/r/actions/runs/300"
+
+    def test_incomplete_pagination_beats_cancelled(self):
+        commits = [
+            {
+                "Oid": "aaa",
+                "CommittedDate": "2026-08-15T00:00:00Z",
+                "ContextNodes": [check_run("N", "CANCELLED")],
+                "PagesComplete": False,
+            }
+        ]
+        result = triage(commits, "N")
+        assert result["Verdict"] == "UNKNOWN"
+        assert result["Reason"] == "contexts_incomplete"
+
+    def test_cancelled_never_exits_zero_or_one(self):
+        response = history_response(
+            [commit_node("aaa", [check_run("Run Python Tests", "CANCELLED")])]
+        )
+        rc, _ = _run_main(_single_response(response))
+        assert rc not in (0, 1)
 
 
 # ---------------------------------------------------------------------------
@@ -513,6 +707,31 @@ class TestEvaluateCommitRows:
         rc, envelope = _run_main(_single_response(response))
         assert rc == 0
         assert envelope["Data"]["Verdict"] == "GREEN_ON_MAIN"
+
+
+class TestSummary:
+    def test_pr_only_summary_warns_and_names_commits(self):
+        result = triage(
+            [{"Oid": "a", "CommittedDate": "d", "ContextNodes": [], "PagesComplete": True}], "V"
+        )
+        summary, status = _mod._summary("V", "main", result)
+        assert status == "WARNING"
+        assert "PR-only" in summary
+        assert "1 commits examined" in summary
+
+    def test_cancelled_summary_warns_and_cites_run(self):
+        commits = [
+            {
+                "Oid": "a",
+                "CommittedDate": "d",
+                "ContextNodes": [check_run("V", "CANCELLED", run_id=7)],
+                "PagesComplete": True,
+            }
+        ]
+        summary, status = _mod._summary("V", "main", triage(commits, "V"))
+        assert status == "WARNING"
+        assert "/runs/7/" in summary
+        assert "not green" in summary
 
 
 class TestTriageOutputShape:

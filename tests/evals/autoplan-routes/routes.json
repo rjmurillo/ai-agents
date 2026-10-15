@@ -54,6 +54,64 @@
       "rationale": "Positive api-doc-authoring activation (#5414); must not fall through to dx-review or the orchestrator."
     },
     {
+      "id": "lt-skillify-this",
+      "family": "long-tail-single-domain",
+      "request": "skillify this",
+      "expect": {
+        "kind": "specialist",
+        "route": "skillify",
+        "routes_absent": [
+          "skillforge",
+          "orchestrator"
+        ]
+      },
+      "rationale": "Positive skillify activation (#6578): the bare trigger must not fall through to skillforge or the orchestrator."
+    },
+    {
+      "id": "lt-skillify-save-as-skill",
+      "family": "long-tail-single-domain",
+      "request": "Save this as a skill.",
+      "expect": {
+        "kind": "specialist",
+        "route": "skillify",
+        "routes_absent": [
+          "skillforge",
+          "orchestrator"
+        ]
+      },
+      "rationale": "Positive skillify activation (#6578): `save this as a skill` resolves to skillify, not skillforge, and is not ambiguous."
+    },
+    {
+      "id": "lt-skillopt",
+      "family": "long-tail-single-domain",
+      "request": "Optimize this skill against an eval so we can compress these skills safely.",
+      "expect": {
+        "kind": "specialist",
+        "route": "skillopt",
+        "routes_absent": [
+          "orchestrator",
+          "skillforge",
+          "context-optimizer"
+        ]
+      },
+      "rationale": "Positive skillopt activation (#6579); measured optimization must not fall through to skillforge, context-optimizer, or the orchestrator."
+    },
+    {
+      "id": "lt-skill-bootstrap",
+      "family": "long-tail-single-domain",
+      "request": "Bootstrap skills for this repo so agents stop rediscovering our PR and release workflow.",
+      "expect": {
+        "kind": "specialist",
+        "route": "skill-bootstrap",
+        "routes_absent": [
+          "orchestrator",
+          "skillforge",
+          "codebase-documenter"
+        ]
+      },
+      "rationale": "Positive skill-bootstrap activation (#6580); a project library request must not fall through to single-skill authoring, doc scaffolding, or the orchestrator."
+    },
+    {
       "id": "lt-programming-advisor",
       "family": "long-tail-single-domain",
       "request": "Is there an existing library for parsing YAML before we build one?",

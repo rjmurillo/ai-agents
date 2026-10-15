@@ -226,7 +226,7 @@ workflow instead.
 ### Recover without a new commit
 
 1. Close the PR: `python3 "$SCRIPTS_DIR/pr/close_pr.py" --pull-request <PR_NUMBER> --comment "Close and reopen to re-fire pull_request workflows"`.
-2. Reopen it from the GitHub UI ("Reopen pull request"). The github skill has no PR reopen script.
+2. Reopen it: `python3 "$SCRIPTS_DIR/pr/reopen_pr.py" --pull-request <PR_NUMBER>`.
 3. Re-run `get_pr_checks.py` after a minute. `MissingRequiredChecks` should shrink to empty.
 
 Reopening fires the `reopened` pull_request event. Every active pull_request

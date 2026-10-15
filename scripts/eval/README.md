@@ -221,9 +221,11 @@ Copilot equivalent.
 | `eval-agents.py` | Agent definition quality assessment (standalone). | Complementary |
 | `eval-knowledge-integration.py` | Skill context value measurement (baseline vs enhanced). | Complementary |
 | `eval-skill-overlap.py` | Pairwise skill redundancy detection (DISTINCT / OVERLAP / SUBSUMED) for catalog pruning. | Complementary |
+| `skill_collision_report.py` | Offline full-catalog report of exact, normalized, truncation-sensitive, and near-duplicate skill names and descriptions. `--baseline` gates new high-confidence collisions. No model call. | #5763 |
 | `eval-rule-activation.py` | `.claude/rules/*.md` activation across baseline / description / full mechanisms. | Complementary |
 | `analyze-pr-churn.py` | Deterministic commit-churn classification across a PR cohort (degenerate vs control) to evaluate instruction/rule changes against historical PRs. No LLM; core in `_pr_churn.py`. | Complementary |
 | `eval-reviewer-asymmetry.py` | Statistical-significance test for `templates/agents/{critic,qa,implementer}.shared.md` reviewer-asymmetry framing. Fisher's exact (verdict-pass) + Mann-Whitney U (findings-count). | Complementary |
+| `eval_adr_review_catch_rate.py` | Replay defects already on record against the six adr-review roles on the pre-fix text and publish a per-role catch rate. Deterministic match rules, no judge model. Core in `_adr_catch_rate_core.py`. See `evals/adr-review-catch-rate/README.md`. | #5248, ADR-101 |
 | `eval-e2e-delivery.py` | End-to-end delivery eval (plan-rubric proxy). Feeds a vague germ, captures each agent's plan, LLM-judges it against hidden acceptance criteria. Core in `_e2e_delivery_core.py`. | #2859 |
 | `eval-model-sweep.py` | Sweep one agent's fixtures across candidate models; scored KEEP_PIN/DROP_PIN verdict with effect size, plus the lightest sufficient model for routing. Core in `_model_sweep_core.py`. | #2840 |
 | `eval_model_routing.py` | Roll per-model sweep reports for many agents and skills into `evals/model-routing/` routing tables. | #5883, #5889 |
@@ -251,7 +253,14 @@ A `billing_error` type also reports `error=billing`, at any status. Any other
 `eval-prompt-change.py` exits 4 (ADR-035, the credential cannot be used) on
 `error=billing`, so CI and agents can tell exit 4 ("fund the key") from exit 3
 (any other external or API failure). Exit 4 can arrive mid-run, after some
-calls succeeded. Billing is never a skippable provider outage.
+calls succeeded. Billing is never classified as a provider outage: the billing
+check runs first and exits 4.
+
+A provider outage also exits 3 (issue #6148). The match rules live in
+`_is_provider_outage` and are listed in ADR-057. The run prints
+`ERROR: provider unavailable` instead of passing without running. A caller
+that wants to tolerate an outage reads exit 3 and decides; the script never
+reports success when it could not run.
 
 ## Harness Capability Evidence
 
@@ -769,6 +778,24 @@ continuous metrics. See `evals/reviewer-asymmetry-spike/README.md`.
 
 Cost: ~$0.60 USD for 10 trials × 6 fixtures × 2 conditions = 120 calls.
 
+## adr-review Catch-Rate Eval
+
+`eval_adr_review_catch_rate.py` measures how often each adr-review role flags a
+defect that the ADR-100/101 debate later fixed. It feeds the ADR-101 Phase 2
+go/no-go (issues #5247 and #5248). The corpus, selection rule, arms, scoring
+strengths, and limits are in `evals/adr-review-catch-rate/README.md`.
+
+```bash
+# Check that every pre-fix commit is readable and count the calls. No model call.
+git fetch origin refs/pull/5181/head:refs/tmp/pr5181
+uv run python scripts/eval/eval_adr_review_catch_rate.py --validate-corpus --arms unassisted,assisted,control
+
+# Live run. Resume after a failure by repeating the command with the same --checkpoint.
+uv run python scripts/eval/eval_adr_review_catch_rate.py \
+    --arms unassisted,assisted --workers 4 \
+    --checkpoint /path/to/rows.jsonl --output /path/to/results.json
+```
+
 ## Rule Activation Eval
 
 `eval-rule-activation.py` measures whether a `.claude/rules/*.md` rule or a
@@ -959,7 +986,15 @@ uv run python scripts/eval/eval_autoplan_routes.py --model-results run.json
 
 The runner has no spend cap flag. `--dry-run` prints the call count first, and `--judge-repeats 1` cuts the plan to 72 calls. A scenario passes when its `full` cell score is at least 4.0 on the judge's 1 to 5 rubric (`full` puts the autoplan body in the system prompt, which is how autoplan runs).
 
-Each family reports `scenarios`, `reachable` (every named route is an installed skill or agent), `exercised` (the run has a result), `scored` (the cell was graded), and `passed` apart. Without `--model-results` the accuracy reads `not scored`, never zero. A model miss prints `MODEL-MISS` and does not change the exit code, so CI never gates on a judge. A failed resolver fixture still exits 1. The deterministic tests in `tests/eval/test_eval_autoplan_model_scenarios.py` load and validate the file and call no model. The per-route ratchet is #6291.
+Each family reports `scenarios`, `reachable` (every named route is an installed skill or agent), `exercised` (the run has a result), `scored` (the cell was graded), and `passed` apart. Without `--model-results` the accuracy reads `not scored`, never zero. A model miss prints `MODEL-MISS` and does not change the exit code, so CI never gates on a judge. A failed resolver fixture still exits 1. The deterministic tests in `tests/eval/test_eval_autoplan_model_scenarios.py` load and validate the file and call no model.
+
+### Route-change gate and scheduled run (#6291)
+
+Three pieces close the loop for a changed route:
+
+- `scripts/validation/check_route_scenario_coverage.py` diffs the `Intent | Route` table in `.claude/skills/autoplan/SKILL.md` against the merge base. A row that is new, or whose route text changed, needs a new or edited scenario in `autoplan.json` whose `expected_route` names one of the row's targets. A scenario counts as edited only when its `input`, `expected_route`, `expected_gate`, `expected_signals`, or `forbidden_routes` changes, so a rationale-only edit does not clear the failure. A row with no `Skill:`, `Agent:`, `subagent_type`, or `/command` target is satisfied by any edited scenario. A reworded intent with unchanged route text is a rename and is skipped. The failure names the route. Reproduce it locally with `python3 scripts/validation/check_route_scenario_coverage.py --base-ref origin/main`. Exit 1 means a route lacks a scenario, exit 2 means a bad input such as an unresolvable ref or a missing table.
+- `validate-rule-activation-coverage.yml` runs that gate on pull requests only, and runs `eval_autoplan_routes.py` without a model on every run as the fast subset (pull request, push to main, and `workflow_dispatch`, whenever the paths filter matches). The subset step has a 60 second budget and measures about 2 seconds.
+- `autoplan-route-eval.yml` runs the full model suite weekly and prints per-family accuracy to the job summary. A model miss stays advisory. The run fails when no results exist, when a resolver fixture fails, or when the results file cannot be read.
 
 ## Skill Overlap Eval
 
@@ -1002,6 +1037,71 @@ decommission (#5574). The example file targets the one surviving overlapping
 pair (`memory-enhancement`/`curating-memories`). A pair naming a deleted skill
 is not inert: `eval-skill-overlap.py` resolves every pair member to a skill
 directory before running and exits non-zero when one is missing.
+
+## Skill Collision Report
+
+`skill_collision_report.py` is the catalog-wide, offline sibling of the pairwise
+overlap eval. It reads every `.claude/skills/*/SKILL.md`, compares each unordered
+pair of skill names and descriptions, and reports collisions with stable sorting,
+the file paths, the compared text, the profile used, and a suggested fix.
+
+| Kind | Confidence | Meaning |
+|------|------------|---------|
+| `exact` | high | Identical text. |
+| `normalized` | high | Identical after NFKC, casefold, and punctuation collapse. |
+| `truncated-identical` | high | Not `exact` or `normalized` in full, but the normalized (NFKC, casefold, punctuation collapse) truncated prefixes are equal. A pair with only a `near` hit in full text still reports this kind. |
+| `near` | low | Token Jaccard at or above `--near-threshold` (default 0.8). Owner review only. |
+
+Truncation profiles (`--truncate N`, default 80, 160, 320) keep the first N
+characters of each description. They are controlled inputs, not measured limits of
+any model host. The script reads files only, so it cannot observe how a real
+harness abbreviates descriptions; the `assumptions` block in the JSON output says
+so. It claims no skill-selection accuracy.
+
+```bash
+uv run python scripts/eval/skill_collision_report.py                      # human report
+uv run python scripts/eval/skill_collision_report.py --format json        # machine-readable
+uv run python scripts/eval/skill_collision_report.py --truncate 100       # one custom profile
+uv run python scripts/eval/skill_collision_report.py --changed-since origin/main
+uv run python scripts/eval/skill_collision_report.py --only memory-enhancement
+```
+
+**Regression policy.** `--baseline scripts/eval/skill_collision_baseline.json`
+exits 1 when a high-confidence collision is missing from the reviewed `accepted`
+list. Each entry needs `kind`, `field`, `profile`, `skills` (two names), `reason`,
+and `owner`. `profile` is the finding's profile string (`full` or `chars:N`, such as
+`chars:80`), not the `--truncate` integer. `skills` are the skill directory names
+under the scanned root, not the frontmatter `name` when the two differ. Example:
+
+```json
+{"accepted": [{"kind": "truncated-identical", "field": "description",
+  "profile": "chars:80", "skills": ["skill-a", "skill-b"],
+  "reason": "Shared boilerplate prefix, tracked in #1234.", "owner": "team-name"}]}
+```
+
+Low-confidence `near` findings never fail the run. CI runs this gate in
+`skill-passive-compliance.yml` when that workflow's compliance job runs: a change to
+`.claude/skills/**/SKILL.md`, `src/copilot-cli/skills/**/SKILL.md`, `CLAUDE.md`,
+`AGENTS.md`, or the collision and budget scripts. The script scans `.claude/skills`
+by default, so a Copilot-tree `SKILL.md` change runs the job without being scanned.
+
+**Feeding the overlap eval.** Colliding skills group into clusters. Pass a pairs
+file that holds prompts for the skills you care about, and the script writes a pairs
+file with every within-cluster pair whose two skills have prompts:
+
+```bash
+uv run python scripts/eval/skill_collision_report.py \
+  --prompts-file scripts/eval/examples/overlap-pairs-issue-1949.json \
+  --emit-pairs /tmp/collision-pairs.json
+uv run python scripts/eval/eval-skill-overlap.py --pairs /tmp/collision-pairs.json --dry-run
+```
+
+The emitter exits 2 and writes nothing when the catalog has no cluster, or no
+cluster pair has prompts for both skills. Dry-run needs no provider credentials. A live semantic verdict still records the
+model and harness in `eval-skill-overlap.py`'s own report.
+
+Exit codes: 0 ok, 1 new high-confidence collision (only with `--baseline`; without it
+high findings print and the run exits 0), 2 config error, 3 git failure.
 
 ## Model Sweep Eval
 

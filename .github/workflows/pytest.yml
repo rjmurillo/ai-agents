@@ -130,7 +130,7 @@ jobs:
       contents: read
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@351661ca32ac09a36dc5ee2d536e3128f2a3c8ed # v2.22.0
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -170,7 +170,7 @@ jobs:
       contents: read
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@351661ca32ac09a36dc5ee2d536e3128f2a3c8ed # v2.22.0
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -196,7 +196,7 @@ jobs:
       contents: read
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@351661ca32ac09a36dc5ee2d536e3128f2a3c8ed # v2.22.0
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -235,7 +235,7 @@ jobs:
       BASE_REF: ${{ github.base_ref || github.event.repository.default_branch }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@351661ca32ac09a36dc5ee2d536e3128f2a3c8ed # v2.22.0
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -268,6 +268,46 @@ jobs:
         with:
           validator: check_whole_tree_count_ratchets_blocking
           job-status: ${{ job.status }}
+
+  mutation-harness-guard:
+    name: Run mutation harnesses (blocking)
+    # Issue #5538. tests/mutation/mutation_harness_*.py prove a guard test
+    # kills the defect it guards, and no gate ran them, so a stale selector
+    # (#5534) sat on main unreported. run_mutation_harnesses.py discovers the
+    # harnesses by glob and fails the job under the harness that produced the
+    # surviving mutant, the unapplied anchor, or the crash.
+    #
+    # Placement: CI only, not pre-push. The harnesses cost a few minutes in
+    # total and the pre-push declared budget is ratcheted
+    # (tests/ci/test_lefthook_declared_budget.py), so a pre-push job would
+    # need another job's cap cut to pay for it (ci-scripts.md MUST 16).
+    #
+    # No `needs:` and no `if:` on purpose, the same shape as
+    # zero-collection-guard. The job runs every harness, so a path filter
+    # could report green without measuring (issue #5317). `test-result`
+    # needs this job, so the existing "Run Python Tests" required context
+    # fails when a harness fails and no ruleset change is needed.
+    runs-on: ubuntu-26.04-arm
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup code environment
+        uses: ./.github/actions/setup-code-env
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+          enable-pester: false
+          enable-git-hooks: false
+
+      - name: Run mutation harnesses (blocking)
+        run: uv run --frozen --extra dev python scripts/ci/run_mutation_harnesses.py
 
   test:
     name: "pytest (${{ matrix.partition }})"
@@ -328,7 +368,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@351661ca32ac09a36dc5ee2d536e3128f2a3c8ed # v2.22.0
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -504,7 +544,7 @@ jobs:
           --fail-under=100
 
       - name: Upload test results
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: pytest-results-${{ matrix.partition }}
@@ -523,7 +563,7 @@ jobs:
       contents: read
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@351661ca32ac09a36dc5ee2d536e3128f2a3c8ed # v2.22.0
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -562,7 +602,7 @@ jobs:
           uv run --frozen coverage xml --data-file=artifacts/.coverage.combined -o artifacts/coverage.xml
 
       - name: Upload combined coverage
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: pytest-results
           path: artifacts/
@@ -640,7 +680,7 @@ jobs:
       contents: read
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@351661ca32ac09a36dc5ee2d536e3128f2a3c8ed # v2.22.0
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -734,7 +774,7 @@ jobs:
 
       - name: Upload duration report
         if: steps.duration-trend.outcome != 'skipped' && !cancelled()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: test-durations
           path: test-durations/
@@ -742,7 +782,8 @@ jobs:
 
   # Issue #6239 / ADR-104. Builds the pytest-testmon database the pre-push hook
   # downloads, so a developer's first push selects only what changed since main
-  # instead of running the whole suite to build one.
+  # instead of only collecting the suite and leaving every test to CI (issue
+  # #6200).
   #
   # Not part of the required chain. It is deliberately absent from `test-result`
   # needs: a slow, failed, or skipped seed must never change `Run Python Tests`.
@@ -778,7 +819,7 @@ jobs:
       contents: read
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@351661ca32ac09a36dc5ee2d536e3128f2a3c8ed # v2.22.0
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -820,7 +861,7 @@ jobs:
       # database is `.testmondata`.
       - name: Upload the testmon database
         if: ${{ !cancelled() && steps.build.outputs.complete == 'true' && hashFiles('.testmondata') != '' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.seed.outputs.name }}
           path: .testmondata
@@ -843,6 +884,7 @@ jobs:
       - line-endings-guard
       - context-output-guard
       - count-ratchet-guard
+      - mutation-harness-guard
     # !cancelled() rather than always(): a superseded run leaves its
     # dependencies 'cancelled', and always() would turn that into a red
     # required check on the PR head (Issue #5097). !cancelled() still runs on
@@ -875,6 +917,7 @@ jobs:
           LINE_ENDINGS_RESULT: ${{ needs.line-endings-guard.result }}
           CONTEXT_OUTPUT_RESULT: ${{ needs.context-output-guard.result }}
           COUNT_RATCHET_RESULT: ${{ needs.count-ratchet-guard.result }}
+          MUTATION_HARNESS_RESULT: ${{ needs.mutation-harness-guard.result }}
         run: >-
           python scripts/ci/require_job_results.py
           --check TEST_RESULT success "test job failed or was cancelled: {value}"
@@ -883,6 +926,7 @@ jobs:
           --check LINE_ENDINGS_RESULT success "line-endings-guard failed or was cancelled: {value}"
           --check CONTEXT_OUTPUT_RESULT success "context-output-guard failed or was cancelled: {value}"
           --check COUNT_RATCHET_RESULT success "count-ratchet-guard failed or was cancelled: {value}"
+          --check MUTATION_HARNESS_RESULT success "mutation-harness-guard failed or was cancelled: {value}"
 
       # ADR-113 decision 2: persist this job's typed result for the promotion gate.
       - name: Upload promotion evidence
@@ -905,7 +949,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@351661ca32ac09a36dc5ee2d536e3128f2a3c8ed # v2.22.0
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -961,13 +1005,13 @@ jobs:
           always() &&
           (github.event_name != 'pull_request' ||
           github.event.pull_request.head.repo.full_name == github.repository)
-        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d  # v4
+        uses: github/codeql-action/upload-sarif@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee  # v4
         with:
           sarif_file: bandit.sarif
           category: bandit
 
       - name: Upload Bandit results
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         if: always()
         with:
           name: bandit-results
@@ -1002,7 +1046,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@351661ca32ac09a36dc5ee2d536e3128f2a3c8ed # v2.22.0
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
