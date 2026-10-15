@@ -268,8 +268,8 @@ The workflow can exit early at several points:
 ## Related Documents
 
 - [Task Classification Guide](./task-classification-guide.md)
-- [Orchestrator Agent](../src/claude/orchestrator.md)
-- [Analyst Agent](../src/claude/analyst.md)
+- [Orchestrator Agent](../src/claude/agents/orchestrator.md)
+- [Analyst Agent](../src/claude/agents/analyst.md)
 
 ---
 

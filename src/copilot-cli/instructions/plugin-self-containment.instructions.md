@@ -14,7 +14,7 @@ Three directories ship as installable plugins. Nothing else in this repository r
 
 | Plugin root | Plugin name | Marketplace |
 |---|---|---|
-| `src/claude/` | `project-toolkit` | `.claude-plugin/marketplace.json` |
+| `src/claude/` | `project-toolkit` | `.claude-plugin/marketplace.json`, and `.grok-plugin/marketplace.json` for Grok Build |
 | `src/copilot-cli/` | `project-toolkit` | `.github/plugin/marketplace.json` |
 | `.claude/` | `project-toolkit` | not separately listed; binplaced dogfood copy of `src/claude/` |
 
@@ -106,7 +106,7 @@ Measured while writing this rule: 32 Markdown files inside the plugin roots carr
 
 Frontmatter is gated. `check_plugin_frontmatter_self_containment.py` holds `description` and `name` at zero undeclared outward file references across all three plugin roots. A `description` loads into every consumer session whether or not the skill is invoked, so a dangling path there is the most-read and least-useful kind.
 
-Body prose is not gated, and the ratchet that covers part of it covers less than its name suggests. `check_skill_md_portability.py` scans the `skills/` tree of every plugin root in `PLUGIN_ROOTS` (`.claude`, `src/claude`, `src/copilot-cli`), so `src/copilot-cli/skills` is inside it, not outside. It also scans three extra roots: the agent templates, the Copilot instructions mirror, and the rendered Claude rules tree. What sits outside is everything else, such as the rendered agent files under `src/claude/agents/` and `src/copilot-cli/agents/`. (`.claude/commands/` used to sit outside too, until ADR-064 retired it.) Its pattern set also has no `docs/` entry. That combination is how two `docs/` paths sat in shipped descriptions for months. `docs/agent-metrics.md` entered the `metrics` description on 2026-05-30 in #2136 (`817e466f82`); `docs/autonomous-pr-monitor.md` entered the `pr-autofix` description on 2026-05-25 in #2049 (`79867ca6ed`), under that command's pre-rename name `autofix-pr.md`. Both dates were wrong in an earlier draft of this rule, in both directions, and the reason generalizes: `git log -S` finds a string anywhere in a file, so a reference that lived in body prose for months reads as frontmatter provenance unless you open the historical file and look at the block. Check the field the claim is about, follow renames, and read the source file rather than its generated mirror. This rule shipped on 2026-07-26 and removed neither, because nothing in the repository read that surface until the frontmatter gate.
+Body prose is not gated, and the ratchet that covers part of it covers less than its name suggests. `check_skill_md_portability.py` scans the `skills/` tree of every plugin root in `PLUGIN_ROOTS` (`.claude`, `src/claude`, `src/copilot-cli`), so `src/copilot-cli/skills` is inside it, not outside. It also scans the six `EXTRA_SCAN_ROOTS`: the agent templates, the three rendered agent trees (`src/claude/agents`, `src/copilot-cli/agents`, `.github/agents`), the Copilot instructions mirror, and the rendered Claude rules tree. What sits outside is everything else, such as the unrendered `.tmpl` and `.mustache` agent sources. (`.claude/commands/` used to sit outside too, until ADR-064 retired it.) Its pattern set also has no `docs/` entry. That combination is how two `docs/` paths sat in shipped descriptions for months. `docs/agent-metrics.md` entered the `metrics` description on 2026-05-30 in #2136 (`817e466f82`); `docs/autonomous-pr-monitor.md` entered the `pr-autofix` description on 2026-05-25 in #2049 (`79867ca6ed`), under that command's pre-rename name `autofix-pr.md`. Both dates were wrong in an earlier draft of this rule, in both directions, and the reason generalizes: `git log -S` finds a string anywhere in a file, so a reference that lived in body prose for months reads as frontmatter provenance unless you open the historical file and look at the block. Check the field the claim is about, follow renames, and read the source file rather than its generated mirror. This rule shipped on 2026-07-26 and removed neither, because nothing in the repository read that surface until the frontmatter gate.
 
 Outward is relative to the root that ships the file, not to the directory name. `src/copilot-cli` ships its own `docs/` directory, so `docs/copilot-instructions.md` resolves for that plugin's consumer while the identical string under `.claude` resolves to nothing. The gate resolves every candidate against its owning root before reporting it, and a `../` prefix never counts as shipped even when the file exists one level up.
 
@@ -116,19 +116,26 @@ The remaining body surface is large. Counting it is matcher-dependent, so use th
 
 Two counting traps, both hit while measuring this. `.claude/worktrees/` holds nested checkouts of this same repository, so a naive walk multiplies every finding by the number of live agent worktrees; the same scan returned 1,557,567 before excluding them. The in-root worktree check from issue #4702 now reports them. And that body count reads the declaration the way the ratchets do, so a declared file contributes zero no matter how many references it carries.
 
-### Agent files are not scanned at all
+### Agent files are scanned in part
 
-Both portability gates scan skills only. `check_skill_portability.py` walks skill
-scripts and `check_skill_md_portability.py` walks `SKILL.md` bodies. Neither reads
-`src/claude/*.md`, `src/copilot-cli/agents/*.agent.md`, or `templates/agents/*.shared.md`,
-even though the first two sit inside plugin roots and ship to consumers verbatim.
+`check_skill_portability.py` walks skill scripts. `check_skill_md_portability.py`
+walks skill Markdown bodies and the six `EXTRA_SCAN_ROOTS`. Those hold the agent
+templates (since #3646) and the three rendered agent trees:
+`src/claude/agents`, `src/copilot-cli/agents`, and `.github/agents` (since #6484,
+issue #5689). `REQUIRED_EXTRA_ROOTS` makes the three output trees mandatory, so a
+missing or empty one fails the run. It reads only `.md` files, which covers
+`templates/agents/*.shared.md` and the rendered `*.agent.md` files. The
+`*.claude.md.tmpl` and `*.copilot.md.tmpl` files and the `partials/*.mustache`
+files are not read at the source. They render into the shipped agent bodies, so a
+path written in one is counted in each output tree it reaches. Issue #3465 closed
+as superseded by #3646.
 
-An agent prompt that tells the reader to open `.claude/agents/<name>.md` therefore
-ships into `src/copilot-cli/` with a path that resolves to nothing, and no gate
-objects. Issue #3465 tracks widening the ratchet and carries the per-surface
-measurement; this section records the working practice to follow until it lands.
+The remaining gap is the pattern set, not the roots. `UPSTREAM_PATTERNS` has no
+entry for `.claude/agents`. A path an agent prompt tells the reader to open, such as
+`.claude/agents/<name>.md`, resolves to nothing under `src/copilot-cli/`, and the scan
+reports it clean.
 
-Practical rule while the gap stands: **write shared agent prose without naming a
+Practical rule for the paths the patterns miss: **write shared agent prose without naming a
 tree-specific path.** Say "an agent registered in this install" rather than
 "a file at `.claude/agents/<name>.md`". The same body is copied into six trees
 across three plugin roots (`.claude/`, `src/claude/`, `src/copilot-cli/`, each of

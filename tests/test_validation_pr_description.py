@@ -188,7 +188,8 @@ class TestExtractMentionedFiles:
 
     def test_inline_code_with_line_suffix(self) -> None:
         """`path.py:NN` in backticks under Changes must be extracted (issue #4509)."""
-        desc = "## Changes\nSee `scripts/validation/pr_description.py:36` for details"
+        # citation-freshness: ignore -- fixture text, not a live citation
+        desc = "## Changes\nUpdated `scripts/validation/pr_description.py:36` for details"
         result = extract_mentioned_files(desc)
         assert "scripts/validation/pr_description.py" in result
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -40,6 +41,7 @@ dedupe_checks = _mod.dedupe_checks
 _exit_code = _mod._exit_code
 
 from scripts.github_core.checks_rollup import (  # noqa: E402
+    current_run_keys,
     extract_workflow_run_id,
     partition_rows_by_run,
 )
@@ -71,9 +73,11 @@ def _check(
     details="",
     run_id=None,
     run_attempt=None,
+    event=None,
 ):
     """Build a normalized check dict for dedupe tests."""
     return {
+        "WorkflowEvent": event,
         "Name": name,
         "Type": "CheckRun",
         "State": state,
@@ -323,7 +327,7 @@ class TestBuildOutput:
         check_data = {
             "Number": 42,
             "HasChecks": True,
-            "OverallState": "SUCCESS",
+            "AllState": "SUCCESS",
             "Checks": [
                 {
                     "Name": "build",
@@ -345,7 +349,7 @@ class TestBuildOutput:
         check_data = {
             "Number": 42,
             "HasChecks": True,
-            "OverallState": "FAILURE",
+            "AllState": "FAILURE",
             "Checks": [
                 {
                     "Name": "build",
@@ -367,7 +371,7 @@ class TestBuildOutput:
         check_data = {
             "Number": 42,
             "HasChecks": True,
-            "OverallState": "SUCCESS",
+            "AllState": "SUCCESS",
             "Checks": [
                 {
                     "Name": "required",
@@ -422,11 +426,29 @@ class TestMain:
             ),
             patch(
                 "get_pr_checks.gh_graphql",
-                side_effect=RuntimeError("Could not resolve PR"),
+                side_effect=RuntimeError(
+                    "Could not resolve to a PullRequest with the number of 999."
+                ),
             ),
         ):
             rc = main(["--pull-request", "999"])
         assert rc == 2
+
+    def test_transport_fault_returns_3(self, capsys):
+        """'Could not resolve host' is a network fault, not a missing PR."""
+        with (
+            patch("get_pr_checks.assert_gh_authenticated"),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_pr_checks.gh_graphql",
+                side_effect=RuntimeError("Could not resolve host: api.github.com"),
+            ),
+        ):
+            rc = main(["--pull-request", "999"])
+        assert rc == 3
 
     def test_all_passing_returns_0(self, capsys):
         gql_data = {
@@ -735,7 +757,7 @@ class TestMain:
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
         assert output["Data"]["HasChecks"] is False
-        assert output["Data"]["OverallState"] == "UNKNOWN"
+        assert output["Data"]["AllState"] == "UNKNOWN"
 
     def test_no_rollup_returns_unknown(self, capsys):
         """PR with no statusCheckRollup returns UNKNOWN state."""
@@ -1034,6 +1056,7 @@ class TestMain:
         assert rc == 7
         output = json.loads(capsys.readouterr().out)
         assert output["Data"]["ChecksIncomplete"] is True
+        assert output["Data"]["RequiredState"] == "UNKNOWN"
 
     def test_wait_genuine_no_checks_settles_immediately(self, capsys):
         """#2304: --wait settles missing rollups as real no-check PRs."""
@@ -1310,11 +1333,11 @@ class TestFetchChecks:
     def test_generic_api_error(self):
         with patch(
             "get_pr_checks.gh_graphql",
-            side_effect=RuntimeError("rate limit exceeded"),
+            side_effect=RuntimeError("upstream exploded"),
         ):
             result = fetch_checks("o", "r", 1)
         assert result["Error"] == "ApiError"
-        assert "rate limit" in result["Message"]
+        assert "upstream exploded" in result["Message"]
 
     def test_pr_none_in_response(self):
         with patch(
@@ -1348,7 +1371,7 @@ class TestFetchChecks:
         ):
             result = fetch_checks("o", "r", 1)
         assert result["HasChecks"] is False
-        assert result["OverallState"] == "UNKNOWN"
+        assert result["AllState"] == "UNKNOWN"
 
     def test_no_rollup(self):
         with patch(
@@ -1381,7 +1404,7 @@ class TestBuildOutputAdditional:
         check_data = {
             "Number": 42,
             "HasChecks": True,
-            "OverallState": "SUCCESS",
+            "AllState": "SUCCESS",
             "MergeState": "CONFLICTING",
             "Checks": [
                 _check("test", passing=True, required=True, conclusion="SUCCESS"),
@@ -1399,7 +1422,7 @@ class TestBuildOutputAdditional:
         check_data = {
             "Number": 42,
             "HasChecks": True,
-            "OverallState": "SUCCESS",
+            "AllState": "SUCCESS",
             "MergeState": "UNKNOWN",
             "Checks": [
                 _check("test", passing=True, required=True, conclusion="SUCCESS"),
@@ -1416,7 +1439,7 @@ class TestBuildOutputAdditional:
         check_data = {
             "Number": 42,
             "HasChecks": True,
-            "OverallState": "SUCCESS",
+            "AllState": "SUCCESS",
             "MergeState": "MERGEABLE",
             "MergeStateStatus": "DIRTY",
             "Checks": [
@@ -1435,7 +1458,7 @@ class TestBuildOutputAdditional:
         check_data = {
             "Number": 42,
             "HasChecks": True,
-            "OverallState": "SUCCESS",
+            "AllState": "SUCCESS",
             "MergeState": "MERGEABLE",
             "MergeStateStatus": None,
             "Checks": [
@@ -1455,7 +1478,7 @@ class TestBuildOutputAdditional:
         check_data = {
             "Number": 42,
             "HasChecks": True,
-            "OverallState": "SUCCESS",
+            "AllState": "SUCCESS",
             "MergeState": "MERGEABLE",
             "Checks": [
                 _check("test", passing=True, required=True, conclusion="SUCCESS"),
@@ -1474,7 +1497,7 @@ class TestBuildOutputAdditional:
         check_data = {
             "Number": 42,
             "HasChecks": True,
-            "OverallState": "SUCCESS",
+            "AllState": "SUCCESS",
             "Checks": [],
         }
         output = build_output(check_data, "o", "r")
@@ -1484,7 +1507,7 @@ class TestBuildOutputAdditional:
         check_data = {
             "Number": 42,
             "HasChecks": True,
-            "OverallState": "PENDING",
+            "AllState": "PENDING",
             "Checks": [
                 {
                     "Name": "build",
@@ -1512,7 +1535,7 @@ class TestBuildOutputAdditional:
         check_data = {
             "Number": 42,
             "HasChecks": True,
-            "OverallState": "FAILURE",
+            "AllState": "FAILURE",
             "Checks": checks,
         }
         output = build_output(check_data, "o", "r")
@@ -1532,7 +1555,7 @@ class TestBuildOutputAdditional:
         check_data = {
             "Number": 42,
             "HasChecks": True,
-            "OverallState": "PENDING",
+            "AllState": "PENDING",
             "Checks": checks,
         }
         output = build_output(check_data, "o", "r")
@@ -1544,7 +1567,7 @@ class TestBuildOutputAdditional:
         check_data = {
             "Number": 42,
             "HasChecks": False,
-            "OverallState": "UNKNOWN",
+            "AllState": "UNKNOWN",
             "Checks": [],
         }
         output = build_output(check_data, "o", "r")
@@ -1554,7 +1577,7 @@ class TestBuildOutputAdditional:
         check_data = {
             "Number": 42,
             "HasChecks": True,
-            "OverallState": "UNKNOWN",
+            "AllState": "UNKNOWN",
             "Checks": None,
         }
         output = build_output(check_data, "o", "r")
@@ -1565,7 +1588,7 @@ class TestBuildOutputAdditional:
         check_data = {
             "Number": 42,
             "HasChecks": True,
-            "OverallState": "UNKNOWN",
+            "AllState": "UNKNOWN",
             "Checks": {"Name": "build"},
         }
         with pytest.raises(ValueError, match="Checks must be a list"):
@@ -1856,7 +1879,7 @@ class TestSupersededCheckRuns:
 
         Reproduces PR #2289: ``Validate PR`` and ``Validate PR title`` each had
         a stale CANCELLED run alongside a fresh SUCCESS, both required. Before
-        the fix this exited 1 and reported OverallState=FAILURE; after dedupe
+        the fix this exited 1 and reported AllState=FAILURE; after dedupe
         the SUCCESS wins and the script reports AllPassing=true.
         """
         nodes = [
@@ -2638,6 +2661,113 @@ class TestPartitionRowsByRun:
         assert partition_rows_by_run([], "u") == []
 
 
+class TestCrossEventAggregation:
+    """Refs issue #6408: pull_request and push runs of one SHA are both current."""
+
+    def test_older_push_failure_beats_newer_pull_request_success(self):
+        checks = [
+            _check(
+                "Run Python Tests", failing=True, conclusion="FAILURE", run_id=100, event="push"
+            ),
+            _check(
+                "Run Python Tests",
+                passing=True,
+                conclusion="SUCCESS",
+                run_id=101,
+                event="pull_request",
+            ),
+        ]
+        result = dedupe_checks(checks)
+        assert len(result) == 1
+        assert result[0]["IsFailing"] is True
+        assert result[0]["WorkflowRunId"] == 100
+        assert result[0]["WorkflowEvent"] == "push"
+
+    def test_older_pull_request_pending_beats_newer_push_success(self):
+        checks = [
+            _check(
+                "Run Python Tests",
+                pending=True,
+                state="IN_PROGRESS",
+                run_id=100,
+                event="pull_request",
+            ),
+            _check(
+                "Run Python Tests", passing=True, conclusion="SUCCESS", run_id=101, event="push"
+            ),
+        ]
+        result = dedupe_checks(checks)
+        assert result[0]["IsPending"] is True
+        assert result[0]["IsPassing"] is False
+
+    def test_failing_beats_pending_across_events(self):
+        checks = [
+            _check("Run Python Tests", pending=True, state="IN_PROGRESS", run_id=101, event="push"),
+            _check(
+                "Run Python Tests",
+                failing=True,
+                conclusion="CANCELLED",
+                run_id=100,
+                event="pull_request",
+            ),
+        ]
+        result = dedupe_checks(checks)
+        assert result[0]["IsFailing"] is True
+
+    def test_rerun_within_one_event_supersedes_stale_failure(self):
+        checks = [
+            _check(
+                "Run Python Tests", failing=True, conclusion="FAILURE", run_id=100, event="push"
+            ),
+            _check(
+                "Run Python Tests", passing=True, conclusion="SUCCESS", run_id=102, event="push"
+            ),
+            _check(
+                "Run Python Tests",
+                passing=True,
+                conclusion="SUCCESS",
+                run_id=101,
+                event="pull_request",
+            ),
+        ]
+        result = dedupe_checks(checks)
+        assert len(result) == 1
+        assert result[0]["IsPassing"] is True
+        assert result[0]["IsFailing"] is False
+
+    def test_missing_event_keeps_latest_run_precedence(self):
+        checks = [
+            _check("Run Python Tests", failing=True, conclusion="FAILURE", run_id=100),
+            _check("Run Python Tests", passing=True, conclusion="SUCCESS", run_id=101),
+        ]
+        result = dedupe_checks(checks)
+        assert result[0]["IsPassing"] is True
+
+    def test_normalize_check_carries_workflow_event(self):
+        ctx = {
+            "__typename": "CheckRun",
+            "name": "Run Python Tests",
+            "status": "COMPLETED",
+            "conclusion": "FAILURE",
+            "checkSuite": {"workflowRun": {"databaseId": 7, "runAttempt": 1, "event": "push"}},
+        }
+        assert normalize_check(ctx)["WorkflowEvent"] == "push"
+
+
+class TestCurrentRunKeys:
+    def test_newest_key_per_event(self):
+        keys = current_run_keys(
+            [((1, 1), "push"), ((3, 1), "push"), ((2, 1), "pull_request"), ((2, 2), "pull_request")]
+        )
+        assert keys == {(3, 1), (2, 2)}
+
+    def test_none_event_shares_one_bucket(self):
+        assert current_run_keys([((1, 1), None), ((2, 1), None)]) == {(2, 1)}
+
+    def test_empty_input_yields_empty_set(self):
+        assert current_run_keys([]) == set()
+
+
 class TestSameRunSiblingAggregation:
     """Refs issue #4499: two jobs of one run must not mask each other."""
 
@@ -2800,6 +2930,522 @@ class TestSameRunSiblingAggregation:
 
 
 # ---------------------------------------------------------------------------
+# Tests: RequiredState vs AllState (issue #6396)
+# ---------------------------------------------------------------------------
+
+
+def _state_data(checks, *, all_state="FAILURE", **extra):
+    data = {"Number": 42, "HasChecks": True, "AllState": all_state, "Checks": checks}
+    data.update(extra)
+    return data
+
+
+class TestRequiredState:
+    def test_non_required_failure_keeps_required_state_success(self):
+        checks = [
+            _check("build", passing=True, required=True, conclusion="SUCCESS"),
+            _check("lint", failing=True, required=False, conclusion="FAILURE"),
+        ]
+
+        output = build_output(_state_data(checks), "o", "r")
+
+        assert output["AllState"] == "FAILURE"
+        assert output["RequiredState"] == "SUCCESS"
+        assert output["FailedRequiredChecks"] == []
+        assert "OverallState" not in output
+
+    def test_unstable_status_with_green_required_checks_stays_usable(self):
+        checks = [
+            _check("build", passing=True, required=True, conclusion="SUCCESS"),
+            _check("lint", failing=True, required=False, conclusion="FAILURE"),
+        ]
+        data = _state_data(checks, MergeState="MERGEABLE", MergeStateStatus="UNSTABLE")
+
+        output = build_output(data, "o", "r")
+
+        assert output["RequiredState"] == "SUCCESS"
+        assert output["MergeRefUsable"] is True
+        assert output["MergeStateWarning"] == ""
+
+    def test_required_failure_sets_required_state_failure(self):
+        checks = [
+            _check("build", failing=True, required=True, conclusion="FAILURE"),
+            _check("lint", passing=True, required=False, conclusion="SUCCESS"),
+        ]
+
+        output = build_output(_state_data(checks), "o", "r")
+
+        assert output["RequiredState"] == "FAILURE"
+        assert output["FailedRequiredChecks"] == ["build"]
+
+    def test_required_pending_sets_required_state_pending(self):
+        checks = [
+            _check("build", pending=True, required=True, state="IN_PROGRESS"),
+            _check("lint", failing=True, required=False, conclusion="FAILURE"),
+        ]
+
+        output = build_output(_state_data(checks, all_state="PENDING"), "o", "r")
+
+        assert output["RequiredState"] == "PENDING"
+
+    def test_required_failure_wins_over_required_pending(self):
+        checks = [
+            _check("build", failing=True, required=True, conclusion="FAILURE"),
+            _check("test", pending=True, required=True, state="IN_PROGRESS"),
+        ]
+
+        output = build_output(_state_data(checks), "o", "r")
+
+        assert output["RequiredState"] == "FAILURE"
+
+    def test_missing_required_context_sets_required_state_failure(self):
+        checks = [_check("build", passing=True, required=True, conclusion="SUCCESS")]
+
+        output = build_output(
+            _state_data(checks, all_state="SUCCESS"),
+            "o",
+            "r",
+            ruleset_contexts=["build", "never-ran"],
+        )
+
+        assert output["RequiredState"] == "FAILURE"
+
+    def test_no_checks_sets_required_state_unknown(self):
+        data = {"Number": 42, "HasChecks": False, "AllState": "UNKNOWN", "Checks": []}
+
+        output = build_output(data, "o", "r")
+
+        assert output["RequiredState"] == "UNKNOWN"
+
+    def test_incomplete_page_set_sets_required_state_unknown(self):
+        checks = [_check("build", passing=True, required=True, conclusion="SUCCESS")]
+
+        output = build_output(_state_data(checks, ChecksIncomplete=True), "o", "r")
+
+        assert output["RequiredState"] == "UNKNOWN"
+
+    def test_only_non_required_checks_sets_required_state_success(self):
+        checks = [_check("lint", failing=True, required=False, conclusion="FAILURE")]
+
+        output = build_output(_state_data(checks), "o", "r")
+
+        assert output["RequiredState"] == "SUCCESS"
+
+    def test_all_state_defaults_to_unknown_when_absent(self):
+        output = build_output({"Number": 42, "HasChecks": True, "Checks": []}, "o", "r")
+
+        assert output["AllState"] == "UNKNOWN"
+
+
+# Tests: queued vs absent required checks (issue #6389)
+# ---------------------------------------------------------------------------
+
+
+def _committed_at(age_seconds: int) -> str:
+    """ISO 8601 committedDate for a head commit made age_seconds ago."""
+    when = datetime.now(timezone.utc) - timedelta(seconds=age_seconds)
+    return when.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _aged_rollup(nodes, age_seconds, *, state="SUCCESS"):
+    """A rollup response whose head commit is age_seconds old."""
+    response = _rollup_response(nodes, state=state)
+    commit = response["repository"]["pullRequest"]["commits"]["nodes"][0]["commit"]
+    commit["committedDate"] = _committed_at(age_seconds)
+    return response
+
+
+_RUN_TESTS_OK = _check_run_node("Run Python Tests", "COMPLETED", "SUCCESS")
+_VALIDATE_OK = _check_run_node("Validate PR", "COMPLETED", "SUCCESS")
+_RULESET = ["Run Python Tests", "Validate PR"]
+_FRESH = 120
+_STALE = 7200
+
+
+class TestHeadCommitAge:
+    def test_unknown_when_missing_or_malformed(self):
+        from github_core.checks_rollup import head_commit_age_seconds
+
+        assert head_commit_age_seconds(None) is None
+        assert head_commit_age_seconds("") is None
+        assert head_commit_age_seconds("not-a-date") is None
+        assert head_commit_age_seconds(12345) is None
+
+    def test_unknown_when_naive_timestamp(self):
+        from github_core.checks_rollup import head_commit_age_seconds
+
+        assert head_commit_age_seconds("2026-10-12T10:00:00") is None
+
+    def test_age_from_zulu_timestamp(self):
+        from github_core.checks_rollup import head_commit_age_seconds
+
+        now = datetime(2026, 10, 12, 10, 10, 0, tzinfo=timezone.utc)
+        assert head_commit_age_seconds("2026-10-12T10:00:00Z", now) == 600.0
+
+    def test_future_date_clamps_to_zero(self):
+        from github_core.checks_rollup import head_commit_age_seconds
+
+        now = datetime(2026, 10, 12, 10, 0, 0, tzinfo=timezone.utc)
+        assert head_commit_age_seconds("2026-10-12T10:05:00Z", now) == 0.0
+
+    def test_default_grace_is_45_minutes(self):
+        from github_core.checks_rollup import MISSING_GRACE_SECONDS
+
+        assert MISSING_GRACE_SECONDS == 2700
+
+
+class TestMissingChecksQueued:
+    NOW = datetime(2026, 10, 12, 10, 0, 0, tzinfo=timezone.utc)
+
+    def test_inside_grace_is_queued(self):
+        from github_core.checks_rollup import missing_checks_queued
+
+        assert missing_checks_queued("2026-10-12T09:50:00Z", 2700, self.NOW) is True
+
+    def test_past_grace_is_absent(self):
+        from github_core.checks_rollup import missing_checks_queued
+
+        assert missing_checks_queued("2026-10-12T09:00:00Z", 2700, self.NOW) is False
+
+    def test_exact_boundary_is_absent(self):
+        from github_core.checks_rollup import missing_checks_queued
+
+        assert missing_checks_queued("2026-10-12T09:15:00Z", 2700, self.NOW) is False
+
+    def test_unknown_age_fails_closed(self):
+        from github_core.checks_rollup import missing_checks_queued
+
+        assert missing_checks_queued(None, 2700, self.NOW) is False
+
+    def test_zero_grace_disables_queued(self):
+        from github_core.checks_rollup import missing_checks_queued
+
+        assert missing_checks_queued("2026-10-12T09:59:59Z", 0, self.NOW) is False
+
+
+class TestQueuedMissingBuildOutput:
+    def _data(self, committed_at):
+        return {
+            "Number": 1,
+            "BaseBranch": "main",
+            "HasChecks": True,
+            "AllState": "SUCCESS",
+            "HeadCommittedAt": committed_at,
+            "Checks": [
+                _check(
+                    "Run Python Tests",
+                    passing=True,
+                    state="COMPLETED",
+                    conclusion="SUCCESS",
+                )
+            ],
+        }
+
+    def test_fresh_head_marks_missing_queued(self):
+        out = build_output(self._data(_committed_at(_FRESH)), "o", "r", False, _RULESET)
+        assert out["MissingRequiredChecks"] == ["Validate PR"]
+        assert out["MissingRequiredQueued"] is True
+        assert out["AllPassing"] is False
+
+    def test_stale_head_marks_missing_absent(self):
+        out = build_output(self._data(_committed_at(_STALE)), "o", "r", False, _RULESET)
+        assert out["MissingRequiredQueued"] is False
+
+    def test_fresh_head_queued_required_state_is_pending(self):
+        out = build_output(self._data(_committed_at(_FRESH)), "o", "r", False, _RULESET)
+        assert out["RequiredState"] == "PENDING"
+
+    def test_stale_head_absent_required_state_is_failure(self):
+        out = build_output(self._data(_committed_at(_STALE)), "o", "r", False, _RULESET)
+        assert out["RequiredState"] == "FAILURE"
+
+    def test_failed_required_beats_queued_missing(self):
+        data = self._data(_committed_at(_FRESH))
+        data["Checks"].append(_check("build", failing=True, required=True, conclusion="FAILURE"))
+        out = build_output(data, "o", "r", False, _RULESET)
+        assert out["RequiredState"] == "FAILURE"
+
+    def test_no_missing_is_not_queued(self):
+        out = build_output(self._data(_committed_at(_FRESH)), "o", "r", False, ["Run Python Tests"])
+        assert out["MissingRequiredChecks"] == []
+        assert out["MissingRequiredQueued"] is False
+
+    def test_unknown_ruleset_is_not_queued(self):
+        out = build_output(self._data(_committed_at(_FRESH)), "o", "r", False, None)
+        assert out["MissingRequiredChecks"] is None
+        assert out["MissingRequiredQueued"] is False
+
+    def test_zero_grace_is_absent_even_when_fresh(self):
+        out = build_output(
+            self._data(_committed_at(_FRESH)),
+            "o",
+            "r",
+            False,
+            _RULESET,
+            missing_grace_seconds=0,
+        )
+        assert out["MissingRequiredQueued"] is False
+
+    def test_missing_head_date_is_absent(self):
+        out = build_output(self._data(None), "o", "r", False, _RULESET)
+        assert out["MissingRequiredQueued"] is False
+        assert out["HeadCommittedAt"] is None
+
+
+class TestFetchChecksHeadDate:
+    def test_head_committed_date_is_returned(self):
+        response = _aged_rollup([_RUN_TESTS_OK], _FRESH)
+        committed = response["repository"]["pullRequest"]["commits"]["nodes"][0]["commit"][
+            "committedDate"
+        ]
+        with patch("get_pr_checks.gh_graphql", return_value=response):
+            data = _mod.fetch_checks("o", "r", 1)
+        assert data["HeadCommittedAt"] == committed
+
+    def test_head_committed_date_survives_empty_rollup(self):
+        response = {
+            "repository": {
+                "pullRequest": {
+                    "number": 1,
+                    "baseRefName": "main",
+                    "mergeable": "MERGEABLE",
+                    "mergeStateStatus": "CLEAN",
+                    "commits": {
+                        "nodes": [
+                            {
+                                "commit": {
+                                    "committedDate": "2026-10-12T10:00:00Z",
+                                    "statusCheckRollup": None,
+                                }
+                            }
+                        ]
+                    },
+                }
+            }
+        }
+        with patch("get_pr_checks.gh_graphql", return_value=response):
+            data = _mod.fetch_checks("o", "r", 1)
+        assert data["HasChecks"] is False
+        assert data["HeadCommittedAt"] == "2026-10-12T10:00:00Z"
+
+    def test_absent_date_is_none(self):
+        response = _rollup_response([_RUN_TESTS_OK], state="SUCCESS")
+        with patch("get_pr_checks.gh_graphql", return_value=response):
+            data = _mod.fetch_checks("o", "r", 1)
+        assert data["HeadCommittedAt"] is None
+
+    def test_query_requests_committed_date(self):
+        assert "committedDate" in _mod._CHECKS_QUERY
+
+
+class TestQueuedMissingMain:
+    def _run(self, responses, argv, capsys, *, monotonic=None):
+        patches = [
+            patch("get_pr_checks.assert_gh_authenticated"),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("get_pr_checks.gh_graphql", side_effect=responses),
+            patch("get_pr_checks.fetch_ruleset_required_contexts", return_value=_RULESET),
+        ]
+        sleep = patch("get_pr_checks.time.sleep")
+        with patches[0], patches[1], patches[2], patches[3], sleep as sleep_mock:
+            if monotonic is not None:
+                with patch("get_pr_checks.time.monotonic", side_effect=monotonic):
+                    rc = main(argv)
+            else:
+                rc = main(argv)
+        captured = capsys.readouterr()
+        return rc, captured.out, captured.err, sleep_mock
+
+    def test_snapshot_fresh_head_says_queued_without_reopen_hint(self, capsys):
+        rollup = _aged_rollup([_RUN_TESTS_OK], _FRESH)
+        rc, out, _, _ = self._run(
+            [rollup], ["--pull-request", "1", "--output-format", "human"], capsys
+        )
+        assert rc == 1
+        assert "not yet reported" in out
+        assert "Validate PR" in out
+        assert "Recovery: close and reopen" not in out
+
+    def test_snapshot_stale_head_keeps_never_reported_hint(self, capsys):
+        rollup = _aged_rollup([_RUN_TESTS_OK], _STALE)
+        rc, out, err, _ = self._run(
+            [rollup], ["--pull-request", "1", "--output-format", "human"], capsys
+        )
+        assert rc == 1
+        assert "never reported" in out + err
+        assert "Recovery: close and reopen" in out + err
+
+    def test_wait_keeps_polling_until_queued_check_reports(self, capsys):
+        queued = _aged_rollup([_RUN_TESTS_OK], _FRESH)
+        done = _aged_rollup([_RUN_TESTS_OK, _VALIDATE_OK], _FRESH)
+        rc, out, _, sleep_mock = self._run(
+            [queued, queued, done],
+            ["--pull-request", "1", "--wait", "--output-format", "json"],
+            capsys,
+        )
+        data = json.loads(out)["Data"]
+        assert rc == 0
+        assert sleep_mock.call_count == 2
+        assert data["MissingRequiredChecks"] == []
+        assert data["AllPassing"] is True
+
+    def test_wait_times_out_as_queued_not_never_reported(self, capsys):
+        queued = _aged_rollup([_RUN_TESTS_OK], _FRESH)
+        rc, out, err, sleep_mock = self._run(
+            [queued, queued],
+            [
+                "--pull-request",
+                "1",
+                "--wait",
+                "--timeout-seconds",
+                "10",
+                "--output-format",
+                "human",
+            ],
+            capsys,
+            monotonic=[0.0, 999.0],
+        )
+        assert rc == 7
+        sleep_mock.assert_not_called()
+        assert "queued" in out + err
+        assert "never reported" not in out + err
+        assert "Recovery: close and reopen" not in out + err
+
+    def test_wait_stale_head_fails_at_once(self, capsys):
+        stale = _aged_rollup([_RUN_TESTS_OK], _STALE)
+        rc, out, err, sleep_mock = self._run(
+            [stale],
+            ["--pull-request", "1", "--wait", "--output-format", "human"],
+            capsys,
+        )
+        assert rc == 1
+        sleep_mock.assert_not_called()
+        assert "never reported" in out + err
+
+    def test_wait_zero_grace_restores_immediate_failure(self, capsys):
+        fresh = _aged_rollup([_RUN_TESTS_OK], _FRESH)
+        rc, _, _, sleep_mock = self._run(
+            [fresh],
+            [
+                "--pull-request",
+                "1",
+                "--wait",
+                "--missing-grace-seconds",
+                "0",
+                "--output-format",
+                "json",
+            ],
+            capsys,
+        )
+        assert rc == 1
+        sleep_mock.assert_not_called()
+
+    def test_wait_does_not_hold_for_queued_when_a_check_failed(self, capsys):
+        failed = _check_run_node("Validate PR", "COMPLETED", "FAILURE")
+        rollup = _aged_rollup([_RUN_TESTS_OK, failed], _FRESH, state="FAILURE")
+        ruleset = [*_RULESET, "Lint"]
+        with (
+            patch("get_pr_checks.assert_gh_authenticated"),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("get_pr_checks.gh_graphql", return_value=rollup),
+            patch("get_pr_checks.fetch_ruleset_required_contexts", return_value=ruleset),
+            patch("get_pr_checks.time.sleep") as sleep_mock,
+        ):
+            rc = main(["--pull-request", "1", "--wait", "--output-format", "json"])
+        capsys.readouterr()
+        assert rc == 1
+        sleep_mock.assert_not_called()
+
+    def test_json_reports_queued_flag_and_head_date(self, capsys):
+        rollup = _aged_rollup([_RUN_TESTS_OK], _FRESH)
+        rc, out, _, _ = self._run(
+            [rollup], ["--pull-request", "1", "--output-format", "json"], capsys
+        )
+        data = json.loads(out)["Data"]
+        assert rc == 1
+        assert data["MissingRequiredQueued"] is True
+        assert (
+            data["HeadCommittedAt"]
+            == rollup["repository"]["pullRequest"]["commits"]["nodes"][0]["commit"]["committedDate"]
+        )
+
+
+class TestWaitTimeoutCap:
+    def test_parser_default_grace(self):
+        args = build_parser().parse_args(["--pull-request", "1"])
+        assert args.missing_grace_seconds == 2700
+
+    def test_parser_custom_grace(self):
+        args = build_parser().parse_args(["--pull-request", "1", "--missing-grace-seconds", "60"])
+        assert args.missing_grace_seconds == 60
+
+    def test_help_documents_tool_cap(self):
+        text = build_parser().format_help()
+        assert "570" in text
+
+    def _run(self, argv, capsys):
+        rollup = _aged_rollup([_RUN_TESTS_OK], _STALE)
+        with (
+            patch("get_pr_checks.assert_gh_authenticated"),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch("get_pr_checks.gh_graphql", return_value=rollup),
+            patch(
+                "get_pr_checks.fetch_ruleset_required_contexts", return_value=["Run Python Tests"]
+            ),
+            patch("get_pr_checks.time.sleep"),
+        ):
+            rc = main(argv)
+        return rc, capsys.readouterr().err
+
+    def test_wait_over_cap_warns_on_stderr(self, capsys):
+        rc, err = self._run(
+            [
+                "--pull-request",
+                "1",
+                "--wait",
+                "--timeout-seconds",
+                "600",
+                "--output-format",
+                "json",
+            ],
+            capsys,
+        )
+        assert rc == 0
+        assert "570" in err
+
+    def test_wait_at_cap_does_not_warn(self, capsys):
+        _, err = self._run(
+            [
+                "--pull-request",
+                "1",
+                "--wait",
+                "--timeout-seconds",
+                "570",
+                "--output-format",
+                "json",
+            ],
+            capsys,
+        )
+        assert "570" not in err
+
+    def test_snapshot_over_cap_does_not_warn(self, capsys):
+        _, err = self._run(
+            ["--pull-request", "1", "--timeout-seconds", "900", "--output-format", "json"],
+            capsys,
+        )
+        assert "570" not in err
+
+
+# ---------------------------------------------------------------------------
 # Tests: json failure envelopes keep the success Data schema (issue #6394)
 # ---------------------------------------------------------------------------
 
@@ -2843,14 +3489,25 @@ class TestFailureEnvelopeSchema:
             "main",
         )
         unknown = {k for k, v in data.items() if v is None}
-        assert {"Checks", "OverallState", "FailedCount", "MissingRequiredChecks"} <= unknown
+        assert {
+            "Checks",
+            "AllState",
+            "RequiredState",
+            "FailedCount",
+            "MissingRequiredChecks",
+        } <= unknown
 
     def test_not_found_envelope_has_every_success_key(self, capsys):
         expected = _success_data_keys(capsys)
         with (
             patch("get_pr_checks.assert_gh_authenticated"),
             patch("get_pr_checks.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
-            patch("get_pr_checks.gh_graphql", side_effect=RuntimeError("Could not resolve PR")),
+            patch(
+                "get_pr_checks.gh_graphql",
+                side_effect=RuntimeError(
+                    "Could not resolve to a PullRequest with the number of 999."
+                ),
+            ),
         ):
             rc = main(["--pull-request", "999", "--output-format", "json"])
         captured = capsys.readouterr()
@@ -2902,7 +3559,10 @@ class TestFailureEnvelopeSchema:
             patch("get_pr_checks.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
             patch(
                 "get_pr_checks.gh_graphql",
-                side_effect=[pending, RuntimeError("Could not resolve PR")],
+                side_effect=[
+                    pending,
+                    RuntimeError("Could not resolve to a PullRequest with the number of 5."),
+                ],
             ),
             patch("get_pr_checks.time.sleep"),
         ):

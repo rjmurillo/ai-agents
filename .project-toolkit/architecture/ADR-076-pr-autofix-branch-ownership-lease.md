@@ -1,17 +1,31 @@
 ---
 id: ADR-076
-status: accepted
-date: 2026-06-17
+status: deprecated
+date: 2026-10-13
 decision-makers: [rjmurillo, architect, critic, independent-thinker, security, analyst, high-level-advisor]
 supersedes: []
 superseded-by: null
 explainer: null
-implemented: false
+implemented: true
 ---
 
 # ADR-076: PR-Autofix Branch-Ownership Lease
 
 ## Status
+
+Deprecated (2026-10-13). Corrected by issue #5696.
+
+PR #5697 removed the advisory branch-ownership lease from `pr-autofix`. It deleted `pr_autofix_lease.py`, its test module, and the lease steps in the skill body. The decision and amendments below describe tooling that no longer exists. Read them as history. Do not implement them.
+
+No later decision replaces this one, so `superseded-by` stays null. The concurrency boundary is the Force-Push Safety SHA gate in the `pr-autofix` skill. This record already named that gate as the hard backstop and called the lease advisory.
+
+The lease stored state as hidden-marker comments on the PR timeline. Every acquire, renew, and release wrote a comment. One caller polling against the 15-minute TTL produced about 500 marker comments on one PR over 33 hours (issue #5160). Lowering the rate did not change the storage decision behind the cost.
+
+ADR-090 amended this record and is rejected for the same reason.
+
+### History
+
+The status text below is kept as written. It records what was true when each step happened.
 
 Accepted (2026-06-20). Requested by issue #2615 (labels `bug`, `agent-qa`, `agent-devops`, `area-workflows`, `priority:P1`, `priority:P2`, `automation`). The maintainer's backlog evaluation (issue #2615 comment 2026-06-17) deferred the epic and named the precondition directly: "Requires an ADR on lease storage + concurrency semantics before implementation." This ADR is that precondition. It records the coordination protocol and the lease contract; it ships no code.
 

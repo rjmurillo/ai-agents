@@ -12,7 +12,12 @@ from unittest.mock import patch
 
 import pytest
 
-from scripts.validation.evidence import pre_pr_policy
+from scripts.validation.evidence import (
+    REASON_BASE_REF_UNRESOLVED,
+    REASON_DIFF_FAILED,
+    EvidenceState,
+    pre_pr_policy,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -389,7 +394,7 @@ class TestPythonSourceScope:
 
 
 class TestScanUnavailableUnderCi:
-    """Issue #5636, D10: an unresolved base ref is BLOCKED under CI, a warning locally."""
+    """Issues #5636, #6124: FAIL under CI, printed as returned; a warning locally."""
 
     @pytest.mark.parametrize(
         ("name", "value"),
@@ -413,10 +418,13 @@ class TestScanUnavailableUnderCi:
 
         monkeypatch.setenv(name, value)
         with patch("checks_dash._resolve_branch_base_ref", return_value=None):
-            assert not pre_pr_policy().accepts(validate_dash_prohibition(tmp_path))
+            result = validate_dash_prohibition(tmp_path)
+        assert not pre_pr_policy().accepts(result)
+        assert result.state is EvidenceState.FAIL
         out = capsys.readouterr().out
-        assert "[BLOCKED] Em/en-dash branch scan: no base ref resolved" in out
-        assert "no file was examined" in out
+        assert result.report_line() in out
+        assert f"reason={REASON_BASE_REF_UNRESOLVED}" in out
+        assert "[BLOCKED]" not in out
 
     def test_unresolved_base_ref_only_warns_locally(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -424,7 +432,9 @@ class TestScanUnavailableUnderCi:
         from scripts.validation.pre_pr import validate_dash_prohibition
 
         with patch("checks_dash._resolve_branch_base_ref", return_value=None):
-            assert pre_pr_policy().accepts(validate_dash_prohibition(tmp_path))
+            result = validate_dash_prohibition(tmp_path)
+        assert pre_pr_policy().accepts(result)
+        assert result.state is EvidenceState.SKIP
         out = capsys.readouterr().out
         assert "[WARNING] Em/en-dash branch scan skipped: no base ref resolved" in out
         assert "[BLOCKED]" not in out
@@ -452,8 +462,13 @@ class TestScanUnavailableUnderCi:
             patch("checks_dash._resolve_branch_base_ref", return_value="origin/main"),
             patch("checks_dash._run_subprocess", return_value=(128, "", "fatal: bad revision")),
         ):
-            assert not pre_pr_policy().accepts(validate_dash_prohibition(tmp_path))
-        assert "[BLOCKED] Em/en-dash branch scan: git diff failed" in capsys.readouterr().out
+            result = validate_dash_prohibition(tmp_path)
+        assert not pre_pr_policy().accepts(result)
+        assert result.state is EvidenceState.FAIL
+        out = capsys.readouterr().out
+        assert result.report_line() in out
+        assert f"reason={REASON_DIFF_FAILED}" in out
+        assert "[BLOCKED]" not in out
 
     def test_resolved_base_ref_is_unaffected_by_ci(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

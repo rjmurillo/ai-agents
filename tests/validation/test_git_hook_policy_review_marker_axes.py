@@ -14,6 +14,7 @@ from typing import Any
 import pytest
 
 from scripts.validation import git_hook_policy as policy
+from tests.validation._review_artifact import commit_marker
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -52,16 +53,7 @@ def repo(tmp_path: Path) -> Path:
 
 def _marker(repo: Path, axes: str) -> policy.PushUpdate:
     tip = _git(repo, "rev-parse", "HEAD")
-    _git(
-        repo,
-        "commit",
-        "-q",
-        "--allow-empty",
-        "-m",
-        "review: marker",
-        "--trailer",
-        f"Reviewed-By: /review@{axes} on {tip}",
-    )
+    commit_marker(repo, axes, tip)
     head = _git(repo, "rev-parse", "HEAD")
     source = policy.PushRef("refs/heads/a", head, "refs/heads/a", "0" * 40)
     return policy.PushUpdate(source, tip, head, f"{tip}..{head}", "a")

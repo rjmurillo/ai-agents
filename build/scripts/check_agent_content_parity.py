@@ -3,13 +3,15 @@
 
 validate_install_parity.py catches drift only at PR time (co-change in a
 diff). It does not detect content divergence that already exists on disk.
-This script compares the two hand-maintained copies byte-for-byte and fails
-if any shared filename disagrees.
+This script compares the two copies byte-for-byte and fails if any shared
+filename disagrees.
 
-The two trees are hand-maintained siblings; neither is the generator source.
-GENERATOR-FILES.md, line 35: 'src/claude/agents/ is a hand-maintained copy, not a
-generator output'. REQ-003-010 forbids generators from writing under
-.claude/. Editing a shared agent means updating both copies manually.
+Neither tree is hand-edited. Since ADR-109 B1, src/claude/agents/ is rendered
+from templates/agents/ by agent_templates.py, and the binplace step copies it
+onto .claude/agents/ (templates/platforms/binplace.yaml, ``agents`` class).
+The two trees agree by construction after a build_all.py run, so a difference
+means a hand edit to a rendered copy or a skipped regeneration. Fix it by
+editing the template and running build_all.py, never by editing either tree.
 
 Files present in one tree but absent from the other are reported as missing.
 Files listed in ALLOWED_ONLY_IN_CLAUDE or ALLOWED_ONLY_IN_SRC are exempt

@@ -71,7 +71,7 @@ The skill body MUST NOT hard-fail when the `.claude/` path is missing; it MUST a
 
 | Script | Purpose | Exit codes |
 |--------|---------|------------|
-| `scripts/validate_review_marker.py` | Validates the SHA-bound `Reviewed-By: /review@...` marker `/ship` requires. | `0` valid, `1` missing, stale, or bad axis list, `2` config error |
+| `scripts/validate_review_marker.py` | Validates the SHA-bound `Reviewed-By: /review@...` marker `/ship` requires and the review report its `Review-Artifact` digest covers. `--digest REPORT_FILE` prints that digest. | `0` valid, `1` missing, stale, bad axis list, or no valid review report, `2` config error |
 | `select_axes.py` (same directory) | Selects the Stage-2 canonical axes and the local-only skill axes from verified changed paths and diff effects. Emits the selection, per-axis reasons, and skips as JSON. | `0` selection emitted, `2` config error (unknown pinned axis, or references directory missing or empty) |
 
 ## Process
@@ -101,13 +101,17 @@ Run axes sequentially. Each axis emits a verdict token (`PASS`, `WARN`, `CRITICA
 5. **Run the selected chained skill axes** (local-only; CI does not run these). Run every axis in `local_selected` after the canonical ones; report the rest as skipped with its reason. Resolve each `<script>` per "Path resolution" (chained-skill scripts). Scope every axis to the PR diff with the base branch detected in step 1 (stored as `BASE_BRANCH`), quoted, so the gates evaluate only changed files, not the whole tree:
 
 - local axis 1: Skill(skill="code-qualities-assessment"), invoking `python3 <assess.py> --target . --changed-only --base "origin/$BASE_BRANCH" --format json`. Its report labels authored, test, and generated files; review generated files' source. For rules, skills, agents, or new abstractions, see the `code-qualities-assessment` skill's `references/executable-nl-artifacts.md`.
-- local axis 2: Skill(skill="doc-accuracy"), invoking `python3 <doc_accuracy.py> --target . --diff-base "origin/$BASE_BRANCH" --format gate`. This is the axis `docs-and-instructions` selects: a docs or instruction change is reviewed for claims the code contradicts, not waved through.
+- local axis 2: Skill(skill="doc-accuracy"), invoking `python3 <doc_accuracy.py> --target . --diff-base "origin/$BASE_BRANCH" --format gate`. Also run it when the `test` skill's `doc_accuracy_trigger.py` says `activate`; see `resources/documentation-findings.md`.
 - local axis 3: Skill(skill="golden-principles"), invoking `python3 <scan_principles.py> --diff-scope "origin/$BASE_BRANCH" --format json`. Scope: toolkit-artifact governance for GP-001, GP-003, GP-004, GP-005, GP-006 (script language, skill frontmatter, agent definitions, YAML logic, pinned Actions); GP-002 is hooks and review practice, GP-007 and GP-008 are taste-lints. A clean result on a non-toolkit repo means no rule applied, not that design was reviewed.
 - local axis 4: Skill(skill="taste-lints"), invoking `python3 <taste_lints.py> --diff-scope "origin/$BASE_BRANCH" --format json`.
 
 6. **Extract verdict per axis**. Canonical axes end with a line matching `(?m)^\s*(?i:(?:Final\s+)?Verdict):\s*\[?(PASS|WARN|CRITICAL_FAIL|REJECTED|FAIL|NEEDS_REVIEW|NON_COMPLIANT|COMPLIANT|PARTIAL|UNKNOWN)(?![|A-Z_])\]?` (label case-insensitive; tokens case-sensitive uppercase; trailing lookahead rejects template-form lines like `VERDICT: [PASS|WARN|CRITICAL_FAIL]` and token-prefix collisions). Parse them with `extract_verdict` from the verdict library. Local axes emit JSON or `Gate:` instead, so normalize them first with `adapt_local_axis_verdict` from that library: it maps code-quality exit codes, `doc-accuracy` `gate_result.verdict`, and golden/taste `error_count` plus `warning_count` into PASS, WARN, FAIL, or UNKNOWN. On a crash, malformed output, or an unclassified result, record `UNKNOWN` and continue.
 7. **Merge verdicts** via `merge_verdicts([...])`, passing the Stage-1 `spec-compliance` verdict, the step 4c correctness verdict, plus one verdict per axis that actually ran (the selected Stage-2 axes plus any selected local skills; 16 total in deep-review mode with the current set). Rules: any token in `FAIL_VERDICTS` (`CRITICAL_FAIL`/`REJECTED`/`FAIL`/`NEEDS_REVIEW`/`NON_COMPLIANT`) -> `CRITICAL_FAIL`; any `WARN` or `PARTIAL` -> `WARN`; any `UNKNOWN` or unrecognized token -> `UNKNOWN`; all `PASS`/`COMPLIANT` -> `PASS`; empty -> `UNKNOWN`. When Stage 1 returns `CRITICAL_FAIL` (step 2 short-circuit), skip this merge: the FINAL VERDICT is `CRITICAL_FAIL`. A Stage-1 `UNKNOWN` does NOT short-circuit; it is merged like any other axis (issue #2690).
 8. **Emit findings table** (see Output below).
+
+## Running without the Task tool
+
+A subagent with no `Task` tool MUST NOT review its own diff and write the marker. Run each axis as its own `claude -p` process, as `resources/marker-and-no-task.md` says. If `claude` is not on `PATH`, record `UNKNOWN` for every axis, which writes no marker.
 
 ## Vendored install (REQ-008-06)
 
@@ -148,40 +152,27 @@ Categorize a finding as **Critical** if its axis verdict is `CRITICAL_FAIL`, **I
 
 On a **PASS** final verdict (or a WARN where every WARN was acknowledged), write a
 SHA-bound marker so `/ship` can prove the shipped code was reviewed at its current
-state without re-running the review. Skip this on `CRITICAL_FAIL`, on a Stage-1
-short-circuit, and on `UNKNOWN`: a non-PASS verdict must not leave a marker.
+state without re-running the review. Skip this on `CRITICAL_FAIL`, a Stage-1
+short-circuit, `UNKNOWN`, or an unacknowledged WARN: none may leave a marker.
 
-The marker is a git trailer (vendor-safe: it lives in the commit, travels in every
-clone, needs no `.agents/` access). Its contract, quoted verbatim from the reader
-`.claude/skills/review/scripts/validate_review_marker.py` (`MARKER_TRAILER_KEY = "Reviewed-By"`),
-is:
+The marker is an empty commit on top of the reviewed tip. Its body holds a review
+report (the reviewed SHA plus one `<axis>: <VERDICT>` row per axis that ran), then
+the trailers `Reviewed-By: /review@<axis-list> on <reviewed-tip-sha>` and
+`Review-Artifact: sha256:<digest of the report lines>`. A bare `Reviewed-By`
+trailer is rejected: any agent can type one. Write the marker only as
+`resources/marker-and-no-task.md` says, and never add a row for an axis that did
+not run.
 
-```text
-Reviewed-By: /review@<comma-separated-axis-list> on <reviewed-tip-sha>
-```
-
-A commit cannot name its own SHA in a trailer (the SHA hashes the trailer, so
-writing the SHA changes the SHA, with no fixed point). So record the reviewed tip,
-then write an **empty marker commit** on top of it:
-
-1. `REVIEWED_TIP=$(git rev-parse HEAD)` (the code that was reviewed).
-2. Build the axis list from the axes that ran (comma-separated stems, e.g.
-   `analyst,architect,qa,security,...`).
-3. `git commit --allow-empty -m "review: /review PASS marker" --trailer "Reviewed-By: /review@<axis-list> on $REVIEWED_TIP"`
-
-The marker commit adds no code. SHA-binding holds: the marker is valid only while
-its parent (the reviewed tip) is HEAD's parent. Land any new code commit and the
-marker no longer sits on HEAD's parent, so the review is correctly treated as stale.
-Issue #1938 records the design.
+The marker is valid only while its parent (the reviewed tip) is HEAD's parent or a clean `origin/main` merge sits above it. New code makes it stale. Design: #1938, #6438, #6509.
 
 Re-running `/review` after the verdict is still PASS writes another marker commit;
 that is safe (idempotent in effect: the latest marker binds the current tip).
 
 ## Principles
 
-- **Deep review is the strict superset of CI**. In deep-review mode, any finding CI surfaces, `/review` surfaces first.
-- **Drift fails closed**. If `.claude/skills/review/references/` and `.github/prompts/` diverge, the pre-push hook blocks the push. CI re-checks as a backstop.
-- **UNKNOWN is information**. A skill that did not evaluate is not a silent PASS.
+- **Deep review is the strict superset of CI**. In deep review, `/review` surfaces every CI finding first.
+- **Drift fails closed**. If `.claude/skills/review/references/` and `.github/prompts/` diverge, pre-push blocks. CI re-checks.
+- **UNKNOWN is information**. A skill that did not evaluate is not a silent PASS. Loops, not files: `evidence-provenance`.
 - **Vendored survival**. `/review` works in a `.claude/`-only checkout. No axis or skill references `.agents/` or `.github/`.
 - **Voice**. Read `resources/writing-style.md` before writing findings (glossing, completeness scores).
 

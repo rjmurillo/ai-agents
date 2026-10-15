@@ -25,51 +25,41 @@ scripts:
     resolve_thread: "python3 .claude/skills/github/scripts/pr/resolve_pr_review_thread.py --expected-pull-request {number} --thread-id {thread_id}"
     check_transport: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/utils/check_github_transport.py" --output-format json'
   copilot:
-    # Every command here names a shipped Python script, anchored on the plugin
-    # root. The previous entries named PowerShell files (Get-PRContext.ps1 and
-    # eight siblings) that exist in neither this repository nor the standalone
-    # plugin, under bare `.claude/...` paths that do not resolve in a vendored
-    # install either. Nothing selected this map until the pr-review workflow
-    # stopped hardcoding `scripts.claude_code`, so the breakage was dormant
-    # rather than absent; selecting it then made Step 1 fail before review
-    # (Copilot review on PR #5509).
+    # Every command here is the cross-shell launcher from
+    # build/scripts/copilot_launcher.py (issue #5521): `pwsh -NoProfile
+    # -CommandWithArgs '<payload>' ARGS`. The payload resolves the plugin root
+    # (COPILOT_PLUGIN_ROOT, then CLAUDE_PLUGIN_ROOT, then .claude) and the
+    # interpreter (python3, then `py -3`, then python) itself, because the POSIX
+    # `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/..."` form
+    # does not expand in PowerShell and a Windows host may expose only `py` or
+    # python.exe (REQ-003-multi-tool-artifact-build.md Risks, "Python on Windows
+    # runner PATH"). It needs PowerShell 7.4 or later for -CommandWithArgs, which
+    # passes the words after the payload to the script as $args with their
+    # quoting intact; -Command would join them into the command text.
     #
-    # `python3` rather than a resolved launcher, matching every other entry in
-    # this file. Only `check_transport` resolves the interpreter, because it is
-    # the blocking Step 0 and a failure there stops the workflow instead of one
-    # step of it. Refs #5521.
-    get_pr_context: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/get_pr_context.py" --pull-request {number}'
-    test_pr_merged: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/test_pr_merged.py" --pull-request {number}'
-    get_review_threads: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/get_pr_review_threads.py" --pull-request {number}'
-    get_unresolved_threads: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/get_unresolved_review_threads.py" --pull-request {number}'
-    cluster_threads: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/pr-comment-responder/scripts/cluster_threads.py" --pull-request {number}'
-    get_unaddressed_comments: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/get_unaddressed_comments.py" --pull-request {number}'
-    get_pr_checks: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/get_pr_checks.py" --pull-request {number}'
-    wait_for_settled_zero: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/wait_for_unresolved_zero.py" --pull-request {number}'
-    add_thread_reply: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/add_pr_review_thread_reply.py" --pull-request {number} --thread-id {thread_id} --body {body}'
-    add_thread_reply_resolve: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/add_pr_review_thread_reply.py" --pull-request {number} --thread-id {thread_id} --body {body} --resolve'
-    resolve_thread: 'python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/resolve_pr_review_thread.py" --expected-pull-request {number} --thread-id {thread_id}'
-    # transport_preflight resolves command_key against the harness map, so the
-    # Copilot map needs its own entry or Step 0 cannot dispatch at all. The
-    # POSIX ${VAR:-default} form used in the claude_code map does not expand in
-    # PowerShell, which is what this map targets, so a Windows install would
-    # fail before the preflight ran (Copilot review on PR #5509).
+    # Do not hand-edit the payload. tests/build_scripts/test_copilot_launcher.py
+    # fails any entry that is not render_launcher() of its own script, and runs
+    # each one under pwsh from a foreign working directory.
     #
-    # The -Command payload is single-quoted, not double-quoted. A double-quoted
-    # payload is expanded by the POSIX parent shell before pwsh is executed:
-    # `$root` and `$env:` are unset there, so pwsh receives
-    # `= if (:COPILOT_PLUGIN_ROOT) { ... } ...` and fails on a parse error
-    # rather than on anything about the transport. Measured under bash 5 by
-    # printing the expanded argument (Copilot review on PR #5509).
+    # The payload is single-quoted, not double-quoted. A double-quoted payload is
+    # expanded by a POSIX parent shell before pwsh is executed: `$root` and
+    # `$env:` are unset there, so pwsh would receive a parse error instead of the
+    # command (Copilot review on PR #5509).
     #
-    # The interpreter is resolved rather than hardcoded to python3. A Windows
-    # Copilot host may expose only python.exe or the py launcher
-    # (REQ-003-multi-tool-artifact-build.md:442), and the repo's own PowerShell
-    # hook launchers use `py -3` for that reason (same file, lines 150 and 326;
-    # ADR-068:302). This is the blocking Step 0, so a missing python3 stops the
-    # workflow before it can pick a transport. python3 is tried first because
-    # pwsh also runs on Linux and macOS, where py does not exist.
-    check_transport: "pwsh -NoProfile -Command '$root = if ($env:COPILOT_PLUGIN_ROOT) { $env:COPILOT_PLUGIN_ROOT } elseif ($env:CLAUDE_PLUGIN_ROOT) { $env:CLAUDE_PLUGIN_ROOT } else { \".claude\" }; $exe, $pre = if (Get-Command python3 -EA SilentlyContinue) { \"python3\", @() } elseif (Get-Command py -EA SilentlyContinue) { \"py\", @(\"-3\") } else { \"python\", @() }; & $exe @pre (Join-Path $root \"skills/github/scripts/utils/check_github_transport.py\") --output-format json'"
+    # transport_preflight resolves command_key against this map, so check_transport
+    # needs an entry here or Step 0 cannot dispatch at all.
+    get_pr_context: "pwsh -NoProfile -CommandWithArgs '$root = if ($env:COPILOT_PLUGIN_ROOT) { $env:COPILOT_PLUGIN_ROOT } elseif ($env:CLAUDE_PLUGIN_ROOT) { $env:CLAUDE_PLUGIN_ROOT } else { \".claude\" }; $exe, $pre = if (Get-Command python3 -EA SilentlyContinue) { \"python3\", @() } elseif (Get-Command py -EA SilentlyContinue) { \"py\", @(\"-3\") } else { \"python\", @() }; & $exe @pre (Join-Path $root \"skills/github/scripts/pr/get_pr_context.py\") @args; exit ($LASTEXITCODE ?? 1)' --pull-request {number}"
+    test_pr_merged: "pwsh -NoProfile -CommandWithArgs '$root = if ($env:COPILOT_PLUGIN_ROOT) { $env:COPILOT_PLUGIN_ROOT } elseif ($env:CLAUDE_PLUGIN_ROOT) { $env:CLAUDE_PLUGIN_ROOT } else { \".claude\" }; $exe, $pre = if (Get-Command python3 -EA SilentlyContinue) { \"python3\", @() } elseif (Get-Command py -EA SilentlyContinue) { \"py\", @(\"-3\") } else { \"python\", @() }; & $exe @pre (Join-Path $root \"skills/github/scripts/pr/test_pr_merged.py\") @args; exit ($LASTEXITCODE ?? 1)' --pull-request {number}"
+    get_review_threads: "pwsh -NoProfile -CommandWithArgs '$root = if ($env:COPILOT_PLUGIN_ROOT) { $env:COPILOT_PLUGIN_ROOT } elseif ($env:CLAUDE_PLUGIN_ROOT) { $env:CLAUDE_PLUGIN_ROOT } else { \".claude\" }; $exe, $pre = if (Get-Command python3 -EA SilentlyContinue) { \"python3\", @() } elseif (Get-Command py -EA SilentlyContinue) { \"py\", @(\"-3\") } else { \"python\", @() }; & $exe @pre (Join-Path $root \"skills/github/scripts/pr/get_pr_review_threads.py\") @args; exit ($LASTEXITCODE ?? 1)' --pull-request {number}"
+    get_unresolved_threads: "pwsh -NoProfile -CommandWithArgs '$root = if ($env:COPILOT_PLUGIN_ROOT) { $env:COPILOT_PLUGIN_ROOT } elseif ($env:CLAUDE_PLUGIN_ROOT) { $env:CLAUDE_PLUGIN_ROOT } else { \".claude\" }; $exe, $pre = if (Get-Command python3 -EA SilentlyContinue) { \"python3\", @() } elseif (Get-Command py -EA SilentlyContinue) { \"py\", @(\"-3\") } else { \"python\", @() }; & $exe @pre (Join-Path $root \"skills/github/scripts/pr/get_unresolved_review_threads.py\") @args; exit ($LASTEXITCODE ?? 1)' --pull-request {number}"
+    cluster_threads: "pwsh -NoProfile -CommandWithArgs '$root = if ($env:COPILOT_PLUGIN_ROOT) { $env:COPILOT_PLUGIN_ROOT } elseif ($env:CLAUDE_PLUGIN_ROOT) { $env:CLAUDE_PLUGIN_ROOT } else { \".claude\" }; $exe, $pre = if (Get-Command python3 -EA SilentlyContinue) { \"python3\", @() } elseif (Get-Command py -EA SilentlyContinue) { \"py\", @(\"-3\") } else { \"python\", @() }; & $exe @pre (Join-Path $root \"skills/pr-comment-responder/scripts/cluster_threads.py\") @args; exit ($LASTEXITCODE ?? 1)' --pull-request {number}"
+    get_unaddressed_comments: "pwsh -NoProfile -CommandWithArgs '$root = if ($env:COPILOT_PLUGIN_ROOT) { $env:COPILOT_PLUGIN_ROOT } elseif ($env:CLAUDE_PLUGIN_ROOT) { $env:CLAUDE_PLUGIN_ROOT } else { \".claude\" }; $exe, $pre = if (Get-Command python3 -EA SilentlyContinue) { \"python3\", @() } elseif (Get-Command py -EA SilentlyContinue) { \"py\", @(\"-3\") } else { \"python\", @() }; & $exe @pre (Join-Path $root \"skills/github/scripts/pr/get_unaddressed_comments.py\") @args; exit ($LASTEXITCODE ?? 1)' --pull-request {number}"
+    get_pr_checks: "pwsh -NoProfile -CommandWithArgs '$root = if ($env:COPILOT_PLUGIN_ROOT) { $env:COPILOT_PLUGIN_ROOT } elseif ($env:CLAUDE_PLUGIN_ROOT) { $env:CLAUDE_PLUGIN_ROOT } else { \".claude\" }; $exe, $pre = if (Get-Command python3 -EA SilentlyContinue) { \"python3\", @() } elseif (Get-Command py -EA SilentlyContinue) { \"py\", @(\"-3\") } else { \"python\", @() }; & $exe @pre (Join-Path $root \"skills/github/scripts/pr/get_pr_checks.py\") @args; exit ($LASTEXITCODE ?? 1)' --pull-request {number}"
+    wait_for_settled_zero: "pwsh -NoProfile -CommandWithArgs '$root = if ($env:COPILOT_PLUGIN_ROOT) { $env:COPILOT_PLUGIN_ROOT } elseif ($env:CLAUDE_PLUGIN_ROOT) { $env:CLAUDE_PLUGIN_ROOT } else { \".claude\" }; $exe, $pre = if (Get-Command python3 -EA SilentlyContinue) { \"python3\", @() } elseif (Get-Command py -EA SilentlyContinue) { \"py\", @(\"-3\") } else { \"python\", @() }; & $exe @pre (Join-Path $root \"skills/github/scripts/pr/wait_for_unresolved_zero.py\") @args; exit ($LASTEXITCODE ?? 1)' --pull-request {number}"
+    add_thread_reply: "pwsh -NoProfile -CommandWithArgs '$root = if ($env:COPILOT_PLUGIN_ROOT) { $env:COPILOT_PLUGIN_ROOT } elseif ($env:CLAUDE_PLUGIN_ROOT) { $env:CLAUDE_PLUGIN_ROOT } else { \".claude\" }; $exe, $pre = if (Get-Command python3 -EA SilentlyContinue) { \"python3\", @() } elseif (Get-Command py -EA SilentlyContinue) { \"py\", @(\"-3\") } else { \"python\", @() }; & $exe @pre (Join-Path $root \"skills/github/scripts/pr/add_pr_review_thread_reply.py\") @args; exit ($LASTEXITCODE ?? 1)' --pull-request {number} --thread-id {thread_id} --body {body}"
+    add_thread_reply_resolve: "pwsh -NoProfile -CommandWithArgs '$root = if ($env:COPILOT_PLUGIN_ROOT) { $env:COPILOT_PLUGIN_ROOT } elseif ($env:CLAUDE_PLUGIN_ROOT) { $env:CLAUDE_PLUGIN_ROOT } else { \".claude\" }; $exe, $pre = if (Get-Command python3 -EA SilentlyContinue) { \"python3\", @() } elseif (Get-Command py -EA SilentlyContinue) { \"py\", @(\"-3\") } else { \"python\", @() }; & $exe @pre (Join-Path $root \"skills/github/scripts/pr/add_pr_review_thread_reply.py\") @args; exit ($LASTEXITCODE ?? 1)' --pull-request {number} --thread-id {thread_id} --body {body} --resolve"
+    resolve_thread: "pwsh -NoProfile -CommandWithArgs '$root = if ($env:COPILOT_PLUGIN_ROOT) { $env:COPILOT_PLUGIN_ROOT } elseif ($env:CLAUDE_PLUGIN_ROOT) { $env:CLAUDE_PLUGIN_ROOT } else { \".claude\" }; $exe, $pre = if (Get-Command python3 -EA SilentlyContinue) { \"python3\", @() } elseif (Get-Command py -EA SilentlyContinue) { \"py\", @(\"-3\") } else { \"python\", @() }; & $exe @pre (Join-Path $root \"skills/github/scripts/pr/resolve_pr_review_thread.py\") @args; exit ($LASTEXITCODE ?? 1)' --expected-pull-request {number} --thread-id {thread_id}"
+    check_transport: "pwsh -NoProfile -CommandWithArgs '$root = if ($env:COPILOT_PLUGIN_ROOT) { $env:COPILOT_PLUGIN_ROOT } elseif ($env:CLAUDE_PLUGIN_ROOT) { $env:CLAUDE_PLUGIN_ROOT } else { \".claude\" }; $exe, $pre = if (Get-Command python3 -EA SilentlyContinue) { \"python3\", @() } elseif (Get-Command py -EA SilentlyContinue) { \"py\", @(\"-3\") } else { \"python\", @() }; & $exe @pre (Join-Path $root \"skills/github/scripts/utils/check_github_transport.py\") @args; exit ($LASTEXITCODE ?? 1)' --output-format json"
 
 # Transport preflight. Run check_transport once, before Step 1, and branch on
 # Data.Transport.

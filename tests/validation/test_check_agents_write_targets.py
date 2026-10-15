@@ -129,6 +129,16 @@ def test_read_only_keep_reference_accepted() -> None:
     assert checker.scan_text("docs/example.md", text) == []
 
 
+def test_codex_marketplace_read_accepted() -> None:
+    text = "Codex reads `.agents/plugins/marketplace.json` from the root.\n"
+    assert checker.scan_text("scripts/validation/example.py", text) == []
+
+
+def test_write_into_the_codex_marketplace_dir_still_flagged() -> None:
+    text = 'echo "{}" > .agents/plugins/marketplace.json\n'
+    assert checker.scan_text("scripts/a.sh", text)
+
+
 def test_keep_top_level_file_read_accepted() -> None:
     text = "Read `.agents/HANDOFF.md` for the current state.\n"
     assert checker.scan_text("docs/example.md", text) == []

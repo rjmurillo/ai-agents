@@ -14,6 +14,7 @@ import pytest
 
 from scripts.validation.pre_pr import main
 from tests.validation.pre_pr_main_helpers import (
+    RunBackedPopen,
     healthy_git_run,
     sequence_with_failing_python_syntax,
     sequence_with_passing_corpus_gates,
@@ -31,6 +32,7 @@ class TestHookModeBanner:
         "pre_pr_sequence._SEQUENCE",
         new_callable=sequence_with_passing_corpus_gates,
     )
+    @patch("subprocess.Popen", new=RunBackedPopen)
     @patch("subprocess.run")
     @patch("shutil.which")
     def test_hook_mode_does_not_print_pr_ready_banner(
@@ -56,6 +58,7 @@ class TestHookModeBanner:
         "pre_pr_sequence._SEQUENCE",
         new_callable=sequence_with_failing_python_syntax,
     )
+    @patch("subprocess.Popen", new=RunBackedPopen)
     @patch("subprocess.run")
     @patch("shutil.which")
     def test_hook_mode_failure_does_not_print_either_banner(

@@ -21,6 +21,12 @@ from tests.new_pr_test_support import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _head_is_on_origin(monkeypatch):
+    """Keep ordered subprocess mocks intact: the origin lookup has its own tests."""
+    monkeypatch.setattr(main.__globals__["_pr_val"], "head_on_origin", lambda head: True)
+
+
 class TestBuildParser:
     def test_missing_title_is_rejected_by_main(self):
         with patch.object(_mod, "get_repo_root", return_value="/tmp/repo"):
@@ -366,6 +372,36 @@ class TestMain:
         assert command[-2:] == ["--body-file", "-"]
         assert kwargs["input"] == body
         assert kwargs["encoding"] == "utf-8"
+
+    def test_body_arg_skips_allocator_and_streams_to_gh_stdin(self, tmp_path):
+        """Pin the Windows fallback that push-pr documents (issue #6571)."""
+        create_call = None
+
+        def _run(command, **kwargs):
+            nonlocal create_call
+            if command[:3] == ["git", "rev-parse", "--show-toplevel"]:
+                return _completed(stdout=str(tmp_path), rc=0)
+            if command[:3] == ["gh", "pr", "create"]:
+                create_call = (command, kwargs)
+            return _completed(rc=0)
+
+        def _no_allocator(*_args, **_kwargs):
+            raise AssertionError("--body must not read a prepared body file")
+
+        with (
+            patch("subprocess.run", side_effect=_run),
+            patch.object(_mod, "run_validations") as validations,
+            patch.dict(main.__globals__, {"read_prepared_pr_body": _no_allocator}),
+        ):
+            rc = main(["--title", "feat: test", "--head", "feat/b", "--body", "Body text"])
+
+        assert rc == 0
+        assert validations.call_args.kwargs["body"] == "Body text"
+        assert create_call is not None
+        command, kwargs = create_call
+        assert command[-2:] == ["--body-file", "-"]
+        assert "Body text" not in command
+        assert kwargs["input"] == "Body text"
 
     def test_draft_flag_passed(self, tmp_path):
         calls = []

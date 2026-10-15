@@ -1,0 +1,28 @@
+{
+  "claim": "bug fixed",
+  "subject": {
+    "artifact": "pkg",
+    "revision": "r2",
+    "premises": [
+      "interp:R"
+    ]
+  },
+  "evidence": [
+    {
+      "id": "legacy-regression-test",
+      "state": "VERIFIED",
+      "origin": "pre-existing",
+      "created": "pre-existing",
+      "authority": "executable-runtime",
+      "premises": [
+        "contract:ext-v1"
+      ]
+    }
+  ],
+  "expect": {
+    "verdict": "CORROBORATED",
+    "independent_loops": 1,
+    "authoritative_independent_loops": 1,
+    "exit": 0
+  }
+}

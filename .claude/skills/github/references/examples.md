@@ -92,8 +92,10 @@ python3 "$SCRIPTS_DIR/pr/test_pr_merged.py" --pull-request 50
 # Get CI check status
 python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request 50
 
-# Wait for CI checks to complete (timeout 10 minutes)
-python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request 50 --wait --timeout-seconds 600
+# Wait for CI checks to complete (keep the budget at or below 570 seconds: the
+# 600 second tool call is killed with no result). Exit 7 means still waiting or incomplete: check
+# `ChecksIncomplete` before running it again.
+python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request 50 --wait --timeout-seconds 540
 
 # Get only required checks
 python3 "$SCRIPTS_DIR/pr/get_pr_checks.py" --pull-request 50 --required-only
@@ -153,11 +155,18 @@ python3 "$SCRIPTS_DIR/issue/new_issue.py" --title "Bug: Login fails" --body "Ste
 # Create an issue and assign a milestone in one call
 python3 "$SCRIPTS_DIR/issue/new_issue.py" --title "Bug: Login fails" --body "Steps..." --source human --milestone v0.7.0
 
+# List a milestone's issues (composes with --state/--label/--author/--assignee;
+# ignored when --search is set)
+python3 "$SCRIPTS_DIR/issue/list_issues.py" --milestone v0.7.0 --state all --label bug
+
 # Create PR with validation
 python3 "$SCRIPTS_DIR/pr/new_pr.py" --title "feat: Add feature" --body "Description"
 
 # Close PR with comment
 python3 "$SCRIPTS_DIR/pr/close_pr.py" --pull-request 50 --comment "Superseded by #51"
+
+# Reopen a closed PR (fires the reopened event)
+python3 "$SCRIPTS_DIR/pr/reopen_pr.py" --pull-request 50
 
 # Merge PR with squash
 python3 "$SCRIPTS_DIR/pr/merge_pr.py" --pull-request 50 --strategy squash --delete-branch

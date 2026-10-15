@@ -12,6 +12,9 @@
 # may let the context report success without running the verification its name
 # claims. The check-paths job still gates the two jobs that are not part of the
 # required context (Python Security Checks and the Windows path-contract tests).
+# The Windows job is narrowed further, to the marked modules a change reaches
+# (issue #5380); merge_group, workflow_dispatch and pushes to the default branch
+# run the complete set.
 #
 # Which tests each partition runs is decided inside scripts/ci/run_pytest_partition.py.
 #
@@ -47,6 +50,8 @@ jobs:
       contents: read
     outputs:
       python-changed: ${{ (github.event_name == 'workflow_dispatch' || env.ACT == 'true') && 'true' || steps.determine.outputs.python-changed }}
+      windows-affected: ${{ steps.windows-select.outputs.windows-affected }}
+      windows-files: ${{ steps.windows-select.outputs.windows-files }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -71,6 +76,29 @@ jobs:
           FORCE_RUN_EVENTS: merge_group
           OUTPUT_NAME: python-changed
         run: python3 scripts/workflows/determine_should_run_from_filters.py
+
+      # Issue #5380. One filter key per windows_path module, computed from the
+      # checkout by scripts/ci/windows_path_filter.py, so the job starts only
+      # for a change that reaches a marked module and runs only those modules.
+      - name: Build Windows path-contract filter
+        if: github.event_name != 'workflow_dispatch' && github.event_name != 'merge_group' && env.ACT != 'true'
+        run: python3 scripts/ci/windows_path_filter.py emit --output windows_path_filter.yml
+
+      - name: Check for Windows path-contract inputs
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: windows-filter
+        if: github.event_name != 'workflow_dispatch' && github.event_name != 'merge_group' && env.ACT != 'true'
+        with:
+          filters: windows_path_filter.yml
+
+      - name: Select Windows path-contract tests
+        id: windows-select
+        env:
+          GH_EVENT_NAME: ${{ github.event_name }}
+          GH_REF_NAME: ${{ github.ref_name }}
+          GH_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          FILTER_OUTPUTS: ${{ toJson(steps.windows-filter.outputs) }}
+        run: python3 scripts/ci/windows_path_filter.py select
 
       - name: Report path check result
         env:
@@ -102,7 +130,7 @@ jobs:
       contents: read
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -142,7 +170,7 @@ jobs:
       contents: read
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -168,7 +196,7 @@ jobs:
       contents: read
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -207,7 +235,7 @@ jobs:
       BASE_REF: ${{ github.base_ref || github.event.repository.default_branch }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -240,6 +268,46 @@ jobs:
         with:
           validator: check_whole_tree_count_ratchets_blocking
           job-status: ${{ job.status }}
+
+  mutation-harness-guard:
+    name: Run mutation harnesses (blocking)
+    # Issue #5538. tests/mutation/mutation_harness_*.py prove a guard test
+    # kills the defect it guards, and no gate ran them, so a stale selector
+    # (#5534) sat on main unreported. run_mutation_harnesses.py discovers the
+    # harnesses by glob and fails the job under the harness that produced the
+    # surviving mutant, the unapplied anchor, or the crash.
+    #
+    # Placement: CI only, not pre-push. The harnesses cost a few minutes in
+    # total and the pre-push declared budget is ratcheted
+    # (tests/ci/test_lefthook_declared_budget.py), so a pre-push job would
+    # need another job's cap cut to pay for it (ci-scripts.md MUST 16).
+    #
+    # No `needs:` and no `if:` on purpose, the same shape as
+    # zero-collection-guard. The job runs every harness, so a path filter
+    # could report green without measuring (issue #5317). `test-result`
+    # needs this job, so the existing "Run Python Tests" required context
+    # fails when a harness fails and no ruleset change is needed.
+    runs-on: ubuntu-26.04-arm
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup code environment
+        uses: ./.github/actions/setup-code-env
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+          enable-pester: false
+          enable-git-hooks: false
+
+      - name: Run mutation harnesses (blocking)
+        run: uv run --frozen --extra dev python scripts/ci/run_mutation_harnesses.py
 
   test:
     name: "pytest (${{ matrix.partition }})"
@@ -300,7 +368,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -476,7 +544,7 @@ jobs:
           --fail-under=100
 
       - name: Upload test results
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: pytest-results-${{ matrix.partition }}
@@ -495,7 +563,7 @@ jobs:
       contents: read
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -534,7 +602,7 @@ jobs:
           uv run --frozen coverage xml --data-file=artifacts/.coverage.combined -o artifacts/coverage.xml
 
       - name: Upload combined coverage
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: pytest-results
           path: artifacts/
@@ -612,7 +680,7 @@ jobs:
       contents: read
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -706,7 +774,7 @@ jobs:
 
       - name: Upload duration report
         if: steps.duration-trend.outcome != 'skipped' && !cancelled()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: test-durations
           path: test-durations/
@@ -714,7 +782,8 @@ jobs:
 
   # Issue #6239 / ADR-104. Builds the pytest-testmon database the pre-push hook
   # downloads, so a developer's first push selects only what changed since main
-  # instead of running the whole suite to build one.
+  # instead of only collecting the suite and leaving every test to CI (issue
+  # #6200).
   #
   # Not part of the required chain. It is deliberately absent from `test-result`
   # needs: a slow, failed, or skipped seed must never change `Run Python Tests`.
@@ -750,7 +819,7 @@ jobs:
       contents: read
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -792,7 +861,7 @@ jobs:
       # database is `.testmondata`.
       - name: Upload the testmon database
         if: ${{ !cancelled() && steps.build.outputs.complete == 'true' && hashFiles('.testmondata') != '' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.seed.outputs.name }}
           path: .testmondata
@@ -815,6 +884,7 @@ jobs:
       - line-endings-guard
       - context-output-guard
       - count-ratchet-guard
+      - mutation-harness-guard
     # !cancelled() rather than always(): a superseded run leaves its
     # dependencies 'cancelled', and always() would turn that into a red
     # required check on the PR head (Issue #5097). !cancelled() still runs on
@@ -847,6 +917,7 @@ jobs:
           LINE_ENDINGS_RESULT: ${{ needs.line-endings-guard.result }}
           CONTEXT_OUTPUT_RESULT: ${{ needs.context-output-guard.result }}
           COUNT_RATCHET_RESULT: ${{ needs.count-ratchet-guard.result }}
+          MUTATION_HARNESS_RESULT: ${{ needs.mutation-harness-guard.result }}
         run: >-
           python scripts/ci/require_job_results.py
           --check TEST_RESULT success "test job failed or was cancelled: {value}"
@@ -855,6 +926,7 @@ jobs:
           --check LINE_ENDINGS_RESULT success "line-endings-guard failed or was cancelled: {value}"
           --check CONTEXT_OUTPUT_RESULT success "context-output-guard failed or was cancelled: {value}"
           --check COUNT_RATCHET_RESULT success "count-ratchet-guard failed or was cancelled: {value}"
+          --check MUTATION_HARNESS_RESULT success "mutation-harness-guard failed or was cancelled: {value}"
 
       # ADR-113 decision 2: persist this job's typed result for the promotion gate.
       - name: Upload promotion evidence
@@ -877,7 +949,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -933,13 +1005,13 @@ jobs:
           always() &&
           (github.event_name != 'pull_request' ||
           github.event.pull_request.head.repo.full_name == github.repository)
-        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d  # v4
+        uses: github/codeql-action/upload-sarif@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee  # v4
         with:
           sarif_file: bandit.sarif
           category: bandit
 
       - name: Upload Bandit results
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         if: always()
         with:
           name: bandit-results
@@ -954,10 +1026,19 @@ jobs:
   # modules by scanning for the marker's name and hands only those to pytest,
   # so a new marked file still needs no edit here. Issue #5380: passing the
   # marker alone made pytest import all 33,326 items to select 1,115.
+  #
+  # Issue #5380, scheduling half: check-paths computes `windows-affected` and
+  # `windows-files` with scripts/ci/windows_path_filter.py. A pull request
+  # starts this job only when it reaches a marked module, and the job runs only
+  # the modules it reaches. merge_group, workflow_dispatch and pushes to the
+  # default branch run the complete set, which is the backstop for a reach the
+  # textual analysis missed.
   test-windows-pwsh:
     name: Run Windows path-contract tests (pytest.mark.windows_path)
     needs: check-paths
-    if: needs.check-paths.outputs.python-changed == 'true'
+    if: >-
+      needs.check-paths.outputs.python-changed == 'true' &&
+      needs.check-paths.outputs.windows-affected == 'true'
     runs-on: windows-latest
     timeout-minutes: 10
     permissions:
@@ -965,7 +1046,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -985,6 +1066,8 @@ jobs:
         shell: pwsh
         env:
           UV_PYTHON: '3.14'
+          # JSON array of the marked modules this change reaches. Empty runs all.
+          WINDOWS_TEST_FILES: ${{ needs.check-paths.outputs.windows-files }}
         run: uv run --frozen python scripts/ci/run_pytest_windows.py -v
 
   main-failure-alert:

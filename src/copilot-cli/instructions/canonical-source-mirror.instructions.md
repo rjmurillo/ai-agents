@@ -4,6 +4,18 @@ applyTo: scripts/validation/**,build/scripts/**,.github/prompts/**
 
 # Canonical Source Mirror Rule
 
+<!-- vendor-portability: contributor-facing rule for the rjmurillo/ai-agents repo
+     itself; it binds new components to the upstream validators, generators,
+     retrospectives, and governance docs it names. None of these exist in a consumer
+     install (issue #5298). Paths: .agents/governance,
+     .claude/skills/orphan-ref-validator/scripts/envelope.py,
+     .project-toolkit/retrospective,
+     .project-toolkit/retrospective/2026-05-05-pr-1887-iteration-paradox.md,
+     .project-toolkit/retrospective/2026-06-02-pr-2205-customer-wedge-incident.md,
+     build/scripts, build/scripts/generate_rules.py, scripts/validate_session_json.py,
+     scripts/validation, scripts/validation/check_placeholder_identity.py,
+     templates/agents/implementer.shared.md, templates/platforms/copilot-cli.yaml -->
+
 When a component's docstring, comment, or README claims to "match", "mirror", "align with", or "extend" an existing source (a regex, a schema, a function signature, a set of exit codes, a JSON contract), the claim is a load-bearing assertion. The reader trusts it. So does the reviewer. So does the next maintainer who replays the contract from your code instead of from the source.
 
 This rule binds those claims to evidence. It exists because PR #1887 (the M4 evidence-rule guard) was designed against an imagined contract instead of the canonical `scripts/validate_session_json.py:CONTRADICTION_PATTERNS` regex. The error survived several reviews. Aligning M4 to canonical took 7 fix commits. The retrospective at `.project-toolkit/retrospective/2026-05-05-pr-1887-iteration-paradox.md` names this anti-pattern "confident incorrectness": partial signal, premature conclusion, confident delivery, multi-round correction.
@@ -83,11 +95,11 @@ You write documentation on branch A naming a test, a constant, or a function tha
 
 One slice of this is now machine-checked. The `Citation Freshness (added lines)` gate in the `pre_pr` validation sequence (issue #5337; implementation `check_citation_freshness.py` under the validation-scripts tree, with matcher and anchor semantics in its sibling `citation_anchors.py`; the directory prefix is omitted here because this rule ships in the plugin instruction mirrors, where an upstream-only path would dangle) verifies path-plus-line-number citations on lines added since the base ref. The matcher is `_CITATION` in `citation_anchors.py`, and the escape-hatch matcher is `_IGNORE_WITH_REASON` in `check_citation_freshness.py`. This rule names them and does not copy their patterns, because a copied pattern goes stale when the matcher changes. `tests/validation/test_citation_matcher_conformance.py` runs both matchers against the matcher behavior stated here (extensions, line ranges, absolute and parent-relative paths, the reasoned escape hatch) and fails when either drifts. The tracked-root check and the exemptions belong to the gate, not the matchers, and have their own tests in `test_check_citation_freshness.py`. The cited path needs an extension the matcher lists, and a slashless name counts only when it names a file tracked at the repository root (the shape a stale citation in this very rule once took); an untracked bare name is read as an illustrative snippet and skipped. Absolute and parent-relative paths never match. The escape hatch counts only in its reasoned form: the marker, then `--`, then a non-empty reason.
 
-The gate checks: the cited file must be tracked at HEAD, the cited lines must exist, and when the citing sentence names the contract (a backtick span of 3+ characters, a double-quoted phrase of 4+, an underscore identifier of 5+, or an indented verbatim quote; shorter tokens, and bare names with no underscore, are a deliberate noise floor, not assertions) that content must actually appear at the cited lines. It reports where the content moved to when it can. Historical trees (retrospectives, sessions, memories) and `fixtures/` directories, whose files synthesize citations on purpose, are exempt, and a deliberate exception takes a `citation-freshness: ignore` marker with a reason on or above the line.
+The gate checks: the cited file must be tracked at HEAD, the cited lines must exist, and when the citing sentence names the contract (a backtick span of 3+ characters, a double-quoted phrase of 4+, an underscore identifier of 5+, or an indented verbatim quote; shorter tokens, and bare names with no underscore, are a deliberate noise floor, not assertions) that content must actually appear at the cited lines. It reports where the content moved to when it can. Historical trees (retrospectives, sessions, memories) and `fixtures/` directories, whose files synthesize citations on purpose, are exempt, string literals in Python files under a `tests` directory are test data and are skipped (their comments and docstrings are still checked), and a deliberate exception takes a `citation-freshness: ignore` marker with a reason on or above the line, or, in Markdown, on the line directly above the code fence that holds the citation (a JSON fence cannot carry the marker inside).
 
 Everything else in this section remains manual. A claim that names a symbol, a test, or a count WITHOUT a line number is invisible to that gate, and two other gates look like they would catch it and do not:
 
-- `orphan-ref-validator` reports four kinds of finding, and its type at `.claude/skills/orphan-ref-validator/scripts/envelope.py:28-34` enumerates all of them: <!-- citation-freshness: ignore -- the checker harvests 'orphan-ref-validator' from this same sentence's file path as a spurious anchor, and the fenced code block's continuation-quote anchor carries this list's 2-space markdown indent, absent from the unindented module-level code at those lines; content verified present and correct at 28-34, 2026-09-14 -->
+- `orphan-ref-validator` reports five kinds of finding, and its type at `.claude/skills/orphan-ref-validator/scripts/envelope.py:28-35` enumerates all of them: <!-- citation-freshness: ignore -- the checker harvests 'orphan-ref-validator' from this same sentence's file path as a spurious anchor, and the fenced code block's continuation-quote anchor carries this list's 2-space markdown indent, absent from the unindented module-level code at those lines; content verified present and correct at 28-35, 2026-10-13 -->
 
   ```python
   Kind = Literal[
@@ -95,6 +107,7 @@ Everything else in this section remains manual. A claim that names a symbol, a t
       "script_path",
       "rule_path",
       "instruction_path",
+      "retired_path",
       "scan_truncated",
   ]
   ```
@@ -121,12 +134,12 @@ rescoped `code-quality` and `pragmatic-programmer`. Issue #5492 narrowed
 `knowledge-persistence` to the trees it governs. PR #5498 reduced `voice`.
 Issue #5404 added completion guidance to `builder-ethos` and `voice`.
 Epic #5456 M4 moved model patches, search guidance, and much of `voice` into
-skills with narrower activation:
+skills with narrower activation. Issue #5256 added `lossless-queue-reads`:
 
 | Tree | Consumer | Always-on membership |
 |---|---|---|
-| `.github/instructions` | Copilot working in this repository | `builder-ethos`, `universal`, `voice` |
-| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | `builder-ethos`, `universal`, `voice` |
+| `.github/instructions` | Copilot working in this repository | `builder-ethos`, `lossless-queue-reads`, `universal`, `voice` |
+| `src/copilot-cli/instructions` | the shipped plugin, installed elsewhere | `builder-ethos`, `lossless-queue-reads`, `universal`, `voice` |
 
 The Claude side answers the same question from the source, and it reads `paths:` alone. It ignores `applyTo:`, `globs:`, and `alwaysApply:`, all three of which `generate_rules.py` accepts, and each fails differently. `applyTo:` is remapped, so the mirror is scoped and only the Claude source leaks (the former `pragmatic-programmer` rule, before issue #5951 moved it into the `software-engineering-library` skill). `globs:` is preserved verbatim and never becomes `applyTo:`, so neither tree is scoped. `alwaysApply:` is dropped before the generator synthesizes `applyTo: '**'`, so both trees load universally and a code-only rule cannot state its scope (`code-quality`). `check_rule_scope_keys.py`, under the validation-scripts tree, now fails the build on any scope key but `paths:`, which keeps the source-side and mirror-side answers aligned. The directory prefix is omitted for the same reason the citation-freshness gate's is above: this rule ships in the plugin instruction mirrors, where an upstream-only path would dangle.
 

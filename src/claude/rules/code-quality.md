@@ -19,6 +19,10 @@ paths:
   - "**/*.psd1"
   - "**/*.sh"
   - "**/*.sql"
+metadata:
+  capability:
+    kind: cross-cutting-rule
+    depends-on: [operational-event-selection]
 ---
 
 # Code Quality
@@ -135,7 +139,7 @@ Assume bad input can reach your function. Decide where to catch it, then catch i
 - Treat all external data as hostile until validated: HTTP request bodies, environment variables, file contents, database rows from older schemas.
 - Never trust user-supplied identifiers as authorization. Re-check ownership inside the function.
 - Choose one error-handling strategy per layer: exceptions, result types, or sentinel values. Mixing them inside one layer creates ambiguity.
-- Log enough context to reconstruct the failure: input identifiers, user, request id. Never log secrets, tokens, or full PII.
+- Never log secrets, tokens, or PII. Events: `.claude/skills/observability/references/event-logging-contract.md`.
 
 Defensive code should not become paranoid code. If two callers already validated the input, a third check is noise.
 

@@ -87,7 +87,7 @@ found no additional configuration key.
 Sources: GitHub permission guide, Persisted permissions and Allowing or denying
 permission for specific tools; configuration guide, Setting allowed tools.
 
-### Skill `allowed-tools`
+### Skill `allowed-tools` <!-- orphan-ref-ignore -->
 
 The official skills guide lists `allowed-tools` in a skill's `SKILL.md`
 frontmatter as the tools Copilot may use without asking, with `shell` as its

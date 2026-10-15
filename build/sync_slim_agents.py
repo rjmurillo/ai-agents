@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 """Propagate a slimmed agent body from `src/claude/agents/` to its sibling copies.
 
-`build/AGENTS.md` Rule 2 states the manual procedure this automates: when a
-Claude agent receives a universal change, the same change is duplicated into
-`templates/agents/{name}.shared.md`. `.serena/memories/decision-two-pipeline-agent-mirror-recipe.md`
-widens that to the other hand-maintained copies. This script performs the body
-copy for the agents listed in `SLIMMED_AGENTS`.
+Before ADR-109 B1 a universal change to a Claude agent was copied by hand into
+`templates/agents/{name}.shared.md` and the other sibling copies
+(`.serena/memories/decision-two-pipeline-agent-mirror-recipe.md`). This script
+automates that body copy for the agents listed in `SLIMMED_AGENTS`.
+
+That direction is now backwards. `src/claude/agents/` is rendered from the
+`*.claude.md.tmpl` templates, so `--write` copies rendered output into
+`templates/agents/*.shared.md` and `.github/agents/`. `build/AGENTS.md` says not
+to run it, `build_all.py` never calls it, and no gate runs it. Only the refusal
+below stops a backwards copy.
 
 This module owns the files: which agents are mirrored, where they live, path
 safety, the atomic write, the CLI and the exit codes. What a body becomes on
@@ -15,17 +20,14 @@ its measurement, and the reconciliation opcodes.
 
 A destination it cannot reproduce blocks the run: `--write` exits 2 and writes
 nothing, and `--check` counts those files apart from the ones it can sync. On
-the live tree that is 7 of the 18 declared files.
+the live tree at 4a8444a21 that is 8 of the 18 declared files.
 
-`src/claude/agents/` is the source and never a destination. Its own `AGENTS.md`
-tabulates `src/claude/agents/` as the source for Claude Code agents, marked "Edit
-here", against `.claude/agents/` as the installed runtime copy, marked "DO NOT
-edit directly", and names copying the installed tree back over the source as a
-common mistake that can drop blocking gates. So `.claude/agents/` is neither
-read nor written here, and an edit that started in `src/claude/agents/` still has to
-reach that installed copy by its own route;
+`src/claude/agents/` is the script's source and never a destination, and
+`.claude/agents/` is neither read nor written. Both are generated trees
+(ADR-109 B1): `build/scripts/build_all.py` renders the first from the
+templates and binplaces it onto the second.
 `build/scripts/check_agent_content_parity.py` compares those two trees
-byte-for-byte on every PR through `pre_pr.py` and fails until it does.
+byte-for-byte on every PR through `pre_pr.py`.
 
 Nor does this regenerate the derived trees. After a `--write` run, run
 `uv run python build/generate_agents.py` to refresh `src/copilot-cli/` and
