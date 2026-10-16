@@ -23,6 +23,5 @@
 .claude/skills/merge-resolver/scripts/resolve_pr_conflicts.py
 .claude/skills/orphan-ref-validator/scripts/scan.py
 .claude/skills/quality-grades/scripts/grade_domains.py
-.claude/skills/steering-matcher/get_applicable_steering.py
 .claude/skills/steering-matcher/scripts/get_applicable_steering.py
 .claude/skills/taste-lints/scripts/taste_lints.py
