@@ -20,8 +20,6 @@ python:
   - '**/*.ts'
   - '**/*.yaml'
   - '**/*.yml'
-  - '**/*.ps1'
-  - '**/*.psm1'
   - '**/*.pyw'
   # Issue #4880: a nested AGENTS.md/CLAUDE.md is a direct input to the
   # path-local effective-context ratchet (test_effective_context_ratchet.py,

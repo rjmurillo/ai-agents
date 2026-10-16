@@ -82,7 +82,6 @@ class TestGateActivation:
             calls.clear()
             monkeypatch.setenv("ENABLE_GIT_HOOKS", hooks)
             monkeypatch.setenv("ENABLE_PYTHON", python)
-            monkeypatch.setenv("ENABLE_PESTER", "false")
             vce.main([])
             assert len(calls) == expected, (hooks, python)
 
@@ -109,7 +108,7 @@ class TestSkipAutofixLine:
         self, monkeypatch: pytest.MonkeyPatch, no_tools: None, capsys: pytest.CaptureFixture[str]
     ) -> None:
         monkeypatch.delenv("SKIP_AUTOFIX", raising=False)
-        for name in ("ENABLE_GIT_HOOKS", "ENABLE_PYTHON", "ENABLE_PESTER"):
+        for name in ("ENABLE_GIT_HOOKS", "ENABLE_PYTHON"):
             monkeypatch.setenv(name, "false")
         vce.main([])
         assert "SKIP_AUTOFIX: 0 (0=enabled, 1=disabled)" in capsys.readouterr().out
@@ -118,7 +117,7 @@ class TestSkipAutofixLine:
         self, monkeypatch: pytest.MonkeyPatch, no_tools: None, capsys: pytest.CaptureFixture[str]
     ) -> None:
         monkeypatch.setenv("SKIP_AUTOFIX", "1")
-        for name in ("ENABLE_GIT_HOOKS", "ENABLE_PYTHON", "ENABLE_PESTER"):
+        for name in ("ENABLE_GIT_HOOKS", "ENABLE_PYTHON"):
             monkeypatch.setenv(name, "false")
         vce.main([])
         assert "SKIP_AUTOFIX: 1 (0=enabled, 1=disabled)" in capsys.readouterr().out
@@ -233,7 +232,7 @@ class TestCli:
     def test_a_clean_run_exits_zero_and_prints_the_banner(
         self, monkeypatch: pytest.MonkeyPatch, no_tools: None, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        for name in ("ENABLE_GIT_HOOKS", "ENABLE_PYTHON", "ENABLE_PESTER"):
+        for name in ("ENABLE_GIT_HOOKS", "ENABLE_PYTHON"):
             monkeypatch.setenv(name, "false")
         assert vce.main([]) == 0
         out = capsys.readouterr().out
@@ -253,5 +252,5 @@ class TestWorkflowWiring:
 
     def test_the_inputs_are_still_passed_as_env(self) -> None:
         text = ACTION.read_text(encoding="utf-8")
-        for name in ("ENABLE_GIT_HOOKS", "ENABLE_PESTER", "ENABLE_PYTHON"):
+        for name in ("ENABLE_GIT_HOOKS", "ENABLE_PYTHON"):
             assert name in text

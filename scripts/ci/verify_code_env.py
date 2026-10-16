@@ -115,7 +115,6 @@ def main(argv: list[str] | None = None) -> int:
 
     git_hooks = _enabled("ENABLE_GIT_HOOKS")
     python = _enabled("ENABLE_PYTHON")
-    pester = _enabled("ENABLE_PESTER")
 
     print("")
     print(_HEADER)
@@ -129,7 +128,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"SKIP_AUTOFIX: {autofix} (0=enabled, 1=disabled)")
     print("")
 
-    report_tools(python=python, pester=pester)
+    report_tools(python=python, pester=False)
 
     print("")
     print(_COMPLETE)

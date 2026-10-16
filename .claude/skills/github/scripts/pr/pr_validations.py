@@ -220,7 +220,7 @@ def _extract_validatable_session_logs(
 
 
 # Issue #4764: /push-pr must not execute repository-controlled Python to decide
-# whether to create a pull request. All three detectors named below live under
+# whether to create a pull request. The detectors named below live under
 # scripts/, which any branch can rewrite, so this script never runs them and
 # reports them as not run. CI runs them from a trusted checkout.
 #
@@ -233,7 +233,6 @@ def _extract_validatable_session_logs(
 _UNTRUSTED_REPOSITORY_VALIDATORS = (
     "Session End (scripts/validate_session_json.py)",
     "skill violation (scripts/detect_skill_violation.py)",
-    "test coverage (scripts/detect_test_coverage_gaps.py)",
 )
 _UNTRUSTED_REPOSITORY_REASON = "repository-local Python is outside the trusted push-pr boundary"
 
@@ -369,11 +368,6 @@ def run_validations(
         print(f"  Scope: no changed file has a scannable extension ({_exts}).")
     else:
         print(f"  Scope: {len(scannable_files)} changed file(s) would have been scanned.")
-
-    # Validation 3: Test coverage detection (WARNING)
-    print()
-    print("[3/6] Checking test coverage...")
-    _report_not_run(_UNTRUSTED_REPOSITORY_VALIDATORS[2])
 
     # Validation 4: PR Description validation (WARNING)
     print()

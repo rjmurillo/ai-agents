@@ -5,10 +5,6 @@ inputs:
   gh-token:
     description: 'GitHub token for GitHub CLI operations'
     required: true
-  enable-pester:
-    description: 'Install Pester testing framework (default: false)'
-    required: false
-    default: 'false'
   enable-git-hooks:
     description: 'Enable git hooks configuration (default: true)'
     required: false
@@ -30,9 +26,6 @@ outputs:
   node-version:
     description: 'Node.js version installed'
     value: ${{ steps.node-version.outputs.node_version }}
-  pester-version:
-    description: 'Pester version installed (if enabled)'
-    value: ${{ steps.pester.outputs.pester_version }}
   python-version:
     description: 'Python version installed (if enabled)'
     value: ${{ steps.python-version.outputs.python_version }}
@@ -141,20 +134,6 @@ runs:
           echo "✓ pytest is available for Python testing"
         fi
 
-    - name: Install Pester
-      id: pester
-      if: inputs.enable-pester == 'true'
-      shell: pwsh -NoProfile -Command "& '{0}'"
-      run: |
-        echo "Installing Pester testing framework..."
-        Set-PSRepository -Name 'PSGallery' -InstallationPolicy Trusted
-        # Require exact version for supply chain determinism (issue #304)
-        Install-Module -Name Pester -RequiredVersion 5.7.1 -Force -Scope CurrentUser
-        Import-Module Pester -RequiredVersion 5.7.1
-        $pesterVersion = (Get-Module Pester).Version
-        echo "✓ Pester $pesterVersion installed"
-        "pester_version=$pesterVersion" >> "$env:GITHUB_OUTPUT"
-
     - name: Set SKIP_AUTOFIX environment variable
       shell: bash
       env:
@@ -167,7 +146,6 @@ runs:
       shell: bash
       env:
         ENABLE_GIT_HOOKS: ${{ inputs.enable-git-hooks }}
-        ENABLE_PESTER: ${{ inputs.enable-pester }}
         ENABLE_PYTHON: ${{ inputs.enable-python }}
       run: |
         python3 "${GITHUB_ACTION_PATH}/../../../scripts/ci/verify_code_env.py"
