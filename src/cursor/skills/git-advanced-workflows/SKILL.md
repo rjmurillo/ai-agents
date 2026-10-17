@@ -209,10 +209,12 @@ Shared-state table above.
 Review the complete working-tree diff, including untracked files, before
 staging. Stage only intended paths, inspect the staged names and diff, run
 `git diff --cached --check`, and commit. `git rebase` refuses to start while
-unstaged edits remain, so deal with the leftovers first. Commit them as a
-separate WIP commit, or move the requested work to a clean worktree with the
-Publish procedure above. Do not use `--autostash`: the stash is repo-wide (see
-the Shared-state caveat).
+unstaged edits remain, so deal with the leftovers first. If any leftover is
+unrelated to the request, use the Publish procedure above instead, so it never
+reaches the remote. If the leftovers are your own unfinished work on this
+branch, commit them as a separate WIP commit on top, and unwind it before any
+push (see below). Do not use `--autostash`: the stash is repo-wide (see the
+Shared-state caveat).
 
 If the branch is behind and private, create a safety branch (Phase 1 step 3),
 then rebase local commits onto the fetched remote head. Use a merge for a
@@ -228,9 +230,10 @@ both sides.
 
 After integration, confirm every intended path is committed and the left
 (remote-ahead) count is `0`. A non-zero right count is committed work not yet
-published. If the user asked for the remote to hold the work too, push the
-branch, fetch again, and confirm the count is `0 0` and the remote ref equals
-`HEAD`.
+published. If the user asked for the remote to hold the work too, first
+unwind any WIP commit with `git reset HEAD^`, which returns its edits to the
+working tree and keeps them out of the push. Then push the branch, fetch
+again, and confirm the count is `0 0` and the remote ref equals `HEAD`.
 
 #### Recovery: Undo Mistakes with Reflog
 
