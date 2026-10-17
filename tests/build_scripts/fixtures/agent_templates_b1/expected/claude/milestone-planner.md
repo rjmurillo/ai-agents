@@ -4,6 +4,7 @@ description: Use when you say "break this epic into milestones", "plan this road
 metadata:
   role: coordinator
 argument-hint: Provide the epic or roadmap item to plan
+disallowedTools: Agent
 ---
 
 # Milestone Planner Agent
@@ -168,7 +169,7 @@ Read, Grep, Glob, TodoWrite, Write. Memory via `mcp__serena__read_memory` for pr
 
 ## Handoff
 
-You cannot delegate. Return to orchestrator with:
+You cannot delegate. Return to orchestrator with (work-order fields per the orchestrator Handoff Contract):
 
 1. **Path to plan document** (if written to file)
 2. **Milestone count and total effort estimate**

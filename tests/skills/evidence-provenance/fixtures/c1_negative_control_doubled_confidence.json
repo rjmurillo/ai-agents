@@ -1,0 +1,36 @@
+{
+  "claim": "R holds, two confirmations",
+  "subject": {
+    "artifact": "pkg",
+    "revision": "r2",
+    "premises": [
+      "interp:R"
+    ]
+  },
+  "evidence": [
+    {
+      "id": "new-test",
+      "state": "VERIFIED",
+      "premises": [
+        "interp:R"
+      ]
+    },
+    {
+      "id": "fixture-derived-from-impl",
+      "state": "VERIFIED",
+      "premises": [
+        "interp:R"
+      ],
+      "authority": "derived"
+    }
+  ],
+  "claimed_independent": 2,
+  "expect": {
+    "verdict": "SINGLE_LOOP",
+    "independent_loops": 0,
+    "exit": 1,
+    "violations": [
+      "inflated-confidence"
+    ]
+  }
+}

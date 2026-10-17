@@ -119,6 +119,13 @@ class TestMarkdownCheckerCoverage:
         instructions = root / "src" / "copilot-cli" / "instructions"
         instructions.mkdir(parents=True, exist_ok=True)
         (instructions / "x.instructions.md").write_text("Nothing upstream.\n", encoding="utf-8")
+        rules = root / "src" / "claude" / "rules"
+        rules.mkdir(parents=True, exist_ok=True)
+        (rules / "x.md").write_text("Nothing upstream.\n", encoding="utf-8")
+        for agents_tree in ("src/claude/agents", "src/copilot-cli/agents", ".github/agents"):
+            agents = root / agents_tree
+            agents.mkdir(parents=True, exist_ok=True)
+            (agents / "x.md").write_text("Nothing upstream.\n", encoding="utf-8")
         _commit_tree(root)
 
     def _run(self, root: Path, baseline: Path) -> int:
@@ -177,7 +184,11 @@ class TestMarkdownCheckerCoverage:
             ".claude/skills": 2,
             "src/claude/skills": 2,
             "src/copilot-cli/skills": 2,
+            "src/claude/agents": 1,
+            "src/copilot-cli/agents": 1,
+            ".github/agents": 1,
             "src/copilot-cli/instructions": 1,
+            "src/claude/rules": 1,
         }
 
     def test_coverage_reports_a_starved_root_as_zero(self, tmp_path: Path) -> None:
@@ -186,7 +197,11 @@ class TestMarkdownCheckerCoverage:
             ".claude/skills": 2,
             "src/claude/skills": 0,
             "src/copilot-cli/skills": 0,
+            "src/claude/agents": 1,
+            "src/copilot-cli/agents": 1,
+            ".github/agents": 1,
             "src/copilot-cli/instructions": 1,
+            "src/claude/rules": 1,
         }
 
 

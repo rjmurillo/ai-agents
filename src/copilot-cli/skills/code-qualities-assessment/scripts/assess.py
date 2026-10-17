@@ -68,8 +68,10 @@ _LINE_COMMENT_PREFIXES = {
 }
 
 _GENERATED_PATH_SEGMENTS = (
+    ("src", "claude"),
     ("src", "copilot-cli"),
     ("src", "vs-code-agents"),
+    (".claude", "hooks"),
     (".github", "instructions"),
 )
 _GENERATED_MARKERS = (
@@ -1351,6 +1353,20 @@ def _score_below_threshold(score: QualityScore, threshold: float | None) -> bool
     return threshold is not None and score.confidence > 0.0 and score.value < threshold
 
 
+def _confidence_floor(config: dict[str, Any]) -> float:
+    """Return the confidence below which a score is advisory, never gating.
+
+    ``minConfidence`` is a top-level config key. A config without it gates every
+    scored quality, as before. A score under the floor is still reported but
+    cannot fail the absolute gate, because the metric says it is a weak proxy.
+    """
+    return float(config.get("minConfidence", 0.0))
+
+
+def _is_advisory(score: QualityScore, floor: float) -> bool:
+    return 0.0 < score.confidence < floor
+
+
 def generate_markdown_report(
     assessments: list[FileAssessment],
     config: dict[str, Any],
@@ -1401,9 +1417,15 @@ def generate_markdown_report(
 
         # Show reasons for low scores
         file_thresholds = _thresholds_for(config, context, assessment)
+        floor = _confidence_floor(config)
         for label, threshold_key, score in quality_rows:
             if _score_below_threshold(score, _threshold_min(file_thresholds, threshold_key)):
-                report.append(f"**{label} Issues**:")
+                advisory = (
+                    " (advisory for absolute thresholds, low confidence)"
+                    if _is_advisory(score, floor)
+                    else ""
+                )
+                report.append(f"**{label} Issues{advisory}**:")
                 for reason in score.reasons:
                     report.append(f"  - {reason}")
                 report.append("")
@@ -1499,6 +1521,7 @@ def check_thresholds(
         0: All thresholds met
         11: Below thresholds
     """
+    floor = _confidence_floor(config)
     for assessment in assessments:
         thresholds = _thresholds_for(config, context, assessment)
         if (
@@ -1513,63 +1536,28 @@ def check_thresholds(
             )
             return 11
 
-        if (
-            assessment.cohesion.confidence > 0.0
-            and assessment.cohesion.value < thresholds["cohesion"]["min"]
-        ):
-            print(
-                f"❌ {assessment.file_path}: Cohesion {assessment.cohesion.value} "
-                f"< {thresholds['cohesion']['min']}",
-                file=sys.stderr,
-            )
-            return 11
-
-        # Coupling uses "min" semantics: higher score = looser coupling = better.
-        # Legacy configs that only specify "max" are skipped rather than gated
-        # incorrectly.
-        coupling_min = thresholds["coupling"].get("min")
-        if (
-            coupling_min is not None
-            and assessment.coupling.confidence > 0.0
-            and assessment.coupling.value < coupling_min
-        ):
-            print(
-                f"❌ {assessment.file_path}: Coupling {assessment.coupling.value} < {coupling_min}",
-                file=sys.stderr,
-            )
-            return 11
-
-        if (
-            assessment.encapsulation.confidence > 0.0
-            and assessment.encapsulation.value < thresholds["encapsulation"]["min"]
-        ):
-            print(
-                f"❌ {assessment.file_path}: Encapsulation {assessment.encapsulation.value} "
-                f"< {thresholds['encapsulation']['min']}",
-                file=sys.stderr,
-            )
-            return 11
-
-        if (
-            assessment.testability.confidence > 0.0
-            and assessment.testability.value < thresholds["testability"]["min"]
-        ):
-            print(
-                f"❌ {assessment.file_path}: Testability {assessment.testability.value} "
-                f"< {thresholds['testability']['min']}",
-                file=sys.stderr,
-            )
-            return 11
-
-        if (
-            assessment.non_redundancy.confidence > 0.0
-            and assessment.non_redundancy.value < thresholds["nonRedundancy"]["min"]
-        ):
-            print(
-                f"❌ {assessment.file_path}: Non-Redundancy {assessment.non_redundancy.value} "
-                f"< {thresholds['nonRedundancy']['min']}",
-                file=sys.stderr,
-            )
+        quality_checks = (
+            ("Cohesion", assessment.cohesion, thresholds["cohesion"].get("min")),
+            # Coupling uses "min" semantics: higher score = looser coupling =
+            # better. Legacy configs that only specify "max" are skipped rather
+            # than gated incorrectly.
+            ("Coupling", assessment.coupling, thresholds["coupling"].get("min")),
+            ("Encapsulation", assessment.encapsulation, thresholds["encapsulation"].get("min")),
+            ("Testability", assessment.testability, thresholds["testability"].get("min")),
+            ("Non-Redundancy", assessment.non_redundancy, thresholds["nonRedundancy"].get("min")),
+        )
+        for label, score, minimum in quality_checks:
+            if not _score_below_threshold(score, minimum):
+                continue
+            message = f"{assessment.file_path}: {label} {score.value} < {minimum}"
+            if _is_advisory(score, floor):
+                print(
+                    f"⚠️ {message} (advisory: confidence {score.confidence} "
+                    f"< minConfidence {floor})",
+                    file=sys.stderr,
+                )
+                continue
+            print(f"❌ {message}", file=sys.stderr)
             return 11
 
     return 0

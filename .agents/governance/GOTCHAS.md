@@ -35,7 +35,7 @@ for executable invocations of exactly that tree. All four live in
 |---|---|---|
 | `scripts/validation/check_vendor_portability.py` | skill scripts | code that reads an upstream-only path |
 | `scripts/validation/check_skill_portability.py` | skill scripts | drift against the script baseline |
-| `scripts/validation/check_skill_md_portability.py` | skill `.md`, `templates/agents/`, `src/copilot-cli/instructions/` | an upstream path cited in **prose** |
+| `scripts/validation/check_skill_md_portability.py` | skill `.md`, `templates/agents/`, `src/claude/agents/`, `src/copilot-cli/agents/`, `.github/agents/`, `src/copilot-cli/instructions/`, `src/claude/rules/` | an upstream path cited in **prose** |
 | `scripts/validation/check_skill_md_exec_portability.py` | skill `.md` | a bare `.claude/skills/...` script **invocation** |
 
 Symptom: the first two pass, you commit, and the push is rejected by
@@ -53,6 +53,16 @@ and what a vendored install loses without it>. Issue #2050. -->
 
 Both the canonical file and its `src/copilot-cli/` mirror carry the marker,
 because the checker scans both trees.
+
+For a rule, `src/claude/rules/` is compiled output of
+`build/scripts/rule_templates.py`. Put the marker in `templates/rules/<name>.md`,
+then run `uv run python build/scripts/build_all.py` to regenerate
+`src/claude/rules/`, `.claude/rules/`, and the Copilot instructions mirror. Do
+not hand-edit the generated trees.
+
+For an agent file, put the marker in the `templates/agents/` template that
+renders it, then run `build_all.py`.
+
 ## A bare directory argument to taste-lints is a silent false pass
 
 `taste_lints.py --rules file-size <dir>` with the directory as a **positional**
@@ -308,7 +318,7 @@ group finishes. A measured run put `python-tests` at 946 seconds against 2.6
 seconds for `taste-count-ratchet`, so you wait out the suite to be told your
 branch is behind.
 
-Rebase before you push, or run the four gates yourself first. They take about
+Rebase before you push, or run the gates yourself first. They take about
 2 seconds:
 
 ```bash
@@ -540,8 +550,9 @@ A citation cue is narrower than it looks, and both constraints are
 load-bearing. The cue (`see`, `per`, `defined in`, `for example`, and the rest
 of `_INLINE_CITATION_PATTERN`) must sit on the same line and immediately
 before the path, separated only by whitespace, colons, or an open paren. And
-the backtick span must end at the extension: `` `taste_lints.py` `` is
-suppressible, `` `taste_lints.py --rules file-size` `` is not, because the
+the backtick span must end at the extension or a `:LINE[:COL]` suffix:
+`` `taste_lints.py` `` is suppressible, `` `taste_lints.py --rules file-size` ``
+is not, because the
 trailing flags push the closing backtick past the extension. Reword so the
 path stands alone in its own span.
 

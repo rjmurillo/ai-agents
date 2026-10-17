@@ -13,9 +13,11 @@ Refs #1934.
 
 from __future__ import annotations
 
+import subprocess
 import sys
 from pathlib import Path
 from textwrap import dedent
+from typing import Any
 
 import pytest
 
@@ -683,3 +685,77 @@ def test_dry_run_falls_back_to_working_tree_when_git_unavailable(
 
     code, log = gen.regenerate(canonical, generated, dry_run=True)
     assert code == 0, "fallback to working tree should pass when content matches"
+
+
+_NON_ASCII_BODY = (
+    "Repeated shell script blocks \u2192 composite action\nCyclomatic complexity | \u226410\n"
+)
+
+
+def _commit_file(repo: Path, rel: str, data: bytes) -> None:
+    """Create a git repo at repo with rel committed as the given raw bytes."""
+    target = repo / rel
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(data)
+    env_args = ["-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false"]
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    subprocess.run(["git", "add", rel], cwd=repo, check=True)
+    subprocess.run(["git", *env_args, "commit", "-q", "-m", "seed"], cwd=repo, check=True)
+
+
+def test_read_committed_dest_roundtrips_non_ascii_from_real_git(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Arrow and less-than-or-equal survive the git show round trip (#5440)."""
+    rel = ".github/prompts/pr-quality-gate-x.md"
+    _commit_file(tmp_path, rel, _NON_ASCII_BODY.encode("utf-8"))
+    monkeypatch.setattr(gen, "REPO_ROOT", tmp_path)
+
+    assert gen._read_committed_dest(tmp_path / rel) == _NON_ASCII_BODY
+
+
+def test_read_committed_dest_decodes_utf8_under_cp1252_locale(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A Windows locale codec must not mangle git's UTF-8 output (#5440).
+
+    The stub mimics subprocess.run: with no encoding kwarg it decodes with
+    cp1252, as a Windows locale does. Git always emits UTF-8 bytes.
+    """
+    raw = _NON_ASCII_BODY.encode("utf-8")
+
+    def _fake_run(cmd: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        encoding: str = kwargs.get("encoding") or "cp1252"
+        errors: str = kwargs.get("errors") or "replace"
+        return subprocess.CompletedProcess(cmd, 0, stdout=raw.decode(encoding, errors), stderr="")
+
+    monkeypatch.setattr(gen, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(gen.subprocess, "run", _fake_run)
+
+    assert gen._read_committed_dest(tmp_path / "x.md") == _NON_ASCII_BODY
+
+
+def test_read_committed_dest_replaces_invalid_utf8_bytes(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Invalid UTF-8 in git output decodes with replacement, never raises."""
+    rel = "bad.md"
+    _commit_file(tmp_path, rel, b"ok \xff\xfe end\n")
+    monkeypatch.setattr(gen, "REPO_ROOT", tmp_path)
+
+    result = gen._read_committed_dest(tmp_path / rel)
+
+    assert result is not None
+    assert "\ufffd" in result
+    assert result.startswith("ok ")
+
+
+def test_read_committed_dest_returns_none_for_untracked_file(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """An untracked path yields None so the caller falls back to the working tree."""
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    (tmp_path / "new.md").write_text("x\n", encoding="utf-8")
+    monkeypatch.setattr(gen, "REPO_ROOT", tmp_path)
+
+    assert gen._read_committed_dest(tmp_path / "new.md") is None

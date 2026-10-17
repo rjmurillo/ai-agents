@@ -23,6 +23,9 @@ def _make_skill(root: Path, name: str, content: str = "clean\n") -> Path:
     md.write_text(content, encoding="utf-8")
     (root / "src" / "copilot-cli" / "skills").mkdir(parents=True, exist_ok=True)
     (root / "src" / "copilot-cli" / "instructions").mkdir(parents=True, exist_ok=True)
+    (root / "src" / "claude" / "rules").mkdir(parents=True, exist_ok=True)
+    for agents_tree in ("src/claude/agents", "src/copilot-cli/agents", ".github/agents"):
+        (root / agents_tree).mkdir(parents=True, exist_ok=True)
     # ADR-109 B3: check_skill_md_portability now also requires src/claude/skills
     # to exist (REQUIRED_SKILLS_ROOTS); left empty since the tests using this
     # helper assert exact ref/marker counts derived from .claude/skills alone.

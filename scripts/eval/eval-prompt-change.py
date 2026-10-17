@@ -83,13 +83,20 @@ from _billing_matrix import (
     apply_selection,
     provider_help_text,
 )
-from _eval_common import EST_TOKENS_PER_CALL, MalformedProviderMetadataError
+from _eval_common import (
+    EST_TOKENS_PER_CALL,
+    MalformedProviderMetadataError,
+    is_billing_error_message,
+)
 from _providers import is_default_anthropic
 
 RATE_LIMIT_SLEEP_SEC = 1.0
 DEFAULT_RUNS = 3
 SECURITY_RUNS = 5
+DEFAULT_BASE_RESAMPLES = 3
 FLAKINESS_BLOCK_THRESHOLD = 0.4
+EXIT_EXTERNAL = 3  # ADR-035 exit 3: an external dependency failed, including a provider outage
+EXIT_BILLING = 4  # ADR-035 exit 4: the credential cannot be used because the account has no credit
 
 # Criteria reported for human/JSON consumers but NOT part of the pass/fail
 # decision. They are surfaced for context only; the gate verdict never depends
@@ -515,9 +522,13 @@ def is_base_unstable(before: dict[str, Any], required_runs: int = DEFAULT_RUNS) 
     a regression. It is reported, never gated. A scenario the base side fails
     outright with at least `required_runs` scored runs (`passed` False) is not
     unstable: it cannot regress. A failing base scored on fewer runs than
-    `required_runs` is unstable: the run-count check comes first.
+    `required_runs` is unstable: the run-count check comes first. A base that
+    drew a clean pass on its first sample but failed a run when re-sampled
+    against a suspected regression (`resample_contradicted`) is unstable too.
     """
     if before["runs"] < required_runs:
+        return True
+    if before.get("resample_contradicted"):
         return True
     return bool(before["passed"] and before["flaky"])
 
@@ -531,9 +542,57 @@ def _base_tag(before: dict[str, Any], required_runs: int) -> str:
     """Progress tag for the base side, naming why a base is excluded."""
     if before["runs"] < required_runs:
         return f" [base unstable: {before['runs']} of {required_runs} required runs scored]"
+    if before.get("resample_contradicted"):
+        return " [base unstable: resample contradicted first sample]"
     if is_base_unstable(before, required_runs):
         return " [FLAKY, base unstable]"
     return " [FLAKY]" if before["flaky"] else ""
+
+
+def _is_suspected_regression(before: dict[str, Any], after: dict[str, Any]) -> bool:
+    """True when the base passed and the after side failed (a regression candidate)."""
+    return bool(before["passed"] and not after["passed"])
+
+
+def _resample_base(
+    api_key: str,
+    base_text: str,
+    scenario: dict[str, Any],
+    model: str,
+    before: dict[str, Any],
+    extra_runs: int,
+) -> dict[str, Any]:
+    """Pool `extra_runs` more base samples into `before` (issue #5601).
+
+    A base that draws 3/3 on its single sample can still be a 2/3 or 0/3 base.
+    Only a suspected regression pays for this. The pooled result keeps the
+    first sample's runs plus the new ones. When any scored resample run fails,
+    or any resample run goes unscored (the resample could not verify the base),
+    `resample_contradicted` is set so `is_base_unstable` excludes the
+    scenario. A base that stays all-pass keeps its stable status and the
+    regression stands.
+    """
+    extra = run_scenario_multi(api_key, base_text, scenario, model, extra_runs)
+    scored = before["runs"] + extra["runs"]
+    passes = before["passes"] + extra["passes"]
+    pooled = dict(before)
+    pooled.update(
+        {
+            "passes": passes,
+            "runs": scored,
+            "requested_runs": before.get("requested_runs", before["runs"]) + extra_runs,
+            "not_scored_runs": before.get("not_scored_runs", 0) + extra.get("not_scored_runs", 0),
+            "pass_rate": passes / scored if scored > 0 else 0.0,
+            "passed": scored > 0 and passes >= required_passes(scored),
+            "flaky": 0 < passes < scored,
+            "resampled_runs": extra_runs,
+            "resample_contradicted": (
+                extra["passes"] < extra["runs"] or extra["runs"] < extra_runs
+            ),
+            "per_run": list(before["per_run"]) + list(extra["per_run"]),
+        }
+    )
+    return pooled
 
 
 def run_comparison(
@@ -544,8 +603,14 @@ def run_comparison(
     model: str,
     runs: int,
     security_critical: bool = False,
+    base_resamples: int = DEFAULT_BASE_RESAMPLES,
 ) -> dict[str, Any]:
     """Run all scenarios against before and after prompt text.
+
+    A scenario whose base passed and whose after side failed gets
+    `base_resamples` extra base runs before it can count as a regression
+    (issue #5601). Zero disables the resample. Scenarios without a suspected
+    regression pay nothing extra.
 
     Returns comparison results with scores and per-scenario detail.
     """
@@ -567,6 +632,12 @@ def run_comparison(
         after = run_scenario_multi(api_key, after_text, scenario, model, runs)
         after_results.append(after)
         api_call_count += runs
+
+        if base_resamples > 0 and _is_suspected_regression(before, after):
+            print(f"    RESAMPLE BASE (+{base_resamples} runs)...", file=sys.stderr)
+            before = _resample_base(api_key, before_text, scenario, model, before, base_resamples)
+            before_results[-1] = before
+            api_call_count += base_resamples
 
         b_tag = "PASS" if before["passed"] else "FAIL"
         a_tag = "PASS" if after["passed"] else "FAIL"
@@ -841,6 +912,15 @@ def _parse_args() -> argparse.Namespace:
         help=f"Runs per scenario (default: {DEFAULT_RUNS}, security: {SECURITY_RUNS})",
     )
     parser.add_argument(
+        "--base-resamples",
+        type=int,
+        default=DEFAULT_BASE_RESAMPLES,
+        help=(
+            "Extra base runs for a scenario whose base passed and after failed, "
+            f"before it counts as a regression (default: {DEFAULT_BASE_RESAMPLES}, 0 disables)"
+        ),
+    )
+    parser.add_argument(
         "--security-critical",
         action="store_true",
         help=f"Security-critical tier: {SECURITY_RUNS} runs, 100%% pass required",
@@ -887,6 +967,9 @@ def _parse_args() -> argparse.Namespace:
 
     if args.runs < 1:
         parser.error("--runs must be at least 1")
+
+    if args.base_resamples < 0:
+        parser.error("--base-resamples must be 0 or greater")
 
     if not args.security_critical and args.runs < DEFAULT_RUNS:
         parser.error(
@@ -965,6 +1048,7 @@ def _run_and_report(
         args.model,
         args.runs,
         security_critical=args.security_critical,
+        base_resamples=args.base_resamples,
     )
     gate = acceptance_gate(comparison, security_critical=args.security_critical)
 
@@ -1083,10 +1167,11 @@ def _is_provider_outage(exc: Exception) -> bool:
     pass/fail verdict (exit 1), never an exception, so any error reaching the
     top-level handler is an execution fault. This narrows that to infrastructure
     outages (quota exhaustion, rate limiting, transient 5xx, timeout, network)
-    using the normalized message shapes call_api / _providers emit. The gate
-    then skips neutrally instead of red-failing on something the change under
-    test did not cause. Set a reachable EVAL_PROVIDER to keep the gate live
-    during an outage of the default transport.
+    using the normalized message shapes call_api / _providers emit. The caller
+    exits 3 (ADR-035 external) with a provider-unavailable message, so the gate
+    never reports success without running and the caller decides whether to
+    skip. Set a reachable EVAL_PROVIDER to keep the gate live during an outage
+    of the default transport.
     """
     msg = str(exc).lower()
     outage_markers = (
@@ -1118,14 +1203,21 @@ def _run_or_exit(
     except MalformedProviderMetadataError:
         raise
     except RuntimeError as error:
-        if _is_provider_outage(error):
+        if is_billing_error_message(str(error)):
             print(
-                f"SKIP: behavioral eval could not run, model provider unavailable: {error}",
+                "ERROR: eval blocked, the provider account has no credit. "
+                f"Fund the API key; the request is not at fault: {error}",
                 file=sys.stderr,
             )
-            sys.exit(0)
+            sys.exit(EXIT_BILLING)
+        if _is_provider_outage(error):
+            print(
+                f"ERROR: provider unavailable, behavioral eval could not run: {error}",
+                file=sys.stderr,
+            )
+            sys.exit(EXIT_EXTERNAL)
         print(f"ERROR: eval failed: {error}", file=sys.stderr)
-        sys.exit(3)
+        sys.exit(EXIT_EXTERNAL)
 
 
 def main() -> None:
@@ -1175,6 +1267,7 @@ def main() -> None:
                     "runs": args.runs,
                     "security_critical": args.security_critical,
                     "est_api_calls": len(scenarios) * 2 * args.runs,
+                    "max_resample_api_calls": len(scenarios) * args.base_resamples,
                 },
                 indent=2,
             )

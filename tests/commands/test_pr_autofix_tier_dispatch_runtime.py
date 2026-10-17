@@ -429,6 +429,39 @@ def test_unsupported_disarms_first_then_terminates(tmp_path: Path, doc: str) -> 
 
 
 @pytest.mark.parametrize("doc", DISPATCH_DOCS)
+def test_stacked_disarms_first_then_terminates(tmp_path: Path, doc: str) -> None:
+    """STACKED terminates one gate after SKIP, like UNSUPPORTED (issue #6201).
+
+    A stacked PR that would otherwise be T1 must not reach the T1 merge route,
+    where the squash merge folds it into its parent branch. It is "armed but not
+    provably T1", so the disarm gate runs first. It carries no thread and no CI
+    failure, so the round-cap loop has no work to do either.
+    """
+    run = run_dispatch(tmp_path, doc, tier="STACKED", auto_merge="SQUASH", round_action="ACT")
+
+    assert "Cannot determine tier" not in run.stdout, (
+        "STACKED is declared in _TIER_ORDER, not a producer failure"
+    )
+    assert "Tier STACKED" in run.stdout
+    assert run.disarmed, "auto-merge survived on a PR whose base is not the default branch"
+    assert not run.round_cap_called, "the round-cap breaker fired on a PR with no work"
+    assert not run.reached_end
+    assert run.queue_completed, "the gate aborted the queue instead of skipping one PR"
+
+
+@pytest.mark.parametrize("doc", DISPATCH_DOCS)
+def test_stacked_without_auto_merge_still_stops(tmp_path: Path, doc: str) -> None:
+    """Nothing to disarm is not a reason to keep acting on a STACKED PR."""
+    run = run_dispatch(tmp_path, doc, tier="STACKED", auto_merge="null", round_action="ACT")
+
+    assert "Tier STACKED" in run.stdout
+    assert not run.disarmed
+    assert not run.round_cap_called
+    assert not run.reached_end
+    assert run.queue_completed
+
+
+@pytest.mark.parametrize("doc", DISPATCH_DOCS)
 def test_a_comment_reword_changes_nothing(tmp_path: Path, doc: str) -> None:
     """The inverted control, in the suite rather than in a report.
 
@@ -491,3 +524,77 @@ def test_a_comment_reword_changes_nothing(tmp_path: Path, doc: str) -> None:
         "extraction is including something it should not, or the suite is "
         "sensitive to text it has no business reading"
     )
+
+
+ORPHAN_WARNING = "1 local commit(s) ahead of live PR head abc123def. 9f8e7d6c5 drop duplicate gate"
+
+
+def _repo_with_pr_worktree(tmp_path: Path, branch: str) -> Path:
+    """A shared checkout at tmp_path plus a worktree on `branch`, as the loop sees it."""
+
+    def git(*args: str) -> None:
+        subprocess.run(
+            ["git", "-c", "user.name=t", "-c", "user.email=t@t", *args],
+            cwd=tmp_path,
+            capture_output=True,
+            check=True,
+        )
+
+    git("init", "-q", "-b", "main")
+    git("commit", "-q", "--allow-empty", "-m", "base")
+    worktree = tmp_path / "pr-worktree"
+    git("worktree", "add", "-q", "-b", branch, str(worktree))
+    return worktree.resolve()
+
+
+@pytest.mark.parametrize("doc", DISPATCH_DOCS)
+def test_round_cap_scan_is_pointed_at_the_pr_worktree(tmp_path: Path, doc: str) -> None:
+    """Issue #5447: the shared checkout's HEAD is not the PR's HEAD.
+
+    Run from the shared checkout the ancestry check exits 1 or 128 and the scan
+    reports `unverified`, so the warning never names the orphaned commits.
+    """
+    worktree = _repo_with_pr_worktree(tmp_path, "fix/5447-demo")
+    live = json.dumps({"Data": {"head_ref": "fix/5447-demo"}})
+
+    run = run_dispatch(tmp_path, doc, tier="T3", round_action="ACT", live=live)
+
+    assert run.round_cap_called
+    assert ["--worktree", str(worktree)] == json.loads(run.round_cap_argv.splitlines()[0])[-2:]
+
+
+@pytest.mark.parametrize("doc", DISPATCH_DOCS)
+def test_round_cap_without_a_matching_worktree_passes_no_worktree_path(
+    tmp_path: Path, doc: str
+) -> None:
+    live = json.dumps({"Data": {"head_ref": "no-such-branch"}})
+
+    run = run_dispatch(tmp_path, doc, tier="T3", round_action="ACT", live=live)
+
+    assert "--worktree" not in run.round_cap_argv
+
+
+@pytest.mark.parametrize("doc", DISPATCH_DOCS)
+def test_escalation_prints_the_orphaned_commit_warning(tmp_path: Path, doc: str) -> None:
+    run = run_dispatch(
+        tmp_path, doc, tier="T3", round_action="ESCALATE", orphan_warning=ORPHAN_WARNING
+    )
+
+    assert "Stopping thread-fix loop" in run.stdout
+    assert ORPHAN_WARNING in run.stdout, "the escalation threw the commit names away"
+    assert run.queue_completed
+
+
+@pytest.mark.parametrize("doc", DISPATCH_DOCS)
+def test_escalated_then_reset_act_still_prints_the_warning(tmp_path: Path, doc: str) -> None:
+    run = run_dispatch(tmp_path, doc, tier="T3", round_action="ACT", orphan_warning=ORPHAN_WARNING)
+
+    assert ORPHAN_WARNING in run.stdout
+    assert run.reached_end, "a warning must not stop an ACT verdict"
+
+
+@pytest.mark.parametrize("doc", DISPATCH_DOCS)
+def test_no_warning_prints_nothing_extra(tmp_path: Path, doc: str) -> None:
+    run = run_dispatch(tmp_path, doc, tier="T3", round_action="ESCALATE")
+
+    assert "ahead of live PR head" not in run.stdout

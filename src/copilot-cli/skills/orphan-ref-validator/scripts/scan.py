@@ -98,6 +98,7 @@ if __package__ in (None, ""):
         extract_citation_block_refs,
         extract_directive_suppressed_refs,
         extract_instruction_refs,
+        extract_retired_surface_refs,
         extract_rule_refs,
         extract_script_refs,
         extract_single_word_skill_refs,
@@ -106,6 +107,7 @@ if __package__ in (None, ""):
         extract_typed_skill_refs,
         is_explicit_skill_route,
         owner_skills_for_script,
+        retired_surface_applies,
     )
     from walking import collect_walk_targets
 else:
@@ -141,6 +143,7 @@ else:
         extract_citation_block_refs,
         extract_directive_suppressed_refs,
         extract_instruction_refs,
+        extract_retired_surface_refs,
         extract_rule_refs,
         extract_script_refs,
         extract_single_word_skill_refs,
@@ -149,6 +152,7 @@ else:
         extract_typed_skill_refs,
         is_explicit_skill_route,
         owner_skills_for_script,
+        retired_surface_applies,
     )
     from .walking import collect_walk_targets
 
@@ -282,6 +286,10 @@ def scan_file(
     )
     findings.extend(instruction_findings)
     refs_checked += instruction_refs
+
+    retired_findings, retired_refs = _check_retired_surface_refs(text, rel)
+    findings.extend(retired_findings)
+    refs_checked += retired_refs
 
     return FileScanOutcome(findings, refs_checked)
 
@@ -473,24 +481,43 @@ def _skill_ref_finding(ref: str, rel: str, lineno: int, skill_catalog_present: b
     )
 
 
+def _owning_skill_dir(rel: str) -> Path | None:
+    """Return the skill directory a skill document cites scripts relative to.
+
+    ``SKILL.md`` resolves against its own directory. A file under a skill's
+    ``references/`` resolves against the skill root, the directory named by the
+    segment after ``skills``, because reference docs cite bundled scripts the
+    same skill-relative way (issue #5947). Any other file has no owner.
+    """
+    path = Path(rel)
+    if path.name == "SKILL.md":
+        return path.parent
+    parts = path.parts
+    if "skills" not in parts:
+        return None
+    root = parts.index("skills") + 2
+    if root >= len(parts) or parts[root] != "references":
+        return None
+    return Path(*parts[:root])
+
+
 def _script_ref_resolves(script_ref: str, rel: str, repo_root: Path, line: str = "") -> bool:
     """True when a script reference resolves on disk.
 
     Tries repo-root-relative first (the historical contract). For a reference
-    inside a skill's ``SKILL.md``, ALSO tries the SKILL.md's own directory,
-    because skill docs cite their bundled scripts skill-relative
+    inside a skill's ``SKILL.md`` or ``references/`` doc, ALSO tries the skill
+    directory (see ``_owning_skill_dir``), because skill docs cite their bundled scripts skill-relative
     (``scripts/foo.py`` means the skill's own ``scripts/``). Resolving only
     repo-relative false-flagged every portable skill-relative ref (issue #2796);
     rewriting those to absolute paths would regress #2050 vendored portability,
-    so resolve them in place instead. Scoped to SKILL.md targets so non-skill
+    so resolve them in place instead. Scoped to those two targets so other
     documents keep the original repo-relative-only contract.
     """
     if _exists_under_repo(repo_root, repo_root / script_ref):
         return True
-    if Path(rel).name == "SKILL.md":
-        skill_dir = Path(rel).parent
-        if _exists_under_repo(repo_root, repo_root / skill_dir / script_ref):
-            return True
+    skill_dir = _owning_skill_dir(rel)
+    if skill_dir is not None and _exists_under_repo(repo_root, repo_root / skill_dir / script_ref):
+        return True
     return _resolves_in_named_skill(script_ref, repo_root, line)
 
 
@@ -589,6 +616,36 @@ def _check_repo_path_refs(
                 recommendation=(
                     f"{label} `{path_ref}` not present on disk. "
                     "Update reference or restore the file."
+                ),
+            )
+        )
+    return findings, refs_checked
+
+
+def _check_retired_surface_refs(text: str, rel: str) -> tuple[list[Finding], int]:
+    """Emit retired_path findings for citations of a surface ADR-064 retired.
+
+    Unlike the other path kinds there is nothing to restore: the surface is
+    gone by decision, so every live citation is stale. Only live guidance is
+    checked (``retired_surface_applies``); dated records keep their history.
+    """
+    findings: list[Finding] = []
+    refs_checked = 0
+    if not retired_surface_applies(rel):
+        return findings, refs_checked
+    for lineno, path_ref in extract_retired_surface_refs(text):
+        refs_checked += 1
+        findings.append(
+            Finding(
+                kind="retired_path",
+                severity="critical",
+                target_file=rel,
+                line=lineno,
+                referenced_entity=path_ref,
+                recommendation=(
+                    f"`{path_ref}` is a surface ADR-064 retired. Cite the skill that "
+                    "replaced it. A note that records the retirement may "
+                    "say `Migrated from` or name ADR-064."
                 ),
             )
         )

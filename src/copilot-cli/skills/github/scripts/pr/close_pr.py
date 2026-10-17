@@ -41,6 +41,7 @@ from github_core.api import (
     error_and_exit,
     resolve_repo_params,
 )
+from github_core.not_found import is_pr_not_found
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -88,7 +89,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if state_result.returncode != 0:
         output = state_result.stderr or state_result.stdout
-        if "not found" in output:
+        if is_pr_not_found(output):
             error_and_exit(f"PR #{pr} not found in {repo_flag}", 2)
         error_and_exit(f"Failed to get PR state: {output}", 3)
 

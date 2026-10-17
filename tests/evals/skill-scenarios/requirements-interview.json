@@ -1,0 +1,77 @@
+{
+  "skill_path": ".claude/skills/requirements-interview/SKILL.md",
+  "skill_id": "requirements-interview",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Existing multi-section spec selects audit mode",
+      "input": "I have a 14-section functional specification already written. Section 3 caps sessions at 3 and section 9 allows 5. How do you proceed? Answer in 5 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "ambiguity audit",
+        "source anchor",
+        "exact quote"
+      ],
+      "expected_gate": "requirements-interview-audit-mode",
+      "rationale": "A written multi-section spec is not a new idea. A response that picks the audit mode, quotes both sections, and does not start a design-tree interview from scratch is attributable to the mode-selection table."
+    },
+    {
+      "id": "S2",
+      "desc": "Answer elsewhere in the document is recorded, not asked",
+      "input": "Section 4 of my spec says audit retention is not restated here, and section 2 says entries are kept 90 days. Do you ask me how long audit entries are kept? Answer in 3 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "answered elsewhere",
+        "record",
+        "no question"
+      ],
+      "expected_gate": "requirements-interview-record-answer",
+      "rationale": "The document already answers the question. A response that records the section 2 evidence and emits no question is attributable to the coverage pass."
+    },
+    {
+      "id": "S3",
+      "desc": "Undefined term becomes a closed definition decision",
+      "input": "My spec bills each 'active user' but never defines the term. What do you ask? Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "definition",
+        "distinct",
+        "one decision",
+        "source anchor"
+      ],
+      "expected_gate": "requirements-interview-term-decision",
+      "rationale": "An undefined term needs one closed decision with materially distinct readings, anchored to the quoted phrase. A response that also refuses to pick a business definition is attributable to the skill."
+    },
+    {
+      "id": "S4",
+      "desc": "Owner policy gets no invented recommendation",
+      "input": "The audit found that a refund window is unstated. No code or contract fixes it. Do you recommend a number of days? Answer in 3 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "Owner decision",
+        "no evidence-backed recommendation"
+      ],
+      "expected_gate": "requirements-interview-owner-decision",
+      "rationale": "Choosing a refund window is business policy. A response that labels it an owner decision with no evidence-backed recommendation is attributable to the question rules."
+    },
+    {
+      "id": "S5",
+      "desc": "Clear spec returns the negative-control verdict",
+      "input": "My export spec states limits, errors, roles, idempotency, and conflict handling with exact values. It has no contradictions or undefined terms. What is the audit result? Answer in 3 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "NO MATERIAL GAPS",
+        "no questions"
+      ],
+      "expected_gate": "requirements-interview-no-gaps",
+      "rationale": "A complete spec has nothing to ask. A response that returns NO MATERIAL GAPS instead of manufacturing questions is attributable to the mode-selection table."
+    },
+    {
+      "id": "S6",
+      "desc": "Rebuild is verified, not assumed",
+      "input": "The owner answered every audit question and I patched the spec. How do you confirm the patch is right? Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "exactly once",
+        "Open decisions",
+        "decision log"
+      ],
+      "expected_gate": "requirements-interview-rebuild-verify",
+      "rationale": "A patched spec needs proof. A response that checks each accepted decision appears exactly once, keeps unresolved items under Open decisions, and keys the log by question ID is attributable to the verify step."
+    }
+  ]
+}

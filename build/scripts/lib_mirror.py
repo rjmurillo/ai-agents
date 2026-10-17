@@ -9,18 +9,27 @@ run, instead of a separately invoked script whose order relative to
 `build_all.py` mattered (issue #2613, `.claude/rules/generated-artifacts.md`
 "Generator order: sync before build", removed by this change).
 
-Two destinations per source, per `templates/platforms/binplace.yaml`'s
-`lib-*` and `lib-*-copilot` rows:
+Three destinations per source, per `templates/platforms/binplace.yaml`'s
+`lib-*`, `lib-*-copilot` and `lib-*-codex` rows (a fourth, `src/cursor/lib`, follows
+ADR-115 Decision 1 and has no binplace row because the Cursor tree has no install tree):
 
     scripts/<pkg>/*.py  --IMPORT_CONVERSIONS-->  src/claude/lib/<pkg>/*.py
     scripts/<pkg>/*.py  --IMPORT_CONVERSIONS-->  src/copilot-cli/lib/<pkg>/*.py
+    scripts/<pkg>/*.py  --IMPORT_CONVERSIONS-->  src/codex/lib/<pkg>/*.py
 
 `binplace_manifest.binplace()` then copies `src/claude/lib/<pkg>/` onto its
 `.claude/lib/<pkg>/` install-tree counterpart; `src/copilot-cli/lib/<pkg>/`
-has no further hop (it IS the Copilot plugin's own lib tree). The two
+has no further hop (it IS the Copilot plugin's own lib tree), and neither
+does `src/codex/lib/<pkg>/` (the Codex plugin's own, ADR-115). The two
 `SYNC_FILE_PAIRS` entries (`bootstrap.py`, `validate_review_marker.py`) get
-the same two-destination treatment, file-shaped (DESIGN-025 "lib-bootstrap"
-and "skills-sidecar" rows).
+the same per-tree treatment, file-shaped (DESIGN-025 "lib-bootstrap"
+and "skills-sidecar" rows). The review sidecar's destinations are
+`src/claude/skills/review/scripts/`, `src/copilot-cli/skills/review/scripts/`
+and `src/codex/skills/review/scripts/`.
+
+`compile_all(check=True)` writes nothing and records every destination that
+differs from its source in `LibMirrorResult.drift`; `build_all.py --check`
+exits 2 on any (issue #6098).
 
 `.claude/lib/` also carries hand-maintained files this module never touches
 (`claude_hook_dispatch.py`, `paths.py`, `qa_report.py`, and siblings; two
@@ -57,7 +66,12 @@ PACKAGES: tuple[str, ...] = ("hook_utilities", "github_core", "ai_review_common"
 # is rendered into. `.claude/lib/` is never a render target here: it is an
 # install tree, reached only via `binplace_manifest.binplace()` copying
 # `src/claude/lib/` onto it (templates/platforms/binplace.yaml `lib-*` rows).
-PLUGIN_ROOTS: tuple[str, ...] = ("src/claude/lib", "src/copilot-cli/lib")
+PLUGIN_ROOTS: tuple[str, ...] = (
+    "src/claude/lib",
+    "src/copilot-cli/lib",
+    "src/codex/lib",
+    "src/cursor/lib",
+)
 
 # Individual file copies: (source file, destination file name under each
 # PLUGIN_ROOTS entry). Byte-for-byte copies of a single module that lives at
@@ -69,16 +83,45 @@ SYNC_FILE_NAMES: tuple[tuple[str, str], ...] = (
     ("scripts/hook_utilities/bootstrap.py", "bootstrap.py"),
 )
 
-# The one SYNC_FILE_PAIRS entry with no plugin-tree hop: it lands directly
-# under `.claude/skills/review/scripts/`, outside every `lib` row's prefix
-# and outside the `skills` row's per-skill-directory allowlist (DESIGN-025
-# "The lib copy absorbing scripts/sync_plugin_lib.py"). Its own manifest row
-# (`skills-sidecar`) still gives it a `src/claude/skills/review/scripts/`
-# plugin tree, so this module writes only the two destinations that row and
-# its `binplace()` counterpart expect.
+# The one SYNC_FILE_PAIRS entry that lands under a skill directory: it sits in
+# `.claude/skills/review/scripts/`, outside every `lib` row's prefix and
+# outside the `skills` row's per-skill-directory allowlist (DESIGN-025 "The
+# lib copy absorbing scripts/sync_plugin_lib.py"). Its own manifest rows
+# (`skills-sidecar` and `skills-sidecar-copilot`) give it a plugin tree per
+# provider, and this module renders both from the one canonical source.
+#
+# `scripts/validation/` is the only canonical copy. The skill-support mirrors
+# (`skill_support_mirror.py` for the Claude plugin tree and
+# `generate_skills.py` for the Copilot tree) treat `.claude/skills/<name>/`
+# as the source for every other support file, so both must skip this one:
+# copying it from the install tree back into the plugin trees reverts the
+# render below (issue #6098). `SKILLS_SIDECAR_OWNED` names the skill and the
+# path inside it, so both mirrors derive their skip from this module and
+# cannot drift.
 SKILLS_SIDECAR_SOURCE = "scripts/validation/validate_review_marker.py"
 SKILLS_SIDECAR_PLUGIN_TREE = "src/claude/skills/review/scripts/validate_review_marker.py"
+SKILLS_SIDECAR_COPILOT_TREE = "src/copilot-cli/skills/review/scripts/validate_review_marker.py"
+SKILLS_SIDECAR_CURSOR_TREE = "src/cursor/skills/review/scripts/validate_review_marker.py"
+SKILLS_SIDECAR_CODEX_TREE = "src/codex/skills/review/scripts/validate_review_marker.py"
 SKILLS_SIDECAR_INSTALL_TREE = ".claude/skills/review/scripts/validate_review_marker.py"
+SKILLS_SIDECAR_PLUGIN_TREES: tuple[str, ...] = (
+    SKILLS_SIDECAR_PLUGIN_TREE,
+    SKILLS_SIDECAR_COPILOT_TREE,
+    SKILLS_SIDECAR_CURSOR_TREE,
+    SKILLS_SIDECAR_CODEX_TREE,
+)
+SKILLS_SIDECAR_OWNED: tuple[str, str] = ("review", "scripts/validate_review_marker.py")
+
+
+def lib_owned_support_files(skill_name: str) -> frozenset[Path]:
+    """Return the skill-relative paths this module renders from ``scripts/``.
+
+    Both skill-support mirrors skip them: copying the install-tree copy back
+    over the render reverted every edit to the canonical file (issue #6098).
+    """
+    owned_skill, owned_rel = SKILLS_SIDECAR_OWNED
+    return frozenset({Path(owned_rel)}) if skill_name == owned_skill else frozenset()
+
 
 # Read by scripts/validation/validate_sync_registry.py (single source of
 # truth for "which scripts/ packages are registered for lib distribution").
@@ -100,18 +143,27 @@ IMPORT_CONVERSIONS: list[tuple[re.Pattern[str], str]] = [
 LIB_ONLY_FILES: set[str] = set()
 
 
+# Change-line prefixes that mean "destination differs from source" in check mode.
+_DRIFT_PREFIXES: tuple[str, ...] = ("created:", "updated:", "removed:")
+
+
 @dataclass
 class LibMirrorResult:
     """Outcome of one :func:`compile_all` run."""
 
     changes: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
+    drift: list[str] = field(default_factory=list)
     inputs: int = 0
     outputs: int = 0
 
     @property
     def had_errors(self) -> bool:
         return bool(self.errors)
+
+    @property
+    def had_drift(self) -> bool:
+        return bool(self.drift)
 
 
 # ---------------------------------------------------------------------------
@@ -385,20 +437,23 @@ def compile_all(repo_root: Path, *, check: bool = False) -> LibMirrorResult:
         for plugin_root in PLUGIN_ROOTS:
             dst_rel = f"{plugin_root}/{package}"
             changes, had_errors = sync_pair(repo_root, src_rel, dst_rel, check_only=check)
-            _fold(result, src_rel, dst_rel, changes, had_errors)
+            _fold(result, src_rel, dst_rel, changes, had_errors, check=check)
 
     for src_rel, file_name in SYNC_FILE_NAMES:
         for plugin_root in PLUGIN_ROOTS:
             dst_rel = f"{plugin_root}/{file_name}"
             changes, had_errors = sync_file(repo_root, src_rel, dst_rel, check_only=check)
-            _fold(result, src_rel, dst_rel, changes, had_errors)
+            _fold(result, src_rel, dst_rel, changes, had_errors, check=check)
 
-    changes, had_errors = sync_file(
-        repo_root, SKILLS_SIDECAR_SOURCE, SKILLS_SIDECAR_PLUGIN_TREE, check_only=check
+    for dst_rel in SKILLS_SIDECAR_PLUGIN_TREES:
+        changes, had_errors = sync_file(repo_root, SKILLS_SIDECAR_SOURCE, dst_rel, check_only=check)
+        _fold(result, SKILLS_SIDECAR_SOURCE, dst_rel, changes, had_errors, check=check)
+
+    result.inputs = (
+        len(PACKAGES) * len(PLUGIN_ROOTS)
+        + len(SYNC_FILE_NAMES) * len(PLUGIN_ROOTS)
+        + len(SKILLS_SIDECAR_PLUGIN_TREES)
     )
-    _fold(result, SKILLS_SIDECAR_SOURCE, SKILLS_SIDECAR_PLUGIN_TREE, changes, had_errors)
-
-    result.inputs = len(PACKAGES) * len(PLUGIN_ROOTS) + len(SYNC_FILE_NAMES) * len(PLUGIN_ROOTS) + 1
     result.outputs = len([c for c in result.changes if not c.strip().startswith("[")])
     return result
 
@@ -409,10 +464,20 @@ def _fold(
     dst_rel: str,
     changes: list[str],
     had_errors: bool,
+    *,
+    check: bool = False,
 ) -> None:
-    """Fold one sync's changes into the accumulating :class:`LibMirrorResult`."""
+    """Fold one sync's changes into the accumulating :class:`LibMirrorResult`.
+
+    Under ``check`` a `created`/`updated`/`removed` line is a destination that
+    differs from its canonical source, so it is also recorded in
+    ``result.drift`` for the caller to fail on (issue #6098). Write mode never
+    fills ``drift``: the same lines there describe a write that just happened.
+    """
     if had_errors:
         result.errors.extend(c for c in changes if c.strip())
+    if check:
+        result.drift.extend(c.strip() for c in changes if c.strip().startswith(_DRIFT_PREFIXES))
     if changes:
         result.changes.append(f"{src_rel} -> {dst_rel}:")
         result.changes.extend(changes)

@@ -10,12 +10,12 @@ fetched_pages_complete == true``, each separated by at least
 arrive 30-120s after a push; a 60s/2-reading window leaves a real chance
 of declaring "done" mid-scan.
 
-Canonical source: this wrapper mirrors the output contract of
-``.claude/skills/github/scripts/pr/get_unresolved_review_threads.py``.
-The fields it depends on, verbatim from the underlying script:
-
-    "unresolved_count": <int>,
-    "fetched_pages_complete": <bool>,
+Canonical source: ``get_unresolved_review_threads.py`` in this directory owns
+the output contract. The wrapper reads two of its fields, ``unresolved_count``
+and ``fetched_pages_complete``. The wrapper does not restate the contract.
+The upstream repository's ``test_wrapper_reads_underlying_output_conformance``
+feeds the real output of that script through ``_invoke_underlying`` and fails
+when either field is renamed or retyped.
 
 A first observation with ``fetched_pages_complete == false`` is rejected
 even when ``unresolved_count == 0``: a partial fetch returning zero is

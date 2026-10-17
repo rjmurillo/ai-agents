@@ -16,6 +16,10 @@ per file.
 Exit codes follow ADR-035:
     0 - Success
     1 - Logic error (invalid session log or extraction failed)
+    2 - Configuration error (unsafe path, or AI_AGENTS_REPO_ROOT is not a directory)
+
+Set ``AI_AGENTS_REPO_ROOT`` to point git and archive lookups at another
+repository. Unset, the repository root is found by walking up to `.agents`.
 """
 
 from __future__ import annotations
@@ -629,7 +633,7 @@ def _commit_datetime(sha: str) -> datetime | None:
 
 
 @lru_cache(maxsize=256)
-def _sha_is_reachable(sha: str) -> bool:
+def _sha_is_reachable(sha: str) -> bool | None:
     """Return True when ``sha`` is reachable from at least one named ref.
 
     A commit that resolves (``git cat-file -t`` succeeds) but is reachable from
@@ -645,12 +649,15 @@ def _sha_is_reachable(sha: str) -> bool:
     is found; on large repositories the optional ``--format=%(refname)`` and a
     short-circuit via ``head -1`` make it faster, but the default is safe here.
 
-    Returns ``False`` on any subprocess error, missing git binary, or timeout.
-    A ``False`` is treated as unknown, matching the ``None`` contract of
-    ``_commit_datetime``.
+    Tri-state, matching the ``None`` contract of ``_commit_datetime``:
+    ``True`` when a ref reaches the commit, ``False`` when git answered and no
+    ref does, ``None`` when git could not answer (empty ``sha``, missing git
+    binary, timeout, or a non-zero exit). Only ``False`` is evidence of a
+    dangling object; a caller that removes data MUST act on ``False`` alone
+    (issue #6565).
     """
     if not sha:
-        return False
+        return None
     env = os.environ.copy()
     for var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"):
         env.pop(var, None)
@@ -666,7 +673,9 @@ def _sha_is_reachable(sha: str) -> bool:
             check=False,
         )
     except (OSError, subprocess.TimeoutExpired):
-        return False
+        return None
+    if result.returncode != 0:
+        return None
     return bool(result.stdout.strip())
 
 
@@ -1516,6 +1525,35 @@ def _count_commit_events(events: list) -> int:
     return sum(1 for evt in events if _as_dict(evt).get("type") == "commit")
 
 
+def _drop_dangling_commit_events(events: list[dict]) -> list[dict]:
+    """Remove commit events whose SHA resolves locally but no ref reaches.
+
+    A dangling object is clone residue (a rebase onto a concurrent push, a
+    squash-merged branch). Carrying its event forward records a SHA that a
+    fresh clone will never fetch, and `--preserve` would otherwise re-union it
+    on every regeneration (issue #5213). `_commit_event_dates` applies the same
+    reachability test to commit-order validation (issue #4240); this applies it
+    to event membership, so the two checks back one claim.
+
+    A SHA that does not resolve at all is kept: absence from this clone is not
+    evidence the commit is unreachable elsewhere, and a shallow or fresh clone
+    would otherwise erase real history. The same holds when git cannot answer
+    (timeout, non-zero exit): ``_sha_is_reachable`` returns ``None`` and the
+    event is kept, because only ``False`` proves the commit dangling (issue
+    #6565). Ids are renumbered so they stay contiguous; the caller's relink
+    pass rebuilds the causal edges.
+    """
+    kept: list[dict] = []
+    for evt in events:
+        sha = _commit_sha(evt) if evt.get("type") == "commit" else None
+        if sha and _commit_datetime(sha) is not None and _sha_is_reachable(sha) is False:
+            continue
+        kept.append(evt)
+    if len(kept) != len(events):
+        _renumber_events(kept)
+    return kept
+
+
 def _merge_metrics(new: dict, existing: dict) -> dict:
     """Per-key max so regeneration never zeroes a previously counted metric.
 
@@ -1544,8 +1582,10 @@ def merge_preserving(new: dict, existing: dict, *, session_id: str = "") -> dict
     and non-commit event timestamps normalize to the deterministic session date
     so output is idempotent. Commit events keep the real committer date, which
     is already deterministic from the SHA and is the only ordering evidence the
-    causal graph has against a same-day milestone (issue #4071). Applying twice
-    is a no-op.
+    causal graph has against a same-day milestone (issue #4071). Commit events
+    whose SHA resolves locally but is reachable from no ref are dropped, and
+    ``metrics.commits`` is recomputed from the surviving events (issue #5213).
+    Applying twice is a no-op.
     """
     existing = _as_dict(existing)
     date = _deterministic_date(session_id, new.get("timestamp"), existing.get("timestamp"))
@@ -1569,6 +1609,7 @@ def merge_preserving(new: dict, existing: dict, *, session_id: str = "") -> dict
         midnight,
         session_id=session_id,
     )
+    merged["events"] = _drop_dangling_commit_events(merged["events"])
     merged["metrics"] = _merge_metrics(
         _as_dict(new.get("metrics")), _as_dict(existing.get("metrics"))
     )
@@ -1589,15 +1630,59 @@ def default_episodes_dir() -> Path:
     return _repo_root() / ".project-toolkit" / "memory" / "episodes"
 
 
-def _repo_root() -> Path:
-    """Locate the repository root by walking up to the nearest `.agents` dir.
+REPO_ROOT_ENV = "AI_AGENTS_REPO_ROOT"
 
-    The script is distributed verbatim at two depths: the canonical
-    `.claude/skills/memory/scripts/` copy and the generated
-    `src/copilot-cli/skills/memory/scripts/` mirror. A fixed number of
-    `.parent` hops cannot be correct at both depths, so search upward for the
-    `.agents` marker and fall back to a four-hop default when it is absent.
+
+class RepoRootOverrideError(ValueError):
+    """AI_AGENTS_REPO_ROOT is set but does not name an existing directory."""
+
+
+def _repo_root_override() -> Path | None:
+    """Return the directory named by AI_AGENTS_REPO_ROOT, or None when unset.
+
+    A blank value counts as unset. A value that is not an existing directory
+    raises instead of falling back to the marker walk: a fallback would send
+    git lookups to the live repository, which is the dependency the override
+    exists to remove (issue #5305).
     """
+    raw = os.environ.get(REPO_ROOT_ENV, "").strip()
+    if not raw:
+        return None
+    candidate = Path(raw).expanduser().resolve()
+    if not candidate.is_dir():
+        raise RepoRootOverrideError(f"{REPO_ROOT_ENV} is not an existing directory: {raw}")
+    return candidate
+
+
+def check_repo_root_override() -> str | None:
+    """Return an error message when the override is invalid, else None.
+
+    Entry points call this first so a bad override is a configuration error
+    (exit 2) before any git lookup runs, not a traceback.
+    """
+    try:
+        _repo_root_override()
+    except RepoRootOverrideError as exc:
+        return str(exc)
+    return None
+
+
+def _repo_root() -> Path:
+    """Locate the repository root.
+
+    ``AI_AGENTS_REPO_ROOT`` wins when set, so a test or a caller can point
+    every git and archive lookup at a throwaway repository.
+
+    Otherwise walk up to the nearest `.agents` dir. The script is distributed
+    verbatim at two depths: the canonical `.claude/skills/memory/scripts/`
+    copy and the generated `src/copilot-cli/skills/memory/scripts/` mirror. A
+    fixed number of `.parent` hops cannot be correct at both depths, so search
+    upward for the `.agents` marker and fall back to a four-hop default when it
+    is absent.
+    """
+    override = _repo_root_override()
+    if override is not None:
+        return override
     here = Path(__file__).resolve()
     for parent in here.parents:
         if (parent / ".agents").is_dir():
@@ -1800,7 +1885,9 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "Validate an existing episode JSON file, or every *.json under a "
-            "directory, instead of extracting. Exit 2 on a duplicate, missing, "
+            "directory, instead of extracting. The path must be an episode, "
+            "not a session log: a file with no 'events' key exits 2 as a "
+            "usage error. Exit 2 on a duplicate, missing, "
             "or non-contiguous event id, or a commit-to-commit edge that runs "
             "backwards in committer time"
         ),
@@ -2300,7 +2387,7 @@ def _commit_event_dates(events: list) -> dict[str, datetime]:
         if entry.get("type") != "commit" or not isinstance(identifier, str):
             continue
         sha = _commit_sha(entry)
-        if not sha or not _sha_is_reachable(sha):
+        if not sha or _sha_is_reachable(sha) is not True:
             continue
         moment = _commit_datetime(sha)
         if moment is not None:
@@ -2567,13 +2654,34 @@ def _episode_paths(target: Path) -> list[Path]:
     return [target]
 
 
+def _not_episode_file(target: Path) -> bool:
+    """Return True when ``target`` is a JSON object with no ``events`` key.
+
+    Session logs (``.project-toolkit/sessions/*.json``) parse as objects but
+    carry no ``events`` key. Naming that mistake beats reporting a content
+    violation against a file that was never an episode. An unreadable or
+    non-object file is not caught here: ``validate_episode_file`` reports it.
+    A key present with a bad value (``"events": null``) stays a violation.
+    """
+    data, _ = _read_episode(target)
+    return data is not None and "events" not in data
+
+
 def run_validate(target: Path, *, fix: bool = False) -> int:
     """Validate an episode file or a directory of them. Exit 2 on violation.
+
+    An explicit file argument must be an episode, not a session log: a file
+    with no ``events`` key exits 2 with a usage error, not a content violation.
+    A directory is globbed for ``*.json`` and each file is checked as before.
 
     With ``fix``, repair backwards commit order in place first, then report on
     what the repair left. A refused repair still counts as a violation, so the
     exit code never claims a file was fixed when it was not.
     """
+    if target.is_file() and _not_episode_file(target):
+        msg = f"{target} is not an episode file (no 'events' key); pass an episode JSON"
+        print(json.dumps({"Error": msg}), file=sys.stderr)
+        return 2
     paths = _episode_paths(target)
     if not paths:
         print(json.dumps({"Error": f"No episode files under {target}"}), file=sys.stderr)
@@ -2596,6 +2704,10 @@ def run_validate(target: Path, *, fix: bool = False) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    override_error = check_repo_root_override()
+    if override_error is not None:
+        print(json.dumps({"Error": override_error}), file=sys.stderr)
+        return 2
     args = build_parser().parse_args(argv)
     if ".." in args.session_log_path.parts:
         msg = "Security: path must not contain traversal sequences."

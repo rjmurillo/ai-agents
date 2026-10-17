@@ -173,3 +173,25 @@ round-1 correction above.
    on run `31896264033`) and the practical guarantee (a guarded job never
    concludes the red `failure` `always()` produced) are unchanged; only the
    stated mechanism was wrong, twice in a row, before this correction.
+
+## Correction 2026-10-13, round 3 (issue #5145)
+
+Round 2 left the FM-10 retraction without a replacement class. Issue #5145
+resolved it. ADR-117 adds class 13, State Conflation in a Boolean Guard, to
+`.agents/governance/FAILURE-MODES.md`.
+
+1. **The correct classification is FM-13.** The `always()` aggregators
+   graded a superseded run and read `cancelled` as `failure`. The outcome was
+   loud and visible, so FM-10 does not apply. One guard, one branch, two
+   non-equivalent input states: that is FM-13. Read the Root Cause section's
+   FM-10 citation as replaced by FM-13, not only retracted.
+
+2. **The remedy matches the class.** The fix in PR #5103 made the
+   distinguishing case explicit (`!cancelled()`), which is the FM-13 remedy.
+   FM-10's remedy, surfacing what was swallowed, would not have changed the
+   behavior.
+
+3. **The MUST-2 obligation is met.** `.claude/rules/retros.md` MUST 2 asked
+   for a linked ADR proposing a class. ADR-117
+   (`.project-toolkit/architecture/ADR-117-state-conflation-failure-mode.md`)
+   is that ADR.

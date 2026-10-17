@@ -126,7 +126,7 @@ shared-repository mutations, and an honest record of what stays advisory.
 
 | Failure | Handling |
 |---|---|
-| Head moved after review | `--match-head-commit` refuses; exit 6 with a stale-target message |
+| Head moved after review | `--match-head-commit` refuses; exit 100 with a stale-target message |
 | Wrong PR number | Pre-check of `--expected-head-sha` fails; exit 1 (when the caller passes it; `pr-autofix` does) |
 | Merge command fails but PR merged | Readback wins; report `merged`, `recovered: true` |
 | Merge command succeeds but PR not merged | Report queued only with a queue or auto-merge entry; else exit 3 |

@@ -1615,7 +1615,7 @@ class TestMainCLI:
         """The retirement brownout is a permanent failure, not a transient outage.
         After removing the three retirement markers from _is_provider_outage()
         (issue #4339), a brownout response surfaces as an execution fault (exit 3)
-        rather than a neutral skip (exit 0)."""
+        rather than an outage-classified failure."""
         scen = self._make_scenarios_file(tmp_path)
         before = tmp_path / "a.md"
         before.write_text("p", encoding="utf-8")
@@ -1648,6 +1648,104 @@ class TestMainCLI:
             eval_mod.main()
         assert exc.value.code == 3
 
+    def _run_with_error(self, tmp_path, monkeypatch, message):
+        scen = self._make_scenarios_file(tmp_path)
+        before = tmp_path / "a.md"
+        before.write_text("p", encoding="utf-8")
+        after = tmp_path / "b.md"
+        after.write_text("p", encoding="utf-8")
+
+        monkeypatch.setattr(eval_mod, "load_api_key_for_selected_provider", lambda *_: "test-key")
+
+        def boom_run(*a, **kw):
+            raise RuntimeError(message)
+
+        monkeypatch.setattr(eval_mod, "_run_and_report", boom_run)
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            ["prog", "--before", str(before), "--after", str(after), "--scenarios", str(scen)],
+        )
+        with pytest.raises(SystemExit) as exc:
+            eval_mod.main()
+        return exc.value.code
+
+    def test_billing_failure_exits_4_and_says_to_fund_the_key(self, tmp_path, monkeypatch, capsys):
+        """Issue #6138: a depleted credit balance is a distinct exit, not exit 3."""
+        code = self._run_with_error(
+            tmp_path,
+            monkeypatch,
+            "Anthropic API returned HTTP 400: error=billing; "
+            "provider_error_type=invalid_request_error; provider response redacted",
+        )
+
+        assert code == 4
+        err = capsys.readouterr().err
+        assert "Fund the API key" in err
+        assert "error=billing" in err
+
+    @pytest.mark.parametrize(
+        "message",
+        [
+            "Anthropic API returned HTTP 400: usage limits, regain 2026-07-01",
+            "Anthropic API rate limit exceeded",
+            "GitHub Models API returned HTTP 429: too many requests",
+            "OpenAI API request timed out",
+            "OpenAI API network error: ConnectionError",
+            "Anthropic API returned HTTP 408",
+            "Anthropic API returned HTTP 500",
+            "Anthropic API returned HTTP 502",
+            "GitHub Models API returned HTTP 503",
+            "Anthropic API returned HTTP 504",
+        ],
+    )
+    def test_provider_outage_exits_3_not_0(self, tmp_path, monkeypatch, capsys, message):
+        """Issue #6148: an outage is an ADR-035 external failure (exit 3).
+
+        The gate could not run, so it must not report success. The caller
+        decides whether to skip.
+        """
+        code = self._run_with_error(tmp_path, monkeypatch, message)
+
+        assert code == 3
+        err = capsys.readouterr().err
+        assert "ERROR: provider unavailable" in err
+        assert message in err
+        assert "SKIP" not in err
+
+    def test_generic_failure_message_differs_from_outage_message(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        """Both exit 3, but the message tells an operator which one fired."""
+        code = self._run_with_error(tmp_path, monkeypatch, "could not parse judge response")
+
+        assert code == 3
+        err = capsys.readouterr().err
+        assert "ERROR: eval failed" in err
+        assert "provider unavailable" not in err
+
+    def test_billing_wins_over_outage_markers(self, tmp_path, monkeypatch, capsys):
+        """A billing error that also carries an outage marker stays exit 4."""
+        code = self._run_with_error(
+            tmp_path,
+            monkeypatch,
+            "Anthropic API returned HTTP 429: error=billing; "
+            "provider_error_type=invalid_request_error; provider response redacted",
+        )
+
+        assert code == 4
+        assert "Fund the API key" in capsys.readouterr().err
+
+    def test_other_400_still_exits_3(self, tmp_path, monkeypatch):
+        code = self._run_with_error(
+            tmp_path,
+            monkeypatch,
+            "Anthropic API returned HTTP 400: error=client_error; "
+            "provider_error_type=invalid_request_error; provider response redacted",
+        )
+
+        assert code == 3
+
     def test_identical_before_after_warning_emitted(self, tmp_path, monkeypatch, capsys):
         scen = self._make_scenarios_file(tmp_path)
         before = tmp_path / "a.md"
@@ -1676,9 +1774,9 @@ class TestMainCLI:
 
 
 class TestIsProviderOutage:
-    """The skip-net distinguishes 'eval could not run' (infra outage, neutral
-    skip, exit 0) from 'eval ran and the variant regressed' (exit 1) or a real
-    execution fault (exit 3)."""
+    """The outage classifier distinguishes 'eval could not run' (infra outage,
+    exit 3 with a provider-unavailable message) from 'eval ran and the variant
+    regressed' (exit 1) or any other execution fault (exit 3, generic message)."""
 
     @pytest.mark.parametrize(
         "message",
@@ -1691,7 +1789,7 @@ class TestIsProviderOutage:
             "Anthropic API returned HTTP 502",
         ],
     )
-    def test_outage_errors_are_skippable(self, message: str) -> None:
+    def test_outage_errors_are_classified_as_outage(self, message: str) -> None:
         assert eval_mod._is_provider_outage(RuntimeError(message)) is True
 
     @pytest.mark.parametrize(
@@ -1701,8 +1799,8 @@ class TestIsProviderOutage:
             "Unknown EVAL_PROVIDER 'bogus'. Valid: anthropic, github, openai",
             "Scenario file not found: tests/evals/x.json",
             "could not parse judge response",
-            # GitHub Models retired 2026-07-30; the skip-net no longer covers
-            # its retirement response. A permanent-retirement error must surface
+            # GitHub Models retired 2026-07-30; the outage classifier no longer
+            # covers its retirement response. A permanent-retirement error must surface
             # as a real failure so the gate is not silently dead. (issue #4339)
             (
                 "GitHub Models API returned HTTP 410: Error code: 410 - "
@@ -1712,7 +1810,7 @@ class TestIsProviderOutage:
             "github models is temporarily unavailable",
         ],
     )
-    def test_non_outage_errors_are_not_skippable(self, message: str) -> None:
+    def test_non_outage_errors_are_not_classified_as_outage(self, message: str) -> None:
         assert eval_mod._is_provider_outage(RuntimeError(message)) is False
 
 

@@ -4,7 +4,7 @@
 # file-size suppression rationale: the rule's own remediation is to split into
 # `_helpers.py`, `_types.py`, and `_constants.py`. That is the wrong shape here.
 # This is one CLI that owns three coupled invariants (scan the corpus, compare
-# per-check counts against a frozen baseline, rewrite that baseline atomically),
+# per-record violation identities against a frozen baseline, rewrite that baseline atomically),
 # and `.claude/rules/unified-software-engineering.md` rejects "shallow
 # pass-through layers" and "wrappers that add names but no simplification".
 # Splitting an eight-check gate across four modules would put the check list, the
@@ -15,7 +15,7 @@
 # earlier version pinned this suppression's evidence to a specific line
 # count and a specific "eight-check" claim, and both drifted stale on the
 # very next edit, Copilot, PR #5209 round-10 review), and those docstrings
-# carry the verbatim ADR-073 schema quote and the `_split_frontmatter`
+# carry the ADR-073 schema reference and the `_split_frontmatter`
 # divergence section that `.claude/rules/canonical-source-mirror.md`
 # requires. Precedent in this directory: `check_doc_interpreter_portability.py`
 # carries the same suppression for the same reason, "one CLI owns scan,
@@ -37,28 +37,25 @@ eighth check below), and `prose-frontmatter-agree` skips a record with no
 enum authoritative (Copilot, PR #5209 round-7 review).
 
 The schema enforced here is ADR-073 (`ADR-073-adr-lifecycle-frontmatter.md`),
-whose Decision section defines the block verbatim as::
-
-    id: ADR-NNN
-    status: proposed | accepted | rejected | deprecated | superseded   # enum, no prose
-    date: YYYY-MM-DD          # last updated
-    decision-makers: []
-    supersedes: []            # ADR ids this record supersedes
-    superseded-by: null       # ADR id that supersedes this record, or null
-    explainer: null           # link to a living design doc, if paired
-    implemented: false        # flips true at first merged change; gates amend-vs-supersede
-
-That ADR binds one behavior, quoted verbatim: "When the two disagree, the
-frontmatter wins, the gate flags the drift, and the author reconciles by editing
-the prose to match; the gate never silently rewrites prose." This gate is
-read-only. It opens ADR files and never writes one.
+which owns the frontmatter block and the rule that the frontmatter wins over
+prose on disagreement. This module does not copy either. `LIFECYCLE_STATUSES`
+is held to the ADR-073 status enum by
+`test_lifecycle_statuses_conform_to_adr_073`. This gate is read-only. It opens
+ADR files and never writes one.
 
 Stricter/looser/different than canonical: ADR-073 defers enforcement to
 "Phases 3 to 4 (enforce; deferred, consumer-gated)" and warns that a gate
 "becomes a tripwire on any un-migrated record". This gate is looser than that
 enforcement in the way the ADR's own Phase-2 concern demands: it is a per-check
 RATCHET, not a cliff. Every current violation is recorded in
-`adr_lifecycle_baseline.json` and passes; only a RISE in a check's count fails.
+`adr_lifecycle_baseline.json` as a `(check, path)` identity and passes; a
+violation whose identity the baseline does not hold fails, even when the
+check's total is unchanged (issue #5273). Fixing one record while breaking
+another under the same check is a swap, not an improvement. The identity is
+`(check, path)` with a multiplicity, so two violations of one check in one
+record count twice, but one fixed and one introduced in the same record
+under the same check still nets to a pass: `detail` is prose that changes
+whenever a message is reworded, so it is not part of the key.
 Each run prints which checks sit at zero and could be flipped to zero-tolerance.
 
 Checks, each named so the baseline tracks them separately:
@@ -73,6 +70,18 @@ Checks, each named so the baseline tracks them separately:
     prose-frontmatter-agree      a `## Status` section, when present, opens with the frontmatter
                                   enum and says more than that word (ADR-073, amended 2026-09-29)
     status-edge-consistency      status: superseded iff a superseded-by edge resolves
+    cited-paths-exist            an `accepted` record's Decision and Implementation Notes
+                                  cite only files that are still tracked (issue #5194)
+    section-structure            Context, Decision, and Consequences are each present under a
+                                  sanctioned heading: the canonical set or the MADR set
+                                  (issue #5196)
+    review-by-format             an optional `review-by` is a calendar date written YYYY-MM-DD
+                                  (issue #5193)
+    review-by-past-due           a `proposed` or `accepted` record whose `review-by` date has
+                                  passed is overdue for its revisit (issue #5193)
+    review-by-prose-date         a live record's `review-by` date is also stated in its prose,
+                                  so the two places a deadline is written cannot drift apart
+                                  (issue #5193)
 
 `status-edge-consistency` closes a gap `supersession-reciprocal` leaves open
 (Copilot, PR #5209): reciprocity validates edges against each other, never
@@ -83,6 +92,23 @@ with no successor at all. `deprecated` is deliberately exempt from the
 record that shipped and was later abandoned with no specific named
 successor, not a supersession.
 
+`cited-paths-exist` closes the gap behind issue #5194: ADR-050 stayed `accepted`
+after the script it mandates was deleted, because no check resolved a file path
+named in an accepted record. The extraction rules live in `adr_cited_paths.py`.
+Only `accepted` records are read; `superseded`, `deprecated`, `rejected`, and
+`proposed` records are history or not yet binding, and a gate firing on them is
+the tripwire ADR-073 warns about.
+
+`review-by` is the optional ADR-073 field for a record whose prose commits to a
+calendar revisit date. It exists because ADR-002 and ADR-039 sat seven months past a
+provisional window that only prose recorded (issue #5193). The two date checks read
+the wall clock, so `scan()` and `run()` take an injectable ``today``; the command line
+has no flag for it, because a flag would let a branch dodge the gate. A record whose
+status is `superseded`, `deprecated`, or `rejected` is history, so its date is moot
+and only the format check reads it. The checks cover calendar deadlines only. A
+condition-triggered revisit ("if the eval sets change") is not a date and carries no
+`review-by`; inventing one would make the gate fire on a deadline the prose never made.
+
 A check called `implemented-implies-decided` (`implemented: true` with
 `status: proposed`) was removed, not replaced by `status-edge-consistency`
 above: ADR-073's own schema defines `implemented` as flipping at first
@@ -90,8 +116,8 @@ merged change independent of decision state, and ADR-098 documents that
 exact pairing as deliberate. See `_check_lifecycle_rules` for the full
 removal rationale.
 
-Checks 2 to 8 need parseable frontmatter, so a record failing `frontmatter-parses`
-contributes one violation, not eight. The same containment runs downstream:
+Checks 2 to 10 need parseable frontmatter, so a record failing `frontmatter-parses`
+contributes one violation, not ten. The same containment runs downstream:
 `prose-frontmatter-agree` is skipped when the status section is absent
 (the record simply has no prose status, which ADR-073 prefers to a
 restatement) or the enum value is invalid (`status-enum` owns that), and
@@ -101,8 +127,8 @@ inflate several counts and the baseline would move for reasons the author did
 not cause.
 
 Exit codes (per ADR-035):
-    0 - no check exceeds its baseline (improvements pass and are reported)
-    1 - at least one check rose above its baseline
+    0 - no violation outside the baseline (improvements pass and are reported)
+    1 - at least one violation identity is absent from the baseline
     2 - config error (ADR directory missing, baseline missing/malformed/stale)
 """
 
@@ -115,6 +141,7 @@ import re
 import sys
 import tempfile
 from dataclasses import dataclass
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -136,6 +163,13 @@ from checks_common import (  # noqa: E402
 )
 from yaml_utils import _parse_yaml_frontmatter  # noqa: E402
 
+# Imported, not redefined, so the two ADR gates never disagree about which files are ADRs.
+from scripts.validation.adr_cited_paths import (  # noqa: E402
+    extract_cited_paths,
+    missing_paths,
+    tracked_paths,
+)
+from scripts.validation.check_adr_uniqueness import ADR_FILENAME_RE  # noqa: E402
 from scripts.validation.frontmatter_contract import FrontmatterStatus  # noqa: E402
 from scripts.validation.frontmatter_contract import (  # noqa: E402
     parse_frontmatter as _parse_frontmatter_block,
@@ -154,18 +188,18 @@ CHECKS: tuple[str, ...] = (
     "proposed-cannot-supersede",
     "prose-frontmatter-agree",
     "status-edge-consistency",
+    "cited-paths-exist",
+    "section-structure",
+    "review-by-format",
+    "review-by-past-due",
+    "review-by-prose-date",
 )
 
-# ADR-073 Decision section, verbatim: "status: proposed | accepted | rejected |
-# deprecated | superseded   # enum, no prose".
+# The ADR-073 status enum. `test_lifecycle_statuses_conform_to_adr_073` fails when
+# the ADR and this set disagree.
 LIFECYCLE_STATUSES: frozenset[str] = frozenset(
     {"proposed", "accepted", "rejected", "deprecated", "superseded"}
 )
-
-# Mirrors ADR_FILENAME_RE in scripts/validation/check_adr_uniqueness.py, quoted
-# verbatim: r"^ADR-(\d{2,})-[^/]+\.md$". Identical so the two ADR gates never
-# disagree about which files are ADRs.
-ADR_FILENAME_RE = re.compile(r"^ADR-(\d{2,})-[^/]+\.md$")
 
 # An id reference inside frontmatter: "ADR-091", "adr-91", or a bare integer.
 _ADR_REFERENCE_RE = re.compile(r"^ADR[-_ ]?(\d{1,4})$", re.IGNORECASE)
@@ -189,13 +223,38 @@ _LEVEL_TWO_HEADING_RE = re.compile(r"(?m)^[ \t]{0,3}##[ \t]+(.+?)[ \t]*$")
 # by ADR-094 (2026-08-15)", "`Proposed`. Supersedes ADR-036."
 _LEAD_WORD_RE = re.compile(r"^[*_`~>\[\s]*([A-Za-z]+)")
 
+# Sanctioned section structures (issue #5196). The corpus runs two shapes: the
+# canonical set from `.project-toolkit/architecture/ADR-TEMPLATE.md` and the MADR
+# set (`## Context and Problem Statement`, `## Decision Outcome`, with
+# `### Consequences` nested under the outcome). Both are legal. The mapping is
+# per concept, so a consumer asking for "the Decision" resolves either heading.
+# This tuple is the machine-readable form of the table in ADR-TEMPLATE.md.
+# Each entry: concept name, accepted lowercased heading texts, accepted levels.
+SECTION_EQUIVALENTS: tuple[tuple[str, frozenset[str], tuple[int, ...]], ...] = (
+    ("Context", frozenset({"context", "context and problem statement"}), (2,)),
+    ("Decision", frozenset({"decision", "decision outcome"}), (2,)),
+    ("Consequences", frozenset({"consequences"}), (2, 3)),
+)
+
+# `##` and `###` ATX headings, optionally indented up to three spaces, with an
+# optional closing hash run. Level one is the title; level four and below are
+# never a record's own section.
+_SECTION_HEADING_RE = re.compile(r"(?m)^[ \t]{0,3}(#{2,3})[ \t]+(.+?)[ \t]*#*[ \t]*$")
+
 _BASELINE_PATH = Path(__file__).with_name("adr_lifecycle_baseline.json")
 
+_BASELINE_SCHEMA_VERSION = "2"
+
 _BASELINE_DESCRIPTION = (
-    "Per-check ADR lifecycle violation ceiling (issue #5191). A count may fall "
-    "but never rise. Regenerate with: uv run python "
+    "ADR lifecycle violation ceiling, one entry per check and record path "
+    "(issues #5191 and #5273). An entry may be removed or lowered, never added "
+    "or raised. Regenerate with: uv run python "
     "scripts/validation/check_adr_lifecycle.py --write-baseline"
 )
+
+# check name -> record path -> violation count. Every check is a key, so an
+# empty mapping still reads as "this check is at zero".
+Baseline = dict[str, dict[str, int]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -225,7 +284,7 @@ def _split_frontmatter(text: str) -> tuple[str | None, str]:
 
     Delegates to ``scripts/validation/frontmatter_contract.parse_frontmatter``,
     which delegates in turn to ``python-frontmatter``. This function used to
-    carry its own boundary arithmetic, quoted verbatim from
+    carry its own boundary arithmetic, taken from
     ``_parse_yaml_frontmatter`` in ``scripts/validation/yaml_utils.py``::
 
         end_index = text.find("\n---", 3)
@@ -314,24 +373,14 @@ class _StrictLoader(yaml.SafeLoader):
 
 
 def _reject_duplicate_keys(loader: yaml.SafeLoader, node: yaml.MappingNode) -> dict[Any, Any]:
-    """Mirror of `_no_duplicate_keys` in build/scripts/generate_adr_index.py.
+    """Raise `_DuplicateKey`, carrying the key, when a mapping repeats a key.
 
-    Quoted verbatim from that file, which is the canonical implementation:
-
-        seen: list[Any] = []
-        for key_node, _ in node.value:
-            key = loader.construct_object(key_node, deep=True)
-            if any(key == earlier for earlier in seen):
-                raise _DuplicateKeyError(f"duplicate key {key!r} in frontmatter mapping")
-            seen.append(key)
-
-    Stricter/looser/different than canonical: identical detection, but this
-    raises an error carrying the key object so `_read_record` can name it in the
-    violation. The index generator only needs to fail the build.
+    `_read_record` names the key in the violation. `build/scripts/generate_adr_index.py`
+    no longer has its own duplicate-key loader: the three ADR parsers share the
+    contract in `frontmatter_contract`, so this loader is the only one here.
 
     A list compared with `==`, not a set: a YAML key need not be hashable
-    (`? [a, b]` builds a list key), and a set raises `TypeError` on it. See the
-    canonical docstring for the escape that shape produced.
+    (`? [a, b]` builds a list key), and a set raises `TypeError` on it.
     """
     seen: list[Any] = []
     for key_node, _ in node.value:
@@ -767,6 +816,156 @@ def _check_lifecycle_rules(record: Record) -> list[Violation]:
     return [Violation("proposed-cannot-supersede", record.path, detail)]
 
 
+def _check_structure(record: Record) -> list[Violation]:
+    """`section-structure` for one record (issue #5196).
+
+    A record passes when Context, Decision, and Consequences are each present
+    under a heading from the canonical set or the MADR set (see
+    `SECTION_EQUIVALENTS`). Resolution is per concept, so a record that opens
+    with `## Context` and decides under `## Decision Outcome` still passes:
+    a consumer reading "the Decision" finds it either way. `## Status` and
+    `## Date` are not required; ADR-073 (amended 2026-09-29) made the prose
+    status optional and the frontmatter carries both fields.
+
+    Headings inside fenced code and block-level HTML do not count, the same
+    masking `_status_prose` applies, so a template sample cannot satisfy the
+    check. A body the markdown parser rejects is reported, not skipped,
+    for the reason `_check_prose` gives.
+    """
+    try:
+        prose = blank_non_prose_block_lines(record.body)
+    except Exception as exc:
+        detail = f"section structure could not be parsed: {exc}"
+        return [Violation("section-structure", record.path, detail)]
+    present = {
+        (len(match.group(1)), match.group(2).strip().lower())
+        for match in _SECTION_HEADING_RE.finditer(prose)
+    }
+    missing = [
+        concept
+        for concept, names, levels in SECTION_EQUIVALENTS
+        if not any((level, name) in present for level in levels for name in names)
+    ]
+    if not missing:
+        return []
+    detail = (
+        f"missing {', '.join(missing)}. Use the canonical headings (`## Context`, "
+        "`## Decision`, `## Consequences`) or the MADR headings "
+        "(`## Context and Problem Statement`, `## Decision Outcome`, "
+        "`### Consequences`); see ADR-TEMPLATE.md."
+    )
+    return [Violation("section-structure", record.path, detail)]
+
+
+def _check_cited_paths(
+    record: Record, repo_root: Path, tracked: frozenset[str] | None
+) -> list[Violation]:
+    """`cited-paths-exist`: an accepted record names only files that still exist."""
+    if _status_of(record) != "accepted":
+        return []
+    try:
+        cited = extract_cited_paths(record.body)
+    except Exception as exc:
+        # Same rule as `_check_prose`: a body the markdown parser refuses is a
+        # counted finding, never a record that quietly skips the check.
+        detail = f"Decision and Implementation Notes could not be parsed: {exc}"
+        return [Violation("cited-paths-exist", record.path, detail)]
+    return [
+        Violation(
+            "cited-paths-exist",
+            record.path,
+            f"cites `{path}` in Decision or Implementation Notes, but no such file "
+            "is tracked. Deprecate or supersede the record, or correct the citation.",
+        )
+        for path in missing_paths(cited, repo_root, tracked)
+    ]
+
+
+# Statuses whose `review-by` still binds. A `superseded`, `deprecated`, or
+# `rejected` record is history: the revisit it promised is moot, and a gate that
+# fired on it would force an author to delete a field from a closed record.
+_LIVE_STATUSES: frozenset[str] = frozenset({"proposed", "accepted"})
+
+_ISO_DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
+
+
+def _parse_review_by(value: object) -> date:
+    """The calendar date a ``review-by`` value names, or ``ValueError``.
+
+    YAML resolves an unquoted ``2026-09-27`` to ``datetime.date`` and a quoted one
+    to ``str``; both are accepted. ``datetime`` subclasses ``date`` and is refused
+    first, because a time of day is not a calendar deadline. A number, a list, a
+    boolean, or a string that is not ``YYYY-MM-DD`` is refused too: a malformed
+    value that was skipped silently would never fire, which is the seven-month miss
+    this field exists to prevent.
+    """
+    if isinstance(value, (datetime, bool)):
+        raise ValueError(f"{value!r} is not a calendar date")
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str) and _ISO_DATE_RE.fullmatch(value.strip()):
+        try:
+            return date.fromisoformat(value.strip())
+        except ValueError:
+            raise ValueError(f"{value!r} is not a real calendar date") from None
+    raise ValueError(f"{value!r} is not a YYYY-MM-DD date")
+
+
+def _prose_states_date(body: str, due: date) -> bool:
+    """True when the record's prose, outside code and HTML blocks, names ``due``."""
+    prose = blank_non_prose_block_lines(body)
+    return re.search(rf"(?<!\d){re.escape(due.isoformat())}(?!\d)", prose) is not None
+
+
+def _check_review_by(record: Record, today: date) -> list[Violation]:
+    """`review-by-format`, `review-by-past-due`, and `review-by-prose-date` for one record.
+
+    An absent or null ``review-by`` is no violation: the field is optional and a
+    decision with no deadline carries none (ADR-073, amended for issue #5193). A
+    malformed value is one format finding and stops there, so one typo does not
+    also report a missing prose date. Past due means strictly before ``today``: a
+    record due today is still on time.
+    """
+    value = _frontmatter_of(record).get("review-by")
+    if value is None:
+        return []
+    try:
+        due = _parse_review_by(value)
+    except ValueError as exc:
+        detail = f"review-by {exc}. Write the revisit date as YYYY-MM-DD, or set it to null."
+        return [Violation("review-by-format", record.path, detail)]
+    if _status_of(record) not in _LIVE_STATUSES:
+        return []
+    found: list[Violation] = []
+    if due < today:
+        late = (today - due).days
+        found.append(
+            Violation(
+                "review-by-past-due",
+                record.path,
+                f"review-by {due.isoformat()} passed {late} day(s) before {today.isoformat()}. "
+                "Hold the review, record its outcome in the prose, then set a new "
+                "review-by or null, or change the status.",
+            )
+        )
+    try:
+        stated = _prose_states_date(record.body, due)
+    except Exception as exc:
+        detail = f"review-by prose could not be parsed: {exc}"
+        return [*found, Violation("review-by-prose-date", record.path, detail)]
+    if not stated:
+        found.append(
+            Violation(
+                "review-by-prose-date",
+                record.path,
+                f"review-by {due.isoformat()} appears in frontmatter only. State the same "
+                "date as YYYY-MM-DD in the prose so a reader sees the deadline and the "
+                "two places cannot drift.",
+            )
+        )
+    return found
+
+
 def _edge_targets(
     record: Record, raw_entries: list[Any], field: str, known: set[int]
 ) -> tuple[list[int], list[Violation]]:
@@ -935,16 +1134,30 @@ def _status_edge_findings(by_number: dict[int, Record], graph: _Graph) -> list[V
     return found
 
 
-def scan(adr_dir: Path, repo_root: Path) -> list[Violation]:
-    """Every lifecycle violation in the corpus, in check-then-path order."""
+def _utc_today() -> date:
+    return datetime.now(UTC).date()
+
+
+def scan(adr_dir: Path, repo_root: Path, today: date | None = None) -> list[Violation]:
+    """Every lifecycle violation in the corpus, in check-then-path order.
+
+    ``today`` is the date the ``review-by`` checks compare against. It defaults
+    to the current UTC date; tests pass a fixed one so no result depends on the
+    day the suite runs.
+    """
+    today = today if today is not None else _utc_today()
     records, violations = collect_records(adr_dir, repo_root)
     known = {record.number for record in records}
+    tracked = tracked_paths(repo_root)
     for record in records:
         if record.frontmatter is None:
             continue
         violations.extend(_check_identity(record))
+        violations.extend(_check_cited_paths(record, repo_root, tracked))
         violations.extend(_check_prose(record))
         violations.extend(_check_lifecycle_rules(record))
+        violations.extend(_check_structure(record))
+        violations.extend(_check_review_by(record, today))
     by_number = {r.number: r for r in records if r.frontmatter is not None}
     graph = _build_graph(by_number, known)
     violations.extend(graph.findings)
@@ -953,45 +1166,123 @@ def scan(adr_dir: Path, repo_root: Path) -> list[Violation]:
     return sorted(violations, key=lambda v: (CHECKS.index(v.check), v.path, v.detail))
 
 
-def tally(violations: list[Violation]) -> dict[str, int]:
-    """Violation count per check name; every check appears, zeros included."""
-    counts = dict.fromkeys(CHECKS, 0)
+def identities(violations: list[Violation]) -> Baseline:
+    """Violations grouped as ``check -> path -> count``; every check appears."""
+    found: Baseline = {name: {} for name in CHECKS}
     for violation in violations:
-        counts[violation.check] += 1
-    return counts
+        paths = found[violation.check]
+        paths[violation.path] = paths.get(violation.path, 0) + 1
+    return found
 
 
-def _parse_baseline_payload(text: str, source: str) -> dict[str, int] | str:
+def _total(entries: dict[str, int]) -> int:
+    return sum(entries.values())
+
+
+def _excess(current: Baseline, allowed: Baseline) -> Baseline:
+    """Per check, the paths whose count in ``current`` beats ``allowed``.
+
+    A path ``allowed`` does not hold has an allowance of zero, so a violation
+    in a record the baseline never recorded is excess even when the check's
+    total fell (issue #5273). A check ``allowed`` does not name at all has no
+    excess: only the baseline read at the base ref lacks a check, because the
+    branch under test is the one adding it (issue #5194), and a live baseline
+    is validated to name every check before it reaches here.
+    """
+    return {
+        name: {
+            path: count
+            for path, count in current[name].items()
+            if count > allowed[name].get(path, 0)
+        }
+        if name in allowed
+        else {}
+        for name in CHECKS
+    }
+
+
+def _check_list_problem(names: set[str], source: str, *, new_checks_ok: bool) -> str | None:
+    missing = [] if new_checks_ok else sorted(set(CHECKS) - names)
+    unknown = sorted(names - set(CHECKS))
+    if not missing and not unknown:
+        return None
+    return (
+        f"baseline {source} does not match the check list (missing: "
+        f"{missing or 'none'}, unknown: {unknown or 'none'}). "
+        "Regenerate it with --write-baseline."
+    )
+
+
+def _paths_problem(name: str, paths: object, source: str) -> str | None:
+    if not isinstance(paths, dict):
+        return f"baseline {source} entry {name} is {paths!r}, not a mapping of path to count"
+    for path, count in paths.items():
+        if not path:
+            return f"baseline {source} entry {name} has the path {path!r}, not a record path"
+        if not isinstance(count, int) or isinstance(count, bool) or count < 1:
+            return f"baseline {source} entry {name} for {path} is {count!r}, not a count"
+    return None
+
+
+def _legacy_baseline(payload: dict[str, Any], source: str, zero_ok: bool) -> Baseline | str:
+    """Schema 1 (per-check counts), usable only when it names no violation.
+
+    A count of zero says exactly which records violate (none), so it converts
+    losslessly. A nonzero count cannot name its records, so no identity set
+    can be derived from it; the author regenerates instead (issue #5273).
+    ``zero_ok`` is True only for the baseline read at the base ref, which
+    predates the schema change on the pull request that introduces it.
+    """
+    counts = payload["counts"]
+    all_zero = (
+        isinstance(counts, dict)
+        and set(counts) == set(CHECKS)
+        and all(type(value) is int and value == 0 for value in counts.values())
+    )
+    if zero_ok and all_zero:
+        return {name: {} for name in CHECKS}
+    return (
+        f"baseline {source} uses schema 1 (per-check counts), which cannot name the "
+        "records behind a count. Regenerate it with --write-baseline."
+    )
+
+
+def _parse_baseline_payload(
+    text: str, source: str, *, legacy_zero_ok: bool = False, new_checks_ok: bool = False
+) -> Baseline | str:
     """Validate baseline JSON already read from ``source``, or a one-line reason.
 
-    Split out of :func:`read_baseline` so :func:`_counts_at_ref` can run the
+    Split out of :func:`read_baseline` so :func:`_baseline_at_ref` can run the
     identical schema check against text read from ``git show <ref>:<path>``
     instead of a live file. The two callers differ only in how the bytes
     reached them; the validation a baseline must pass is one rule, not two.
+
+    ``new_checks_ok`` is for the baseline read at the base ref, like
+    ``legacy_zero_ok``. A check the branch under test adds is absent there, so
+    the missing names are left out of the result instead of failing the read
+    (issue #5194 added the first such check). A live baseline never gets this
+    leniency: it must name every check.
     """
     try:
         payload = json.loads(text)
     except json.JSONDecodeError as exc:
         return f"baseline {source} is not valid JSON: {exc}"
-    if not isinstance(payload, dict) or not isinstance(payload.get("counts"), dict):
-        return f"baseline {source} has no `counts` mapping"
-    counts = payload["counts"]
-    missing = sorted(set(CHECKS) - set(counts))
-    unknown = sorted(set(counts) - set(CHECKS))
-    if missing or unknown:
-        return (
-            f"baseline {source} does not match the check list (missing: "
-            f"{missing or 'none'}, unknown: {unknown or 'none'}). "
-            "Regenerate it with --write-baseline."
-        )
-    for name, value in counts.items():
-        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
-            return f"baseline {source} entry {name} is {value!r}, not a count"
-    return {name: int(counts[name]) for name in CHECKS}
+    if isinstance(payload, dict) and "counts" in payload and "violations" not in payload:
+        return _legacy_baseline(payload, source, legacy_zero_ok)
+    entries = payload.get("violations") if isinstance(payload, dict) else None
+    if not isinstance(entries, dict):
+        return f"baseline {source} has no `violations` mapping"
+    problem = _check_list_problem(set(entries), source, new_checks_ok=new_checks_ok)
+    for name in CHECKS:
+        if name in entries:
+            problem = problem or _paths_problem(name, entries[name], source)
+    if problem:
+        return problem
+    return {name: dict(entries[name]) for name in CHECKS if name in entries}
 
 
-def read_baseline(path: Path) -> dict[str, int] | str:
-    """Baseline counts, or a one-line reason the file cannot be used."""
+def read_baseline(path: Path) -> Baseline | str:
+    """Baseline identities, or a one-line reason the file cannot be used."""
     try:
         text = path.read_text(encoding="utf-8")
     except OSError as exc:
@@ -1006,14 +1297,14 @@ def read_baseline(path: Path) -> dict[str, int] | str:
 
 
 def _base_ref_refusal(
-    repo_root: Path, baseline_path: Path, candidate: dict[str, int], writing: bool
+    repo_root: Path, baseline_path: Path, candidate: Baseline, writing: bool
 ) -> tuple[int, str] | None:
-    """Return ``(exit_code, message)`` when ``candidate`` raises a check above the base ref.
+    """Return ``(exit_code, message)`` when ``candidate`` adds a violation the base ref lacks.
 
-    ``candidate`` is the counts a run would record (``--write-baseline``) or
-    the counts already committed (a plain run). Both must be no higher than
-    the baseline recorded at the fork point, or a branch launders its own
-    regression by editing the ceiling (issue #5270). Returns None when the
+    ``candidate`` is the identities a run would record (``--write-baseline``)
+    or the identities already committed (a plain run). Both must be a subset
+    of the baseline recorded at the fork point, or a branch launders its own
+    regression by editing the ceiling (issues #5270 and #5273). Returns None when the
     comparison is skipped: the baseline lies outside the repository, no ref
     resolves, or the baseline does not exist at the base ref yet (bootstrap).
     """
@@ -1035,25 +1326,26 @@ def _base_ref_refusal(
         )
     if baseline_absent_at_ref(repo_root, fork, baseline_path):
         return None
-    base_counts = _counts_at_ref(repo_root, fork, baseline_path)
-    if base_counts is None:
+    base = _baseline_at_ref(repo_root, fork, baseline_path)
+    if base is None:
         return (
             EXIT_CONFIG,
             f"[CONFIG] could not read the baseline {baseline_path} at {base_ref} "
             "to verify it is not raised above the base ref",
         )
-    raised = sorted(name for name in CHECKS if candidate[name] > base_counts[name])
+    excess = _excess(candidate, base)
+    raised = [name for name in CHECKS if excess[name]]
     if not raised:
         return None
     tag, code, lead = (
-        ("CONFIG", EXIT_CONFIG, "--write-baseline would raise")
+        ("CONFIG", EXIT_CONFIG, "--write-baseline would add to")
         if writing
-        else ("FAIL", EXIT_REGRESSION, "the committed baseline raises")
+        else ("FAIL", EXIT_REGRESSION, "the committed baseline adds to")
     )
     return (
         code,
-        f"[{tag}] {lead} {', '.join(raised)} above {base_ref}'s recorded baseline. The baseline "
-        "may only fall; fix the regression instead of recording it.",
+        f"[{tag}] {lead} {', '.join(raised)} beyond {base_ref}'s recorded baseline. The baseline "
+        "may only shrink; fix the regression instead of recording it.",
     )
 
 
@@ -1076,24 +1368,20 @@ def _fork_point(repo_root: Path, base_ref: str) -> str | None:
     return revision if exit_code == 0 and revision else None
 
 
-def _counts_at_ref(repo_root: Path, ref: str, baseline_path: Path) -> dict[str, int] | None:
-    """Per-check counts recorded at ``ref``, or None when unreadable.
+def _baseline_at_ref(repo_root: Path, ref: str, baseline_path: Path) -> Baseline | None:
+    """Violation identities recorded at ``ref``, or None when unreadable.
 
-    Mirrors ``scripts/ci/count_ratchet.py``'s ``baseline_at_ref`` verbatim in
-    shape, quoted from that function's body::
-
-        rel = _baseline_rel(repo_root, baseline)
-        proc = _git_run(repo_root, ["show", f"{ref}:{rel}"])
-        ...
-        return int(proc.stdout.strip())
+    Follows ``baseline_at_ref`` in ``scripts/ci/count_ratchet.py``, whose git
+    plumbing is the canonical form; this function does not restate it.
 
     Stricter/looser/different than canonical: that helper parses a bare
     integer because every other count ratchet in this repo baselines a
-    single number. This gate baselines one count per check in a JSON
-    mapping, so the final parse step is widened to
+    single number. This gate baselines one mapping of record paths per
+    check, so the final parse step is widened to
     :func:`_parse_baseline_payload` instead of ``int()``; the git plumbing
     (resolve the path relative to ``repo_root``, ``git show ref:rel``) is
-    unchanged.
+    unchanged. A schema 1 file at ``ref`` is accepted when every count is
+    zero, because the pull request that introduces schema 2 forks from it.
     """
     try:
         rel = baseline_path.resolve().relative_to(repo_root.resolve()).as_posix()
@@ -1106,28 +1394,28 @@ def _counts_at_ref(repo_root: Path, ref: str, baseline_path: Path) -> dict[str, 
     )
     if exit_code != 0:
         return None
-    parsed = _parse_baseline_payload(stdout, f"{ref}:{rel}")
+    parsed = _parse_baseline_payload(
+        stdout, f"{ref}:{rel}", legacy_zero_ok=True, new_checks_ok=True
+    )
     return parsed if isinstance(parsed, dict) else None
 
 
-def write_baseline(path: Path, counts: dict[str, int]) -> None:
-    """Record ``counts`` as the new ceiling. Fixed key order keeps diffs small.
+def write_baseline(path: Path, found: Baseline) -> None:
+    """Record ``found`` as the new ceiling. Fixed key order keeps diffs small.
 
     Writes through a temporary sibling file plus ``os.replace()`` rather than
-    truncating ``path`` directly. Mirrors ``scripts/ai_review_common/
-    cache_guard.py``'s ``_atomic_write_text`` verbatim: "Writes to a temp
-    file in the same directory, then os.replace swaps it into place, so a
-    crash or two concurrent writers cannot leave the file half-written or
-    truncated." A direct ``path.write_text()`` interrupted mid-write (a
-    killed process, a full disk) leaves invalid JSON in place, and this file
-    is the ratchet ceiling every subsequent ``pre_pr.py`` run reads: a
-    corrupted baseline blocks every push until someone reconstructs it by
-    hand (Copilot, PR #5209 round-10 review).
+    truncating ``path`` directly. The temp-file-then-swap technique is
+    ``_atomic_write_text`` in ``scripts/ai_review_common/cache_guard.py``, so a
+    crash or two concurrent writers cannot leave the file half-written. A direct
+    ``path.write_text()`` interrupted mid-write (a killed process, a full
+    disk) leaves invalid JSON in place, and this file is the ratchet ceiling
+    every subsequent ``pre_pr.py`` run reads: a corrupted baseline blocks every
+    push until someone reconstructs it by hand (Copilot, PR #5209 round-10 review).
     """
     payload = {
-        "schema_version": "1",
+        "schema_version": _BASELINE_SCHEMA_VERSION,
         "description": _BASELINE_DESCRIPTION,
-        "counts": {name: counts[name] for name in CHECKS},
+        "violations": {name: dict(sorted(found[name].items())) for name in CHECKS},
     }
     text = json.dumps(payload, indent=2) + "\n"
     directory = path.parent
@@ -1144,50 +1432,49 @@ def write_baseline(path: Path, counts: dict[str, int]) -> None:
         raise
 
 
-def _print_violations(violations: list[Violation], checks: set[str], limit: int) -> None:
-    selected = [v for v in violations if v.check in checks]
+def _print_violations(selected: list[Violation], limit: int) -> None:
     for violation in selected[:limit]:
         print(f"  - {violation.render()}")
     if len(selected) > limit:
         print(f"  ... and {len(selected) - limit} more")
 
 
-def _marker(current: int, allowed: int) -> str:
+def _marker(current: int, allowed: int, gained: int) -> str:
     if current > allowed:
         return "RAISED"
+    if gained:
+        return "SWAPPED, a record outside the baseline now violates"
     if current < allowed:
         return "improved, record with --write-baseline"
     return "clean, ready for zero-tolerance" if current == 0 else "at baseline"
 
 
-def _report(counts: dict[str, int], baseline: dict[str, int]) -> tuple[set[str], set[str]]:
-    """Print the per-check table. Returns ``(regressed, at_zero)`` check names.
+def _report(found: Baseline, baseline: Baseline) -> tuple[Baseline, set[str]]:
+    """Print the per-check table. Returns ``(excess, at_zero)``.
 
-    Known gap, not fixed here (Copilot, PR #5209 round-11 review): "The
-    ratchet compares only totals, so a branch can fix one baselined finding
-    and introduce a different finding under the same check without
-    increasing the count... Store and diff finding identities, at least
-    ``(check, path)``, rather than only per-check counts." That is correct
-    and unfixed. Every count ratchet in this repo (``scripts/ci/
-    count_ratchet.py``) shares the same total-only design; giving this one
-    gate per-finding identity tracking is a baseline schema change (the
-    JSON `counts` mapping would need to become, at minimum, a mapping of
-    `check` to a set of `(path, detail)` pairs), which is a scope larger
-    than a review-round fix and touches a shape every existing baseline
-    consumer and every test in this file currently assumes. Tracked for a
-    follow-up; not attempted in this change.
+    ``excess`` holds, per check, the record paths whose violation count beats
+    the baseline's allowance for that path. It is non-empty for a check when
+    a violation appeared in a record the baseline did not list, even if the
+    check's total fell or stayed flat: the swap that issue #5273 describes.
     """
+    excess = _excess(found, baseline)
     width = max(len(name) for name in CHECKS)
     print("ADR lifecycle checks (current / baseline):")
     for name in CHECKS:
+        current, allowed = _total(found[name]), _total(baseline[name])
         print(
-            f"  {name:<{width}}  {counts[name]:>3} / {baseline[name]:<3}  "
-            f"{_marker(counts[name], baseline[name])}"
+            f"  {name:<{width}}  {current:>3} / {allowed:<3}  "
+            f"{_marker(current, allowed, len(excess[name]))}"
         )
     return (
-        {name for name in CHECKS if counts[name] > baseline[name]},
-        {name for name in CHECKS if counts[name] == 0 and baseline[name] == 0},
+        excess,
+        {name for name in CHECKS if not found[name] and not baseline[name]},
     )
+
+
+def _new_violations(violations: list[Violation], excess: Baseline) -> list[Violation]:
+    """The violations whose record the baseline does not cover."""
+    return [v for v in violations if v.path in excess[v.check]]
 
 
 def run(
@@ -1197,6 +1484,7 @@ def run(
     args: argparse.Namespace,
     *,
     repo_root_is_default: bool = False,
+    today: date | None = None,
 ) -> int:
     """Scan, then either write the baseline or compare against it.
 
@@ -1204,8 +1492,8 @@ def run(
     ``--repo-root`` explicitly (see ``main()``); it gates the worktree-identity
     check below.
     """
-    violations = scan(adr_dir, repo_root)
-    counts = tally(violations)
+    violations = scan(adr_dir, repo_root, today)
+    found = identities(violations)
     # Read once, separately from scan()'s own collect_records() call, only for
     # the pass-report's examined-record count below: an existing but emptied
     # or narrowed corpus would otherwise print the identical
@@ -1218,12 +1506,8 @@ def run(
     if args.write_baseline:
         # .claude/rules/ci-scripts.md MUST 7: a script that resolves the
         # repository root and then writes to it must confirm the caller's cwd
-        # sits inside that root before the first write. Mirrors
-        # scripts/generate_third_party_notices.py:446-452 verbatim:
-        #   project_root = PROJECT_ROOT
-        #   if not Path.cwd().resolve().is_relative_to(project_root.resolve()):
-        #       print(f"ERROR: current directory is outside project root: {Path.cwd()}", ...)
-        #       return 2
+        # sits inside that root before the first write. Follows the cwd check in
+        # scripts/generate_third_party_notices.py.
         #
         # Stricter/looser/different than canonical: the canonical script's
         # PROJECT_ROOT has no CLI override, so every invocation is the risky
@@ -1246,12 +1530,9 @@ def run(
         # baseline" as the cross-worktree write MUST 7 exists to prevent.
         # It is not: MUST 7's own stated threat is a script's *implicit*
         # resolution being silently redirected by state the caller cannot
-        # see, quoted verbatim from `.claude/rules/ci-scripts.md`: "a local
-        # `core.worktree` value or a `GIT_WORK_TREE` environment variable
-        # redirects it to a directory you are not standing in ... the
-        # redirection is always something a person or a tool set on
-        # purpose, which is exactly why a script that inherits it has no
-        # way to notice." A caller-typed `--repo-root` is the opposite of
+        # see, as `.claude/rules/ci-scripts.md` MUST 7 explains: a redirection set
+        # by `core.worktree` or `GIT_WORK_TREE` is invisible to a script that
+        # inherits it. A caller-typed `--repo-root` is the opposite of
         # that: nothing is inherited or hidden, the target is exactly what
         # was written on the command line. Worktree A/B is a possible
         # *user* mistake, not an undetectable one, and no mechanism here
@@ -1292,17 +1573,17 @@ def run(
         # outright rather than reporting "absent" (Copilot would have caught
         # this as a false CONFIG failure had a test not already covered the
         # case), so this is checked before asking git anything.
-        refusal = _base_ref_refusal(repo_root, baseline_path, counts, writing=True)
+        refusal = _base_ref_refusal(repo_root, baseline_path, found, writing=True)
         if refusal is not None:
             print(refusal[1], file=sys.stderr)
             return refusal[0]
-        write_baseline(baseline_path, counts)
+        write_baseline(baseline_path, found)
         print(
             f"[OK] Wrote {baseline_path} from {len(violations)} violation(s) "
             f"across {examined} ADR record(s):"
         )
         for name in CHECKS:
-            print(f"  {name}: {counts[name]}")
+            print(f"  {name}: {_total(found[name])}")
         return EXIT_OK
 
     baseline = read_baseline(baseline_path)
@@ -1315,7 +1596,8 @@ def run(
         print(refusal[1], file=sys.stderr)
         return refusal[0]
 
-    regressed, at_zero = _report(counts, baseline)
+    excess, at_zero = _report(found, baseline)
+    regressed = {name for name in CHECKS if excess[name]}
     if at_zero:
         print(f"Checks at zero and flippable to zero-tolerance: {', '.join(sorted(at_zero))}")
     else:
@@ -1323,24 +1605,25 @@ def run(
 
     if args.show_all and violations:
         print(f"\nAll {len(violations)} violation(s):")
-        _print_violations(violations, set(CHECKS), args.limit)
+        _print_violations(violations, args.limit)
 
     if not regressed:
         print(
             f"\n[PASS] {len(violations)} violation(s) across {examined} ADR record(s), "
-            "no check above its baseline."
+            "none outside the baseline."
         )
         return EXIT_OK
 
-    print(f"\n[FAIL] {len(regressed)} check(s) rose above the baseline:")
+    print(f"\n[FAIL] {len(regressed)} check(s) gained a violation the baseline does not hold:")
     for name in sorted(regressed):
-        print(f"  {name}: {baseline[name]} -> {counts[name]}")
+        print(f"  {name}: {_total(baseline[name])} -> {_total(found[name])}")
     if not args.show_all:
-        _print_violations(violations, regressed, args.limit)
+        _print_violations(_new_violations(violations, excess), args.limit)
     print(
-        "\nFix the ADR frontmatter or prose that raised the count. Do NOT raise the "
-        "baseline to clear this: the ratchet exists to stop new lifecycle drift, and "
-        "raising it defeats the gate (issue #5191)."
+        "\nFix the ADR frontmatter or prose behind each violation above. Fixing a "
+        "different record does not offset it. Do NOT raise the baseline to clear "
+        "this: the ratchet exists to stop new lifecycle drift, and raising it "
+        "defeats the gate (issues #5191 and #5273)."
     )
     return EXIT_REGRESSION
 
@@ -1362,7 +1645,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--write-baseline",
         action="store_true",
-        help="Record the current per-check counts as the new ceiling and exit 0.",
+        help="Record the current violations, per check and record, as the new ceiling and exit 0.",
     )
     parser.add_argument(
         "--show-all",
@@ -1385,7 +1668,7 @@ def main(argv: list[str] | None = None) -> int:
         return EXIT_CONFIG
     # An emptied or misrouted corpus (wrong --repo-root, or every record moved
     # out) still passes the `is_dir()` check above. `scan()` would then walk
-    # zero records, `tally()` would report every check at 0, and `run()` would
+    # zero records, `identities()` would report every check empty, and `run()` would
     # print "[PASS] 0 violation(s)": a missing corpus reads as a clean corpus
     # instead of failing loudly. `ADR_FILENAME_RE` excludes ADR-TEMPLATE.md, so
     # a template sitting alone does not count as evidence records were
@@ -1406,7 +1689,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def validate_adr_lifecycle(repo_root: Path) -> bool:
-    """Pre-PR gate adapter: True when no check exceeds its baseline.
+    """Pre-PR gate adapter: True when no violation falls outside its baseline.
 
     A config error (exit 2) returns False. A gate that cannot read its own
     baseline has not run, and reporting that as a pass is the silent-pass failure

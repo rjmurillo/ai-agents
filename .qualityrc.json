@@ -1,5 +1,6 @@
 {
-  "_comment": "assess.py reads thresholds[\"coupling\"].get(\"min\") (_thresholds_for and check_thresholds in .claude/skills/code-qualities-assessment/scripts/assess.py); a config that leaves coupling.min unset has its coupling gate skipped rather than gated incorrectly (see the comment beside that read). This file leaves coupling empty, so no coupling gate fires. assess.py never reads a \"warn\" field for any quality, only each quality's \"min\", so the warn keys this file used to carry were inert and are gone; coupling.max was never read either.",
+  "_comment": "assess.py reads thresholds[\"coupling\"].get(\"min\") (_thresholds_for and check_thresholds in .claude/skills/code-qualities-assessment/scripts/assess.py); a config that leaves coupling.min unset has its coupling gate skipped rather than gated incorrectly (see the comment beside that read). This file leaves coupling empty, so no coupling gate fires. assess.py never reads a \"warn\" field for any quality, only each quality's \"min\", so the warn keys this file used to carry were inert and are gone; coupling.max was never read either. minConfidence (0.5) makes a quality advisory when its score confidence is lower: cohesion is a size and definition proxy at confidence 0.4, so it prints a warning and never fails the absolute gate. The regression gate still compares cohesion against the merge base.",
+  "minConfidence": 0.5,
   "thresholds": {
     "cohesion": {
       "min": 7

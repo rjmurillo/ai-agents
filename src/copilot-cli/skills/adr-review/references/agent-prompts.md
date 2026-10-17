@@ -7,10 +7,53 @@ Detailed prompt templates for each phase of ADR review.
 
 ## Table of Contents
 
-1. [Phase 1: Independent Review Prompts](#phase-1-independent-review-prompts)
-2. [Phase 2: Consolidation Prompts](#phase-2-consolidation-prompts)
-3. [Phase 3: Resolution Prompts](#phase-3-resolution-prompts)
-4. [Phase 4: Convergence Check Prompts](#phase-4-convergence-check-prompts)
+1. [Factual Claim Verification Block](#factual-claim-verification-block)
+2. [Phase 1: Independent Review Prompts](#phase-1-independent-review-prompts)
+3. [Phase 2: Consolidation Prompts](#phase-2-consolidation-prompts)
+4. [Phase 3: Resolution Prompts](#phase-3-resolution-prompts)
+5. [Phase 4: Convergence Check Prompts](#phase-4-convergence-check-prompts)
+
+---
+
+## Factual Claim Verification Block
+
+Paste this block into the prompt of every seat in Phase 1, and into every
+Phase 4 convergence prompt. Every seat runs it, not only the analyst.
+
+```markdown
+## Factual Claim Verification (mandatory for every seat)
+
+Verify every factual claim in the ADR text against its primary source. Supporting
+prose gets the same bar as the claim framed as the decision. Prose that reads as
+uncontroversial is where unverified claims survive review.
+
+| Claim kind | Primary source to check |
+|------------|-------------------------|
+| Deciders, approvers, authors | Commit authors, PR authors and reviewers, or an external decision record. Earlier ADR text is a secondary consistency check only. `git show` of the same ADR never marks a deciders line `VERIFIED`. |
+| Issue or PR number | Open the item. Confirm it did what the ADR says it did. |
+| "Implemented", "never implemented", "superseded" | Repository search and git history |
+| Count, path, `path:line` | Run the command or read the cited range |
+| Cross-artifact contract | Every artifact that must agree: schema, validator, implementation |
+
+Rules:
+
+1. A claims ledger may be passed with the ADR. Claims outside it are still
+   yours to check. When no ledger is passed, build one before you review.
+2. Record each claim as `VERIFIED`, `REFUTED`, or `UNVERIFIED`, with the source
+   you read. Never mark a claim `VERIFIED` from memory or from the ADR's own text.
+3. A `REFUTED` claim is a blocking concern (P0 or P1). An `UNVERIFIED` claim is
+   a Question.
+4. In Phase 4, check every claim in text added or changed this round. A fix
+   round can introduce a new wrong claim.
+
+Add this section to your output:
+
+### Claims Checked
+
+| Claim | Kind | Source read | Result |
+|-------|------|-------------|--------|
+| [claim text] | [deciders / issue-or-PR / status / count-or-path / contract] | [file, issue, PR, or command] | [VERIFIED / REFUTED / UNVERIFIED] |
+```
 
 ---
 
@@ -19,7 +62,7 @@ Detailed prompt templates for each phase of ADR review.
 ### Architect
 
 ```python
-Task(subagent_type="architect", prompt="""
+task(agent_type="project-toolkit:architect", prompt="""
 ADR Review Request (Phase 1: Independent Review)
 
 **Role**: Technical authority on ADR structure and architectural coherence.
@@ -60,6 +103,11 @@ Does this ADR conflate multiple distinct decisions? Consider:
 - Are there decisions that have different stakeholders?
 - Would future teams benefit from separation?
 
+## Factual Claim Verification
+
+Paste the Factual Claim Verification Block here. Check every claim in the ADR
+before you rate it, and record each in the Claims Checked table.
+
 ## Output Format
 
 ### Strengths
@@ -84,6 +132,12 @@ Does this ADR conflate multiple distinct decisions? Consider:
 |-------|----------|-------------|
 | [Issue] | P0/P1/P2 | [Details] |
 
+### Claims Checked
+
+| Claim | Kind | Source read | Result |
+|-------|------|-------------|--------|
+| [claim] | [kind] | [source read] | [VERIFIED / REFUTED / UNVERIFIED] |
+
 **You are the tie-breaker on structural/governance questions.**
 """)
 
@@ -92,7 +146,7 @@ Does this ADR conflate multiple distinct decisions? Consider:
 ### Critic
 
 ```python
-Task(subagent_type="critic", prompt="""
+task(agent_type="project-toolkit:critic", prompt="""
 ADR Review Request (Phase 1: Independent Review)
 
 **Role**: Stress-test the ADR for completeness, gaps, and alignment.
@@ -116,6 +170,11 @@ Does this ADR try to address too many decisions at once?
 
 - Think of ADRs like legislation: crisp decisions are easier to enforce
 - Flag if splitting would improve clarity
+
+## Factual Claim Verification
+
+Paste the Factual Claim Verification Block here. Check every claim in the ADR
+before you rate it, and record each in the Claims Checked table.
 
 ## Output Format
 
@@ -141,6 +200,12 @@ Does this ADR try to address too many decisions at once?
 |-------|----------|-------------|
 | [Issue] | P0/P1/P2 | [Details] |
 
+### Claims Checked
+
+| Claim | Kind | Source read | Result |
+|-------|------|-------------|--------|
+| [claim] | [kind] | [source read] | [VERIFIED / REFUTED / UNVERIFIED] |
+
 **Focus on plan clarity, not execution details.**
 """)
 
@@ -149,7 +214,7 @@ Does this ADR try to address too many decisions at once?
 ### Independent-Thinker
 
 ```python
-Task(subagent_type="independent-thinker", prompt="""
+task(agent_type="project-toolkit:independent-thinker", prompt="""
 ADR Review Request (Phase 1: Independent Review)
 
 **Role**: Challenge assumptions and prevent groupthink.
@@ -173,6 +238,11 @@ ADR Review Request (Phase 1: Independent Review)
 - Have we considered what happens if this decision is wrong?
 - What alternative approaches were dismissed too quickly?
 - Is there groupthink in the decision process?
+
+## Factual Claim Verification
+
+Paste the Factual Claim Verification Block here. Check every claim in the ADR
+before you rate it, and record each in the Claims Checked table.
 
 ## Output Format
 
@@ -198,6 +268,12 @@ ADR Review Request (Phase 1: Independent Review)
 |-------|----------|-------------|
 | [Issue] | P0/P1/P2 | [Details] |
 
+### Claims Checked
+
+| Claim | Kind | Source read | Result |
+|-------|------|-------------|--------|
+| [claim] | [kind] | [source read] | [VERIFIED / REFUTED / UNVERIFIED] |
+
 **Be the devil's advocate. Verify, don't validate.**
 """)
 
@@ -206,7 +282,7 @@ ADR Review Request (Phase 1: Independent Review)
 ### Security
 
 ```python
-Task(subagent_type="security", prompt="""
+task(agent_type="project-toolkit:security", prompt="""
 ADR Review Request (Phase 1: Independent Review)
 
 **Role**: Analyze security implications and threat models.
@@ -233,6 +309,11 @@ ADR Review Request (Phase 1: Independent Review)
 |--------|----------|--------|------------|------------|
 | [Threat] | S/T/R/I/D/E | H/M/L | H/M/L | [Control] |
 
+## Factual Claim Verification
+
+Paste the Factual Claim Verification Block here. Check every claim in the ADR
+before you rate it, and record each in the Claims Checked table.
+
 ## Output Format
 
 ### Strengths
@@ -257,6 +338,12 @@ ADR Review Request (Phase 1: Independent Review)
 |-------|----------|-------------|
 | [Issue] | P0/P1/P2 | [Details] |
 
+### Claims Checked
+
+| Claim | Kind | Source read | Result |
+|-------|------|-------------|--------|
+| [claim] | [kind] | [source read] | [VERIFIED / REFUTED / UNVERIFIED] |
+
 **Assume breach, design for defense.**
 """)
 
@@ -265,7 +352,7 @@ ADR Review Request (Phase 1: Independent Review)
 ### Analyst
 
 ```python
-Task(subagent_type="analyst", prompt="""
+task(agent_type="project-toolkit:analyst", prompt="""
 ADR Review Request (Phase 1: Independent Review)
 
 **Role**: Validate claims with evidence and assess feasibility.
@@ -289,6 +376,11 @@ ADR Review Request (Phase 1: Independent Review)
 - Are the effort estimates realistic based on similar work?
 - What prior art or industry patterns apply?
 - What are the known failure modes for this approach?
+
+## Factual Claim Verification
+
+Paste the Factual Claim Verification Block here. Check every claim in the ADR
+before you rate it, and record each in the Claims Checked table.
 
 ## Output Format
 
@@ -314,6 +406,12 @@ ADR Review Request (Phase 1: Independent Review)
 |-------|----------|-------------|
 | [Issue] | P0/P1/P2 | [Details] |
 
+### Claims Checked
+
+| Claim | Kind | Source read | Result |
+|-------|------|-------------|--------|
+| [claim] | [kind] | [source read] | [VERIFIED / REFUTED / UNVERIFIED] |
+
 **Distinguish facts from hypotheses.**
 """)
 
@@ -322,7 +420,7 @@ ADR Review Request (Phase 1: Independent Review)
 ### High-Level-Advisor
 
 ```python
-Task(subagent_type="high-level-advisor", prompt="""
+task(agent_type="project-toolkit:high-level-advisor", prompt="""
 ADR Review Request (Phase 1: Independent Review)
 
 **Role**: Strategic assessment and priority validation.
@@ -346,6 +444,11 @@ ADR Review Request (Phase 1: Independent Review)
 - What are we giving up by making this decision?
 - What should we stop doing if we proceed?
 - Is there a simpler approach being overlooked?
+
+## Factual Claim Verification
+
+Paste the Factual Claim Verification Block here. Check every claim in the ADR
+before you rate it, and record each in the Claims Checked table.
 
 ## Output Format
 
@@ -371,6 +474,12 @@ ADR Review Request (Phase 1: Independent Review)
 |-------|----------|-------------|
 | [Issue] | P0/P1/P2 | [Details] |
 
+### Claims Checked
+
+| Claim | Kind | Source read | Result |
+|-------|------|-------------|--------|
+| [claim] | [kind] | [source read] | [VERIFIED / REFUTED / UNVERIFIED] |
+
 **You break ties between other agents. Deliver verdicts, not options.**
 """)
 
@@ -383,7 +492,7 @@ ADR Review Request (Phase 1: Independent Review)
 ### Conflict Resolution
 
 ```python
-Task(subagent_type="high-level-advisor", prompt="""
+task(agent_type="project-toolkit:high-level-advisor", prompt="""
 ADR Conflict Resolution Required
 
 ## ADR Under Review
@@ -460,7 +569,7 @@ If 2+ agents flagged scope concerns:
 ### Convergence Template (All Agents)
 
 ```python
-Task(subagent_type="{agent}", prompt="""
+task(agent_type="project-toolkit:{agent}", prompt="""
 ADR Convergence Check (Round {round_number})
 
 ## Updated ADR
@@ -481,6 +590,11 @@ ADR Convergence Check (Round {round_number})
 | Your Concern | Resolution | Addressed? |
 |--------------|------------|------------|
 | {concern} | {resolution} | {status} |
+
+## Factual Claim Verification
+
+Apply the Factual Claim Verification Block to every claim in text added or
+changed this round. Include the Claims Checked table with your position.
 
 ## Instructions
 
@@ -507,6 +621,13 @@ Provide exactly ONE position:
 **Dissent** (if D&C): [Specific reservations for the record]
 
 **Blocking Issues** (if Block): [Exact P0 issues remaining]
+
+### Claims Checked
+
+| Claim | Kind | Source read | Result |
+|-------|------|-------------|--------|
+| [claim] | [kind] | [source read] | [VERIFIED / REFUTED / UNVERIFIED] |
+
 """)
 
 ```

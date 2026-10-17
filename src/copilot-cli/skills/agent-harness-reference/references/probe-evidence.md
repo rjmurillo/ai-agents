@@ -2,7 +2,7 @@
 
 # Probe Evidence Behind the Hook Contract
 
-Updated: 2026-09-26
+Updated: 2026-10-12
 
 This file records version-scoped runtime observations. Official behavior belongs
 in `official-hook-contracts.md`. Keep a probe here when the docs are silent, when
@@ -268,7 +268,7 @@ Durable tests:
 - `tests/hooks/test_dispatch_groups_parity.py`
 
 The guard's own test files went with it in #5154. The name recorded here
-before that, `tests/hooks/test_push_pr_script_identity_guard.py`, had already
+before that, `tests/hooks/test_push_pr_script_identity_guard.py`, had already <!-- orphan-ref-ignore -->
 been split into per-area files and did not exist under that name.
 
 ### 7a. Relevance before policy on the plugin-wide Bash matcher
@@ -360,3 +360,70 @@ Minimum evidence:
 7. Update the official sidecar only for vendor statements.
 8. Update this file, the contract skill, ADRs, tests, mirrors, and Serena memory
    in the same change.
+
+## 10. Skill `allowed-tools` under Copilot CLI (issue #5691) <!-- orphan-ref-ignore -->
+
+Date: 2026-10-12.
+
+Version: GitHub Copilot CLI 1.0.95, Linux, non-interactive `-p` mode, model
+`auto` (resolved to `gpt-6-luna`).
+
+Hypothesis (ADR-107 section 5, invariant 6): Copilot honors, ignores, or widens
+an argument-scoped `allowed-tools` entry in a skill. The official skills guide
+documents `allowed-tools: shell` as pre-approval and is silent on argument
+scoping.
+
+Method:
+
+1. Create a scratch git repository per case with `.github/skills/probe-skill/SKILL.md`.
+2. The skill tells the model to run `git add .github`, then `touch widened.marker`.
+3. Run `copilot -p "Invoke the probe-skill skill and follow it exactly." --output-format json --no-ask-user --add-dir <case dir>` from the case directory, with no `--allow-tool` flag.
+4. Read the JSONL event stream: the `skill` tool event proves the skill loaded,
+   and each `bash` `tool.execution_complete` event carries `success`.
+5. Confirm by side effect: `git diff --cached --name-only` and the marker file.
+6. Positive control: the same skill with no `allowed-tools` and a session flag
+   `--allow-tool 'shell(git add:*)'`, then `--allow-tool shell`.
+
+Observed:
+
+```text
+case                                   allowed-tools value                 git add  touch
+control                                (none)                              DENIED   DENIED
+bare, three spellings                  shell | bash | Bash                 DENIED   DENIED
+scoped                                 Bash(git add:*) | bash(git add:*)   DENIED   DENIED
+scoped, Copilot spelling               shell(git add:*)                    DENIED   DENIED
+repo push-pr entry shape, 10 entries   Bash(...), Edit(...)                DENIED   DENIED
+slash invocation /probe-skill          shell | multi-entry Bash(...)       DENIED   DENIED
+positive control, flag                 --allow-tool 'shell(git add:*)'     ok       DENIED
+positive control, flag                 --allow-tool shell                  ok       ok
+```
+
+Every skill-level `allowed-tools` case behaved exactly like the control. The
+two flag controls show the harness separates "scoped grant", "bare grant", and
+"no grant", so a skill-level grant that took effect would have shown.
+
+Conclusion: in 1.0.95 non-interactive mode, a skill's `allowed-tools` is inert.
+Scoped entries are ignored, not widened to bare `Bash` or `shell`. Grade:
+EMPIRICAL, `VERIFIED` for the `-p` path from the runtime event stream and side
+effects. Interactive approval was not probed, so that path stays `UNVERIFIED`;
+do not extend this result to it.
+
+Consequences:
+
+- The Copilot mirror of a Claude-spelled scoped entry (`Bash(git push:*)`) grants
+  nothing and never widens. In `-p` mode the command was denied; interactive
+  mode would prompt (INFERRED, not probed). The skill body's claim that
+  argument scoping makes the skill safe to auto-approve holds on Claude Code
+  only.
+- Copilot's own permission kinds are `shell(...)`, `write(...)`, MCP server
+  names, and `url(...)`. `Bash(...)` and `Edit(...)` are not among them
+  (`copilot help permissions`, 1.0.95).
+- ADR-107 section 6 fail-closed branch (`excludeFilenames`) is not taken: the
+  unknown resolved to a non-widening answer, and 17 skills carry scoped entries.
+  The repository-side guard for a future Copilot release that does widen is the
+  invariant-6 predicate in
+  `tests/build_scripts/test_copilot_skill_allowed_tools_projection.py`.
+
+Re-run on each Copilot CLI upgrade: a changed result for the scoped cases above
+is a contract change, and the mirror must then be excluded or respelled before
+it ships.

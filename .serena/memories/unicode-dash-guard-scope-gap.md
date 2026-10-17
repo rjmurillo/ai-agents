@@ -26,14 +26,30 @@ Measured at the time: it would immediately block edits to 117 files across
 `tests/`, `scripts/`, `build/`, and `.agents/` that still carry dashes outside
 the plugin roots.
 
+### Update 2026-10-12: the branch scan now reads `.py`
+
+PR #6362 (issue #5116) widened the branch-wide check. `_SCAN_SUFFIXES` in
+`scripts/validation/checks_dash.py` is `(".md", ".py")`, so `pre_pr.py` now fails
+a branch that adds a dash to a Python comment, docstring, or printed string.
+The backlog that blocked widening no longer holds for Python. A count on
+`origin/main` at `ec3214659` found 1 tracked `.py` file with 2 lines carrying a
+dash (`tests/skills/github/test_fix_ci_missing_checks_doc.py`), where the 117
+files measured for #4079 spanned all suffixes. The 2026-10-12 sweep saw the same
+shrink: 12 files and 25 lines before the cleanup, which made widening cheap.
+
+Still `*.md` only: the `staged-dash-policy` job in `lefthook.yml` (glob
+`**/*.md`). A Python dash is caught at pre-PR, not at commit. JSON, YAML, and
+shell remain unscanned by design (the `checks_dash.py` module docstring).
+
 ## Axis 2: the scan is the branch diff, not the tree
 
-Found 2026-09-16 at `659097d6d`. `_branch_markdown_files` in
+Found 2026-09-16 at `659097d6d`. `_branch_scan_files` in
 `scripts/validation/checks_dash.py` builds its candidate list from
-`git diff --name-only --diff-filter=ACMR {base_ref}...HEAD`, and returns `None`
-(fail open, pass without scanning) when no base ref resolves or git fails.
+`git diff --name-only --diff-filter=ACMR {base_ref}...HEAD`. When no base ref
+resolves or git fails it returns a `_ScanUnavailable`: the check is `FAIL` under
+CI and `SKIP` locally (issue #5636, PR #6057), no longer a silent pass.
 
-A markdown file already in the tree therefore never trips the guard, no matter
+A file already in the tree therefore never trips the guard, no matter
 how many dashes it holds, because it never appears in a diff until someone edits
 it. The pin in `tests/test_plugin_tree_no_unicode_dashes.py` does not close this
 for `.agents/`: its `_SCANNED_PREFIXES` tuple is `.claude/`, `src/claude/`,

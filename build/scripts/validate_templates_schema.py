@@ -21,6 +21,19 @@ import argparse
 import sys
 from pathlib import Path, PurePosixPath
 
+from hermes_pack_config import HermesPackError, parse_stanza
+from schema_tree_keys import (
+    validate_agents_tree_copy as _validate_agents_tree_copy,
+)
+from schema_tree_keys import (
+    validate_frontmatter_keep as _validate_frontmatter_keep,
+)
+from schema_tree_keys import (
+    validate_rules_output_format as _validate_rules_output_format,
+)
+from schema_tree_keys import (
+    validate_string_list as _validate_string_list,
+)
 from yaml_loader import (
     ConfigError,
     load_platform_config,
@@ -52,8 +65,25 @@ AGENTS_KEYS = {
     "sourceSuffix",
     "outputSuffix",
     "excludeFilenames",
+    "frontmatterKeep",
+    "deriveReadonly",
 }
-SKILLS_KEYS = {"sourceDir", "outputDir", "mode", "excludeFilenames", "frontmatterDrop"}
+SKILLS_KEYS = {
+    "sourceDir",
+    "outputDir",
+    "mode",
+    "excludeFilenames",
+    "frontmatterDrop",
+    "frontmatterKeep",
+    # ADR-115 Decision 6: the `hermes-packs` mode.
+    "packMaxFiles",
+    "hermesCommit",
+    "packs",
+    "excluded",
+}
+SKILLS_MODES = {"directory-copy", "hermes-packs"}
+HERMES_PACKS_MODE = "hermes-packs"
+HERMES_ONLY_KEYS = {"packMaxFiles", "hermesCommit", "packs", "excluded"}
 # `lib` only supports directory-copy today; no `mode` selector. If a
 # second mode (symlink, etc.) lands later, add `mode` to LIB_KEYS and
 # enforce it in `_build_lib`. Until then, an unused field is documentation
@@ -77,6 +107,7 @@ RULES_KEYS = {
     "frontmatterRemap",
     "frontmatterDrop",
     "keepInternalGlobsFor",
+    "outputFormat",
 }
 HOOKS_KEYS = {
     "settingsSource",
@@ -233,17 +264,35 @@ def _validate_command_resources(name: str, stanza: dict[str, object]) -> list[st
     return errors
 
 
-def _validate_string_list(name: str, stanza: dict[str, object], key: str) -> list[str]:
-    if key not in stanza:
-        return []
-    value = stanza[key]
-    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
-        return [f"`artifacts.{name}.{key}`: must be a list of strings"]
+def _validate_exclude_filenames(name: str, stanza: dict[str, object]) -> list[str]:
+    errors: list[str] = _validate_string_list(name, stanza, "excludeFilenames")
+    return errors
+
+
+def _validate_skills_mode(stanza: dict[str, object]) -> list[str]:
+    """`mode` is a known value, and the pack keys appear only with `hermes-packs`.
+
+    The pack tables themselves (shape, names, caps) are validated by
+    `hermes_pack_config.parse_stanza`; this keeps the schema gate from accepting a
+    pack table on a mode that would ignore it.
+    """
+    mode = stanza.get("mode", "directory-copy")
+    if mode not in SKILLS_MODES:
+        return [f"`artifacts.skills.mode`: {mode!r} is not one of {sorted(SKILLS_MODES)}"]
+    if mode == HERMES_PACKS_MODE:
+        return _hermes_pack_errors(stanza)
+    stray = sorted(HERMES_ONLY_KEYS & stanza.keys())
+    if stray:
+        return [f"`artifacts.skills`: keys {stray} need `mode: {HERMES_PACKS_MODE}`"]
     return []
 
 
-def _validate_exclude_filenames(name: str, stanza: dict[str, object]) -> list[str]:
-    return _validate_string_list(name, stanza, "excludeFilenames")
+def _hermes_pack_errors(stanza: dict[str, object]) -> list[str]:
+    try:
+        parse_stanza(stanza)
+    except HermesPackError as exc:
+        return list(exc.problems)
+    return []
 
 
 def _validate_artifact_stanza(name: str, stanza: object) -> list[str]:
@@ -258,7 +307,12 @@ def _validate_artifact_stanza(name: str, stanza: object) -> list[str]:
     if name == "skills":
         # ADR-111: an explicit null would silently disable the projection.
         errors.extend(_validate_string_list(name, stanza, "frontmatterDrop"))
+        errors.extend(_validate_frontmatter_keep(name, stanza))
+        errors.extend(_validate_skills_mode(stanza))
+    if name == "agents":
+        errors.extend(_validate_agents_tree_copy(name, stanza))
     if name == "rules":
+        errors.extend(_validate_rules_output_format(name, stanza))
         errors.extend(_validate_rules_output_dirs(name, stanza))
         errors.extend(_validate_rules_keep_internal_globs(name, stanza))
     if name == "commands":

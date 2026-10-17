@@ -73,17 +73,21 @@ EXPECTED_ORDER: tuple[str, ...] = (
     "CI Dependency Pins",
     "ADR Lifecycle Frontmatter (ratchet)",
     "ADR Link Resolution",
+    "ADR Exception Markers",
     "Skill ADR Bindings (ratchet)",
+    "Rule ADR Citations (ratchet)",
     "Design Review Frontmatter",
     "Build Command Exit Gates",
     "Stale Script References",
     "Citation Freshness (added lines)",
+    "Measurement Anchoring (added lines)",
     "Documented Interpreter Portability",
     "Orphaned Build Deferrals",
     "Generated Artifact Staleness",
     "Skill Template Drift",
     "Agent Template Drift",
     "Rule Template Drift",
+    "Rule Lossless Fixtures",
     "Hook Template Drift",
     "Spec ID Uniqueness",
     "Traceability",
@@ -98,24 +102,30 @@ EXPECTED_ORDER: tuple[str, ...] = (
     "Hook Contracts",
     "Passive Context Budget",
     "Skillbook Validation",
+    "Review Axis Drift",
+    "Skill Description Budget",
     "Closure Manifest (advisory)",
     "Placeholder Identity",
     "Tracked Conflict Markers",
     "Security Suppressions Diff",
+    "Memory Placement",
     "Vendor Portability",
     "Skill Script Portability",
     "Skill Markdown Portability",
     "Skill Markdown Exec Portability",
     "Skill Resolver Anchoring",
     "Plugin-Root Interpreter",
+    "Projection Invariants (ADR-107)",
     "Skill Contract Tests",
     "Skill Shell Detection",
     "Skill SKIP Clause Routing",
     "Skill Memory References",
     "Commands Retired (ADR-064)",
+    "Retired Ownership Claims (ADR-109)",
     "Skill Output Envelope",
     "Colocated Skill Tests",
     "Rule Activation Coverage",
+    "Route Scenario Coverage",
     "Copilot Routing Exclusions",
     "Sync Registry Provenance",
     "Agent Catalog Drift",
@@ -131,8 +141,12 @@ EXPECTED_ORDER: tuple[str, ...] = (
     "Planning Artifacts",
     "Agent Drift Detection",
     "Agent Content Parity (.claude/agents vs src/claude)",
+    "Agent Source Parity",
+    "Equivalence Predicates",
     "Agent Tree Frontmatter (.claude/agents)",
+    "Agent Delegation (src/claude/agents)",
     "Skill Tree Layout (.claude/skills)",
+    "Host Marketplaces",
     "Plugin Version Bump",
     "Hook Anchoring (Claude + Copilot)",
     "Copilot Agent Frontmatter",
@@ -146,6 +160,7 @@ EXPECTED_ORDER: tuple[str, ...] = (
     "Always-on Corpus Claims",
     "Rule Scope Declarations (paths:)",
     "Capability Graph (metadata.capability)",
+    "External Contract Records (external-contract)",
     "NL Structural Debt Ratchet",
     "Skill Routing Roles (metadata.routing)",
     "Path-Local Effective Context Ratchet",
@@ -289,37 +304,47 @@ class TestFastStageDeferral:
         assert state.total == state.skipped == len(FAST_STAGE_DUPLICATES)
 
 
-class TestPrePrReexportsTheAdrValidators:
-    """``pre_pr.py``'s own docstring (issue #2223) says: 'the imports below
-    keep ``from scripts.validation.pre_pr import X`` working for callers and
-    tests', immediately followed by an explicit disclaimer that the facade is
-    not exhaustive (issue #5272). The re-export promise still applies to
-    whichever validators are wired into ``pre_pr_sequence._SEQUENCE``, so a
-    validator run there without a matching re-export is a defect even though
-    the module no longer claims full coverage.
+class TestPrePrReexportsEverySequenceValidator:
+    """``pre_pr.py`` is a facade (issue #2223): ``from scripts.validation.pre_pr
+    import X`` must keep working for every validator ``pre_pr_sequence`` imports.
+    A validator imported there without the matching re-export in ``pre_pr.py``
+    raises ``ImportError`` for callers (issue #5272,
+    first seen for ``validate_adr_links`` in PR #5209).
 
-    ``check_adr_links.py``'s ``validate_adr_links`` was wired into
-    ``pre_pr_sequence._SEQUENCE`` without the matching re-export in
-    ``pre_pr.py``, silently breaking that promise for one caller (Copilot, PR
-    #5209 review). Pinned here for the two ADR validators this PR ships
-    (``validate_adr_lifecycle``, ``validate_adr_links``), not repo-wide: a
-    genuinely repo-wide version of this test, run once against the current
-    tree, found 15 more validators already missing the same re-export
-    (`validate_count_ratchets`, `validate_mypy_changed_files`,
-    `validate_git_hook_health`, and others predating this PR). That gap is
-    real but has nothing to do with ADR review tooling; filed as issue
-    #5272 rather than fixed here, matching this campaign's own precedent
-    (#5205, #5270) for a proven pre-existing defect found along the way.
-    Widening this test's scope to the full namespace comparison belongs in
-    whichever PR closes that issue, not this one.
-
-    Identity comparison (``is``, not ``==``), so ``pre_pr.py`` defining a
-    same-named but different function would not silently pass.
+    The check walks ``vars(pre_pr_sequence)`` rather than a hand-kept list, so
+    a new gate cannot drift. Identity comparison (``is``, not ``==``), so
+    ``pre_pr.py`` defining a same-named but different function would not
+    silently pass.
     """
 
-    def test_adr_validators_pre_pr_sequence_imports_are_also_in_pre_pr(self) -> None:
-        for name in ("validate_adr_lifecycle", "validate_adr_links"):
-            assert getattr(pre_pr_sequence, name) is getattr(pre_pr, name), (
-                f"pre_pr.py does not re-export {name} as the identical object "
-                f"pre_pr_sequence.py imports"
-            )
+    @staticmethod
+    def _sequence_validators() -> dict[str, object]:
+        return {
+            name: obj
+            for name, obj in vars(pre_pr_sequence).items()
+            if name.startswith("validate_") and callable(obj)
+        }
+
+    def test_sequence_exposes_validators(self) -> None:
+        """Guard against a vacuous pass if the discovery filter breaks."""
+        assert len(self._sequence_validators()) > 50
+
+    def test_every_sequence_validator_is_reexported_as_identical_object(self) -> None:
+        missing = sorted(name for name in self._sequence_validators() if not hasattr(pre_pr, name))
+        assert not missing, (
+            f"pre_pr.py does not re-export these pre_pr_sequence validators: {missing}"
+        )
+        not_identical = sorted(
+            name
+            for name, obj in self._sequence_validators().items()
+            if getattr(pre_pr, name) is not obj
+        )
+        assert not not_identical, (
+            f"pre_pr.py exposes a different object than pre_pr_sequence for: {not_identical}"
+        )
+
+    def test_missing_reexport_is_reported(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Negative control: removing a re-export must make the walk see it."""
+        monkeypatch.delattr(pre_pr, "validate_count_ratchets")
+        missing = [name for name in self._sequence_validators() if not hasattr(pre_pr, name)]
+        assert missing == ["validate_count_ratchets"]

@@ -8,6 +8,7 @@ workers stay balanced; the stubs live here so the three files share one copy.
 
 from __future__ import annotations
 
+import subprocess
 from dataclasses import replace
 from types import SimpleNamespace
 from typing import Any
@@ -71,6 +72,13 @@ def sequence_with_passing_corpus_gates() -> tuple[Any, ...]:
         # tests/validation/test_check_skill_adr_bindings.py and its registration
         # in tests/validation/test_skill_adr_bindings_wiring.py.
         "Skill ADR Bindings (ratchet)",
+        # Same mock artifact: check_rule_adr_citations.py lists its scan set
+        # through count_ratchet.tracked_files, so under the blanket
+        # `else: stdout = ""` branch it sees zero candidates and fails closed.
+        # Its behavior is covered in
+        # tests/validation/test_check_rule_adr_citations.py and its registration
+        # in tests/validation/test_rule_adr_citations_wiring.py.
+        "Rule ADR Citations (ratchet)",
         # Pipes a malformed envelope through the validator CLI with
         # `subprocess.run` and requires a non-zero exit. The tests that use
         # these stubs patch `subprocess.run` with `healthy_git_run`, which answers every call
@@ -129,3 +137,36 @@ def healthy_git_run(*args: Any, **_kwargs: Any) -> Any:
     else:
         stdout = ""
     return SimpleNamespace(returncode=0, stdout=stdout, stderr="")
+
+
+class RunBackedPopen:
+    """``subprocess.Popen`` stand-in that answers through the patched ``subprocess.run``.
+
+    ``_run_subprocess`` starts its child with ``Popen`` so it can kill the whole
+    process group on a timeout (#6412). These tests model every external tool
+    through one ``subprocess.run`` mock, so the stand-in looks ``subprocess.run``
+    up at call time and returns what that mock returns. Install it with
+    ``@patch("subprocess.Popen", new=RunBackedPopen)``.
+    """
+
+    def __init__(self, args: Any, **_kwargs: Any) -> None:
+        self._args = args
+        self.pid = 0
+        self.returncode: int | None = None
+
+    def communicate(self, timeout: float | None = None) -> tuple[str, str]:
+        result = subprocess.run(
+            self._args,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+        )
+        self.returncode = result.returncode
+        return result.stdout, result.stderr
+
+    def __enter__(self) -> RunBackedPopen:
+        return self
+
+    def __exit__(self, *_exc: object) -> None:
+        return None

@@ -11,8 +11,7 @@ Reference documentation for the GitHub skill. For usage, see `../SKILL.md`.
 | 2 | Resource not found | PR/issue/milestone doesn't exist |
 | 3 | GitHub API error | Check error message, may be rate limit |
 | 4 | gh CLI not authenticated | Run `gh auth login` |
-| 5 | Idempotency skip | Comment already exists (expected) |
-| 6 | Not mergeable | PR has conflicts or checks failing |
+| 100 | Not mergeable (`merge_pr.py`, script-specific) | PR has conflicts or checks failing |
 
 ## API Endpoints Used
 
@@ -22,9 +21,11 @@ Reference documentation for the GitHub skill. For usage, see `../SKILL.md`.
 | `get_pr_review_comments.py` | `repos/{owner}/{repo}/pulls/{pr}/comments` |
 | `get_pr_review_threads.py` | GraphQL: `repository.pullRequest.reviewThreads` |
 | `get_pr_reviewers.py` | Multiple: pulls/comments, issues/comments, pr view |
+| `new_pr_review_comment.py` | `repos/{owner}/{repo}/pulls/{pr}` (head SHA), then POST `repos/{owner}/{repo}/pulls/{pr}/comments` with `commit_id`, `path`, `line`, `side` |
 | `post_pr_comment_reply.py` | `repos/{owner}/{repo}/pulls/{pr}/comments` (with in_reply_to) |
 | `resolve_pr_review_thread.py` | GraphQL: `resolveReviewThread` mutation |
 | `close_pr.py` | `gh pr close` |
+| `reopen_pr.py` | `gh pr reopen` |
 | `merge_pr.py` | `gh pr merge` |
 | `Get-IssueContext` | `gh issue view --json ...` |
 | `Set-IssueLabels` | `repos/{owner}/{repo}/labels`, `gh issue edit --add-label` |
@@ -100,9 +101,9 @@ Run from within a git repository, or provide `-Owner` and `-Repo` explicitly.
 
 Run `gh auth login` and authenticate with GitHub.
 
-### Exit code 5
+### Comment with `-Marker` already exists
 
-Expected when using `-Marker` and comment already exists. This is idempotency working correctly.
+The script skips the post and exits 0. This is idempotency working correctly.
 
 ### "Milestone not found"
 
@@ -111,6 +112,32 @@ The milestone must already exist in the repository. Create it via GitHub UI or `
 ### "PR is not mergeable"
 
 Check for merge conflicts or failing required checks. Use `get_pr_context.py` to see `Mergeable` status.
+
+## update_pr_branch.py details
+
+- The script merges the base branch into the PR head through the GitHub update-branch API. It does not rebase.
+- Exit 0 with `already_up_to_date: true` means the head already contains the base.
+- With `--wait`, the wait ends only when compare shows the PR is not behind. A timeout exits 3.
+- Exit 1 with `reason: head_moved` means the head differs from `--expected-head-sha`.
+
+## new_pr_review_comment.py
+
+Starts a new review thread on a diff line. Use `post_pr_comment_reply.py` to reply to an existing thread.
+
+- `--side RIGHT` (default) targets added or unchanged lines. `--side LEFT` targets removed lines.
+- `--line` is the file line number on that side, and it must fall inside the PR diff.
+- The script reads the PR head commit and sends it as `commit_id`, so the comment anchors to the current head.
+- `body`, `path`, `commit_id`, and `side` go out as raw `-f` fields. Only `line` is a typed `-F` field. Do not switch `body` to `-F`, because a body that starts with `@` would then be read as a file.
+- Output uses the standard skill envelope. Pass `--output-format json` to force JSON.
+- Exit 0: created. `Data` carries `comment_id`, `html_url`, `pull_request`, `path`, `line`, `side`, `commit_id`, `created_at`.
+- On an API failure, `Error.Code` is the exit code and `Error.Type` names the cause. `Data` echoes the PR, path, line, and side.
+- Argument and body errors happen before any API call. They print plain text to stderr and exit 2.
+- Exit 2: the PR is not found, the body is invalid, or the API returned 400 or 422 (line or path not in the diff).
+- A `--body-file` that is empty, unreadable, or not UTF-8 also exits 2. The literal backslash-n check applies to an inline `--body` only.
+- Exit 2 also covers a session whose network policy refuses GitHub.
+- Exit 3: another API failure, a quota refusal, or a timeout.
+- A timeout on the POST can still create the comment. Before retrying after exit 3, run `get_pr_review_comments.py` and look for the body, or a retry can post a duplicate thread.
+- Exit 4: not authenticated, or the token cannot write to the PR.
 
 ## Skills Applied
 

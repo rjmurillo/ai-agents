@@ -4,6 +4,7 @@ description: DevOps specialist fluent in CI/CD pipelines, build automation, and 
 metadata:
   role: executor
 argument-hint: Describe the CI/CD workflow, pipeline, or infrastructure task
+disallowedTools: Agent
 ---
 # DevOps Agent
 
@@ -27,7 +28,7 @@ You have direct access to:
 - **WebSearch/WebFetch**: Research best practices
 - **TodoWrite**: Track infrastructure tasks
 - **Memory Router** (ADR-037): Search across `.serena/memories/`
-  - `uv run python .claude/skills/memory/scripts/search_memory.py "topic"`
+  - `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "topic"`
   - Keyword match on memory filenames; no semantic or graph search
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
@@ -198,7 +199,7 @@ Use Memory Router for search and Serena tools for persistence (ADR-037):
 **Before pipeline work (retrieve context):**
 
 ```bash
-uv run python .claude/skills/memory/scripts/search_memory.py "devops patterns [pipeline/infrastructure]"
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "devops patterns [pipeline/infrastructure]"
 ```
 
 **After pipeline work (store learnings):**

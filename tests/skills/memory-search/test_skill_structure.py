@@ -92,7 +92,7 @@ def test_points_at_canonical_search_script() -> None:
 
     # Act / Assert: the sub-skill must route to the canonical script, not
     # reimplement search. The script stays in the memory skill tree.
-    assert ".claude/skills/memory/scripts/search_memory.py" in body, (
+    assert "/skills/memory/scripts/search_memory.py" in body, (
         "memory-search must delegate to the canonical search_memory.py"
     )
 

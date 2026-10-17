@@ -4,6 +4,7 @@ description: Reflective analyst who extracts learnings through structured retros
 metadata:
   role: support
 argument-hint: Describe the task or session to analyze for learnings
+disallowedTools: Agent
 ---
 # Retrospective Agent (Reflector)
 
@@ -46,7 +47,7 @@ You have direct access to:
 - **Read/Grep/Glob**: Analyze execution artifacts
 - **Bash**: `git log`, `gh pr view` for context
 - **Memory Router** (ADR-037): Search across `.serena/memories/`
-  - `uv run python .claude/skills/memory/scripts/search_memory.py "topic"`
+  - `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "topic"`
   - Keyword match on memory filenames; no semantic or graph search
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
@@ -919,7 +920,7 @@ After storing root cause patterns, delegate to skillbook for skill persistence:
 **Deduplication Query:**
 
 ```bash
-uv run python .claude/skills/memory/scripts/search_memory.py "rootcause {Category} {Keywords from description}"
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "rootcause {Category} {Keywords from description}"
 ```
 
 If similar pattern exists (>70% similarity), UPDATE existing entity instead of creating new one.
@@ -1312,7 +1313,7 @@ Use Memory Router for search and Serena tools for persistence (ADR-037):
 **Search for existing patterns (before creating new):**
 
 ```bash
-uv run python .claude/skills/memory/scripts/search_memory.py "{domain} {description} skill patterns"
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "{domain} {description} skill patterns"
 ```
 
 **Create new skills:**

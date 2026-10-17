@@ -20,6 +20,7 @@ gate and is covered by ``tests/test_pr_autofix_force_push_lease.py``.
 from __future__ import annotations
 
 import os
+import re
 import shlex
 import subprocess
 from pathlib import Path
@@ -200,6 +201,40 @@ def test_guard_is_shipped_in_each_agent_surface(relative_path: str) -> None:
     assert 'if [ "$MUTATION_RC" -ne 75 ]; then' in text
 
 
+_LEASE_WORD = re.compile(r"\blease\b", re.IGNORECASE)
+
+
+def _stray_lease_lines(text: str) -> list[str]:
+    """Return lines that name a lease other than git's force-with-lease.
+
+    Matches the whole word, so ``release`` and ``please`` are not lease mentions.
+    """
+    return [
+        line
+        for line in text.splitlines()
+        if "force-with-lease" not in line
+        and "force_push_lease" not in line
+        and _LEASE_WORD.search(line)
+    ]
+
+
+@pytest.mark.parametrize(
+    ("line", "flagged"),
+    [
+        ("Acquire the lease before mutating.", True),
+        ("The Lease is held.", True),
+        ("lease: held-by", True),
+        ("Release the lock when done.", False),
+        ("Please release the branch.", False),
+        ("git push --force-with-lease", False),
+        ("force_push_lease helper", False),
+        ("", False),
+    ],
+)
+def test_stray_lease_lines_matches_whole_word_only(line: str, flagged: bool) -> None:
+    assert bool(_stray_lease_lines(line)) is flagged
+
+
 @pytest.mark.parametrize("relative_path", GUARDED_DOCS)
 def test_retired_lease_is_absent_from_each_agent_surface(relative_path: str) -> None:
     """ADR-076 withdrawn: no surface may reintroduce the marker-comment lease.
@@ -230,10 +265,8 @@ def test_retired_lease_is_absent_from_each_agent_surface(relative_path: str) -> 
     force_push_heading = "## Force-Push Safety"
     assert force_push_heading in text
     body_before_force_push = text[: text.index(force_push_heading)]
-    for line in body_before_force_push.splitlines():
-        if "force-with-lease" in line or "force_push_lease" in line:
-            continue
-        assert "lease" not in line.lower(), f"{relative_path} still mentions a lease: {line}"
+    for line in _stray_lease_lines(body_before_force_push):
+        pytest.fail(f"{relative_path} still mentions a lease: {line}")
 
 
 @pytest.mark.parametrize("relative_path", GUARDED_DOCS)
@@ -246,9 +279,28 @@ def test_mutation_examples_use_the_late_guard(relative_path: str) -> None:
         'run_pr_mutation_if_live python3 "$SCRIPTS_DIR/set_pr_auto_merge.py"',
         'run_pr_mutation_if_live python3 "$SCRIPTS_DIR/merge_pr.py"',
         "run_pr_mutation_if_live env FORCE_PUSH_OK=1 git push",
+        'run_pr_mutation_if_live python3 "$SCRIPTS_DIR/add_pr_review_thread_reply.py"',
     )
     for command in expected:
         assert command in text, f"{relative_path} has an unguarded example: {command}"
+
+
+@pytest.mark.parametrize("relative_path", GUARDED_DOCS)
+def test_thread_resolve_example_binds_the_readiness_identity(relative_path: str) -> None:
+    """Issue #5435: the resolve example passes the captured identity to the script."""
+    text = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+    start = text.index(
+        'run_pr_mutation_if_live python3 "$SCRIPTS_DIR/add_pr_review_thread_reply.py"'
+    )
+    command = text[start : text.index("```", start)]
+    assert "--resolve" in command
+    assert '--expected-head-sha "$EXPECTED_HEAD_SHA"' in command
+    assert '--expected-base-ref "$EXPECTED_BASE_REF"' in command
+    assert '--expected-base-sha "$EXPECTED_BASE_SHA"' in command
+    # The unwrapped form must not survive anywhere in the shipped surface.
+    for line in text.splitlines():
+        if "add_pr_review_thread_reply.py" in line and "--resolve" in line:
+            assert "run_pr_mutation_if_live" in line or line.lstrip().startswith("- **Armed")
 
 
 def test_merged_after_review_skips_base_refresh(tmp_path: Path, guarded_doc: str) -> None:

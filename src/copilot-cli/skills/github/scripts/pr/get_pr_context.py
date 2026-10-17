@@ -51,6 +51,7 @@ from github_core.api import (
     gh_graphql,
     resolve_repo_params,
 )
+from github_core.not_found import is_pr_not_found
 from github_core.output import (
     add_output_format_arg,
     get_output_format,
@@ -151,13 +152,15 @@ def _load_pr_data(repo_flag: str, pr: int, json_fields: str) -> JsonObject:
         ["gh", "pr", "view", str(pr), "--repo", repo_flag, "--json", json_fields],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
         check=False,
     )
 
     if pr_result.returncode != 0:
         err_msg = pr_result.stderr or pr_result.stdout
-        if "not found" in err_msg:
+        if is_pr_not_found(err_msg):
             error_and_exit(f"PR #{pr} not found in {repo_flag}", 2)
         error_and_exit(f"Failed to get PR #{pr}: {err_msg}", 3)
 
@@ -446,6 +449,8 @@ def main(argv: list[str] | None = None) -> int:
             diff_args,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=60,
             check=False,
         )
@@ -459,6 +464,8 @@ def main(argv: list[str] | None = None) -> int:
             ["gh", "pr", "diff", str(pr), "--repo", repo_flag, "--name-only"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=60,
             check=False,
         )

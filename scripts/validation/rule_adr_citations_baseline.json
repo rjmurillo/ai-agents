@@ -1,0 +1,7 @@
+{
+  "schema_version": "1",
+  "description": "Known rule-file citations of a non-accepted ADR as binding (issue #5200). Delete a line when its citation is repaired. Adding a line legalises a violation.",
+  "known": [
+    "CLAUDE.md::ADR-078"
+  ]
+}

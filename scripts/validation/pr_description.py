@@ -5,10 +5,17 @@ BLOCKING validation that prevents PR description vs diff mismatches.
 Detects when PR description claims files were changed that are not in the diff,
 or when major changes are not mentioned in the description.
 
+Two modes:
+    --pr-number N              Fetch the body and diff from GitHub (CI mode).
+    --body-file F [--base REF] Read a local body file and diff ``REF...HEAD``
+                               from git. No network. Runs before the PR opens
+                               so a mismatch is found without a CI round trip.
+
 Exit codes follow ADR-035:
     0 - Success (validation passed, or warnings only)
-    1 - Logic error (CRITICAL issues found, CI mode only)
-    2 - Config error (missing dependency, failed to fetch PR data)
+    1 - Logic error (CRITICAL issues found; CI mode, or any local-mode run)
+    2 - Config error (missing dependency, failed to fetch PR data, bad body
+        file, bad base ref)
 """
 
 from __future__ import annotations
@@ -124,7 +131,16 @@ _CHANGE_CLAIM_SECTION_NAMES: tuple[str, ...] = (
     r"What[ \t]+changed",
 )
 
+# Patterns limited to change headings when the body has no change heading at all:
+# inline code (0), markdown links (3), and link targets (4). Bold (1) and list
+# items (2) keep firing anywhere in that case, so a body that never declares a
+# change section still gets drift detection (ADR-067).
 _CHANGE_CLAIM_SCOPED_PATTERN_INDEXES: frozenset[int] = frozenset({0, 3, 4})
+
+# When the body declares a change heading, every pattern is limited to it. A
+# bullet or bold path under Test evidence or Flags then reads as a reference, not
+# a claim that the PR changed the file (issue #6410).
+_ALL_PATTERN_INDEXES: frozenset[int] = frozenset({0, 1, 2, 3, 4})
 
 # Section-name PREFIXES whose file mentions are proof or scope references, never
 # change claims. Matched as a prefix at a word boundary, so ANY suffix is
@@ -180,10 +196,15 @@ FILE_MENTION_PATTERNS: list[re.Pattern[str]] = [
 #   e.g. `.claude/skills/security-scan/scripts/scan_vulnerabilities.py`
 #   for example `scripts/validate_session_json.py`
 #   as documented in `scripts/ai_review_common/cache_guard.py`
+#   see `scripts/validation/checks_ratchet.py:71`
 #
 # The pattern is matched globally and the matching span is replaced with
 # `<CITE>` before FILE_MENTION_PATTERNS runs. This prevents the path from
 # being collected as a change claim.
+#
+# The cited span may end in an optional location suffix, `:LINE` or
+# `:LINE:COL`, so a cue before a backticked path with `:71` is stripped like
+# the same cue before the path without a suffix (issue #5550).
 #
 # INTENTIONALLY NARROW: the cue must appear on the SAME line as the path
 # and be separated only by optional whitespace / parentheses / colons.
@@ -195,7 +216,7 @@ _INLINE_CITATION_PATTERN = re.compile(
     r"|as documented in|referenced by|defined in|introduced in"
     r"|reference path|cf\.|compare)"
     r"[: \t(]*"
-    r"`[^`]+\.[a-zA-Z][a-zA-Z0-9_]*`",
+    rf"`[^`]+\.[a-zA-Z][a-zA-Z0-9_]*{_LINE_SUFFIX}`",
 )
 
 # Summary text patterns that identify a <details> block as bot-generated
@@ -561,6 +582,11 @@ def _is_in_change_claim_region(position: int, regions: list[tuple[int, int]]) ->
     return any(start <= position < end for start, end in regions)
 
 
+def _scoped_pattern_indexes(regions: list[tuple[int, int]]) -> frozenset[int]:
+    """Return the pattern indexes that only count inside a change-claim region."""
+    return _ALL_PATTERN_INDEXES if regions else _CHANGE_CLAIM_SCOPED_PATTERN_INDEXES
+
+
 def extract_mentioned_files(description: str) -> list[str]:
     """Extract unique file paths mentioned in PR description text.
 
@@ -575,11 +601,12 @@ def extract_mentioned_files(description: str) -> list[str]:
 
     cleaned = _strip_informational_sections(description)
     change_claim_regions = _change_claim_regions(cleaned)
+    scoped_indexes = _scoped_pattern_indexes(change_claim_regions)
 
     mentioned: list[str] = []
     for pattern_index, pattern in enumerate(FILE_MENTION_PATTERNS):
         for match in pattern.finditer(cleaned):
-            scoped_pattern = pattern_index in _CHANGE_CLAIM_SCOPED_PATTERN_INDEXES
+            scoped_pattern = pattern_index in scoped_indexes
             outside_claim_region = not _is_in_change_claim_region(
                 match.start(), change_claim_regions
             )
@@ -1158,11 +1185,12 @@ def validate_pr_description(
                     message=(
                         "Description claims this file was changed, "
                         "but it's not in the PR diff. "
-                        "Inline-backtick file paths outside `## Changes` / "
+                        "When the body has a `## Changes` / `## What changed` / "
                         "`## Per-file changes` / `## Files Changed` / "
-                        "`## Changed Files` are informational. Move the path "
-                        "under one of those headings, use a bullet (`- path.ext`) "
-                        "or bold (`**path.ext**`), or wrap it in a code fence. "
+                        "`## Changed Files` heading, only paths under it are "
+                        "change claims; paths elsewhere are informational. "
+                        "Remove the path, move it out of that heading, or wrap "
+                        "it in a code fence. "
                         # CONTRIBUTING.md:909, section "Bypassing Description
                         # Validation", reads verbatim: "1. A human maintainer
                         # MUST add the `description-validation-bypass` label
@@ -1245,17 +1273,91 @@ def print_results(issues: list[Issue], ci: bool) -> int:
 # ---------------------------------------------------------------------------
 
 
+DEFAULT_LOCAL_BASE = "origin/main"
+
+
+def get_local_diff_files(base: str) -> list[str]:
+    """Return paths changed on ``base...HEAD`` from the local git repository.
+
+    Raises RuntimeError when the ref is unsafe or git cannot produce the diff.
+    A leading ``-`` is rejected so a ref can never be read as a git option.
+    """
+    if not base or base.startswith("-"):
+        raise RuntimeError(f"Invalid base ref: {base!r}")
+    try:
+        result = subprocess.run(
+            ["git", "diff", "--name-only", "-z", f"{base}...HEAD"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=60,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
+        raise RuntimeError("Could not run git diff") from exc
+
+    if result.returncode != 0:
+        detail = result.stderr.strip() or "git diff failed"
+        raise RuntimeError(f"Could not diff {base}...HEAD: {detail}")
+
+    return [path for path in result.stdout.split("\0") if path]
+
+
+def run_local(body_file: str, base: str) -> int:
+    """Validate a local body file against the local ``base...HEAD`` diff.
+
+    Makes no network call. Any CRITICAL finding returns 1, because a local run
+    exists to stop the push, not to report. Returns 2 on an unreadable body
+    file or an unusable base ref.
+    """
+    try:
+        description = Path(body_file).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        print(f"Error: could not read body file {body_file}: {exc}", file=sys.stderr)
+        return 2
+
+    try:
+        pr_files = get_local_diff_files(base)
+    except RuntimeError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 2
+
+    print(f"Local diff {base}...HEAD has {len(pr_files)} changed files")
+    mentioned_files = extract_mentioned_files(description)
+    all_mentioned = extract_all_mentioned_files(description)
+    print(f"Description mentions {len(mentioned_files)} files")
+
+    issues = validate_pr_description(pr_files, mentioned_files, all_mentioned_files=all_mentioned)
+    return print_results(issues, ci=True)
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the argument parser with env var defaults."""
     parser = argparse.ArgumentParser(
         description="Validate PR description matches actual code changes.",
     )
-    parser.add_argument(
+    source = parser.add_mutually_exclusive_group()
+    source.add_argument(
         "--pr-number",
         type=int,
-        required="PR_NUMBER" not in os.environ,
         default=int(os.environ.get("PR_NUMBER", "0")) or None,
-        help="PR number to validate (env: PR_NUMBER)",
+        help="PR number to validate against GitHub (env: PR_NUMBER)",
+    )
+    source.add_argument(
+        "--body-file",
+        default=None,
+        help=(
+            "Local PR body file to validate against the local git diff. "
+            "Makes no network call. Use before the PR opens."
+        ),
+    )
+    parser.add_argument(
+        "--base",
+        default=None,
+        help=(
+            "Base ref for the local diff, read as BASE...HEAD "
+            f"(only with --body-file, default: {DEFAULT_LOCAL_BASE})"
+        ),
     )
     parser.add_argument(
         "--owner",
@@ -1285,10 +1387,22 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _require_one_source(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
+    """Exit 2 unless exactly one of PR mode or local mode is selected."""
+    if args.body_file is None and args.base is not None:
+        parser.error("--base requires --body-file")
+    if args.body_file is None and args.pr_number is None:
+        parser.error("one of --pr-number or --body-file is required")
+
+
 def main(argv: list[str] | None = None) -> int:
     """Entry point. Returns ADR-035 exit code."""
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    _require_one_source(parser, args)
+    if args.body_file is not None:
+        return run_local(args.body_file, args.base or DEFAULT_LOCAL_BASE)
 
     owner: str = args.owner
     repo: str = args.repo

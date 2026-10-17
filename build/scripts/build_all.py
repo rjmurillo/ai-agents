@@ -89,13 +89,15 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Iterator, Sequence
+    from collections.abc import Iterable, Iterator, Mapping, Sequence
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_SCRIPT_DIR))
 
 import agent_templates  # noqa: E402
+import agent_tree_copy  # noqa: E402
 import binplace_manifest  # noqa: E402
+import check_surface_parity  # noqa: E402
 import generate_adr_index  # noqa: E402
 import generate_hooks  # noqa: E402
 import generate_rules  # noqa: E402
@@ -110,6 +112,9 @@ import skill_templates  # noqa: E402
 from atomic_write import MOUNT_POINT_REPARSE_TAG as _MOUNT_POINT_REPARSE_TAG  # noqa: E402, F401
 from atomic_write import is_redirecting as _is_redirecting  # noqa: E402
 from atomic_write import publish_bytes_atomically as _publish_bytes_atomically  # noqa: E402
+from atomic_write import (  # noqa: E402
+    publish_bytes_preserving_mode as _publish_bytes_preserving_mode,
+)
 from atomic_write import read_bytes_no_redirect as _read_bytes_no_redirect  # noqa: E402
 from atomic_write import write_bytes_no_redirect as _write_bytes_no_redirect  # noqa: E402, F401
 from yaml_loader import ConfigError, load_platform_config  # noqa: E402
@@ -245,7 +250,9 @@ def _build_skills(
         result.inputs = sum(1 for _ in src.glob("*/SKILL.md"))
     if out.is_dir():
         # Count skill targets, not every nested file. One SKILL.md per output.
-        result.outputs = sum(1 for _ in out.glob("*/SKILL.md"))
+        # A Hermes pack nests its skills one level deeper (ADR-115 Decision 6).
+        pattern = "*/skills/*/SKILL.md" if stanza.get("mode") == "hermes-packs" else "*/SKILL.md"
+        result.outputs = sum(1 for _ in out.glob(pattern))
     return result
 
 
@@ -283,7 +290,37 @@ def _build_agents(
     if check and rc != 0:
         rc = 2
     result.exit_code = rc
+    if rc == 0:
+        _copy_agent_trees(repo_root, result, check=check)
     return result
+
+
+def _copy_agent_trees(repo_root: Path, result: GeneratorResult, *, check: bool) -> None:
+    """Render each platform's ``src/claude/agents`` copy (ADR-115 Decision 2).
+
+    A platform opts in with ``artifacts.agents.frontmatterKeep``
+    (``agent_tree_copy.py``). ``generate_agents`` skips those platforms, so the
+    ``agents`` row stays one row. Under ``check`` nothing is written and any
+    differing file makes the row exit 2.
+    """
+    for config in _select_platform_configs(repo_root / "templates" / "platforms", None):
+        try:
+            copied = agent_tree_copy.generate_agent_copies(repo_root, config, check=check)
+        except agent_tree_copy.AgentCopyError as exc:
+            print(f"Error: {config.name}: {exc}", file=sys.stderr)
+            result.exit_code = 2
+            return
+        if copied is None:
+            continue
+        result.inputs += copied.inputs
+        result.outputs += copied.inputs - len(copied.skipped)
+        for path in copied.drift:
+            print(
+                f"STALENESS DETECTED: agent copy differs from src/claude/agents: {path}",
+                file=sys.stderr,
+            )
+        if copied.drift:
+            result.exit_code = 2
 
 
 def _build_agent_catalog(repo_root: Path, _config_path: Path, _platform: str) -> GeneratorResult:
@@ -428,7 +465,8 @@ def _build_lib(
     :func:`lib_mirror.compile_all` renders `scripts/{hook_utilities,
     github_core,ai_review_common}/`, `bootstrap.py`, and the review skill's
     sidecar script directly into `src/claude/lib/` and `src/copilot-cli/lib/`
-    (plus `src/claude/skills/review/scripts/`); the manifest-driven binplace
+    (plus `src/claude/skills/review/scripts/` and
+    `src/copilot-cli/skills/review/scripts/`); the manifest-driven binplace
     step that runs after every generator then copies the claude-side plugin
     trees onto their `.claude/` install-tree counterparts
     (`templates/platforms/binplace.yaml`'s `lib-*` and `skills-sidecar`
@@ -463,6 +501,12 @@ def _build_lib(
         c for c in outcome.changes if c.strip().startswith(("[WARNING]", "[ERROR]"))
     )
     if outcome.errors:
+        result.exit_code = 2
+    if check and outcome.had_drift:
+        # ``--check`` is read-only here, so drift never shows up in the
+        # git-diff staleness gate below (issue #6098). Fail on it directly.
+        for line in outcome.drift:
+            print(f"STALENESS DETECTED: lib mirror differs from scripts/: {line}", file=sys.stderr)
         result.exit_code = 2
     return result
 
@@ -758,7 +802,7 @@ def write_audit(
         for v in violations:
             print(f"AUDIT-BLOCKLIST: {v}", file=sys.stderr)
         return violations
-    audit_path.write_text(text, encoding="utf-8")
+    _publish_bytes_preserving_mode(audit_path, text.encode("utf-8"))
     return []
 
 
@@ -859,6 +903,67 @@ def _git_diff_paths(repo_root: Path) -> list[str]:
                 seen.add(p)
                 paths.append(p)
     return paths
+
+
+# Line printed after the drift list when some drifted paths are uncommitted
+# but byte-identical to what the generators just wrote. ``--check`` compares
+# the post-generation tree to HEAD, so a correct ``build_all.py`` run that was
+# never committed reads as drift, and the stale-path list alone cannot tell the
+# author which remedy applies (issue #6427). The pre-PR gate
+# ``scripts/validation/check_generated_staleness.py`` parses this prefix;
+# ``tests/validation/test_check_generated_staleness_evidence.py`` pins the two together.
+UNCOMMITTED_UNCHANGED_PREFIX = "UNCOMMITTED BUT UNCHANGED BY REGENERATION:"
+
+
+def _paths_unchanged_by_regeneration(
+    repo_root: Path, drifted: list[str], pre_run: Mapping[Path, bytes]
+) -> list[str]:
+    """Return the drifted paths whose bytes the generators left as they found them.
+
+    ``pre_run`` is the owned-prefix snapshot taken before any generator ran. A
+    drifted path that is present in it and byte-identical afterward differs from
+    HEAD only because it is uncommitted. A hand edit the generator reverted, a
+    file the generator wrote fresh, and a deleted file all differ from the
+    snapshot or are absent from it, so none of them lands here.
+    """
+    unchanged: list[str] = []
+    for rel in drifted:
+        path = repo_root / rel
+        before = pre_run.get(path)
+        if before is None or not path.is_file():
+            continue
+        if _read_bytes_no_redirect(path) == before:
+            unchanged.append(rel)
+    return unchanged
+
+
+def _unchanged_regeneration_message(unchanged: int, drifted: int) -> str:
+    """Return the one-line remedy for ``unchanged`` of ``drifted`` paths."""
+    head = f"{UNCOMMITTED_UNCHANGED_PREFIX} {unchanged} of {drifted} drifted path(s)"
+    if unchanged == drifted:
+        return (
+            f"{head} match the generators' output. "
+            "Commit the regenerated files, then rerun --check."
+        )
+    return (
+        f"{head} match the generators' output; commit those. The other "
+        f"{drifted - unchanged} are stale: run uv run python build/scripts/build_all.py, "
+        "then commit all of them."
+    )
+
+
+def _print_stale_paths(
+    repo_root: Path, drifted: list[str], pre_run: Mapping[Path, bytes] | None
+) -> None:
+    """Print the drift list, then the commit-or-regenerate remedy line."""
+    print("STALENESS DETECTED: uncommitted regen drift:", file=sys.stderr)
+    for rel in drifted:
+        print(f"  {rel}", file=sys.stderr)
+    if pre_run is None:
+        return
+    unchanged = _paths_unchanged_by_regeneration(repo_root, drifted, pre_run)
+    if unchanged:
+        print(_unchanged_regeneration_message(len(unchanged), len(drifted)), file=sys.stderr)
 
 
 # The .claude/ tree is off-limits to generators (REQ-003-010). It is
@@ -1044,7 +1149,7 @@ def clean_outputs(repo_root: Path, config_path: Path) -> int:
     if not isinstance(artifacts, dict):
         return 0
     # Only clean output dirs whose contents are exclusively generator
-    # output. Skills outputs to src/<provider>/skills/ — safe to nuke.
+    # output. Skills outputs to src/<provider>/skills/, safe to nuke.
     # Agents legacy outputDir is src/copilot-cli (not a subdir), so
     # cleaning would destroy unrelated content. Hooks and rules share dirs
     # with hand-authored files. Restrict to skills for now.
@@ -1147,6 +1252,11 @@ def _effective_owned_prefixes(repo_root: Path) -> tuple[str, ...]:
 
 def _is_bytecode_artifact(path: Path) -> bool:
     """Return True for paths CPython writes as import side effects.
+
+    ``path`` MUST be relative to the repository root. An absolute path raises
+    ``ValueError`` (see :func:`binplace_manifest.is_bytecode_artifact`): a
+    checkout under a directory named ``__pycache__`` would otherwise match
+    every file in it.
 
     The rule is deliberately wider than "is a ``.pyc``": any file under a
     ``__pycache__`` directory matches, whatever its extension, plus any
@@ -1628,7 +1738,7 @@ def _snapshot_owned_prefixes(
             _reject_redirecting_ancestors(repo_root, root)
             for path in _iter_strict_owned_files(root):
                 if _is_ignored_path(path, ignored) or (
-                    exclude_ignored and _is_bytecode_artifact(path)
+                    exclude_ignored and _is_bytecode_artifact(path.relative_to(repo_root))
                 ):
                     continue
                 _read_into_snapshot(snapshot, path, strict=True)
@@ -1647,7 +1757,9 @@ def _snapshot_owned_prefixes(
         ):
             if is_dir or not path.is_file():
                 continue
-            if _is_ignored_path(path, ignored) or (exclude_ignored and _is_bytecode_artifact(path)):
+            if _is_ignored_path(path, ignored) or (
+                exclude_ignored and _is_bytecode_artifact(path.relative_to(repo_root))
+            ):
                 continue
             _read_into_snapshot(snapshot, path, strict=False)
     return snapshot
@@ -2111,6 +2223,7 @@ def run(
             claude_baseline=claude_baseline,
             claude_boundaries=claude_boundaries,
             claude_allowed_paths=claude_allowed_paths,
+            owned_snapshot=snapshot,
         )
     finally:
         # #2440: ALWAYS restore on --check, including on exception paths.
@@ -2172,6 +2285,40 @@ def _run_binplace(repo_root: Path, *, check: bool) -> GeneratorResult:
     return result
 
 
+def _surface_parity_exit(repo_root: Path, stale_paths: list[str]) -> int:
+    """Run the surface parity gate and print its findings (issue #5637).
+
+    ``templates/platforms/surface-parity.yaml`` says which source each shipped
+    copy answers to. ``--check`` runs the same checks as
+    ``check_surface_parity.py``, so CI and a local run share one result, and
+    labels each stale path the generators left with the surface that owns it.
+    A tree with no manifest has no parity claims; the standalone CLI and
+    ``tests/build_scripts/test_surface_parity_repo.py`` fail on a missing
+    manifest in this repository. Returns 0 (holds) or 2 (finding or bad config).
+    """
+    try:
+        manifest = check_surface_parity.load_manifest(repo_root)
+        if manifest is None:
+            return 0
+        findings = [
+            *check_surface_parity.classify_changes(manifest, stale_paths),
+            *check_surface_parity.run_checks(repo_root, manifest, owned_prefixes=OWNED_PREFIXES),
+        ]
+    except (
+        check_surface_parity.SurfaceManifestError,
+        binplace_manifest.BinplaceConfigError,
+        ConfigError,
+    ) as exc:
+        print(f"Error: surface parity manifest: {exc}", file=sys.stderr)
+        return 2
+    if not findings:
+        return 0
+    print("SURFACE PARITY VIOLATION:", file=sys.stderr)
+    for line in check_surface_parity.format_report(findings):
+        print(f"  {line}", file=sys.stderr)
+    return 2
+
+
 def _run_generators(
     repo_root: Path,
     configs: list[Path],
@@ -2181,6 +2328,7 @@ def _run_generators(
     claude_baseline: dict[Path, bytes],
     claude_boundaries: set[Path] | None = None,
     claude_allowed_paths: set[Path] | None = None,
+    owned_snapshot: Mapping[Path, bytes] | None = None,
 ) -> int:
     """Execute the generator pipeline and emit the audit log.
 
@@ -2237,6 +2385,13 @@ def _run_generators(
 
     audit.duration_s = time.monotonic() - started
 
+    # Under --check the binplace, lib-mirror, and template steps compare and
+    # never write, so a hand-edited generated file is byte-identical before
+    # and after the run. A failing generator result therefore voids the
+    # "unchanged by regeneration" evidence: the snapshot would call the hand
+    # edit generator output and tell the author to commit it.
+    regen_evidence = owned_snapshot if audit.overall_exit == 0 else None
+
     # REQ-003-010: enforce .claude/ no-write invariant.
     claude_writes = assert_no_claude_writes(
         repo_root,
@@ -2289,10 +2444,9 @@ def _run_generators(
         owned_prefixes = _effective_owned_prefixes(repo_root)
         diff = [p for p in changed if any(p.startswith(prefix) for prefix in owned_prefixes)]
         if diff:
-            print("STALENESS DETECTED: uncommitted regen drift:", file=sys.stderr)
-            for p in diff:
-                print(f"  {p}", file=sys.stderr)
+            _print_stale_paths(repo_root, diff, regen_evidence)
             audit.overall_exit = 2
+        audit.overall_exit = max(audit.overall_exit, _surface_parity_exit(repo_root, diff))
 
     if audit_format == "json":
         sys.stdout.write(_format_audit_json(audit))

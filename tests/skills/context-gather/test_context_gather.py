@@ -198,6 +198,43 @@ class TestStructure:
             "SKILL.md must document the CONTEXT_LOADED marker"
         )
 
+    def test_marker_line_format_documented(self, skill_content: str) -> None:
+        """Issue #5948: the marker is a `CONTEXT_LOADED: <topic>` line.
+
+        Pins the format, not just the substring, so a rename of the topic
+        slot fails here.
+        """
+        assert re.search(r"^CONTEXT_LOADED: <topic>$", skill_content, re.MULTILINE), (
+            "SKILL.md must show the marker as a standalone `CONTEXT_LOADED: <topic>` line"
+        )
+
+    def test_phase_1_scans_for_marker(self, skill_content: str) -> None:
+        """Issue #5948: the only consumer is this skill's own Phase 1 scan."""
+        phase_1 = skill_content.split("### Phase 1")[1].split("### Phase 2")[0]
+        assert "CONTEXT_LOADED:" in phase_1, "Phase 1 must scan for the marker"
+        assert "stop" in phase_1.lower(), "Phase 1 must stop when a matching marker exists"
+
+    @pytest.mark.parametrize(
+        "claim",
+        [
+            "downstream skip detection",
+            "downstream commands",
+            "downstream callers",
+            "downstream consumer",
+            "programmatic call from build, plan, research",
+        ],
+    )
+    def test_no_false_downstream_consumer_claim(self, skill_content: str, claim: str) -> None:
+        """Issue #5948: no skill but context-gather reads the marker.
+
+        autoplan is the only invoker and does not check it; build, plan, and
+        research carry no context-gather reference. Reject wording that
+        advertises those consumers.
+        """
+        assert claim not in skill_content.lower(), (
+            f"SKILL.md must not claim a downstream marker consumer: {claim!r}"
+        )
+
     def test_spec_005_referenced(self, skill_content: str) -> None:
         assert "SPEC-005" in skill_content, "SKILL.md must reference SPEC-005"
 

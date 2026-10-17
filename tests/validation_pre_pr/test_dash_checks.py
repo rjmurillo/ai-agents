@@ -12,7 +12,12 @@ from unittest.mock import patch
 
 import pytest
 
-from scripts.validation.evidence import pre_pr_policy
+from scripts.validation.evidence import (
+    REASON_BASE_REF_UNRESOLVED,
+    REASON_DIFF_FAILED,
+    EvidenceState,
+    pre_pr_policy,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -226,7 +231,7 @@ class TestValidateDashProhibition:
         # The unfixed implementation prints the ordinary all-clean PASS line
         # with no scope caveat; the fix MUST NOT claim the full candidate set
         # was checked when one of the two files was never read.
-        assert "1 of 1 markdown file(s) checked" not in out
+        assert "1 of 1 file(s) checked" not in out
 
     def test_unreadable_file_does_not_hide_a_real_violation_elsewhere(
         self,
@@ -282,7 +287,7 @@ class TestValidateDashProhibition:
 
         out = capsys.readouterr().out
         assert pre_pr_policy().accepts(result)
-        assert "1 of 2 markdown file(s) checked" in out
+        assert "1 of 2 file(s) checked" in out
         assert "1 unreadable at HEAD, skipped" in out
 
     def test_fully_readable_scan_reports_no_skip_caveat(
@@ -306,13 +311,90 @@ class TestValidateDashProhibition:
 
         out = capsys.readouterr().out
         assert pre_pr_policy().accepts(result)
-        assert "1 markdown file(s) checked" in out
+        assert "1 file(s) checked" in out
         assert "skipped" not in out
         assert "[WARNING]" not in out
 
 
+class TestPythonSourceScope:
+    """Issue #5116: the branch scan covers ``.py`` files, not only ``.md``.
+
+    A printed string or comment in a Python source is authored text under
+    ``universal.md`` MUST NOT 4, and bot reviewers flag it the same way.
+    """
+
+    @staticmethod
+    def _scan(tmp_path: Path, changed: str, content: str | None = None):
+        from scripts.validation.pre_pr import validate_dash_prohibition
+
+        with (
+            patch("checks_dash._resolve_branch_base_ref") as mock_ref,
+            patch("checks_dash._run_subprocess") as mock_run,
+        ):
+            mock_ref.return_value = "origin/main"
+            if content is None:
+                mock_run.return_value = (0, changed, "")
+            else:
+                mock_run.side_effect = [(0, changed, ""), (0, content, "")]
+            return validate_dash_prohibition(tmp_path), mock_run
+
+    def test_em_dash_in_python_comment_fails(self, tmp_path: Path) -> None:
+        result, _ = self._scan(tmp_path, "build/scripts/x.py\n", f"# safe {chr(0x2014)} to nuke\n")
+        assert not pre_pr_policy().accepts(result)
+
+    def test_en_dash_in_python_string_fails(self, tmp_path: Path) -> None:
+        result, _ = self._scan(tmp_path, "scripts/x.py\n", f'print("1{chr(0x2013)}2")\n')
+        assert not pre_pr_policy().accepts(result)
+
+    def test_clean_python_file_passes(self, tmp_path: Path) -> None:
+        result, _ = self._scan(tmp_path, "scripts/x.py\n", "print('ok - hyphen')\n")
+        assert pre_pr_policy().accepts(result)
+
+    def test_python_fixture_dir_is_skipped(self, tmp_path: Path) -> None:
+        result, mock_run = self._scan(tmp_path, "tests/hooks/fixtures/x.py\n")
+        assert pre_pr_policy().accepts(result)
+        mock_run.assert_called_once()
+
+    def test_python_vendored_path_is_skipped(self, tmp_path: Path) -> None:
+        result, mock_run = self._scan(tmp_path, ".venv/lib/x.py\nnode_modules/x.py\n")
+        assert pre_pr_policy().accepts(result)
+        mock_run.assert_called_once()
+
+    @pytest.mark.parametrize("name", ["x.pyc", "x.pyi.txt", "x.json", "x.yaml", "Makefile"])
+    def test_other_suffixes_stay_out_of_scope(self, tmp_path: Path, name: str) -> None:
+        result, mock_run = self._scan(tmp_path, f"{name}\n")
+        assert pre_pr_policy().accepts(result)
+        mock_run.assert_called_once()
+
+    def test_mixed_markdown_and_python_counts_both(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        from scripts.validation.pre_pr import validate_dash_prohibition
+
+        with (
+            patch("checks_dash._resolve_branch_base_ref") as mock_ref,
+            patch("checks_dash._run_subprocess") as mock_run,
+        ):
+            mock_ref.return_value = "origin/main"
+            mock_run.side_effect = [
+                (0, "doc.md\nmod.py\n", ""),
+                (0, "clean\n", ""),
+                (0, "clean\n", ""),
+            ]
+            result = validate_dash_prohibition(tmp_path)
+        assert pre_pr_policy().accepts(result)
+        assert "2 file(s) checked" in capsys.readouterr().out
+
+    def test_violation_report_names_python_path_and_line(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        rel, line = "scripts/x.py", 2
+        self._scan(tmp_path, f"{rel}\n", f"a = 1\n# b {chr(0x2014)} c\n")
+        assert f"{rel}:{line}" in capsys.readouterr().out
+
+
 class TestScanUnavailableUnderCi:
-    """Issue #5636, D10: an unresolved base ref is BLOCKED under CI, a warning locally."""
+    """Issues #5636, #6124: FAIL under CI, printed as returned; a warning locally."""
 
     @pytest.mark.parametrize(
         ("name", "value"),
@@ -336,10 +418,13 @@ class TestScanUnavailableUnderCi:
 
         monkeypatch.setenv(name, value)
         with patch("checks_dash._resolve_branch_base_ref", return_value=None):
-            assert not pre_pr_policy().accepts(validate_dash_prohibition(tmp_path))
+            result = validate_dash_prohibition(tmp_path)
+        assert not pre_pr_policy().accepts(result)
+        assert result.state is EvidenceState.FAIL
         out = capsys.readouterr().out
-        assert "[BLOCKED] Em/en-dash branch scan: no base ref resolved" in out
-        assert "no file was examined" in out
+        assert result.report_line() in out
+        assert f"reason={REASON_BASE_REF_UNRESOLVED}" in out
+        assert "[BLOCKED]" not in out
 
     def test_unresolved_base_ref_only_warns_locally(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -347,7 +432,9 @@ class TestScanUnavailableUnderCi:
         from scripts.validation.pre_pr import validate_dash_prohibition
 
         with patch("checks_dash._resolve_branch_base_ref", return_value=None):
-            assert pre_pr_policy().accepts(validate_dash_prohibition(tmp_path))
+            result = validate_dash_prohibition(tmp_path)
+        assert pre_pr_policy().accepts(result)
+        assert result.state is EvidenceState.SKIP
         out = capsys.readouterr().out
         assert "[WARNING] Em/en-dash branch scan skipped: no base ref resolved" in out
         assert "[BLOCKED]" not in out
@@ -375,8 +462,13 @@ class TestScanUnavailableUnderCi:
             patch("checks_dash._resolve_branch_base_ref", return_value="origin/main"),
             patch("checks_dash._run_subprocess", return_value=(128, "", "fatal: bad revision")),
         ):
-            assert not pre_pr_policy().accepts(validate_dash_prohibition(tmp_path))
-        assert "[BLOCKED] Em/en-dash branch scan: git diff failed" in capsys.readouterr().out
+            result = validate_dash_prohibition(tmp_path)
+        assert not pre_pr_policy().accepts(result)
+        assert result.state is EvidenceState.FAIL
+        out = capsys.readouterr().out
+        assert result.report_line() in out
+        assert f"reason={REASON_DIFF_FAILED}" in out
+        assert "[BLOCKED]" not in out
 
     def test_resolved_base_ref_is_unaffected_by_ci(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

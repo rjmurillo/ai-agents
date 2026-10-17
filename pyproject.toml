@@ -7,7 +7,7 @@ requires-python = ">=3.14"
 license = {text = "MIT"}
 
 dependencies = [
-    "anthropic==1.11.0",
+    "anthropic==1.13.0",
     "jsonschema>=4.25.1",
     "markdown-it-py>=4.2.0",
     "python-frontmatter==1.3.0",
@@ -23,8 +23,8 @@ dev = [
     "pip-audit>=2.10.0",
     "ruff>=0.15.16",
     "mypy>=2.1.0",
-    "semgrep==1.179.0",
-    "lefthook==2.1.16",
+    "semgrep==1.180.0",
+    "lefthook==2.2.1",
     "packaging>=24.0",
     "pytest-timeout>=2.4.0",
     "pytest-xdist>=3.8.0",
@@ -45,7 +45,7 @@ exclude-newer = "7 days"
 override-dependencies = [
     "click==8.3.3",
     "cryptography==50.0.0",
-    "mcp==1.28.1",
+    "mcp==1.30.0",
     # semgrep 1.178.0 still pins pyjwt~=2.13.0. 2.15.0 fixes the 2.13.0 CVEs
     # pip-audit reports and GHSA-42vr-xj54-vc7v (issue #6028).
     "pyjwt[crypto]==2.15.0",
@@ -76,15 +76,21 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short --import-mode=importlib --timeout=120"
+tmp_path_retention_count = 1
+tmp_path_retention_policy = "failed"
 markers = [
     "unit: Unit tests",
     "integration: Integration tests",
     "safe_push_transport: Safe-push tests that touch a non-local transport and are excluded from pre-push.",
     "security: Security-focused tests",
     "smoke: Real-CLI smoke tests (need auth/credits or an installed CLI; run on pull requests by plugin-cli-smoke.yml). The smoke gate asserts these were not skipped (issue #2231 item 4).",
-    "claude: Real-CLI tests that need the claude CLI and its credential. The CLI smoke selects them on the claude matrix leg.",
+    "claude: Real-CLI tests that need the claude CLI and its credential. The CLI smoke selects those that also carry the smoke marker on the claude matrix leg; the live security review e2e does not.",
     "copilot: Real-CLI tests that need the copilot CLI and its credential. The CLI smoke selects them on the copilot matrix leg.",
     "codex: Real-CLI tests that need the codex CLI and no credential. The CLI smoke selects them on the codex job.",
+    "grok: Real-CLI tests that need the grok CLI and no credential. No CI leg selects them yet; they run locally under RUN_CLI_E2E=1.",
+    "hermes: Real-CLI tests that need the hermes CLI at the pinned commit and no credential. Run them with RUN_CLI_E2E=1.",
+    "pi: Real-CLI tests that need the pi CLI and no credential. The CLI smoke selects them on the pi job.",
+    "cursor: Real-CLI tests that need the cursor-agent CLI and a Cursor login for the host leg. No CI leg selects them; they run locally under RUN_CLI_E2E=1.",
     "windows_path: Tests that exercise Windows path handling and must run on a Windows runner.",
 ]
 
@@ -161,6 +167,8 @@ ignore = []
 # sys.path manipulation required before imports for plugin-context path resolution
 ".claude/skills/github/scripts/**/*.py" = ["E402"]
 "src/claude/skills/github/scripts/**/*.py" = ["E402"]
+"src/cursor/skills/github/scripts/**/*.py" = ["E402"]
+"src/codex/skills/github/scripts/**/*.py" = ["E402"]
 # Validation runners use sys.path.insert() before importing sibling modules
 "scripts/validation/pre_pr.py" = ["E402", "F401"]
 "scripts/validation/pre_pr_sequence.py" = ["E402"]
@@ -178,6 +186,12 @@ ignore = []
 # files byte for byte (generate_skills.sync_claude_plugin_skill_support), so it
 # carries the same pre-existing violations and gets the same waiver.
 "src/claude/skills/**/*.py" = ["ANN", "E501"]
+# ADR-115: src/cursor/skills/ copies the same support files byte for byte
+# (generate_skills.py, artifacts.skills in templates/platforms/cursor.yaml), so it
+# carries the same pre-existing violations and gets the same waiver.
+"src/cursor/skills/**/*.py" = ["ANN", "E501"]
+# ADR-115: src/codex/skills/ is the same non-SKILL.md content again.
+"src/codex/skills/**/*.py" = ["ANN", "E501"]
 # Copilot CLI mirror trees are generated wholesale from the .claude sources by
 # build/scripts/build_all.py (the canonical sources above are the linted copy).
 # The generator inlines hooks into wrapper functions, which trips N-series and
@@ -187,6 +201,9 @@ ignore = []
 # moment the file enters a changed-set.
 "src/copilot-cli/hooks/**/*.py" = ["E", "F", "W", "I", "N", "UP", "B", "ANN", "RUF100"]
 "src/copilot-cli/skills/**/*.py" = ["E", "F", "W", "I", "N", "UP", "B", "ANN", "RUF100"]
+# Hermes packs (ADR-115) hold byte copies of the .claude skill scripts and the
+# rendered lib, so the linted sources above are the copy that matters.
+"src/hermes/**/*.py" = ["E", "F", "W", "I", "N", "UP", "B", "ANN", "RUF100"]
 "packages/**/*.py" = ["ANN", "E501"]
 # The skillbook schema checker validates values of arbitrary JSON type;
 # `Any` is the honest annotation for an instance the checker will narrow.
@@ -310,8 +327,8 @@ dev = [
     "pip-audit>=2.10.0",
     "ruff>=0.15.16",
     "mypy>=2.1.0",
-    "semgrep==1.179.0",
-    "lefthook==2.1.16",
+    "semgrep==1.180.0",
+    "lefthook==2.2.1",
     "packaging>=24.0",
     "pytest-timeout>=2.4.0",
     "pytest-xdist>=3.8.0",

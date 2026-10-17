@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import builtins
 import importlib.util
+import re
 import shlex
 import subprocess
 import sys
@@ -984,17 +985,18 @@ def test_run_pytest_shares_one_timeout_budget_across_commands(
     assert seen[-1] < budget
 
 
-def test_run_pytest_gives_the_testmon_run_the_suite_budget(
+def test_run_pytest_gives_the_testmon_run_the_selection_budget(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    """The default pre-push path gets the suite budget, not a shorter one.
+    """The default pre-push path gets the 180s selection budget (issue #6200).
 
-    The first testmon run builds `.testmondata` over the whole suite, so a
-    collection-sized ceiling would kill it. End-to-end pin that `run_pytest`
-    hands the suite budget to the first child.
+    End-to-end pin that `run_pytest` hands the selection budget to the first
+    child, not the 780s of a whole-suite run. The cold deferral is switched off
+    so the run itself is under test.
     """
     monkeypatch.delenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, raising=False)
+    monkeypatch.setattr(git_hook_policy, "_should_defer_cold_selection", lambda *_a, **_k: False)
     # Workstation contract: the aggregate is now clamped in a container, and
     # this suite also runs inside dev containers, so the assertion would read
     # the 150s ceiling instead of the suite budget it names.
@@ -1011,8 +1013,8 @@ def test_run_pytest_gives_the_testmon_run_the_suite_budget(
     assert git_hook_policy.run_pytest(tmp_path) == 0
 
     assert len(seen) == len(git_hook_policy._testmon_commands(tmp_path))
-    assert seen[0] <= git_hook_policy.TEST_SUITE_TIMEOUT_SECONDS
-    assert seen[0] > git_hook_policy.TEST_SUITE_TIMEOUT_SECONDS - 5
+    assert seen[0] <= git_hook_policy.PRE_PUSH_SELECTION_TIMEOUT_SECONDS
+    assert seen[0] > git_hook_policy.PRE_PUSH_SELECTION_TIMEOUT_SECONDS - 5
 
 
 def test_run_pytest_refuses_to_start_a_command_past_the_budget(
@@ -1020,6 +1022,9 @@ def test_run_pytest_refuses_to_start_a_command_past_the_budget(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    # These budget messages describe commands that run one after another. One
+    # worker cannot feed two pools, so the partitions stay in sequence (#6198).
+    monkeypatch.setenv(git_hook_policy.PYTEST_WORKERS_ENV, "1")
     budget = git_hook_policy.TEST_SUITE_TIMEOUT_SECONDS
     seen = _record_pytest_timeouts(monkeypatch, elapsed_per_command=budget + 1)
 
@@ -1110,6 +1115,9 @@ def test_run_pytest_budget_exhaustion_emits_exhaustion_message(
     # Suite-budget semantics live on the executing partition set; the
     # default pre-push path builds one collection command (ADR-104).
     monkeypatch.setenv(git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV, "1")
+    # These budget messages describe commands that run one after another. One
+    # worker cannot feed two pools, so the partitions stay in sequence (#6198).
+    monkeypatch.setenv(git_hook_policy.PYTEST_WORKERS_ENV, "1")
     monkeypatch.setattr(git_hook_policy, "_container_clamped", lambda seconds: seconds)
     budget = git_hook_policy.TEST_SUITE_TIMEOUT_SECONDS
     # Use almost all the budget for the first command, leaving 10s for the
@@ -1232,13 +1240,29 @@ def test_the_clean_opt_in_run_prints_only_the_opt_in_notice(
 
     Separate from the control above on purpose: this one SHOULD fail if the
     notice's wording changes, because a new diagnostic appearing on a clean
-    run is exactly what it is here to notice.
+    run is exactly what it is here to notice. The only other lines are the
+    per-partition exit and wall-time lines the overlapping run prints (#6198).
     """
     _record_pytest_timeouts(monkeypatch, elapsed_per_command=1.0)
     assert git_hook_policy.run_pytest(tmp_path) == 0
-    assert capsys.readouterr().err.splitlines() == [
+    lines = capsys.readouterr().err.splitlines()
+    assert lines[0] == (
         f"{git_hook_policy.PYTEST_FULL_SUITE_LOCALLY_ENV}=1: executing the whole suite locally."
-    ]
+    )
+    labels = sorted(
+        match.group(1)
+        for line in lines[1:]
+        if (match := re.fullmatch(r"pytest partition (.+): exit 0 in \d+\.\ds", line))
+    )
+    assert labels == sorted(
+        [
+            "tests",
+            "tests/mutation",
+            "tests/test_pr_autofix_late_live_state_gate.py",
+            "tests/test_safe_push_pr_branch.py (+1 more)",
+        ]
+    )
+    assert len(lines) == 5
 
 
 # The #4293 pre-push guard must not reject this script's own lease push

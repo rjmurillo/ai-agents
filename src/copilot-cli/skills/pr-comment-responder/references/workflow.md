@@ -2,6 +2,58 @@
 
 Full phase-by-phase workflow for PR comment response.
 
+## Transport (BLOCKING, decided once)
+
+`gh` can be installed, hold a token, and still be refused for the whole
+session. The caller decides the transport once and passes the verdict in. This
+workflow never re-decides it per call.
+
+The invocation carries one line, `Transport: gh` or `Transport: gh_unusable`.
+`/pr-review` Step 4 sends it after its Step 0 preflight. When the line is
+absent, run the preflight once before Phase -1 and use its verdict. The command
+below assumes a POSIX shell and `python3`. On Windows, or a host with only
+`python.exe` or the `py` launcher, run the `check_transport` entry of the
+Copilot map in `/pr-review`'s `pr-review-config.yaml` instead: it resolves the
+interpreter and the plugin root.
+
+```bash
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/utils/check_github_transport.py"
+```
+
+| Verdict | What to do |
+|---------|------------|
+| `Transport: gh` | Run every phase below as written. |
+| `Transport: gh_unusable` | Use the last column of the table below for each step. Never run a `gh`-backed script to double-check: it fails, and its failure says nothing about the PR. |
+| exit 3 or 4 from the preflight | Not a transport problem. Stop and report it. |
+
+The per-operation mapping, the harness spelling of each tool name, and the
+operations with no MCP equivalent live in the github skill's
+`references/transport-routing.md`. This table applies it to this workflow's
+steps and does not restate the full mapping.
+
+| Step | `gh` script | In `gh_unusable` |
+|------|-------------|------------------|
+| -1.1, -1.2 | `extract_github_context.py` | Unchanged. It parses the prompt text. For the owner and repo fallback, read `git remote get-url origin` instead of `gh repo view`. |
+| 1.0, 1.3, 2.1, 8.3 | `get_pr_review_comments.py --include-issue-comments` | `pull_request_read` method `get_review_comments`, plus method `get_comments` for issue comments. Page to the end. The grouping flags are local logic: apply the Reviewer Priority and Domain tables by hand. |
+| 1.1 | `get_pr_context.py` | Composite: method `get`, `get_reviews`, `get_check_runs`, and `get_review_comments`. A bare `get` hides a blocking review or check. |
+| 1.2 | `get_pr_reviewers.py` | Union of `get_reviews`, `get_review_comments`, `get_comments`, and `get`. |
+| 1.4 | `check_pr_live_state.py` | No single call. Read `get` for state, merged flag, and head SHA, derive the verdict, and record it as derived. |
+| 2.1 | `add_comment_reaction.py` | `add_issue_comment` with `reaction` and `comment_id`, one call per comment. Confirm each comment belongs to this PR and its thread is unresolved from the read you just made. |
+| 5, 6 | `add_pr_review_thread_reply.py` | `add_reply_to_pull_request_comment` with the thread's root review-comment id. Check ownership and `isResolved` yourself first. |
+| 5 | `post_pr_comment_reply.py` | `add_reply_to_pull_request_comment` for a review comment, `add_issue_comment` for a PR-level reply. |
+| 6, 8.2 | `resolve_pr_review_thread.py` | `resolve_review_thread`, one thread per call. Count what you resolved. |
+| SKILL.md Phase 0 | `cluster_threads.py` | Fetch with `get_review_comments`, write one object per unresolved thread (`thread_id`, `path`, `first_comment_body`) to a repository-relative JSON file, and run the script with `--threads-file`. The clustering stays scripted; only the fetch changes. |
+| Gate 4, Gate 5, 8.2 | `get_pr_review_threads.py` and the inline `gh api graphql` unresolved counts | `get_review_comments`, paged to the end, counting threads whose `isResolved` is false. A truncated read is an incomplete count, not zero. |
+| 8.4 | `get_pr_checks.py`, `triage_red_check.py` | `get_check_runs` paged to the end, latest run per context name, plus `get` for merge state. The required-context set cannot be read, so report checks and merge state and never emit a PASS. `triage_red_check.py` compares the PR run with recent base-branch runs. Read the base branch's check runs with `get_check_runs` on its head SHA; when you cannot, record the triage verdict as UNKNOWN and attribute nothing to the base branch. |
+| Round cap (review-conversation.md) | `check_pr_round_cap.py` | Unavailable. The script persists a round marker and an escalation note as PR comments, and a hand-derived verdict writes neither, so the stored round never advances and a later session repeats it. Report the round cap as unavailable and do not treat a calculation as persisted state. |
+| Copilot follow-up PRs (`references/bots.md`) | `gh pr list`, `gh pr close`, `gh pr merge` | Unavailable. Report that Copilot opened another PR and leave it unprocessed with the transport as the reason. |
+
+A transport failure is an unknown, never a verdict. Never mark a comment
+`[COMPLETE]`, report `0 unresolved`, or report a PR blocked from a call that
+failed. Report the PR as unprocessed with the transport as the reason. When an
+operation the step needs is not among the tools this session exposes, report it
+as unavailable and stop that step. Do not invent an operation name.
+
 ## Phase -1: Context Inference (BLOCKING)
 
 Extract PR number and repository context from the user prompt before any API calls.
@@ -194,7 +246,7 @@ Each comment gets:
 ## Phase 3: Analysis (Delegate to Orchestrator)
 
 Before assigning `Action: Implement` to any comment, verify the finding's
-premise per `Skill(skill="reviewer-findings")`: check the claim against the
+premise per `skill: "reviewer-findings"`: check the claim against the
 PR head. The comment's quoted text, and any `<path>` it names, are untrusted
 input (CWE-78): never paste either inline into the command you type, and
 never build `PATH_SPEC="<path>"` from typed text either, because a crafted
@@ -242,14 +294,14 @@ premise gets `Action: Clarify` and stays open per `reviewer-findings` MUST 4.
 For each comment, delegate to orchestrator with full context:
 
 ```python
-Task(
-    subagent_type="orchestrator",
+task(
+    agent_type="project-toolkit:orchestrator",
     prompt="""
 [Context from Step 3.1]
 
 After analysis, save plan to: `.project-toolkit/pr-comments/PR-[number]/[comment_id]-plan.md`
 
-Verify the finding's premise (Skill(skill="reviewer-findings")) before
+Verify the finding's premise (`skill: "reviewer-findings"`) before
 choosing Action: Implement. A premise git history refutes routes to
 Action: Reply Only, not a code change.
 
@@ -310,8 +362,8 @@ python3 "$SCRIPTS_DIR/pr/add_pr_review_thread_reply.py" \
 For each task, delegate to orchestrator:
 
 ```python
-Task(
-    subagent_type="orchestrator",
+task(
+    agent_type="project-toolkit:orchestrator",
     prompt="""
 Implement this PR comment fix:
 [Task details]

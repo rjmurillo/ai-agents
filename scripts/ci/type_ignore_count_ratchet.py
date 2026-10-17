@@ -47,6 +47,7 @@ from scripts.ci.base_derived_ratchet import (
 from scripts.ci.count_ratchet import (
     tracked_files,
 )
+from scripts.ci.hermes_mirror import LIB_MIRROR_PACKAGES, is_verbatim_hermes_mirror
 
 __all__ = [
     "EXIT_CONFIG",
@@ -96,11 +97,21 @@ _SELF_REFERENTIAL_FILES: frozenset[str] = frozenset(
 # also carries hand-maintained files with no `scripts/` canonical source
 # (`paths.py`, `qa_report.py`, and siblings), whose own suppressions, if any,
 # are original and should still count.
-_LIB_MIRROR_ROOTS: tuple[str, ...] = (".claude/lib", "src/claude/lib", "src/copilot-cli/lib")
-_LIB_MIRROR_PACKAGES: tuple[str, ...] = ("hook_utilities", "github_core", "ai_review_common")
+_LIB_MIRROR_ROOTS: tuple[str, ...] = (
+    ".claude/lib",
+    "src/claude/lib",
+    "src/copilot-cli/lib",
+    "src/codex/lib",
+    "src/cursor/lib",
+)
+_LIB_MIRROR_PACKAGES: tuple[str, ...] = LIB_MIRROR_PACKAGES
 _LIB_MIRROR_PREFIXES: tuple[str, ...] = tuple(
     f"{root}/{pkg}/" for root in _LIB_MIRROR_ROOTS for pkg in _LIB_MIRROR_PACKAGES
 )
+
+
+# Hermes pack copies (ADR-115 Decision 6) are NOT skipped by name here: they are
+# skipped only when their bytes equal the src/claude source, see hermes_mirror.py.
 
 
 def _is_generated_lib_mirror(path_str: str) -> bool:
@@ -114,7 +125,12 @@ def _is_generated_lib_mirror(path_str: str) -> bool:
 # src/copilot-cli/skills/ are byte-for-byte generated mirrors of it. Keyed on
 # the canonical source actually existing (same defense as the lib check
 # above), not on the output prefix alone.
-_SKILL_MIRROR_ROOTS: tuple[str, ...] = ("src/claude/skills", "src/copilot-cli/skills")
+_SKILL_MIRROR_ROOTS: tuple[str, ...] = (
+    "src/claude/skills",
+    "src/copilot-cli/skills",
+    "src/codex/skills",
+    "src/cursor/skills",
+)
 _SKILL_CANONICAL_ROOT = ".claude/skills"
 
 
@@ -152,6 +168,8 @@ def current_count(repo_root: Path) -> int | None:
             continue
         skill_source = _skill_mirror_canonical_source(path_str)
         if skill_source is not None and skill_source in tracked_set:
+            continue
+        if is_verbatim_hermes_mirror(repo_root, path_str, tracked_set):
             continue
         path = repo_root / path_str
         try:

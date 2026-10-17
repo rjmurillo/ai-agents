@@ -1,0 +1,24 @@
+{
+  "claim": "tests pass",
+  "subject": {
+    "artifact": "pkg",
+    "revision": "r2",
+    "premises": [
+      "interp:R"
+    ]
+  },
+  "evidence": [],
+  "checks": [
+    {
+      "check": "ruff check",
+      "cheap": true,
+      "available": true
+    }
+  ],
+  "expect": {
+    "exit": 1,
+    "violations": [
+      "named-without-state"
+    ]
+  }
+}

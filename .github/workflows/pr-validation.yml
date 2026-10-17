@@ -50,7 +50,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: audit
 
@@ -98,7 +98,7 @@ jobs:
 
       - name: Setup uv
         if: steps.should-run.outputs.skip != 'true'
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
 
       - name: Setup PowerShell
         if: steps.should-run.outputs.skip != 'true'
@@ -128,6 +128,7 @@ jobs:
         id: report
         env:
           DESCRIPTION_RESULT: ${{ steps.validate-description.outputs.validation_result }}
+          DESCRIPTION_FINDING: ${{ steps.validate-description.outputs.validation_finding }}
           BYPASS_USED: ${{ steps.validate-description.outputs.bypass_used }}
           BYPASS_LABEL: ${{ steps.validate-description.outputs.bypass_label }}
           BYPASS_COUNT: ${{ steps.validate-description.outputs.bypass_count }}
@@ -174,6 +175,7 @@ jobs:
         if: steps.should-run.outputs.skip != 'true'
         env:
           OVERALL_STATUS: ${{ steps.report.outputs.overall_status }}
+          BLOCKING_SUMMARY: ${{ steps.report.outputs.blocking_summary }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: python3 scripts/ci/enforce_pr_validation.py
 
@@ -204,7 +206,7 @@ jobs:
       # PRs (action SHA bumps), so exempting them would defeat the purpose of
       # this gate.
       - name: Setup uv for workflow validation
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
 
       - name: Validate workflow YAML
         run: uv run --frozen python3 scripts/validate_workflows.py
@@ -333,6 +335,22 @@ jobs:
       # to compare against and nothing a contributor could raise to silence it.
       - name: Run memory-index token ratchet
         run: uv run --frozen python3 scripts/ci/memory_index_token_ratchet.py
+      # Issue #5828: `memory-placement` runs only at pre-commit. A memory that
+      # reads as policy reaches main through every route that skips local hooks:
+      # `--no-verify`, a clone where `lefthook install` was never run, a bot
+      # push, a cloud agent, the web editor. This step runs the same check over
+      # the memories the PR changed. A file new to the PR, or one whose
+      # classification rose to normative, fails; a renamed file with unchanged
+      # content keeps its base class. The check owns the diff, the rename
+      # detection, and the merge-base lookup (ADR-006).
+      - name: Run memory-placement check
+        env:
+          BASE_REF: ${{ github.base_ref || github.event.repository.default_branch }}
+        run: |
+          # Keep this fetch full-depth; the check needs the merge base with
+          # BASE_REF. See the taste-lint ratchet step above.
+          git fetch origin "$BASE_REF"
+          uv run --frozen python3 scripts/validation/check_memory_placement.py --ci --changed-since FETCH_HEAD
       # Issue #4398: the three count ratchets measure the branch head, not the
       # merged result. A branch cut before main lowered a baseline can pass its
       # own count check yet breach the ceiling once it lands. This step evaluates

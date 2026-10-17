@@ -131,22 +131,22 @@
 1. **TCO Calculator** (`scripts/calculate_tco.py`)
    - Input: Cost assumptions, time horizons, growth rates
    - Output: NPV, IRR, break-even timeline
-   - Exit codes: 0=success, 10=negative NPV warning
+   - Exit codes: 0=success, 1=invalid inputs, 2=negative NPV warning
 
 2. **Decision Matrix Scorer** (`scripts/score_decision.py`)
    - Input: Criteria weights, option scores
    - Output: Weighted scores, sensitivity analysis
-   - Exit codes: 0=clear winner, 1=tie requires human judgment
+   - Exit codes: 0=clear winner, 1=tie requires human judgment, 2=bad criteria file
 
 3. **Reassessment Trigger** (`scripts/check_reassessment_triggers.py`)
    - Input: Original assumptions, current state
    - Output: Drift analysis, re-evaluation recommendation
-   - Exit codes: 0=assumptions hold, 11=reassessment required
+   - Exit codes: 0=assumptions hold, 1=error, 2=minor drift, 3=reassessment required
 
 4. **Vendor Scorecard** (`scripts/score_vendor.py`)
    - Input: Vendor data (stability, pricing, features)
    - Output: Vendor risk score
-   - Exit codes: 0=pass, 10=yellow flag, 11=red flag
+   - Exit codes: 0=pass, 2=bad vendor file, 100=yellow flag, 101=red flag
 
 ### Self-Verification Patterns
 

@@ -91,6 +91,10 @@ FILE_SIZE_EXEMPT_SEGMENTS: tuple[tuple[str, ...], ...] = (
 
 _GENERATED_PATH_SEGMENTS: tuple[tuple[str, ...], ...] = (
     ("src", "copilot-cli"),
+    # ADR-115 Decision 1: the Cursor plugin tree is rendered by build_all.py.
+    ("src", "cursor"),
+    # ADR-115 Decision 6: Hermes packs copy skills and lib byte for byte.
+    ("src", "hermes"),
     ("src", "vs-code-agents"),
     (".github", "instructions"),
     # ADR-109 B1: agent trees render from templates/agents/ and binplace.
@@ -112,6 +116,11 @@ _GENERATED_PATH_SEGMENTS: tuple[tuple[str, ...], ...] = (
     # references, and tests, so that tree stays classified authored (the
     # same reason it is absent from FILE_SIZE_EXEMPT_SEGMENTS above).
     ("src", "claude", "skills"),
+    # ADR-115 Decision 7: src/codex/skills/ and src/codex/lib/ are the same
+    # copies again, minus the dropped model keys in SKILL.md. The
+    # hand-written src/codex/plugin.json stays classified authored.
+    ("src", "codex", "skills"),
+    ("src", "codex", "lib"),
 )
 _GENERATED_MARKERS = (
     "AUTO-GENERATED MATCHER SHIM",

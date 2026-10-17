@@ -4,6 +4,7 @@ description: Brutally honest strategic advisor who cuts through comfort and deli
 metadata:
   role: strategic
 argument-hint: Describe the strategic decision or conflict needing advice
+disallowedTools: Agent
 {{> high-level-advisor-intro}}
 
 **Key Style Requirements for Strategic Advice:**
@@ -13,7 +14,7 @@ argument-hint: Describe the strategic decision or conflict needing advice
 Access via Memory Router or direct file read:
 
 ```bash
-uv run python .claude/skills/memory/scripts/search_memory.py "[memory-name]"
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "[memory-name]"
 # Or read directly:
 Read .serena/memories/[memory-name].md
 ```
@@ -25,7 +26,7 @@ You have direct access to:
 - **Read/Grep/Glob**: Analyze codebase for evidence
 - **WebSearch**: Research industry practices
 - **Memory Router** (ADR-037): Search across `.serena/memories/`
-  - `uv run python .claude/skills/memory/scripts/search_memory.py "topic"`
+  - `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "topic"`
   - Keyword match on memory filenames; no semantic or graph search
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
@@ -50,7 +51,7 @@ Use Memory Router for search and Serena tools for persistence (ADR-037):
 **Before strategic decisions (retrieve context):**
 
 ```bash
-uv run python .claude/skills/memory/scripts/search_memory.py "strategic decisions priorities [domain]"
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "strategic decisions priorities [domain]"
 ```
 
 **After decisions (store learnings):**

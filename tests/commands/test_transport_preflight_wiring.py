@@ -7,6 +7,7 @@ these tests pin the wiring itself (Copilot review on PR #5509).
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -19,6 +20,23 @@ CONFIG = REPO_ROOT / ".claude" / "skills" / "pr-review" / "pr-review-config.yaml
 PROMPT = REPO_ROOT / ".github" / "prompts" / "pr-review.prompt.md"
 COPILOT_AUTOFIX = REPO_ROOT / "src" / "copilot-cli" / "skills" / "pr-autofix" / "SKILL.md"
 COPILOT_REVIEW = REPO_ROOT / "src" / "copilot-cli" / "skills" / "pr-review" / "SKILL.md"
+
+
+def _bash_blocks(body):
+    return re.findall(r"```bash\n(.*?)```", body, re.DOTALL)
+
+
+def _step_0_block(path):
+    body = path.read_text(encoding="utf-8")
+    start = body.index("### Step 0")
+    section = body[start : body.index("### Step 1")]
+    blocks = _bash_blocks(section)
+    assert len(blocks) == 1, f"Step 0 of {path.name} must hold one command block"
+    return blocks[0]
+
+
+def _resolver_defs(block):
+    return block[: block.index("SCRIPTS_DIR=")]
 
 
 class TestAutofixPhaseZero:
@@ -279,79 +297,84 @@ class TestMcpGrantsAreEnumerated:
             f"{path} selects scripts.{harness} but names keys it lacks: {sorted(named - available)}"
         )
 
-    def test_the_preflight_verifies_trust_before_it_dispatches(self):
-        """Ordering is the fix, so ordering is what gets pinned.
+    def test_config_does_not_source_the_verifier_command(self):
+        """The first dispatched command must not come from the PR-controlled file.
 
-        The completion gate's trusted-ref verification covers
-        `completion_criteria`, which runs at the end, while Step 0
-        dispatches `command_key` from the same PR-controlled config at
-        the start. `verify_trust` closes that window, and only if it is
-        declared and documented as running first (issue #5520).
-        """
-        import yaml
-
-        config = yaml.safe_load(
-            (REPO_ROOT / ".claude" / "skills" / "pr-review" / "pr-review-config.yaml").read_text(
-                encoding="utf-8"
-            )
-        )
-        preflight = config["transport_preflight"]
-        assert "verify_trust" in preflight, (
-            "Step 0 dispatches a PR-controlled command with no trust check"
-        )
-        assert "--verify-config-only" in preflight["verify_trust"]
-        assert "run_completion_gate.py" in preflight["verify_trust"], (
-            "trust must come from the existing verifier, not a second one"
-        )
-        exits = {e["exit_code"] for e in preflight["verify_trust_exits"]}
-        assert exits == {0, 2, 3}, f"every documented outcome needs a meaning; got {sorted(exits)}"
-
-    def test_verify_trust_names_the_config_file_it_lives_in(self):
-        """The trust check must verify ITS OWN file, not a path that moved.
-
-        `verify_trust` passes `--config <path>` as a literal, so the file it
-        verifies is whatever that literal names rather than whatever loaded
-        this config. ADR-064 moved the config from `.claude/commands/` into
-        `.claude/skills/pr-review/`; had the literal stayed behind, the
-        preflight would have byte-compared a file that no longer exists,
-        exited 2 on every run, and the fail-closed halt would have read as a
-        config error rather than as a stale path. Worse, had a copy survived
-        at the old location, the check would have verified that copy while the
-        dispatcher loaded this one: fail-closed in name, fail-open in fact.
-
-        Deriving the expected path from CONFIG rather than restating it is
-        what makes this discriminate: the assertion follows the file wherever
-        it moves next, and fails the moment the literal stops following it.
+        A `verify_trust` command string in the config would be the first
+        PR-rewritable command the workflow runs, which is the CWE-829 shape
+        issue #5520 names. The verifier is written literally in the skill, and
+        the config keeps only the table of exit meanings.
         """
         config = yaml.safe_load(CONFIG.read_text(encoding="utf-8"))
-        command = config["transport_preflight"]["verify_trust"]
-        expected = CONFIG.relative_to(REPO_ROOT).as_posix()
+        preflight = config["transport_preflight"]
+        assert "verify_trust" not in preflight, (
+            "the verifier command is read from a PR-controlled file"
+        )
+        exits = {e["exit_code"] for e in preflight["verify_config_only_exits"]}
+        assert exits == {0, 2, 3}, f"every documented outcome needs a meaning; got {sorted(exits)}"
 
-        assert f"--config {expected}" in command, (
-            f"verify_trust passes --config for some other path; it must name "
-            f"{expected}, the file it is declared in. Got: {command}"
+    @pytest.mark.parametrize("path", [REVIEW, COPILOT_REVIEW])
+    def test_skill_step_0_names_the_verifier_literally(self, path):
+        """Step 0 carries the --verify-config-only command, not a config lookup."""
+        block = _step_0_block(path)
+        assert "run_completion_gate.py" in block, (
+            "trust must come from the existing verifier, not a second one"
+        )
+        assert "--verify-config-only" in block
+        assert '--config "$PR_REVIEW_CONFIG"' in block, (
+            "the verified file must be the one the resolver selects for dispatch"
+        )
+        assert "--pull-request {pr}" in block
+
+    @pytest.mark.parametrize("path", [REVIEW, COPILOT_REVIEW])
+    def test_skill_step_0_runs_before_any_config_command(self, path):
+        body = path.read_text(encoding="utf-8")
+        step_0 = body.index("### Step 0")
+        assert step_0 < body.index("--verify-config-only") < body.index("### Step 1")
+        after = body[body.index("--verify-config-only") :]
+        assert after.index("command_key") < after.index("### Step 1"), (
+            "command_key must be named after the verification and before Step 1"
+        )
+        assert "command_key" not in body[step_0 : body.index("--verify-config-only")].replace(
+            "BEFORE `command_key`", ""
+        ).replace("including `command_key`", "").replace("`command_key` included", ""), (
+            "Step 0 names command_key before the verification runs"
         )
 
-    @pytest.mark.parametrize(
-        "path",
-        [
-            ".claude/skills/pr-review/SKILL.md",
-            ".github/prompts/pr-review.prompt.md",
-        ],
-    )
+    @pytest.mark.parametrize("path", [REVIEW, COPILOT_REVIEW])
+    def test_step_0_resolvers_match_the_completion_gate_resolvers(self, path):
+        """Step 0 duplicates the resolvers because shell state does not persist.
+
+        If the copies drift, Step 0 verifies one config and the gate loads
+        another, which is fail-closed in name and fail-open in fact.
+        """
+        body = path.read_text(encoding="utf-8")
+        blocks = [b for b in _bash_blocks(body) if "resolve_pr_review_config() {" in b]
+        assert len(blocks) == 2, f"expected the Step 0 and gate blocks, got {len(blocks)}"
+        assert _resolver_defs(blocks[0]) == _resolver_defs(blocks[1])
+
+    def test_skill_scope_paragraph_is_not_stale(self):
+        """The boundary paragraph must match what Step 0 now does."""
+        body = REVIEW.read_text(encoding="utf-8")
+        assert "this boundary covers `completion_criteria` only" not in body
+        assert "Tracked as #5520" not in body
+        assert "--verify-config-only" in body[body.index("Scope: the dispatcher") :]
+
+    @pytest.mark.parametrize("path", [REVIEW, COPILOT_REVIEW, PROMPT])
     def test_every_consumer_states_the_verification_runs_first(self, path):
         """A config key no consumer reads is not a gate.
 
-        Both surfaces must name `verify_trust` and say it precedes
-        `command_key`; otherwise the check exists in config and nothing
-        invokes it.
+        Every surface must carry the literal verifier, cite why the order
+        matters, and put the verifier ahead of the `command_key` dispatch.
         """
-        text = (REPO_ROOT / path).read_text(encoding="utf-8")
-        assert "verify_trust" in text, f"{path} never mentions the trust check"
+        text = path.read_text(encoding="utf-8")
+        assert "--verify-config-only" in text, f"{path} never runs the trust check"
         assert "5520" in text, f"{path} does not cite why the order matters"
-        assert text.index("verify_trust") < text.index("command_key") or (
-            "BEFORE `command_key`" in text or "before `command_key`" in text
-        ), f"{path} does not state the ordering"
+        assert "verify_trust" not in text, f"{path} still reads the verifier from config"
+        step_1 = text.index("### Step 1")
+        assert text.index("--verify-config-only") < text.rindex("command_key", 0, step_1), (
+            f"{path} does not run the verification before dispatching command_key"
+        )
 
     def test_pr_review_may_run_the_copilot_launcher(self):
         """The Copilot check_transport entry shells pwsh, so the grant must allow it.

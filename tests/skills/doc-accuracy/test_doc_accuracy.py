@@ -34,6 +34,8 @@ check_gate = mod.check_gate
 generate_markdown_report = mod.generate_markdown_report
 main = mod.main
 _should_exclude = mod._should_exclude
+_repo_files = mod._repo_files
+_GIT_EXCLUDE_DIRS = mod._GIT_EXCLUDE_DIRS
 _detect_language = mod._detect_language
 _extract_identifiers = mod._extract_identifiers
 _extract_quantitative_claims = mod._extract_quantitative_claims
@@ -42,7 +44,7 @@ _extract_csharp_symbols = mod._extract_csharp_symbols
 _count_code_blocks = mod._count_code_blocks
 _get_changed_files = mod._get_changed_files
 _git_env = mod._git_env
-_iter_git_files = mod._iter_git_files
+_list_git_files = mod._list_git_files
 _repo_relative = mod._repo_relative
 
 
@@ -78,6 +80,138 @@ class TestShouldExclude:
 
     def test_excludes_doc_accuracy_output(self) -> None:
         assert _should_exclude(Path(".doc-accuracy/report.json"))
+
+
+class TestShouldExcludeGitMode:
+    def test_git_mode_keeps_build_directory(self) -> None:
+        assert not _should_exclude(Path("build/scripts/README.md"), None, _GIT_EXCLUDE_DIRS)
+
+    def test_git_mode_keeps_bin_obj_dist_target(self) -> None:
+        for name in ("bin", "obj", "dist", "target"):
+            assert not _should_exclude(Path(name, "README.md"), None, _GIT_EXCLUDE_DIRS)
+
+    def test_git_mode_still_excludes_git_and_output_dirs(self) -> None:
+        assert _should_exclude(Path(".git/config"), None, _GIT_EXCLUDE_DIRS)
+        assert _should_exclude(Path(".doc-accuracy/report.json"), None, _GIT_EXCLUDE_DIRS)
+
+    def test_default_set_still_excludes_build(self) -> None:
+        assert _should_exclude(Path("build/scripts/README.md"))
+
+
+def _git_repo(path: Path) -> Path:
+    """Create a git repo with a committed .gitignore for build output."""
+    path.mkdir()
+    for args in (
+        ["init", "--initial-branch=main"],
+        ["config", "user.email", "test@example.com"],
+        ["config", "user.name", "Test"],
+    ):
+        subprocess.run(["git", *args], cwd=path, check=True, capture_output=True)
+    (path / ".gitignore").write_text("dist/\nnode_modules/\n")
+    return path
+
+
+def _commit_all(repo: Path, message: str) -> None:
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True, capture_output=True)
+    subprocess.run(["git", "commit", "-m", message], cwd=repo, check=True, capture_output=True)
+
+
+class TestTrackedBuildDirectories:
+    """Issue #6202: tracked files under build/ must be inventoried in git mode."""
+
+    def test_tracked_build_doc_is_inventoried(self, tmp_path: Path) -> None:
+        repo = _git_repo(tmp_path / "repo")
+        (repo / "build" / "scripts" / "perf").mkdir(parents=True)
+        (repo / "build" / "scripts" / "perf" / "README.md").write_text("# Perf\n")
+        _commit_all(repo, "base")
+
+        result = run_assessment(repo)
+
+        doc_paths = [d["path"] for d in result["documentation_files"]]
+        assert "build/scripts/perf/README.md" in doc_paths
+
+    def test_diff_base_inventories_changed_doc_under_build(self, tmp_path: Path) -> None:
+        repo = _git_repo(tmp_path / "repo")
+        (repo / "build" / "scripts" / "perf").mkdir(parents=True)
+        readme = repo / "build" / "scripts" / "perf" / "README.md"
+        readme.write_text("# Perf\n")
+        (repo / "main.py").write_text("def foo():\n    pass\n")
+        _commit_all(repo, "base")
+        readme.write_text("# Perf warmup\n")
+        _commit_all(repo, "change build doc")
+
+        result = run_assessment(repo, diff_base="HEAD~1")
+
+        doc_paths = [d["path"] for d in result["documentation_files"]]
+        assert doc_paths == ["build/scripts/perf/README.md"]
+
+    def test_tracked_build_source_is_indexed(self, tmp_path: Path) -> None:
+        repo = _git_repo(tmp_path / "repo")
+        (repo / "build").mkdir()
+        (repo / "build" / "tool.py").write_text("def BuildTool():\n    pass\n")
+        _commit_all(repo, "base")
+
+        result = run_assessment(repo)
+
+        assert any(s["name"] == "BuildTool" for s in result["source_symbols"])
+
+    def test_gitignored_output_stays_excluded(self, tmp_path: Path) -> None:
+        repo = _git_repo(tmp_path / "repo")
+        (repo / "README.md").write_text("# Root\n")
+        (repo / "dist").mkdir()
+        (repo / "dist" / "OUT.md").write_text("# generated\n")
+        (repo / "node_modules" / "pkg").mkdir(parents=True)
+        (repo / "node_modules" / "pkg" / "README.md").write_text("# dep\n")
+        _commit_all(repo, "base")
+
+        result = run_assessment(repo)
+
+        doc_paths = [d["path"] for d in result["documentation_files"]]
+        assert doc_paths == ["README.md"]
+
+    def test_doc_accuracy_output_dir_stays_excluded_in_git_mode(self, tmp_path: Path) -> None:
+        repo = _git_repo(tmp_path / "repo")
+        (repo / "README.md").write_text("# Root\n")
+        (repo / ".doc-accuracy").mkdir()
+        (repo / ".doc-accuracy" / "report.md").write_text("# report\n")
+
+        result = run_assessment(repo)
+
+        doc_paths = [d["path"] for d in result["documentation_files"]]
+        assert doc_paths == ["README.md"]
+
+    def test_non_git_fallback_still_excludes_build(self, tmp_path: Path) -> None:
+        (tmp_path / ".git").write_text("gitdir: missing\n")
+        (tmp_path / "README.md").write_text("# Root\n")
+        (tmp_path / "build").mkdir()
+        (tmp_path / "build" / "README.md").write_text("# build\n")
+
+        result = run_assessment(tmp_path)
+
+        doc_paths = [d["path"] for d in result["documentation_files"]]
+        assert doc_paths == ["README.md"]
+
+    def test_repo_files_git_mode_lists_build_and_drops_git_dirs(self, tmp_path: Path) -> None:
+        repo = _git_repo(tmp_path / "repo")
+        (repo / "build").mkdir()
+        (repo / "build" / "a.md").write_text("# a\n")
+        (repo / ".doc-accuracy").mkdir()
+        (repo / ".doc-accuracy" / "b.md").write_text("# b\n")
+        _commit_all(repo, "base")
+
+        rel = {p.relative_to(repo).as_posix() for p in _repo_files(repo)}
+
+        assert "build/a.md" in rel
+        assert ".doc-accuracy/b.md" not in rel
+
+    def test_repo_files_require_git_outside_repo_raises(self, tmp_path: Path) -> None:
+        (tmp_path / ".git").write_text("gitdir: missing\n")
+        try:
+            _repo_files(tmp_path, require_git=True)
+        except mod._GitError as exc:
+            assert exc.exit_code == 3
+        else:
+            raise AssertionError("expected _GitError")
 
 
 class TestDetectLanguage:
@@ -865,7 +999,7 @@ class TestGetChangedFiles:
         expected = os.fsdecode(raw_name)
         assert expected in _get_changed_files("HEAD~1", tmp_path)
         tracked = {
-            _repo_relative(path, tmp_path) for path in _iter_git_files(tmp_path, require_git=True)
+            _repo_relative(path, tmp_path) for path in _list_git_files(tmp_path, require_git=True)
         }
         assert expected in tracked
 
@@ -1595,7 +1729,7 @@ class TestGetChangedFiles:
 
         with patch.object(subprocess, "run", side_effect=recording_run):
             _get_changed_files("HEAD", tmp_path)
-            list(_iter_git_files(tmp_path, require_git=True))
+            list(_list_git_files(tmp_path, require_git=True))
 
         assert observed
         for command, timeout, env in observed:

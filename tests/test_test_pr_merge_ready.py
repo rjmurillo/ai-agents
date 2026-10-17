@@ -166,6 +166,8 @@ _OPEN_PR = {
             "isDraft": False,
             "mergeable": "MERGEABLE",
             "mergeStateStatus": "CLEAN",
+            "baseRefName": "main",
+            "baseRepository": {"defaultBranchRef": {"name": "main"}},
             "reviewThreads": {"totalCount": 0, "nodes": []},
             "commits": {
                 "nodes": [
@@ -403,6 +405,16 @@ class TestCheckMergeReadiness:
             "op=merge_ready_failed" in r.message and "reason=pr_not_found" in r.message
             for r in caplog.records
         )
+
+    def test_transport_fault_exits_3(self):
+        """'Could not resolve host' is a network fault, not a missing PR."""
+        with patch(
+            "test_pr_merge_ready.gh_graphql",
+            side_effect=RuntimeError("Could not resolve host: api.github.com"),
+        ):
+            with pytest.raises(SystemExit) as exc:
+                check_merge_readiness("o", "r", 42)
+        assert exc.value.code == 3
 
     def test_graphql_error_exits_3_with_log(self, caplog):
         """A non-'Could not resolve' RuntimeError exits 3 and logs reason=graphql_error."""
@@ -2125,6 +2137,8 @@ class TestClassifyTier:
             "IsDraft": False,
             "State": "OPEN",
             "MergeStateStatus": "CLEAN",
+            "BaseRef": "main",
+            "DefaultBranch": "main",
             "FailedRequiredChecks": [],
             "UndisposedNonRequiredFailures": [],
             "UnresolvedThreads": 0,
@@ -2139,6 +2153,8 @@ class TestClassifyTier:
             "IsDraft": False,
             "State": "OPEN",
             "MergeStateStatus": "UNSTABLE",
+            "BaseRef": "main",
+            "DefaultBranch": "main",
             "FailedRequiredChecks": [],
             "UndisposedNonRequiredFailures": [],
             "UnresolvedThreads": 0,
@@ -2387,6 +2403,8 @@ class TestClassifyTier:
             "IsDraft": False,
             "State": "OPEN",
             "MergeStateStatus": "CLEAN",
+            "BaseRef": "main",
+            "DefaultBranch": "main",
             "FailedRequiredChecks": [],
             "UndisposedNonRequiredFailures": [],
             "UnresolvedThreads": 0,
@@ -2423,6 +2441,7 @@ class TestClassifyTier:
             "DIRTY",
             "SKIP",
             "UNSUPPORTED",
+            "STACKED",
         }
         assert set(_TIER_ORDER) == expected
 

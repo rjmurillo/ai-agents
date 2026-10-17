@@ -1,8 +1,10 @@
 """Base-ref provenance for the committed ADR lifecycle baseline (issue #5270).
 
-A branch that hand-edits ``adr_lifecycle_baseline.json`` to raise a count,
+A branch that hand-edits ``adr_lifecycle_baseline.json`` to add a violation,
 without ever running ``--write-baseline``, must fail a plain run. The ceiling
 is compared with its value at the fork point, not with how it was written.
+The comparison is by record path, so moving a recorded violation to another
+record also fails (issue #5273).
 """
 
 from __future__ import annotations
@@ -23,7 +25,8 @@ _BAD_FRONTMATTER = "---\nid: ADR-002\nstatus: [unclosed\n---\n\n# ADR-002: Bad\n
 _GOOD = (
     "---\nid: ADR-001\nstatus: accepted\ndate: 2026-08-21\nsupersedes: []\n"
     "superseded-by: null\nimplemented: true\n---\n\n# ADR-001: Thing\n\n"
-    "## Status\n\nAccepted (2026-08-21). Conditions were cleared in review.\n"
+    "## Status\n\nAccepted (2026-08-21). Conditions were cleared in review.\n\n"
+    "## Context\n\nWhy.\n\n## Decision\n\nWhat.\n\n## Consequences\n\nSo.\n"
 )
 
 
@@ -31,10 +34,25 @@ def _git(repo: Path, *args: str) -> None:
     subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True, text=True)
 
 
-def _set_baseline(baseline: Path, parse_count: int) -> None:
+_BAD_PATH = ".project-toolkit/architecture/ADR-002-bad.md"
+_GOOD_PATH = ".project-toolkit/architecture/ADR-001-thing.md"
+
+
+def _set_baseline(baseline: Path, parse_count: int, path: str = _BAD_PATH) -> None:
+    """Record ``parse_count`` frontmatter-parses violations against ``path``."""
+    violations: dict[str, dict[str, int]] = {name: {} for name in CHECKS}
+    if parse_count:
+        violations["frontmatter-parses"] = {path: parse_count}
+    baseline.write_text(
+        json.dumps({"schema_version": "2", "violations": violations}), encoding="utf-8"
+    )
+
+
+def _set_legacy_baseline(baseline: Path, parse_count: int) -> None:
+    """The schema 1 shape: one count per check, no record paths."""
     counts = {name: 0 for name in CHECKS}
     counts["frontmatter-parses"] = parse_count
-    baseline.write_text(json.dumps({"counts": counts}), encoding="utf-8")
+    baseline.write_text(json.dumps({"schema_version": "1", "counts": counts}), encoding="utf-8")
 
 
 def _commit(repo: Path, message: str) -> None:
@@ -170,3 +188,91 @@ def test_exported_git_dir_of_another_checkout_does_not_redirect_the_fork_point(
     monkeypatch.setenv("GIT_DIR", str(other / ".git"))
 
     assert _plain_run(repo, baseline) == EXIT_REGRESSION
+
+
+def test_moving_a_recorded_violation_to_another_record_fails(tmp_path, capsys):
+    """Issue #5273: the base ref records ADR-001; the branch fixes it and breaks ADR-002."""
+    adr_dir, baseline = _repo(tmp_path, parse_count=0)
+    (adr_dir / "ADR-001-thing.md").write_text(_BAD_FRONTMATTER.replace("002", "001"), "utf-8")
+    _set_baseline(baseline, 1, _GOOD_PATH)
+    _commit(tmp_path, "base records ADR-001 as the known violation")
+    _git(tmp_path, "checkout", "-q", "-b", "feature")
+    (adr_dir / "ADR-001-thing.md").write_text(_GOOD, encoding="utf-8")
+    (adr_dir / "ADR-002-bad.md").write_text(_BAD_FRONTMATTER, encoding="utf-8")
+    _set_baseline(baseline, 1, _BAD_PATH)
+
+    assert _plain_run(tmp_path, baseline) == EXIT_REGRESSION
+    assert "frontmatter-parses" in capsys.readouterr().err
+
+
+def test_schema_1_baseline_at_zero_on_the_base_ref_is_accepted(tmp_path):
+    """The pull request that introduces schema 2 forks from a schema 1 file."""
+    _, baseline = _repo(tmp_path, parse_count=None)
+    _set_legacy_baseline(baseline, 0)
+    _commit(tmp_path, "base still on schema 1")
+    _git(tmp_path, "checkout", "-q", "-b", "feature")
+    _set_baseline(baseline, 0)
+
+    assert _plain_run(tmp_path, baseline) == EXIT_OK
+
+
+def test_schema_1_baseline_with_debt_on_the_base_ref_is_a_config_error(tmp_path, capsys):
+    """A nonzero count names no records, so it cannot seed an identity comparison."""
+    _, baseline = _repo(tmp_path, parse_count=None)
+    _set_legacy_baseline(baseline, 2)
+    _commit(tmp_path, "base on schema 1 with recorded debt")
+    _git(tmp_path, "checkout", "-q", "-b", "feature")
+    _set_baseline(baseline, 0)
+
+    assert _plain_run(tmp_path, baseline) == EXIT_CONFIG
+    assert "could not read the baseline" in capsys.readouterr().err
+
+
+def _without_check(baseline: Path, name: str) -> None:
+    """Drop ``name`` from a schema 2 baseline, as a base ref predating that check would."""
+    payload = json.loads(baseline.read_text(encoding="utf-8"))
+    del payload["violations"][name]
+    baseline.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def test_a_check_the_base_ref_baseline_lacks_does_not_fail_the_branch_adding_it(tmp_path):
+    adr_dir, baseline = _repo(tmp_path)
+    _without_check(baseline, "cited-paths-exist")
+    _commit(tmp_path, "base baseline predates cited-paths-exist")
+    _git(tmp_path, "checkout", "-q", "-b", "feature")
+    (adr_dir / "ADR-002-stale.md").write_text(
+        _GOOD.replace("ADR-001", "ADR-002").replace(
+            "## Decision\n\nWhat.\n",
+            "## Decision\n\nRun `scripts/gone.py`.\n",
+        ),
+        encoding="utf-8",
+    )
+    _set_baseline(baseline, 0)
+    payload = json.loads(baseline.read_text(encoding="utf-8"))
+    payload["violations"]["cited-paths-exist"] = {
+        ".project-toolkit/architecture/ADR-002-stale.md": 1
+    }
+    baseline.write_text(json.dumps(payload), encoding="utf-8")
+    _commit(tmp_path, "add the check and record its one violation")
+
+    assert _plain_run(tmp_path, baseline) == EXIT_OK
+
+
+def test_a_missing_check_at_the_base_ref_still_guards_the_checks_it_names(tmp_path, capsys):
+    adr_dir, baseline = _repo(tmp_path)
+    _without_check(baseline, "cited-paths-exist")
+    _commit(tmp_path, "base baseline predates cited-paths-exist")
+    _git(tmp_path, "checkout", "-q", "-b", "feature")
+    (adr_dir / "ADR-002-bad.md").write_text(_BAD_FRONTMATTER, encoding="utf-8")
+    _set_baseline(baseline, 1)
+    _commit(tmp_path, "raise an existing check by hand")
+
+    assert _plain_run(tmp_path, baseline) == EXIT_REGRESSION
+    assert "frontmatter-parses" in capsys.readouterr().err
+
+
+def test_a_live_baseline_missing_a_check_is_still_refused(tmp_path):
+    _, baseline = _repo(tmp_path)
+    _without_check(baseline, "cited-paths-exist")
+
+    assert _plain_run(tmp_path, baseline) == EXIT_CONFIG

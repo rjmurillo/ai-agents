@@ -70,8 +70,10 @@ def marker_error(source: str, body: str) -> str | None:
 
 
 # Phrase column of the canonical hedge phrase list, copied verbatim and in order
-# from skills/spec-generator/references/spec-step0-gates.md (the table that ends
-# at the <!-- step0:hedge-table-end --> marker). Match rule, quoted from that
+# from spec-step0-gates.md in the spec-generator skill's references folder (the
+# table that ends at the <!-- step0:hedge-table-end --> marker). The Hermes pack
+# build reads a skill-folder path in any file as a dependency, so this comment
+# names the file without spelling that path. Match rule, quoted from that
 # file: "Case-insensitive word-boundary match: `\bphrase\b`".
 HEDGE_PHRASES = (
     "would be nice",

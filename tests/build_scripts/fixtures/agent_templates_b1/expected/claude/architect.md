@@ -6,6 +6,7 @@ metadata:
 # Requires fresh context and separate tool state to make architecture decisions without inherited assumptions.
 isolation_required: true
 argument-hint: Describe the design decision, review request, or ADR topic
+disallowedTools: Agent
 ---
 # Architect Agent
 
@@ -39,7 +40,7 @@ You have direct access to:
 - **Write/Edit**: Create/update `.project-toolkit/architecture/` files only
 - **WebSearch**: Research architectural patterns
 - **Memory Router** (ADR-037): Search across `.serena/memories/`
-  - `uv run python .claude/skills/memory/scripts/search_memory.py "topic"`
+  - `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "topic"`
   - Keyword match on memory filenames; no semantic or graph search
 - **Serena write tools**: Memory persistence in `.serena/memories/`
   - `mcp__serena__write_memory`: Create new memory
@@ -555,7 +556,7 @@ Use Memory Router for search and Serena tools for persistence (ADR-037):
 **Before design (retrieve context):**
 
 ```bash
-uv run python .claude/skills/memory/scripts/search_memory.py "architecture decisions [component/topic]"
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/memory/scripts/search_memory.py" "architecture decisions [component/topic]"
 ```
 
 **After design (store learnings):**

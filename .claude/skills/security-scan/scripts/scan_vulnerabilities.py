@@ -32,6 +32,7 @@ import os
 import re
 import subprocess
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -53,7 +54,7 @@ try:
         EXIT_VULNERABILITIES,
     )
     from scan_format import format_console_output
-    from scan_patterns import CWE78_PATTERNS
+    from scan_patterns import CWE78_PATTERNS, scrub_bash_line
 finally:
     if _added_to_path:
         sys.path.remove(_SCRIPT_DIR)
@@ -74,6 +75,7 @@ __all__ = [
     "is_line_suppressed",
     "main",
     "scan_file",
+    "scrub_bash_line",
 ]
 
 # Suppression comment pattern
@@ -154,15 +156,23 @@ def _get_shebang_language(file_path: str) -> str | None:
     return None
 
 
+_STAGED_FILES_COMMAND = ("git", "diff", "--staged", "--name-only", "--diff-filter=d")
+
+
 def get_staged_files() -> list[str]:
-    """Get list of staged files from git.
+    """Get list of staged files from git, excluding staged deletions.
+
+    A staged deletion removes the file, so it cannot introduce command
+    injection, and reading the missing path in ``scan_file`` would fail.
+    ``--diff-filter=d`` drops deletions; unreadable surviving files still
+    reach ``scan_file`` and still report an error.
 
     Note: Uses subprocess with fixed arguments (no user input) - safe from injection.
     """
     try:
         # Safe: fixed command with no user input
         result = subprocess.run(
-            ["git", "diff", "--staged", "--name-only"],
+            list(_STAGED_FILES_COMMAND),
             capture_output=True,
             text=True,
             check=True,
@@ -170,7 +180,7 @@ def get_staged_files() -> list[str]:
         return [f for f in result.stdout.strip().split("\n") if f]
     except subprocess.CalledProcessError as exc:
         detail = (exc.stderr or exc.stdout or str(exc)).strip()
-        raise GitEnumerationError(f"git diff --staged --name-only failed: {detail}") from exc
+        raise GitEnumerationError(f"{' '.join(_STAGED_FILES_COMMAND)} failed: {detail}") from exc
     except FileNotFoundError as exc:
         raise GitEnumerationError("git executable not found") from exc
 
@@ -236,7 +246,8 @@ def scan_file(
         if cwe_filter is None or 78 in cwe_filter:
             for pattern_info in cwe78_patterns:
                 pattern = cast(re.Pattern[str], pattern_info["pattern"])
-                if pattern.search(line):
+                scrub = cast(Callable[[str], str] | None, pattern_info.get("scrub"))
+                if pattern.search(scrub(line) if scrub else line):
                     if is_line_suppressed(line, "CWE-78"):
                         suppressed.append(f"CWE-78 suppressed at {file_path}:{line_num}")
                     else:
@@ -470,7 +481,7 @@ def _collect_files_to_scan(args: argparse.Namespace) -> list[str]:
         # --files target that yielded nothing is a mis-specified request, not a
         # clean scan, so it keeps the usage-error exit (EXIT_ERROR).
         if args.git_staged and not args.directory and not args.files:
-            print("No files to scan (nothing staged).")
+            print("No files to scan (nothing staged, or only deletions staged).")
             sys.exit(EXIT_SUCCESS)
         print("No files to scan. Use --git-staged, --directory, or specify files.")
         sys.exit(EXIT_ERROR)

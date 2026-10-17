@@ -437,3 +437,29 @@ class TestCLISearchVerifyRoundTrip:
 
         assert exit_code == 1
         assert "Memory not found: target" in capsys.readouterr().err
+
+
+class TestCLIVerifyAllDocumentedSyntax:
+    """A memory that documents the citation syntax must not assert it."""
+
+    DOC = (
+        "# Doc (2026-01-01)\n\n"
+        "Negative control:\n\n"
+        "```\n[cite:file](does/not/exist.py) - control\n```\n\n"
+        "Inline form: `[cite:file](also/missing.py)`.\n"
+    )
+
+    def _run(self, tmp_path, body, command):
+        mem_dir = tmp_path / "memories"
+        mem_dir.mkdir()
+        (mem_dir / "doc.md").write_text(body)
+        return main(["--repo-root", str(tmp_path), "--memories-dir", str(mem_dir), command])
+
+    @pytest.mark.unit
+    def test_verify_all_exits_zero_for_documented_syntax(self, tmp_path):
+        assert self._run(tmp_path, self.DOC, "verify-all") == 0
+
+    @pytest.mark.unit
+    def test_verify_all_still_fails_for_a_live_broken_citation(self, tmp_path):
+        body = self.DOC + "\n## Citations\n\n[cite:file](missing.py) - live\n"
+        assert self._run(tmp_path, body, "verify-all") == 1

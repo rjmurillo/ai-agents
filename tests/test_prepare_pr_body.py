@@ -160,3 +160,198 @@ def test_rejects_symlinked_parent(tmp_path: Path, symlink_name: str) -> None:
         _MODULE.prepare_pr_body(tmp_path)
 
     assert list(outside.iterdir()) == []
+
+
+_BOTH_RULES = (".project-toolkit/scratch/pr-body-*.md", "mode 600", "--prepare-body-file")
+
+
+def _assert_names_every_rule(message: str) -> None:
+    for fragment in _BOTH_RULES:
+        assert fragment in message
+
+
+@pytest.mark.parametrize("operation", ["read", "write"])
+@pytest.mark.parametrize(
+    "bad_path",
+    [
+        "pr-5534.md",
+        ".agents/scratch/pr-body-abc.md",
+        ".project-toolkit/scratch/pr-5534.md",
+        ".project-toolkit/scratch/nested/pr-body-abc.md",
+        "/tmp/pr-body-abc.md",
+    ],
+)
+def test_wrong_body_name_states_name_and_mode_rules(
+    tmp_path: Path, operation: str, bad_path: str
+) -> None:
+    with pytest.raises(_MODULE.PreparePrBodyError) as caught:
+        if operation == "read":
+            _MODULE.read_prepared_pr_body(tmp_path, bad_path)
+        else:
+            _MODULE.write_prepared_pr_body(tmp_path, bad_path, "body")
+
+    _assert_names_every_rule(str(caught.value))
+
+
+@pytest.mark.parametrize("operation", ["read", "write"])
+@pytest.mark.parametrize("mode", [0o644, 0o640, 0o604, 0o666])
+def test_wrong_body_mode_states_name_and_mode_rules(
+    tmp_path: Path, operation: str, mode: int
+) -> None:
+    body = _MODULE.prepare_pr_body(tmp_path)
+    (tmp_path / body).write_text("## Summary\n", encoding="utf-8")
+    (tmp_path / body).chmod(mode)
+
+    with pytest.raises(_MODULE.PreparePrBodyError) as caught:
+        if operation == "read":
+            _MODULE.read_prepared_pr_body(tmp_path, body.as_posix())
+        else:
+            _MODULE.write_prepared_pr_body(tmp_path, body.as_posix(), "body")
+
+    message = str(caught.value)
+    _assert_names_every_rule(message)
+    assert body.as_posix() in message
+
+
+@pytest.mark.parametrize("mode", [0o600, 0o400, 0o700])
+def test_owner_only_body_is_not_rejected_for_mode(tmp_path: Path, mode: int) -> None:
+    body = _MODULE.prepare_pr_body(tmp_path)
+    (tmp_path / body).write_text("## Summary\n", encoding="utf-8")
+    (tmp_path / body).chmod(mode)
+
+    assert _MODULE.read_prepared_pr_body(tmp_path, body.as_posix()) == "## Summary\n"
+
+
+def _write_template(root: Path, text: str) -> None:
+    template = root / ".github" / "PULL_REQUEST_TEMPLATE.md"
+    template.parent.mkdir(parents=True, exist_ok=True)
+    template.write_text(text, encoding="utf-8")
+
+
+def test_seeds_placeholder_then_repository_template(tmp_path: Path) -> None:
+    _write_template(tmp_path, "## Summary\n\n## Acceptance criteria\n")
+
+    body = _MODULE.prepare_pr_body(tmp_path)
+
+    assert (tmp_path / body).read_text(encoding="utf-8") == (
+        "<!-- replace with PR body -->\n\n## Summary\n\n## Acceptance criteria\n"
+    )
+
+
+def test_seed_is_placeholder_only_without_a_template(tmp_path: Path) -> None:
+    body = _MODULE.prepare_pr_body(tmp_path)
+
+    assert (tmp_path / body).read_text(encoding="utf-8") == "<!-- replace with PR body -->\n"
+
+
+def test_seed_ignores_a_symlinked_template(tmp_path: Path) -> None:
+    secret = tmp_path / "secret.txt"
+    secret.write_text("do not copy", encoding="utf-8")
+    template = tmp_path / ".github" / "PULL_REQUEST_TEMPLATE.md"
+    template.parent.mkdir()
+    template.symlink_to(secret)
+
+    body = _MODULE.prepare_pr_body(tmp_path)
+
+    assert (tmp_path / body).read_text(encoding="utf-8") == "<!-- replace with PR body -->\n"
+
+
+def test_seed_ignores_a_template_that_is_not_utf8(tmp_path: Path) -> None:
+    template = tmp_path / ".github" / "PULL_REQUEST_TEMPLATE.md"
+    template.parent.mkdir()
+    template.write_bytes(b"\xff\xfe\x00bad")
+
+    body = _MODULE.prepare_pr_body(tmp_path)
+
+    assert (tmp_path / body).read_text(encoding="utf-8") == "<!-- replace with PR body -->\n"
+
+
+_PLACEHOLDER_ONLY = "<!-- replace with PR body -->\n"
+
+
+def test_seed_ignores_a_symlinked_github_directory(tmp_path: Path) -> None:
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "PULL_REQUEST_TEMPLATE.md").write_text("outside secret", encoding="utf-8")
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".github").symlink_to(outside, target_is_directory=True)
+
+    body = _MODULE.prepare_pr_body(repo)
+
+    assert (repo / body).read_text(encoding="utf-8") == _PLACEHOLDER_ONLY
+
+
+def test_seed_ignores_a_hardlinked_template(tmp_path: Path) -> None:
+    _write_template(tmp_path, "## Summary\n")
+    template = tmp_path / ".github" / "PULL_REQUEST_TEMPLATE.md"
+    (tmp_path / "second-link.md").hardlink_to(template)
+
+    body = _MODULE.prepare_pr_body(tmp_path)
+
+    assert (tmp_path / body).read_text(encoding="utf-8") == _PLACEHOLDER_ONLY
+
+
+def test_seed_ignores_an_oversize_template(tmp_path: Path) -> None:
+    _write_template(tmp_path, "x" * (64 * 1024 + 1))
+
+    body = _MODULE.prepare_pr_body(tmp_path)
+
+    assert (tmp_path / body).read_text(encoding="utf-8") == _PLACEHOLDER_ONLY
+
+
+def test_seed_accepts_a_template_at_the_size_cap(tmp_path: Path) -> None:
+    text = "x" * (64 * 1024)
+    _write_template(tmp_path, text)
+
+    body = _MODULE.prepare_pr_body(tmp_path)
+
+    assert (tmp_path / body).read_text(encoding="utf-8") == _PLACEHOLDER_ONLY + "\n" + text
+
+
+def test_seed_ignores_a_template_that_is_a_directory(tmp_path: Path) -> None:
+    (tmp_path / ".github" / "PULL_REQUEST_TEMPLATE.md").mkdir(parents=True)
+
+    body = _MODULE.prepare_pr_body(tmp_path)
+
+    assert (tmp_path / body).read_text(encoding="utf-8") == _PLACEHOLDER_ONLY
+
+
+def test_seed_ignores_a_template_owned_by_another_user(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_template(tmp_path, "## Summary\n")
+    real_uid = _MODULE.os.getuid()
+    monkeypatch.setattr(_MODULE.os, "getuid", lambda: real_uid + 1)
+
+    seed = _MODULE._seed_content(tmp_path.resolve())
+
+    assert seed == _PLACEHOLDER_ONLY
+
+
+def test_seed_is_placeholder_only_without_directory_descriptors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_template(tmp_path, "## Summary\n")
+    monkeypatch.setattr(_MODULE, "_HAS_DIRECTORY_FDS", False)
+
+    assert _MODULE._seed_content(tmp_path.resolve()) == _PLACEHOLDER_ONLY
+
+
+def test_rejects_seeded_body_that_keeps_the_placeholder_line(tmp_path: Path) -> None:
+    _write_template(tmp_path, "## Summary\n\nfilled in\n")
+    body = _MODULE.prepare_pr_body(tmp_path)
+
+    with pytest.raises(_MODULE.PreparePrBodyError, match="placeholder"):
+        _MODULE.read_prepared_pr_body(tmp_path, body.as_posix())
+
+
+def test_reads_seeded_body_once_the_placeholder_line_is_removed(tmp_path: Path) -> None:
+    _write_template(tmp_path, "## Summary\n\nfilled in\n")
+    body = _MODULE.prepare_pr_body(tmp_path)
+    seeded = (tmp_path / body).read_text(encoding="utf-8")
+    (tmp_path / body).write_text(
+        seeded.replace("<!-- replace with PR body -->\n\n", ""), encoding="utf-8"
+    )
+
+    assert _MODULE.read_prepared_pr_body(tmp_path, body.as_posix()) == "## Summary\n\nfilled in\n"

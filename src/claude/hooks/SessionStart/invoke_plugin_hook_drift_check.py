@@ -369,7 +369,7 @@ def check_installed_plugins(project_dir: Path, home: Path) -> ScanOutcome:
     outcome = ScanOutcome()
     for surface in plugin_surfaces(home):
         source_root = project_dir / surface.source_rel
-        plugin_name, _ = read_plugin_identity(source_root)
+        plugin_name, _ = read_plugin_identity(source_root, trust_twin=True)
         if plugin_name is None:
             outcome.notes.append(
                 f"{surface.label}: no readable plugin manifest at {_opaque_path(source_root)}"

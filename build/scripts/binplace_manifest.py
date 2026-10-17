@@ -10,37 +10,12 @@ Per ``.project-toolkit/specs/design/DESIGN-025-template-first-compiler-and-binpl
 data, not code: one YAML file, ``templates/platforms/binplace.yaml``, read
 by this module and by ``build/scripts/build_all.py``'s ``_binplace`` step.
 
-Schema, quoted verbatim from DESIGN-025 (the two rows B1 ships; later
-records add more):
-
-    ```yaml
-    rows:
-      - class: agents
-        source: templates/agents
-        # .claude.md.tmpl / .copilot.md.tmpl pairs, per agent_templates.py
-        plugin_tree: src/claude/agents
-        install_tree: .claude/agents
-      - class: skills
-        source: templates/skills        # existing ADR-108 tree, unchanged by this row's addition
-        plugin_tree: null
-        # B1: no plugin-tree hop yet; B3 repoints this to src/claude/skills
-        install_tree: .claude/skills
-        compile: skill_templates
-        # delegates to skill_templates.owned_targets, not a class-wide prefix
-    ```
-
-    B3 (this record) repoints the ``skills`` row's ``plugin_tree`` to
-    ``src/claude/skills``, exactly as the comment above anticipated;
-    :func:`binplace` now copies that tree onto ``.claude/skills`` for
-    ``skills`` the same way it already does for ``rules``. The row still
-    keeps ``compile: skill_templates`` and delegates to
-    :func:`skill_templates.owned_targets` in :func:`claude_allowlist` rather
-    than switching to the generic plugin-tree-walk path: that function now
-    returns both halves (plugin and install) per discovered skill, so the
-    delegate and the generic path agree on the install-tree set.
-
-    "A row with ``plugin_tree: null`` skips the plugin-tree render hop and
-    copies straight from ``source`` to ``install_tree``."
+The schema lives in ``templates/platforms/binplace.yaml`` (the data) and in the
+DESIGN-025 section named above (the rationale). This docstring does not copy
+either. :class:`Row` is the loader's view of one row. The upstream test
+``test_live_manifest_conformance_to_row_schema`` loads the real manifest and
+fails when a row carries a key :class:`Row` does not model, or when the loader
+stops accepting the live rows.
 
 Public API:
     ``load(repo_root) -> list[Row]``
@@ -57,9 +32,10 @@ Public API:
         The write allowlist ``build_all.assert_no_claude_writes`` accepts,
         computed by unioning every ``.claude/``-rooted row's owned paths
         (DESIGN-025, "How ``assert_no_claude_writes`` derives its
-        allowlist"). The ``skills`` row still delegates to
-        ``skill_templates.owned_targets`` rather than walking a plugin tree,
-        because that row's ``plugin_tree`` stays ``null`` until B3.
+        allowlist"). The ``skills`` row delegates to
+        ``skill_templates.owned_targets`` rather than walking its plugin
+        tree, because that function returns both halves (plugin and install)
+        per discovered skill.
     ``binplace(repo_root, *, check) -> BinplaceResult``
         For every row with a non-``null`` ``plugin_tree``: copies each file
         under it to the same relative path under ``install_tree``,
@@ -128,10 +104,10 @@ class BinplaceConfigError(Exception):
 class Row:
     """One binplace manifest row: source, optional plugin-tree hop, install target.
 
-    ``install_tree`` is ``None`` only for a Copilot-side lib row (ADR-109 B5,
-    ``lib-*-copilot`` / ``lib-bootstrap-copilot``): its ``plugin_tree`` under
-    ``src/copilot-cli/lib/`` IS the final output, with no further hop, since
-    ``.claude/`` never mirrors the Copilot tree. :func:`binplace` and
+    ``install_tree`` is ``None`` only for a Copilot-side or Codex-side lib row
+    (ADR-109 B5, ``lib-*-copilot`` / ``lib-*-codex``): its ``plugin_tree`` under
+    ``src/copilot-cli/lib/`` or ``src/codex/lib/`` IS the final output, with no
+    further hop, since ``.claude/`` never mirrors those trees. :func:`binplace` and
     :func:`claude_allowlist` both skip such a row's install side entirely.
     """
 
@@ -357,6 +333,13 @@ def _is_claude_rooted(install_tree: Path | None, repo_root: Path) -> bool:
 def is_bytecode_artifact(path: Path) -> bool:
     """Return True for paths CPython writes as import side effects.
 
+    ``path`` MUST be relative to the tree being walked (the plugin tree,
+    install tree, or repo root), never absolute. The match reads every path
+    component, so an absolute path whose ancestor happens to be named
+    ``__pycache__`` (a checkout under such a directory) would match every
+    file beneath it and silently skip real sources. An absolute ``path``
+    raises ``ValueError`` instead of guessing; callers relativize first.
+
     Any file under a ``__pycache__`` directory matches, whatever its
     extension, plus any ``.pyc`` or ``.pyo`` anywhere. Coverage and mypy
     also write into ``__pycache__``, so do not narrow this to bytecode
@@ -365,6 +348,8 @@ def is_bytecode_artifact(path: Path) -> bool:
     skill script imports a lib plugin tree and writes these caches there;
     binplace must neither copy them nor report them as drift.
     """
+    if path.is_absolute():
+        raise ValueError(f"is_bytecode_artifact needs a root-relative path, got {path}")
     return "__pycache__" in path.parts or path.suffix in (".pyc", ".pyo")
 
 
@@ -385,9 +370,9 @@ def _plugin_tree_install_paths(plugin_tree: Path, install_tree: Path) -> set[Pat
         return set()
     paths: set[Path] = set()
     for src_path in plugin_tree.rglob("*"):
-        if src_path.is_dir() or is_bytecode_artifact(src_path):
-            continue
         rel = src_path.relative_to(plugin_tree)
+        if src_path.is_dir() or is_bytecode_artifact(rel):
+            continue
         paths.add(install_tree / rel)
     return paths
 
@@ -461,9 +446,9 @@ def _binplace_one_row(
         return
     owned_relatives: set[Path] = set()
     for src_path in sorted(plugin_tree.rglob("*")):
-        if src_path.is_dir() or is_bytecode_artifact(src_path):
-            continue
         rel = src_path.relative_to(plugin_tree)
+        if src_path.is_dir() or is_bytecode_artifact(rel):
+            continue
         if rel.parts[0] in skip_top_dirs:
             continue
         owned_relatives.add(rel)
@@ -472,9 +457,9 @@ def _binplace_one_row(
     if not install_tree.is_dir():
         return
     for existing in sorted(install_tree.rglob("*")):
-        if existing.is_dir() or is_bytecode_artifact(existing):
-            continue
         rel = existing.relative_to(install_tree)
+        if existing.is_dir() or is_bytecode_artifact(rel):
+            continue
         if rel.parts[0] in skip_top_dirs:
             continue
         if rel not in owned_relatives:

@@ -191,7 +191,9 @@ class TestMain:
             ),
             patch(
                 "subprocess.run",
-                return_value=_completed(rc=1, stderr="Could not resolve"),
+                return_value=_completed(
+                    rc=1, stderr="Could not resolve to a PullRequest with the number of 999."
+                ),
             ),
         ):
             rc = main(["--pull-request", "999"])
@@ -200,6 +202,24 @@ class TestMain:
         _assert_envelope_shape(envelope, success=False)
         assert envelope["Error"]["Code"] == 2
         assert envelope["Error"]["Type"] == "NotFound"
+
+    def test_transport_fault_returns_3(self, capsys):
+        """'Could not resolve host' is a network fault, not a missing PR."""
+        with (
+            patch("get_pr_review_threads.assert_gh_authenticated"),
+            patch(
+                "get_pr_review_threads.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "subprocess.run",
+                return_value=_completed(rc=1, stderr="Could not resolve host: api.github.com"),
+            ),
+        ):
+            rc = main(["--pull-request", "999"])
+        assert rc == 3
+        envelope = _parse_envelope(capsys.readouterr().out)
+        assert envelope["Error"]["Type"] == "ApiError"
 
     def test_success_all_threads(self, capsys):
         threads = [_thread("PRRT_1", resolved=False), _thread("PRRT_2", resolved=True)]

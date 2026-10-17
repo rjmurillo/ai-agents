@@ -316,3 +316,10 @@ ADR-088 moved the book-derived rule cited above into the `software-engineering-l
 
 - Current guidance now lives at `.claude/skills/software-engineering-library/references/philosophy-of-software-design.md`.
 
+
+---
+
+**Amended by**:
+
+- 2026-07-28: [ADR-089: Remove the Tier 3 Causal Memory Graph](./ADR-089-remove-causal-memory-tier.md) removes the causal memory tier this record describes. Amended by reference; the body is preserved (PR #3643).
+- 2026-09-09: [ADR-106: Serena-Only Memory Architecture](./ADR-106-serena-only-memory-architecture.md) retires the forgetful backend and its router that this record names. The decision here survives intact. Amended by reference; the body is preserved (PR #5656).

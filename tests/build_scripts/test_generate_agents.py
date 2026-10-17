@@ -62,6 +62,55 @@ def test_generate_writes_three_outputs_per_agent(staging: Path) -> None:
         assert (staging / "src" / "vs-code-agents" / f"{agent}.agent.md").is_file()
 
 
+def test_codex_platform_ships_no_agents(staging: Path) -> None:
+    """ADR-115 Decision 7: a platform with no agents output is skipped, not an error."""
+    assert (staging / "templates" / "platforms" / "codex.yaml").is_file()
+
+    rc = generate_agents.generate_agents(
+        templates_path=staging / "templates",
+        output_root=staging / "src",
+        repo_root=staging,
+    )
+
+    assert rc == 0
+    assert not (staging / "src" / "codex").exists()
+
+
+def test_platform_with_an_unlisted_agents_output_still_fails(
+    staging: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The skip is for no declaration at all; a bad declaration stays an error."""
+    (staging / "templates" / "platforms" / "codex.yaml").write_text(
+        'schemaVersion: "1.0"\nprovider: "codex"\nlegacy:\n  outputDir: "src/codex/agents"\n',
+        encoding="utf-8",
+    )
+
+    rc = generate_agents.generate_agents(
+        templates_path=staging / "templates",
+        output_root=staging / "src",
+        repo_root=staging,
+    )
+
+    assert rc != 0
+    assert "not allowlisted: src/codex/agents" in capsys.readouterr().err
+
+
+def test_platform_with_no_artifacts_mapping_is_not_skipped(staging: Path) -> None:
+    """Only an explicit artifacts mapping without agents is skipped; a bare config is not."""
+    (staging / "templates" / "platforms" / "codex.yaml").write_text(
+        'schemaVersion: "1.0"\nprovider: "codex"\n',
+        encoding="utf-8",
+    )
+
+    rc = generate_agents.generate_agents(
+        templates_path=staging / "templates",
+        output_root=staging / "src",
+        repo_root=staging,
+    )
+
+    assert rc != 0
+
+
 def test_copilot_cli_emits_path_style_tools(staging: Path) -> None:
     """Copilot CLI uses `$toolset:editor` expanded to `path/*` patterns."""
     rc = generate_agents.generate_agents(
@@ -77,7 +126,7 @@ def test_copilot_cli_emits_path_style_tools(staging: Path) -> None:
 
 
 def test_visual_studio_inherits_vscode_toolsfrom(staging: Path) -> None:
-    """visual-studio.yaml has `toolsFrom: vscode` — the toolset expansion
+    """visual-studio.yaml has `toolsFrom: vscode`, so the toolset expansion
     must use vscode tools, NOT visual-studio (which has no entries)."""
     rc = generate_agents.generate_agents(
         templates_path=staging / "templates",
@@ -109,7 +158,7 @@ def test_handoff_syntax_differs_per_platform(staging: Path) -> None:
     vs = vs_path.read_text(encoding="utf-8")
     # The handoff transform fires on `Task(subagent_type="...")` patterns.
     # We assert that the two outputs differ AT LEAST in their handoff
-    # representation — they share most of the body otherwise.
+    # representation: they share most of the body otherwise.
     assert cc != vs
 
 

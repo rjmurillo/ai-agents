@@ -13,6 +13,7 @@ import pytest
 import yaml
 
 from scripts.validation import lefthook_runner as runner
+from tests.support.lefthook_binary import resolve_lefthook
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 POSIX_ONLY = pytest.mark.skipif(sys.platform == "win32", reason="POSIX sh shim")
@@ -138,8 +139,8 @@ def test_main_fails_with_diagnosis_when_binary_cannot_start(
 
 
 def test_diagnosis_has_no_dashes() -> None:
-    assert "–" not in runner.DIAGNOSIS
-    assert "—" not in runner.DIAGNOSIS
+    assert "\u2013" not in runner.DIAGNOSIS
+    assert "\u2014" not in runner.DIAGNOSIS
 
 
 def test_configured_runner_points_at_this_script() -> None:
@@ -150,7 +151,7 @@ def test_configured_runner_points_at_this_script() -> None:
 
 # --- behavior through a real generated shim -------------------------------
 
-_LEFTHOOK = shutil.which("lefthook")
+_LEFTHOOK = resolve_lefthook()
 
 
 def _write_exe(path: Path, body: str) -> None:
