@@ -40,7 +40,7 @@ check` validates it; Phase 4 passes each item to `skillforge`.
 |---|---|
 | `lens` | One of `change-control`, `debugging-playbook`, `failure-archaeology`, `architecture-contract`, `domain-reference`, `config-and-flags`, `build-and-env`, `run-and-operate`, `diagnostics-and-tooling`, `validation-and-qa`, `docs-and-writing`, `external-positioning`, `hardest-problem-campaign`, `proof-and-analysis-toolkit`, `research-frontier`, `research-methodology`, or `other:<name>` |
 | `evidence` | Non-empty list of source references: commit, PR thread, issue, file, decision record |
-| `computable` | `true` when a program can answer the claim from repository state |
+| `computable` | Required boolean on every item. `true` when a program can answer the claim from repository state; a missing or non-boolean value is a violation |
 | `form` | `scaffold`, `instrument`, or `both`. `computable: true` forbids `scaffold` |
 | `script` | Required for `instrument` and `both`: a path in the skill's scripts directory |
 | `why` | Required for `scaffold`: why no program can carry it |
@@ -108,6 +108,10 @@ a draft that asks the model to count, look up, compare, or list what a
 script could. Scripts follow the project's language and exit-code
 conventions, print the examined count, and stay read-only unless the skill's
 outcome is a write.
+
+The rejected alternative is "add a script only for repeated deterministic
+work". It was dropped because a claim computed once is still a claim the model
+can miscompute, and the repeat count is unknowable before the skill ships.
 
 Use a
 Mermaid diagram when the branching is easier to read as a graph. Keep each
@@ -189,7 +193,8 @@ frozen cases. Build it in every run.
    A case with no deterministic gold is not a case; record it under Limits.
 3. **Freeze** with `bootstrap_eval.py freeze` before you run anything. The
    hash makes a later edit to a case visible.
-4. **Run** each case at least twice per condition, in fresh agent contexts
+4. **Run** each case at least twice per condition (protocol advice; `score`
+   does not enforce it), in fresh agent contexts
    that differ only in whether the skill is installed. Use the smaller
    model the library targets. Write one JSON line per run:
    `{"case_id", "condition": "baseline" | "with_skill", "output"}`.
@@ -243,7 +248,7 @@ The order is fixed. Each stage reads the previous stage's output.
    a separate agent context that receives only the artifacts and the
    requirements, never the author's reasoning.
    - Factual: run `bootstrap_mine.py claims` and `bootstrap_drift.py check`
-     first, then check what the scripts cannot: provider semantics, and
+     (without `--allow-commands` unless the user approved the argv list) first, then check what the scripts cannot: provider semantics, and
      whether each claim is true, not only whether its path exists.
    - Doctrine: the repository's instruction files, rules, and authority
      limits.

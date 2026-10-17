@@ -107,7 +107,7 @@ PowerShell, see [Scripts](#scripts).
    python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_boundary.py" snapshot --repo . --output-root <output-root> --out "<snapshot path>"
    ```
 
-**Authority.** Write only inside `<output-root>` and the paths the user authorized in step 3. The snapshot, plan, eval cases, and eval results are the only writes outside the repository. Run no mutating git command, deployment, publication, tracker mutation, or platform-setting change. Evaluation grants no extra write authority. Modify an existing skill only when it is inside the boundary and passed with `--update`; otherwise compose it or report the proposed change.
+**Authority.** Write only inside `<output-root>` and the paths the user authorized in step 3. The snapshot, plan, `bootstrap_mine.py --out` file, frozen eval cases file, eval cases, and eval results are the only writes outside the repository. Run no mutating git command, deployment, publication, tracker mutation, or platform-setting change. Evaluation grants no extra write authority. Modify an existing skill only when it is inside the boundary and passed with `--update`; otherwise compose it or report the proposed change.
 
 ### Phase 2: Mine candidates, then discover
 
@@ -117,7 +117,7 @@ PowerShell, see [Scripts](#scripts).
    python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_mine.py" candidates --repo . --top 10 --exclude <generated-prefix>
    ```
 
-2. Follow [references/discovery.md](references/discovery.md) from the mined cases: repository and discourse, the 16 discovery lenses, workflow gaps, and session and memory sources. When an outcome touches PRs, pipelines, trackers, or releases, also follow [references/hosted-platforms.md](references/hosted-platforms.md). Finish discovery before any authoring.
+2. Follow [references/discovery.md](references/discovery.md) from the mined cases: repository and discourse, the 16 discovery lenses, workflow gaps, and session and memory sources. When an outcome touches PRs, pipelines, trackers, or releases, also follow [references/hosted-platforms.md](references/hosted-platforms.md). Finish discovery before any authoring. In `knowledge` mode, freeze the baseline cases with `bootstrap_eval.py freeze` before the baseline run, so the hash covers them before any result exists.
 
 ### Phase 3: Select skills and sort by tool form
 
@@ -153,7 +153,7 @@ Pass each skill this run wrote or updated with `--authored`, so its uncommitted 
 ### Phase 5: context-optimizer, capability eval, then skillopt
 
 1. Run `context-optimizer` on each authored skill and its composition. If it is unavailable, report `context-optimizer: UNAVAILABLE` and `skillopt: NOT RUN`.
-2. Build and run the capability eval, per [references/authoring-and-gates.md](references/authoring-and-gates.md#capability-eval). Freeze cases before scoring. Run each case without the skill (`baseline`) and with it (`with_skill`), then score:
+2. Build and run the capability eval, per [references/authoring-and-gates.md](references/authoring-and-gates.md#capability-eval). Score against the same frozen file that was frozen before the knowledge-mode baseline run (for any other mode, freeze before the first run). Run each case without the skill (`baseline`) and with it (`with_skill`), then score:
 
    ```bash
    python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_eval.py" freeze --cases "<cases path>" --out "<frozen path>"
@@ -174,6 +174,8 @@ Pass each skill this run wrote or updated with `--authored`, so its uncommitted 
    python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_boundary.py" verify --repo . --snapshot "<snapshot path>" --output-root <output-root> --name <new-skill>
    ```
 
+   Run the drift check without `--allow-commands` unless the user approved the argv list of each `command` check; a skill whose checks were all skipped reports `skipped`, which proves nothing.
+
    Add `--update <skill>` for each authorized improvement and `--also-allow <path>` for each path the user authorized in Phase 1. A file grant covers that exact path; end a directory grant with `/`.
 4. Deliver the report defined in [references/authoring-and-gates.md](references/authoring-and-gates.md#bootstrap-report).
 
@@ -189,7 +191,7 @@ Exit code 1 lists `update_candidates` and gives `update_args` as a JSON list of 
 
 ## Scripts
 
-Every script uses only the Python standard library, prints JSON with an `examined` count, writes nothing inside the repository, and runs on Linux, macOS, and Windows. Exit code 0 means success. Exit code 1 means findings that need action. Exit code 2 is a configuration error. Exit code 3, used by `bootstrap_mine.py` and `bootstrap_boundary.py` only, means git is missing or failed, or a file could not be read. `bootstrap_eval.py` reports a git or read failure as exit 2, and `bootstrap_drift.py` marks an unreadable `reverify.json` as `malformed` (exit 1).
+Every script uses only the Python standard library, prints JSON with an `examined` count, writes nothing inside the repository unless `--allow-in-repo` is passed, and runs on Linux, macOS, and Windows. Exit code 0 means success. Exit code 1 means findings that need action. Exit code 2 is a configuration error. Exit code 3, used by `bootstrap_mine.py` and `bootstrap_boundary.py` only, means git is missing or failed, or a file could not be read. `bootstrap_eval.py` reports a git or read failure as exit 2, and `bootstrap_drift.py` marks an unreadable `reverify.json` as `malformed` (exit 1).
 
 | Script and subcommand | Phase | Computes |
 |---|---|---|
@@ -210,6 +212,11 @@ On Windows PowerShell 7, set the plugin root once, then run the same subcommands
 $root = @($env:COPILOT_PLUGIN_ROOT, $env:CLAUDE_PLUGIN_ROOT, '.claude') | Where-Object { $_ } | Select-Object -First 1
 python "$root/skills/skill-bootstrap/scripts/bootstrap_boundary.py" snapshot --repo . --output-root <output-root> --out "<snapshot path>"
 ```
+
+## Limits
+
+- The instrument-first rule has not yet shown a capability gain. Run `20261017T164000Z-2e1e279c` found no F1 change on T1 to T4 at 1.4x to 2.5x cost per run ([report](evals/skill-bootstrap-capability/reports/20261017T164000Z-2e1e279c/REPORT.md)). Untested hypotheses: reproducibility across runs, and repositories where ad hoc scripts are hard to write.
+- Per-case `gain` and `regression` have no noise floor. Run each case at least twice and treat a single-run flip with suspicion.
 
 ## Anti-Patterns
 
