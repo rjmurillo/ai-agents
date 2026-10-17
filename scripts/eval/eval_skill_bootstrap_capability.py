@@ -412,22 +412,8 @@ def _confound_error(records: list[dict[str, Any]]) -> str | None:
     return None
 
 
-def cmd_score(args: argparse.Namespace) -> int:
-    tasks = {t["id"]: t for t in load_tasks(Path(args.tasks))["tasks"]}
-    records: list[dict[str, Any]] = []
-    for path in args.runs:
-        try:
-            records.extend(load_records(path, set(tasks)))
-        except (OSError, ValueError) as exc:
-            print(f"ERROR: cannot read {path}: {exc}", file=sys.stderr)
-            return 2
-    if error := _matrix_error(records, tasks):
-        print(f"ERROR: {error}", file=sys.stderr)
-        return 2
-    # Re-grade stored answers so a gold correction applies to every condition alike.
-    for rec in records:
-        answer = rec["answer"] if isinstance(rec["answer"], dict) else None
-        rec["score"] = grade(tasks[rec["task"]], answer)
+def _summarize(records: list[dict[str, Any]]) -> dict[str, Any]:
+    """Group records by task and condition, and aggregate the graded ones."""
     report: dict[str, Any] = {}
     for rec in records:
         cell = report.setdefault(rec["task"], {}).setdefault(rec["condition"], [])
@@ -448,6 +434,10 @@ def cmd_score(args: argparse.Namespace) -> int:
                 "cost_usd": _mean([r["cost_usd"] for r in graded if r["cost_usd"] is not None]),
                 "wall_s": _mean([r["wall_s"] for r in graded]),
             }
+    return summary
+
+
+def _warn_on_errors(summary: dict[str, Any]) -> None:
     for task, conditions in summary.items():
         for condition, cell in conditions.items():
             if cell["errors"] > 0:
@@ -456,6 +446,26 @@ def cmd_score(args: argparse.Namespace) -> int:
                     "runs with CLI errors, excluded from the means",
                     file=sys.stderr,
                 )
+
+
+def cmd_score(args: argparse.Namespace) -> int:
+    tasks = {t["id"]: t for t in load_tasks(Path(args.tasks))["tasks"]}
+    records: list[dict[str, Any]] = []
+    for path in args.runs:
+        try:
+            records.extend(load_records(path, set(tasks)))
+        except (OSError, ValueError) as exc:
+            print(f"ERROR: cannot read {path}: {exc}", file=sys.stderr)
+            return 2
+    if error := _matrix_error(records, tasks):
+        print(f"ERROR: {error}", file=sys.stderr)
+        return 2
+    # Re-grade stored answers so a gold correction applies to every condition alike.
+    for rec in records:
+        answer = rec["answer"] if isinstance(rec["answer"], dict) else None
+        rec["score"] = grade(tasks[rec["task"]], answer)
+    summary = _summarize(records)
+    _warn_on_errors(summary)
     text = json.dumps(summary, indent=2)
     if args.out:
         Path(args.out).write_text(text + "\n", encoding="utf-8")

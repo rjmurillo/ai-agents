@@ -177,20 +177,34 @@ def _has_nested_quantifier(pattern: str) -> bool:
                 return True
             stack.append(False)
             alternates.append(False)
-        elif char == "|":
-            alternates[-1] = True
         elif char == ")" and len(stack) > 1:
-            inner = stack.pop()
-            has_alternation = alternates.pop()
-            quantified = pattern[index + 1 : index + 2] in ("*", "+", "?", "{")
-            if (inner or has_alternation) and quantified:
+            if _close_group(pattern, index, stack, alternates):
                 return True
-            stack[-1] = stack[-1] or inner or quantified
-        elif char in "*+{":
-            stack[-1] = True
-        elif char == "?" and not _opens_group(pattern, index):
-            stack[-1] = True  # `(a?)+` backtracks like `(a*)+`
+        else:
+            _note_char(pattern, index, stack, alternates)
         index += 1
+    return False
+
+
+def _note_char(pattern: str, index: int, stack: list[bool], alternates: list[bool]) -> None:
+    """Record a quantifier or `|` in the innermost open group."""
+    char = pattern[index]
+    if char == "|":
+        alternates[-1] = True
+    elif char in "*+{":
+        stack[-1] = True
+    elif char == "?" and not _opens_group(pattern, index):
+        stack[-1] = True  # `(a?)+` backtracks like `(a*)+`
+
+
+def _close_group(pattern: str, index: int, stack: list[bool], alternates: list[bool]) -> bool:
+    """Pop the group closed at `index`; True when it is quantified and unsafe inside."""
+    inner = stack.pop()
+    has_alternation = alternates.pop()
+    quantified = pattern[index + 1 : index + 2] in ("*", "+", "?", "{")
+    if (inner or has_alternation) and quantified:
+        return True
+    stack[-1] = stack[-1] or inner or quantified
     return False
 
 
