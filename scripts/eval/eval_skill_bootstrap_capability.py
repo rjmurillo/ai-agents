@@ -441,11 +441,8 @@ def _warn_on_errors(summary: dict[str, Any]) -> None:
     for task, conditions in summary.items():
         for condition, cell in conditions.items():
             if cell["errors"] > 0:
-                print(
-                    f"warning: {task}/{condition} has {cell['errors']} of {cell['runs']} "
-                    "runs with CLI errors, excluded from the means",
-                    file=sys.stderr,
-                )
+                msg = f"{cell['errors']} of {cell['runs']} runs had CLI errors, excluded from means"
+                print(f"warning: {task}/{condition}: {msg}", file=sys.stderr)
 
 
 def cmd_score(args: argparse.Namespace) -> int:

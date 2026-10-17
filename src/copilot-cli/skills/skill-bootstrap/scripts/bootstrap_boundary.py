@@ -446,9 +446,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
     roots = "one of: " + ", ".join(ALLOWED_ROOTS)
 
-    p_plan = sub.add_parser(
-        "plan", allow_abbrev=False, help="validate the output root and proposed names"
-    )
+    p_plan = sub.add_parser("plan", allow_abbrev=False, help="validate output root and names")
     p_plan.add_argument("--repo", default=".")
     p_plan.add_argument("--output-root", required=True, help=roots)
     p_plan.add_argument("--name", action="append", help="proposed skill name (repeat per name)")
@@ -457,16 +455,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_plan.add_argument("--project", help="require the <project>-<lens> prefix on new names")
 
-    p_snap = sub.add_parser(
-        "snapshot", allow_abbrev=False, help="record repository state before writing"
-    )
+    p_snap = sub.add_parser("snapshot", allow_abbrev=False, help="record repository state")
     p_snap.add_argument("--repo", default=".")
     p_snap.add_argument("--output-root", required=True, help=roots)
     p_snap.add_argument("--out", required=True, help="snapshot file outside the repository")
 
-    p_verify = sub.add_parser(
-        "verify", allow_abbrev=False, help="compare repository state with a snapshot"
-    )
+    p_verify = sub.add_parser("verify", allow_abbrev=False, help="compare state with a snapshot")
     p_verify.add_argument("--repo", default=".")
     p_verify.add_argument("--snapshot", required=True)
     p_verify.add_argument("--output-root", required=True, help=roots)
