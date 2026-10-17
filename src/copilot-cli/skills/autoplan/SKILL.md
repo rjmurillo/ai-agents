@@ -101,7 +101,7 @@ review before writing the implementation.
 **Issue already has an in-flight blocking PR.** Run `check_existing_pr_for_issue.py --owner <O> --repo <R> --issue <N>`
 (github skill; args from URL)
 before routing an `autoplan <issue-url>` request into new work;
-exit `1`: an open PR claims it. If an open PR
+exit `1`: an open PR claims it; `2`-`4`: stop, report; only `0` clears. If an open PR
 already carries a closing keyword for the issue, do not treat "avoid
 duplicating that work" and "resolve the issue" as the same goal; they diverge
 whenever the PR bundles the requested scope with unrelated scope that has not
