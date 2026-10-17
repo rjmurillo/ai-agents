@@ -22,7 +22,7 @@ semgrep = false
 overrides = [
     { name = "click", specifier = "==8.3.3" },
     { name = "cryptography", specifier = "==50.0.0" },
-    { name = "mcp", specifier = "==1.28.1" },
+    { name = "mcp", specifier = "==1.30.0" },
     { name = "pyjwt", extras = ["crypto"], specifier = "==2.15.0" },
 ]
 
@@ -80,7 +80,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "anthropic", specifier = "==1.12.1" },
+    { name = "anthropic", specifier = "==1.13.0" },
     { name = "bandit", extras = ["sarif"], marker = "extra == 'dev'", specifier = ">=1.9.4" },
     { name = "chevron", marker = "extra == 'dev'", specifier = "==0.14.0" },
     { name = "jsonschema", specifier = ">=4.25.1" },
@@ -133,7 +133,7 @@ wheels = [
 
 [[package]]
 name = "anthropic"
-version = "1.12.1"
+version = "1.13.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -144,9 +144,9 @@ dependencies = [
     { name = "sniffio" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/bd/cc/0da23e94020c62c0077c17648252f32d575b187710faaf3b85145e8e555d/anthropic-1.12.1.tar.gz", hash = "sha256:10f720ab6ddf40ef12e0e5743412c3a6dfac1109c244e633c9a2dbd36778ad30", size = 1555908, upload-time = "2026-10-08T03:42:00.588Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/0b/ed/e76e50601b7c476bcb9a2a7a4c4dab6f1a9b2c03e3922de8b3ec599ccbc5/anthropic-1.13.0.tar.gz", hash = "sha256:ad11d9bb9adafdfea26113943bcde9973e2a439ebeeda6c89ff3e3d85bb2f5c1", size = 1567362, upload-time = "2026-10-09T15:29:08.803Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8b/35/1ccdc3e950dd869b66de15035e15d9614607fcef9664dec403fe639f01df/anthropic-1.12.1-py3-none-any.whl", hash = "sha256:1c1469bb3f4118291756816b7850cc839f17b2be5cdc99c8fde3890a61a49ca2", size = 1919752, upload-time = "2026-10-08T03:41:58.596Z" },
+    { url = "https://files.pythonhosted.org/packages/ad/9a/a835340c91bc9a233bd54c05fc438fe07cbef71ca667f24f3892a268ae20/anthropic-1.13.0-py3-none-any.whl", hash = "sha256:157bd74dbf6a595cf9e5fcac557c791fd297924dc48261f57470c2ed6f4e6671", size = 1958595, upload-time = "2026-10-09T15:29:10.689Z" },
 ]
 
 [[package]]
@@ -1058,7 +1058,7 @@ wheels = [
 
 [[package]]
 name = "mcp"
-version = "1.28.1"
+version = "1.30.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -1076,9 +1076,9 @@ dependencies = [
     { name = "typing-inspection" },
     { name = "uvicorn", marker = "sys_platform != 'emscripten'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/6e/77/9450b8f251a13affb6281997d0523c4615f8a8b35d0b21ff30db3a5aac9d/mcp-1.28.1.tar.gz", hash = "sha256:d51e36a5f5644faea4f85ea649bfffa6bc6c26770d42798ad6a3de3d2ba69683", size = 638501, upload-time = "2026-06-26T12:57:29.093Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ba/93/0142dc84a666daf8ad51a34268f34c12fd6fda4f3810c4be2504eecc8212/mcp-1.30.0.tar.gz", hash = "sha256:445414625fce5c295faa505bb11bacece661ab6f4028d57c935db57820b7a3e4", size = 680511, upload-time = "2026-09-07T14:34:15.845Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e2/5e/d118fce19f87a2e7d8101c35c8ae0ec289098a4df0ff244cec23e415aca0/mcp-1.28.1-py3-none-any.whl", hash = "sha256:2726bca5e7193f61c5dde8b12500a6de2d9acf6d1a1c0be9e8c2e706437991df", size = 222620, upload-time = "2026-06-26T12:57:27.218Z" },
+    { url = "https://files.pythonhosted.org/packages/f5/f4/e58bc33317c92a0203664daaf00bf6f41166cc0149e5d6870a03f7cd004a/mcp-1.30.0-py3-none-any.whl", hash = "sha256:666edb5009503e1047c9d60346a756f94b261f05cc2625f23d41c728ffc484d0", size = 234581, upload-time = "2026-09-07T14:34:14.266Z" },
 ]
 
 [[package]]
