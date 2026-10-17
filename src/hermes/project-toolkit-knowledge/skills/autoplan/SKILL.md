@@ -88,8 +88,10 @@ review, ref-assembly updates, changelog, breaking-change policy) and route
 public-API work through those gates: land an API proposal and maintainer
 review before writing the implementation.
 
-**Issue already has an in-flight blocking PR.** Check for one before routing an
-`autoplan <issue-url>` request into a fresh implementation. If an open PR
+**Issue already has an in-flight blocking PR.** Run `check_existing_pr_for_issue.py --owner <O> --repo <R> --issue <N>`
+(github skill; args from URL)
+before routing an `autoplan <issue-url>` request into new work;
+exit `1`: an open PR claims it; `2`-`4`: stop, report; only `0` clears. If an open PR
 already carries a closing keyword for the issue, do not treat "avoid
 duplicating that work" and "resolve the issue" as the same goal; they diverge
 whenever the PR bundles the requested scope with unrelated scope that has not
@@ -109,9 +111,7 @@ than filing a follow-up issue and reporting the parent issue as handled
 while it stays open with no merged artifact. (Learned from the
 `rjmurillo/ai-agents` repository's issue #5198, 2026-08-25, where
 `needs-split` was assigned purely from commit count and proves nothing about
-scope; an earlier version of this rule hardcoded that repository's label
-semantics and pointed plugin consumers at a test file that does not ship
-with this skill. Also from the same issue: two independently-extracted
+scope. Also from the same issue: two independently-extracted
 slices of the same blocking PR can race each other and one PR merging first
 does not retroactively make the other's extraction wrong, only redundant
 for the scope both cover; check what the winner actually shipped before
