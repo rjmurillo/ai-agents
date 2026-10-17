@@ -206,7 +206,7 @@ def _script_missing(item: Payload, label: str, skills_root: Path) -> list[Violat
     if item.get("form") not in SCRIPT_FORMS or script_defect(item.get("script")) is not None:
         return []
     skill = item.get("skill")
-    if not valid_skill_name(skill):
+    if not isinstance(skill, str) or not valid_skill_name(skill):
         return []
     parts = PurePosixPath(item["script"].strip().replace("\\", "/")).parts
     target = skills_root / skill / Path(*parts)
