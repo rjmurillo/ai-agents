@@ -352,6 +352,7 @@ def test_extract_answer_unterminated_draft_does_not_hide_final_block():
 def test_extract_answer_returns_none_without_a_usable_block():
     assert cap.extract_answer("no fences") is None
     assert cap.extract_answer("```json\n[1]\n```") is None
+    assert cap.extract_answer("```json\n{not json\n```") is None
 
 
 def test_eval_in_repo_flag_is_denied(monkeypatch, tmp_path):
