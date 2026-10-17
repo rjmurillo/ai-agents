@@ -5,7 +5,8 @@
 Both subcommands are read-only. They read the repository from one named ref
 (`--rev`, default HEAD) with `git ls-tree -r -z --name-only`, `git log -z`,
 `git grep`, and `git cat-file`. They never use `git log --all` and never walk
-the working tree to learn what the repository contains.
+the working tree to learn what the repository contains. The one disk read is
+`claims`, which opens the authored markdown files you name to read their text.
 
 Subcommands:
 
@@ -684,7 +685,9 @@ def _out_outside_repo(root: Path, out: str | None) -> Path | None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="bootstrap_mine", description=__doc__.split("\n\n")[0])
+    parser = argparse.ArgumentParser(
+        allow_abbrev=False, prog="bootstrap_mine", description=__doc__.split("\n\n")[0]
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     def common(p: argparse.ArgumentParser) -> None:
@@ -692,7 +695,9 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("--rev", default="HEAD")
         p.add_argument("--out", help="also write the JSON to FILE, outside the repository")
 
-    p_cand = sub.add_parser("candidates", help="rank candidate cases from git history")
+    p_cand = sub.add_parser(
+        "candidates", allow_abbrev=False, help="rank candidate cases from git history"
+    )
     common(p_cand)
     p_cand.add_argument("--max-commits", type=int, default=3000)
     p_cand.add_argument("--churn-window", type=int, default=300)
@@ -700,7 +705,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_cand.add_argument("--exclude", action="append", metavar="PREFIX")
     p_cand.add_argument("--prs-json", metavar="FILE")
 
-    p_claims = sub.add_parser("claims", help="check repo paths named in authored markdown")
+    p_claims = sub.add_parser(
+        "claims", allow_abbrev=False, help="check repo paths named in authored markdown"
+    )
     common(p_claims)
     p_claims.add_argument("targets", nargs="+", metavar="TARGET")
     p_claims.add_argument(

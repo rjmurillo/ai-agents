@@ -27,6 +27,11 @@ Graders:
         Pass when every term appears in the output (case-insensitive).
     {"kind": "regex", "pattern": "...", "ignore_case": true}
         Pass when `re.search` finds the pattern. `ignore_case` is optional.
+        The search runs in a child process killed after 5 s. A timeout
+        grades as a non-match (the case fails) and warns on stderr. Pattern
+        length and searched text are capped, and a quantified group that
+        holds a quantifier or a `|` is refused at freeze time, but none of
+        those caps bounds the run time; the deadline does.
     {"kind": "json_set_f1", "key": "stale", "gold": ["x"], "threshold": 0.8}
         Read the last fenced json block in the output that parses as an
         object, take the list under `key`, and compare it with `gold` as
@@ -58,6 +63,8 @@ Exit codes:
        `--min-delta` when given).
     1  score found an incomplete case or a regression case, or the overall
        delta is below `--min-delta` (or unmeasured, when no case is complete).
+       With `--mode knowledge`, a no_gap case also fails. The payload lists
+       every failing case id under `failing_cases`.
     2  Configuration error: bad arguments, malformed cases, results, or
        frozen file, a frozen file edited after freezing, an existing `--out`,
        an `--out` inside a git work tree without `--allow-in-repo`, or git
@@ -90,6 +97,8 @@ FROZEN_SCHEMA = "skill-bootstrap-eval/1"
 SOURCE_PREFIXES = ("correction:", "lens:", "outcome:")
 CONDITIONS = ("baseline", "with_skill")
 STATUSES = ("gain", "no_gap", "regression", "flat", "incomplete")
+WORKFLOW_FAILING = ("regression", "incomplete")
+KNOWLEDGE_FAILING = WORKFLOW_FAILING + ("no_gap",)
 CASE_KEYS = frozenset({"id", "skill", "source", "prompt", "grader"})
 JSON_FENCE = re.compile(r"```json[ \t]*\r?\n(.*?)```", re.DOTALL | re.IGNORECASE)
 NOT_A_REPO = "not a git repository"
@@ -98,6 +107,14 @@ GIT_TIMEOUT_S = 30
 # `(?#...)` comments and `x` (verbose) flag groups let a quantifier hide from the nested-quantifier scan.
 UNSCANNABLE_GROUP_RE = re.compile(r"\(\?(?:#|[aiLmsux-]*x[aiLmsux-]*[:)])")
 MAX_SEARCHED_CHARS = 100_000
+REGEX_TIMEOUT_S = 5.0
+# Child-process body: read {"pattern", "ignore_case", "text"} on stdin, print 1 or 0.
+REGEX_CHILD = (
+    "import json, re, sys\n"
+    "d = json.load(sys.stdin)\n"
+    "flags = re.IGNORECASE if d['ignore_case'] else 0\n"
+    "print(1 if re.search(d['pattern'], d['text'], flags) else 0)\n"
+)
 
 Payload = dict[str, Any]
 Grade = Callable[[str], bool]
@@ -136,10 +153,18 @@ def _has_nested_quantifier(pattern: str) -> bool:
     Character-class contents and escaped characters are literals. Over-rejects
     shapes such as `(a+b)*` on purpose: a case author can rewrite those, and a
     nested quantifier is the shape that makes `re.search` backtrack for ages.
+    Also rejects a quantified group whose body holds a top-level `|`, as in
+    `(a|a)*$`, whose overlapping branches backtrack exponentially. This
+    over-rejects `(a|b)+` on purpose. It does not catch an alternation nested
+    inside an unquantified inner group (`((a|a))*`), lookaround, or
+    backreferences, and it is not a proof of linear time.
+    Pairs with `_search_with_deadline`, which bounds the time of shapes this
+    scan cannot see.
     Also rejects verbose mode (`(?x`, `(?ix)`) and comment groups (`(?#`): both
     hide quantifiers from this scan, as in `(?x)(a+) +$` and `(a+)(?#c)+$`.
     """
     stack = [False]  # one flag per open group: does its body hold a quantifier
+    alternates = [False]  # one flag per open group: does its body hold a top-level `|`
     index = 0
     while index < len(pattern):
         char = pattern[index]
@@ -151,10 +176,14 @@ def _has_nested_quantifier(pattern: str) -> bool:
             if UNSCANNABLE_GROUP_RE.match(pattern, index):
                 return True
             stack.append(False)
+            alternates.append(False)
+        elif char == "|":
+            alternates[-1] = True
         elif char == ")" and len(stack) > 1:
             inner = stack.pop()
+            has_alternation = alternates.pop()
             quantified = pattern[index + 1 : index + 2] in ("*", "+", "?", "{")
-            if inner and quantified:
+            if (inner or has_alternation) and quantified:
                 return True
             stack[-1] = stack[-1] or inner or quantified
         elif char in "*+{":
@@ -198,7 +227,35 @@ def _regex(grader: Payload) -> Grade:
         compiled = re.compile(pattern, re.IGNORECASE if ignore_case else 0)
     except (re.error, OverflowError, RecursionError) as exc:
         raise ConfigError(f"regex pattern does not compile: {exc}") from exc
-    return lambda output: compiled.search(output[:MAX_SEARCHED_CHARS]) is not None
+    return lambda output: _search_with_deadline(pattern, ignore_case, output)
+
+
+def _search_with_deadline(pattern: str, ignore_case: bool, output: str) -> bool:
+    """Run `re.search` in a child process with a hard deadline.
+
+    Shape checks cannot rule out polynomial backtracking such as `\\s*\\s*\\s*x`,
+    and `signal.alarm` does not interrupt the C regex engine, so the deadline
+    is a process kill. A timeout grades as a non-match (the case fails, which
+    never inflates a gain) and prints a warning to stderr.
+    """
+    request = json.dumps(
+        {"pattern": pattern, "ignore_case": ignore_case, "text": output[:MAX_SEARCHED_CHARS]}
+    )
+    try:
+        done = subprocess.run(
+            [sys.executable, "-I", "-c", REGEX_CHILD],
+            input=request,
+            capture_output=True,
+            text=True,
+            timeout=REGEX_TIMEOUT_S,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        print(f"warning: regex timed out after {REGEX_TIMEOUT_S} s: {pattern!r}", file=sys.stderr)
+        return False
+    if done.returncode != 0:
+        raise ConfigError(f"regex grader child failed: {done.stderr.strip()[-200:]}")
+    return done.stdout.strip() == "1"
 
 
 def extract_last_json_object(output: str) -> Payload | None:
@@ -501,7 +558,12 @@ def score(args: argparse.Namespace) -> tuple[int, Payload]:
     }
     overall = _summary(rows)
     failing = overall["statuses"]["incomplete"] > 0 or overall["statuses"]["regression"] > 0
+    failing_statuses = KNOWLEDGE_FAILING if args.mode == "knowledge" else WORKFLOW_FAILING
+    failing_cases = [row["id"] for row in rows if row["status"] in failing_statuses]
+    failing = failing or bool(failing_cases)
     payload: Payload = {
+        "mode": args.mode,
+        "failing_cases": failing_cases,
         "cases": _rounded(rows),
         "skills": skills,
         "overall": overall,
@@ -519,10 +581,14 @@ def score(args: argparse.Namespace) -> tuple[int, Payload]:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="bootstrap_eval", description=__doc__.split("\n\n")[0])
+    parser = argparse.ArgumentParser(
+        allow_abbrev=False, prog="bootstrap_eval", description=__doc__.split("\n\n")[0]
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    p_freeze = sub.add_parser("freeze", help="validate cases and write an immutable frozen file")
+    p_freeze = sub.add_parser(
+        "freeze", allow_abbrev=False, help="validate cases and write an immutable frozen file"
+    )
     p_freeze.add_argument("--cases", required=True, help="cases JSON file")
     p_freeze.add_argument("--out", required=True, help="frozen file to create (must not exist)")
     p_freeze.add_argument(
@@ -531,11 +597,19 @@ def build_parser() -> argparse.ArgumentParser:
         help="allow --out inside a git work tree, to commit the eval cases on purpose",
     )
 
-    p_score = sub.add_parser("score", help="grade results and report the capability delta")
+    p_score = sub.add_parser(
+        "score", allow_abbrev=False, help="grade results and report the capability delta"
+    )
     p_score.add_argument("--frozen", required=True, help="frozen file from freeze")
     p_score.add_argument("--results", required=True, help="JSON lines of agent outputs")
     p_score.add_argument(
         "--min-delta", type=float, help="exit 1 when the overall capability delta is below this"
+    )
+    p_score.add_argument(
+        "--mode",
+        choices=("workflow", "knowledge"),
+        default="workflow",
+        help="knowledge mode also fails any no_gap case: the baseline already knew it",
     )
     return parser
 

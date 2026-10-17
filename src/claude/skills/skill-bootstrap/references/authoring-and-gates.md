@@ -112,6 +112,9 @@ outcome is a write.
 The rejected alternative is "add a script only for repeated deterministic
 work". It was dropped because a claim computed once is still a claim the model
 can miscompute, and the repeat count is unknowable before the skill ships.
+The SKILL.md Limits entry records that run `20261017T164000Z-2e1e279c` did not
+show a capability gain from the script-first rule, so this rationale is a
+design argument, not a measured result.
 
 Use a
 Mermaid diagram when the branching is easier to read as a graph. Keep each
@@ -203,7 +206,7 @@ frozen cases. Build it in every run.
    | Status | Meaning | Action |
    |---|---|---|
    | `gain` | The skill raises the pass rate | Keep |
-   | `no_gap` | Baseline already passes | The knowledge is not missing. In `knowledge` mode this fails the gate: drop the skill or the case |
+   | `no_gap` | Baseline already passes | The knowledge is not missing. In `knowledge` mode this fails the gate, enforced by `score --mode knowledge` (exit 1, case listed in `failing_cases`): drop the skill or the case |
    | `flat` | Both fail equally | The skill does not transfer. Fix the skill or the case |
    | `regression` | The skill lowers the pass rate | Blocking finding |
    | `incomplete` | A condition has no runs | Run it, or report it under Limits |

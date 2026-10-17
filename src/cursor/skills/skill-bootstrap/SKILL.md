@@ -160,7 +160,7 @@ Pass each skill this run wrote or updated with `--authored`, so its uncommitted 
    python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_eval.py" score --frozen "<frozen path>" --results "<results path>"
    ```
 
-   A skill whose cases are all `no_gap` adds nothing measurable: drop it or report why it stays. A `regression` is a blocking finding.
+   A skill whose cases are all `no_gap` adds nothing measurable: drop it or report why it stays. A `regression` is a blocking finding. In `knowledge` mode, add `--mode knowledge` to `score`: any `no_gap` case then also exits 1 and appears in `failing_cases`.
 3. Run `skillopt` only after steps 1 and 2, on the frozen cases as its held-out set. Otherwise report `skillopt: NOT RUN` with the missing input. Never invent an optimization result.
 
 ### Phase 6: Review, verify, and deliver
@@ -191,7 +191,7 @@ Exit code 1 lists `update_candidates` and gives `update_args` as a JSON list of 
 
 ## Scripts
 
-Every script uses only the Python standard library, prints JSON with an `examined` count, writes nothing inside the repository unless `--allow-in-repo` is passed, and runs on Linux, macOS, and Windows. Exit code 0 means success. Exit code 1 means findings that need action. Exit code 2 is a configuration error. Exit code 3, used by `bootstrap_mine.py` and `bootstrap_boundary.py` only, means git is missing or failed, or a file could not be read. `bootstrap_eval.py` reports a git or read failure as exit 2, and `bootstrap_drift.py` marks an unreadable `reverify.json` as `malformed` (exit 1).
+Every script uses only the Python standard library, prints JSON with an `examined` count, writes nothing inside the repository (`bootstrap_eval.py freeze` writes there only with `--allow-in-repo`; `bootstrap_mine.py --out` refuses an in-repo path with no override), and runs on Linux, macOS, and Windows. Exit code 0 means success. Exit code 1 means findings that need action. Exit code 2 is a configuration error. Exit code 3, used by `bootstrap_mine.py` and `bootstrap_boundary.py` only, means git is missing or failed, or a file could not be read. `bootstrap_eval.py` reports a git or read failure as exit 2, and `bootstrap_drift.py` marks an unreadable `reverify.json` as `malformed` (exit 1).
 
 | Script and subcommand | Phase | Computes |
 |---|---|---|
@@ -215,7 +215,7 @@ python "$root/skills/skill-bootstrap/scripts/bootstrap_boundary.py" snapshot --r
 
 ## Limits
 
-- The instrument-first rule has not yet shown a capability gain. Run `20261017T164000Z-2e1e279c` found no F1 change on T1 to T4 at 1.4x to 2.5x cost per run ([report](evals/skill-bootstrap-capability/reports/20261017T164000Z-2e1e279c/REPORT.md)). Untested hypotheses: reproducibility across runs, and repositories where ad hoc scripts are hard to write.
+- The instrument-first rule has not yet shown a capability gain. Run `20261017T164000Z-2e1e279c` found no F1 change on T1 to T4 at 1.4x to 2.5x cost per run (the report is at `evals/skill-bootstrap-capability/reports/20261017T164000Z-2e1e279c/REPORT.md` in the rjmurillo/ai-agents repository, not in this skill). Untested hypotheses: reproducibility across runs, and repositories where ad hoc scripts are hard to write.
 - Per-case `gain` and `regression` have no noise floor. Run each case at least twice and treat a single-run flip with suspicion.
 
 ## Anti-Patterns

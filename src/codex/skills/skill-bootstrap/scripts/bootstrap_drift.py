@@ -70,6 +70,7 @@ PROVENANCE_FILE = "reverify.json"
 COMMAND_TIMEOUT_S = 120
 PATH_KINDS = frozenset({"path_exists", "absent", "contains", "line_count_at_least"})
 KINDS = PATH_KINDS | {"command"}
+MAX_READ_BYTES = 5 * 1024 * 1024
 SKILL_NAME_RE = re.compile(r"[a-z](?:[a-z0-9-]*[a-z0-9])?")
 # Same rule as `bootstrap_boundary.name_defects`: at most 64 characters, no `--`.
 # Skill scripts do not import each other, so the rule is repeated here and a
@@ -165,6 +166,9 @@ def _result(check: Payload, status: str, detail: str) -> Payload:
 def _read_text(target: Path) -> str | None:
     if not target.is_file():
         return None
+    size = target.stat().st_size
+    if size > MAX_READ_BYTES:
+        raise OSError(f"file is {size} bytes, over the {MAX_READ_BYTES} byte read cap")
     return target.read_text(encoding="utf-8", errors="replace")
 
 
@@ -336,9 +340,13 @@ def check(args: argparse.Namespace) -> tuple[int, Payload]:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="bootstrap_drift", description=__doc__.split("\n\n")[0])
+    parser = argparse.ArgumentParser(
+        allow_abbrev=False, prog="bootstrap_drift", description=__doc__.split("\n\n")[0]
+    )
     sub = parser.add_subparsers(dest="command", required=True)
-    p_check = sub.add_parser("check", help="re-verify skill provenance against the repository")
+    p_check = sub.add_parser(
+        "check", allow_abbrev=False, help="re-verify skill provenance against the repository"
+    )
     p_check.add_argument("--repo", required=True, help="repository working tree")
     p_check.add_argument("--skills-root", required=True, help="directory of skill directories")
     p_check.add_argument("--name", action="append", help="check only this skill (repeat per name)")
