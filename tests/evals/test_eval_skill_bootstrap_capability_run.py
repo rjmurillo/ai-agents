@@ -249,24 +249,33 @@ def test_non_object_tasks_file_is_a_config_error_for_score_too(tmp_path, capsys)
 class FakeChild:
     """Stand-in for Popen: communicate() returns the outcome or raises it once."""
 
-    pid = 4242
-    killed = False
-
     def __init__(self, outcome):
-        self.outcome = outcome
-        self.returncode = getattr(outcome, "returncode", None)
-        self.calls = 0
+        self._outcome = outcome
+        self._returncode = getattr(outcome, "returncode", None)
+        self._calls = 0
+        self._killed = False
+
+    @property
+    def pid(self) -> int:
+        return 4242
+
+    @property
+    def returncode(self):
+        return self._returncode
+
+    def was_killed(self) -> bool:
+        return self._killed
 
     def communicate(self, timeout=None):
-        self.calls += 1
-        if isinstance(self.outcome, BaseException) and self.calls == 1:
-            raise self.outcome
-        if isinstance(self.outcome, BaseException):
+        self._calls += 1
+        if isinstance(self._outcome, BaseException) and self._calls == 1:
+            raise self._outcome
+        if isinstance(self._outcome, BaseException):
             return "", ""
-        return self.outcome.stdout, self.outcome.stderr
+        return self._outcome.stdout, self._outcome.stderr
 
     def kill(self):
-        self.killed = True
+        self._killed = True
 
 
 def _patch_run(monkeypatch, outcome):
@@ -290,7 +299,7 @@ def test_run_one_timeout_records_kind_and_stderr_tail(monkeypatch, tmp_path):
 
     assert seen["start_new_session"] is True
     assert seen["killpg"][0] == child.pid
-    assert child.killed is True
+    assert child.was_killed() is True
     assert record["error_kind"] == "timeout"
     assert record["returncode"] is None
     assert record["stderr"] == "x" * cap.STDERR_TAIL_CHARS
@@ -337,7 +346,7 @@ def test_run_one_timeout_survives_killpg_oserror(monkeypatch, tmp_path):
     record = cap.run_one(tmp_path, "p", "m")
 
     assert record["error_kind"] == "timeout"
-    assert child.killed is True
+    assert child.was_killed() is True
 
 
 # --- extraction, deny rules, empty tasks, score paths -------------------------
