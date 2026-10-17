@@ -1045,7 +1045,7 @@ def test_no_dash_characters_in_script_text() -> None:
 
 @pytest.mark.parametrize(
     "pattern",
-    ["(a+)+$", "(a*)*", "(a+)?", "((a+))+", "(a{2})+", "(x+y)*z", "x" * 257],
+    ["(a+)+$", "(a*)*", "(a+)?", "((a+))+", "(a{2})+", "(x+y)*z", "(a?)+", "(a?)*", "x" * 257],
 )
 def test_regex_rejects_unbounded_shapes(pattern: str) -> None:
     with pytest.raises(bootstrap_eval.ConfigError):
@@ -1054,7 +1054,21 @@ def test_regex_rejects_unbounded_shapes(pattern: str) -> None:
 
 @pytest.mark.parametrize(
     "pattern",
-    ["(ab)+", "(a|b)*", "([a-z]+)", "([+*])+", "[]+]+", "[^]a]+", r"[\]+]+", r"\(a+\)+", "x" * 256],
+    [
+        "(ab)+",
+        "(a|b)*",
+        "([a-z]+)",
+        "([+*])+",
+        "[]+]+",
+        "[^]a]+",
+        r"[\]+]+",
+        r"\(a+\)+",
+        "(?:ab)+",
+        "(?P<word>ab)+",
+        "colou?r",
+        r"\(?a",
+        "x" * 256,
+    ],
 )
 def test_regex_accepts_bounded_shapes(pattern: str) -> None:
     grade = bootstrap_eval.compile_grader({"kind": "regex", "pattern": pattern})

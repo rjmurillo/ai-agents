@@ -128,7 +128,7 @@ def _contains_all(grader: Payload) -> Grade:
 
 
 def _has_nested_quantifier(pattern: str) -> bool:
-    """Conservatively detect a quantified group whose body holds `*`, `+`, or `{`.
+    """Conservatively detect a quantified group whose body holds `*`, `+`, `?`, or `{`.
 
     Character-class contents and escaped characters are literals. Over-rejects
     shapes such as `(a+b)*` on purpose: a case author can rewrite those, and a
@@ -152,8 +152,15 @@ def _has_nested_quantifier(pattern: str) -> bool:
             stack[-1] = stack[-1] or inner or quantified
         elif char in "*+{":
             stack[-1] = True
+        elif char == "?" and not _opens_group(pattern, index):
+            stack[-1] = True  # `(a?)+` backtracks like `(a*)+`
         index += 1
     return False
+
+
+def _opens_group(pattern: str, index: int) -> bool:
+    """True when the `?` at `index` is a group modifier, as in `(?:` or `(?P<name>`."""
+    return pattern[index - 1 : index] == "(" and pattern[index - 2 : index - 1] != "\\"
 
 
 def _class_end(pattern: str, start: int) -> int:
