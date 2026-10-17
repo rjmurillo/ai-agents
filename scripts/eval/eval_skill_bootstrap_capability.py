@@ -202,6 +202,10 @@ def cmd_score(args: argparse.Namespace) -> int:
         except (OSError, json.JSONDecodeError) as exc:
             print(f"ERROR: cannot read {path}: {exc}", file=sys.stderr)
             return 2
+    # Re-grade stored answers so a gold correction applies to every condition alike.
+    tasks = {t["id"]: t for t in load_tasks(Path(args.tasks))["tasks"]}
+    for rec in records:
+        rec["score"] = grade(tasks[rec["task"]], rec["answer"])
     report: dict[str, Any] = {}
     for rec in records:
         cell = report.setdefault(rec["task"], {}).setdefault(rec["condition"], [])
@@ -242,6 +246,7 @@ def main(argv: list[str] | None = None) -> int:
     p_run.add_argument("--out", required=True)
     p_score = sub.add_parser("score", help="aggregate run records")
     p_score.add_argument("--runs", nargs="+", required=True)
+    p_score.add_argument("--tasks", default=str(DEFAULT_TASKS))
     p_score.add_argument("--out")
     args = parser.parse_args(argv)
     try:
