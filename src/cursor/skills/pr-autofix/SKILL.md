@@ -1033,12 +1033,18 @@ GitHub refuses auto-merge for `UNSTABLE` PRs (issue #2439) and may also reject a
 ### Post-merge cleanup
 
 Run this after every merge this skill lands, once `test_pr_merged.py` reports
-`merged: true` and `git merge-base --is-ancestor <merge-sha> origin/main` exits 0.
+`merged: true`. The snippet reads its inputs from the merged PR, fails when any
+is empty, and checks `git merge-base --is-ancestor "$MERGE_SHA" origin/main` first.
 A leftover worktree costs disk and slows repo-wide scans: issue #2761 counted
 113 of them at 10.6G on one machine. PR #6490 merged with its worktree and
 local branch still in place.
 
 ```bash
+# Replace <pr> with the merged PR number.
+read -r PR_HEAD_REF MERGED_HEAD_SHA MERGE_SHA < <(gh pr view <pr> \
+    --json headRefName,headRefOid,mergeCommit -q '[.headRefName, .headRefOid, .mergeCommit.oid] | @tsv')
+: "${PR_HEAD_REF:?}" "${MERGED_HEAD_SHA:?}" "${MERGE_SHA:?}"
+git fetch origin main && git merge-base --is-ancestor "$MERGE_SHA" origin/main || { echo "merge not on main yet"; exit 1; }
 # The worktree can belong to another clone, so fall back to the path convention.
 WT=$(git worktree list --porcelain | awk -v ref="refs/heads/$PR_HEAD_REF" \
     '/^worktree /{p=substr($0, 10)} $1 == "branch" && $2 == ref {print p; exit}')
@@ -1047,11 +1053,12 @@ WT=${WT:-"$HOME/worktrees/<repo>/$PR_HEAD_REF"}
 [ -z "$(git -C "$WT" status --porcelain)" ] && \
   [ "$(git -C "$WT" rev-parse HEAD)" = "$MERGED_HEAD_SHA" ] || { echo "keep $WT"; exit 1; }
 COMMON=$(git -C "$WT" rev-parse --path-format=absolute --git-common-dir)
-git --git-dir="$COMMON" worktree remove "$WT"
+# -C, not --git-dir: after a self-removal the cwd is gone and git cannot start there.
+git -C "$COMMON" worktree remove "$WT"
 # -D, not -d: a squash merge leaves the tip outside main's history. The SHA check above makes it safe.
-git --git-dir="$COMMON" branch -D "$PR_HEAD_REF"
+git -C "$COMMON" branch -D "$PR_HEAD_REF"
 # Empty output means the remote branch is gone.
-git ls-remote origin "refs/heads/$PR_HEAD_REF"
+git -C "$COMMON" ls-remote origin "refs/heads/$PR_HEAD_REF"
 ```
 
 - Never pass `--force` to `git worktree remove`. A dirty or moved worktree is
