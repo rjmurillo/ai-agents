@@ -1,6 +1,6 @@
 ---
 name: git-advanced-workflows
-description: Advanced Git workflows including rebasing, cherry-picking, bisect, worktrees, and reflog. Use when managing complex Git histories, collaborating on feature branches, or recovering from repository issues. Use when you say "rebase my branch", "cherry-pick a commit", "find the breaking commit", "recover lost commits", or "triage stale worktrees".
+description: Advanced Git workflows for rebasing, cherry-picking, bisect, worktrees, and reflog. Use when managing complex Git histories, collaborating on feature branches, or recovering from repo issues. Use when you say "rebase my branch", "cherry-pick a commit", "find the breaking commit", "recover lost commits", "triage stale worktrees", "sync a dirty checkout", or "publish files from a dirty checkout".
 metadata:
   routing:
     role: conditional-adjunct
@@ -17,11 +17,11 @@ Advanced Git techniques for clean history, effective collaboration, and confiden
 
 | Trigger Phrase | Operation |
 |----------------|-----------|
-| `rebase my branch` | Interactive or standard rebase guidance |
-| `cherry-pick a commit` | Cherry-pick with conflict resolution |
+| `rebase or cherry-pick a commit` | Interactive rebase or cherry-pick with conflict resolution |
 | `find the breaking commit` | Git bisect workflow |
 | `recover lost commits` | Reflog exploration and recovery |
 | `use git worktrees` | Worktree setup, management, and live-versus-abandoned triage |
+| `synchronize or publish a dirty checkout` | Commit and align local work, or move only requested files to a clean topic branch |
 
 ## Process
 
@@ -117,6 +117,14 @@ git worktree add ~/worktrees/myapp-hotfix hotfix/critical-bug
 git worktree remove ~/worktrees/myapp-hotfix  # Clean up when done
 git worktree prune  # Remove stale entries
 ```
+
+**Publish requested files from a stale or dirty checkout:** Fetch the intended remote and inspect the source branch, status, recent commit, and divergence before staging. If the source checkout is behind or contains unrelated edits, leave it untouched and create a clean worktree from the fetched base (`git worktree add -b <feature> <path> <remote>/<base>`), after confirming the path and branch are unused. For each requested path, compare the old `HEAD` with the fetched base. If upstream has not changed a tracked path, transfer only that path's diff (`git diff <old-head> -- <path>` includes staged and unstaged edits); handle untracked requested files explicitly. Verify the clean-worktree candidate matches the source bytes. If upstream changed a requested path, stop for a three-way merge and inspect every conflict rather than copying the whole file. Stage only requested paths, inspect the staged names and diff, run artifact-appropriate checks, commit with repository identity, fetch/rebase immediately before pushing, push the topic branch rather than a protected default branch, then fetch and verify the remote ref equals `HEAD`. Leave ambient edits in the original checkout intact and report them separately.
+
+#### Synchronize a Dirty Checkout with the Latest Remote Head
+
+When asked to commit local changes and bring the checkout up to date, inspect `git status --short --branch`, the current branch, remotes, and `git log -1 --oneline`; fetch the intended remote and measure divergence with `git rev-list --left-right --count HEAD...<remote>/<branch>` (local-ahead count first, remote-ahead count second). Review the complete working-tree diff, including untracked files, before staging; stage only intended paths, inspect the staged names and diff, run `git diff --cached --check`, and commit. If the branch is behind, rebase local commits onto the fetched remote head only when the branch is private; use a merge for a shared branch. Do not reset away local commits or discard working-tree changes to make the graph look current.
+
+If rebase conflicts, inspect the base, local commit, and conflict hunks before resolving each file; never choose `--ours`/`--theirs` mechanically because a commit can contain valuable changes on both sides. After integration, verify the working tree is clean and the divergence count has no remote-ahead commits; any local-ahead count is committed work not yet published. If the user asked for the remote to contain the committed work too, push the branch, fetch again, and verify the divergence count is `0 0` and the remote ref equals `HEAD`.
 
 **Move-safe caveat:** moving a worktree after `uv` created `.venv` leaves the
 absolute-path shebangs in `.venv/bin/*` (POSIX) or `.venv/Scripts/*` (Windows)
