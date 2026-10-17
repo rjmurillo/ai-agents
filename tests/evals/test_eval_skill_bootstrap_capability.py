@@ -230,7 +230,7 @@ def test_run_one_records_a_non_object_cli_payload_as_an_error(monkeypatch, tmp_p
 def test_load_tasks_rejects_a_task_without_gold(tmp_path):
     path = tmp_path / "t.json"
     task = {"id": "a", "prompt": "p", "grader": "set_f1", "answer_key": "k"}
-    path.write_text(json.dumps({"tasks": [task]}), encoding="utf-8")
+    path.write_text(json.dumps({"preamble": "p", "tasks": [task]}), encoding="utf-8")
 
     with pytest.raises(ValueError, match="gold"):
         cap.load_tasks(path)
@@ -286,6 +286,23 @@ def test_run_one_grants_only_read_only_tools(monkeypatch, tmp_path):
     granted = argv[argv.index("--allowedTools") + 1 : argv.index("--disallowedTools")]
     assert granted == list(cap.READ_ONLY_TOOLS)
     assert not any(t in ("Bash", "Edit", "Write") for t in granted)
+
+
+def test_run_one_denies_bootstrap_drift_allow_commands(monkeypatch, tmp_path):
+    seen: list[list[str]] = []
+
+    def fake_run(argv, *args, **kwargs):
+        seen.append(argv)
+        return subprocess.CompletedProcess(argv, 0, "{}", "")
+
+    monkeypatch.setattr(cap.subprocess, "run", fake_run)
+
+    cap.run_one(tmp_path, "prompt", "model")
+
+    denied = seen[0][seen[0].index("--disallowedTools") + 1 :]
+    assert cap.DENY_DRIFT_COMMANDS in denied
+    assert "bootstrap_drift.py" in cap.DENY_DRIFT_COMMANDS
+    assert "--allow-commands" in cap.DENY_DRIFT_COMMANDS
 
 
 def test_score_rejects_a_task_missing_from_one_condition_with_exit_2(tmp_path, tasks_file, capsys):

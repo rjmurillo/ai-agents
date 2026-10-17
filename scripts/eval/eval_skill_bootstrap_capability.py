@@ -3,7 +3,9 @@
 
 Runs each frozen task in `evals/skill-bootstrap-capability/fixtures/tasks.json` through
 the Claude CLI inside a checkout that carries one version of the skill, then
-grades the final JSON answer against gold fixed before implementation. The
+grades the final JSON answer against gold derived independently of the new
+scripts (REPORT.md records a mid-run T2 gold correction and T4 added after
+round one). The
 condition differs only by the checkout, so the score difference measures the
 capability the skill version gives the agent, not what the agent knows alone.
 
@@ -38,6 +40,14 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_TASKS = REPO_ROOT / "evals" / "skill-bootstrap-capability" / "fixtures" / "tasks.json"
 DEFAULT_MODEL = "claude-haiku-5-5"
 RUN_TIMEOUT_S = 1200
+GIT_TIMEOUT_S = 30
+STDERR_TAIL_CHARS = 2000
+# Deny rule: bootstrap_drift.py runs repository-authored argv lists with
+# --allow-commands, so the eval agent must never pass it. The generic grant
+# below would otherwise accept it as a trailing flag.
+DENY_DRIFT_COMMANDS = (
+    "Bash(python3 .claude/skills/skill-bootstrap/scripts/bootstrap_drift.py *--allow-commands*)"
+)
 # Narrow grant, not a sandbox. Print mode denies any tool outside this list, so
 # Edit, Write, and unlisted shell commands are refused (an unlisted `touch` was).
 # A prefix grant still accepts extra flags: `git log --output=<file>` writes a file,
@@ -70,13 +80,21 @@ JSON_BLOCK = re.compile(r"```json\s*(\{.*?\})\s*```", re.DOTALL)
 
 
 def load_tasks(path: Path) -> dict[str, Any]:
-    data: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError(f"{path}: top level must be a JSON object")
+    if not isinstance(data.get("preamble"), str) or not data["preamble"].strip():
+        raise ValueError(f"{path}: 'preamble' must be a non-empty string")
     if not isinstance(data.get("tasks"), list) or not data["tasks"]:
         raise ValueError(f"{path}: 'tasks' must be a non-empty list")
     for task in data["tasks"]:
+        if not isinstance(task, dict):
+            raise ValueError(f"{path}: every task must be an object")
         for key in ("id", "prompt", "grader", "gold", "answer_key"):
             if key not in task:
                 raise ValueError(f"{path}: task missing '{key}'")
+        if not task["gold"]:
+            raise ValueError(f"{path}: task {task['id']!r} has an empty gold")
     return data
 
 
@@ -93,6 +111,9 @@ def extract_answer(text: str) -> dict[str, Any] | None:
 
 
 def _f1(predicted: set[str], gold: set[str]) -> dict[str, float]:
+    # Differs from `bootstrap_eval.set_f1`, which scores two empty sets as 1.0
+    # (nothing expected, nothing found). Here load_tasks rejects an empty gold, so
+    # an empty prediction against a non-empty gold is always a miss, and 0.0 stands.
     hits = len(predicted & gold)
     precision = hits / len(predicted) if predicted else 0.0
     recall = hits / len(gold) if gold else 0.0
@@ -141,6 +162,29 @@ def grade(task: dict[str, Any], answer: dict[str, Any] | None) -> dict[str, floa
     raise ValueError(f"unknown grader '{kind}'")
 
 
+def _tail(value: object) -> str:
+    """Last STDERR_TAIL_CHARS of captured output; subprocess may hand back bytes on timeout."""
+    if isinstance(value, bytes):
+        value = value.decode("utf-8", errors="replace")
+    return value[-STDERR_TAIL_CHARS:] if isinstance(value, str) else ""
+
+
+def _failure_record(
+    kind: str, elapsed: float, returncode: int | None, stderr: object, result: str = ""
+) -> dict[str, Any]:
+    return {
+        "result": result,
+        "is_error": True,
+        "error_kind": kind,
+        "returncode": returncode,
+        "stderr": _tail(stderr),
+        "num_turns": None,
+        "cost_usd": None,
+        "output_tokens": None,
+        "wall_s": round(elapsed, 1),
+    }
+
+
 def run_one(checkout: Path, prompt: str, model: str) -> dict[str, Any]:
     started = time.monotonic()
     try:
@@ -159,6 +203,7 @@ def run_one(checkout: Path, prompt: str, model: str) -> dict[str, Any]:
                 "Edit",
                 "Write",
                 "NotebookEdit",
+                DENY_DRIFT_COMMANDS,
             ],
             cwd=checkout,
             capture_output=True,
@@ -168,25 +213,19 @@ def run_one(checkout: Path, prompt: str, model: str) -> dict[str, Any]:
             timeout=RUN_TIMEOUT_S,
             check=False,
         )
-    except subprocess.TimeoutExpired:
-        elapsed = time.monotonic() - started
-        return {
-            "result": "",
-            "is_error": True,
-            "num_turns": None,
-            "cost_usd": None,
-            "output_tokens": None,
-            "wall_s": round(elapsed, 1),
-        }
+    except subprocess.TimeoutExpired as exc:
+        return _failure_record("timeout", time.monotonic() - started, None, exc.stderr)
     elapsed = time.monotonic() - started
     try:
         meta = json.loads(proc.stdout)
     except json.JSONDecodeError:
         meta = None
     if not isinstance(meta, dict):
-        meta = {"is_error": True, "result": proc.stdout[-2000:], "stderr": proc.stderr[-2000:]}
+        return _failure_record(
+            "bad_json", elapsed, proc.returncode, proc.stderr, proc.stdout[-STDERR_TAIL_CHARS:]
+        )
     usage = meta.get("usage") or {}
-    return {
+    record = {
         "result": meta.get("result", ""),
         "is_error": bool(meta.get("is_error")) or proc.returncode != 0,
         "num_turns": meta.get("num_turns"),
@@ -194,6 +233,28 @@ def run_one(checkout: Path, prompt: str, model: str) -> dict[str, Any]:
         "output_tokens": usage.get("output_tokens"),
         "wall_s": round(elapsed, 1),
     }
+    if record["is_error"]:
+        record.update(error_kind="cli_error", returncode=proc.returncode, stderr=_tail(proc.stderr))
+    return record
+
+
+def _checkout_head(checkout: Path) -> str | None:
+    """Return `git rev-parse HEAD` for the checkout, or None on any failure."""
+    try:
+        proc = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=checkout,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=GIT_TIMEOUT_S,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    head = proc.stdout.strip()
+    return head if proc.returncode == 0 and head else None
 
 
 def cmd_run(args: argparse.Namespace) -> int:
@@ -213,15 +274,10 @@ def cmd_run(args: argparse.Namespace) -> int:
         )
         return 2
     selected = [t for t in data["tasks"] if not args.task or t["id"] in args.task]
-    head = subprocess.run(
-        ["git", "rev-parse", "HEAD"],
-        cwd=checkout,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    ).stdout.strip()
+    head = _checkout_head(checkout)
+    if head is None:
+        print(f"ERROR: cannot read git HEAD of {checkout}", file=sys.stderr)
+        return 3
     with Path(args.out).open("a", encoding="utf-8") as out:
         for rep in range(args.reps):
             for task in selected:
@@ -239,8 +295,13 @@ def cmd_run(args: argparse.Namespace) -> int:
                 )
                 out.write(json.dumps(record) + "\n")
                 out.flush()
+                outcome = (
+                    f"err={record['error_kind']}"
+                    if record["is_error"]
+                    else f"f1={record['score']['f1']:.2f}"
+                )
                 print(
-                    f"{args.condition} {task['id']} rep{rep} f1={record['score']['f1']:.2f} "
+                    f"{args.condition} {task['id']} rep{rep} {outcome} "
                     f"turns={record['num_turns']} wall={record['wall_s']}s",
                     flush=True,
                 )
