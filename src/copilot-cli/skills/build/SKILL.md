@@ -58,6 +58,13 @@ translation:
 
 ## Process
 
+### Phase 0: Existing-PR check
+
+Before branching for an issue, run `check_existing_pr_for_issue.py --owner <O>
+--repo <R> --issue <N>` (github skill; `gh_unusable`: MCP PR search). Exit `1`:
+an open PR claims it; stop, report it, use that PR. Exit `2`-`4`: stop, report.
+Only exit `0` clears.
+
 ### Phase 1: Assess complexity
 
 `agent_type: "project-toolkit:analyst"`: Read the engineering complexity tiers reference
@@ -277,8 +284,6 @@ the rationale in the PR body or issue handoff and flag the item to the owner.
 | Writing code before a failing test | A test written after the code confirms the code's behavior, not the spec's contract | Write the test, watch it fail on the right assertion, then implement |
 | Treating the exit gates as advisory | Produces the iteration paradox: reviewers flag what the implementer should have caught, and every revision costs more | Clear all four in the same build cycle |
 | Shipping a detector without self-applying it | A guard that does not fire on conditions already in the branch has wrong logic, and nobody finds out until it matters | Run it against the branch before committing |
-| Coding before reading the surrounding patterns | Produces a second convention in a file that already had one | Read related files and test conventions first |
-| Premature abstraction | Three similar lines are cheaper to read and to delete than a wrong shared helper | Wait for the third case |
 | "I will fix it in review" | Moves work to the most expensive place to do it | Fix it now, or document the rationale and link the follow-up |
 | Editing whatever file makes a failing validator pass | Might edit a generated mirror, a vendored file, or an unjustified baseline instead of the true owner | Run Phase 2b first; edit only the record's `permitted_change_location` |
 
@@ -294,7 +299,7 @@ the rationale in the PR body or issue handoff and flag the item to the owner.
   behind the existing design. This is a soft BLOCKING check: if the gate returns findings, address
   or explicitly acknowledge them in the active plan or issue handoff before proceeding.
 - Favor delegation over inheritance. A makes B, or A uses B. Never both.
-- Verify CLI flags and argparse patterns against live output before committing. Run the command, observe the actual behavior, confirm it matches intent.
+- Verify CLI flags and argparse patterns against live output before committing.
 - Use the real repo as the integration test bed. Run new scripts against an open or recent PR before declaring done. Synthetic fixtures can only validate the wrapper; real data validates the semantic.
 
 ## Extension Points
