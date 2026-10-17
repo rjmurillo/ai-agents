@@ -128,10 +128,10 @@ Invoke `skillforge` once per selected skill with the brief in [references/author
 
 ```bash
 python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_forms.py" check --plan "<plan path>" --skills-root <output-root> --require-scripts
-python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_mine.py" claims --repo . <output-root>/<new-skill>
+python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_mine.py" claims --repo . --authored <output-root>/<new-skill> <output-root>/<new-skill>
 ```
 
-A `claims` finding with context `current` is a defect to fix. A `historical` one is a hint: read the line and decide.
+Pass each skill this run wrote or updated with `--authored`, so its uncommitted files count. A `claims` finding with context `current` is a defect to fix. A `historical` one is a hint: read the line and decide.
 
 ### Phase 5: context-optimizer, capability eval, then skillopt
 

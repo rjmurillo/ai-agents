@@ -1413,4 +1413,26 @@ def test_untracked_file_in_a_committed_skill_stays_untracked(capsys, crepo):
     code, payload = claims(capsys, crepo, target)
 
     assert code == 1
-    assert statuses(payload) == {"scripts/new.py": "missing"}
+    assert statuses(payload) == {"scripts/new.py": "untracked"}
+
+
+def test_authored_flag_counts_uncommitted_files_of_an_updated_skill(capsys, crepo):
+    target = skill_repo(crepo)
+    write(crepo, ".claude/skills/demo/scripts/new.py", "x\n")
+    target.write_text("Run `scripts/new.py`.\n", encoding="utf-8")
+    skill_dir = target.parent
+
+    code, payload = claims(capsys, crepo, target, extra=("--authored", str(skill_dir)))
+
+    assert code == 0
+    assert payload["findings"] == []
+
+
+def test_authored_flag_still_reports_a_file_the_update_did_not_write(capsys, crepo):
+    target = skill_repo(crepo)
+    target.write_text("Run `scripts/ghost.py`.\n", encoding="utf-8")
+
+    code, payload = claims(capsys, crepo, target, extra=("--authored", str(target.parent)))
+
+    assert code == 1
+    assert statuses(payload) == {"scripts/ghost.py": "missing"}

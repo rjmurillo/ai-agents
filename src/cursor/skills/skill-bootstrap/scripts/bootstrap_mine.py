@@ -19,9 +19,12 @@ Subcommands:
                 `line-out-of-range`. Each finding carries a `context` label
                 (`historical` or `current`) derived from the source line. A
                 path missing from the repository root is also tried against
-                the nearest directory above the target that holds a tracked
-                SKILL.md, so a skill's own `scripts/x.py` resolves. The
-                script labels; the reader judges.
+                the nearest directory above the target that holds a
+                SKILL.md, so a skill's own `scripts/x.py` resolves. Files on
+                disk but not yet committed count as `ok` only for a skill
+                passed with `--authored` or whose SKILL.md is untracked;
+                elsewhere they are `untracked`. The script labels; the
+                reader judges.
 
 Exit codes:
 
@@ -561,6 +564,10 @@ def _resolve(
     if relative in ("ok", "line-out-of-range"):
         return relative
     if not authored:
+        # Name the real state: the file exists under this skill, it is just not committed.
+        relative_disk = view.disk_status(f"{base}/{path}", max_line)
+        if status == "missing" and relative_disk != "missing":
+            return "untracked"
         return status
     # Files this run authored live on disk under the skill directory, not yet at the ref.
     for candidate in (path, f"{base}/{path}"):
@@ -572,11 +579,13 @@ def _resolve(
 
 
 def _scan_file(
-    finder: PathFinder, view: RepoView, display: str, text: str
+    finder: PathFinder, view: RepoView, display: str, text: str, authored_dirs: frozenset[str]
 ) -> dict[tuple[str, str], Payload]:
     refs: dict[tuple[str, str], Payload] = {}
     base = _skill_base(display, view)
-    authored = base is not None and view.status(f"{base}/SKILL.md", None) != "ok"
+    authored = base is not None and (
+        base in authored_dirs or view.status(f"{base}/SKILL.md", None) != "ok"
+    )
     for number, line in enumerate(text.splitlines(), start=1):
         context = "historical" if HISTORICAL_RE.search(line) else "current"
         for ref, path, max_line in finder.find(line):
@@ -611,10 +620,12 @@ def claims(args: argparse.Namespace) -> tuple[int, Payload]:
     targets = _expand_targets(args.targets)
     finder = PathFinder(*top_level_entries(root, sha))
     view = RepoView(root, sha)
+    authored_dirs = frozenset(_display(root, Path(d).resolve()).rstrip("/") for d in args.authored)
     references: list[Payload] = []
     for target in targets:
         text = _read_target(target)
-        references.extend(_scan_file(finder, view, _display(root, target), text).values())
+        display = _display(root, target)
+        references.extend(_scan_file(finder, view, display, text, authored_dirs).values())
     findings = [r for r in references if r["status"] != "ok"]
     summary: Payload = {"status": {}, "context": {}}
     for finding in findings:
@@ -674,6 +685,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_claims = sub.add_parser("claims", help="check repo paths named in authored markdown")
     common(p_claims)
     p_claims.add_argument("targets", nargs="+", metavar="TARGET")
+    p_claims.add_argument(
+        "--authored",
+        action="append",
+        default=[],
+        metavar="SKILL_DIR",
+        help="a skill directory this run wrote or updated; its uncommitted files count",
+    )
     return parser
 
 

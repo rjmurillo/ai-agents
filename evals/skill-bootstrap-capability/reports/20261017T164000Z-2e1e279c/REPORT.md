@@ -73,6 +73,13 @@ script is harder to write. Those stay candidates.
   resolved only from the repository root. Fixed in `e1d09ceec`; current findings across all
   121 skills fell from 141 to 90.
 
+- After review, the runner's prefix precision now counts predictions that match gold, not
+  gold that matches predictions. Re-scoring every recorded run changed no published number.
+- These runs used `--permission-mode bypassPermissions` with only file-edit tools denied.
+  The runner now grants an explicit read-only allowlist (read tools, read-only `git`
+  subcommands, and the skill-bootstrap scripts). A rerun with the current runner is not
+  the same harness as this record.
+
 ## Findings outside the task
 
 <!-- citation-freshness: ignore -- these AGENTS.md line numbers are the stale citations this finding reports, not citations this report relies on -->

@@ -37,6 +37,21 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_TASKS = REPO_ROOT / "evals" / "skill-bootstrap-capability" / "fixtures" / "tasks.json"
 DEFAULT_MODEL = "claude-haiku-5-5"
 RUN_TIMEOUT_S = 1200
+# Read-only grant: any tool call outside it is denied in print mode, so a run cannot
+# mutate the checkout or the host. Measured: an unlisted `touch` is refused.
+READ_ONLY_TOOLS = (
+    "Read",
+    "Grep",
+    "Glob",
+    "Bash(git log:*)",
+    "Bash(git show:*)",
+    "Bash(git ls-tree:*)",
+    "Bash(git grep:*)",
+    "Bash(git rev-parse:*)",
+    "Bash(git rev-list:*)",
+    "Bash(git diff-tree:*)",
+    "Bash(python3 .claude/skills/skill-bootstrap/scripts/:*)",
+)
 JSON_BLOCK = re.compile(r"```json\s*(\{.*?\})\s*```", re.DOTALL)
 
 
@@ -97,10 +112,15 @@ def grade(task: dict[str, Any], answer: dict[str, Any] | None) -> dict[str, floa
     if kind == "set_f1_prefix":
         predicted = {str(v).strip().lower()[:9] for v in values if len(str(v).strip()) >= 7}
         gold = {g[:9] for g in task["gold"]}
-        matched = {g for g in gold if any(g.startswith(p) or p.startswith(g) for p in predicted)}
-        precision = len(matched) / len(predicted) if predicted else 0.0
-        recall = len(matched) / len(gold)
-        f1 = 2 * precision * recall / (precision + recall) if matched else 0.0
+
+        def hits(a: str, b: str) -> bool:
+            return a.startswith(b) or b.startswith(a)
+
+        matched_gold = {g for g in gold if any(hits(g, p) for p in predicted)}
+        matched_pred = {p for p in predicted if any(hits(p, g) for g in gold)}
+        precision = len(matched_pred) / len(predicted) if predicted else 0.0
+        recall = len(matched_gold) / len(gold)
+        f1 = 2 * precision * recall / (precision + recall) if matched_gold else 0.0
         return {"precision": precision, "recall": recall, "f1": f1}
     if kind == "set_f1":
         return _f1({_norm_path(str(v)) for v in values}, set(task["gold"]))
@@ -119,8 +139,8 @@ def run_one(checkout: Path, prompt: str, model: str) -> dict[str, Any]:
                 model,
                 "--output-format",
                 "json",
-                "--permission-mode",
-                "bypassPermissions",
+                "--allowedTools",
+                *READ_ONLY_TOOLS,
                 "--disallowedTools",
                 "Edit",
                 "Write",

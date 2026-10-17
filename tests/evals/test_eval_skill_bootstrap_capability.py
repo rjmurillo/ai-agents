@@ -206,3 +206,37 @@ def test_run_one_records_a_timeout_as_an_error(monkeypatch, tmp_path):
 
     assert result["is_error"] is True
     assert result["result"] == ""
+
+
+def test_prefix_precision_counts_predictions_not_gold_matches():
+    two_gold = {"id": "R2", "grader": "set_f1_prefix", "gold": ["abcdef123", "abcdef145"]}
+
+    score = cap.grade(two_gold, {"reverts": ["abcdef1"]})
+
+    assert score["precision"] == 1.0
+    assert score["recall"] == 1.0
+
+
+def test_prefix_precision_penalizes_a_prediction_that_matches_nothing():
+    score = cap.grade(task("R"), {"reverts": ["abcdef1", "fffffff"]})
+
+    assert score["precision"] == 0.5
+    assert score["recall"] == 1.0
+
+
+def test_run_one_grants_only_read_only_tools(monkeypatch, tmp_path):
+    seen: list[list[str]] = []
+
+    def fake_run(argv, *args, **kwargs):
+        seen.append(argv)
+        return subprocess.CompletedProcess(argv, 0, "{}", "")
+
+    monkeypatch.setattr(cap.subprocess, "run", fake_run)
+
+    cap.run_one(tmp_path, "prompt", "model")
+
+    argv = seen[0]
+    assert "bypassPermissions" not in argv
+    granted = argv[argv.index("--allowedTools") + 1 : argv.index("--disallowedTools")]
+    assert granted == list(cap.READ_ONLY_TOOLS)
+    assert not any(t in ("Bash", "Edit", "Write") for t in granted)
