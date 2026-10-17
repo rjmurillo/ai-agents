@@ -142,7 +142,7 @@ def test_subject_with_revert_elsewhere_is_not_a_revert(capsys, repo, subject):
     "body",
     [
         "This reverts commit abcdef",
-        f"This reverts commit {'a' * 41}",
+        f"This reverts commit {'a' * 65}",
         "Note: This reverts commit abcdef1234",
         "this reverts commit abcdef1234",
     ],
@@ -899,7 +899,7 @@ def test_fenced_code_and_plain_text_are_both_scanned(capsys, crepo, tmp_path):
 
 @pytest.mark.parametrize(
     "word",
-    ["retired", "Deleted", "removed", "formerly", "was", "were", "until", "superseded"]
+    ["retired", "Deleted", "removed", "formerly", "superseded"]
     + ["no longer", "legacy", "used to"],
 )
 def test_historical_words_label_the_context(capsys, crepo, tmp_path, word):
@@ -1436,3 +1436,69 @@ def test_authored_flag_still_reports_a_file_the_update_did_not_write(capsys, cre
 
     assert code == 1
     assert statuses(payload) == {"scripts/ghost.py": "missing"}
+
+
+# ------------------------------------------------- review fixes: timeout, SHA-256, until
+
+
+def test_git_timeout_exits_3(capsys, repo, monkeypatch):
+    def hang(cmd, **kwargs):
+        assert kwargs["timeout"] == mine.GIT_TIMEOUT_S
+        raise subprocess.TimeoutExpired(cmd, kwargs["timeout"])
+
+    monkeypatch.setattr(mine.subprocess, "run", hang)
+
+    code, payload = cand(capsys, repo)
+
+    assert code == 3
+    assert "timed out" in payload["message"]
+
+
+def test_revert_body_accepts_a_64_hex_sha256(capsys, repo):
+    full = "b" * 64
+    commit(repo, "chore: undo", body=f"This reverts commit {full}.")
+
+    _, payload = cand(capsys, repo)
+
+    assert payload["reverts"][0]["reverted"] == [full]
+
+
+def test_until_does_not_make_a_dead_path_historical(capsys, crepo, tmp_path):
+    target = md(tmp_path, "Retry until `scripts/no_such_gate.py` exits 0.\n")
+
+    code, payload = claims(capsys, crepo, target)
+
+    assert code == 1
+    assert payload["findings"][0]["context"] == "current"
+
+
+def test_a_real_historical_line_still_does_not_block(capsys, crepo, tmp_path):
+    target = md(tmp_path, "`scripts/no_such_gate.py` was removed last year.\n")
+
+    code, payload = claims(capsys, crepo, target)
+
+    assert code == 0
+    assert payload["findings"][0]["context"] == "historical"
+
+
+def test_untracked_symlink_to_outside_the_repo_is_missing_not_untracked(capsys, crepo, tmp_path):
+    outside = tmp_path / "outside.txt"
+    outside.write_text("secret", encoding="utf-8")
+    symlink_or_skip(crepo / "scripts" / "escape.txt", outside)
+    target = md(tmp_path, "See scripts/escape.txt\n")
+
+    _, payload = claims(capsys, crepo, target)
+
+    assert statuses(payload) == {"scripts/escape.txt": "missing"}
+
+
+def test_disk_status_refuses_a_symlink_that_leaves_the_repo(crepo, tmp_path):
+    outside = tmp_path / "outside.txt"
+    outside.write_text("secret", encoding="utf-8")
+    symlink_or_skip(crepo / "scripts" / "escape.txt", outside)
+    (crepo / "scripts" / "inside.txt").write_text("ok", encoding="utf-8")
+    sha = mine.resolve_rev(crepo, "HEAD")
+    view = mine.RepoView(crepo, sha)
+
+    assert view.disk_status("scripts/escape.txt", None) == "missing"
+    assert view.disk_status("scripts/inside.txt", None) == "ok"

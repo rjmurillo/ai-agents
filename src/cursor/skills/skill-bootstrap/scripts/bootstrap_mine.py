@@ -73,6 +73,7 @@ Payload = dict[str, Any]
 RECORD_SEP = "\x1e"
 FIELD_SEP = "\x1f"
 SHORT_SHA = 9
+GIT_TIMEOUT_S = 30
 SHA_RE = re.compile(r"[0-9a-f]{40}|[0-9a-f]{64}")
 
 # `Revert ...`, with a word boundary so `Reverted` and `Reverts` do not match.
@@ -80,13 +81,13 @@ REVERT_SUBJECT_RE = re.compile(r"^revert\b", re.IGNORECASE)
 # `<type>(<optional scope>)!?: revert`
 REVERT_CONVENTIONAL_RE = re.compile(r"^[A-Za-z][\w-]*(?:\([^)]*\))?!?:\s*revert\b", re.IGNORECASE)
 REVERT_BODY_RE = re.compile(
-    r"^This reverts commit ([0-9a-fA-F]{7,40})(?![0-9a-fA-F])", re.MULTILINE
+    r"^This reverts commit ([0-9a-fA-F]{7,64})(?![0-9a-fA-F])", re.MULTILINE
 )
 
 TODO_PATTERN = r"\b(TODO|FIXME|XXX|HACK)\b"
 
 HISTORICAL_RE = re.compile(
-    r"\b(retired|deleted|removed|formerly|was|were|until|superseded|no longer|legacy|used to)\b",
+    r"\b(retired|deleted|removed|formerly|superseded|no longer|legacy|used to)\b",
     re.IGNORECASE,
 )
 PATH_CHARS = r"A-Za-z0-9_.\-/"
@@ -123,9 +124,12 @@ def _run_git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
             encoding="utf-8",
             errors="replace",
             check=False,
+            timeout=GIT_TIMEOUT_S,
         )
     except FileNotFoundError as exc:
         raise GitError("git is not installed or not on PATH") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise GitError(f"git {' '.join(args)} timed out after {GIT_TIMEOUT_S} s") from exc
 
 
 def _git(repo: Path, *args: str, ok: tuple[int, ...] = (0,)) -> str:
@@ -512,16 +516,30 @@ class RepoView:
             return "ok"
         return "untracked" if self._on_disk(bare) else "missing"
 
-    def _on_disk(self, path: str) -> bool:
+    def _inside_root(self, path: str) -> Path | None:
+        """Return the working-tree path, or None when it climbs or resolves outside the repo.
+
+        Same containment rule as `bootstrap_drift._safe_path`: a symlink that
+        points outside the repository must not reveal what exists there.
+        """
         if ".." in path.split("/"):
-            return False
-        return (self._root / path).exists()
+            return None
+        target = self._root / path
+        resolved = target.resolve()
+        root = self._root.resolve()
+        if resolved != root and root not in resolved.parents:
+            return None
+        return target
+
+    def _on_disk(self, path: str) -> bool:
+        target = self._inside_root(path)
+        return target is not None and target.exists()
 
     def disk_status(self, path: str, max_line: int | None) -> str:
         """Status of a working-tree path, for files a run authored and has not committed."""
-        if ".." in path.split("/"):
+        target = self._inside_root(path)
+        if target is None:
             return "missing"
-        target = self._root / path
         if target.is_dir():
             return "ok"
         if not target.is_file():
