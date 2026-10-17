@@ -1,0 +1,39 @@
+{
+  "base_commit": "acff1d0a1f21c2c8e4a10ee006aeefc8307db8b6",
+  "frozen": "2026-10-17",
+  "preamble": "You are executing part of a skill-bootstrap run on this repository. Read .claude/skills/skill-bootstrap/SKILL.md and its references first, and use any scripts it provides when they fit the task. Do not modify, create, or delete any file in the repository. End your reply with exactly one fenced ```json block holding the answer object described below.",
+  "tasks": [
+    {
+      "id": "T1-stale-refs",
+      "lens": "provenance and drift",
+      "prompt": "Review step: audit the existing skills whose directory names start with ai-agents- under .claude/skills/. Find every repository path that a SKILL.md presents as CURRENT (something to read, run, or that guards behavior today) but that does not exist in this checkout. Do not report paths the text itself describes as retired, deleted, removed, formerly present, or historical, and do not report placeholder or glob patterns. Answer object: {\"stale\": [{\"skill\": \"<directory name>\", \"path\": \"<repo-relative path without ::node or :line suffix>\"}]}.",
+      "grader": "pairs_f1",
+      "gold": [
+        {"skill": "ai-agents-architecture-contract", "path": "tests/build_scripts/test_copilot_dispatcher_artifact.py"},
+        {"skill": "ai-agents-config-catalog", "path": ".claude/.claude-plugin/plugin.json"},
+        {"skill": "ai-agents-portability-campaign", "path": "tests/build_scripts/test_copilot_dispatcher_artifact.py"},
+        {"skill": "ai-agents-research-frontier", "path": "tests/build_scripts/test_copilot_dispatcher_artifact.py"}
+      ],
+      "ignore": [
+        {"skill": "ai-agents-diagnostics-toolkit", "path": "build/audit/GENERATION-AUDIT.md"}
+      ],
+      "gold_derivation": "Independent regex scan of all repo-rooted path tokens in the 15 SKILL.md files at base_commit (26 missing tokens), each read in context by hand. 4 are presented as current; the rest are explicitly historical, placeholders, globs, or a gitignored generated file (ignored)."
+    },
+    {
+      "id": "T2-reverts",
+      "lens": "candidate mining",
+      "prompt": "Discovery step: find candidate failure-archaeology cases. Using the git history available in this clone, list every commit reachable from base commit acff1d0a1f21c2c8e4a10ee006aeefc8307db8b6 that is a revert by this definition: its subject starts with 'Revert' (any case), or its subject matches '<type>(<optional scope>): revert', or its message body contains a line 'This reverts commit <sha>'. Answer object: {\"reverts\": [\"<first 9 hex chars of the reverting commit sha>\"]}.",
+      "grader": "set_f1_prefix",
+      "gold": ["e44c5fabe", "80ca5e383", "41f12fe07", "428378dc0", "d215e0a8d", "2197d7233"],
+      "gold_derivation": "git log --format='%H%x1f%s%x1f%b%x1e' acff1d0a1 parsed with the three rules above over 3354 reachable commits."
+    },
+    {
+      "id": "T3-churn",
+      "lens": "candidate mining",
+      "prompt": "Discovery step: find churn hotspots. Over the 300 most recent commits reachable from base commit acff1d0a1f21c2c8e4a10ee006aeefc8307db8b6 (git log -n 300 order), count how many of those commits touched each file, excluding every path under src/. Answer object: {\"top3\": [\"<path>\", \"<path>\", \"<path>\"]} with the three most-touched files, most first.",
+      "grader": "set_f1",
+      "gold": [".serena/memories/memory-index.md", "scripts/validation/git_hook_policy.py", "tests/validation/test_pre_pr_sequence_registry.py"],
+      "gold_derivation": "git log --format= --name-only -n 300 acff1d0a1 | grep -v '^src/' | sort | uniq -c | sort -rn: counts 20, 19, 16, then a three-way tie at 14."
+    }
+  ]
+}
