@@ -30,9 +30,25 @@
         {
           "skill": "ai-agents-diagnostics-toolkit",
           "path": "build/audit/GENERATION-AUDIT.md"
+        },
+        {
+          "skill": "ai-agents-build-and-env",
+          "path": ".claude-plugin/plugin.json"
+        },
+        {
+          "skill": "ai-agents-change-control",
+          "path": ".claude-plugin/plugin.json"
+        },
+        {
+          "skill": "ai-agents-debugging-playbook",
+          "path": ".claude-plugin/plugin.json"
+        },
+        {
+          "skill": "ai-agents-generation-and-release",
+          "path": ".claude-plugin/plugin.json"
         }
       ],
-      "gold_derivation": "Independent regex scan of all repo-rooted path tokens in the 15 SKILL.md files at base_commit (26 missing tokens), each read in context by hand. 4 are presented as current; the rest are explicitly historical, placeholders, globs, or a gitignored generated file (ignored)."
+      "gold_derivation": "Independent regex scan of all repo-rooted path tokens in the 15 SKILL.md files at base_commit (26 missing tokens), each read in context by hand. 4 are presented as current; the rest are explicitly historical, placeholders, globs, or a gitignored generated file (ignored). Amended 2026-10-17 after the first round: '.claude-plugin/plugin.json' in four skills is a generic name for the per-plugin manifests (for example 'the three `.claude-plugin/plugin.json` manifests'), so it is ambiguous and ignored, for both conditions."
     },
     {
       "id": "T2-reverts",
@@ -63,6 +79,28 @@
         "tests/validation/test_pre_pr_sequence_registry.py"
       ],
       "gold_derivation": "git log --format= --name-only -n 300 acff1d0a1 | grep -v '^src/' | sort | uniq -c | sort -rn: counts 20, 19, 16, then a three-way tie at 14."
+    },
+    {
+      "id": "T4-line-refs-at-scale",
+      "lens": "provenance and drift, at library scale",
+      "added": "2026-10-17, after round one, frozen before either condition ran it",
+      "prompt": "Review step at library scale: across every SKILL.md under .claude/skills/ (all skills, not only ai-agents-*), find every line reference of the form <path>:<N>, <path>:<N>-<M>, or <path>:<N>,<M> whose <path> is a file tracked in this repository (resolve it from the repository root, or else from that skill's own directory) and whose largest cited line number is greater than the number of lines in that file. Answer object: {\"stale\": [{\"skill\": \"<skill directory name>\", \"ref\": \"<path>:<line spec exactly as written>\"}]}.",
+      "grader": "pairs_f1",
+      "answer_fields": [
+        "skill",
+        "ref"
+      ],
+      "gold": [
+        {
+          "skill": "ai-agents-research-methodology",
+          "ref": "AGENTS.md:40"
+        },
+        {
+          "skill": "ai-agents-research-methodology",
+          "ref": "AGENTS.md:38"
+        }
+      ],
+      "gold_derivation": "Independent regex scan (not bootstrap_mine.py) of all 121 SKILL.md files at acff1d0a1 for <path>.<ext>:<lines> tokens; 85 resolve to tracked files from the root or the skill directory; 2 exceed the file length (AGENTS.md has 24 lines). Verified by hand: lines 275-276 of ai-agents-research-methodology/SKILL.md cite AGENTS.md:40 and :38."
     }
   ]
 }

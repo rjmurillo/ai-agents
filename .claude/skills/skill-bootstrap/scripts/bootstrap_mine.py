@@ -16,7 +16,10 @@ Subcommands:
     claims      Check the repository paths named in authored markdown against
                 the ref. Each reference is `ok`, `missing`, `untracked`, or
                 `line-out-of-range`. Each finding carries a `context` label
-                (`historical` or `current`) derived from the source line. The
+                (`historical` or `current`) derived from the source line. A
+                path missing from the repository root is also tried against
+                the nearest directory above the target that holds a tracked
+                SKILL.md, so a skill's own `scripts/x.py` resolves. The
                 script labels; the reader judges.
 
 Exit codes:
@@ -495,10 +498,31 @@ class RepoView:
         return (self._root / path).exists()
 
 
+def _skill_base(display: str, view: RepoView) -> str | None:
+    """Return the nearest ancestor directory of `display` that holds a tracked SKILL.md."""
+    parts = display.split("/")[:-1]
+    while parts:
+        base = "/".join(parts)
+        if view.status(f"{base}/SKILL.md", None) == "ok":
+            return base
+        parts.pop()
+    return None
+
+
+def _resolve(view: RepoView, base: str | None, path: str, max_line: int | None) -> str:
+    """Status from the repository root, else from the skill directory when one holds it."""
+    status = view.status(path, max_line)
+    if status == "ok" or base is None:
+        return status
+    relative = view.status(f"{base}/{path}", max_line)
+    return relative if relative in ("ok", "line-out-of-range") else status
+
+
 def _scan_file(
     finder: PathFinder, view: RepoView, display: str, text: str
 ) -> dict[tuple[str, str], Payload]:
     refs: dict[tuple[str, str], Payload] = {}
+    base = _skill_base(display, view)
     for number, line in enumerate(text.splitlines(), start=1):
         context = "historical" if HISTORICAL_RE.search(line) else "current"
         for ref, path, max_line in finder.find(line):
@@ -513,7 +537,7 @@ def _scan_file(
                 "line": number,
                 "ref": ref,
                 "path": path,
-                "status": view.status(path, max_line),
+                "status": _resolve(view, base, path, max_line),
                 "context": context,
             }
     return refs

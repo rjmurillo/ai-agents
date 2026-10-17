@@ -80,15 +80,18 @@ def grade(task: dict[str, Any], answer: dict[str, Any] | None) -> dict[str, floa
         return {"precision": 0.0, "recall": 0.0, "f1": 0.0}
     kind = task["grader"]
     if kind == "pairs_f1":
-        ignore = {(i["skill"], i["path"]) for i in task.get("ignore", [])}
-        gold = {f"{g['skill']}|{g['path']}" for g in task["gold"]}
-        predicted = set()
-        for item in answer.get("stale") or []:
-            if not isinstance(item, dict):
-                continue
-            pair = (str(item.get("skill", "")).strip(), _norm_path(str(item.get("path", ""))))
-            if pair not in ignore:
-                predicted.add(f"{pair[0]}|{pair[1]}")
+        fields = task.get("answer_fields", ["skill", "path"])
+
+        def key(item: dict[str, Any]) -> str:
+            parts = [str(item.get(f, "")).strip() for f in fields]
+            if fields[-1] == "path":
+                parts[-1] = _norm_path(parts[-1])
+            return "|".join(parts)
+
+        ignore = {key(i) for i in task.get("ignore", [])}
+        gold = {key(g) for g in task["gold"]}
+        items = answer.get("stale") or []
+        predicted = {key(i) for i in items if isinstance(i, dict)} - ignore
         return _f1(predicted, gold)
     values = next((v for v in answer.values() if isinstance(v, list)), [])
     if kind == "set_f1_prefix":

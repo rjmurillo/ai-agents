@@ -1152,3 +1152,54 @@ def test_claims_leaves_the_repository_untouched(capsys, crepo, tmp_path):
     cand(capsys, crepo)
 
     assert run_git(crepo, "status", "--porcelain") == before
+
+
+def skill_repo(crepo: Path) -> Path:
+    """Commit a skill whose SKILL.md names its own scripts by skill-relative path."""
+    commit(
+        crepo,
+        "add demo skill",
+        {
+            ".claude/skills/demo/SKILL.md": "x\n",
+            ".claude/skills/demo/scripts/run.py": "a\nb\n",
+        },
+    )
+    return crepo / ".claude" / "skills" / "demo" / "SKILL.md"
+
+
+def test_skill_relative_script_reference_is_ok(capsys, crepo):
+    target = skill_repo(crepo)
+    target.write_text("Run `scripts/run.py` from this skill.\n", encoding="utf-8")
+
+    code, payload = claims(capsys, crepo, target)
+
+    assert code == 0
+    assert payload["findings"] == []
+
+
+def test_skill_relative_line_reference_past_the_end_is_out_of_range(capsys, crepo):
+    target = skill_repo(crepo)
+    target.write_text("See `scripts/run.py:9`.\n", encoding="utf-8")
+
+    _, payload = claims(capsys, crepo, target)
+
+    assert statuses(payload) == {"scripts/run.py:9": "line-out-of-range"}
+
+
+def test_reference_missing_from_root_and_skill_stays_missing(capsys, crepo):
+    target = skill_repo(crepo)
+    target.write_text("Run `scripts/absent.py`.\n", encoding="utf-8")
+
+    code, payload = claims(capsys, crepo, target)
+
+    assert code == 1
+    assert statuses(payload) == {"scripts/absent.py": "missing"}
+
+
+def test_file_outside_any_skill_resolves_from_the_root_only(capsys, crepo, tmp_path):
+    skill_repo(crepo)
+    target = md(tmp_path, "Run `scripts/run.py`.\n")
+
+    _, payload = claims(capsys, crepo, target)
+
+    assert statuses(payload) == {"scripts/run.py": "missing"}
