@@ -37,7 +37,8 @@ Exit codes:
     1  The plan has at least one violation.
     2  Configuration error: bad arguments, unreadable or malformed JSON, a
        wrong top-level type, an unknown mode, `--require-scripts` without
-       `--skills-root`, or `--skills-root` without `--require-scripts`.
+       `--skills-root`, `--skills-root` without `--require-scripts`, or a
+       `--skills-root` that is not a directory.
 
 The payload always carries `examined` (items read, zero included), so a caller
 can tell "zero violations in N items" from "nothing was examined". The script
@@ -252,6 +253,8 @@ def check(args: argparse.Namespace) -> tuple[int, Payload]:
         raise ConfigError("--require-scripts needs --skills-root")
     if args.skills_root and not args.require_scripts:
         raise ConfigError("--skills-root has no effect without --require-scripts")
+    if args.skills_root and not Path(args.skills_root).is_dir():
+        raise ConfigError(f"--skills-root is not a directory: {args.skills_root}")
     plan = _load_plan(args.plan)
     skills_root = Path(args.skills_root) if args.require_scripts else None
     items = plan["items"]

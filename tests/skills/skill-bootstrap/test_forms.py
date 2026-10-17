@@ -459,3 +459,14 @@ def test_skill_name_of_64_chars_passes(capsys, tmp_path):
     code, _ = run_check(capsys, tmp_path, [make_item(skill="a" * 64)])
 
     assert code == 0
+
+
+def test_missing_skills_root_is_config_error(capsys, tmp_path):
+    code, payload = run_check(
+        capsys, tmp_path, [make_item()], "--skills-root", str(tmp_path / "nope"),
+        "--require-scripts",
+    )  # fmt: skip
+
+    assert code == 2
+    assert payload["error"] == "config"
+    assert "not a directory" in payload["message"]
