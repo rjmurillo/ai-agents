@@ -133,7 +133,14 @@ def _identity_violations(item: Payload, label: str, seen: set[str]) -> list[Viol
             _violation(label, "skill-name", f"skill {skill!r} is not lowercase hyphen-case")
         )
     if not _lens_ok(item.get("lens")):
-        found.append(_violation(label, "unknown-lens", f"lens {item.get('lens')!r} is not valid"))
+        found.append(
+            _violation(
+                label,
+                "unknown-lens",
+                f"lens {item.get('lens')!r} is not valid; use one of {', '.join(sorted(LENSES))} "
+                "or other:<kebab-name>",
+            )
+        )
     return found
 
 

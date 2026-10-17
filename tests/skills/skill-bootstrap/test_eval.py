@@ -609,7 +609,7 @@ def test_status_no_gap_when_baseline_already_passes(capsys: Capsys, tmp_path: Pa
 def test_status_regression_when_with_skill_is_worse(capsys: Capsys, tmp_path: Path) -> None:
     code, row = scored_row(capsys, tmp_path, ["alpha", "nope"], ["nope", "nope"])
 
-    assert code == 0
+    assert code == 1
     assert row["status"] == "regression"
     assert row["delta"] == -0.5
 
@@ -708,7 +708,7 @@ def test_skill_and_overall_summaries(capsys: Capsys, tmp_path: Path) -> None:
     code, payload = score(capsys, frozen, write_results(tmp_path / "r.jsonl", rows))
 
     a, b = payload["skills"]["acme-a"], payload["skills"]["acme-b"]
-    assert code == 0
+    assert code == 1  # C4 regresses
     assert (a["baseline"], a["with_skill"], a["capability_delta"]) == (0.5, 1.0, 0.5)
     assert a["statuses"] == {"gain": 1, "no_gap": 1, "regression": 0, "flat": 0, "incomplete": 0}
     assert (b["baseline"], b["with_skill"], b["capability_delta"]) == (0.5, 0.0, -0.5)
@@ -804,15 +804,6 @@ def test_min_delta_not_met_exits_one(capsys: Capsys, tmp_path: Path) -> None:
 
     assert code == 1
     assert payload["min_delta"]["met"] is False
-
-
-def test_without_min_delta_a_negative_delta_still_exits_zero(
-    capsys: Capsys, tmp_path: Path
-) -> None:
-    code, row = scored_row(capsys, tmp_path, ["alpha"], ["nope"])
-
-    assert code == 0
-    assert row["status"] == "regression"
 
 
 def test_min_delta_fails_when_nothing_was_measured(capsys: Capsys, tmp_path: Path) -> None:
@@ -1145,3 +1136,12 @@ def test_score_rejects_results_that_are_not_utf8(capsys: Capsys, tmp_path: Path)
 
     assert code == 2
     assert "cannot read results" in payload["message"]
+
+
+def test_regression_exits_1_even_when_every_case_is_complete(
+    capsys: Capsys, tmp_path: Path
+) -> None:
+    code, row = scored_row(capsys, tmp_path, ["alpha"], ["nope"])
+
+    assert row["status"] == "regression"
+    assert code == 1

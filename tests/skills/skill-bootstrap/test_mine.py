@@ -1388,3 +1388,29 @@ def test_uncommitted_skill_directory_reference_is_ok(capsys, crepo):
 
     assert code == 0
     assert payload["findings"] == []
+
+
+def test_reverts_truncated_when_the_scan_fills_max_commits(capsys, repo):
+    commit(repo, "one")
+    commit(repo, "two")
+
+    _, payload = cand(capsys, repo, "--max-commits", "1")
+
+    assert payload["reverts_truncated"] is True
+
+
+def test_reverts_not_truncated_when_history_is_shorter_than_the_cap(capsys, repo):
+    _, payload = cand(capsys, repo, "--max-commits", "1000")
+
+    assert payload["reverts_truncated"] is False
+
+
+def test_untracked_file_in_a_committed_skill_stays_untracked(capsys, crepo):
+    target = skill_repo(crepo)
+    write(crepo, ".claude/skills/demo/scripts/new.py", "x\n")
+    target.write_text("Run `scripts/new.py`.\n", encoding="utf-8")
+
+    code, payload = claims(capsys, crepo, target)
+
+    assert code == 1
+    assert statuses(payload) == {"scripts/new.py": "missing"}

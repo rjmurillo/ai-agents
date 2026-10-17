@@ -194,3 +194,15 @@ def test_frozen_fixture_loads():
     data = cap.load_tasks(cap.DEFAULT_TASKS)
 
     assert {t["id"] for t in data["tasks"]} >= {"T1-stale-refs", "T4-line-refs-at-scale"}
+
+
+def test_run_one_records_a_timeout_as_an_error(monkeypatch, tmp_path):
+    def fake_run(*args, **kwargs):
+        raise subprocess.TimeoutExpired(cmd="claude", timeout=1)
+
+    monkeypatch.setattr(cap.subprocess, "run", fake_run)
+
+    result = cap.run_one(tmp_path, "prompt", "model")
+
+    assert result["is_error"] is True
+    assert result["result"] == ""

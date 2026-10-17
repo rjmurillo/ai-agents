@@ -357,6 +357,8 @@ def candidates(args: argparse.Namespace) -> tuple[int, Payload]:
         "rev": args.rev,
         "sha": sha,
         "reverts": reverts,
+        # The scan stops at --max-commits; a full window means older reverts were not read.
+        "reverts_truncated": commits + unparsed >= max_commits,
         "churn": [{"path": r["path"], "commits": r["count"]} for r in churn],
         "churn_tie_at_cutoff": churn_tie,
         "todo_hotspots": [{"path": r["path"], "todos": r["count"]} for r in todos],
@@ -544,14 +546,22 @@ def _skill_base(display: str, view: RepoView) -> str | None:
     return None
 
 
-def _resolve(view: RepoView, base: str | None, path: str, max_line: int | None) -> str:
-    """Status from the ref at the root, then the skill directory, then its files on disk."""
+def _resolve(
+    view: RepoView, base: str | None, path: str, max_line: int | None, authored: bool
+) -> str:
+    """Status from the ref at the root, then the skill directory, then its files on disk.
+
+    Files on disk count only for an `authored` skill, one whose SKILL.md is not yet
+    tracked, so an untracked or ignored file in an existing skill is still reported.
+    """
     status = view.status(path, max_line)
     if status == "ok" or base is None:
         return status
     relative = view.status(f"{base}/{path}", max_line)
     if relative in ("ok", "line-out-of-range"):
         return relative
+    if not authored:
+        return status
     # Files this run authored live on disk under the skill directory, not yet at the ref.
     for candidate in (path, f"{base}/{path}"):
         if candidate.startswith(f"{base}/"):
@@ -566,6 +576,7 @@ def _scan_file(
 ) -> dict[tuple[str, str], Payload]:
     refs: dict[tuple[str, str], Payload] = {}
     base = _skill_base(display, view)
+    authored = base is not None and view.status(f"{base}/SKILL.md", None) != "ok"
     for number, line in enumerate(text.splitlines(), start=1):
         context = "historical" if HISTORICAL_RE.search(line) else "current"
         for ref, path, max_line in finder.find(line):
@@ -580,7 +591,7 @@ def _scan_file(
                 "line": number,
                 "ref": ref,
                 "path": path,
-                "status": _resolve(view, base, path, max_line),
+                "status": _resolve(view, base, path, max_line, authored),
                 "context": context,
             }
     return refs

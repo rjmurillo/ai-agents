@@ -109,30 +109,41 @@ def grade(task: dict[str, Any], answer: dict[str, Any] | None) -> dict[str, floa
 
 def run_one(checkout: Path, prompt: str, model: str) -> dict[str, Any]:
     started = time.monotonic()
-    proc = subprocess.run(
-        [
-            "claude",
-            "-p",
-            prompt,
-            "--model",
-            model,
-            "--output-format",
-            "json",
-            "--permission-mode",
-            "bypassPermissions",
-            "--disallowedTools",
-            "Edit",
-            "Write",
-            "NotebookEdit",
-        ],
-        cwd=checkout,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=RUN_TIMEOUT_S,
-        check=False,
-    )
+    try:
+        proc = subprocess.run(
+            [
+                "claude",
+                "-p",
+                prompt,
+                "--model",
+                model,
+                "--output-format",
+                "json",
+                "--permission-mode",
+                "bypassPermissions",
+                "--disallowedTools",
+                "Edit",
+                "Write",
+                "NotebookEdit",
+            ],
+            cwd=checkout,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=RUN_TIMEOUT_S,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        elapsed = time.monotonic() - started
+        return {
+            "result": "",
+            "is_error": True,
+            "num_turns": None,
+            "cost_usd": None,
+            "output_tokens": None,
+            "wall_s": round(elapsed, 1),
+        }
     elapsed = time.monotonic() - started
     try:
         meta = json.loads(proc.stdout)

@@ -425,3 +425,11 @@ def test_clean_skill_name_and_other_lens_still_pass(capsys, tmp_path):
 
     assert code == 0
     assert payload["violations"] == []
+
+
+def test_unknown_lens_message_lists_the_valid_ids(capsys, tmp_path):
+    _, payload = run_check(capsys, tmp_path, [make_item(lens="build-and-environment")])
+
+    message = payload["violations"][0]["message"]
+    assert "build-and-env" in message
+    assert "other:<kebab-name>" in message

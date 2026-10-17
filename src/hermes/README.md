@@ -26,7 +26,6 @@ Project Toolkit skills for GitHub pull request work, build, test, and quality ga
 - `github`
 - `github-url-intercept`
 - `golden-principles`
-- `maintainer-review`
 - `merge-resolver`
 - `metrics`
 - `observability`
@@ -111,6 +110,7 @@ These skills ship in no pack.
 
 - `adr-review`: plugin_guard returns dangerous for this skill (ADR-115 Decision 6).
 - `cva-analysis`: plugin_guard returns dangerous for this skill (ADR-115 Decision 6).
+- `maintainer-review`: Refers to excluded skill(s): review.
 - `memory-gate`: Refers to excluded skill(s): memory-search.
 - `memory-maintenance`: plugin_guard returns dangerous for this skill (ADR-115 Decision 6).
 - `memory-reflexion`: Refers to excluded skill(s): memory-maintenance and memory-search.

@@ -56,8 +56,8 @@ Exit codes:
 
     0  freeze wrote the file, or score found every case complete (and met
        `--min-delta` when given).
-    1  score found an incomplete case, or the overall delta is below
-       `--min-delta` (or unmeasured, when no case is complete).
+    1  score found an incomplete case or a regression case, or the overall
+       delta is below `--min-delta` (or unmeasured, when no case is complete).
     2  Configuration error: bad arguments, malformed cases, results, or
        frozen file, a frozen file edited after freezing, an existing `--out`,
        an `--out` inside a git work tree without `--allow-in-repo`, or git
@@ -483,7 +483,7 @@ def score(args: argparse.Namespace) -> tuple[int, Payload]:
         for name in sorted({row["skill"] for row in rows})
     }
     overall = _summary(rows)
-    failing = overall["statuses"]["incomplete"] > 0
+    failing = overall["statuses"]["incomplete"] > 0 or overall["statuses"]["regression"] > 0
     payload: Payload = {
         "cases": _rounded(rows),
         "skills": skills,

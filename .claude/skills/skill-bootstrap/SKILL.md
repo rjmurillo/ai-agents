@@ -114,7 +114,7 @@ PowerShell, see [Scripts](#scripts).
 
 ### Phase 2: Mine candidates, then discover
 
-1. Mine before you browse. The script ranks reverts, churn hotspots, TODO and FIXME hotspots, and (with `--prs-json` from the host API) review rounds. Exclude generated mirrors:
+1. Mine before you browse. The script ranks reverts, churn hotspots, TODO and FIXME hotspots, and (with `--prs-json` from the host API) review rounds. Exclude generated mirrors. When `reverts_truncated` is true, the scan stopped at `--max-commits` (default 3000); raise it to read older history:
 
    ```bash
    python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_mine.py" candidates --repo . --top 10 --exclude <generated-prefix>
@@ -192,7 +192,7 @@ Exit code 1 lists `update_candidates` and gives `update_args` as a JSON list of 
 
 ## Scripts
 
-Every script uses only the Python standard library, prints JSON with an `examined` count, writes nothing inside the repository, and runs on Linux, macOS, and Windows. Exit code 0 means success. Exit code 1 means findings that need action. Exit code 2 is a configuration error. Exit code 3 means git is missing or failed, or a file could not be read.
+Every script uses only the Python standard library, prints JSON with an `examined` count, writes nothing inside the repository, and runs on Linux, macOS, and Windows. Exit code 0 means success. Exit code 1 means findings that need action. Exit code 2 is a configuration error. Exit code 3, used by `bootstrap_mine.py` and `bootstrap_boundary.py` only, means git is missing or failed, or a file could not be read. `bootstrap_eval.py` reports a git or read failure as exit 2, and `bootstrap_drift.py` marks an unreadable `reverify.json` as `malformed` (exit 1).
 
 | Script and subcommand | Phase | Computes |
 |---|---|---|
