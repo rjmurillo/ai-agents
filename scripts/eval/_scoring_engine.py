@@ -16,6 +16,24 @@ Scorer = Callable[[Assertion, str], AssertionResult]
 
 _VERDICT_RE = re.compile(r"^\s*\*{0,2}(IDENTIFY|OK|ESCALATE)\*{0,2}\b", re.IGNORECASE)
 
+#: Verdict tokens `_VERDICT_RE` can extract. An expected value outside this
+#: set can never pass, so the fixture validator rejects it at load time.
+VERDICT_TOKENS: frozenset[str] = frozenset({"IDENTIFY", "OK", "ESCALATE"})
+
+#: Separates acceptable verdicts in one VERDICT assertion, for example
+#: `"IDENTIFY|ESCALATE"` when either answer is a defensible reading of the
+#: fixture. A single token keeps its old meaning.
+VERDICT_ALTERNATIVE_SEPARATOR = "|"
+
+
+def expected_verdicts(expected: str) -> tuple[str, ...]:
+    """Split a VERDICT `expected_value` into upper-cased alternatives.
+
+    Empty alternatives are kept as empty strings so the validator can reject
+    `"IDENTIFY|"` instead of silently reading it as `"IDENTIFY"`.
+    """
+    return tuple(part.strip().upper() for part in expected.split(VERDICT_ALTERNATIVE_SEPARATOR))
+
 
 def regex_scorer(assertion: Assertion, response: str) -> AssertionResult:
     """REGEX kind: case-insensitive `re.search`. Passed iff a match is found."""
@@ -34,13 +52,17 @@ def regex_scorer(assertion: Assertion, response: str) -> AssertionResult:
 
 
 def verdict_scorer(assertion: Assertion, response: str) -> AssertionResult:
-    """VERDICT kind: extract the first IDENTIFY|OK|ESCALATE token, compare CI."""
+    """VERDICT kind: extract the first IDENTIFY|OK|ESCALATE token, compare CI.
+
+    Passes when the extracted token is any one of the alternatives in
+    `expected_value` (see `expected_verdicts`).
+    """
     expected = assertion.expected_value
     if expected is None:
         raise ValueError("VerdictScorer requires assertion.expected_value to be set")
     match = _VERDICT_RE.match(response)
     extracted = match.group(1).upper() if match else None
-    passed = extracted is not None and extracted == expected.upper()
+    passed = extracted is not None and extracted in expected_verdicts(expected)
     return AssertionResult(
         kind=AssertionKind.VERDICT,
         pattern=None,

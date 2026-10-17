@@ -151,6 +151,11 @@ class TestPassRateVariance:
         out = vc.pass_rate_variance(["identify"], "IDENTIFY")
         assert out["pass_count"] == 1
 
+    def test_alternative_set_matches_any_listed_verdict(self):
+        out = vc.pass_rate_variance(["IDENTIFY", "ESCALATE", "OK", None], "IDENTIFY|ESCALATE")
+        assert out["pass_count"] == 2
+        assert out["expected"] == "IDENTIFY|ESCALATE"
+
 
 # ---------------------------------------------------------------------------
 # Finding classification (the issue's three branches)
@@ -347,7 +352,7 @@ class TestSummarizeVariance:
 class TestFixtureAndCli:
     def test_loads_f002_expected_verdict(self):
         fixture = vc._load_fixture("F002")
-        assert vc._expected_verdict(fixture) == "IDENTIFY"
+        assert vc._expected_verdict(fixture) == "IDENTIFY|ESCALATE"
 
     def test_dry_run_issues_no_api_calls(self, capsys):
         rc = vc.main(["--fixture", "F002", "--agent", "security", "--reps", "5", "--dry-run"])
