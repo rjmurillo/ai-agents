@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size, one suite covers every grader, status, and refusal path.
 """Behavior tests for bootstrap_eval: graders, freeze, and score."""
 
 from __future__ import annotations

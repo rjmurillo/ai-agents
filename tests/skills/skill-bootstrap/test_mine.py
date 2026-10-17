@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size, one suite owns the temp-repo fixtures for both subcommands.
 """Tests for bootstrap_mine.py: candidate mining and the claims checker."""
 
 from __future__ import annotations
@@ -515,14 +516,14 @@ def test_git_missing_exits_3(capsys, repo, monkeypatch):
 
 
 def fail_git(monkeypatch, word: str, rc: int = 128) -> None:
-    real = subprocess.run
+    real = mine._run_git
 
-    def fake(cmd, *args, **kwargs):
-        if word in cmd:
-            return subprocess.CompletedProcess(cmd, rc, "", "boom")
-        return real(cmd, *args, **kwargs)
+    def fake(repo, *args):
+        if word in args:
+            return subprocess.CompletedProcess(["git", *args], rc, "", "boom")
+        return real(repo, *args)
 
-    monkeypatch.setattr(mine.subprocess, "run", fake)
+    monkeypatch.setattr(mine, "_run_git", fake)
 
 
 @pytest.mark.parametrize(("word", "rc"), [("log", 128), ("grep", 2), ("ls-tree", 128)])

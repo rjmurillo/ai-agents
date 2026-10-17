@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size, one suite covers every check kind and status of one script.
 """Tests for bootstrap_drift.py: executable provenance re-verification."""
 
 from __future__ import annotations

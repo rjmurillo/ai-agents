@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size, both subcommands share the ref-reading git helpers.
 """Mine a repository for skill-bootstrap candidates and check authored skill text.
 
 Both subcommands are read-only. They read the repository from one named ref
