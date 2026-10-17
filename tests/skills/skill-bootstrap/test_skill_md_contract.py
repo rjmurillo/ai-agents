@@ -29,6 +29,10 @@ TRIGGERS = (
 )
 BUNDLED = (
     "scripts/bootstrap_boundary.py",
+    "scripts/bootstrap_mine.py",
+    "scripts/bootstrap_forms.py",
+    "scripts/bootstrap_drift.py",
+    "scripts/bootstrap_eval.py",
     "references/discovery.md",
     "references/hosted-platforms.md",
     "references/authoring-and-gates.md",
@@ -95,6 +99,41 @@ def test_context_optimizer_stage_precedes_skillopt_in_process() -> None:
     assert "context-optimizer" in title
     assert "skillopt" in title
     assert title.index("context-optimizer") < title.index("skillopt")
+
+
+def test_capability_eval_runs_between_context_optimizer_and_skillopt() -> None:
+    text = _skill_md()
+    heading = re.search(r"^### Phase 5: .*$", text, re.MULTILINE)
+    assert heading is not None
+    title = heading.group(0)
+    assert title.index("context-optimizer") < title.index("capability eval")
+    assert title.index("capability eval") < title.index("skillopt")
+
+
+@pytest.mark.parametrize(
+    "script", ("bootstrap_mine.py", "bootstrap_forms.py", "bootstrap_drift.py", "bootstrap_eval.py")
+)
+def test_every_bundled_script_is_documented_with_the_portable_root(script: str) -> None:
+    portable = PORTABLE_SCRIPT.replace("bootstrap_boundary.py", script)
+
+    assert f'python3 "{portable}"' in _skill_md()
+
+
+def test_every_script_on_disk_is_bundled_and_documented() -> None:
+    on_disk = {f"scripts/{p.name}" for p in (_skill_dir(".claude") / "scripts").glob("*.py")}
+    text = _skill_md()
+
+    assert on_disk == {rel for rel in BUNDLED if rel.startswith("scripts/")}
+    for rel in sorted(on_disk):
+        portable = PORTABLE_SCRIPT.replace("bootstrap_boundary.py", rel.removeprefix("scripts/"))
+        assert f'python3 "{portable}"' in text, rel
+
+
+def test_skill_md_defines_both_tool_forms_and_both_modes() -> None:
+    text = _skill_md()
+
+    for term in ("**scaffold**", "**instrument**", "`workflow` (default)", "`knowledge`"):
+        assert term in text, term
 
 
 def test_skill_md_documents_exit_two_and_exit_three() -> None:

@@ -1,0 +1,106 @@
+{
+  "base_commit": "acff1d0a1f21c2c8e4a10ee006aeefc8307db8b6",
+  "frozen": "2026-10-17",
+  "preamble": "You are executing part of a skill-bootstrap run on this repository. Read .claude/skills/skill-bootstrap/SKILL.md and its references first, and use any scripts it provides when they fit the task. Do not modify, create, or delete any file in the repository. End your reply with exactly one fenced ```json block holding the answer object described below.",
+  "tasks": [
+    {
+      "id": "T1-stale-refs",
+      "lens": "provenance and drift",
+      "prompt": "Review step: audit the existing skills whose directory names start with ai-agents- under .claude/skills/. Find every repository path that a SKILL.md presents as CURRENT (something to read, run, or that guards behavior today) but that does not exist in this checkout. Do not report paths the text itself describes as retired, deleted, removed, formerly present, or historical, and do not report placeholder or glob patterns. Answer object: {\"stale\": [{\"skill\": \"<directory name>\", \"path\": \"<repo-relative path without ::node or :line suffix>\"}]}.",
+      "grader": "pairs_f1",
+      "gold": [
+        {
+          "skill": "ai-agents-architecture-contract",
+          "path": "tests/build_scripts/test_copilot_dispatcher_artifact.py"
+        },
+        {
+          "skill": "ai-agents-config-catalog",
+          "path": ".claude/.claude-plugin/plugin.json"
+        },
+        {
+          "skill": "ai-agents-portability-campaign",
+          "path": "tests/build_scripts/test_copilot_dispatcher_artifact.py"
+        },
+        {
+          "skill": "ai-agents-research-frontier",
+          "path": "tests/build_scripts/test_copilot_dispatcher_artifact.py"
+        }
+      ],
+      "ignore": [
+        {
+          "skill": "ai-agents-diagnostics-toolkit",
+          "path": "build/audit/GENERATION-AUDIT.md"
+        },
+        {
+          "skill": "ai-agents-build-and-env",
+          "path": ".claude-plugin/plugin.json"
+        },
+        {
+          "skill": "ai-agents-change-control",
+          "path": ".claude-plugin/plugin.json"
+        },
+        {
+          "skill": "ai-agents-debugging-playbook",
+          "path": ".claude-plugin/plugin.json"
+        },
+        {
+          "skill": "ai-agents-generation-and-release",
+          "path": ".claude-plugin/plugin.json"
+        }
+      ],
+      "gold_derivation": "Independent regex scan of all repo-rooted path tokens in the 15 SKILL.md files at base_commit (26 missing tokens), each read in context by hand. 4 are presented as current; the rest are explicitly historical, placeholders, globs, or a gitignored generated file (ignored). Amended 2026-10-17 after the first round: '.claude-plugin/plugin.json' in four skills is a generic name for the per-plugin manifests (for example 'the three `.claude-plugin/plugin.json` manifests'), so it is ambiguous and ignored, for both conditions."
+    },
+    {
+      "id": "T2-reverts",
+      "lens": "candidate mining",
+      "prompt": "Discovery step: find candidate failure-archaeology cases. Using the git history available in this clone, list every commit reachable from base commit acff1d0a1f21c2c8e4a10ee006aeefc8307db8b6 that is a revert by this definition: its subject starts with 'Revert' (any case), or its subject matches '<type>(<optional scope>): revert', or its message body contains a line 'This reverts commit <sha>'. Answer object: {\"reverts\": [\"<first 9 hex chars of the reverting commit sha>\"]}.",
+      "grader": "set_f1_prefix",
+      "gold": [
+        "e44c5fabe",
+        "80ca5e383",
+        "41f12fe07",
+        "428378dc0",
+        "d215e0a8d",
+        "2197d7233",
+        "67a8ecea4",
+        "c95627b31",
+        "aadbee3fb"
+      ],
+      "gold_derivation": "Rules above applied to all 3559 commits reachable from acff1d0a1 in the clone the runs used. Corrected 2026-10-17 after the before run: the first derivation saw only 3354 commits because a later fetch moved the shallow boundary; the 3 added commits (67a8ecea4, c95627b31, aadbee3fb) are squash merges whose bodies carry 'This reverts commit' lines. Both conditions are graded against this corrected gold."
+    },
+    {
+      "id": "T3-churn",
+      "lens": "candidate mining",
+      "prompt": "Discovery step: find churn hotspots. Over the 300 most recent commits reachable from base commit acff1d0a1f21c2c8e4a10ee006aeefc8307db8b6 (git log -n 300 order), count how many of those commits touched each file, excluding every path under src/. Answer object: {\"top3\": [\"<path>\", \"<path>\", \"<path>\"]} with the three most-touched files, most first.",
+      "grader": "set_f1",
+      "gold": [
+        ".serena/memories/memory-index.md",
+        "scripts/validation/git_hook_policy.py",
+        "tests/validation/test_pre_pr_sequence_registry.py"
+      ],
+      "gold_derivation": "git log --format= --name-only -n 300 acff1d0a1 | grep -v '^src/' | sort | uniq -c | sort -rn: counts 20, 19, 16, then a three-way tie at 14."
+    },
+    {
+      "id": "T4-line-refs-at-scale",
+      "lens": "provenance and drift, at library scale",
+      "added": "2026-10-17, after round one, frozen before either condition ran it",
+      "prompt": "Review step at library scale: across every SKILL.md under .claude/skills/ (all skills, not only ai-agents-*), find every line reference of the form <path>:<N>, <path>:<N>-<M>, or <path>:<N>,<M> whose <path> is a file tracked in this repository (resolve it from the repository root, or else from that skill's own directory) and whose largest cited line number is greater than the number of lines in that file. Answer object: {\"stale\": [{\"skill\": \"<skill directory name>\", \"ref\": \"<path>:<line spec exactly as written>\"}]}.",
+      "grader": "pairs_f1",
+      "answer_fields": [
+        "skill",
+        "ref"
+      ],
+      "gold": [
+        {
+          "skill": "ai-agents-research-methodology",
+          "ref": "AGENTS.md:40"
+        },
+        {
+          "skill": "ai-agents-research-methodology",
+          "ref": "AGENTS.md:38"
+        }
+      ],
+      "gold_derivation": "Independent regex scan (not bootstrap_mine.py) of all 121 SKILL.md files at acff1d0a1 for <path>.<ext>:<lines> tokens; 85 resolve to tracked files from the root or the skill directory; 2 exceed the file length (AGENTS.md has 24 lines). Verified by hand: lines 275-276 of ai-agents-research-methodology/SKILL.md cite AGENTS.md:40 and :38."
+    }
+  ]
+}

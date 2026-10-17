@@ -71,3 +71,4 @@ artifacts:
       security-detection: "Refers to excluded skill(s): review."
       spec-generator: "Refers to excluded skill(s): review."
       ship: "Refers to excluded skill(s): review."
+      maintainer-review: "Refers to excluded skill(s): review."
