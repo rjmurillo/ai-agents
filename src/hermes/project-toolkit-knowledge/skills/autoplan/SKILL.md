@@ -89,7 +89,7 @@ public-API work through those gates: land an API proposal and maintainer
 review before writing the implementation.
 
 **Issue already has an in-flight blocking PR.** Run `check_existing_pr_for_issue.py --owner <O> --repo <R> --issue <N>`
-(github skill; args from URL)
+(github skill; args from URL; `gh_unusable`: MCP PR search)
 before routing an `autoplan <issue-url>` request into new work;
 exit `1`: an open PR claims it; `2`-`4`: stop, report; only `0` clears. If an open PR
 already carries a closing keyword for the issue, do not treat "avoid
