@@ -81,7 +81,10 @@ script is harder to write. Those stay candidates.
   grants still accept extra flags (`git log --output=<file>` writes), so the allowlist is
   not a sandbox; run in a disposable worktree, as these runs did. A rerun with the current
   runner is not the same harness as this record. `score` now refuses runs that do not cover
-  every task under both `before` and `after`; these records pass it and re-score unchanged.
+  every task under both `before` and `after`, mistyped record fields, more than one model,
+  more than one checkout per task and condition, and the same checkout for both conditions.
+  The grader reads only the answer key each task's prompt names (`answer_key` in the
+  fixture). These records pass every check and re-score unchanged.
 
 ## Findings outside the task
 

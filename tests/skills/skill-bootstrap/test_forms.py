@@ -52,7 +52,7 @@ def run_check(
     mode: str = "workflow",
 ) -> tuple[int, dict[str, Any]]:
     plan = tmp_path / "plan.json"
-    plan.write_text(json.dumps({"project": "acme", "mode": mode, "items": items}))
+    plan.write_text(json.dumps({"project": "acme", "mode": mode, "items": items}), encoding="utf-8")
     code = bootstrap_forms.main(["check", "--plan", str(plan), *extra])
     return code, json.loads(capsys.readouterr().out)
 
@@ -273,7 +273,7 @@ def test_require_scripts_flags_missing_script(capsys, tmp_path):
 def test_require_scripts_passes_when_script_exists(capsys, tmp_path):
     script = tmp_path / "skills" / "acme-change-control" / "scripts" / "gates_for_path.py"
     script.parent.mkdir(parents=True)
-    script.write_text("print(1)\n")
+    script.write_text("print(1)\n", encoding="utf-8")
 
     code, payload = run_check(
         capsys, tmp_path, [make_item()], "--skills-root", str(tmp_path / "skills"),
@@ -337,7 +337,7 @@ def test_unreadable_plan_is_config_error(capsys, tmp_path):
 
 def test_malformed_json_is_config_error(capsys, tmp_path):
     plan = tmp_path / "plan.json"
-    plan.write_text("{not json")
+    plan.write_text("{not json", encoding="utf-8")
 
     code = bootstrap_forms.main(["check", "--plan", str(plan)])
 
@@ -359,7 +359,7 @@ def test_malformed_json_is_config_error(capsys, tmp_path):
 )
 def test_wrong_top_level_types_are_config_errors(capsys, tmp_path, document):
     plan = tmp_path / "plan.json"
-    plan.write_text(json.dumps(document))
+    plan.write_text(json.dumps(document), encoding="utf-8")
 
     code = bootstrap_forms.main(["check", "--plan", str(plan)])
 
@@ -376,7 +376,9 @@ def test_missing_plan_argument_exits_two(capsys):
 
 def test_script_runs_as_a_process_and_returns_the_exit_code(tmp_path):
     plan = tmp_path / "plan.json"
-    plan.write_text(json.dumps({"mode": "workflow", "items": [make_item(claim="")]}))
+    plan.write_text(
+        json.dumps({"mode": "workflow", "items": [make_item(claim="")]}), encoding="utf-8"
+    )
 
     proc = subprocess.run(
         [sys.executable, str(SCRIPT), "check", "--plan", str(plan)],

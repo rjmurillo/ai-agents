@@ -14,7 +14,7 @@ from types import ModuleType
 from typing import Any
 
 import pytest
-from bootstrap_helpers import run_git, write
+from bootstrap_helpers import run_git, symlink_or_skip, write
 
 SCRIPT = (
     Path(__file__).resolve().parents[3]
@@ -1244,7 +1244,7 @@ def test_out_symlink_to_existing_file_is_refused(capsys, repo, tmp_path):
     real = tmp_path / "real.json"
     real.write_text("precious", encoding="utf-8")
     link = tmp_path / "link.json"
-    link.symlink_to(real)
+    symlink_or_skip(link, real)
 
     code, _ = cand(capsys, repo, "--out", str(link))
 

@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from bootstrap_helpers import symlink_or_skip
 
 SCRIPT = (
     Path(__file__).resolve().parents[3]
@@ -121,7 +122,7 @@ def test_absent_fails_when_present(capsys, repo, skills):
 
 
 def test_absent_fails_for_a_dangling_symlink(capsys, repo, skills):
-    (repo / "dangling").symlink_to(repo / "does-not-exist")
+    symlink_or_skip(repo / "dangling", repo / "does-not-exist")
 
     code, payload = check_one(
         capsys, repo, skills, {"id": "R2", "kind": "absent", "path": "dangling"}
@@ -200,7 +201,7 @@ def test_symlink_escape_is_invalid(capsys, repo, skills, tmp_path):
     outside = tmp_path / "outside"
     outside.mkdir()
     (outside / "secret.txt").write_text("secret", encoding="utf-8")
-    (repo / "link").symlink_to(outside)
+    symlink_or_skip(repo / "link", outside)
     check = {"id": "R3", "kind": "contains", "path": "link/secret.txt", "text": "secret"}
 
     code, payload = check_one(capsys, repo, skills, check)
@@ -210,7 +211,7 @@ def test_symlink_escape_is_invalid(capsys, repo, skills, tmp_path):
 
 
 def test_symlink_inside_the_repo_is_allowed(capsys, repo, skills):
-    (repo / "alias.md").symlink_to(repo / "AGENTS.md")
+    symlink_or_skip(repo / "alias.md", repo / "AGENTS.md")
     check = {"id": "R3", "kind": "contains", "path": "alias.md", "text": "ADR-042"}
 
     code, payload = check_one(capsys, repo, skills, check)

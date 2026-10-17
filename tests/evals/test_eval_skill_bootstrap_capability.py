@@ -29,12 +29,19 @@ cap = _load()
 TASKS: dict[str, Any] = {
     "preamble": "p",
     "tasks": [
-        {"id": "S", "prompt": "x", "grader": "set_f1", "gold": ["a", "b"]},
-        {"id": "R", "prompt": "x", "grader": "set_f1_prefix", "gold": ["abcdef123"]},
+        {"id": "S", "prompt": "x", "grader": "set_f1", "answer_key": "top", "gold": ["a", "b"]},
+        {
+            "id": "R",
+            "prompt": "x",
+            "grader": "set_f1_prefix",
+            "answer_key": "reverts",
+            "gold": ["abcdef123"],
+        },
         {
             "id": "P",
             "prompt": "x",
             "grader": "pairs_f1",
+            "answer_key": "stale",
             "gold": [{"skill": "s1", "path": "x.py"}],
             "ignore": [{"skill": "s2", "path": "y.py"}],
         },
@@ -42,6 +49,7 @@ TASKS: dict[str, Any] = {
             "id": "Q",
             "prompt": "x",
             "grader": "pairs_f1",
+            "answer_key": "stale",
             "answer_fields": ["skill", "ref"],
             "gold": [{"skill": "s1", "ref": "A.md:40"}],
         },
@@ -60,15 +68,18 @@ def tasks_file(tmp_path: Path) -> Path:
     return path
 
 
-def record(task_id: str, condition: str, answer: Any, is_error: bool = False) -> dict[str, Any]:
+def record(task_id: str, condition: str, answer: Any, is_error: bool = False, **extra: Any):
     return {
         "task": task_id,
         "condition": condition,
+        "model": "m",
+        "checkout_head": f"head-{condition}",
         "answer": answer,
         "is_error": is_error,
         "num_turns": 3,
         "cost_usd": 0.01,
         "wall_s": 1.0,
+        **extra,
     }
 
 
@@ -126,7 +137,7 @@ def test_missing_answer_scores_zero():
 
 def test_unknown_grader_is_a_config_error():
     with pytest.raises(ValueError, match="unknown grader"):
-        cap.grade({"grader": "nope", "gold": []}, {"x": []})
+        cap.grade({"grader": "nope", "answer_key": "x", "gold": []}, {"x": []})
 
 
 def test_score_ignores_error_runs_in_quality_means(tmp_path, tasks_file, capsys):
@@ -176,12 +187,32 @@ def test_score_rejects_invalid_utf8_with_exit_2(tmp_path, tasks_file, capsys):
     assert cap.main(["score", "--runs", str(runs), "--tasks", str(tasks_file)]) == 2
 
 
-def test_score_treats_a_non_object_answer_as_no_answer(tmp_path, tasks_file, capsys):
-    runs = write_runs(tmp_path / "r.jsonl", *full_matrix(record("S", "after", ["a", "b"])))
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"answer": ["a", "b"]},
+        {"is_error": "false"},
+        {"num_turns": True},
+        {"wall_s": None},
+        {"model": None},
+    ],
+)
+def test_score_rejects_a_mistyped_record_field_with_exit_2(tmp_path, tasks_file, capsys, overrides):
+    runs = write_runs(
+        tmp_path / "r.jsonl", *full_matrix({**record("S", "after", None), **overrides})
+    )
 
-    cap.main(["score", "--runs", str(runs), "--tasks", str(tasks_file)])
+    assert cap.main(["score", "--runs", str(runs), "--tasks", str(tasks_file)]) == 2
+    assert next(iter(overrides)) in capsys.readouterr().err
 
-    assert json.loads(capsys.readouterr().out)["S"]["after"]["f1"] == 0.0
+
+def test_score_rejects_a_record_missing_its_checkout_head(tmp_path, tasks_file, capsys):
+    rec = record("S", "after", None)
+    del rec["checkout_head"]
+    runs = write_runs(tmp_path / "r.jsonl", *full_matrix(rec))
+
+    assert cap.main(["score", "--runs", str(runs), "--tasks", str(tasks_file)]) == 2
+    assert "checkout_head" in capsys.readouterr().err
 
 
 def test_run_one_records_a_non_object_cli_payload_as_an_error(monkeypatch, tmp_path):
@@ -198,7 +229,8 @@ def test_run_one_records_a_non_object_cli_payload_as_an_error(monkeypatch, tmp_p
 
 def test_load_tasks_rejects_a_task_without_gold(tmp_path):
     path = tmp_path / "t.json"
-    path.write_text(json.dumps({"tasks": [{"id": "a", "prompt": "p", "grader": "set_f1"}]}))
+    task = {"id": "a", "prompt": "p", "grader": "set_f1", "answer_key": "k"}
+    path.write_text(json.dumps({"tasks": [task]}), encoding="utf-8")
 
     with pytest.raises(ValueError, match="gold"):
         cap.load_tasks(path)
@@ -223,7 +255,7 @@ def test_run_one_records_a_timeout_as_an_error(monkeypatch, tmp_path):
 
 
 def test_prefix_precision_counts_predictions_not_gold_matches():
-    two_gold = {"id": "R2", "grader": "set_f1_prefix", "gold": ["abcdef123", "abcdef145"]}
+    two_gold = {**task("R"), "gold": ["abcdef123", "abcdef145"]}
 
     score = cap.grade(two_gold, {"reverts": ["abcdef1"]})
 
@@ -297,3 +329,73 @@ def test_tool_grant_names_each_skill_script_and_no_git_grep():
     scripts = Path(SCRIPT).resolve().parents[2] / ".claude/skills/skill-bootstrap/scripts"
     named = {g.split("scripts/")[1].removesuffix(":*)") for g in python_grants}
     assert named == {p.name for p in scripts.glob("bootstrap_*.py")}
+
+
+def test_grade_ignores_a_list_under_another_key():
+    assert cap.grade(task("R"), {"other": ["abcdef123"]})["f1"] == 0.0
+
+
+def test_grade_reads_the_named_key_after_an_unrelated_list():
+    assert cap.grade(task("R"), {"notes": ["x"], "reverts": ["abcdef123"]})["f1"] == 1.0
+
+
+def test_grade_scores_a_non_list_answer_field_zero():
+    assert cap.grade(task("S"), {"top": "a"})["f1"] == 0.0
+
+
+def test_frozen_fixture_prompts_name_their_answer_key():
+    for t in cap.load_tasks(cap.DEFAULT_TASKS)["tasks"]:
+        assert f'{{"{t["answer_key"]}":' in t["prompt"], t["id"]
+
+
+@pytest.mark.parametrize(
+    ("overrides", "message"),
+    [
+        ({"model": "other"}, "mix models"),
+        ({"checkout_head": "head-other"}, "2 checkouts"),
+    ],
+)
+def test_score_rejects_a_confounded_comparison(tmp_path, tasks_file, capsys, overrides, message):
+    runs = write_runs(
+        tmp_path / "r.jsonl",
+        *full_matrix(record("S", "after", None), record("S", "after", None, **overrides)),
+    )
+
+    assert cap.main(["score", "--runs", str(runs), "--tasks", str(tasks_file)]) == 2
+    assert message in capsys.readouterr().err
+
+
+def test_score_rejects_before_and_after_on_one_checkout(tmp_path, tasks_file, capsys):
+    same = [{**r, "checkout_head": "h"} if r["task"] == "S" else r for r in full_matrix()]
+    runs = write_runs(tmp_path / "r.jsonl", *same)
+
+    assert cap.main(["score", "--runs", str(runs), "--tasks", str(tasks_file)]) == 2
+    assert "same checkout" in capsys.readouterr().err
+
+
+def test_score_allows_a_different_after_checkout_per_task(tmp_path, tasks_file, capsys):
+    runs = write_runs(
+        tmp_path / "r.jsonl", *full_matrix(record("S", "after", None, checkout_head="h2"))
+    )
+
+    assert cap.main(["score", "--runs", str(runs), "--tasks", str(tasks_file)]) == 0
+
+
+@pytest.fixture
+def checkout(tmp_path, monkeypatch):
+    skill = tmp_path / "co" / ".claude" / "skills" / "skill-bootstrap"
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text("x", encoding="utf-8")
+    monkeypatch.setattr(cap.shutil, "which", lambda name: "/bin/claude")
+    return skill.parents[2]
+
+
+@pytest.mark.parametrize("extra", [["--task", "nope"], ["--reps", "0"]])
+def test_run_that_selects_no_work_exits_2_without_writing(tmp_path, tasks_file, checkout, extra):
+    out = tmp_path / "out.jsonl"
+    argv = ["run", "--checkout", str(checkout), "--condition", "after", "--tasks", str(tasks_file)]
+
+    code = cap.main([*argv, "--out", str(out), *extra])
+
+    assert code == 2
+    assert not out.exists()

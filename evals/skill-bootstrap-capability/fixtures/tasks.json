@@ -8,6 +8,7 @@
       "lens": "provenance and drift",
       "prompt": "Review step: audit the existing skills whose directory names start with ai-agents- under .claude/skills/. Find every repository path that a SKILL.md presents as CURRENT (something to read, run, or that guards behavior today) but that does not exist in this checkout. Do not report paths the text itself describes as retired, deleted, removed, formerly present, or historical, and do not report placeholder or glob patterns. Answer object: {\"stale\": [{\"skill\": \"<directory name>\", \"path\": \"<repo-relative path without ::node or :line suffix>\"}]}.",
       "grader": "pairs_f1",
+      "answer_key": "stale",
       "gold": [
         {
           "skill": "ai-agents-architecture-contract",
@@ -55,6 +56,7 @@
       "lens": "candidate mining",
       "prompt": "Discovery step: find candidate failure-archaeology cases. Using the git history available in this clone, list every commit reachable from base commit acff1d0a1f21c2c8e4a10ee006aeefc8307db8b6 that is a revert by this definition: its subject starts with 'Revert' (any case), or its subject matches '<type>(<optional scope>): revert', or its message body contains a line 'This reverts commit <sha>'. Answer object: {\"reverts\": [\"<first 9 hex chars of the reverting commit sha>\"]}.",
       "grader": "set_f1_prefix",
+      "answer_key": "reverts",
       "gold": [
         "e44c5fabe",
         "80ca5e383",
@@ -73,6 +75,7 @@
       "lens": "candidate mining",
       "prompt": "Discovery step: find churn hotspots. Over the 300 most recent commits reachable from base commit acff1d0a1f21c2c8e4a10ee006aeefc8307db8b6 (git log -n 300 order), count how many of those commits touched each file, excluding every path under src/. Answer object: {\"top3\": [\"<path>\", \"<path>\", \"<path>\"]} with the three most-touched files, most first.",
       "grader": "set_f1",
+      "answer_key": "top3",
       "gold": [
         ".serena/memories/memory-index.md",
         "scripts/validation/git_hook_policy.py",
@@ -86,6 +89,7 @@
       "added": "2026-10-17, after round one, frozen before either condition ran it",
       "prompt": "Review step at library scale: across every SKILL.md under .claude/skills/ (all skills, not only ai-agents-*), find every line reference of the form <path>:<N>, <path>:<N>-<M>, or <path>:<N>,<M> whose <path> is a file tracked in this repository (resolve it from the repository root, or else from that skill's own directory) and whose largest cited line number is greater than the number of lines in that file. Answer object: {\"stale\": [{\"skill\": \"<skill directory name>\", \"ref\": \"<path>:<line spec exactly as written>\"}]}.",
       "grader": "pairs_f1",
+      "answer_key": "stale",
       "answer_fields": [
         "skill",
         "ref"

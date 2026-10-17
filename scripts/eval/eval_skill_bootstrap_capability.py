@@ -74,7 +74,7 @@ def load_tasks(path: Path) -> dict[str, Any]:
     if not isinstance(data.get("tasks"), list) or not data["tasks"]:
         raise ValueError(f"{path}: 'tasks' must be a non-empty list")
     for task in data["tasks"]:
-        for key in ("id", "prompt", "grader", "gold"):
+        for key in ("id", "prompt", "grader", "gold", "answer_key"):
             if key not in task:
                 raise ValueError(f"{path}: task missing '{key}'")
     return data
@@ -105,7 +105,9 @@ def _norm_path(value: str) -> str:
 
 
 def grade(task: dict[str, Any], answer: dict[str, Any] | None) -> dict[str, float]:
-    if answer is None:
+    # Only the field the task's prompt names counts; any other key earns nothing.
+    values = (answer or {}).get(task["answer_key"])
+    if not isinstance(values, list):
         return {"precision": 0.0, "recall": 0.0, "f1": 0.0}
     kind = task["grader"]
     if kind == "pairs_f1":
@@ -119,10 +121,8 @@ def grade(task: dict[str, Any], answer: dict[str, Any] | None) -> dict[str, floa
 
         ignore = {key(i) for i in task.get("ignore", [])}
         gold = {key(g) for g in task["gold"]}
-        items = answer.get("stale") or []
-        predicted = {key(i) for i in items if isinstance(i, dict)} - ignore
+        predicted = {key(i) for i in values if isinstance(i, dict)} - ignore
         return _f1(predicted, gold)
-    values = next((v for v in answer.values() if isinstance(v, list)), [])
     if kind == "set_f1_prefix":
         predicted = {str(v).strip().lower()[:9] for v in values if len(str(v).strip()) >= 7}
         gold = {g[:9] for g in task["gold"]}
@@ -205,6 +205,13 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(f"ERROR: {checkout} carries no skill-bootstrap", file=sys.stderr)
         return 2
     data = load_tasks(Path(args.tasks))
+    unknown = sorted(set(args.task or ()) - {t["id"] for t in data["tasks"]})
+    if unknown or args.reps < 1:
+        print(
+            f"ERROR: unknown task(s) {unknown}" if unknown else "ERROR: --reps must be >= 1",
+            file=sys.stderr,
+        )
+        return 2
     selected = [t for t in data["tasks"] if not args.task or t["id"] in args.task]
     head = subprocess.run(
         ["git", "rev-parse", "HEAD"],
@@ -244,7 +251,30 @@ def _mean(values: list[float]) -> float | None:
     return round(statistics.fmean(values), 3) if values else None
 
 
-RECORD_KEYS = ("task", "condition", "answer", "is_error")
+# Field -> accepted types. `bool` is excluded from the numeric fields explicitly below.
+RECORD_TYPES: dict[str, tuple[type, ...]] = {
+    "task": (str,),
+    "condition": (str,),
+    "model": (str,),
+    "checkout_head": (str,),
+    "answer": (dict, type(None)),
+    "is_error": (bool,),
+    "num_turns": (int, type(None)),
+    "cost_usd": (int, float, type(None)),
+    "wall_s": (int, float),
+}
+
+
+def _record_error(rec: object) -> str | None:
+    if not isinstance(rec, dict):
+        return "not a run record"
+    for key, types in RECORD_TYPES.items():
+        if key not in rec:
+            return f"missing '{key}'"
+        value = rec[key]
+        if not isinstance(value, types) or (bool not in types and isinstance(value, bool)):
+            return f"'{key}' has type {type(value).__name__}"
+    return None
 
 
 def load_records(path: str, task_ids: set[str]) -> list[dict[str, Any]]:
@@ -255,8 +285,8 @@ def load_records(path: str, task_ids: set[str]) -> list[dict[str, Any]]:
         if not line.strip():
             continue
         rec = json.loads(line)
-        if not isinstance(rec, dict) or any(key not in rec for key in RECORD_KEYS):
-            raise ValueError(f"{path}:{number}: not a run record")
+        if error := _record_error(rec):
+            raise ValueError(f"{path}:{number}: {error}")
         if rec["task"] not in task_ids:
             raise ValueError(f"{path}:{number}: unknown task {rec['task']!r}")
         records.append(rec)
@@ -270,7 +300,31 @@ def _matrix_error(records: list[dict[str, Any]], tasks: dict[str, Any]) -> str |
         return f"unexpected condition(s) {unexpected}; expected {list(CONDITIONS)}"
     present = {(r["task"], r["condition"]) for r in records}
     missing = [f"{t}/{c}" for t in sorted(tasks) for c in CONDITIONS if (t, c) not in present]
-    return f"no runs for {', '.join(missing)}" if missing else None
+    if missing:
+        return f"no runs for {', '.join(missing)}"
+    return _confound_error(records)
+
+
+def _confound_error(records: list[dict[str, Any]]) -> str | None:
+    """Refuse a comparison that varies anything but the checkout between conditions.
+
+    One model across every run, one checkout per task and condition, and a
+    different checkout for `before` and `after` on each task. Different tasks may
+    use different `after` checkouts, as the recorded T4 runs did.
+    """
+    models = sorted({r["model"] for r in records})
+    if len(models) > 1:
+        return f"runs mix models {models}"
+    heads: dict[tuple[str, str], set[str]] = {}
+    for r in records:
+        heads.setdefault((r["task"], r["condition"]), set()).add(r["checkout_head"])
+    for (task, condition), seen in sorted(heads.items()):
+        if len(seen) > 1:
+            return f"{task}/{condition} ran on {len(seen)} checkouts"
+    for task in sorted({t for t, _ in heads}):
+        if heads[(task, "before")] == heads[(task, "after")]:
+            return f"{task} ran before and after on the same checkout"
+    return None
 
 
 def cmd_score(args: argparse.Namespace) -> int:
