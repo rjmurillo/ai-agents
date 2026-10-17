@@ -41,7 +41,7 @@ class SearchResult:
 def query_relevance(query: str, label: str) -> float:
     """Return the fraction of distinct query terms that name the memory.
 
-    ``label`` is the memory id plus title. Both sides split into words on
+    ``label`` is the memory id basename plus title. Both sides split into words on
     every character outside ``[a-z0-9]``, so ``pr-autofix`` becomes
     ``pr`` and ``autofix``. A word matches when a label word equals it or
     shares its first ``_STEM_LENGTH`` characters (both at least that long),
@@ -295,6 +295,9 @@ def _score_memory_file(
     confidence = calculate_confidence(memory, verification_results)
     citation_status = _determine_citation_status(verification_results)
     snippet = memory.content[:_SNIPPET_LENGTH]
+    # Score the basename only. A folder segment such as "github/" would give
+    # every memory in that folder a hit for a prompt that names the folder.
+    basename = memory.memory_id.rsplit("/", 1)[-1]
 
     return SearchResult(
         memory_id=memory.memory_id,
@@ -303,7 +306,7 @@ def _score_memory_file(
         title=memory.title,
         snippet=snippet,
         citation_status=citation_status,
-        relevance=query_relevance(query, f"{memory.memory_id} {memory.title}"),
+        relevance=query_relevance(query, f"{basename} {memory.title}"),
     )
 
 

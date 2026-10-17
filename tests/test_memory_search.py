@@ -384,6 +384,35 @@ class TestSearchPathQualifiedIds:
 
     @pytest.mark.unit
     @patch("memory_enhancement.search._search_with_ripgrep")
+    def test_folder_name_does_not_count_toward_relevance(self, mock_rg, tmp_path: Path):
+        sub = tmp_path / "github"
+        sub.mkdir()
+        md = sub / "unrelated-entry.md"
+        md.write_text("# Unrelated Entry (2026-01-01)\n\ngithub tokens\n", encoding="utf-8")
+        mock_rg.return_value = [md]
+
+        results = search_memories("github tokens", tmp_path, repo_root=tmp_path)
+        assert len(results) == 1
+        assert results[0].memory_id == "github/unrelated-entry"
+        assert results[0].relevance == 0.0
+        assert (
+            search_memories("github tokens", tmp_path, repo_root=tmp_path, min_relevance=0.5) == []
+        )
+
+    @pytest.mark.unit
+    @patch("memory_enhancement.search._search_with_ripgrep")
+    def test_basename_still_counts_toward_relevance(self, mock_rg, tmp_path: Path):
+        sub = tmp_path / "github"
+        sub.mkdir()
+        md = sub / "token-rotation.md"
+        md.write_text("# Notes (2026-01-01)\n\nbody\n", encoding="utf-8")
+        mock_rg.return_value = [md]
+
+        results = search_memories("token rotation", tmp_path, repo_root=tmp_path)
+        assert results[0].relevance == 1.0
+
+    @pytest.mark.unit
+    @patch("memory_enhancement.search._search_with_ripgrep")
     def test_subdir_memory_id_matches_load_memories(self, mock_rg, tmp_path: Path):
         """IDs from search must appear in load_memories output (bidirectional)."""
         from memory_enhancement.serena_integration import load_memories
