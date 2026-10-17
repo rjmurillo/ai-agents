@@ -76,9 +76,12 @@ script is harder to write. Those stay candidates.
 - After review, the runner's prefix precision now counts predictions that match gold, not
   gold that matches predictions. Re-scoring every recorded run changed no published number.
 - These runs used `--permission-mode bypassPermissions` with only file-edit tools denied.
-  The runner now grants an explicit read-only allowlist (read tools, read-only `git`
-  subcommands, and the skill-bootstrap scripts). A rerun with the current runner is not
-  the same harness as this record.
+  The runner now grants an explicit allowlist: read tools, `git` `log`, `show`, `ls-tree`,
+  `rev-parse`, `rev-list`, `diff-tree`, and each skill-bootstrap script by name. Prefix
+  grants still accept extra flags (`git log --output=<file>` writes), so the allowlist is
+  not a sandbox; run in a disposable worktree, as these runs did. A rerun with the current
+  runner is not the same harness as this record. `score` now refuses runs that do not cover
+  every task under both `before` and `after`; these records pass it and re-score unchanged.
 
 ## Findings outside the task
 

@@ -77,6 +77,18 @@ def write_runs(path: Path, *records: Any) -> Path:
     return path
 
 
+def full_matrix(*records: dict[str, Any]) -> tuple[dict[str, Any], ...]:
+    """Add one answered run for every task and condition the given records leave empty."""
+    present = {(r["task"], r["condition"]) for r in records}
+    filler = [
+        record(t["id"], c, {"x": []})
+        for t in TASKS["tasks"]
+        for c in cap.CONDITIONS
+        if (t["id"], c) not in present
+    ]
+    return (*records, *filler)
+
+
 def test_extract_answer_takes_the_last_valid_json_object():
     text = '```json\n{"a": 1}\n```\n```json\nnot json\n```\n```json\n{"a": 2}\n```'
 
@@ -120,8 +132,10 @@ def test_unknown_grader_is_a_config_error():
 def test_score_ignores_error_runs_in_quality_means(tmp_path, tasks_file, capsys):
     runs = write_runs(
         tmp_path / "r.jsonl",
-        record("S", "after", {"top": ["a", "b"]}),
-        record("S", "after", None, is_error=True),
+        *full_matrix(
+            record("S", "after", {"top": ["a", "b"]}),
+            record("S", "after", None, is_error=True),
+        ),
     )
 
     code = cap.main(["score", "--runs", str(runs), "--tasks", str(tasks_file)])
@@ -133,7 +147,7 @@ def test_score_ignores_error_runs_in_quality_means(tmp_path, tasks_file, capsys)
 
 
 def test_score_exits_1_when_every_run_errored(tmp_path, tasks_file, capsys):
-    runs = write_runs(tmp_path / "r.jsonl", record("S", "after", None, is_error=True))
+    runs = write_runs(tmp_path / "r.jsonl", *full_matrix(record("S", "after", None, is_error=True)))
 
     assert cap.main(["score", "--runs", str(runs), "--tasks", str(tasks_file)]) == 1
 
@@ -163,7 +177,7 @@ def test_score_rejects_invalid_utf8_with_exit_2(tmp_path, tasks_file, capsys):
 
 
 def test_score_treats_a_non_object_answer_as_no_answer(tmp_path, tasks_file, capsys):
-    runs = write_runs(tmp_path / "r.jsonl", record("S", "after", ["a", "b"]))
+    runs = write_runs(tmp_path / "r.jsonl", *full_matrix(record("S", "after", ["a", "b"])))
 
     cap.main(["score", "--runs", str(runs), "--tasks", str(tasks_file)])
 
@@ -240,3 +254,46 @@ def test_run_one_grants_only_read_only_tools(monkeypatch, tmp_path):
     granted = argv[argv.index("--allowedTools") + 1 : argv.index("--disallowedTools")]
     assert granted == list(cap.READ_ONLY_TOOLS)
     assert not any(t in ("Bash", "Edit", "Write") for t in granted)
+
+
+def test_score_rejects_a_task_missing_from_one_condition_with_exit_2(tmp_path, tasks_file, capsys):
+    records = [r for r in full_matrix() if (r["task"], r["condition"]) != ("R", "before")]
+    runs = write_runs(tmp_path / "r.jsonl", *records)
+
+    code = cap.main(["score", "--runs", str(runs), "--tasks", str(tasks_file)])
+
+    assert code == 2
+    assert "R/before" in capsys.readouterr().err
+
+
+def test_score_rejects_an_unexpected_condition_with_exit_2(tmp_path, tasks_file, capsys):
+    runs = write_runs(tmp_path / "r.jsonl", *full_matrix(record("S", "baseline", None)))
+
+    code = cap.main(["score", "--runs", str(runs), "--tasks", str(tasks_file)])
+
+    assert code == 2
+    assert "baseline" in capsys.readouterr().err
+
+
+def test_score_accepts_a_complete_matrix(tmp_path, tasks_file, capsys):
+    runs = write_runs(tmp_path / "r.jsonl", *full_matrix())
+
+    assert cap.main(["score", "--runs", str(runs), "--tasks", str(tasks_file)]) == 0
+    assert set(json.loads(capsys.readouterr().out)["S"]) == {"before", "after"}
+
+
+def test_run_rejects_an_unknown_condition(tmp_path):
+    with pytest.raises(SystemExit) as exc:
+        cap.main(["run", "--checkout", str(tmp_path), "--condition", "x", "--out", "o"])
+
+    assert exc.value.code == 2
+
+
+def test_tool_grant_names_each_skill_script_and_no_git_grep():
+    python_grants = [t for t in cap.READ_ONLY_TOOLS if t.startswith("Bash(python3")]
+
+    assert "Bash(git grep:*)" not in cap.READ_ONLY_TOOLS
+    assert all(g.endswith(".py:*)") for g in python_grants)
+    scripts = Path(SCRIPT).resolve().parents[2] / ".claude/skills/skill-bootstrap/scripts"
+    named = {g.split("scripts/")[1].removesuffix(":*)") for g in python_grants}
+    assert named == {p.name for p in scripts.glob("bootstrap_*.py")}

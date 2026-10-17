@@ -16,7 +16,8 @@ Usage:
 Exit codes:
     0 ok
     1 logic (a scored condition has no gradable run)
-    2 config (bad tasks file, missing checkout, unreadable runs file)
+    2 config (bad tasks file, missing checkout, unreadable runs file,
+      or runs that do not cover every task under both before and after)
     3 external (Claude CLI missing)
 """
 
@@ -37,8 +38,18 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_TASKS = REPO_ROOT / "evals" / "skill-bootstrap-capability" / "fixtures" / "tasks.json"
 DEFAULT_MODEL = "claude-haiku-5-5"
 RUN_TIMEOUT_S = 1200
-# Read-only grant: any tool call outside it is denied in print mode, so a run cannot
-# mutate the checkout or the host. Measured: an unlisted `touch` is refused.
+# Narrow grant, not a sandbox. Print mode denies any tool outside this list, so
+# Edit, Write, and unlisted shell commands are refused (an unlisted `touch` was).
+# A prefix grant still accepts extra flags: `git log --output=<file>` writes a file,
+# and a skill script can write where its own flags send it. Run every evaluation in
+# a disposable worktree; the recorded runs did.
+_SKILL_SCRIPTS = (
+    "bootstrap_mine",
+    "bootstrap_forms",
+    "bootstrap_eval",
+    "bootstrap_drift",
+    "bootstrap_boundary",
+)
 READ_ONLY_TOOLS = (
     "Read",
     "Grep",
@@ -46,12 +57,15 @@ READ_ONLY_TOOLS = (
     "Bash(git log:*)",
     "Bash(git show:*)",
     "Bash(git ls-tree:*)",
-    "Bash(git grep:*)",
     "Bash(git rev-parse:*)",
     "Bash(git rev-list:*)",
     "Bash(git diff-tree:*)",
-    "Bash(python3 .claude/skills/skill-bootstrap/scripts/:*)",
+    *(
+        f"Bash(python3 .claude/skills/skill-bootstrap/scripts/{name}.py:*)"
+        for name in _SKILL_SCRIPTS
+    ),
 )
+CONDITIONS = ("before", "after")
 JSON_BLOCK = re.compile(r"```json\s*(\{.*?\})\s*```", re.DOTALL)
 
 
@@ -249,6 +263,16 @@ def load_records(path: str, task_ids: set[str]) -> list[dict[str, Any]]:
     return records
 
 
+def _matrix_error(records: list[dict[str, Any]], tasks: dict[str, Any]) -> str | None:
+    """Name the first gap in the task x condition matrix, or None when it is complete."""
+    unexpected = sorted({str(r["condition"]) for r in records} - set(CONDITIONS))
+    if unexpected:
+        return f"unexpected condition(s) {unexpected}; expected {list(CONDITIONS)}"
+    present = {(r["task"], r["condition"]) for r in records}
+    missing = [f"{t}/{c}" for t in sorted(tasks) for c in CONDITIONS if (t, c) not in present]
+    return f"no runs for {', '.join(missing)}" if missing else None
+
+
 def cmd_score(args: argparse.Namespace) -> int:
     tasks = {t["id"]: t for t in load_tasks(Path(args.tasks))["tasks"]}
     records: list[dict[str, Any]] = []
@@ -258,6 +282,9 @@ def cmd_score(args: argparse.Namespace) -> int:
         except (OSError, ValueError) as exc:
             print(f"ERROR: cannot read {path}: {exc}", file=sys.stderr)
             return 2
+    if error := _matrix_error(records, tasks):
+        print(f"ERROR: {error}", file=sys.stderr)
+        return 2
     # Re-grade stored answers so a gold correction applies to every condition alike.
     for rec in records:
         answer = rec["answer"] if isinstance(rec["answer"], dict) else None
@@ -295,7 +322,7 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="cmd", required=True)
     p_run = sub.add_parser("run", help="run tasks in one checkout")
     p_run.add_argument("--checkout", required=True)
-    p_run.add_argument("--condition", required=True)
+    p_run.add_argument("--condition", required=True, choices=CONDITIONS)
     p_run.add_argument("--tasks", default=str(DEFAULT_TASKS))
     p_run.add_argument("--task", action="append", help="limit to these task ids")
     p_run.add_argument("--model", default=DEFAULT_MODEL)
