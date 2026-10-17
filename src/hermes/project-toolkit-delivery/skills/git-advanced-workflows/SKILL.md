@@ -1,7 +1,7 @@
 ---
 name: git-advanced-workflows
 version: 1.2.0
-description: Advanced Git workflows for rebasing, cherry-picking, bisect, worktrees, and reflog. Use when managing complex Git histories, collaborating on feature branches, or recovering from repo issues. Use when you say "rebase my branch", "cherry-pick a commit", "find the breaking commit", "recover lost commits", "triage stale worktrees", "sync a dirty checkout", or "publish files from a dirty checkout".
+description: Advanced Git workflows for rebasing, cherry-picking, bisect, worktrees, and reflog. Use when managing complex Git histories, collaborating on feature branches, or recovering from repo issues. Use when you say "rebase my branch", "cherry-pick a commit", "find the breaking commit", "recover lost commits", "triage stale worktrees", or "sync or publish a dirty checkout".
 license: MIT
 ---
 
@@ -13,17 +13,17 @@ Advanced Git techniques for clean history, effective collaboration, and confiden
 
 | Trigger Phrase | Operation |
 |----------------|-----------|
-| `rebase or cherry-pick a commit` | Interactive rebase or cherry-pick with conflict resolution |
+| `rebase my branch` | Interactive or standard rebase guidance |
+| `cherry-pick a commit` | Cherry-pick with conflict resolution |
 | `find the breaking commit` | Git bisect workflow |
 | `recover lost commits` | Reflog exploration and recovery |
-| `use git worktrees` | Worktree setup, management, and live-versus-abandoned triage |
-| `synchronize or publish a dirty checkout` | Commit and align local work, or move only requested files to a clean topic branch |
+| `sync or publish a dirty checkout` | Commit local work and bring the branch up to date, or move only requested files to a clean topic branch |
 
 ## Process
 
 ### Phase 1: Assess the Situation
 
-1. Identify which workflow applies (rebase, cherry-pick, bisect, worktree, recovery)
+1. Identify which workflow applies (rebase, cherry-pick, bisect, worktree, sync, publish, recovery)
 2. Check current branch state: `git status`, `git log --oneline -10`
 3. Create a safety branch before any destructive operation: `git branch backup-<timestamp>`
    - macOS/Linux (bash/zsh): `git branch backup-$(date +%s)`
@@ -114,13 +114,48 @@ git worktree remove ~/worktrees/myapp-hotfix  # Clean up when done
 git worktree prune  # Remove stale entries
 ```
 
-**Publish requested files from a stale or dirty checkout:** Fetch the intended remote and inspect the source branch, status, recent commit, and divergence before staging. If the source checkout is behind or contains unrelated edits, leave it untouched and create a clean worktree from the fetched base (`git worktree add -b <feature> <path> <remote>/<base>`), after confirming the path and branch are unused. For each requested path, compare the old `HEAD` with the fetched base. If upstream has not changed a tracked path, transfer only that path's diff (`git diff <old-head> -- <path>` includes staged and unstaged edits); handle untracked requested files explicitly. Verify the clean-worktree candidate matches the source bytes. If upstream changed a requested path, stop for a three-way merge and inspect every conflict rather than copying the whole file. Stage only requested paths, inspect the staged names and diff, run artifact-appropriate checks, commit with repository identity, fetch/rebase immediately before pushing, push the topic branch rather than a protected default branch, then fetch and verify the remote ref equals `HEAD`. Leave ambient edits in the original checkout intact and report them separately.
+**Publish requested files from a stale or dirty checkout.** Leave the source
+checkout untouched, and move only the requested paths to a clean topic branch:
 
-#### Synchronize a Dirty Checkout with the Latest Remote Head
+1. Fetch the intended remote. Inspect the source branch, status, latest commit,
+   and divergence before touching anything.
+2. Confirm the worktree path and branch name are unused, then add a clean
+   worktree from the fetched base.
+3. For each requested tracked path, check whether upstream changed it since the
+   merge base. The three-dot form diffs from the merge base, so local commits
+   on the path do not count as upstream change.
+4. If upstream left the path alone, apply the source's diff from the merge base.
+   That diff carries local commits and uncommitted edits on the path, and
+   `--binary` lets binary files apply. Copy requested untracked files directly.
+5. If upstream changed the path, stop. Do a three-way merge and inspect every
+   conflict instead of copying the whole file.
+6. Byte-compare each candidate path with the source.
+7. Stage only requested paths. Inspect the staged names and diff, and run the
+   checks that fit the artifact.
+8. Commit with the repository's configured `user.name` and `user.email`. Add a
+   DCO sign-off (`-s`) when the repository requires one.
+9. Fetch and rebase the topic branch right before pushing. Push the topic
+   branch, never a protected default branch. Fetch again and confirm the remote
+   ref equals `HEAD`.
+10. Leave unrelated edits in the source checkout intact, and report them
+    separately.
 
-When asked to commit local changes and bring the checkout up to date, inspect `git status --short --branch`, the current branch, remotes, and `git log -1 --oneline`; fetch the intended remote and measure divergence with `git rev-list --left-right --count HEAD...<remote>/<branch>` (local-ahead count first, remote-ahead count second). Review the complete working-tree diff, including untracked files, before staging; stage only intended paths, inspect the staged names and diff, run `git diff --cached --check`, and commit. If the branch is behind, rebase local commits onto the fetched remote head only when the branch is private; use a merge for a shared branch. Do not reset away local commits or discard working-tree changes to make the graph look current.
-
-If rebase conflicts, inspect the base, local commit, and conflict hunks before resolving each file; never choose `--ours`/`--theirs` mechanically because a commit can contain valuable changes on both sides. After integration, verify the working tree is clean and the divergence count has no remote-ahead commits; any local-ahead count is committed work not yet published. If the user asked for the remote to contain the committed work too, push the branch, fetch again, and verify the divergence count is `0 0` and the remote ref equals `HEAD`.
+```bash
+git fetch origin
+git -C <source> status --short --branch
+git worktree add -b <feature> <worktree> origin/<base>
+base=$(git -C <source> merge-base HEAD origin/<base>)
+# Exit 0 means upstream never touched the path since the merge base
+git -C <source> diff --quiet HEAD...origin/<base> -- <path>
+git -C <source> diff --binary "$base" -- <path> | git -C <worktree> apply --index
+cmp <source>/<path> <worktree>/<path>
+git -C <worktree> diff --cached --name-only
+git -C <worktree> commit -m "<type>(<scope>): <desc>"
+git -C <worktree> fetch origin && git -C <worktree> rebase origin/<base>
+git -C <worktree> push origin HEAD:refs/heads/<feature>
+git -C <worktree> fetch origin
+test "$(git -C <worktree> rev-parse HEAD)" = "$(git -C <worktree> rev-parse origin/<feature>)"
+```
 
 **Move-safe caveat:** moving a worktree after `uv` created `.venv` leaves the
 absolute-path shebangs in `.venv/bin/*` (POSIX) or `.venv/Scripts/*` (Windows)
@@ -157,6 +192,41 @@ your staged work. Record the entry first: `sha=$(git rev-parse 'stash@{N}')`.
   `git stash store -m restored <sha>`, taking `<sha>` from the
   `Dropped refs/stash@{0} (<sha>)` line. Reverse it the same way; for a path
   you had staged, drop `--index`.
+
+#### Synchronize a Dirty Checkout with the Latest Remote Head
+
+When asked to commit local changes and bring the checkout up to date, inspect
+`git status --short --branch`, the current branch, remotes, and
+`git log -1 --oneline`. Fetch the intended remote and measure divergence with
+`git rev-list --left-right --count <remote>/<branch>...HEAD`. The left count is
+remote-ahead and the right count is local-ahead, the same orientation as the
+Shared-state table above.
+
+Review the complete working-tree diff, including untracked files, before
+staging. Stage only intended paths, inspect the staged names and diff, run
+`git diff --cached --check`, and commit. `git rebase` refuses to start while
+unstaged edits remain, so deal with the leftovers first. Commit them as a
+separate WIP commit, or move the requested work to a clean worktree with the
+Publish procedure above. Do not use `--autostash`: the stash is repo-wide (see
+the Shared-state caveat).
+
+If the branch is behind and private, create a safety branch (Phase 1 step 3),
+then rebase local commits onto the fetched remote head. Use a merge for a
+shared branch. Do not reset away local commits or discard working-tree changes
+to make the graph look current.
+
+If the rebase conflicts, inspect the base, the local commit, and the conflict
+hunks before resolving each file. During a rebase, `--ours` is the branch being
+rebased onto (upstream) and `--theirs` is your local commit, the reverse of a
+merge. That swap is the usual reason a mechanical pick discards the wrong side.
+Never choose either side mechanically: one commit can hold valuable changes on
+both sides.
+
+After integration, confirm every intended path is committed and the left
+(remote-ahead) count is `0`. A non-zero right count is committed work not yet
+published. If the user asked for the remote to hold the work too, push the
+branch, fetch again, and confirm the count is `0 0` and the remote ref equals
+`HEAD`.
 
 #### Recovery: Undo Mistakes with Reflog
 
