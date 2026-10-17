@@ -154,3 +154,12 @@ def test_regex_child_failure_is_a_config_error(monkeypatch):
 
     with pytest.raises(bootstrap_eval.ConfigError, match="child failed"):
         grade("a")
+
+
+def test_unterminated_draft_block_does_not_hide_the_final_answer():
+    fence = "`" * 3
+    output = (
+        f'{fence}json\n{{"stale": ["draft"]}}\nFinal:\n{fence}json\n{{"stale": ["x"]}}\n{fence}\n'
+    )
+
+    assert bootstrap_eval.extract_last_json_object(output) == {"stale": ["x"]}

@@ -100,7 +100,9 @@ STATUSES = ("gain", "no_gap", "regression", "flat", "incomplete")
 WORKFLOW_FAILING = ("regression", "incomplete")
 KNOWLEDGE_FAILING = WORKFLOW_FAILING + ("no_gap",)
 CASE_KEYS = frozenset({"id", "skill", "source", "prompt", "grader"})
-JSON_FENCE = re.compile(r"```json[ \t]*\r?\n(.*?)```", re.DOTALL | re.IGNORECASE)
+# The lookahead leaves each closing fence unconsumed, so a draft block that never
+# closes cannot swallow the opening fence of the final block.
+JSON_FENCE = re.compile(r"```json[ \t]*\r?\n(.*?)(?=```)", re.DOTALL | re.IGNORECASE)
 NOT_A_REPO = "not a git repository"
 MAX_PATTERN_CHARS = 256
 GIT_TIMEOUT_S = 30
