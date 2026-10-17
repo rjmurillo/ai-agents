@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "project-toolkit-knowledge",
+  "description": "Project Toolkit skills for memory, context, decisions, requirements, strategy, and documentation.",
+  "author": {
+    "name": "rjmurillo"
+  },
+  "license": "MIT"
+}

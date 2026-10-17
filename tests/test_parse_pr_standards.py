@@ -162,3 +162,74 @@ class TestMain:
 
         assert len(created_files) == 1
         assert "12345" in created_files[0]
+
+
+class TestTempFileLocation:
+    """The body temp file must follow TMPDIR instead of a hardcoded path."""
+
+    @staticmethod
+    def _passing_result() -> MagicMock:
+        result = MagicMock()
+        result.returncode = 0
+        result.stdout = json.dumps(
+            {
+                "Success": True,
+                "Validations": {
+                    "IssueKeywords": {"Status": "PASS", "Message": "ok"},
+                    "TemplateCompliance": {"Status": "PASS", "Message": "ok"},
+                },
+                "Warnings": [],
+                "Errors": [],
+            }
+        )
+        result.stderr = ""
+        return result
+
+    @staticmethod
+    def _track_created(created: list[str]):
+        original = tempfile.NamedTemporaryFile
+
+        def track(*args, **kwargs):
+            handle = original(*args, **kwargs)
+            created.append(handle.name)
+            return handle
+
+        return track
+
+    def test_temp_file_created_under_tmpdir(
+        self, env_with_output: dict, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        custom = tmp_path / "custom_tmp"
+        custom.mkdir()
+        monkeypatch.setenv("TMPDIR", str(custom))
+        monkeypatch.setattr(tempfile, "tempdir", None)
+        created: list[str] = []
+
+        with (
+            patch.dict(os.environ, env_with_output, clear=False),
+            patch("parse_pr_standards.subprocess.run", return_value=self._passing_result()),
+            patch(
+                "parse_pr_standards.tempfile.NamedTemporaryFile",
+                side_effect=self._track_created(created),
+            ),
+        ):
+            assert parse_pr_standards.main() == 0
+
+        assert len(created) == 1
+        assert Path(created[0]).parent == custom
+
+    def test_temp_file_removed_after_run(
+        self, env_with_output: dict, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        custom = tmp_path / "cleanup_tmp"
+        custom.mkdir()
+        monkeypatch.setenv("TMPDIR", str(custom))
+        monkeypatch.setattr(tempfile, "tempdir", None)
+
+        with (
+            patch.dict(os.environ, env_with_output, clear=False),
+            patch("parse_pr_standards.subprocess.run", return_value=self._passing_result()),
+        ):
+            parse_pr_standards.main()
+
+        assert list(custom.iterdir()) == []

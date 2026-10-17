@@ -35,17 +35,15 @@ pinning it needs the publisher App ADR-101 requirement 2 describes. A legitimate
 change to a verifier reports here too, exactly as it halts the local gate until a
 human approves it.
 
-A pull request that sits behind the base ref is not reported for files it never
-touched. With `--head-sha` the check finds the merge base of the base ref and the
-head, and a file whose head blob equals the merge-base blob is skipped: the base
-ref moved it after the branch point. This applies to differing, removed, new and
-symlink findings alike. When the merge base cannot be found (a shallow checkout)
-the check compares with the base ref alone, so it reports more, never less.
+Every comparison is against the base ref tip, never the merge base: a head
+behind the base runs the old copy of a file the base moved. With `--head-sha`, a
+finding where the head equals the merge base is labelled STALE, which still
+fails and tells the author to merge the base ref (issue #6472).
 
 EXIT CODES (ADR-035):
   0 - the head's dispatch closure is byte-identical to the base ref
-  1 - files differ, are removed or new, a symlink was added, or a dynamic load
-      cannot be resolved
+  1 - files differ, are removed, new or stale, a symlink was added, or a dynamic
+      load cannot be resolved
   2 - configuration: a tree, the base config or the dispatcher cannot be read
 """
 
@@ -74,6 +72,13 @@ EXIT_CONFIG = 2
 
 GATE = ".claude/skills/github/scripts/pr/run_completion_gate.py"
 CONFIG = ".claude/skills/pr-review/pr-review-config.yaml"
+CHANGED = "changed"
+ADDED = "added"
+STALE = "stale"
+STALE_REMEDY = (
+    "dispatch-closure: STALE files match the merge base but not the base ref: "
+    "merge the base ref into the branch and push"
+)
 _PR_NUMBER = 1  # command templates substitute {pr}; the value does not change which files are named
 
 
@@ -91,10 +96,12 @@ class Report:
     added: list[str] = field(default_factory=list)
     symlinks: list[str] = field(default_factory=list)
     unresolved: list[str] = field(default_factory=list)
+    stale: list[str] = field(default_factory=list)
 
     @property
     def clean(self) -> bool:
-        return not (self.changed or self.removed or self.added or self.symlinks or self.unresolved)
+        found = (self.changed, self.removed, self.added, self.symlinks, self.unresolved)
+        return not any(found) and not self.stale
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -104,6 +111,7 @@ class Report:
             "symlinks": sorted(self.symlinks),
             "added": sorted(self.added),
             "unresolved": sorted(self.unresolved),
+            "stale": sorted(self.stale),
         }
 
 
@@ -184,18 +192,18 @@ def _in_ref(tool_root: Path, ref: str, path: str) -> bool:
     return _blob_id(tool_root, ref, path) is not None
 
 
-def _unchanged_symlinks(tool_root: Path, fork: str | None, head_sha: str | None) -> set[str]:
-    """Symlinks of the merge base that the head carries with the same target.
+def _same_symlinks(tool_root: Path, ref: str | None, head_sha: str | None) -> set[str]:
+    """Symlinks of ``ref`` that the head carries with the same target.
 
     A symlink the head retargets is the pull request's own change, so a path match
     alone is not enough: the blob id, which holds the target, has to match too.
     """
-    if fork is None or head_sha is None:
+    if ref is None or head_sha is None:
         return set()
     return {
         path
-        for path in _base_symlinks(tool_root, fork)
-        if _blob_id(tool_root, head_sha, path) == _blob_id(tool_root, fork, path)
+        for path in _base_symlinks(tool_root, ref)
+        if _blob_id(tool_root, head_sha, path) == _blob_id(tool_root, ref, path)
     }
 
 
@@ -224,9 +232,8 @@ def _merge_base(tool_root: Path, base_ref: str, head_sha: str | None) -> str | N
     """The commit where the head branched from the base ref, or None when unknown.
 
     None covers a head given as a work tree (no commit to compare), a shallow
-    history that does not reach the fork point, and an unrelated history. Every
-    caller then falls back to comparing with the base ref alone, which reports more,
-    never less.
+    history that does not reach the fork point, and an unrelated history. The
+    merge base only picks the STALE label; it never clears a finding.
     """
     if head_sha is None:
         return None
@@ -241,36 +248,62 @@ def _merge_base(tool_root: Path, base_ref: str, head_sha: str | None) -> str | N
     return result.stdout.strip() if result.returncode == 0 and result.stdout.strip() else None
 
 
-def _differs(
+def _classify(
     tool_root: Path,
     base_ref: str,
     head_root: Path,
     head_sha: str | None,
     path: str,
     fork: str | None = None,
-) -> bool | None:
-    """True when the pull request changed ``path`` against the base, None when it added it.
+) -> str | None:
+    """How the head's ``path`` compares with the base ref tip, or None when equal.
 
     With a head SHA the comparison is by blob id, so a `.gitattributes` in the
     head that selects a built-in conversion cannot make the bytes written to the
     scratch tree equal the base's while the committed blob differs.
 
-    ``fork`` is the merge base. A file whose head blob equals the fork blob is not
-    something the pull request touched: the base ref moved it after the branch
-    point, and merging the base into the branch would make the two equal. It is
-    not reported, whether the base changed it or deleted it.
+    Only equality with the base ref tip clears a file. A head blob that differs
+    from the tip but equals the merge-base blob is STALE: the base moved or
+    deleted the file after the branch point, and the head still runs the old copy.
     """
     base_id = _blob_id(tool_root, base_ref, path)
-    if fork is not None and head_sha is not None:
-        head_id = _blob_id(tool_root, head_sha, path)
-        if head_id is not None and head_id == _blob_id(tool_root, fork, path):
-            return False
-    if base_id is None:
+    if head_sha is None:
+        if base_id is None:
+            return ADDED
+        same = _base_blob(tool_root, base_ref, path) == (head_root / path).read_bytes()
+        return None if same else CHANGED
+    head_id = _blob_id(tool_root, head_sha, path)
+    if head_id is not None and head_id == base_id:
         return None
-    if head_sha is not None:
-        return _blob_id(tool_root, head_sha, path) != base_id
-    base_bytes = _base_blob(tool_root, base_ref, path)
-    return base_bytes != (head_root / path).read_bytes()
+    if fork is not None and head_id is not None and head_id == _blob_id(tool_root, fork, path):
+        return STALE
+    return ADDED if base_id is None else CHANGED
+
+
+def _missing_roots(
+    tool_root: Path, head_root: Path, base_ref: str, roots: list[str], fork: str | None
+) -> tuple[list[str], list[str]]:
+    """Roots the base tip has and the head lacks; stale when the merge base lacks them too."""
+    missing = [
+        path
+        for path in roots
+        if not (head_root / path).is_file() and _in_ref(tool_root, base_ref, path)
+    ]
+    stale = [path for path in missing if fork is not None and not _in_ref(tool_root, fork, path)]
+    return [path for path in missing if path not in stale], stale
+
+
+def _new_symlinks(
+    tool_root: Path, head_root: Path, base_ref: str, head_sha: str | None, fork: str | None
+) -> tuple[list[str], list[str]]:
+    """Head symlinks the base tip lacks (by target with a head SHA), split into added and stale."""
+    if head_sha is None:
+        known = _base_symlinks(tool_root, base_ref)
+    else:
+        known = _same_symlinks(tool_root, base_ref, head_sha)
+    found = _symlinks_in_tree(head_root) - known
+    stale = found & _same_symlinks(tool_root, fork, head_sha)
+    return sorted(found - stale), sorted(stale)
 
 
 def verify(tool_root: Path, head_root: Path, base_ref: str, head_sha: str | None = None) -> Report:
@@ -291,19 +324,17 @@ def verify(tool_root: Path, head_root: Path, base_ref: str, head_sha: str | None
     )
     fork = _merge_base(tool_root, base_ref, head_sha)
     report = Report(examined=len(closure))
-    report.removed.extend(
-        path
-        for path in roots
-        if not (head_root / path).is_file() and _in_ref(tool_root, fork or base_ref, path)
-    )
+    removed, stale_roots = _missing_roots(tool_root, head_root, base_ref, roots, fork)
+    report.removed.extend(removed)
+    report.stale.extend(stale_roots)
+    buckets = {CHANGED: report.changed, ADDED: report.added, STALE: report.stale}
     for path in closure:
-        differs = _differs(tool_root, base_ref, head_root, head_sha, path, fork)
-        if differs is None:
-            report.added.append(path)
-        elif differs:
-            report.changed.append(path)
-    known = _base_symlinks(tool_root, base_ref) | _unchanged_symlinks(tool_root, fork, head_sha)
-    report.symlinks.extend(sorted(_symlinks_in_tree(head_root) - known))
+        kind = _classify(tool_root, base_ref, head_root, head_sha, path, fork)
+        if kind is not None:
+            buckets[kind].append(path)
+    symlinks, stale_links = _new_symlinks(tool_root, head_root, base_ref, head_sha, fork)
+    report.symlinks.extend(symlinks)
+    report.stale.extend(stale_links)
     report.unresolved.extend(gate._unresolvable_dynamic_sites(closure, head_root))
     return report
 
@@ -417,7 +448,8 @@ def _print(report: Report, as_json: bool) -> None:
     print(
         f"dispatch-closure: {report.examined} files examined; {len(report.changed)} differ, "
         f"{len(report.removed)} removed, {len(report.added)} not in the base ref, "
-        f"{len(report.symlinks)} new symlinks, {len(report.unresolved)} unresolved loads"
+        f"{len(report.symlinks)} new symlinks, {len(report.unresolved)} unresolved loads, "
+        f"{len(report.stale)} stale"
     )
     for label, items in (
         ("DIFFERS", report.changed),
@@ -425,9 +457,12 @@ def _print(report: Report, as_json: bool) -> None:
         ("SYMLINK", report.symlinks),
         ("NEW", report.added),
         ("UNRESOLVED", report.unresolved),
+        ("STALE", report.stale),
     ):
         for item in sorted(items):
             print(_plain(f"dispatch-closure: {label} {item}"))
+    if report.stale:
+        print(STALE_REMEDY)
 
 
 def _head_root(args: argparse.Namespace, scratch: Path) -> Path:

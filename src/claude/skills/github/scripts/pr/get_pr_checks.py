@@ -2,7 +2,14 @@
 # mypy: disable-error-code="arg-type,assignment,no-any-return,type-arg,type-var", follow-imports=skip
 """Get CI check status for a GitHub Pull Request.
 
-Retrieves CI check information using GraphQL statusCheckRollup API.
+Retrieves CI check information using GraphQL statusCheckRollup API. When
+GraphQL refuses with a rate-limit body, it reads the same checks over REST
+(check runs and commit statuses) and marks required checks from the branch
+ruleset. Output field DataSource says which transport answered. On REST,
+--required-only exits 3 when the ruleset lists no required checks. Classic
+branch protection is not read by the ruleset lookup, so a failing or pending row
+outside the ruleset is kept under --required-only and RequiredState reads UNKNOWN,
+not SUCCESS.
 Returns structured JSON with check states, conclusions, and summary counts.
 Supports polling until checks complete and filtering to required checks only.
 
@@ -45,7 +52,13 @@ if _lib_dir not in sys.path:
 from github_core.api import (
     assert_gh_authenticated,
     gh_graphql,
+    is_rate_limit_refusal,
     resolve_repo_params,
+)
+from github_core.checks_rest import (
+    PullRequestNotFoundError,
+    fetch_checks_rest,
+    mark_required_from_ruleset,
 )
 from github_core.checks_rollup import (
     MISSING_GRACE_SECONDS,
@@ -58,6 +71,7 @@ from github_core.checks_rollup import (
     missing_checks_queued,
     partition_rows_by_run,
 )
+from github_core.not_found import is_pr_not_found
 from github_core.output import (
     add_output_format_arg,
     get_output_format,
@@ -179,12 +193,14 @@ _DATA_KEYS = (
     "Owner",
     "Repo",
     "BaseBranch",
-    "OverallState",
+    "AllState",
+    "RequiredState",
     "MergeState",
     "MergeStateStatus",
     "MergeRefUsable",
     "MergeStateWarning",
     "HasChecks",
+    "DataSource",
     "Checks",
     "FailedCount",
     "PendingCount",
@@ -274,13 +290,13 @@ def normalize_check(ctx: dict) -> dict | None:
 # FailedCount for PR #2201 even though test_pr_merge_ready.py reported the PR
 # ready. Refs Issue #2208.
 #
-# This script leaves OverallState as GitHub's rollup value. Deduplication only
-# affects the per-check rows and derived counts, such as FailedCount. The
-# When each duplicate exposes a workflow run id, the latest run of each
-# triggering event is current and the worst current state decides. Unknown
-# provenance keeps the previous precedence behavior: passing beats failing,
-# failing beats pending. Any pending signal is still retained for wait polling,
-# including when a same-name passing run is present.
+# AllState is GitHub's rollup value, left unchanged. Deduplication only
+# affects the per-check rows and derived counts, such as FailedCount and
+# RequiredState. When each duplicate exposes a workflow run id, the latest run
+# of each triggering event is current and the worst current state decides.
+# Unknown provenance keeps the previous precedence behavior: passing beats
+# failing, failing beats pending. Any pending signal is still retained for
+# wait polling, including when a same-name passing run is present.
 #
 # Stricter/looser/different than canonical: test_pr_merge_ready.py treats a
 # CANCELLED-only group as no-opinion (SKIP) so it neither blocks nor counts as
@@ -484,12 +500,72 @@ def _paginate_contexts(
     return extras, False
 
 
+def _overall_state(checks: list[dict]) -> str:
+    """Derive a rollup state from normalized checks, for the REST transport.
+
+    GraphQL reports GitHub's own rollup state. REST has no such field, so this
+    applies the same precedence: a failing row beats a pending row beats success.
+    """
+    if not checks:
+        return "UNKNOWN"
+    if any(c.get("IsFailing") for c in checks):
+        return "FAILURE"
+    if any(c.get("IsPending") for c in checks):
+        return "PENDING"
+    return "SUCCESS"
+
+
+def _fetch_checks_over_rest(
+    owner: str,
+    repo: str,
+    pr_number: int,
+    graphql_error: str = "",
+) -> dict:
+    """Read checks over REST and return the same dict shape as the GraphQL path.
+
+    IsRequired is False on every row here: REST has no such field. The caller
+    marks required rows from the branch ruleset once it has fetched it.
+    """
+    try:
+        snapshot = fetch_checks_rest(owner, repo, pr_number)
+    except PullRequestNotFoundError:
+        return {"Error": "NotFound", "Message": f"PR #{pr_number} not found in {owner}/{repo}"}
+    except RuntimeError as exc:
+        msg = str(exc)
+        prefix = f"GraphQL query failed: {graphql_error}; " if graphql_error else ""
+        return {"Error": "ApiError", "Message": f"{prefix}REST fallback failed: {msg}"}
+
+    checks = dedupe_checks([c for c in map(normalize_check, snapshot["Nodes"]) if c])
+    return {
+        "Number": snapshot["Number"],
+        "BaseBranch": snapshot["BaseBranch"],
+        "MergeState": snapshot["MergeState"],
+        "MergeStateStatus": snapshot["MergeStateStatus"],
+        "Checks": checks,
+        "AllState": _overall_state(checks),
+        # A suite with no run yet is GraphQL's empty present rollup (#2304).
+        "HasChecks": bool(checks) or snapshot["HasCheckSuites"],
+        "ChecksIncomplete": not snapshot["PagesComplete"],
+        "HeadCommittedAt": snapshot["HeadCommittedAt"],
+        "DataSource": "rest",
+    }
+
+
 def fetch_checks(
     owner: str,
     repo: str,
     pr_number: int,
+    *,
+    prefer_rest: bool = False,
 ) -> dict:
-    """Execute GraphQL query and return parsed result."""
+    """Execute the GraphQL query and return the parsed result.
+
+    A rate-limit refusal from GraphQL falls back to REST, which has its own
+    quota (issue #6391). ``prefer_rest`` skips GraphQL, so a ``--wait`` loop
+    that already fell back does not spend its retry ladder on every poll.
+    """
+    if prefer_rest:
+        return _fetch_checks_over_rest(owner, repo, pr_number)
     try:
         data = gh_graphql(
             _CHECKS_QUERY,
@@ -497,7 +573,9 @@ def fetch_checks(
         )
     except RuntimeError as exc:
         msg = str(exc)
-        if "Could not resolve" in msg or "not found" in msg:
+        if is_rate_limit_refusal(msg):
+            return _fetch_checks_over_rest(owner, repo, pr_number, graphql_error=msg)
+        if is_pr_not_found(msg):
             return {"Error": "NotFound", "Message": f"PR #{pr_number} not found in {owner}/{repo}"}
         return {"Error": "ApiError", "Message": f"GraphQL query failed: {msg}"}
 
@@ -517,7 +595,7 @@ def fetch_checks(
             "MergeState": merge_state,
             "MergeStateStatus": merge_state_status,
             "Checks": [],
-            "OverallState": "UNKNOWN",
+            "AllState": "UNKNOWN",
             "HasChecks": False,
             "HeadCommittedAt": None,
         }
@@ -532,12 +610,12 @@ def fetch_checks(
             "MergeState": merge_state,
             "MergeStateStatus": merge_state_status,
             "Checks": [],
-            "OverallState": "UNKNOWN",
+            "AllState": "UNKNOWN",
             "HasChecks": False,
             "HeadCommittedAt": commit_obj.get("committedDate"),
         }
 
-    overall_state = rollup.get("state", "UNKNOWN")
+    all_state = rollup.get("state", "UNKNOWN")
     contexts_obj = rollup.get("contexts", {}) or {}
     context_nodes = list(contexts_obj.get("nodes", []) or [])
     page_info = contexts_obj.get("pageInfo") or {}
@@ -569,10 +647,59 @@ def fetch_checks(
         "MergeState": merge_state,
         "MergeStateStatus": merge_state_status,
         "Checks": checks,
-        "OverallState": overall_state,
+        "AllState": all_state,
         "HasChecks": True,
         "ChecksIncomplete": not pages_complete,
         "HeadCommittedAt": commit_obj.get("committedDate"),
+    }
+
+
+def derive_required_state(
+    *,
+    has_checks: bool,
+    checks_incomplete: bool,
+    failed_required: list[str],
+    pending_required: list[str],
+    missing_required: list[str] | None,
+    missing_queued: bool = False,
+) -> str:
+    """Return the rollup state over required checks only.
+
+    UNKNOWN when no checks reported or pagination did not finish, FAILURE when
+    a required check failed or a ruleset context never reported past the grace
+    window, PENDING when a required check is still running or a ruleset context
+    is only queued (issue #6389), otherwise SUCCESS. Non-required checks never
+    move this value. Issue #6396.
+    """
+    if not has_checks or checks_incomplete:
+        return "UNKNOWN"
+    if failed_required or (missing_required and not missing_queued):
+        return "FAILURE"
+    if pending_required or missing_queued:
+        return "PENDING"
+    return "SUCCESS"
+
+
+def _rest_unproven_names(
+    check_data: dict,
+    checks_by_name: dict[str, dict],
+    is_required_by_name: dict[str, bool],
+) -> set[str]:
+    """Return REST row names that are failing or pending but not marked required.
+
+    REST marks required rows from the branch ruleset only. A check that classic
+    branch protection requires stays unmarked, so a red or running unmarked row
+    cannot be proven non-required. ``build_output`` keeps these rows under
+    ``--required-only`` and refuses a green RequiredState while any exist.
+    GraphQL carries ``isRequired`` per row, so it never has unproven rows.
+    """
+    if check_data.get("DataSource") != "rest":
+        return set()
+    return {
+        name
+        for name, check in checks_by_name.items()
+        if not is_required_by_name.get(name, False)
+        and (check.get("IsFailing") or check.get("IsPending"))
     }
 
 
@@ -608,11 +735,12 @@ def build_output(
 
     # Apply required_only filter: keep only checks where any row for that
     # name has isRequired=true.
+    rest_unproven = _rest_unproven_names(check_data, checks_by_name, is_required_by_name)
     if required_only:
         checks_by_name = {
             name: check
             for name, check in checks_by_name.items()
-            if is_required_by_name.get(name, False)
+            if is_required_by_name.get(name, False) or name in rest_unproven
         }
 
     # Update each check with the ORed required status.
@@ -697,6 +825,23 @@ def build_output(
     missing_queued = bool(missing_required) and missing_checks_queued(
         check_data.get("HeadCommittedAt"), missing_grace_seconds
     )
+    required_state = derive_required_state(
+        has_checks=has_checks,
+        checks_incomplete=checks_incomplete,
+        failed_required=failed_required,
+        pending_required=pending_required,
+        missing_required=missing_required,
+        missing_queued=missing_queued,
+    )
+    # REST has no per-row isRequired flag. Without a ruleset listing required
+    # checks, no row is marked required, so a green required set is not proven.
+    # With one, a failing or pending row outside it may still be required by
+    # classic branch protection, which the ruleset lookup cannot see.
+    rest_unproven_required = check_data.get("DataSource") == "rest" and (
+        not ruleset_contexts or bool(rest_unproven)
+    )
+    if rest_unproven_required and required_state == "SUCCESS":
+        required_state = "UNKNOWN"
 
     return {
         "Success": True,
@@ -704,12 +849,19 @@ def build_output(
         "Owner": owner,
         "Repo": repo,
         "BaseBranch": check_data.get("BaseBranch"),
-        "OverallState": check_data.get("OverallState", "UNKNOWN"),
+        # GitHub's rollup over every check, required or not. A red non-required
+        # check makes this FAILURE while the PR stays mergeable. Use
+        # RequiredState to decide whether a required gate blocks.
+        "AllState": check_data.get("AllState", "UNKNOWN"),
+        "RequiredState": required_state,
         "MergeState": merge_state,
         "MergeStateStatus": merge_state_status,
         "MergeRefUsable": merge_ref_usable,
         "MergeStateWarning": merge_state_warning,
         "HasChecks": has_checks,
+        # Which transport answered. "rest" means GraphQL was rate limited and
+        # IsRequired came from the branch ruleset, not from isRequired.
+        "DataSource": check_data.get("DataSource", "graphql"),
         "Checks": [
             {
                 "Name": c["Name"],
@@ -945,6 +1097,52 @@ def _resolve_repo_or_fail(args: argparse.Namespace, fmt: str) -> tuple[str, str]
     return resolved.owner, resolved.repo
 
 
+def _mark_rest_required(
+    check_data: dict,
+    ruleset_contexts: list[str] | None,
+    required_only: bool,
+    pr_number: int,
+    fmt: object,
+    owner: str | None = None,
+    repo: str | None = None,
+) -> int | None:
+    """Mark required rows on REST data from the ruleset, or return exit code 3.
+
+    REST has no per-row required flag. When the ruleset cannot be read (``None``)
+    or lists no required checks (``[]``, which is what a branch with only classic
+    branch protection, or none, returns), ``--required-only`` would silently drop
+    every row, so it fails instead of reporting an empty pass. Without
+    ``--required-only`` the rows stay unmarked, the caller still sees every
+    failing check, and ``build_output`` reports RequiredState as UNKNOWN.
+    """
+    if check_data.get("DataSource") != "rest":
+        return None
+    if ruleset_contexts is not None:
+        mark_required_from_ruleset(check_data["Checks"], ruleset_contexts)
+    if ruleset_contexts or not required_only:
+        return None
+    _emit_failure(
+        "GraphQL is rate limited and REST cannot tell which checks are required: "
+        "the branch ruleset was not read or lists no required checks; "
+        "rerun without --required-only",
+        3,
+        "ApiError",
+        fmt,
+        failure_data(pr_number, owner, repo, check_data.get("BaseBranch")),
+    )
+    return 3
+
+
+def _downgrade_required_state(output: dict, checks_incomplete: bool) -> None:
+    """Report a green RequiredState as UNKNOWN when polling found the set incomplete.
+
+    ``main`` learns the check set is incomplete after ``build_output`` ran, so
+    a green required set is not proven.
+    """
+    if checks_incomplete and output["RequiredState"] == "SUCCESS":
+        output["RequiredState"] = "UNKNOWN"
+
+
 def _warn_if_wait_exceeds_tool_cap(wait: bool, timeout_seconds: int) -> None:
     """Warn on stderr when a --wait budget would outlive the 600 second tool cap."""
     if wait and timeout_seconds > MAX_WAIT_TIMEOUT_SECONDS:
@@ -974,6 +1172,67 @@ def _exit_code(output: dict, checks_incomplete: bool, timed_out_pending: bool) -
     return 0
 
 
+def _load_ruleset(
+    owner: str,
+    repo: str,
+    check_data: dict,
+    args: argparse.Namespace,
+    fmt: object,
+) -> tuple[list[str] | None, int | None]:
+    """Fetch the base branch ruleset once, before polling.
+
+    Issue #4359: a stable snapshot keeps missing-check detection relevant.
+    Returns (contexts, exit_code). ``contexts`` is None when the fetch was
+    skipped (empty base branch) or failed; a failure also sets exit code 3.
+    """
+    base_branch = (
+        args.base_branch.strip()
+        if args.base_branch is not None
+        else str(check_data.get("BaseBranch") or "")
+    )
+    if not base_branch:
+        return None, None
+    ruleset_contexts = fetch_ruleset_required_contexts(owner, repo, base_branch)
+    if ruleset_contexts is not None:
+        return ruleset_contexts, None
+    _emit_failure(
+        f"Failed to read required checks for base branch {base_branch!r}",
+        3,
+        "ApiError",
+        fmt,
+        failure_data(args.pull_request, owner, repo, base_branch),
+    )
+    return None, 3
+
+
+def _poll_checks(
+    owner: str,
+    repo: str,
+    previous: dict,
+    ruleset_contexts: list[str] | None,
+    args: argparse.Namespace,
+    fmt: object,
+) -> tuple[dict, int | None]:
+    """Sleep, refetch the checks, and return (check_data, exit_code).
+
+    Once GraphQL has been rate limited, stay on REST: each GraphQL poll would
+    spend its retry ladder (up to 45s) on the same refusal (issue #6391).
+    """
+    time.sleep(10)
+    check_data = fetch_checks(
+        owner,
+        repo,
+        args.pull_request,
+        prefer_rest=previous.get("DataSource") == "rest",
+    )
+    rc = _handle_fetch_error(check_data, args.pull_request, fmt, owner, repo)
+    if rc is None:
+        rc = _mark_rest_required(
+            check_data, ruleset_contexts, args.required_only, args.pull_request, fmt, owner, repo
+        )
+    return check_data, rc
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     fmt = get_output_format(args.output_format)
@@ -984,25 +1243,13 @@ def main(argv: list[str] | None = None) -> int:
     if rc is not None:
         return rc
 
-    # Issue #4359: fetch the target branch ruleset once, before polling, so
-    # missing-check detection uses a stable and relevant snapshot.
-    base_branch = (
-        args.base_branch.strip()
-        if args.base_branch is not None
-        else str(check_data.get("BaseBranch") or "")
-    )
-    ruleset_contexts: list[str] | None = None
-    if base_branch:
-        ruleset_contexts = fetch_ruleset_required_contexts(owner, repo, base_branch)
-        if ruleset_contexts is None:
-            _emit_failure(
-                f"Failed to read required checks for base branch {base_branch!r}",
-                3,
-                "ApiError",
-                fmt,
-                failure_data(args.pull_request, owner, repo, base_branch),
-            )
-            return 3
+    ruleset_contexts, rc = _load_ruleset(owner, repo, check_data, args, fmt)
+    if rc is None:
+        rc = _mark_rest_required(
+            check_data, ruleset_contexts, args.required_only, args.pull_request, fmt, owner, repo
+        )
+    if rc is not None:
+        return rc
 
     _warn_if_wait_exceeds_tool_cap(args.wait, args.timeout_seconds)
 
@@ -1054,13 +1301,12 @@ def main(argv: list[str] | None = None) -> int:
                 checks_incomplete = True
             break
 
-        time.sleep(10)
-        check_data = fetch_checks(owner, repo, args.pull_request)
-        rc = _handle_fetch_error(check_data, args.pull_request, fmt, owner, repo)
+        check_data, rc = _poll_checks(owner, repo, check_data, ruleset_contexts, args, fmt)
         if rc is not None:
             return rc
 
     output["ChecksIncomplete"] = checks_incomplete
+    _downgrade_required_state(output, checks_incomplete)
     timed_out_pending = not settled and (
         output["PendingCount"] > 0 or _holds_wait_for_queued(output)
     )

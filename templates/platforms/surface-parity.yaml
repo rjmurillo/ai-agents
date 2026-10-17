@@ -1,3 +1,4 @@
+# taste-lint: ignore file-size, one row per shipped surface; check_surface_parity.py reads one flat registry, and each host tree adds rows.
 # Surface parity manifest (issue #5637).
 #
 # One row per shipped surface: where it lives, which source it answers to, which
@@ -48,6 +49,13 @@ surfaces:
     generator: build/generate_agents.py
     include: ["*.agent.md"]
     owner: build_all.py --check; agent-drift-detection.yml
+  - id: agents-cursor
+    path: src/cursor/agents
+    relation: translated
+    authority: src/claude/agents
+    generator: build/scripts/agent_tree_copy.py
+    owner: build_all.py --check
+    reason: Frontmatter keeps only name and description, plus readonly for agents whose tools are all read-only. The body is copied unchanged.
   - id: vscode-copilot-instructions
     path: src/vs-code-agents
     relation: independent
@@ -98,6 +106,13 @@ surfaces:
     generator: build/scripts/generate_rules.py
     owner: build_all.py --check
     reason: paths frontmatter becomes applyTo; alwaysApply and priority are dropped.
+  - id: rules-cursor
+    path: src/cursor/rules
+    relation: translated
+    authority: src/claude/rules
+    generator: build/scripts/generate_rules.py
+    owner: build_all.py --check
+    reason: Rules become .mdc files. paths of ** becomes alwaysApply true; other paths become a comma-separated globs string. priority is dropped. Internal-only globs are filtered.
   - id: instructions-github
     path: .github/instructions
     relation: translated
@@ -208,6 +223,12 @@ surfaces:
     authority: scripts/validation/validate_review_marker.py
     generator: build/scripts/lib_mirror.py
     owner: build_all.py --check
+  - id: skills-review-sidecar-cursor
+    path: src/cursor/skills/review/scripts/validate_review_marker.py
+    relation: generated
+    authority: scripts/validation/validate_review_marker.py
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
   - id: skills-copilot-cli
     path: src/copilot-cli/skills
     relation: translated
@@ -216,6 +237,26 @@ surfaces:
     authority_exclude: [merge-resolver]
     owner: build_all.py --check
     reason: Frontmatter keys model and model-rationale drop; argument, agent, skill, and tool syntax is rewritten. merge-resolver is excluded (issue #2026).
+  - id: skills-cursor
+    path: src/cursor/skills
+    relation: translated
+    authority: src/claude/skills
+    generator: build/scripts/generate_skills.py
+    owner: build_all.py --check
+    reason: SKILL.md frontmatter keeps only name, description, paths, disable-model-invocation, icon, color, and metadata. The body and every support file are copied unchanged.
+  - id: skills-review-sidecar-codex
+    path: src/codex/skills/review/scripts/validate_review_marker.py
+    relation: generated
+    authority: scripts/validation/validate_review_marker.py
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
+  - id: skills-codex
+    path: src/codex/skills
+    relation: translated
+    authority: .claude/skills
+    generator: build/scripts/generate_skills.py
+    owner: build_all.py --check
+    reason: Frontmatter keys model and model-rationale drop; the body ships verbatim (ADR-115 Decision 2).
 
   # ---- Lib packages -------------------------------------------------------
   - id: lib-hook-utilities-claude-plugin
@@ -274,6 +315,62 @@ surfaces:
     generator: build/scripts/lib_mirror.py
     owner: build_all.py --check
     reason: Absolute imports are rewritten to relative imports.
+  - id: lib-hook-utilities-cursor-plugin
+    path: src/cursor/lib/hook_utilities
+    relation: translated
+    authority: scripts/hook_utilities
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
+    reason: Absolute imports are rewritten to relative imports.
+  - id: lib-github-core-cursor-plugin
+    path: src/cursor/lib/github_core
+    relation: translated
+    authority: scripts/github_core
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
+    reason: Absolute imports are rewritten to relative imports.
+  - id: lib-ai-review-common-cursor-plugin
+    path: src/cursor/lib/ai_review_common
+    relation: translated
+    authority: scripts/ai_review_common
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
+    reason: Absolute imports are rewritten to relative imports.
+  - id: lib-bootstrap-cursor-plugin
+    path: src/cursor/lib/bootstrap.py
+    relation: translated
+    authority: scripts/hook_utilities/bootstrap.py
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
+    reason: Absolute imports are rewritten to relative imports.
+  - id: lib-hook-utilities-codex-plugin
+    path: src/codex/lib/hook_utilities
+    relation: translated
+    authority: scripts/hook_utilities
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
+    reason: Absolute imports are rewritten to relative imports.
+  - id: lib-github-core-codex-plugin
+    path: src/codex/lib/github_core
+    relation: translated
+    authority: scripts/github_core
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
+    reason: Absolute imports are rewritten to relative imports.
+  - id: lib-ai-review-common-codex-plugin
+    path: src/codex/lib/ai_review_common
+    relation: translated
+    authority: scripts/ai_review_common
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
+    reason: Absolute imports are rewritten to relative imports.
+  - id: lib-bootstrap-codex-plugin
+    path: src/codex/lib/bootstrap.py
+    relation: translated
+    authority: scripts/hook_utilities/bootstrap.py
+    generator: build/scripts/lib_mirror.py
+    owner: build_all.py --check
+    reason: Absolute imports are rewritten to relative imports.
   - id: lib-hook-utilities-claude-install
     path: .claude/lib/hook_utilities
     relation: binplaced
@@ -321,6 +418,15 @@ surfaces:
     relation: independent
     include: ["CLAUDE.md"]
     reason: Per-package guide authored in place.
+
+  # ---- Hermes packs (ADR-115 Decision 6) ----------------------------------
+  - id: skills-hermes-packs
+    path: src/hermes
+    relation: generated
+    authority: src/claude/skills
+    generator: build/scripts/hermes_packs.py
+    owner: build_all.py --check
+    reason: Skills split across packs under the Hermes install cap; SKILL.md drops metadata, allowed-tools, and the model keys. Each pack also carries a byte-identical copy of the shared lib packages (lib_render.render_lib_files), its plugin.json, and the README index; one generator owns the whole tree, so no second row covers lib/.
 
   # ---- Prompts ------------------------------------------------------------
   - id: prompts-pr-quality-gate
@@ -371,6 +477,16 @@ surfaces:
     relation: independent
     include: ["docs/**", ".claude-plugin/**"]
     reason: Plugin documentation and plugin manifest are authored in place.
+  - id: src-cursor-authored
+    path: src/cursor
+    relation: independent
+    include: [".cursor-plugin/**"]
+    reason: The Cursor plugin manifest is authored in place.
+  - id: src-codex-authored
+    path: src/codex
+    relation: independent
+    include: ["plugin.json"]
+    reason: Plugin manifest is authored in place (ADR-115 Decision 1).
   - id: claude-guides
     path: .claude
     relation: independent

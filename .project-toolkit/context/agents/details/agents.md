@@ -1,3 +1,3 @@
 # .agents/
 
-Governance, planning, history; no plugin ships it.
+Governance, planning, history; only `plugins/` ships.

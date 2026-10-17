@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "id": "pr-5547-codex-probers-planned-follow-up",
+  "repository": "rjmurillo/ai-agents",
+  "default_branch": "main",
+  "claim": "Steps 1 and 2 of the four-step plan in the #5423 reopen comment (Codex runtime profile and behavioral probers) landed in PR #5623 as planned work, not as defect rework.",
+  "supports": [
+    "observation"
+  ],
+  "introduction": {
+    "pr": 5547,
+    "url": "https://github.com/rjmurillo/ai-agents/pull/5547",
+    "commit": "ca415d8e35adf6c1ea9acce368fa55a38b469e11",
+    "merged_at": "2026-09-04T15:18:06Z"
+  },
+  "detection": {
+    "source": "issue #5423 reopen comment announcing the four-step plan",
+    "url": "https://github.com/rjmurillo/ai-agents/issues/5423#issuecomment-5545927372",
+    "at": "2026-09-04T20:12:32Z"
+  },
+  "detection_delay_seconds": 17666,
+  "follow_up": {
+    "kind": "planned_work",
+    "pr": 5623,
+    "url": "https://github.com/rjmurillo/ai-agents/pull/5623",
+    "commit": "aa951a04e76d3db2bc16c72cf7e34573314e65dd",
+    "merged_at": "2026-09-06T22:23:33Z"
+  },
+  "status": "CURRENT",
+  "status_history": [
+    {
+      "status": "CURRENT",
+      "live_sha": "0dd875f9959689313b1b0096c186b36c594d02e3",
+      "checked_at": "2026-10-13T11:48:26Z",
+      "basis": "first recheck: pattern present in scripts/eval/_runtime_harness.py at 0dd875f99"
+    },
+    {
+      "status": "CURRENT",
+      "live_sha": "0dd875f9959689313b1b0096c186b36c594d02e3",
+      "checked_at": "2026-10-13T11:48:31Z",
+      "basis": "claim holds: pattern present in scripts/eval/_runtime_harness.py at 0dd875f99"
+    }
+  ],
+  "recheck": {
+    "description": "The Codex auth allowlist from step 1 now lives in scripts/eval/_runtime_harness.py (it began in _runtime_parity.py). The claim holds while CODEX_API_KEY is present there.",
+    "command": "git show <rev>:scripts/eval/_runtime_harness.py | grep -n CODEX_API_KEY",
+    "path": "scripts/eval/_runtime_harness.py",
+    "pattern": "CODEX_API_KEY",
+    "live_when": "present"
+  },
+  "limitations": [
+    "This record shows a follow-up the plan announced. It does not rate the quality of PR #5547 or PR #5623.",
+    "PR #5547 carried a closing keyword the work did not satisfy. That process gap is not part of this chain's claim.",
+    "The recheck proves the step 1 code is still present. It does not prove the probers still behave as first merged.",
+    "The code moved from _runtime_parity.py to _runtime_harness.py after the merge. A later move reads as UNVERIFIED."
+  ]
+}

@@ -13,6 +13,12 @@ so a local pass predicts the remote result.
 pull-request workflow and fails when one runs a validator that neither a gate
 here nor the exemption table in that test accounts for.
 
+The pre-push hook is the second source of gates. ``lefthook.yml`` runs jobs the
+pull-request workflows do not, and a job pre_pr never runs costs a rejected
+10-minute push after a green pre_pr (issue #6426).
+``tests/validation/test_pre_pr_covers_pre_push_jobs.py`` reads every pre-push
+job and fails when one has neither a gate nor a reasoned exemption.
+
 The wrappers live in their own module because ``checks_spec.py`` is at the
 500-line ceiling ``scripts/ci/taste_count_ratchet.py`` enforces.
 """
@@ -192,6 +198,22 @@ def validate_memory_placement(repo_root: Path) -> bool:
     )
 
 
+def validate_route_scenario_coverage(repo_root: Path) -> bool:
+    """Fail when a new or changed autoplan route has no edited scenario.
+
+    Runs the command the ``Require a scenario for each new or changed autoplan
+    route`` step of ``Rule Activation Coverage`` runs, against the same base.
+    It diffs the committed range from the merge base, as CI does. Issue #6291.
+    """
+    base_ref = _base_ref_or_skip(repo_root, "route scenario coverage")
+    return _run_workflow_validator(
+        repo_root,
+        "scripts/validation/check_route_scenario_coverage.py",
+        "--base-ref",
+        base_ref,
+    )
+
+
 def validate_closure_manifest(repo_root: Path) -> bool:
     """Advisory: compute the enforcement closure and report unresolved edges.
 
@@ -202,4 +224,30 @@ def validate_closure_manifest(repo_root: Path) -> bool:
     """
     return _run_workflow_validator(
         repo_root, "scripts/validation/closure_manifest.py", "--advisory"
+    )
+
+
+def validate_review_axis_drift(repo_root: Path) -> bool:
+    """Fail when ``.github/prompts/pr-quality-gate-*.md`` drifts from the review skill.
+
+    Runs the command the pre-push ``review-axis-drift`` job and the CI drift
+    check run. ``--dry-run`` writes nothing and exits 1 with a diff on drift.
+    """
+    return _run_workflow_validator(
+        repo_root, "build/scripts/generate_pr_quality_prompts.py", "--dry-run"
+    )
+
+
+def validate_skill_description_budget(repo_root: Path) -> bool:
+    """Fail when the skill descriptions outgrow their per-root budget.
+
+    Runs the command the ``Run skill description budget`` step of
+    ``skill-passive-compliance.yml`` runs. The pytest suite asserts the same
+    budget file, so a branch over it failed the pre-push test job first.
+    """
+    return _run_workflow_validator(
+        repo_root,
+        "scripts/skill_description_budget.py",
+        "--budget-file",
+        "scripts/skill_description_budget.json",
     )

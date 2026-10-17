@@ -1,0 +1,50 @@
+{
+  "skill_path": ".claude/skills/repository-consumer-proof/SKILL.md",
+  "skill_id": "repository-consumer-proof",
+  "scenarios": [
+    {
+      "id": "S1",
+      "desc": "Initialization is mistaken for installed execution.",
+      "input": "The ai-agents plugin initializes successfully. Its hook runs from repo cwd, but the consumer sees no intended marker from a foreign cwd. Give the smallest discriminating experiment and success evidence. Do not modify anything.",
+      "expected_signals": [
+        "plugin-root",
+        "foreign cwd",
+        "marker",
+        "negative control"
+      ],
+      "expected_gate": "prove-installed-execution",
+      "rationale": "Successful setup and correct execution placement require different observations."
+    },
+    {
+      "id": "S2",
+      "desc": "Dry-run controls are mistaken for measured agent behavior.",
+      "input": "The ai-agents runtime parity dry-run passed its controls. Can I claim the completion-terminal behavior is fixed? Give the evidence still required. Do not run live models or modify anything.",
+      "expected_signals": [
+        "not_run",
+        "live",
+        "controls invert",
+        "unmeasured"
+      ],
+      "expected_gate": "separate-controls-from-live-behavior",
+      "rationale": "Deterministic validation does not produce semantic runtime samples."
+    },
+    {
+      "id": "S3",
+      "desc": "Unrelated writing does not need consumer execution proof.",
+      "input": "Rewrite this sentence in active voice: The file was read by the engineer.",
+      "expected_signals": [],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "No installed capability or runtime claim exists."
+    },
+    {
+      "id": "S4",
+      "desc": "A neighboring workflow owns the requested outcome.",
+      "input": "The required PR check never reports. Determine its blocker and producer without changing anything.",
+      "expected_signals": [
+        "repository-pr-recovery"
+      ],
+      "expected_gate": "skip-rule-not-applicable",
+      "rationale": "PR recovery owns hosted blocker attribution rather than consumer runtime proof."
+    }
+  ]
+}

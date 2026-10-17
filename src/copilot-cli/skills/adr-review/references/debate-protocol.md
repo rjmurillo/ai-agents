@@ -7,7 +7,7 @@ Detailed phases for multi-agent ADR validation.
 Before launching independent reviews, use analyst agent to search for related work:
 
 ````text
-Task(subagent_type="analyst", prompt="""
+task(agent_type="project-toolkit:analyst", prompt="""
 ADR Related Work Research
 
 ## ADR Being Reviewed
@@ -100,8 +100,8 @@ P0 = blocking, P1 = important, P2 = nice-to-have
 **Agent Invocation Pattern:**
 
 ```python
-Task(
-    subagent_type="architect",
+task(
+    agent_type="project-toolkit:architect",
     prompt="""
 ADR Review Request (Phase 1: Independent Review)
 
@@ -151,8 +151,8 @@ After all 6 reviews complete:
 **Conflict Resolution Pattern:**
 
 ```python
-Task(
-    subagent_type="high-level-advisor",
+task(
+    agent_type="project-toolkit:high-level-advisor",
     prompt="""
 ADR Conflict Resolution Required
 
@@ -202,8 +202,8 @@ If 2+ agents flag scope concerns, recommend splitting:
 Re-invoke each agent to review proposed updates:
 
 ```python
-Task(
-    subagent_type="[agent]",
+task(
+    agent_type="project-toolkit:[agent]",
     prompt="""
 ADR Convergence Check (Round [N])
 
@@ -233,12 +233,14 @@ Provide ONE position:
 - Any agent Blocks = Another round required (if round < 10)
 - Round 10 with no consensus = Conclude with unresolved issues documented
 
+See [Round Cap](#round-cap) for what happens after a debate closes.
+
 ## Round Management
 
 ```markdown
 ## Debate State
 
-**Round**: [N] of 10
+**Round**: [N] of 10 (counted within this debate log)
 **Status**: [In Progress | Consensus | Concluded Without Consensus]
 
 ### Agent Positions
@@ -254,6 +256,32 @@ Provide ONE position:
 ### Unresolved Issues (if any)
 [List P0 issues still blocking]
 ```
+
+## Round Cap
+
+The ten-round cap is a lifetime limit per debate log. A revision of the ADR text
+does not reset it. Phase 3 fixes and Phase 4 re-votes inside one debate are
+rounds of that debate and count toward the ten.
+
+A debate is closed when it reaches consensus or ends at
+Round 10 with no consensus. A closed log accepts no round 11. Any later edit to the ADR, whether
+the debate closed by consensus or without it, starts a new debate in a new log.
+Rounds in the new log restart at round 1.
+
+The new log is a new file. Save it to
+`.project-toolkit/critique/ADR-NNN-debate-log-2.md` (`-3` for the next, and so on)
+and never overwrite a closed log. The first debate keeps
+`.project-toolkit/critique/ADR-NNN-debate-log.md`.
+<!-- vendor-portability: declared. This doc directs debate logs to .project-toolkit/critique/. In a vendored install without that dir the agent creates it (or writes to the consumer's chosen artifact root); the path is a write target, not a precondition. Issue #2050. -->
+
+The new log must:
+
+- Name the closed log in its `Prior debate log` field.
+- Carry forward the unresolved issues from the closed log as input to round 1.
+
+The author of the contested text does not choose the reading. The cap never
+resets on the author's say-so, and a closed log is never reopened to add rounds.
+An owner request for more rounds takes the same path: a new log, not an extension.
 
 ## Related Work Integration
 

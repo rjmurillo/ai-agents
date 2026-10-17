@@ -96,6 +96,20 @@ class TestGetPrNodeId:
                 get_pr_node_id("o", "r", 999)
             assert exc.value.code == 2
 
+    @pytest.mark.parametrize(
+        ("message", "expected"),
+        [
+            ("GraphQL request failed: Could not resolve to a PullRequest with the number of 9.", 2),
+            ("GraphQL request failed: Could not resolve host: api.github.com", 3),
+            ("GraphQL request failed: server error", 3),
+        ],
+    )
+    def test_graphql_error_exit_codes(self, message, expected):
+        with patch("set_pr_auto_merge.gh_graphql", side_effect=RuntimeError(message)):
+            with pytest.raises(SystemExit) as exc:
+                get_pr_node_id("o", "r", 9)
+            assert exc.value.code == expected
+
 
 # ---------------------------------------------------------------------------
 # Tests: disable_auto_merge
@@ -299,7 +313,9 @@ class TestEnableAutoMergeErrors:
             "set_pr_auto_merge.gh_graphql",
             return_value=enable_data,
         ):
-            rc = enable_auto_merge("o", "r", 2450, "PR_blk", "SQUASH", "", "")
+            rc = enable_auto_merge(
+                "o", "r", 2450, "PR_blk", "SQUASH", "", "", output_format="human"
+            )
         assert rc == 0
         captured = capsys.readouterr()
         # Must not have routed through either fallback message.

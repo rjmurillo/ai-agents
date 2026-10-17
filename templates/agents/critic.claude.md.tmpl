@@ -6,6 +6,7 @@ metadata:
 # Needs fresh context so it can challenge a plan without the planner's assumptions.
 isolation_required: true
 argument-hint: Provide the plan file path or planning artifact to review
+disallowedTools: Agent
 {{> critic-intro}}
 - **Whitespace / unicode / token boundary variants for regexes**: leading or trailing whitespace, mixed line endings, unicode lookalikes, surrounding tokens that change matching context. A regex without a word-boundary test is suspect; cite the wiki entry on regex token boundaries when you write the finding.
 {{> critic-adversarial-coverage-checklist}}

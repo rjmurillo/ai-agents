@@ -3,7 +3,7 @@ name: push-pr
 version: 1.0.0
 description: Commit the working tree, push the branch, and open a pull request with the repository template filled in from the real diff. Use when you say `push and open a PR`, `open a pull request`, or `push this branch`. Do NOT use to run the pre-ship review gates (use ship), and do NOT use to validate PR metadata alone (use validate-pr-description).
 license: MIT
-allowed-tools: Bash(git checkout -b:*), Bash(git switch -c:*), Bash(git add:*), Bash(git status:*), Bash(git push:*), Bash(git commit:*), Bash(python3:-I */pr/new_pr.py*), Bash(git diff:*), Bash(git branch:*), Bash(mkdir:-p .project-toolkit/scratch), Edit(.project-toolkit/scratch/pr-body-*.md)
+allowed-tools: Bash(git checkout -b:*), Bash(git switch -c:*), Bash(git add:*), Bash(git status:*), Bash(git push:*), Bash(git commit:*), Bash(python3:-I */pr/new_pr.py*), Bash(uv run --frozen python -I scripts/validation/pr_description.py*), Bash(git diff:*), Bash(git branch:*), Bash(mkdir:-p .project-toolkit/scratch), Edit(.project-toolkit/scratch/pr-body-*.md)
 # Security note: python3 -I is the identity-hardened form (issue #4825).
 # The Edit entry above is scoped to the secure allocator's output file only.
 # The Bash tool executor must sanitize arguments to prevent command injection (CWE-78).
@@ -52,6 +52,8 @@ Based on the above changes:
    python3 -I "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/new_pr.py" --prepare-body-file
    ```
 
+   - On Windows the allocator refuses to run. Follow the
+     Windows PR Body Fallback section below for steps 3, 4, 5, and 7.
    - Copy the returned path exactly. Do not store it in a shell variable because
      each tool call runs in a fresh shell.
    - The file starts with the line `<!-- replace with PR body -->`, followed by the
@@ -75,9 +77,35 @@ Based on the above changes:
 
    `--preflight` checks the title format and the body file name, mode, and marker.
    It makes no network call and creates nothing. The dash and escaped newline
-   checks still run at step 6. Fix a rejection here.
-5. Push the branch to origin.
-6. Create a pull request using the new_pr skill script:
+   checks still run at step 7. Fix a rejection here.
+5. Check that the body names only files the diff touches, before the push. The
+   required `Validate PR` check fails on a path the diff does not touch, and the
+   fix costs a CI round after the PR opens. Commit first: local mode reads
+   committed `HEAD` only, so an uncommitted file reads as not in the diff. Run
+   the local mode, which reads the same body file and
+   `git diff origin/main...HEAD` with no network call:
+
+   ```bash
+   uv run --frozen python -I scripts/validation/pr_description.py --body-file ".project-toolkit/scratch/pr-body-<returned-uuid>.md" --base origin/main
+   ```
+
+   - Exit 1 means a CRITICAL finding, usually `File mentioned but not in diff`.
+     Stop. If every flagged path appears in `git status`, commit instead of
+     editing the body. Otherwise edit the body file (remove the path, move it
+     out of the change heading, or wrap it in a code fence), then re-run until
+     it exits 0.
+   - Exit 2 means the check could not run: an unreadable or non-UTF-8 body
+     file, an unknown or invalid base ref, or git unavailable. For a missing
+     `origin/main`, pass `--base` with the ref the PR targets, such as
+     `<remote>/<default-branch>`. Do not skip the step.
+   - Do not apply the `description-validation-bypass` label. A human maintainer
+     decides that.
+   - A checkout without `scripts/validation/pr_description.py`, such as a plugin
+     install, cannot run this step. Say it was not run, and compare every
+     path under the change heading (inline code, bold, list item, or link) to
+     `git diff --name-only origin/main...HEAD` by hand.
+6. Push the branch to origin.
+7. Create a pull request using the new_pr skill script:
 
    <!-- vendor-portability: declared. This skill reads the consumer's
    `.github/PULL_REQUEST_TEMPLATE.md` and writes the consumer's
@@ -100,13 +128,60 @@ Based on the above changes:
   - `Resolves #789`: auto-resolves issue when PR merges
 - Ensure PR template sections are completed
 
+## Windows PR Body Fallback
+
+Use this only on Windows, and only when step 3 exits 2 with
+`ERROR: secure PR body files are not supported on Windows`. Every other
+platform keeps the allocator mandatory. The allocator needs directory file
+descriptors and owner-only modes that Windows does not provide.
+
+`new_pr.py` accepts `--body '<text>'` in place of `--body-file`. That path
+never calls the allocator or its file reader. The helper still runs the same
+title, dash, and escaped newline checks, then hands the body to `gh` on
+stdin, never as a command-line argument to `gh`.
+
+1. Skip `--prepare-body-file`. Fill the PR template from step 2 into the body
+   text yourself, with the same rules as step 3.
+2. Step 4 preflight: pass `--body '<body text>'` instead of `--body-file`. It
+   checks the title only, since there is no file to check.
+3. Step 5: `pr_description.py --body-file` reads any readable file. Run
+   `mkdir -p .project-toolkit/scratch` first, because the allocator refused
+   before it created that directory. Create `pr-body-windows.md` in it with
+   Write and expect one permission prompt. Later Edit fixes after a step 5
+   exit 1 stay inside the scoped `Edit` grant.
+4. Step 7: run the same command with the body text inline:
+
+   ```bash
+   python3 -I "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/github/scripts/pr/new_pr.py" --title "<conventional commit title>" --body '<body text>'
+   ```
+
+   - Paste the file's final contents, unchanged, as the `--body` text. Step 5
+     checked the file, so every edit made there must reach this command.
+   - Quote the body so the shell passes it literally. In bash or Git Bash,
+     use single quotes and write each apostrophe as `'\''`. In PowerShell,
+     use a single-quoted here-string (`@'` ... `'@`). Never use double quotes:
+     bash runs each backtick code span as a command and expands `$name`, and
+     PowerShell treats the backtick as an escape and also expands `$`.
+   - Write the body literally in the command. Do not build it from a shell
+     variable, for the same fresh-shell reason as step 3.
+   - Use real line breaks inside the quoted text, never `\n`. If the escaped
+     newline check fails, its message says to pass `--body-file`. That is the
+     refused path on Windows, so fix the line breaks instead.
+   - Windows caps a command line near 8191 characters in cmd.exe and 32767
+     through CreateProcess. The body rides on argv twice: to `new_pr.py`, then
+     to `validate_pr_description.py`. If the command fails for length, trim
+     the body and keep every required template section.
+   - Do not add `--skip-validation`. The fallback changes how the body arrives,
+     not which checks it must pass.
+
 You have the capability to call multiple tools in a single response. You MUST do all of the above in a single message. Do not use any other tools or do anything else. Do not send any other text or messages besides these tool calls.
 
 ## Verification
 
 - [ ] Branch created off main when the working branch was main, never a push to main
 - [ ] Title follows conventional commit format
-- [ ] Body written into the allocator's returned path, copied exactly, never through a shell variable
+- [ ] Local `pr_description.py --body-file` run exited 0 before the push, or its absence stated
+- [ ] Body written into the allocator's returned path, copied exactly, never through a shell variable (Windows: the `--body` fallback, with step 5 still run)
 - [ ] Every template section adapted from the real diff, with no placeholder comment left in
 - [ ] An `## Acceptance criteria` heading present with `- [ ]` bullets, checked only where met
 - [ ] Issue-linking keyword present, and a closing keyword used only when the diff delivers what the issue asks
@@ -123,7 +198,7 @@ You have the capability to call multiple tools in a single response. You MUST do
 
 ## Extension Points
 
-- **Other forges.** Steps 4 and 5 call `new_pr.py`. A non-GitHub forge swaps that
+- **Other forges.** Steps 3, 4, and 7 call `new_pr.py`. A non-GitHub forge swaps that
   helper; the template-adaptation rules in step 4 are forge-independent.
 - **Template changes.** Step 4's section list follows the repository PR
   template read in step 3. When that template gains a parsed section, add it to
@@ -133,3 +208,6 @@ You have the capability to call multiple tools in a single response. You MUST do
 
 <!-- vendor-portability: .project-toolkit/scratch is created in the consumer workspace
 for one-run PR body files. It is not an upstream repository dependency. -->
+
+<!-- vendor-portability-exec: step 5 runs scripts/validation/pr_description.py, an upstream-only validator the plugin install does not ship. Step 5 states the fallback. Issue #6405. -->
+<!-- vendor-portability: step 5 reads scripts/validation/pr_description.py only when the consumer checkout carries it, and reports the step as not run otherwise. Issue #6405. -->

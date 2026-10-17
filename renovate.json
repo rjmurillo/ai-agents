@@ -52,7 +52,8 @@
       "matchPackageNames": [
         "@anthropic-ai/claude-code",
         "@github/copilot",
-        "@openai/codex"
+        "@openai/codex",
+        "@earendil-works/pi-coding-agent"
       ],
       "matchUpdateTypes": [
         "major",

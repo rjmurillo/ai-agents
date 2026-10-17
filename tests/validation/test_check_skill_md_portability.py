@@ -41,6 +41,17 @@ def _seed_git_tree(root: Path) -> None:
         subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True)
 
 
+AGENT_OUTPUT_ROOTS = ("src/claude/agents", "src/copilot-cli/agents", ".github/agents")
+
+
+def _seed_agent_output_roots(root: Path) -> None:
+    """Populate the three required agent output trees with a clean file (issue #5689)."""
+    for name in AGENT_OUTPUT_ROOTS:
+        directory = root / name
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / "_placeholder.md").write_text("Clean prose.\n", encoding="utf-8")
+
+
 def _is_under_extra_scan_root(key: str, prefix: str) -> bool:
     """Return True only when key is inside the scanned extra root."""
     key_parts = PurePosixPath(key).parts
@@ -370,6 +381,7 @@ class TestTerminatorWordBoundary:
         rules_dir = tmp_path / "src" / "claude" / "rules"
         rules_dir.mkdir(parents=True)
         (rules_dir / "_placeholder.md").write_text("Clean prose.\n", encoding="utf-8")
+        _seed_agent_output_roots(tmp_path)
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
         rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
@@ -396,6 +408,7 @@ class TestTerminatorWordBoundary:
         rules_dir = tmp_path / "src" / "claude" / "rules"
         rules_dir.mkdir(parents=True)
         (rules_dir / "_placeholder.md").write_text("Clean prose.\n", encoding="utf-8")
+        _seed_agent_output_roots(tmp_path)
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
         rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
@@ -799,6 +812,7 @@ class TestPluginRootScan:
         rules_dir = tmp_path / "src" / "claude" / "rules"
         rules_dir.mkdir(parents=True)
         (rules_dir / "_placeholder.md").write_text("Clean prose.\n", encoding="utf-8")
+        _seed_agent_output_roots(tmp_path)
         baseline = tmp_path / "baseline.json"
         baseline.write_text('{"files": {}}', encoding="utf-8")
         code = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
@@ -1141,6 +1155,7 @@ class TestInstructionsScanRoot:
         # no Markdown files in it.
         (tmp_path / "src" / "copilot-cli" / "instructions").mkdir(parents=True)
         (tmp_path / "src" / "claude" / "rules").mkdir(parents=True)
+        _seed_agent_output_roots(tmp_path)
         (tmp_path / "src" / "claude" / "rules" / "_placeholder.md").write_text(
             "Clean prose.\n", encoding="utf-8"
         )
@@ -1288,6 +1303,198 @@ class TestRulesScanRoot:
 
     def test_real_rules_tree_is_baselined(self) -> None:
         """The checked-in rules tree passes against the checked-in baseline."""
+        root = Path(__file__).resolve().parents[2]
+        assert cmp.main(["--repo-root", str(root)]) == 0
+
+
+class TestAgentOutputScanRoots:
+    """The three agent output trees close the coverage gap from issue #5689.
+
+    ``templates/agents`` was scanned, but the generated files a consumer
+    receives were not: ``src/claude/agents`` and ``src/copilot-cli/agents`` ship
+    in the plugin roots, and ``.github/agents`` is the in-repo Copilot mirror the
+    issue names. ``.claude/agents`` is the byte-identical binplaced copy of
+    ``src/claude/agents`` and stays out so no reference counts twice.
+    """
+
+    ROOTS = ("src/claude/agents", "src/copilot-cli/agents", ".github/agents")
+
+    def _write_md(self, root: Path, rel: str, body: str) -> None:
+        path = root / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(body, encoding="utf-8")
+        for required in cmp.REQUIRED_SKILLS_ROOTS:
+            placeholder = root / required / "skills" / "_placeholder" / "SKILL.md"
+            placeholder.parent.mkdir(parents=True, exist_ok=True)
+            placeholder.write_text("placeholder\n", encoding="utf-8")
+        for required in cmp.REQUIRED_EXTRA_ROOTS:
+            extra = root / required / "_placeholder.md"
+            extra.parent.mkdir(parents=True, exist_ok=True)
+            extra.write_text("placeholder\n", encoding="utf-8")
+
+    def _run(self, root: Path, baseline_files: dict[str, int] | None = None) -> int:
+        baseline = root / "baseline.json"
+        baseline.write_text(json.dumps({"files": baseline_files or {}}), encoding="utf-8")
+        return cmp.main(["--repo-root", str(root), "--baseline", str(baseline)])
+
+    @pytest.mark.parametrize("name", ROOTS)
+    def test_output_tree_is_scanned_and_required(self, name: str) -> None:
+        assert name in cmp.EXTRA_SCAN_ROOTS
+        assert name in cmp.REQUIRED_EXTRA_ROOTS
+
+    def test_binplaced_agent_copy_is_not_scanned(self) -> None:
+        assert ".claude/agents" not in cmp.EXTRA_SCAN_ROOTS
+
+    def test_every_on_disk_agent_output_tree_is_in_extra_scan_roots(self) -> None:
+        """Converse guard: a plugin root that ships ``agents/`` must be configured."""
+        root = Path(__file__).resolve().parents[2]
+        for plugin_root in ("src/claude", "src/copilot-cli"):
+            if (root / plugin_root / "agents").is_dir():
+                assert f"{plugin_root}/agents" in cmp.EXTRA_SCAN_ROOTS
+
+    @pytest.mark.parametrize("name", ROOTS)
+    def test_undeclared_agent_ref_is_counted(self, tmp_path: Path, name: str) -> None:
+        self._write_md(tmp_path, f"{name}/x.md", "Open templates/agents/x.shared.md first.\n")
+        assert cmp.scan_plugin_roots(tmp_path)[f"{name}/x.md"] == 1
+
+    @pytest.mark.parametrize("name", ROOTS)
+    def test_clean_agent_prose_is_not_counted(self, tmp_path: Path, name: str) -> None:
+        self._write_md(tmp_path, f"{name}/clean.md", "Say an agent registered in this install.\n")
+        assert f"{name}/clean.md" not in cmp.scan_plugin_roots(tmp_path)
+
+    @pytest.mark.parametrize("name", ROOTS)
+    def test_new_undeclared_agent_ref_fails_the_gate(self, tmp_path: Path, name: str) -> None:
+        self._write_md(tmp_path, f"{name}/new.md", "Run scripts/build.py before you start.\n")
+        assert self._run(tmp_path) == 1
+
+    @pytest.mark.parametrize("name", ROOTS)
+    def test_nested_agent_file_is_scanned(self, tmp_path: Path, name: str) -> None:
+        self._write_md(tmp_path, f"{name}/sub/ref.md", "See .agents/governance for more.\n")
+        assert cmp.scan_plugin_roots(tmp_path)[f"{name}/sub/ref.md"] == 1
+
+    def test_baselined_agent_ref_exits_0(self, tmp_path: Path) -> None:
+        self._write_md(tmp_path, "src/claude/agents/old.md", "See .agents/governance.\n")
+        assert self._run(tmp_path, {"src/claude/agents/old.md": 1}) == 0
+
+    def test_agent_ref_above_baseline_exits_1(self, tmp_path: Path) -> None:
+        self._write_md(
+            tmp_path, "src/claude/agents/old.md", "Write .agents/a and .agents/b and .agents/c\n"
+        )
+        assert self._run(tmp_path, {"src/claude/agents/old.md": 1}) == 1
+
+    def test_marker_suppresses_the_named_path(self, tmp_path: Path) -> None:
+        (tmp_path / ".agents" / "governance").mkdir(parents=True)
+        self._write_md(
+            tmp_path,
+            "src/copilot-cli/agents/declared.md",
+            "<!-- vendor-portability: .agents/governance is the subject -->\n"
+            "See .agents/governance.\n",
+        )
+        assert "src/copilot-cli/agents/declared.md" not in cmp.scan_plugin_roots(tmp_path)
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text(
+            json.dumps({"files": {}, "marker_files": {"src/copilot-cli/agents/declared.md": 1}}),
+            encoding="utf-8",
+        )
+        assert cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)]) == 0
+
+    def test_marker_does_not_cover_a_path_it_does_not_name(self, tmp_path: Path) -> None:
+        (tmp_path / ".agents" / "governance").mkdir(parents=True)
+        (tmp_path / "scripts").mkdir()
+        (tmp_path / "scripts" / "build.py").write_text("", encoding="utf-8")
+        self._write_md(
+            tmp_path,
+            "src/copilot-cli/agents/partial.md",
+            "<!-- vendor-portability: .agents/governance is the subject -->\n"
+            "See .agents/governance and run scripts/build.py.\n",
+        )
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text(
+            json.dumps({"files": {}, "marker_files": {"src/copilot-cli/agents/partial.md": 2}}),
+            encoding="utf-8",
+        )
+        assert cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)]) == 1
+
+    @pytest.mark.parametrize("name", ROOTS)
+    def test_missing_agent_root_exits_2(self, tmp_path: Path, name: str) -> None:
+        self._write_md(tmp_path, f"{name}/x.md", "Clean.\n")
+        for child in (tmp_path / name).iterdir():
+            child.unlink()
+        (tmp_path / name).rmdir()
+        assert cmp.missing_required_extra_roots(tmp_path) == [name]
+        assert self._run(tmp_path) == 2
+
+    @pytest.mark.parametrize("name", ROOTS)
+    def test_present_but_empty_agent_root_exits_2(
+        self, tmp_path: Path, name: str, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        self._write_md(tmp_path, f"{name}/x.md", "Clean.\n")
+        for child in (tmp_path / name).iterdir():
+            child.unlink()
+        assert self._run(tmp_path) == 2
+        err = capsys.readouterr().err
+        assert "examined zero Markdown files" in err
+        assert name in err
+
+    def test_agent_roots_appear_in_success_report(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        self._write_md(tmp_path, "src/claude/agents/clean.md", "Clean prose.\n")
+        assert self._run(tmp_path) == 0
+        out = capsys.readouterr().out
+        assert "src/claude/agents (2)" in out
+        assert "src/copilot-cli/agents (1)" in out
+        assert ".github/agents (1)" in out
+
+    def test_update_baseline_records_agent_output_refs(self, tmp_path: Path) -> None:
+        self._write_md(tmp_path, "src/claude/agents/x.md", "Open .agents/governance now.\n")
+        _seed_git_tree(tmp_path)
+        baseline = tmp_path / "baseline.json"
+        baseline.write_text(json.dumps({"files": {}, "marker_files": {}}), encoding="utf-8")
+        argv = ["--repo-root", str(tmp_path), "--baseline", str(baseline), "--update-baseline"]
+        assert cmp.main(argv) == 0
+        assert json.loads(baseline.read_text(encoding="utf-8"))["files"] == {
+            "src/claude/agents/x.md": 1
+        }
+
+    def test_baseline_raise_alongside_agent_edit_is_refused(self, tmp_path: Path) -> None:
+        """Raising the recorded count in the same change as the prose is not silent."""
+        self._write_md(tmp_path, "src/claude/agents/x.md", "Open .agents/governance now.\n")
+        (tmp_path / "baseline.json").write_text(
+            json.dumps({"files": {"src/claude/agents/x.md": 1}, "marker_files": {}}),
+            encoding="utf-8",
+        )
+        _seed_git_tree(tmp_path)
+        base_sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=tmp_path, capture_output=True, text=True, check=True
+        ).stdout.strip()
+        (tmp_path / "src/claude/agents/x.md").write_text(
+            "Open .agents/governance and .agents/sessions now.\n", encoding="utf-8"
+        )
+        (tmp_path / "baseline.json").write_text(
+            json.dumps({"files": {"src/claude/agents/x.md": 2}, "marker_files": {}}),
+            encoding="utf-8",
+        )
+        subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+        subprocess.run(
+            ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "raise"],
+            cwd=tmp_path,
+            check=True,
+        )
+        rc = cmp.main(
+            [
+                "--repo-root",
+                str(tmp_path),
+                "--baseline",
+                str(tmp_path / "baseline.json"),
+                "--base-ref",
+                base_sha,
+            ]
+        )
+        assert rc == 1
+
+    def test_real_agent_trees_are_baselined(self) -> None:
+        """The checked-in agent trees pass against the checked-in baseline."""
         root = Path(__file__).resolve().parents[2]
         assert cmp.main(["--repo-root", str(root)]) == 0
 
@@ -1576,6 +1783,7 @@ class TestUnexpectedScanException:
         (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
         (tmp_path / "src" / "copilot-cli" / "instructions").mkdir(parents=True)
         (tmp_path / "src" / "claude" / "rules").mkdir(parents=True)
+        _seed_agent_output_roots(tmp_path)
         (skills / "SKILL.md").write_text("Some content.\n", encoding="utf-8")
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
@@ -1596,6 +1804,7 @@ class TestUnexpectedScanException:
         (tmp_path / "src" / "copilot-cli" / "skills").mkdir(parents=True)
         (tmp_path / "src" / "copilot-cli" / "instructions").mkdir(parents=True)
         (tmp_path / "src" / "claude" / "rules").mkdir(parents=True)
+        _seed_agent_output_roots(tmp_path)
         (skills / "SKILL.md").write_text("Some content.\n", encoding="utf-8")
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
@@ -1755,6 +1964,7 @@ class TestAstCodeStripping:
         rules_dir = tmp_path / "src" / "claude" / "rules"
         rules_dir.mkdir(parents=True)
         (rules_dir / "_placeholder.md").write_text("Clean prose.\n", encoding="utf-8")
+        _seed_agent_output_roots(tmp_path)
         (skills / "SKILL.md").write_text(
             "# Skill\n\nExample:\n\n    write to .project-toolkit/x.md\n", encoding="utf-8"
         )
@@ -1830,6 +2040,7 @@ class TestScanAccounting:
         rules_dir = tmp_path / "src" / "claude" / "rules"
         rules_dir.mkdir(parents=True)
         (rules_dir / "_placeholder.md").write_text("Clean prose.\n", encoding="utf-8")
+        _seed_agent_output_roots(tmp_path)
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
         rc = cmp.main(["--repo-root", str(tmp_path), "--baseline", str(baseline)])
@@ -1851,6 +2062,7 @@ class TestScanAccounting:
         rules_dir = tmp_path / "src" / "claude" / "rules"
         rules_dir.mkdir(parents=True)
         (rules_dir / "_placeholder.md").write_text("Clean prose.\n", encoding="utf-8")
+        _seed_agent_output_roots(tmp_path)
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")
         rc = cmp.main(
@@ -2667,6 +2879,7 @@ class TestNestingExhaustionGate:
         rules_dir = tmp_path / "src" / "claude" / "rules"
         rules_dir.mkdir(parents=True)
         (rules_dir / "_placeholder.md").write_text("Clean prose.\n", encoding="utf-8")
+        _seed_agent_output_roots(tmp_path)
         (skills / "SKILL.md").write_text(body, encoding="utf-8")
         baseline = tmp_path / "baseline.json"
         baseline.write_text(json.dumps({"files": {}}), encoding="utf-8")

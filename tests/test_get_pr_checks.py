@@ -327,7 +327,7 @@ class TestBuildOutput:
         check_data = {
             "Number": 42,
             "HasChecks": True,
-            "OverallState": "SUCCESS",
+            "AllState": "SUCCESS",
             "Checks": [
                 {
                     "Name": "build",
@@ -349,7 +349,7 @@ class TestBuildOutput:
         check_data = {
             "Number": 42,
             "HasChecks": True,
-            "OverallState": "FAILURE",
+            "AllState": "FAILURE",
             "Checks": [
                 {
                     "Name": "build",
@@ -371,7 +371,7 @@ class TestBuildOutput:
         check_data = {
             "Number": 42,
             "HasChecks": True,
-            "OverallState": "SUCCESS",
+            "AllState": "SUCCESS",
             "Checks": [
                 {
                     "Name": "required",
@@ -426,11 +426,29 @@ class TestMain:
             ),
             patch(
                 "get_pr_checks.gh_graphql",
-                side_effect=RuntimeError("Could not resolve PR"),
+                side_effect=RuntimeError(
+                    "Could not resolve to a PullRequest with the number of 999."
+                ),
             ),
         ):
             rc = main(["--pull-request", "999"])
         assert rc == 2
+
+    def test_transport_fault_returns_3(self, capsys):
+        """'Could not resolve host' is a network fault, not a missing PR."""
+        with (
+            patch("get_pr_checks.assert_gh_authenticated"),
+            patch(
+                "get_pr_checks.resolve_repo_params",
+                return_value=RepoInfo(owner="o", repo="r"),
+            ),
+            patch(
+                "get_pr_checks.gh_graphql",
+                side_effect=RuntimeError("Could not resolve host: api.github.com"),
+            ),
+        ):
+            rc = main(["--pull-request", "999"])
+        assert rc == 3
 
     def test_all_passing_returns_0(self, capsys):
         gql_data = {
@@ -739,7 +757,7 @@ class TestMain:
         assert rc == 0
         output = json.loads(capsys.readouterr().out)
         assert output["Data"]["HasChecks"] is False
-        assert output["Data"]["OverallState"] == "UNKNOWN"
+        assert output["Data"]["AllState"] == "UNKNOWN"
 
     def test_no_rollup_returns_unknown(self, capsys):
         """PR with no statusCheckRollup returns UNKNOWN state."""
@@ -1038,6 +1056,7 @@ class TestMain:
         assert rc == 7
         output = json.loads(capsys.readouterr().out)
         assert output["Data"]["ChecksIncomplete"] is True
+        assert output["Data"]["RequiredState"] == "UNKNOWN"
 
     def test_wait_genuine_no_checks_settles_immediately(self, capsys):
         """#2304: --wait settles missing rollups as real no-check PRs."""
@@ -1314,11 +1333,11 @@ class TestFetchChecks:
     def test_generic_api_error(self):
         with patch(
             "get_pr_checks.gh_graphql",
-            side_effect=RuntimeError("rate limit exceeded"),
+            side_effect=RuntimeError("upstream exploded"),
         ):
             result = fetch_checks("o", "r", 1)
         assert result["Error"] == "ApiError"
-        assert "rate limit" in result["Message"]
+        assert "upstream exploded" in result["Message"]
 
     def test_pr_none_in_response(self):
         with patch(
@@ -1352,7 +1371,7 @@ class TestFetchChecks:
         ):
             result = fetch_checks("o", "r", 1)
         assert result["HasChecks"] is False
-        assert result["OverallState"] == "UNKNOWN"
+        assert result["AllState"] == "UNKNOWN"
 
     def test_no_rollup(self):
         with patch(
@@ -1385,7 +1404,7 @@ class TestBuildOutputAdditional:
         check_data = {
             "Number": 42,
             "HasChecks": True,
-            "OverallState": "SUCCESS",
+            "AllState": "SUCCESS",
             "MergeState": "CONFLICTING",
             "Checks": [
                 _check("test", passing=True, required=True, conclusion="SUCCESS"),
@@ -1403,7 +1422,7 @@ class TestBuildOutputAdditional:
         check_data = {
             "Number": 42,
             "HasChecks": True,
-            "OverallState": "SUCCESS",
+            "AllState": "SUCCESS",
             "MergeState": "UNKNOWN",
             "Checks": [
                 _check("test", passing=True, required=True, conclusion="SUCCESS"),
@@ -1420,7 +1439,7 @@ class TestBuildOutputAdditional:
         check_data = {
             "Number": 42,
             "HasChecks": True,
-            "OverallState": "SUCCESS",
+            "AllState": "SUCCESS",
             "MergeState": "MERGEABLE",
             "MergeStateStatus": "DIRTY",
             "Checks": [
@@ -1439,7 +1458,7 @@ class TestBuildOutputAdditional:
         check_data = {
             "Number": 42,
             "HasChecks": True,
-            "OverallState": "SUCCESS",
+            "AllState": "SUCCESS",
             "MergeState": "MERGEABLE",
             "MergeStateStatus": None,
             "Checks": [
@@ -1459,7 +1478,7 @@ class TestBuildOutputAdditional:
         check_data = {
             "Number": 42,
             "HasChecks": True,
-            "OverallState": "SUCCESS",
+            "AllState": "SUCCESS",
             "MergeState": "MERGEABLE",
             "Checks": [
                 _check("test", passing=True, required=True, conclusion="SUCCESS"),
@@ -1478,7 +1497,7 @@ class TestBuildOutputAdditional:
         check_data = {
             "Number": 42,
             "HasChecks": True,
-            "OverallState": "SUCCESS",
+            "AllState": "SUCCESS",
             "Checks": [],
         }
         output = build_output(check_data, "o", "r")
@@ -1488,7 +1507,7 @@ class TestBuildOutputAdditional:
         check_data = {
             "Number": 42,
             "HasChecks": True,
-            "OverallState": "PENDING",
+            "AllState": "PENDING",
             "Checks": [
                 {
                     "Name": "build",
@@ -1516,7 +1535,7 @@ class TestBuildOutputAdditional:
         check_data = {
             "Number": 42,
             "HasChecks": True,
-            "OverallState": "FAILURE",
+            "AllState": "FAILURE",
             "Checks": checks,
         }
         output = build_output(check_data, "o", "r")
@@ -1536,7 +1555,7 @@ class TestBuildOutputAdditional:
         check_data = {
             "Number": 42,
             "HasChecks": True,
-            "OverallState": "PENDING",
+            "AllState": "PENDING",
             "Checks": checks,
         }
         output = build_output(check_data, "o", "r")
@@ -1548,7 +1567,7 @@ class TestBuildOutputAdditional:
         check_data = {
             "Number": 42,
             "HasChecks": False,
-            "OverallState": "UNKNOWN",
+            "AllState": "UNKNOWN",
             "Checks": [],
         }
         output = build_output(check_data, "o", "r")
@@ -1558,7 +1577,7 @@ class TestBuildOutputAdditional:
         check_data = {
             "Number": 42,
             "HasChecks": True,
-            "OverallState": "UNKNOWN",
+            "AllState": "UNKNOWN",
             "Checks": None,
         }
         output = build_output(check_data, "o", "r")
@@ -1569,7 +1588,7 @@ class TestBuildOutputAdditional:
         check_data = {
             "Number": 42,
             "HasChecks": True,
-            "OverallState": "UNKNOWN",
+            "AllState": "UNKNOWN",
             "Checks": {"Name": "build"},
         }
         with pytest.raises(ValueError, match="Checks must be a list"):
@@ -1860,7 +1879,7 @@ class TestSupersededCheckRuns:
 
         Reproduces PR #2289: ``Validate PR`` and ``Validate PR title`` each had
         a stale CANCELLED run alongside a fresh SUCCESS, both required. Before
-        the fix this exited 1 and reported OverallState=FAILURE; after dedupe
+        the fix this exited 1 and reported AllState=FAILURE; after dedupe
         the SUCCESS wins and the script reports AllPassing=true.
         """
         nodes = [
@@ -2911,6 +2930,113 @@ class TestSameRunSiblingAggregation:
 
 
 # ---------------------------------------------------------------------------
+# Tests: RequiredState vs AllState (issue #6396)
+# ---------------------------------------------------------------------------
+
+
+def _state_data(checks, *, all_state="FAILURE", **extra):
+    data = {"Number": 42, "HasChecks": True, "AllState": all_state, "Checks": checks}
+    data.update(extra)
+    return data
+
+
+class TestRequiredState:
+    def test_non_required_failure_keeps_required_state_success(self):
+        checks = [
+            _check("build", passing=True, required=True, conclusion="SUCCESS"),
+            _check("lint", failing=True, required=False, conclusion="FAILURE"),
+        ]
+
+        output = build_output(_state_data(checks), "o", "r")
+
+        assert output["AllState"] == "FAILURE"
+        assert output["RequiredState"] == "SUCCESS"
+        assert output["FailedRequiredChecks"] == []
+        assert "OverallState" not in output
+
+    def test_unstable_status_with_green_required_checks_stays_usable(self):
+        checks = [
+            _check("build", passing=True, required=True, conclusion="SUCCESS"),
+            _check("lint", failing=True, required=False, conclusion="FAILURE"),
+        ]
+        data = _state_data(checks, MergeState="MERGEABLE", MergeStateStatus="UNSTABLE")
+
+        output = build_output(data, "o", "r")
+
+        assert output["RequiredState"] == "SUCCESS"
+        assert output["MergeRefUsable"] is True
+        assert output["MergeStateWarning"] == ""
+
+    def test_required_failure_sets_required_state_failure(self):
+        checks = [
+            _check("build", failing=True, required=True, conclusion="FAILURE"),
+            _check("lint", passing=True, required=False, conclusion="SUCCESS"),
+        ]
+
+        output = build_output(_state_data(checks), "o", "r")
+
+        assert output["RequiredState"] == "FAILURE"
+        assert output["FailedRequiredChecks"] == ["build"]
+
+    def test_required_pending_sets_required_state_pending(self):
+        checks = [
+            _check("build", pending=True, required=True, state="IN_PROGRESS"),
+            _check("lint", failing=True, required=False, conclusion="FAILURE"),
+        ]
+
+        output = build_output(_state_data(checks, all_state="PENDING"), "o", "r")
+
+        assert output["RequiredState"] == "PENDING"
+
+    def test_required_failure_wins_over_required_pending(self):
+        checks = [
+            _check("build", failing=True, required=True, conclusion="FAILURE"),
+            _check("test", pending=True, required=True, state="IN_PROGRESS"),
+        ]
+
+        output = build_output(_state_data(checks), "o", "r")
+
+        assert output["RequiredState"] == "FAILURE"
+
+    def test_missing_required_context_sets_required_state_failure(self):
+        checks = [_check("build", passing=True, required=True, conclusion="SUCCESS")]
+
+        output = build_output(
+            _state_data(checks, all_state="SUCCESS"),
+            "o",
+            "r",
+            ruleset_contexts=["build", "never-ran"],
+        )
+
+        assert output["RequiredState"] == "FAILURE"
+
+    def test_no_checks_sets_required_state_unknown(self):
+        data = {"Number": 42, "HasChecks": False, "AllState": "UNKNOWN", "Checks": []}
+
+        output = build_output(data, "o", "r")
+
+        assert output["RequiredState"] == "UNKNOWN"
+
+    def test_incomplete_page_set_sets_required_state_unknown(self):
+        checks = [_check("build", passing=True, required=True, conclusion="SUCCESS")]
+
+        output = build_output(_state_data(checks, ChecksIncomplete=True), "o", "r")
+
+        assert output["RequiredState"] == "UNKNOWN"
+
+    def test_only_non_required_checks_sets_required_state_success(self):
+        checks = [_check("lint", failing=True, required=False, conclusion="FAILURE")]
+
+        output = build_output(_state_data(checks), "o", "r")
+
+        assert output["RequiredState"] == "SUCCESS"
+
+    def test_all_state_defaults_to_unknown_when_absent(self):
+        output = build_output({"Number": 42, "HasChecks": True, "Checks": []}, "o", "r")
+
+        assert output["AllState"] == "UNKNOWN"
+
+
 # Tests: queued vs absent required checks (issue #6389)
 # ---------------------------------------------------------------------------
 
@@ -3003,7 +3129,7 @@ class TestQueuedMissingBuildOutput:
             "Number": 1,
             "BaseBranch": "main",
             "HasChecks": True,
-            "OverallState": "SUCCESS",
+            "AllState": "SUCCESS",
             "HeadCommittedAt": committed_at,
             "Checks": [
                 _check(
@@ -3024,6 +3150,20 @@ class TestQueuedMissingBuildOutput:
     def test_stale_head_marks_missing_absent(self):
         out = build_output(self._data(_committed_at(_STALE)), "o", "r", False, _RULESET)
         assert out["MissingRequiredQueued"] is False
+
+    def test_fresh_head_queued_required_state_is_pending(self):
+        out = build_output(self._data(_committed_at(_FRESH)), "o", "r", False, _RULESET)
+        assert out["RequiredState"] == "PENDING"
+
+    def test_stale_head_absent_required_state_is_failure(self):
+        out = build_output(self._data(_committed_at(_STALE)), "o", "r", False, _RULESET)
+        assert out["RequiredState"] == "FAILURE"
+
+    def test_failed_required_beats_queued_missing(self):
+        data = self._data(_committed_at(_FRESH))
+        data["Checks"].append(_check("build", failing=True, required=True, conclusion="FAILURE"))
+        out = build_output(data, "o", "r", False, _RULESET)
+        assert out["RequiredState"] == "FAILURE"
 
     def test_no_missing_is_not_queued(self):
         out = build_output(self._data(_committed_at(_FRESH)), "o", "r", False, ["Run Python Tests"])
@@ -3349,14 +3489,25 @@ class TestFailureEnvelopeSchema:
             "main",
         )
         unknown = {k for k, v in data.items() if v is None}
-        assert {"Checks", "OverallState", "FailedCount", "MissingRequiredChecks"} <= unknown
+        assert {
+            "Checks",
+            "AllState",
+            "RequiredState",
+            "FailedCount",
+            "MissingRequiredChecks",
+        } <= unknown
 
     def test_not_found_envelope_has_every_success_key(self, capsys):
         expected = _success_data_keys(capsys)
         with (
             patch("get_pr_checks.assert_gh_authenticated"),
             patch("get_pr_checks.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
-            patch("get_pr_checks.gh_graphql", side_effect=RuntimeError("Could not resolve PR")),
+            patch(
+                "get_pr_checks.gh_graphql",
+                side_effect=RuntimeError(
+                    "Could not resolve to a PullRequest with the number of 999."
+                ),
+            ),
         ):
             rc = main(["--pull-request", "999", "--output-format", "json"])
         captured = capsys.readouterr()
@@ -3408,7 +3559,10 @@ class TestFailureEnvelopeSchema:
             patch("get_pr_checks.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
             patch(
                 "get_pr_checks.gh_graphql",
-                side_effect=[pending, RuntimeError("Could not resolve PR")],
+                side_effect=[
+                    pending,
+                    RuntimeError("Could not resolve to a PullRequest with the number of 5."),
+                ],
             ),
             patch("get_pr_checks.time.sleep"),
         ):

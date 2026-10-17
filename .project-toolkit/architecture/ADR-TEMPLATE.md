@@ -7,7 +7,7 @@ supersedes: []
 superseded-by: null
 explainer: null
 implemented: false
-review-by: null           # optional: YYYY-MM-DD this record must be revisited; null when the decision carries no deadline
+review-by: null           # optional: YYYY-MM-DD this record must be revisited, also stated in the prose; null when the decision carries no deadline
 ---
 
 # ADR-NNN: [Title]
@@ -37,6 +37,32 @@ Omitting the section is never a violation.
 Where the nuance is not about lifecycle at all, name the section for what it
 holds (`## Acceptance Evidence`, `## Provenance`) so no reader mistakes it for a
 second source of truth about state.
+
+Section structures (issue #5196). Two heading sets are sanctioned. New records
+use the canonical set below. Existing records written in the MADR set stay as
+they are: rewriting accepted records to change headings is churn against
+immutable artifacts. A consumer asking for "the Decision" resolves either:
+
+| Concept      | Canonical        | MADR equivalent                                    |
+|--------------|------------------|----------------------------------------------------|
+| Context      | ## Context       | ## Context and Problem Statement                   |
+| Decision     | ## Decision      | ## Decision Outcome                                |
+| Consequences | ## Consequences | ## Consequences, or ### Consequences under Decision Outcome |
+
+The lifecycle gate reports `section-structure` when a record has neither
+heading for a concept. `## Status` and `## Date` are not required. The mapping
+is `SECTION_EQUIVALENTS` in `scripts/validation/check_adr_lifecycle.py`.
+
+Exempt records. Two records fail `section-structure` by design and are held in
+`scripts/validation/adr_lifecycle_baseline.json`, where the count can only fall:
+
+- ADR-030 is a research narrative (Critical Discovery, Updated Recommendation).
+  Its findings do not map to Context, Decision, and Consequences.
+- ADR-095 is a rejected-proposal record (What was proposed, Why it was
+  rejected). It documents a decision not taken, so it has no Decision section.
+
+Filling either gap edits an accepted record and needs a debate log. Both stay
+exempt until a record-level review rewrites them.
 -->
 
 ## Context

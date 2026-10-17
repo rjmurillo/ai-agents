@@ -185,9 +185,18 @@ ignores:
   - ".claude/skills/spec-generator/references/spec-step0-gates.md"
   - ".claude/skills/spec-generator/references/spec-prior-art-schema.md"
   - "src/claude/skills/spec-generator/references/spec-step0-gates.md"
+  - "src/codex/skills/spec-generator/references/spec-step0-gates.md"
   - "src/claude/skills/spec-generator/references/spec-prior-art-schema.md"
+  - "src/codex/skills/spec-generator/references/spec-prior-art-schema.md"
   - "src/copilot-cli/skills/spec-generator/references/spec-step0-gates.md"
   - "src/copilot-cli/skills/spec-generator/references/spec-prior-art-schema.md"
+  - "src/cursor/skills/spec-generator/references/spec-step0-gates.md"
+  - "src/cursor/skills/spec-generator/references/spec-prior-art-schema.md"
+
+  # Hermes packs (ADR-115) are byte copies of src/claude/skills content, so the
+  # lint findings in them are the source files' own. Linting the copy would
+  # report each one a second time, in a tree no one edits.
+  - "src/hermes/**"
 
   # XML specification document stored with .md extension for GitHub rendering.
   # The file is valid XML (skill specification schema), not authored Markdown.
@@ -197,7 +206,9 @@ ignores:
   # existing skill-discovery tooling that walks *.md. Excluded narrowly.
   - ".claude/skills/cva-analysis/references/SKILL_SPEC.md"
   - "src/claude/skills/cva-analysis/references/SKILL_SPEC.md"
+  - "src/codex/skills/cva-analysis/references/SKILL_SPEC.md"
   - "src/copilot-cli/skills/cva-analysis/references/SKILL_SPEC.md"
+  - "src/cursor/skills/cva-analysis/references/SKILL_SPEC.md"
 
   # `claude plugin eval` case payloads (issue #5457). The harness requires
   # `prompt.md` and `graders/*.md` names, and the body after the frontmatter is
@@ -229,15 +240,19 @@ ignores:
 # (documented in README "overrides" section). combine: merge ensures the
 # parent config is inherited and only the named rules are overridden.
 #
+# ADR-115 added src/codex/skills/ as a fourth copy, scoped off the same way.
 # ADR-109 B3 added src/claude/skills/ as a third copy of the same content
 # (the skills class's plugin tree, byte-identical to .claude/skills/ once
 # binplaced): same source, same illustrative fences and harness-protocol
-# tags, so the same two rules are scoped off there too.
+# tags, so the same two rules are scoped off there too. ADR-115 added
+# src/cursor/skills/ as a fourth copy, with the same scoping.
 overrides:
   - filter:
       - ".claude/skills/**"
       - "src/claude/skills/**"
+      - "src/codex/skills/**"
       - "src/copilot-cli/skills/**"
+      - "src/cursor/skills/**"
     config:
       MD040: false
       MD033: false

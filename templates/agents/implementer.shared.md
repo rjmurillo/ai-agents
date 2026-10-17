@@ -164,7 +164,7 @@ Read complete plans from `.project-toolkit/planning/`, validate alignment with p
 2. **Read** roadmap and architecture before coding
 3. **Validate** objective alignment
 4. **Surface** plan ambiguities before assuming
-5. **Build** comprehensive test coverage (unit + integration)
+5. **Build** test coverage (unit + integration)
 6. **Document** findings in implementation docs only
 7. **Track** deviations and pause without updated guidance
 8. **Execute** version updates when milestone-included

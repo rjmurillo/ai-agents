@@ -1037,6 +1037,42 @@ class TestBodyHashAndValidate:
     def test_hash_different_for_different_content(self):
         assert _edit_mod.body_hash("abc") != _edit_mod.body_hash("def")
 
+    @pytest.mark.parametrize(
+        ("current", "supplied"),
+        [
+            ("pr body", "pr body"),
+            ("pr body", "pr body\n"),
+            ("pr body", "pr body\r\n"),
+            ("pr body\n", "pr body\n"),
+            ("pr body\n", "pr body"),
+            ("pr body\n", "pr body\n\n"),
+            ("line1\r\nline2", "line1\nline2\n"),
+            ("", ""),
+            ("", "\n"),
+        ],
+    )
+    def test_hash_matches_ignores_trailing_newline(self, current, supplied):
+        assert _edit_mod.hash_matches(_edit_mod.body_hash(supplied), current)
+
+    @pytest.mark.parametrize(
+        ("current", "supplied"),
+        [
+            ("pr body", "other body"),
+            ("pr body", "other body\n"),
+            ("pr body", " pr body"),
+            ("pr body", "pr body \n"),
+            ("pr body", "pr body\n\nextra"),
+            ("pr body", "pr body\n\n\n"),
+            ("", "x"),
+        ],
+    )
+    def test_hash_matches_rejects_different_content(self, current, supplied):
+        assert not _edit_mod.hash_matches(_edit_mod.body_hash(supplied), current)
+
+    def test_hash_matches_rejects_garbage_hash(self):
+        assert not _edit_mod.hash_matches("0" * 64, "pr body")
+        assert not _edit_mod.hash_matches("", "pr body")
+
     def test_validate_body_empty_is_clean(self):
         assert _edit_mod.validate_body("Fixes #123\nSome prose.") == []
 
@@ -1098,6 +1134,61 @@ class TestEditPrBodyStaleWriteGuard:
 
         assert rc == 1
         assert output["Error"]["Type"] == "VerificationFailed"
+
+    def test_hash_of_file_with_trailing_newline_is_accepted(self):
+        """Issue #5484: `gh pr view <n> --json body --jq .body > f` appends one newline."""
+        old_body = "old body"
+        expected_hash = _edit_mod.body_hash(old_body + "\n")
+
+        with (
+            patch(f"{_edit_mod.__name__}.assert_gh_authenticated"),
+            patch(f"{_edit_mod.__name__}.resolve_repo_params", return_value=_MOCK_REPO),
+            patch(f"{_edit_mod.__name__}.fetch_current_body", return_value=old_body),
+            patch(f"{_edit_mod.__name__}.update_body") as mock_update,
+            patch(f"{_edit_mod.__name__}.write_skill_output"),
+        ):
+            rc = _edit_mod.main(
+                [
+                    "--pull-request",
+                    "42",
+                    "--body",
+                    "new body",
+                    "--expected-hash",
+                    expected_hash,
+                ]
+            )
+        assert rc == 0
+        mock_update.assert_called_once()
+
+    def test_trailing_newline_hash_of_different_body_still_aborts(self, capsys):
+        with (
+            patch(f"{_edit_mod.__name__}.assert_gh_authenticated"),
+            patch(f"{_edit_mod.__name__}.resolve_repo_params", return_value=_MOCK_REPO),
+            patch(f"{_edit_mod.__name__}.fetch_current_body", return_value="current body"),
+            patch(f"{_edit_mod.__name__}.update_body") as mock_update,
+        ):
+            rc = _edit_mod.main(
+                [
+                    "--pull-request",
+                    "42",
+                    "--body",
+                    "new body",
+                    "--expected-hash",
+                    _edit_mod.body_hash("edited elsewhere\n"),
+                    "--output-format",
+                    "json",
+                ]
+            )
+
+        output = json.loads(capsys.readouterr().out)
+        assert rc == 1
+        assert output["Error"]["Type"] == "VerificationFailed"
+        mock_update.assert_not_called()
+
+    def test_help_documents_trailing_newline_tolerance(self, capsys):
+        with pytest.raises(SystemExit):
+            _edit_mod.main(["--help"])
+        assert "trailing newline" in " ".join(capsys.readouterr().out.split())
 
     def test_no_write_when_body_unchanged(self):
         body = "same body"
@@ -1194,6 +1285,24 @@ class TestEditPrBodyStaleWriteGuard:
             result = _edit_mod.fetch_current_body("owner", "repo", 42)
 
         assert result == body
+
+    @pytest.mark.parametrize("stderr", ["gh: Not Found (HTTP 404)", "HTTP 404: Not Found"])
+    def test_fetch_current_body_returns_none_for_missing_pr(self, stderr):
+        with patch(
+            f"{_edit_mod.__name__}.subprocess.run",
+            return_value=_completed(rc=1, stderr=stderr),
+        ):
+            assert _edit_mod.fetch_current_body("owner", "repo", 42) is None
+
+    def test_fetch_current_body_raises_on_other_failure(self):
+        with (
+            patch(
+                f"{_edit_mod.__name__}.subprocess.run",
+                return_value=_completed(rc=1, stderr="HTTP 500: Server Error"),
+            ),
+            pytest.raises(RuntimeError),
+        ):
+            _edit_mod.fetch_current_body("owner", "repo", 42)
 
     def test_update_body_sends_body_via_stdin(self):
         body = "@/path/that/must/not/be/read"

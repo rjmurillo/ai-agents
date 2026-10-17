@@ -488,3 +488,13 @@ def test_a_count_word_outside_the_token_set_is_not_a_count(parity: Any, tmp_path
     and that trade needs a decision, not a quiet edit inside a review reply.
     """
     assert parity.check_description_counts((_manifest(tmp_path, "half-dozen hooks"),)) == 0
+
+
+@pytest.mark.parametrize(
+    "rel",
+    [".grok-plugin/marketplace.json", ".agents/plugins/marketplace.json", "src/codex/plugin.json"],
+)
+def test_host_files_are_scanned_for_counts(rel: str) -> None:
+    module = _load_module()
+    scanned = {path.resolve() for path in module._DESCRIBED_FILES}
+    assert (REPO_ROOT / rel).resolve() in scanned

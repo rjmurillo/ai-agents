@@ -3,12 +3,47 @@
 from __future__ import annotations
 
 import re
+import shlex
 from pathlib import Path
 
 from context_output_index import _detail_file_contents, build_index
 from context_output_parsing import parse_sections
 from context_output_storage import _detail_names, _read_text, _resolved_repo_root
 from path_validation import validate_path_within_repo
+
+
+def _regenerate_script() -> str:
+    """Return the sibling extractor path, relative to the working directory when possible."""
+    script = (Path(__file__).resolve().parent / "extract_and_index.py").resolve()
+    try:
+        return script.relative_to(Path.cwd().resolve()).as_posix()
+    except ValueError:
+        return script.as_posix()
+
+
+def regeneration_command(
+    source: str | Path,
+    index: str | Path,
+    detail_dir: str | Path,
+    detail_ref: str | Path,
+) -> str:
+    """Return the shell command that rewrites one source's index and detail files."""
+    return shlex.join(
+        [
+            "uv",
+            "run",
+            "python",
+            _regenerate_script(),
+            "-i",
+            str(source),
+            "-d",
+            str(detail_dir),
+            "-r",
+            str(detail_ref),
+            "-o",
+            str(index),
+        ]
+    )
 
 
 def _index_references(index_content: str) -> list[str]:

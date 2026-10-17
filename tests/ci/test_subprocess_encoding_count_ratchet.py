@@ -75,6 +75,10 @@ class TestGeneratedSkillMirrorExclusion:
                 "src/copilot-cli/skills/review/scripts/run.py",
                 ".claude/skills/review/scripts/run.py",
             ),
+            ("src/cursor/skills/review/scripts/run.py", ".claude/skills/review/scripts/run.py"),
+            ("src/hermes/project-toolkit-delivery/skills/review/scripts/run.py", None),
+            ("src/hermes/project-toolkit-delivery/plugin.json", None),
+            ("src/hermes/not-a-pack/skills/review/scripts/run.py", None),
             (".claude/skills/review/scripts/run.py", None),
             ("scripts/authored/run.py", None),
         ],
@@ -91,6 +95,7 @@ class TestGeneratedSkillMirrorExclusion:
         mirrors = [
             tmp_path / "src" / "claude" / "skills" / "review" / "scripts" / "run.py",
             tmp_path / "src" / "copilot-cli" / "skills" / "review" / "scripts" / "run.py",
+            tmp_path / "src" / "cursor" / "skills" / "review" / "scripts" / "run.py",
         ]
         for mirror in mirrors:
             mirror.parent.mkdir(parents=True)
@@ -101,6 +106,7 @@ class TestGeneratedSkillMirrorExclusion:
             ".claude/skills/review/scripts/run.py",
             "src/claude/skills/review/scripts/run.py",
             "src/copilot-cli/skills/review/scripts/run.py",
+            "src/cursor/skills/review/scripts/run.py",
         )
 
         assert ratchet.current_count(tmp_path) == 1

@@ -14,9 +14,31 @@ ENV:
 
 Outputs:
   spec_refs          - space-delimited spec references (REQ-NNN, file paths)
-  issue_refs         - space-delimited issue numbers / cross-repo refs
+  issue_refs         - space-delimited GitHub issue numbers / cross-repo refs
+  azure_refs         - space-delimited Azure Boards tokens, literally `AB#<n>`
   incremental_scope  - incremental scope declaration from PR title
   has_specs          - "true" if any references were found, else "false"
+
+Source-platform contract (issue #5621). This script runs on GitHub pull
+requests, so the text it reads is GitHub text. Two reference systems appear in
+that text and they stay apart:
+
+  GitHub issue refs   `#123`, `owner/repo#123`, with a closing or linking
+                      keyword. Output: `issue_refs`.
+  Azure Boards bridge `AB#123`, bare or after `Fixes`, `Fixed`, or `Closed`.
+                      Azure Boards links work item 123 from GitHub text only
+                      when the Azure Boards project is connected to the
+                      repository. `Fixes AB#123` and `Fixed AB#123` may
+                      transition the work item to a resolved category,
+                      `Closed AB#123` requests the Closed state, and bare
+                      `AB#123` links without a transition. Output:
+                      `azure_refs`, one `AB#<n>` token per distinct work item.
+                      The keyword is accepted, not recorded: no validation
+                      path here acts on the transition.
+
+Native Azure Repos syntax (`Fixes #123` resolving a work item) is a different
+source platform and is not read here. A `Fixes #123` in a GitHub pull request
+is a GitHub issue ref, because GitHub is the platform that reads it.
 
 EXIT CODES (ADR-035):
   0 - extraction complete
@@ -45,8 +67,8 @@ EXIT_EXTERNAL = 3
 # and approval-gated, not a required check; ADR-114)
 # reported success having evaluated nothing (issue #5489). The missing GitHub
 # spellings (`closed`, `fixed`, `resolved`, `Closes: #10`, `owner/repo.name#10`)
-# opened the same fail-open (issue #5620). `AB#` work-item tokens are issue
-# #5621 and are out of scope here.
+# opened the same fail-open (issue #5620). `AB#` work-item tokens are a
+# separate contract: see `_AZURE_BOARDS_PATTERN` below.
 #
 # `See #<n>` is deliberately excluded. It reads as ordinary prose and in this
 # repository most often points at a pull request rather than an issue, which
@@ -65,6 +87,21 @@ _ISSUE_REF_PATTERN = re.compile(
     r"((?:[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*)?#[1-9][0-9]*)"
     r"(?![0-9A-Za-z_])",
     re.IGNORECASE,
+)
+
+# `AB#<n>` is the GitHub-to-Azure Boards bridge token, not generic Azure DevOps
+# syntax and not a GitHub issue. Before issue #5621 it matched nothing, so a
+# pull request that referenced only an Azure work item set `has_specs=false` and
+# the spec gates evaluated nothing. It gets its own pattern and its own output
+# so no consumer can feed `AB#123` to `gh issue view`.
+#
+# The leading `\b` keeps `FOOAB#1` from matching. The number rule and trailing
+# guard are the ones `_ISSUE_REF_PATTERN` uses, so `AB#0`, `AB#007`, and
+# `AB#12abc` are not references. The optional keyword is not captured: the
+# token is the same with or without it, and only the token is kept. `AB#` is
+# matched in upper case only, as the contract in the module docstring states it.
+_AZURE_BOARDS_PATTERN = re.compile(
+    r"\bAB#([1-9][0-9]*)(?![0-9A-Za-z_])",
 )
 
 # GitHub does not link an issue from a keyword inside a code span or a fenced
@@ -248,6 +285,16 @@ def _extract_issue_refs(combined: str) -> str:
     return " ".join(results)
 
 
+def _extract_azure_refs(combined: str) -> str:
+    """Return space-delimited `AB#<n>` tokens, ignoring code spans and fenced blocks.
+
+    Tokens are sorted by work item number so the output is stable, and
+    deduplicated across the bare and keyword forms.
+    """
+    numbers = {match.group(1) for match in _AZURE_BOARDS_PATTERN.finditer(_strip_code(combined))}
+    return " ".join(f"AB#{number}" for number in sorted(numbers, key=int))
+
+
 def _extract_incremental_scope(pr_title: str) -> tuple[int, str]:
     """Call extract_incremental_scope.py and return its output."""
     try:
@@ -269,6 +316,23 @@ def _extract_incremental_scope(pr_title: str) -> tuple[int, str]:
         )
         return EXIT_EXTERNAL, ""
     return EXIT_OK, result.stdout.strip()
+
+
+def _announce_references(spec_refs: str, issue_refs: str, azure_refs: str) -> None:
+    """Print what was found and write `has_specs`. Any reference kind arms the gate."""
+    found = (
+        ("spec", spec_refs),
+        ("issue", issue_refs),
+        ("Azure Boards", azure_refs),
+    )
+    if not any(refs for _, refs in found):
+        print("No spec references found in PR")
+        write_github_output("has_specs", "false")
+        return
+    for label, refs in found:
+        if refs:
+            print(f"Found {label} references: {refs}")
+    write_github_output("has_specs", "true")
 
 
 def run(_argv: list[str] | None = None) -> int:
@@ -296,6 +360,7 @@ def run(_argv: list[str] | None = None) -> int:
     combined = f"{pr_body} {pr_title}"
     spec_refs = _extract_spec_refs(combined)
     issue_refs = _extract_issue_refs(combined)
+    azure_refs = _extract_azure_refs(combined)
     exit_code, incremental_scope = _extract_incremental_scope(pr_title)
     if exit_code != EXIT_OK:
         title_file.unlink(missing_ok=True)
@@ -304,17 +369,10 @@ def run(_argv: list[str] | None = None) -> int:
 
     write_github_output("spec_refs", spec_refs)
     write_github_output("issue_refs", issue_refs)
+    write_github_output("azure_refs", azure_refs)
     write_github_output("incremental_scope", incremental_scope)
 
-    if not spec_refs and not issue_refs:
-        print("No spec references found in PR")
-        write_github_output("has_specs", "false")
-    else:
-        if spec_refs:
-            print(f"Found spec references: {spec_refs}")
-        if issue_refs:
-            print(f"Found issue references: {issue_refs}")
-        write_github_output("has_specs", "true")
+    _announce_references(spec_refs, issue_refs, azure_refs)
 
     # Clean up temp files
     title_file.unlink(missing_ok=True)

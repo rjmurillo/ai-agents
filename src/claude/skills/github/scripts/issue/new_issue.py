@@ -19,7 +19,9 @@ or a body that already carries a ``## Step 0`` block with ``### Q3`` and
 passed to ``gh issue create`` itself, so an issue never exists without it.
 ``--source human`` also appends ``<!-- source:human -->`` to the body, the
 assertion the repository labeler honors (epic #5698, AC-3). ``--milestone``
-(issue #6033) is checked before creation and set after it.
+(issue #6033) is checked before creation and set after it. When labels or
+the milestone fail after creation, ``GITHUB_OUTPUT`` still gets ``success=false``,
+``issue_number``, and ``issue_url`` (issue #6180).
 
 Exit codes follow ADR-035:
     0 - Success
@@ -86,6 +88,7 @@ def _load_sibling(filename: str, module_name: str):
 
 provenance = _load_sibling("issue_provenance.py", "_new_issue_provenance")
 _milestone = _load_sibling("new_issue_milestone.py", "_new_issue_milestone")
+_output = _load_sibling("new_issue_output.py", "_new_issue_output")
 
 
 # Markers that confirm a real authentication failure in gh stderr. A transient
@@ -119,19 +122,6 @@ def _classify_gh_failure(message: str) -> tuple[int, str]:
     if _is_auth_error(message):
         return 4, "AuthError"
     return 3, "ApiError"
-
-
-def _write_github_output(outputs: dict[str, str]) -> None:
-    """Write key=value pairs to GITHUB_OUTPUT if available."""
-    output_file = os.environ.get("GITHUB_OUTPUT")
-    if not output_file:
-        return
-    try:
-        with open(output_file, "a", encoding="utf-8") as fh:
-            for key, value in outputs.items():
-                fh.write(f"{key}={value}\n")
-    except OSError:
-        pass
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -464,12 +454,14 @@ def main(argv: list[str] | None = None) -> int:
         return create_result
     issue_number, output_text = create_result
 
-    label_error = _apply_labels(owner, repo, issue_number, output_text, caller_labels, fmt)
-    if label_error is not None:
-        return label_error
-
-    error = _milestone.assign_milestone(owner, repo, issue_number, output_text, args.milestone, fmt)
+    # A failure here leaves a created issue, so publish its number first (issue #6180).
+    error = _apply_labels(owner, repo, issue_number, output_text, caller_labels, fmt)
+    if error is None:
+        error = _milestone.assign_milestone(
+            owner, repo, issue_number, output_text, args.milestone, fmt
+        )
     if error is not None:
+        _output.write_created_failure(issue_number, output_text)
         return error
 
     summary = f"Created issue #{issue_number} ({source_label}): {args.title}"
@@ -491,7 +483,7 @@ def main(argv: list[str] | None = None) -> int:
     outputs = {"success": "true", "issue_number": str(issue_number), "issue_url": output_text}
     if args.milestone is not None:
         outputs["milestone"] = args.milestone
-    _write_github_output(outputs)
+    _output.write_github_output(outputs)
 
     return 0
 

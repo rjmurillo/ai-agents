@@ -64,8 +64,15 @@ owned it.
    The precedence line reads, verbatim (fenced rather than block-quoted because the line itself uses `>` as its ranking operator):
 
    ```text
-   `system/host requirements > current user request > mandatory safety/repository policy > frozen task contract > optional improvements`.
+   `system/host requirements > mandatory safety/repository policy > current user request > frozen task contract > optional improvements`.
    ```
+
+   Amendment 2026-10-13 (issue #5535): this line originally ranked
+   `current user request` above `mandatory safety/repository policy`, which
+   is the order issue #5404 specified. It now ranks mandatory policy first.
+   This deliberately deviates from #5404's literal precedence text, for the
+   reasons recorded under Negative. Debate log:
+   `.project-toolkit/critique/ADR-105-amendment-2026-10-13-debate-log.md`.
 
 2. **`.claude/rules/voice.md` section `## Completion-Tail Audit` owns the
    response-side rule.** Verbatim:
@@ -94,10 +101,9 @@ owned it.
 
    The skill also adds a classification order, Blocker first, that
    builder-ethos.md does not state. It is procedure rather than a class
-   definition, and it resolves toward mandatory policy while section 4's
-   `### Precedence` line ranks the current user request above that policy.
-   That tension is the open item recorded under Negative and tracked on
-   issue #5535.
+   definition, and it resolves toward mandatory policy. Until the
+   2026-10-13 amendment, section 4's `### Precedence` line ranked the
+   current user request above that policy; the two now agree (issue #5535).
 
    PR #5506 shipped that delegation line before the skill carried a
    matching procedure, so from 2026-09-03 until this change
@@ -189,11 +195,11 @@ to stop work that should already have stopped, availability wins.
 
 ### Negative
 
-- **Precedence places the current user request above mandatory policy,
-  and review rejected that ordering.** The shipped order puts `current
-  user request` ahead of `mandatory safety/repository policy`; the full
-  line is quoted verbatim in the Decision above. This is the open item in
-  this record, and the review history runs against what shipped.
+- **Precedence placed the current user request above mandatory policy,
+  and review rejected that ordering. Resolved 2026-10-13 by issue #5535.**
+  The order shipped in PR #5506 put `current user request` ahead of
+  `mandatory safety/repository policy`. The resolution is recorded in the
+  last paragraph of this bullet; the history below explains why.
 
   Three independent reviewers on PR #5433 called the ordering a
   policy-bypass path. Devin comment `3897689356` filed a security-kind
@@ -240,7 +246,7 @@ to stop work that should already have stopped, availability wins.
   comments do not mention precedence, so the ordering reached `main`
   unchallenged rather than re-argued and upheld.
 
-  What the ordering demotes: `.claude/rules/universal.md` MUST 1 (no
+  What the shipped ordering demoted: `.claude/rules/universal.md` MUST 1 (no
   direct commit to `main`), MUST 7 (no secrets in a commit), MUST NOT 1
   (no force-push to a shared branch), and MUST NOT 2 (the six named hook
   and signing bypasses). Section 4's `### Precedence` line is the first
@@ -249,28 +255,38 @@ to stop work that should already have stopped, availability wins.
   rules in this file disagree, apply them in this order" and all three of
   its entries are builder-ethos.md sections.
 
-  Two things stop this from reading as a clean license. Nothing in the
-  enforcement plane consults this line: `grep -rn "frozen task contract"`
-  across `scripts/`, `build/`, and `tests/` returns one hit, an assertion
-  string in `tests/test_completion_terminal_contracts.py`, and no consumer
-  that reads the ordering at runtime. Hooks and CI still fire
-  mechanically. And `universal.md` is always-on in the same context, so
-  an agent reaching for section 4 to justify a bypass meets a direct
-  contradiction rather than permission. The residual risk is that
-  "current user request" is undefined here and carries no carve-out for
-  ingested content, so an agent that resolves an issue body, a PR
-  comment, or a fetched page as the current request has a quotable line
-  ranking it above policy.
+  Two things stopped this from reading as a clean license. As of
+  2026-09-03 nothing in the enforcement plane consulted the line:
+  `grep -rn "frozen task contract"` across `scripts/`, `build/`, and
+  `tests/` returned one hit, an assertion string in
+  `tests/test_completion_terminal_contracts.py`, and no consumer read the
+  ordering at runtime. Hooks and CI still fired mechanically. And
+  `universal.md` is always-on in the same context, so an agent reaching
+  for section 4 to justify a bypass met a direct contradiction rather
+  than permission. The residual risk was that "current user request" is
+  undefined here and carries no carve-out for ingested content, so an
+  agent that resolved an issue body, a PR comment, or a fetched page as
+  the current request had a quotable line ranking it above policy.
 
-  This change deliberately does not edit the rule. `AGENTS.md` lists
-  Security and Architecture under "Ask First", and the repair spans
-  section 3 and the Precedence Stack, not section 4 alone. The decision
-  is the owner's: restore the swap recorded in comment `3900588149`,
-  qualify "current user request" as originating in the user turn only,
-  or accept the shipped ordering and record why the agreed swap was
-  dropped. This ADR takes none of those. It records that the question is
-  open, that `main` currently carries the rejected ordering, and that the
-  repair is tracked on issue #5535.
+  The original change did not edit the rule. `AGENTS.md` lists Security
+  and Architecture under "Ask First", and the repair spans section 3 and
+  the Precedence Stack, not section 4 alone. Issue #5535 put three options
+  to the owner: restore the swap recorded in comment `3900588149`, keep
+  user-first order and add a carve-out, or accept the shipped ordering
+  and record why. The owner delegated the choice for this change on
+  2026-10-11. The delegation was given to the implementing session, not
+  posted on the issue, and the PR body restates it. The first option was
+  taken, because the owner had already approved it in comment
+  `3900588149`, four reviewers asked for it, and it removes the
+  contradiction with `universal.md` at the cost of one line of ordering.
+  `builder-ethos.md` now states one order in the Precedence Stack,
+  section 3, and section 4's `### Precedence` line. A cross-surface test
+  (`tests/test_builder_ethos_precedence_order.py`) pins that order on every
+  generated surface and in this ADR. One risk stays open: "current user
+  request" is still undefined for ingested content. The new order bounds
+  it, because policy now outranks whatever is read as the request. The
+  qualifier that a request must originate in the user turn is
+  complementary, not rejected, and no change here adds it.
 - **No behavioral proof against a live model.** `tests/eval/`
   fixtures and the eval scenarios register the contract statically. The
   graded runtime pass over those scenarios requires live model access and
@@ -341,10 +357,10 @@ machine-remediation payload rather than the reviewer's finding.
 
 Round 2 returned 6 Accept after those corrections and after the debate log
 was replaced with this panel's own record, which ships in the same change
-as the `status: accepted` frontmatter, per ADR-073. One risk is recorded
-and deliberately not resolved here: `main` ranks the current user request
-above mandatory safety and repository policy. That is tracked on issue
-#5535.
+as the `status: accepted` frontmatter, per ADR-073. One risk was recorded
+and deliberately not resolved in that round: `main` ranked the current
+user request above mandatory safety and repository policy. Issue #5535
+resolved it; see the 2026-10-13 amendment in Decision item 1.
 
 Debate log: `.project-toolkit/critique/ADR-105-debate-log.md`.
 

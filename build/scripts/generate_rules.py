@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate Copilot instruction files from ``.claude/rules/`` (REQ-003-006).
+"""Generate Copilot instruction files from ``src/claude/rules/`` (REQ-003-006).
 
 Reads ``artifacts.rules`` from a platform YAML and rewrites every Claude
 rule into a Copilot-compatible instruction file. Rules are universal
@@ -19,7 +19,8 @@ must be set.
 
 Per-rule logic (Round 3 amendment, 2026-04-29):
 
-1. Read source ``.claude/rules/<name>.md`` (frontmatter + body).
+1. Read source ``src/claude/rules/<name>.md`` (frontmatter + body), the
+   plugin tree rendered from ``templates/rules/<name>.md`` (ADR-109 B2).
 2. Emit to ``.github/instructions/<name>.instructions.md``:
    - rename ``paths:`` to ``applyTo:`` (verbatim value)
    - drop ``alwaysApply:`` and ``priority:``
@@ -31,6 +32,11 @@ Per-rule logic (Round 3 amendment, 2026-04-29):
      run emitted (issue #4317)
    - body unchanged
 3. NO-REGEN sentinel honored on the target file.
+
+``artifacts.rules.outputFormat: cursor-mdc`` (ADR-115 Decision 2) swaps step 2's
+frontmatter serialization for Cursor's ``.mdc`` form (``cursor_rule_format.py``)
+after the same remap, drop, and internal-glob filter. The default,
+``instructions``, is today's output.
 
 The Round 2 severity-gate (high/medium/low + governance-keyword scan +
 conditional skip) was removed. Rationale: rules are universal across
@@ -67,18 +73,26 @@ sys.path.insert(0, str(_SCRIPT_DIR.parent))
 
 import rule_templates  # noqa: E402
 from atomic_write import publish_bytes_preserving_mode  # noqa: E402
+from cursor_rule_format import build_mdc_frontmatter, format_mdc_frontmatter  # noqa: E402
 from generate_agents_common import (  # noqa: E402
     format_frontmatter_yaml,
     parse_simple_frontmatter,
     read_yaml_frontmatter,
 )
 from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
+from schema_tree_keys import RULES_OUTPUT_FORMATS  # noqa: E402
 from yaml_loader import ConfigError, load_platform_config, validate_relative_path  # noqa: E402
 
 _DEFAULT_SOURCE_SUFFIX = ".md"
 _DEFAULT_OUTPUT_SUFFIX = ".instructions.md"
 _SCOPE_KEYS = ("paths", "applyTo", "globs")
 _UNIVERSAL_SCOPE = "**"
+# ADR-115 Decision 2: `artifacts.rules.outputFormat`. `instructions` is the
+# Copilot instruction file (the default, byte-identical to before the key
+# existed); `cursor-mdc` is Cursor's `.mdc` rule frontmatter.
+OUTPUT_FORMAT_INSTRUCTIONS = "instructions"
+OUTPUT_FORMAT_CURSOR_MDC = "cursor-mdc"
+OUTPUT_FORMATS = frozenset(RULES_OUTPUT_FORMATS)
 # Sentinel: returned by _remap_frontmatter when every scope glob was
 # internal-only. _process_rule detects this and returns "scope-skipped"
 # instead of emitting a rule with a universalized applyTo.
@@ -358,14 +372,22 @@ def _write_instruction(
     body: str,
     *,
     what_if: bool,
+    rendered_frontmatter: str | None = None,
 ) -> bool:
-    """Write the instruction file. Returns True on write, False on NO-REGEN skip."""
+    """Write the instruction file. Returns True on write, False on NO-REGEN skip.
+
+    ``rendered_frontmatter``, when given, replaces the Copilot-style
+    serialization of ``frontmatter`` (the ``cursor-mdc`` format supplies its own).
+    """
     reason = regen_detect_reason(target)
     if reason is not None:
         print(f"  NOTICE: skipped {target} (NO-REGEN: {reason})")
         return False
 
-    fm_yaml = format_frontmatter_yaml(frontmatter) if frontmatter else ""
+    if rendered_frontmatter is not None:
+        fm_yaml = rendered_frontmatter
+    else:
+        fm_yaml = format_frontmatter_yaml(frontmatter) if frontmatter else ""
     # format_frontmatter_yaml joins with "\n" without a trailing newline; add
     # one so the closing fence does not run into the last key line.
     if fm_yaml and not fm_yaml.endswith("\n"):
@@ -399,6 +421,7 @@ def _process_rule(
     drop: set[str],
     what_if: bool,
     keep_internal: bool = False,
+    output_format: str = OUTPUT_FORMAT_INSTRUCTIONS,
 ) -> tuple[str, str, str]:
     """Process one rule. Round 3: every rule emits.
 
@@ -430,7 +453,12 @@ def _process_rule(
             file=sys.stderr,
         )
         return ("scope-skipped", name, "ALL-INTERNAL-SCOPE")
-    written = _write_instruction(target, transformed, body, what_if=what_if)
+    rendered = None
+    if output_format == OUTPUT_FORMAT_CURSOR_MDC:
+        rendered = format_mdc_frontmatter(build_mdc_frontmatter(transformed))
+    written = _write_instruction(
+        target, transformed, body, what_if=what_if, rendered_frontmatter=rendered
+    )
     if not written:
         return ("sentinel-skipped", name, "NO-REGEN")
     return ("emitted", name, "")
@@ -485,6 +513,14 @@ def generate_rules(
         return 2, result
     source_suffix = str(stanza.get("sourceSuffix", _DEFAULT_SOURCE_SUFFIX))
     output_suffix = str(stanza.get("outputSuffix", _DEFAULT_OUTPUT_SUFFIX))
+    output_format = stanza.get("outputFormat", OUTPUT_FORMAT_INSTRUCTIONS)
+    if not isinstance(output_format, str) or output_format not in OUTPUT_FORMATS:
+        print(
+            f"Error: `artifacts.rules.outputFormat` must be one of {sorted(OUTPUT_FORMATS)} "
+            f"(got {output_format!r})",
+            file=sys.stderr,
+        )
+        return 2, result
 
     raw_remap = stanza.get("frontmatterRemap") or {}
     if not isinstance(raw_remap, dict):
@@ -585,6 +621,7 @@ def generate_rules(
                 drop=drop,
                 what_if=what_if,
                 keep_internal=keep_internal,
+                output_format=output_format,
             )
             result.entries.append(
                 RuleAuditEntry(

@@ -1146,31 +1146,100 @@ def test_install_resets_legacy_hooks_path(tmp_path: Path) -> None:
     assert check_git_hook_health._dispatch_command("pre-push") in hook_shim
     assert check_git_hook_health._dispatch_failure(repo / ".git/hooks/pre-push", "pre-push") is None
 
-    if sys.platform == "win32":
-        # Dear future maintainer: this branch is not a shortcut. lefthook 2.1.10
-        # generates a different shim on Windows than on Linux/macOS from the same
-        # `lefthook.yml`. On Windows it emits its default template that resolves
-        # lefthook from PATH via `call_lefthook run`, omitting the configured
-        # `lefthook:` runner (uv run --frozen lefthook), the LEFTHOOK_BIN
-        # override, and the `elif lefthook -h` fallback. Both platforms install
-        # the same pinned 2.1.10 wheel, so this is an upstream shim-generator
-        # difference, not a version mismatch. The reset and executable-shim
-        # guarantees above still hold, and the shim still dispatches through
-        # lefthook. Tracked in #3289 (with the runner-embed option deferred to
-        # the #3196 shim rework). Keep the strong POSIX assertions below.
-        # Assert the full dispatch line, including "$@", so the test protects
-        # argument forwarding through the Windows shim, not just the command name.
-        assert 'call_lefthook run "pre-push" "$@"' in hook_shim
-        return
-
+    # Issue #5491: the shim's resolution order, pinned on every platform. Lefthook
+    # renders one `hook.tmpl` for all platforms (v2.1.10 `templates.go`); the only
+    # `runtime.GOOS` branch is `getExtension()`, which turns the PATH fallback's
+    # `lefthook` into `lefthook.exe` on Windows. Issue #3289 read a truncated
+    # pytest assertion message from the Windows job and concluded the Windows shim
+    # omits the configured runner. The full-function shim in that run's log
+    # (ending in the `else echo "Can't find lefthook in PATH"` branch) says
+    # otherwise, and this test is what Windows CI now measures instead of infers.
+    extension = ".exe" if sys.platform == "win32" else ""
     explicit_override = 'if test -n "$LEFTHOOK_BIN"'
     configured_call = 'python3 scripts/validation/lefthook_runner.py "$@"'
-    assert explicit_override in hook_shim
-    assert configured_call in hook_shim
-    assert hook_shim.index(explicit_override) < hook_shim.index(configured_call)
+    path_fallback = f"elif lefthook{extension} -h >/dev/null 2>&1"
+    for fragment in (explicit_override, configured_call, path_fallback):
+        assert fragment in hook_shim
+    assert (
+        hook_shim.index(explicit_override)
+        < hook_shim.index(configured_call)
+        < hook_shim.index(path_fallback)
+    )
     # The shim's own `elif test -n "<runner>"` guard is always true, so the
     # fallback chain lives in the runner. Behavior is pinned in
-    # tests/test_lefthook_runner.py (issue #5431).
+    # tests/test_lefthook_runner.py (issue #5431) and, through the installed
+    # shim, by test_installed_shim_runs_the_first_binary_in_runner_order below.
+
+
+def _stub_executable(directory: Path, name: str, log: Path) -> None:
+    """Write an executable that appends its name and arguments to ``log``."""
+    stub = directory / name
+    _write_lf(stub, f'#!/bin/sh\necho "{name} $*" >> "{log}"\nexit 0\n')
+    stub.chmod(0o755)
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="Stub launchers need .exe on Windows; Windows CI pins the shim text above.",
+)
+@pytest.mark.parametrize(
+    ("stubs", "expected_log", "expected_code"),
+    [
+        (
+            ("uv", "lefthook"),
+            ["uv run --frozen lefthook version", "uv run --frozen lefthook run pre-push"],
+            0,
+        ),
+        (("lefthook",), ["lefthook run pre-push"], 0),
+        ((), [], 3),
+    ],
+    ids=["uv-before-path", "path-when-uv-absent", "nothing-resolves-fails-closed"],
+)
+def test_installed_shim_runs_the_first_binary_in_runner_order(
+    stubs: tuple[str, ...],
+    expected_log: list[str],
+    expected_code: int,
+    tmp_path: Path,
+) -> None:
+    """Issue #5491: run the installed shim and record which binary it executes.
+
+    The two local gates never execute the shim. This does, with a PATH that holds
+    only ``python3`` plus the stubs under test (the shim runs through
+    ``/bin/sh``), and records the order
+    the shim reaches: pinned ``uv`` runtime, then ``lefthook`` on PATH, then a
+    nonzero exit with the runner's diagnosis. The last case is the one the issue
+    feared: no resolvable Lefthook must stop the hook, never exit 0 silently.
+    """
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _copy_runtime_config(repo)
+    runner = Path("scripts/validation/lefthook_runner.py")
+    (repo / runner).parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(PROJECT_ROOT / runner, repo / runner)
+    _run_lefthook(repo, "install", "--reset-hooks-path")
+
+    tools = tmp_path / "bin"
+    tools.mkdir()
+    (tools / "python3").symlink_to(sys.executable)
+    log = tmp_path / "calls.log"
+    for stub in stubs:
+        _stub_executable(tools, stub, log)
+
+    env = {"PATH": str(tools), "HOME": str(tmp_path)}
+    result = subprocess.run(
+        ["/bin/sh", str(repo / ".git/hooks/pre-push")],
+        cwd=repo,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    calls = log.read_text(encoding="utf-8").splitlines() if log.exists() else []
+    assert calls == expected_log, result.stdout + result.stderr
+    assert result.returncode == expected_code, result.stdout + result.stderr
+    if expected_code:
+        assert "Lefthook itself is unavailable" in result.stderr
 
 
 @pytest.mark.parametrize("hook_name", ["pre-commit", "pre-push"])
@@ -2439,6 +2508,21 @@ def test_root_hygiene_blocks_staged_root_scratch_file(
     )
 
 
+def test_root_hygiene_blocks_staged_pr_body_scratch_file(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "README.md", "tracked\n")
+    _write_lf(repo / "pr_body.md", "scratch PR body\n")
+    _git(repo, "add", "pr_body.md")
+
+    assert "pr_body.md" not in policy.ALLOWED_REPO_ROOT_ENTRIES
+    assert policy.check_root_hygiene(["pr_body.md"], repo) == 1
+    assert "pr_body.md" in capsys.readouterr().err
+
+
 def test_root_hygiene_allows_deleting_disallowed_root_file(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)
@@ -2712,6 +2796,54 @@ def test_staged_dash_policy_reads_the_index_blob(tmp_path: Path) -> None:
     assert policy.check_staged_dashes(["doc.md"], repo) == 1
     assert policy.check_staged_dashes([], repo) == 0
     assert policy.check_staged_dashes(["../doc.md"], repo) == 2
+
+
+def test_staged_dash_policy_glob_covers_every_branch_scan_suffix() -> None:
+    from scripts.validation import checks_dash
+
+    config = yaml.safe_load((PROJECT_ROOT / "lefthook.yml").read_text(encoding="utf-8"))
+    job = _job_map(config, "pre-commit")["staged-dash-policy"]
+    suffixes = ",".join(suffix.lstrip(".") for suffix in checks_dash._SCAN_SUFFIXES)
+
+    assert job["glob"] == "**/*.{" + suffixes + "}"
+    assert "tests/hooks/fixtures/**" in cast(list[str], job["exclude"])
+
+
+def test_staged_dash_policy_blocks_a_python_blob_and_names_the_path(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "tool.py", "x = 1\n")
+    _write_file(repo, "tool.py", f"# bad {chr(0x2013)} comment\n")
+    _git(repo, "add", "tool.py")
+
+    assert policy.check_staged_dashes(["tool.py"], repo) == 1
+    err = capsys.readouterr().err
+    assert "tool.py" in err
+    assert "staged markdown" not in err
+
+
+def test_staged_dash_policy_passes_a_clean_python_blob(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit_file(repo, "tool.py", "x = 1\n")
+    _write_file(repo, "tool.py", "# clean - comment\n")
+    _git(repo, "add", "tool.py")
+
+    assert policy.check_staged_dashes(["tool.py"], repo) == 0
+
+
+def test_staged_dash_policy_skips_fixture_python_blobs(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    fixture = "tests/hooks/fixtures/dash.py"
+    _commit_file(repo, fixture, "x = 1\n")
+    _write_file(repo, fixture, f"# {chr(0x2014)}\n")
+    _git(repo, "add", fixture)
+
+    assert policy.check_staged_dashes([fixture], repo) == 0
 
 
 def test_staged_dash_policy_uses_utf8_under_non_utf8_locale(
@@ -5599,16 +5731,10 @@ def test_push_files_warning_is_quiet_for_checked_out_head(
     assert capsys.readouterr().err == ""
 
 
-def test_push_files_warning_emits_for_new_branch(
-    tmp_path: Path,
+def _stub_head_without_push_base(
     monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
+    head: str,
 ) -> None:
-    head = "1" * 40
-    refs = [
-        policy.PushRef("refs/heads/new", head, "refs/heads/new", "0" * 40),
-    ]
-
     def run_git(_repo_root: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
         if args == ["rev-parse", "HEAD"]:
             return _completed(0, f"{head}\n")
@@ -5618,9 +5744,144 @@ def test_push_files_warning_emits_for_new_branch(
 
     monkeypatch.setattr(policy, "_run_git", run_git)
 
+
+def test_push_files_warning_is_quiet_for_new_branch_at_head(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Issue #6562: the first push of checked-out HEAD has no coverage gap."""
+    head = "1" * 40
+    refs = [policy.PushRef("refs/heads/new", head, "refs/heads/new", "0" * 40)]
+    _stub_head_without_push_base(monkeypatch, head)
+
+    policy.warn_if_push_files_incomplete(refs, tmp_path)
+
+    assert capsys.readouterr().err == ""
+
+
+def test_push_files_warning_is_quiet_for_new_branch_at_head_sha256(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A SHA-256 repository's all-zero remote id also marks a new branch."""
+    head = "1" * 64
+    refs = [policy.PushRef("refs/heads/new", head, "refs/heads/new", "0" * 64)]
+    _stub_head_without_push_base(monkeypatch, head)
+
+    policy.warn_if_push_files_incomplete(refs, tmp_path)
+
+    assert capsys.readouterr().err == ""
+
+
+def test_push_files_warning_emits_for_new_branch_off_head(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A new branch whose tip is not checked-out HEAD keeps the warning."""
+    refs = [policy.PushRef("refs/heads/new", "2" * 40, "refs/heads/new", "0" * 40)]
+    _stub_head_without_push_base(monkeypatch, "1" * 40)
+
     policy.warn_if_push_files_incomplete(refs, tmp_path)
 
     assert "quality coverage may be incomplete" in capsys.readouterr().err
+
+
+def test_push_files_warning_emits_for_new_branch_with_stale_push_base(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A stale @{push} on a new remote branch keeps the warning.
+
+    The remote branch was deleted but the local tracking ref was not pruned.
+    @{push} still resolves, so Lefthook diffs HEAD against the stale tip and
+    {push_files} can miss files this push carries.
+    """
+    head = "1" * 40
+    stale_tip = "4" * 40
+    refs = [policy.PushRef("refs/heads/gone", head, "refs/heads/gone", "0" * 40)]
+
+    def run_git(_repo_root: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+        if args == ["rev-parse", "HEAD"]:
+            return _completed(0, f"{head}\n")
+        if args == ["rev-parse", "--verify", "@{push}"]:
+            return _completed(0, f"{stale_tip}\n")
+        raise AssertionError(args)
+
+    monkeypatch.setattr(policy, "_run_git", run_git)
+
+    policy.warn_if_push_files_incomplete(refs, tmp_path)
+
+    assert "quality coverage may be incomplete" in capsys.readouterr().err
+
+
+def test_push_files_warning_emits_for_existing_branch_at_head_without_push_base(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A non-zero remote id with no resolvable @{push} is not a new branch."""
+    head = "1" * 40
+    refs = [policy.PushRef("refs/heads/old", head, "refs/heads/old", "3" * 40)]
+    _stub_head_without_push_base(monkeypatch, head)
+
+    policy.warn_if_push_files_incomplete(refs, tmp_path)
+
+    assert "quality coverage may be incomplete" in capsys.readouterr().err
+
+
+def test_push_files_warning_emits_for_multi_ref_with_new_branch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A multi-ref push keeps the warning even when one ref is a new HEAD branch."""
+    head = "1" * 40
+    refs = [
+        policy.PushRef("refs/heads/new", head, "refs/heads/new", "0" * 40),
+        policy.PushRef("refs/heads/other", head, "refs/heads/other", "0" * 40),
+    ]
+    _stub_head_without_push_base(monkeypatch, head)
+
+    policy.warn_if_push_files_incomplete(refs, tmp_path)
+
+    assert "quality coverage may be incomplete" in capsys.readouterr().err
+
+
+def test_push_files_warning_is_quiet_for_first_push_from_linked_worktree(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Issue #6562: a worktree branch cut from origin/main stays quiet on first push.
+
+    Under push.default=current, `@{push}` names the same-named remote branch,
+    so it fails until the first push creates that branch on the remote. The
+    first push of checked-out HEAD must stay quiet.
+    """
+    origin = tmp_path / "origin.git"
+    origin.mkdir()
+    _git(origin, "init", "-q", "--bare", "-b", "main")
+    seed = tmp_path / "seed"
+    _init_repo(seed, "main")
+    _commit_file(seed, "base.txt", "base\n")
+    _git(seed, "remote", "add", "origin", str(origin))
+    _git(seed, "push", "-q", "origin", "main")
+    _git(seed, "config", "push.default", "current")
+    _git(seed, "fetch", "-q", "origin")
+    worktree = tmp_path / "linked"
+    _git(seed, "worktree", "add", "-q", str(worktree), "-b", "fix/first-push", "origin/main")
+    head = _commit_file(worktree, "change.txt", "change\n")
+    push_base = _git(worktree, "rev-parse", "--verify", "@{push}", check=False)
+    assert push_base.returncode != 0
+    new_ref = "refs/heads/fix/first-push"
+    refs = [policy.PushRef(new_ref, head, new_ref, "0" * 40)]
+
+    policy.warn_if_push_files_incomplete(refs, worktree)
+
+    assert capsys.readouterr().err == ""
 
 
 def test_push_files_warning_is_quiet_for_explicit_refspec_push(
@@ -5651,7 +5912,9 @@ def test_push_files_warning_is_quiet_for_explicit_refspec_push(
             "refs/heads/local-repair",
             head,
             "refs/heads/pr-target-branch",
-            "0" * 40,
+            # Non-zero remote id: the ref is not new, so only the explicit
+            # refspec path can keep the warning quiet.
+            "3" * 40,
         )
     ]
     policy.warn_if_push_files_incomplete(refs, tmp_path)
