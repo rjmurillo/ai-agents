@@ -28,14 +28,16 @@ author chose: pass the flag only for skills you trust.
 
 Per-check status: pass, fail, skipped, invalid. Per-skill status: `pass` when
 every non-skipped check passes, `fail` when any check fails or is invalid,
-`no-provenance` when `reverify.json` is absent, and `malformed` when the JSON
+`skipped` when every check was skipped (nothing was verified; not a failure,
+and `--require` still counts the skill as having provenance), `no-provenance` when `reverify.json` is absent, and `malformed` when the JSON
 or schema is bad (unknown kind, missing field, duplicate id, empty check
 list).
 
 The payload lists `update_candidates` (failing or malformed skills) and
 `update_args`, a JSON list of argv tokens (`--name`, X, `--update`, X, ...)
 for `bootstrap_boundary.py`. A skill directory whose name does not match
-`[a-z](?:[a-z0-9-]*[a-z0-9])?` is `malformed` (detail `invalid skill name`),
+`[a-z](?:[a-z0-9-]*[a-z0-9])?`, is longer than 64 characters, or holds `--` is
+`malformed` (detail `invalid skill name`),
 so it is a candidate but never reaches `update_args`.
 
 Exit codes:
@@ -58,6 +60,7 @@ import argparse
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
 from pathlib import Path, PurePosixPath, PureWindowsPath
@@ -68,6 +71,10 @@ COMMAND_TIMEOUT_S = 120
 PATH_KINDS = frozenset({"path_exists", "absent", "contains", "line_count_at_least"})
 KINDS = PATH_KINDS | {"command"}
 SKILL_NAME_RE = re.compile(r"[a-z](?:[a-z0-9-]*[a-z0-9])?")
+# Same rule as `bootstrap_boundary.name_defects`: at most 64 characters, no `--`.
+# Skill scripts do not import each other, so the rule is repeated here and a
+# test asserts the three scripts agree.
+MAX_SKILL_NAME = 64
 # The only parent variables a `command` check sees, so secrets do not leak to it.
 COMMAND_ENV_KEYS = ("PATH", "HOME", "LANG", "LC_ALL", "SYSTEMROOT", "TEMP", "TMP")
 
@@ -145,6 +152,12 @@ def _safe_path(repo: Path, raw: str) -> Path | None:
     return lexical
 
 
+def valid_skill_name(name: str) -> bool:
+    if len(name) > MAX_SKILL_NAME or "--" in name:
+        return False
+    return SKILL_NAME_RE.fullmatch(name) is not None
+
+
 def _result(check: Payload, status: str, detail: str) -> Payload:
     return {"id": check["id"], "kind": check["kind"], "status": status, "detail": detail}
 
@@ -205,23 +218,42 @@ def _eval_command(check: Payload, repo: Path, allow: bool) -> Payload:
         return _result(check, "skipped", "command checks need --allow-commands")
     expected = check.get("expect_exit", 0)
     try:
-        proc = subprocess.run(
-            check["argv"],
-            cwd=repo,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            env={k: os.environ[k] for k in COMMAND_ENV_KEYS if k in os.environ},
-            start_new_session=True,
-            timeout=COMMAND_TIMEOUT_S,
-            check=False,
-        )
+        returncode = _run_argv(check["argv"], repo)
     except subprocess.TimeoutExpired:
         return _result(check, "fail", f"timed out after {COMMAND_TIMEOUT_S} s")
     except (OSError, ValueError) as exc:
         return _result(check, "fail", f"could not run {check['argv'][0]}: {exc}")
-    status = "pass" if proc.returncode == expected else "fail"
-    return _result(check, status, f"exit {proc.returncode}, expected {expected}")
+    status = "pass" if returncode == expected else "fail"
+    return _result(check, status, f"exit {returncode}, expected {expected}")
+
+
+def _run_argv(argv: list[str], repo: Path) -> int:
+    """Run argv in its own session; on timeout kill the whole process group."""
+    # Output is discarded on purpose: untrusted command output never reaches the agent.
+    proc = subprocess.Popen(
+        argv,
+        cwd=repo,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        env={k: os.environ[k] for k in COMMAND_ENV_KEYS if k in os.environ},
+        start_new_session=True,
+    )
+    try:
+        return proc.wait(timeout=COMMAND_TIMEOUT_S)
+    except subprocess.TimeoutExpired:
+        _kill_group(proc)
+        raise
+
+
+def _kill_group(proc: subprocess.Popen[bytes]) -> None:
+    if hasattr(os, "killpg"):
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except OSError:
+            pass  # group already gone
+    proc.kill()
+    proc.wait()
 
 
 def evaluate_check(check: Payload, repo: Path, allow_commands: bool) -> Payload:
@@ -234,13 +266,15 @@ def evaluate_check(check: Payload, repo: Path, allow_commands: bool) -> Payload:
 def _skill_status(results: list[Payload]) -> str:
     if any(r["status"] in ("fail", "invalid") for r in results):
         return "fail"
+    if all(r["status"] == "skipped" for r in results):
+        return "skipped"  # nothing was verified, so do not report a pass
     return "pass"
 
 
 def evaluate_skill(skill_dir: Path, repo: Path, allow_commands: bool) -> Payload:
     """Load a skill's reverify.json and evaluate every check."""
     entry: Payload = {"name": skill_dir.name, "status": "", "checks": []}
-    if SKILL_NAME_RE.fullmatch(skill_dir.name) is None:
+    if not valid_skill_name(skill_dir.name):
         entry["status"] = "malformed"
         entry["detail"] = "invalid skill name"
         return entry
@@ -267,7 +301,10 @@ def _directory(value: str, label: str) -> Path:
 
 
 def _select_skills(skills_root: Path, names: list[str]) -> list[Path]:
-    available = {p.name: p for p in sorted(skills_root.iterdir()) if p.is_dir()}
+    try:
+        available = {p.name: p for p in sorted(skills_root.iterdir()) if p.is_dir()}
+    except OSError as exc:
+        raise ConfigError(f"cannot list skills root {skills_root}: {exc}") from exc
     missing = [n for n in names if n not in available]
     if missing:
         raise ConfigError(f"no skill directory named {', '.join(missing)} in {skills_root}")
@@ -286,7 +323,7 @@ def check(args: argparse.Namespace) -> tuple[int, Payload]:
     selected = _select_skills(skills_root, args.name or [])
     skills = [evaluate_skill(d, repo, args.allow_commands) for d in selected]
     candidates = [s["name"] for s in skills if s["status"] in ("fail", "malformed")]
-    safe = [n for n in candidates if SKILL_NAME_RE.fullmatch(n)]
+    safe = [n for n in candidates if valid_skill_name(n)]
     missing = [s["name"] for s in skills if s["status"] == "no-provenance"]
     failed = bool(candidates) or (args.require and bool(missing))
     return (1 if failed else 0), {

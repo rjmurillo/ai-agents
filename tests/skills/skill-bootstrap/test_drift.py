@@ -9,6 +9,7 @@ import os
 import runpy
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -238,7 +239,7 @@ def test_command_is_skipped_without_the_flag(capsys, repo, skills):
 
     assert code == 0
     assert only_check(payload)["status"] == "skipped"
-    assert payload["skills"][0]["status"] == "pass"
+    assert payload["skills"][0]["status"] == "skipped"
     assert not marker.exists()
 
 
@@ -689,3 +690,92 @@ def test_command_runs_in_its_own_session(capsys, repo, skills):
     code, _ = check_one(capsys, repo, skills, check, "--allow-commands")
 
     assert code == 0
+
+
+# --- review fixes: group kill, skipped status, name rule, unlistable root ----
+
+
+@pytest.mark.skipif(os.name != "posix", reason="process groups are POSIX only")
+def test_command_timeout_kills_the_whole_process_group(capsys, repo, skills, monkeypatch, tmp_path):
+    monkeypatch.setattr(bootstrap_drift, "COMMAND_TIMEOUT_S", 1)
+    pid_file = tmp_path / "grandchild.pid"
+    code_text = (
+        "import subprocess, sys, time\n"
+        "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])\n"
+        f"open({str(pid_file)!r}, 'w').write(str(child.pid))\n"
+        "time.sleep(60)\n"
+    )
+    check = {"id": "R5", "kind": "command", "argv": [PY, "-c", code_text]}
+
+    code, payload = check_one(capsys, repo, skills, check, "--allow-commands")
+
+    assert code == 1
+    assert "timed out" in only_check(payload)["detail"]
+    grandchild = int(pid_file.read_text(encoding="utf-8"))
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline and _alive(grandchild):
+        time.sleep(0.05)
+    assert not _alive(grandchild)
+
+
+def _alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    # A killed child that nobody reaped is a zombie; treat it as dead.
+    state = Path(f"/proc/{pid}/stat")
+    if state.exists():
+        return state.read_text(encoding="utf-8").rsplit(")", 1)[1].split()[0] != "Z"
+    return True
+
+
+def test_skill_with_every_check_skipped_reports_skipped(capsys, repo, skills):
+    add_skill(skills, "s1", [{"id": "R5", "kind": "command", "argv": COMMAND_OK}])
+
+    code, payload = run(capsys, repo, skills)
+
+    assert code == 0
+    assert payload["skills"][0]["status"] == "skipped"
+
+
+def test_skipped_skill_still_has_provenance_under_require(capsys, repo, skills):
+    add_skill(skills, "s1", [{"id": "R5", "kind": "command", "argv": COMMAND_OK}])
+
+    code, payload = run(capsys, repo, skills, "--require")
+
+    assert code == 0
+    assert payload["no_provenance"] == []
+
+
+@pytest.mark.parametrize("name", ["a--b", "a" * 65])
+def test_skill_name_with_double_hyphen_or_over_64_chars_is_malformed(capsys, repo, skills, name):
+    add_skill(skills, name, GOOD_CHECK)
+
+    code, payload = run(capsys, repo, skills)
+
+    assert code == 1
+    assert payload["skills"][0]["status"] == "malformed"
+    assert payload["update_args"] == []
+
+
+def test_skill_name_of_64_chars_is_accepted(capsys, repo, skills):
+    add_skill(skills, "a" * 64, GOOD_CHECK)
+
+    code, payload = run(capsys, repo, skills)
+
+    assert code == 0
+    assert payload["skills"][0]["status"] == "pass"
+
+
+def test_unlistable_skills_root_is_a_config_error(capsys, repo, skills, monkeypatch):
+    def boom(self):
+        raise PermissionError("denied")
+
+    monkeypatch.setattr(Path, "iterdir", boom)
+
+    code, payload = run(capsys, repo, skills)
+
+    assert code == 2
+    assert payload["error"] == "config"
+    assert "denied" in payload["message"]
