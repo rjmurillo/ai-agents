@@ -725,9 +725,12 @@ def _alive(pid: int) -> bool:
         return False
     # A killed child that nobody reaped is a zombie; treat it as dead.
     state = Path(f"/proc/{pid}/stat")
-    if state.exists():
+    if not state.exists():
+        return True
+    try:
         return state.read_text(encoding="utf-8").rsplit(")", 1)[1].split()[0] != "Z"
-    return True
+    except ProcessLookupError:
+        return False  # exited between the exists check and the read
 
 
 def test_skill_with_every_check_skipped_reports_skipped(capsys, repo, skills):
