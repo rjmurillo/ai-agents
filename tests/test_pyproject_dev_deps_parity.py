@@ -57,7 +57,7 @@ REQUIRED_DEV_TOOLS = frozenset(
     }
 )
 SAFE_SEMGREP_OVERRIDES = frozenset(
-    {"click==8.3.3", "cryptography==50.0.0", "mcp==1.28.1", "pyjwt[crypto]==2.15.0"}
+    {"click==8.3.3", "cryptography==50.0.0", "mcp==1.30.0", "pyjwt[crypto]==2.15.0"}
 )
 COOLDOWN_EXEMPT_PACKAGES = frozenset(
     {"anthropic", "click", "cryptography", "lefthook", "mcp", "semgrep"}
