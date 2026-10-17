@@ -120,6 +120,7 @@ ALLOWED_REPO_ROOT_ENTRIES = frozenset(
         ".codeql",
         ".coderabbit.yaml",
         ".config",
+        ".cursor-plugin",
         ".env.example",
         ".factory",
         ".gemini",
@@ -815,6 +816,14 @@ _GENERATED_MIRRORS: tuple[tuple[str, str, tuple[str, str] | None], ...] = (
     # src/copilot-cli/skills/ row above, no _COPILOT_SKILL_EXCLUDES-style
     # filter applies here: merge-resolver ships in the Claude plugin tree.
     ("src/claude/skills/", ".claude/skills/", None),
+    # ADR-115 Decision 1: the Cursor plugin tree copies the same canonical
+    # files. Skills and lib/ copy support files byte for byte (SKILL.md keeps
+    # fewer frontmatter keys, so it is never a verbatim mirror and stays
+    # flagged); rules render as .mdc and agents keep two frontmatter keys.
+    ("src/cursor/skills/", ".claude/skills/", None),
+    ("src/cursor/lib/", ".claude/lib/", None),
+    ("src/cursor/rules/", ".claude/rules/", (".mdc", ".md")),
+    ("src/cursor/agents/", ".claude/agents/", None),
     # ADR-115 Decision 7: the Codex plugin tree copies the same skill files and
     # lib packages. SKILL.md differs by the dropped model keys, which carry no
     # suppression comment; every script is a byte copy, so
@@ -837,6 +846,11 @@ _PROMPT_ROLE_FILE_RE = re.compile(r"^[a-z][a-z0-9_-]*\.md$")
 # the generator never visits must not gain an exemption merely because a
 # canonical file with the same name is tracked.
 _COPILOT_SKILL_EXCLUDES = frozenset({"AGENTS.md", "CLAUDE.md", "merge-resolver"})
+# ADR-115 Decision 6: a Hermes pack copies skills/<name>/ and lib/ byte for byte
+# from the install tree, one pack directory deep (build/scripts/hermes_packs.py).
+# A SKILL.md there is not a byte copy (the build cuts its frontmatter), so
+# `_is_verbatim_mirror` keeps flagging any suppression it carries.
+_HERMES_PACK_MIRROR_RE = re.compile(r"^src/hermes/project-toolkit-[a-z0-9-]+/(skills|lib)/(.+)$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -3307,6 +3321,37 @@ def extract_session_episodes(paths: Sequence[str], repo_root: Path) -> int:
     return 0
 
 
+def _hermes_pack_mirror_source(relative_path: str) -> str | None:
+    """Map ``src/hermes/<pack>/{skills,lib}/<rest>`` to its ``.claude/`` source, else None."""
+    match = _HERMES_PACK_MIRROR_RE.match(relative_path)
+    if match is None:
+        return None
+    tree, remainder = match.groups()
+    if ".." in PurePosixPath(remainder).parts:
+        return None
+    return f".claude/{tree}/{remainder}"
+
+
+def _table_mirror_source(relative_path: str) -> str | None:
+    """Map a path under a ``_GENERATED_MIRRORS`` output prefix to its source, else None."""
+    for output_prefix, source_prefix, suffix_map in _GENERATED_MIRRORS:
+        if not relative_path.startswith(output_prefix):
+            continue
+        remainder = relative_path[len(output_prefix) :]
+        if suffix_map is not None:
+            output_suffix, source_suffix = suffix_map
+            if not remainder.endswith(output_suffix):
+                continue
+            remainder = remainder[: -len(output_suffix)] + source_suffix
+        # Strip matcher-shim suffix for hook shims only: generate_hooks_emit
+        # appends __{sanitized}_{6hex} to hook shims. The canonical source has
+        # no suffix, so strip before lookup. No-op when absent. Refs #4857.
+        if source_prefix == ".claude/hooks/":
+            remainder = _HOOK_MATCHER_SUFFIX_RE.sub("", remainder)
+        return source_prefix + remainder
+    return None
+
+
 def _mirror_source(relative_path: str) -> str | None:
     """Return the canonical source a generated mirror was built from, or None.
 
@@ -3328,22 +3373,10 @@ def _mirror_source(relative_path: str) -> str | None:
         if skill_name in _COPILOT_SKILL_EXCLUDES:
             return None
 
-    for output_prefix, source_prefix, suffix_map in _GENERATED_MIRRORS:
-        if not relative_path.startswith(output_prefix):
-            continue
-        remainder = relative_path[len(output_prefix) :]
-        if suffix_map is not None:
-            output_suffix, source_suffix = suffix_map
-            if not remainder.endswith(output_suffix):
-                continue
-            remainder = remainder[: -len(output_suffix)] + source_suffix
-        # Strip matcher-shim suffix for hook shims only: generate_hooks_emit
-        # appends __{sanitized}_{6hex} to hook shims. The canonical source has
-        # no suffix, so strip before lookup. No-op when absent. Refs #4857.
-        if source_prefix == ".claude/hooks/":
-            remainder = _HOOK_MATCHER_SUFFIX_RE.sub("", remainder)
-        return source_prefix + remainder
-    return None
+    if relative_path.startswith("src/hermes/"):
+        return _hermes_pack_mirror_source(relative_path)
+
+    return _table_mirror_source(relative_path)
 
 
 # Git's fatal exit. `ls-files --error-unmatch` exits 1 for a path that is simply

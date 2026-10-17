@@ -39,6 +39,7 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_SCRIPT_DIR))
 sys.path.insert(0, str(_SCRIPT_DIR / "scripts"))
 
+from agent_tree_copy import uses_agent_tree_copy  # noqa: E402
 from drift_allowlist import (  # noqa: E402
     AllowedDivergence,
     AllowlistError,
@@ -410,6 +411,10 @@ def generate_agents(
             legacy: dict[str, object] = _legacy_raw if isinstance(_legacy_raw, dict) else {}
             _stanza_raw = platform.get("__agents_stanza__")
             agents_stanza: dict[str, object] = _stanza_raw if isinstance(_stanza_raw, dict) else {}
+            if uses_agent_tree_copy(agents_stanza):
+                # ADR-115 Decision 2: this platform copies src/claude/agents with a
+                # frontmatter allow-list (build/scripts/agent_tree_copy.py).
+                continue
             configured_output_dir = str(
                 legacy.get(
                     "outputDir",

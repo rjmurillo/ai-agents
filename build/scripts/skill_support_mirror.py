@@ -41,6 +41,7 @@ from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
 from skill_copy_compare import SKILL_MD as _SKILL_MD  # noqa: E402
 from skill_copy_compare import copy_matches, text_matches, tree_sources  # noqa: E402
 from skill_distribution import SkillDistributionError, repo_local_names  # noqa: E402
+from skill_md_rewrite import GenerateSkillsError, rewrite_skill_md  # noqa: E402
 from skill_templates import discover as discover_skill_templates  # noqa: E402
 
 _DEFAULT_EXCLUDES = ("AGENTS.md", "CLAUDE.md")
@@ -57,10 +58,6 @@ _DEFAULT_EXCLUDES = ("AGENTS.md", "CLAUDE.md")
 # publicly-shipping Copilot toolkit (see templates/platforms/copilot-cli.yaml).
 _CLAUDE_SUPPORT_SOURCE_REL = Path(".claude") / "skills"
 _CLAUDE_SUPPORT_TARGET_REL = Path("src") / "claude" / "skills"
-
-
-class GenerateSkillsError(Exception):
-    """Domain error for skill generation. Wraps copy/load issues."""
 
 
 class SkillSupportSyncError(GenerateSkillsError):
@@ -120,6 +117,7 @@ def _copy_skill_tree(
     plugin_skill_md: Path | None = None,
     skip_filenames: frozenset[Path] = frozenset(),
     frontmatter_drop: frozenset[str] = frozenset(),
+    frontmatter_keep: frozenset[str] | None = None,
 ) -> tuple[int, int]:
     """Copy a single skill directory into ``target``.
 
@@ -163,6 +161,9 @@ def _copy_skill_tree(
     applies with ``skills_output_dir``, the translate branch (ADR-111). Without
     it, a non-empty list still drops those keys and keeps the body (ADR-115).
 
+    ``frontmatter_keep`` (ADR-115 Decision 2) is Cursor's allow-list cut of the
+    top-level ``SKILL.md`` frontmatter; see ``skill_md_rewrite.py``.
+
     ``check``, when set, never writes either, but (unlike ``what_if``)
     counts every mismatch into ``written``: a caller running a staleness
     gate needs a number to escalate on, not just a printed intention. A
@@ -176,7 +177,9 @@ def _copy_skill_tree(
     """
     written = 0
     skipped = 0
-    renders_skill_md = skills_output_dir is not None or bool(frontmatter_drop)
+    renders_skill_md = (
+        skills_output_dir is not None or frontmatter_keep is not None or bool(frontmatter_drop)
+    )
     for src_path in tree_sources(source, plugin_skill_md if renders_skill_md else None):
         if src_path.is_dir():
             continue
@@ -196,13 +199,23 @@ def _copy_skill_tree(
             continue
 
         try:
-            translated = translated_text(
-                rel, src_path, plugin_skill_md, skills_output_dir, frontmatter_drop
+            skill_text = rewrite_skill_md(
+                src_path,
+                rel,
+                skills_output_dir=skills_output_dir,
+                plugin_skill_md=plugin_skill_md,
+                frontmatter_drop=frontmatter_drop,
+                frontmatter_keep=frontmatter_keep,
             )
+            if skill_text is None:
+                # Copilot also translates references/*.md (issue #5657).
+                skill_text = translated_text(
+                    rel, src_path, plugin_skill_md, skills_output_dir, frontmatter_drop
+                )
         except SupportTranslationError as exc:
             raise GenerateSkillsError(str(exc)) from exc
-        if translated is not None:
-            if text_matches(dst_path, translated):
+        if skill_text is not None:
+            if text_matches(dst_path, skill_text):
                 continue
             if check:
                 print(f"  DRIFT: {dst_path} differs from {src_path}")
@@ -212,7 +225,7 @@ def _copy_skill_tree(
                 print(f"  Would copy: {src_path} -> {dst_path}")
                 continue
             dst_path.parent.mkdir(parents=True, exist_ok=True)
-            publish_bytes_preserving_mode(dst_path, translated.encode("utf-8"))
+            publish_bytes_preserving_mode(dst_path, skill_text.encode("utf-8"))
         else:
             if copy_matches(dst_path, src_path):
                 continue
