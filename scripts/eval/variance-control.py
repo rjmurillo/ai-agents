@@ -38,7 +38,7 @@ if str(_EVAL_DIR) not in sys.path:
     sys.path.insert(0, str(_EVAL_DIR))
 
 from _eval_api_adapter import AnthropicAPIAdapter  # noqa: E402
-from _scoring_engine import _VERDICT_RE  # noqa: E402
+from _scoring_engine import _VERDICT_RE, expected_verdicts  # noqa: E402
 
 DEFAULT_MODEL = "claude-sonnet-4-6"
 DEFAULT_REPS = 20
@@ -161,13 +161,16 @@ def verdict_distribution(verdicts: list[str | None]) -> dict:
 
 
 def pass_rate_variance(verdicts: list[str | None], expected: str) -> dict:
-    """Pass rate (verdict == expected) and its variance across reps.
+    """Pass rate (verdict in expected) and its variance across reps.
 
+    ``expected`` may list alternatives (``"IDENTIFY|ESCALATE"``); a rep passes
+    when its verdict is any of them, matching ``verdict_scorer``.
     ``pass_variance`` requires at least 2 data points for ``statistics.pvariance``;
     with fewer samples, variance is reported as 0.0.
     """
     expected_upper = expected.upper()
-    passes = [1 if (v is not None and v.upper() == expected_upper) else 0 for v in verdicts]
+    accepted = expected_verdicts(expected)
+    passes = [1 if (v is not None and v.upper() in accepted) else 0 for v in verdicts]
     rep_count = len(passes)
     return {
         "expected": expected_upper,

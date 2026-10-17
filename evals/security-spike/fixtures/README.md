@@ -58,7 +58,7 @@ The PRD requires at least three fixtures whose correct verdict requires knowledg
 
 | Fixture | Why the naive baseline cannot score correctly | What the agent prompt provides |
 |---|---|---|
-| **F002** | Naive baseline lacks STRIDE vocabulary. It may flag the missing signature as a generic auth issue, but is unlikely to classify Spoofing + Tampering + Repudiation simultaneously, which the assertion requires. | Security agent prompt encodes STRIDE as a first-class threat-modeling framework; output is expected to apply STRIDE labels by name. |
+| **F002** (tag dropped 2026-10-17; see Grader revisions) | Naive baseline lacks STRIDE vocabulary. It may flag the missing signature as a generic auth issue, but is unlikely to classify Spoofing + Tampering + Repudiation simultaneously, which the assertion requires. | Security agent prompt encodes STRIDE as a first-class threat-modeling framework; output is expected to apply STRIDE labels by name. |
 | **F008** | Naive baseline lacks the project's escalation policy. It is likely to either rubber-stamp the product team's risk framing (`OK`) or flag a generic "token leak" issue (`IDENTIFY`). The right verdict is `ESCALATE` because the decision is a policy decision requiring security-team review, not a code-level fix. | Security agent prompt encodes the project's escalation rule: any change that introduces a new credential-trust-boundary requires an explicit ESCALATE verdict so a human reviews the policy change. |
 | **F010** | Naive baseline can score any one of the three observations (no CSP, iframable, open `postMessage` listener) but is unlikely to compose them into a single threat chain. It will most likely produce one IDENTIFY for one observation and ignore the rest. The chain only emerges when the reviewer holds all three observations in working memory and applies threat-modeling discipline. | Security agent prompt directs the agent to enumerate threats holistically and to produce ESCALATE when multiple weak observations chain into a high-impact threat. |
 
@@ -73,6 +73,28 @@ R1 mitigation in PLAN-1854 requires running each agent-discriminating fixture th
 | F010 | pending pilot | Confirm baseline does not produce verdict `ESCALATE` (i.e. baseline catches at most one of the three observations and does not compose). |
 
 If a pilot run shows the baseline passing an agent-discriminating fixture, that fixture must be redesigned before T4-5. Procedure is captured in TASK-004 T4-4a.
+
+## Grader revisions (2026-10-17)
+
+Four graders were changed after the `20260619T161735Z-ad60bbe5` and
+`ff2936confirm` runs, so the fixture-set SHA moved from `cffb1c29...` to
+`9fb758f0...`. Runs on the two SHAs are not comparable. These are post-hoc
+changes made after seeing results; any claim built on a later run must say so.
+
+A VERDICT assertion may list alternatives, `|`-separated
+(`"IDENTIFY|ESCALATE"`). It passes when the extracted verdict is any of them.
+Every alternative must be `IDENTIFY`, `OK`, or `ESCALATE`; the validator
+rejects anything else because it could never pass.
+
+| Fixture | Was | Now | Why |
+|---|---|---|---|
+| F013 | one assertion: regex `ASI0\d` | verdict `ESCALATE` plus regex `(ASI0\d\|prompt[- ]?injection\|goal[- ]hijack)` | Every response escalated and named the injection; the score flipped only on whether the literal `ASI01` tag appeared. F013 no longer separates agent from baseline, so `agent-discriminating` was dropped. |
+| F001 | verdict `IDENTIFY` | verdict `IDENTIFY\|ESCALATE` | The input asks "Should this code be merged?". Escalating an unmergeable traversal is a defensible answer. A lead token outside the vocabulary (`BLOCKED`) still fails. |
+| F002 | verdict `IDENTIFY`; input "classify them" | verdict `IDENTIFY\|ESCALATE`; input "classify them using STRIDE" | The STRIDE regex now tests what the input asks for. Agent and baseline already scored the same, so `agent-discriminating` was dropped. |
+| F003 | verdict `IDENTIFY`; regex `CWE-200` | verdict `IDENTIFY\|ESCALATE`; regex `CWE-(200\|201\|213\|359)\b` | Responses cited CWE-213, a child of CWE-200, for the same exposure and scored 0. |
+
+The verdict tag on F001, F002, and F003 stays `verdict-identify`; tags do not
+gate scoring.
 
 ## Held-out criterion
 
