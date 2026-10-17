@@ -26,7 +26,7 @@ Plan shape:
     {"project": "acme", "mode": "workflow" | "knowledge",
      "items": [{"id": "I1", "skill": "acme-change-control",
                 "lens": "change-control", "claim": "...",
-                "evidence": ["commit abc123"], "computable": true,
+                "evidence": ["commit abc123"], "computable": true | false,
                 "form": "instrument" | "scaffold" | "both",
                 "script": "scripts/gates_for_path.py", "why": "...",
                 "baseline_case": "C3"}]}
@@ -55,6 +55,10 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
 NAME_RE = re.compile(r"[a-z](?:[a-z0-9-]*[a-z0-9])?")
+# Same rule as `bootstrap_boundary.name_defects`: at most 64 characters, no `--`.
+# Skill scripts do not import each other, so the rule is repeated here and a
+# test asserts the three scripts agree.
+MAX_SKILL_NAME = 64
 OTHER_LENS_RE = re.compile(r"other:[a-z0-9]+(?:-[a-z0-9]+)*")
 LENSES = frozenset(
     {
@@ -112,6 +116,12 @@ def script_defect(script: Any) -> str | None:
     return None
 
 
+def valid_skill_name(name: Any) -> bool:
+    if not isinstance(name, str) or len(name) > MAX_SKILL_NAME or "--" in name:
+        return False
+    return NAME_RE.fullmatch(name) is not None
+
+
 def _lens_ok(lens: Any) -> bool:
     return isinstance(lens, str) and (lens in LENSES or OTHER_LENS_RE.fullmatch(lens) is not None)
 
@@ -128,9 +138,13 @@ def _identity_violations(item: Payload, label: str, seen: set[str]) -> list[Viol
     elif item_id in seen:
         found.append(_violation(label, "duplicate-id", f"id {item_id!r} appears more than once"))
     skill = item.get("skill")
-    if not isinstance(skill, str) or not NAME_RE.fullmatch(skill):
+    if not valid_skill_name(skill):
         found.append(
-            _violation(label, "skill-name", f"skill {skill!r} is not lowercase hyphen-case")
+            _violation(
+                label,
+                "skill-name",
+                f"skill {skill!r} is not lowercase hyphen-case, 64 characters or fewer, with no '--'",
+            )
         )
     if not _lens_ok(item.get("lens")):
         found.append(
@@ -163,7 +177,7 @@ def _form_violations(item: Payload, label: str) -> list[Violation]:
     form = item.get("form")
     computable = item.get("computable")
     found: list[Violation] = []
-    if computable is not None and not isinstance(computable, bool):
+    if not isinstance(computable, bool):
         found.append(_violation(label, "computable-type", "computable must be true or false"))
     if form not in FORMS:
         found.append(_violation(label, "form-invalid", f"form {form!r} is not one of {FORMS}"))
@@ -192,7 +206,7 @@ def _script_missing(item: Payload, label: str, skills_root: Path) -> list[Violat
     if item.get("form") not in SCRIPT_FORMS or script_defect(item.get("script")) is not None:
         return []
     skill = item.get("skill")
-    if not isinstance(skill, str) or not NAME_RE.fullmatch(skill):
+    if not valid_skill_name(skill):
         return []
     parts = PurePosixPath(item["script"].strip().replace("\\", "/")).parts
     target = skills_root / skill / Path(*parts)

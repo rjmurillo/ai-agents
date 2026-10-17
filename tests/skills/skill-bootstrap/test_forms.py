@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import runpy
 import subprocess
 import sys
@@ -154,14 +155,23 @@ def test_computable_scaffold_is_flagged(capsys, tmp_path):
     assert rules(payload) == ["computable-needs-instrument"]
 
 
-@pytest.mark.parametrize("computable", [False, None])
-def test_noncomputable_scaffold_with_why_passes(capsys, tmp_path, computable):
-    item = make_item(form="scaffold", computable=computable, script=None, why="needs judgment")
+def test_noncomputable_scaffold_with_why_passes(capsys, tmp_path):
+    item = make_item(form="scaffold", computable=False, script=None, why="needs judgment")
 
     code, payload = run_check(capsys, tmp_path, [item])
 
     assert code == 0
     assert payload["computable_share"] == 0.0
+
+
+def test_missing_computable_is_flagged(capsys, tmp_path):
+    item = make_item(form="scaffold", computable=None, script=None, why="needs judgment")
+    assert "computable" not in item
+
+    code, payload = run_check(capsys, tmp_path, [item])
+
+    assert code == 1
+    assert rules(payload) == ["computable-type"]
 
 
 def test_non_boolean_computable_is_flagged(capsys, tmp_path):
@@ -435,3 +445,61 @@ def test_unknown_lens_message_lists_the_valid_ids(capsys, tmp_path):
     message = payload["violations"][0]["message"]
     assert "build-and-env" in message
     assert "other:<kebab-name>" in message
+
+
+@pytest.mark.parametrize("skill", ["a--b", "a" * 65])
+def test_skill_name_with_double_hyphen_or_over_64_chars_is_flagged(capsys, tmp_path, skill):
+    code, payload = run_check(capsys, tmp_path, [make_item(skill=skill)])
+
+    assert code == 1
+    assert rules(payload) == ["skill-name"]
+
+
+def test_skill_name_of_64_chars_passes(capsys, tmp_path):
+    code, _ = run_check(capsys, tmp_path, [make_item(skill="a" * 64)])
+
+    assert code == 0
+
+
+REFERENCES = SCRIPT.parent.parent / "references"
+# discovery.md names each lens in prose; the plan uses the kebab id.
+DISCOVERY_LENS_IDS = {
+    "Change control": "change-control",
+    "Debugging playbook": "debugging-playbook",
+    "Failure archaeology": "failure-archaeology",
+    "Architecture contract": "architecture-contract",
+    "Domain reference": "domain-reference",
+    "Configuration and flags": "config-and-flags",
+    "Build and environment": "build-and-env",
+    "Run and operate": "run-and-operate",
+    "Diagnostics and tooling": "diagnostics-and-tooling",
+    "Validation and QA": "validation-and-qa",
+    "Documentation and writing": "docs-and-writing",
+    "External positioning": "external-positioning",
+    "Hardest-problem campaign": "hardest-problem-campaign",
+    "Proof and analysis toolkit": "proof-and-analysis-toolkit",
+    "Research frontier": "research-frontier",
+    "Research methodology": "research-methodology",
+}
+
+
+def test_lenses_match_the_authoring_table():
+    text = (REFERENCES / "authoring-and-gates.md").read_text(encoding="utf-8")
+    row = next(line for line in text.splitlines() if line.startswith("| `lens` |"))
+    ids = {m for m in re.findall(r"`([a-z][a-z-]*)`", row.split("|")[2]) if m != "other"}
+
+    assert ids == set(bootstrap_forms.LENSES)
+
+
+def test_lenses_match_the_discovery_table():
+    text = (REFERENCES / "discovery.md").read_text(encoding="utf-8")
+    rows = text.split("| Lens | Instruction for discovery | Usual form |", 1)[1].splitlines()[2:]
+    names = []
+    for line in rows:
+        if not line.startswith("|"):
+            break
+        names.append(line.split("|")[1].strip())
+
+    assert set(names) == set(DISCOVERY_LENS_IDS)
+    assert len(names) == len(DISCOVERY_LENS_IDS)
+    assert set(DISCOVERY_LENS_IDS.values()) == set(bootstrap_forms.LENSES)
