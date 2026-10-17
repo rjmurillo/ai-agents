@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Capability eval for skill-bootstrap: before/after on real repository tasks.
 
-Runs each frozen task in `evals/skill-bootstrap-capability/tasks.json` through
+Runs each frozen task in `evals/skill-bootstrap-capability/fixtures/tasks.json` through
 the Claude CLI inside a checkout that carries one version of the skill, then
 grades the final JSON answer against gold fixed before implementation. The
 condition differs only by the checkout, so the score difference measures the
@@ -34,14 +34,14 @@ from pathlib import Path
 from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_TASKS = REPO_ROOT / "evals" / "skill-bootstrap-capability" / "tasks.json"
+DEFAULT_TASKS = REPO_ROOT / "evals" / "skill-bootstrap-capability" / "fixtures" / "tasks.json"
 DEFAULT_MODEL = "claude-haiku-5-5"
 RUN_TIMEOUT_S = 1200
 JSON_BLOCK = re.compile(r"```json\s*(\{.*?\})\s*```", re.DOTALL)
 
 
 def load_tasks(path: Path) -> dict[str, Any]:
-    data = json.loads(path.read_text(encoding="utf-8"))
+    data: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(data.get("tasks"), list) or not data["tasks"]:
         raise ValueError(f"{path}: 'tasks' must be a non-empty list")
     for task in data["tasks"]:

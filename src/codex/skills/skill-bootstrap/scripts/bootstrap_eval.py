@@ -389,13 +389,13 @@ def _case_row(case: Payload, tally: dict[tuple[str, str], list[bool]]) -> Payloa
     base_flags = tally.get((case["id"], "baseline"), [])
     with_flags = tally.get((case["id"], "with_skill"), [])
     baseline, with_skill = _rate(base_flags), _rate(with_flags)
-    complete = baseline is not None and with_skill is not None
+    delta = with_skill - baseline if baseline is not None and with_skill is not None else None
     return {
         "id": case["id"],
         "skill": case["skill"],
         "baseline_pass_rate": baseline,
         "with_skill_pass_rate": with_skill,
-        "delta": with_skill - baseline if complete else None,
+        "delta": delta,
         "status": _status(baseline, with_skill),
         "baseline_runs": len(base_flags),
         "with_skill_runs": len(with_flags),

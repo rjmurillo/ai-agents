@@ -41,7 +41,7 @@ mode for a handoff, and mines candidates with the script. Existing behavior did 
 
 ## Layer 2: capability on this repository
 
-`scripts/eval/eval_skill_bootstrap_capability.py`, tasks in `../../tasks.json`. Each run is
+`scripts/eval/eval_skill_bootstrap_capability.py`, tasks in `../../fixtures/tasks.json`. Each run is
 `claude-haiku-5-5` through `claude -p` in a checkout that carries one skill version, with tools
 on and file edits disallowed. Answers are graded against gold derived independently of the new
 scripts. 3 runs per task per condition.
@@ -75,6 +75,7 @@ script is harder to write. Those stay candidates.
 
 ## Findings outside the task
 
-- `ai-agents-research-methodology/SKILL.md:275-276` cites `AGENTS.md:40` and `AGENTS.md:38`; `AGENTS.md` has 24 lines.
+<!-- citation-freshness: ignore -- these AGENTS.md line numbers are the stale citations this finding reports, not citations this report relies on -->
+- `.claude/skills/ai-agents-research-methodology/SKILL.md:275-276` cites `AGENTS.md:40` and `AGENTS.md:38`; `AGENTS.md` has 24 lines.
 - `ai-agents-architecture-contract`, `ai-agents-portability-campaign`, and `ai-agents-research-frontier` cite `tests/build_scripts/test_copilot_dispatcher_artifact.py`, deleted by `f79e70c01` (ADR-097).
-- `ai-agents-config-catalog/SKILL.md:122` lists `.claude/.claude-plugin/plugin.json` as a live manifest; it is retired.
+- `.claude/skills/ai-agents-config-catalog/SKILL.md:122` lists `.claude/.claude-plugin/plugin.json` as a live manifest; it is retired.

@@ -66,7 +66,8 @@ def run(
 
 
 def only_check(payload: dict[str, Any]) -> dict[str, Any]:
-    return payload["skills"][0]["checks"][0]
+    check: dict[str, Any] = payload["skills"][0]["checks"][0]
+    return check
 
 
 def check_one(

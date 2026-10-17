@@ -18,7 +18,7 @@ depends on. Each piece of knowledge takes one of two **tool forms**:
 | Form | Analogy | Ships as | Use for |
 |---|---|---|---|
 | **scaffold** | a map | prose the model reasons with | rationale, invariants, failure history, evidence bar, judgment calls |
-| **instrument** | a GPS | a deterministic script in the skill's `scripts/` | anything computable from repository state: gate lookups, path checks, counts, rankings |
+| **instrument** | a GPS | a deterministic script in the skill's scripts directory | anything computable from repository state: gate lookups, path checks, counts, rankings |
 | **both** | map plus GPS | script plus the prose that says why and where its answer stops | most load-bearing knowledge |
 
 The goal is **capability**: what an agent achieves *with* the skill. It is

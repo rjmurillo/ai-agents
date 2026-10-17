@@ -104,7 +104,7 @@ def validate_schema(data: Any) -> list[Payload]:
     """Return the checks of a parsed reverify.json, or raise SchemaError."""
     if not isinstance(data, dict) or not isinstance(data.get("checks"), list):
         raise SchemaError("top level must be an object with a checks list")
-    checks = data["checks"]
+    checks: list[Payload] = data["checks"]
     if not checks:
         raise SchemaError("checks must not be empty")
     seen: set[str] = set()

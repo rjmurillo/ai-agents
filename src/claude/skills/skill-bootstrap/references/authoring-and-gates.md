@@ -42,7 +42,7 @@ check` validates it; Phase 4 passes each item to `skillforge`.
 | `evidence` | Non-empty list of source references: commit, PR thread, issue, file, decision record |
 | `computable` | `true` when a program can answer the claim from repository state |
 | `form` | `scaffold`, `instrument`, or `both`. `computable: true` forbids `scaffold` |
-| `script` | Required for `instrument` and `both`: a path under the skill's `scripts/` |
+| `script` | Required for `instrument` and `both`: a path in the skill's scripts directory |
 | `why` | Required for `scaffold`: why no program can carry it |
 | `baseline_case` | Required in `knowledge` mode: the eval case id that shows the gap |
 
@@ -99,7 +99,7 @@ thin: triggers, outcomes, decisions, feature order, essential hints, and
 sibling routes. Put conditional detail in `references/`.
 
 **Every computable claim ships with a script.** For each `instrument` or
-`both` item, the skill gets a script under `scripts/` that computes the
+`both` item, the skill gets a script in its scripts directory that computes the
 answer, plus tests with a positive, a negative, and an edge case. Reuse an
 existing project script when one computes the answer; link it instead of
 copying it. Prose covers what no program can carry: the reason, the
