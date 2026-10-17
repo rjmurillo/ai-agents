@@ -223,8 +223,9 @@ def _regex(grader: Payload) -> Grade:
         raise ConfigError(f"regex pattern is longer than {MAX_PATTERN_CHARS} characters")
     if _has_nested_quantifier(pattern):
         raise ConfigError("regex pattern has a quantified group that holds a quantifier")
+    # Compile only to surface a bad pattern at freeze time; the search runs in a child.
     try:
-        compiled = re.compile(pattern, re.IGNORECASE if ignore_case else 0)
+        re.compile(pattern, re.IGNORECASE if ignore_case else 0)
     except (re.error, OverflowError, RecursionError) as exc:
         raise ConfigError(f"regex pattern does not compile: {exc}") from exc
     return lambda output: _search_with_deadline(pattern, ignore_case, output)
