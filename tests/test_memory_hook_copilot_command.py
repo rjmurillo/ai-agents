@@ -21,7 +21,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 (ENTRY,) = json.loads(
     (REPO_ROOT / ".github" / "hooks" / "memory-recall.json").read_text(encoding="utf-8")
 )["hooks"]["userPromptTransformed"]
-PROMPT = "how does dispatch group registration work"
+PROMPT = "how does claude hook group dispatch work"
 CLOUD_VARS = ("COPILOT_AGENT_PROMPT", "GITHUB_COPILOT_API_TOKEN")
 
 pytestmark = pytest.mark.skipif(
