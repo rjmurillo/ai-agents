@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -111,7 +112,7 @@ def test_kill_group_tolerates_killpg_oserror(monkeypatch):
     monkeypatch.setattr(drift.os, "killpg", gone)
     proc = _Proc()
 
-    drift._kill_group(proc)  # type: ignore[arg-type]
+    drift._kill_group(cast("subprocess.Popen[bytes]", proc))
 
     assert proc.killed and proc.waited
 
@@ -120,6 +121,6 @@ def test_kill_group_without_killpg_still_kills_the_child(monkeypatch):
     monkeypatch.delattr(drift.os, "killpg", raising=False)
     proc = _Proc()
 
-    drift._kill_group(proc)  # type: ignore[arg-type]
+    drift._kill_group(cast("subprocess.Popen[bytes]", proc))
 
     assert proc.killed and proc.waited
