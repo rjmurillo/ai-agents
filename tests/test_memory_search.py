@@ -401,6 +401,29 @@ class TestSearchPathQualifiedIds:
 
     @pytest.mark.unit
     @patch("memory_enhancement.search._search_with_ripgrep")
+    def test_folder_name_ignored_with_windows_separator(self, mock_rg, tmp_path: Path):
+        from dataclasses import replace
+
+        from memory_enhancement import search as search_module
+        from memory_enhancement.serena_integration import load_memory
+
+        sub = tmp_path / "github"
+        sub.mkdir()
+        md = sub / "unrelated-entry.md"
+        md.write_text("# Unrelated Entry (2026-01-01)\n\ngithub tokens\n", encoding="utf-8")
+        mock_rg.return_value = [md]
+
+        def windows_ids(path, root=None):
+            memory = load_memory(path, root)
+            return replace(memory, memory_id=memory.memory_id.replace("/", "\\"))
+
+        with patch.object(search_module, "load_memory", windows_ids):
+            results = search_memories("github tokens", tmp_path, repo_root=tmp_path)
+        assert results[0].memory_id == "github\\unrelated-entry"
+        assert results[0].relevance == 0.0
+
+    @pytest.mark.unit
+    @patch("memory_enhancement.search._search_with_ripgrep")
     def test_basename_still_counts_toward_relevance(self, mock_rg, tmp_path: Path):
         sub = tmp_path / "github"
         sub.mkdir()

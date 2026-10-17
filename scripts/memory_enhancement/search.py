@@ -295,9 +295,10 @@ def _score_memory_file(
     confidence = calculate_confidence(memory, verification_results)
     citation_status = _determine_citation_status(verification_results)
     snippet = memory.content[:_SNIPPET_LENGTH]
-    # Score the basename only. A folder segment such as "github/" would give
+    # Score the file stem only. A folder segment such as "github/" would give
     # every memory in that folder a hit for a prompt that names the folder.
-    basename = memory.memory_id.rsplit("/", 1)[-1]
+    # The stem avoids splitting memory_id, whose separator is OS specific.
+    basename = file_path.stem
 
     return SearchResult(
         memory_id=memory.memory_id,
