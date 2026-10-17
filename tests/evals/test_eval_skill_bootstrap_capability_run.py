@@ -246,21 +246,51 @@ def test_non_object_tasks_file_is_a_config_error_for_score_too(tmp_path, capsys)
 # --- run_one error observability ---------------------------------------------
 
 
-def _patch_run(monkeypatch, outcome):
-    def fake(*args, **kwargs):
-        if isinstance(outcome, BaseException):
-            raise outcome
-        return outcome
+class FakeChild:
+    """Stand-in for Popen: communicate() returns the outcome or raises it once."""
 
-    monkeypatch.setattr(cap.subprocess, "run", fake)
+    pid = 4242
+    killed = False
+
+    def __init__(self, outcome):
+        self.outcome = outcome
+        self.returncode = getattr(outcome, "returncode", None)
+        self.calls = 0
+
+    def communicate(self, timeout=None):
+        self.calls += 1
+        if isinstance(self.outcome, BaseException) and self.calls == 1:
+            raise self.outcome
+        if isinstance(self.outcome, BaseException):
+            return "", ""
+        return self.outcome.stdout, self.outcome.stderr
+
+    def kill(self):
+        self.killed = True
+
+
+def _patch_run(monkeypatch, outcome):
+    child = FakeChild(outcome)
+    seen: dict[str, Any] = {}
+
+    def fake_popen(*args, **kwargs):
+        seen.update(kwargs)
+        return child
+
+    monkeypatch.setattr(cap.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(cap.os, "killpg", lambda pid, sig: seen.setdefault("killpg", (pid, sig)))
+    return child, seen
 
 
 def test_run_one_timeout_records_kind_and_stderr_tail(monkeypatch, tmp_path):
     exc = subprocess.TimeoutExpired("claude", 1, stderr=b"x" * 3000)
-    _patch_run(monkeypatch, exc)
+    child, seen = _patch_run(monkeypatch, exc)
 
     record = cap.run_one(tmp_path, "p", "m")
 
+    assert seen["start_new_session"] is True
+    assert seen["killpg"][0] == child.pid
+    assert child.killed is True
     assert record["error_kind"] == "timeout"
     assert record["returncode"] is None
     assert record["stderr"] == "x" * cap.STDERR_TAIL_CHARS
@@ -294,3 +324,114 @@ def test_run_one_success_has_no_error_fields(monkeypatch, tmp_path):
 
     assert record["is_error"] is False
     assert "error_kind" not in record
+
+
+def test_run_one_timeout_survives_killpg_oserror(monkeypatch, tmp_path):
+    child, _ = _patch_run(monkeypatch, subprocess.TimeoutExpired("claude", 1))
+
+    def gone(pid, sig):
+        raise ProcessLookupError
+
+    monkeypatch.setattr(cap.os, "killpg", gone)
+
+    record = cap.run_one(tmp_path, "p", "m")
+
+    assert record["error_kind"] == "timeout"
+    assert child.killed is True
+
+
+# --- extraction, deny rules, empty tasks, score paths -------------------------
+
+
+def test_extract_answer_unterminated_draft_does_not_hide_final_block():
+    text = '```json\n{"top": ["draft"\n```json\n{"top": ["final"]}\n```'
+
+    assert cap.extract_answer(text) == {"top": ["final"]}
+
+
+def test_extract_answer_returns_none_without_a_usable_block():
+    assert cap.extract_answer("no fences") is None
+    assert cap.extract_answer("```json\n[1]\n```") is None
+
+
+def test_eval_in_repo_flag_is_denied(monkeypatch, tmp_path):
+    seen: list[list[str]] = []
+    child = FakeChild(subprocess.CompletedProcess([], 0, "{}", ""))
+
+    def fake_popen(command, **kwargs):
+        seen.append(command)
+        return child
+
+    monkeypatch.setattr(cap.subprocess, "Popen", fake_popen)
+
+    cap.run_one(tmp_path, "p", "m")
+
+    denied = seen[0][seen[0].index("--disallowedTools") + 1 :]
+    assert cap.DENY_EVAL_IN_REPO in denied
+    assert "*--allow-in-repo*" in cap.DENY_EVAL_IN_REPO
+    assert "bootstrap_eval.py" in cap.DENY_EVAL_IN_REPO
+
+
+def test_empty_tasks_list_exits_2(tmp_path, checkout, monkeypatch):
+    _head(monkeypatch, "h")
+    data = {**TASKS, "tasks": []}
+
+    code = _run([], _write_tasks(tmp_path, data), checkout, tmp_path / "o.jsonl", "before")
+
+    assert code == 2
+
+
+def _record(task: str, condition: str, head: str, *, error: bool = False) -> dict[str, Any]:
+    return {
+        "task": task,
+        "condition": condition,
+        "model": "m",
+        "checkout_head": head,
+        "answer": {"top": ["c"]},
+        "is_error": error,
+        "num_turns": 1,
+        "cost_usd": 0.1,
+        "wall_s": 1.0,
+    }
+
+
+def _runs_file(tmp_path: Path, records: list[dict[str, Any]]) -> Path:
+    path = tmp_path / "r.jsonl"
+    path.write_text("\n".join(json.dumps(r) for r in records) + "\n", encoding="utf-8")
+    return path
+
+
+def test_score_unknown_task_id_exits_2(tmp_path, capsys):
+    tasks = _write_tasks(tmp_path, TASKS)
+    runs = _runs_file(tmp_path, [_record("ZZ", "before", "h1")])
+
+    code = cap.main(["score", "--runs", str(runs), "--tasks", str(tasks)])
+
+    assert code == 2
+    assert "unknown task" in capsys.readouterr().err
+
+
+def test_score_writes_out_file_and_warns_on_errors(tmp_path, capsys):
+    tasks = _write_tasks(tmp_path, TASKS)
+    records = [
+        _record(t, c, f"{c}-{t}", error=(t == "A" and c == "before" and i == 0))
+        for t in ("A", "B")
+        for c in ("before", "after")
+        for i in range(2)
+    ]
+    runs = _runs_file(tmp_path, records)
+    out = tmp_path / "report.json"
+
+    code = cap.main(["score", "--runs", str(runs), "--tasks", str(tasks), "--out", str(out)])
+
+    captured = capsys.readouterr()
+    assert code == 0
+    assert json.loads(out.read_text(encoding="utf-8"))["A"]["before"]["errors"] == 1
+    assert "warning" in captured.err and "A/before" in captured.err
+
+
+def test_load_records_skips_blank_lines_and_rejects_non_json(tmp_path):
+    path = tmp_path / "r.jsonl"
+    path.write_text("\n" + json.dumps(_record("A", "before", "h")) + "\n\n", encoding="utf-8")
+
+    assert len(cap.load_records(str(path), {"A"})) == 1

@@ -215,11 +215,36 @@ def test_score_rejects_a_record_missing_its_checkout_head(tmp_path, tasks_file, 
     assert "checkout_head" in capsys.readouterr().err
 
 
-def test_run_one_records_a_non_object_cli_payload_as_an_error(monkeypatch, tmp_path):
-    def fake_run(*args, **kwargs):
-        return subprocess.CompletedProcess(args, 0, "[1, 2]", "")
+class _Child:
+    pid = 1
 
-    monkeypatch.setattr(cap.subprocess, "run", fake_run)
+    def __init__(self, outcome):
+        self.outcome, self.returncode, self.timed_out = outcome, 0, False
+
+    def communicate(self, timeout=None):
+        if isinstance(self.outcome, BaseException) and not self.timed_out:
+            self.timed_out = True
+            raise self.outcome
+        if isinstance(self.outcome, BaseException):
+            return "", ""
+        return self.outcome.stdout, self.outcome.stderr
+
+    def kill(self):
+        pass
+
+
+def _patch_popen(monkeypatch, outcome, seen=None):
+    def fake_popen(argv, **kwargs):
+        if seen is not None:
+            seen.append(argv)
+        return _Child(outcome)
+
+    monkeypatch.setattr(cap.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(cap.os, "killpg", lambda pid, sig: None)
+
+
+def test_run_one_records_a_non_object_cli_payload_as_an_error(monkeypatch, tmp_path):
+    _patch_popen(monkeypatch, subprocess.CompletedProcess([], 0, "[1, 2]", ""))
 
     result = cap.run_one(tmp_path, "prompt", "model")
 
@@ -243,10 +268,7 @@ def test_frozen_fixture_loads():
 
 
 def test_run_one_records_a_timeout_as_an_error(monkeypatch, tmp_path):
-    def fake_run(*args, **kwargs):
-        raise subprocess.TimeoutExpired(cmd="claude", timeout=1)
-
-    monkeypatch.setattr(cap.subprocess, "run", fake_run)
+    _patch_popen(monkeypatch, subprocess.TimeoutExpired(cmd="claude", timeout=1))
 
     result = cap.run_one(tmp_path, "prompt", "model")
 
@@ -272,12 +294,7 @@ def test_prefix_precision_penalizes_a_prediction_that_matches_nothing():
 
 def test_run_one_grants_only_read_only_tools(monkeypatch, tmp_path):
     seen: list[list[str]] = []
-
-    def fake_run(argv, *args, **kwargs):
-        seen.append(argv)
-        return subprocess.CompletedProcess(argv, 0, "{}", "")
-
-    monkeypatch.setattr(cap.subprocess, "run", fake_run)
+    _patch_popen(monkeypatch, subprocess.CompletedProcess([], 0, "{}", ""), seen)
 
     cap.run_one(tmp_path, "prompt", "model")
 
@@ -290,12 +307,7 @@ def test_run_one_grants_only_read_only_tools(monkeypatch, tmp_path):
 
 def test_run_one_denies_bootstrap_drift_allow_commands(monkeypatch, tmp_path):
     seen: list[list[str]] = []
-
-    def fake_run(argv, *args, **kwargs):
-        seen.append(argv)
-        return subprocess.CompletedProcess(argv, 0, "{}", "")
-
-    monkeypatch.setattr(cap.subprocess, "run", fake_run)
+    _patch_popen(monkeypatch, subprocess.CompletedProcess([], 0, "{}", ""), seen)
 
     cap.run_one(tmp_path, "prompt", "model")
 

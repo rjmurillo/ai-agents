@@ -20,15 +20,17 @@ Exit codes:
     1 logic (a scored condition has no gradable run)
     2 config (bad tasks file, missing checkout, unreadable runs file,
       or runs that do not cover every task under both before and after)
-    3 external (Claude CLI missing)
+    3 external (Claude CLI missing, or git HEAD unreadable)
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shutil
+import signal
 import statistics
 import subprocess
 import sys
@@ -60,6 +62,10 @@ _SKILL_SCRIPTS = (
     "bootstrap_drift",
     "bootstrap_boundary",
 )
+# Deny rule: bootstrap_eval.py freeze writes inside the repository with --allow-in-repo.
+DENY_EVAL_IN_REPO = (
+    "Bash(python3 .claude/skills/skill-bootstrap/scripts/bootstrap_eval.py *--allow-in-repo*)"
+)
 READ_ONLY_TOOLS = (
     "Read",
     "Grep",
@@ -76,7 +82,9 @@ READ_ONLY_TOOLS = (
     ),
 )
 CONDITIONS = ("before", "after")
-JSON_BLOCK = re.compile(r"```json\s*(\{.*?\})\s*```", re.DOTALL)
+# Each fenced block ends at the next fence without consuming it, so an unterminated
+# draft block cannot swallow the opening fence of the final block.
+JSON_BLOCK = re.compile(r"```json[ \t]*\r?\n(.*?)(?=```)", re.DOTALL | re.IGNORECASE)
 
 
 def load_tasks(path: Path) -> dict[str, Any]:
@@ -185,36 +193,52 @@ def _failure_record(
     }
 
 
+def _kill_group(child: subprocess.Popen[str]) -> None:
+    """Kill the child's whole process group, then reap the child."""
+    try:
+        os.killpg(child.pid, signal.SIGKILL)
+    except OSError:
+        pass  # group already gone
+    child.kill()
+    child.communicate()
+
+
 def run_one(checkout: Path, prompt: str, model: str) -> dict[str, Any]:
     started = time.monotonic()
+    command = [
+        "claude",
+        "-p",
+        prompt,
+        "--model",
+        model,
+        "--output-format",
+        "json",
+        "--allowedTools",
+        *READ_ONLY_TOOLS,
+        "--disallowedTools",
+        "Edit",
+        "Write",
+        "NotebookEdit",
+        DENY_DRIFT_COMMANDS,
+        DENY_EVAL_IN_REPO,
+    ]
+    # Own session, so a timeout can kill the CLI and every tool process it spawned.
+    child = subprocess.Popen(
+        command,
+        cwd=checkout,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        start_new_session=True,
+    )
     try:
-        proc = subprocess.run(
-            [
-                "claude",
-                "-p",
-                prompt,
-                "--model",
-                model,
-                "--output-format",
-                "json",
-                "--allowedTools",
-                *READ_ONLY_TOOLS,
-                "--disallowedTools",
-                "Edit",
-                "Write",
-                "NotebookEdit",
-                DENY_DRIFT_COMMANDS,
-            ],
-            cwd=checkout,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=RUN_TIMEOUT_S,
-            check=False,
-        )
+        stdout, stderr = child.communicate(timeout=RUN_TIMEOUT_S)
     except subprocess.TimeoutExpired as exc:
+        _kill_group(child)
         return _failure_record("timeout", time.monotonic() - started, None, exc.stderr)
+    proc = subprocess.CompletedProcess(command, child.returncode, stdout, stderr)
     elapsed = time.monotonic() - started
     try:
         meta = json.loads(proc.stdout)
@@ -424,6 +448,14 @@ def cmd_score(args: argparse.Namespace) -> int:
                 "cost_usd": _mean([r["cost_usd"] for r in graded if r["cost_usd"] is not None]),
                 "wall_s": _mean([r["wall_s"] for r in graded]),
             }
+    for task, conditions in summary.items():
+        for condition, cell in conditions.items():
+            if cell["errors"] > 0:
+                print(
+                    f"warning: {task}/{condition} has {cell['errors']} of {cell['runs']} "
+                    "runs with CLI errors, excluded from the means",
+                    file=sys.stderr,
+                )
     text = json.dumps(summary, indent=2)
     if args.out:
         Path(args.out).write_text(text + "\n", encoding="utf-8")
@@ -433,9 +465,9 @@ def cmd_score(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(allow_abbrev=False, description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="cmd", required=True)
-    p_run = sub.add_parser("run", help="run tasks in one checkout")
+    p_run = sub.add_parser("run", allow_abbrev=False, help="run tasks in one checkout")
     p_run.add_argument("--checkout", required=True)
     p_run.add_argument("--condition", required=True, choices=CONDITIONS)
     p_run.add_argument("--tasks", default=str(DEFAULT_TASKS))
@@ -443,7 +475,7 @@ def main(argv: list[str] | None = None) -> int:
     p_run.add_argument("--model", default=DEFAULT_MODEL)
     p_run.add_argument("--reps", type=int, default=3)
     p_run.add_argument("--out", required=True)
-    p_score = sub.add_parser("score", help="aggregate run records")
+    p_score = sub.add_parser("score", allow_abbrev=False, help="aggregate run records")
     p_score.add_argument("--runs", nargs="+", required=True)
     p_score.add_argument("--tasks", default=str(DEFAULT_TASKS))
     p_score.add_argument("--out")
