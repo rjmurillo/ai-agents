@@ -119,6 +119,16 @@ def test_every_bundled_script_is_documented_with_the_portable_root(script: str) 
     assert f'python3 "{portable}"' in _skill_md()
 
 
+def test_every_script_on_disk_is_bundled_and_documented() -> None:
+    on_disk = {f"scripts/{p.name}" for p in (_skill_dir(".claude") / "scripts").glob("*.py")}
+    text = _skill_md()
+
+    assert on_disk == {rel for rel in BUNDLED if rel.startswith("scripts/")}
+    for rel in sorted(on_disk):
+        portable = PORTABLE_SCRIPT.replace("bootstrap_boundary.py", rel.removeprefix("scripts/"))
+        assert f'python3 "{portable}"' in text, rel
+
+
 def test_skill_md_defines_both_tool_forms_and_both_modes() -> None:
     text = _skill_md()
 

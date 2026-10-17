@@ -1047,3 +1047,101 @@ def test_no_dash_characters_in_script_text() -> None:
 
     assert "\u2014" not in text
     assert "\u2013" not in text
+
+
+# --- regex bounds (security review F1) --------------------------------------
+
+
+@pytest.mark.parametrize(
+    "pattern",
+    ["(a+)+$", "(a*)*", "(a+)?", "((a+))+", "(a{2})+", "(x+y)*z", "x" * 257],
+)
+def test_regex_rejects_unbounded_shapes(pattern: str) -> None:
+    with pytest.raises(bootstrap_eval.ConfigError):
+        bootstrap_eval.compile_grader({"kind": "regex", "pattern": pattern})
+
+
+@pytest.mark.parametrize(
+    "pattern",
+    ["(ab)+", "(a|b)*", "([a-z]+)", "([+*])+", "[]+]+", "[^]a]+", r"[\]+]+", r"\(a+\)+", "x" * 256],
+)
+def test_regex_accepts_bounded_shapes(pattern: str) -> None:
+    grade = bootstrap_eval.compile_grader({"kind": "regex", "pattern": pattern})
+
+    assert isinstance(grade("zzz"), bool)
+
+
+def test_regex_unbalanced_close_paren_is_a_config_error() -> None:
+    with pytest.raises(bootstrap_eval.ConfigError):
+        bootstrap_eval.compile_grader({"kind": "regex", "pattern": "a)+"})
+
+
+@pytest.mark.parametrize("pattern", ["(a+)+$", "a{99999999999}"])
+def test_freeze_rejects_dangerous_regex_with_exit_two(
+    capsys: Capsys, tmp_path: Path, pattern: str
+) -> None:
+    grader = {"kind": "regex", "pattern": pattern}
+
+    code, payload, out = freeze_raw(capsys, tmp_path, {"cases": [make_case(grader=grader)]})
+
+    assert code == 2
+    assert payload["error"] == "config"
+    assert not out.exists()
+
+
+def test_freeze_still_accepts_a_normal_regex(capsys: Capsys, tmp_path: Path) -> None:
+    grader = {"kind": "regex", "pattern": r"gates?\s+for\s+\w+"}
+
+    code, _, out = freeze_raw(capsys, tmp_path, {"cases": [make_case(grader=grader)]})
+
+    assert code == 0
+    assert out.exists()
+
+
+@pytest.mark.parametrize("error", [OverflowError, RecursionError])
+def test_regex_compile_overflow_and_recursion_are_config_errors(
+    monkeypatch: pytest.MonkeyPatch, error: type[Exception]
+) -> None:
+    def boom(*_args: Any) -> None:
+        raise error("too big")
+
+    monkeypatch.setattr(bootstrap_eval.re, "compile", boom)
+
+    with pytest.raises(bootstrap_eval.ConfigError):
+        bootstrap_eval.compile_grader({"kind": "regex", "pattern": "a"})
+
+
+def test_regex_grader_searches_only_the_first_100000_characters() -> None:
+    grade = bootstrap_eval.compile_grader({"kind": "regex", "pattern": "needle"})
+
+    assert grade("x" * 99_994 + "needle") is True
+    assert grade("x" * 100_000 + "needle") is False
+
+
+# --- result shape (security review F5c) -------------------------------------
+
+
+@pytest.mark.parametrize("case_id", [["C1"], {"a": 1}, 5, None])
+def test_score_rejects_unhashable_or_non_string_case_id(
+    capsys: Capsys, tmp_path: Path, case_id: Any
+) -> None:
+    frozen = freeze_cases(capsys, tmp_path, [make_case()])
+    results = write_results(
+        tmp_path / "r.jsonl", [{"case_id": case_id, "condition": "baseline", "output": "alpha"}]
+    )
+
+    code, payload = score(capsys, frozen, results)
+
+    assert code == 2
+    assert payload["error"] == "config"
+
+
+def test_score_rejects_results_that_are_not_utf8(capsys: Capsys, tmp_path: Path) -> None:
+    frozen = freeze_cases(capsys, tmp_path, [make_case()])
+    results = tmp_path / "r.jsonl"
+    results.write_bytes(b'{"case_id": "C1", "output": "\xff\xfe"}\n')
+
+    code, payload = score(capsys, frozen, results)
+
+    assert code == 2
+    assert "cannot read results" in payload["message"]

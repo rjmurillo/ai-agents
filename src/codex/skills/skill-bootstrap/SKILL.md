@@ -188,7 +188,7 @@ Skills decay as the repository moves. Run the drift check on a schedule, after a
 python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_drift.py" check --repo . --skills-root <output-root>
 ```
 
-Exit code 1 lists `update_candidates` and prints `update_args`. Start a bootstrap run with those `--name`/`--update` pairs. For a library authored before `reverify.json` existed, run `bootstrap_mine.py claims` on it instead.
+Exit code 1 lists `update_candidates` and gives `update_args` as a JSON list of argv tokens. Pass those tokens as separate arguments to a new bootstrap run; never paste them into a shell string. A skill directory whose name is not kebab-case is reported `malformed` and is left out of `update_args`. For a library authored before `reverify.json` existed, run `bootstrap_mine.py claims` on it instead.
 
 ## Scripts
 
@@ -205,7 +205,7 @@ Every script uses only the Python standard library, prints JSON with an `examine
 
 `bootstrap_boundary.py` detail: `plan` exits 1 on a conflict or an invalid name. `verify` exits 1 on a path outside the boundary, an existing skill changed without `--update`, an ignored file written in a skill (it would not ship), HEAD or branch moved, or index flags or `info/exclude` changed. Exit code 2 also covers an output root outside the allowed set; an output root, skill directory, or `--also-allow` path that git ignores; an `--also-allow` path outside the repository, under `.git`, or overlapping a skills root; a symlink in any of those paths; or a snapshot that already exists, is inside the repository, is unreadable, or is from another repository or output root. `verify` does not see gitignored files outside the output root, empty directories, other writes inside `.git/`, or tag, config, and push operations. It catches accidental writes by a cooperating run; it is not a sandbox. Only the Phase 1 snapshot counts, so `snapshot` refuses to overwrite an existing file. An unreadable file in the working tree stops `snapshot` with exit code 3 before any write.
 
-`bootstrap_drift.py` runs a `command` check only with `--allow-commands`; review the argv first, because it executes repository code.
+`bootstrap_drift.py` runs a `command` check only with `--allow-commands`; review the argv first, because it executes repository code. The command gets no stdin, discarded output, and only `PATH`, `HOME`, and locale variables from the environment. Never pass `--allow-commands` in a job that holds secrets or runs on untrusted pull request content.
 
 On Windows PowerShell 7, set the plugin root once, then run the same subcommands with `python`. The first non-empty value wins, as in the bash form:
 

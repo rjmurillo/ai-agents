@@ -54,8 +54,8 @@ import sys
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
-NAME_RE = re.compile(r"^[a-z](?:[a-z0-9-]*[a-z0-9])?$")
-OTHER_LENS_RE = re.compile(r"^other:[a-z0-9]+(?:-[a-z0-9]+)*$")
+NAME_RE = re.compile(r"[a-z](?:[a-z0-9-]*[a-z0-9])?")
+OTHER_LENS_RE = re.compile(r"other:[a-z0-9]+(?:-[a-z0-9]+)*")
 LENSES = frozenset(
     {
         "change-control",
@@ -113,7 +113,7 @@ def script_defect(script: Any) -> str | None:
 
 
 def _lens_ok(lens: Any) -> bool:
-    return isinstance(lens, str) and (lens in LENSES or OTHER_LENS_RE.match(lens) is not None)
+    return isinstance(lens, str) and (lens in LENSES or OTHER_LENS_RE.fullmatch(lens) is not None)
 
 
 def _evidence_ok(evidence: Any) -> bool:
@@ -128,7 +128,7 @@ def _identity_violations(item: Payload, label: str, seen: set[str]) -> list[Viol
     elif item_id in seen:
         found.append(_violation(label, "duplicate-id", f"id {item_id!r} appears more than once"))
     skill = item.get("skill")
-    if not isinstance(skill, str) or not NAME_RE.match(skill):
+    if not isinstance(skill, str) or not NAME_RE.fullmatch(skill):
         found.append(
             _violation(label, "skill-name", f"skill {skill!r} is not lowercase hyphen-case")
         )
@@ -185,7 +185,7 @@ def _script_missing(item: Payload, label: str, skills_root: Path) -> list[Violat
     if item.get("form") not in SCRIPT_FORMS or script_defect(item.get("script")) is not None:
         return []
     skill = item.get("skill")
-    if not isinstance(skill, str) or not NAME_RE.match(skill):
+    if not isinstance(skill, str) or not NAME_RE.fullmatch(skill):
         return []
     parts = PurePosixPath(item["script"].strip().replace("\\", "/")).parts
     target = skills_root / skill / Path(*parts)

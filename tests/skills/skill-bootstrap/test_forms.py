@@ -397,3 +397,31 @@ def test_module_entry_point_exits_with_main_status(monkeypatch, capsys):
         runpy.run_path(str(SCRIPT), run_name="__main__")
 
     assert excinfo.value.code == 2
+
+
+# --- security review F7: fullmatch, so a trailing newline is invalid --------
+
+
+@pytest.mark.parametrize("skill", ["acme\n", "acme-skill\n", "\nacme"])
+def test_skill_name_with_newline_is_flagged(capsys, tmp_path, skill):
+    code, payload = run_check(capsys, tmp_path, [make_item(skill=skill)])
+
+    assert code == 1
+    assert rules(payload) == ["skill-name"]
+
+
+@pytest.mark.parametrize("lens", ["other:my-lens\n", "\nother:my-lens"])
+def test_other_lens_with_newline_is_flagged(capsys, tmp_path, lens):
+    code, payload = run_check(capsys, tmp_path, [make_item(lens=lens)])
+
+    assert code == 1
+    assert rules(payload) == ["unknown-lens"]
+
+
+def test_clean_skill_name_and_other_lens_still_pass(capsys, tmp_path):
+    code, payload = run_check(
+        capsys, tmp_path, [make_item(skill="acme-skill", lens="other:my-lens")]
+    )
+
+    assert code == 0
+    assert payload["violations"] == []

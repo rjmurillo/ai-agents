@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import runpy
 import subprocess
 import sys
@@ -96,7 +97,7 @@ def test_all_passing_checks_make_the_skill_pass(capsys, repo, skills):
     assert payload["skills"][0]["status"] == "pass"
     assert [c["status"] for c in payload["skills"][0]["checks"]] == ["pass"] * 4
     assert payload["update_candidates"] == []
-    assert payload["update_args"] == ""
+    assert payload["update_args"] == []
     assert payload["examined"] == {"skills": 1, "checks": 4}
 
 
@@ -429,7 +430,16 @@ def test_update_args_lists_failing_and_malformed_skills(capsys, repo, skills):
 
     assert code == 1
     assert payload["update_candidates"] == ["a", "c"]
-    assert payload["update_args"] == "--name a --update a --name c --update c"
+    assert payload["update_args"] == [
+        "--name",
+        "a",
+        "--update",
+        "a",
+        "--name",
+        "c",
+        "--update",
+        "c",
+    ]
 
 
 def test_name_filter_checks_only_the_named_skill(capsys, repo, skills):
@@ -539,3 +549,142 @@ def test_module_entry_point_exits_with_main_status(monkeypatch, capsys):
         runpy.run_path(str(SCRIPT), run_name="__main__")
 
     assert excinfo.value.code == 2
+
+
+# --- security review F2: skill names and update_args ------------------------
+
+GOOD_CHECK = [{"id": "R1", "kind": "path_exists", "path": "AGENTS.md"}]
+
+
+@pytest.mark.parametrize("name", ["x; id", "--update", "Bad", "a_b", "a-", "1a", "a b", "-a"])
+def test_invalid_skill_name_is_malformed_and_never_in_update_args(capsys, repo, skills, name):
+    add_skill(skills, name, GOOD_CHECK)
+    add_skill(skills, "ok-skill", [{"id": "R1", "kind": "path_exists", "path": "gone"}])
+
+    code, payload = run(capsys, repo, skills)
+
+    by_name = {s["name"]: s for s in payload["skills"]}
+    assert code == 1
+    assert by_name[name]["status"] == "malformed"
+    assert by_name[name]["detail"] == "invalid skill name"
+    assert by_name[name]["checks"] == []
+    assert name in payload["update_candidates"]
+    assert payload["update_args"] == ["--name", "ok-skill", "--update", "ok-skill"]
+
+
+def test_update_args_is_a_list_of_argv_tokens(capsys, repo, skills):
+    add_skill(skills, "a", [{"id": "R1", "kind": "path_exists", "path": "gone"}])
+
+    _, payload = run(capsys, repo, skills)
+
+    assert isinstance(payload["update_args"], list)
+    assert payload["update_args"] == ["--name", "a", "--update", "a"]
+
+
+@pytest.mark.parametrize("name", ["a", "ab", "a1", "a-b", "a1-b2"])
+def test_valid_skill_names_are_checked_normally(capsys, repo, skills, name):
+    add_skill(skills, name, GOOD_CHECK)
+
+    code, payload = run(capsys, repo, skills)
+
+    assert code == 0
+    assert payload["skills"][0]["status"] == "pass"
+
+
+# --- security review F5a: hostile reverify.json -----------------------------
+
+
+@pytest.mark.parametrize("kind", [[], {}, ["path_exists"], 5, None])
+def test_unhashable_or_non_string_kind_is_malformed(capsys, repo, skills, kind):
+    add_skill(skills, "bad", [{"id": "R1", "kind": kind, "path": "AGENTS.md"}])
+
+    code, payload = run(capsys, repo, skills)
+
+    assert code == 1
+    assert payload["skills"][0]["status"] == "malformed"
+    assert "unknown kind" in payload["skills"][0]["detail"]
+
+
+def test_deeply_nested_json_is_malformed_not_a_crash(capsys, repo, skills):
+    add_skill(skills, "bad", raw="[" * 200_000)
+
+    code, payload = run(capsys, repo, skills)
+
+    assert code == 1
+    assert payload["skills"][0]["status"] == "malformed"
+
+
+def test_argv_with_nul_is_a_failed_check(capsys, repo, skills):
+    check = {"id": "R1", "kind": "command", "argv": [PY, "-c", "pass\u0000"]}
+
+    code, payload = check_one(capsys, repo, skills, check, "--allow-commands")
+
+    assert code == 1
+    assert only_check(payload)["status"] == "fail"
+    assert "could not run" in only_check(payload)["detail"]
+
+
+@pytest.mark.parametrize(
+    "check",
+    [
+        {"id": "R1", "kind": "contains", "path": "AGENTS.md", "text": "ADR"},
+        {"id": "R1", "kind": "line_count_at_least", "path": "AGENTS.md", "min": 1},
+    ],
+)
+def test_unreadable_file_is_a_failed_check(capsys, repo, skills, monkeypatch, check):
+    original = Path.read_text
+
+    def deny(self, *args, **kwargs):
+        if self.name == "AGENTS.md":
+            raise PermissionError(13, "Permission denied")
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", deny)
+
+    code, payload = check_one(capsys, repo, skills, check)
+
+    assert code == 1
+    assert only_check(payload)["status"] == "fail"
+    assert "cannot read AGENTS.md" in only_check(payload)["detail"]
+
+
+# --- security review F4: command isolation ----------------------------------
+
+
+def test_command_does_not_see_parent_secrets(capsys, repo, skills, monkeypatch):
+    monkeypatch.setenv("SECRET_TOKEN", "hunter2")
+    probe = "import os,sys; sys.exit(1 if 'SECRET_TOKEN' in os.environ else 0)"
+    check = {"id": "R1", "kind": "command", "argv": [PY, "-c", probe]}
+
+    code, payload = check_one(capsys, repo, skills, check, "--allow-commands")
+
+    assert code == 0
+    assert only_check(payload)["status"] == "pass"
+
+
+def test_command_still_sees_path(capsys, repo, skills):
+    probe = "import os,sys; sys.exit(0 if 'PATH' in os.environ else 1)"
+    check = {"id": "R1", "kind": "command", "argv": [PY, "-c", probe]}
+
+    code, _ = check_one(capsys, repo, skills, check, "--allow-commands")
+
+    assert code == 0
+
+
+def test_command_stdin_is_closed(capsys, repo, skills):
+    probe = "import sys; sys.exit(0 if sys.stdin.read() == '' else 1)"
+    check = {"id": "R1", "kind": "command", "argv": [PY, "-c", probe]}
+
+    code, _ = check_one(capsys, repo, skills, check, "--allow-commands")
+
+    assert code == 0
+
+
+@pytest.mark.skipif(os.name != "posix", reason="sessions are POSIX only")
+def test_command_runs_in_its_own_session(capsys, repo, skills):
+    probe = "import os,sys; sys.exit(0 if os.getsid(0) == os.getpid() else 1)"
+    check = {"id": "R1", "kind": "command", "argv": [PY, "-c", probe]}
+
+    code, _ = check_one(capsys, repo, skills, check, "--allow-commands")
+
+    assert code == 0

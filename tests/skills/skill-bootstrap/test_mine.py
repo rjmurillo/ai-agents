@@ -1204,3 +1204,187 @@ def test_file_outside_any_skill_resolves_from_the_root_only(capsys, crepo, tmp_p
     _, payload = claims(capsys, crepo, target)
 
     assert statuses(payload) == {"scripts/run.py": "missing"}
+
+
+# ------------------------------------------- security review F3: --out writes
+
+
+def test_out_existing_file_is_refused_and_unchanged(capsys, repo, tmp_path):
+    target = tmp_path / "keep.json"
+    target.write_text("precious", encoding="utf-8")
+
+    code, payload = cand(capsys, repo, "--out", str(target))
+
+    assert code == 2
+    assert "already exists" in payload["message"]
+    assert target.read_text(encoding="utf-8") == "precious"
+
+
+@pytest.mark.parametrize("name", ["out.txt", "out", "out.json.bak", ".json"])
+def test_out_without_json_suffix_is_refused(capsys, repo, tmp_path, name):
+    target = tmp_path / name
+
+    code, payload = cand(capsys, repo, "--out", str(target))
+
+    assert code == 2
+    assert ".json" in payload["message"]
+    assert not target.exists()
+
+
+def test_out_json_suffix_writes_a_new_file(capsys, repo, tmp_path):
+    target = tmp_path / "new.json"
+
+    code, payload = cand(capsys, repo, "--out", str(target))
+
+    assert code == 0
+    assert json.loads(target.read_text(encoding="utf-8")) == payload
+
+
+def test_out_symlink_to_existing_file_is_refused(capsys, repo, tmp_path):
+    real = tmp_path / "real.json"
+    real.write_text("precious", encoding="utf-8")
+    link = tmp_path / "link.json"
+    link.symlink_to(real)
+
+    code, _ = cand(capsys, repo, "--out", str(link))
+
+    assert code == 2
+    assert real.read_text(encoding="utf-8") == "precious"
+
+
+def test_out_is_rechecked_right_before_writing(capsys, repo, tmp_path, monkeypatch):
+    target = tmp_path / "late.json"
+    real_candidates = mine.candidates
+
+    def sneaky(args):
+        result = real_candidates(args)
+        target.write_text("raced", encoding="utf-8")  # appears after the first check
+        return result
+
+    monkeypatch.setattr(mine, "candidates", sneaky)
+
+    code, payload = cand(capsys, repo, "--out", str(target))
+
+    assert code == 2
+    assert "already exists" in payload["message"]
+    assert target.read_text(encoding="utf-8") == "raced"
+
+
+def test_out_that_moves_into_the_repo_before_writing_is_refused(capsys, repo, tmp_path):
+    with pytest.raises(mine.ConfigError, match="inside the repository"):
+        mine._emit({}, repo / "late.json", repo)
+
+    assert not (repo / "late.json").exists()
+
+
+# ----------------------------------- security review F5b: NUL-framed git log
+
+
+def test_commit_body_with_record_and_field_separators_does_not_break_parsing(capsys, repo):
+    commit(repo, "chore: odd body", body="line\x1e\x1f\x1e more\x1f")
+    commit(repo, "Revert the odd thing")
+
+    code, payload = cand(capsys, repo)
+
+    assert code == 0
+    assert payload["examined"]["commits"] == 3
+    assert payload["examined"]["unparsed_commits"] == 0
+    assert [r["subject"] for r in payload["reverts"]] == ["Revert the odd thing"]
+
+
+def test_unparsed_commits_is_zero_for_a_normal_history(capsys, repo):
+    _, payload = cand(capsys, repo)
+
+    assert payload["examined"]["unparsed_commits"] == 0
+
+
+def test_record_that_does_not_split_into_fields_is_skipped_and_counted():
+    sha = "a" * 40
+    good = f"{sha}\x1f2026-01-01T00:00:00+00:00\x1fRevert x\x1f"
+    raw = "\0".join([good, "garbage with no separators", "zz\x1f1\x1f2\x1f3", ""])
+
+    reverts, commits, unparsed = mine.parse_reverts(raw)
+
+    assert (commits, unparsed) == (1, 2)
+    assert [r["sha"] for r in reverts] == [sha]
+
+
+def test_parse_reverts_tolerates_blank_and_newline_only_records():
+    assert mine.parse_reverts("") == ([], 0, 0)
+    assert mine.parse_reverts("\n\0\n") == ([], 0, 0)
+
+
+def test_out_directory_with_json_suffix_is_refused(capsys, repo, tmp_path):
+    target = tmp_path / "dir.json"
+    target.mkdir()
+
+    code, payload = cand(capsys, repo, "--out", str(target))
+
+    assert code == 2
+    assert "is a directory" in payload["message"]
+
+
+def authored_skill(crepo: Path) -> Path:
+    """Write a skill on disk without committing it, as a bootstrap run leaves it."""
+    write(crepo, ".claude/skills/fresh/scripts/run.py", "a\nb\n")
+    target = crepo / ".claude" / "skills" / "fresh" / "SKILL.md"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    return target
+
+
+def test_uncommitted_skill_resolves_its_own_files_on_disk(capsys, crepo):
+    target = authored_skill(crepo)
+    target.write_text(
+        "Run `scripts/run.py` or `.claude/skills/fresh/scripts/run.py:2`.\n", encoding="utf-8"
+    )
+
+    code, payload = claims(capsys, crepo, target)
+
+    assert code == 0
+    assert payload["findings"] == []
+
+
+def test_uncommitted_skill_line_past_the_end_is_out_of_range(capsys, crepo):
+    target = authored_skill(crepo)
+    target.write_text("See `scripts/run.py:3`.\n", encoding="utf-8")
+
+    _, payload = claims(capsys, crepo, target)
+
+    assert statuses(payload) == {"scripts/run.py:3": "line-out-of-range"}
+
+
+def test_uncommitted_skill_still_reports_a_file_it_did_not_write(capsys, crepo):
+    target = authored_skill(crepo)
+    target.write_text("Run `scripts/ghost.py`.\n", encoding="utf-8")
+
+    code, payload = claims(capsys, crepo, target)
+
+    assert code == 1
+    assert statuses(payload) == {"scripts/ghost.py": "missing"}
+
+
+def test_untracked_file_outside_the_skill_stays_untracked(capsys, crepo):
+    target = authored_skill(crepo)
+    write(crepo, "scripts/loose.py", "x\n")
+    target.write_text("Run `scripts/loose.py`.\n", encoding="utf-8")
+
+    _, payload = claims(capsys, crepo, target)
+
+    assert statuses(payload) == {"scripts/loose.py": "untracked"}
+
+
+def test_disk_status_refuses_a_climbing_path(crepo):
+    view = mine.RepoView(crepo, mine.resolve_rev(crepo, "HEAD"))
+
+    assert view.disk_status("../outside.py", None) == "missing"
+
+
+def test_uncommitted_skill_directory_reference_is_ok(capsys, crepo):
+    target = authored_skill(crepo)
+    write(crepo, ".claude/skills/fresh/references/a.md", "x\n")
+    target.write_text("Read `.claude/skills/fresh/references/`.\n", encoding="utf-8")
+
+    code, payload = claims(capsys, crepo, target)
+
+    assert code == 0
+    assert payload["findings"] == []

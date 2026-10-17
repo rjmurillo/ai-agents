@@ -3,7 +3,7 @@
 """Mine a repository for skill-bootstrap candidates and check authored skill text.
 
 Both subcommands are read-only. They read the repository from one named ref
-(`--rev`, default HEAD) with `git ls-tree -r -z --name-only`, `git log`,
+(`--rev`, default HEAD) with `git ls-tree -r -z --name-only`, `git log -z`,
 `git grep`, and `git cat-file`. They never use `git log --all` and never walk
 the working tree to learn what the repository contains.
 
@@ -30,14 +30,16 @@ Exit codes:
     1  `claims` found a non-ok reference whose context is `current`.
     2  Configuration error: bad arguments, not a git repository, a bad rev, a
        missing or unreadable TARGET or `--prs-json` file, or an `--out` path
-       inside the repository.
+       inside the repository, already present, or without a `.json` suffix.
     3  External error: git is missing or a git command failed, or the `--out`
        file could not be written.
 
 Every run prints one JSON document on stdout. A successful run carries an
 `examined` object whose counts are printed even when they are zero, so a caller
 can tell "nothing found in N items" from "nothing was examined". `--out FILE`
-also writes the same JSON to FILE, which must be outside the repository.
+also writes the same JSON to FILE, which must be a new `.json` path outside the
+repository (an existing file is never overwritten). A commit record that does
+not split into its fields is skipped and counted as `unparsed_commits`.
 
 Limits: `claims` recognizes paths that begin with a top-level directory tracked
 at the ref, plus a bare top-level file name written in backticks. A path under
@@ -68,6 +70,7 @@ Payload = dict[str, Any]
 RECORD_SEP = "\x1e"
 FIELD_SEP = "\x1f"
 SHORT_SHA = 9
+SHA_RE = re.compile(r"[0-9a-f]{40}|[0-9a-f]{64}")
 
 # `Revert ...`, with a word boundary so `Reverted` and `Reverts` do not match.
 REVERT_SUBJECT_RE = re.compile(r"^revert\b", re.IGNORECASE)
@@ -204,16 +207,25 @@ def _positive(value: int, flag: str) -> int:
 # ---------------------------------------------------------------- candidates
 
 
-def parse_reverts(raw: str) -> tuple[list[Payload], int]:
-    """Parse `git log --format=%H%x1f%aI%x1f%s%x1f%b%x1e` into revert items."""
+def parse_reverts(raw: str) -> tuple[list[Payload], int, int]:
+    """Parse `git log -z --format=%H%x1f%aI%x1f%s%x1f%b` into revert items.
+
+    Records end at NUL, which a commit message cannot hold, so a body with
+    `\\x1e` or `\\x1f` cannot break framing. Return (reverts, parsed commit count,
+    unparsed record count).
+    """
     reverts: list[Payload] = []
     commits = 0
-    for record in raw.split(RECORD_SEP):
-        record = record.lstrip("\n")
-        if not record:
+    unparsed = 0
+    for record in raw.split("\0"):
+        if not record.strip("\n"):
+            continue
+        fields = record.lstrip("\n").split(FIELD_SEP, 3)
+        if len(fields) != 4 or not SHA_RE.fullmatch(fields[0]):
+            unparsed += 1
             continue
         commits += 1
-        sha, date, subject, body = record.split(FIELD_SEP, 3)
+        sha, date, subject, body = fields
         rules = _revert_rules(subject, body)
         if rules:
             reverts.append(
@@ -226,7 +238,7 @@ def parse_reverts(raw: str) -> tuple[list[Payload], int]:
                     "reverted": [m.lower() for m in REVERT_BODY_RE.findall(body)],
                 }
             )
-    return reverts, commits
+    return reverts, commits, unparsed
 
 
 def _revert_rules(subject: str, body: str) -> list[str]:
@@ -240,13 +252,14 @@ def _revert_rules(subject: str, body: str) -> list[str]:
     return rules
 
 
-def mine_reverts(root: Path, sha: str, max_commits: int) -> tuple[list[Payload], int]:
+def mine_reverts(root: Path, sha: str, max_commits: int) -> tuple[list[Payload], int, int]:
     raw = _git(
         root,
         "log",
+        "-z",
         "-n",
         str(max_commits),
-        "--format=%H%x1f%aI%x1f%s%x1f%b%x1e",
+        "--format=%H%x1f%aI%x1f%s%x1f%b",
         sha,
         "--",
     )
@@ -323,7 +336,7 @@ def _review_row(item: object, index: int, path: str) -> Payload:
 
 def candidates(args: argparse.Namespace) -> tuple[int, Payload]:
     root = repo_root(Path(args.repo))
-    _out_outside_repo(root, args.out)
+    args.out_path, args.root = _out_outside_repo(root, args.out), root
     max_commits = _positive(args.max_commits, "--max-commits")
     window = _positive(args.churn_window, "--churn-window")
     top = _positive(args.top, "--top")
@@ -333,7 +346,7 @@ def candidates(args: argparse.Namespace) -> tuple[int, Payload]:
         load_review_rounds(args.prs_json, top) if args.prs_json else None
     )
 
-    reverts, commits = mine_reverts(root, sha, max_commits)
+    reverts, commits, unparsed = mine_reverts(root, sha, max_commits)
     churn_counts, churn_commits = mine_churn(root, sha, window, exclude)
     churn, churn_tie = top_with_ties(_rank(churn_counts), top)
     todo_counts, grepped = mine_todos(root, sha, tracked_files(root, sha), exclude)
@@ -350,6 +363,7 @@ def candidates(args: argparse.Namespace) -> tuple[int, Payload]:
         "todo_tie_at_cutoff": todo_tie,
         "examined": {
             "commits": commits,
+            "unparsed_commits": unparsed,
             "churn_commits": churn_commits,
             "files_grepped": grepped,
         },
@@ -498,25 +512,53 @@ class RepoView:
             return False
         return (self._root / path).exists()
 
+    def disk_status(self, path: str, max_line: int | None) -> str:
+        """Status of a working-tree path, for files a run authored and has not committed."""
+        if ".." in path.split("/"):
+            return "missing"
+        target = self._root / path
+        if target.is_dir():
+            return "ok"
+        if not target.is_file():
+            return "missing"
+        if max_line is not None:
+            lines = len(target.read_text(encoding="utf-8", errors="replace").splitlines())
+            if max_line > lines:
+                return "line-out-of-range"
+        return "ok"
+
 
 def _skill_base(display: str, view: RepoView) -> str | None:
-    """Return the nearest ancestor directory of `display` that holds a tracked SKILL.md."""
+    """Return the nearest ancestor directory of `display` that holds a SKILL.md.
+
+    A SKILL.md counts when it is tracked at the ref or present on disk, so a skill
+    the run authored but has not committed still resolves its own files.
+    """
     parts = display.split("/")[:-1]
     while parts:
         base = "/".join(parts)
-        if view.status(f"{base}/SKILL.md", None) == "ok":
+        skill_md = f"{base}/SKILL.md"
+        if view.status(skill_md, None) == "ok" or view.disk_status(skill_md, None) == "ok":
             return base
         parts.pop()
     return None
 
 
 def _resolve(view: RepoView, base: str | None, path: str, max_line: int | None) -> str:
-    """Status from the repository root, else from the skill directory when one holds it."""
+    """Status from the ref at the root, then the skill directory, then its files on disk."""
     status = view.status(path, max_line)
     if status == "ok" or base is None:
         return status
     relative = view.status(f"{base}/{path}", max_line)
-    return relative if relative in ("ok", "line-out-of-range") else status
+    if relative in ("ok", "line-out-of-range"):
+        return relative
+    # Files this run authored live on disk under the skill directory, not yet at the ref.
+    for candidate in (path, f"{base}/{path}"):
+        if candidate.startswith(f"{base}/"):
+            on_disk = view.disk_status(candidate, max_line)
+            if on_disk != "missing":
+                return on_disk
+    return status
 
 
 def _scan_file(
@@ -553,7 +595,7 @@ def _read_target(path: Path) -> str:
 
 def claims(args: argparse.Namespace) -> tuple[int, Payload]:
     root = repo_root(Path(args.repo))
-    _out_outside_repo(root, args.out)
+    args.out_path, args.root = _out_outside_repo(root, args.out), root
     sha = resolve_rev(root, args.rev)
     targets = _expand_targets(args.targets)
     finder = PathFinder(*top_level_entries(root, sha))
@@ -581,15 +623,24 @@ def claims(args: argparse.Namespace) -> tuple[int, Payload]:
 # ---------------------------------------------------------------- CLI
 
 
-def _out_outside_repo(root: Path, out: str | None) -> None:
-    """Refuse an `--out` path inside the repository, so a run never writes there."""
-    if out is None:
-        return
-    target = Path(out).resolve()
+def _check_out_target(root: Path, target: Path) -> None:
     if target == root or root in target.parents:
-        raise ConfigError(f"--out {out} is inside the repository {root}; write it elsewhere")
+        raise ConfigError(f"--out {target} is inside the repository {root}; write it elsewhere")
     if target.is_dir():
-        raise ConfigError(f"--out {out} is a directory")
+        raise ConfigError(f"--out {target} is a directory")
+    if target.exists():
+        raise ConfigError(f"--out {target} already exists; it is never overwritten")
+
+
+def _out_outside_repo(root: Path, out: str | None) -> Path | None:
+    """Resolve `--out` once and refuse a path inside the repository, existing, or not `.json`."""
+    if out is None:
+        return None
+    target = Path(out).resolve()
+    if target.suffix != ".json":
+        raise ConfigError(f"--out {out} must end in .json")
+    _check_out_target(root, target)
+    return target
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -615,12 +666,14 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _emit(payload: Payload, out: str | None) -> None:
+def _emit(payload: Payload, out: Path | None, root: Path) -> None:
     text = json.dumps(payload, indent=2)
     if out is not None:
-        target = Path(out)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(text + "\n", encoding="utf-8")
+        _check_out_target(root, out)  # re-check just before writing
+        out.parent.mkdir(parents=True, exist_ok=True)
+        # Mode "x" fails with FileExistsError (an OSError, exit 3) if --out appeared since.
+        with open(out, "x", encoding="utf-8") as handle:
+            handle.write(text + "\n")
     print(text)
 
 
@@ -629,7 +682,7 @@ def main(argv: list[str] | None = None) -> int:
     handlers = {"candidates": candidates, "claims": claims}
     try:
         code, payload = handlers[args.command](args)
-        _emit(payload, args.out)
+        _emit(payload, args.out_path, args.root)
     except ConfigError as exc:
         print(json.dumps({"error": "config", "message": str(exc)}))
         return 2

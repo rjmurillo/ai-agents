@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size, freeze and score share one case schema and grader validator.
 """Measure whether an authored skill makes an agent more capable.
 
 A bootstrap run authors skills. This script measures each one: the pass rate
@@ -92,6 +93,8 @@ STATUSES = ("gain", "no_gap", "regression", "flat", "incomplete")
 CASE_KEYS = frozenset({"id", "skill", "source", "prompt", "grader"})
 JSON_FENCE = re.compile(r"```json[ \t]*\r?\n(.*?)```", re.DOTALL | re.IGNORECASE)
 NOT_A_REPO = "not a git repository"
+MAX_PATTERN_CHARS = 256
+MAX_SEARCHED_CHARS = 100_000
 
 Payload = dict[str, Any]
 Grade = Callable[[str], bool]
@@ -124,6 +127,47 @@ def _contains_all(grader: Payload) -> Grade:
     return lambda output: all(term in output.casefold() for term in terms)
 
 
+def _has_nested_quantifier(pattern: str) -> bool:
+    """Conservatively detect a quantified group whose body holds `*`, `+`, or `{`.
+
+    Character-class contents and escaped characters are literals. Over-rejects
+    shapes such as `(a+b)*` on purpose: a case author can rewrite those, and a
+    nested quantifier is the shape that makes `re.search` backtrack for ages.
+    """
+    stack = [False]  # one flag per open group: does its body hold a quantifier
+    index = 0
+    while index < len(pattern):
+        char = pattern[index]
+        if char == "\\":
+            index += 1
+        elif char == "[":
+            index = _class_end(pattern, index)
+        elif char == "(":
+            stack.append(False)
+        elif char == ")" and len(stack) > 1:
+            inner = stack.pop()
+            quantified = pattern[index + 1 : index + 2] in ("*", "+", "?", "{")
+            if inner and quantified:
+                return True
+            stack[-1] = stack[-1] or inner or quantified
+        elif char in "*+{":
+            stack[-1] = True
+        index += 1
+    return False
+
+
+def _class_end(pattern: str, start: int) -> int:
+    """Return the index of the `]` that closes the class opened at `start`."""
+    index = start + 1
+    if pattern[index : index + 1] == "^":
+        index += 1
+    if pattern[index : index + 1] == "]":
+        index += 1
+    while index < len(pattern) and pattern[index] != "]":
+        index += 2 if pattern[index] == "\\" else 1
+    return index
+
+
 def _regex(grader: Payload) -> Grade:
     _check_keys(grader, {"pattern", "ignore_case"})
     pattern = grader.get("pattern")
@@ -132,11 +176,15 @@ def _regex(grader: Payload) -> Grade:
         raise ConfigError("regex pattern must be a non-empty string")
     if not isinstance(ignore_case, bool):
         raise ConfigError("regex ignore_case must be a boolean")
+    if len(pattern) > MAX_PATTERN_CHARS:
+        raise ConfigError(f"regex pattern is longer than {MAX_PATTERN_CHARS} characters")
+    if _has_nested_quantifier(pattern):
+        raise ConfigError("regex pattern has a quantified group that holds a quantifier")
     try:
         compiled = re.compile(pattern, re.IGNORECASE if ignore_case else 0)
-    except re.error as exc:
+    except (re.error, OverflowError, RecursionError) as exc:
         raise ConfigError(f"regex pattern does not compile: {exc}") from exc
-    return lambda output: compiled.search(output) is not None
+    return lambda output: compiled.search(output[:MAX_SEARCHED_CHARS]) is not None
 
 
 def extract_last_json_object(output: str) -> Payload | None:
@@ -344,7 +392,7 @@ def _parse_result(line: str, number: int, graders: dict[str, Grade]) -> tuple[st
     if not isinstance(row, dict):
         raise ConfigError(f"results line {number} is not an object")
     case_id, condition, output = row.get("case_id"), row.get("condition"), row.get("output")
-    if case_id not in graders:
+    if not isinstance(case_id, str) or case_id not in graders:
         raise ConfigError(f"results line {number}: unknown case_id {case_id!r}")
     if condition not in CONDITIONS:
         raise ConfigError(f"results line {number}: unknown condition {condition!r}")
@@ -358,7 +406,7 @@ def grade_results(path: str, cases: list[Payload]) -> tuple[dict[tuple[str, str]
     graders = {case["id"]: compile_grader(case["grader"]) for case in cases}
     try:
         lines = Path(path).read_text(encoding="utf-8").splitlines()
-    except OSError as exc:
+    except (OSError, ValueError) as exc:
         raise ConfigError(f"cannot read results {path}: {exc}") from exc
     tally: dict[tuple[str, str], list[bool]] = {}
     count = 0

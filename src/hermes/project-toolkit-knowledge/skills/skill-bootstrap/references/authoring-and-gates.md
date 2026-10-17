@@ -38,7 +38,7 @@ check` validates it; Phase 4 passes each item to `skillforge`.
 
 | Field | Rule |
 |---|---|
-| `lens` | One of the 16 lenses in `discovery.md`, kebab-case, or `other:<name>` |
+| `lens` | One of `change-control`, `debugging-playbook`, `failure-archaeology`, `architecture-contract`, `domain-reference`, `config-and-flags`, `build-and-env`, `run-and-operate`, `diagnostics-and-tooling`, `validation-and-qa`, `docs-and-writing`, `external-positioning`, `hardest-problem-campaign`, `proof-and-analysis-toolkit`, `research-frontier`, `research-methodology`, or `other:<name>` |
 | `evidence` | Non-empty list of source references: commit, PR thread, issue, file, decision record |
 | `computable` | `true` when a program can answer the claim from repository state |
 | `form` | `scaffold`, `instrument`, or `both`. `computable: true` forbids `scaffold` |
@@ -175,8 +175,10 @@ Capability is what an agent achieves with the skill. The eval measures it
 as the pass rate with the skill minus the pass rate without it, on the same
 frozen cases. Build it in every run.
 
-1. **Write cases.** For each skill, write at least three cases, outside the
-   repository unless the user wants them committed:
+1. **Write cases.** For each skill, write at least three cases outside the
+   repository. If the user wants them committed, authorize their paths in
+   Phase 1 (pass each to `verify` as `--also-allow`) and pass
+   `--allow-in-repo` to `freeze`:
    - one from each verified correction or failure the skill targets
      (`source: correction:<ref>`), using the task the agent faced, not the
      answer it was given;

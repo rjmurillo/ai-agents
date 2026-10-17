@@ -33,8 +33,10 @@ or schema is bad (unknown kind, missing field, duplicate id, empty check
 list).
 
 The payload lists `update_candidates` (failing or malformed skills) and
-`update_args`, a string of `--name X --update X` pairs for
-`bootstrap_boundary.py`.
+`update_args`, a JSON list of argv tokens (`--name`, X, `--update`, X, ...)
+for `bootstrap_boundary.py`. A skill directory whose name does not match
+`[a-z](?:[a-z0-9-]*[a-z0-9])?` is `malformed` (detail `invalid skill name`),
+so it is a candidate but never reaches `update_args`.
 
 Exit codes:
 
@@ -55,6 +57,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path, PurePosixPath, PureWindowsPath
@@ -64,6 +67,9 @@ PROVENANCE_FILE = "reverify.json"
 COMMAND_TIMEOUT_S = 120
 PATH_KINDS = frozenset({"path_exists", "absent", "contains", "line_count_at_least"})
 KINDS = PATH_KINDS | {"command"}
+SKILL_NAME_RE = re.compile(r"[a-z](?:[a-z0-9-]*[a-z0-9])?")
+# The only parent variables a `command` check sees, so secrets do not leak to it.
+COMMAND_ENV_KEYS = ("PATH", "HOME", "LANG", "LC_ALL", "SYSTEMROOT", "TEMP", "TMP")
 
 Payload = dict[str, Any]
 
@@ -117,7 +123,8 @@ def validate_schema(data: Any) -> list[Payload]:
         if check["id"] in seen:
             raise SchemaError(f"{label}: duplicate id")
         seen.add(check["id"])
-        if check.get("kind") not in KINDS:
+        kind = check.get("kind")
+        if not isinstance(kind, str) or kind not in KINDS:
             raise SchemaError(f"{label}: unknown kind {check.get('kind')!r}")
         _require_fields(check, label)
     return checks
@@ -148,8 +155,15 @@ def _read_text(target: Path) -> str | None:
     return target.read_text(encoding="utf-8", errors="replace")
 
 
+def _unreadable(check: Payload, exc: OSError) -> Payload:
+    return _result(check, "fail", f"cannot read {check['path']}: {exc}")
+
+
 def _eval_contains(check: Payload, target: Path) -> Payload:
-    content = _read_text(target)
+    try:
+        content = _read_text(target)
+    except OSError as exc:
+        return _unreadable(check, exc)
     if content is None:
         return _result(check, "fail", f"{check['path']} is not a file")
     if check["text"] in content:
@@ -158,7 +172,10 @@ def _eval_contains(check: Payload, target: Path) -> Payload:
 
 
 def _eval_line_count(check: Payload, target: Path) -> Payload:
-    content = _read_text(target)
+    try:
+        content = _read_text(target)
+    except OSError as exc:
+        return _unreadable(check, exc)
     if content is None:
         return _result(check, "fail", f"{check['path']} is not a file")
     count = len(content.splitlines())
@@ -191,15 +208,17 @@ def _eval_command(check: Payload, repo: Path, allow: bool) -> Payload:
         proc = subprocess.run(
             check["argv"],
             cwd=repo,
-            capture_output=True,
-            encoding="utf-8",
-            errors="replace",
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            env={k: os.environ[k] for k in COMMAND_ENV_KEYS if k in os.environ},
+            start_new_session=True,
             timeout=COMMAND_TIMEOUT_S,
             check=False,
         )
     except subprocess.TimeoutExpired:
         return _result(check, "fail", f"timed out after {COMMAND_TIMEOUT_S} s")
-    except OSError as exc:
+    except (OSError, ValueError) as exc:
         return _result(check, "fail", f"could not run {check['argv'][0]}: {exc}")
     status = "pass" if proc.returncode == expected else "fail"
     return _result(check, status, f"exit {proc.returncode}, expected {expected}")
@@ -221,13 +240,17 @@ def _skill_status(results: list[Payload]) -> str:
 def evaluate_skill(skill_dir: Path, repo: Path, allow_commands: bool) -> Payload:
     """Load a skill's reverify.json and evaluate every check."""
     entry: Payload = {"name": skill_dir.name, "status": "", "checks": []}
+    if SKILL_NAME_RE.fullmatch(skill_dir.name) is None:
+        entry["status"] = "malformed"
+        entry["detail"] = "invalid skill name"
+        return entry
     source = skill_dir / PROVENANCE_FILE
     if not source.is_file():
         entry["status"] = "no-provenance"
         return entry
     try:
         checks = validate_schema(json.loads(source.read_text(encoding="utf-8")))
-    except (OSError, ValueError, SchemaError) as exc:
+    except (OSError, ValueError, RecursionError, SchemaError) as exc:
         entry["status"] = "malformed"
         entry["detail"] = str(exc)
         return entry
@@ -253,8 +276,8 @@ def _select_skills(skills_root: Path, names: list[str]) -> list[Path]:
     return list(available.values())
 
 
-def _update_args(names: list[str]) -> str:
-    return " ".join(f"--name {n} --update {n}" for n in names)
+def _update_args(names: list[str]) -> list[str]:
+    return [token for n in names for token in ("--name", n, "--update", n)]
 
 
 def check(args: argparse.Namespace) -> tuple[int, Payload]:
@@ -263,12 +286,13 @@ def check(args: argparse.Namespace) -> tuple[int, Payload]:
     selected = _select_skills(skills_root, args.name or [])
     skills = [evaluate_skill(d, repo, args.allow_commands) for d in selected]
     candidates = [s["name"] for s in skills if s["status"] in ("fail", "malformed")]
+    safe = [n for n in candidates if SKILL_NAME_RE.fullmatch(n)]
     missing = [s["name"] for s in skills if s["status"] == "no-provenance"]
     failed = bool(candidates) or (args.require and bool(missing))
     return (1 if failed else 0), {
         "skills": skills,
         "update_candidates": candidates,
-        "update_args": _update_args(candidates),
+        "update_args": _update_args(safe),
         "no_provenance": missing,
         "examined": {"skills": len(skills), "checks": sum(len(s["checks"]) for s in skills)},
     }

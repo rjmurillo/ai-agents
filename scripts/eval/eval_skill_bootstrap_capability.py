@@ -137,6 +137,8 @@ def run_one(checkout: Path, prompt: str, model: str) -> dict[str, Any]:
     try:
         meta = json.loads(proc.stdout)
     except json.JSONDecodeError:
+        meta = None
+    if not isinstance(meta, dict):
         meta = {"is_error": True, "result": proc.stdout[-2000:], "stderr": proc.stderr[-2000:]}
     usage = meta.get("usage") or {}
     return {
@@ -197,18 +199,38 @@ def _mean(values: list[float]) -> float | None:
     return round(statistics.fmean(values), 3) if values else None
 
 
+RECORD_KEYS = ("task", "condition", "answer", "is_error")
+
+
+def load_records(path: str, task_ids: set[str]) -> list[dict[str, Any]]:
+    """Parse one run file; raise ValueError on any line that is not a usable record."""
+    text = Path(path).read_text(encoding="utf-8")
+    records: list[dict[str, Any]] = []
+    for number, line in enumerate(text.splitlines(), start=1):
+        if not line.strip():
+            continue
+        rec = json.loads(line)
+        if not isinstance(rec, dict) or any(key not in rec for key in RECORD_KEYS):
+            raise ValueError(f"{path}:{number}: not a run record")
+        if rec["task"] not in task_ids:
+            raise ValueError(f"{path}:{number}: unknown task {rec['task']!r}")
+        records.append(rec)
+    return records
+
+
 def cmd_score(args: argparse.Namespace) -> int:
+    tasks = {t["id"]: t for t in load_tasks(Path(args.tasks))["tasks"]}
     records: list[dict[str, Any]] = []
     for path in args.runs:
         try:
-            records.extend(json.loads(line) for line in Path(path).read_text().splitlines() if line)
-        except (OSError, json.JSONDecodeError) as exc:
+            records.extend(load_records(path, set(tasks)))
+        except (OSError, ValueError) as exc:
             print(f"ERROR: cannot read {path}: {exc}", file=sys.stderr)
             return 2
     # Re-grade stored answers so a gold correction applies to every condition alike.
-    tasks = {t["id"]: t for t in load_tasks(Path(args.tasks))["tasks"]}
     for rec in records:
-        rec["score"] = grade(tasks[rec["task"]], rec["answer"])
+        answer = rec["answer"] if isinstance(rec["answer"], dict) else None
+        rec["score"] = grade(tasks[rec["task"]], answer)
     report: dict[str, Any] = {}
     for rec in records:
         cell = report.setdefault(rec["task"], {}).setdefault(rec["condition"], [])
@@ -217,13 +239,14 @@ def cmd_score(args: argparse.Namespace) -> int:
     for task, conditions in sorted(report.items()):
         summary[task] = {}
         for condition, recs in sorted(conditions.items()):
+            # A failed CLI call is a harness error, not a wrong answer: count it, score the rest.
             graded = [r for r in recs if not r["is_error"]]
             summary[task][condition] = {
                 "runs": len(recs),
                 "errors": len(recs) - len(graded),
-                "f1": _mean([r["score"]["f1"] for r in recs]),
-                "precision": _mean([r["score"]["precision"] for r in recs]),
-                "recall": _mean([r["score"]["recall"] for r in recs]),
+                "f1": _mean([r["score"]["f1"] for r in graded]),
+                "precision": _mean([r["score"]["precision"] for r in graded]),
+                "recall": _mean([r["score"]["recall"] for r in graded]),
                 "turns": _mean([r["num_turns"] for r in graded if r["num_turns"] is not None]),
                 "cost_usd": _mean([r["cost_usd"] for r in graded if r["cost_usd"] is not None]),
                 "wall_s": _mean([r["wall_s"] for r in graded]),
