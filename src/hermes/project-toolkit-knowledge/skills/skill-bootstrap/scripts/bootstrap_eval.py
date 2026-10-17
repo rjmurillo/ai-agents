@@ -94,6 +94,9 @@ CASE_KEYS = frozenset({"id", "skill", "source", "prompt", "grader"})
 JSON_FENCE = re.compile(r"```json[ \t]*\r?\n(.*?)```", re.DOTALL | re.IGNORECASE)
 NOT_A_REPO = "not a git repository"
 MAX_PATTERN_CHARS = 256
+GIT_TIMEOUT_S = 30
+# `(?#...)` comments and `x` (verbose) flag groups let a quantifier hide from the nested-quantifier scan.
+UNSCANNABLE_GROUP_RE = re.compile(r"\(\?(?:#|[aiLmsux-]*x[aiLmsux-]*[:)])")
 MAX_SEARCHED_CHARS = 100_000
 
 Payload = dict[str, Any]
@@ -133,6 +136,8 @@ def _has_nested_quantifier(pattern: str) -> bool:
     Character-class contents and escaped characters are literals. Over-rejects
     shapes such as `(a+b)*` on purpose: a case author can rewrite those, and a
     nested quantifier is the shape that makes `re.search` backtrack for ages.
+    Also rejects verbose mode (`(?x`, `(?ix)`) and comment groups (`(?#`): both
+    hide quantifiers from this scan, as in `(?x)(a+) +$` and `(a+)(?#c)+$`.
     """
     stack = [False]  # one flag per open group: does its body hold a quantifier
     index = 0
@@ -143,6 +148,8 @@ def _has_nested_quantifier(pattern: str) -> bool:
         elif char == "[":
             index = _class_end(pattern, index)
         elif char == "(":
+            if UNSCANNABLE_GROUP_RE.match(pattern, index):
+                return True
             stack.append(False)
         elif char == ")" and len(stack) > 1:
             inner = stack.pop()
@@ -331,10 +338,13 @@ def enclosing_repo(directory: Path) -> Path | None:
             encoding="utf-8",
             errors="replace",
             check=False,
+            timeout=GIT_TIMEOUT_S,
             env={**os.environ, "LC_ALL": "C"},  # the "not a git repository" test needs English
         )
     except FileNotFoundError as exc:
         raise ConfigError("git is not on PATH, so the in-repo check cannot run") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise ConfigError(f"git rev-parse timed out after {GIT_TIMEOUT_S} s for {probe}") from exc
     if proc.returncode == 0:
         return Path(proc.stdout.strip()).resolve()
     if NOT_A_REPO in proc.stderr.lower():

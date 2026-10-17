@@ -1045,7 +1045,8 @@ def test_no_dash_characters_in_script_text() -> None:
 
 @pytest.mark.parametrize(
     "pattern",
-    ["(a+)+$", "(a*)*", "(a+)?", "((a+))+", "(a{2})+", "(x+y)*z", "(a?)+", "(a?)*", "x" * 257],
+    ["(a+)+$", "(a*)*", "(a+)?", "((a+))+", "(a{2})+", "(x+y)*z", "(a?)+", "(a?)*", "x" * 257]
+    + ["(?x)(a+) +$", "(?ix)(a+) +$", "(a+)(?#c)+$", "(?x:(a+) +)$", "(?i)(?x)a"],
 )
 def test_regex_rejects_unbounded_shapes(pattern: str) -> None:
     with pytest.raises(bootstrap_eval.ConfigError):
@@ -1067,6 +1068,10 @@ def test_regex_rejects_unbounded_shapes(pattern: str) -> None:
         "(?P<word>ab)+",
         "colou?r",
         r"\(?a",
+        r"\(\?x\)",
+        "[(?#]+",
+        "(?i)abc",
+        "(?P<x>ab)+",
         "x" * 256,
     ],
 )
@@ -1159,3 +1164,17 @@ def test_regression_exits_1_even_when_every_case_is_complete(
 
     assert row["status"] == "regression"
     assert code == 1
+
+
+# --- review fixes: git timeout in the in-repo check ---------------------------
+
+
+def test_enclosing_repo_times_out_closed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def hang(cmd: Any, **kwargs: Any) -> Any:
+        assert kwargs["timeout"] == bootstrap_eval.GIT_TIMEOUT_S
+        raise subprocess.TimeoutExpired(cmd, kwargs["timeout"])
+
+    monkeypatch.setattr(bootstrap_eval.subprocess, "run", hang)
+
+    with pytest.raises(bootstrap_eval.ConfigError, match="timed out"):
+        bootstrap_eval.enclosing_repo(tmp_path)
