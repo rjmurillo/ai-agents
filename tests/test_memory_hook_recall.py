@@ -58,6 +58,20 @@ class TestExtractQuery:
         assert "memory" in result
         assert "enhancement" in result
 
+    @pytest.mark.unit
+    @pytest.mark.parametrize(
+        ("prompt", "expected"),
+        [
+            ("how does pr-autofix work", "pr-autofix work"),
+            ("please tell me about the worktree identity guard", "worktree identity guard"),
+            ("why did lefthook skip cleanup", "lefthook skip cleanup"),
+            ("could you explain or show the design index", "design index"),
+            ("can we, should we, would we", ""),
+        ],
+    )
+    def test_drops_question_and_request_filler(self, prompt: str, expected: str):
+        assert _extract_query(prompt) == expected
+
 
 class TestReadUserInput:
     """Tests for stdin parsing."""
@@ -202,7 +216,9 @@ class TestRelevanceFloor:
             ("skills-design-index", "Index. Mentions hindsight mental model review."),
             ("orchestrator-observations", "Notes on subagents implement series."),
         ):
-            (memories / f"{name}.md").write_text(f"# {name} (2026-01-01)\n\n{body}\n")
+            (memories / f"{name}.md").write_text(
+                f"# {name} (2026-01-01)\n\n{body}\n", encoding="utf-8"
+            )
         return tmp_path
 
     @pytest.mark.unit
@@ -212,6 +228,13 @@ class TestRelevanceFloor:
         assert "<memory-context>" in out
         assert "decision-worktree-identity-guard-scope" in out
         assert "relevance:" in out
+
+    @pytest.mark.unit
+    def test_question_phrased_prompt_is_recalled(self, tmp_path: Path):
+        repo = self._repo(tmp_path)
+        query = _extract_query("how does the worktree identity guard work")
+        out = _search_and_format(query, repo / ".serena" / "memories", repo)
+        assert "decision-worktree-identity-guard-scope" in out
 
     @pytest.mark.unit
     def test_unrelated_prompt_injects_nothing_despite_body_hits(self, tmp_path: Path):

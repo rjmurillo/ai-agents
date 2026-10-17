@@ -30,6 +30,7 @@ if TYPE_CHECKING:
 _STOP_WORDS = frozenset(
     {
         "a",
+        "about",
         "an",
         "and",
         "are",
@@ -37,12 +38,18 @@ _STOP_WORDS = frozenset(
         "at",
         "be",
         "by",
+        "can",
+        "could",
+        "did",
         "do",
+        "does",
+        "explain",
         "for",
         "from",
         "has",
         "have",
         "he",
+        "how",
         "i",
         "in",
         "is",
@@ -55,7 +62,11 @@ _STOP_WORDS = frozenset(
         "of",
         "on",
         "or",
+        "please",
+        "should",
+        "show",
         "so",
+        "tell",
         "that",
         "the",
         "they",
@@ -69,8 +80,10 @@ _STOP_WORDS = frozenset(
         "when",
         "which",
         "who",
+        "why",
         "will",
         "with",
+        "would",
         "you",
         "your",
     }
@@ -83,10 +96,11 @@ _MIN_QUERY_TERMS = 1
 # to be injected. The file search matches any one term anywhere in a file, so
 # without this floor every prompt recalls its three highest-confidence
 # candidates. The floor is inclusive: a score of exactly 0.50 is injected, so
-# a two term prompt needs only one term to name the memory. In the prompts we
-# measured on .serena/memories, unrelated prompts peaked at 0.40 and prompts
-# with a real target scored 0.60 or higher. Those figures come from that
-# sample, not a bound.
+# a two term prompt needs only one term to name the memory. In a sample on
+# .serena/memories, 5 of 5 prompts that named a memory were recalled, and 3 of
+# 8 unrelated prompts still injected one weak match. Short unrelated prompts
+# reach 0.50 on a single stem hit. Those figures come from that sample, not a
+# bound.
 _MIN_RELEVANCE = 0.5
 
 
