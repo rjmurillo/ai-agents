@@ -1,16 +1,39 @@
 # Discovery
 
-Load this reference in Phase 2. Discovery finds the friction that changes the
-next useful action for the selected outcomes. It is not a census. Stop when
-each selected outcome has a verified route, or when the budget ends.
+Load this reference in Phase 2. In `workflow` mode, discovery finds the
+friction that changes the next useful action for the selected outcomes. In
+`knowledge` mode, it finds the knowledge a model without the skill lacks.
+It is not a census. Stop when each selected outcome or lens has a verified
+route, or when the budget ends.
 
 ## Contents
 
+- [Mined candidates](#mined-candidates)
 - [Repository and discourse](#repository-and-discourse)
 - [Discovery lenses](#discovery-lenses)
+- [Knowledge mode](#knowledge-mode)
 - [Workflow gaps](#workflow-gaps)
 - [Sessions and memory](#sessions-and-memory)
 - [Evidence rules](#evidence-rules)
+
+## Mined candidates
+
+Start from `bootstrap_mine.py candidates`, not from browsing. It computes
+what a model would otherwise reconstruct by paging through history:
+
+| Field | Signal | Read it as |
+| --- | --- | --- |
+| `reverts` | A change was undone | A failure-archaeology case. Read the reverted commit and its discussion |
+| `churn` | A file changed in many recent commits | A hotspot: unstable contract, missing tool, or repeated correction |
+| `todo_hotspots` | Known unfinished work clusters here | A debt map; check whether a skill route crosses it |
+| `review_rounds` | A change needed many review rounds (needs `--prs-json`) | Reviewer corrections an agent would repeat |
+
+Pass `--exclude` for generated mirrors, or churn ranks copies of one
+change. To get `review_rounds`, export merged PRs with their review count
+through the host's supported API (the `github` skill when installed) into a
+JSON list of `{"number", "title", "review_rounds"}`. The ranking chooses
+where to read first. It is never evidence by itself: confirm each case in
+the next section before a skill repeats it.
 
 ## Repository and discourse
 
@@ -38,24 +61,47 @@ Use each lens as a question. A lens with no verified friction for the selected
 outcomes produces no skill. Merge thin lenses. Split a lens only when one skill
 would carry two unrelated trigger families.
 
-| Lens | Instruction for discovery |
-| --- | --- |
-| Change control | Find the route that produces an accepted change under project authority and gates. |
-| Debugging playbook | Find discriminating experiments that avoid expensive investigation of the wrong cause. |
-| Failure archaeology | Find rejected fixes, reverts, and corrected diagnoses that change the next attempt. |
-| Architecture contract | Identify the invariants a successful change must preserve and their rationale. |
-| Domain reference | Identify domain assumptions that alter implementation or validation here. |
-| Configuration and flags | Find workflow-changing options and their authoritative definitions. |
-| Build and environment | Find the supported setup path for the relevant build and tests. |
-| Run and operate | Find the ordered steps that produce the intended operational result. |
-| Diagnostics and tooling | Identify existing measurements that distinguish causes or verify outcomes. |
-| Validation and QA | Identify acceptance evidence, negative cases, and neighboring behavior. |
-| Documentation and writing | Find maintained documents to update or reference instead of duplicating them. |
-| External positioning | Identify claims the evidence supports and claims that remain unproven. |
-| Hardest-problem campaign | Find a decision-gated route for the hardest supported live problem. |
-| Proof and analysis toolkit | Find worked analytical methods that establish the required result. |
-| Research frontier | Find useful unavailable outcomes and falsifiable experiments that could unlock them. |
-| Research methodology | Find how hypotheses become accepted results, rejected ideas, or further experiments. |
+The usual form is where the lens's knowledge tends to land. Sort each item
+on its own merits with the plan-file questions in `authoring-and-gates.md`.
+
+| Lens | Instruction for discovery | Usual form |
+| --- | --- | --- |
+| Change control | Find the route that produces an accepted change under project authority and gates. | both: path-to-gate lookup script, prose for the incident behind each rule |
+| Debugging playbook | Find discriminating experiments that avoid expensive investigation of the wrong cause. | both: symptom classifier or first-command script, prose for traps |
+| Failure archaeology | Find rejected fixes, reverts, and corrected diagnoses that change the next attempt. | scaffold, seeded by `candidates` |
+| Architecture contract | Identify the invariants a successful change must preserve and their rationale. | both: invariant checks, prose for why |
+| Domain reference | Identify domain assumptions that alter implementation or validation here. | scaffold |
+| Configuration and flags | Find workflow-changing options and their authoritative definitions. | instrument: flag inventory extracted from the code, not a hand table |
+| Build and environment | Find the supported setup path for the relevant build and tests. | both: environment probe script, prose for traps |
+| Run and operate | Find the ordered steps that produce the intended operational result. | both |
+| Diagnostics and tooling | Identify existing measurements that distinguish causes or verify outcomes. | instrument: wrap or link the existing tools |
+| Validation and QA | Identify acceptance evidence, negative cases, and neighboring behavior. | both |
+| Documentation and writing | Find maintained documents to update or reference instead of duplicating them. | scaffold, with `claims` checks |
+| External positioning | Identify claims the evidence supports and claims that remain unproven. | scaffold |
+| Hardest-problem campaign | Find a decision-gated route for the hardest supported live problem. | both: gate measurements as scripts |
+| Proof and analysis toolkit | Find worked analytical methods that establish the required result. | both |
+| Research frontier | Find useful unavailable outcomes and falsifiable experiments that could unlock them. | scaffold |
+| Research methodology | Find how hypotheses become accepted results, rejected ideas, or further experiments. | scaffold |
+
+## Knowledge mode
+
+Use `knowledge` mode when the goal is handoff: the knowledge a capable
+newcomer, human or model, lacks, whether or not an agent was ever corrected
+for it. The 16 lenses above are the taxonomy.
+
+1. For each lens, collect verified content from the repository: decision
+   records, design docs, invariants enforced in code, settled incidents,
+   domain standards the code implements. Apply the evidence rules below.
+2. For each item, write one baseline case: a task a model must get right
+   using this knowledge, with deterministic gold.
+3. Run the case without the skill before authoring. The lens passes the
+   gate only when at least one case fails at baseline. A lens whose
+   cases all pass already lives in the model; it gets no skill.
+4. Record each gated lens with its `baseline_case` in the plan file. Skip
+   the rest and list them in the report as `no_gap` with the case ids.
+
+No quota applies. A small repository can produce one knowledge skill or
+none.
 
 ## Workflow gaps
 
