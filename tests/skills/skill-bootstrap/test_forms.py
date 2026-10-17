@@ -323,11 +323,12 @@ def test_require_scripts_skips_script_check_for_bad_skill_name(capsys, tmp_path)
     assert rules(payload) == ["skill-name"]
 
 
-def test_skills_root_without_require_scripts_skips_existence_check(capsys, tmp_path):
+def test_skills_root_without_require_scripts_is_config_error(capsys, tmp_path):
     code, payload = run_check(capsys, tmp_path, [make_item()], "--skills-root", str(tmp_path))
 
-    assert code == 0
-    assert payload["violations"] == []
+    assert code == 2
+    assert payload["error"] == "config"
+    assert "--require-scripts" in payload["message"]
 
 
 def test_require_scripts_without_skills_root_is_config_error(capsys, tmp_path):

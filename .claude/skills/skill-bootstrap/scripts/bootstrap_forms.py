@@ -36,8 +36,8 @@ Exit codes:
     0  The plan has no violation.
     1  The plan has at least one violation.
     2  Configuration error: bad arguments, unreadable or malformed JSON, a
-       wrong top-level type, an unknown mode, or `--require-scripts` without
-       `--skills-root`.
+       wrong top-level type, an unknown mode, `--require-scripts` without
+       `--skills-root`, or `--skills-root` without `--require-scripts`.
 
 The payload always carries `examined` (items read, zero included), so a caller
 can tell "zero violations in N items" from "nothing was examined". The script
@@ -250,6 +250,8 @@ def _load_plan(path: str) -> Payload:
 def check(args: argparse.Namespace) -> tuple[int, Payload]:
     if args.require_scripts and not args.skills_root:
         raise ConfigError("--require-scripts needs --skills-root")
+    if args.skills_root and not args.require_scripts:
+        raise ConfigError("--skills-root has no effect without --require-scripts")
     plan = _load_plan(args.plan)
     skills_root = Path(args.skills_root) if args.require_scripts else None
     items = plan["items"]
@@ -269,9 +271,13 @@ def check(args: argparse.Namespace) -> tuple[int, Payload]:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="bootstrap_forms", description=__doc__.split("\n\n")[0])
+    parser = argparse.ArgumentParser(
+        allow_abbrev=False, prog="bootstrap_forms", description=__doc__.split("\n\n")[0]
+    )
     sub = parser.add_subparsers(dest="command", required=True)
-    p_check = sub.add_parser("check", help="validate tool forms in a bootstrap plan")
+    p_check = sub.add_parser(
+        "check", allow_abbrev=False, help="validate tool forms in a bootstrap plan"
+    )
     p_check.add_argument("--plan", required=True, help="plan JSON file")
     p_check.add_argument("--skills-root", help="skills directory that holds <skill>/<script>")
     p_check.add_argument(

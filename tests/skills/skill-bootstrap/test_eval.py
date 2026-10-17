@@ -1046,6 +1046,7 @@ def test_no_dash_characters_in_script_text() -> None:
 @pytest.mark.parametrize(
     "pattern",
     ["(a+)+$", "(a*)*", "(a+)?", "((a+))+", "(a{2})+", "(x+y)*z", "(a?)+", "(a?)*", "x" * 257]
+    + ["(a|a)*$", "(a|b)+", "(a|b)*", "(x|(y|z))+"]
     + ["(?x)(a+) +$", "(?ix)(a+) +$", "(a+)(?#c)+$", "(?x:(a+) +)$", "(?i)(?x)a"],
 )
 def test_regex_rejects_unbounded_shapes(pattern: str) -> None:
@@ -1057,7 +1058,8 @@ def test_regex_rejects_unbounded_shapes(pattern: str) -> None:
     "pattern",
     [
         "(ab)+",
-        "(a|b)*",
+        "a|b",
+        "(?:ab)|c",
         "([a-z]+)",
         "([+*])+",
         "[]+]+",

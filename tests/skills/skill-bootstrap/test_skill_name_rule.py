@@ -42,6 +42,7 @@ NAMES = {
     "1a": False,
     "a_b": False,
     "": False,
+    "a\n": False,
 }
 
 
