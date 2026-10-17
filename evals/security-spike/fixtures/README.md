@@ -25,7 +25,7 @@ No fixture duplicates `tests/evals/security-scenarios.json` content verbatim. Wh
 
 | Verdict | Fixtures | Count |
 |---|---|---|
-| `IDENTIFY` (with CWE) | F001, F002, F003, F004 | 4 |
+| `IDENTIFY` (with CWE) | F001, F002, F003, F004 (F001 to F003 also accept `ESCALATE` since 2026-10-17) | 4 |
 | `OK` (looks suspicious, is safe) | F005, F006, F007 | 3 |
 | `ESCALATE` (context-dependent) | F008, F009, F010 | 3 |
 
@@ -36,7 +36,7 @@ The `OK` class is a regression set for false-positive resistance: code that patt
 ### IDENTIFY (with CWE)
 
 - **F001: CWE-22 path traversal.** Direct concatenation of a request-body field into a filesystem path without normalization. Standard textbook case. Both variants are expected to score this; included as a sanity anchor for IDENTIFY recall.
-- **F002: STRIDE-classified webhook design.** Internal webhook with no signature, no nonce, no per-request auth. Multiple STRIDE categories apply at once (Spoofing of source, Tampering of payload, Repudiation in the audit log). See "Agent-discriminating fixtures" below.
+- **F002: STRIDE-classified webhook design.** Internal webhook with no signature, no nonce, no per-request auth. Multiple STRIDE categories apply at once (Spoofing of source, Tampering of payload, Repudiation in the audit log). See "Grader revisions" below.
 - **F003: CWE-200 excessive data exposure.** GET endpoint returns the raw user row including `password_hash`, `password_reset_token`, `mfa_recovery_codes`. Six-month tenure is a distractor: tenure does not validate exposure. Naive baseline often catches the headline issue (password hash exposure).
 - **F004: CWE-78 command injection.** `eval "docker run …"` with a developer-controlled tag. The deploy-pipeline framing is a distractor: developer-controlled inputs flowing into `eval` is still command injection regardless of the boundary.
 
@@ -68,7 +68,7 @@ R1 mitigation in PLAN-1854 requires running each agent-discriminating fixture th
 
 | Fixture | Pilot gate status | What the gate would test |
 |---|---|---|
-| F002 | pending pilot | Confirm baseline does not produce STRIDE labels matching the assertion regex `(?i)(spoof\|tamper\|repudiat)`. |
+| F002 | not applicable (tag dropped 2026-10-17) | Baseline already matched the agent on recorded runs; see Grader revisions. |
 | F008 | pending pilot | Confirm baseline does not produce verdict `ESCALATE` (i.e. baseline rubber-stamps or mis-IDENTIFIES). |
 | F010 | pending pilot | Confirm baseline does not produce verdict `ESCALATE` (i.e. baseline catches at most one of the three observations and does not compose). |
 
