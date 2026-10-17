@@ -28,6 +28,7 @@ if str(_VALIDATION_DIR) not in sys.path:
 import check_host_marketplaces as gate
 
 _MANIFEST = ".claude-plugin/plugin.json"
+_CURSOR_MANIFEST = ".cursor-plugin/plugin.json"
 
 
 def _write_json(path: Path, data: object) -> None:
@@ -54,16 +55,32 @@ def _first_marketplace() -> str:
 def test_clean_repo_passes(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     repo = _repo(tmp_path)
     assert gate.main([str(repo)]) == 0
-    assert "4 plugin entries examined" in capsys.readouterr().out
+    assert "5 plugin entries examined" in capsys.readouterr().out
 
 
-def test_real_repo_passes_and_covers_grok_and_codex() -> None:
+def test_real_repo_passes_and_covers_grok_cursor_and_codex() -> None:
     violations, examined = gate.find_violations(REPO_ROOT)
     assert violations == []
-    assert examined == 4
+    assert examined == 5
     assert (REPO_ROOT / ".grok-plugin" / "marketplace.json").is_file()
+    assert (REPO_ROOT / ".cursor-plugin" / "marketplace.json").is_file()
     assert (REPO_ROOT / ".agents" / "plugins" / "marketplace.json").is_file()
     assert dict(gate.HOST_MARKETPLACES)[".agents/plugins/marketplace.json"] == "plugin.json"
+
+
+def test_cursor_row_reads_the_cursor_manifest_not_the_claude_one() -> None:
+    assert (".cursor-plugin/marketplace.json", ".cursor-plugin/plugin.json") in (
+        gate.HOST_MARKETPLACES
+    )
+
+
+def test_cursor_marketplace_needs_the_cursor_manifest(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    (repo / "plugin" / _CURSOR_MANIFEST).unlink()
+    violations, _ = gate.find_violations(repo)
+    assert len(violations) == 1
+    assert violations[0].startswith(".cursor-plugin/marketplace.json")
+    assert "missing manifest .cursor-plugin/plugin.json" in violations[0]
 
 
 def test_codex_marketplace_needs_the_root_plugin_json(tmp_path: Path) -> None:
@@ -193,7 +210,7 @@ def test_main_returns_nonzero_on_violation(
     assert gate.main([str(repo)]) == 1
     err = capsys.readouterr().err
     assert "outside the repository" in err
-    assert "1 host marketplace violation(s) in 4 plugin entries examined" in err
+    assert "1 host marketplace violation(s) in 5 plugin entries examined" in err
 
 
 def test_missing_marketplace_file_is_a_config_error(tmp_path: Path) -> None:

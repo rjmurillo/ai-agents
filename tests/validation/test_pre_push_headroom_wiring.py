@@ -152,6 +152,8 @@ def test_a_pytest_timeout_names_host_load(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     record_runs(monkeypatch, returncode=3, stderr=f"ERROR: pytest{policy.TIMEOUT_MARKER}180 s")
+    # The real slot would sleep out its wait budget at this fake load.
+    monkeypatch.setattr(policy, "_heavy_stage_slot", _recording_slot([]))
     monkeypatch.setattr(policy.host_headroom, "load_average", lambda: 12.0)
     monkeypatch.setenv(host_headroom.MAX_LOAD_ENV, "8")
     assert policy.run_pytest(tmp_path) == 3

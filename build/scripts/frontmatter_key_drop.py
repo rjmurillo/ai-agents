@@ -6,6 +6,10 @@ skill mirror. The platform config lists the keys under
 `model-rationale`, because its skills have no per-skill model field (issue
 #5606).
 
+``keep_frontmatter_keys`` is the allow-list form (``artifacts.skills.frontmatterKeep``,
+ADR-115 Decision 2): a host whose parser may reject unknown keys lists the keys
+it reads, and everything else is cut. It shares the line cutter and the guard.
+
 The cut is line-based so every other byte of the frontmatter survives. A YAML
 round-trip would reorder keys and rewrite quoting in a customer-facing file.
 The parse-and-compare guard below is what makes a line-based cut safe.
@@ -17,11 +21,15 @@ import re
 
 import yaml
 
+_SKILL_SPLIT_RE = re.compile(r"\A(---\r?\n.*?\r?\n---\r?\n)(.*)\Z", re.DOTALL)
 _FRONTMATTER_FENCE_RE = re.compile(r"\A---\r?\n|^---\r?\n\Z", re.MULTILINE)
 # A top-level frontmatter key line, bare or quoted, with optional space before
 # the colon. Group 2 is the key name. Its value lines are found by
 # `_drop_key_lines`, not by this pattern.
 _TOP_LEVEL_KEY_RE = re.compile(r"""^(["']?)([^\s"':#][^"':]*?)\1[ \t]*:(?:[ \t]|$)""")
+# A whole SKILL.md: fenced frontmatter (group 1, fences included) and the body.
+# Same shape `copilot_body_translation` splits on.
+_SKILL_MD_RE = re.compile(r"\A(---\r?\n.*?\r?\n---\r?\n)(.*)\Z", re.DOTALL)
 
 
 def drop_frontmatter_keys(frontmatter: str, keys: frozenset[str]) -> str:
@@ -42,7 +50,21 @@ def drop_frontmatter_keys(frontmatter: str, keys: frozenset[str]) -> str:
     return result
 
 
-def _is_dropped_key(text: str, keys: frozenset[str]) -> bool:
+def drop_keys_from_skill_md(content: str, keys: frozenset[str]) -> str:
+    """Return a whole ``SKILL.md`` with the named frontmatter keys removed.
+
+    The body passes through byte for byte. Hermes (ADR-115 Decision 6) wants no
+    body rewrite, only a frontmatter cut. Raises ValueError when the file has no
+    fenced frontmatter, because a skill without one cannot load in Hermes, and
+    when the cut would change any other key (see :func:`drop_frontmatter_keys`).
+    """
+    match = _SKILL_MD_RE.match(content)
+    if match is None:
+        raise ValueError("SKILL.md has no fenced frontmatter")
+    return drop_frontmatter_keys(match.group(1), keys) + match.group(2)
+
+
+def _names_listed_key(text: str, keys: frozenset[str]) -> bool:
     match = _TOP_LEVEL_KEY_RE.match(text)
     return match is not None and match.group(2) in keys
 
@@ -67,7 +89,7 @@ def _drop_key_lines(frontmatter: str, keys: frozenset[str]) -> str:
             continue
         kept.extend(blanks)
         blanks.clear()
-        dropping = _is_dropped_key(text, keys)
+        dropping = _names_listed_key(text, keys)
         if not dropping:
             kept.append(line)
     kept.extend(blanks)
@@ -92,3 +114,66 @@ def _check_only_keys_dropped(before: str, after: str, keys: frozenset[str]) -> N
         raise ValueError(f"dropping {sorted(keys)} broke SKILL.md frontmatter: {exc}") from exc
     if (actual or {}) != expected:
         raise ValueError(f"dropping {sorted(keys)} changed other SKILL.md frontmatter keys")
+
+
+def keep_frontmatter_keys(frontmatter: str, keys: frozenset[str]) -> str:
+    """Keep only the named top-level keys of fenced frontmatter (allow-list cut).
+
+    The Cursor skill mirror uses this (ADR-115 Decision 2). Cursor documents
+    seven skill keys and does not say whether it ignores or rejects the rest,
+    so the mirror ships only the documented ones. A key absent from the source
+    is simply absent from the result.
+
+    Top-level comment lines (column 0, ``#``) are cut: they describe a
+    neighbouring key and would dangle once it is gone. Comments inside a kept
+    key's indented block survive. Raises ValueError when the result does not
+    parse to the input mapping restricted to ``keys``.
+    """
+    result = _keep_key_lines(frontmatter, keys)
+    _check_only_keys_kept(frontmatter, result, keys)
+    return result
+
+
+def _keep_key_lines(frontmatter: str, keys: frozenset[str]) -> str:
+    kept: list[str] = []
+    keeping = False
+    for line in frontmatter.splitlines(keepends=True):
+        text = line.rstrip("\r\n")
+        if text == "---":
+            kept.append(line)
+            continue
+        if text.startswith("#"):
+            continue
+        is_continuation = not text.strip() or text[:1] in (" ", "\t") or text.startswith("- ")
+        if not is_continuation:
+            keeping = _names_listed_key(text, keys)
+        if keeping:
+            kept.append(line)
+    return "".join(kept)
+
+
+def _check_only_keys_kept(before: str, after: str, keys: frozenset[str]) -> None:
+    try:
+        original = _frontmatter_mapping(before)
+    except yaml.YAMLError:
+        return  # Source frontmatter is not YAML; the skill validators own that.
+    if not isinstance(original, dict):
+        return
+    expected = {k: v for k, v in original.items() if k in keys}
+    try:
+        actual = _frontmatter_mapping(after)
+    except yaml.YAMLError as exc:
+        raise ValueError(f"keeping {sorted(keys)} broke SKILL.md frontmatter: {exc}") from exc
+    if (actual or {}) != expected:
+        raise ValueError(f"keeping {sorted(keys)} changed the kept SKILL.md frontmatter keys")
+
+
+def keep_skill_frontmatter(content: str, keys: frozenset[str]) -> str:
+    """Apply :func:`keep_frontmatter_keys` to a whole SKILL.md; the body is untouched.
+
+    Content with no leading frontmatter block is returned unchanged.
+    """
+    match = _SKILL_SPLIT_RE.match(content)
+    if match is None:
+        return content
+    return keep_frontmatter_keys(match.group(1), keys) + match.group(2)

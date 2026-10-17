@@ -6,8 +6,8 @@ directory (one whose top-level entry contains a ``SKILL.md``) into the
 configured output directory. Honors NO-REGEN sentinels (REQ-003-008) and
 the AGENTS.md/CLAUDE.md exclude policy (REQ-003-010).
 
-Mode supported: ``directory-copy`` (whole tree). Other modes raise
-:class:`ValueError`.
+Modes supported: ``directory-copy`` (whole tree) and ``hermes-packs``
+(ADR-115 Decision 6, rendered by ``hermes_packs.py``). Other modes exit 2.
 
 Before the copy loop, :func:`generate_skills` runs
 ``skill_templates.compile_all`` (ADR-108, "Template-Owned Skill Files Under
@@ -51,6 +51,7 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_SCRIPT_DIR))
 
 import skill_templates  # noqa: E402
+from hermes_packs import generate_hermes_packs  # noqa: E402
 from lib_mirror import lib_owned_support_files  # noqa: E402
 from skill_distribution import SkillDistributionError, repo_local_names  # noqa: E402
 
@@ -95,6 +96,22 @@ def _frontmatter_drop(stanza: dict[str, object]) -> frozenset[str]:
     return frozenset(raw)
 
 
+def _frontmatter_keep(stanza: dict[str, object]) -> frozenset[str] | None:
+    """Return the stanza's ``frontmatterKeep`` allow-list, or ``None`` when absent.
+
+    ADR-115 Decision 2: a host whose parser may reject unknown keys (Cursor)
+    lists the keys it reads. ``None`` means "no allow-list", which is not the
+    same as an empty list (keep nothing). Raises :class:`GenerateSkillsError`
+    when the value is not a list of strings, including an explicit null.
+    """
+    if "frontmatterKeep" not in stanza:
+        return None
+    raw = stanza["frontmatterKeep"]
+    if not isinstance(raw, list) or not all(isinstance(key, str) for key in raw):
+        raise GenerateSkillsError("`artifacts.skills.frontmatterKeep` must be a list of strings")
+    return frozenset(raw)
+
+
 def _copy_skills(
     skills: list[Path],
     output_dir: Path,
@@ -104,6 +121,7 @@ def _copy_skills(
     check: bool = False,
     translate: bool,
     frontmatter_drop: frozenset[str],
+    frontmatter_keep: frozenset[str] | None = None,
 ) -> tuple[int, int]:
     """Copy each skill tree into ``output_dir``; return ``(written, skipped)``.
 
@@ -137,6 +155,7 @@ def _copy_skills(
             plugin_skill_md=plugin_skill_md,
             skip_filenames=lib_owned_support_files(src.name),
             frontmatter_drop=frontmatter_drop,
+            frontmatter_keep=frontmatter_keep,
         )
         total_written += written
         total_skipped += skipped
@@ -233,9 +252,15 @@ def generate_skills(
         return 2
 
     mode = str(stanza.get("mode", "directory-copy"))
+    if mode == "hermes-packs":
+        # The Hermes tree reads src/claude/skills, which the compile and
+        # support-file mirror above just refreshed, and owns all of src/hermes.
+        # int(...): same sibling-import typing gap as compile_result above.
+        return int(generate_hermes_packs(stanza, repo_root, what_if=what_if, check=validate))
     if mode != "directory-copy":
         print(
-            f"Error: unsupported skills mode '{mode}' (only 'directory-copy' implemented)",
+            f"Error: unsupported skills mode '{mode}' "
+            "(implemented: 'directory-copy', 'hermes-packs')",
             file=sys.stderr,
         )
         return 2
@@ -246,6 +271,7 @@ def generate_skills(
 
     try:
         frontmatter_drop = _frontmatter_drop(stanza)
+        frontmatter_keep = _frontmatter_keep(stanza)
         source_dir, output_dir = _resolve_paths(repo_root, source_dir_str, output_dir_str)
     except GenerateSkillsError as exc:
         print(f"Error: {exc}", file=sys.stderr)
@@ -295,6 +321,7 @@ def generate_skills(
             check=validate,
             translate=is_copilot,
             frontmatter_drop=frontmatter_drop,
+            frontmatter_keep=frontmatter_keep,
         )
     except GenerateSkillsError as exc:
         print(f"Error: {exc}", file=sys.stderr)
