@@ -333,6 +333,16 @@ class TestAutoMergeArmedAfterTheGuardRead:
         assert out["Data"]["reason"] == "auto_merge_guard_failed"
         assert "rate limited" in out["Error"]["Message"]
 
+    def test_unreadable_last_read_leaves_the_thread_unresolved(self, capsys):
+        """A thread node that comes back empty is not "unarmed"; the resolve must not run."""
+        rc, calls = _run_guarded([_UNRESOLVED, _UNRESOLVED, None], [_NOOP_GUARD])
+
+        assert rc == 3
+        assert calls == ["reply", "guard"]
+        out = json.loads(capsys.readouterr().out)
+        _assert_posted_not_resolved(out["Data"])
+        assert out["Data"]["reason"] == "auto_merge_guard_failed"
+
     def test_second_guard_failure_leaves_the_thread_unresolved(self, capsys):
         rc, calls = _run_guarded(
             [_UNRESOLVED, _UNRESOLVED, _armed()],
@@ -348,9 +358,6 @@ class TestAutoMergeArmedNow:
     @pytest.mark.parametrize(
         ("state", "expected"),
         [
-            (None, False),
-            ({"id": "PRRT_abc"}, False),
-            ({"pullRequest": None}, False),
             ({"pullRequest": {"autoMergeRequest": None}}, False),
             ({"pullRequest": {"autoMergeRequest": {"enabledAt": "t"}}}, True),
         ],
@@ -358,6 +365,15 @@ class TestAutoMergeArmedNow:
     def test_reads_the_request_off_the_thread_pull_request(self, state, expected):
         with patch.object(_mod, "query_thread_state", return_value=state):
             assert _mod._auto_merge_armed_now("PRRT_abc") is expected
+
+    @pytest.mark.parametrize(
+        "state",
+        [None, {"id": "PRRT_abc"}, {"pullRequest": None}, {"pullRequest": "PR_1"}],
+    )
+    def test_unreadable_thread_or_pull_request_raises(self, state):
+        with patch.object(_mod, "query_thread_state", return_value=state):
+            with pytest.raises(RuntimeError, match="PRRT_abc"):
+                _mod._auto_merge_armed_now("PRRT_abc")
 
     def test_thread_query_asks_for_the_auto_merge_request(self):
         assert "autoMergeRequest" in _mod._THREAD_QUERY

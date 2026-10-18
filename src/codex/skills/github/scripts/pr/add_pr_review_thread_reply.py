@@ -225,10 +225,18 @@ def _guard_auto_merge_before_resolution(
 
 
 def _auto_merge_armed_now(thread_id: str) -> bool:
-    """True when the thread's pull request has an auto-merge request right now."""
+    """True when the thread's pull request has an auto-merge request right now.
+
+    An unreadable thread or pull request raises, so the caller leaves the thread
+    unresolved. Reading it as "not armed" would let the resolve go ahead blind.
+    """
     thread = query_thread_state(thread_id)
-    pull_request = thread.get("pullRequest") if isinstance(thread, dict) else None
-    return isinstance(pull_request, dict) and pull_request.get("autoMergeRequest") is not None
+    if thread is None:
+        raise RuntimeError(f"could not re-read thread {thread_id} before the resolve")
+    pull_request = thread.get("pullRequest")
+    if not isinstance(pull_request, dict):
+        raise RuntimeError(f"thread {thread_id} has no readable pull request before the resolve")
+    return pull_request.get("autoMergeRequest") is not None
 
 
 def _resolve_thread_after_reply(thread_id: str) -> bool:

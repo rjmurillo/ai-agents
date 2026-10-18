@@ -1781,6 +1781,11 @@ class _StackGh:
         return [c for c in self.calls if any("/merge-async/" in part for part in c)]
 
 
+def _stack_reads(fake: _StackGh) -> list[list[str]]:
+    """The stack listing reads the fake saw."""
+    return [c for c in fake.calls if c[:2] == ["gh", "api"] and any("/stacks/" in p for p in c)]
+
+
 def _run_stack(fake: _StackGh, capsys, argv=None):
     """Run main() against fake with sleeping disabled; return (exit_code, envelope)."""
     code = 0
@@ -2341,13 +2346,29 @@ class TestAsyncMergeForStack:
         assert code == 3
         assert "unverified" in json.dumps(env)
 
-    def test_failure_before_the_gate_pinned_anything_recovers_without_a_head_check(self, capsys):
-        """Nothing was gated, so there is no pin to compare; the old recovery stands."""
+    def test_put_timeout_with_an_empty_pin_set_still_checks_the_landed_heads(self, capsys):
+        """The gate passed with no downstack member to pin: pins is {}, not None.
+
+        The recovery still reads the listing once more to compare landed heads.
+        """
         fake = _StackGh(put=subprocess.TimeoutExpired(["gh"], 60))
         fake.listings = [[_member(40, "closed"), _member(50)]]
         code, env = _run_stack(fake, capsys)
         assert code == 0
         assert env["Data"]["recovered"] is True
+        assert len(_stack_reads(fake)) == 3
+
+    def test_gate_failure_then_merged_readback_recovers_without_a_head_check(self, capsys):
+        """The gate raised, so nothing was pinned (pins is None): no extra listing read."""
+        fake = _StackGh(
+            members=[_member(40, "closed", merged=False), _member(50)],
+            readback=_MERGED_READBACK,
+        )
+        code, env = _run_stack(fake, capsys)
+        assert code == 0
+        assert env["Data"]["recovered"] is True
+        assert len(_stack_reads(fake)) == 1
+        assert fake.puts() == []
 
     def test_one_transient_poll_error_is_tolerated(self, capsys):
         fake = _StackGh(
