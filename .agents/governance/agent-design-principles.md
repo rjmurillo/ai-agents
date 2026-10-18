@@ -75,6 +75,12 @@ Frozen weights do not stop the agent system from gaining useful, retrievable ext
 4. Keep model judgment for real ambiguity.
 5. Reject a new control surface when an existing rule, skill, or script can carry the job.
 
+### How to Verify
+
+1. For a new skill or script, name the accepted outcome it moves (measured under #5768) and the existing rule, skill, or script you checked first.
+2. For a value a model would estimate, show the program or instrument that computes it, or say why none exists.
+3. For a model judgment, name the ambiguity a computation cannot settle.
+
 ### Scope
 
 This section changes no authority tier, safety constraint, model routing, or skill routing. It adds no skill, evaluator, or registration system.

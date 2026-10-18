@@ -6,7 +6,7 @@
 
 For non-trivial tasks, delegate to specialized agents via Task tool:
 
-- `Task(subagent_type="orchestrator")` for multi-step coordination
+- `Task(subagent_type="orchestrator")` by default for non-trivial work
 - `Task(subagent_type="Explore")` for codebase exploration
 - Specialized agents (implementer, architect, analyst, etc.) for focused work
 
