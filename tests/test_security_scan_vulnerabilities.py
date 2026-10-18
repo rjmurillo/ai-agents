@@ -69,6 +69,7 @@ def test_path_based_import_removes_temporary_sibling_import_path(
         [entry for entry in sys.path if entry != script_dir],
     )
     for module_name in [
+        "scan_bash_lexer",
         "scan_constants",
         "scan_format",
         "scan_patterns",

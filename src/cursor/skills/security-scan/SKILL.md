@@ -80,7 +80,7 @@ Use **threat-modeling** instead when:
 |--------|---------|------------|
 | `scripts/scan_vulnerabilities.py` | CWE-78 (command injection) regex scanner over staged, specified, or `--directory` files; supports `--format json`. CWE-22 is delegated to CodeQL; see Scope. | `0` no vulnerabilities; `1` scan error (file not found, etc.); `10` vulnerabilities detected. |
 
-`scan_constants.py`, `scan_patterns.py`, and `scan_format.py` are helper modules imported by the scanner, not standalone CLIs.
+`scan_constants.py`, `scan_patterns.py`, `scan_bash_lexer.py`, and `scan_format.py` are helper modules imported by the scanner, not standalone CLIs.
 
 ---
 
