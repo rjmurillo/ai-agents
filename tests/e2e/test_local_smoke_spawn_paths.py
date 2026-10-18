@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -140,6 +141,41 @@ class TestInstalledGuardCoversTheOtherSpawnPaths:
             os.spawnl(os.P_WAIT, exe, exe)
         assert not fake_copilot.exists()
 
+    def test_exec_and_spawn_by_keyword_are_refused(
+        self, monkeypatch: pytest.MonkeyPatch, fake_copilot: Path, tripwire: None
+    ) -> None:
+        guard.install(monkeypatch.setattr)
+        exe = str(fake_copilot.parent / "bin" / "copilot")
+        env = dict(os.environ)
+
+        for call in (
+            lambda: os.execve(path=exe, argv=[exe], env=env),
+            lambda: os.execve(exe, argv=[exe], env=env),
+            lambda: os.execvp(file="copilot", args=["copilot"]),
+            lambda: os.execvpe(file="copilot", args=["copilot"], env=env),
+            lambda: os.spawnv(os.P_WAIT, file=exe, args=[exe]),
+            lambda: os.spawnv(mode=os.P_WAIT, file=exe, args=[exe]),
+            lambda: os.spawnve(os.P_WAIT, file=exe, args=[exe], env=env),
+            lambda: os.spawnvp(os.P_WAIT, file="copilot", args=["copilot"]),
+            lambda: os.spawnvpe(os.P_WAIT, file="copilot", args=["copilot"], env=env),
+            lambda: os.execvp(file="sh", args=["sh", "-c", "echo hi; copilot"]),
+        ):
+            with pytest.raises(guard.CopilotCallRefusedError):
+                call()
+        assert not fake_copilot.exists()
+
+    def test_other_programs_by_keyword_reach_the_original(
+        self, monkeypatch: pytest.MonkeyPatch, tripwire: None
+    ) -> None:
+        guard.install(monkeypatch.setattr)
+
+        # The tripwire stands in for the real function, so reaching it proves the guard let
+        # the call through.
+        with pytest.raises(AssertionError, match="let a Copilot launch through"):
+            os.execvp(file="true", args=["true"])
+        with pytest.raises(AssertionError, match="let a Copilot launch through"):
+            os.spawnv(os.P_WAIT, file="/bin/true", args=["true"])
+
     def test_shell_true_with_a_command_line_in_a_list_is_refused(
         self, monkeypatch: pytest.MonkeyPatch, fake_copilot: Path
     ) -> None:
@@ -168,6 +204,64 @@ class TestInstalledGuardCoversTheOtherSpawnPaths:
             pid = os.posix_spawn(sys.executable, [sys.executable, "-c", "pass"], dict(os.environ))
             assert os.waitpid(pid, 0)[1] == 0
         assert os.popen("echo ok").read().strip() == "ok"
+
+
+def _launched(*args: object, **kwargs: object) -> None:
+    raise AssertionError("the guard let a Copilot launch through")
+
+
+# Stand-ins that share the parameter names of the real functions.
+def _execve_like(path: object, argv: object, env: object = None) -> None:
+    _launched()
+
+
+def _spawnv_like(mode: object, file: object, args: object) -> None:
+    _launched()
+
+
+def _execvp_like(file: object, args: object) -> None:
+    _launched()
+
+
+def _system_like(command: object) -> None:
+    _launched()
+
+
+@pytest.mark.parametrize(
+    ("function", "program", "argv", "args", "kwargs"),
+    [
+        (_execve_like, 0, 1, (), {"path": "copilot", "argv": ["copilot"]}),
+        (_execve_like, 0, 1, ("sh",), {"argv": ["sh", "-c", "echo hi; copilot"]}),
+        (_spawnv_like, 1, 2, (0,), {"file": "copilot", "args": ["copilot"]}),
+        (_spawnv_like, 1, 2, (), {"mode": 0, "file": "copilot", "args": ["copilot"]}),
+        (_execvp_like, 0, 1, ("sh",), {"args": ["sh", "-c", "echo hi; copilot"]}),
+        (_system_like, 0, None, (), {"command": "echo hi; copilot"}),
+    ],
+)
+def test_guarded_os_reads_the_program_and_argv_from_keywords(
+    function: Callable[..., None],
+    program: int,
+    argv: int | None,
+    args: tuple[object, ...],
+    kwargs: dict[str, object],
+) -> None:
+    with pytest.raises(guard.CopilotCallRefusedError):
+        guard._guarded_os(function, program, argv)(*args, **kwargs)
+
+
+def test_guarded_os_lets_a_keyword_call_to_another_program_through() -> None:
+    with pytest.raises(AssertionError, match="let a Copilot launch through"):
+        guard._guarded_os(_execve_like, 0, 1)(path="true", argv=["true", "-v"])
+
+
+def test_guarded_os_passes_an_unbindable_call_to_the_original() -> None:
+    """A call the signature rejects reaches the original, which raises its own TypeError."""
+
+    def execve_like(path: object, argv: object, env: object) -> None:
+        raise AssertionError("unreachable")
+
+    with pytest.raises(TypeError, match="unexpected keyword"):
+        guard._guarded_os(execve_like, 0, 1)(path="true", nope=1)
 
 
 def test_uninstall_restores_popen_and_the_os_entry_points() -> None:

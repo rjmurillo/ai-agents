@@ -20,6 +20,7 @@ code under test would otherwise turn the refusal into a pass.
 
 from __future__ import annotations
 
+import inspect
 import os
 import subprocess
 from collections.abc import Callable, Mapping
@@ -102,14 +103,54 @@ _ORIGINAL_POPEN = subprocess.Popen
 _ORIGINAL_OS = {name: getattr(os, name) for name in _OS_ENTRY_POINTS if hasattr(os, name)}
 
 
-def _guarded_os(original: Callable[..., Any], program: int, argv: int | None) -> Callable[..., Any]:
+def _bind(
+    signature: inspect.Signature | None, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> Mapping[int, Any]:
+    """Map a call to its values by position, binding keywords through ``signature``.
+
+    ``execve(path=..., argv=...)`` and ``spawnv(0, file=..., args=...)`` pass the program by
+    keyword, so reading only ``args`` would miss them. ``posix_spawn`` and ``execv`` take their
+    first parameters positional-only, so Python itself rejects a keyword there. A call the
+    signature cannot bind is left to the original, which raises its own ``TypeError``.
+    """
+    if signature is None or not kwargs:
+        return dict(enumerate(args))
+    try:
+        bound = signature.bind_partial(*args, **kwargs)
+    except TypeError:
+        return dict(enumerate(args))
+    names = list(signature.parameters)
+    return {i: bound.arguments[n] for i, n in enumerate(names) if n in bound.arguments}
+
+
+def _signature_of(function: Callable[..., Any]) -> inspect.Signature | None:
+    try:
+        return inspect.signature(function)
+    except (TypeError, ValueError):
+        return None
+
+
+# Read from the real functions at import: a test may later swap ``_ORIGINAL_OS`` entries for
+# stand-ins whose ``(*args, **kwargs)`` signature names no parameter.
+_SIGNATURES = {name: _signature_of(original) for name, original in _ORIGINAL_OS.items()}
+
+
+def _guarded_os(
+    original: Callable[..., Any],
+    program: int,
+    argv: int | None,
+    signature: inspect.Signature | None = None,
+) -> Callable[..., Any]:
+    signature = signature or _signature_of(original)
+
     def guarded(*args: Any, **kwargs: Any) -> Any:
+        values = _bind(signature, args, kwargs)
         if argv is None and not args and "command" in kwargs:  # os.system(command=...)
             refuse_copilot(kwargs["command"])
-        if len(args) > program:
-            refuse_copilot(args[program] if argv is None else [args[program]])
-        if argv is not None and len(args) > argv and isinstance(args[argv], (list, tuple)):
-            refuse_copilot(list(args[argv]))
+        if program in values:
+            refuse_copilot(values[program] if argv is None else [values[program]])
+        if argv is not None and isinstance(values.get(argv), (list, tuple)):
+            refuse_copilot(list(values[argv]))
         return original(*args, **kwargs)
 
     return guarded
@@ -120,7 +161,7 @@ def install(setattr_fn: Callable[[object, str, object], None]) -> None:
     setattr_fn(subprocess, "Popen", GuardedPopen)
     for name, original in _ORIGINAL_OS.items():
         program, argv = _OS_ENTRY_POINTS[name]
-        setattr_fn(os, name, _guarded_os(original, program, argv))
+        setattr_fn(os, name, _guarded_os(original, program, argv, _SIGNATURES[name]))
 
 
 def uninstall() -> None:

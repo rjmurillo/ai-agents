@@ -430,6 +430,101 @@ def test_main_maps_a_deadline_to_the_documented_exit_codes(
     assert json.loads(capsys.readouterr().out)["verdict"] == verdict
 
 
+def _run_args(doc: Path, evidence: Path | None) -> argparse.Namespace:
+    return argparse.Namespace(
+        docs=[str(doc)],
+        base_url="http://127.0.0.1:9",
+        allow_remote=False,
+        evidence=None if evidence is None else str(evidence),
+        touching=None,
+    )
+
+
+def _fail_then_stall(slow: Callable[[], ax.Reply]) -> Callable[..., ax.Reply]:
+    """Answer the first example with a 500 (a FAIL), then run ``slow`` for the second."""
+    calls: list[str] = []
+
+    def sender(method: str, url: str, headers: dict[str, str], body: bytes) -> ax.Reply:
+        calls.append(url)
+        return ax.Reply(500, b"{}") if len(calls) == 1 else slow()
+
+    return sender
+
+
+def _stall_with(message: str) -> Callable[[], ax.Reply]:
+    def slow() -> ax.Reply:
+        raise ax.InputError(message)
+
+    return slow
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "response from http://x/y is slower than 30s",
+        "response from http://x/y is over the 10 byte cap",
+        "server unreachable at http://x/y: refused",
+    ],
+)
+def test_a_failed_example_survives_a_later_request_that_cannot_finish(
+    write_doc: WriteDoc, tmp_path: Path, message: str
+) -> None:
+    """A FAIL then a slow, oversized or unreachable example stays exit 1 with evidence."""
+    text = GOOD_DOC + "\n```http example=b expect=200\nGET /y\n```\n"
+    evidence = tmp_path / "evidence.json"
+    args = _run_args(write_doc("d.md", text), evidence)
+
+    report, code = ax.cmd_run(args, _fail_then_stall(_stall_with(message)))
+
+    assert code == ax.EXIT_FINDINGS
+    assert report["verdict"] == "FAIL" and report["executed"] == 1 and report["failed"] == 1
+    assert report["request_failed"] == {"example": "b", "error": message, "unrun": ["b"]}
+    assert json.loads(evidence.read_text(encoding="utf-8")) == report
+
+
+def test_a_request_that_cannot_finish_first_is_unverified_and_keeps_evidence(
+    write_doc: WriteDoc, tmp_path: Path
+) -> None:
+    text = GOOD_DOC + "\n```http example=b expect=200\nGET /y\n```\n"
+    evidence = tmp_path / "evidence.json"
+    args = _run_args(write_doc("d.md", text), evidence)
+
+    with pytest.raises(ax.InputError, match=r"example `a` could not finish after 0 of 2.*slow"):
+        ax.cmd_run(args, lambda *_: _stall_with("slow")())
+
+    saved = json.loads(evidence.read_text(encoding="utf-8"))
+    assert saved["verdict"] == "UNVERIFIED" and saved["executed"] == 0
+    assert saved["request_failed"]["unrun"] == ["a", "b"]
+
+
+def test_a_request_that_cannot_finish_keeps_lint_findings_as_a_finding(
+    write_doc: WriteDoc, tmp_path: Path
+) -> None:
+    doc = write_doc("d.md", GOOD_DOC + "\n```http example=c\nGET /z\n```\n")
+    args = _run_args(doc, tmp_path / "evidence.json")
+
+    report, code = ax.cmd_run(args, lambda *_: _stall_with("slow")())
+
+    assert code == ax.EXIT_FINDINGS and report["verdict"] == "FAIL"
+    assert report["lint_findings"] and report["executed"] == 0
+
+
+def test_main_exits_one_for_a_fail_then_a_stalled_request(
+    write_doc: WriteDoc,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    text = GOOD_DOC + "\n```http example=b expect=200\nGET /y\n```\n"
+    args = _run_args(write_doc("d.md", text), tmp_path / "evidence.json")
+    sender = _fail_then_stall(_stall_with("response from http://x/y is slower than 30s"))
+    monkeypatch.setitem(ax._COMMANDS, "run", lambda parsed: ax.cmd_run(parsed, sender))
+    argv = ["run", *args.docs, "--base-url", args.base_url, "--evidence", args.evidence]
+
+    assert ax.main(argv) == ax.EXIT_FINDINGS
+    assert json.loads(capsys.readouterr().out)["verdict"] == "FAIL"
+
+
 def test_a_run_inside_its_deadline_sends_every_example(write_doc: WriteDoc) -> None:
     doc = write_doc("d.md", GOOD_DOC)
     sent: list[str] = []

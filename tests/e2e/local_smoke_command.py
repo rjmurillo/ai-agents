@@ -7,8 +7,8 @@ Known limits: a program started through ``eval``, a variable (``$CMD``), a scrip
 a launcher outside ``_LAUNCHERS``, or a shell outside ``_SHELLS`` is not seen. A shell
 option with a value other than ``-o`` or ``-O`` (``--rcfile f``) before the command line
 misreads the value as the command. An unquoted Windows path with a space inside a shell's
-``/c`` value is cut at the space. The fish options ``-C`` and ``--init-command`` run a
-command line that is not read.
+``/c`` value is cut at the space. The fish attached forms ``-Ccmd`` and ``-ccmd`` are not
+read: the next word is taken as the command instead.
 """
 
 from __future__ import annotations
@@ -30,11 +30,18 @@ _FUSED_REDIRECT = re.compile(r"^([;&|()]+)([<>].*)$")
 _OPERATOR_SPLIT = re.compile(r"&&|\|\||[<>]\(|[;|&()`\n]")
 # A word of a Windows-style line: a double-quoted span (which may hold spaces and
 # operator characters, as in ``"C:\Program Files (x86)\copilot.exe"``) or any
-# character that is not whitespace, a quote, or the start of an operator.
-_WINDOWS_WORD = re.compile(r'(?:"[^"\n]*"|[^\s"&|;()`<>]|[<>](?!\())+')
-_WINDOWS_TOKEN = re.compile(f"{_WINDOWS_WORD.pattern}|{_OPERATOR_SPLIT.pattern}")
-# A double-quoted span that holds whitespace: ``"C:\Program Files\copilot.exe"``.
-_QUOTED_SPACE = re.compile(r'"[^"]*\s[^"]*"')
+# character that is not whitespace, a quote, or the start of an operator. PowerShell also
+# quotes with single quotes (``& 'C:\Program Files\copilot.exe'``) and cmd does not, so a
+# line is read both ways, with and without single-quoted spans.
+_WINDOWS_TOKENS = tuple(
+    re.compile("(?:" + spans + r'|[^\s"&|;()`<>]|[<>](?!\())+|' + _OPERATOR_SPLIT.pattern)
+    for spans in ("\"[^\"\\n]*\"|'[^'\\n]*'", '"[^"\\n]*"')
+)
+# A quoted span that holds whitespace: ``"C:\Program Files\copilot.exe"`` or the single-quoted form.
+_QUOTED_SPACE = re.compile(r'"[^"]*\s[^"]*"|\'[^\']*\s[^\']*\'')
+# cmd drops the first and last quote of a ``/c`` or ``/k`` value that starts and ends with
+# one, so ``cmd /c ""C:\Program Files\copilot.exe" -p x"`` runs the quoted path.
+_CMD_OUTER_QUOTE = re.compile(r'(?im)\bcmd(?:\.exe)?"?(?:\s+/[a-z:]+)*?\s+/[ck]\s+"(.+)"\s*$')
 # A word with a redirection fused to its end, as in ``copilot.exe>nul``. The head must hold
 # a character other than a digit or ``&``, or the whole word is a redirection (``2>nul``).
 _WORD_REDIRECT = re.compile(r"^([^<>]*[^<>\d&][^<>]*)([<>].*)$", re.DOTALL)
@@ -51,7 +58,7 @@ _VERSION_SUFFIX = re.compile(r"(?<=.)@[^/]*$")
 _LAUNCHERS: dict[str, frozenset[str]] = {
     "env": frozenset({"-u", "--unset", "-C", "--chdir"}),
     "sudo": frozenset({"-u", "-g", "-C", "-D", "-h", "-p", "-r", "-t", "-U", "--user", "--group"}),
-    "npx": frozenset({"-p", "--package", "-c", "--call"}),
+    "npx": frozenset({"-p", "--package"}),
     "nohup": frozenset(),
     "exec": frozenset({"-a"}),
     "command": frozenset(),
@@ -59,12 +66,14 @@ _LAUNCHERS: dict[str, frozenset[str]] = {
     "timeout": frozenset({"-s", "--signal", "-k", "--kill-after"}),
     "nice": frozenset({"-n", "--adjustment"}),
     "ionice": frozenset({"-c", "-n", "-p"}),
-    "stdbuf": frozenset(),
+    "stdbuf": frozenset({"-i", "-o", "-e", "--input", "--output", "--error"}),
     "setsid": frozenset(),
     "xargs": frozenset({"-I", "-n", "-P", "-s", "-d", "-a", "-E", "-L"}),
     "watch": frozenset({"-n", "--interval", "-q", "--equexit"}),
     "busybox": frozenset(),
 }
+# ``npx`` options whose value is a whole command line: ``-c 'copilot -p x'``.
+_CALL_OPTIONS = frozenset({"-c", "--call"})
 # Launchers whose program word may be a whole command line: ``watch 'copilot -p x'``.
 _COMMAND_LINE_LAUNCHERS = frozenset({"watch"})
 # ``env`` options whose value is a whole command line: ``-S 'copilot -p x'``, the attached
@@ -91,7 +100,7 @@ _GETOPT_SHELLS = frozenset({"sh", "bash", "zsh", "dash", "ksh", "mksh", "ash", "
 # Shells, mapped to the option whose value is a command line to run.
 _SHELLS: dict[str, frozenset[str]] = (
     {name: frozenset({"-c"}) for name in _GETOPT_SHELLS}
-    | {"fish": frozenset({"-c", "--command"})}
+    | {"fish": frozenset({"-c", "--command", "-C", "--init-command"})}
     | {name: frozenset({"/c", "/k"}) for name in ("cmd", "cmd.exe")}
     | {
         name: frozenset({"-c", "-command"})
@@ -114,6 +123,8 @@ def _split_line(text: str) -> list[list[str]]:
         for inner in match.groups():
             if inner:
                 commands.extend(_split_line(inner))
+    for match in _CMD_OUTER_QUOTE.finditer(text):
+        commands.extend(c for c in _split_line(match.group(1)) if c not in commands)
     return commands
 
 
@@ -132,11 +143,21 @@ def _windows_commands(text: str) -> list[list[str]]:
     POSIX quoting would eat the backslashes, so this reads quotes by hand: a quoted path
     with spaces or parentheses stays whole. A word that holds a space keeps its quotes, so a
     shell's ``/c`` value is parsed again with the path intact. Other quotes are dropped, and
-    a redirection fused to a word (``copilot.exe>nul``) is split off.
+    a redirection fused to a word (``copilot.exe>nul``) is split off. The line is read twice,
+    with and without single-quoted spans, because PowerShell quotes with ``'`` and cmd does not.
     """
     commands: list[list[str]] = []
+    for pattern in _WINDOWS_TOKENS:
+        for found in _windows_cut(text, pattern):
+            if found not in commands:
+                commands.append(found)
+    return commands
+
+
+def _windows_cut(text: str, pattern: re.Pattern[str]) -> list[list[str]]:
+    commands: list[list[str]] = []
     current: list[str] = []
-    for token in _WINDOWS_TOKEN.findall(text):
+    for token in pattern.findall(text):
         if _OPERATOR_SPLIT.fullmatch(token):
             if current:
                 commands.append(current)
@@ -211,26 +232,33 @@ def _basename(word: str) -> str:
     return _VERSION_SUFFIX.sub("", name)
 
 
-def _shell_command(name: str, rest: list[str]) -> str | None:
-    """Return the command line a shell runs with ``-c`` or its equivalent.
+def _shell_commands(name: str, rest: list[str]) -> list[str]:
+    """Return the command lines a shell runs with ``-c`` or its equivalent.
 
     A POSIX shell reads the command from the first non-option word after ``-c``, so
-    later options (``-x``, ``+e``, ``-o pipefail``) and one ``--`` are skipped.
+    later options (``-x``, ``+e``, ``-o pipefail``) and one ``--`` are skipped. fish also
+    runs ``-C`` and ``--init-command``, and takes several options, so it returns every one.
     """
     flags = _SHELLS[name]
     posix = name in _GETOPT_SHELLS
+    found: list[str] = []
     for index, word in enumerate(rest):
         option, equals, value = word.partition("=")
+        line: str | None = None
         if equals and option.startswith("--") and option.lower() in flags:
-            return value
-        is_flag = word.lower() in flags or (posix and _C_CLUSTER.match(word) is not None)
-        if not is_flag:
-            continue
-        if posix:
-            return _first_operand(rest[index + 1 :])
-        if index + 1 < len(rest):
-            return rest[index + 1]
-    return None
+            line = value
+        elif (word if posix else word.lower()) in flags or (
+            posix and _C_CLUSTER.match(word) is not None
+        ):
+            if posix:
+                line = _first_operand(rest[index + 1 :])
+            elif index + 1 < len(rest):
+                line = rest[index + 1]
+        if line is not None:
+            found.append(line)
+            if name != "fish":
+                break
+    return found
 
 
 def _first_operand(words: list[str]) -> str | None:
@@ -268,10 +296,17 @@ def _option_command_line(launcher: str, word: str, following: list[str]) -> str 
 
     ``command -v`` only looks a program up, so its command line is empty. ``env`` splits the
     value of ``-S`` into words and runs them followed by the words after the option, so the
-    returned line holds both.
+    returned line holds both. ``npx -c`` and ``--call`` run their value as a command line.
     """
     if launcher == "command" and word in _LOOKUP_OPTIONS:
         return ""
+    if launcher == "npx":
+        option, equals, value = word.partition("=")
+        if option == "--call" and equals:
+            return value
+        if word in _CALL_OPTIONS:
+            return following[0] if following else ""
+        return None
     match = _SPLIT_STRING.match(word) if launcher == "env" else None
     if not match:
         return None
@@ -290,7 +325,7 @@ def _command_programs(command: str) -> list[str]:
     Both readings count, so the guard refuses when either one starts a program.
     """
     names = program_names(command)
-    if len(command) > 1 and command[0] == command[-1] == '"':
+    if len(command) > 1 and command[0] == command[-1] and command[0] in "\"'":
         names += program_names(command[1:-1])
     return names
 
@@ -326,8 +361,10 @@ def _programs(words: list[str]) -> list[str]:
             positionals = _LEADING_POSITIONALS.get(name, 0)
             continue
         if name in _SHELLS:
-            command = _shell_command(name, words[index:])
-            return [name] if command is None else _command_programs(command)
+            lines = _shell_commands(name, words[index:])
+            if not lines:
+                return [name]
+            return [program for line in lines for program in _command_programs(line)]
         if launcher in _COMMAND_LINE_LAUNCHERS and " " in word:
             return program_names(word)
         return [name]

@@ -79,7 +79,13 @@ def test_the_documented_guard_runs_the_command_for_github_only(
     subprocess.run(["git", "-C", str(repo), "remote", "add", "origin", url], check=True)
 
     done = subprocess.run(
-        ["sh", "-c", guard], cwd=repo, capture_output=True, text=True, check=False
+        ["sh", "-c", guard],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
     )
 
     assert ("RAN" in done.stdout) is expect_run, (url, done.stdout, done.stderr)
@@ -93,7 +99,13 @@ def test_the_guard_skips_when_the_generator_is_missing(tmp_path: Path, path: Pat
     subprocess.run(["git", "-C", str(tmp_path), "remote", "add", "origin", remote], check=True)
 
     done = subprocess.run(
-        ["sh", "-c", guard], cwd=tmp_path, capture_output=True, text=True, check=False
+        ["sh", "-c", guard],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
     )
 
     assert "RAN" not in done.stdout
@@ -107,7 +119,13 @@ def test_the_guard_skips_with_no_origin_remote(tmp_path: Path, path: Path) -> No
     subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
 
     done = subprocess.run(
-        ["sh", "-c", guard], cwd=tmp_path, capture_output=True, text=True, check=False
+        ["sh", "-c", guard],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
     )
 
     assert "RAN" not in done.stdout

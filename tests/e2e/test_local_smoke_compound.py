@@ -124,6 +124,35 @@ import local_smoke_guard as guard
         "fish -c 'true; and copilot'",
         "fish -c 'not copilot'",
         "fish -c 'echo hi; or copilot'",
+        # npx -c and --call run their value as a command line.
+        'npx -c "copilot -p hi"',
+        'npx --call "copilot -p hi"',
+        "npx --call=copilot",
+        "npx -y -c 'echo hi; copilot'",
+        ["npx", "-c", "copilot -p hi"],
+        # stdbuf -i, -o and -e take a separate MODE value.
+        "stdbuf -o 0 copilot",
+        "stdbuf -i L -o 0 -e 0 copilot",
+        "stdbuf --output 0 copilot",
+        "stdbuf -oL copilot",
+        # fish -C and --init-command run a command line too, beside -c.
+        "fish -C 'copilot -p x'",
+        "fish --init-command 'copilot -p x'",
+        "fish --init-command=copilot",
+        "fish -C 'echo hi' -c copilot",
+        "fish -c 'echo hi' -C copilot",
+        # cmd drops the outer quotes of a /c value, so the inner quoted path runs.
+        r'cmd /c ""C:\Program Files\copilot.exe" -p x"',
+        r'cmd.exe /d /s /c ""C:\Program Files (x86)\copilot.exe" --version"',
+        r'"C:\Windows\System32\cmd.exe" /c ""C:\Program Files\copilot.cmd" x"',
+        r'CMD /C ""C:\Program Files\copilot.exe""',
+        # PowerShell quotes a path with spaces in single quotes.
+        r"""pwsh -c "& 'C:\Program Files\copilot.exe'" """,
+        r"""pwsh -c "& 'C:\Program Files\copilot.exe' -p x" """,
+        r"""powershell -Command "& 'C:\Program Files (x86)\copilot.exe' --version" """,
+        r"""pwsh.exe -c '& "C:\Program Files\copilot.exe" -p x'""",
+        r"""pwsh -c "echo hi; & 'C:\Program Files\copilot.cmd' x" """,
+        r"""& 'C:\Program Files\copilot.exe' -p x""",
     ],
 )
 def test_refuses_copilot_anywhere_in_a_compound_command(args: object) -> None:
@@ -191,6 +220,19 @@ def test_refuses_copilot_anywhere_in_a_compound_command(args: object) -> None:
         r"echo C:\x\y>copilot",
         r"'C:\tools\node.exe' copilot.js",
         "fish -c 'not echo copilot'",
+        'npx -c "echo copilot"',
+        "npx --call=ls copilot",
+        "npx -p copilot-pkg node app.js",
+        "npx -c",
+        "stdbuf -o 0 echo copilot",
+        "stdbuf -oL ls copilot",
+        "fish -C 'echo copilot'",
+        "fish --init-command 'echo copilot' -c 'ls copilot'",
+        "fish --init-command",
+        r'cmd /c ""C:\Program Files\node.exe" copilot.js"',
+        r"""pwsh -c "& 'C:\Program Files\node.exe' copilot.js" """,
+        r"""pwsh -c '& "C:\Program Files\node.exe" copilot.js'""",
+        r"""& 'C:\Program Files\node.exe' copilot.js""",
     ],
 )
 def test_allows_a_compound_command_that_never_starts_copilot(args: object) -> None:
@@ -242,6 +284,28 @@ def test_program_names_keeps_a_quoted_windows_path_whole() -> None:
     assert command.program_names(r'echo "a;b" & c') == ["echo", "c"]
     # Edge: an unbalanced quote still yields the commands around it.
     assert command.program_names(r'echo "oops & copilot') == ["echo", "copilot"]
+
+
+def test_program_names_reads_an_npx_call_a_stdbuf_mode_and_a_fish_init_command() -> None:
+    assert command.program_names("npx -c 'a -x; b'") == ["a", "b"]
+    assert command.program_names("npx --call=a") == ["a"]
+    # Edge: -p still takes a separate package value, so the program after it is read.
+    assert command.program_names("npx -p pkg a") == ["a"]
+    # Edge: an option with no value after it starts nothing.
+    assert command.program_names("npx -c") == []
+    assert command.program_names("stdbuf -o 0 -e L a") == ["a"]
+    assert command.program_names("fish -C a -c b") == ["a", "b"]
+    assert command.program_names("fish --init-command=a --command b") == ["a", "b"]
+    # bash -C is noclobber, not a command option.
+    assert command.program_names("bash -C a") == ["bash"]
+
+
+def test_program_names_reads_both_cmd_and_powershell_quoting() -> None:
+    # The quote-stripped reading adds names; the first reading may add a cut-off word too.
+    assert "a.exe" in command.program_names(r'cmd /c ""C:\Program Files\a.exe" -p x"')
+    assert "b.exe" in command.program_names(r"""pwsh -c "& 'C:\Program Files\b.exe' -p x" """)
+    # Edge: a cmd apostrophe is data, so the operator after it still splits a command.
+    assert "c.exe" in command.program_names(r"echo C:\it's & c.exe 'x")
 
 
 def test_program_name_keeps_returning_the_first_program() -> None:

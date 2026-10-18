@@ -27,8 +27,9 @@ Subcommands (stdlib only, output is one JSON object):
 
 Exit codes: 0 clean, 1 findings or failed examples, 2 bad input or unverifiable
 (unreachable server, remote base URL without an explicit flag, no examples to
-lint, a response over the size cap, or a run past its deadline with no failed example
-or lint finding).
+lint, a response over the size cap, a request past its deadline, or a run past its
+deadline, each with no failed example or lint finding found first). A failed example or
+lint finding found before such a stop is still exit 1, and the evidence file keeps it.
 """
 
 from __future__ import annotations
@@ -351,7 +352,10 @@ def cmd_run(args: argparse.Namespace, sender: Sender = send) -> tuple[dict[str, 
     for example in runnable:
         if time.monotonic() > deadline:
             return _past_deadline(args, base_url, results, runnable[len(results) :], findings)
-        results.append(run_example(example, base_url, sender))
+        try:
+            results.append(run_example(example, base_url, sender))
+        except InputError as exc:
+            return _request_failed(args, base_url, results, runnable[len(results) :], findings, exc)
     report = _report(args, base_url, results, findings)
     _write_evidence(args, report)
     return report, (EXIT_OK if report["verdict"] == "PASS" else EXIT_FINDINGS)
@@ -376,6 +380,32 @@ def _write_evidence(args: argparse.Namespace, report: dict[str, Any]) -> None:
         Path(args.evidence).write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
 
 
+def _stopped(
+    args: argparse.Namespace,
+    base_url: str,
+    results: list[dict[str, Any]],
+    findings: list[dict[str, Any]],
+    stop: tuple[str, dict[str, Any], str],
+) -> tuple[dict[str, Any], int]:
+    """Keep the finished results when a run stops early.
+
+    A finished FAIL or a lint finding stays exit 1: the doc is stale or malformed whether
+    or not the rest ran. With neither, the run is unverifiable (exit 2). Either way the
+    evidence file records the finished results, the lint findings, and ``stop``: the report
+    key, its detail, and the message for the exit-2 error.
+    """
+    key, detail, message = stop
+    report = _report(args, base_url, results, findings)
+    failed = report["verdict"] == "FAIL"
+    if not failed:
+        report["verdict"] = "UNVERIFIED"
+    report[key] = detail
+    _write_evidence(args, report)
+    if failed:
+        return report, EXIT_FINDINGS
+    raise InputError(message)
+
+
 def _past_deadline(
     args: argparse.Namespace,
     base_url: str,
@@ -383,26 +413,36 @@ def _past_deadline(
     unrun: list[Example],
     findings: list[dict[str, Any]],
 ) -> tuple[dict[str, Any], int]:
-    """Keep the finished results when a run passes its deadline.
-
-    A finished FAIL or a lint finding stays exit 1: the doc is stale or malformed whether
-    or not the rest ran. With neither, the run is unverifiable (exit 2). Either way the
-    evidence file records the finished results, the lint findings, the deadline, and the
-    examples that never ran.
-    """
-    report = _report(args, base_url, results, findings)
-    failed = report["verdict"] == "FAIL"
-    if not failed:
-        report["verdict"] = "UNVERIFIED"
-    report["deadline_exceeded"] = {"seconds": RUN_DEADLINE_SECONDS, "unrun": [e.id for e in unrun]}
-    _write_evidence(args, report)
-    if failed:
-        return report, EXIT_FINDINGS
-    raise InputError(
+    """Stop a run that passed its deadline; the examples that never ran are listed."""
+    detail = {"seconds": RUN_DEADLINE_SECONDS, "unrun": [e.id for e in unrun]}
+    message = (
         f"run passed its {RUN_DEADLINE_SECONDS}s deadline after {len(results)} of "
         f"{len(results) + len(unrun)} examples, before `{unrun[0].id}`; "
         "the run is unverified and the finished results are not a verdict"
     )
+    return _stopped(args, base_url, results, findings, ("deadline_exceeded", detail, message))
+
+
+def _request_failed(
+    args: argparse.Namespace,
+    base_url: str,
+    results: list[dict[str, Any]],
+    unrun: list[Example],
+    findings: list[dict[str, Any]],
+    error: InputError,
+) -> tuple[dict[str, Any], int]:
+    """Stop a run whose request could not finish (deadline, byte cap, unreachable server).
+
+    ``unrun`` starts with the example that failed. Earlier results and lint findings are
+    kept, the same way as for a run deadline, so a stale doc still reports FAIL.
+    """
+    detail = {"example": unrun[0].id, "error": str(error), "unrun": [e.id for e in unrun]}
+    message = (
+        f"example `{unrun[0].id}` could not finish after {len(results)} of "
+        f"{len(results) + len(unrun)} examples: {error}; "
+        "the run is unverified and the finished results are not a verdict"
+    )
+    return _stopped(args, base_url, results, findings, ("request_failed", detail, message))
 
 
 def build_parser() -> argparse.ArgumentParser:
