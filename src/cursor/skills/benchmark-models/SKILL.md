@@ -119,8 +119,10 @@ Option A) or the run aborts with exit code 2 before any provider starts.
 ### Step 4: Interpret and optionally save
 
 Summarize: fastest (latency), cheapest (cost), highest quality (if judged), and
-a best-overall call that names the tradeoff. Call out any provider that errored,
-with its remediation path. Offer to save a JSON baseline so future runs can be
+a best-overall call that names the tradeoff. One run per provider is
+inconclusive, not a preference: report n, call no winner from a directional
+delta, and rerun to confirm. Call out any provider that errored, with its
+remediation path. Offer to save a JSON baseline so future runs can be
 diffed for regressions:
 
 ```bash

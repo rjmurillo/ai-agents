@@ -61,6 +61,23 @@ RECURRENCE_CLAUSES: dict[str, str] = {
     ),
 }
 
+BENCHMARK_SURFACES = (
+    Path("templates/skills/benchmark-models.SKILL.md.tmpl"),
+    Path(".claude/skills/benchmark-models/SKILL.md"),
+    Path("src/claude/skills/benchmark-models/SKILL.md"),
+    Path("src/codex/skills/benchmark-models/SKILL.md"),
+    Path("src/copilot-cli/skills/benchmark-models/SKILL.md"),
+    Path("src/cursor/skills/benchmark-models/SKILL.md"),
+    Path("src/hermes/project-toolkit-delivery/skills/benchmark-models/SKILL.md"),
+)
+
+BENCHMARK_CLAUSES: dict[str, str] = {
+    "single-run-inconclusive": "One run per provider is inconclusive, not a preference",
+    "report-n": "report n",
+    "no-winner-from-direction": "call no winner from a directional delta",
+    "rerun-to-confirm": "rerun to confirm",
+}
+
 GRADING_CLAUSES: dict[str, str] = {
     "inconclusive-not-preference": "is inconclusive, not a preference",
     "report-sample-and-interval": "Report the sample size and an interval or margin",
@@ -72,6 +89,15 @@ GRADING_CLAUSES: dict[str, str] = {
 }
 
 FIXTURES_PATH = REPO_ROOT / "tests" / "evals" / "structural-recurrence-runtime-fixtures.json"
+
+UNDERPOWERED_FIXTURES_PATH = (
+    REPO_ROOT / "tests" / "evals" / "underpowered-eval-runtime-fixtures.json"
+)
+
+RECURRING_FIXTURE_IDS = (
+    "recurring-defect-adds-guard",
+    "recurring-defect-explanation-is-not-a-guard",
+)
 
 EXPECTED_FIXTURE_IDS = {
     "recurring-defect-adds-guard",
@@ -152,9 +178,24 @@ def test_patch_only_negative_control_names_no_guard() -> None:
     fixture = {f.fixture_id: f for f in runtime_parity.load_fixtures(FIXTURES_PATH)}[
         "recurring-defect-adds-guard"
     ]
-    guard = re.compile(r"(?i)(test|validator|lint|type)[\s\S]{0,160}\bfails?\b")
+    guard = _guard_pattern("recurring-defect-adds-guard")
     assert guard.search(fixture.positive.response)
     assert not guard.search(fixture.negative.response)
+
+
+def _guard_pattern(fixture_id: str) -> re.Pattern[str]:
+    """A recurring-defect fixture's guard regex, read from the corpus itself.
+
+    Each recurring-defect fixture must carry exactly one ``regex`` assertion
+    beyond the location anchor, so weakening or deleting it in the corpus
+    breaks these tests instead of leaving a stale copy green.
+    """
+    fixture = {f.fixture_id: f for f in runtime_parity.load_fixtures(FIXTURES_PATH)}[fixture_id]
+    patterns = [spec.pattern for spec in fixture.assertions if spec.kind == "regex"]
+    assert len(patterns) == 2, fixture_id
+    anchor, guard = patterns
+    assert anchor == r"dates\.py:31", fixture_id
+    return re.compile(guard)
 
 
 def _overbuilt_pattern() -> re.Pattern[str]:
@@ -212,19 +253,104 @@ def test_explain_only_negative_control_adds_no_check() -> None:
     fixture = {f.fixture_id: f for f in runtime_parity.load_fixtures(FIXTURES_PATH)}[
         "recurring-defect-explanation-is-not-a-guard"
     ]
-    guard = re.compile(r"(?i)(test|validator|lint|type)[\s\S]{0,160}\bfails?\b")
+    guard = _guard_pattern("recurring-defect-explanation-is-not-a-guard")
     assert "keeps coming back because" in fixture.negative.response
     assert guard.search(fixture.positive.response)
     assert not guard.search(fixture.negative.response)
 
 
-def test_semantic_rubric_requires_the_check_and_rejects_explain_only() -> None:
+@pytest.mark.parametrize("fixture_id", RECURRING_FIXTURE_IDS)
+def test_semantic_rubric_requires_the_check_and_rejects_explain_only(fixture_id: str) -> None:
     """The semantic authority must not let an explanation stand in for the guard."""
     fixtures = {f.fixture_id: f for f in runtime_parity.load_fixtures(FIXTURES_PATH)}
     rubric = next(
-        spec.rubric
-        for spec in fixtures["recurring-defect-adds-guard"].assertions
-        if spec.kind == "semantic"
+        spec.rubric for spec in fixtures[fixture_id].assertions if spec.kind == "semantic"
     )
     assert "or explains why" not in rubric
     assert "only explains why the earlier fixes did not hold" in rubric
+
+
+# --- benchmark-models Step 4 single-run clause (fixture 9) -----------------
+
+
+@pytest.mark.parametrize("path", BENCHMARK_SURFACES, ids=str)
+def test_benchmark_surface_carries_every_single_run_clause(path: Path) -> None:
+    assert missing(_flat(path), BENCHMARK_CLAUSES) == []
+
+
+@pytest.mark.parametrize("clause_id", sorted(BENCHMARK_CLAUSES))
+def test_removing_a_benchmark_clause_is_detected(clause_id: str) -> None:
+    """Negative control: the checker fails once the clause is gone."""
+    source = _flat(BENCHMARK_SURFACES[0])
+    mutated = source.replace(" ".join(BENCHMARK_CLAUSES[clause_id].split()), "")
+    assert missing(mutated, BENCHMARK_CLAUSES) == [clause_id]
+
+
+def _underpowered_fixture() -> runtime_parity.Fixture:
+    fixtures = runtime_parity.load_fixtures(UNDERPOWERED_FIXTURES_PATH)
+    assert [f.fixture_id for f in fixtures] == ["single-run-benchmark-names-no-winner"]
+    return fixtures[0]
+
+
+def test_underpowered_fixture_quotes_the_shipped_step_4_sentence() -> None:
+    """The harness installs no skills, so the prompt carries the clause.
+
+    The quote must stay a substring of every rendered skill, or the fixture
+    grades a sentence the skill no longer says.
+    """
+    prompt = " ".join(_underpowered_fixture().prompt.split())
+    quoted = prompt.split("Step 4 of the skill says: '", 1)[1].split("' Write", 1)[0]
+    assert quoted.startswith("One run per provider is inconclusive")
+    for path in BENCHMARK_SURFACES:
+        assert quoted in _flat(path), path
+
+
+def test_underpowered_fixture_has_a_semantic_assertion_and_a_scope_note() -> None:
+    fixture = _underpowered_fixture()
+    assert "semantic" in {spec.kind for spec in fixture.assertions}
+    note = json.loads(UNDERPOWERED_FIXTURES_PATH.read_text(encoding="utf-8"))["_scope_note"]
+    assert "does not test that the skill loads" in note
+    assert "NOT the semantic authority" in note
+
+
+def _winner_pattern() -> re.Pattern[str]:
+    patterns = [
+        spec.pattern for spec in _underpowered_fixture().assertions if spec.kind == "not_regex"
+    ]
+    assert len(patterns) == 1
+    return re.compile(patterns[0])
+
+
+def test_underpowered_negative_control_names_a_winner_and_positive_does_not() -> None:
+    """Negative control: a reply that crowns a winner from one run is rejected."""
+    fixture = _underpowered_fixture()
+    winner = _winner_pattern()
+    assert winner.search(fixture.negative.response)
+    assert not winner.search(fixture.positive.response)
+    assert "inconclusive" in fixture.positive.response
+    assert "inconclusive" not in fixture.negative.response
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "GPT is the best overall on this run.",
+        "Best overall: Claude, given the judge score.",
+        "Winner: Gemini.",
+        "I would pick Gemini.",
+    ],
+)
+def test_winner_pattern_rejects_single_run_winner_claims(reply: str) -> None:
+    assert _winner_pattern().search(reply), reply
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "n=1 per provider, so the result is inconclusive. No winner can be called.",
+        "Fastest: gpt at 6.9s. Cheapest: gemini at $0.018. Rerun to confirm.",
+        "",
+    ],
+)
+def test_winner_pattern_allows_the_per_metric_summary_and_no_winner(reply: str) -> None:
+    assert not _winner_pattern().search(reply), reply
