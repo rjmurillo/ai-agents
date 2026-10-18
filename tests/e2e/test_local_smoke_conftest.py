@@ -23,7 +23,7 @@ def _run_unmarked_copilot_test(
     With ``at_import`` the call runs at module import, during collection.
     """
     e2e_dir = Path(__file__).resolve().parent
-    for name in ("conftest.py", "local_smoke_guard.py"):
+    for name in ("conftest.py", "local_smoke_guard.py", "local_smoke_command.py"):
         (tmp_path / name).write_text((e2e_dir / name).read_text(encoding="utf-8"), encoding="utf-8")
     fake = tmp_path / "bin" / "copilot"
     fake.parent.mkdir()
