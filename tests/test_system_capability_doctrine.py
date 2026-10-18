@@ -11,6 +11,8 @@ doctrine is copied into an always-on rule.
 from __future__ import annotations
 
 import re
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -86,9 +88,22 @@ def test_section_slice_runs_to_end_when_no_later_heading() -> None:
     assert "| Base model |" in _section_text(f"{HEADING}\n\n| Base model |\n")
 
 
+CONTRADICTING_PHRASES = ("cannot learn", "no system-level learning", "system cannot improve")
+
+
 def test_doc_does_not_claim_frozen_weights_mean_no_system_learning() -> None:
-    text = DOC.read_text(encoding="utf-8")
-    assert "Frozen weights do not stop the agent system" in text
+    section = _section_text(DOC.read_text(encoding="utf-8"))
+    assert "Frozen weights do not stop the agent system" in section
+    lowered = section.lower()
+    for phrase in CONTRADICTING_PHRASES:
+        assert phrase not in lowered
+
+
+def test_contradicting_phrase_check_would_catch_an_inverted_claim() -> None:
+    inverted = (
+        f"{HEADING}\n\nFrozen weights do not stop the agent system. The system cannot learn.\n"
+    )
+    assert any(phrase in _section_text(inverted).lower() for phrase in CONTRADICTING_PHRASES)
 
 
 def test_doc_links_outcome_measurement_issue_instead_of_reimplementing() -> None:
@@ -182,3 +197,32 @@ def test_doctrine_is_not_copied_into_always_on_rules(rule: Path) -> None:
     assert HEADING not in text
     for sentence in DOCTRINE_SENTENCES:
         assert sentence not in text
+
+
+def _tracked_files_containing(needles: tuple[str, ...]) -> set[str]:
+    """Return repo-relative tracked paths that contain any needle as a fixed string."""
+    args = ["git", "grep", "-l", "-F"]
+    for needle in needles:
+        args += ["-e", needle]
+    result = subprocess.run(
+        args,
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode in (0, 1), result.stderr
+    return {line for line in result.stdout.splitlines() if line}
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not available")
+def test_doctrine_has_exactly_one_canonical_source_in_tracked_files() -> None:
+    hits = _tracked_files_containing((HEADING, *DOCTRINE_SENTENCES))
+    hits.discard(Path(__file__).resolve().relative_to(REPO_ROOT).as_posix())
+    assert hits == {DOC.relative_to(REPO_ROOT).as_posix()}
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not available")
+def test_tracked_file_scan_reports_known_hit_and_no_hit_for_absent_text() -> None:
+    assert _tracked_files_containing((HEADING,)) >= {DOC.relative_to(REPO_ROOT).as_posix()}
+    assert _tracked_files_containing(("zz-no-such-doctrine-text-\x01-zz",)) == set()
