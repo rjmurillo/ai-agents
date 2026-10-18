@@ -232,6 +232,74 @@ class TestOutputTokenDelta:
         assert "Mean output tokens" not in eval_mod.render_table("voice", unmeasured)
 
 
+def _with_chars(
+    scenario: dict[str, Any], baseline: int | None = None, full: int | None = None
+) -> dict[str, Any]:
+    for mech, chars in (("baseline", baseline), ("full", full)):
+        if chars is not None:
+            scenario["mechanisms"][mech]["response_chars"] = chars
+    return scenario
+
+
+class TestNegativePoolSize:
+    """Issue #5405: a shrink on exempt cases must reach the table, not only the positive pool."""
+
+    def test_negative_shrink_is_published_beside_the_positive_delta(self):
+        scenarios = [
+            _with_chars(_make_scenario(2, 3, 4), baseline=600, full=100),
+            _with_chars(_make_scenario(2, 3, 4, negative=True), baseline=5027, full=2926),
+            _with_chars(_make_scenario(2, 3, 4, negative=True), baseline=1249, full=1594),
+        ]
+        summary = eval_mod.aggregate(scenarios)
+        assert summary["response_chars_delta_full_vs_baseline"] == -500.0
+        assert summary["negative_response_chars_delta_full_vs_baseline"] == -878.0
+        text = eval_mod.render_table("voice", summary)
+        assert "Mean response chars: baseline 600.0 (n=1), full 100.0 (n=1) (-500.0)" in text
+        assert (
+            "Negative-pool mean response chars: baseline 3138.0 (n=2), "
+            "full 2260.0 (n=2) (-878.0)" in text
+        )
+
+    def test_negative_tokens_are_published_when_both_arms_report(self):
+        scenarios = [
+            _with_tokens(_make_scenario(2, 3, 4), baseline=120, full=70),
+            _with_tokens(_make_scenario(2, 3, 4, negative=True), baseline=900, full=400),
+        ]
+        summary = eval_mod.aggregate(scenarios)
+        assert summary["negative_output_tokens_delta_full_vs_baseline"] == -500.0
+        assert (
+            "Negative-pool mean output tokens: baseline 900.0 (n=1), full 400.0 (n=1) (-500.0)"
+            in eval_mod.render_table("voice", summary)
+        )
+
+    def test_no_negative_size_line_without_negative_measurements(self):
+        scenarios = [
+            _with_chars(_make_scenario(2, 3, 4), baseline=600, full=100),
+            _make_scenario(2, 3, 4, negative=True),
+        ]
+        summary = eval_mod.aggregate(scenarios)
+        assert summary["negative_response_chars_delta_full_vs_baseline"] is None
+        assert summary["negative_output_tokens_delta_full_vs_baseline"] is None
+        assert "Negative-pool" not in eval_mod.render_table("voice", summary)
+
+    def test_partial_negative_coverage_publishes_none_not_a_mixed_delta(self):
+        scenarios = [
+            _with_chars(_make_scenario(2, 3, 4, negative=True), baseline=5000, full=100),
+            _with_chars(_make_scenario(2, 3, 4, negative=True), baseline=50),
+        ]
+        summary = eval_mod.aggregate(scenarios)
+        assert summary["negative_response_chars_delta_full_vs_baseline"] is None
+        assert "Negative-pool" not in eval_mod.render_table("voice", summary)
+
+    def test_negative_growth_prints_a_plus_sign(self):
+        scenarios = [
+            _with_chars(_make_scenario(2, 3, 4), baseline=600, full=100),
+            _with_chars(_make_scenario(2, 3, 4, negative=True), baseline=1249, full=1594),
+        ]
+        text = eval_mod.render_table("voice", eval_mod.aggregate(scenarios))
+        assert "full 1594.0 (n=1) (+345.0)" in text
+
+
 LENGTH_CUE = re.compile(
     r"\b(words?|lines?|one-line|terse|concise|brief|short|sentences?|bullets?)\b",
     re.IGNORECASE,

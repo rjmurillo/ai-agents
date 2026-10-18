@@ -21,6 +21,7 @@ QA_SURFACES = [
     REPO_ROOT / "src" / "claude" / "agents" / "qa.md",
     REPO_ROOT / "src" / "copilot-cli" / "agents" / "qa.agent.md",
     REPO_ROOT / "src" / "vs-code-agents" / "qa.agent.md",
+    REPO_ROOT / "src" / "cursor" / "agents" / "qa.md",
 ]
 PARTIAL_DELIVERY_FIXTURE = REPO_ROOT / "evals" / "qa-spike" / "fixtures" / "Q011.json"
 
@@ -173,7 +174,8 @@ def test_qa_ready_claim_requires_no_unrun_suite(surface: Path) -> None:
     assert len(complete) == 1
     line = complete[0]
     assert READY_PHRASE in line
-    assert "Only if no suite is `NOT RUN`/`UNAVAILABLE`" in line
+    assert "Only if [passed] equals [total] and no suite is `NOT RUN`/`UNAVAILABLE`" in line
+    assert "or QA FAILED" in line
     assert "`[BLOCKED] Cannot evaluate: <suite>`" in line
     # The readiness phrase must precede the condition, never follow the BLOCKED branch.
     assert line.index(READY_PHRASE) < line.index("Only if")

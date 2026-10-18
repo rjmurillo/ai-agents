@@ -1525,6 +1525,20 @@ def aggregate(scenarios: list[dict[str, Any]], routed: bool = False) -> dict[str
     summary["output_tokens_delta_full_vs_baseline"] = _output_token_delta(
         pos_cells["full"], pos_cells["baseline"]
     )
+    summary["response_chars_delta_full_vs_baseline"] = _response_chars_delta(
+        pos_cells["full"], pos_cells["baseline"]
+    )
+    # The negative pool holds the cases where the rule must stay out of the
+    # way (requested detail, long-form deliverables). A shrink there means the
+    # rule compressed output it exempts, and a judge that cannot see length
+    # scores it the same as no shrink. The positive pool's delta alone hides it.
+    neg_cells = summary["negative_case_per_mechanism"]
+    summary["negative_output_tokens_delta_full_vs_baseline"] = _output_token_delta(
+        neg_cells["full"], neg_cells["baseline"]
+    )
+    summary["negative_response_chars_delta_full_vs_baseline"] = _response_chars_delta(
+        neg_cells["full"], neg_cells["baseline"]
+    )
     summary["delta_rounding_disagrees"] = any(
         summary[f"delta_{mech_name}_vs_baseline"]
         != summary[f"delta_{mech_name}_vs_baseline_measured"]
@@ -1745,8 +1759,10 @@ def _size_covers_pool(cell: dict[str, Any], count_key: str) -> bool:
     )
 
 
-def _output_token_delta(treatment: dict[str, Any], control: dict[str, Any]) -> float | None:
-    """Mean output tokens, treatment minus control, or None unless both sides cover the pool.
+def _size_delta(
+    treatment: dict[str, Any], control: dict[str, Any], count_key: str, mean_key: str
+) -> float | None:
+    """Mean size, treatment minus control, or None unless both sides cover the pool.
 
     A negative value means the rule shortened the response. Subtracting a mean
     over 1 scenario from a mean over 2 describes neither: with baseline
@@ -1756,15 +1772,23 @@ def _output_token_delta(treatment: dict[str, Any], control: dict[str, Any]) -> f
     rule `_delta` applies to scores. Archived summaries predate the field, so
     a missing key reads as unmeasured, not as zero.
     """
-    if not _size_covers_pool(treatment, "output_token_count") or not _size_covers_pool(
-        control, "output_token_count"
-    ):
+    if not _size_covers_pool(treatment, count_key) or not _size_covers_pool(control, count_key):
         return None
-    treated = treatment.get("mean_output_tokens")
-    base = control.get("mean_output_tokens")
+    treated = treatment.get(mean_key)
+    base = control.get(mean_key)
     if treated is None or base is None:
         return None
     return float(round(treated - base, 1))
+
+
+def _output_token_delta(treatment: dict[str, Any], control: dict[str, Any]) -> float | None:
+    """Mean output tokens, treatment minus control. See `_size_delta`."""
+    return _size_delta(treatment, control, "output_token_count", "mean_output_tokens")
+
+
+def _response_chars_delta(treatment: dict[str, Any], control: dict[str, Any]) -> float | None:
+    """Mean response characters, treatment minus control. See `_size_delta`."""
+    return _size_delta(treatment, control, "response_chars_count", "mean_response_chars")
 
 
 def _delta_measured(treatment: dict[str, Any], control: dict[str, Any]) -> float | None:
@@ -1932,6 +1956,37 @@ def _render_caveats(summary: dict[str, Any]) -> list[str]:
     return lines
 
 
+def _render_size_rows(
+    summary: dict[str, Any], pool_key: str, label: str, delta_prefix: str
+) -> list[str]:
+    """Output-token and response-char lines for one pool, each printed only when measured.
+
+    Tokens print when both arms reported on every scenario (the delta is then
+    not None). Chars print under the same coverage rule, so the two means
+    describe the same cells.
+    """
+    base_cell = summary[pool_key]["baseline"]
+    full_cell = summary[pool_key]["full"]
+    rows: list[str] = []
+    token_delta = summary.get(f"{delta_prefix}output_tokens_delta_full_vs_baseline")
+    if token_delta is not None:
+        rows.append(
+            f"{label} output tokens: baseline {base_cell['mean_output_tokens']} "
+            f"(n={base_cell['output_token_count']}), "
+            f"full {full_cell['mean_output_tokens']} "
+            f"(n={full_cell['output_token_count']}) ({token_delta:+})"
+        )
+    chars_delta = summary.get(f"{delta_prefix}response_chars_delta_full_vs_baseline")
+    if chars_delta is not None:
+        rows.append(
+            f"{label} response chars: baseline {base_cell['mean_response_chars']} "
+            f"(n={base_cell['response_chars_count']}), "
+            f"full {full_cell['mean_response_chars']} "
+            f"(n={full_cell['response_chars_count']}) ({chars_delta:+})"
+        )
+    return rows
+
+
 def render_table(rule_id: str, summary: dict[str, Any]) -> str:
     worst_neg = summary.get("worst_negative_avg")
     if worst_neg is None:
@@ -1989,27 +2044,10 @@ def render_table(rule_id: str, summary: dict[str, Any]) -> str:
         ),
         f"Restraint on negative cases: {restraint}",
     ]
-    base_cell = summary["per_mechanism"]["baseline"]
-    full_cell = summary["per_mechanism"]["full"]
-    token_delta = summary.get("output_tokens_delta_full_vs_baseline")
-    if token_delta is not None:
-        rows.append(
-            f"Mean output tokens: baseline {base_cell['mean_output_tokens']} "
-            f"(n={base_cell['output_token_count']}), "
-            f"full {full_cell['mean_output_tokens']} "
-            f"(n={full_cell['output_token_count']}) ({token_delta:+})"
-        )
-    # Printed only when both arms recorded every scenario, so the two means
-    # describe the same cells.
-    if _size_covers_pool(base_cell, "response_chars_count") and _size_covers_pool(
-        full_cell, "response_chars_count"
-    ):
-        rows.append(
-            f"Mean response chars: baseline {base_cell['mean_response_chars']} "
-            f"(n={base_cell['response_chars_count']}), "
-            f"full {full_cell['mean_response_chars']} "
-            f"(n={full_cell['response_chars_count']})"
-        )
+    rows += _render_size_rows(summary, "per_mechanism", "Mean", "")
+    rows += _render_size_rows(
+        summary, "negative_case_per_mechanism", "Negative-pool mean", "negative_"
+    )
     rows += _render_caveats(summary)
     rows += [
         "",
