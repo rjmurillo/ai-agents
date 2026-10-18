@@ -266,6 +266,7 @@ def _search_with_deadline(pattern: str, ignore_case: bool, output: str) -> bool 
             capture_output=True,
             text=True,
             encoding="utf-8",
+            errors="replace",
             timeout=REGEX_TIMEOUT_S,
             check=False,
         )
