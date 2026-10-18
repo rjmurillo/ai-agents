@@ -51,8 +51,10 @@ def _yaml_where(exc: yaml.YAMLError) -> str:
     ``str(exc)`` carries a snippet of the source line. The parser's short
     ``problem`` and the position are enough to find the defect, so the snippet
     is dropped. ``problem`` can still repeat one token from the file, such as an
-    alias or tag name, so it is capped at 80 characters. ``_skill_source`` refuses
-    symlinks, so that token comes from the skill's own frontmatter.
+    alias or tag name, so it is capped at 80 characters. A ``ReaderError`` (bad
+    control character) has no mark, so its character offset and fixed reason
+    are used instead. ``_skill_source`` refuses symlinks, so a repeated token
+    comes from the skill's own frontmatter.
     """
     mark = getattr(exc, "problem_mark", None)
     problem = " ".join(str(getattr(exc, "problem", "") or "").split())[:_PROBLEM_CAP]
@@ -61,6 +63,12 @@ def _yaml_where(exc: yaml.YAMLError) -> str:
         if mark is not None
         else ""
     )
+    if mark is None and isinstance(exc, yaml.reader.ReaderError):
+        # A bad control character fails before parsing, so there is no mark. The
+        # reason is a fixed parser string and the offset is a number; the
+        # offending character itself stays out of the message.
+        problem = " ".join(str(exc.reason or "").split())[:_PROBLEM_CAP]
+        where = f" at frontmatter character offset {exc.position}"
     return f"{where}: {problem}" if problem else where
 
 

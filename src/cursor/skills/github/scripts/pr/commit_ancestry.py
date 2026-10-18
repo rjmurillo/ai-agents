@@ -49,35 +49,36 @@ def _classify_unresolved(sha: str, repo_path: str) -> tuple[bool, str, str]:
 
 
 def _shadowing_ref(sha: str, repo_path: str) -> tuple[bool, str]:
-    """Return (shadowed, git stderr): whether a ref is named exactly like ``sha``.
+    """Return (shadowed, git stderr): whether a ref is named like ``sha``.
 
     ``git rev-parse`` tries a ref of that name before an object-name prefix, so
     a branch or tag called ``abc1234`` makes a cited ``abc1234`` resolve to the
     ref's tip instead of the commit the reviewer meant. The names tried are the
     ``gitrevisions`` dwim list after ``$GIT_DIR/<name>``, which a lowercase
-    ``sha`` cannot match (``check_ancestor`` lowercases). ``sha`` is hex only,
-    so the patterns carry no glob characters; ``for-each-ref`` also lists refs
-    below a match, so the output is compared to the exact names.
+    ``sha`` cannot match (``check_ancestor`` lowercases).
+
+    On a case-insensitive filesystem (macOS APFS and Windows NTFS defaults) a
+    loose ref such as ``refs/heads/ABC1234`` also wins for ``abc1234``, yet
+    ``for-each-ref`` lists it with its stored case. So every ref is listed once
+    and compared casefolded against the exact names; ``for-each-ref`` also
+    lists refs below a match, which the exact-name compare ignores. On a
+    case-sensitive filesystem this flags ``refs/heads/ABC1234`` although git
+    would not resolve it, which fails closed on a rare name.
     """
     exact = {
-        f"refs/{sha}",
-        f"refs/tags/{sha}",
-        f"refs/heads/{sha}",
-        f"refs/remotes/{sha}",
-        f"refs/remotes/{sha}/HEAD",
+        name.casefold()
+        for name in (
+            f"refs/{sha}",
+            f"refs/tags/{sha}",
+            f"refs/heads/{sha}",
+            f"refs/remotes/{sha}",
+            f"refs/remotes/{sha}/HEAD",
+        )
     }
-    returncode, stdout, stderr = _git(
-        repo_path,
-        "for-each-ref",
-        "--format=%(refname)",
-        f"refs/{sha}",
-        f"refs/tags/{sha}",
-        f"refs/heads/{sha}",
-        f"refs/remotes/{sha}",
-    )
+    returncode, stdout, stderr = _git(repo_path, "for-each-ref", "--format=%(refname)")
     if returncode != 0:
         return False, stderr or f"git for-each-ref exited {returncode}"
-    return any(line.strip() in exact for line in stdout.splitlines()), ""
+    return any(line.strip().casefold() in exact for line in stdout.splitlines()), ""
 
 
 def check_ancestor(sha: str, head_sha: str, repo_path: str) -> tuple[bool, str, str]:
@@ -92,7 +93,8 @@ def check_ancestor(sha: str, head_sha: str, repo_path: str) -> tuple[bool, str, 
     The SHA is lowercased before git sees it. Object-name prefixes are case
     insensitive, but git reads an all-uppercase name as a root ref under
     ``$GIT_DIR`` (``$GIT_DIR/ABC1234``) before it tries an object. A lowercase
-    name is never a root ref, so the first dwim entry cannot shadow it.
+    name is never a root ref, so the first dwim entry cannot shadow it. The
+    remaining ref dwim entries are checked by ``_shadowing_ref``, casefolded.
     """
     if not _HEX_SHA.fullmatch(sha):
         return False, "invalid", "not-a-sha"

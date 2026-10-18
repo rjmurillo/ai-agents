@@ -121,6 +121,82 @@ class TestRefNameCollision:
         )
 
 
+class TestCaseInsensitiveRefShadow:
+    """A case-insensitive filesystem resolves refs/heads/ABC1234 for abc1234.
+
+    No case-insensitive filesystem is available in CI, so for-each-ref output is
+    patched to list the ref in its stored case; rev-parse still sees a commit.
+    """
+
+    @staticmethod
+    def _listing(root: Path, extra: list[str]):
+        real_git = commit_ancestry._git
+
+        def patched(repo_path: str, *args: str) -> tuple[int, str, str]:
+            if args[0] == "for-each-ref":
+                return 0, "\n".join(["refs/heads/main", *extra]) + "\n", ""
+            return real_git(repo_path, *args)
+
+        return patch.object(commit_ancestry, "_git", side_effect=patched)
+
+    @pytest.mark.parametrize(
+        "template",
+        [
+            "refs/heads/{upper}",
+            "refs/tags/{upper}",
+            "refs/remotes/{upper}/HEAD",
+            "refs/{upper}",
+            "refs/heads/{mixed}",
+        ],
+    )
+    def test_differently_cased_ref_is_refused(self, repo, template: str) -> None:
+        root, _, second = repo
+        prefix = second[:7]
+        listed = template.format(upper=prefix.upper(), mixed=prefix[:3] + prefix[3:].upper())
+
+        with self._listing(root, [listed]):
+            result = commit_ancestry.check_ancestor(prefix, second, str(root))
+
+        assert result == (False, "invalid", "ref-name-collision")
+
+    def test_uppercase_citation_meets_the_differently_cased_ref(self, repo) -> None:
+        root, _, second = repo
+        prefix = second[:7]
+
+        with self._listing(root, [f"refs/heads/{prefix.upper()}"]):
+            result = commit_ancestry.check_ancestor(prefix.upper(), second, str(root))
+
+        assert result == (False, "invalid", "ref-name-collision")
+
+    def test_unrelated_and_nested_refs_do_not_collide(self, repo) -> None:
+        root, _, second = repo
+        prefix = second[:7]
+        extra = [
+            f"refs/heads/{prefix.upper()}-topic",
+            f"refs/heads/other/{prefix.upper()}",
+            "refs/heads/Feature",
+        ]
+
+        with self._listing(root, extra):
+            result = commit_ancestry.check_ancestor(prefix, second, str(root))
+
+        assert result == (True, "reachable", "")
+
+    def test_empty_ref_listing_is_reachable(self, repo) -> None:
+        root, _, second = repo
+        real_git = commit_ancestry._git
+
+        def patched(repo_path: str, *args: str) -> tuple[int, str, str]:
+            if args[0] == "for-each-ref":
+                return 0, "", ""
+            return real_git(repo_path, *args)
+
+        with patch.object(commit_ancestry, "_git", side_effect=patched):
+            result = commit_ancestry.check_ancestor(second[:7], second, str(root))
+
+        assert result == (True, "reachable", "")
+
+
 class TestUppercaseSha:
     def _orphan_with_letter_prefix(self, root: Path) -> str:
         """Create an unreferenced commit whose first 7 hex digits include a letter."""
