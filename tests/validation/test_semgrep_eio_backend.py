@@ -1,0 +1,70 @@
+"""The semgrep subprocess runs with the posix Eio backend (issue #6708).
+
+semgrep-core's default Eio_linux backend calls io_uring_queue_init, which fails
+with "Cannot allocate memory" under concurrent pushes when `ulimit -l` is low.
+`EIO_BACKEND=posix` avoids io_uring. These tests start a real child process so
+the proof is the environment the child sees, not the arguments passed to a mock.
+
+Coverage:
+
+- positive: the scan child sees EIO_BACKEND=posix.
+- negative: a caller-set io_uring value does not reach the child.
+- edge: the version probe, which also starts semgrep, gets the same env.
+"""
+
+from __future__ import annotations
+
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from scripts.validation import git_hook_policy as policy
+
+_PRINT_BACKEND = "import os; print(os.environ.get('EIO_BACKEND', 'unset'))"
+
+
+def test_scan_child_sees_posix_backend(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.delenv("EIO_BACKEND", raising=False)
+    monkeypatch.setattr(policy, "_semgrep_target_batches", lambda targets, _root: [targets])
+    monkeypatch.setattr(
+        policy, "_semgrep_command", lambda *_a, **_k: [sys.executable, "-c", _PRINT_BACKEND]
+    )
+    monkeypatch.setattr(policy, "_verify_semgrep_targets", lambda result, *_a: result)
+
+    result = policy._run_semgrep_tree(tmp_path, ["source.py"], tmp_path)
+
+    assert result.returncode == 0
+    assert result.stdout.strip() == "posix"
+
+
+def test_caller_io_uring_setting_is_overridden(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("EIO_BACKEND", "io-uring")
+    monkeypatch.setattr(policy, "_semgrep_target_batches", lambda targets, _root: [targets])
+    monkeypatch.setattr(
+        policy, "_semgrep_command", lambda *_a, **_k: [sys.executable, "-c", _PRINT_BACKEND]
+    )
+    monkeypatch.setattr(policy, "_verify_semgrep_targets", lambda result, *_a: result)
+
+    result = policy._run_semgrep_tree(tmp_path, ["source.py"], tmp_path)
+
+    assert result.stdout.strip() == "posix"
+
+
+def test_version_probe_passes_the_posix_backend(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    seen: list[Any] = []
+
+    def record(*_a: object, **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        seen.append(kwargs.get("extra_env"))
+        return subprocess.CompletedProcess([], 0, "1.0.0\n", "")
+
+    monkeypatch.setattr(policy, "_run_command", record)
+
+    assert policy._probe_semgrep_version("semgrep", tmp_path) == "1.0.0"
+    assert seen == [{"EIO_BACKEND": "posix"}]

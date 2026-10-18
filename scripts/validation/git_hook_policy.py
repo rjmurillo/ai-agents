@@ -575,6 +575,12 @@ SEMGREP_COMMAND_LENGTH_LIMIT = 24_000
 # Lefthook owns the outer deadline; these child-process budgets must finish first.
 DEFAULT_SUBPROCESS_TIMEOUT_SECONDS = 90
 SEMGREP_TIMEOUT_SECONDS = 840
+# Issue #6708: semgrep-core's Eio_linux backend calls io_uring_queue_init, which
+# charges locked memory. Under concurrent pushes with `ulimit -l 8192` it fails
+# with "Cannot allocate memory". The posix backend does not use io_uring and
+# passed every time it was tried. Only the local semgrep-push hook runs this
+# path; the remote semgrep check is server-side and reads no local env.
+SEMGREP_ENV = {"EIO_BACKEND": "posix"}
 # Issue #6609: the longest a semgrep push waits for a host-wide heavy-stage slot
 # and for load to drop. The wait spends the scan's own deadline, because the
 # security-scan cap (15m) leaves only 60s above SEMGREP_TIMEOUT_SECONDS. Half the
@@ -5204,6 +5210,7 @@ def _probe_semgrep_version(executable: str, repo_root: Path) -> str:
     result = _run_command(
         [executable, "--version"],
         repo_root,
+        extra_env=SEMGREP_ENV,
         timeout_seconds=SEMGREP_TIMEOUT_SECONDS,
     )
     if result.returncode != 0:
@@ -5252,6 +5259,7 @@ def _run_semgrep_tree(
             result = _run_command(
                 _semgrep_command("auto", batch, repo_root),
                 repo_root,
+                extra_env=SEMGREP_ENV,
                 timeout_seconds=allowance,
             )
             if result.returncode not in {0, 1}:
