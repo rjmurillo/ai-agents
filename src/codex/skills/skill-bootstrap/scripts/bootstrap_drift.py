@@ -26,27 +26,35 @@ check is `skipped`. A command is an argument list run without a shell, so a
 repository file cannot inject shell syntax, but it does run code the skill
 author chose: pass the flag only for skills you trust.
 
-Per-check status: pass, fail, skipped, invalid. Per-skill status: `pass` when
-every non-skipped check passes, `fail` when any check fails or is invalid,
-`skipped` when every check was skipped (nothing was verified, so `--require`
-fails it; a skill with only `command` checks needs `--allow-commands` or one
-path check), `no-provenance` when `reverify.json` is absent, and `malformed` when the JSON
-or schema is bad (unknown kind, missing field, duplicate id, empty check
-list).
+Per-check status: pass, fail, skipped, invalid, timeout. `timeout` means a
+`command` check ran past its limit (120 s, or what is left of the total
+deadline), or a check was not run because the total deadline of 900 s for the
+whole run had passed. It is not evidence of drift, so it has its own status, and
+a skill whose only non-passing checks timed out is `incomplete` rather than
+`fail`: it exits 1 and is listed under `timed_out`, never in `update_candidates`.
+A `reverify.json` holds at most 200 checks; more is `malformed`. Per-skill
+status: `pass` when every non-skipped check passes, `fail` when any check fails
+or is invalid (even if another check timed out), `incomplete` when no check
+failed but at least one timed out, `skipped` when every check was skipped
+(nothing was verified, so `--require` fails it; a skill with only `command`
+checks needs `--allow-commands` or one path check), `no-provenance` when
+`reverify.json` is absent, and `malformed` when the JSON or schema is bad
+(unknown kind, missing field, duplicate id, empty check list).
 
-The payload lists `update_candidates` (failing or malformed skills) and
-`update_args`, a JSON list of argv tokens (`--name`, X, `--update`, X, ...)
-for `bootstrap_boundary.py`. A skill directory whose name does not match
+The payload lists `timed_out` (incomplete skills, to re-run),
+`update_candidates` (failing or malformed skills) and `update_args`, a JSON
+list of argv tokens (`--name`, X, `--update`, X, ...) for
+`bootstrap_boundary.py`. A skill directory whose name does not match
 `[a-z](?:[a-z0-9-]*[a-z0-9])?`, is longer than 64 characters, or holds `--` is
-`malformed` (detail `invalid skill name`),
-so it is a candidate but never reaches `update_args`.
+`malformed` (detail `invalid skill name`), so it is a candidate but never
+reaches `update_args`.
 
 Exit codes:
 
-    0  No skill failed or is malformed (and, with `--require`, every skill has
-       provenance).
-    1  A skill failed or is malformed, or `--require` found a skill without
-       provenance.
+    0  No skill failed, is malformed, or is incomplete (and, with `--require`,
+       every skill has provenance).
+    1  A skill failed, is malformed, or timed out before every check ran, or
+       `--require` found a skill without provenance.
     2  Configuration error: bad arguments, a repo or skills root that is not a
        directory, or a `--name` with no matching skill directory.
 
@@ -64,11 +72,14 @@ import re
 import signal
 import subprocess
 import sys
+import time
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
 PROVENANCE_FILE = "reverify.json"
 COMMAND_TIMEOUT_S = 120
+TOTAL_DEADLINE_S = 900
+MAX_CHECKS = 200
 PATH_KINDS = frozenset({"path_exists", "absent", "contains", "line_count_at_least"})
 KINDS = PATH_KINDS | {"command"}
 MAX_READ_BYTES = 5 * 1024 * 1024
@@ -122,6 +133,8 @@ def validate_schema(data: Any) -> list[Payload]:
     checks: list[Payload] = data["checks"]
     if not checks:
         raise SchemaError("checks must not be empty")
+    if len(checks) > MAX_CHECKS:
+        raise SchemaError(f"checks holds {len(checks)} entries, over the {MAX_CHECKS} limit")
     seen: set[str] = set()
     for index, check in enumerate(checks):
         if not isinstance(check, dict):
@@ -222,21 +235,29 @@ def _eval_path(check: Payload, repo: Path) -> Payload:
     return _eval_line_count(check, target)
 
 
-def _eval_command(check: Payload, repo: Path, allow: bool) -> Payload:
+def _expired(check: Payload) -> Payload:
+    detail = f"total deadline of {TOTAL_DEADLINE_S} s reached; check not run"
+    return _result(check, "timeout", detail)
+
+
+def _eval_command(check: Payload, repo: Path, allow: bool, deadline: float) -> Payload:
     if not allow:
         return _result(check, "skipped", "command checks need --allow-commands")
+    limit = min(COMMAND_TIMEOUT_S, deadline - time.monotonic())
+    if limit <= 0:
+        return _expired(check)
     expected = check.get("expect_exit", 0)
     try:
-        returncode = _run_argv(check["argv"], repo)
+        returncode = _run_argv(check["argv"], repo, limit)
     except subprocess.TimeoutExpired:
-        return _result(check, "fail", f"timed out after {COMMAND_TIMEOUT_S} s")
+        return _result(check, "timeout", f"timed out after {limit:g} s")
     except (OSError, ValueError) as exc:
         return _result(check, "fail", f"could not run {check['argv'][0]}: {exc}")
     status = "pass" if returncode == expected else "fail"
     return _result(check, status, f"exit {returncode}, expected {expected}")
 
 
-def _run_argv(argv: list[str], repo: Path) -> int:
+def _run_argv(argv: list[str], repo: Path, limit: float) -> int:
     """Run argv in its own session; on timeout kill the whole process group."""
     # Output is discarded on purpose: untrusted command output never reaches the agent.
     proc = subprocess.Popen(
@@ -249,7 +270,7 @@ def _run_argv(argv: list[str], repo: Path) -> int:
         start_new_session=True,
     )
     try:
-        return proc.wait(timeout=COMMAND_TIMEOUT_S)
+        return proc.wait(timeout=limit)
     except subprocess.TimeoutExpired:
         _kill_group(proc)
         raise
@@ -265,22 +286,30 @@ def _kill_group(proc: subprocess.Popen[bytes]) -> None:
     proc.wait()
 
 
-def evaluate_check(check: Payload, repo: Path, allow_commands: bool) -> Payload:
-    """Evaluate one schema-valid check against the working tree."""
+def evaluate_check(check: Payload, repo: Path, allow_commands: bool, deadline: float) -> Payload:
+    """Evaluate one schema-valid check against the working tree.
+
+    `deadline` is a `time.monotonic()` instant. A check that starts after it is not run,
+    except a command check that `--allow-commands` did not enable, which stays `skipped`.
+    """
     if check["kind"] == "command":
-        return _eval_command(check, repo, allow_commands)
+        return _eval_command(check, repo, allow_commands, deadline)
+    if time.monotonic() >= deadline:
+        return _expired(check)
     return _eval_path(check, repo)
 
 
 def _skill_status(results: list[Payload]) -> str:
     if any(r["status"] in ("fail", "invalid") for r in results):
         return "fail"
+    if any(r["status"] == "timeout" for r in results):
+        return "incomplete"  # unverified, not drifted: rerun, do not rebuild
     if all(r["status"] == "skipped" for r in results):
         return "skipped"  # nothing was verified, so do not report a pass
     return "pass"
 
 
-def evaluate_skill(skill_dir: Path, repo: Path, allow_commands: bool) -> Payload:
+def evaluate_skill(skill_dir: Path, repo: Path, allow_commands: bool, deadline: float) -> Payload:
     """Load a skill's reverify.json and evaluate every check."""
     entry: Payload = {"name": skill_dir.name, "status": "", "checks": []}
     if not valid_skill_name(skill_dir.name):
@@ -297,7 +326,7 @@ def evaluate_skill(skill_dir: Path, repo: Path, allow_commands: bool) -> Payload
         entry["status"] = "malformed"
         entry["detail"] = str(exc)
         return entry
-    entry["checks"] = [evaluate_check(c, repo, allow_commands) for c in checks]
+    entry["checks"] = [evaluate_check(c, repo, allow_commands, deadline) for c in checks]
     entry["status"] = _skill_status(entry["checks"])
     return entry
 
@@ -330,14 +359,17 @@ def check(args: argparse.Namespace) -> tuple[int, Payload]:
     repo = _directory(args.repo, "repo")
     skills_root = _directory(args.skills_root, "skills root")
     selected = _select_skills(skills_root, args.name or [])
-    skills = [evaluate_skill(d, repo, args.allow_commands) for d in selected]
+    deadline = time.monotonic() + TOTAL_DEADLINE_S
+    skills = [evaluate_skill(d, repo, args.allow_commands, deadline) for d in selected]
     candidates = [s["name"] for s in skills if s["status"] in ("fail", "malformed")]
     safe = [n for n in candidates if valid_skill_name(n)]
     missing = [s["name"] for s in skills if s["status"] == "no-provenance"]
     unverified = [s["name"] for s in skills if s["status"] == "skipped"]
-    failed = bool(candidates) or (args.require and bool(missing or unverified))
+    timed_out = [s["name"] for s in skills if s["status"] == "incomplete"]
+    failed = bool(candidates or timed_out) or (args.require and bool(missing or unverified))
     return (1 if failed else 0), {
         "skills": skills,
+        "timed_out": timed_out,
         "update_candidates": candidates,
         "update_args": _update_args(safe),
         "no_provenance": missing,
@@ -361,7 +393,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--allow-commands", action="store_true", help="run `command` checks (trusted skills only)"
     )
     p_check.add_argument(
-        "--require", action="store_true", help="fail when a skill has no reverify.json"
+        "--require",
+        action="store_true",
+        help="fail when a skill has no reverify.json, or every check of it was skipped",
     )
     return parser
 
