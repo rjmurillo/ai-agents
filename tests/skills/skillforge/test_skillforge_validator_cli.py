@@ -203,7 +203,33 @@ class TestCheckDocsSafety:
         empty = tmp_path / "empty"
         empty.mkdir()
         assert docs_safety.main([str(empty)]) == 2
-        assert "No markdown files" in capsys.readouterr().err
+        assert "no SKILL.md" in capsys.readouterr().err
+
+    def test_references_only_dir_exits_2(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]):
+        not_a_skill = tmp_path / "not-a-skill"
+        (not_a_skill / "references").mkdir(parents=True)
+        (not_a_skill / "references" / "a.md").write_text("plain text\n", encoding="utf-8")
+        assert docs_safety.main([str(not_a_skill)]) == 2
+        assert "no SKILL.md" in capsys.readouterr().err
+
+    def test_references_only_dir_with_unsafe_doc_still_exits_2(self, tmp_path: Path):
+        not_a_skill = tmp_path / "not-a-skill"
+        (not_a_skill / "references").mkdir(parents=True)
+        (not_a_skill / "references" / "bad.md").write_text(UNSAFE_DOC, encoding="utf-8")
+        assert docs_safety.main([str(not_a_skill)]) == 2
+
+    def test_lowercase_skill_md_is_not_a_skill(self, tmp_path: Path):
+        d = tmp_path / "lower"
+        d.mkdir()
+        (d / "skill.md").write_text("plain text\n", encoding="utf-8")
+        has_upper = (d / "SKILL.md").exists()  # False on case-sensitive filesystems
+        assert docs_safety.main([str(d)]) == (0 if has_upper else 2)
+
+    def test_second_bad_dir_among_valid_ones_exits_2(self, tmp_path: Path):
+        good = _make_skill(tmp_path, "good-skill")
+        bad = tmp_path / "bad"
+        bad.mkdir()
+        assert docs_safety.main([str(good), str(bad)]) == 2
 
     def test_no_argument_scans_default_targets(self, capsys: pytest.CaptureFixture[str]):
         # The skill's own docs must be safe; also proves the default path still runs.

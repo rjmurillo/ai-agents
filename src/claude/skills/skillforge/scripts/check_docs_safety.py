@@ -66,15 +66,17 @@ def scan_file(path: Path) -> list[str]:
 def expand_target(target: Path) -> list[Path]:
     """Return the files to scan for one CLI argument.
 
-    A directory expands to its SKILL.md plus references/**/*.md. Any other
-    path is returned as-is so scan_file reports an unreadable file.
+    A directory expands to its SKILL.md plus references/**/*.md. A directory
+    with no SKILL.md is not a skill and expands to nothing, so the caller exits
+    2 as skill_modularity_audit.py does. Any other path is returned as-is so
+    scan_file reports an unreadable file.
     """
     if not target.is_dir():
         return [target]
-    files: list[Path] = []
     skill_file = target / "SKILL.md"
-    if skill_file.is_file():
-        files.append(skill_file)
+    if not skill_file.is_file():
+        return []
+    files: list[Path] = [skill_file]
     references = target / "references"
     if references.is_dir():
         files.extend(sorted(references.rglob("*.md")))
@@ -91,7 +93,7 @@ def build_parser() -> argparse.ArgumentParser:
         ),
         epilog=(
             "Exit codes: 0 no unsafe patterns found, 1 unsafe patterns found, "
-            "2 bad input (unreadable path or a directory with no markdown)."
+            "2 bad input (unreadable path or a directory with no SKILL.md)."
         ),
     )
     parser.add_argument(
@@ -116,8 +118,7 @@ def main(argv: list[str] | None = None) -> int:
             expanded = expand_target(Path(raw).resolve())
             if not expanded:
                 print(
-                    f"No markdown files to scan under {raw} "
-                    "(expected SKILL.md or references/**/*.md).",
+                    f"Not a skill directory: {raw} (no SKILL.md found).",
                     file=sys.stderr,
                 )
                 return 2
