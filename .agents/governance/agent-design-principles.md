@@ -70,14 +70,14 @@ Frozen weights do not stop the agent system from gaining useful, retrievable ext
 ### Rules
 
 1. Skills and scripts are means. They are not outcomes.
-2. A successful run does not show improvement. A skill count, a script count, or instruction compliance does not either. An accepted outcome does. Issue #5768 owns outcome measurement. Do not rebuild it here.
+2. A successful run does not show improvement. A skill count, a script count, or instruction compliance does not either. An accepted outcome does. Outcome measurement is owned by REQ-042 (`scripts/eval/eval_durable_outcome.py`, issue #5768). Do not rebuild it here.
 3. Measure a computable fact instead of asking a model to guess it.
 4. Keep model judgment for real ambiguity.
 5. Reject a new control surface when an existing rule, skill, or script can carry the job.
 
 ### How to Verify
 
-1. For a new skill or script, name the accepted outcome it moves (measured under #5768) and the existing rule, skill, or script you checked first.
+1. For a new skill or script, name the accepted outcome it moves (measured by REQ-042, `scripts/eval/eval_durable_outcome.py`, issue #5768) and the existing rule, skill, or script you checked first.
 2. For a value a model would estimate, show the program or instrument that computes it, or say why none exists.
 3. For a model judgment, name the ambiguity a computation cannot settle.
 

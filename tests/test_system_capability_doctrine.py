@@ -62,9 +62,28 @@ def test_doc_has_heading_exactly_once() -> None:
     assert DOC.read_text(encoding="utf-8").count(HEADING) == 1
 
 
+def _section_text(text: str) -> str:
+    """Return the doctrine section body: from HEADING to the next ``## `` heading."""
+    start = text.index(HEADING)
+    end = text.find("\n## ", start + len(HEADING))
+    return text[start:] if end == -1 else text[start:end]
+
+
 @pytest.mark.parametrize("part", FOUR_PARTS)
-def test_doc_names_each_system_part(part: str) -> None:
-    assert part in DOC.read_text(encoding="utf-8")
+def test_doc_names_each_system_part_as_table_row(part: str) -> None:
+    section = _section_text(DOC.read_text(encoding="utf-8"))
+    assert f"| {part} |" in section
+
+
+def test_section_slice_excludes_text_after_next_heading() -> None:
+    text = f"{HEADING}\n\n| Base model |\n\n## Other\n\n| Agent system |\n"
+    section = _section_text(text)
+    assert "| Base model |" in section
+    assert "| Agent system |" not in section
+
+
+def test_section_slice_runs_to_end_when_no_later_heading() -> None:
+    assert "| Base model |" in _section_text(f"{HEADING}\n\n| Base model |\n")
 
 
 def test_doc_does_not_claim_frozen_weights_mean_no_system_learning() -> None:
@@ -74,6 +93,18 @@ def test_doc_does_not_claim_frozen_weights_mean_no_system_learning() -> None:
 
 def test_doc_links_outcome_measurement_issue_instead_of_reimplementing() -> None:
     assert "#5768" in DOC.read_text(encoding="utf-8")
+
+
+def test_doc_names_in_repo_outcome_instrument_and_it_exists() -> None:
+    section = _section_text(DOC.read_text(encoding="utf-8"))
+    assert "REQ-042" in section
+    assert "scripts/eval/eval_durable_outcome.py" in section
+    assert (REPO_ROOT / "scripts" / "eval" / "eval_durable_outcome.py").is_file()
+    assert list((REPO_ROOT / ".project-toolkit" / "specs" / "requirements").glob("REQ-042-*.md"))
+
+
+def _pointer_is_exact(line: str) -> bool:
+    return POINTER_CLAUSE in line.split("|")
 
 
 def _context_lines(path: Path) -> list[str]:
@@ -88,11 +119,7 @@ def _context_lines(path: Path) -> list[str]:
 def test_context_line_carries_exact_pointer_clause(guide: Path) -> None:
     lines = _context_lines(guide)
     assert len(lines) == 1, f"{guide} needs exactly one Context| line, got {len(lines)}"
-    assert POINTER_CLAUSE in lines[0].split("|")
-
-
-def _pointer_is_exact(line: str) -> bool:
-    return POINTER_CLAUSE in line.split("|")
+    assert _pointer_is_exact(lines[0])
 
 
 def test_pointer_target_doc_exists() -> None:
