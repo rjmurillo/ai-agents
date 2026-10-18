@@ -92,7 +92,7 @@ from pathlib import Path
 
 from _claude_stream import Invocation, StreamFacts, parse_stream
 from _durable_codex import codex_argv, codex_env, parse_codex_run
-from _durable_live_record import Session, build_record
+from _durable_live_record import Session, build_record, without_links
 from _durable_process import (  # noqa: F401  (re-exported for callers and tests)
     ALLOWED_TOOLS,
     DEFAULT_MAX_BUDGET_USD,
@@ -281,7 +281,9 @@ def _run_review(
     with tempfile.TemporaryDirectory(prefix="durable-review-") as name:
         scratch = Path(name)
         copy = scratch / "work"
-        apply_changes(scenario, workdir, session.grades[-1].changed_paths, copy)
+        apply_changes(
+            scenario, workdir, without_links(workdir, session.grades[-1].changed_paths), copy
+        )
         instructions = scratch / "reviewer.md"
         instructions.write_text(REVIEWER_INSTRUCTIONS, encoding="utf-8")
         return _invoke(

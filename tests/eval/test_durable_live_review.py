@@ -10,6 +10,7 @@ model behaves as the canned streams do.
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -165,6 +166,52 @@ class TestReviewerArm:
         assert reviewer["argv"][2].startswith("Review the accepted change")
         assert scenario.requirement in reviewer["argv"][2]
 
+    def test_a_symlink_the_agent_planted_never_reaches_the_reviewer_copy(
+        self, tmp_path: Path
+    ) -> None:
+        scenario = load(GOOD_TASK)
+        workdir = tmp_path / "work"
+        live_mod.materialize(scenario, workdir)
+        secret = tmp_path / "host-secret.txt"
+        secret.write_text("HOST-SECRET-CONTENT\n", encoding="utf-8")
+        core = workdir / "slugger" / "core.py"
+        core.unlink()
+        core.symlink_to(secret)
+        (workdir / "slugger" / "added.py").write_text("x = 1\n", encoding="utf-8")
+        changed = grader_mod.changed_paths(scenario, workdir)
+        assert {"slugger/core.py", "slugger/added.py"} <= set(changed)
+        session = SimpleNamespace(grades=[SimpleNamespace(changed_paths=changed)], invocations=[])
+        control_file = tmp_path / "control.md"
+        control_file.write_text("rules", encoding="utf-8")
+        copies: list[dict[str, str]] = []
+        inner = fake_runner(scenario, [None], stdout=lambda _i: stream_text(text=CLEAN_REVIEW))
+
+        def watching(argv: list[str], **kwargs: Any) -> Any:
+            cwd = Path(kwargs["cwd"])
+            copies.append(
+                {
+                    str(p.relative_to(cwd)): p.read_text(encoding="utf-8", errors="replace")
+                    for p in cwd.rglob("*")
+                    if p.is_file()
+                }
+            )
+            return inner(argv, **kwargs)
+
+        live_mod._run_review(
+            scenario,
+            "current",
+            session,
+            workdir,
+            reviewer_settings(),
+            live_mod.InvocationBudget(10),
+            watching,
+        )
+
+        assert len(copies) == 1
+        assert not any("HOST-SECRET-CONTENT" in text for text in copies[0].values())
+        assert "added.py" in {Path(name).name for name in copies[0]}
+        assert "def slugify" in copies[0]["slugger/core.py"]
+
     def test_two_controls_share_one_reviewer_config_so_the_pair_compares(
         self, tmp_path: Path
     ) -> None:
@@ -243,6 +290,43 @@ class TestRollbackHelpers:
         victim.unlink()
         assert record_mod.rollback_change(scenario, workdir, ("slugger/__init__.py",)) is True
         assert victim.is_file()
+
+    def test_rollback_does_not_write_through_a_symlink_the_agent_planted(
+        self, tmp_path: Path
+    ) -> None:
+        scenario = load(GOOD_TASK)
+        workdir = tmp_path / "work"
+        live_mod.materialize(scenario, workdir)
+        outside = tmp_path / "outside.txt"
+        outside.write_text("OUTSIDE-ORIGINAL\n", encoding="utf-8")
+        victim = workdir / "slugger" / "__init__.py"
+        victim.unlink()
+        victim.symlink_to(outside)
+        changed = grader_mod.changed_paths(scenario, workdir)
+        assert "slugger/__init__.py" in changed
+        assert record_mod.rollback_change(scenario, workdir, changed) is True
+        assert not victim.is_symlink() and victim.is_file()
+        assert outside.read_text(encoding="utf-8") == "OUTSIDE-ORIGINAL\n"
+
+    def test_rollback_does_not_write_through_a_symlinked_directory(self, tmp_path: Path) -> None:
+        scenario = load(GOOD_TASK)
+        workdir = tmp_path / "work"
+        live_mod.materialize(scenario, workdir)
+        outside = tmp_path / "outside_dir"
+        outside.mkdir()
+        (outside / "__init__.py").write_text("OUTSIDE-ORIGINAL\n", encoding="utf-8")
+        package = workdir / "slugger"
+        for child in sorted(package.iterdir()):
+            child.unlink()
+        package.rmdir()
+        package.symlink_to(outside, target_is_directory=True)
+        changed = grader_mod.changed_paths(scenario, workdir)
+        assert "slugger/__init__.py" in changed
+        # Children first, so no earlier entry has unlinked the directory link.
+        assert record_mod.rollback_change(scenario, workdir, tuple(reversed(changed))) is True
+        assert not package.is_symlink() and package.is_dir()
+        assert (outside / "__init__.py").read_text(encoding="utf-8") == "OUTSIDE-ORIGINAL\n"
+        assert list(outside.iterdir()) == [outside / "__init__.py"]
 
     def test_a_revert_that_leaves_a_difference_is_not_a_recovery(self, tmp_path: Path) -> None:
         scenario, workdir, changed = self._worked(tmp_path, "known_good")

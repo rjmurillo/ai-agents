@@ -106,3 +106,22 @@ def test_compare_is_unverified_when_one_side_lacks_human_timing() -> None:
     candidate_data["economics"] = {**candidate_data["economics"], "human_correction_minutes": None}
     result = durable.compare(baseline, [outcome.parse_record(candidate_data)])
     assert result["result"] == "UNVERIFIED"
+
+
+def test_unmeasured_review_findings_count_accepted_runs_only() -> None:
+    records = []
+    for index in range(3):
+        data = make_record(task_id=f"rejected{index}")
+        data["execution"] = {**data["execution"], "deterministic_acceptance": "FAIL"}
+        data["durable"] = {**data["durable"], "review_findings": None}
+        records.append(outcome.parse_record(data))
+    for index in range(2):
+        data = make_record(task_id=f"reviewed{index}")
+        data["durable"] = {**data["durable"], "review_findings": index}
+        records.append(outcome.parse_record(data))
+    unreviewed = make_record(task_id="unreviewed")
+    unreviewed["durable"] = {**unreviewed["durable"], "review_findings": None}
+    records.append(outcome.parse_record(unreviewed))
+    signals = durable.build_report(records)["durable_signals"]
+    assert signals["review_findings_unmeasured"] == 1
+    assert signals["review_findings_total"] == 1

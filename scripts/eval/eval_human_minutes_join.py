@@ -20,9 +20,10 @@ timed), would otherwise be replaced silently. Pass `--replace` to overwrite.
 
 Exit codes (AGENTS.md): 0 joined copies written. 2 a bad minutes file, a bad
 record, a minutes row that matches no record, a row that would overwrite a value
-without `--replace`, an unsafe output directory, or a write that failed. On exit 2
-no joined copy is left in `--output-dir`: each file is written to a temporary name
-and renamed only after every write succeeded.
+without `--replace`, an unsafe output directory, or a write that failed. On a failed
+write, exit 2 leaves no joined copy in `--output-dir`: each file is written to a
+temporary name and renamed only after every write succeeded. If a rename fails
+midway, the copies already renamed stay and no temporary file is left behind.
 """
 
 from __future__ import annotations
@@ -81,7 +82,9 @@ def _cell(row: dict[str, object], where: str) -> Cell:
 def _write_all(joined: dict[str, list[dict[str, object]]], out_dir: Path) -> None:
     """Write every file to a temporary name, then rename them all into place.
 
-    A failed write removes the temporary files and leaves `out_dir` as it was.
+    A failed write removes the temporary files and leaves `out_dir` as it was. A
+    rename that fails midway removes the temporary files not yet renamed. The
+    files already renamed stay in place, because each one is a complete joined copy.
     """
     out_dir.mkdir(parents=True, exist_ok=True)
     staged: list[tuple[Path, Path]] = []
@@ -96,8 +99,13 @@ def _write_all(joined: dict[str, list[dict[str, object]]], out_dir: Path) -> Non
         for temp, _target in staged:
             temp.unlink(missing_ok=True)
         raise
-    for temp, target in staged:
-        os.replace(temp, target)
+    for index, (temp, target) in enumerate(staged):
+        try:
+            os.replace(temp, target)
+        except OSError:
+            for leftover, _target in staged[index:]:
+                leftover.unlink(missing_ok=True)
+            raise
 
 
 def join_files(

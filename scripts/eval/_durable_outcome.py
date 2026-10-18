@@ -295,16 +295,24 @@ def _unmeasured(values: Sequence[object]) -> int:
 def _durable_signals(summary: _Summary) -> dict[str, int]:
     """Totals of the reviewer and recovery signals, and how many runs left each unmeasured.
 
-    A run whose arm did not run carries `null`, which the classifier already
-    turns `UNVERIFIED`. The `unmeasured` counts keep that visible in the
-    report instead of folding a missing signal into a total of zero.
+    An accepted run whose arm did not run carries `null`, which the classifier
+    already turns `UNVERIFIED`. The `unmeasured` counts keep that visible in the
+    report instead of folding a missing signal into a total of zero. A rejected
+    run carries a `null` review by design (nothing was accepted to review) and
+    classifies `REJECTED`, so `review_findings_unmeasured` counts accepted runs
+    only. The other `unmeasured` counts cover every run.
     """
     findings = [r.durable.review_findings for r in summary.records]
+    accepted_findings = [
+        r.durable.review_findings
+        for r in summary.records
+        if r.execution.deterministic_acceptance is Evidence.PASS
+    ]
     rollbacks = [r.durable.rollback_events for r in summary.records]
     human = [r.economics.human_correction_minutes for r in summary.records]
     return {
         "review_findings_total": sum(v or 0 for v in findings),
-        "review_findings_unmeasured": _unmeasured(findings),
+        "review_findings_unmeasured": _unmeasured(accepted_findings),
         "rollback_events_total": sum(v or 0 for v in rollbacks),
         "rollback_events_unmeasured": _unmeasured(rollbacks),
         "human_correction_unmeasured": _unmeasured(human),

@@ -104,23 +104,50 @@ def unapproved_actions(invocations: Sequence[Invocation]) -> int:
     return int(max(0, outside - refused))
 
 
+def without_links(workdir: Path, changed: Sequence[str]) -> tuple[str, ...]:
+    """`changed` without the paths that are symlinks in `workdir`.
+
+    A symlink the agent planted may point at a host file. Copying it would send that
+    file's contents to the reviewer model, so it stays out of the review copy.
+    """
+    return tuple(relative for relative in changed if not (workdir / relative).is_symlink())
+
+
+def _unlink_symlinks_on_path(workdir: Path, target: Path) -> None:
+    """Unlink every symlink from `workdir` down to `target`, the leaf included.
+
+    A symlinked directory in the way would send a write outside the workdir just as a
+    symlinked leaf would. The link is removed, never followed.
+    """
+    parts = target.relative_to(workdir).parts
+    for depth in range(1, len(parts) + 1):
+        step = workdir.joinpath(*parts[:depth])
+        if step.is_symlink():
+            step.unlink()
+            return
+
+
 def rollback_change(scenario: Scenario, workdir: Path, changed: Sequence[str]) -> bool:
     """Revert `changed` in `workdir` to the scenario's `initial/` state, then verify it.
 
     A changed path that exists in `initial/` gets its original bytes back. One
-    the driver added is deleted. The rollback counts only when the tree again
-    matches `initial/` byte for byte (`changed_paths` is empty), so a revert
-    that left a file behind is not reported as a recovery.
+    the driver added is deleted. A changed path that is a symlink is unlinked
+    first, never written through: the agent may have pointed it outside the
+    workdir, and the harness write would then clobber that target. The rollback
+    counts only when the tree again matches `initial/` byte for byte
+    (`changed_paths` is empty), so a revert that left a file behind is not
+    reported as a recovery.
     """
     with tempfile.TemporaryDirectory(prefix="durable-rollback-") as name:
         pristine = Path(name) / "initial"
         materialize(scenario, pristine)
         for relative in changed:
             target, original = workdir / relative, pristine / relative
+            _unlink_symlinks_on_path(workdir, target)
             if original.is_file():
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes(original.read_bytes())
-            elif target.is_file() or target.is_symlink():
+            elif target.is_file():
                 target.unlink()
     return not changed_paths(scenario, workdir)
 

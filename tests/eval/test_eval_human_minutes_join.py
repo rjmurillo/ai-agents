@@ -312,3 +312,27 @@ def test_a_failed_second_write_leaves_no_joined_copy_behind(
     assert code == join.EXIT_CONFIG
     assert "disk full" in capsys.readouterr().err
     assert list((tmp_path / "out").iterdir()) == []
+
+
+def test_a_failed_rename_removes_the_temporary_files_not_yet_renamed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    first = _write_records(tmp_path / "in" / "a.jsonl", [_untimed("t1", "current")])
+    second = _write_records(tmp_path / "in" / "b.jsonl", [_untimed("t1", "reduced")])
+    minutes = _minutes(tmp_path / "m.json", [("current", "t1", 0, 1.0), ("reduced", "t1", 0, 2.0)])
+    real_replace = os.replace
+    renames: list[str] = []
+
+    def failing_replace(src: Any, dst: Any) -> None:
+        renames.append(str(dst))
+        if len(renames) == 2:
+            raise OSError("rename refused")
+        real_replace(src, dst)
+
+    monkeypatch.setattr(join.os, "replace", failing_replace)
+
+    code = _run("--records", first, second, "--minutes", minutes, "--output-dir", tmp_path / "out")
+
+    assert code == join.EXIT_CONFIG
+    assert "rename refused" in capsys.readouterr().err
+    assert sorted(p.name for p in (tmp_path / "out").iterdir()) == ["a.jsonl"]

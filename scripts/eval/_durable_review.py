@@ -42,7 +42,8 @@ REVIEW_MARKER = "REVIEW_RESULT:"
 #: Read-only tool names the reviewer may use. It never edits or runs code.
 REVIEW_TOOLS: tuple[str, ...] = ("Read", "Glob", "Grep")
 
-#: Identical for every control. Delivered as the reviewer's system text.
+#: Identical for every control. The live driver appends it as a system prompt file.
+#: The ablation driver puts it at the start of the reviewer's user prompt.
 REVIEWER_INSTRUCTIONS = (
     "You are an independent code reviewer. You did not write this change and you have "
     "no access to the author's reasoning. Read the changed files and judge them against "
