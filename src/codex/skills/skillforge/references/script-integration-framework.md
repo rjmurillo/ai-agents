@@ -1,8 +1,8 @@
 # Script Integration Framework
 
-<!-- vendor-portability-exec: example invocations only; scripts referenced here are illustrative and do not exist in this repository -->
+<!-- vendor-portability-exec: example invocations only; scripts referenced here are mostly illustrative; the one real script is get_unresolved_review_threads.py in the github skill -->
 
-Scripts transform skills from documentation-only guides into executable, verifiable systems. This framework provides decision criteria for when to create scripts, how to integrate them effectively, and patterns for making skills autonomous and self-verifying.
+Scripts transform skills from documentation-only guides into executable, verifiable systems. This framework provides decision criteria for when to create scripts, how to integrate them effectively, and patterns for making skills autonomous and independently verifiable.
 
 ---
 
@@ -600,7 +600,7 @@ WITH HOOKS:
 | No exit codes | Can't detect failure | Use `sys.exit(0)` / `sys.exit(1)` |
 | Print-only errors | Errors lost in noise | Use `sys.stderr` |
 | Required external deps | Reduces portability | Use stdlib or graceful fallback |
-| No self-verification | Can't trust output | Add verification step |
+| No independent postcondition check | Exit 0 is trusted as success | Add a separate check of the outcome |
 | Monolithic scripts | Hard to reuse | Break into focused scripts |
 | No state management | Lose progress | Use JSON state files |
 | Hardcoded tool versions | Breaks with updates | Abstract tool invocations |

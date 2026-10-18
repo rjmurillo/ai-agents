@@ -272,7 +272,7 @@ After creation:
 - [ ] `python scripts/check_docs_safety.py` passes
 - [ ] No bare `.claude/skills/...` exec path in the generated `SKILL.md`; script invocations use the portable `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/...` form (see `docs/SKILL-AUTHORING.md`, "Portable Script Invocations")
 - [ ] Reference links resolve
-- [ ] Scripts self-verify when scripts are present
+- [ ] Scripts fail fast, and a separate check confirms the outcome when scripts are present
 - [ ] Every claim in the body is something the model could not already know. Generic engineering knowledge moved to `references/` or deleted
 - [ ] Body earns its length: if the description alone would produce the same behavior, cut the body down to what it adds
 
@@ -280,7 +280,7 @@ After creation:
 
 ## Scripts
 
-The `scripts/` directory makes SkillForge agentic: it can scaffold, triage, validate, and package skills with self-verification. Scripts run on the Python 3 standard library; a few use PyYAML for frontmatter parsing when it is installed and fall back to a stdlib parser when it is not. Exit codes: `0` on success and non-zero on failure (`1` general; individual scripts add `2` or `3` for specific precondition failures, documented in each script's `--help`).
+The `scripts/` directory makes SkillForge agentic: it can scaffold, triage, validate, and package skills with fast-fail checks and independent postcondition checks. Scripts run on the Python 3 standard library; a few use PyYAML for frontmatter parsing when it is installed and fall back to a stdlib parser when it is not. Exit codes: `0` on success and non-zero on failure (`1` general; individual scripts add `2` or `3` for specific precondition failures, documented in each script's `--help`).
 
 | Script | Purpose |
 |--------|---------|

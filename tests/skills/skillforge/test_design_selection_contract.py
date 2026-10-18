@@ -31,6 +31,8 @@ _MIRROR_ROOTS = (
 _MIRRORED = (
     ("skillforge", "references/script-integration-framework.md"),
     ("skillforge", "references/degrees-of-freedom.md"),
+    ("skillforge", "references/regression-questions.md"),
+    ("skillforge", "references/phase4-synthesis-deep-dive.md"),
     ("skill-bootstrap", "references/authoring-and-gates.md"),
 )
 
@@ -163,6 +165,45 @@ def test_self_verification_doctrine_is_retired_from_unchanged_sections() -> None
     assert "How will the skill verify its own success?" not in text
     assert "Fast-Fail and Independent Check:**" in text
     assert "| Human verification | Independent verification |" in text
+
+
+_SKILLFORGE_REFS = _REPO / ".claude" / "skills" / "skillforge" / "references"
+_INSTRUMENT = "get_unresolved_review_threads.py"
+_SKILLFORGE_SKILL = _REPO / ".claude" / "skills" / "skillforge" / "SKILL.md"
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        _REF,
+        _SKILLFORGE_REFS / "regression-questions.md",
+        _SKILLFORGE_REFS / "phase4-synthesis-deep-dive.md",
+        _SKILLFORGE_TMPL,
+        _SKILLFORGE_SKILL,
+    ],
+    ids=lambda p: p.name,
+)
+def test_gates_and_checklists_do_not_score_self_verification(path: Path) -> None:
+    """Gates and checklists must not reward self-checking."""
+    text = path.read_text(encoding="utf-8")
+    assert not re.search(r"self[- ]?verif", text, re.I), path.name
+
+
+def test_regression_gate_and_synthesis_rubric_name_the_independent_check() -> None:
+    regression = (_SKILLFORGE_REFS / "regression-questions.md").read_text(encoding="utf-8")
+    rubric = (_SKILLFORGE_REFS / "phase4-synthesis-deep-dive.md").read_text(encoding="utf-8")
+    assert "Fast-Fail and Independent Check: Do scripts fail fast" in regression
+    assert "a separate check should confirm the outcome" in regression
+    assert "**Fast-Fail and Independent Check**" in rubric
+    assert "independently verifiable" in rubric
+
+
+def test_script_header_marker_admits_the_one_real_script() -> None:
+    text = _REF.read_text(encoding="utf-8")
+    assert "do not exist in this repository" not in text
+    assert _INSTRUMENT in text
+    real = _REPO / ".claude" / "skills" / "github" / "scripts" / "pr" / _INSTRUMENT
+    assert real.is_file(), "marker names a script that must exist"
 
 
 def test_pattern_one_sample_is_named_for_a_fast_fail_check() -> None:
