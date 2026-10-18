@@ -19,7 +19,9 @@ Claude or Codex login stored on this machine. No credential file is read here.
 `--reviewer-model` adds an independent reviewer launch per accepted task run
 (`_durable_review.py`). Without it `review_findings` is null. A live record also
 carries a null `human_correction_minutes` (no human in the run), so it classifies
-`UNVERIFIED` until a human timed a correction pass.
+`UNVERIFIED` unless `--human-minutes FILE` supplies a timed correction pass for its
+(control, task_id, repeat) cell. Whether to keep that clause is an open owner
+decision on #5768; the file format is in `_human_minutes.py`.
 
 Exit codes (AGENTS.md): 0 every task produced a record. 1 the comparison is
 WORSE or UNVERIFIED. 2 invalid arguments, corpus, or control files. 3 a
@@ -52,6 +54,7 @@ from _durable_live import (
 from _durable_live_record import record_to_row
 from _durable_outcome import build_report, compare
 from _durable_review import REVIEWER_CONTROL_SUFFIX, ReviewerSpec, reviewer_identity
+from _human_minutes import HumanMinutes, HumanMinutesError, load_human_minutes, unmatched
 from _outcome_record import DurableOutcomeError
 from _routing_scenario import RoutingCorpusError, Scenario, load_corpus, load_extension_corpus
 
@@ -88,8 +91,14 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--reviewer-model",
         help="turns on the independent reviewer arm with this model, on the run's harness. "
-        "Without it review_findings is null. Live records stay UNVERIFIED either way until "
-        "human correction minutes are supplied",
+        "Without it review_findings is null. Live records stay UNVERIFIED either way "
+        "unless --human-minutes supplies a timed correction pass",
+    )
+    parser.add_argument(
+        "--human-minutes",
+        type=Path,
+        help="JSON file of human-timed correction minutes keyed by control, task_id, repeat "
+        "(see _human_minutes.py). A cell with no row stays null and classifies UNVERIFIED",
     )
     parser.add_argument(
         "--reviewer-effort",
@@ -173,7 +182,10 @@ def _git_head(repo_root: Path) -> str:
 
 
 def plan_report(
-    scenarios: Sequence[Scenario], texts: Mapping[str, str], args: argparse.Namespace
+    scenarios: Sequence[Scenario],
+    texts: Mapping[str, str],
+    args: argparse.Namespace,
+    human_minutes: HumanMinutes | None = None,
 ) -> dict[str, object]:
     reviewer = _reviewer_spec(args)
     bound = max_invocations(
@@ -197,6 +209,7 @@ def plan_report(
         "first_repeat": args.first_repeat,
         "retry_budget": args.retry_budget,
         "reviewer": reviewer_identity(reviewer),
+        "human_minutes_rows": len(human_minutes or {}),
         "max_invocations": bound,
         "cap": args.max_invocations,
         "within_cap": bound <= args.max_invocations,
@@ -274,8 +287,17 @@ def _effort_fields(args: argparse.Namespace, result: ExperimentResult) -> dict[s
     return fields
 
 
+def _produced_cells(result: ExperimentResult) -> set[tuple[str, str, int]]:
+    return {
+        (control, r.task_id, r.repeat) for control, rows in result.records.items() for r in rows
+    }
+
+
 def _run_live(
-    scenarios: Sequence[Scenario], texts: Mapping[str, str], args: argparse.Namespace
+    scenarios: Sequence[Scenario],
+    texts: Mapping[str, str],
+    args: argparse.Namespace,
+    human_minutes: HumanMinutes | None = None,
 ) -> int:
     model = args.model or DEFAULT_MODEL[args.harness]
     settings = RunSettings(
@@ -295,6 +317,7 @@ def _run_live(
         budget,
         repeats=args.repeats,
         first_repeat=args.first_repeat,
+        human_minutes=human_minutes,
     )
     out: Path = args.output_dir
     out.mkdir(parents=True, exist_ok=True)
@@ -313,6 +336,8 @@ def _run_live(
             "repeats": args.repeats,
             "launches": budget.used,
             "harness_failures": [list(item) for item in result.harness_failures],
+            "human_minutes_rows": len(human_minutes or {}),
+            "human_minutes_unmatched": unmatched(human_minutes, _produced_cells(result)),
             "control_bytes": {n: len(t.encode("utf-8")) for n, t in texts.items()},
         }
     )
@@ -334,11 +359,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         scenarios = _select(corpus, args.tasks)
         names = _select_controls(args.controls)
         texts = {name: control_text(args.repo_root, name) for name in names}
-    except (RoutingCorpusError, LiveRunError) as exc:
+        human_minutes = (
+            None
+            if args.human_minutes is None
+            else load_human_minutes(args.human_minutes, known_controls=tuple(CONTROLS))
+        )
+    except (RoutingCorpusError, LiveRunError, HumanMinutesError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_CONFIG
     if not args.live:
-        print(json.dumps(plan_report(scenarios, texts, args), indent=2))
+        print(json.dumps(plan_report(scenarios, texts, args, human_minutes), indent=2))
         return EXIT_OK
     if not args.use_stored_login:
         message = f"--live needs --use-stored-login (bills to the stored {args.harness} login)"
@@ -348,7 +378,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"error: {args.harness} is not on PATH", file=sys.stderr)
         return EXIT_AUTH
     try:
-        return _run_live(scenarios, texts, args)
+        return _run_live(scenarios, texts, args, human_minutes)
     except LiveRunError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_HARNESS_FAILURE

@@ -1298,9 +1298,14 @@ fails the fresh-copy follow-up or the post-integration check is reverted to
 and follow-up failed), so it adds no evidence beyond `followup_validation`: the
 revert runs in a temp workdir that is deleted right after the record is built.
 The reviewer is read-only on both harnesses: `--tools Read,Glob,Grep` for claude
-and `-s read-only` for codex. `economics.human_correction_minutes` is `null` because no human is in the
-run. A `null` count classifies `UNVERIFIED`, so a live record stays
-`UNVERIFIED` until a human times a correction pass. Requested effort is never
+and `-s read-only` for codex. `economics.human_correction_minutes` is `null`
+unless `--human-minutes FILE` supplies a timed row for the run's cell, because
+no human is in the run. A `null` count classifies `UNVERIFIED`, so a live record
+stays `UNVERIFIED` until a human times a correction pass. The file is a JSON
+array of `{"control", "task_id", "repeat", "minutes"}` rows (`_human_minutes.py`);
+`0` is a valid timed value, a cell with no row stays `null`, and the run summary
+lists rows that matched no record under `human_minutes_unmatched`. Whether to
+keep the human-time clause at all is an open owner decision on #5768. Requested effort is never
 verified: the stream names no effort. The `_durable_live.py` docstring lists
 every mapping.
 
@@ -1447,12 +1452,17 @@ Fields that are `null` when not measured, never 0:
 `durable.review_findings` is `null` unless `--reviewer-model MODEL` runs the
 independent reviewer on an accepted change (read-only tools, a copy with no
 control file, hidden follow-up file, or `.git`; each accepted run adds one launch
-and `--max-runs` counts it). `economics.human_correction_minutes` is always `null`
-in a live run, so a live record classifies `UNVERIFIED` until a human times a
-correction pass. `durable.rollback_events` is measured: an accepted change that
+and `--max-runs` counts it). `economics.human_correction_minutes` is `null` in a
+live run unless `--human-minutes FILE` supplies a timed row for the cell (same
+file format as `eval_durable_live.py`; rows that matched no record are listed in
+the report as `human_minutes_unmatched`), so an untimed live record classifies
+`UNVERIFIED`. The keep-or-drop decision on that clause is open on #5768.
+`durable.rollback_events` is measured: an accepted change that
 fails the hidden follow-up is reverted with `git reset --hard` to the seed ref and
 the revert is verified, which counts 1; a revert that cannot be verified is
-`null`.
+`null`. The revert erases the run's edits from the workspace, so the full
+change (untracked files included) is saved first as `rolled_back_patch` in the
+run entry of `report.json`, empty when no revert ran.
 
 `--dry-run` feeds canned reviewer replies through the real parser and a fixture
 `human_correction_minutes` of 0.0 (both labeled in the report as inputs, not

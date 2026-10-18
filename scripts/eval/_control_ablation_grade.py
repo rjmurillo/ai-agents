@@ -168,6 +168,21 @@ def changed_paths(workspace: Path) -> tuple[str, ...]:
     return tuple(path for path in diff.stdout.split("\0") if path)
 
 
+def snapshot_diff(workspace: Path) -> str:
+    """The workspace's full change against the seed, untracked files included, as a patch.
+
+    Taken before `rollback_to_seed` erases it: a regressed run is the one most
+    worth inspecting. Returns "" when git cannot produce it, so a failed
+    snapshot never blocks the revert.
+    """
+    try:
+        changed_paths(workspace)  # stages new files so the diff includes them
+    except WorkspaceError:
+        return ""
+    diff = _run_git(["diff", "--cached", SEED_REF], workspace)
+    return diff.stdout if diff.returncode == 0 else ""
+
+
 def rollback_to_seed(workspace: Path) -> bool:
     """Revert the workspace to the seed commit and verify the revert (recovery path).
 

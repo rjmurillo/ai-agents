@@ -21,6 +21,7 @@ import _durable_codex as codex_mod  # noqa: E402
 import _durable_live as live_mod  # noqa: E402
 import _durable_live_record as record_mod  # noqa: E402
 import _durable_review as review_mod  # noqa: E402
+import _human_minutes as human_mod  # noqa: E402
 import _routing_grader as grader_mod  # noqa: E402
 import _routing_scenario as scenario_mod  # noqa: E402
 import eval_durable_live as cli  # noqa: E402
@@ -59,6 +60,7 @@ __all__ = [
     "codex_mod",
     "fake_runner",
     "grader_mod",
+    "human_mod",
     "live_mod",
     "load",
     "record_mod",

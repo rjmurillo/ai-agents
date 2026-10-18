@@ -49,9 +49,11 @@ What is measured, and what is a proxy:
 * `rework_minutes`: measured. Wall minutes of correction rounds (round 1 and
   later), which exist only because the prior attempt failed its check. Agent
   rework only.
-* `human_correction_minutes`: `None`. An unattended run has no human, so the
-  value is missing evidence and the record classifies `UNVERIFIED` until a
-  human times a correction pass.
+* `human_correction_minutes`: `None` unless `--human-minutes FILE` supplies a
+  timed row for the run's (control, task_id, repeat) cell (`_human_minutes.py`).
+  An unattended run has no human, so the value is missing evidence and the
+  record classifies `UNVERIFIED` until a human times a correction pass. The
+  owner decision to keep or drop that clause is open on #5768.
 * `review_findings`: measured when `RunSettings.reviewer` is set. A separate
   reviewer process reads an accepted change in a fresh copy and replies with a
   finding count (`_durable_review.py`). `None` when the arm is off, the run was
@@ -109,6 +111,8 @@ from _durable_review import (
     review_prompt,
     reviewer_identity,
 )
+from _human_minutes import HumanMinutes
+from _human_minutes import lookup as human_lookup
 from _outcome_record import OutcomeRecord
 from _routing_grader import GradeResult, Verdict, apply_changes, grade, materialize
 from _routing_scenario import Scenario
@@ -304,13 +308,15 @@ def run_task(
     budget: InvocationBudget,
     *,
     repeat: int = 0,
+    human_minutes: HumanMinutes | None = None,
     runner: Runner = subprocess.run,
 ) -> TaskRun:
     """Run one scenario under one control, with up to `retry_budget` correction rounds.
 
     A run whose process failed or never produced a `result` event returns
     `record=None`. It is a harness failure, not a task failure, and it is
-    not counted against the control.
+    not counted against the control. `human_minutes` supplies a timed human
+    correction pass for this cell; without a row the value stays `None`.
     """
     session = Session()
     with tempfile.TemporaryDirectory(prefix="durable-live-") as name:
@@ -347,6 +353,9 @@ def run_task(
             session,
             workdir,
             reviewer=settings.reviewer,
+            human_correction_minutes=human_lookup(
+                human_minutes, control, scenario.scenario_id, repeat
+            ),
         )
     launches = (*session.invocations, *((session.review,) if session.review else ()))
     return TaskRun(record, launches)
@@ -376,6 +385,7 @@ def run_experiment(
     *,
     repeats: int = 1,
     first_repeat: int = 0,
+    human_minutes: HumanMinutes | None = None,
     runner: Runner = subprocess.run,
 ) -> ExperimentResult:
     """Run every scenario under every control, `repeats` times. `controls` maps name to text.
@@ -414,6 +424,7 @@ def run_experiment(
                         settings,
                         budget,
                         repeat=repeat,
+                        human_minutes=human_minutes,
                         runner=runner,
                     )
                     invocations.extend(run.invocations)

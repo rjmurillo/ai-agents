@@ -43,6 +43,13 @@ import _control_ablation_grade as grade  # noqa: E402
 import _control_ablation_tasks as ablation_tasks  # noqa: E402
 import _durable_review as durable_review  # noqa: E402
 import _outcome_record as outcome_record  # noqa: E402
+from _human_minutes import (  # noqa: E402
+    HumanMinutes,
+    HumanMinutesError,
+    load_human_minutes,
+    unmatched_runs,
+)
+from _human_minutes import lookup as human_lookup  # noqa: E402
 from _runtime_harness import (  # noqa: E402
     REAL_HOME_ENV,
     probe_version,
@@ -117,13 +124,15 @@ def _grade_live_run(
     timeout: float,
     runner: claude_run.Runner,
     reviewer_model: str | None = None,
-) -> tuple[dict[str, object], list[str], str, str]:
+    human_correction_minutes: float | None = None,
+) -> tuple[dict[str, object], list[str], str, str, str]:
     """Run one task under one control/repeat; raise `claude_run.HarnessFailureError` (AC-8).
 
-    Returns (record, producer argv, reply, reviewer failure note). With
+    Returns (record, producer argv, reply, reviewer failure note, rolled-back patch). With
     `reviewer_model` set, an accepted change gets one independent review before
     any revert. A change that passes acceptance but fails the follow-up is then
     reverted to the seed and the revert is verified (`rollback_events`).
+    `human_correction_minutes` is the timed human pass for this cell, or `None`.
     """
     grade.seed_workspace(workspace, task, control.files)
     events, reply, cost, wall_seconds, argv = claude_run.invoke_claude(
@@ -148,6 +157,7 @@ def _grade_live_run(
             cost += review_cost
             wall_seconds += review_wall
     needed = ablation.rollback_needed(acceptance.returncode, followup.returncode)
+    patch = grade.snapshot_diff(workspace) if needed else ""
     reverted = grade.rollback_to_seed(workspace) if needed else False
     evidence = ablation.RunEvidence(
         task=task,
@@ -172,11 +182,11 @@ def _grade_live_run(
         ),
         review_findings=ablation.review_findings(acceptance.returncode, review_reply),
         rollback_events=ablation.rollback_events(needed, reverted),
-        human_correction_minutes=None,
+        human_correction_minutes=human_correction_minutes,
     )
     record = ablation.build_record(evidence)
     outcome_record.parse_record(record)  # AC-11: refuse before it is ever written
-    return record, argv, reply, review_note
+    return record, argv, reply, review_note, patch
 
 
 def _run_plan(
@@ -214,6 +224,7 @@ def _run_live(
     output_dir: Path,
     runner: claude_run.Runner,
     reviewer_model: str | None = None,
+    human_minutes: HumanMinutes | None = None,
 ) -> tuple[dict[str, object], int]:
     harness_version = probe_version(
         claude_run.CLAUDE_EXECUTABLE, "claude", workspace_root / "_probe", runner, timeout
@@ -227,7 +238,7 @@ def _run_live(
     try:
         for task, repeat, name, control in _run_plan(tasks, repeats, controls):
             try:
-                record, argv, reply, review_note = _grade_live_run(
+                record, argv, reply, review_note, patch = _grade_live_run(
                     workspace_root / f"{task.id}-{name}-{repeat}",
                     task,
                     control,
@@ -237,6 +248,7 @@ def _run_live(
                     timeout,
                     runner,
                     reviewer_model,
+                    human_lookup(human_minutes, name, task.id, repeat),
                 )
             except _HARNESS_ERRORS as exc:
                 any_harness_failure = True
@@ -253,6 +265,7 @@ def _run_live(
                     "argv": redacted_argv(argv, "claude"),
                     "reply": reply,
                     "reviewer_note": review_note,
+                    "rolled_back_patch": patch,
                     "record": record,
                 }
             )
@@ -264,6 +277,8 @@ def _run_live(
         "harness_version": harness_version,
         "real_home": real_home_enabled(),
         "runs": runs,
+        "human_minutes_rows": len(human_minutes or {}),
+        "human_minutes_unmatched": unmatched_runs(human_minutes, runs),
     }
     if real_home_enabled():
         report["confound"] = (
@@ -383,7 +398,13 @@ def _parser() -> argparse.ArgumentParser:
         "--reviewer-model",
         help="turns on the independent reviewer arm: one extra read-only launch per accepted "
         "run. Without it review_findings is null. Live records stay UNVERIFIED either way "
-        "until human correction minutes are supplied",
+        "unless --human-minutes supplies a timed correction pass",
+    )
+    parser.add_argument(
+        "--human-minutes",
+        type=Path,
+        help="JSON file of human-timed correction minutes keyed by control, task_id, repeat "
+        "(see _human_minutes.py). A cell with no row stays null and classifies UNVERIFIED",
     )
     parser.add_argument("--workspace-root", type=Path)
     parser.add_argument("--output-dir", type=Path)
@@ -432,6 +453,11 @@ def _run(
             f"{total_runs} launches (tasks x controls x repeats, x2 with a reviewer) exceeds "
             f"--max-runs {args.max_runs}; refusing before any model call (AC-3)"
         )
+    human_minutes = (
+        None
+        if args.human_minutes is None
+        else load_human_minutes(args.human_minutes, known_controls=ablation.CONTROL_NAMES)
+    )
     repeats = range(args.start_repeat, args.start_repeat + args.repeats)
     _refuse_recorded_cells(output_dir, control_names, tasks, repeats)
     controls = {name: ablation.resolve_control(name, REPO_ROOT) for name in control_names}
@@ -445,6 +471,7 @@ def _run(
         output_dir=output_dir,
         runner=runner,
         reviewer_model=args.reviewer_model,
+        human_minutes=human_minutes,
     )
 
 
@@ -455,7 +482,7 @@ def main(argv: Sequence[str] | None = None, *, runner: claude_run.Runner = subpr
         output_dir = args.output_dir.resolve() if args.output_dir else _default_output_dir()
         output_dir.mkdir(parents=True, exist_ok=True)
         report, code = _run(args, workspace_root, output_dir, runner)
-    except (ablation_tasks.ControlAblationConfigError, ParityConfigError) as exc:
+    except (ablation_tasks.ControlAblationConfigError, ParityConfigError, HumanMinutesError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return EXIT_CONFIG
     except (*_HARNESS_ERRORS, RuntimeError) as exc:
