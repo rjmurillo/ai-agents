@@ -193,6 +193,23 @@ def _first_operand(words: list[str]) -> str | None:
     return None
 
 
+def _after_prefix(words: list[str], index: int, word: str) -> int | None:
+    """Return the index past a ``NAME=VALUE`` or redirection ``word``, or None if it is neither.
+
+    ``index`` is the position after ``word``. A redirection target is the next word unless
+    it is attached to the operator (``>/dev/null``). A bare fd number (``2``) belongs to
+    the redirection word after it.
+    """
+    if _ASSIGNMENT.match(word):
+        return index
+    redirect = _REDIRECT.match(word)
+    if redirect:
+        return index + (not redirect.group(1))
+    if word.isdigit() and index < len(words) and _REDIRECT.match(words[index]):
+        return index
+    return None
+
+
 def _programs(words: list[str]) -> list[str]:
     """Return the programs one simple command starts: its own, or a shell's inner ones."""
     launcher = ""
@@ -201,14 +218,9 @@ def _programs(words: list[str]) -> list[str]:
     while index < len(words):
         word = words[index]
         index += 1
-        if _ASSIGNMENT.match(word):
-            continue
-        redirect = _REDIRECT.match(word)
-        if redirect:
-            # The target is the next word unless it is attached to the operator.
-            index += not redirect.group(1)
-            continue
-        if word.isdigit() and index < len(words) and _REDIRECT.match(words[index]):
+        after = _after_prefix(words, index, word)
+        if after is not None:
+            index = after
             continue
         if word.startswith("-"):
             if launcher == "command" and word in _LOOKUP_OPTIONS:
