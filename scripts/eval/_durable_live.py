@@ -48,10 +48,28 @@ What is measured, and what is a proxy:
   proxy, and the weakest evidence here.
 * `rework_minutes`: measured. Wall minutes of correction rounds (round 1 and
   later), which exist only because the prior attempt failed its check. Agent
-  rework only; `human_correction_minutes` stays 0.
-* `review_findings`, `rollback_events`: 0 by construction. No reviewer ran and
-  the driver has no rollback path, so an accepted change is never undone.
-  These are not a measured absence of defects.
+  rework only.
+* `human_correction_minutes`: always `None` here. An unattended run has no
+  human, and a human cannot time a run that has not happened yet, so the value
+  is missing evidence and the record classifies `UNVERIFIED`. Each run's change
+  is saved as `changes/<control>/<task_id>-r<repeat>.patch` (`_run_changes.py`).
+  After the run a human times a correction of that change, and
+  `eval_human_minutes_join.py` writes the minutes into copies of the records.
+  The owner decision to keep or drop that clause is open on #5768.
+* `review_findings`: measured when `RunSettings.reviewer` is set. A separate
+  reviewer process reads an accepted change in a fresh copy and replies with a
+  finding count (`_durable_review.py`). `None` when the arm is off, the run was
+  not accepted, or the reply is not in the required shape. Never 0 by default.
+* `rollback_events`: measured. A change that passed acceptance but fails the
+  fresh-copy follow-up or the post-integration check is reverted to `initial/`
+  and the revert is verified (`_durable_live_record.rollback_events`). Counted
+  as 1. A revert that cannot be verified is `None`. A run needing no revert is 0.
+  In this driver the value is derived from the follow-up result: it is 1 exactly
+  when the run was accepted and the follow-up failed. The revert targets the
+  run's temp workdir, which is deleted after the record is built, so no later
+  step reads the reverted tree. It adds no evidence beyond `followup_validation`.
+  The reviewer arm is read-only on both harnesses: `--tools Read,Glob,Grep` for
+  claude and `-s read-only` for codex.
 
 Observed effort is not exposed by the CLI stream (the init event carries
 `per_turn_effort_active` only), so effort is a request, never a verified
@@ -68,18 +86,37 @@ from __future__ import annotations
 import subprocess
 import tempfile
 import time
-from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, replace
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Any
 
 from _claude_stream import Invocation, StreamFacts, parse_stream
-from _cli_transport import BASE_ENV_ALLOWLIST, minimal_process_env
 from _durable_codex import codex_argv, codex_env, parse_codex_run
-from _durable_live_record import Session, build_record
+from _durable_live_record import Session, build_record, without_links
+from _durable_process import (  # noqa: F401  (re-exported for callers and tests)
+    ALLOWED_TOOLS,
+    DEFAULT_MAX_BUDGET_USD,
+    DEFAULT_MAX_TURNS,
+    DEFAULT_TIMEOUT_SECONDS,
+    HARNESSES,
+    Runner,
+    RunSettings,
+    claude_argv,
+    claude_env,
+    run_claude,
+    run_process,
+)
+from _durable_review import (
+    REVIEW_TOOLS,
+    REVIEWER_CONTROL_SUFFIX,
+    REVIEWER_INSTRUCTIONS,
+    review_prompt,
+    reviewer_identity,
+)
 from _outcome_record import OutcomeRecord
-from _routing_grader import GradeResult, Verdict, grade, materialize
+from _routing_grader import GradeResult, Verdict, apply_changes, grade, materialize
 from _routing_scenario import Scenario
+from _run_changes import change_patch
 
 #: Instruction files each control loads. `current` is the repo's always-loaded
 #: Claude Code surface (CLAUDE.md, AGENTS.md, .claude/CLAUDE.md, the always-on
@@ -95,23 +132,6 @@ CONTROLS: Mapping[str, tuple[str, ...]] = {
     ),
     "reduced": ("AGENTS.md",),
 }
-
-ALLOWED_TOOLS = ("Read", "Edit", "Write", "Glob", "Grep", "Bash(python:*)", "Bash(python3:*)")
-DEFAULT_TIMEOUT_SECONDS = 600.0
-DEFAULT_MAX_TURNS = 25
-DEFAULT_MAX_BUDGET_USD = 0.75
-_BLOCKED_BILLING_ENV = frozenset(
-    {
-        "ANTHROPIC_API_KEY",
-        "ANTHROPIC_AUTH_TOKEN",
-        "ANTHROPIC_BASE_URL",
-        "CLAUDE_CODE_USE_BEDROCK",
-        "CLAUDE_CODE_USE_FOUNDRY",
-        "CLAUDE_CODE_USE_VERTEX",
-    }
-)
-
-Runner = Callable[..., "subprocess.CompletedProcess[str]"]
 
 
 class LiveRunError(RuntimeError):
@@ -138,26 +158,10 @@ class TaskRun:
     record: OutcomeRecord | None
     invocations: tuple[Invocation, ...]
     note: str = ""
-
-
-HARNESSES = ("claude", "codex")
-
-
-@dataclass(frozen=True, slots=True)
-class RunSettings:
-    """Run parameters. `max_turns` and `max_budget_usd` bind claude only.
-
-    `cli_version` is the `codex --version` text, recorded for the codex harness.
-    """
-
-    model: str
-    effort: str
-    max_turns: int = DEFAULT_MAX_TURNS
-    retry_budget: int = 1
-    timeout: float = DEFAULT_TIMEOUT_SECONDS
-    max_budget_usd: float = DEFAULT_MAX_BUDGET_USD
-    harness: str = "claude"
-    cli_version: str = ""
+    #: The agent's change as a unified diff against `initial/`. "" when there is no record.
+    patch: str = ""
+    #: The reviewer launch's failure detail. "" when the arm was off, skipped, or completed.
+    reviewer_failure: str = ""
 
 
 def control_text(repo_root: Path, control: str) -> str:
@@ -173,93 +177,6 @@ def control_text(repo_root: Path, control: str) -> str:
     return "\n\n".join(parts)
 
 
-def claude_argv(settings: RunSettings, control_file: Path, prompt: str) -> list[str]:
-    """Shell-free argv for one run. Tools are an explicit allowlist."""
-    return [
-        "claude",
-        "-p",
-        prompt,
-        "--model",
-        settings.model,
-        "--effort",
-        settings.effort,
-        "--max-turns",
-        str(settings.max_turns),
-        "--max-budget-usd",
-        str(settings.max_budget_usd),
-        "--permission-mode",
-        "acceptEdits",
-        "--allowedTools",
-        *ALLOWED_TOOLS,
-        "--setting-sources",
-        "",
-        "--strict-mcp-config",
-        "--disable-slash-commands",
-        "--no-session-persistence",
-        "--append-system-prompt-file",
-        str(control_file),
-        "--output-format",
-        "stream-json",
-        "--verbose",
-    ]
-
-
-def claude_env() -> dict[str, str]:
-    """Allowlisted environment. Billing variables are removed so the stored login bills."""
-    env: dict[str, str] = minimal_process_env(
-        allow=BASE_ENV_ALLOWLIST,
-        blocked=_BLOCKED_BILLING_ENV,
-        overrides={"CLAUDE_CODE_DISABLE_CLAUDE_MDS": "1"},
-    )
-    return env
-
-
-def run_process(
-    argv: Sequence[str],
-    workdir: Path,
-    env: Mapping[str, str],
-    *,
-    runner: Runner = subprocess.run,
-    timeout: float = DEFAULT_TIMEOUT_SECONDS,
-) -> tuple[int | None, str, str, str]:
-    """Launch one process. Returns (exit code or None, stdout, stderr, failure detail)."""
-    try:
-        done: Any = runner(
-            list(argv),
-            cwd=workdir,
-            env=dict(env),
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=timeout,
-            check=False,
-            stdin=subprocess.DEVNULL,
-        )
-    except FileNotFoundError:
-        return None, "", "", f"{argv[0]} is not on PATH"
-    except subprocess.TimeoutExpired:
-        return None, "", "", f"timed out after {timeout}s"
-    except (OSError, subprocess.SubprocessError) as exc:
-        return None, "", "", f"process did not complete: {type(exc).__name__}"
-    code = int(done.returncode)
-    detail = "" if code == 0 else f"exit code {code}"
-    return code, str(done.stdout or ""), str(done.stderr or ""), detail
-
-
-def run_claude(
-    argv: Sequence[str],
-    workdir: Path,
-    *,
-    runner: Runner = subprocess.run,
-    timeout: float = DEFAULT_TIMEOUT_SECONDS,
-) -> tuple[int | None, str, str]:
-    """Launch one claude process. Returns (exit code or None, stdout, failure detail)."""
-    env = claude_env()
-    code, stdout, _, detail = run_process(argv, workdir, env, runner=runner, timeout=timeout)
-    return code, stdout, detail
-
-
 def _invoke(
     scenario: Scenario,
     control: str,
@@ -271,13 +188,21 @@ def _invoke(
     settings: RunSettings,
     budget: InvocationBudget,
     runner: Runner,
+    read_only: bool = False,
 ) -> Invocation:
+    """One launch. `read_only` is the reviewer arm: no edit or shell tool on either harness."""
     budget.spend()
     start = time.monotonic()
     if settings.harness == "codex":
-        code, facts, detail = _run_codex(prompt, workdir, control_file, settings, runner)
+        code, facts, detail = _run_codex(
+            prompt, workdir, control_file, settings, runner, read_only=read_only
+        )
     else:
-        argv = claude_argv(settings, control_file, prompt)
+        argv = (
+            claude_argv(settings, control_file, prompt, REVIEW_TOOLS, restrict_tools=True)
+            if read_only
+            else claude_argv(settings, control_file, prompt)
+        )
         code, stdout, detail = run_claude(argv, workdir, runner=runner, timeout=settings.timeout)
         facts = parse_stream(stdout)
     wall = time.monotonic() - start
@@ -295,10 +220,13 @@ def _run_codex(
     control_file: Path,
     settings: RunSettings,
     runner: Runner,
+    *,
+    read_only: bool = False,
 ) -> tuple[int | None, StreamFacts, str]:
-    """One `codex exec` run."""
+    """One `codex exec` run. `read_only` selects the read-only sandbox for the reviewer."""
     text = control_file.read_text(encoding="utf-8")
-    argv = codex_argv(settings.model, settings.effort, text, prompt)
+    sandbox = "read-only" if read_only else "workspace-write"
+    argv = codex_argv(settings.model, settings.effort, text, prompt, sandbox)
     code, stdout, stderr, detail = run_process(
         argv, workdir, codex_env(), runner=runner, timeout=settings.timeout
     )
@@ -327,6 +255,65 @@ def correction_prompt(scenario: Scenario, result: GradeResult) -> str:
     return "\n".join(lines)
 
 
+def _run_review(
+    scenario: Scenario,
+    control: str,
+    session: Session,
+    workdir: Path,
+    settings: RunSettings,
+    budget: InvocationBudget,
+    runner: Runner,
+) -> Invocation:
+    """Launch the independent reviewer on a fresh copy of the accepted change.
+
+    The copy holds `initial/` plus the agent's changed files and nothing else:
+    no control instruction file, no hidden check output, no producer message.
+    The reviewer gets read-only tools and the same text for every control.
+    """
+    spec = settings.reviewer
+    if spec is None:  # pragma: no cover - guarded by the caller
+        raise LiveRunError("reviewer arm requested without a reviewer")
+    reviewer_settings = replace(
+        settings,
+        harness=spec.harness,
+        model=spec.model,
+        effort=spec.effort,
+        retry_budget=0,
+    )
+    with tempfile.TemporaryDirectory(prefix="durable-review-") as name:
+        scratch = Path(name)
+        copy = scratch / "work"
+        shown = without_links(workdir, session.grades[-1].changed_paths)
+        apply_changes(scenario, workdir, shown, copy)
+        instructions = scratch / "reviewer.md"
+        instructions.write_text(REVIEWER_INSTRUCTIONS, encoding="utf-8")
+        return _invoke(
+            scenario,
+            f"{control}{REVIEWER_CONTROL_SUFFIX}",
+            len(session.invocations),
+            review_prompt(scenario.requirement, shown),
+            workdir=copy,
+            control_file=instructions,
+            settings=reviewer_settings,
+            budget=budget,
+            runner=runner,
+            read_only=True,
+        )
+
+
+def _run_patch(scenario: Scenario, scratch: Path, workdir: Path, changed: Sequence[str]) -> str:
+    """The run's change as a unified diff against a fresh copy of `initial/`.
+
+    The corpus stores `initial/` as `<path>.fixture` files, so it cannot be diffed
+    in place. A materialized copy has the real paths, so a modified file shows its
+    removed lines and a deleted file shows `+++ /dev/null`.
+    """
+    before = scratch / "initial"
+    materialize(scenario, before)
+    patch: str = change_patch(before, workdir, changed)
+    return patch
+
+
 def _harness_failed(invocation: Invocation) -> bool:
     return not invocation.facts.completed
 
@@ -346,7 +333,8 @@ def run_task(
 
     A run whose process failed or never produced a `result` event returns
     `record=None`. It is a harness failure, not a task failure, and it is
-    not counted against the control.
+    not counted against the control. The returned `patch` holds the agent's change,
+    taken before `build_record` reverts the workdir and the temp dir is deleted.
     """
     session = Session()
     with tempfile.TemporaryDirectory(prefix="durable-live-") as name:
@@ -372,8 +360,19 @@ def run_task(
             if session.grades[-1].verdict is Verdict.PASS:
                 break
             prompt = correction_prompt(scenario, session.grades[-1])
-        record = build_record(scenario, base_config, repeat, session, workdir)
-    return TaskRun(record, tuple(session.invocations))
+        if settings.reviewer is not None and session.grades[-1].verdict is Verdict.PASS:
+            session.review = _run_review(
+                scenario, control, session, workdir, settings, budget, runner
+            )
+        patch = _run_patch(scenario, Path(name), workdir, session.grades[-1].changed_paths)
+        record = build_record(
+            scenario, base_config, repeat, session, workdir, reviewer=settings.reviewer
+        )
+    launches = (*session.invocations, *((session.review,) if session.review else ()))
+    failure = ""
+    if session.review is not None and _harness_failed(session.review):
+        failure = session.review.facts.failure or "reviewer launch did not complete"
+    return TaskRun(record, launches, patch=patch, reviewer_failure=failure)
 
 
 @dataclass(frozen=True, slots=True)
@@ -383,11 +382,17 @@ class ExperimentResult:
     records: Mapping[str, tuple[OutcomeRecord, ...]]
     invocations: tuple[Invocation, ...]
     harness_failures: tuple[tuple[str, str, str], ...]
+    #: Each run's change as a unified diff, keyed by (control, task_id, repeat).
+    patches: Mapping[tuple[str, str, int], str] = field(default_factory=dict)
+    #: (control, task_id, repeat, detail) for each reviewer launch that did not complete.
+    reviewer_failures: tuple[tuple[str, str, int, str], ...] = ()
 
 
-def max_invocations(tasks: int, controls: int, repeats: int, retry_budget: int) -> int:
-    """Upper bound on process launches for a run."""
-    return tasks * controls * repeats * (retry_budget + 1)
+def max_invocations(
+    tasks: int, controls: int, repeats: int, retry_budget: int, *, reviewer: bool = False
+) -> int:
+    """Upper bound on process launches for a run. The reviewer arm adds one per task run."""
+    return tasks * controls * repeats * (retry_budget + 1 + int(reviewer))
 
 
 def run_experiment(
@@ -407,9 +412,16 @@ def run_experiment(
     """
     if settings.harness not in HARNESSES:
         raise LiveRunError(f"unknown harness {settings.harness!r}; expected one of {HARNESSES}")
+    if settings.reviewer is not None and settings.reviewer.harness != settings.harness:
+        raise LiveRunError(
+            f"reviewer harness {settings.reviewer.harness!r} must match run harness "
+            f"{settings.harness!r}; a cross-harness reviewer is not supported"
+        )
     records: dict[str, list[OutcomeRecord]] = {name: [] for name in controls}
     invocations: list[Invocation] = []
     failures: list[tuple[str, str, str]] = []
+    patches: dict[tuple[str, str, int], str] = {}
+    reviewer_failures: list[tuple[str, str, int, str]] = []
     with tempfile.TemporaryDirectory(prefix="durable-controls-") as name:
         for control, text in controls.items():
             control_file = Path(name) / f"{control}.md"
@@ -418,7 +430,7 @@ def run_experiment(
                 "harness": settings.harness,
                 "context_bytes": 0,
                 "retry_budget": settings.retry_budget,
-                "reviewer": "none",
+                "reviewer": reviewer_identity(settings.reviewer),
                 "control": control,
             }
             for scenario in scenarios:
@@ -438,6 +450,15 @@ def run_experiment(
                         failures.append((control, scenario.scenario_id, run.note))
                     else:
                         records[control].append(run.record)
+                        patches[(control, scenario.scenario_id, repeat)] = run.patch
+                        if run.reviewer_failure:
+                            reviewer_failures.append(
+                                (control, scenario.scenario_id, repeat, run.reviewer_failure)
+                            )
     return ExperimentResult(
-        {key: tuple(value) for key, value in records.items()}, tuple(invocations), tuple(failures)
+        {key: tuple(value) for key, value in records.items()},
+        tuple(invocations),
+        tuple(failures),
+        patches,
+        tuple(reviewer_failures),
     )
