@@ -49,14 +49,24 @@ returns PASS, FAIL, or UNKNOWN.
 ## 4. Verify claims the scan cannot see
 
 Run the behavioral and cross-document phases `doc-accuracy` defines when
-`behavioral_escalation` is `required`, or is `on-findings` and step 3 reported a
-finding on a changed line. Scope them to `changed_documents`.
+`behavioral_escalation` is `required`, or is `on-findings` and step 3 or the
+coupled-document scan below reported a finding (on a changed line in step 3, on
+any line of a coupled document below). Scope them to `changed_documents` plus
+any coupled document found below.
 
-When `coupled_documents_needed` is true no document changed, so the scan in
-step 3 has nothing to inventory. Run
+When `coupled_documents_needed` is true a cause other than a changed document
+is present (a verified effect, an agent artifact, a public API, an unreadable or
+unclassified path). Documents the diff never touched can be stale, and the scan
+in step 3 covers only the changed ones. Run
 `python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/doc-accuracy/scripts/doc_accuracy.py" --target . --phases 1 --output-dir <dir>`
 and take the documents in `<dir>/assessment.json` whose `mapped_source_files`
-include a changed path. When none map, record
+include a changed path. `--diff-base` inventories only changed documents, so it
+cannot scan an unchanged one. Scan the coupled documents with a full run instead:
+the step 3 command with `--phases 1,2,3` and no `--diff-base`. A full run reports
+every line and downgrades none. Keep only findings whose claim file is a mapped
+coupled document. A blocking one (severity at or above the scan threshold) is a
+FAIL for step 5. Findings in other documents are outside this gate. When none map
+and `changed_documents` is empty, record
 `DOC ACCURACY: SKIPPED - no document maps to the changed source`.
 
 ## 5. Verdict

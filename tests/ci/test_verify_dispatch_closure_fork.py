@@ -333,12 +333,12 @@ class TestMergeBase:
     def test_no_head_commit_means_no_merge_base(self, trees: tuple[Path, Path]) -> None:
         base, _ = trees
 
-        assert vdc._merge_base(base, "HEAD", None) is None
+        assert vdc._merge_bases(base, "HEAD", None) == []
 
     def test_an_unknown_commit_means_no_merge_base(self, trees: tuple[Path, Path]) -> None:
         base, _ = trees
 
-        assert vdc._merge_base(base, "HEAD", "a" * 40) is None
+        assert vdc._merge_bases(base, "HEAD", "a" * 40) == []
 
     def test_the_merge_base_is_the_commit_the_head_branched_from(
         self, trees: tuple[Path, Path], tmp_path: Path
@@ -350,7 +350,7 @@ class TestMergeBase:
         commit_on_base(base, "main moves")
         vdc.materialize_head(base, 1, sha, tmp_path / "out", remote=str(upstream))
 
-        assert vdc._merge_base(base, "HEAD", sha) == branch_point
+        assert vdc._merge_bases(base, "HEAD", sha) == [branch_point]
 
     def test_without_a_merge_base_the_comparison_falls_back_to_the_base_ref(
         self, trees: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
@@ -361,7 +361,7 @@ class TestMergeBase:
         write(base, HELPER, "X = 2\n")
         commit_on_base(base, "main moves the helper")
 
-        with mock.patch.object(vdc, "_merge_base", return_value=None):
+        with mock.patch.object(vdc, "_merge_bases", return_value=[]):
             report = check(base, upstream, sha, capsys)
 
         assert report["changed"] == [HELPER]

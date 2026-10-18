@@ -27,8 +27,8 @@ Exit codes:
     2  Configuration error: bad arguments, an output root outside the allowed
        set or ignored by git, a snapshot inside the repository, or an
        unreadable snapshot.
-    3  External error: git is missing, a git command failed, or a file could
-       not be read.
+    3  External error: git is missing, fails, or times out, or a file could not
+       be read.
 
 Limits: verify compares the working tree, HEAD, the branch name, the index
 flags that hide changes (assume-unchanged, skip-worktree), and
@@ -38,13 +38,11 @@ new or changed ignored file in an authorized skill is reported as
 changes (tags, other branches, config, push), other writes inside `.git/`,
 or gitignored paths outside the output root, so an ignored output root,
 skill directory, or `--also-allow` path is refused. A file grant authorizes
-that exact path; end a directory grant with `/`. It
-catches accidental writes by a cooperating run; it is not a sandbox, and a
-snapshot taken after the writes proves nothing, so snapshot refuses to
-overwrite an existing file. Empty directories are invisible to git and to
-verify. A symlink in the output root, a skill directory, or an
-`--also-allow` path fails with exit 2.
-An unreadable working-tree file stops snapshot with exit 3. Staging is
+that exact path; end a directory grant with `/`. It catches accidental writes by
+a cooperating run; it is not a sandbox, and a snapshot taken after the writes
+proves nothing, so snapshot refuses to overwrite an existing file. Empty
+directories are invisible to git and to verify. A symlink in the output root, a
+skill directory, or an `--also-allow` path fails with exit 2. An unreadable working-tree file stops snapshot with exit 3. Staging is
 compared by status code, not by staged content. Stdlib only, so the script runs from any plugin root.
 """
 
@@ -67,6 +65,7 @@ MAX_NAME = 64
 SNAPSHOT_SCHEMA = "skill-bootstrap-snapshot/4"
 IGNORE_PROBE = "skill-bootstrap-probe/SKILL.md"
 IGNORE_CHILD = "skill-bootstrap-probe.md"
+GIT_TIMEOUT_S = 30
 
 Payload = dict[str, Any]
 
@@ -87,9 +86,12 @@ def _run_git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
             encoding="utf-8",
             errors="replace",
             check=False,
+            timeout=GIT_TIMEOUT_S,
         )
     except FileNotFoundError as exc:
         raise GitError("git is not installed or not on PATH") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise GitError(f"git {' '.join(args)} timed out after {GIT_TIMEOUT_S} s") from exc
 
 
 def _git(repo: Path, *args: str) -> str:
