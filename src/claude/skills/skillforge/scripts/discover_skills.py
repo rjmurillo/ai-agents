@@ -318,9 +318,11 @@ def classify_domain(name: str, description: str, keywords: list[str]) -> list[st
     """
     Classify skill into domains from its name, description, and extracted keywords.
 
-    The body of SKILL.md is not scanned. A meta-skill such as skill-creator
+    Body prose in SKILL.md is not scanned. A meta-skill such as skill-creator
     mentions testing, deployment, and databases in examples, which would index it
-    under domains it does not serve and make it match unrelated queries.
+    under domains it does not serve and make it match unrelated queries. Body text
+    still reaches this function through keywords: extract_keywords collects
+    keyword-table cells and the words after a Purpose or Description line.
 
     A domain term in the description or keywords scores 1. A term in the name
     scores 2 more. A domain needs 2 points.

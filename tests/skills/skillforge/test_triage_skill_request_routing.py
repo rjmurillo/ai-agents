@@ -247,10 +247,11 @@ def test_short_query_on_one_shared_term_is_not_capped() -> None:
     assert not any("capped:" in r for r in reasons)
 
 
-def test_query_naming_the_skill_exactly_is_not_capped() -> None:
+def test_lookup_naming_the_skill_exactly_is_not_capped() -> None:
     skill = make_skill("skillforge", "Skill router.", ["router"])
+    query = "do I have a skill named skillforge for my repo please now"
 
-    _, reasons, ceiling = triage.score_skill("run skillforge on my repo please now", skill)
+    _, reasons, ceiling = triage.score_skill(query, skill, triage.InputCategory.SKILL_QUESTION)
 
     assert ceiling is None
     assert "name match: skillforge" in reasons

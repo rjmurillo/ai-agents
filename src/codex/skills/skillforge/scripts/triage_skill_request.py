@@ -86,7 +86,10 @@ class InputCategory:
 # ===========================================================================
 
 # Patterns for detecting input category
+# The first pattern skips "the build skill" and "my make skill": there the verb is
+# the name of an existing skill, not a request to create one.
 EXPLICIT_CREATE_PATTERNS = [
+    r"(?<!\bthe\s)(?<!\bmy\s)(?<!\bour\s)(?<!\bthis\s)"
     r"\b(?:create|build|make|design|develop)\s+(?:a\s+)?(?:new\s+)?skill\b",
     r"\b(?:new|custom)\s+skill\s+(?:for|to)\b",
     r"\bultimate\s+skill\b",
@@ -470,6 +473,9 @@ SCAFFOLDING_WORDS = frozenset(
         "custom",
         "skill",
         "skills",
+        # "a skill for running X" frames the request. With "running" as a content
+        # term the test skill (which describes running tests) explains two terms of
+        # the issue #6647 repro, escapes the single-term cap, and scores 64.
         "running",
     }
 )
@@ -487,6 +493,10 @@ COVERAGE_FLOOR = 0.5
 # cap sits one point under the 50 point CREATE_NEW boundary.
 SINGLE_TERM_MIN_QUERY_TERMS = 3
 SINGLE_TERM_SCORE_CAP = 49
+# Categories where the user asks for a skill by name ("do I have a skill for
+# build?", "improve the test skill"). Only these keep a scaffolding-named skill
+# matchable and exempt an exact one-word name from the single-term cap.
+NAME_LOOKUP_CATEGORIES = frozenset({InputCategory.SKILL_QUESTION, InputCategory.EXPLICIT_IMPROVE})
 
 
 def tokenize_for_scoring(query: str) -> list[str]:
@@ -610,26 +620,40 @@ def detect_query_domains(query: str) -> list[tuple[str, list[str]]]:
     return detected
 
 
-def calculate_match_score(query: str, skill: dict[str, Any]) -> tuple[float, list[str]]:
+def calculate_match_score(
+    query: str, skill: dict[str, Any], category: str | None = None
+) -> tuple[float, list[str]]:
     """
     Calculate how well a skill matches the query using UNIVERSAL domain matching.
 
     Returns:
         Tuple of (score 0-100, list of match reasons)
     """
-    score, reasons, ceiling = score_skill(query, skill)
-    if ceiling is not None:
-        score = min(score, ceiling)
-    return score, reasons
+    score, reasons, ceiling = score_skill(query, skill, category)
+    return apply_ceiling(score, ceiling, reasons), reasons
 
 
-def score_skill(query: str, skill: dict[str, Any]) -> tuple[float, list[str], int | None]:
+def apply_ceiling(score: float, ceiling: int | None, reasons: list[str]) -> float:
+    """Clamp score to the ceiling and record the cap when it lowered the score."""
+    if ceiling is not None and score > ceiling:
+        reasons.append("capped: one shared term in a long request")
+        return ceiling
+    return score
+
+
+def score_skill(
+    query: str, skill: dict[str, Any], category: str | None = None
+) -> tuple[float, list[str], int | None]:
     """
     Score one skill against the query and report any score ceiling.
 
     The ceiling is set when a long request rests on a single shared term. The
     caller applies it after context boosts, so a boost cannot lift the score back
-    over the CREATE_NEW boundary.
+    over the CREATE_NEW boundary. The ceiling is set whatever the pre-boost score
+    is: a score of 45 would otherwise be boosted past 50.
+
+    category is the InputCategory of the request. A name lookup (SKILL_QUESTION,
+    EXPLICIT_IMPROVE) keeps a scaffolding-named skill matchable.
 
     This function does NOT use any hardcoded skill names - it works purely based on:
     1. Domain detection from query using universal synonyms
@@ -708,23 +732,31 @@ def score_skill(query: str, skill: dict[str, Any]) -> tuple[float, list[str], in
 
     # Step 4: Direct skill name match (works for any skill name). Whole words
     # only, hyphens read as spaces, so "test" never matches inside "attest". A
-    # name made only of scaffolding words ("build", "make") is skipped: "build a
-    # skill for X" frames the request, it does not ask for the skill named build.
+    # name made only of scaffolding words ("build", "make") is skipped when the
+    # user creates something: "build a skill for X" frames the request, it does not
+    # ask for the skill named build. In a name lookup ("do I have a skill for
+    # build?") the exact name still matches.
     spaced_name = re.sub(r"[-_\s]+", " ", skill_name).strip()
     spaced_query = re.sub(r"[-_\s]+", " ", query_lower)
+    is_lookup = category in NAME_LOOKUP_CATEGORIES
+    scaffolding_named = is_scaffolding_phrase(spaced_name)
+    exact_name = (
+        bool(spaced_name)
+        and re.search(rf"(?<![a-z0-9]){re.escape(spaced_name)}(?![a-z0-9])", spaced_query)
+        is not None
+    )
     names_skill = False
     if (
         spaced_name
-        and not is_scaffolding_phrase(spaced_name)
         and contains_term(spaced_query, spaced_name)
+        and (not scaffolding_named or (is_lookup and exact_name))
     ):
         score += 35
         reasons.append(f"name match: {skill_name}")
-        # Inflection ("testing" for skill "test") is a weaker claim than the exact name.
-        names_skill = (
-            re.search(rf"(?<![a-z0-9]){re.escape(spaced_name)}(?![a-z0-9])", spaced_query)
-            is not None
-        )
+        # Only an exact name asked for in a lookup, or a multi-word name, is exempt
+        # from the single-term cap. A common one-word name ("test") inside an
+        # unrelated long create request is a shared word, not a request for the skill.
+        names_skill = exact_name and (is_lookup or len(spaced_name.split()) > 1)
     else:
         # Check if significant query words appear in skill name
         name_words = set(spaced_name.split())
@@ -735,12 +767,13 @@ def score_skill(query: str, skill: dict[str, Any]) -> tuple[float, list[str], in
 
     # Step 5: Trigger match (works for any skill's triggers), whole words only,
     # hyphens read as spaces on both sides like the name match in step 4. A
-    # trigger made only of scaffolding words is skipped for the same reason.
+    # trigger made only of scaffolding words is skipped for the same reason,
+    # except in a name lookup.
     for trigger in skill_triggers:
         spaced_trigger = re.sub(r"[-_\s]+", " ", trigger).strip()
         if (
             spaced_trigger
-            and not is_scaffolding_phrase(spaced_trigger)
+            and (is_lookup or not is_scaffolding_phrase(spaced_trigger))
             and contains_term(spaced_query, spaced_trigger)
         ):
             score += 25
@@ -769,8 +802,9 @@ def score_skill(query: str, skill: dict[str, Any]) -> tuple[float, list[str], in
     # with a few context words ("fix the failing pytest tests in my repo") still
     # reaches the routing thresholds. A request of three or more content terms
     # that rests on a single explained term is capped below the 50 point
-    # CREATE_NEW boundary: one shared word is not a match. A query that names the
-    # skill exactly is exempt.
+    # CREATE_NEW boundary: one shared word is not a match, whatever the score was
+    # before the context boosts. A name lookup that names the skill exactly, or a
+    # multi-word skill name in the query, is exempt.
     synonym_terms = domain_synonym_terms(query_domains, skill_domains)
     explained = count_explained_terms(content_tokens, skill, synonym_terms)
     coverage = explained / len(content_tokens) if content_tokens else 1.0
@@ -778,14 +812,8 @@ def score_skill(query: str, skill: dict[str, Any]) -> tuple[float, list[str], in
         score = round(score * (COVERAGE_FLOOR + (1 - COVERAGE_FLOOR) * coverage))
         reasons.append(f"coverage: {coverage:.0%} of query terms")
     ceiling: int | None = None
-    if (
-        not names_skill
-        and score > SINGLE_TERM_SCORE_CAP
-        and explained <= 1
-        and len(content_tokens) >= SINGLE_TERM_MIN_QUERY_TERMS
-    ):
+    if not names_skill and explained <= 1 and len(content_tokens) >= SINGLE_TERM_MIN_QUERY_TERMS:
         ceiling = SINGLE_TERM_SCORE_CAP
-        reasons.append("capped: one shared term in a long request")
 
     # A zero score carries no evidence, so do not report reasons for it.
     if score <= 0:
@@ -799,6 +827,7 @@ def find_matching_skills(
     skills: list[dict[str, Any]],
     limit: int = 5,
     signals: dict[str, Any] | None = None,
+    category: str | None = None,
 ) -> list[dict[str, Any]]:
     """
     Find skills that match the query, sorted by score.
@@ -813,7 +842,7 @@ def find_matching_skills(
     query_domain_names = [d[0] for d in query_domains]
 
     for skill in skills:
-        score, reasons, ceiling = score_skill(query, skill)
+        score, reasons, ceiling = score_skill(query, skill, category)
 
         # Apply context-based boosting using DOMAINS (not skill names)
         skill_domains = [d.lower() for d in skill.get("domains", [])]
@@ -840,8 +869,7 @@ def find_matching_skills(
             # Additional boost for strong domain alignment
             score += min(15, len(matching_domains) * 5)
 
-        if ceiling is not None:
-            score = min(score, ceiling)
+        score = apply_ceiling(score, ceiling, reasons)
 
         if score > 0:
             matches.append(
@@ -1062,7 +1090,7 @@ def triage_request(query: str) -> Result:
     skills = index.get("skills", [])
 
     # Step 3: Find matching skills (pass signals for context-aware boosting)
-    matches = find_matching_skills(query, skills, signals=signals)
+    matches = find_matching_skills(query, skills, signals=signals, category=category)
 
     # Step 4: Make decision
     action, details = make_triage_decision(category, signals, matches, query)

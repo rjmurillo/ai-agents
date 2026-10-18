@@ -241,6 +241,8 @@ def real_index(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
         BARE_QUERY,
         "I need to build a social media hook testing loop",
         "make a skill for running a social media hook testing loop",
+        "create a skill for docs social hook",
+        "create a skill for test payment gateways",
     ],
 )
 def test_issue_repros_route_to_create_new_on_the_real_index(
