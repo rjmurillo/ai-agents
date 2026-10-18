@@ -21,6 +21,10 @@ if str(_SCRIPT_DIR) not in sys.path:
 from atomic_write import read_bytes_no_redirect  # noqa: E402
 from lib_mirror import PACKAGES, SYNC_FILE_NAMES, _transform_file  # noqa: E402
 
+# Hand-maintained modules with no scripts/ source that live in the Claude
+# plugin's lib/ (ADR-119: skill scripts import paths.py from there). Byte copies.
+PLUGIN_LIB_FILES: tuple[str, ...] = ("paths.py",)
+
 
 class LibRenderError(Exception):
     """A registered lib source is missing or unreadable."""
@@ -30,7 +34,8 @@ def render_lib_files(repo_root: Path) -> dict[str, bytes]:
     """Return every lib file as ``{path under a lib root: bytes}``, without writing.
 
     Each ``.py`` file of a :data:`PACKAGES` source goes through the import
-    rewrite, and each :data:`SYNC_FILE_NAMES` source is a byte copy.
+    rewrite, and each :data:`SYNC_FILE_NAMES` and :data:`PLUGIN_LIB_FILES`
+    source is a byte copy.
     ``tests/build_scripts/test_hermes_packs.py`` pins this result byte for byte
     to the committed ``src/claude/lib/`` tree that ``lib_mirror.compile_all``
     writes.
@@ -57,4 +62,12 @@ def render_lib_files(repo_root: Path) -> dict[str, bytes]:
             files[file_name] = read_bytes_no_redirect(src_path)
         except OSError as exc:
             raise LibRenderError(f"Cannot read {src_rel}: {exc}") from exc
+    for file_name in PLUGIN_LIB_FILES:
+        src_path = repo_root / "src" / "claude" / "lib" / file_name
+        if not src_path.is_file():
+            raise LibRenderError(f"Registered plugin lib file missing: src/claude/lib/{file_name}")
+        try:
+            files[file_name] = read_bytes_no_redirect(src_path)
+        except OSError as exc:
+            raise LibRenderError(f"Cannot read src/claude/lib/{file_name}: {exc}") from exc
     return files

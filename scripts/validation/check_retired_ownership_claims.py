@@ -108,6 +108,24 @@ RETIRED_CLAIMS: tuple[RetiredClaim, ...] = (
         ),
     ),
     RetiredClaim(
+        name="skill support files edited in the install tree",
+        pattern=re.compile(
+            r"(?:hand-maintained at|edit (?:it|the support file) at|"
+            r"mirrors? (?:them )?(?:in)?(?:to)? ?from) `\.claude/skills/<name>/`"
+        ),
+        scope=(
+            *_PIPELINE_DOCS,
+            "build/AGENTS.md",
+            "src/AGENTS.md",
+            "src/claude/AGENTS.md",
+            "templates/AGENTS.md",
+        ),
+        fix=(
+            "A shipped skill's support files live in src/claude/skills/<name>/; "
+            ".claude/skills/<name> is a symlink to it (ADR-119)."
+        ),
+    ),
+    RetiredClaim(
         name="drift allowlist size as a count",
         pattern=re.compile(r"\b\d+-(?:section|entry) allowlist\b"),
         scope=("templates/rules/*.md",),

@@ -36,6 +36,8 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 PARTIALS_DIR = REPO_ROOT / "templates" / "skills" / "partials"
 RULES_DIR = REPO_ROOT / ".claude" / "rules"
+# A shipped rule in RULES_DIR is a relative symlink into this tree (ADR-119).
+SHIPPED_RULES_DIR = REPO_ROOT / "src" / "claude" / "rules"
 
 # The captured group excludes "/" and "\\": a rule-source pin is a bare
 # ``<file>.md`` name, never a path. Without this exclusion a partial could pin
@@ -75,11 +77,13 @@ def _rule_path_under_rules_dir(rule_source: str, *, partial_name: str) -> Path:
     read. A bare filename with no separator cannot fail this check today; it
     exists so a later change that loosens the regex (or a new caller of
     :func:`_rule_source` that skips it) still cannot walk this test outside
-    ``.claude/rules``.
+    ``.claude/rules``. A shipped rule there is a symlink (ADR-119), so its
+    resolved target must sit directly in ``src/claude/rules`` instead.
     """
-    resolved_rules_dir = RULES_DIR.resolve()
-    rule_path = (RULES_DIR / rule_source).resolve()
-    assert rule_path.parent == resolved_rules_dir, (
+    allowed = {RULES_DIR.resolve(), SHIPPED_RULES_DIR.resolve()}
+    joined = RULES_DIR / rule_source
+    rule_path = joined.resolve()
+    assert joined.parent.resolve() == RULES_DIR.resolve() and rule_path.parent in allowed, (
         f"{partial_name}: rule-source {rule_source!r} resolves outside {RULES_DIR}"
     )
     return rule_path

@@ -50,26 +50,29 @@ __all__ = [
 _BASELINE_PATH = Path(__file__).with_name("subprocess_encoding_count_baseline.txt")
 _FIXTURE_PREFIX = "tests/hooks/fixtures/"
 
-# .claude/skills/ is the canonical, hand-maintained source for every skill's
-# non-SKILL.md file (scripts, tests); src/claude/skills/ and src/copilot-cli/
-# skills/ are byte-for-byte generated mirrors of it
-# (generate_skills.py). Counting a violation at both the source and its
-# mirror(s) would inflate this ratchet with copies of the same decision
-# rather than new violations, the same rationale
+# src/claude/skills/ is the one canonical copy of every shipped skill file
+# (ADR-109 B3, ADR-119). .claude/skills/<name> is a directory link to it, which
+# git tracks as a single link entry, not as the files beneath it.
+# src/copilot-cli/skills/ and the other platform trees are byte-for-byte
+# generated mirrors (generate_skills.py). Counting a violation at both the
+# source and its mirror(s) would inflate this ratchet with copies of the same
+# decision rather than new violations, the same rationale
 # type_ignore_count_ratchet.py's ``_is_generated_lib_mirror`` already applies
-# to the lib mirror trees. Keyed on the canonical source actually existing,
-# not on the output prefix alone.
+# to the lib mirror trees. A tree that predates ADR-119 still tracks
+# .claude/skills/<file> as a second copy, so that prefix is a mirror root too.
+# Keyed on the canonical source actually existing, not on the output prefix
+# alone.
 _SKILL_MIRROR_ROOTS: tuple[str, ...] = (
-    "src/claude/skills",
+    ".claude/skills",
     "src/copilot-cli/skills",
     "src/codex/skills",
     "src/cursor/skills",
 )
-_SKILL_CANONICAL_ROOT = ".claude/skills"
+_SKILL_CANONICAL_ROOT = "src/claude/skills"
 
 
 def _skill_mirror_canonical_source(path_str: str) -> str | None:
-    """Return the .claude/skills/ path a skill-mirror path maps to, if any."""
+    """Return the src/claude/skills/ path a skill-mirror path maps to, if any."""
     for root in _SKILL_MIRROR_ROOTS:
         prefix = f"{root}/"
         if path_str.startswith(prefix):
@@ -108,7 +111,7 @@ def current_count(repo_root: Path) -> int | None:
 
     tracked_set = frozenset(py_files)
     # Filter out fixture exemptions, non-existent files, and skill mirrors
-    # whose canonical .claude/skills/ source is also tracked.
+    # whose canonical src/claude/skills/ source is also tracked.
     py_files = [
         f
         for f in py_files

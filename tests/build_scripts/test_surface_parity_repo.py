@@ -179,3 +179,12 @@ def test_staleness_workflow_does_not_repeat_the_agent_validate() -> None:
     """build_all.py --check already runs generate_agents; the standalone step is a duplicate."""
     commands = step_commands(load_workflow(STALENESS_WORKFLOW))
     assert not any(GENERATE_VALIDATE in c for c in commands)
+
+
+def test_a_real_file_under_a_binplaced_surface_with_no_authority_is_extra(
+    manifest: sm.Manifest, files: list[str]
+) -> None:
+    """Negative control: a repo-only instruction not claimed by its own row fails."""
+    stray = ".github/instructions/not-shipped.instructions.md"
+    found = csp.check_hand_maintained(REPO_ROOT, manifest, [*files, stray])
+    assert [(f.kind, f.path) for f in found] == [("EXTRA", stray)]

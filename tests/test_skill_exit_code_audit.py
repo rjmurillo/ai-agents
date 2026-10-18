@@ -15,7 +15,9 @@ import ast
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-SKILLS_ROOT = REPO_ROOT / ".claude" / "skills"
+# Shipped skills are directory links under .claude/skills (ADR-119) and a walk does not
+# follow a link, so scan the canonical tree. Repo-local skills hold no Python.
+SKILLS_ROOT = REPO_ROOT / "src" / "claude" / "skills"
 EMITTERS = {"write_skill_error", "_emit_error", "_exit_with_error", "_MergeFailureError"}
 # Second and third positional args and these keywords can carry the exit code.
 CODE_KEYWORDS = {"exit_code", "code"}
