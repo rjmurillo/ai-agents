@@ -243,6 +243,14 @@ def test_a_blank_reviewer_model_is_refused_before_any_call(tmp_path: Path) -> No
     assert code == cli.EXIT_CONFIG and runner.calls == []
 
 
+def test_a_reviewer_model_with_a_colon_is_refused_before_any_call(tmp_path: Path) -> None:
+    runner = FakeClaudeRunner(load_tasks(tmp_path))
+
+    code = cli.main(live_reduced_args(tmp_path, "--reviewer-model", "a:b"), runner=runner)
+
+    assert code == cli.EXIT_CONFIG and runner.calls == []
+
+
 def _dry_run(tmp_path: Path) -> tuple[int, dict[str, Any]]:
     code = cli.main(
         [

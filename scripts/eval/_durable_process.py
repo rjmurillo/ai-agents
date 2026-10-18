@@ -63,9 +63,17 @@ def claude_argv(
     control_file: Path,
     prompt: str,
     tools: Sequence[str] = ALLOWED_TOOLS,
+    *,
+    restrict_tools: bool = False,
 ) -> list[str]:
-    """Shell-free argv for one run. Tools are an explicit allowlist."""
-    return [
+    """Shell-free argv for one run. Tools are an explicit allowlist.
+
+    `--allowedTools` only pre-approves permission prompts. It does not remove a
+    tool, so with `--permission-mode acceptEdits` Edit and Write stay usable.
+    `restrict_tools` adds `--tools`, which limits which built-in tools exist.
+    The reviewer arm sets it so the reviewer has no edit or shell tool.
+    """
+    argv = [
         "claude",
         "-p",
         prompt,
@@ -92,6 +100,9 @@ def claude_argv(
         "stream-json",
         "--verbose",
     ]
+    if restrict_tools:
+        argv += ["--tools", ",".join(tools)]
+    return argv
 
 
 def claude_env() -> dict[str, str]:

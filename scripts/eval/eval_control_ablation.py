@@ -168,7 +168,7 @@ def _grade_live_run(
         reviewer=(
             durable_review.NO_REVIEWER
             if reviewer_model is None
-            else f"claude:{reviewer_model}:default"
+            else durable_review.ReviewerSpec("claude", reviewer_model, "default").identity
         ),
         review_findings=ablation.review_findings(acceptance.returncode, review_reply),
         rollback_events=ablation.rollback_events(needed, reverted),
@@ -382,7 +382,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--reviewer-model",
         help="turns on the independent reviewer arm: one extra read-only launch per accepted "
-        "run. Without it review_findings is null and every record classifies UNVERIFIED",
+        "run. Without it review_findings is null. Live records stay UNVERIFIED either way "
+        "until human correction minutes are supplied",
     )
     parser.add_argument("--workspace-root", type=Path)
     parser.add_argument("--output-dir", type=Path)
@@ -418,6 +419,11 @@ def _run(
         )
     if args.reviewer_model is not None and not args.reviewer_model.strip():
         raise ablation_tasks.ControlAblationConfigError("--reviewer-model must not be empty")
+    if args.reviewer_model is not None:
+        try:
+            durable_review.ReviewerSpec("claude", args.reviewer_model, "default")
+        except ValueError as exc:
+            raise ablation_tasks.ControlAblationConfigError(f"--reviewer-model: {exc}") from exc
     # Each run may add one reviewer launch, so the cap binds launches, not runs.
     launches_per_run = 2 if args.reviewer_model is not None else 1
     total_runs = len(tasks) * len(control_names) * args.repeats * launches_per_run

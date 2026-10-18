@@ -142,6 +142,10 @@ def rollback_events(
     follow-up passed needs no revert, so both are a measured 0. A revert that
     cannot be verified returns `None`: the recovery did not complete, so the
     outcome is unknown, never a clean 0.
+
+    The count is derived from `accepted` and `followup_ok`, so it carries no
+    evidence beyond `followup_validation`. The revert acts on a temp workdir that
+    the caller deletes right after `build_record`.
     """
     if not accepted or followup_ok:
         return 0

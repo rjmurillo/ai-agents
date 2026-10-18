@@ -60,6 +60,12 @@ What is measured, and what is a proxy:
   fresh-copy follow-up or the post-integration check is reverted to `initial/`
   and the revert is verified (`_durable_live_record.rollback_events`). Counted
   as 1. A revert that cannot be verified is `None`. A run needing no revert is 0.
+  In this driver the value is derived from the follow-up result: it is 1 exactly
+  when the run was accepted and the follow-up failed. The revert targets the
+  run's temp workdir, which is deleted after the record is built, so no later
+  step reads the reverted tree. It adds no evidence beyond `followup_validation`.
+  The reviewer arm is read-only on both harnesses: `--tools Read,Glob,Grep` for
+  claude and `-s read-only` for codex.
 
 Observed effort is not exposed by the CLI stream (the init event carries
 `per_turn_effort_active` only), so effort is a request, never a verified
@@ -98,6 +104,7 @@ from _durable_process import (  # noqa: F401  (re-exported for callers and tests
 )
 from _durable_review import (
     REVIEW_TOOLS,
+    REVIEWER_CONTROL_SUFFIX,
     REVIEWER_INSTRUCTIONS,
     review_prompt,
     reviewer_identity,
@@ -172,14 +179,21 @@ def _invoke(
     settings: RunSettings,
     budget: InvocationBudget,
     runner: Runner,
-    tools: Sequence[str] = ALLOWED_TOOLS,
+    read_only: bool = False,
 ) -> Invocation:
+    """One launch. `read_only` is the reviewer arm: no edit or shell tool on either harness."""
     budget.spend()
     start = time.monotonic()
     if settings.harness == "codex":
-        code, facts, detail = _run_codex(prompt, workdir, control_file, settings, runner)
+        code, facts, detail = _run_codex(
+            prompt, workdir, control_file, settings, runner, read_only=read_only
+        )
     else:
-        argv = claude_argv(settings, control_file, prompt, tools)
+        argv = (
+            claude_argv(settings, control_file, prompt, REVIEW_TOOLS, restrict_tools=True)
+            if read_only
+            else claude_argv(settings, control_file, prompt)
+        )
         code, stdout, detail = run_claude(argv, workdir, runner=runner, timeout=settings.timeout)
         facts = parse_stream(stdout)
     wall = time.monotonic() - start
@@ -197,10 +211,13 @@ def _run_codex(
     control_file: Path,
     settings: RunSettings,
     runner: Runner,
+    *,
+    read_only: bool = False,
 ) -> tuple[int | None, StreamFacts, str]:
-    """One `codex exec` run."""
+    """One `codex exec` run. `read_only` selects the read-only sandbox for the reviewer."""
     text = control_file.read_text(encoding="utf-8")
-    argv = codex_argv(settings.model, settings.effort, text, prompt)
+    sandbox = "read-only" if read_only else "workspace-write"
+    argv = codex_argv(settings.model, settings.effort, text, prompt, sandbox)
     code, stdout, stderr, detail = run_process(
         argv, workdir, codex_env(), runner=runner, timeout=settings.timeout
     )
@@ -262,7 +279,7 @@ def _run_review(
         instructions.write_text(REVIEWER_INSTRUCTIONS, encoding="utf-8")
         return _invoke(
             scenario,
-            f"{control}:reviewer",
+            f"{control}{REVIEWER_CONTROL_SUFFIX}",
             len(session.invocations),
             review_prompt(scenario.requirement, session.grades[-1].changed_paths),
             workdir=copy,
@@ -270,7 +287,7 @@ def _run_review(
             settings=reviewer_settings,
             budget=budget,
             runner=runner,
-            tools=REVIEW_TOOLS,
+            read_only=True,
         )
 
 

@@ -157,8 +157,11 @@ class TestReviewerArm:
         tail = reviewer["argv"][reviewer["argv"].index("--allowedTools") + 1 :]
         allowed = tail[: next(i for i, item in enumerate(tail) if item.startswith("--"))]
         assert allowed == ["Read", "Glob", "Grep"]
+        # `--allowedTools` only pre-approves prompts. `--tools` removes the edit tools.
+        assert reviewer["argv"][reviewer["argv"].index("--tools") + 1] == "Read,Glob,Grep"
         producer_tail = producer["argv"][producer["argv"].index("--allowedTools") + 1 :]
         assert "Edit" in producer_tail and "Edit" not in allowed
+        assert "--tools" not in producer["argv"]
         assert reviewer["argv"][2].startswith("Review the accepted change")
         assert scenario.requirement in reviewer["argv"][2]
 

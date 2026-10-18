@@ -33,6 +33,9 @@ NO_REVIEWER = "none"
 #: `RunConfig.reviewer` value for `--dry-run` rows, whose reviewer reply is a canned fixture.
 DRY_RUN_REVIEWER = "dry-run-fixture"
 
+#: Suffix the live driver adds to a control name for the reviewer's launches in `invocations.jsonl`.
+REVIEWER_CONTROL_SUFFIX = ":reviewer"
+
 #: The reviewer must end its reply with one line that starts with this marker.
 REVIEW_MARKER = "REVIEW_RESULT:"
 

@@ -95,6 +95,13 @@ class TestArgv:
             assert flag in argv
         assert argv[-2:] == ["--", "do it"]
 
+    def test_sandbox_defaults_to_workspace_write_and_can_be_read_only(self) -> None:
+        default = codex_mod.codex_argv("m", "low", "t", "p")
+        reviewer = codex_mod.codex_argv("m", "low", "t", "p", "read-only")
+        assert default[default.index("-s") + 1] == "workspace-write"
+        assert reviewer[reviewer.index("-s") + 1] == "read-only"
+        assert "workspace-write" not in reviewer
+
     def test_a_prompt_that_looks_like_a_flag_stays_positional(self) -> None:
         argv = codex_mod.codex_argv("m", "low", "t", "-s danger-full-access")
         assert argv[-2:] == ["--", "-s danger-full-access"]
@@ -275,6 +282,8 @@ class TestRunTask:
             runner=runner,
         )
         assert run.record is not None and len(runner.calls) == 2
+        sandboxes = [call[call.index("-s") + 1] for call in runner.calls]
+        assert sandboxes == ["workspace-write", "read-only"]
         assert run.record.durable.review_findings == 0
         assert run.record.config.reviewer == "codex:gpt-5.6-luna:low"
         assert classify(timed(run.record)) is Verdict.ACCEPTED_DURABLE
@@ -363,6 +372,47 @@ class TestCli:
         assert cli._effort_fields(args, partial)["effort_verified"] is False
         other = type("A", (), {"harness": "codex", "effort": "high"})()
         assert cli._effort_fields(other, full)["effort_verified"] is False
+
+    def test_a_reviewer_on_another_effort_does_not_unverify_the_producers(self) -> None:
+        low = codex_mod.parse_codex_run(_stdout(), _stderr(effort="low"))
+        high = codex_mod.parse_codex_run(_stdout(), _stderr(effort="high"))
+        args = type("A", (), {"harness": "codex", "effort": "low"})()
+        mixed = live_mod.ExperimentResult(
+            {},
+            (
+                live_mod.Invocation("current", "t", 0, 0, 1.0, low),
+                live_mod.Invocation("current:reviewer", "t", 1, 0, 1.0, high),
+            ),
+            (),
+        )
+        fields = cli._effort_fields(args, mixed)
+        assert fields["effort_verified"] is True
+        assert fields["effort_observed"] == ["low"]
+        assert fields["reviewer_effort_observed"] == ["high"]
+
+    def test_a_reviewer_with_no_backend_effort_is_reported_not_hidden(self) -> None:
+        low = codex_mod.parse_codex_run(_stdout(), _stderr(effort="low"))
+        bare = codex_mod.parse_codex_run(_stdout(), "")
+        args = type("A", (), {"harness": "codex", "effort": "low"})()
+        result = live_mod.ExperimentResult(
+            {},
+            (
+                live_mod.Invocation("current", "t", 0, 0, 1.0, low),
+                live_mod.Invocation("current:reviewer", "t", 1, 0, 1.0, bare),
+            ),
+            (),
+        )
+        fields = cli._effort_fields(args, result)
+        assert fields["effort_verified"] is True
+        assert str(fields["reviewer_effort_observed"]).startswith("none")
+
+    def test_a_run_with_only_reviewer_invocations_is_never_verified(self) -> None:
+        low = codex_mod.parse_codex_run(_stdout(), _stderr(effort="low"))
+        args = type("A", (), {"harness": "codex", "effort": "low"})()
+        result = live_mod.ExperimentResult(
+            {}, (live_mod.Invocation("current:reviewer", "t", 0, 0, 1.0, low),), ()
+        )
+        assert cli._effort_fields(args, result)["effort_verified"] is False
 
     def test_claude_effort_stays_unobservable(self) -> None:
         args = type("A", (), {"harness": "claude", "effort": "low"})()

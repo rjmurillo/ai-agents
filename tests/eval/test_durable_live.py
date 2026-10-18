@@ -106,6 +106,15 @@ class TestArgvAndEnv:
         assert "--dangerously-skip-permissions" not in argv
         assert "WebFetch" not in argv and "Bash(python:*)" in argv
 
+    def test_restrict_tools_adds_the_tools_flag_with_the_same_names(self, tmp_path: Path) -> None:
+        names = ("Read", "Glob", "Grep")
+        argv = live_mod.claude_argv(SETTINGS, tmp_path / "c.md", "p", names, restrict_tools=True)
+        assert argv[argv.index("--tools") + 1] == "Read,Glob,Grep"
+        assert argv[argv.index("--allowedTools") + 1 : argv.index("--allowedTools") + 4] == [*names]
+
+    def test_producer_argv_has_no_tools_flag(self, tmp_path: Path) -> None:
+        assert "--tools" not in live_mod.claude_argv(SETTINGS, tmp_path / "c.md", "p")
+
     def test_env_drops_billing_variables_and_disables_claude_mds(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:

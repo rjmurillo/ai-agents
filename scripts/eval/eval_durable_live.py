@@ -51,7 +51,7 @@ from _durable_live import (
 )
 from _durable_live_record import record_to_row
 from _durable_outcome import build_report, compare
-from _durable_review import ReviewerSpec, reviewer_identity
+from _durable_review import REVIEWER_CONTROL_SUFFIX, ReviewerSpec, reviewer_identity
 from _outcome_record import DurableOutcomeError
 from _routing_scenario import RoutingCorpusError, Scenario, load_corpus, load_extension_corpus
 
@@ -88,7 +88,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--reviewer-model",
         help="turns on the independent reviewer arm with this model, on the run's harness. "
-        "Without it review_findings is null and every record classifies UNVERIFIED",
+        "Without it review_findings is null. Live records stay UNVERIFIED either way until "
+        "human correction minutes are supplied",
     )
     parser.add_argument(
         "--reviewer-effort",
@@ -246,18 +247,31 @@ def _codex_version() -> str:
 
 
 def _effort_fields(args: argparse.Namespace, result: ExperimentResult) -> dict[str, object]:
-    """Requested and observed effort. Verified only when the backend named it every time."""
+    """Requested and observed effort. Verified only when the backend named it every time.
+
+    `effort_verified` covers producer launches only, so a reviewer on a different
+    `--reviewer-effort` cannot unverify the producers. The reviewer's observed
+    effort is its own field.
+    """
     if args.harness == "claude":
         return {
             "effort_verified": False,
             "effort_observed": "unobservable: the claude stream does not report effort",
         }
-    seen = sorted({e for i in result.invocations for e in i.facts.efforts})
-    every = bool(result.invocations) and all(i.facts.efforts for i in result.invocations)
-    return {
+    producers = [i for i in result.invocations if not i.control.endswith(REVIEWER_CONTROL_SUFFIX)]
+    reviewers = [i for i in result.invocations if i.control.endswith(REVIEWER_CONTROL_SUFFIX)]
+    seen = sorted({e for i in producers for e in i.facts.efforts})
+    every = bool(producers) and all(i.facts.efforts for i in producers)
+    fields: dict[str, object] = {
         "effort_verified": every and seen == [args.effort],
         "effort_observed": seen or "none: no backend frame named an effort",
     }
+    if reviewers:
+        fields["reviewer_effort_observed"] = (
+            sorted({e for i in reviewers for e in i.facts.efforts})
+            or "none: no backend frame named an effort"
+        )
+    return fields
 
 
 def _run_live(

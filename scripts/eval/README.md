@@ -1294,7 +1294,11 @@ a run that was never accepted, or when the reviewer reply is not in the required
 shape, it is `null`. `rollback_events` is measured: an accepted change that
 fails the fresh-copy follow-up or the post-integration check is reverted to
 `initial/` and the revert is verified, which counts 1. An unverifiable revert is
-`null`. `economics.human_correction_minutes` is `null` because no human is in the
+`null`. In this driver the count is derived from the follow-up result (accepted
+and follow-up failed), so it adds no evidence beyond `followup_validation`: the
+revert runs in a temp workdir that is deleted right after the record is built.
+The reviewer is read-only on both harnesses: `--tools Read,Glob,Grep` for claude
+and `-s read-only` for codex. `economics.human_correction_minutes` is `null` because no human is in the
 run. A `null` count classifies `UNVERIFIED`, so a live record stays
 `UNVERIFIED` until a human times a correction pass. Requested effort is never
 verified: the stream names no effort. The `_durable_live.py` docstring lists
