@@ -315,28 +315,17 @@ class TestMain:
         assert _run_main(fake) == 0
         assert json.loads(capsys.readouterr().out)["Data"]["verdict"] == "NOT_READY"
 
-    def test_pending_optional_checks_do_not_block_the_handoff(self, capsys):
+    @pytest.mark.parametrize("exit_code", [0, 1], ids=["pending_optional", "failing_optional"])
+    def test_optional_checks_do_not_block_the_handoff(self, exit_code, capsys):
         # Issue #6632: PR #6431 had 9/9 required checks green and 7 optional checks
         # in WAITING. AllPassing was False, RequiredState was SUCCESS.
         rereview = _review(101, CODERABBIT, "COMMENTED", HEAD, "2026-09-02T00:00:00Z")
-        fake = _siblings(
-            _pr(), (0, _checks("SUCCESS", all_passing=False)), [_stale_cr(), rereview], []
-        )
+        checks = (exit_code, _checks("SUCCESS", all_passing=False))
+        fake = _siblings(_pr(), checks, [_stale_cr(), rereview], [])
         assert _run_main(fake) == 0
         data = json.loads(capsys.readouterr().out)["Data"]
         assert data["verdict"] == "DISMISSAL_HANDOFF"
         assert "reviews/100/dismissals" in data["handoff"]
-        assert "required CI checks pass" in data["handoff"]
-        assert "CI is green" not in data["handoff"]
-
-    def test_failing_optional_check_exit_1_does_not_block_the_handoff(self, capsys):
-        rereview = _review(101, CODERABBIT, "COMMENTED", HEAD, "2026-09-02T00:00:00Z")
-        fake = _siblings(
-            _pr(), (1, _checks("SUCCESS", all_passing=False)), [_stale_cr(), rereview], []
-        )
-        assert _run_main(fake) == 0
-        data = json.loads(capsys.readouterr().out)["Data"]
-        assert data["verdict"] == "DISMISSAL_HANDOFF"
         assert "required CI checks pass" in data["handoff"]
         assert "CI is green" not in data["handoff"]
 
@@ -374,21 +363,13 @@ class TestMain:
         assert data["verdict"] == "NOT_READY"
         assert "CI is not passing" in data["reasons"]
 
-    def test_unusable_merge_ref_reports_not_ready_even_with_required_success(self, capsys):
-        fake = _siblings(
-            _pr(),
-            (1, _checks("SUCCESS", all_passing=False, merge_ref_usable=False)),
-            [_stale_cr()],
-            [],
-        )
-        assert _run_main(fake) == 0
-        assert json.loads(capsys.readouterr().out)["Data"]["verdict"] == "NOT_READY"
-
-    def test_missing_merge_ref_key_reports_not_ready(self, capsys):
+    @pytest.mark.parametrize("usable", [False, None], ids=["unusable", "key_missing"])
+    def test_merge_ref_not_proven_usable_reports_not_ready(self, usable, capsys):
         # build_output always emits MergeRefUsable, so a missing key is malformed
-        # and must fail closed.
+        # and fails closed like an unusable ref, even with RequiredState SUCCESS.
         rereview = _review(101, CODERABBIT, "COMMENTED", HEAD, "2026-09-02T00:00:00Z")
-        fake = _siblings(_pr(), (0, _checks(merge_ref_usable=None)), [_stale_cr(), rereview], [])
+        checks = (0, _checks("SUCCESS", merge_ref_usable=usable))
+        fake = _siblings(_pr(), checks, [_stale_cr(), rereview], [])
         assert _run_main(fake) == 0
         assert json.loads(capsys.readouterr().out)["Data"]["verdict"] == "NOT_READY"
 
