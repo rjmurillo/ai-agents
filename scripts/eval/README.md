@@ -1297,6 +1297,11 @@ fails the fresh-copy follow-up or the post-integration check is reverted to
 `null`. In this driver the count is derived from the follow-up result (accepted
 and follow-up failed), so it adds no evidence beyond `followup_validation`: the
 revert runs in a temp workdir that is deleted right after the record is built.
+A reviewer launch that does not complete (a bad model id, a timeout) is listed
+under `reviewer_failures` in `run-summary.json` and the run exits 3, the same as
+the ablation driver. The record stays, with `review_findings` null. A changed
+path that is a symlink, or sits under one, never reaches the reviewer copy or
+the saved patch.
 The reviewer is read-only on both harnesses: `--tools Read,Glob,Grep` for claude
 and `-s read-only` for codex. `economics.human_correction_minutes` is `null`
 in every live record, because no human is in the run and a human cannot time a

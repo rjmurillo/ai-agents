@@ -328,13 +328,15 @@ def _run_live(
             "repeats": args.repeats,
             "launches": budget.used,
             "harness_failures": [list(item) for item in result.harness_failures],
+            "reviewer_failures": [list(item) for item in result.reviewer_failures],
             "change_patches": len(result.patches),
             "control_bytes": {n: len(t.encode("utf-8")) for n, t in texts.items()},
         }
     )
     (out / "run-summary.json").write_text(json.dumps(summary, indent=2), "utf-8")
     print(json.dumps(summary, indent=2))
-    return EXIT_HARNESS_FAILURE if result.harness_failures and code == EXIT_OK else code
+    failed = bool(result.harness_failures or result.reviewer_failures)
+    return EXIT_HARNESS_FAILURE if failed and code == EXIT_OK else code
 
 
 def main(argv: Sequence[str] | None = None) -> int:

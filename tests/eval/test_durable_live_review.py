@@ -108,6 +108,25 @@ class TestReviewerArm:
         assert run.record is not None and run.record.durable.review_findings is None
         assert classify(timed(run.record)) is Verdict.UNVERIFIED
 
+    def test_a_failed_reviewer_launch_is_reported_on_the_task_run(self, tmp_path: Path) -> None:
+        run, _, _ = run_case(
+            GOOD_TASK,
+            ["known_good"],
+            tmp_path,
+            reviewer_settings(),
+            stdout=lambda _i: stream_text(text=f"Done.\n{CLEAN_REVIEW}"),
+            returncodes=[0, 2],
+        )
+        assert run.reviewer_failure
+
+    def test_a_completed_or_absent_reviewer_reports_no_failure(self, tmp_path: Path) -> None:
+        run, _, _ = reviewed_case(GOOD_TASK, ["known_good"], tmp_path, CLEAN_REVIEW)
+        assert run.reviewer_failure == ""
+        run, _, _ = run_case(GOOD_TASK, ["known_good"], tmp_path)
+        assert run.reviewer_failure == ""
+        run, _, _ = reviewed_case(GOOD_TASK, ["known_bad"], tmp_path, CLEAN_REVIEW)
+        assert run.reviewer_failure == ""
+
     def test_a_rejected_run_launches_no_reviewer(self, tmp_path: Path) -> None:
         run, runner, _ = reviewed_case(GOOD_TASK, ["known_bad"], tmp_path, CLEAN_REVIEW)
         assert run.record is not None and len(runner.calls) == 2
@@ -211,6 +230,65 @@ class TestReviewerArm:
         assert not any("HOST-SECRET-CONTENT" in text for text in copies[0].values())
         assert "added.py" in {Path(name).name for name in copies[0]}
         assert "def slugify" in copies[0]["slugger/core.py"]
+
+    def test_a_symlinked_directory_never_reaches_the_reviewer_copy(self, tmp_path: Path) -> None:
+        scenario = load(GOOD_TASK)
+        workdir = tmp_path / "work"
+        live_mod.materialize(scenario, workdir)
+        outside = tmp_path / "outside_dir"
+        outside.mkdir()
+        (outside / "core.py").write_text("HOST-SECRET-CONTENT\n", encoding="utf-8")
+        package = workdir / "slugger"
+        for child in sorted(package.iterdir()):
+            child.unlink()
+        package.rmdir()
+        package.symlink_to(outside, target_is_directory=True)
+        changed = grader_mod.changed_paths(scenario, workdir)
+        assert "slugger/core.py" in changed
+        session = SimpleNamespace(grades=[SimpleNamespace(changed_paths=changed)], invocations=[])
+        copies: list[dict[str, str]] = []
+        inner = fake_runner(scenario, [None], stdout=lambda _i: stream_text(text=CLEAN_REVIEW))
+
+        def watching(argv: list[str], **kwargs: Any) -> Any:
+            cwd = Path(kwargs["cwd"])
+            copies.append(
+                {
+                    str(p.relative_to(cwd)): p.read_text(encoding="utf-8", errors="replace")
+                    for p in cwd.rglob("*")
+                    if p.is_file()
+                }
+            )
+            return inner(argv, **kwargs)
+
+        live_mod._run_review(
+            scenario,
+            "current",
+            session,
+            workdir,
+            reviewer_settings(),
+            live_mod.InvocationBudget(10),
+            watching,
+        )
+
+        assert len(copies) == 1
+        assert not any("HOST-SECRET-CONTENT" in text for text in copies[0].values())
+        assert "def slugify" in copies[0]["slugger/core.py"]
+
+    def test_without_links_keeps_plain_paths_and_drops_any_path_under_a_link(
+        self, tmp_path: Path
+    ) -> None:
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        (outside / "a.py").write_text("SECRET\n", encoding="utf-8")
+        work = tmp_path / "work"
+        (work / "plain").mkdir(parents=True)
+        (work / "plain" / "b.py").write_text("ok\n", encoding="utf-8")
+        (work / "pkg").symlink_to(outside, target_is_directory=True)
+        (work / "leaf.py").symlink_to(outside / "a.py")
+        kept = record_mod.without_links(
+            work, ("plain/b.py", "pkg", "pkg/a.py", "leaf.py", "gone/deleted.py")
+        )
+        assert kept == ("plain/b.py", "gone/deleted.py")
 
     def test_two_controls_share_one_reviewer_config_so_the_pair_compares(
         self, tmp_path: Path
@@ -327,6 +405,60 @@ class TestRollbackHelpers:
         assert not package.is_symlink() and package.is_dir()
         assert (outside / "__init__.py").read_text(encoding="utf-8") == "OUTSIDE-ORIGINAL\n"
         assert list(outside.iterdir()) == [outside / "__init__.py"]
+
+    def test_rollback_restores_a_file_the_agent_replaced_with_a_directory(
+        self, tmp_path: Path
+    ) -> None:
+        scenario = load(GOOD_TASK)
+        workdir = tmp_path / "work"
+        live_mod.materialize(scenario, workdir)
+        victim = workdir / "slugger" / "__init__.py"
+        original = victim.read_bytes()
+        victim.unlink()
+        victim.mkdir()
+        (victim / "x.py").write_text("x = 1\n", encoding="utf-8")
+        changed = grader_mod.changed_paths(scenario, workdir)
+        assert {"slugger/__init__.py", "slugger/__init__.py/x.py"} <= set(changed)
+        assert record_mod.rollback_change(scenario, workdir, changed) is True
+        assert victim.is_file() and victim.read_bytes() == original
+        assert grader_mod.changed_paths(scenario, workdir) == ()
+
+    def test_rollback_restores_a_directory_the_agent_replaced_with_a_file(
+        self, tmp_path: Path
+    ) -> None:
+        scenario = load(GOOD_TASK)
+        workdir = tmp_path / "work"
+        live_mod.materialize(scenario, workdir)
+        package = workdir / "slugger"
+        for child in sorted(package.iterdir()):
+            child.unlink()
+        package.rmdir()
+        package.write_text("not a package\n", encoding="utf-8")
+        changed = grader_mod.changed_paths(scenario, workdir)
+        assert "slugger" in changed
+        assert record_mod.rollback_change(scenario, workdir, changed) is True
+        assert package.is_dir()
+        assert grader_mod.changed_paths(scenario, workdir) == ()
+
+    def test_an_unrevertable_tree_gives_none_not_a_crash(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        scenario = load(GOOD_TASK)
+        workdir = tmp_path / "work"
+        live_mod.materialize(scenario, workdir)
+        victim = workdir / "slugger" / "__init__.py"
+        victim.write_text("changed\n", encoding="utf-8")
+        changed = grader_mod.changed_paths(scenario, workdir)
+
+        def refuse(*_a: Any, **_k: Any) -> int:
+            raise PermissionError("read-only tree")
+
+        monkeypatch.setattr(Path, "write_bytes", refuse)
+        assert record_mod.rollback_change(scenario, workdir, changed) is False
+        assert (
+            record_mod.rollback_events(scenario, workdir, changed, accepted=True, followup_ok=False)
+            is None
+        )
 
     def test_a_revert_that_leaves_a_difference_is_not_a_recovery(self, tmp_path: Path) -> None:
         scenario, workdir, changed = self._worked(tmp_path, "known_good")

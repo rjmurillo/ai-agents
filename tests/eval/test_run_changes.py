@@ -86,6 +86,39 @@ def test_a_symlink_is_named_but_its_target_is_never_read(tmp_path: Path) -> None
     assert "symbolic link not followed" in patch and "top-secret-value" not in patch
 
 
+def test_a_file_under_a_symlinked_directory_is_named_but_never_read(tmp_path: Path) -> None:
+    secret_dir = _tree(tmp_path / "host", {"a.py": "top-secret-value\n"})
+    before = _tree(tmp_path / "a", {"pkg/a.py": "x = 1\n"})
+    after = _tree(tmp_path / "b", {})
+    (after / "pkg").symlink_to(secret_dir, target_is_directory=True)
+
+    patch = rc.change_patch(before, after, ["pkg/a.py"])
+
+    assert "symbolic link not followed" in patch
+    assert "top-secret-value" not in patch
+
+
+def test_a_symlinked_directory_in_the_before_tree_is_not_followed(tmp_path: Path) -> None:
+    secret_dir = _tree(tmp_path / "host", {"a.py": "top-secret-value\n"})
+    before = _tree(tmp_path / "a", {})
+    (before / "pkg").symlink_to(secret_dir, target_is_directory=True)
+    after = _tree(tmp_path / "b", {"pkg/a.py": "x = 2\n"})
+
+    patch = rc.change_patch(before, after, ["pkg/a.py"])
+
+    assert "top-secret-value" not in patch
+
+
+def test_symlink_on_path_flags_a_link_at_any_depth_and_passes_plain_paths(tmp_path: Path) -> None:
+    host = _tree(tmp_path / "host", {"deep/f.py": "x\n"})
+    root = _tree(tmp_path / "root", {"plain/f.py": "x\n"})
+    (root / "link").symlink_to(host, target_is_directory=True)
+    assert rc.symlink_on_path(root, "plain/f.py") is False
+    assert rc.symlink_on_path(root, "missing/f.py") is False
+    assert rc.symlink_on_path(root, "link") is True
+    assert rc.symlink_on_path(root, "link/deep/f.py") is True
+
+
 def test_a_binary_file_is_named_but_not_diffed(tmp_path: Path) -> None:
     before = _tree(tmp_path / "a", {})
     after = _tree(tmp_path / "b", {})

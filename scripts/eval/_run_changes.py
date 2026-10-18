@@ -39,14 +39,29 @@ def write_patch(out_dir: Path, control: str, task_id: str, repeat: int, patch: s
     return relative
 
 
-def _lines(path: Path) -> tuple[list[str] | None, str]:
+def symlink_on_path(root: Path, relative: str) -> bool:
+    """True when `root/relative` or any directory between them is a symlink.
+
+    A link in the way sends a read outside `root` just as a linked leaf does, and
+    `is_symlink()` on the leaf alone cannot see it.
+    """
+    step = root
+    for part in Path(relative).parts:
+        step = step / part
+        if step.is_symlink():
+            return True
+    return False
+
+
+def _lines(root: Path, relative: str) -> tuple[list[str] | None, str]:
     """The file's lines, or `None` and a reason when it must not be diffed.
 
-    A symlink is never followed: an agent could point one at a file outside the
-    workdir, and its target would land in the saved patch.
+    A symlink, leaf or directory, is never followed: an agent could point one at
+    a file outside the workdir, and its target would land in the saved patch.
     """
-    if path.is_symlink():
+    if symlink_on_path(root, relative):
         return None, "symbolic link not followed"
+    path = root / relative
     if not path.is_file():
         return [], ""
     if path.stat().st_size > MAX_FILE_BYTES:
@@ -57,9 +72,10 @@ def _lines(path: Path) -> tuple[list[str] | None, str]:
     return data.decode("utf-8", errors="replace").splitlines(keepends=True), ""
 
 
-def _file_diff(relative: str, before: Path, after: Path) -> str:
-    old, old_why = _lines(before)
-    new, new_why = _lines(after)
+def _file_diff(relative: str, before_root: Path, after_root: Path) -> str:
+    before, after = before_root / relative, after_root / relative
+    old, old_why = _lines(before_root, relative)
+    new, new_why = _lines(after_root, relative)
     if old is None or new is None:
         return f"--- a/{relative}\n+++ b/{relative}\n# not diffed: {old_why or new_why}\n"
     diff = difflib.unified_diff(
@@ -77,7 +93,4 @@ def change_patch(initial_dir: Path, workdir: Path, changed: Sequence[str]) -> st
 
     An added path diffs from `/dev/null` and a deleted one to `/dev/null`.
     """
-    return "".join(
-        _file_diff(relative, initial_dir / relative, workdir / relative)
-        for relative in sorted(changed)
-    )
+    return "".join(_file_diff(relative, initial_dir, workdir) for relative in sorted(changed))

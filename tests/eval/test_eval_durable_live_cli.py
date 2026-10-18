@@ -283,6 +283,64 @@ def test_live_run_with_a_reviewer_records_findings_and_labels_the_reviewer(
     assert report["durable_signals"]["human_correction_unmeasured"] == 1
 
 
+def test_a_failed_reviewer_launch_exits_3_and_is_named_in_the_summary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _fake_live(
+        monkeypatch,
+        ["RB-01-bounded-implementation"],
+        stdout=lambda _i: stream_text(text=f"Done.\n{CLEAN_REVIEW}"),
+        returncodes=[0, 2],
+    )
+    argv = [
+        "--live",
+        "--use-stored-login",
+        "--output-dir",
+        str(tmp_path),
+        "--controls",
+        "current",
+        "--reviewer-model",
+        "haiku",
+    ]
+
+    code = cli.main(argv)
+
+    summary = _out(capsys)
+    assert code == cli.EXIT_HARNESS_FAILURE
+    assert summary["harness_failures"] == []
+    [failure] = summary["reviewer_failures"]
+    assert failure[:3] == ["current", "RB-01-bounded-implementation", 0]
+    assert failure[3]
+    # The producer's record is kept: the failed review leaves it unverified, not dropped.
+    row = json.loads((tmp_path / "current.jsonl").read_text(encoding="utf-8").splitlines()[0])
+    assert row["durable"]["review_findings"] is None
+
+
+def test_a_completed_reviewer_launch_reports_no_reviewer_failures(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _fake_live(
+        monkeypatch,
+        ["RB-01-bounded-implementation"],
+        stdout=lambda _i: stream_text(text=f"Done.\n{CLEAN_REVIEW}"),
+    )
+    argv = ["--live", "--use-stored-login", "--output-dir", str(tmp_path), "--reviewer-model", "m"]
+
+    cli.main(argv)
+
+    assert _out(capsys)["reviewer_failures"] == []
+
+
+def test_a_run_with_no_reviewer_reports_no_reviewer_failures(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _fake_live(monkeypatch, ["RB-01-bounded-implementation"])
+
+    cli.main(["--live", "--use-stored-login", "--output-dir", str(tmp_path)])
+
+    assert _out(capsys)["reviewer_failures"] == []
+
+
 def test_live_run_without_a_reviewer_writes_null_review_findings(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

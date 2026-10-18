@@ -160,6 +160,8 @@ class TaskRun:
     note: str = ""
     #: The agent's change as a unified diff against `initial/`. "" when there is no record.
     patch: str = ""
+    #: The reviewer launch's failure detail. "" when the arm was off, skipped, or completed.
+    reviewer_failure: str = ""
 
 
 def control_text(repo_root: Path, control: str) -> str:
@@ -357,7 +359,10 @@ def run_task(
             scenario, base_config, repeat, session, workdir, reviewer=settings.reviewer
         )
     launches = (*session.invocations, *((session.review,) if session.review else ()))
-    return TaskRun(record, launches, patch=patch)
+    failure = ""
+    if session.review is not None and _harness_failed(session.review):
+        failure = session.review.facts.failure or "reviewer launch did not complete"
+    return TaskRun(record, launches, patch=patch, reviewer_failure=failure)
 
 
 @dataclass(frozen=True, slots=True)
@@ -369,6 +374,8 @@ class ExperimentResult:
     harness_failures: tuple[tuple[str, str, str], ...]
     #: Each run's change as a unified diff, keyed by (control, task_id, repeat).
     patches: Mapping[tuple[str, str, int], str] = field(default_factory=dict)
+    #: (control, task_id, repeat, detail) for each reviewer launch that did not complete.
+    reviewer_failures: tuple[tuple[str, str, int, str], ...] = ()
 
 
 def max_invocations(
@@ -404,6 +411,7 @@ def run_experiment(
     invocations: list[Invocation] = []
     failures: list[tuple[str, str, str]] = []
     patches: dict[tuple[str, str, int], str] = {}
+    reviewer_failures: list[tuple[str, str, int, str]] = []
     with tempfile.TemporaryDirectory(prefix="durable-controls-") as name:
         for control, text in controls.items():
             control_file = Path(name) / f"{control}.md"
@@ -433,9 +441,14 @@ def run_experiment(
                     else:
                         records[control].append(run.record)
                         patches[(control, scenario.scenario_id, repeat)] = run.patch
+                        if run.reviewer_failure:
+                            reviewer_failures.append(
+                                (control, scenario.scenario_id, repeat, run.reviewer_failure)
+                            )
     return ExperimentResult(
         {key: tuple(value) for key, value in records.items()},
         tuple(invocations),
         tuple(failures),
         patches,
+        tuple(reviewer_failures),
     )
