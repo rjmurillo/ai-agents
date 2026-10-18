@@ -145,8 +145,14 @@ def _guarded_os(
 
     def guarded(*args: Any, **kwargs: Any) -> Any:
         values = _bind(signature, args, kwargs)
-        if signature is None and argv is None and "command" in kwargs:  # os.system(command=...)
-            refuse_copilot(kwargs["command"])
+        if signature is None and kwargs:
+            # Keyword names cannot be mapped to positions, so fail closed.
+            if argv is None and "command" in kwargs:  # os.system(command=...)
+                refuse_copilot(kwargs["command"])
+            raise CopilotCallRefusedError(
+                "The local CLI smoke cannot read keyword arguments of this os spawn function "
+                f"(got {sorted(kwargs)!r}), so it refuses the call. Pass the arguments by position."
+            )
         if program in values:
             refuse_copilot(values[program] if argv is None else [values[program]])
         if argv is not None and isinstance(values.get(argv), (list, tuple)):

@@ -254,6 +254,28 @@ def test_guarded_os_lets_a_keyword_call_to_another_program_through() -> None:
         guard._guarded_os(_execve_like, 0, 1)(path="true", argv=["true", "-v"])
 
 
+@pytest.mark.parametrize(
+    ("argv", "kwargs"),
+    [(1, {"path": "true", "argv": ["true"]}), (None, {"command": "true"})],
+)
+def test_guarded_os_refuses_keywords_it_cannot_map_when_no_signature_resolves(
+    monkeypatch: pytest.MonkeyPatch, argv: int | None, kwargs: dict[str, object]
+) -> None:
+    """Fail closed: without a signature a keyword program would otherwise go unchecked."""
+    monkeypatch.setattr(guard, "_signature_of", lambda function: None)
+    guarded = guard._guarded_os(_launched, 0, argv)
+
+    with pytest.raises(guard.CopilotCallRefusedError):
+        guarded(**kwargs)
+
+
+def test_guarded_os_with_no_signature_still_reads_positional_calls() -> None:
+    guarded = guard._guarded_os(_launched, 0, 1, None)
+
+    with pytest.raises(guard.CopilotCallRefusedError):
+        guarded("copilot", ["copilot"])
+
+
 def test_guarded_os_passes_an_unbindable_call_to_the_original() -> None:
     """A call the signature rejects reaches the original, which raises its own TypeError."""
 

@@ -28,8 +28,8 @@ Subcommands (stdlib only, output is one JSON object):
 Exit codes: 0 clean, 1 findings or failed examples, 2 bad input or unverifiable
 (unreachable server, remote base URL without an explicit flag, no examples to
 lint, a response over the size cap, a request past its deadline, or a run past its
-deadline, each with no failed example or lint finding found first). A failed example or
-lint finding found before such a stop is still exit 1, and the evidence file keeps it.
+deadline). A failed example or lint finding found before the server, size cap, or
+deadline stop is still exit 1, and the evidence file keeps it.
 """
 
 from __future__ import annotations
@@ -437,10 +437,12 @@ def _request_failed(
 ) -> tuple[dict[str, Any], int]:
     """Stop a run whose request could not finish (deadline, byte cap, unreachable server).
 
-    ``unrun`` starts with the example that failed. Earlier results and lint findings are
-    kept, the same way as for a run deadline, so a stale doc still reports FAIL.
+    ``unrun`` starts with the example that failed. Its request may have reached the server,
+    so the report names it under ``example`` and lists only the examples after it as unrun.
+    Earlier results and lint findings are kept, the same way as for a run deadline, so a
+    stale doc still reports FAIL.
     """
-    detail = {"example": unrun[0].id, "error": str(error), "unrun": [e.id for e in unrun]}
+    detail = {"example": unrun[0].id, "error": str(error), "unrun": [e.id for e in unrun[1:]]}
     message = (
         f"example `{unrun[0].id}` could not finish after {len(results)} of "
         f"{len(results) + len(unrun)} examples: {error}; "

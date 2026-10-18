@@ -478,7 +478,7 @@ def test_a_failed_example_survives_a_later_request_that_cannot_finish(
 
     assert code == ax.EXIT_FINDINGS
     assert report["verdict"] == "FAIL" and report["executed"] == 1 and report["failed"] == 1
-    assert report["request_failed"] == {"example": "b", "error": message, "unrun": ["b"]}
+    assert report["request_failed"] == {"example": "b", "error": message, "unrun": []}
     assert json.loads(evidence.read_text(encoding="utf-8")) == report
 
 
@@ -494,7 +494,8 @@ def test_a_request_that_cannot_finish_first_is_unverified_and_keeps_evidence(
 
     saved = json.loads(evidence.read_text(encoding="utf-8"))
     assert saved["verdict"] == "UNVERIFIED" and saved["executed"] == 0
-    assert saved["request_failed"]["unrun"] == ["a", "b"]
+    assert saved["request_failed"]["example"] == "a"
+    assert saved["request_failed"]["unrun"] == ["b"]
 
 
 def test_a_request_that_cannot_finish_keeps_lint_findings_as_a_finding(
