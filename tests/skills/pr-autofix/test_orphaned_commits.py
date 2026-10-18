@@ -228,16 +228,99 @@ class TestScanIfEscalated:
         assert report["status"] == "ahead"
 
 
+def _checkout(path):
+    """Make ``path`` look like a git checkout to the worktree validator."""
+    path.mkdir(parents=True, exist_ok=True)
+    (path / ".git").mkdir(exist_ok=True)
+    return str(path)
+
+
 class TestWorktreeRunner:
-    def test_runs_git_inside_the_given_worktree(self):
+    def test_runs_git_inside_the_given_worktree(self, tmp_path):
+        worktree = _checkout(tmp_path / "pr-7")
         done = subprocess.CompletedProcess(args=[], returncode=0, stdout="out", stderr="")
         with patch.object(oc.subprocess, "run", return_value=done) as run:
-            assert oc.worktree_runner("/wt/pr-7")(["status"]) == (0, "out")
-        assert run.call_args.args[0] == ["git", "-C", "/wt/pr-7", "status"]
+            assert oc.worktree_runner(worktree)(["status"]) == (0, "out")
+        assert run.call_args.args[0] == ["git", "-C", worktree, "status"]
 
-    def test_launch_failure_maps_to_127(self):
+    def test_launch_failure_maps_to_127(self, tmp_path):
+        worktree = _checkout(tmp_path / "pr-7")
         with patch.object(oc.subprocess, "run", side_effect=FileNotFoundError("git")):
-            assert oc.worktree_runner("/wt/pr-7")(["status"]) == (127, "")
+            assert oc.worktree_runner(worktree)(["status"]) == (127, "")
+
+    def test_repository_selecting_variables_are_dropped_from_the_child_env(
+        self, tmp_path, monkeypatch
+    ):
+        worktree = _checkout(tmp_path / "pr-7")
+        for key in oc._GIT_ENV_KEYS:
+            monkeypatch.setenv(key, "/shared/checkout")
+        monkeypatch.setenv("HOME", "/home/keep")
+        done = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+        with patch.object(oc.subprocess, "run", return_value=done) as run:
+            oc.worktree_runner(worktree)(["status"])
+        env = run.call_args.kwargs["env"]
+        assert not set(oc._GIT_ENV_KEYS) & set(env)
+        assert env["HOME"] == "/home/keep"
+
+    def test_git_config_injection_variables_are_dropped_from_the_child_env(
+        self, tmp_path, monkeypatch
+    ):
+        worktree = _checkout(tmp_path / "pr-7")
+        injected = {
+            "GIT_CONFIG_PARAMETERS": "'core.fsmonitor=evil'",
+            "GIT_CONFIG_COUNT": "1",
+            "GIT_CONFIG_KEY_0": "core.hooksPath",
+            "GIT_CONFIG_VALUE_0": "/tmp/evil",
+            "GIT_CEILING_DIRECTORIES": "/",
+        }
+        for key, value in injected.items():
+            monkeypatch.setenv(key, value)
+        monkeypatch.setenv("GIT_CONFIG_GLOBAL", "/home/keep/.gitconfig")
+        done = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+        with patch.object(oc.subprocess, "run", return_value=done) as run:
+            oc.worktree_runner(worktree)(["status"])
+        env = run.call_args.kwargs["env"]
+        assert not set(injected) & set(env)
+        assert env["GIT_CONFIG_GLOBAL"] == "/home/keep/.gitconfig"
+
+    def test_default_runner_keeps_the_inherited_environment(self):
+        done = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+        with patch.object(oc.subprocess, "run", return_value=done) as run:
+            oc.default_runner(["status"])
+        assert run.call_args.kwargs["env"] is None
+
+    def test_a_linked_worktree_git_file_is_accepted(self, tmp_path):
+        worktree = tmp_path / "linked"
+        worktree.mkdir()
+        (worktree / ".git").write_text("gitdir: /elsewhere\n", encoding="utf-8")
+        done = subprocess.CompletedProcess(args=[], returncode=0, stdout="ok", stderr="")
+        with patch.object(oc.subprocess, "run", return_value=done):
+            assert oc.worktree_runner(str(worktree))(["status"]) == (0, "ok")
+
+    def test_invalid_worktree_never_launches_git(self, tmp_path):
+        plain = tmp_path / "plain"
+        plain.mkdir()
+        a_file = tmp_path / "file"
+        a_file.write_text("x", encoding="utf-8")
+        bad = [
+            "",
+            "-C",
+            "--upload-pack=evil",
+            "bad\x00path",
+            str(tmp_path / "missing"),
+            str(plain),
+            str(a_file),
+        ]
+        with patch.object(oc.subprocess, "run") as run:
+            for value in bad:
+                assert oc.worktree_runner(value)(["status"]) == (126, "")
+        run.assert_not_called()
+
+    def test_invalid_worktree_ends_the_scan_unverified_with_a_clear_reason(self, tmp_path):
+        report = oc.scan_unpushed_commits(LIVE, oc.worktree_runner(str(tmp_path / "missing")))
+        assert report["status"] == "unverified"
+        assert "not a git checkout" in str(report["reason"])
+        assert report["commits"] == []
 
     def test_scans_the_worktree_head_not_the_callers(self, tmp_path):
         def git(cwd, *args):
@@ -271,6 +354,43 @@ class TestWorktreeRunner:
         assert report["status"] == "ahead"
         assert [c["subject"] for c in report["commits"]] == ["orphan"]
         assert "orphan" in str(report["warning"])
+
+    def test_inherited_git_dir_does_not_redirect_the_scan(self, tmp_path, monkeypatch):
+        """GIT_DIR overrides ``-C``; the runner must drop it (issue #6506)."""
+
+        def git(cwd, *args):
+            return subprocess.run(
+                ["git", "-c", "user.name=t", "-c", "user.email=t@t", *args],
+                cwd=cwd,
+                capture_output=True,
+                encoding="utf-8",
+                errors="replace",
+                check=True,
+            ).stdout.strip()
+
+        repo = tmp_path / "repo"
+        shared = tmp_path / "shared"
+        repo.mkdir()
+        shared.mkdir()
+        git(repo, "init", "-q", "-b", "main")
+        git(shared, "init", "-q", "-b", "main")
+        (repo / "a.txt").write_text("a")
+        git(repo, "add", ".")
+        git(repo, "commit", "-q", "-m", "base")
+        live = git(repo, "rev-parse", "HEAD")
+        (repo / "b.txt").write_text("b")
+        git(repo, "add", ".")
+        git(repo, "commit", "-q", "-m", "orphan")
+        (shared / "z.txt").write_text("z")
+        git(shared, "add", ".")
+        git(shared, "commit", "-q", "-m", "unrelated")
+        monkeypatch.setenv("GIT_DIR", str(shared / ".git"))
+        monkeypatch.setenv("GIT_WORK_TREE", str(shared))
+
+        report = oc.scan_unpushed_commits(live, oc.worktree_runner(str(repo)))
+
+        assert report["status"] == "ahead"
+        assert [c["subject"] for c in report["commits"]] == ["orphan"]
 
 
 class TestDefaultRunner:

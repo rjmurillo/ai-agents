@@ -185,16 +185,36 @@ def find_stale_branches(
 
 
 def _backup_config(config_path: Path) -> Path:
+    """Copy the config to a fresh ``.before-prune[.N]`` file beside it.
+
+    The backup is created with ``O_CREAT | O_EXCL``, which fails on any
+    existing entry at the name, including a dangling symlink. ``Path.exists``
+    follows links and reports a dangling one as absent, so ``copy2`` used to
+    write through a planted link to its target (CWE-59, issue #6506).
+    """
     base = config_path.with_name(f"{config_path.name}.before-prune")
-    backup = base
-    suffix = 0
-    while backup.exists():
-        suffix += 1
-        if suffix >= 1000:
-            raise GitError("could not choose a config backup path")
-        backup = base.with_name(f"{base.name}.{suffix}")
-    shutil.copy2(config_path, backup)
-    return backup
+    content = config_path.read_bytes()
+    mode = config_path.stat().st_mode & 0o7777
+    for suffix in range(1000):
+        backup = base if suffix == 0 else base.with_name(f"{base.name}.{suffix}")
+        try:
+            fd = os.open(
+                backup,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+                0o600,
+            )
+        except FileExistsError:
+            continue
+        try:
+            with os.fdopen(fd, "wb") as handle:
+                handle.write(content)
+                if hasattr(os, "fchmod"):
+                    os.fchmod(handle.fileno(), mode)
+        except OSError as exc:
+            backup.unlink(missing_ok=True)
+            raise GitError(f"could not write config backup {backup}: {exc}") from exc
+        return backup
+    raise GitError("could not choose a config backup path")
 
 
 def _verify_config(repo: Path) -> None:

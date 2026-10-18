@@ -31,7 +31,10 @@ import sys  # noqa: E402
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
-from atomic_write import publish_bytes_preserving_mode  # noqa: E402
+from atomic_write import (  # noqa: E402
+    publish_bytes_preserving_mode,
+    read_bytes_no_redirect,
+)
 from generate_hooks_body import inject_shim  # noqa: E402
 from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
 from yaml_loader import (  # noqa: E402
@@ -418,7 +421,8 @@ def _copy_script(
     ``written=False`` when a sentinel is detected; reason captures which
     sentinel. When ``matcher`` is non-empty the shim from
     :func:`inject_shim` is prepended; otherwise the script is copied
-    verbatim.
+    verbatim. The source is read without following a symlink; a redirecting
+    source raises :class:`GenerateHooksError`.
     """
     reason = regen_detect_reason(target)
     if reason is not None:
@@ -428,10 +432,20 @@ def _copy_script(
     if what_if:
         return True, ""
     _ensure_exact_case_dir(target.parent)
+    try:
+        source_bytes = read_bytes_no_redirect(source)
+    except OSError as exc:
+        # ELOOP is a symlinked hook source (POSIX) or a junction (Windows): it
+        # would ship bytes from outside the plugin tree (CWE-59), so refuse it.
+        # A Windows file symlink is not caught here: O_NOFOLLOW is 0 there.
+        raise GenerateHooksError(
+            f"cannot read hook script '{source}' (symlinked sources are refused): {exc}"
+        ) from exc
     if not matcher:
-        publish_bytes_preserving_mode(target, source.read_bytes())
+        publish_bytes_preserving_mode(target, source_bytes)
         return True, ""
-    body = source.read_text(encoding="utf-8")
+    # Path.read_text translated CRLF and CR to LF; keep that output stable.
+    body = source_bytes.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n")
     transformed = inject_shim(body, matcher)
     publish_bytes_preserving_mode(target, transformed.encode("utf-8"))
     return True, ""

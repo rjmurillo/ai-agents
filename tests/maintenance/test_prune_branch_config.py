@@ -236,9 +236,80 @@ class TestPrune:
 
     def test_backup_collision_exhaustion_raises(self, repo: Path) -> None:
         config = resolve_config_path(repo)
-        with mock.patch.object(Path, "exists", return_value=True):
+        with mock.patch.object(mod.os, "open", side_effect=FileExistsError):
             with pytest.raises(GitError, match="backup path"):
                 mod._backup_config(config)
+
+    def test_backup_does_not_follow_a_dangling_symlink_at_the_backup_name(
+        self, repo: Path, tmp_path: Path
+    ) -> None:
+        """Path.exists() is False for a dangling link, so copy2 wrote through it (#6506)."""
+        config = resolve_config_path(repo)
+        victim = tmp_path / "victim.txt"
+        link = config.with_name(f"{config.name}.before-prune")
+        try:
+            link.symlink_to(victim)
+        except (OSError, NotImplementedError):
+            pytest.skip("symlink creation unavailable on this platform")
+
+        backup = mod._backup_config(config)
+
+        assert not victim.exists()
+        assert link.is_symlink()
+        assert backup.name.endswith(".before-prune.1")
+        assert not backup.is_symlink()
+        assert backup.read_bytes() == config.read_bytes()
+
+    def test_backup_does_not_overwrite_a_symlink_to_an_existing_file(
+        self, repo: Path, tmp_path: Path
+    ) -> None:
+        config = resolve_config_path(repo)
+        victim = tmp_path / "victim.txt"
+        victim.write_text("keep me\n", encoding="utf-8")
+        link = config.with_name(f"{config.name}.before-prune")
+        try:
+            link.symlink_to(victim)
+        except (OSError, NotImplementedError):
+            pytest.skip("symlink creation unavailable on this platform")
+
+        mod._backup_config(config)
+
+        assert victim.read_text(encoding="utf-8") == "keep me\n"
+
+    @pytest.mark.skipif(mod.os.name == "nt", reason="POSIX permission bits")
+    def test_backup_keeps_config_mode_bits(self, repo: Path) -> None:
+        config = resolve_config_path(repo)
+        config.chmod(0o640)
+
+        backup = mod._backup_config(config)
+
+        assert backup.stat().st_mode & 0o777 == 0o640
+
+    def test_partial_backup_write_is_removed_and_reported_as_a_git_error(self, repo: Path) -> None:
+        config = resolve_config_path(repo)
+        backup_name = f"{config.name}.before-prune"
+
+        with mock.patch.object(mod.os, "fdopen", side_effect=OSError("disk full")):
+            with pytest.raises(GitError, match="could not write config backup"):
+                mod._backup_config(config)
+
+        assert not config.with_name(backup_name).exists()
+
+    def test_apply_with_a_planted_dangling_backup_link_still_prunes(
+        self, repo: Path, tmp_path: Path
+    ) -> None:
+        _add_section(repo, "gone")
+        config = resolve_config_path(repo)
+        victim = tmp_path / "victim.txt"
+        try:
+            config.with_name(f"{config.name}.before-prune").symlink_to(victim)
+        except (OSError, NotImplementedError):
+            pytest.skip("symlink creation unavailable on this platform")
+
+        result = prune_branch_config(repo, apply=True)
+
+        assert result.removed == 1
+        assert not victim.exists()
 
 
 class TestListers:
