@@ -69,3 +69,17 @@ def test_changed_document_beside_another_cause_still_needs_coupled_documents(
 ) -> None:
     result = _decide(classifier, paths, effects)
     assert result["coupled_documents_needed"] is True
+
+
+def test_gate_reference_scans_coupled_documents_without_diff_base() -> None:
+    """--diff-base inventories only changed documents (doc_accuracy.py run_assessment)."""
+    ref = (
+        Path(__file__).resolve().parents[3]
+        / "src/claude/skills/test/references/doc-accuracy-gate.md"
+    )
+    text = ref.read_text(encoding="utf-8")
+    section = text[
+        text.index("When `coupled_documents_needed` is true") : text.index("## 5. Verdict")
+    ]
+    assert "no `--diff-base`" in section
+    assert "scan\nit with the same `--diff-base` rules" not in section
