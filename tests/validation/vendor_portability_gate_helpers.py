@@ -61,7 +61,7 @@ EXPECTED: dict[str, tuple[str, str]] = {
     ),
     (
         "uv run --frozen python scripts/validation/check_skill_md_portability.py "
-        '--base-ref "origin/$BASE_REF"'
+        '--base-ref "$BASE_REF"'
     ): (
         "Skill Markdown Portability",
         "validate_skill_md_portability",

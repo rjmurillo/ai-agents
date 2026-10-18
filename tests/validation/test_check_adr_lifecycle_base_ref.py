@@ -14,6 +14,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 _VALIDATION_DIR = REPO_ROOT / "scripts" / "validation"
 if str(_VALIDATION_DIR) not in sys.path:
@@ -278,10 +280,18 @@ def test_a_live_baseline_missing_a_check_is_still_refused(tmp_path):
     assert _plain_run(tmp_path, baseline) == EXIT_CONFIG
 
 
+def _symlink_or_skip(link: Path, target: Path, *, directory: bool = False) -> None:
+    """Create a symlink, or skip where the platform denies it (Windows without elevation)."""
+    try:
+        link.symlink_to(target, target_is_directory=directory)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation unavailable on this platform")
+
+
 def _symlink_baseline_to(baseline: Path, target: Path) -> None:
     """Replace the repo baseline with a symlink to ``target``."""
     baseline.unlink()
-    baseline.symlink_to(target)
+    _symlink_or_skip(baseline, target)
 
 
 def test_symlinked_baseline_pointing_outside_the_repo_is_refused(tmp_path, capsys):
@@ -320,7 +330,7 @@ def test_baseline_under_a_symlinked_directory_is_refused(tmp_path, capsys):
     outside_dir = tmp_path / "outside"
     outside_dir.mkdir()
     _set_baseline(outside_dir / "baseline.json", 0)
-    (repo / "linked").symlink_to(outside_dir, target_is_directory=True)
+    _symlink_or_skip(repo / "linked", outside_dir, directory=True)
 
     assert _plain_run(repo, repo / "linked" / "baseline.json") == EXIT_CONFIG
     assert "linked" in capsys.readouterr().err
@@ -357,7 +367,7 @@ def test_dotdot_segment_does_not_hide_a_symlinked_directory(tmp_path, capsys):
     _repo(repo)
     outside_dir = tmp_path / "outside"
     outside_dir.mkdir()
-    (repo / "linked").symlink_to(outside_dir, target_is_directory=True)
+    _symlink_or_skip(repo / "linked", outside_dir, directory=True)
 
     assert _plain_run(repo, repo / "linked" / ".." / "baseline.json") == EXIT_CONFIG
     assert "linked" in capsys.readouterr().err
@@ -376,7 +386,7 @@ def test_resolved_root_with_a_baseline_reached_through_a_symlinked_parent_is_wal
     _set_baseline(outside, 0)
     _symlink_baseline_to(baseline, outside)
     alias = tmp_path / "alias"
-    alias.symlink_to(real, target_is_directory=True)
+    _symlink_or_skip(alias, real, directory=True)
 
     code = main(["--repo-root", str(repo), "--baseline", str(alias / "repo" / "baseline.json")])
 
@@ -391,7 +401,7 @@ def test_resolved_root_with_a_regular_baseline_through_a_symlinked_parent_is_acc
     repo.mkdir()
     _repo(repo)
     alias = tmp_path / "alias"
-    alias.symlink_to(real, target_is_directory=True)
+    _symlink_or_skip(alias, real, directory=True)
 
     code = main(["--repo-root", str(repo), "--baseline", str(alias / "repo" / "baseline.json")])
 

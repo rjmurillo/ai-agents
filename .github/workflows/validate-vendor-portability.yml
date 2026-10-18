@@ -55,13 +55,18 @@ jobs:
       # Issue #6506: without --base-ref the baseline in the PR head is the only
       # ceiling, so a PR could raise it in the commit that adds the references.
       # With it, a count above what the base branch recorded fails. The
-      # full-depth checkout above already holds origin/<base>. Push and dispatch
-      # events carry no base_ref, and this workflow triggers only on main, so
-      # 'main' backs it. default_branch would resolve to master under local act.
+      # full-depth checkout above holds every ref the comparison needs.
+      # A pull request compares with origin/<base>. A push to main compares with
+      # the tip before the push (github.event.before), because origin/main
+      # already holds the pushed commit and the diff would be empty. A dispatch
+      # carries neither, so origin/main backs it. An unreadable ref, such as the
+      # all-zero SHA or a commit lost to a force push, fails the step instead of
+      # falling back to the current tip. default_branch would resolve to master
+      # under local act, so it is not used.
       - name: Check skill prose portability ratchet
         env:
-          BASE_REF: ${{ github.base_ref || 'main' }}
-        run: uv run --frozen python scripts/validation/check_skill_md_portability.py --base-ref "origin/$BASE_REF"
+          BASE_REF: ${{ github.base_ref && format('origin/{0}', github.base_ref) || github.event.before || 'origin/main' }}
+        run: uv run --frozen python scripts/validation/check_skill_md_portability.py --base-ref "$BASE_REF"
 
       - name: Check skill resolver anchoring
         run: python3 scripts/validation/check_skill_resolver_anchoring.py

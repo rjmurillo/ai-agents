@@ -33,7 +33,13 @@ _PAIR = "templates/rules/a.md|templates/rules/b.md"
 
 def _git(repo: Path, *args: str) -> None:
     subprocess.run(
-        ["git", *args], cwd=repo, check=True, capture_output=True, text=True, errors="replace"
+        ["git", *args],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
     )
 
 
@@ -379,6 +385,7 @@ def test_fork_sha_is_named_when_the_baseline_cannot_be_read(
         check=True,
         capture_output=True,
         text=True,
+        encoding="utf-8",
         errors="replace",
     ).stdout.strip()
 

@@ -1,8 +1,9 @@
 """Wiring test: the prose portability ratchet reads its ceiling from the base branch.
 
 Issue #6506. Without ``--base-ref`` the baseline in the PR head is the only ceiling, so a
-PR could raise it in the commit that adds the references. The test parses the YAML rather
-than searching its text (testing.md rule 9).
+PR could raise it in the commit that adds the references. A push to main compares with the
+tip before the push, since ``origin/main`` already holds the pushed commit. The test parses
+the YAML rather than searching its text (testing.md rule 9).
 """
 
 from __future__ import annotations
@@ -36,7 +37,7 @@ def _prose_step() -> dict[str, Any]:
 def test_ratchet_passes_the_base_branch_as_its_ceiling_ref() -> None:
     assert _prose_step()["run"].strip() == (
         "uv run --frozen python scripts/validation/check_skill_md_portability.py "
-        '--base-ref "origin/$BASE_REF"'
+        '--base-ref "$BASE_REF"'
     )
 
 
@@ -46,10 +47,14 @@ def test_ratchet_stays_unconditional_and_failing() -> None:
     assert "continue-on-error" not in step
 
 
-def test_base_branch_comes_from_the_event_with_main_as_the_fallback() -> None:
-    """Push and dispatch events carry no base_ref, and the workflow triggers only on main."""
+def test_base_ref_follows_the_event_kind() -> None:
+    """A PR uses origin/<base>. A push uses the tip before it, since origin/main already holds
+    the pushed commit. A dispatch has neither, so origin/main backs it."""
     expression = _prose_step()["env"]["BASE_REF"]
-    assert expression == "${{ github.base_ref || 'main' }}"
+    assert expression == (
+        "${{ github.base_ref && format('origin/{0}', github.base_ref) "
+        "|| github.event.before || 'origin/main' }}"
+    )
 
 
 def test_checkout_is_full_depth_so_the_base_ref_and_fork_point_exist() -> None:
