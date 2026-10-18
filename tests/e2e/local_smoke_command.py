@@ -29,7 +29,21 @@ _LAUNCHERS: dict[str, frozenset[str]] = {
     "nohup": frozenset(),
     "exec": frozenset({"-a"}),
     "command": frozenset(),
+    "time": frozenset(),
+    "timeout": frozenset({"-s", "--signal", "-k", "--kill-after"}),
+    "nice": frozenset({"-n", "--adjustment"}),
+    "ionice": frozenset({"-c", "-n", "-p"}),
+    "stdbuf": frozenset(),
+    "setsid": frozenset(),
+    "xargs": frozenset({"-I", "-n", "-P", "-s", "-d", "-a", "-E", "-L"}),
 }
+# Positional words a launcher takes before the program: `timeout 5 copilot`.
+_LEADING_POSITIONALS = {"timeout": 1}
+# Shell reserved words that can lead a simple command: `then copilot`, `! copilot`.
+_KEYWORDS = frozenset({"if", "then", "else", "elif", "fi", "while", "until", "do", "done"})
+_KEYWORDS |= frozenset({"!", "{", "}", "case", "esac", "in", "coproc"})
+# A command substitution, even inside double quotes: `"$(copilot)"`, `"`copilot`"`.
+_SUBSTITUTION = re.compile(r"\$\(([^()]*)\)|`([^`]*)`")
 # Options after which a launcher only looks the program up instead of running it.
 _LOOKUP_OPTIONS = frozenset({"-v", "-V"})
 # Shells, mapped to the option whose value is a command line to run.
@@ -48,10 +62,19 @@ def _split_line(text: str) -> list[list[str]]:
 
     ``a; b``, ``a && b``, ``a || b``, ``a | b``, ``a & b``, a subshell ``(a)``, a
     command substitution ``$(a)`` or a backtick pair, and a newline each start a
-    new command. A Windows-style line (a backslash) is cut with a plain pattern,
-    because POSIX quoting would eat the backslashes. A line with an unbalanced
-    quote falls back to the same pattern.
+    new command. A substitution inside double quotes is read too. A Windows-style
+    line (a backslash) is cut with a plain pattern, because POSIX quoting would eat
+    the backslashes. A line with an unbalanced quote falls back to the same pattern.
     """
+    commands = _cut_line(text)
+    for match in _SUBSTITUTION.finditer(text):
+        for inner in match.groups():
+            if inner:
+                commands.extend(_split_line(inner))
+    return commands
+
+
+def _cut_line(text: str) -> list[list[str]]:
     if "\\" not in text:
         try:
             return _lex_line(text)
@@ -111,6 +134,7 @@ def _shell_command(name: str, rest: list[str]) -> str | None:
 def _programs(words: list[str]) -> list[str]:
     """Return the programs one simple command starts: its own, or a shell's inner ones."""
     launcher = ""
+    positionals = 0
     index = 0
     while index < len(words):
         word = words[index]
@@ -123,8 +147,14 @@ def _programs(words: list[str]) -> list[str]:
             index += word in _LAUNCHERS.get(launcher, frozenset())
             continue
         name = _basename(word)
+        if positionals:
+            positionals -= 1
+            continue
+        if name in _KEYWORDS:
+            continue
         if name in _LAUNCHERS:
             launcher = name
+            positionals = _LEADING_POSITIONALS.get(name, 0)
             continue
         if name in _SHELLS:
             command = _shell_command(name, words[index:])
@@ -138,11 +168,12 @@ def program_names(args: object) -> list[str]:
 
     A command line (a string, or a shell's ``-c`` text) can hold several commands
     joined by ``;``, ``&&``, ``||``, ``|``, ``&``, a subshell, a substitution, or a
-    newline. Each one counts. Within a command, leading ``NAME=VALUE`` assignments
-    are skipped. A launcher such as ``env``, ``sudo`` or ``npx`` is skipped with
-    its flags and the values its known options take. ``command -v`` only looks a
-    program up, so it starts nothing. A version suffix on an npm package spec is
-    dropped.
+    newline. Each one counts, and so does a substitution inside double quotes.
+    Within a command, leading ``NAME=VALUE`` assignments and shell reserved words
+    (``then``, ``do``, ``!``, ``{``) are skipped. A launcher such as ``env``,
+    ``sudo``, ``time``, ``timeout`` or ``xargs`` is skipped with its flags and the
+    values its known options take. ``command -v`` only looks a program up, so it
+    starts nothing. A version suffix on an npm package spec is dropped.
     """
     return [name for words in _commands(args) for name in _programs(words)]
 

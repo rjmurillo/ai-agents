@@ -34,11 +34,13 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import http.client
 import ipaddress
 import json
 import platform
 import re
 import sys
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -62,8 +64,10 @@ EXIT_FINDINGS = 1
 EXIT_UNVERIFIABLE = 2
 
 TIMEOUT_SECONDS = 10
-# A server that trickles bytes resets the socket timeout on each read, so the
-# timeout alone never ends a slow body. These bound the bytes and the wall clock.
+# The socket timeout restarts on every receive, so a server that trickles header or body
+# bytes never trips it. These bound the bytes and the wall clock: 2 MiB is far above a
+# documented JSON reply, and 30 s is three socket timeouts. The run deadline is checked
+# between examples, so a run can end up to one request deadline past RUN_DEADLINE_SECONDS.
 MAX_BODY_BYTES = 2 * 1024 * 1024
 REQUEST_DEADLINE_SECONDS = 30
 RUN_DEADLINE_SECONDS = 300
@@ -126,37 +130,55 @@ def _opener_for(url: str) -> urllib.request.OpenerDirector:
 
 
 def _read_capped(handle: Any, url: str) -> bytes:
-    """Read a body in chunks, refusing one past the byte cap or the request deadline.
-
-    `read1` returns after one socket receive, so the deadline is checked after every
-    receive. `read(n)` would wait for all n bytes, and a server that trickles one byte
-    inside the socket timeout would hold it far past the deadline.
-    """
-    deadline = time.monotonic() + REQUEST_DEADLINE_SECONDS
+    """Read a body in chunks and refuse one past the byte cap."""
     chunks: list[bytes] = []
     total = 0
-    read = getattr(handle, "read1", handle.read)
-    while True:
-        chunk = read(_CHUNK_BYTES)
-        if not chunk:
-            return b"".join(chunks)
+    while chunk := handle.read(_CHUNK_BYTES):
         total += len(chunk)
         if total > MAX_BODY_BYTES:
             raise InputError(f"response from {url} is over the {MAX_BODY_BYTES} byte cap")
-        if time.monotonic() > deadline:
-            raise InputError(f"response from {url} is slower than {REQUEST_DEADLINE_SECONDS}s")
         chunks.append(chunk)
+    return b"".join(chunks)
+
+
+def _fetch(request: urllib.request.Request, url: str) -> Reply:
+    try:
+        with _opener_for(url).open(request, timeout=TIMEOUT_SECONDS) as handle:
+            return Reply(handle.status, _read_capped(handle, url))
+    except urllib.error.HTTPError as exc:
+        return Reply(exc.code, _read_capped(exc, url))
+
+
+def _within_deadline(call: Callable[[], Reply], url: str) -> Reply:
+    """Run `call` on a daemon thread and give up after REQUEST_DEADLINE_SECONDS.
+
+    The deadline covers connect, headers, and body together. A late thread is left to
+    end on its own socket timeout or when the process exits, and its result is dropped.
+    """
+    outcome: list[Reply | Exception] = []
+
+    def work() -> None:
+        try:
+            outcome.append(call())
+        except Exception as exc:  # re-raised on the caller's thread
+            outcome.append(exc)
+
+    worker = threading.Thread(target=work, daemon=True)
+    worker.start()
+    worker.join(REQUEST_DEADLINE_SECONDS)
+    if not outcome:
+        raise InputError(f"response from {url} is slower than {REQUEST_DEADLINE_SECONDS}s")
+    if isinstance(outcome[0], Exception):
+        raise outcome[0]
+    return outcome[0]
 
 
 def send(method: str, url: str, headers: dict[str, str], body: bytes) -> Reply:
     """Send one request and return status and body. Non-2xx is a Reply, not an error."""
     request = urllib.request.Request(url, data=body or None, headers=headers, method=method)
     try:
-        with _opener_for(url).open(request, timeout=TIMEOUT_SECONDS) as handle:
-            return Reply(handle.status, _read_capped(handle, url))
-    except urllib.error.HTTPError as exc:
-        return Reply(exc.code, _read_capped(exc, url))
-    except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as exc:
+        return _within_deadline(lambda: _fetch(request, url), url)
+    except (urllib.error.URLError, http.client.HTTPException, OSError) as exc:
         raise InputError(f"server unreachable at {url}: {exc}") from exc
 
 
@@ -329,7 +351,7 @@ def cmd_run(args: argparse.Namespace, sender: Sender = send) -> tuple[dict[str, 
         if time.monotonic() > deadline:
             raise InputError(
                 f"run passed its {RUN_DEADLINE_SECONDS}s deadline after {len(results)} "
-                f"of {len(runnable)} examples; nothing was verified"
+                f"of {len(runnable)} examples, before `{example.id}`; nothing was verified"
             )
         results.append(run_example(example, base_url, sender))
     report = _evidence(args, base_url, results)

@@ -4,8 +4,9 @@ The local smoke runs on the harness the developer uses, on their own login. The
 pre-push gate passes ``-m "not copilot"``, which only deselects tests that carry
 the ``copilot`` marker. A Copilot call added without that marker would still run
 locally. This guard closes that gap: when the gate sets ``LOCAL_SMOKE_ENV``, any
-``subprocess.run`` or ``subprocess.Popen`` whose program is ``copilot`` fails
-the test before the process starts.
+``subprocess.run`` or ``subprocess.Popen`` that would start ``copilot``, as the
+program or anywhere in a compound command line, fails the test before the
+process starts.
 
 The guard also wraps the ``os`` spawn entry points (``system``, ``posix_spawn``,
 ``posix_spawnp``, the ``exec*`` and ``spawn*`` families). It cannot see a launch
@@ -24,9 +25,7 @@ import subprocess
 from collections.abc import Callable, Mapping
 from typing import Any
 
-from local_smoke_command import program_name, program_names
-
-__all__ = ["program_name", "program_names"]
+from local_smoke_command import program_names
 
 LOCAL_SMOKE_ENV = "AI_AGENTS_LOCAL_CLI_SMOKE"
 _COPILOT_NAMES = frozenset({"copilot", "copilot.exe", "copilot.cmd", "copilot.bat"})
@@ -57,6 +56,11 @@ def refuse_copilot(args: object) -> None:
         )
 
 
+# Popen's `shell` position among the arguments after `args`: bufsize, executable, stdin,
+# stdout, stderr, preexec_fn, close_fds, then shell.
+_POPEN_SHELL_INDEX = 7
+
+
 class GuardedPopen(subprocess.Popen[Any]):
     """``subprocess.Popen`` that refuses to start the Copilot CLI.
 
@@ -68,7 +72,7 @@ class GuardedPopen(subprocess.Popen[Any]):
     def __init__(self, args: Any, *rest: Any, **kwargs: Any) -> None:
         refuse_copilot(args)
         # With shell=True the first item of a sequence is a command line, not a program.
-        shell = kwargs.get("shell", rest[7] if len(rest) > 7 else False)
+        shell = kwargs.get("shell") or (len(rest) > _POPEN_SHELL_INDEX and rest[_POPEN_SHELL_INDEX])
         if shell and isinstance(args, (list, tuple)) and args:
             refuse_copilot(args[0])
         # Popen's positional order is (args, bufsize, executable, ...).
@@ -100,6 +104,8 @@ _ORIGINAL_OS = {name: getattr(os, name) for name in _OS_ENTRY_POINTS if hasattr(
 
 def _guarded_os(original: Callable[..., Any], program: int, argv: int | None) -> Callable[..., Any]:
     def guarded(*args: Any, **kwargs: Any) -> Any:
+        if argv is None and not args and "command" in kwargs:  # os.system(command=...)
+            refuse_copilot(kwargs["command"])
         if len(args) > program:
             refuse_copilot(args[program] if argv is None else [args[program]])
         if argv is not None and len(args) > argv and isinstance(args[argv], (list, tuple)):

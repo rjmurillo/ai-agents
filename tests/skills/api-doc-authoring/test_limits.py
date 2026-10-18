@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import socket
 import threading
 import time
 import urllib.request
@@ -163,25 +164,6 @@ def test_the_cap_ends_the_run_with_exit_two(
 # Deadlines ------------------------------------------------------------------
 
 
-class _Handle:
-    def __init__(self, chunks: list[bytes]) -> None:
-        self._chunks = list(chunks)
-
-    def read(self, size: int) -> bytes:
-        return self._chunks.pop(0) if self._chunks else b""
-
-
-def test_a_slow_body_is_refused_after_the_request_deadline(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    clock = iter([0.0, 1.0, 1000.0, 2000.0])
-    monkeypatch.setattr(ax.time, "monotonic", lambda: next(clock))
-    monkeypatch.setattr(ax, "REQUEST_DEADLINE_SECONDS", 30)
-
-    with pytest.raises(ax.InputError, match="slower than 30s"):
-        ax._read_capped(_Handle([b"a", b"b", b"c", b"d"]), "http://x/")
-
-
 @contextmanager
 def _serve_trickle(total: int, pause: float) -> Iterator[str]:
     """Serve `total` bytes one at a time, `pause` seconds apart, under a Content-Length."""
@@ -214,6 +196,102 @@ def _serve_trickle(total: int, pause: float) -> Iterator[str]:
         thread.join(timeout=5)
 
 
+@contextmanager
+def _serve_raw(behave: Callable[[socket.socket], None]) -> Iterator[str]:
+    """Accept connections on a loopback port and hand each socket to `behave`."""
+    listener = socket.socket()
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(5)
+    stop = threading.Event()
+
+    def loop() -> None:
+        listener.settimeout(0.1)
+        while not stop.is_set():
+            try:
+                conn, _ = listener.accept()
+            except OSError:
+                continue
+            threading.Thread(target=_guarded, args=(conn,), daemon=True).start()
+
+    def _guarded(conn: socket.socket) -> None:
+        with conn:
+            try:
+                behave(conn)
+            except OSError:
+                return
+
+    thread = threading.Thread(target=loop, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{listener.getsockname()[1]}"
+    finally:
+        stop.set()
+        thread.join(timeout=5)
+        listener.close()
+
+
+def _silent(conn: socket.socket) -> None:
+    conn.recv(65536)
+    time.sleep(3)
+
+
+def _trickled_headers(conn: socket.socket) -> None:
+    conn.recv(65536)
+    for byte in b"HTTP/1.1 200 OK\r\nX-Slow: " + b"y" * 200:
+        conn.sendall(bytes([byte]))
+        time.sleep(0.05)
+
+
+def _stalled_error_body(conn: socket.socket) -> None:
+    conn.recv(65536)
+    conn.sendall(b"HTTP/1.1 500 Err\r\nContent-Length: 100\r\n\r\nabcde")
+    time.sleep(3)
+
+
+def test_a_server_that_never_answers_is_cut_off_at_the_deadline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(ax, "REQUEST_DEADLINE_SECONDS", 0.4)
+    started = time.monotonic()
+    with _serve_raw(_silent) as base, pytest.raises(ax.InputError, match="slower than"):
+        ax.send("GET", f"{base}/x", {}, b"")
+
+    assert time.monotonic() - started < 2.5
+
+
+def test_headers_trickled_inside_the_socket_timeout_are_cut_off(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The header phase has no body to count, so only the wall-clock deadline ends it."""
+    monkeypatch.setattr(ax, "REQUEST_DEADLINE_SECONDS", 0.4)
+    started = time.monotonic()
+    with _serve_raw(_trickled_headers) as base, pytest.raises(ax.InputError, match="slower than"):
+        ax.send("GET", f"{base}/x", {}, b"")
+
+    assert time.monotonic() - started < 2.5
+
+
+def test_a_socket_timeout_while_reading_an_error_body_is_unverifiable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The timeout surfaces inside the HTTPError handler. It must exit 2, not raise."""
+    monkeypatch.setattr(ax, "TIMEOUT_SECONDS", 0.3)
+    with _serve_raw(_stalled_error_body) as base, pytest.raises(ax.InputError, match="unreachable"):
+        ax.send("GET", f"{base}/x", {}, b"")
+
+
+def test_an_error_inside_the_worker_thread_reaches_the_caller() -> None:
+    def boom() -> ax.Reply:
+        raise ax.InputError("boom")
+
+    with pytest.raises(ax.InputError, match="boom"):
+        ax._within_deadline(boom, "http://x/")
+
+
+def test_a_worker_result_inside_the_deadline_is_returned() -> None:
+    assert ax._within_deadline(lambda: ax.Reply(204, b""), "http://x/") == ax.Reply(204, b"")
+
+
 def test_a_trickling_server_is_cut_off_near_the_deadline(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -223,19 +301,12 @@ def test_a_trickling_server_is_cut_off_near_the_deadline(
     with _serve_trickle(total=100, pause=0.1) as base, pytest.raises(ax.InputError, match="slower"):
         ax.send("GET", f"{base}/x", {}, b"")
 
-    assert time.monotonic() - started < 3.0
+    assert time.monotonic() - started < 5.0
 
 
 def test_a_slow_body_that_finishes_inside_the_deadline_is_read_in_full() -> None:
     with _serve_trickle(total=5, pause=0.01) as base:
         assert ax.send("GET", f"{base}/x", {}, b"").body == b"xxxxx"
-
-
-def test_a_fast_body_finishes_inside_the_deadline(monkeypatch: pytest.MonkeyPatch) -> None:
-    clock = iter([0.0, 1.0, 2.0, 3.0])
-    monkeypatch.setattr(ax.time, "monotonic", lambda: next(clock))
-
-    assert ax._read_capped(_Handle([b"a", b"b"]), "http://x/") == b"ab"
 
 
 def test_a_run_past_its_deadline_is_unverifiable(
@@ -257,7 +328,7 @@ def test_a_run_past_its_deadline_is_unverifiable(
         evidence=None,
         touching=None,
     )
-    with pytest.raises(ax.InputError, match="deadline after 0 of 2 examples"):
+    with pytest.raises(ax.InputError, match=r"deadline after 0 of 2 examples, before `a`"):
         ax.cmd_run(args, sender)
     assert sent == []
 

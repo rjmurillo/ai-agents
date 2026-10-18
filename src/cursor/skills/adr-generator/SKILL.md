@@ -239,8 +239,8 @@ ledger to `adr-review` for multi-agent validation.
 <!-- vendor-portability-exec: the refresh step invokes
      build/scripts/generate_adr_index.py, which lives upstream in the
      rjmurillo/ai-agents repo and ships in no plugin root. The step is guarded
-     by an origin remote check and skipped in any other checkout, so a repo
-     supplied script is never run (issues #5280, #6506). -->
+     by an origin remote check and skipped in any other checkout, so another
+     repository's script is never run (issues #5280, #6506). -->
 
 The ADR index (`.project-toolkit/architecture/README.md`) is generated from the
 ADR corpus (issue #5198). It lists each record's status, title, and decision
@@ -252,16 +252,16 @@ unrelated build. Status changes after hand-off need another run.
 Run it only in the `rjmurillo/ai-agents` repository. Check first:
 
 ```bash
-git remote get-url origin | grep -Eq '(^|[/:])rjmurillo/ai-agents(\.git)?/?$' \
+git remote get-url origin | grep -Eq '^((https|ssh)://([^@/]+@)?|[^@/]+@)github\.com[:/]rjmurillo/ai-agents(\.git)?/?$' \
   && test -f build/scripts/generate_adr_index.py \
   && uv run python build/scripts/generate_adr_index.py
 ```
 
-If the check fails, skip the refresh: either this is another repository, or
-`build/scripts/generate_adr_index.py` does not exist in this checkout. Another
-repository's script of that name is that repository's code, and running it here
-would execute whatever its branch supplied. The index has not shipped in a
-consumer checkout, so nothing needs regenerating.
+If the check fails, skip the refresh: either this is another repository (a fork
+clone included), or `build/scripts/generate_adr_index.py` does not exist in this
+checkout. Another repository's script of that name is that repository's code, and
+running it here would execute whatever its branch supplied. The index has not
+shipped in a consumer checkout, so nothing needs regenerating.
 
 ---
 

@@ -10,6 +10,7 @@ import pytest
 # tests/e2e is not on sys.path under --import-mode=importlib (no __init__.py).
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import local_smoke_command as command
 import local_smoke_guard as guard
 
 
@@ -33,6 +34,26 @@ import local_smoke_guard as guard
         "bash -c 'echo hi && copilot'",
         ["pwsh", "-Command", "echo hi; copilot"],
         "sh -c 'ls | copilot'",
+        'out="$(copilot --version)"',
+        'echo "$(copilot --version)"',
+        'echo "`copilot`"',
+        'echo "x $(echo $(copilot))"',
+        "time copilot",
+        "time -p copilot -p hi",
+        "timeout 5 copilot",
+        "timeout -s KILL 5 copilot",
+        "timeout --kill-after=1 5 copilot",
+        "nice -n 5 copilot",
+        "xargs copilot",
+        "echo x | xargs -n 1 copilot",
+        "echo x | xargs -I{} copilot {}",
+        "stdbuf -oL copilot",
+        "setsid copilot",
+        "if true; then copilot; fi",
+        "while true; do copilot; done",
+        "! copilot",
+        "{ copilot; }",
+        "case x in x) copilot;; esac",
     ],
 )
 def test_refuses_copilot_anywhere_in_a_compound_command(args: object) -> None:
@@ -57,6 +78,14 @@ def test_refuses_copilot_anywhere_in_a_compound_command(args: object) -> None:
         "a;;b",
         ";",
         "&&",
+        "timeout 5 claude",
+        "time ls",
+        "xargs -n 1 echo copilot",
+        "if true; then claude; fi",
+        "echo time copilot",
+        'echo "$(date)"',
+        "echo 'copilot' | cat",
+        "nice -n 5 codex",
     ],
 )
 def test_allows_a_compound_command_that_never_starts_copilot(args: object) -> None:
@@ -64,13 +93,13 @@ def test_allows_a_compound_command_that_never_starts_copilot(args: object) -> No
 
 
 def test_program_names_lists_every_program_in_order() -> None:
-    assert guard.program_names("a; b | env X=1 c && sh -c 'd; e'") == ["a", "b", "c", "d", "e"]
+    assert command.program_names("a; b | env X=1 c && sh -c 'd; e'") == ["a", "b", "c", "d", "e"]
 
 
 def test_program_name_keeps_returning_the_first_program() -> None:
-    assert guard.program_name("echo hi; copilot") == "echo"
-    assert guard.program_name("") == ""
-    assert guard.program_name(["command", "-v", "copilot"]) == ""
+    assert command.program_name("echo hi; copilot") == "echo"
+    assert command.program_name("") == ""
+    assert command.program_name(["command", "-v", "copilot"]) == ""
 
 
 def test_an_unbalanced_quote_still_finds_copilot_after_an_operator() -> None:

@@ -325,30 +325,39 @@ def _clean_env() -> dict[str, str]:
     return env
 
 
-# Names that carry a credential. The model probe runs a CLI against a plugin and a
-# model id this repository supplies, so it gets only the one token it needs.
-_CREDENTIAL_NAMES = frozenset(
-    {"GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN"}
-)
-_CREDENTIAL_SUFFIXES = (
-    "_TOKEN",
-    "_API_KEY",
-    "_SECRET",
-    "_SECRET_ACCESS_KEY",
-    "_PASSWORD",
-    "_PAT",
-    "_CREDENTIALS",
+# Name segments that mark a credential, matched after splitting the name on `_`. A
+# segment match keeps `GIT_AUTHOR_NAME` and `PATH` and drops `AWS_ACCESS_KEY_ID`,
+# `NPM_CONFIG__AUTH`, `SSH_AUTH_SOCK`, `OPENAI_KEY`, and `BOT_PAT`. The model probe runs
+# a CLI against a plugin and a model id this repository supplies, so it gets only the
+# one token it needs. A denylist can miss a name nobody listed; the probe is CI-only
+# (`requires_copilot`), so an allowlist that dropped a variable the CLI needs would fail
+# there and could not be tried locally.
+_CREDENTIAL_SEGMENTS = frozenset(
+    {
+        "TOKEN",
+        "TOKENS",
+        "SECRET",
+        "SECRETS",
+        "PASSWORD",
+        "PASSWD",
+        "CREDENTIAL",
+        "CREDENTIALS",
+        "AUTH",
+        "KEY",
+        "KEYS",
+        "PAT",
+        "APIKEY",
+    }
 )
 _COPILOT_AUTH_VARS = frozenset({"COPILOT_GITHUB_TOKEN"})
 
 
 def _is_credential_var(name: str) -> bool:
-    upper = name.upper()
-    return upper in _CREDENTIAL_NAMES or upper.endswith(_CREDENTIAL_SUFFIXES)
+    return not _CREDENTIAL_SEGMENTS.isdisjoint(name.upper().split("_"))
 
 
 def _copilot_probe_env() -> dict[str, str]:
-    """``_clean_env`` minus every credential except the Copilot CLI's own token.
+    """``_clean_env`` minus every credential-shaped name except the Copilot CLI's own token.
 
     The model probe sends a real prompt, so it needs ``COPILOT_GITHUB_TOKEN``. It
     does not need ``GH_TOKEN``, a cloud key, or any other secret the CI step holds.
@@ -1854,32 +1863,59 @@ def test_model_probe_plugin_keeps_any_model_id_a_single_string_value(
     assert frontmatter["model"] == model
 
 
-def test_probe_env_drops_every_credential_except_the_copilot_token(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    for name in (
+@pytest.mark.parametrize(
+    "name",
+    [
         "GH_TOKEN",
         "GITHUB_TOKEN",
         "ANTHROPIC_API_KEY",
+        "OPENAI_KEY",
         "BOT_PAT",
+        "AWS_ACCESS_KEY_ID",
         "AWS_SECRET_ACCESS_KEY",
+        "AWS_SESSION_TOKEN",
         "ACTIONS_RUNTIME_TOKEN",
+        "NPM_CONFIG__AUTH",
+        "NODE_AUTH_TOKEN",
+        "SSH_AUTH_SOCK",
+        "GPG_PRIVATE_KEY",
         "db_password",
-    ):
-        monkeypatch.setenv(name, "secret")
+        "REGISTRY_CREDENTIALS",
+    ],
+)
+def test_probe_env_drops_credential_shaped_names(
+    monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    monkeypatch.setenv(name, "secret")
+
+    assert name not in _copilot_probe_env()
+    assert _is_credential_var(name)
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["PATH", "HOME", "USERPROFILE", "LANG", "TEMP", "GIT_AUTHOR_NAME", "PYTHONPATH", "GOPATH"]
+    + ["XDG_CONFIG_HOME", "SSL_CERT_FILE", "TERM", "CI", "COPILOT_HOME"],
+)
+def test_probe_env_keeps_the_runtime_variables_the_cli_needs(
+    monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    monkeypatch.setenv(name, "kept")
+
+    assert _copilot_probe_env()[name] == "kept"
+    assert not _is_credential_var(name)
+
+
+def test_probe_env_keeps_only_the_copilot_token_among_credentials(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "keep")
-    monkeypatch.setenv("PATH", "/bin")
-    monkeypatch.setenv("HOME", "/home/x")
+    monkeypatch.setenv("GH_TOKEN", "drop")
 
     env = _copilot_probe_env()
 
     assert env["COPILOT_GITHUB_TOKEN"] == "keep"
-    assert env["PATH"] == "/bin"
-    assert env["HOME"] == "/home/x"
-    assert not [k for k in env if _is_credential_var(k) and k != "COPILOT_GITHUB_TOKEN"]
-    assert {"GH_TOKEN", "GITHUB_TOKEN", "ANTHROPIC_API_KEY", "BOT_PAT", "db_password"}.isdisjoint(
-        env
-    )
+    assert [k for k in env if _is_credential_var(k)] == ["COPILOT_GITHUB_TOKEN"]
 
 
 def test_probe_env_still_strips_the_inherited_plugin_roots(

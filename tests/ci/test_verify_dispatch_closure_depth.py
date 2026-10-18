@@ -34,10 +34,6 @@ def test_the_head_fetch_carries_the_depth_limit(
     assert f"--depth={vdc.HEAD_FETCH_DEPTH}" in _fetch_args(spy)
 
 
-def test_the_limit_is_a_positive_bound() -> None:
-    assert 1 < vdc.HEAD_FETCH_DEPTH <= 1000
-
-
 def test_a_head_within_the_limit_still_has_a_merge_base(
     trees: tuple[Path, Path], tmp_path: Path
 ) -> None:

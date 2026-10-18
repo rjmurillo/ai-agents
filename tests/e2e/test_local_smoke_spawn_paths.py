@@ -27,6 +27,36 @@ def fake_copilot(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return marker
 
 
+_REPLACING_OR_SPAWNING = (
+    "posix_spawn",
+    "posix_spawnp",
+    "execv",
+    "execve",
+    "execvp",
+    "execvpe",
+    "spawnv",
+    "spawnve",
+    "spawnvp",
+    "spawnvpe",
+)
+
+
+@pytest.fixture
+def tripwire(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Swap the real exec and spawn functions for ones that fail the test.
+
+    A real ``os.execv`` replaces the pytest process, so a guard regression would end
+    the session with exit 0 instead of a failure. Install the guard after this.
+    """
+
+    def let_through(*args: object, **kwargs: object) -> None:
+        raise AssertionError(f"the guard let a Copilot launch through: {args!r}")
+
+    for name in _REPLACING_OR_SPAWNING:
+        if name in guard._ORIGINAL_OS:
+            monkeypatch.setitem(guard._ORIGINAL_OS, name, let_through)
+
+
 @pytest.mark.skipif(os.name == "nt", reason="the fake copilot is a POSIX shell script")
 class TestInstalledGuardCoversTheOtherSpawnPaths:
     def test_os_system_is_refused(
@@ -36,6 +66,15 @@ class TestInstalledGuardCoversTheOtherSpawnPaths:
 
         with pytest.raises(guard.CopilotCallRefusedError):
             os.system("copilot --version")
+        assert not fake_copilot.exists()
+
+    def test_os_system_by_keyword_is_refused(
+        self, monkeypatch: pytest.MonkeyPatch, fake_copilot: Path
+    ) -> None:
+        guard.install(monkeypatch.setattr)
+
+        with pytest.raises(guard.CopilotCallRefusedError):
+            os.system(command="copilot --version")
         assert not fake_copilot.exists()
 
     def test_os_system_with_a_compound_line_is_refused(
@@ -58,7 +97,7 @@ class TestInstalledGuardCoversTheOtherSpawnPaths:
 
     @pytest.mark.skipif(not hasattr(os, "posix_spawn"), reason="needs posix_spawn")
     def test_posix_spawn_and_posix_spawnp_are_refused(
-        self, monkeypatch: pytest.MonkeyPatch, fake_copilot: Path
+        self, monkeypatch: pytest.MonkeyPatch, fake_copilot: Path, tripwire: None
     ) -> None:
         guard.install(monkeypatch.setattr)
         exe = fake_copilot.parent / "bin" / "copilot"
@@ -72,7 +111,7 @@ class TestInstalledGuardCoversTheOtherSpawnPaths:
         assert not fake_copilot.exists()
 
     def test_exec_family_is_refused_before_the_process_image_is_replaced(
-        self, monkeypatch: pytest.MonkeyPatch, fake_copilot: Path
+        self, monkeypatch: pytest.MonkeyPatch, fake_copilot: Path, tripwire: None
     ) -> None:
         guard.install(monkeypatch.setattr)
         exe = str(fake_copilot.parent / "bin" / "copilot")
@@ -88,7 +127,7 @@ class TestInstalledGuardCoversTheOtherSpawnPaths:
         assert not fake_copilot.exists()
 
     def test_spawn_family_is_refused(
-        self, monkeypatch: pytest.MonkeyPatch, fake_copilot: Path
+        self, monkeypatch: pytest.MonkeyPatch, fake_copilot: Path, tripwire: None
     ) -> None:
         guard.install(monkeypatch.setattr)
         exe = str(fake_copilot.parent / "bin" / "copilot")
@@ -127,13 +166,19 @@ class TestInstalledGuardCoversTheOtherSpawnPaths:
 
 
 def test_uninstall_restores_popen_and_the_os_entry_points() -> None:
-    originals = dict(guard._ORIGINAL_OS)
+    """Leave the session as found: a run armed by the pre-push gate keeps its own guard."""
+    before_popen = subprocess.Popen
+    before_os = {name: getattr(os, name) for name in guard._ORIGINAL_OS}
     try:
         guard.install(lambda target, name, value: setattr(target, name, value))
         assert subprocess.Popen is guard.GuardedPopen
-        assert os.system is not originals["system"]
-    finally:
+        assert os.system is not guard._ORIGINAL_OS["system"]
+
         guard.uninstall()
 
-    assert subprocess.Popen is guard._ORIGINAL_POPEN
-    assert all(getattr(os, name) is original for name, original in originals.items())
+        assert subprocess.Popen is guard._ORIGINAL_POPEN
+        assert all(getattr(os, name) is orig for name, orig in guard._ORIGINAL_OS.items())
+    finally:
+        setattr(subprocess, "Popen", before_popen)  # noqa: B010
+        for name, value in before_os.items():
+            setattr(os, name, value)
