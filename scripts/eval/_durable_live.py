@@ -310,7 +310,8 @@ def _run_patch(scenario: Scenario, scratch: Path, workdir: Path, changed: Sequen
     """
     before = scratch / "initial"
     materialize(scenario, before)
-    return change_patch(before, workdir, changed)
+    patch: str = change_patch(before, workdir, changed)
+    return patch
 
 
 def _harness_failed(invocation: Invocation) -> bool:
