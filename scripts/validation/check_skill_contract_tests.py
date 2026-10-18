@@ -49,7 +49,11 @@ from portability_baseline import (  # noqa: E402
     refuse_undiffable_baseline,
 )
 
-SCAN_ROOTS = ("src/copilot-cli/skills", ".claude/skills")
+# ADR-119: shipped skills are directory links under .claude/skills, which
+# rglob does not follow, so their SKILL.md files are scanned at src/claude/skills.
+# Listed canonical first: a skill name is bound once, from the first root that
+# holds it, so the Copilot render of a shipped skill is not counted a second time.
+SCAN_ROOTS = (".claude/skills", "src/claude/skills", "src/copilot-cli/skills")
 TEST_ROOT = "tests"
 
 # Documented exit-code semantics: "exit 0", "exit code 2", "EXIT=100".
@@ -117,10 +121,16 @@ def main(argv: list[str] | None = None) -> int:
     repo_root = Path(args.repo_root).resolve()
 
     skill_files: list[Path] = []
+    seen_skills: set[str] = set()
     for scan_root in SCAN_ROOTS:
         base = repo_root / scan_root
-        if base.is_dir():
-            skill_files.extend(sorted(base.rglob("SKILL.md")))
+        if not base.is_dir():
+            continue
+        for skill_file in sorted(base.rglob("SKILL.md")):
+            if skill_file.parent.name in seen_skills:
+                continue
+            seen_skills.add(skill_file.parent.name)
+            skill_files.append(skill_file)
 
     if not skill_files:
         # Refuse to pass on a scan that opened nothing.
@@ -183,13 +193,14 @@ def main(argv: list[str] | None = None) -> int:
             print(item.render())
             print()
         print(
-            f"{len(unbound)} unbound of {in_scope} in-scope skill(s); "
-            f"{len(baseline)} grandfathered."
+            f"{len(unbound)} unbound of {in_scope} in-scope skill(s) "
+            f"({len(skill_files)} examined); {len(baseline)} grandfathered."
         )
         return 1
 
     print(
-        f"Skill contract binding OK. {in_scope} in-scope skill(s), {len(baseline)} grandfathered."
+        f"Skill contract binding OK. {in_scope} in-scope skill(s) of "
+        f"{len(skill_files)} examined, {len(baseline)} grandfathered."
     )
     return 0
 

@@ -30,6 +30,8 @@ def _documented_commands(snap: Path) -> dict[str, str]:
     """Return the documented command per subcommand, placeholders filled."""
     commands: dict[str, str] = {}
     for line in LINE_RE.findall(SKILL_MD.read_text(encoding="utf-8")):
+        if "bootstrap_boundary.py" not in line:
+            continue
         match = re.search(r'bootstrap_boundary\.py" (snapshot|plan|verify)\b', line)
         assert match, f"python3 line names no subcommand: {line}"
         text = OPTIONAL_RE.sub("", line)

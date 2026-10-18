@@ -7,7 +7,7 @@
 [Where to look]
 || Path | Why | (see: .project-toolkit/context/build/details/where-to-look.md)
 [Skip]
-|Generator OUTPUT (`OWNED_PREFIXES`): `src/`, `.github/instructions/`, `.githu... (see: .project-toolkit/context/build/details/skip.md)
+|Generator OUTPUT (`OWNED_PREFIXES`): `src/`, `.claude/lib/`, `.claude/hooks/`... (see: .project-toolkit/context/build/details/skip.md)
 [Constraints]
 |Order: agents, agent-catalog, adr-index, skills, rules, lib, hooks, then binp... (see: .project-toolkit/context/build/details/constraints.md)
 [Dangerous assumptions]

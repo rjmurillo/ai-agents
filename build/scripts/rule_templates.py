@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 r"""Compile ``templates/rules/<name>.md`` templates into ``src/claude/rules/``.
 
+A repo-only rule (scope internal end to end) renders to ``.claude/rules/``
+instead, as a real file beside the shipped-rule links (ADR-119 decision 13,
+``rule_distribution.py``).
+
 ADR-109 (Template-First Plugin Distribution) step B2 generalizes ADR-108's
 compile-and-drift-gate shape, already applied to skills and to agents
 (``build/scripts/agent_templates.py``, B1), to the rules class. Per
@@ -109,6 +113,11 @@ if str(_SCRIPT_DIR) not in sys.path:
 
 from atomic_write import publish_bytes_atomically  # noqa: E402
 from regen_guard import detect_reason  # noqa: E402
+from rule_distribution import (  # noqa: E402
+    is_former_shipped_link,
+    remove_stale_plugin_copy,
+    render_target,
+)
 from skill_template_grammar import (  # noqa: E402,F401 (F401: re-exported for callers)
     _SLUG,
     MissingPartialError,
@@ -227,25 +236,26 @@ def _name_validation_error(repo_root: Path, name: str, tmpl_path: Path) -> str |
     if source_error is not None:
         return source_error
 
-    rules_root = repo_root / "src" / "claude" / "rules"
+    target = render_target(repo_root, name, tmpl_path)
+    rules_root = target.parent
+    label = rules_root.relative_to(repo_root).as_posix()
 
     if rules_root.is_symlink():
-        return f"{tmpl_path}: src/claude/rules/ is a symlink, not a real directory"
+        return f"{tmpl_path}: {label}/ is a symlink, not a real directory"
     resolved_root = rules_root.resolve()
     if not resolved_root.is_relative_to(resolved_repo):
         return (
-            f"{tmpl_path}: src/claude/rules/ resolves to {resolved_root}, "
+            f"{tmpl_path}: {label}/ resolves to {resolved_root}, "
             f"outside the repository root {resolved_repo}"
         )
 
-    target = rules_root / f"{name}.md"
-    if target.is_symlink():
-        return f"{tmpl_path}: src/claude/rules/{name}.md is a symlink, not a real file"
-    if target.is_file():
+    if target.is_symlink() and not is_former_shipped_link(repo_root, name, target):
+        return f"{tmpl_path}: {label}/{name}.md is a symlink, not a real file"
+    if target.is_file() and not target.is_symlink():
         resolved_target = target.resolve()
         if not resolved_target.is_relative_to(resolved_repo):
             return (
-                f"{tmpl_path}: src/claude/rules/{name}.md resolves to {resolved_target}, "
+                f"{tmpl_path}: {label}/{name}.md resolves to {resolved_target}, "
                 f"outside the repository root {resolved_repo}"
             )
 
@@ -309,13 +319,13 @@ def discover_errors(repo_root: Path) -> list[str]:
 
 
 def owned_targets(repo_root: Path) -> set[Path]:
-    """Return every ``src/claude/rules/<name>.md`` this class renders.
+    """Return every rule path this class renders (:func:`render_target`).
 
     Used by ``build/scripts/build_all.py``'s OWNED_PREFIXES-based staleness
     check and by callers wanting the full render-target set without
     re-deriving it from :func:`discover`.
     """
-    return {repo_root / "src" / "claude" / "rules" / f"{name}.md" for name in discover(repo_root)}
+    return {render_target(repo_root, name, path) for name, path in discover(repo_root).items()}
 
 
 def _try_render(tmpl_path: Path, partials_dir: Path, result: CompileResult) -> str | None:
@@ -360,7 +370,10 @@ def _compile_one(
     function's cyclomatic complexity down, mirroring
     ``agent_templates._compile_one_pair``.
     """
-    target = repo_root / "src" / "claude" / "rules" / f"{name}.md"
+    target = render_target(repo_root, name, tmpl_path)
+    remove_stale_plugin_copy(
+        repo_root, name, target, validate=validate, what_if=what_if, result=result
+    )
 
     reason = detect_reason(target)
     if reason is not None:
@@ -376,7 +389,10 @@ def _compile_one(
     if rendered is None:
         return
 
-    current = target.read_text(encoding="utf-8", newline="") if target.is_file() else None
+    # A rule that just became repo-only still has its binplace link here;
+    # the atomic publish below replaces the link itself with a real file.
+    is_real = target.is_file() and not target.is_symlink()
+    current = target.read_text(encoding="utf-8", newline="") if is_real else None
     if current == rendered:
         return
 

@@ -6,7 +6,7 @@ priority: high
 
 # Template File Rules
 
-`templates/` is the source of truth for every agent copy (ADR-109). `build/scripts/agent_templates.py` renders each `<stem>.claude.md.tmpl` into `src/claude/agents/`, `build/generate_agents.py` writes the Copilot CLI, VS Code, and GitHub trees from the `<stem>.copilot.md.tmpl` side, and the binplace step copies `src/claude/agents/` onto `.claude/agents/`. One `build_all.py` run does all of it. Edit the template, never a rendered copy.
+`templates/` is the source of truth for every agent copy (ADR-109). `build/scripts/agent_templates.py` renders each `<stem>.claude.md.tmpl` into `src/claude/agents/`, `build/generate_agents.py` writes the Copilot CLI, VS Code, and GitHub trees from the `<stem>.copilot.md.tmpl` side, and the binplace step links `.claude/agents/` to `src/claude/agents/`. One `build_all.py` run does all of it. Edit the template, never a rendered copy.
 
 <!-- vendor-portability: this rule names contributor-facing regeneration
 commands (`build/generate_agents.py`, `build/scripts/build_all.py`) under the

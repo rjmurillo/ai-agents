@@ -146,4 +146,18 @@ def test_no_moved_subtree_remains_under_agents(
         if entry["disposition"] == "MOVE" and entry["old_path"].count("/") > 1
     }
     leftovers = sorted(path for path in tracked if path.startswith(tuple(moved_dirs)))
-    assert leftovers == []
+    # ADR-119 decision 7 reuses .agents/skills for Codex links, checked below.
+    assert [path for path in leftovers if not path.startswith(".agents/skills/")] == []
+
+
+def test_agents_skills_holds_only_links_into_src_codex() -> None:
+    listing = _git("ls-files", "-s", "-z", "--", ".agents/skills").stdout
+    entries = [entry for entry in listing.split("\0") if entry]
+    assert entries, "ADR-119 decision 7 links every shipped Codex skill here"
+    for entry in entries:
+        meta, _, path = entry.partition("\t")
+        mode, sha = meta.split()[:2]
+        name = path.removeprefix(".agents/skills/")
+        assert mode == "120000" and "/" not in name, path
+        target = _git("cat-file", "blob", sha).stdout
+        assert target == f"../../src/codex/skills/{name}", path

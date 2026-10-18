@@ -1,0 +1,90 @@
+{
+  "T1-stale-refs": {
+    "after": {
+      "runs": 3,
+      "errors": 0,
+      "f1": 0.872,
+      "precision": 0.79,
+      "recall": 1.0,
+      "turns": 17.0,
+      "cost_usd": 0.183,
+      "wall_s": 137.467
+    },
+    "before": {
+      "runs": 3,
+      "errors": 0,
+      "f1": 0.867,
+      "precision": 0.778,
+      "recall": 1.0,
+      "turns": 18.333,
+      "cost_usd": 0.128,
+      "wall_s": 147.3
+    }
+  },
+  "T2-reverts": {
+    "after": {
+      "runs": 3,
+      "errors": 0,
+      "f1": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "turns": 5.667,
+      "cost_usd": 0.055,
+      "wall_s": 55.6
+    },
+    "before": {
+      "runs": 3,
+      "errors": 0,
+      "f1": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "turns": 4.0,
+      "cost_usd": 0.022,
+      "wall_s": 36.1
+    }
+  },
+  "T3-churn": {
+    "after": {
+      "runs": 3,
+      "errors": 0,
+      "f1": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "turns": 5.333,
+      "cost_usd": 0.069,
+      "wall_s": 35.167
+    },
+    "before": {
+      "runs": 3,
+      "errors": 0,
+      "f1": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "turns": 4.333,
+      "cost_usd": 0.028,
+      "wall_s": 33.167
+    }
+  },
+  "T4-line-refs-at-scale": {
+    "after": {
+      "runs": 3,
+      "errors": 0,
+      "f1": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "turns": 11.333,
+      "cost_usd": 0.048,
+      "wall_s": 75.3
+    },
+    "before": {
+      "runs": 3,
+      "errors": 0,
+      "f1": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "turns": 6.667,
+      "cost_usd": 0.026,
+      "wall_s": 59.533
+    }
+  }
+}
