@@ -1029,6 +1029,45 @@ GitHub refuses auto-merge for `UNSTABLE` PRs (issue #2439) and may also reject a
 
 `set_pr_auto_merge.py` detects the `UNSTABLE` and already-`CLEAN` rejections from GitHub's GraphQL API and emits the direct-merge fallback command in its error output (exit 3) so the operator never has to translate the generic "GraphQL request failed" message themselves.
 
+### Post-merge cleanup
+
+Run this after every merge this skill lands, once `test_pr_merged.py` reports
+`merged: true`. The snippet reads its inputs from the merged PR, fails when any
+is empty, and checks `git merge-base --is-ancestor "$MERGE_SHA" origin/main` first.
+A leftover worktree costs disk and slows repo-wide scans: issue #2761 counted
+113 of them at 10.6G on one machine. PR #6490 merged with its worktree and
+local branch still in place.
+
+```bash
+# Replace <pr> with the merged PR number.
+read -r PR_HEAD_REF MERGED_HEAD_SHA MERGE_SHA < <(gh pr view <pr> \
+    --json headRefName,headRefOid,mergeCommit -q '[.headRefName, .headRefOid, .mergeCommit.oid] | @tsv')
+: "${PR_HEAD_REF:?}" "${MERGED_HEAD_SHA:?}" "${MERGE_SHA:?}"
+git fetch origin main && git merge-base --is-ancestor "$MERGE_SHA" origin/main || { echo "merge not on main yet"; exit 1; }
+# The worktree can belong to another clone, so fall back to the path convention.
+WT=$(git worktree list --porcelain | awk -v ref="refs/heads/$PR_HEAD_REF" \
+    '/^worktree /{p=substr($0, 10)} $1 == "branch" && $2 == ref {print p; exit}')
+WT=${WT:-"$HOME/worktrees/<repo>/$PR_HEAD_REF"}
+# Keep the worktree when it has local edits or a head other than the merged one.
+[ -z "$(git -C "$WT" status --porcelain)" ] && \
+  [ "$(git -C "$WT" rev-parse HEAD)" = "$MERGED_HEAD_SHA" ] || { echo "keep $WT"; exit 1; }
+COMMON=$(git -C "$WT" rev-parse --path-format=absolute --git-common-dir)
+# -C, not --git-dir: after a self-removal the cwd is gone and git cannot start there.
+git -C "$COMMON" worktree remove "$WT"
+# -D, not -d: a squash merge leaves the tip outside main's history. The SHA check above makes it safe.
+git -C "$COMMON" branch -D "$PR_HEAD_REF"
+# Empty output means the remote branch is gone.
+git -C "$COMMON" ls-remote origin "refs/heads/$PR_HEAD_REF"
+```
+
+- Never pass `--force` to `git worktree remove`. A dirty or moved worktree is
+  kept and reported with the reason.
+- Run removal through the owning clone's `--git-common-dir`. `git worktree list`
+  in a sibling clone does not see the worktree.
+- The remote branch goes away when the repository sets `delete_branch_on_merge`.
+  Otherwise pass `--delete-branch` to `merge_pr.py`. Set `git config fetch.prune
+  true` so the next fetch drops the stale remote-tracking ref.
+
 ### Merge-check exit codes: `test_pr_merged.py`
 
 As of issue #2308, `test_pr_merged.py` exits **0** on any successful query
@@ -1143,6 +1182,7 @@ Per PR processed:
 - [ ] Force-push safety check ran before any push: `git rev-parse "refs/heads/$BRANCH"` matched the PR's expected `head.sha`.
 - [ ] Correct merge path chosen by state: `set_pr_auto_merge.py --enable` for `CLEAN` and for `HAS_HOOKS`, which takes the `CLEAN` path unchanged, `merge_pr.py --strategy squash` for `UNSTABLE` with documented non-required failures (see "Merge path by `mergeStateStatus`" table; issue #2439).
 - [ ] All four Ready-to-Merge conditions hold before the merge command runs (CanMerge=True is insufficient alone).
+- [ ] After the merge: the PR worktree is removed and the local branch deleted, or kept with a stated reason (see "Post-merge cleanup").
 
 ## Anti-Patterns
 
