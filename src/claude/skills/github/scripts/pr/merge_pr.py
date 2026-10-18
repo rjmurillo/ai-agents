@@ -187,6 +187,14 @@ _APPROVAL_ASYNC = (
     "downstack PR at pinned heads; merge-async evaluates no branch protection"
 )
 
+# The readiness gate or the pin recheck refused, so no merge-async request went
+# out. A MERGED readback after that means another actor merged the PR, and the
+# script's gate approved nothing.
+_APPROVAL_GATE_REFUSED = (
+    "none: the script readiness gate refused before any merge request was sent; "
+    "any merge happened outside this run"
+)
+
 _RESIDUAL_RISK = (
     "deny rules match command text only; branch protection is the enforcement (ADR-112)"
 )
@@ -1018,10 +1026,13 @@ def _merge_stack_async(
     """
     stack: int | None = None
     pins: dict[int, str] | None = None
+    request_sent = False
     try:
         stack = _stack_number(ctx.pr, ctx.repo_flag)
         pins = _assert_stack_ready(ctx, stack)
         _assert_pins_unchanged(ctx, stack, pins)
+        # Set before the call: a timed-out request may still have landed.
+        request_sent = True
         accepted = _request_async_merge(ctx, subject, body)
         _wait_for_async_merge(ctx, accepted)
     except _MergeFailureError as failure:
@@ -1030,9 +1041,10 @@ def _merge_stack_async(
             f"complete it: {failure.message}\nGraphQL said: {graphql_output}",
             failure.code,
             failure.error_type,
-            approval=_APPROVAL_ASYNC,
-            stack=stack,
-            pins=pins,
+            approval=_APPROVAL_ASYNC if request_sent else _APPROVAL_GATE_REFUSED,
+            # No request went out, so there is no merge of ours to head-check.
+            stack=stack if request_sent else None,
+            pins=pins if request_sent else None,
         ) from failure
     _assert_heads_landed_as_gated(ctx, stack, pins)
 

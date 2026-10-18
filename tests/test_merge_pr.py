@@ -2403,6 +2403,51 @@ class TestAsyncMergeForStack:
         assert env["Data"]["recovered"] is True
         assert len(_stack_reads(fake)) == 1
         assert fake.puts() == []
+        # The gate refused and no request went out: it approved nothing.
+        approval = env["Data"]["audit"]["approval"]
+        assert approval == _mod._APPROVAL_GATE_REFUSED
+        assert approval != _mod._APPROVAL_ASYNC
+        assert "refused before any merge request" in approval
+
+    def test_pin_recheck_refusal_then_merged_readback_does_not_claim_the_gate(self, capsys):
+        """The pin recheck refused, another actor merged: no head check, no gate approval."""
+        fake = _StackGh(
+            listings=[
+                [_member(40), _member(50)],
+                [_member(40, salt=1), _member(50)],
+            ],
+            readback=_MERGED_READBACK,
+        )
+        code, env = _run_stack(fake, capsys)
+        assert code == 0
+        assert env["Data"]["recovered"] is True
+        assert fake.puts() == []
+        assert len(_stack_reads(fake)) == 2
+        assert env["Data"]["audit"]["approval"] == _mod._APPROVAL_GATE_REFUSED
+
+    def test_gate_refusal_with_an_open_readback_reports_the_failure_and_no_gate_approval(
+        self, capsys
+    ):
+        fake = _StackGh(
+            members=[_member(40, "closed", merged=False), _member(50)],
+            readback=_OPEN_READBACK,
+        )
+        code, env = _run_stack(fake, capsys)
+        assert code == 100
+        assert fake.puts() == []
+        audit = env["Data"]["audit"]
+        assert audit["approval"] == _mod._APPROVAL_GATE_REFUSED
+        assert audit["result"] == "failed"
+
+    def test_refused_request_keeps_the_gate_as_the_approval_when_the_readback_is_merged(
+        self, capsys
+    ):
+        """The gate passed and a request was sent, so the gate is the approval of record."""
+        fake = _StackGh(put=_completed(rc=1, stderr="HTTP 422 refused"), readback=_MERGED_READBACK)
+        code, env = _run_stack(fake, capsys)
+        assert code == 0
+        assert len(fake.puts()) == 1
+        assert env["Data"]["audit"]["approval"] == _mod._APPROVAL_ASYNC
 
     def test_one_transient_poll_error_is_tolerated(self, capsys):
         fake = _StackGh(
