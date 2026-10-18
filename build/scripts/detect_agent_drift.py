@@ -160,11 +160,14 @@ _INSTALL_COMPARISON_LABEL = ".claude/agents vs .github/agents"
 # generated VS Code copy, does not carry. Reconciling the two would rewrite an
 # agent prompt and change agent behavior (architect review, out of scope for a
 # baseline-green fix). Floor is the latest measured value (see the re-measure
-# notes below) so the existing structure is accepted but any worsening still
-# blocks. Re-measured for issue #5074: the add/add rename-never-content-merge
-# rule was added with identical
-# wording to both sides, which shifted the Jaccard section scores from the
-# prior 20.9% because the two shapes carry different surrounding prose.
+# notes below) so the existing structure is accepted. A similarity drop below
+# the floor prints DRIFT DETECTED. It fails only the install comparison, and only
+# with --fail-on-install-drift (the weekly workflow passes it). The vendored
+# comparison stays advisory through _ADVISORY_VENDORED_DRIFT.
+# Re-measured for issue #5074: the add/add rename-never-content-merge rule was
+# added with identical wording to both sides, which shifted the Jaccard section
+# scores from the prior 20.9% because the two shapes carry different
+# surrounding prose.
 # Re-measured for issue #5130 after the tier hierarchy was removed from the
 # governance docs and ``tier:`` frontmatter became ``role:``: both comparisons
 # still measure 20.7%. The enrichment PR #1426 added is section structure, not
@@ -185,8 +188,9 @@ _INSTALL_COMPARISON_LABEL = ".claude/agents vs .github/agents"
 # merge-resolver cannot be: its richness is on the .claude side by design, so a
 # resync would delete substantive Claude-only instructions. Floor is the measured
 # 20.3% (identical to the vendored floor because both compare the same enriched
-# .claude body against the same leaner template-derived body). Any worsening still
-# blocks.
+# .claude body against the same leaner template-derived body). A similarity drop
+# below the floor prints DRIFT DETECTED and fails this comparison with
+# --fail-on-install-drift.
 KNOWN_BASELINE_DRIFT: dict[tuple[str, str], float] = {
     ("merge-resolver", "src-claude vs src-vscode"): 20.3,
     ("merge-resolver", _INSTALL_COMPARISON_LABEL): 20.3,

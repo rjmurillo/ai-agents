@@ -12,6 +12,7 @@ blocks, install drift is advisory unless --fail-on-install-drift is set.
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import sys
@@ -438,6 +439,51 @@ def test_default_claude_path_compares_every_vendored_agent(
     assert [r["agentName"] for r in vendored if r["status"] == "NO COUNTERPART"] == []
 
 
+_MERGE_RESOLVER_PROMPTS = (
+    "src/claude/agents/merge-resolver.md",
+    "src/vs-code-agents/merge-resolver.agent.md",
+    ".claude/agents/merge-resolver.md",
+    ".github/agents/merge-resolver.agent.md",
+)
+
+
+def _merge_resolver_prompt_fingerprint() -> str:
+    """Return sha256 and mtime_ns for each merge-resolver prompt the detector reads.
+
+    Added to the floor test's failure message so a recurrence of the unexplained
+    flake shows whether a prompt file changed or was missing mid-run.
+    """
+    lines = []
+    for rel in _MERGE_RESOLVER_PROMPTS:
+        path = REPO_ROOT / rel
+        try:
+            digest = hashlib.sha256(path.read_bytes()).hexdigest()[:16]
+            lines.append(f"{rel} sha256={digest} mtime_ns={path.stat().st_mtime_ns}")
+        except OSError as exc:
+            lines.append(f"{rel} unreadable: {exc}")
+    return "\n".join(lines)
+
+
+def test_prompt_fingerprint_lists_every_prompt_with_hash() -> None:
+    lines = _merge_resolver_prompt_fingerprint().splitlines()
+
+    assert len(lines) == len(_MERGE_RESOLVER_PROMPTS)
+    for rel, line in zip(_MERGE_RESOLVER_PROMPTS, lines, strict=True):
+        assert line.startswith(f"{rel} sha256=")
+        assert "mtime_ns=" in line
+
+
+def test_prompt_fingerprint_reports_missing_file(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(sys.modules[__name__], "REPO_ROOT", tmp_path)
+
+    lines = _merge_resolver_prompt_fingerprint().splitlines()
+
+    assert len(lines) == len(_MERGE_RESOLVER_PROMPTS)
+    assert all("unreadable:" in line for line in lines)
+
+
 def test_merge_resolver_baseline_floor_matches_checked_in_prompts(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -455,11 +501,13 @@ def test_merge_resolver_baseline_floor_matches_checked_in_prompts(
     Known flake: this test reads the live checked-in prompts. It failed once
     with DRIFT DETECTED in a full pre-push run and passed alone, in a 14172-test
     subset, and in later full and xdist reruns. The root cause was not found.
-    The measurement is deterministic (identical under 32 PYTHONHASHSEED values),
-    so a failure most likely means the prompt files differed from the checked-in
-    ones during that run (inferred, not observed). If it fails again, compare
-    ``git status`` and the two prompt files against HEAD before trusting the
-    floor.
+    The measurement is deterministic (identical under 32 PYTHONHASHSEED values).
+    One candidate was tested and not reproduced: ``build_all.py --check``
+    rewrites generated trees in place while the pre-push ``pre-pr-validation``
+    job runs beside ``python-tests``. Ten ``--check`` runs against a clean tree
+    beside 1296 detector runs produced zero failures. Any failure message now
+    carries the sha256 and mtime of each prompt file, so a recurrence shows
+    whether the files differed from HEAD during the run.
     """
     drift.main(["--output-format", "json"])
 
@@ -467,10 +515,11 @@ def test_merge_resolver_baseline_floor_matches_checked_in_prompts(
     pairs = [r for r in results if r["agentName"] == "merge-resolver"]
     labels = {r["comparison"] for r in pairs}
     assert labels == {"src-claude vs src-vscode", drift._INSTALL_COMPARISON_LABEL}
+    diag = f"{pairs}\n{_merge_resolver_prompt_fingerprint()}"
     for r in pairs:
         floor = drift.KNOWN_BASELINE_DRIFT[("merge-resolver", r["comparison"])]
-        assert r["status"] == "OK (baselined)", pairs
-        assert r["overallSimilarity"] == floor, pairs
+        assert r["status"] == "OK (baselined)", diag
+        assert r["overallSimilarity"] == floor, diag
 
 
 # --- Issue #2423: changed-files scoping for pre-push -------------------------
