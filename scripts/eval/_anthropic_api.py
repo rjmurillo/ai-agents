@@ -20,7 +20,7 @@ from typing import Any, cast
 
 # Sibling imports; loaded under the same EVAL_DIR sys.path entry every
 # caller of this module already uses to reach them by bare name.
-from _anthropic_response import MessageResponse, parse_message_response
+from _anthropic_response import MessageResponse, parse_message_response, record_output_tokens
 from _cli_credentials import parse_dotenv
 from _eval_common import (
     call_with_temperature_fallback,
@@ -149,6 +149,7 @@ def _call_selected_provider(
     )
     if metadata is not None and fingerprint is not None:
         metadata["system_fingerprint"] = fingerprint
+    record_output_tokens(selected_provider, metadata)
     return text
 
 

@@ -150,6 +150,10 @@ class _ClaudeCLIProvider:
         self._timeout = validate_timeout(timeout)
         self._provider_label = PROVIDER_LABEL
         self.system_fingerprint: str | None = None
+        #: `usage.output_tokens` from the last reply's envelope, or None when
+        #: the envelope carried no usable count. Includes thinking tokens, as
+        #: the Messages API count does. Never defaults to 0 (see `_read_output_tokens`).
+        self.output_tokens: int | None = None
         self.credential_step: str | None = None
 
     def _build_argv(self, model: str) -> list[str]:
@@ -246,7 +250,31 @@ class _ClaudeCLIProvider:
                 f"{PROVIDER_LABEL} API returned no choices; model identifier redacted"
             )
         model_used = self._confirm_model(payload, model)
+        self.output_tokens = self._read_output_tokens(payload)
         return answer, model_used
+
+    @staticmethod
+    def _read_output_tokens(payload: dict[str, Any]) -> int | None:
+        """Return the envelope's `usage.output_tokens`, or None when unusable.
+
+        The answer text alone gives a concision control no token count (#6683).
+        Measured 2026-10-18 against `--output-format json`: the top-level
+        `usage` object carries `output_tokens`, and it counts thinking tokens
+        (`output_tokens_details.thinking_tokens`) along with the visible reply,
+        so a one-line answer can report dozens of tokens. That matches what
+        the Messages API reports, so the two stay comparable.
+
+        A missing, non-integer, boolean, or negative value is None, never 0:
+        a zero would read as a measured empty reply. `bool` is an `int`
+        subclass, so it is refused by name.
+        """
+        usage = payload.get("usage")
+        if not isinstance(usage, dict):
+            return None
+        tokens = usage.get("output_tokens")
+        if isinstance(tokens, bool) or not isinstance(tokens, int) or tokens < 0:
+            return None
+        return tokens
 
     def _confirm_model(self, payload: dict[str, Any], model: str) -> str | None:
         """Return the served model id, or raise when it is not the one asked for.
@@ -305,6 +333,7 @@ class _ClaudeCLIProvider:
 
         prompt = build_envelope(PROVIDER_LABEL, messages, system)
         self.system_fingerprint = None
+        self.output_tokens = None
         with tempfile.TemporaryDirectory(prefix="eval-claude-cli-") as profile:
             credential = self._resolve_credential(self._executable)
             self.credential_step = credential.step
