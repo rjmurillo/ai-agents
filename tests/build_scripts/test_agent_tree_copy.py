@@ -488,12 +488,3 @@ def test_adr107_agents_render_to_cursor_readonly(agent: str) -> None:
 
     assert rendered is not None
     assert "readonly: true" in rendered.split("---")[1]
-
-
-def test_wildcard_with_read_builtins_is_readonly() -> None:
-    assert atc.derive_readonly({"tools": ["Read", "mcp__serena__*", "ToolSearch"]})
-    assert atc.has_inexpressible_restriction({"tools": ["Write", "mcp__serena__*"]})
-
-
-def test_wildcard_does_not_hide_a_write_builtin() -> None:
-    assert not atc.derive_readonly({"tools": ["Read", "Write", "mcp__serena__*"]})

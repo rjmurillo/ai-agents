@@ -129,6 +129,24 @@ class TestServerGrants:
         assert caps.classify("mcp__plugin_a_b__x")[0] == "mcp:plugin_a_b"
 
 
+class TestWildcardRefusal:
+    @pytest.mark.parametrize("key", ["explicit_only", "remote_only"])
+    def test_server_marked_not_whole_cannot_be_granted_by_wildcard(self, key: str) -> None:
+        config = {**CONFIG, "servers": {**CONFIG["servers"], "locked": {key: "reason"}}}
+        with pytest.raises(caps.CapabilityError, match=key):
+            caps.expand_server_grant("locked", config)
+        assert "locked" not in caps.wildcard_servers(config)
+
+    def test_live_serena_and_deepwiki_cannot_be_granted_by_wildcard(self) -> None:
+        for server in ("serena", "deepwiki"):
+            with pytest.raises(caps.CapabilityError):
+                caps.expand_server_grant(server, LIVE)
+        assert caps.wildcard_servers(LIVE) == ["context7"]
+
+    def test_wildcard_grants_are_exactly_the_context7_expansions(self) -> None:
+        assert caps.wildcard_grants(LIVE) == frozenset(caps.expand_server_grant("context7", LIVE))
+
+
 class TestLiveTable:
     def test_only_the_read_only_docs_server_is_granted_by_wildcard(self) -> None:
         wildcard = {

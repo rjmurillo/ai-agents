@@ -263,13 +263,50 @@ def _server_prefixes(server: str, table: dict[str, object]) -> list[str]:
     return list(dict.fromkeys(prefixes))
 
 
+_NO_WILDCARD_KEYS = ("explicit_only", "remote_only")
+
+
+def wildcard_servers(table: dict[str, object]) -> list[str]:
+    """Return the servers the table lets a template grant by wildcard.
+
+    A server marked ``explicit_only`` has write or shell tools, and one marked
+    ``remote_only`` is listed only to satisfy the ``.mcp.json`` coverage check.
+    Neither may be granted whole.
+    """
+    servers = table.get("servers")
+    if not isinstance(servers, dict):
+        return []
+    return [
+        name
+        for name, entry in servers.items()
+        if isinstance(entry, dict) and not any(key in entry for key in _NO_WILDCARD_KEYS)
+    ]
+
+
+def wildcard_grants(table: dict[str, object]) -> frozenset[str]:
+    """Return every ``<prefix>__*`` entry that ``$mcp:`` can emit."""
+    return frozenset(
+        grant for server in wildcard_servers(table) for grant in expand_server_grant(server, table)
+    )
+
+
 def expand_server_grant(server: str, table: dict[str, object]) -> list[str]:
     """Return ``<prefix>__*`` for every prefix variant of ``server``.
 
     A server-level entry is the only MCP wildcard Claude Code honors in
     ``tools`` (probe, Claude Code 2.1.302, 2026-10-17): ``mcp__<server>__*``
-    grants that server's tools, and a bare ``mcp__*`` grants none.
+    grants that server's tools, and a bare ``mcp__*`` grants none. A server
+    marked ``explicit_only`` or ``remote_only`` fails, because a wildcard would
+    grant every tool it has, write and shell tools included.
     """
+    servers = table.get("servers")
+    entry = servers.get(server) if isinstance(servers, dict) else None
+    blocked = [key for key in _NO_WILDCARD_KEYS if isinstance(entry, dict) and key in entry]
+    if blocked:
+        raise CapabilityError(
+            f"MCP server {server!r} is {blocked[0]}, so it cannot be granted by wildcard; "
+            "list its read tools one by one"
+        )
     return [f"{prefix}__*" for prefix in _server_prefixes(server, table)]
 
 

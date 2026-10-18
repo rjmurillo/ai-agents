@@ -2,7 +2,7 @@
 
 ## Summary
 
-- **Rounds**: 2 of 10
+- **Rounds**: 3 of 10
 - **Prior debate log**: `.project-toolkit/critique/ADR-107-debate-log.md`
 - **Outcome**: Consensus
 - **Final Status**: proposed (the amendment changes no ADR status)
@@ -87,6 +87,33 @@ Round 2 reviewed the D4 design at commit `d775104c0e`. Each agent holds its main
 
 - High-level-advisor: the change is large for its net value. The gains are `ToolSearch`, Context7 under connector spellings, and the `$mcp:` renderer. GitHub still uses one prefix. F5 and F6 sit about 800 bytes under their ceilings, so the next edit will trip them.
 - Independent-thinker: one harness version is not a CI pin. A new Claude Code release can change the probed behavior.
+
+## Round 3 Summary
+
+Round 3 took PR #6700 review comments on head `7f3a0351e7`. The six-agent panel did not reconvene. The changes are corrections inside the agreed design.
+
+### Key Issues Addressed
+
+- A PR reviewer found that the baseline sentence did not add up. The diff shows three `capability:builtin` digests changing, and analyst's `capability:mcp:context7` pin replaced by a new `capability:builtin` pin. That keeps the count at 109.
+- CodeRabbit found that the Cursor copy treated any `mcp__<server>__*` as read-only. A future `mcp__github__*` would have earned `readonly: true`.
+- Checking that finding showed the renderer did not enforce `explicit_only`. A template writing `$mcp:serena` would have rendered `mcp__serena__*`, and that grants `execute_shell_command`.
+
+### Major Changes Made
+
+- `expand_server_grant` fails for a server marked `explicit_only` or `remote_only`.
+- `is_readonly_tool` accepts only the exact wildcards the table allows. Tests cover Serena, GitHub, DeepWiki, Slack, and two lookalike Context7 spellings.
+- The amendment's baseline sentence now matches the diff.
+
+### Agent Positions
+
+| Agent | Position |
+|-------|----------|
+| architect | Not reconvened; round 2 Accept stands |
+| critic | Not reconvened; round 2 dissent addressed |
+| independent-thinker | Not reconvened; round 2 dissent addressed |
+| security | Not reconvened; round 2 Accept stands, and these changes narrow grants |
+| analyst | Not reconvened; round 2 dissent addressed |
+| high-level-advisor | Not reconvened; round 2 dissent stands as recorded |
 
 ### Next Steps
 

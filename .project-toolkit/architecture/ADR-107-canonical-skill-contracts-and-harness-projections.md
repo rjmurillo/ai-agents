@@ -683,7 +683,8 @@ Revert the commit that adds `templates/agent-mcp-servers.yaml`, restore the four
 
 - The Cursor tree is unchanged: `agent_tree_copy.derive_readonly` treats a server wildcard as read-only, because Cursor enforces `readonly: true` itself and it only narrows the agent. `analyst`, `code-reviewer`, and `comment-analyzer` still ship. `security` holds `Write`, so it is still not shipped.
 - Copilot and VS Code templates are unchanged. This record has no evidence that their hosts support a deny list, and none is used.
-- The divergence baseline stays at 109 pins; four `capability:builtin` digests change for `ToolSearch` and one Context7 pin is removed.
+- The divergence baseline stays at 109 pins. Three `capability:builtin` digests change for `ToolSearch` (`code-reviewer`, `comment-analyzer`, `security`), and analyst's `capability:mcp:context7` pin is replaced by a new `capability:builtin` pin.
+- The renderer refuses `$mcp:` for a server marked `explicit_only` or `remote_only`, so a template cannot grant Serena or DeepWiki whole. The Cursor copy treats a server wildcard as read-only only when it is one of the wildcards the table allows.
 
 ### Residual risk
 
