@@ -127,11 +127,13 @@ def test_make_retries_when_a_sibling_removes_the_root(
     real_mkdir = Path.mkdir
     calls = {"n": 0}
 
-    def flaky_mkdir(self: Path, *args: object, **kwargs: object) -> None:
+    def flaky_mkdir(
+        self: Path, mode: int = 0o777, parents: bool = False, exist_ok: bool = False
+    ) -> None:
         calls["n"] += 1
         if calls["n"] == 1:
             raise FileNotFoundError(str(self))
-        real_mkdir(self, *args, **kwargs)  # type: ignore[arg-type]
+        real_mkdir(self, mode, parents, exist_ok)
 
     monkeypatch.setattr(Path, "mkdir", flaky_mkdir)
 
