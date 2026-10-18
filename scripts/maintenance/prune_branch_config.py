@@ -184,6 +184,24 @@ def find_stale_branches(
     return tuple(name for name in configured if name not in local and name not in checked_out)
 
 
+def _remove_own_backup(backup: Path, created: os.stat_result | None) -> None:
+    """Remove a partial backup, but only the entry this process created.
+
+    ``created`` is the ``fstat`` of the descriptor opened with ``O_EXCL``.
+    If another process swapped the pathname after the open, the entry there
+    is not ours, so it stays. Without an identity (``fstat`` failed) nothing
+    is removed, because the pathname cannot be tied to this write (#6506).
+    """
+    if created is None:
+        return
+    try:
+        current = backup.lstat()
+    except OSError:
+        return
+    if (current.st_dev, current.st_ino) == (created.st_dev, created.st_ino):
+        backup.unlink(missing_ok=True)
+
+
 def _backup_config(config_path: Path) -> Path:
     """Copy the config to a fresh ``.before-prune[.N]`` file beside it.
 
@@ -191,6 +209,9 @@ def _backup_config(config_path: Path) -> Path:
     existing entry at the name, including a dangling symlink. ``Path.exists``
     follows links and reports a dangling one as absent, so ``copy2`` used to
     write through a planted link to its target (CWE-59, issue #6506).
+
+    A failed write removes the partial backup only while the pathname still
+    names the file this call created, so a concurrent swap is left alone.
     """
     base = config_path.with_name(f"{config_path.name}.before-prune")
     content = config_path.read_bytes()
@@ -211,8 +232,10 @@ def _backup_config(config_path: Path) -> Path:
             )
         except FileExistsError:
             continue
+        created: os.stat_result | None = None
         try:
             try:
+                created = os.fstat(fd)
                 handle = os.fdopen(fd, "wb")
             except BaseException:
                 # fdopen owns the descriptor only once it returns.
@@ -223,7 +246,7 @@ def _backup_config(config_path: Path) -> Path:
                 if hasattr(os, "fchmod"):
                     os.fchmod(handle.fileno(), mode)
         except OSError as exc:
-            backup.unlink(missing_ok=True)
+            _remove_own_backup(backup, created)
             raise GitError(f"could not write config backup {backup}: {exc}") from exc
         return backup
     raise GitError("could not choose a config backup path")

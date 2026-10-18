@@ -140,9 +140,12 @@ def find_repo_root(path: Path) -> Path | None:
     between an outer ``.git`` ancestor and ``path``, the outermost one is the
     root, so ``_confine_to_repo`` sees the link and refuses (#6506).
 
-    The walk reads unresolved components, and a symlinked ancestor is never a
-    root. A checkout reached through a symlinked root directory therefore has
-    no root and is not confined; that is an accepted limit.
+    The walk from ``path`` reads unresolved components, and a symlinked
+    ancestor is never a root. ``Path.cwd()`` is already resolved, so a
+    relative or resolved path inside a checkout whose root directory is
+    reached through a symlink still gets the real root. Only an absolute
+    path spelled through that link has no root and is not confined; that is
+    an accepted limit.
     """
     absolute = path.absolute()
     anchor = _nearest_git_root(Path.cwd())
