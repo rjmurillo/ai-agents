@@ -2,8 +2,12 @@
 
 The live drivers write `economics.human_correction_minutes` as `None`, because
 an unattended run has no human and `0.0` would claim a clean correction pass
-nobody timed. A record with `None` classifies `UNVERIFIED`. This module is the
-input path for a timed pass: a JSON file of rows, one per run cell.
+nobody timed. A record with `None` classifies `UNVERIFIED`. A human cannot time
+a run that has not happened, so minutes join the records after the run:
+`eval_human_minutes_join.py` reads this file format and writes copies of the
+records with the minutes filled in. Each run's change is saved under
+`changes/<control>/` for the human to correct and time. The file is a JSON
+array of rows, one per run cell.
 
     [
       {"control": "reduced", "task_id": "refactor-1", "repeat": 0, "minutes": 4.5},
@@ -20,7 +24,7 @@ from __future__ import annotations
 
 import json
 import math
-from collections.abc import Collection, Mapping, Sequence
+from collections.abc import Collection, Mapping
 from pathlib import Path
 
 #: (control, task_id, repeat) -> timed human correction minutes.
@@ -110,15 +114,3 @@ def unmatched(
     if not minutes:
         return []
     return [list(key) for key in sorted(set(minutes) - set(produced))]
-
-
-def unmatched_runs(
-    minutes: HumanMinutes | None, runs: Sequence[Mapping[str, object]]
-) -> list[list[object]]:
-    """`unmatched` over run entries that carry `control`, `task_id`, `repeat`, and a `record`."""
-    produced = {
-        (str(run["control"]), str(run["task_id"]), int(str(run["repeat"])))
-        for run in runs
-        if "record" in run
-    }
-    return unmatched(minutes, produced)

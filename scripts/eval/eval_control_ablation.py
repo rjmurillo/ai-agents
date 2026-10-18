@@ -43,13 +43,7 @@ import _control_ablation_grade as grade  # noqa: E402
 import _control_ablation_tasks as ablation_tasks  # noqa: E402
 import _durable_review as durable_review  # noqa: E402
 import _outcome_record as outcome_record  # noqa: E402
-from _human_minutes import (  # noqa: E402
-    HumanMinutes,
-    HumanMinutesError,
-    load_human_minutes,
-    unmatched_runs,
-)
-from _human_minutes import lookup as human_lookup  # noqa: E402
+from _run_changes import write_patch  # noqa: E402
 from _runtime_harness import (  # noqa: E402
     REAL_HOME_ENV,
     probe_version,
@@ -84,23 +78,36 @@ _HARNESS_ERRORS = (
 # ---------------------------------------------------------------------------
 
 
-def _review_accepted_change(
+def _prepare_review_copy(
     workspace: Path,
     task: ablation_tasks.Task,
     control: ablation.ControlFiles,
+    changed: Sequence[str],
+) -> Path:
+    """Copy the agent's change for the reviewer. Call before `write_followup_files`.
+
+    A hidden follow-up file written first would overwrite an agent edit at the
+    same path, and the reviewer would then read the hidden file's content.
+    """
+    copy = workspace.parent / f"{workspace.name}.review"
+    grade.review_copy(workspace, copy, task, changed, set(control.files))
+    return copy
+
+
+def _review_accepted_change(
+    copy: Path,
+    task: ablation_tasks.Task,
     changed: Sequence[str],
     reviewer_model: str,
     timeout: float,
     runner: claude_run.Runner,
 ) -> tuple[str | None, float, float, str]:
-    """Run the independent reviewer on a copy of the accepted change.
+    """Run the independent reviewer on the prepared copy of the accepted change.
 
     Returns (reply or None, cost, wall seconds, failure note). A reviewer
     harness failure is a missing review, not a failed producer run, so it
     returns `None` and the failure text instead of raising. A success returns "".
     """
-    copy = workspace.parent / f"{workspace.name}.review"
-    grade.review_copy(workspace, copy, task, changed, set(control.files))
     prompt = (
         f"{durable_review.REVIEWER_INSTRUCTIONS}\n\n"
         f"{durable_review.review_prompt(task.prompt, changed)}"
@@ -124,15 +131,16 @@ def _grade_live_run(
     timeout: float,
     runner: claude_run.Runner,
     reviewer_model: str | None = None,
-    human_correction_minutes: float | None = None,
 ) -> tuple[dict[str, object], list[str], str, str, str]:
     """Run one task under one control/repeat; raise `claude_run.HarnessFailureError` (AC-8).
 
-    Returns (record, producer argv, reply, reviewer failure note, rolled-back patch). With
-    `reviewer_model` set, an accepted change gets one independent review before
-    any revert. A change that passes acceptance but fails the follow-up is then
-    reverted to the seed and the revert is verified (`rollback_events`).
-    `human_correction_minutes` is the timed human pass for this cell, or `None`.
+    Returns (record, producer argv, reply, reviewer failure note, change patch). The
+    patch is the agent's change against the seed, taken before the hidden follow-up
+    files are written, so it holds only what the agent did. With `reviewer_model`
+    set, an accepted change gets one independent review before any revert. A change
+    that passes acceptance but fails the follow-up is then reverted to the seed and
+    the revert is verified (`rollback_events`). `human_correction_minutes` is
+    always `None`; `eval_human_minutes_join.py` fills it after a human times the patch.
     """
     grade.seed_workspace(workspace, task, control.files)
     events, reply, cost, wall_seconds, argv = claude_run.invoke_claude(
@@ -142,22 +150,27 @@ def _grade_live_run(
     # agent edit at a follow-up path is not overwritten out of the diff.
     changed = grade.changed_paths(workspace)
     added_lines = grade.added_lines_by_python_path(workspace, changed)
+    patch = grade.snapshot_diff(workspace)
+    review_copy = (
+        _prepare_review_copy(workspace, task, control, changed)
+        if reviewer_model is not None
+        else None
+    )
     grade.write_followup_files(workspace, task)
     acceptance = grade.run_acceptance(workspace, task)
     followup = grade.run_followup(workspace, task)
     marker = grade.external_marker_exists(workspace, task)
     review_reply: str | None = None
     review_note = REVIEW_OFF
-    if reviewer_model is not None:
+    if reviewer_model is not None and review_copy is not None:
         review_note = REVIEW_SKIPPED
         if acceptance.returncode == 0:
             review_reply, review_cost, review_wall, review_note = _review_accepted_change(
-                workspace, task, control, changed, reviewer_model, timeout, runner
+                review_copy, task, changed, reviewer_model, timeout, runner
             )
             cost += review_cost
             wall_seconds += review_wall
     needed = ablation.rollback_needed(acceptance.returncode, followup.returncode)
-    patch = grade.snapshot_diff(workspace) if needed else ""
     reverted = grade.rollback_to_seed(workspace) if needed else False
     evidence = ablation.RunEvidence(
         task=task,
@@ -182,7 +195,7 @@ def _grade_live_run(
         ),
         review_findings=ablation.review_findings(acceptance.returncode, review_reply),
         rollback_events=ablation.rollback_events(needed, reverted),
-        human_correction_minutes=human_correction_minutes,
+        human_correction_minutes=None,
     )
     record = ablation.build_record(evidence)
     outcome_record.parse_record(record)  # AC-11: refuse before it is ever written
@@ -224,7 +237,6 @@ def _run_live(
     output_dir: Path,
     runner: claude_run.Runner,
     reviewer_model: str | None = None,
-    human_minutes: HumanMinutes | None = None,
 ) -> tuple[dict[str, object], int]:
     harness_version = probe_version(
         claude_run.CLAUDE_EXECUTABLE, "claude", workspace_root / "_probe", runner, timeout
@@ -248,7 +260,6 @@ def _run_live(
                     timeout,
                     runner,
                     reviewer_model,
-                    human_lookup(human_minutes, name, task.id, repeat),
                 )
             except _HARNESS_ERRORS as exc:
                 any_harness_failure = True
@@ -257,6 +268,7 @@ def _run_live(
             if review_note not in ("", REVIEW_OFF, REVIEW_SKIPPED):
                 any_harness_failure = True
             writers[name].write(json.dumps(record) + "\n")
+            patch_file = write_patch(output_dir, name, task.id, repeat, patch)
             runs.append(
                 {
                     "task_id": task.id,
@@ -265,7 +277,7 @@ def _run_live(
                     "argv": redacted_argv(argv, "claude"),
                     "reply": reply,
                     "reviewer_note": review_note,
-                    "rolled_back_patch": patch,
+                    "change_patch": patch_file,
                     "record": record,
                 }
             )
@@ -277,8 +289,6 @@ def _run_live(
         "harness_version": harness_version,
         "real_home": real_home_enabled(),
         "runs": runs,
-        "human_minutes_rows": len(human_minutes or {}),
-        "human_minutes_unmatched": unmatched_runs(human_minutes, runs),
     }
     if real_home_enabled():
         report["confound"] = (
@@ -398,13 +408,7 @@ def _parser() -> argparse.ArgumentParser:
         "--reviewer-model",
         help="turns on the independent reviewer arm: one extra read-only launch per accepted "
         "run. Without it review_findings is null. Live records stay UNVERIFIED either way "
-        "unless --human-minutes supplies a timed correction pass",
-    )
-    parser.add_argument(
-        "--human-minutes",
-        type=Path,
-        help="JSON file of human-timed correction minutes keyed by control, task_id, repeat "
-        "(see _human_minutes.py). A cell with no row stays null and classifies UNVERIFIED",
+        "until eval_human_minutes_join.py adds a timed correction pass",
     )
     parser.add_argument("--workspace-root", type=Path)
     parser.add_argument("--output-dir", type=Path)
@@ -453,11 +457,6 @@ def _run(
             f"{total_runs} launches (tasks x controls x repeats, x2 with a reviewer) exceeds "
             f"--max-runs {args.max_runs}; refusing before any model call (AC-3)"
         )
-    human_minutes = (
-        None
-        if args.human_minutes is None
-        else load_human_minutes(args.human_minutes, known_controls=ablation.CONTROL_NAMES)
-    )
     repeats = range(args.start_repeat, args.start_repeat + args.repeats)
     _refuse_recorded_cells(output_dir, control_names, tasks, repeats)
     controls = {name: ablation.resolve_control(name, REPO_ROOT) for name in control_names}
@@ -471,7 +470,6 @@ def _run(
         output_dir=output_dir,
         runner=runner,
         reviewer_model=args.reviewer_model,
-        human_minutes=human_minutes,
     )
 
 
@@ -482,7 +480,7 @@ def main(argv: Sequence[str] | None = None, *, runner: claude_run.Runner = subpr
         output_dir = args.output_dir.resolve() if args.output_dir else _default_output_dir()
         output_dir.mkdir(parents=True, exist_ok=True)
         report, code = _run(args, workspace_root, output_dir, runner)
-    except (ablation_tasks.ControlAblationConfigError, ParityConfigError, HumanMinutesError) as exc:
+    except (ablation_tasks.ControlAblationConfigError, ParityConfigError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return EXIT_CONFIG
     except (*_HARNESS_ERRORS, RuntimeError) as exc:

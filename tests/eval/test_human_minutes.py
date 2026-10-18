@@ -93,13 +93,3 @@ def test_unmatched_lists_supplied_cells_with_no_record() -> None:
     assert hm.unmatched(cells, {("reduced", "t1", 0)}) == [["reduced", "t2", 0]]
     assert hm.unmatched(None, {("reduced", "t1", 0)}) == []
     assert hm.unmatched({}, set()) == []
-
-
-def test_unmatched_runs_ignores_failed_runs_without_a_record() -> None:
-    cells = {("reduced", "t1", 0): 1.0, ("reduced", "t2", 0): 2.0}
-    runs = [
-        {"control": "reduced", "task_id": "t1", "repeat": 0, "record": {}},
-        {"control": "reduced", "task_id": "t2", "repeat": 0, "harness_failure": "boom"},
-    ]
-
-    assert hm.unmatched_runs(cells, runs) == [["reduced", "t2", 0]]

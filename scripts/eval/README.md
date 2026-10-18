@@ -1299,13 +1299,24 @@ and follow-up failed), so it adds no evidence beyond `followup_validation`: the
 revert runs in a temp workdir that is deleted right after the record is built.
 The reviewer is read-only on both harnesses: `--tools Read,Glob,Grep` for claude
 and `-s read-only` for codex. `economics.human_correction_minutes` is `null`
-unless `--human-minutes FILE` supplies a timed row for the run's cell, because
-no human is in the run. A `null` count classifies `UNVERIFIED`, so a live record
-stays `UNVERIFIED` until a human times a correction pass. The file is a JSON
-array of `{"control", "task_id", "repeat", "minutes"}` rows (`_human_minutes.py`);
-`0` is a valid timed value, a cell with no row stays `null`, and the run summary
-lists rows that matched no record under `human_minutes_unmatched`. Whether to
-keep the human-time clause at all is an open owner decision on #5768. Requested effort is never
+in every live record, because no human is in the run and a human cannot time a
+run that has not happened. A `null` count classifies `UNVERIFIED`, so a live
+record stays `UNVERIFIED` until a human times a correction pass. Each run's
+change is saved as `changes/<control>/<task_id>-r<repeat>.patch` in the output
+directory, so the human has something to correct. After the run, the human
+writes a JSON array of `{"control", "task_id", "repeat", "minutes"}` rows
+(`_human_minutes.py`) and `eval_human_minutes_join.py` writes copies of the
+records with the minutes filled in:
+
+```bash
+uv run python scripts/eval/eval_human_minutes_join.py \
+  --records OUT/current.jsonl OUT/reduced.jsonl --minutes minutes.json --output-dir OUT/timed
+```
+
+`0` is a valid timed value and a cell with no row stays `null`. The tool exits 2
+and writes nothing when a row matches no record, so a typo cannot drop a timed
+run. Input files are never modified. Whether to keep the human-time clause at
+all is an open owner decision on #5768. Requested effort is never
 verified: the stream names no effort. The `_durable_live.py` docstring lists
 every mapping.
 
@@ -1452,17 +1463,18 @@ Fields that are `null` when not measured, never 0:
 `durable.review_findings` is `null` unless `--reviewer-model MODEL` runs the
 independent reviewer on an accepted change (read-only tools, a copy with no
 control file, hidden follow-up file, or `.git`; each accepted run adds one launch
-and `--max-runs` counts it). `economics.human_correction_minutes` is `null` in a
-live run unless `--human-minutes FILE` supplies a timed row for the cell (same
-file format as `eval_durable_live.py`; rows that matched no record are listed in
-the report as `human_minutes_unmatched`), so an untimed live record classifies
-`UNVERIFIED`. The keep-or-drop decision on that clause is open on #5768.
+and `--max-runs` counts it). `economics.human_correction_minutes` is `null` in
+every live record, so it classifies `UNVERIFIED` until `eval_human_minutes_join.py`
+adds a timed row after a human corrects the run's saved patch (same file format as
+`eval_durable_live.py`). The keep-or-drop decision on that clause is open on #5768.
 `durable.rollback_events` is measured: an accepted change that
 fails the hidden follow-up is reverted with `git reset --hard` to the seed ref and
 the revert is verified, which counts 1; a revert that cannot be verified is
-`null`. The revert erases the run's edits from the workspace, so the full
-change (untracked files included) is saved first as `rolled_back_patch` in the
-run entry of `report.json`, empty when no revert ran.
+`null`. The revert erases the run's edits from the workspace, so every run's
+change (untracked files included) is saved as `changes/<control>/<task_id>-r<repeat>.patch`
+under `--output-dir`, and the run entry in `report.json` names it as `change_patch`.
+The patch is taken before the hidden follow-up files are written, so it holds
+only what the agent did, and the reviewer's copy is built at the same point.
 
 `--dry-run` feeds canned reviewer replies through the real parser and a fixture
 `human_correction_minutes` of 0.0 (both labeled in the report as inputs, not

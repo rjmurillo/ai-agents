@@ -23,8 +23,9 @@ import _outcome_record as outcome_record
 
 DRY_RUN_KINDS = ("known_good", "known_bad")
 #: Canned reviewer replies for `--dry-run`, which makes no model call. They run
-#: through the real `parse_review`, so the dry run proves a nonzero count is
-#: recorded and a malformed reply is not.
+#: through the real `parse_review`, so the dry run proves a well-formed reply is
+#: recorded as its finding count. Both are well-formed: a malformed reply is
+#: covered by the `parse_review` unit tests, not by this dry run.
 DRY_RUN_REVIEWS = {
     "known_good": f'{durable_review.REVIEW_MARKER} {{"findings": []}}',
     "known_bad": (

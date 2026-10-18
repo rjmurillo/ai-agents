@@ -188,13 +188,12 @@ def build_record(
     workdir: Path,
     *,
     reviewer: ReviewerSpec | None = None,
-    human_correction_minutes: float | None = None,
 ) -> OutcomeRecord:
     """Assemble and strictly parse one record from a finished session.
 
-    `human_correction_minutes` is `None` unless a human timed a correction pass.
-    An unattended run has no human, so the default is missing evidence, which
-    classifies `UNVERIFIED`, not `0.0`.
+    `human_correction_minutes` is always `None`. An unattended run has no human,
+    so the value is missing evidence, which classifies `UNVERIFIED`, not `0.0`.
+    `eval_human_minutes_join.py` fills it after a human times a correction pass.
     """
     final, first = session.grades[-1], session.grades[0]
     changed = final.changed_paths
@@ -240,7 +239,7 @@ def build_record(
             "model_cost_usd": round(sum(i.facts.cost_usd for i in spent), 6),
             "tool_cost_usd": 0.0,
             "wall_seconds": round(sum(i.wall_seconds for i in spent), 3),
-            "human_correction_minutes": human_correction_minutes,
+            "human_correction_minutes": None,
         },
         "risk": {
             "security_findings": security,

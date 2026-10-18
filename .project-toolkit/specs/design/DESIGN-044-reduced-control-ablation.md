@@ -157,10 +157,13 @@ so an unmeasured signal cannot read as a clean result.
 |---|---|---|
 | `durable.review_findings` | the independent reviewer arm (`--reviewer-model`): one read-only launch on a copy of an accepted change, with no control file, no hidden follow-up file, and no `.git` | the arm is off, the run was not accepted, or the reply is not in the `REVIEW_RESULT` shape |
 | `durable.rollback_events` | an accepted change that fails the hidden follow-up is reverted with `git reset --hard` to the seed ref and the revert is verified: 1 | the revert cannot be verified. A run that needed no revert is 0 |
-| `economics.human_correction_minutes` | `--human-minutes FILE`, one timed row per (control, task_id, repeat) cell | no row covers the cell. The open owner decision on #5768 is whether to keep this clause |
+| `economics.human_correction_minutes` | `eval_human_minutes_join.py`, one timed row per (control, task_id, repeat) cell, joined after the run | every live record. A human cannot time a run that has not happened, so the driver never sets it. The open owner decision on #5768 is whether to keep this clause |
 
-The revert erases the run's edits, so the full change is saved first as
-`rolled_back_patch` in the run entry. `--dry-run` feeds canned reviewer replies
+The revert erases the run's edits, so every run's change is saved as
+`changes/<control>/<task_id>-r<repeat>.patch` under `--output-dir` and the run
+entry names it as `change_patch`. The patch and the reviewer's copy are taken
+before step 3 writes the hidden follow-up files, so neither holds a hidden file
+and an agent edit at a follow-up path is not overwritten. `--dry-run` feeds canned reviewer replies
 through the real parser and a fixture `human_correction_minutes`, both labeled in
 the report as inputs.
 

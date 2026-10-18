@@ -49,11 +49,13 @@ What is measured, and what is a proxy:
 * `rework_minutes`: measured. Wall minutes of correction rounds (round 1 and
   later), which exist only because the prior attempt failed its check. Agent
   rework only.
-* `human_correction_minutes`: `None` unless `--human-minutes FILE` supplies a
-  timed row for the run's (control, task_id, repeat) cell (`_human_minutes.py`).
-  An unattended run has no human, so the value is missing evidence and the
-  record classifies `UNVERIFIED` until a human times a correction pass. The
-  owner decision to keep or drop that clause is open on #5768.
+* `human_correction_minutes`: always `None` here. An unattended run has no
+  human, and a human cannot time a run that has not happened yet, so the value
+  is missing evidence and the record classifies `UNVERIFIED`. Each run's change
+  is saved as `changes/<control>/<task_id>-r<repeat>.patch` (`_run_changes.py`).
+  After the run a human times a correction of that change, and
+  `eval_human_minutes_join.py` writes the minutes into copies of the records.
+  The owner decision to keep or drop that clause is open on #5768.
 * `review_findings`: measured when `RunSettings.reviewer` is set. A separate
   reviewer process reads an accepted change in a fresh copy and replies with a
   finding count (`_durable_review.py`). `None` when the arm is off, the run was
@@ -85,7 +87,7 @@ import subprocess
 import tempfile
 import time
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from _claude_stream import Invocation, StreamFacts, parse_stream
@@ -111,11 +113,10 @@ from _durable_review import (
     review_prompt,
     reviewer_identity,
 )
-from _human_minutes import HumanMinutes
-from _human_minutes import lookup as human_lookup
 from _outcome_record import OutcomeRecord
 from _routing_grader import GradeResult, Verdict, apply_changes, grade, materialize
 from _routing_scenario import Scenario
+from _run_changes import change_patch
 
 #: Instruction files each control loads. `current` is the repo's always-loaded
 #: Claude Code surface (CLAUDE.md, AGENTS.md, .claude/CLAUDE.md, the always-on
@@ -157,6 +158,8 @@ class TaskRun:
     record: OutcomeRecord | None
     invocations: tuple[Invocation, ...]
     note: str = ""
+    #: The agent's change as a unified diff against `initial/`. "" when there is no record.
+    patch: str = ""
 
 
 def control_text(repo_root: Path, control: str) -> str:
@@ -308,15 +311,14 @@ def run_task(
     budget: InvocationBudget,
     *,
     repeat: int = 0,
-    human_minutes: HumanMinutes | None = None,
     runner: Runner = subprocess.run,
 ) -> TaskRun:
     """Run one scenario under one control, with up to `retry_budget` correction rounds.
 
     A run whose process failed or never produced a `result` event returns
     `record=None`. It is a harness failure, not a task failure, and it is
-    not counted against the control. `human_minutes` supplies a timed human
-    correction pass for this cell; without a row the value stays `None`.
+    not counted against the control. The returned `patch` holds the agent's change,
+    taken before `build_record` reverts the workdir and the temp dir is deleted.
     """
     session = Session()
     with tempfile.TemporaryDirectory(prefix="durable-live-") as name:
@@ -346,19 +348,14 @@ def run_task(
             session.review = _run_review(
                 scenario, control, session, workdir, settings, budget, runner
             )
+        patch = change_patch(
+            scenario.fixture_dir("initial"), workdir, session.grades[-1].changed_paths
+        )
         record = build_record(
-            scenario,
-            base_config,
-            repeat,
-            session,
-            workdir,
-            reviewer=settings.reviewer,
-            human_correction_minutes=human_lookup(
-                human_minutes, control, scenario.scenario_id, repeat
-            ),
+            scenario, base_config, repeat, session, workdir, reviewer=settings.reviewer
         )
     launches = (*session.invocations, *((session.review,) if session.review else ()))
-    return TaskRun(record, launches)
+    return TaskRun(record, launches, patch=patch)
 
 
 @dataclass(frozen=True, slots=True)
@@ -368,6 +365,8 @@ class ExperimentResult:
     records: Mapping[str, tuple[OutcomeRecord, ...]]
     invocations: tuple[Invocation, ...]
     harness_failures: tuple[tuple[str, str, str], ...]
+    #: Each run's change as a unified diff, keyed by (control, task_id, repeat).
+    patches: Mapping[tuple[str, str, int], str] = field(default_factory=dict)
 
 
 def max_invocations(
@@ -385,7 +384,6 @@ def run_experiment(
     *,
     repeats: int = 1,
     first_repeat: int = 0,
-    human_minutes: HumanMinutes | None = None,
     runner: Runner = subprocess.run,
 ) -> ExperimentResult:
     """Run every scenario under every control, `repeats` times. `controls` maps name to text.
@@ -403,6 +401,7 @@ def run_experiment(
     records: dict[str, list[OutcomeRecord]] = {name: [] for name in controls}
     invocations: list[Invocation] = []
     failures: list[tuple[str, str, str]] = []
+    patches: dict[tuple[str, str, int], str] = {}
     with tempfile.TemporaryDirectory(prefix="durable-controls-") as name:
         for control, text in controls.items():
             control_file = Path(name) / f"{control}.md"
@@ -424,7 +423,6 @@ def run_experiment(
                         settings,
                         budget,
                         repeat=repeat,
-                        human_minutes=human_minutes,
                         runner=runner,
                     )
                     invocations.extend(run.invocations)
@@ -432,6 +430,10 @@ def run_experiment(
                         failures.append((control, scenario.scenario_id, run.note))
                     else:
                         records[control].append(run.record)
+                        patches[(control, scenario.scenario_id, repeat)] = run.patch
     return ExperimentResult(
-        {key: tuple(value) for key, value in records.items()}, tuple(invocations), tuple(failures)
+        {key: tuple(value) for key, value in records.items()},
+        tuple(invocations),
+        tuple(failures),
+        patches,
     )

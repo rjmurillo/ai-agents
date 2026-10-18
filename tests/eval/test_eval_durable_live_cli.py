@@ -128,6 +128,8 @@ def test_harness_failure_exits_3_and_comparison_is_refused(
     assert summary["comparison"].startswith("refused:")
     assert len(summary["harness_failures"]) == 2
     assert not (tmp_path / "comparison.json").exists()
+    # A run with no record has no change to correct and no cell to time.
+    assert summary["change_patches"] == 0 and not (tmp_path / "changes").exists()
 
 
 def test_invocation_cap_stops_the_run_with_exit_3(
@@ -217,11 +219,33 @@ def test_reviewer_effort_defaults_to_the_run_effort_and_can_differ(
 
 
 @pytest.mark.parametrize(
-    "argv", [["--reviewer-effort", "high"], ["--reviewer-model", "  "], ["--reviewer-model", ""]]
+    "argv",
+    [
+        ["--reviewer-effort", "high"],
+        ["--reviewer-model", "  "],
+        ["--reviewer-model", ""],
+        ["--reviewer-model", "a:b"],
+        ["--reviewer-model", "us.anthropic.claude-sonnet:0"],
+        ["--reviewer-model", "m", "--reviewer-effort", "x:y"],
+        ["--reviewer-model", "m", "--effort", "x:y"],
+    ],
 )
 def test_bad_reviewer_flags_exit_2(argv: list[str], capsys: pytest.CaptureFixture[str]) -> None:
     assert cli.main(argv) == cli.EXIT_CONFIG
     assert capsys.readouterr().err.startswith("error:")
+
+
+def test_a_colon_in_the_reviewer_model_names_the_field_and_launches_nothing(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(cli, "run_experiment", lambda *a, **k: pytest.fail("launched"))
+
+    code = cli.main(
+        ["--live", "--use-stored-login", "--output-dir", "x", "--reviewer-model", "a:b"]
+    )
+
+    assert code == cli.EXIT_CONFIG
+    assert "reviewer model" in capsys.readouterr().err
 
 
 def test_live_run_with_a_reviewer_records_findings_and_labels_the_reviewer(
@@ -278,102 +302,29 @@ def test_live_run_without_a_reviewer_writes_null_review_findings(
 TASK = "RB-01-bounded-implementation"
 
 
-def _minutes_file(tmp_path: Path, rows: list[dict[str, Any]]) -> Path:
-    path = tmp_path / "minutes.json"
-    path.write_text(json.dumps(rows), encoding="utf-8")
-    return path
+def _row_at(out: Path, control: str) -> dict[str, Any]:
+    return json.loads((out / f"{control}.jsonl").read_text(encoding="utf-8").splitlines()[0])
 
 
-def _rows(*controls: str, minutes: float = 3.0, task: str = TASK) -> list[dict[str, Any]]:
-    return [{"control": c, "task_id": task, "repeat": 0, "minutes": minutes} for c in controls]
-
-
-def test_live_run_with_human_minutes_writes_the_timed_value_and_can_verify(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    _fake_live(monkeypatch, [TASK], stdout=lambda _i: stream_text(text=f"Done.\n{CLEAN_REVIEW}"))
-    out = tmp_path / "out"
-    minutes = _minutes_file(tmp_path, _rows("current", "reduced", minutes=0.0))
-    argv = [
-        "--live",
-        "--use-stored-login",
-        "--output-dir",
-        str(out),
-        "--reviewer-model",
-        "haiku",
-        "--human-minutes",
-        str(minutes),
-    ]
-
-    code = cli.main(argv)
-
-    summary = _out(capsys)
-    for control in ("current", "reduced"):
-        row = json.loads((out / f"{control}.jsonl").read_text(encoding="utf-8").splitlines()[0])
-        assert row["economics"]["human_correction_minutes"] == 0.0
-    report = json.loads((out / "report-current.json").read_text(encoding="utf-8"))
-    # Reviewer findings and human time are both measured, so the run can verify.
-    assert report["status"] != "UNVERIFIED"
-    assert report["durable_signals"]["human_correction_unmeasured"] == 0
-    assert summary["human_minutes_rows"] == 2 and summary["human_minutes_unmatched"] == []
-    assert summary["comparison"] != "UNVERIFIED" and code != cli.EXIT_HARNESS_FAILURE
-
-
-def test_a_cell_with_no_row_stays_null_and_unmatched_rows_are_reported(
+def test_every_run_saves_its_change_as_a_patch_and_the_record_stays_untimed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     _fake_live(monkeypatch, [TASK])
     out = tmp_path / "out"
-    rows = [*_rows("current", minutes=2.5), *_rows("reduced", task="RB-99-absent")]
-    argv = [
-        "--live",
-        "--use-stored-login",
-        "--output-dir",
-        str(out),
-        "--human-minutes",
-        str(_minutes_file(tmp_path, rows)),
-    ]
 
-    code = cli.main(argv)
+    cli.main(["--live", "--use-stored-login", "--output-dir", str(out)])
 
     summary = _out(capsys)
-    current = json.loads((out / "current.jsonl").read_text(encoding="utf-8").splitlines()[0])
-    reduced = json.loads((out / "reduced.jsonl").read_text(encoding="utf-8").splitlines()[0])
-    assert current["economics"]["human_correction_minutes"] == 2.5
-    assert reduced["economics"]["human_correction_minutes"] is None
-    assert summary["human_minutes_unmatched"] == [["reduced", "RB-99-absent", 0]]
-    assert summary["comparison"] == "UNVERIFIED" and code == cli.EXIT_UNVERIFIED_OR_WORSE
+    assert summary["change_patches"] == 2
+    for control in ("current", "reduced"):
+        patch = (out / "changes" / control / f"{TASK}-r0.patch").read_text(encoding="utf-8")
+        assert patch.startswith("--- ") and "+++ b/" in patch
+        # No human was present, so the minutes stay missing until the join step.
+        assert _row_at(out, control)["economics"]["human_correction_minutes"] is None
 
 
-@pytest.mark.parametrize(
-    "content",
-    ["not json", "[]", json.dumps(_rows("nonesuch")), json.dumps([{"control": "current"}])],
-)
-def test_a_bad_human_minutes_file_exits_2_before_any_launch(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-    content: str,
-) -> None:
-    monkeypatch.setattr(cli, "run_experiment", lambda *a, **k: pytest.fail("launched"))
-    path = tmp_path / "minutes.json"
-    path.write_text(content, encoding="utf-8")
-
-    assert cli.main(["--human-minutes", str(path)]) == cli.EXIT_CONFIG
-    assert capsys.readouterr().err.startswith("error:")
-
-
-def test_a_missing_human_minutes_file_exits_2(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    assert cli.main(["--human-minutes", str(tmp_path / "absent.json")]) == cli.EXIT_CONFIG
-    assert "cannot read" in capsys.readouterr().err
-
-
-def test_dry_run_reports_the_human_minutes_row_count(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    minutes = _minutes_file(tmp_path, _rows("current", "reduced"))
-
-    assert cli.main(["--human-minutes", str(minutes)]) == cli.EXIT_OK
-    assert _out(capsys)["human_minutes_rows"] == 2
+def test_the_pre_run_human_minutes_flag_is_gone(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["--human-minutes", "minutes.json"])
+    assert exc.value.code == 2
+    assert "unrecognized arguments" in capsys.readouterr().err

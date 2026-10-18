@@ -228,6 +228,11 @@ class FakeClaudeRunner:
                     if p.is_file() and ".claude-config" not in p.parts
                 ),
                 "model": model,
+                "contents": {
+                    p.relative_to(workspace).as_posix(): p.read_text(encoding="utf-8")
+                    for p in workspace.rglob("*")
+                    if p.is_file() and ".claude-config" not in p.parts
+                },
             }
         )
         events: list[dict[str, object]] = [
