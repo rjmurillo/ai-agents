@@ -9,7 +9,8 @@ image definition tracked in this repository must carry the marker itself.
 
 from __future__ import annotations
 
-import re
+import json
+import shlex
 import subprocess
 from pathlib import Path
 
@@ -26,34 +27,166 @@ DEVCONTAINER_FILE_NAMES = ("devcontainer.json", ".devcontainer.json")
 # these parts, or under `.github/actions/`, is outside the image check.
 NON_IMAGE_PATH_PARTS = ("tests", "test", "fixtures", "testdata")
 NON_IMAGE_PATH_PREFIXES = (".github/actions/",)
-# An actual assignment, not a mention: `ENV NAME=1`, `ENV NAME 1`, `export NAME=1`,
-# `NAME=1`, or the JSON form `"NAME": "1"`. A comment line never matches. The value
-# is captured so the check can require one `_env_truthy()` accepts: `=0` or
-# `=false` declares the marker false and must not satisfy the image check.
-_ASSIGNMENT = re.compile(
-    rf"^\s*(?:(?:ENV|export)\s+)?{MARKER_NAME}(?:\s*=\s*|\s+)(?P<bare>\S+)"
-    rf"|^\s*\"{MARKER_NAME}\"\s*:\s*\"(?P<json>[^\"]+)\""
-)
-_COMMENT_PREFIXES = ("#", "//", "*", "/*")
 
 
-def _sets_marker(text: str) -> bool:
-    """True when the LAST non-comment assignment of the marker is a value ``_env_truthy()`` accepts.
+def _logical_dockerfile_lines(text: str) -> list[str]:
+    """Dockerfile instructions with comment lines dropped and `\\` continuations joined.
 
-    Last wins, as in the hook guard: ``ENV NAME=1`` then ``ENV NAME=0`` leaves 0.
+    Docker removes a comment line even inside a continuation, so comments go
+    first. A `RUN a && \\` continuation therefore stays part of its RUN line and
+    never reads as a standalone `ENV` or assignment.
+    """
+    logical: list[str] = []
+    pending = ""
+    for raw in text.splitlines():
+        if raw.strip().startswith("#"):
+            continue
+        line = raw.rstrip()
+        if line.endswith("\\"):
+            pending += line[:-1] + " "
+            continue
+        logical.append(pending + line)
+        pending = ""
+    if pending:
+        logical.append(pending)
+    return [line.strip() for line in logical if line.strip()]
+
+
+def _env_instruction_pairs(rest: str) -> list[tuple[str, str]]:
+    """(name, value) pairs of an `ENV` instruction body, in order.
+
+    Handles `ENV NAME=1 OTHER=2` and the legacy `ENV NAME 1`. A body that does
+    not tokenize (unbalanced quote) yields no pairs.
+    """
+    try:
+        tokens = shlex.split(rest, posix=True)
+    except ValueError:
+        return []
+    if not tokens:
+        return []
+    if "=" not in tokens[0]:
+        return [(tokens[0], " ".join(tokens[1:]))]
+    return [tuple(token.split("=", 1)) for token in tokens if "=" in token]  # type: ignore[misc]
+
+
+def _dockerfile_effective_value(text: str) -> str | None:
+    """Value the FINAL stage's image config carries for the marker, or None.
+
+    Only `ENV` instructions after the last `FROM` count: an `ENV` in an earlier
+    build stage is not inherited by the final image, and a `RUN` line that
+    names the variable never persists into the image config.
+    """
+    effective: str | None = None
+    for line in _logical_dockerfile_lines(text):
+        keyword, _, rest = line.partition(" ")
+        word = keyword.upper()
+        if word == "FROM":
+            effective = None
+        elif word == "ENV":
+            for name, value in _env_instruction_pairs(rest.strip()):
+                if name == MARKER_NAME:
+                    effective = value
+    return effective
+
+
+def _strip_jsonc(text: str) -> str:
+    """Remove `//` and `/* */` comments and trailing commas outside string literals."""
+    no_comments: list[str] = []
+    i, n = 0, len(text)
+    in_string = False
+    while i < n:
+        ch = text[i]
+        if in_string:
+            no_comments.append(ch)
+            if ch == "\\" and i + 1 < n:
+                no_comments.append(text[i + 1])
+                i += 1
+            elif ch == '"':
+                in_string = False
+        elif ch == '"':
+            in_string = True
+            no_comments.append(ch)
+        elif text.startswith("//", i):
+            while i < n and text[i] != "\n":
+                i += 1
+            continue
+        elif text.startswith("/*", i):
+            close = text.find("*/", i + 2)
+            i = n if close == -1 else close + 1
+        else:
+            no_comments.append(ch)
+        i += 1
+
+    out: list[str] = []
+    last_comma = -1
+    in_string = False
+    j = 0
+    chars = no_comments
+    while j < len(chars):
+        ch = chars[j]
+        if in_string:
+            out.append(ch)
+            if ch == "\\" and j + 1 < len(chars):
+                out.append(chars[j + 1])
+                j += 1
+            elif ch == '"':
+                in_string = False
+        elif ch == '"':
+            in_string = True
+            out.append(ch)
+            last_comma = -1
+        elif ch == ",":
+            last_comma = len(out)
+            out.append(ch)
+        elif ch in "}]":
+            if last_comma != -1:
+                out[last_comma] = ""
+            last_comma = -1
+            out.append(ch)
+        else:
+            if not ch.isspace():
+                last_comma = -1
+            out.append(ch)
+        j += 1
+    return "".join(out)
+
+
+def _devcontainer_effective_value(text: str) -> str | None:
+    """Runtime value from `remoteEnv` (wins) or `containerEnv`, or None.
+
+    `build.args` is build-time only and never reaches a running container, so
+    it is not read. Unparseable JSON yields None: the image is reported as
+    missing the marker rather than guessed at.
+    """
+    try:
+        data = json.loads(_strip_jsonc(text))
+    except ValueError:
+        return None
+    if not isinstance(data, dict):
+        return None
+    for section in ("remoteEnv", "containerEnv"):
+        env = data.get(section)
+        if isinstance(env, dict) and MARKER_NAME in env:
+            value = env[MARKER_NAME]
+            return value if isinstance(value, str) else None
+    return None
+
+
+def _sets_marker(rel: str, text: str) -> bool:
+    """True when the image's runtime environment holds a value ``_env_truthy()`` accepts.
+
+    ``rel`` picks the parser: a devcontainer definition reads `containerEnv` and
+    `remoteEnv`; a Dockerfile or Containerfile reads `ENV` lines in its final
+    stage. Last wins, as in the hook guard: ``ENV NAME=1`` then ``ENV NAME=0``
+    leaves 0.
     """
     from scripts.validation import run_workflow_local_test as rwlt
 
-    effective: str | None = None
-    for line in text.splitlines():
-        stripped = line.strip()
-        if stripped.startswith(_COMMENT_PREFIXES):
-            continue
-        match = _ASSIGNMENT.match(line)
-        if match is None:
-            continue
-        effective = (match.group("bare") or match.group("json") or "").strip("\"'").lower()
-    return effective is not None and effective in rwlt._TRUTHY
+    if Path(rel).name in DEVCONTAINER_FILE_NAMES:
+        effective = _devcontainer_effective_value(text)
+    else:
+        effective = _dockerfile_effective_value(text)
+    return effective is not None and effective.strip().lower() in rwlt._TRUTHY
 
 
 def _is_managed_image_path(rel: str) -> bool:
@@ -80,7 +213,7 @@ def _images_missing_marker(root: Path, tracked: list[str]) -> list[str]:
         if not _is_managed_image_path(rel):
             continue
         text = (root / rel).read_text(encoding="utf-8", errors="replace")
-        if not _sets_marker(text):
+        if not _sets_marker(rel, text):
             missing.append(rel)
     return missing
 
@@ -155,28 +288,170 @@ def test_image_check_ignores_non_image_files_and_fixtures(tmp_path: Path) -> Non
     [
         ("ENV AI_AGENTS_REMOTE_CONTAINER=1\n", True),
         ("ENV AI_AGENTS_REMOTE_CONTAINER 1\n", True),
-        ("export AI_AGENTS_REMOTE_CONTAINER=1\n", True),
-        ('{"containerEnv": {\n  "AI_AGENTS_REMOTE_CONTAINER": "1"\n}}\n', True),
-        ("# sets AI_AGENTS_REMOTE_CONTAINER=1 someday\n", False),
-        ("// AI_AGENTS_REMOTE_CONTAINER=1\n", False),
-        ("RUN echo AI_AGENTS_REMOTE_CONTAINER\n", False),
-        ("ENV AI_AGENTS_REMOTE_CONTAINER=\n", False),
+        ("env AI_AGENTS_REMOTE_CONTAINER=1\n", True),
         ("ENV AI_AGENTS_REMOTE_CONTAINER=true\n", True),
         ('ENV AI_AGENTS_REMOTE_CONTAINER="1"\n', True),
         ("ENV AI_AGENTS_REMOTE_CONTAINER=TRUE\n", True),
+        ("ENV FOO=a AI_AGENTS_REMOTE_CONTAINER=1\n", True),
+        ("ENV FOO=a \\\n    AI_AGENTS_REMOTE_CONTAINER=1\n", True),
+        ("ENV AI_AGENTS_REMOTE_CONTAINER=0\nENV AI_AGENTS_REMOTE_CONTAINER=1\n", True),
+        ("ENV AI_AGENTS_REMOTE_CONTAINER=1\n# ENV AI_AGENTS_REMOTE_CONTAINER=0\n", True),
+        ("# sets AI_AGENTS_REMOTE_CONTAINER=1 someday\n", False),
+        ("RUN echo AI_AGENTS_REMOTE_CONTAINER\n", False),
+        ("ENV AI_AGENTS_REMOTE_CONTAINER=\n", False),
         ("ENV AI_AGENTS_REMOTE_CONTAINER=0\n", False),
         ("ENV AI_AGENTS_REMOTE_CONTAINER=false\n", False),
         ("ENV AI_AGENTS_REMOTE_CONTAINER 0\n", False),
-        ("export AI_AGENTS_REMOTE_CONTAINER=0\n", False),
-        ('{"containerEnv": {\n  "AI_AGENTS_REMOTE_CONTAINER": "0"\n}}\n', False),
-        ("ENV AI_AGENTS_REMOTE_CONTAINER=0\nENV AI_AGENTS_REMOTE_CONTAINER=1\n", True),
         ("ENV AI_AGENTS_REMOTE_CONTAINER=1\nENV AI_AGENTS_REMOTE_CONTAINER=0\n", False),
-        ("ENV AI_AGENTS_REMOTE_CONTAINER=1\n# AI_AGENTS_REMOTE_CONTAINER=0\n", True),
+        ("ENV AI_AGENTS_REMOTE_CONTAINER_OTHER=1\n", False),
+        ("ENV AI_AGENTS_REMOTE_CONTAINER='unterminated\n", False),
+        ("export AI_AGENTS_REMOTE_CONTAINER=1\n", False),
+        ("ARG AI_AGENTS_REMOTE_CONTAINER=1\n", False),
         ("", False),
     ],
 )
-def test_sets_marker_requires_a_truthy_assignment_not_a_mention(text: str, expected: bool) -> None:
-    assert _sets_marker(text) is expected
+def test_dockerfile_marker_requires_a_truthy_env_instruction(text: str, expected: bool) -> None:
+    assert _sets_marker("Dockerfile", text) is expected
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        # Set only in a builder stage: the final image does not inherit it.
+        (
+            "FROM base AS build\nENV AI_AGENTS_REMOTE_CONTAINER=1\nFROM base\nRUN true\n",
+            False,
+        ),
+        # Set in the final stage: counts.
+        (
+            "FROM base AS build\nFROM base\nENV AI_AGENTS_REMOTE_CONTAINER=1\n",
+            True,
+        ),
+        # Set in the builder stage and again in the final stage: counts.
+        (
+            "FROM a AS b\nENV AI_AGENTS_REMOTE_CONTAINER=1\nFROM a\n"
+            "ENV AI_AGENTS_REMOTE_CONTAINER=true\n",
+            True,
+        ),
+        # Final stage resets it: last wins.
+        (
+            "FROM a\nENV AI_AGENTS_REMOTE_CONTAINER=1\nENV AI_AGENTS_REMOTE_CONTAINER=0\n",
+            False,
+        ),
+        # FROM keyword is case-insensitive.
+        ("from a as b\nENV AI_AGENTS_REMOTE_CONTAINER=1\nfrom a\n", False),
+    ],
+    ids=["builder-only", "final-stage", "both-stages", "final-resets", "lowercase-from"],
+)
+def test_dockerfile_marker_counts_only_the_final_stage(text: str, expected: bool) -> None:
+    assert _sets_marker("Dockerfile", text) is expected
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        # A RUN continuation line that starts with the assignment is part of RUN.
+        ("FROM a\nRUN apt-get update && \\\n    AI_AGENTS_REMOTE_CONTAINER=1 make\n", False),
+        ("FROM a\nRUN true && \\\nAI_AGENTS_REMOTE_CONTAINER=1 ./run\n", False),
+        # A RUN line whose command is an ENV-looking continuation is still RUN.
+        ("FROM a\nRUN export AI_AGENTS_REMOTE_CONTAINER=1\n", False),
+        # An ENV continued over lines is one ENV instruction.
+        ("FROM a\nENV FOO=bar \\\n    AI_AGENTS_REMOTE_CONTAINER=1\n", True),
+        # A comment inside a continuation does not break the join.
+        ("FROM a\nENV FOO=bar \\\n# note\n    AI_AGENTS_REMOTE_CONTAINER=1\n", True),
+        # A trailing backslash on the last line does not crash.
+        ("FROM a\nENV FOO=bar \\\n", False),
+    ],
+    ids=[
+        "run-continuation",
+        "run-continuation-flush-left",
+        "run-export",
+        "env-continuation",
+        "env-continuation-with-comment",
+        "dangling-continuation",
+    ],
+)
+def test_dockerfile_marker_ignores_run_lines_and_joins_continuations(
+    text: str, expected: bool
+) -> None:
+    assert _sets_marker("Dockerfile", text) is expected
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ('{"containerEnv": {"AI_AGENTS_REMOTE_CONTAINER": "1"}}', True),
+        ('{"containerEnv": {"AI_AGENTS_REMOTE_CONTAINER": "true"}}', True),
+        ('{"remoteEnv": {"AI_AGENTS_REMOTE_CONTAINER": "1"}}', True),
+        ('{"containerEnv": {"AI_AGENTS_REMOTE_CONTAINER": "0"}}', False),
+        ('{"containerEnv": {"AI_AGENTS_REMOTE_CONTAINER": ""}}', False),
+        # remoteEnv overrides containerEnv.
+        (
+            '{"containerEnv": {"AI_AGENTS_REMOTE_CONTAINER": "1"},'
+            ' "remoteEnv": {"AI_AGENTS_REMOTE_CONTAINER": "0"}}',
+            False,
+        ),
+        (
+            '{"containerEnv": {"AI_AGENTS_REMOTE_CONTAINER": "0"},'
+            ' "remoteEnv": {"AI_AGENTS_REMOTE_CONTAINER": "1"}}',
+            True,
+        ),
+        # Build args are build time only, never runtime env.
+        ('{"build": {"args": {"AI_AGENTS_REMOTE_CONTAINER": "1"}}}', False),
+        (
+            '{"build": {"args": {"AI_AGENTS_REMOTE_CONTAINER": "1"}},'
+            ' "containerEnv": {"AI_AGENTS_REMOTE_CONTAINER": "0"}}',
+            False,
+        ),
+        # Other places the name can appear.
+        ('{"name": "AI_AGENTS_REMOTE_CONTAINER=1"}', False),
+        ('{"features": {"AI_AGENTS_REMOTE_CONTAINER": "1"}}', False),
+        ('{"containerEnv": {"AI_AGENTS_REMOTE_CONTAINER_OTHER": "1"}}', False),
+        # JSON null and non-string values are not a truthy string.
+        ('{"remoteEnv": {"AI_AGENTS_REMOTE_CONTAINER": null}}', False),
+        ('{"containerEnv": {"AI_AGENTS_REMOTE_CONTAINER": 1}}', False),
+        # JSONC: comments and trailing commas are valid in devcontainer.json.
+        (
+            '{\n  // managed image marker\n  "containerEnv": {\n'
+            '    /* ADR-104 rule 8 */\n    "AI_AGENTS_REMOTE_CONTAINER": "1",\n  },\n}\n',
+            True,
+        ),
+        ('{"containerEnv": {"URL": "http://x//y,", "AI_AGENTS_REMOTE_CONTAINER": "1"}}', True),
+        # A commented-out entry does not count.
+        ('{"containerEnv": {\n  // "AI_AGENTS_REMOTE_CONTAINER": "1"\n}}', False),
+        # Malformed or non-object JSON is reported as missing, not guessed at.
+        ("{not json", False),
+        ("[]", False),
+        ("", False),
+        ("{}", False),
+    ],
+    ids=[
+        "container-env-1",
+        "container-env-true",
+        "remote-env-1",
+        "container-env-0",
+        "container-env-empty",
+        "remote-overrides-container-to-0",
+        "remote-overrides-container-to-1",
+        "build-args-only",
+        "build-args-and-container-0",
+        "name-in-other-field",
+        "name-in-features",
+        "prefix-name",
+        "null-value",
+        "int-value",
+        "jsonc-comments-trailing-commas",
+        "string-with-slashes-and-comma",
+        "commented-out-entry",
+        "malformed",
+        "non-object",
+        "empty",
+        "empty-object",
+    ],
+)
+def test_devcontainer_marker_reads_only_runtime_env(text: str, expected: bool) -> None:
+    assert _sets_marker(".devcontainer/devcontainer.json", text) is expected
+    assert _sets_marker(".devcontainer.json", text) is expected
 
 
 def test_every_tracked_managed_image_sets_the_marker() -> None:

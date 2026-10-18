@@ -167,6 +167,51 @@ def test_later_unset_or_redeclare_after_marker_is_overridden(tmp_path: Path, tra
 
 
 @requires_bash
+@pytest.mark.parametrize(
+    "readonly_line",
+    [
+        "readonly AI_AGENTS_REMOTE_CONTAINER=0",
+        "declare -r AI_AGENTS_REMOTE_CONTAINER=0",
+    ],
+    ids=["readonly", "declare-r"],
+)
+def test_readonly_zero_is_an_accepted_limit_the_append_cannot_override(
+    tmp_path: Path, readonly_line: str
+) -> None:
+    """Accepted limit: a read-only `=0` survives, so the marker stays 0.
+
+    The hook still exits 0 and still appends the export line, but sourcing the
+    appended line fails with "readonly variable". This test pins the behavior
+    the hook comment documents; it does not claim the marker is set.
+    """
+    repo = _materialize_fake_repo(tmp_path, "readonly-zero")
+    env_file = tmp_path / "env.sh"
+    env_file.write_text(f"{readonly_line}\n", encoding="utf-8")
+
+    proc = _run_session_start(repo, env_file)
+
+    assert proc.returncode == 0, proc.stderr
+    assert MARKER_LINE in env_file.read_text(encoding="utf-8").splitlines()
+    sourced = subprocess.run(
+        [
+            "bash",
+            "-c",
+            'source "$1"; printf %s "${AI_AGENTS_REMOTE_CONTAINER:-}"',
+            "bash",
+            str(env_file),
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=10,
+        check=False,
+    )
+    assert sourced.stdout == "0"
+    assert "readonly variable" in sourced.stderr
+
+
+@requires_bash
 def test_unrelated_unset_after_marker_does_not_reappend(tmp_path: Path) -> None:
     """An `unset` of another variable, a name that shares the prefix, or a comment is ignored."""
     repo = _materialize_fake_repo(tmp_path, "unrelated-unset")

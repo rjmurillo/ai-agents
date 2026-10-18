@@ -31,6 +31,9 @@ fi
 # when it is not the exact export line (absent, a later `=0`, a later `unset`,
 # or a multi-name statement), a new line is appended, because the last
 # statement is the one sourcing leaves in effect.
+# Accepted limit: a `readonly` or `declare -r` line makes the variable
+# read-only, so the appended export fails when sourced ("readonly variable")
+# and the earlier value stays. The append is still attempted; it cannot win.
 if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
   # End the file's last line first. Another SessionStart hook can leave it
   # without a trailing LF, and an append would then fuse onto that line:
@@ -45,7 +48,8 @@ if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
   # or an `unset`, `export -n`, `declare`, `typeset`, or `readonly` line, even
   # when other names share the statement. Any such line can change the value
   # sourcing leaves in effect, so only the exact export line as the LAST match
-  # skips the append. A name that merely shares the prefix is not a match.
+  # skips the append. Read-only lines are matched but cannot be overridden
+  # (see the accepted limit above). A name that merely shares the prefix is not a match.
   last_marker="$(grep -v '^[[:space:]]*#' "$CLAUDE_ENV_FILE" 2>/dev/null |
     grep -E '(^|[^[:alnum:]_])AI_AGENTS_REMOTE_CONTAINER([^[:alnum:]_]|$)' | tail -n 1 || true)"
   if [ "$last_marker" != 'export AI_AGENTS_REMOTE_CONTAINER=1' ]; then
