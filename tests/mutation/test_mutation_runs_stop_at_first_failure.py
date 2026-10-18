@@ -6,20 +6,19 @@ debate-log harness ran 943 lefthook and session-log tests per dead mutant. The
 SURVIVED control still runs the whole suite because ``-x`` only acts on a
 failure.
 
-Two checks:
+Two checks, both against the harness and neither launching a nested pytest:
 
 * the command the harness builds contains ``-x`` (a captured ``subprocess.run``,
   so no worktree is created and nothing nested runs);
-* a real nested pytest with ``-x`` still gives the exit codes the harness grades
-  on: a failing suite exits 1 (DEAD), a passing suite exits 0 (SURVIVED), and an
-  empty suite exits 5 (never read as a kill, the harness asserts it is not 4 and
-  that "no tests ran" is absent).
+* the harness still grades the exit codes ``-x`` leaves it: a fake nested run
+  that fails (exit 1) is DEAD, one that passes (exit 0) is SURVIVED and
+  refused, and an empty suite (exit 5, "no tests ran") or a missing path
+  (exit 4) is refused rather than read as a kill.
 """
 
 from __future__ import annotations
 
 import subprocess
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -49,62 +48,50 @@ def test_harness_nested_pytest_command_has_x(
         assert test_path in cmd, f"{test_path} dropped from the nested run: {cmd}"
 
 
-def _nested_pytest(suite_dir: Path) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "pytest",
-            "-x",
-            "-q",
-            "--tb=no",
-            "-p",
-            "no:cacheprovider",
-            "-o",
-            "addopts=",
-            "--rootdir",
-            str(suite_dir),
-        ],
-        cwd=suite_dir,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
+def _fake_result(returncode: int, stdout: str = "") -> subprocess.CompletedProcess[str]:
+    return subprocess.CompletedProcess(
+        args=["pytest"], returncode=returncode, stdout=stdout, stderr=""
     )
 
 
-def test_failing_suite_stops_at_first_failure_and_exits_1(tmp_path: Path) -> None:
-    (tmp_path / "test_many_failures.py").write_text(
-        "def test_a():\n    assert False\n"
-        "def test_b():\n    assert False\n"
-        "def test_c():\n    assert False\n",
-        encoding="utf-8",
-    )
+def _grade(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, result: subprocess.CompletedProcess[str]
+) -> str:
+    """Run _apply_positive_mutant against a canned nested-pytest result."""
+    original = b"before\n"
+    target = tmp_path / debate_log_path._TARGET_REL
+    target.parent.mkdir(parents=True)
+    target.write_bytes(original)
+    monkeypatch.setattr(debate_log_path, "_run_tests_in", lambda _wt_path: result)
 
-    result = _nested_pytest(tmp_path)
+    outcome = debate_log_path._apply_positive_mutant(tmp_path, original, b"before", b"after", "x")
 
-    assert result.returncode == 1, result.stdout + result.stderr
-    assert "1 failed" in result.stdout, result.stdout
-    assert "3 failed" not in result.stdout, "-x did not stop the run"
-
-
-def test_passing_suite_still_runs_everything_and_exits_0(tmp_path: Path) -> None:
-    (tmp_path / "test_all_pass.py").write_text(
-        "def test_a():\n    assert True\n"
-        "def test_b():\n    assert True\n"
-        "def test_c():\n    assert True\n",
-        encoding="utf-8",
-    )
-
-    result = _nested_pytest(tmp_path)
-
-    assert result.returncode == 0, result.stdout + result.stderr
-    assert "3 passed" in result.stdout, result.stdout
+    assert target.read_bytes() == original
+    return outcome
 
 
-def test_empty_suite_exits_5_with_no_tests_ran(tmp_path: Path) -> None:
-    result = _nested_pytest(tmp_path)
+def test_failing_nested_run_is_graded_dead(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    outcome = _grade(tmp_path, monkeypatch, _fake_result(1, "1 failed in 0.1s"))
 
-    assert result.returncode == 5, result.stdout + result.stderr
-    assert "no tests ran" in result.stdout.lower()
+    assert outcome == debate_log_path._OUTCOME_DEAD
+
+
+def test_passing_nested_run_is_refused_as_survived(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    with pytest.raises(AssertionError, match="MUTANT SURVIVED"):
+        _grade(tmp_path, monkeypatch, _fake_result(0, "3 passed in 0.1s"))
+
+
+def test_empty_nested_run_is_refused_not_graded_dead(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    with pytest.raises(AssertionError, match="no tests were collected"):
+        _grade(tmp_path, monkeypatch, _fake_result(5, "no tests ran in 0.01s"))
+
+
+def test_missing_path_nested_run_is_refused_not_graded_dead(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    with pytest.raises(AssertionError, match="exited 4"):
+        _grade(tmp_path, monkeypatch, _fake_result(4, "ERROR: file or directory not found"))
