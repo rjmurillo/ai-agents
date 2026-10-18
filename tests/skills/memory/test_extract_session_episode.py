@@ -3500,6 +3500,28 @@ class TestPreserveDropsDanglingCommitEvents:
         assert f"Commit: {shas['dangling']}" not in self._contents(merged)
         assert merged["metrics"]["commits"] == 2
 
+    def test_measured_zero_files_overrides_stale_preserved_count(self, shas):
+        # CLI measured zero files this run; the preserved count of 5 is stale.
+        # The guard must use the measured value so the dangling commit drops.
+        merged = extract_session_episode.merge_preserving(
+            self._fresh(),
+            self._all_dangling(shas, 5),
+            session_id=self.SESSION,
+            measured_files_changed=0,
+        )
+        assert merged["events"] == []
+        assert merged["metrics"]["commits"] == 0
+        assert merged["metrics"]["files_changed"] == 0
+
+    def test_measured_positive_files_still_refuses_the_drop(self, shas):
+        merged = extract_session_episode.merge_preserving(
+            self._fresh(),
+            self._all_dangling(shas, 0),
+            session_id=self.SESSION,
+            measured_files_changed=2,
+        )
+        assert merged["metrics"]["commits"] == 1
+
     def test_cli_preserve_drops_event_and_keeps_chain_connected(self, shas, tmp_path):
         out = tmp_path / "episodes"
         out.mkdir()

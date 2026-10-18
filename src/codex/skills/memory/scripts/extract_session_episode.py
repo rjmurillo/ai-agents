@@ -1589,7 +1589,13 @@ def _merge_metrics(new: dict, existing: dict) -> dict:
     return out
 
 
-def merge_preserving(new: dict, existing: dict, *, session_id: str = "") -> dict:
+def merge_preserving(
+    new: dict,
+    existing: dict,
+    *,
+    session_id: str = "",
+    measured_files_changed: int | None = None,
+) -> dict:
     """Merge a freshly extracted episode over an existing one without data loss.
 
     Read-modify-write semantics for regeneration: fresh extraction is the base,
@@ -1603,7 +1609,9 @@ def merge_preserving(new: dict, existing: dict, *, session_id: str = "") -> dict
     whose SHA resolves locally but is reachable from no ref are dropped, and
     ``metrics.commits`` is recomputed from the surviving events (issue #5213),
     unless the drop would leave zero commits beside positive ``files_changed``.
-    Applying twice is a no-op.
+    A caller-measured ``measured_files_changed`` (even zero) replaces the merged
+    file count before that guard, so a stale preserved count cannot keep
+    dangling commits alive. Applying twice is a no-op.
     """
     existing = _as_dict(existing)
     date = _deterministic_date(session_id, new.get("timestamp"), existing.get("timestamp"))
@@ -1630,6 +1638,8 @@ def merge_preserving(new: dict, existing: dict, *, session_id: str = "") -> dict
     merged["metrics"] = _merge_metrics(
         _as_dict(new.get("metrics")), _as_dict(existing.get("metrics"))
     )
+    if measured_files_changed is not None:
+        merged["metrics"]["files_changed"] = measured_files_changed
     merged["events"] = _drop_dangling_commit_events(
         merged["events"], files_changed=_files_changed(merged["metrics"])
     )
@@ -2891,9 +2901,12 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 return 1
             prior_edges = _total_causal_edges(existing_raw.get("events"))
-            episode = merge_preserving(episode, existing_raw, session_id=session_id)
-            if measured_files_changed is not None:
-                episode["metrics"]["files_changed"] = measured_files_changed
+            episode = merge_preserving(
+                episode,
+                existing_raw,
+                session_id=session_id,
+                measured_files_changed=measured_files_changed,
+            )
             decisions = episode["decisions"]
             events = episode["events"]
             lessons = episode["lessons"]
