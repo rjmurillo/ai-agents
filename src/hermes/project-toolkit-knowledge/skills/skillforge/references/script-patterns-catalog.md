@@ -540,50 +540,50 @@ print(
 
 ---
 
-### Pattern 9: Self-Verification
+### Pattern 9: Fast-Fail Output Check
 
-Scripts that verify their own outputs.
+Scripts that check their own output shape and stop early on a bad result. This guard is not verification authority. A separate, independent postcondition check runs after the script where the outcome can be checked independently.
 
 ```python
-def execute_with_verification(input_data, verify_func):
+def execute_with_check(input_data, check_func):
     """
-    Execute an operation and verify the result.
+    Execute an operation and fail fast on a bad result.
 
     Args:
         input_data: Input to process
-        verify_func: Function that returns (is_valid, reason)
+        check_func: Function that returns (is_valid, reason)
 
     Returns:
-        Result with success based on verification
+        Result whose success reports executor success only
     """
     try:
         # Execute
         output = process(input_data)
 
-        # Verify
-        is_valid, reason = verify_func(output)
+        # Fast-fail check
+        is_valid, reason = check_func(output)
 
         if not is_valid:
             return Result(
                 success=False,
-                message=f"Verification failed: {reason}",
-                data={"output": output, "verification": reason},
+                message=f"Fast-fail check failed: {reason}",
+                data={"output": output, "check": reason},
                 errors=[reason],
             )
 
         return Result(
             success=True,
-            message="Operation completed and verified",
-            data={"output": output, "verified": True},
+            message="Operation completed",
+            data={"output": output, "fast_fail_passed": True},
         )
 
     except Exception as e:
         return Result(success=False, message=f"Execution failed: {e}", errors=[str(e)])
 
 
-# Example verification functions
-def verify_json_output(output):
-    """Verify output is valid JSON."""
+# Example check functions
+def check_json_output(output):
+    """Check output is valid JSON."""
     try:
         json.loads(output)
         return True, "Valid JSON"
@@ -591,21 +591,21 @@ def verify_json_output(output):
         return False, f"Invalid JSON: {e}"
 
 
-def verify_file_exists(path):
-    """Verify file was created."""
+def check_file_exists(path):
+    """Check file was created."""
     if Path(path).exists():
         return True, f"File exists: {path}"
     return False, f"File not created: {path}"
 
 
-def verify_non_empty(output):
-    """Verify output is non-empty."""
+def check_non_empty(output):
+    """Check output is non-empty."""
     if output and len(str(output).strip()) > 0:
         return True, "Output is non-empty"
     return False, "Output is empty"
 ```
 
-**When to Use:** Any script that produces output that can be verified.
+**When to Use:** Any script that produces output whose shape a program can check. Pair it with an independent postcondition check; exit 0 reports executor success only.
 
 ---
 
@@ -822,7 +822,7 @@ if __name__ == "__main__":
 | Graceful fallback | Optional dependencies | try/except ImportError |
 | Exit codes | Script chaining | `sys`, `enum` |
 | Progress bars | Visual feedback | (stdlib only) |
-| Self-verification | Autonomous operation | (pattern, not import) |
+| Fast-fail check | Early stop on a bad result | (pattern, not import) |
 
 ---
 

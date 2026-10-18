@@ -11,7 +11,7 @@
 | **Design/Architecture** | Structure, patterns, correctness | Pattern appropriate, phases logical, no circular deps | Always |
 | **Audience/Usability** | Clarity, discoverability, completeness | Triggers natural, steps unambiguous, no assumed knowledge | Always |
 | **Evolution/Timelessness** | Future-proofing, extension, ecosystem | Score ≥7, extension points clear, ecosystem fit | Always |
-| **Script/Automation** | Agentic capability, verification, quality | Scripts follow patterns, fail fast, have an independent postcondition check, documented | When scripts present |
+| **Script/Automation** | Agentic capability, verification, quality | Scripts follow patterns, fail fast, have an independent postcondition check where the outcome can be checked independently, documented | When scripts present |
 
 ## Script Agent (Conditional)
 
@@ -20,7 +20,7 @@ The Script Agent is activated when the skill includes a `scripts/` directory. Fo
 | Criterion | Checks |
 |-----------|--------|
 | **Pattern Compliance** | Result dataclass, argparse, exit codes |
-| **Fast-Fail and Independent Check** | Scripts fail fast on a bad result, and a separate check confirms the postcondition |
+| **Fast-Fail and Independent Check** | Scripts fail fast on a bad result, and a separate check confirms the postcondition where it can be checked independently |
 | **Error Handling** | Graceful failures, actionable messages |
 | **Documentation** | Usage examples in SKILL.md |
 | **Agentic Capability** | Scripts complete cleanly without interactive prompts during scoped, user-approved invocations |

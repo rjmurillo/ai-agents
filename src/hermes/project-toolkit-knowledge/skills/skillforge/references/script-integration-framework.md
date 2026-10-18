@@ -18,7 +18,7 @@ Scripts transform skills from documentation-only guides into executable, verifia
 | Error-prone | Deterministic |
 | Hard to compose | Easily orchestrated |
 
-**Principle:** A skill with well-designed scripts can run autonomously, hand its outcome to an independent check, and recover from errors without human intervention.
+**Principle:** A skill with well-designed scripts can run unattended for scoped, user-approved operations, hand its outcome to an independent check, and recover from errors.
 
 ---
 
@@ -39,7 +39,7 @@ Does this operation require...?
 │   └── YES → Script required (JSON/YAML state files)
 │
 ├─► Autonomous verification (outcome must be checked without the agent's opinion)?
-│   └── YES → Script required (executor script plus an independent postcondition check)
+│   └── YES → Script or existing instrument required (executor script plus an independent postcondition check)
 │
 ├─► Complex calculations or transformations?
 │   └── YES → Script recommended
@@ -469,7 +469,7 @@ Every script must be documented in SKILL.md:
 Before finalizing a skill with scripts, verify:
 
 - [ ] **Autonomous Execution:** Can the skill run without user intervention?
-- [ ] **Fast-Fail and Independent Check:** Do scripts fail fast, and does a separate postcondition check confirm the outcome?
+- [ ] **Fast-Fail and Independent Check:** Do scripts fail fast, and, where the outcome can be checked independently, does a separate postcondition check confirm it?
 - [ ] **Error Recovery:** Do scripts attempt recovery before failing?
 - [ ] **State Persistence:** Is progress saved across sessions?
 - [ ] **Structured Output:** Do scripts output machine-readable data?

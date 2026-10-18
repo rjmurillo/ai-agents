@@ -100,12 +100,14 @@ sibling routes. Put conditional detail in `references/`.
 
 **Every computable claim ships with a script.** For each `instrument` or
 `both` item, the skill gets a script in its scripts directory that computes the
-answer, plus tests with a positive, a negative, and an edge case. Reuse an
-existing instrument first, and add a script only after you verify the
-capability gap; link a reused script instead of copying it. Prose covers what
-no program can carry: the reason, the history, and where the script's answer stops being the whole answer. Reject
-a draft that asks the model to count, look up, compare, or list what a
-script could. Scripts follow the project's language and exit-code
+answer. A new script also gets tests with a positive, a negative, and an edge
+case. Reuse an existing instrument first, and add a script only after you
+verify the capability gap. A linked, existing instrument satisfies the script
+requirement; link it instead of copying it. The tests requirement applies only
+to a script you add. Prose covers what no program can carry: the reason, the
+history, and where the script's answer stops being the whole answer. Reject a
+draft that asks the model to count, look up, compare, or list what a script
+could. Scripts follow the project's language and exit-code
 conventions, print the examined count, and stay read-only unless the skill's
 outcome is a write.
 

@@ -261,7 +261,7 @@ After creation:
 - [ ] `python scripts/check_docs_safety.py` passes
 - [ ] No bare `.claude/skills/...` exec path in the generated `SKILL.md`; script invocations use the portable `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/...` form (see `docs/SKILL-AUTHORING.md`, "Portable Script Invocations")
 - [ ] Reference links resolve
-- [ ] Scripts fail fast, and a separate check confirms the outcome when scripts are present
+- [ ] Scripts fail fast, and a separate check confirms the outcome where it can be checked independently, when scripts are present
 - [ ] Every claim in the body is something the model could not already know. Generic engineering knowledge moved to `references/` or deleted
 - [ ] Body earns its length: if the description alone would produce the same behavior, cut the body down to what it adds
 

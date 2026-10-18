@@ -32,7 +32,7 @@ The specification captures all analysis insights in XML format:
   <scripts>
     <decision_summary>needs_scripts + rationale</decision_summary>
     <script_inventory>name, category, purpose, patterns</script_inventory>
-    <agentic_capabilities>autonomous, self-verify, recovery</agentic_capabilities>
+    <agentic_capabilities>unattended, fast-fail, independent-check, recovery</agentic_capabilities>
   </scripts>
 
   <evolution_analysis>

@@ -3,6 +3,12 @@
 Issue #6657: skill authoring needs one decision rule for when judgment stays
 with the model and when work moves into programs. The rule lives in the
 existing script-integration-framework reference, not in a new skill.
+
+Scope: these tests check that the guidance, its examples, and its generated
+mirrors exist and agree. They match phrases in the reference text, so they show
+the examples are present, not that an agent routes a request to the right
+design. Behavioral routing is not tested here; a rewording that keeps the
+meaning needs a matching test edit.
 """
 
 from __future__ import annotations
@@ -33,6 +39,13 @@ _MIRRORED = (
     ("skillforge", "references/degrees-of-freedom.md"),
     ("skillforge", "references/regression-questions.md"),
     ("skillforge", "references/phase4-synthesis-deep-dive.md"),
+    ("skillforge", "references/phase1-analysis-deep-dive.md"),
+    ("skillforge", "references/phase2-specification-deep-dive.md"),
+    ("skillforge", "references/phase3-generation-deep-dive.md"),
+    ("skillforge", "references/script-patterns-catalog.md"),
+    ("skillforge", "references/output-structure.md"),
+    ("skillforge", "references/overview-and-triggers.md"),
+    ("skillforge", "assets/templates/script-template.py"),
     ("skill-bootstrap", "references/authoring-and-gates.md"),
 )
 
@@ -170,6 +183,55 @@ def test_self_verification_doctrine_is_retired_from_unchanged_sections() -> None
 _SKILLFORGE_REFS = _REPO / ".claude" / "skills" / "skillforge" / "references"
 _INSTRUMENT = "get_unresolved_review_threads.py"
 _SKILLFORGE_SKILL = _REPO / ".claude" / "skills" / "skillforge" / "SKILL.md"
+_SKILLFORGE_TEMPLATE_SCRIPT = (
+    _REPO / ".claude" / "skills" / "skillforge" / "assets" / "templates" / "script-template.py"
+)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        _REF,
+        _SKILLFORGE_REFS / "regression-questions.md",
+        _SKILLFORGE_REFS / "phase4-synthesis-deep-dive.md",
+        _SKILLFORGE_TMPL,
+        _SKILLFORGE_SKILL,
+        _SKILLFORGE_REFS / "phase1-analysis-deep-dive.md",
+        _SKILLFORGE_REFS / "phase2-specification-deep-dive.md",
+        _SKILLFORGE_REFS / "phase3-generation-deep-dive.md",
+        _SKILLFORGE_REFS / "script-patterns-catalog.md",
+        _SKILLFORGE_REFS / "output-structure.md",
+        _SKILLFORGE_REFS / "overview-and-triggers.md",
+        _SKILLFORGE_TEMPLATE_SCRIPT,
+    ],
+    ids=lambda p: p.name,
+)
+def test_gates_and_checklists_do_not_score_self_verification(path: Path) -> None:
+    """Gates and checklists must not reward self-checking."""
+    text = path.read_text(encoding="utf-8")
+    assert not re.search(r"self[- ]?verif", text, re.I), path.name
+
+
+def test_generation_path_teaches_fast_fail_plus_independent_check() -> None:
+    phase3 = (_SKILLFORGE_REFS / "phase3-generation-deep-dive.md").read_text(encoding="utf-8")
+    assert "Add a fast-fail check, and plan an independent postcondition check" in phase3
+    phase1 = (_SKILLFORGE_REFS / "phase1-analysis-deep-dive.md").read_text(encoding="utf-8")
+    assert "Can a program check the outcome independently of the executor?" in phase1
+    catalog = (_SKILLFORGE_REFS / "script-patterns-catalog.md").read_text(encoding="utf-8")
+    assert "### Pattern 9: Fast-Fail Output Check" in catalog
+    assert "Operation completed and verified" not in catalog
+    assert '"verified": True' not in catalog
+
+
+def test_script_template_check_is_a_fast_fail_guard() -> None:
+    text = _SKILLFORGE_TEMPLATE_SCRIPT.read_text(encoding="utf-8")
+    assert "def fast_fail_check(" in text
+    assert "def verify_result(" not in text
+    assert "This is not verification authority." in text
+    assert "--no-fast-fail" in text
+
+
+_CONDITIONAL = "where the outcome can be checked independently"
 
 
 @pytest.mark.parametrize(
@@ -183,10 +245,31 @@ _SKILLFORGE_SKILL = _REPO / ".claude" / "skills" / "skillforge" / "SKILL.md"
     ],
     ids=lambda p: p.name,
 )
-def test_gates_and_checklists_do_not_score_self_verification(path: Path) -> None:
-    """Gates and checklists must not reward self-checking."""
-    text = path.read_text(encoding="utf-8")
-    assert not re.search(r"self[- ]?verif", text, re.I), path.name
+def test_independent_check_is_required_only_where_it_can_be_checked(path: Path) -> None:
+    """The checklist items must carry the same condition as the Executor Success section."""
+    text = " ".join(path.read_text(encoding="utf-8").split())
+    assert _CONDITIONAL in text or "where it can be checked independently" in text, path.name
+
+
+def test_framework_checklist_item_is_conditional() -> None:
+    text = _REF.read_text(encoding="utf-8")
+    marker = "**Fast-Fail and Independent Check:**"
+    item = next((ln for ln in text.splitlines() if marker in ln), "")
+    assert _CONDITIONAL in item
+
+
+def test_framework_principle_does_not_claim_autonomy_without_oversight() -> None:
+    """The semgrep skill-excessive-autonomy rule flagged the old wording on this line."""
+    text = _REF.read_text(encoding="utf-8")
+    principle = next((ln for ln in text.splitlines() if ln.startswith("**Principle:**")), "")
+    assert "without human intervention" not in principle
+    assert "run unattended for scoped, user-approved operations" in principle
+
+
+def test_framework_decision_tree_admits_an_existing_instrument() -> None:
+    text = _REF.read_text(encoding="utf-8")
+    assert "Script or existing instrument required (executor script plus" in text
+    assert "→ Script required (executor script" not in text
 
 
 def test_regression_gate_and_synthesis_rubric_name_the_independent_check() -> None:
@@ -232,6 +315,25 @@ def test_bootstrap_brief_requires_reuse_before_script() -> None:
     assert "Reuse an existing instrument first" in text
     assert "verify the capability gap" in text
     assert "only where it changes the workflow" in text
+
+
+def test_bootstrap_linked_instrument_satisfies_script_requirement() -> None:
+    text = " ".join(_BOOTSTRAP_REF.read_text(encoding="utf-8").split())
+    assert "A linked, existing instrument satisfies the script requirement" in text
+    assert "The tests requirement applies only to a script you add" in text
+    assert "plus tests with a positive" not in text
+
+
+def test_bootstrap_paragraph_is_wrapped_at_file_width() -> None:
+    lines = _BOOTSTRAP_REF.read_text(encoding="utf-8").splitlines()
+    start = next(i for i, ln in enumerate(lines) if ln.startswith("**Every computable claim"))
+    paragraph = []
+    for ln in lines[start:]:
+        if not ln.strip():
+            break
+        paragraph.append(ln)
+    assert paragraph
+    assert max(len(ln) for ln in paragraph) <= 80, max(paragraph, key=len)
 
 
 def test_degrees_of_freedom_cross_links_design_selection() -> None:
