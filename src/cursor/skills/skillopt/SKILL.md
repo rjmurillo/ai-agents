@@ -70,7 +70,7 @@ the candidate is frozen. If they were exposed, list them under `exposed` in
 the manifest, move them to `train`, and add untouched holdout tasks.
 `pair-gate` exits 2 while an exposed or invalid task sits in the `sel` split.
 
-Deterministic tasks written from a written spec before any candidate exists
+Deterministic tasks taken from a written spec before any candidate exists
 are frozen once their list and verifiers stop changing. Freezing is not
 isolation. If the agent that wrote them also writes the candidate, it has
 seen every verifier, so list them under `exposed` and keep them in `train`.
