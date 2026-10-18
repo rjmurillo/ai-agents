@@ -24,14 +24,19 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-# Siblings import by bare name, as pre_pr.py does, so the outer-cap clock reset
-# lands on the module instance the gate reads.
-_SCRIPT_DIR = str(Path(__file__).resolve().parent)
-if _SCRIPT_DIR not in sys.path:
-    sys.path.insert(0, _SCRIPT_DIR)
+# check_generated_staleness imports by bare name, as pre_pr.py does, so the
+# outer-cap clock reset lands on the module instance the gate reads.
+# host_headroom imports by package name, as git_hook_policy does, because mypy
+# rejects one file under two module names.
+_VALIDATION_DIR = Path(__file__).resolve().parent
+_PROJECT_ROOT = str(_VALIDATION_DIR.parents[1])
+for _entry in (_PROJECT_ROOT, str(_VALIDATION_DIR)):
+    if _entry not in sys.path:
+        sys.path.insert(0, _entry)
 
 import check_generated_staleness  # noqa: E402
-import host_headroom  # noqa: E402
+
+from scripts.validation import host_headroom  # noqa: E402
 
 FAST_STAGE_RAN_ENV = "AI_AGENTS_PRE_PR_FAST_STAGE_RAN"
 HEADROOM_WAIT_SECONDS = 300
