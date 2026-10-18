@@ -14,6 +14,8 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import local_smoke_guard as guard
+import local_smoke_os as os_guard
+from local_smoke_fixtures import isolated_guard  # noqa: F401
 
 
 @pytest.fixture
@@ -54,8 +56,8 @@ def tripwire(monkeypatch: pytest.MonkeyPatch) -> None:
         raise AssertionError(f"the guard let a Copilot launch through: {args!r}")
 
     for name in _REPLACING_OR_SPAWNING:
-        if name in guard._ORIGINAL_OS:
-            monkeypatch.setitem(guard._ORIGINAL_OS, name, let_through)
+        if name in os_guard._ORIGINAL_OS:
+            monkeypatch.setitem(os_guard._ORIGINAL_OS, name, let_through)
 
 
 @pytest.mark.skipif(os.name == "nt", reason="the fake copilot is a POSIX shell script")
@@ -246,12 +248,12 @@ def test_guarded_os_reads_the_program_and_argv_from_keywords(
     kwargs: dict[str, object],
 ) -> None:
     with pytest.raises(guard.CopilotCallRefusedError):
-        guard._guarded_os(function, program, argv)(*args, **kwargs)
+        os_guard._guarded_os(function, program, argv)(*args, **kwargs)
 
 
 def test_guarded_os_lets_a_keyword_call_to_another_program_through() -> None:
     with pytest.raises(AssertionError, match="let a Copilot launch through"):
-        guard._guarded_os(_execve_like, 0, 1)(path="true", argv=["true", "-v"])
+        os_guard._guarded_os(_execve_like, 0, 1)(path="true", argv=["true", "-v"])
 
 
 @pytest.mark.parametrize(
@@ -262,8 +264,8 @@ def test_guarded_os_refuses_keywords_it_cannot_map_when_no_signature_resolves(
     monkeypatch: pytest.MonkeyPatch, argv: int | None, kwargs: dict[str, object]
 ) -> None:
     """Fail closed: without a signature a keyword program would otherwise go unchecked."""
-    monkeypatch.setattr(guard, "_signature_of", lambda function: None)
-    guarded = guard._guarded_os(_launched, 0, argv)
+    monkeypatch.setattr(os_guard, "_signature_of", lambda function: None)
+    guarded = os_guard._guarded_os(_launched, 0, argv)
 
     with pytest.raises(guard.CopilotCallRefusedError):
         guarded(**kwargs)
@@ -271,14 +273,14 @@ def test_guarded_os_refuses_keywords_it_cannot_map_when_no_signature_resolves(
 
 def test_guarded_os_refuses_keywords_through_a_variadic_stand_in() -> None:
     """A ``(*args, **kwargs)`` original names no parameter, so keywords cannot be mapped."""
-    guarded = guard._guarded_os(_launched, 0, 1)
+    guarded = os_guard._guarded_os(_launched, 0, 1)
 
     with pytest.raises(guard.CopilotCallRefusedError):
         guarded(path="true", argv=["true"])
 
 
 def test_guarded_os_with_no_signature_still_reads_positional_calls() -> None:
-    guarded = guard._guarded_os(_launched, 0, 1, None)
+    guarded = os_guard._guarded_os(_launched, 0, 1, None)
 
     with pytest.raises(guard.CopilotCallRefusedError):
         guarded("copilot", ["copilot"])
@@ -291,7 +293,7 @@ def test_guarded_os_passes_an_unbindable_call_to_the_original() -> None:
         raise AssertionError("unreachable")
 
     with pytest.raises(TypeError, match="unexpected keyword"):
-        guard._guarded_os(execve_like, 0, 1)(path="true", nope=1)
+        os_guard._guarded_os(execve_like, 0, 1)(path="true", nope=1)
 
 
 @pytest.mark.usefixtures("isolated_guard")
@@ -299,9 +301,9 @@ def test_uninstall_restores_popen_and_the_os_entry_points() -> None:
     """The fixture leaves the session as found: a run armed by the pre-push gate keeps its guard."""
     guard.install(lambda target, name, value: setattr(target, name, value))
     assert subprocess.Popen is guard.GuardedPopen
-    assert os.system is not guard._ORIGINAL_OS["system"]
+    assert os.system is not os_guard._ORIGINAL_OS["system"]
 
     guard.uninstall()
 
     assert subprocess.Popen is guard._ORIGINAL_POPEN
-    assert all(getattr(os, name) is orig for name, orig in guard._ORIGINAL_OS.items())
+    assert all(getattr(os, name) is orig for name, orig in os_guard._ORIGINAL_OS.items())

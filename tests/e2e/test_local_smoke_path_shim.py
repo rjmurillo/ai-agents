@@ -19,7 +19,9 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import local_smoke_guard as guard
+import local_smoke_shim as shim_module
 from local_smoke_command import program_names
+from local_smoke_fixtures import isolated_guard  # noqa: F401
 
 # Each test gets its own shim state, so none can strip the guard the gate armed for the session.
 pytestmark = pytest.mark.usefixtures("isolated_guard")
@@ -58,9 +60,9 @@ def shim(monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
     """Install the shim on a copy of PATH and always remove it."""
     monkeypatch.setenv("PATH", os.environ.get("PATH", os.defpath))
     try:
-        yield guard.install_path_shim()
+        yield shim_module.install_path_shim()
     finally:
-        guard.remove_path_shim()
+        shim_module.remove_path_shim()
 
 
 @posix_only
@@ -95,16 +97,16 @@ def test_shim_ships_a_windows_form_that_exits_non_zero(shim: Path) -> None:
 
 
 def test_install_twice_returns_the_same_directory_and_one_path_entry(shim: Path) -> None:
-    assert guard.install_path_shim() == shim
+    assert shim_module.install_path_shim() == shim
     assert os.environ["PATH"].split(os.pathsep).count(str(shim)) == 1
 
 
 def test_remove_restores_path_and_deletes_the_directory(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PATH", "/a:/b".replace(":", os.pathsep))
-    shim = guard.install_path_shim()
+    shim = shim_module.install_path_shim()
     assert shim.is_dir()
 
-    guard.remove_path_shim()
+    shim_module.remove_path_shim()
 
     assert os.environ["PATH"] == "/a:/b".replace(":", os.pathsep)
     assert not shim.exists()
@@ -113,7 +115,7 @@ def test_remove_restores_path_and_deletes_the_directory(monkeypatch: pytest.Monk
 def test_remove_without_install_is_a_no_op(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PATH", "/a")
 
-    guard.remove_path_shim()
+    shim_module.remove_path_shim()
 
     assert os.environ["PATH"] == "/a"
 
@@ -123,20 +125,20 @@ def test_install_with_no_path_sets_only_the_shim_and_remove_unsets_it(
 ) -> None:
     monkeypatch.delenv("PATH", raising=False)
 
-    shim = guard.install_path_shim()
+    shim = shim_module.install_path_shim()
     assert os.environ["PATH"] == str(shim)
 
-    guard.remove_path_shim()
+    shim_module.remove_path_shim()
     assert "PATH" not in os.environ
 
 
 def test_remove_keeps_a_path_the_test_replaced(monkeypatch: pytest.MonkeyPatch) -> None:
     """Edge: a later PATH change is not overwritten with the saved value."""
     monkeypatch.setenv("PATH", "/a")
-    shim = guard.install_path_shim()
+    shim = shim_module.install_path_shim()
     os.environ["PATH"] = "/replaced"
 
-    guard.remove_path_shim()
+    shim_module.remove_path_shim()
 
     assert os.environ["PATH"] == "/replaced"
     assert not shim.exists()
@@ -144,7 +146,7 @@ def test_remove_keeps_a_path_the_test_replaced(monkeypatch: pytest.MonkeyPatch) 
 
 def test_uninstall_also_removes_the_shim(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PATH", "/a")
-    shim = guard.install_path_shim()
+    shim = shim_module.install_path_shim()
 
     guard.uninstall()
 
@@ -155,10 +157,10 @@ def test_uninstall_also_removes_the_shim(monkeypatch: pytest.MonkeyPatch) -> Non
 def test_an_empty_path_before_install_is_restored_as_empty(monkeypatch: pytest.MonkeyPatch) -> None:
     """Edge: PATH set to an empty string is not left pointing at the deleted shim."""
     monkeypatch.setenv("PATH", "")
-    shim = guard.install_path_shim()
+    shim = shim_module.install_path_shim()
     assert os.environ["PATH"] == str(shim)
 
-    guard.remove_path_shim()
+    shim_module.remove_path_shim()
 
     assert os.environ["PATH"] == ""
 
