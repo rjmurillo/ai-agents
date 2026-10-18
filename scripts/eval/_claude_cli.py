@@ -331,9 +331,11 @@ class _ClaudeCLIProvider:
         # determinism belongs on an HTTP provider.
         del max_tokens, temperature, seed
 
+        # Reset before anything can raise, so a failed call keeps no count
+        # from the call before it.
+        self.output_tokens = None
         prompt = build_envelope(PROVIDER_LABEL, messages, system)
         self.system_fingerprint = None
-        self.output_tokens = None
         with tempfile.TemporaryDirectory(prefix="eval-claude-cli-") as profile:
             credential = self._resolve_credential(self._executable)
             self.credential_step = credential.step

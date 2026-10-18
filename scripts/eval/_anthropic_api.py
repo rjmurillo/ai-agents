@@ -262,6 +262,9 @@ def call_api_response(
     A non-default provider carries no stop metadata: termination ``"unknown"``.
     """
     selected = provider if provider is not None else os.environ.get("EVAL_PROVIDER")
+    if metadata is not None:
+        # The default path reports no count, so a reused dict must not keep one.
+        metadata.pop("output_tokens", None)
     alternate = _call_selected_provider(
         selected,
         messages,

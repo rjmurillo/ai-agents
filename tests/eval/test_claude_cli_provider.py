@@ -277,3 +277,19 @@ def test_claude_cli_clears_the_token_count_between_calls(
         provider.complete(messages=MESSAGES, model="claude-haiku-4-5")
 
     assert provider.output_tokens is None
+
+
+def test_claude_cli_clears_the_token_count_when_the_prompt_cannot_be_built(
+    claude_env: pytest.MonkeyPatch,
+) -> None:
+    provider = _claude_cli._ClaudeCLIProvider()
+    install_runner(claude_env, Recorder(stdout=claude_payload(usage={"output_tokens": 7})))
+    provider.complete(messages=MESSAGES, model="claude-haiku-4-5")
+    assert provider.output_tokens == 7
+
+    with pytest.raises(RuntimeError, match="message role"):
+        provider.complete(
+            messages=[{"role": "assistant", "content": "x"}], model="claude-haiku-4-5"
+        )
+
+    assert provider.output_tokens is None

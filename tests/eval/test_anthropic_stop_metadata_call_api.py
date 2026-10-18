@@ -143,6 +143,28 @@ def test_call_api_leaves_metadata_without_tokens_for_a_provider_that_reports_non
     assert "output_tokens" not in metadata
 
 
+def test_call_api_default_path_clears_a_count_left_by_an_earlier_provider_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import _providers
+
+    stub = SimpleNamespace(complete=lambda **kwargs: "routed text", output_tokens=49)
+    monkeypatch.setattr(_providers, "resolve_provider", lambda name: stub)
+    metadata: dict[str, object] = {}
+    messages = [{"role": "user", "content": "x"}]
+    _anthropic_api.call_api(
+        "ignored-key", messages, model="claude-haiku-4-5", provider="claude-cli", metadata=metadata
+    )
+    assert metadata["output_tokens"] == 49
+
+    _mock_urlopen(monkeypatch, _OK_PAYLOAD)
+    _anthropic_api.call_api(
+        "test-key", messages, model="claude-haiku-4-5", provider="anthropic", metadata=metadata
+    )
+
+    assert "output_tokens" not in metadata
+
+
 # max_tokens pass-through
 
 
