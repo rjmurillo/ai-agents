@@ -66,10 +66,12 @@ Exit codes:
        delta is below `--min-delta` (or unmeasured, when no case is complete).
        With `--mode knowledge`, a skill whose cases are all no_gap also
        fails. The payload lists every failing case id under `failing_cases`.
-    2  Configuration error: bad arguments, malformed cases, results, or
-       frozen file, a frozen file edited after freezing, an existing `--out`,
-       an `--out` inside a git work tree without `--allow-in-repo`, or git
-       missing or failing when it must be asked.
+    2  Configuration error: bad arguments, malformed or unreadable cases,
+       results, or frozen file, a frozen file edited after freezing, an
+       existing `--out`, or an `--out` inside a git work tree without
+       `--allow-in-repo`.
+    3  External error: git is missing, fails, or times out when it must be
+       asked, the regex grader child fails, or the `--out` write fails.
 
 Limits: freeze refuses to overwrite, so frozen means immutable on disk, and
 the hash detects an edit to the cases at score time. It does not stop someone
@@ -125,6 +127,10 @@ Grade = Callable[[str], bool | None]
 
 class ConfigError(Exception):
     """Bad input or a refused write: exit 2."""
+
+
+class ExternalError(Exception):
+    """git, the regex grader child, or a file write failed: exit 3."""
 
 
 # --- graders ---------------------------------------------------------------
@@ -274,7 +280,7 @@ def _search_with_deadline(pattern: str, ignore_case: bool, output: str) -> bool 
         print(f"warning: regex timed out after {REGEX_TIMEOUT_S} s: {pattern!r}", file=sys.stderr)
         return None
     if done.returncode != 0:
-        raise ConfigError(f"regex grader child failed: {done.stderr.strip()[-200:]}")
+        raise ExternalError(f"regex grader child failed: {done.stderr.strip()[-200:]}")
     return done.stdout.strip() == "1"
 
 
@@ -419,14 +425,14 @@ def enclosing_repo(directory: Path) -> Path | None:
             env={**os.environ, "LC_ALL": "C"},  # the "not a git repository" test needs English
         )
     except FileNotFoundError as exc:
-        raise ConfigError("git is not on PATH, so the in-repo check cannot run") from exc
+        raise ExternalError("git is not on PATH, so the in-repo check cannot run") from exc
     except subprocess.TimeoutExpired as exc:
-        raise ConfigError(f"git rev-parse timed out after {GIT_TIMEOUT_S} s for {probe}") from exc
+        raise ExternalError(f"git rev-parse timed out after {GIT_TIMEOUT_S} s for {probe}") from exc
     if proc.returncode == 0:
         return Path(proc.stdout.strip()).resolve()
     if NOT_A_REPO in proc.stderr.lower():
         return None
-    raise ConfigError(f"git rev-parse failed for {probe}: {proc.stderr.strip()}")
+    raise ExternalError(f"git rev-parse failed for {probe}: {proc.stderr.strip()}")
 
 
 def _check_out_path(out: Path, allow_in_repo: bool) -> None:
@@ -452,10 +458,17 @@ def freeze(args: argparse.Namespace) -> tuple[int, Payload]:
         "sha256": cases_digest(cases),
         "cases": cases,
     }
-    out.parent.mkdir(parents=True, exist_ok=True)
-    # Mode "x" fails with FileExistsError (an OSError, exit 2) if --out appeared since the check.
-    with out.open("x", encoding="utf-8") as handle:
-        handle.write(json.dumps(record, indent=2, sort_keys=True) + "\n")
+    try:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        # Mode "x" refuses an --out that appeared since the check.
+        with out.open("x", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, indent=2, sort_keys=True) + "\n")
+    except FileExistsError as exc:
+        if out.exists():
+            raise ConfigError(f"{out} already exists; a frozen file is immutable") from exc
+        raise ExternalError(f"cannot write {out}: {exc}") from exc
+    except OSError as exc:
+        raise ExternalError(f"cannot write {out}: {exc}") from exc
     return 0, {
         "frozen": out.as_posix(),
         "sha256": record["sha256"],
@@ -657,6 +670,9 @@ def main(argv: list[str] | None = None) -> int:
     except ConfigError as exc:
         print(json.dumps({"error": "config", "message": str(exc)}))
         return 2
+    except ExternalError as exc:
+        print(json.dumps({"error": "external", "message": str(exc)}))
+        return 3
     except OSError as exc:
         print(json.dumps({"error": "io", "message": str(exc)}))
         return 2

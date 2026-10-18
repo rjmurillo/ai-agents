@@ -464,7 +464,8 @@ def test_freeze_fails_closed_when_git_is_missing(
 
     code, payload = run(capsys, "freeze", "--cases", str(cases_file), "--out", str(out))
 
-    assert code == 2
+    assert code == 3
+    assert payload["error"] == "external"
     assert "git" in payload["message"]
     assert not out.exists()
 
@@ -479,12 +480,13 @@ def test_freeze_fails_closed_when_git_fails_for_another_reason(
 
     code, payload = run(capsys, "freeze", "--cases", str(cases_file), "--out", str(out))
 
-    assert code == 2
+    assert code == 3
+    assert payload["error"] == "external"
     assert "unsafe repository" in payload["message"]
     assert not out.exists()
 
 
-def test_freeze_reports_io_error_as_exit_two(capsys: Capsys, tmp_path: Path) -> None:
+def test_freeze_reports_write_failure_as_exit_three(capsys: Capsys, tmp_path: Path) -> None:
     blocker = tmp_path / "blocker"
     blocker.write_text("a file, not a directory", encoding="utf-8")
     cases_file = write_json(tmp_path / "in.json", {"cases": [make_case()]})
@@ -499,8 +501,54 @@ def test_freeze_reports_io_error_as_exit_two(capsys: Capsys, tmp_path: Path) -> 
         "--allow-in-repo",
     )
 
+    assert code == 3
+    assert payload["error"] == "external"
+
+
+def test_freeze_reports_a_denied_write_as_exit_three(
+    capsys: Capsys, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def denied(*_args: Any, **_kwargs: Any) -> None:
+        raise PermissionError("denied")
+
+    cases_file = write_json(tmp_path / "in.json", {"cases": [make_case()]})
+    monkeypatch.setattr(bootstrap_eval.Path, "mkdir", denied)
+
+    code, payload = run(
+        capsys, "freeze", "--cases", str(cases_file), "--out", str(tmp_path / "f.json"),
+        "--allow-in-repo",
+    )  # fmt: skip
+
+    assert code == 3
+    assert "denied" in payload["message"]
+
+
+def test_unexpected_os_error_is_exit_two(capsys: Capsys, monkeypatch: pytest.MonkeyPatch) -> None:
+    def broken(_args: Any) -> None:
+        raise OSError("disk gone")
+
+    monkeypatch.setattr(bootstrap_eval, "freeze", broken)
+
+    code, payload = run(capsys, "freeze", "--cases", "c", "--out", "o")
+
     assert code == 2
     assert payload["error"] == "io"
+
+
+def test_freeze_refuses_an_out_that_appears_after_the_check(
+    capsys: Capsys, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cases_file = write_json(tmp_path / "in.json", {"cases": [make_case()]})
+    out = tmp_path / "f.json"
+    monkeypatch.setattr(bootstrap_eval, "_check_out_path", lambda *_: out.write_text("x"))
+
+    code, payload = run(
+        capsys, "freeze", "--cases", str(cases_file), "--out", str(out), "--allow-in-repo"
+    )
+
+    assert code == 2
+    assert payload["error"] == "config"
+    assert out.read_text() == "x"
 
 
 # --- freeze: malformed cases ------------------------------------------------
@@ -1178,5 +1226,5 @@ def test_enclosing_repo_times_out_closed(tmp_path: Path, monkeypatch: pytest.Mon
 
     monkeypatch.setattr(bootstrap_eval.subprocess, "run", hang)
 
-    with pytest.raises(bootstrap_eval.ConfigError, match="timed out"):
+    with pytest.raises(bootstrap_eval.ExternalError, match="timed out"):
         bootstrap_eval.enclosing_repo(tmp_path)

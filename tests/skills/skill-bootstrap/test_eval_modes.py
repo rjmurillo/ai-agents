@@ -166,11 +166,11 @@ def test_regex_match_and_miss_through_child_process():
     assert grade("xxAA") is False
 
 
-def test_regex_child_failure_is_a_config_error(monkeypatch):
+def test_regex_child_failure_is_an_external_error(monkeypatch):
     monkeypatch.setattr(bootstrap_eval, "REGEX_CHILD", "raise SystemExit(3)")
     grade = bootstrap_eval.compile_grader({"kind": "regex", "pattern": "a"})
 
-    with pytest.raises(bootstrap_eval.ConfigError, match="child failed"):
+    with pytest.raises(bootstrap_eval.ExternalError, match="child failed"):
         grade("a")
 
 
