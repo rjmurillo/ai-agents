@@ -215,7 +215,9 @@ def collect_signals(lines: list[str]) -> dict[str, list[int]]:
     for number, line in enumerate(lines, start=1):
         if not SIGNAL_RE.search(line):
             continue
-        key = DIGITS_RE.sub("#", clip(line))
+        # Collapse digits on the raw line first: clip() writes control characters
+        # as \x1b-style escapes, and collapsing after that would erase their digits.
+        key = clip(DIGITS_RE.sub("#", line))
         if key in groups:
             groups[key][1] += 1
         else:

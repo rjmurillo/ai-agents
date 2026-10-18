@@ -53,8 +53,8 @@ def _yaml_where(exc: yaml.YAMLError) -> str:
     is dropped. ``problem`` can still repeat one token from the file, such as an
     alias or tag name, so it is capped at 80 characters. A ``ReaderError`` (bad
     control character) has no mark, so its character offset and fixed reason
-    are used instead. ``_skill_source`` refuses symlinks, so a repeated token
-    comes from the skill's own frontmatter.
+    are used instead. ``_skill_source`` refuses a symlinked file, directory, or
+    ancestor, so a repeated token comes from the skill's own frontmatter.
     """
     mark = getattr(exc, "problem_mark", None)
     problem = " ".join(str(getattr(exc, "problem", "") or "").split())[:_PROBLEM_CAP]
@@ -106,16 +106,31 @@ def _skill_source(repo_root: Path, name: str) -> Path | None:
     """Return the template or installed ``SKILL.md`` for ``name``, refusing a symlink.
 
     A symlinked file, or a symlinked skill directory, would make the flag read,
-    and a parse error quote, a file outside the skill tree.
+    and a parse error quote, a file outside the skill tree. A symlinked
+    ancestor (``.claude/skills`` or ``templates/skills``) does the same, so each
+    existing candidate must also resolve to a path under the real repo root's
+    ``templates/skills`` or ``.claude/skills``. The expected roots are joined
+    onto the resolved repo root and are not resolved themselves, so a symlinked
+    ancestor cannot widen the check.
     """
     template = repo_root / "templates" / "skills" / f"{name}{_TEMPLATE_SUFFIX}"
     installed = repo_root / ".claude" / "skills" / name / "SKILL.md"
     for link in (template, installed, installed.parent):
         if link.is_symlink():
             raise SkillDistributionError(f"{link}: is a symlink, not a regular path")
-    for candidate in (template, installed):
-        if candidate.is_file():
-            return candidate
+    real_root = repo_root.resolve()
+    for candidate, tree in (
+        (template, real_root / "templates" / "skills"),
+        (installed, real_root / ".claude" / "skills"),
+    ):
+        if not candidate.is_file():
+            continue
+        if not candidate.resolve().is_relative_to(tree):
+            raise SkillDistributionError(
+                f"{candidate}: resolves outside {tree.relative_to(real_root)}; "
+                "a parent directory is a symlink"
+            )
+        return candidate
     return None
 
 

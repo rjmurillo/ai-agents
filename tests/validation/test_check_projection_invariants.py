@@ -106,6 +106,22 @@ class TestCountAllowedToolsKeys:
         text = "---\nname: x\nallowed-tools: Read\nallowed-tools: Read, Bash\n---\nbody\n"
         assert cpi.count_allowed_tools_keys(text) == 2
 
+    @pytest.mark.parametrize(
+        "second_key",
+        ['"allowed-tools":', "'allowed-tools':", "allowed-tools :", '"allowed-tools" :'],
+    )
+    def test_quoted_or_spaced_repeat_counts(self, second_key: str) -> None:
+        text = f"---\nname: x\nallowed-tools: [Read]\n{second_key} [Read, Bash]\n---\nbody\n"
+        assert cpi.count_allowed_tools_keys(text) == 2
+
+    @pytest.mark.parametrize("key", ['"allowed-tools":', "'allowed-tools':", "allowed-tools :"])
+    def test_quoted_or_spaced_single_key_counts_once(self, key: str) -> None:
+        assert cpi.count_allowed_tools_keys(f"---\nname: x\n{key} Read\n---\n") == 1
+
+    @pytest.mark.parametrize("key", ["\"allowed-tools':", "'allowed-tools\":", "xallowed-tools:"])
+    def test_mismatched_quotes_and_prefixed_names_do_not_count(self, key: str) -> None:
+        assert cpi.count_allowed_tools_keys(f"---\nname: x\n{key} Read\n---\n") == 0
+
     def test_none(self) -> None:
         assert cpi.count_allowed_tools_keys("---\nname: x\n---\n") == 0
 
@@ -196,6 +212,17 @@ class TestCheckTools:
     def test_repeated_key_in_projection_fails_even_when_the_first_matches(self) -> None:
         """A loader keeps the last key, so the wider second grant is the live one."""
         projection = "---\nname: x\nallowed-tools: Read\nallowed-tools: Read, Bash\n---\nbody\n"
+        problems = cpi.check_tools(FM.format(tools="Read"), projection)
+        assert problems == [
+            "projection declares allowed-tools 2 times; a loader keeps the last one"
+        ]
+
+    @pytest.mark.parametrize(
+        "second_key", ['"allowed-tools":', "'allowed-tools':", "allowed-tools :"]
+    )
+    def test_quoted_or_spaced_repeat_in_projection_fails(self, second_key: str) -> None:
+        """The wider last key passes a bare-key count; a YAML loader still keeps it."""
+        projection = f"---\nname: x\nallowed-tools: Read\n{second_key} Read, Bash\n---\nbody\n"
         problems = cpi.check_tools(FM.format(tools="Read"), projection)
         assert problems == [
             "projection declares allowed-tools 2 times; a loader keeps the last one"

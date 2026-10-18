@@ -75,7 +75,9 @@ PILOTS: tuple[Pilot, ...] = (
     Pilot("security-scan", INVARIANT_EXIT_CODES),
 )
 
-_ALLOWED_TOOLS_KEY = re.compile(r"^allowed-tools:\s*(.*)$")
+# A YAML loader reads ``allowed-tools:``, ``"allowed-tools":``, ``'allowed-tools':``
+# and ``allowed-tools :`` as the same key. The quote must match on both sides.
+_ALLOWED_TOOLS_KEY = re.compile(r"""^(["']?)allowed-tools\1[ \t]*:\s*(.*)$""")
 _LIST_ITEM = re.compile(r"^\s+-\s+(.+?)\s*$")
 _EXIT_HEADING = re.compile(r"^##\s+Exit Codes\s*$", re.IGNORECASE)
 _ANY_HEADING = re.compile(r"^#{1,6}\s")
@@ -142,7 +144,7 @@ def parse_allowed_tools(text: str) -> frozenset[str]:
         match = _ALLOWED_TOOLS_KEY.match(line)
         if match is None:
             continue
-        inline = match.group(1).strip()
+        inline = match.group(2).strip()
         if inline:
             return frozenset(_split_top_level(inline))
         return frozenset(_block_list(lines[index + 1 :]))

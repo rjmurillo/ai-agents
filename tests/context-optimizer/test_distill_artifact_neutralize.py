@@ -116,6 +116,31 @@ class TestHostileInput:
         assert "\x1b" not in body
         assert "| a\\x1bb | 1 | 1 | 1 |" in body
 
+    def test_signal_lines_keep_the_digits_of_a_control_character_escape(
+        self, tmp_path, capsys
+    ) -> None:
+        src = write(tmp_path, "t.txt", "error \x1b[2J and \x01 end\n")
+        _, out, _ = run([str(src), "--out-dir", str(tmp_path / "o")], capsys)
+        signals = digest_text(out).split("## Signal lines")[1].split("##")[0]
+        assert "\\x1b" in signals
+        assert "\\x01" in signals
+        assert "x#b" not in signals
+        assert "\x1b" not in signals
+
+    def test_signal_lines_with_different_numbers_still_group_around_an_escape(
+        self, tmp_path, capsys
+    ) -> None:
+        src = write(tmp_path, "t.txt", "error 1 \x1b x\nerror 22 \x1b x\nerror 333 \x1b x\n")
+        _, out, _ = run([str(src), "--out-dir", str(tmp_path / "o")], capsys)
+        assert "- L1 (x3): error # \\x1b x" in digest_text(out)
+
+    def test_signal_key_is_still_capped_after_digit_collapse(self, tmp_path, capsys) -> None:
+        src = write(tmp_path, "t.txt", "error " + "\x1b" * 300 + "\n")
+        _, out, _ = run([str(src), "--out-dir", str(tmp_path / "o")], capsys)
+        signals = digest_text(out).split("## Signal lines")[1].split("##")[0]
+        key = signals.split("): ", 1)[1].strip()
+        assert len(key) == da.LINE_CAP
+
     def test_clean_input_digest_is_unchanged(self, tmp_path, capsys) -> None:
         src = write(tmp_path, "t.txt", "error x\nplain\n")
         _, out, _ = run([str(src), "--out-dir", str(tmp_path / "o")], capsys)
