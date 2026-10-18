@@ -6,9 +6,9 @@ compound command lines, so the guard sees every program a call would start.
 Known limits: a program started through ``eval``, a variable (``$CMD``), a script file,
 a launcher outside ``_LAUNCHERS``, or a shell outside ``_SHELLS`` is not seen. A shell
 option with a value other than ``-o`` or ``-O`` (``--rcfile f``) before the command line
-misreads the value as the command. A quoted Windows path with a space inside a shell's
-``/c`` value (``cmd /c "C:\\Program Files\\copilot.exe"``) is cut at the space. The fish
-options ``-C`` and ``--init-command`` run a command line that is not read.
+misreads the value as the command. An unquoted Windows path with a space inside a shell's
+``/c`` value is cut at the space. The fish options ``-C`` and ``--init-command`` run a
+command line that is not read.
 """
 
 from __future__ import annotations
@@ -33,6 +33,11 @@ _OPERATOR_SPLIT = re.compile(r"&&|\|\||[<>]\(|[;|&()`\n]")
 # character that is not whitespace, a quote, or the start of an operator.
 _WINDOWS_WORD = re.compile(r'(?:"[^"\n]*"|[^\s"&|;()`<>]|[<>](?!\())+')
 _WINDOWS_TOKEN = re.compile(f"{_WINDOWS_WORD.pattern}|{_OPERATOR_SPLIT.pattern}")
+# A double-quoted span that holds whitespace: ``"C:\Program Files\copilot.exe"``.
+_QUOTED_SPACE = re.compile(r'"[^"]*\s[^"]*"')
+# A word with a redirection fused to its end, as in ``copilot.exe>nul``. The head must hold
+# a character other than a digit or ``&``, or the whole word is a redirection (``2>nul``).
+_WORD_REDIRECT = re.compile(r"^([^<>]*[^<>\d&][^<>]*)([<>].*)$", re.DOTALL)
 # A redirection: an optional fd number or ``&``, the operator, then a target that
 # is either attached (``>/dev/null``) or the next word (``> /dev/null``).
 _REDIRECT = re.compile(r"^(?:\d*|&)(?:<<<|<<-?|<>|>>|>\||[<>]&?)(.*)$")
@@ -81,10 +86,11 @@ _LOOKUP_OPTIONS = frozenset({"-v", "-V"})
 _C_CLUSTER = re.compile(r"^-[A-Za-z]*c[A-Za-z]*$")
 # Shell options that take a separate value: ``bash -c -o pipefail 'cmd'``.
 _SHELL_VALUE_OPTIONS = frozenset({"-o", "+o", "-O", "+O"})
-_POSIX_SHELLS = frozenset({"sh", "bash", "zsh", "dash", "ksh", "mksh", "ash", "fish"})
+# Shells that read ``-c`` as an option cluster and take the command from the next operand.
+_GETOPT_SHELLS = frozenset({"sh", "bash", "zsh", "dash", "ksh", "mksh", "ash", "fish"})
 # Shells, mapped to the option whose value is a command line to run.
 _SHELLS: dict[str, frozenset[str]] = (
-    {name: frozenset({"-c"}) for name in _POSIX_SHELLS}
+    {name: frozenset({"-c"}) for name in _GETOPT_SHELLS}
     | {"fish": frozenset({"-c", "--command"})}
     | {name: frozenset({"/c", "/k"}) for name in ("cmd", "cmd.exe")}
     | {
@@ -124,7 +130,9 @@ def _windows_commands(text: str) -> list[list[str]]:
     """Cut a Windows-style line at operators, keeping a double-quoted span as one word.
 
     POSIX quoting would eat the backslashes, so this reads quotes by hand: a quoted path
-    with spaces or parentheses stays whole, and its quotes are dropped.
+    with spaces or parentheses stays whole. A word that holds a space keeps its quotes, so a
+    shell's ``/c`` value is parsed again with the path intact. Other quotes are dropped, and
+    a redirection fused to a word (``copilot.exe>nul``) is split off.
     """
     commands: list[list[str]] = []
     current: list[str] = []
@@ -134,10 +142,17 @@ def _windows_commands(text: str) -> list[list[str]]:
                 commands.append(current)
             current = []
         else:
-            current.append(token.replace('"', ""))
+            current.extend(_windows_word(token))
     if current:
         commands.append(current)
     return commands
+
+
+def _windows_word(token: str) -> list[str]:
+    if not _QUOTED_SPACE.search(token):
+        token = token.replace('"', "").strip("'")
+    fused = _WORD_REDIRECT.match(token)
+    return list(fused.groups()) if fused else [token]
 
 
 def _split_fused(token: str) -> tuple[str, str] | None:
@@ -192,7 +207,7 @@ def _commands(args: object) -> list[list[str]]:
 
 
 def _basename(word: str) -> str:
-    name = PureWindowsPath(PurePath(word).name).name.lower()
+    name = PureWindowsPath(PurePath(word.strip("\"'")).name).name.lower()
     return _VERSION_SUFFIX.sub("", name)
 
 
@@ -203,7 +218,7 @@ def _shell_command(name: str, rest: list[str]) -> str | None:
     later options (``-x``, ``+e``, ``-o pipefail``) and one ``--`` are skipped.
     """
     flags = _SHELLS[name]
-    posix = name in _POSIX_SHELLS
+    posix = name in _GETOPT_SHELLS
     for index, word in enumerate(rest):
         option, equals, value = word.partition("=")
         if equals and option.startswith("--") and option.lower() in flags:
@@ -267,6 +282,19 @@ def _option_command_line(launcher: str, word: str, following: list[str]) -> str 
     return f"{value} {shlex.join(following[1:])}"
 
 
+def _command_programs(command: str) -> list[str]:
+    """Return the programs a shell's command value starts.
+
+    A Windows ``/c`` value may be wrapped in quotes that are part of the shell syntax
+    (``cmd /c "copilot -p x"``) or hold a quoted path (``"C:\\Program Files\\copilot.exe"``).
+    Both readings count, so the guard refuses when either one starts a program.
+    """
+    names = program_names(command)
+    if len(command) > 1 and command[0] == command[-1] == '"':
+        names += program_names(command[1:-1])
+    return names
+
+
 def _programs(words: list[str]) -> list[str]:
     """Return the programs one simple command starts: its own, or a shell's inner ones."""
     launcher = ""
@@ -299,7 +327,7 @@ def _programs(words: list[str]) -> list[str]:
             continue
         if name in _SHELLS:
             command = _shell_command(name, words[index:])
-            return [name] if command is None else program_names(command)
+            return [name] if command is None else _command_programs(command)
         if launcher in _COMMAND_LINE_LAUNCHERS and " " in word:
             return program_names(word)
         return [name]

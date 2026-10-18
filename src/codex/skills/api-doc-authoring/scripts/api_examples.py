@@ -352,12 +352,23 @@ def cmd_run(args: argparse.Namespace, sender: Sender = send) -> tuple[dict[str, 
         if time.monotonic() > deadline:
             return _past_deadline(args, base_url, results, runnable[len(results) :], findings)
         results.append(run_example(example, base_url, sender))
+    report = _report(args, base_url, results, findings)
+    _write_evidence(args, report)
+    return report, (EXIT_OK if report["verdict"] == "PASS" else EXIT_FINDINGS)
+
+
+def _report(
+    args: argparse.Namespace,
+    base_url: str,
+    results: list[dict[str, Any]],
+    findings: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Build the run report; a lint finding makes the verdict FAIL."""
     report = _evidence(args, base_url, results)
     report["lint_findings"] = findings
     if findings:
         report["verdict"] = "FAIL"
-    _write_evidence(args, report)
-    return report, (EXIT_OK if report["verdict"] == "PASS" else EXIT_FINDINGS)
+    return report
 
 
 def _write_evidence(args: argparse.Namespace, report: dict[str, Any]) -> None:
@@ -379,10 +390,10 @@ def _past_deadline(
     evidence file records the finished results, the lint findings, the deadline, and the
     examples that never ran.
     """
-    report = _evidence(args, base_url, results)
-    report["lint_findings"] = findings
-    failed = report["verdict"] == "FAIL" or bool(findings)
-    report["verdict"] = "FAIL" if failed else "UNVERIFIED"
+    report = _report(args, base_url, results, findings)
+    failed = report["verdict"] == "FAIL"
+    if not failed:
+        report["verdict"] = "UNVERIFIED"
     report["deadline_exceeded"] = {"seconds": RUN_DEADLINE_SECONDS, "unrun": [e.id for e in unrun]}
     _write_evidence(args, report)
     if failed:
