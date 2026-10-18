@@ -740,16 +740,11 @@ def _assert_fixture_routes_to_library(rule_id: str) -> None:
     data, target_paths = loaded
     skill_path, reference_path = target_paths
     assert data["rule_id"] == rule_id
-    expected_skill = REPO_ROOT / ".claude" / "skills" / "software-engineering-library" / "SKILL.md"
-    assert skill_path == expected_skill
-    assert reference_path == (
-        REPO_ROOT
-        / ".claude"
-        / "skills"
-        / "software-engineering-library"
-        / "references"
-        / f"{rule_id}.md"
-    )
+    # The shipped skill is a symlink into src/claude/skills (ADR-119), and the
+    # loader returns resolved paths, so compare against resolved expectations.
+    library = REPO_ROOT / ".claude" / "skills" / "software-engineering-library"
+    assert skill_path == (library / "SKILL.md").resolve()
+    assert reference_path == (library / "references" / f"{rule_id}.md").resolve()
 
 
 def test_activation_fixture_routes_clean_architecture_to_library():

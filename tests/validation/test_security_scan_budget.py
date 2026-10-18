@@ -65,6 +65,7 @@ def _arrange(monkeypatch: pytest.MonkeyPatch, heads: list[str], *, clamp: Any) -
     monkeypatch.setattr(policy, "_changed_commit_paths", lambda *_a: ["source.py"])
     monkeypatch.setattr(policy, "_commit_paths", lambda *_a: ["source.py"])
     monkeypatch.setattr(policy, "_pushed_root_moves", lambda *_a: set())
+    monkeypatch.setattr(policy, "_commit_link_paths", lambda *_a: {})
     monkeypatch.setattr(policy, "_container_clamped", clamp)
 
 

@@ -28,10 +28,10 @@ _VALIDATOR_COMMANDS = (
     "python3 scripts/validation/check_vendor_portability.py",
     "python3 -m scripts.validation.check_skill_portability",
     "uv run --frozen python scripts/validation/check_skill_md_exec_portability.py",
-    "uv run --frozen python scripts/validation/check_skill_md_portability.py",
     "python3 scripts/validation/check_skill_resolver_anchoring.py",
     "python3 scripts/validation/check_skill_contract_tests.py",
 )
+# The prose ratchet carries --base-ref, so test_vendor_portability_prose_base_ref_wiring.py owns it.
 
 
 def _load_workflow() -> Any:

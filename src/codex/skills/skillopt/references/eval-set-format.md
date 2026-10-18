@@ -124,16 +124,27 @@ The report is JSON on stdout:
 
 | Key | Meaning |
 |-----|---------|
-| `verdict` | `ACCEPT_PARETO`, `REJECT`, `REJECT_UNVERIFIED`, or `REJECT_NULL_CONTROL` |
+| `verdict` | `ACCEPT_PARETO`, `REJECT`, `REJECT_UNVERIFIED`, `REJECT_NULL_CONTROL`, or `REJECT_CEILING` |
 | `gains` | Tasks the candidate passes and the incumbent does not |
 | `regressions` | Tasks the incumbent passes and the candidate does not |
 | `unverified` | Tasks with a missing or non-boolean result in any file |
 | `null_gains`, `null_regressions` | Flips a byte-identical rerun of the incumbent produced |
 | `genuine_gains` | `gains` minus `null_gains` |
+| `hint` | Present only with `REJECT_CEILING`: the next step |
 
 Exit 0 only for `ACCEPT_PARETO`. It needs a gain, zero regressions, no
 unverified task, and, with a null control, at least one genuine gain. Exit 1
 for every reject. Exit 2 for an invalid manifest or input file.
+
+`REJECT_CEILING` means the incumbent passes every task in the `sel` split and
+the candidate regresses none. No gain is possible, so the gate cannot accept
+any candidate, even one with real training gains. It outranks `REJECT` and
+ranks below `REJECT_UNVERIFIED` and `REJECT_NULL_CONTROL`. It applies to the
+`sel` split only. Freeze a new `sel` set of harder tasks that sample the
+failure mode, re-score the incumbent on it, then author a fresh candidate.
+Never re-gate this candidate on tasks written after it: its author already
+knew the failure mode, so those tasks are not held out. For a first draft
+whose `sel` tasks came from its own requirements, hand back to `skillforge`.
 
 `score` prints the held-out pass rate. Scalar `gate` compares two numbers and
 rejects ties. Neither is the default promotion decision.

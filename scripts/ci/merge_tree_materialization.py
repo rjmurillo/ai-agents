@@ -12,7 +12,7 @@ import sys
 import tempfile
 import time
 from collections.abc import Callable, Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +23,16 @@ if sys.platform != "win32":
 
 _CLEANUP_RETRY_DELAYS = (0.1, 0.2, 0.4, 0.8, 1.6)
 _TRANSIENT_CLEANUP_ERRNOS = frozenset({errno.EBUSY, errno.ENOTEMPTY})
+# Errors that mean this filesystem has no flock, as opposed to a lock that failed
+# on one run. Without flock the sweep's exclusive lock fails too, and a sweep
+# keeps any tree it cannot lock, so a lockless tree is never swept.
+_FLOCK_UNSUPPORTED_ERRNOS = frozenset(
+    code
+    for code in (
+        getattr(errno, name, None) for name in ("ENOLCK", "ENOTSUP", "EOPNOTSUPP", "ENOSYS")
+    )
+    if code is not None
+)
 
 # Scratch prefixes this package creates under the system temp dir. The sweep
 # touches only entries named with one of these, or the dotted siblings that
@@ -257,14 +267,21 @@ def create_scratch(prefix: str) -> Path:
     take, whatever the tree's age. The kernel drops the lock when this process
     dies by any means, SIGKILL included, so a killed run's tree becomes
     sweepable. Release with ``remove_scratch``. Raises ``OSError`` when the
-    directory cannot be created. A lock that cannot be taken is reported and
-    skipped; the age floor then protects the tree.
+    directory cannot be created, or when the lock fails for a reason other than
+    the filesystem having no flock: an unlocked tree older than the age floor
+    is fair game for a concurrent sweep, so the tree is removed and the run
+    aborts instead. Where the filesystem has no flock the sweep cannot lock a
+    tree either and keeps it, so the lock is reported and skipped there.
     """
     scratch = Path(tempfile.mkdtemp(prefix=prefix))
     if sys.platform != "win32":
         try:
             _HELD_SCRATCH_LOCKS[scratch] = _open_locked(scratch, fcntl.LOCK_SH)
         except OSError as exc:
+            if exc.errno not in _FLOCK_UNSUPPORTED_ERRNOS:
+                with suppress(OSError):
+                    scratch.rmdir()
+                raise
             sys.stderr.write(f"scratch lock skipped: {type(exc).__name__}: {exc}\n")
     return scratch
 
@@ -328,6 +345,21 @@ def _is_stale_and_owned(entry: Path, is_sibling: bool, cutoff: float) -> bool:
     return not hasattr(os, "getuid") or info.st_uid == os.getuid()
 
 
+def _owned_by_current_user(path: Path) -> bool:
+    """True when ``path`` is owned by this user; also True when that cannot be told.
+
+    A path that cannot be read counts as ours, so the caller keeps the entry
+    instead of removing it on a guess. Without ``os.getuid`` (Windows) every
+    path counts as ours, matching ``_is_stale_and_owned``.
+    """
+    if not hasattr(os, "getuid"):
+        return True
+    try:
+        return path.lstat().st_uid == os.getuid()
+    except OSError:
+        return True
+
+
 def _remove_entry(entry: Path) -> str | None:
     if entry.is_dir():
         return remove_tree(entry, "stale ratchet scratch")
@@ -342,7 +374,11 @@ def _remove_unless_live(entry: Path, owner: Path) -> bool:
     """Remove ``entry`` while holding an exclusive lock on its scratch tree ``owner``.
 
     A lock held elsewhere means a live run owns the tree, so the entry stays.
-    A missing owner means a sibling was orphaned, so the entry goes.
+    A missing owner means a sibling was orphaned, so the entry goes. An owner
+    that this user does not own cannot be a live run's tree, since a run creates
+    its tree with ``mkdtemp`` as this user. Another user can plant such a
+    directory in a shared temp dir and hold its lock, so the lock is ignored
+    and the entry goes.
     """
     lock_fd: int | None = None
     if sys.platform != "win32":
@@ -351,7 +387,9 @@ def _remove_unless_live(entry: Path, owner: Path) -> bool:
         except FileNotFoundError:
             lock_fd = None
         except OSError:
-            return False
+            if _owned_by_current_user(owner):
+                return False
+            lock_fd = None
     try:
         error = _remove_entry(entry)
     finally:

@@ -168,10 +168,19 @@ One optimization step:
      regressions, every held-out result a literal boolean.
    - Verdict precedence: `REJECT_UNVERIFIED` first (a missing or non-boolean
      result), then `REJECT_NULL_CONTROL` (the null run moved and no genuine
-     gain remains), then `ACCEPT_PARETO` or `REJECT`.
+     gain remains), then `REJECT_CEILING` (the incumbent already passes every
+     `sel` task and the candidate regresses none), then `ACCEPT_PARETO` or
+     `REJECT`.
    - Exit 1, `REJECT`, `REJECT_UNVERIFIED`, or `REJECT_NULL_CONTROL`: record
      it with `skillopt.py buffer-add --buffer rejected.jsonl --patches
      patches.json --score <cand> --incumbent <best> --note "..." --step T`.
+   - Exit 1, `REJECT_CEILING`: the edit lost nothing and is not bad. Do not
+     buffer it. No candidate can pass a gate that has no headroom, so stop the
+     loop and read the `hint`: freeze a new `sel` set of harder tasks that
+     sample the failure mode, re-score the incumbent on it, then author a
+     fresh candidate. Never re-gate this candidate on tasks written after it.
+     For a first draft whose `sel` tasks came from its own requirements, hand
+     back to `skillforge`.
 8. **Repeat** until the budget reaches its floor and several steps reject, or
    the step budget runs out.
 

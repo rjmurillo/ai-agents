@@ -1,5 +1,5 @@
 [.claude/]
-|Binplaced dogfood copy of the `project-toolkit` plugin tree (`src/claude/`), ... (see: .project-toolkit/context/claude/details/claude.md)
+|Dogfood copy of `src/claude/` (`project-toolkit`), not a marketplace source (... (see: .project-toolkit/context/claude/details/claude.md)
 [Matters]
 |Generated, never hand-edit: `agents/`, `rules/`, `skills/<name>/SKILL.md`, `h... (see: .project-toolkit/context/claude/details/matters.md)
 [Entry points]
