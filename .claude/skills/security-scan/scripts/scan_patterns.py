@@ -24,6 +24,7 @@ _MODE_ANSI = "ansi"
 _MODE_SUB = "sub"
 _MODE_TICK = "tick"
 _MODE_ARITH = "arith"
+_MODE_PARAM = "param"
 
 
 def _blank_run(line: str, i: int, width: int = 1) -> str:
@@ -31,12 +32,30 @@ def _blank_run(line: str, i: int, width: int = 1) -> str:
     return " " * min(width, len(line) - i)
 
 
-def _starts_comment(line: str, i: int) -> bool:
-    """A `#` starts a comment only at line start or after whitespace.
+# Characters after which a word, and so a `#` comment, can begin without whitespace.
+_COMMENT_LEADERS = frozenset(";&|()<>")
 
-    This keeps `$#`, `${#x}`, and `a#b` out of the comment path.
+
+def _is_escaped(line: str, i: int) -> bool:
+    """True when the character at `i` is preceded by an odd run of backslashes."""
+    count = 0
+    while i - count - 1 >= 0 and line[i - count - 1] == "\\":
+        count += 1
+    return count % 2 == 1
+
+
+def _starts_comment(line: str, i: int) -> bool:
+    """A `#` starts a comment at line start, after whitespace, or after `;&|()<>`.
+
+    Bash begins a word after a metacharacter, so `cd /tmp;# note` and
+    `x=$(ls)# note` carry comments. An escaped metacharacter does not end the
+    word. `$#`, `${#x}`, and `a#b` stay out of the comment path.
     """
-    return line[i] == "#" and (i == 0 or line[i - 1].isspace())
+    if line[i] != "#":
+        return False
+    if i == 0 or line[i - 1].isspace():
+        return True
+    return line[i - 1] in _COMMENT_LEADERS and not _is_escaped(line, i - 1)
 
 
 def _step_single(line: str, i: int, out: list[str], stack: list[str]) -> int:
@@ -83,6 +102,20 @@ def _step_double(line: str, i: int, out: list[str], stack: list[str]) -> int:
     return i + 1
 
 
+# Two-character openers that push a mode: `$'...'` and `${...}`.
+_DOLLAR_OPENERS = (("$'", _MODE_ANSI), ("${", _MODE_PARAM))
+
+
+def _open_dollar_form(line: str, i: int, out: list[str], stack: list[str]) -> int:
+    """Open `$'` or `${` at `i` and return the next index, or 0 when neither starts here."""
+    for opener, mode in _DOLLAR_OPENERS:
+        if line.startswith(opener, i):
+            stack.append(mode)
+            out.append(opener)
+            return i + len(opener)
+    return 0
+
+
 def _step_command(line: str, i: int, out: list[str], stack: list[str]) -> int:
     """Consume one character of unquoted shell text or a substitution body."""
     ch = line[i]
@@ -91,10 +124,9 @@ def _step_command(line: str, i: int, out: list[str], stack: list[str]) -> int:
         return i + 2
     if _starts_comment(line, i):
         return len(line)
-    if line.startswith("$'", i):
-        stack.append(_MODE_ANSI)
-        out.append("$'")
-        return i + 2
+    opened = _open_dollar_form(line, i, out, stack)
+    if opened:
+        return opened
     if ch == "`" and stack and stack[-1] == _MODE_TICK:
         stack.pop()
     elif ch == "'":
@@ -122,6 +154,31 @@ def _step_arith(line: str, i: int, out: list[str], stack: list[str]) -> int:
     return _step_command(line, i, out, stack)
 
 
+def _step_param(line: str, i: int, out: list[str], stack: list[str]) -> int:
+    """Consume inside `${...}`. Only `}` closes it.
+
+    Parentheses and `#` are pattern text here, not substitutions or comments.
+    Quotes and `$( )` nest as usual.
+    """
+    ch = line[i]
+    if ch == "}":
+        stack.pop()
+        out.append(ch)
+        return i + 1
+    if line.startswith("$((", i):
+        stack.append(_MODE_ARITH)
+        out.append("$((")
+        return i + 3
+    if line.startswith("$(", i):
+        stack.append(_MODE_SUB)
+        out.append("$(")
+        return i + 2
+    if ch in "\\'\"" or line.startswith(("$'", "${"), i):
+        return _step_command(line, i, out, stack)
+    out.append(ch)
+    return i + 1
+
+
 _STEPS = {
     _MODE_SINGLE: _step_single,
     _MODE_ANSI: _step_ansi,
@@ -129,6 +186,7 @@ _STEPS = {
     _MODE_SUB: _step_command,
     _MODE_TICK: _step_command,
     _MODE_ARITH: _step_arith,
+    _MODE_PARAM: _step_param,
 }
 
 
@@ -137,10 +195,11 @@ _SHELL_TEXT_MODES = (_MODE_SUB, _MODE_TICK)
 
 # A here-document opener: `<<`, optional `-`, then the delimiter word. Groups
 # 2 to 4 are the quoted forms ('X', "X", \X); group 5 is a bare word.
-# A bare word must start with a letter or underscore, so `1<<2` is not an opener.
+# A bare word is any run of non-metacharacters, so `<<!`, `<<1`, and `1<<2` are
+# openers, as in bash. Arithmetic shifts are screened out by the lexer mode.
 _HEREDOC_RE = re.compile(
     r"<<(-?)[ \t]*(?:'([^']*)'|\"([^\"]*)\"|\\([^\s;|&<>()'\"\\$`]+)"
-    r"|([A-Za-z_][^\s;|&<>()'\"\\$`]*))"
+    r"|([^\s;|&<>()'\"\\$`]+))"
 )
 
 
@@ -234,9 +293,12 @@ def scrub_bash_lines(lines: Sequence[str]) -> list[str]:
     `<<"X"`, `<<\\X`) is blanked, since it never expands. The body of an
     unquoted-delimiter here-document is scrubbed one line at a time, as before.
 
-    It fails open. If a quote or here-document is still unresolved at end of
-    file, every line from where it opened is scrubbed with `scrub_bash_line`, so
-    a stray quote never hides the rest of the file.
+    It fails open only on unresolved state. If a quote or here-document is still
+    open at end of file, every line from where it opened is scrubbed with
+    `scrub_bash_line`. A misread quote that a later, unrelated quote closes
+    before end of file is not caught by this fallback. The lexer therefore
+    tracks the shell forms that hide or fake a quote: comments after a
+    metacharacter, bare here-document delimiters, and `${...}` bodies.
     """
     result: list[str] = []
     stack: list[str] = []

@@ -638,8 +638,6 @@ def test_scan_file_flags_code_after_heredoc_terminator(tmp_path: Path) -> None:
         # Arithmetic shift is not a here-document.
         "x=$((1<<n))\nrm $target\n",
         "(( x = 1 << n ))\nrm $target\n",
-        # A bare delimiter must start with a letter or underscore.
-        "let x=1<<2\nrm $target\n",
         # `<<<` is a here-string.
         "cat <<<$word\nrm $target\n",
         # `<<` inside quotes is text.
@@ -654,6 +652,101 @@ def test_scan_file_non_heredoc_shift_does_not_hide_following_code(
 ) -> None:
     flagged = _unquoted_lines(tmp_path, body)
     assert flagged[-1] == body.count("\n")
+
+
+@pytest.mark.parametrize(
+    "opener",
+    ["cat <<!", "cat <<1", "echo 1<<2", "let x=1<<2", "cat <<-1"],
+)
+def test_scan_file_bare_punctuation_or_digit_delimiter_is_a_heredoc(
+    tmp_path: Path, opener: str
+) -> None:
+    """Bash reads `<<!`, `<<1`, and `1<<2` as here-documents. An apostrophe in
+    the body must not open a quote that hides the code after the terminator."""
+    delimiter = opener.rsplit("<<", 1)[1].lstrip("-")
+    body = f"{opener}\nit's here\n{delimiter}\nrm -rf $danger\n# that's all\n"
+    assert _unquoted_lines(tmp_path, body) == [4]
+
+
+def test_scan_file_digit_delimiter_body_keeps_per_line_scan(tmp_path: Path) -> None:
+    """An unquoted delimiter expands the body, so a variable there is still flagged."""
+    body = "echo 1<<2\nrm $inbody\n2\nrm $after\n"
+    assert _unquoted_lines(tmp_path, body) == [2, 4]
+
+
+@pytest.mark.parametrize(
+    "first",
+    [
+        "cd /tmp;# don't care",
+        "x=$(ls)# it's",
+        "ls |# it's",
+        "sleep 1 &# it's",
+        "ls;;# it's",
+    ],
+)
+def test_scan_file_comment_after_metacharacter_does_not_open_a_quote(
+    tmp_path: Path, first: str
+) -> None:
+    """Bash starts a comment after `;&|()<>`. A later apostrophe closes the
+    phantom quote before end of file, so the EOF fallback cannot rescue line 2."""
+    body = f"{first}\nrm -rf $danger\n# it's fine\n"
+    assert _unquoted_lines(tmp_path, body) == [2]
+
+
+@pytest.mark.parametrize(
+    ("line", "visible"),
+    [
+        # `#` after a metacharacter hides the rest of the line.
+        ("ls;# $a", False),
+        ("x=$(ls)# $a", False),
+        ("a|# $a", False),
+        ("a&# $a", False),
+        # An escaped backslash leaves the `;` live, so the comment still starts.
+        ("echo \\\\;# $a", False),
+        # An escaped metacharacter does not end the word, so `#` is plain text.
+        ("echo \\;#x $a", True),
+        # `$#`, `${#x}`, `a#b`, and a base-prefixed number are not comments.
+        ("echo $# $a", True),
+        ("echo ${#x} $a", True),
+        ("echo a#b $a", True),
+        ("echo $((16#ff)) $a", True),
+        # `#` after a space inside `${...}` is pattern text, not a comment.
+        ("echo ${x// #/_} $a", True),
+    ],
+)
+def test_bash_scrub_comment_start_rules(line: str, visible: bool) -> None:
+    assert ("$a" in scanner.scrub_bash_line(line)) is visible
+
+
+def test_scan_file_param_expansion_pattern_is_not_a_heredoc(tmp_path: Path) -> None:
+    """Bash runs the next line: `<<'x'` inside `${...}` is pattern text."""
+    body = "echo ${s//<<'x'/}\nrm -rf $danger\nx\nrm $after\n"
+    assert _unquoted_lines(tmp_path, body) == [2, 4]
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "echo ${x:-'a b'}\nrm $target\n",
+        'echo ${x:-"a b"}\nrm $target\n',
+        "echo ${x:-$(date)}\nrm $target\n",
+        "echo ${s//(a/b}\nrm $target\n",
+        "echo ${x//#/_} 'q'\nrm $target\n",
+        'echo ${#x} "q"\nrm $target\n',
+    ],
+)
+def test_scan_file_param_expansion_forms_resolve_and_keep_scanning(
+    tmp_path: Path, body: str
+) -> None:
+    flagged = _unquoted_lines(tmp_path, body)
+    assert flagged[-1] == body.count("\n")
+
+
+def test_scan_file_misparsed_quote_closed_later_no_longer_hides_code(tmp_path: Path) -> None:
+    """Regression for the fail-open gap: the EOF fallback only fires on state still
+    open at end of file, so the lexer must not invent a quote in the first place."""
+    body = "cd /tmp;# don't care\nrm -rf $danger\nwc -l 'f'\nrm $other\n# it's fine\n"
+    assert _unquoted_lines(tmp_path, body) == [2, 4]
 
 
 def test_scan_file_flags_arithmetic_operand_variable(tmp_path: Path) -> None:
@@ -671,6 +764,8 @@ def test_scan_file_flags_arithmetic_operand_variable(tmp_path: Path) -> None:
         ("x=$(\nrm $b\n", [2]),
         # A quoted here-document that never ends: the body falls back to per-line scrub.
         ("cat <<'EOF'\n$a\nrm $b\n", [2, 3]),
+        # A parameter expansion that never closes.
+        ("echo ${x\nrm $b\n", [2]),
     ],
 )
 def test_scan_file_unresolved_state_at_eof_falls_back_to_per_line_scrub(
