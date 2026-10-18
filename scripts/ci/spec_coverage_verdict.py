@@ -109,7 +109,10 @@ _MAX_ITEM_ANNOTATIONS = 8
 _ITEM_SYNTAX = "`- [ ] text` or `- [x] text`"
 _UNCHECKED_HINT = (
     " Check each box once the work is done. For a criterion the owner deferred, "
-    "move it under a separate heading such as `## Deferred` and link the follow-up."
+    "move it under a separate heading at the same or a higher level than your "
+    "acceptance heading (a lower-level heading stays inside the section and its "
+    "boxes still count), such as `## Deferred` under `## Acceptance criteria`, "
+    "and link the follow-up."
 )
 
 
@@ -121,14 +124,15 @@ def _no_criteria_reason(body: str) -> str:
         f"(any `#` level, nothing else on the line) followed by items written as "
         f"{_ITEM_SYNTAX}."
     )
-    near = near_miss_headings(body)
-    if near:
-        reason += f" Found `{near[0]}`, which the check does not accept. Rename it."
-    elif has_acceptance_section(body):
+    if has_acceptance_section(body):
         reason += (
             " The heading is present but has no checkbox items under it. Numbered "
             "lists (`1. text`) and bullets without brackets do not count."
         )
+    else:
+        near = near_miss_headings(body)
+        if near:
+            reason += f" Found `{near[0]}`, which the check does not accept. Rename it."
     return reason
 
 
