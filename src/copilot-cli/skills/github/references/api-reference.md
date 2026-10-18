@@ -69,6 +69,27 @@ The `Data` object returned by `get_pr_context.py` includes these fields.
 | `owner` | string | (resolved) | Repository owner |
 | `repo` | string | (resolved) | Repository name |
 
+## `test_pr_merged.py` Output Fields
+
+The script prints one flat JSON object. Branch on `merged`, not the exit code.
+
+| Field | Type | Source (GraphQL) | Description |
+|-------|------|------------------|-------------|
+| `success` | bool | (constant) | `true` when the query answered |
+| `pull_request` | int | (argument) | PR number queried |
+| `owner` | string | (resolved) | Repository owner |
+| `repo` | string | (resolved) | Repository name |
+| `state` | string \| null | `state` | `OPEN`, `CLOSED`, or `MERGED` |
+| `merged` | bool | `merged` | Whether the PR is merged |
+| `merged_at` | string \| null | `mergedAt` | ISO 8601 merge time |
+| `merged_by` | string \| null | `mergedBy.login` | Who merged the PR |
+| `head_ref` | string \| null | `headRefName` | Source branch name |
+| `head_sha` | string \| null | `headRefOid` | Head commit SHA |
+| `merge_commit_sha` | string \| null | `mergeCommit.oid` | Merge commit SHA. `null` until the PR merges |
+
+Post-merge cleanup in `pr-autofix` reads `head_ref`, `head_sha`, and
+`merge_commit_sha` to find and remove the PR worktree.
+
 ## Shared Module Functions
 
 All scripts import `modules/GitHubCore.psm1`:
