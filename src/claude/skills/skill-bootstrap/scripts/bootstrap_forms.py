@@ -204,7 +204,10 @@ def _form_violations(item: Payload, label: str) -> list[Violation]:
 
 def _script_missing(item: Payload, label: str, skills_root: Path) -> list[Violation]:
     """Flag an instrument or both item whose script file is absent (path already valid)."""
-    if item.get("form") not in SCRIPT_FORMS or script_defect(item.get("script")) is not None:
+    form = item.get("form")
+    if not isinstance(form, str) or form not in SCRIPT_FORMS:
+        return []
+    if script_defect(item.get("script")) is not None:
         return []
     skill = item.get("skill")
     if not isinstance(skill, str) or not valid_skill_name(skill):

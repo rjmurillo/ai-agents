@@ -303,14 +303,14 @@ def test_command_that_cannot_start_is_a_failure(capsys, repo, skills):
 
 
 def test_command_does_not_use_a_shell(capsys, repo, skills):
-    marker = repo / "injected.txt"
-    argv = [PY, "-c", "pass", f"; touch {marker}"]
+    literal = "$HOME; echo injected"
+    probe = f"import sys; sys.exit(17 if sys.argv[1:] == [{literal!r}] else 0)"
+    check = {"id": "R5", "kind": "command", "argv": [PY, "-c", probe, literal], "expect_exit": 17}
 
-    code, payload = check_one(
-        capsys, repo, skills, {"id": "R5", "kind": "command", "argv": argv}, "--allow-commands"
-    )
+    code, payload = check_one(capsys, repo, skills, check, "--allow-commands")
 
-    assert not marker.exists()
+    assert code == 0
+    assert only_check(payload)["status"] == "pass"
 
 
 def test_skipped_checks_do_not_fail_a_skill_with_passing_checks(capsys, repo, skills):

@@ -130,10 +130,16 @@ def test_unknown_mode_is_rejected_by_argparse():
     assert exc.value.code == 2
 
 
-@pytest.mark.parametrize("flag", ["--min", "--res"])
-def test_abbreviated_flags_are_rejected(flag):
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["score", "--frozen", "f", "--results", "r", "--min", "0.1"],
+        ["score", "--frozen", "f", "--res", "x"],
+    ],
+)
+def test_abbreviated_flags_are_rejected(argv):
     with pytest.raises(SystemExit) as exc:
-        bootstrap_eval.main(["score", "--frozen", "f", flag, "x"])
+        bootstrap_eval.main(argv)
 
     assert exc.value.code == 2
 

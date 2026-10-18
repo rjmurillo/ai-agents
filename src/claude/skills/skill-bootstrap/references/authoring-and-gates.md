@@ -250,7 +250,7 @@ The order is fixed. Each stage reads the previous stage's output.
 1. Run three independent reviews on the final workflows. Independent means
    a separate agent context that receives only the artifacts and the
    requirements, never the author's reasoning.
-   - Factual: run `bootstrap_mine.py claims` and `bootstrap_drift.py check`
+   - Factual: run `bootstrap_mine.py claims` and `bootstrap_drift.py check --require`
      (without `--allow-commands` unless the user approved the argv list) first, then check what the scripts cannot: provider semantics, and
      whether each claim is true, not only whether its path exists.
    - Doctrine: the repository's instruction files, rules, and authority

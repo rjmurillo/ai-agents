@@ -136,7 +136,9 @@ def test_unknown_lens_is_flagged(capsys, tmp_path, lens):
     assert rules(payload) == ["unknown-lens"]
 
 
-@pytest.mark.parametrize("form", [None, "", "map", "Instrument", 3])
+@pytest.mark.parametrize(
+    "form", [None, "", "map", "Instrument", 3, ["instrument"], {"form": "both"}]
+)
 def test_unknown_form_is_flagged(capsys, tmp_path, form):
     code, payload = run_check(capsys, tmp_path, [make_item(form=form)])
 
@@ -291,6 +293,17 @@ def test_require_scripts_passes_when_script_exists(capsys, tmp_path):
 
     assert code == 0
     assert payload["violations"] == []
+
+
+@pytest.mark.parametrize("form", [["instrument"], {"form": "both"}])
+def test_require_scripts_reports_unhashable_form_without_crashing(capsys, tmp_path, form):
+    code, payload = run_check(
+        capsys, tmp_path, [make_item(form=form)], "--skills-root", str(tmp_path),
+        "--require-scripts",
+    )  # fmt: skip
+
+    assert code == 1
+    assert rules(payload) == ["form-invalid"]
 
 
 def test_require_scripts_ignores_scaffold_items(capsys, tmp_path):
