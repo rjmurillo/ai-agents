@@ -574,10 +574,9 @@ def score(args: argparse.Namespace) -> tuple[int, Payload]:
         for name in sorted({row["skill"] for row in rows})
     }
     overall = _summary(rows)
-    failing = overall["statuses"]["incomplete"] > 0 or overall["statuses"]["regression"] > 0
     failing_statuses = KNOWLEDGE_FAILING if args.mode == "knowledge" else WORKFLOW_FAILING
     failing_cases = [row["id"] for row in rows if row["status"] in failing_statuses]
-    failing = failing or bool(failing_cases)
+    failing = bool(failing_cases)
     payload: Payload = {
         "mode": args.mode,
         "failing_cases": failing_cases,
