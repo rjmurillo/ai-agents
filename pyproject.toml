@@ -345,9 +345,9 @@ dev = [
 # locally (31.57s and 8.96s, serial, no coverage). The multiplier absorbs a
 # slower or loaded runner, per `.claude/rules/ci-scripts.md` item 16: a
 # standalone wall clock does not predict the same work under contention. What
-# survives that headroom is the regression the batching prevents, a suite that
-# goes back to rediscovering the whole repository per test and lands several
-# times over.
+# survives that headroom is the regression each fix prevents: a suite that goes
+# back to rediscovering the whole repository per test, or to re-sorting the
+# surface manifest once per file, and lands several times over.
 #
 # The surface parity budget is about twice its 12.5s sum, not four times. That
 # suite summed 49.6s on main before the sort-once change (JUnit sum, serial, no
