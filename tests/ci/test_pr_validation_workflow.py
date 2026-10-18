@@ -501,6 +501,55 @@ def test_enforce_passes_when_no_blocking_inputs(
     assert "✓ PR validation passed" in capsys.readouterr().out
 
 
+def test_enforce_passes_on_bypassed_status(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """BYPASSED is the label override from build_pr_validation_report.py."""
+    monkeypatch.setenv("OVERALL_STATUS", "BYPASSED")
+
+    assert enforce_mod.main() == 0
+    assert "✓ PR validation passed" in capsys.readouterr().out
+
+
+def test_enforce_fails_closed_when_status_is_unset(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.delenv("OVERALL_STATUS", raising=False)
+
+    assert enforce_mod.main() == 1
+    captured = capsys.readouterr()
+    assert "::error::PR validation failed: UNKNOWN (empty)" in captured.err
+    assert "passed" not in captured.out
+
+
+@pytest.mark.parametrize("status", ["", "UNKNOWN", "pass", "WARN", "SKIPPED", "PASS "])
+def test_enforce_fails_closed_on_any_value_outside_the_allow_list(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    status: str,
+) -> None:
+    monkeypatch.setenv("OVERALL_STATUS", status)
+
+    assert enforce_mod.main() == 1
+    captured = capsys.readouterr()
+    assert "::error::PR validation failed:" in captured.err
+    assert captured.out == ""
+
+
+def test_enforce_escapes_an_unknown_status_value(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("OVERALL_STATUS", "X\n::error::forged")
+
+    assert enforce_mod.main() == 1
+    err = capsys.readouterr().err
+    assert err.count("\n") == 1
+    assert "X%0A::error::forged" in err
+
+
 def test_enforce_ignores_the_commit_status_env_var(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
