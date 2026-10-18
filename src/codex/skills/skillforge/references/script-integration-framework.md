@@ -13,12 +13,12 @@ Scripts transform skills from documentation-only guides into executable, verifia
 | Without Scripts | With Scripts |
 |----------------|--------------|
 | Manual execution | Automated, repeatable |
-| Human verification | Self-verification |
+| Human verification | Independent verification |
 | Session-bound state | Persistent state |
 | Error-prone | Deterministic |
 | Hard to compose | Easily orchestrated |
 
-**Principle:** A skill with well-designed scripts can run autonomously, verify its own success, and recover from errors without human intervention.
+**Principle:** A skill with well-designed scripts can run autonomously, hand its outcome to an independent check, and recover from errors without human intervention.
 
 ---
 
@@ -93,7 +93,7 @@ Routing examples:
 
 | Task | Design | Why |
 |------|--------|-----|
-| Report the number of unresolved review threads on a PR | GPS, through the existing instrument | Exact computable fact. `get_unresolved_review_threads.py` returns the thread list. Count it. |
+| Report the number of unresolved review threads on a PR | GPS, through the existing instrument | Exact computable fact. `get_unresolved_review_threads.py` returns `unresolved_count`. Read it, and accept it only when `fetched_pages_complete` is true. Exit 0 can accompany an incomplete snapshot. |
 | Pick between two architectures with different maintenance costs | Map | Ambiguous tradeoff. No program can score it. Give criteria and let the agent decide. |
 | Gather failing-check logs, decide the fix, apply it, re-run the checks | Hybrid | Measured facts, then judgment, then a validated action. |
 
@@ -196,8 +196,8 @@ These patterns make scripts capable of autonomous operation.
 Scripts should check their own outputs and fail fast. This guard is not verification authority. An independent postcondition check still runs after the script:
 
 ```python
-def execute_and_verify(input_data):
-    """Execute operation and verify the result."""
+def execute_and_check(input_data):
+    """Execute operation and fail fast on a bad result."""
     result = perform_operation(input_data)
 
     # Fast-fail guard - the script checks itself; an independent postcondition check still runs after it
@@ -329,7 +329,7 @@ During Deep Analysis, apply the **Automation Lens** (Lens 12) to identify script
 | "What operations will be repeated identically?" | Identify determinism needs |
 | "What outputs require validation before proceeding?" | Identify verification scripts |
 | "What state needs to persist between skill invocations?" | Identify state management |
-| "How will the skill verify its own success?" | Enable autonomous verification |
+| "How will an independent check confirm the skill's outcome?" | Enable independent verification |
 | "What existing scripts in the ecosystem could be reused?" | Avoid reinventing |
 | "Is this map, GPS, or hybrid (see Design Selection)?" | Decide who judges and who verifies |
 | "Can this skill run overnight without human intervention?" | Assess agentic capability |
@@ -469,7 +469,7 @@ Every script must be documented in SKILL.md:
 Before finalizing a skill with scripts, verify:
 
 - [ ] **Autonomous Execution:** Can the skill run without user intervention?
-- [ ] **Self-Verification:** Can scripts verify their own outputs?
+- [ ] **Fast-Fail and Independent Check:** Do scripts fail fast, and does a separate postcondition check confirm the outcome?
 - [ ] **Error Recovery:** Do scripts attempt recovery before failing?
 - [ ] **State Persistence:** Is progress saved across sessions?
 - [ ] **Structured Output:** Do scripts output machine-readable data?

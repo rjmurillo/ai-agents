@@ -142,6 +142,37 @@ def test_thread_count_example_names_the_real_instrument(design_section: str) -> 
     assert "Count the open threads on a PR" not in text
 
 
+def test_thread_count_example_reads_the_instrument_fields_not_a_model_count(
+    design_section: str,
+) -> None:
+    row = next(
+        (ln for ln in design_section.splitlines() if "unresolved review threads" in ln), None
+    )
+    assert row
+    assert "`unresolved_count`" in row
+    assert "`fetched_pages_complete`" in row
+    assert "Count it" not in design_section
+    assert "Count it" not in _REF.read_text(encoding="utf-8")
+
+
+def test_self_verification_doctrine_is_retired_from_unchanged_sections() -> None:
+    text = _REF.read_text(encoding="utf-8")
+    assert "Self-Verification:**" not in text
+    assert "| Human verification | Self-verification |" not in text
+    assert "verify its own success" not in text
+    assert "How will the skill verify its own success?" not in text
+    assert "Fast-Fail and Independent Check:**" in text
+    assert "| Human verification | Independent verification |" in text
+
+
+def test_pattern_one_sample_is_named_for_a_fast_fail_check() -> None:
+    text = _REF.read_text(encoding="utf-8")
+    assert "def execute_and_verify" not in text
+    assert "def execute_and_check(input_data):" in text
+    assert "Execute operation and fail fast on a bad result." in text
+    assert "Execute operation and verify the result." not in text
+
+
 def test_matrix_has_hybrid_and_instrument_rows() -> None:
     text = _REF.read_text(encoding="utf-8")
     assert re.search(r"^\| \"Collect CI evidence.*\| Partial \(hybrid\) \|", text, re.M)
