@@ -231,9 +231,8 @@ def _base_symlinks(tool_root: Path, base_ref: str) -> set[str]:
 def _merge_base(tool_root: Path, base_ref: str, head_sha: str | None) -> str | None:
     """The commit where the head branched from the base ref, or None when unknown.
 
-    None covers a head given as a work tree (no commit to compare), a shallow
-    history that does not reach the fork point, and an unrelated history. The
-    merge base only picks the STALE label; it never clears a finding.
+    None covers a work-tree head, a shallow history that does not reach the fork point, and
+    an unrelated history. The merge base only picks the STALE label; it never clears a finding.
     """
     if head_sha is None:
         return None
@@ -323,6 +322,8 @@ def verify(tool_root: Path, head_root: Path, base_ref: str, head_sha: str | None
         [path for path in roots if (head_root / path).is_file()], head_root
     )
     fork = _merge_base(tool_root, base_ref, head_sha)
+    if fork is None and head_sha is not None:
+        print("note: no merge base for the head, so STALE reads as CHANGED", file=sys.stderr)
     report = Report(examined=len(closure))
     removed, stale_roots = _missing_roots(tool_root, head_root, base_ref, roots, fork)
     report.removed.extend(removed)
@@ -350,8 +351,7 @@ _INERT_GIT = ("-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false")
 # `checkout-index` would run on head blobs when the head's .gitattributes names it.
 _NO_SYSTEM_CONFIG = {"GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null"}
 _HEAD_MARKER = "refs/pull/{number}/head"
-# Head commits one fetch brings: 200 clears the largest of the last 50 merged PRs (66, 2026-10-18).
-# A longer head loses its merge base (no STALE label); every finding still fails the check.
+# 200 commits clear the largest of 50 merged PRs (66, 2026-10-18); a longer head has no merge base.
 HEAD_FETCH_DEPTH = 200
 
 

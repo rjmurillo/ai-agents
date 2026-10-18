@@ -59,3 +59,46 @@ def test_a_head_beyond_the_limit_loses_the_merge_base_but_still_materializes(
 
     assert (dest / HELPER).read_text(encoding="utf-8") == "X = 99\n"
     assert vdc._merge_base(base, "HEAD", sha) is None
+
+
+def test_a_head_beyond_the_limit_prints_a_notice_that_stale_reads_as_changed(
+    trees: tuple[Path, Path],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    base, _ = trees
+    upstream, sha = upstream_with_pr(base, {HELPER: "X = 99\n"})
+    monkeypatch.setattr(vdc, "HEAD_FETCH_DEPTH", 1)
+    dest = tmp_path / "out"
+    vdc.materialize_head(base, 1, sha, dest, remote=str(upstream))
+
+    report = vdc.verify(base, dest, "HEAD", sha)
+
+    assert HELPER in report.changed
+    assert "no merge base for the head" in capsys.readouterr().err
+
+
+def test_a_head_within_the_limit_prints_no_notice(
+    trees: tuple[Path, Path], tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Negative: the notice is only for a missing merge base."""
+    base, _ = trees
+    upstream, sha = upstream_with_pr(base, {HELPER: "X = 99\n"})
+    dest = tmp_path / "out"
+    vdc.materialize_head(base, 1, sha, dest, remote=str(upstream))
+
+    vdc.verify(base, dest, "HEAD", sha)
+
+    assert "no merge base" not in capsys.readouterr().err
+
+
+def test_a_work_tree_head_prints_no_notice(
+    trees: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Edge: a head given as a work tree has no commit to compare, which is not a depth loss."""
+    base, head = trees
+
+    vdc.verify(base, head, "HEAD")
+
+    assert "no merge base" not in capsys.readouterr().err
