@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import subprocess
 import sys
 from pathlib import Path
 
@@ -12,8 +11,6 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import local_smoke_guard
-
-_ORIGINAL_POPEN = subprocess.Popen
 
 
 def pytest_configure(config: pytest.Config) -> None:
@@ -27,5 +24,5 @@ def pytest_configure(config: pytest.Config) -> None:
 
 
 def pytest_unconfigure(config: pytest.Config) -> None:
-    """Put the real ``subprocess.Popen`` back when the session ends."""
-    setattr(subprocess, "Popen", _ORIGINAL_POPEN)  # noqa: B010
+    """Put the real ``subprocess.Popen`` and ``os`` spawn functions back at session end."""
+    local_smoke_guard.uninstall()
