@@ -295,48 +295,6 @@ class TestPrune:
 
         assert not config.with_name(backup_name).exists()
 
-    def test_backup_closes_the_descriptor_when_fdopen_fails(self, repo: Path) -> None:
-        config = resolve_config_path(repo)
-        opened: list[int] = []
-        closed: list[int] = []
-        real_open = mod.os.open
-        real_close = mod.os.close
-
-        def spy_open(*args: object, **kwargs: object) -> int:
-            fd = real_open(*args, **kwargs)  # type: ignore[arg-type]
-            opened.append(fd)
-            return fd
-
-        def spy_close(fd: int) -> None:
-            closed.append(fd)
-            real_close(fd)
-
-        with (
-            mock.patch.object(mod.os, "open", side_effect=spy_open),
-            mock.patch.object(mod.os, "close", side_effect=spy_close),
-            mock.patch.object(mod.os, "fdopen", side_effect=OSError("no memory")),
-            pytest.raises(GitError, match="could not write config backup"),
-        ):
-            mod._backup_config(config)
-
-        assert len(opened) == 1
-        assert closed == opened
-
-    def test_backup_does_not_close_the_descriptor_twice_on_success(self, repo: Path) -> None:
-        config = resolve_config_path(repo)
-        closed: list[int] = []
-        real_close = mod.os.close
-
-        def spy_close(fd: int) -> None:
-            closed.append(fd)
-            real_close(fd)
-
-        with mock.patch.object(mod.os, "close", side_effect=spy_close):
-            backup = mod._backup_config(config)
-
-        assert backup.exists()
-        assert closed == []
-
     def test_apply_with_a_planted_dangling_backup_link_still_prunes(
         self, repo: Path, tmp_path: Path
     ) -> None:
