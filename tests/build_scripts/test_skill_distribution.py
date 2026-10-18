@@ -102,6 +102,76 @@ class TestDistributionOfText:
         with pytest.raises(skill_distribution.SkillDistributionError, match="unparseable"):
             skill_distribution.distribution_of_text("---\nname: [unclosed\n---\n", "x.tmpl")
 
+    def test_unparseable_error_names_the_position_not_the_source_line(self) -> None:
+        secret = "SECRET-LINE-FROM-ANOTHER-FILE"
+        text = f"---\nname: {secret}: [unclosed\n---\n"
+
+        with pytest.raises(skill_distribution.SkillDistributionError) as caught:
+            skill_distribution.distribution_of_text(text, "x.tmpl")
+
+        message = str(caught.value)
+        assert "frontmatter line 1" in message
+        assert secret not in message
+
+    def test_unparseable_error_bounds_the_parser_problem_text(self) -> None:
+        text = "---\nname: !!" + "t" * 500 + " value\n---\n"
+
+        with pytest.raises(skill_distribution.SkillDistributionError) as caught:
+            skill_distribution.distribution_of_text(text, "x.tmpl")
+
+        assert len(str(caught.value)) < 300
+
+
+class TestSymlinkedSources:
+    def test_symlinked_installed_skill_md_is_refused_without_reading_it(
+        self, tmp_path: Path
+    ) -> None:
+        outside = tmp_path / "outside.txt"
+        outside.write_text("---\nname: SECRET-OUTSIDE: [unclosed\n---\n", encoding="utf-8")
+        skill_dir = tmp_path / "repo" / ".claude" / "skills" / "linked"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").symlink_to(outside)
+
+        with pytest.raises(skill_distribution.SkillDistributionError, match="symlink") as caught:
+            skill_distribution.is_repo_local(tmp_path / "repo", "linked")
+
+        assert "SECRET-OUTSIDE" not in str(caught.value)
+
+    def test_symlinked_template_is_refused(self, tmp_path: Path) -> None:
+        outside = tmp_path / "outside.txt"
+        outside.write_text(LOCAL.format(name="linked"), encoding="utf-8")
+        templates = tmp_path / "repo" / "templates" / "skills"
+        templates.mkdir(parents=True)
+        (templates / "linked.SKILL.md.tmpl").symlink_to(outside)
+
+        with pytest.raises(skill_distribution.SkillDistributionError, match="symlink"):
+            skill_distribution.is_repo_local(tmp_path / "repo", "linked")
+
+    def test_symlinked_skill_directory_is_refused(self, tmp_path: Path) -> None:
+        outside_dir = tmp_path / "outside"
+        outside_dir.mkdir()
+        (outside_dir / "SKILL.md").write_text(LOCAL.format(name="linked"), encoding="utf-8")
+        skills = tmp_path / "repo" / ".claude" / "skills"
+        skills.mkdir(parents=True)
+        (skills / "linked").symlink_to(outside_dir, target_is_directory=True)
+
+        with pytest.raises(skill_distribution.SkillDistributionError, match="symlink"):
+            skill_distribution.is_repo_local(tmp_path / "repo", "linked")
+
+    def test_repo_local_names_fails_on_a_symlinked_skill(self, tmp_path: Path) -> None:
+        outside = tmp_path / "outside.txt"
+        outside.write_text(LOCAL.format(name="linked"), encoding="utf-8")
+        skill_dir = tmp_path / "repo" / ".claude" / "skills" / "linked"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").symlink_to(outside)
+
+        with pytest.raises(skill_distribution.SkillDistributionError, match="symlink"):
+            skill_distribution.repo_local_names(tmp_path / "repo")
+
+    def test_regular_files_still_resolve(self, repo: Path) -> None:
+        assert skill_distribution.is_repo_local(repo, "local-skill") is True
+        assert skill_distribution.is_repo_local(repo, "shipped-skill") is False
+
 
 class TestResolution:
     def test_template_flag_wins_over_installed_skill_md(self, repo: Path) -> None:

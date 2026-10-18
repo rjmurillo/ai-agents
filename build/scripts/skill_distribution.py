@@ -38,8 +38,29 @@ _TEMPLATE_SUFFIX = ".SKILL.md.tmpl"
 _FRONTMATTER = re.compile(r"\A---\s*\n(.*?)\n---\s*(?:\n|\Z)", re.DOTALL)
 
 
+_PROBLEM_CAP = 80
+
+
 class SkillDistributionError(ValueError):
     """The ``metadata.distribution`` field is malformed or has an unknown value."""
+
+
+def _yaml_where(exc: yaml.YAMLError) -> str:
+    """Name where a YAML error happened without quoting the file.
+
+    ``str(exc)`` carries a snippet of the source line. When the file is a
+    symlink to something else, that snippet leaks a line of the target into the
+    error text. The parser's own short ``problem`` and the position are enough
+    to find the defect.
+    """
+    mark = getattr(exc, "problem_mark", None)
+    problem = " ".join(str(getattr(exc, "problem", "") or "").split())[:_PROBLEM_CAP]
+    where = (
+        f" at frontmatter line {mark.line + 1}, column {mark.column + 1}"
+        if mark is not None
+        else ""
+    )
+    return f"{where}: {problem}" if problem else where
 
 
 def distribution_of_text(text: str, source: str) -> str:
@@ -54,7 +75,9 @@ def distribution_of_text(text: str, source: str) -> str:
     try:
         frontmatter = yaml.safe_load(match.group(1))
     except yaml.YAMLError as exc:
-        raise SkillDistributionError(f"{source}: unparseable frontmatter: {exc}") from exc
+        raise SkillDistributionError(
+            f"{source}: unparseable frontmatter{_yaml_where(exc)}"
+        ) from exc
     if not isinstance(frontmatter, dict):
         return SHIPPED
     metadata = frontmatter.get("metadata")
@@ -71,12 +94,19 @@ def distribution_of_text(text: str, source: str) -> str:
 
 
 def _skill_source(repo_root: Path, name: str) -> Path | None:
+    """Return the template or installed ``SKILL.md`` for ``name``, refusing a symlink.
+
+    A symlinked file, or a symlinked skill directory, would make the flag read,
+    and a parse error quote, a file outside the skill tree.
+    """
     template = repo_root / "templates" / "skills" / f"{name}{_TEMPLATE_SUFFIX}"
-    if template.is_file():
-        return template
     installed = repo_root / ".claude" / "skills" / name / "SKILL.md"
-    if installed.is_file():
-        return installed
+    for link in (template, installed, installed.parent):
+        if link.is_symlink():
+            raise SkillDistributionError(f"{link}: is a symlink, not a regular path")
+    for candidate in (template, installed):
+        if candidate.is_file():
+            return candidate
     return None
 
 
