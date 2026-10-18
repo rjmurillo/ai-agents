@@ -66,7 +66,12 @@ def _env_instruction_pairs(rest: str) -> list[tuple[str, str]]:
         return []
     if "=" not in tokens[0]:
         return [(tokens[0], " ".join(tokens[1:]))]
-    return [tuple(token.split("=", 1)) for token in tokens if "=" in token]  # type: ignore[misc]
+    pairs = []
+    for token in tokens:
+        name, sep, value = token.partition("=")
+        if sep:
+            pairs.append((name, value))
+    return pairs
 
 
 def _dockerfile_effective_value(text: str) -> str | None:
@@ -89,66 +94,68 @@ def _dockerfile_effective_value(text: str) -> str | None:
     return effective
 
 
-def _strip_jsonc(text: str) -> str:
-    """Remove `//` and `/* */` comments and trailing commas outside string literals."""
-    no_comments: list[str] = []
+def _skip_string_char(chars: str, i: int) -> int:
+    """Index of the last character of the string-literal char starting at ``i``.
+
+    A backslash escapes the next character, so an escaped quote does not end
+    the literal.
+    """
+    return i + 1 if chars[i] == "\\" and i + 1 < len(chars) else i
+
+
+def _drop_jsonc_comments(text: str) -> str:
+    """Remove `//` and `/* */` comments that sit outside string literals."""
+    out: list[str] = []
+    i, n = 0, len(text)
+    in_string = False
+    while i < n:
+        if in_string:
+            end = _skip_string_char(text, i)
+            out.append(text[i : end + 1])
+            in_string = text[end] != '"' or end != i
+            i = end + 1
+        elif text.startswith("//", i):
+            newline = text.find("\n", i)
+            i = n if newline == -1 else newline
+        elif text.startswith("/*", i):
+            close = text.find("*/", i + 2)
+            i = n if close == -1 else close + 2
+        else:
+            in_string = text[i] == '"'
+            out.append(text[i])
+            i += 1
+    return "".join(out)
+
+
+def _drop_trailing_commas(text: str) -> str:
+    """Remove a comma that is followed only by whitespace and a closing bracket."""
+    out: list[str] = []
+    last_comma = -1
     i, n = 0, len(text)
     in_string = False
     while i < n:
         ch = text[i]
         if in_string:
-            no_comments.append(ch)
-            if ch == "\\" and i + 1 < n:
-                no_comments.append(text[i + 1])
-                i += 1
-            elif ch == '"':
-                in_string = False
-        elif ch == '"':
-            in_string = True
-            no_comments.append(ch)
-        elif text.startswith("//", i):
-            while i < n and text[i] != "\n":
-                i += 1
+            end = _skip_string_char(text, i)
+            out.append(text[i : end + 1])
+            in_string = text[end] != '"' or end != i
+            i = end + 1
             continue
-        elif text.startswith("/*", i):
-            close = text.find("*/", i + 2)
-            i = n if close == -1 else close + 1
-        else:
-            no_comments.append(ch)
-        i += 1
-
-    out: list[str] = []
-    last_comma = -1
-    in_string = False
-    j = 0
-    chars = no_comments
-    while j < len(chars):
-        ch = chars[j]
-        if in_string:
-            out.append(ch)
-            if ch == "\\" and j + 1 < len(chars):
-                out.append(chars[j + 1])
-                j += 1
-            elif ch == '"':
-                in_string = False
-        elif ch == '"':
-            in_string = True
-            out.append(ch)
-            last_comma = -1
-        elif ch == ",":
+        if ch in "}]" and last_comma != -1:
+            out[last_comma] = ""
+        if ch == ",":
             last_comma = len(out)
-            out.append(ch)
-        elif ch in "}]":
-            if last_comma != -1:
-                out[last_comma] = ""
+        elif not ch.isspace():
             last_comma = -1
-            out.append(ch)
-        else:
-            if not ch.isspace():
-                last_comma = -1
-            out.append(ch)
-        j += 1
+        in_string = ch == '"'
+        out.append(ch)
+        i += 1
     return "".join(out)
+
+
+def _strip_jsonc(text: str) -> str:
+    """Make devcontainer.json JSONC (comments, trailing commas) parseable as JSON."""
+    return _drop_trailing_commas(_drop_jsonc_comments(text))
 
 
 def _devcontainer_effective_value(text: str) -> str | None:
@@ -417,6 +424,13 @@ def test_dockerfile_marker_ignores_run_lines_and_joins_continuations(
             True,
         ),
         ('{"containerEnv": {"URL": "http://x//y,", "AI_AGENTS_REMOTE_CONTAINER": "1"}}', True),
+        # An escaped quote does not end the string, so the `//` stays text.
+        (
+            '{"containerEnv": {"X": "a\\"//b,", "AI_AGENTS_REMOTE_CONTAINER": "1"}}',
+            True,
+        ),
+        # An unterminated block comment swallows the rest, so nothing is set.
+        ('{"containerEnv": {}} /* AI_AGENTS_REMOTE_CONTAINER', False),
         # A commented-out entry does not count.
         ('{"containerEnv": {\n  // "AI_AGENTS_REMOTE_CONTAINER": "1"\n}}', False),
         # Malformed or non-object JSON is reported as missing, not guessed at.
@@ -442,6 +456,8 @@ def test_dockerfile_marker_ignores_run_lines_and_joins_continuations(
         "int-value",
         "jsonc-comments-trailing-commas",
         "string-with-slashes-and-comma",
+        "escaped-quote-in-string",
+        "unterminated-block-comment",
         "commented-out-entry",
         "malformed",
         "non-object",
