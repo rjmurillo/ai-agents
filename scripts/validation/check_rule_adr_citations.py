@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# taste-lint: ignore file-size, scan, fence check, and fault report share one ratchet entry point.
 """Flag a rule file that cites a non-accepted ADR as binding (issue #5200).
 
 A rule, `AGENTS.md`, or `CLAUDE.md` says "per ADR-078" or "MUST comply with
@@ -27,7 +28,9 @@ frontmatter `status:` through `check_adr_lifecycle.collect_records`, so ADR
 parsing keeps one owner. Every `ADR-NNN-*.md` record carries a frontmatter
 status since ADR-073 landed, so no prose fallback is needed. A cited number with
 no record is the link gate's finding (`check_adr_links.py`) and is counted here,
-not failed.
+not failed. A record whose status is empty (missing, unparseable, or non-scalar)
+is counted the same way: it is not `accepted`, so its citations are not
+skipped as if it were (issue #6506).
 
 `proposed`, `rejected`, `deprecated` and `superseded` are non-accepted. The
 issue names the first, second and fourth; `deprecated` is in ADR-073's enum and
@@ -73,8 +76,14 @@ list shrinks when a citation is repaired and cannot mask a re-introduction.
 Edit the baseline by hand: delete a line when its citation is fixed. Adding a
 line legalises a violation and shows in review as an added line.
 
-Exit codes follow ADR-035: 0 ok, 1 new or stale violation, 2 configuration
-fault, 3 git could not list tracked files. Every terminal line carries the
+A scan that cannot see every tracked file does not pass. A tracked file that is
+a symlink, a non-regular file, or leaves the repository is listed on stderr and
+fails the run with exit 2. A fenced block with no closing fence masks every later
+line of its file, so it is listed and fails the run with exit 1 (issue #6506).
+
+Exit codes follow ADR-035: 0 ok, 1 new or stale violation or an unterminated
+fence, 2 configuration fault or a tracked file the scan skipped, 3 git could not
+list tracked files. Every terminal line carries the
 examined count (`ci-scripts.md` MUST 12).
 """
 
@@ -84,7 +93,7 @@ import argparse
 import json
 import re
 import sys
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
@@ -187,6 +196,21 @@ class Citation:
             f"{self.path}:{self.line}: [{CHECK}] ADR-{self.adr:03d} is "
             f"{self.status} but is cited as binding: ...{self.sentence}..."
         )
+
+
+def unterminated_fence_line(text: str) -> int | None:
+    """Line number of the first fence that never closes, or ``None``.
+
+    ``_FENCE_RE`` lets an open fence run to the end of the file so a missing
+    close does not crash the scan, but then every later citation is masked.
+    Frontmatter is blanked first so a ``---`` block cannot hold a fence.
+    """
+    body = _FRONTMATTER_RE.sub(_blank, text)
+    for match in _FENCE_RE.finditer(body):
+        lines = match.group(0).split("\n")
+        if len(lines) < 2 or not lines[-1].startswith(match.group(1)):
+            return body.count("\n", 0, match.start()) + 1
+    return None
 
 
 def _blank(match: re.Match[str]) -> str:
@@ -293,7 +317,7 @@ def _mentions_in_block(
         for index, match in enumerate(matches):
             adr = int(match.group(1))
             status = statuses.get(adr)
-            if status is None:
+            if not status:
                 unknown.add(adr)
                 continue
             if status not in NON_ACCEPTED:
@@ -333,6 +357,7 @@ class ScanResult:
     examined: int
     absent: list[str]
     unknown: set[int]
+    unterminated: list[str] = field(default_factory=list)
 
     @property
     def binding(self) -> list[Citation]:
@@ -367,6 +392,7 @@ def scan(repo_root: Path, statuses: dict[int, str]) -> ScanResult | str:
         )
     citations: list[Citation] = []
     absent: list[str] = []
+    unterminated: list[str] = []
     unknown: set[int] = set()
     for rel in sorted(relatives):
         path = _readable(repo_root, rel)
@@ -374,8 +400,13 @@ def scan(repo_root: Path, statuses: dict[int, str]) -> ScanResult | str:
             absent.append(rel)
             continue
         text = path.read_text(encoding="utf-8", errors="replace")
+        fence_line = unterminated_fence_line(text)
+        if fence_line is not None:
+            unterminated.append(f"{rel}:{fence_line}")
         citations.extend(citations_in(rel, text, statuses, unknown))
-    return ScanResult(citations, len(relatives), len(relatives) - len(absent), absent, unknown)
+    return ScanResult(
+        citations, len(relatives), len(relatives) - len(absent), absent, unknown, unterminated
+    )
 
 
 def read_baseline(path: Path) -> set[str] | str:
@@ -444,18 +475,41 @@ def main(argv: list[str] | None = None) -> int:
         )
         return EXIT_CONFIG
 
+    if result.absent:
+        for rel in result.absent:
+            print(
+                f"{rel}: [{CHECK}] tracked file is not a regular file inside the repository, "
+                "so it was not scanned",
+                file=sys.stderr,
+            )
+        print(
+            f"[{CHECK}] config: skipped {len(result.absent)} of {result.candidates} "
+            "tracked rule file(s); a gate that cannot see every file has not passed.",
+            file=sys.stderr,
+        )
+        return EXIT_CONFIG
+
     current = {c.key for c in result.binding}
     new = sorted(current - baseline)
     stale = sorted(baseline - current)
     _report(result, new, stale, args.verbose)
+    for location in result.unterminated:
+        print(
+            f"{location}: [{CHECK}] code fence is never closed, so every later line of "
+            "the file is masked and its citations went unchecked.",
+            file=sys.stderr,
+        )
     scope = (
         f"{len(current)} binding violation(s) ({len(baseline)} known), "
         f"{len(result.unclassified)} unclassified, across "
-        f"{result.examined} of {result.candidates} tracked rule file(s)"
+        f"{result.examined} of {result.candidates} tracked rule file(s), "
+        f"{len(result.unknown)} ADR number(s) with no usable status"
     )
-    if new or stale:
+    if new or stale or result.unterminated:
         print(
-            f"[{CHECK}] REGRESSION: {len(new)} new, {len(stale)} stale; {scope}.", file=sys.stderr
+            f"[{CHECK}] REGRESSION: {len(new)} new, {len(stale)} stale, "
+            f"{len(result.unterminated)} unterminated fence(s); {scope}.",
+            file=sys.stderr,
         )
         return EXIT_REGRESSION
     print(f"[{CHECK}] at baseline: {scope}.")

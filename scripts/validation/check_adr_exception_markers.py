@@ -14,10 +14,14 @@ each cited number against `.project-toolkit/architecture/ADR-NNN-*.md`:
 
     missing   no ADR file carries that number
     retired   the ADR's frontmatter `status` is superseded, deprecated, or rejected
+    unread    the ADR's frontmatter `status` cannot be read (unparseable, absent,
+              or not a scalar), so the marker cannot be shown to name a live ADR
 
 A marker can be written as a whole-line comment or trailing a YAML key. An ADR
-with no readable frontmatter has an unknown status and passes on existence; the
-`ADR Lifecycle Frontmatter (ratchet)` gate owns the frontmatter defect. Whether
+with no readable status fails the marker (issue #6506): passing on existence
+alone would let a retired record with broken frontmatter stand as live. The
+`ADR Lifecycle Frontmatter (ratchet)` gate still owns the frontmatter defect;
+this gate only refuses to vouch for the marker until it is fixed. Whether
 the cited ADR is about runner selection is a review question. Only existence and
 status are machine-checkable.
 
@@ -26,7 +30,7 @@ fails is a new violation.
 
 Exit codes (per ADR-035):
     0 - every marker names a live ADR (or the tree holds no marker)
-    1 - one or more markers name a missing or retired ADR
+    1 - one or more markers name a missing, retired, or unreadable-status ADR
     2 - config error (a directory is missing, or a workflow cannot be read)
 """
 
@@ -121,6 +125,11 @@ def judge(marker: Marker, statuses: dict[int, str]) -> str | None:
     if marker.number not in statuses:
         return f"{marker.path}:{marker.line}: {cite} does not exist under {ADR_DIR.as_posix()}/"
     status = statuses[marker.number]
+    if not status:
+        return (
+            f"{marker.path}:{marker.line}: {cite} has no readable frontmatter status, "
+            f"so the marker cannot be shown to name a live ADR; fix the record's frontmatter"
+        )
     if status in RETIRED_STATUSES:
         return (
             f"{marker.path}:{marker.line}: {cite} is {status}; "
@@ -146,7 +155,7 @@ def run(repo_root: Path) -> int:
     problems = [text for m in markers if (text := judge(m, statuses)) is not None]
     summary = f"{len(markers)} marker(s) in {examined} workflow file(s)"
     if problems:
-        print(f"[FAIL] Runner-exception markers cite a missing or retired ADR ({summary}):")
+        print(f"[FAIL] Markers cite a missing, retired, or unreadable-status ADR ({summary}):")
         for text in problems:
             print(f"  - {text}")
         return EXIT_VIOLATION

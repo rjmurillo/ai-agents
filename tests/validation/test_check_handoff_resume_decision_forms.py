@@ -1,0 +1,102 @@
+"""Every decision form in ``## Decisions Made`` needs provenance (issue #6506).
+
+The parser counted only bullet decisions, so a numbered item or a `###` heading
+skipped the provenance check. These tests call ``decisions_without_provenance``
+directly: the section parser is a pure function of the handoff text.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+import pytest
+
+_VALIDATION = Path(__file__).resolve().parents[2] / "scripts" / "validation"
+if str(_VALIDATION) not in sys.path:
+    sys.path.insert(0, str(_VALIDATION))
+
+import check_handoff_resume as checker
+
+
+def _unsourced(decisions: str) -> list[str]:
+    return checker.decisions_without_provenance(f"# Handoff\n\n## Decisions Made\n\n{decisions}\n")
+
+
+@pytest.mark.parametrize(
+    ("decisions", "title"),
+    [
+        ("- Use the retry\n", "Use the retry"),
+        ("* **Skip it**: why\n", "**Skip it**: why"),
+        ("+ Use the retry\n", "Use the retry"),
+        ("1. Use the retry\n", "Use the retry"),
+        ("2) Use the retry\n", "Use the retry"),
+        ("10. **Skip it**: why\n", "**Skip it**: why"),
+        ("### Use the retry\n", "Use the retry"),
+        ("###### Use the retry\n\nBody text.\n", "Use the retry"),
+    ],
+)
+def test_every_decision_form_without_provenance_is_reported(decisions: str, title: str) -> None:
+    assert _unsourced(decisions) == [title]
+
+
+@pytest.mark.parametrize(
+    "decisions",
+    [
+        "- Use the retry\n  - Provenance: analyst finding\n",
+        "1. Use the retry\n   - Provenance: analyst finding, issue comment 3\n",
+        "2) Use the retry\n  - Provenance: analyst finding\n",
+        "### Use the retry\n- Provenance: analyst finding, issue comment 3\n",
+        "### Use the retry\n\n  - Provenance: analyst finding\n",
+        "1. Use the retry\n- Provenance: analyst finding\n",
+    ],
+)
+def test_every_decision_form_with_provenance_is_accepted(decisions: str) -> None:
+    assert _unsourced(decisions) == []
+
+
+@pytest.mark.parametrize(
+    "decisions",
+    [
+        "### Use the retry\n- Provenance:   \n",
+        "### Use the retry\n- Provenance: {source}\n",
+        "1. Use the retry\n   - Provenance:\n",
+    ],
+)
+def test_empty_or_placeholder_provenance_is_reported(decisions: str) -> None:
+    assert _unsourced(decisions) == ["Use the retry"]
+
+
+def test_each_numbered_decision_needs_its_own_provenance() -> None:
+    decisions = "1. First\n   - Provenance: a\n2. Second\n"
+    assert _unsourced(decisions) == ["Second"]
+
+
+def test_a_mixed_list_reports_only_the_unsourced_forms() -> None:
+    decisions = (
+        "- Bullet\n  - Provenance: a\n1. Numbered\n### Heading\n- Provenance: b\n- Another bullet\n"
+    )
+    assert _unsourced(decisions) == ["Numbered", "Another bullet"]
+
+
+def test_top_level_provenance_bullet_after_a_bullet_decision_is_its_own_decision() -> None:
+    """Only block-form decisions (numbered or heading) adopt an unindented Provenance bullet."""
+    assert _unsourced("- Use the retry\n- Provenance: x\n") == ["Use the retry", "Provenance: x"]
+
+
+@pytest.mark.parametrize("decisions", ["- None\n", "1. None\n", "### N/A\n", "- **n/a**\n"])
+def test_none_needs_no_provenance_in_any_form(decisions: str) -> None:
+    assert _unsourced(decisions) == []
+
+
+def test_prose_and_blank_lines_are_not_decisions() -> None:
+    assert _unsourced("Some prose about the work.\n\n---\n\nMore prose.\n") == []
+
+
+def test_a_missing_section_is_reported_once() -> None:
+    assert checker.decisions_without_provenance("# Handoff\n") == [checker.MISSING_DECISIONS]
+
+
+def test_a_deeper_section_boundary_ends_the_decisions() -> None:
+    text = "## Decisions Made\n\n- A\n  - Provenance: a\n\n## Next Steps\n\n1. Not a decision\n"
+    assert checker.decisions_without_provenance(text) == []

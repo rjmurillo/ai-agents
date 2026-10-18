@@ -69,7 +69,13 @@ DUPLICATE = "{conflicting duplicate}"
 _COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
 _PLACEHOLDER = re.compile(r"^\{.*\}$")
 _FIELD_LINE = re.compile(r"^[-*+] \*\*(?P<key>[^*]+)\*\*:[ \t]*(?P<value>.*)$")
-_DECISION_LINE = re.compile(r"^[-*+] ")
+# A decision is a bullet, a numbered item (`1.` or `1)`), or a `###` to `######`
+# heading. Counting only bullets let a numbered or heading decision skip the
+# provenance check entirely (issue #6506).
+_DECISION_LINE = re.compile(
+    r"^(?:(?P<bullet>[-*+])|(?P<number>\d+[.)])|(?P<heading>\#{3,6}))[ \t](?P<title>.*)$"
+)
+_TOP_LEVEL_PROVENANCE = re.compile(r"^[-*+] Provenance:[ \t]*(?P<value>.*)$", re.IGNORECASE)
 _SUB_BULLET = re.compile(r"^\s+[-*+] (?P<key>[A-Za-z ]+):[ \t]*(?P<value>.*)$")
 _REMOTE_URL = re.compile(r"[:/](?P<owner>[^/:]+)/(?P<name>[^/]+?)(?:\.git)?/?$")
 
@@ -123,9 +129,19 @@ def decisions_without_provenance(text: str) -> list[str]:
     if not _has_heading(text, "Decisions Made"):
         return [MISSING_DECISIONS]
     decisions: list[tuple[str, bool]] = []
+    block_form = False
     for line in body.splitlines():
-        if _DECISION_LINE.match(line):
-            decisions.append((line[2:].strip(), False))
+        top_level = _TOP_LEVEL_PROVENANCE.match(line)
+        if block_form and top_level:
+            # Under a numbered or heading decision, an unindented `- Provenance:`
+            # bullet is that decision's source, not a new bullet decision.
+            if decisions and not _is_missing(top_level.group("value")):
+                decisions[-1] = (decisions[-1][0], True)
+            continue
+        decision = _DECISION_LINE.match(line)
+        if decision:
+            decisions.append((decision.group("title").strip(), False))
+            block_form = decision.group("bullet") is None
             continue
         sub = _SUB_BULLET.match(line)
         has_source = (

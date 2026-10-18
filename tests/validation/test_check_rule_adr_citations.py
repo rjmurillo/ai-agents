@@ -378,7 +378,8 @@ def test_tracked_symlink_leaving_the_repo_is_not_followed(tmp_path: Path) -> Non
     _make_repo(repo, {"CLAUDE.md": GOOD})
     (repo / "AGENTS.md").symlink_to(outside)
     _git(repo, "add", "--force", "--", "AGENTS.md")
-    assert _run(repo, _baseline(tmp_path, [])) == EXIT_OK
+    # Not followed, and not silent: a skipped tracked file fails the run (issue #6506).
+    assert _run(repo, _baseline(tmp_path, [])) == EXIT_CONFIG
 
 
 # --------------------------------------------------------------------------
