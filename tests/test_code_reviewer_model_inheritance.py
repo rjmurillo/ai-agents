@@ -132,9 +132,11 @@ def _kept_pins(manifest: Path) -> dict[str, str]:
 # (format_model_id_for_platform), so the check must do the same before comparing.
 # GitHub rejects `model:` in .github/agents (templates/platforms/github.yaml), so
 # that tree has no tier map and no pin can be backed there.
-PLATFORM_YAML_BY_TREE = {
-    "src/copilot-cli": REPO_ROOT / "templates" / "platforms" / "copilot-cli.yaml",
-    "src/vs-code-agents": REPO_ROOT / "templates" / "platforms" / "vscode.yaml",
+COPILOT_CLI_YAML = REPO_ROOT / "templates" / "platforms" / "copilot-cli.yaml"
+VSCODE_YAML = REPO_ROOT / "templates" / "platforms" / "vscode.yaml"
+PLATFORM_YAML_BY_TREE: dict[str, Path | None] = {
+    "src/copilot-cli": COPILOT_CLI_YAML,
+    "src/vs-code-agents": VSCODE_YAML,
     ".github/agents": None,
 }
 
@@ -194,8 +196,8 @@ def test_generated_copilot_agent_pins_no_unbacked_model(path: Path) -> None:
     _assert_pin_is_backed(path, _kept_pins(PIN_MANIFEST), _platform_tiers(path))
 
 
-COPILOT_CLI_TIERS = _tiers_from_yaml(PLATFORM_YAML_BY_TREE["src/copilot-cli"])
-VSCODE_TIERS = _tiers_from_yaml(PLATFORM_YAML_BY_TREE["src/vs-code-agents"])
+COPILOT_CLI_TIERS = _tiers_from_yaml(COPILOT_CLI_YAML)
+VSCODE_TIERS = _tiers_from_yaml(VSCODE_YAML)
 
 
 def _write_agent(tmp_path: Path, model: str, name: str = "new-agent") -> Path:
