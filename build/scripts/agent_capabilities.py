@@ -315,3 +315,31 @@ def uncovered_mutators(frontmatter: dict[str, object]) -> list[str]:
         return []
     denied = set(_names(frontmatter["disallowedTools"], "disallowedTools"))
     return sorted(_claude_mutators() - denied)
+
+
+def reduce_deny_list_member(
+    frontmatter: dict[str, object],
+    units: dict[str, str],
+    shared_units: dict[str, str],
+    prefix: str,
+) -> None:
+    """Replace the capability comparison for a deny-list Claude member, in place.
+
+    Intentional difference, ADR-107 "Read-only agents inherit tools": a Claude
+    read-only agent omits ``tools`` (inherits every session tool, including MCP
+    servers whose names vary by install) and subtracts through
+    ``disallowedTools``. Its Copilot twin keeps a ``tools_copilot`` allowlist.
+    The two cannot be reduced to one comparable set, so the ``<prefix>:*``
+    units are dropped from BOTH sides for this member only. What replaces them
+    is the invariant the deny list exists to hold: every built-in mutator is
+    denied. A gap surfaces as ``<prefix>:denylist``, one-sided and so a
+    divergence that is not baselined. Does nothing for a non-member.
+    """
+    if not is_deny_list_member(frontmatter):
+        return
+    for table in (units, shared_units):
+        for unit in [u for u in table if u.startswith(f"{prefix}:")]:
+            del table[unit]
+    uncovered = uncovered_mutators(frontmatter)
+    if uncovered:
+        units[f"{prefix}:denylist"] = "\n".join(uncovered)

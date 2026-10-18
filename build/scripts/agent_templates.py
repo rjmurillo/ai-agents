@@ -284,9 +284,10 @@ def render_claude(tmpl_path: Path, partials_dir: Path, denylists: dict[str, obje
     Raises the grammar errors :func:`render` raises, plus
     ``agent_capabilities.CapabilityError`` for an unknown deny list.
     """
-    return agent_capabilities.expand_deny_frontmatter(
+    expanded: str = agent_capabilities.expand_deny_frontmatter(
         str(render(tmpl_path, partials_dir)), denylists
     )
+    return expanded
 
 
 def _report_discover_errors(repo_root: Path, result: CompileResult) -> None:

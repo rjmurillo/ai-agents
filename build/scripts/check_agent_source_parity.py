@@ -86,7 +86,9 @@ import hashlib
 import json
 import re
 import sys
+from collections.abc import Callable
 from pathlib import Path
+from typing import TypeVar
 
 import yaml
 
@@ -115,6 +117,7 @@ from detect_agent_drift import (  # noqa: E402
 
 __all__ = ["KIND_CHANGED", "KIND_DIVERGED", "KIND_MISSING", "KIND_STALE", "Finding", "Key"]
 
+_T = TypeVar("_T")
 EXIT_OK = 0
 EXIT_DIVERGED = 1
 EXIT_CONFIG = 2
@@ -273,11 +276,10 @@ _RENDER_ERRORS = (
 
 
 def _render(tmpl: Path, partials: Path, denylists: dict[str, object] | None = None) -> str:
-    """Render one template. ``denylists`` is given for the Claude member only."""
     try:
         if denylists is None:
             return str(agent_templates.render(tmpl, partials))
-        return agent_templates.render_claude(tmpl, partials, denylists)
+        return str(agent_templates.render_claude(tmpl, partials, denylists))
     except (*_RENDER_ERRORS, agent_capabilities.CapabilityError) as exc:
         raise ConfigError(f"cannot render {tmpl}: {exc}") from exc
 
@@ -285,17 +287,10 @@ def _render(tmpl: Path, partials: Path, denylists: dict[str, object] | None = No
 _MEMBER_SUFFIXES = (".shared.md", ".claude.md.tmpl", ".copilot.md.tmpl")
 
 
-def _load_toolsets(repo_root: Path) -> dict[str, dict[str, object]]:
+def _load_config(loader: Callable[[Path], _T], repo_root: Path) -> _T:
+    """Run a ``templates/*.yaml`` loader, turning its error into a ConfigError."""
     try:
-        toolsets: dict[str, dict[str, object]] = agent_capabilities.load_toolsets(repo_root)
-    except agent_capabilities.CapabilityError as exc:
-        raise ConfigError(str(exc)) from exc
-    return toolsets
-
-
-def _load_denylists(repo_root: Path) -> dict[str, object]:
-    try:
-        return agent_capabilities.load_denylists(repo_root)
+        return loader(repo_root)
     except agent_capabilities.CapabilityError as exc:
         raise ConfigError(str(exc)) from exc
 
@@ -308,29 +303,6 @@ def _stems(repo_root: Path) -> list[str]:
     for suffix in _MEMBER_SUFFIXES:
         stems.update(p.name.removesuffix(suffix) for p in agents.glob(f"*{suffix}"))
     return sorted(stems)
-
-
-def _deny_list_units(
-    text: str, units: dict[str, str], shared_units: dict[str, str], prefix: str
-) -> None:
-    """Replace the capability comparison for a deny-list Claude member.
-
-    Intentional difference, ADR-107 "Read-only agents inherit tools": a Claude
-    read-only agent omits ``tools`` (inherits every session tool, including MCP
-    servers whose names vary by install) and subtracts through
-    ``disallowedTools``. The Copilot twin keeps a ``tools_copilot`` allowlist.
-    The two lists cannot be reduced to one comparable set, so the capability
-    units are dropped from BOTH sides for this member only. What replaces them is
-    the invariant the deny list exists to hold: every built-in mutator is denied.
-    A missing denial surfaces as ``<prefix>:denylist``, which diverges from the
-    empty shared side and is not baselined.
-    """
-    for table in (units, shared_units):
-        for unit in [u for u in table if u.startswith(f"{prefix}:")]:
-            del table[unit]
-    uncovered = agent_capabilities.uncovered_mutators(_frontmatter(text))
-    if uncovered:
-        units[f"{prefix}:denylist"] = "\n".join(uncovered)
 
 
 def _compare_stem(
@@ -354,8 +326,10 @@ def _compare_stem(
         shared_units = extract_units(
             shared_text, tuple((theirs, prefix) for _, theirs, prefix in spec), toolsets
         )
-        if pair == PAIR_CLAUDE and agent_capabilities.is_deny_list_member(_frontmatter(text)):
-            _deny_list_units(text, units, shared_units, "capability")
+        if pair == PAIR_CLAUDE:
+            agent_capabilities.reduce_deny_list_member(
+                _frontmatter(text), units, shared_units, "capability"
+            )
         agent_capabilities.drop_families_on_declaration_mismatch(units, shared_units)
         diverged = diverged_units(units, shared_units, strict=strict)
         diverged.update(section_order_divergence(units, shared_units))
@@ -367,8 +341,8 @@ def collect_divergence(repo_root: Path) -> tuple[dict[Key, str], list[Finding]]:
     """Compare every agent's members. Return divergences and missing-member findings."""
     agents = repo_root / "templates" / "agents"
     pairs = agent_templates.discover(repo_root)
-    toolsets = _load_toolsets(repo_root)
-    denylists = _load_denylists(repo_root)
+    toolsets = _load_config(agent_capabilities.load_toolsets, repo_root)
+    denylists = _load_config(agent_capabilities.load_denylists, repo_root)
     found: dict[Key, str] = {}
     missing: list[Finding] = []
     for stem in _stems(repo_root):
