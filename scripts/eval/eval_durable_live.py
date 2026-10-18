@@ -9,11 +9,17 @@ on the Claude or Codex harness and writes `OutcomeRecord` JSONL that
     eval_durable_live.py                                   # dry run, zero spend
     eval_durable_live.py --live --use-stored-login --output-dir DIR
     eval_durable_live.py --harness codex --live --use-stored-login --output-dir DIR
+    eval_durable_live.py --live --use-stored-login --reviewer-model MODEL --output-dir DIR
 
 The default is a dry run: it prints the control sizes and the launch upper
 bound, and starts no process. `--live` spends, and also needs
 `--use-stored-login`, the operator's acknowledgement that the run bills to the
 Claude or Codex login stored on this machine. No credential file is read here.
+
+`--reviewer-model` adds an independent reviewer launch per accepted task run
+(`_durable_review.py`). Without it `review_findings` is null. A live record also
+carries a null `human_correction_minutes` (no human in the run), so it classifies
+`UNVERIFIED` until a human timed a correction pass.
 
 Exit codes (AGENTS.md): 0 every task produced a record. 1 the comparison is
 WORSE or UNVERIFIED. 2 invalid arguments, corpus, or control files. 3 a
@@ -45,6 +51,7 @@ from _durable_live import (
 )
 from _durable_live_record import record_to_row
 from _durable_outcome import build_report, compare
+from _durable_review import ReviewerSpec, reviewer_identity
 from _outcome_record import DurableOutcomeError
 from _routing_scenario import RoutingCorpusError, Scenario, load_corpus, load_extension_corpus
 
@@ -78,6 +85,15 @@ def _parser() -> argparse.ArgumentParser:
         f"{DEFAULT_MODEL['codex']} for codex)",
     )
     parser.add_argument("--effort", default="low")
+    parser.add_argument(
+        "--reviewer-model",
+        help="turns on the independent reviewer arm with this model, on the run's harness. "
+        "Without it review_findings is null and every record classifies UNVERIFIED",
+    )
+    parser.add_argument(
+        "--reviewer-effort",
+        help="reviewer effort (default: the run's --effort)",
+    )
     parser.add_argument("--max-turns", type=int, default=DEFAULT_MAX_TURNS)
     parser.add_argument("--retry-budget", type=int, default=1, help="correction rounds per task")
     parser.add_argument("--repeats", type=int, default=1)
@@ -124,11 +140,22 @@ def _validate(args: argparse.Namespace) -> str | None:
     for name in ("max_turns", "repeats", "max_invocations"):
         if getattr(args, name) < 1:
             return f"--{name.replace('_', '-')} must be at least 1"
+    if args.reviewer_effort is not None and args.reviewer_model is None:
+        return "--reviewer-effort needs --reviewer-model"
+    if args.reviewer_model is not None and not args.reviewer_model.strip():
+        return "--reviewer-model must not be empty"
     if args.first_repeat < 0:
         return "--first-repeat must not be negative"
     if args.retry_budget < 0:
         return "--retry-budget must not be negative"
     return None
+
+
+def _reviewer_spec(args: argparse.Namespace) -> ReviewerSpec | None:
+    """The reviewer arm from the flags, or `None` when `--reviewer-model` is absent."""
+    if args.reviewer_model is None:
+        return None
+    return ReviewerSpec(args.harness, args.reviewer_model, args.reviewer_effort or args.effort)
 
 
 def _git_head(repo_root: Path) -> str:
@@ -147,7 +174,14 @@ def _git_head(repo_root: Path) -> str:
 def plan_report(
     scenarios: Sequence[Scenario], texts: Mapping[str, str], args: argparse.Namespace
 ) -> dict[str, object]:
-    bound = max_invocations(len(scenarios), len(texts), args.repeats, args.retry_budget)
+    reviewer = _reviewer_spec(args)
+    bound = max_invocations(
+        len(scenarios),
+        len(texts),
+        args.repeats,
+        args.retry_budget,
+        reviewer=reviewer is not None,
+    )
     return {
         "mode": "dry-run",
         "model_calls": 0,
@@ -161,6 +195,7 @@ def plan_report(
         "repeats": args.repeats,
         "first_repeat": args.first_repeat,
         "retry_budget": args.retry_budget,
+        "reviewer": reviewer_identity(reviewer),
         "max_invocations": bound,
         "cap": args.max_invocations,
         "within_cap": bound <= args.max_invocations,
@@ -236,6 +271,7 @@ def _run_live(
         args.retry_budget,
         harness=args.harness,
         cli_version=_codex_version() if args.harness == "codex" else "",
+        reviewer=_reviewer_spec(args),
     )
     budget = InvocationBudget(args.max_invocations)
     result = run_experiment(
@@ -257,6 +293,7 @@ def _run_live(
             "commit": _git_head(args.repo_root),
             "requested_model": model,
             "requested_effort": args.effort,
+            "reviewer": reviewer_identity(settings.reviewer),
             **_effort_fields(args, result),
             "first_repeat": args.first_repeat,
             "repeats": args.repeats,

@@ -1286,9 +1286,19 @@ control.
 
 Measured fields come from the corpus grader and the CLI stream. Proxies are
 `unsupported_claims` and `unresolved_uncertainty` (regexes over the final
-message). `review_findings`, `rollback_events`, and `rework_minutes` are 0 by
-construction, not measured. Requested effort is never verified: the stream
-names no effort. The `_durable_live.py` docstring lists every mapping.
+message). `rework_minutes` is agent rework from correction rounds.
+`review_findings` is measured only with `--reviewer-model MODEL`, which adds one
+read-only reviewer launch per accepted task run in a fresh copy that holds no
+control file and no hidden check (`_durable_review.py`). Without that flag, for
+a run that was never accepted, or when the reviewer reply is not in the required
+shape, it is `null`. `rollback_events` is measured: an accepted change that
+fails the fresh-copy follow-up or the post-integration check is reverted to
+`initial/` and the revert is verified, which counts 1. An unverifiable revert is
+`null`. `economics.human_correction_minutes` is `null` because no human is in the
+run. A `null` count classifies `UNVERIFIED`, so a live record stays
+`UNVERIFIED` until a human times a correction pass. Requested effort is never
+verified: the stream names no effort. The `_durable_live.py` docstring lists
+every mapping.
 
 ## Routing Benchmark Corpus
 
@@ -1425,13 +1435,26 @@ and `*.pyc`. Control files are committed at seed, so an agent edit to one
 counts, and so does an agent edit at a follow-up path, because changed paths
 are read before follow-up files are written.
 
-Fields recorded by construction, because the run is unattended and has no
-reviewer: `durable.review_findings` (0, no reviewer), `durable.rework_minutes` (0, no
-human rework), `durable.rollback_events` (0, a single run has no integration step
-to roll back), `economics.tool_cost_usd` and `economics.human_correction_minutes`
-(0, local commands only, no human). None of these are measurements of a
-human in the loop; the report states this so a reader does not mistake a
-zero for evidence.
+Fields recorded by construction because the run is unattended:
+`durable.rework_minutes` (0, no agent correction round) and
+`economics.tool_cost_usd` (0, local commands only).
+
+Fields that are `null` when not measured, never 0:
+`durable.review_findings` is `null` unless `--reviewer-model MODEL` runs the
+independent reviewer on an accepted change (read-only tools, a copy with no
+control file, hidden follow-up file, or `.git`; each accepted run adds one launch
+and `--max-runs` counts it). `economics.human_correction_minutes` is always `null`
+in a live run, so a live record classifies `UNVERIFIED` until a human times a
+correction pass. `durable.rollback_events` is measured: an accepted change that
+fails the hidden follow-up is reverted with `git reset --hard` to the seed ref and
+the revert is verified, which counts 1; a revert that cannot be verified is
+`null`.
+
+`--dry-run` feeds canned reviewer replies through the real parser and a fixture
+`human_correction_minutes` of 0.0 (both labeled in the report as inputs, not
+measurements). It fails when a known-good record reports findings or a rollback,
+or when a known-bad record that was accepted lacks findings, or one that
+regressed lacks a verified rollback.
 
 Exit codes: `0` ok. `1` a dry run's grader failed to discriminate a
 known-good fix from a known-bad one. `2` config: a malformed task file, an

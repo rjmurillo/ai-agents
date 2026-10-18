@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import os
 import subprocess
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from pathlib import Path
 
 from _control_ablation_tasks import ControlAblationConfigError, Task
@@ -166,6 +166,53 @@ def changed_paths(workspace: Path) -> tuple[str, ...]:
     if diff.returncode != 0:
         raise WorkspaceError(f"git diff failed in {workspace}: {diff.stderr.strip()}")
     return tuple(path for path in diff.stdout.split("\0") if path)
+
+
+def rollback_to_seed(workspace: Path) -> bool:
+    """Revert the workspace to the seed commit and verify the revert (recovery path).
+
+    `git reset --hard SEED_REF` restores tracked files and `git clean -fd`
+    removes files the agent or the harness added. Harness-owned paths are in
+    `.git/info/exclude`, so they survive. The revert counts only when no path
+    differs from the seed afterwards, so a failed or partial revert is `False`.
+    """
+    for args in (["reset", "--hard", "--quiet", SEED_REF], ["clean", "-fdq"]):
+        done = _run_git(args, workspace)
+        if done.returncode != 0:
+            return False
+    try:
+        return not changed_paths(workspace)
+    except WorkspaceError:
+        return False
+
+
+def review_copy(
+    workspace: Path,
+    destination: Path,
+    task: Task,
+    changed: Sequence[str],
+    excluded: Collection[str],
+) -> None:
+    """Build the reviewer's directory: the task's setup files plus the agent's changes.
+
+    No control file, no hidden follow-up file, and no `.git` directory, so
+    the reviewer sees the same project under every control. A changed path
+    the agent deleted is deleted here too. `excluded` names control-owned
+    paths that stay out even when the agent edited them.
+    """
+    destination.mkdir(parents=True, exist_ok=True)
+    _write_files(destination, task.setup_files)
+    for relative in excluded:
+        _safe_file(destination, relative).unlink(missing_ok=True)
+    for relative in changed:
+        if relative in excluded:
+            continue
+        source, target = _safe_file(workspace, relative), _safe_file(destination, relative)
+        if source.is_file():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(source.read_bytes())
+        else:
+            target.unlink(missing_ok=True)
 
 
 def added_lines_by_python_path(workspace: Path, paths: Sequence[str]) -> dict[str, str]:

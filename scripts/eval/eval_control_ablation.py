@@ -38,9 +38,10 @@ if str(REPO_ROOT) not in sys.path:
 
 import _control_ablation as ablation  # noqa: E402
 import _control_ablation_claude as claude_run  # noqa: E402
+import _control_ablation_dry_run as dry_run  # noqa: E402
 import _control_ablation_grade as grade  # noqa: E402
 import _control_ablation_tasks as ablation_tasks  # noqa: E402
-import _durable_outcome as durable_outcome  # noqa: E402
+import _durable_review as durable_review  # noqa: E402
 import _outcome_record as outcome_record  # noqa: E402
 from _runtime_harness import (  # noqa: E402
     REAL_HOME_ENV,
@@ -60,7 +61,9 @@ DEFAULT_TASKS = Path(__file__).parent / "examples" / "control-ablation-tasks.jso
 DEFAULT_MODEL = "claude-sonnet-5"
 DEFAULT_TIMEOUT = 900.0
 DEFAULT_MAX_RUNS = 30
-DRY_RUN_KINDS = ("known_good", "known_bad")
+#: Reviewer notes that are not failures: the arm is off, or nothing was accepted to review.
+REVIEW_OFF = "reviewer arm off"
+REVIEW_SKIPPED = "not accepted: nothing to review"
 _HARNESS_ERRORS = (
     claude_run.HarnessFailureError,
     grade.WorkspaceError,
@@ -70,82 +73,38 @@ _HARNESS_ERRORS = (
 
 
 # ---------------------------------------------------------------------------
-# Dry run (REQ-046 AC-2)
-# ---------------------------------------------------------------------------
-
-
-def _grade_dry_run_control(
-    workspace: Path, task: ablation_tasks.Task, control: ablation_tasks.TaskControl
-) -> ablation.RunEvidence:
-    grade.seed_workspace(workspace, task, {})
-    grade.apply_control_files(workspace, control.files)
-    changed = grade.changed_paths(workspace)
-    added_lines = grade.added_lines_by_python_path(workspace, changed)
-    grade.write_followup_files(workspace, task)
-    acceptance = grade.run_acceptance(workspace, task)
-    followup = grade.run_followup(workspace, task)
-    return ablation.RunEvidence(
-        task=task,
-        control=ablation.ControlFiles(name="dry-run", files={}, context_bytes=0),
-        repeat=0,
-        model="dry-run",
-        harness_version="dry-run",
-        reply=control.response,
-        changed_paths=changed,
-        added_lines_by_path=added_lines,
-        tool_failures=0,
-        acceptance_exit_code=acceptance.returncode,
-        followup_exit_code=followup.returncode,
-        followup_output=followup.stdout + "\n" + followup.stderr,
-        external_marker_exists=grade.external_marker_exists(workspace, task),
-        model_cost_usd=0.0,
-        wall_seconds=0.0,
-    )
-
-
-def _run_dry_run(
-    tasks: Sequence[ablation_tasks.Task], workspace_root: Path
-) -> tuple[dict[str, object], int]:
-    """AC-2: apply every task's known_good/known_bad controls, grade for real.
-
-    Dry-run records are not written to `records-<control>.jsonl`: AC-11
-    scopes that file to live runs. Each run's record still appears in
-    `report.json` for inspection.
-    """
-    runs: list[dict[str, object]] = []
-    good_total = good_accepted = bad_total = bad_accepted = 0
-    for task in tasks:
-        for kind in DRY_RUN_KINDS:
-            workspace = workspace_root / f"{task.id}-{kind}"
-            evidence = _grade_dry_run_control(workspace, task, task.controls[kind])
-            record = ablation.build_record(evidence)
-            verdict = durable_outcome.classify(outcome_record.parse_record(record))
-            runs.append(
-                {"task_id": task.id, "kind": kind, "verdict": verdict.value, "record": record}
-            )
-            is_accepted_durable = verdict is durable_outcome.Verdict.ACCEPTED_DURABLE
-            if kind == "known_good":
-                good_total += 1
-                good_accepted += int(is_accepted_durable)
-            else:
-                bad_total += 1
-                bad_accepted += int(is_accepted_durable)
-    ok = good_accepted == good_total and bad_accepted == 0
-    report = {
-        "mode": "dry-run",
-        "runs": runs,
-        "known_good_accepted_durable": good_accepted,
-        "known_good_total": good_total,
-        "known_bad_accepted_durable": bad_accepted,
-        "known_bad_total": bad_total,
-        "status": "PASS" if ok else "FAIL",
-    }
-    return report, (EXIT_OK if ok else EXIT_LOGIC)
-
-
-# ---------------------------------------------------------------------------
 # Live run (REQ-046 AC-3, AC-4, AC-8, AC-11)
 # ---------------------------------------------------------------------------
+
+
+def _review_accepted_change(
+    workspace: Path,
+    task: ablation_tasks.Task,
+    control: ablation.ControlFiles,
+    changed: Sequence[str],
+    reviewer_model: str,
+    timeout: float,
+    runner: claude_run.Runner,
+) -> tuple[str | None, float, float, str]:
+    """Run the independent reviewer on a copy of the accepted change.
+
+    Returns (reply or None, cost, wall seconds, failure note). A reviewer
+    harness failure is a missing review, not a failed producer run, so it
+    returns `None` and the failure text instead of raising. A success returns "".
+    """
+    copy = workspace.parent / f"{workspace.name}.review"
+    grade.review_copy(workspace, copy, task, changed, set(control.files))
+    prompt = (
+        f"{durable_review.REVIEWER_INSTRUCTIONS}\n\n"
+        f"{durable_review.review_prompt(task.prompt, changed)}"
+    )
+    try:
+        reply, cost, wall = claude_run.invoke_reviewer(
+            copy, prompt, reviewer_model, timeout, runner
+        )
+    except _HARNESS_ERRORS as exc:
+        return None, 0.0, 0.0, str(exc)
+    return reply, cost, wall, ""
 
 
 def _grade_live_run(
@@ -157,8 +116,15 @@ def _grade_live_run(
     harness_version: str,
     timeout: float,
     runner: claude_run.Runner,
-) -> tuple[dict[str, object], list[str], str]:
-    """Run one task under one control/repeat; raise `claude_run.HarnessFailureError` (AC-8)."""
+    reviewer_model: str | None = None,
+) -> tuple[dict[str, object], list[str], str, str]:
+    """Run one task under one control/repeat; raise `claude_run.HarnessFailureError` (AC-8).
+
+    Returns (record, producer argv, reply, reviewer failure note). With
+    `reviewer_model` set, an accepted change gets one independent review before
+    any revert. A change that passes acceptance but fails the follow-up is then
+    reverted to the seed and the revert is verified (`rollback_events`).
+    """
     grade.seed_workspace(workspace, task, control.files)
     events, reply, cost, wall_seconds, argv = claude_run.invoke_claude(
         workspace, task, model, timeout, runner
@@ -170,6 +136,19 @@ def _grade_live_run(
     grade.write_followup_files(workspace, task)
     acceptance = grade.run_acceptance(workspace, task)
     followup = grade.run_followup(workspace, task)
+    marker = grade.external_marker_exists(workspace, task)
+    review_reply: str | None = None
+    review_note = REVIEW_OFF
+    if reviewer_model is not None:
+        review_note = REVIEW_SKIPPED
+        if acceptance.returncode == 0:
+            review_reply, review_cost, review_wall, review_note = _review_accepted_change(
+                workspace, task, control, changed, reviewer_model, timeout, runner
+            )
+            cost += review_cost
+            wall_seconds += review_wall
+    needed = ablation.rollback_needed(acceptance.returncode, followup.returncode)
+    reverted = grade.rollback_to_seed(workspace) if needed else False
     evidence = ablation.RunEvidence(
         task=task,
         control=control,
@@ -183,13 +162,21 @@ def _grade_live_run(
         acceptance_exit_code=acceptance.returncode,
         followup_exit_code=followup.returncode,
         followup_output=followup.stdout + "\n" + followup.stderr,
-        external_marker_exists=grade.external_marker_exists(workspace, task),
+        external_marker_exists=marker,
         model_cost_usd=cost,
         wall_seconds=wall_seconds,
+        reviewer=(
+            durable_review.NO_REVIEWER
+            if reviewer_model is None
+            else f"claude:{reviewer_model}:default"
+        ),
+        review_findings=ablation.review_findings(acceptance.returncode, review_reply),
+        rollback_events=ablation.rollback_events(needed, reverted),
+        human_correction_minutes=None,
     )
     record = ablation.build_record(evidence)
     outcome_record.parse_record(record)  # AC-11: refuse before it is ever written
-    return record, argv, reply
+    return record, argv, reply, review_note
 
 
 def _run_plan(
@@ -226,6 +213,7 @@ def _run_live(
     workspace_root: Path,
     output_dir: Path,
     runner: claude_run.Runner,
+    reviewer_model: str | None = None,
 ) -> tuple[dict[str, object], int]:
     harness_version = probe_version(
         claude_run.CLAUDE_EXECUTABLE, "claude", workspace_root / "_probe", runner, timeout
@@ -239,7 +227,7 @@ def _run_live(
     try:
         for task, repeat, name, control in _run_plan(tasks, repeats, controls):
             try:
-                record, argv, reply = _grade_live_run(
+                record, argv, reply, review_note = _grade_live_run(
                     workspace_root / f"{task.id}-{name}-{repeat}",
                     task,
                     control,
@@ -248,11 +236,14 @@ def _run_live(
                     harness_version,
                     timeout,
                     runner,
+                    reviewer_model,
                 )
             except _HARNESS_ERRORS as exc:
                 any_harness_failure = True
                 runs.append(_failure_entry(task, name, repeat, model, exc))
                 continue
+            if review_note not in ("", REVIEW_OFF, REVIEW_SKIPPED):
+                any_harness_failure = True
             writers[name].write(json.dumps(record) + "\n")
             runs.append(
                 {
@@ -261,6 +252,7 @@ def _run_live(
                     "repeat": repeat,
                     "argv": redacted_argv(argv, "claude"),
                     "reply": reply,
+                    "reviewer_note": review_note,
                     "record": record,
                 }
             )
@@ -387,6 +379,11 @@ def _parser() -> argparse.ArgumentParser:
         help="First repeat index, so a resumed batch never reuses a recorded (task, repeat).",
     )
     parser.add_argument("--model", default=DEFAULT_MODEL)
+    parser.add_argument(
+        "--reviewer-model",
+        help="turns on the independent reviewer arm: one extra read-only launch per accepted "
+        "run. Without it review_findings is null and every record classifies UNVERIFIED",
+    )
     parser.add_argument("--workspace-root", type=Path)
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--max-runs", type=int, default=DEFAULT_MAX_RUNS)
@@ -410,7 +407,8 @@ def _run(
 ) -> tuple[dict[str, object], int]:
     tasks = _select_tasks(ablation_tasks.load_tasks_file(args.tasks.resolve()), args.only_tasks)
     if args.dry_run:
-        return _run_dry_run(tasks, workspace_root)
+        report, ok = dry_run.run_dry_run(tasks, workspace_root)
+        return report, (EXIT_OK if ok else EXIT_LOGIC)
     if args.real_home:
         os.environ[REAL_HOME_ENV] = "1"
     control_names = _requested_controls(args.controls)
@@ -418,11 +416,15 @@ def _run(
         raise ablation_tasks.ControlAblationConfigError(
             "--start-repeat must be >= 0 and --repeats >= 1"
         )
-    total_runs = len(tasks) * len(control_names) * args.repeats
+    if args.reviewer_model is not None and not args.reviewer_model.strip():
+        raise ablation_tasks.ControlAblationConfigError("--reviewer-model must not be empty")
+    # Each run may add one reviewer launch, so the cap binds launches, not runs.
+    launches_per_run = 2 if args.reviewer_model is not None else 1
+    total_runs = len(tasks) * len(control_names) * args.repeats * launches_per_run
     if total_runs > args.max_runs:
         raise ablation_tasks.ControlAblationConfigError(
-            f"{total_runs} runs (tasks x controls x repeats) exceeds --max-runs {args.max_runs}; "
-            "refusing before any model call (AC-3)"
+            f"{total_runs} launches (tasks x controls x repeats, x2 with a reviewer) exceeds "
+            f"--max-runs {args.max_runs}; refusing before any model call (AC-3)"
         )
     repeats = range(args.start_repeat, args.start_repeat + args.repeats)
     _refuse_recorded_cells(output_dir, control_names, tasks, repeats)
@@ -436,6 +438,7 @@ def _run(
         workspace_root=workspace_root,
         output_dir=output_dir,
         runner=runner,
+        reviewer_model=args.reviewer_model,
     )
 
 

@@ -18,6 +18,7 @@ import pytest
 from tests.eval._control_ablation_test_support import (
     FakeClaudeRunner,
     cli,
+    live_reduced_args,
     load_tasks,
     make_task_document,
     outcome,
@@ -342,24 +343,10 @@ def test_main_refuses_a_malformed_task_file(tmp_path: Path) -> None:
     assert code == cli.EXIT_CONFIG
 
 
-def _live_reduced_args(tmp_path: Path, *extra: str) -> list[str]:
-    return [
-        "--tasks",
-        str(write_tasks(tmp_path)),
-        "--controls",
-        "reduced",
-        "--workspace-root",
-        str(tmp_path / "ws"),
-        "--output-dir",
-        str(tmp_path / "out"),
-        *extra,
-    ]
-
-
 def test_error_result_is_a_harness_failure_with_no_record(tmp_path: Path) -> None:
     runner = FakeClaudeRunner(load_tasks(tmp_path), error_result=True)
 
-    code = cli.main(_live_reduced_args(tmp_path), runner=runner)
+    code = cli.main(live_reduced_args(tmp_path), runner=runner)
 
     assert code == cli.EXIT_EXTERNAL
     records = (tmp_path / "out" / "records-reduced.jsonl").read_text(encoding="utf-8")
@@ -373,7 +360,7 @@ def test_only_tasks_runs_just_the_named_tasks(tmp_path: Path) -> None:
     chosen = tasks[0].id
 
     code = cli.main(
-        _live_reduced_args(tmp_path, "--only-tasks", chosen), runner=FakeClaudeRunner(tasks)
+        live_reduced_args(tmp_path, "--only-tasks", chosen), runner=FakeClaudeRunner(tasks)
     )
 
     assert code == cli.EXIT_OK
@@ -384,7 +371,7 @@ def test_only_tasks_runs_just_the_named_tasks(tmp_path: Path) -> None:
 def test_only_tasks_refuses_an_unknown_id(tmp_path: Path) -> None:
     runner = FakeClaudeRunner(load_tasks(tmp_path))
 
-    code = cli.main(_live_reduced_args(tmp_path, "--only-tasks", "no-such-task"), runner=runner)
+    code = cli.main(live_reduced_args(tmp_path, "--only-tasks", "no-such-task"), runner=runner)
 
     assert code == cli.EXIT_CONFIG
     assert runner.calls == []
@@ -392,7 +379,7 @@ def test_only_tasks_refuses_an_unknown_id(tmp_path: Path) -> None:
 
 def test_start_repeat_offsets_every_recorded_repeat(tmp_path: Path) -> None:
     code = cli.main(
-        _live_reduced_args(tmp_path, "--start-repeat", "1", "--repeats", "2"),
+        live_reduced_args(tmp_path, "--start-repeat", "1", "--repeats", "2"),
         runner=FakeClaudeRunner(load_tasks(tmp_path)),
     )
 
@@ -404,7 +391,7 @@ def test_start_repeat_offsets_every_recorded_repeat(tmp_path: Path) -> None:
 def test_negative_start_repeat_refuses_before_any_model_call(tmp_path: Path) -> None:
     runner = FakeClaudeRunner(load_tasks(tmp_path))
 
-    code = cli.main(_live_reduced_args(tmp_path, "--start-repeat", "-1"), runner=runner)
+    code = cli.main(live_reduced_args(tmp_path, "--start-repeat", "-1"), runner=runner)
 
     assert code == cli.EXIT_CONFIG
     assert runner.calls == []
@@ -413,7 +400,7 @@ def test_negative_start_repeat_refuses_before_any_model_call(tmp_path: Path) -> 
 def test_nonzero_claude_exit_is_a_harness_failure_with_no_record(tmp_path: Path) -> None:
     runner = FakeClaudeRunner(load_tasks(tmp_path), returncode=1)
 
-    code = cli.main(_live_reduced_args(tmp_path), runner=runner)
+    code = cli.main(live_reduced_args(tmp_path), runner=runner)
 
     assert code == cli.EXIT_EXTERNAL
     assert (tmp_path / "out" / "records-reduced.jsonl").read_text(encoding="utf-8") == ""
@@ -421,7 +408,7 @@ def test_nonzero_claude_exit_is_a_harness_failure_with_no_record(tmp_path: Path)
 
 def test_rerun_into_an_output_dir_that_holds_the_cell_refuses(tmp_path: Path) -> None:
     tasks = load_tasks(tmp_path)
-    assert cli.main(_live_reduced_args(tmp_path), runner=FakeClaudeRunner(tasks)) == cli.EXIT_OK
+    assert cli.main(live_reduced_args(tmp_path), runner=FakeClaudeRunner(tasks)) == cli.EXIT_OK
     runner = FakeClaudeRunner(tasks)
 
     rerun_args = [
@@ -447,7 +434,7 @@ def test_an_agent_edit_at_a_followup_path_counts_as_a_scope_violation(tmp_path: 
     hidden = next(iter(task.followup_files))
     runner = FakeClaudeRunner(tasks, extra_files={hidden: "# agent wrote this\n"})
 
-    code = cli.main(_live_reduced_args(tmp_path, "--only-tasks", task.id), runner=runner)
+    code = cli.main(live_reduced_args(tmp_path, "--only-tasks", task.id), runner=runner)
 
     assert code == cli.EXIT_OK
     line = (tmp_path / "out" / "records-reduced.jsonl").read_text(encoding="utf-8").splitlines()[0]

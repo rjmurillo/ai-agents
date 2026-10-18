@@ -10,7 +10,16 @@ from typing import Any
 
 import pytest
 
-from tests.eval._durable_live_test_support import CORPUS, EVAL_DIR, cli, fake_runner, live_mod, load
+from tests.eval._durable_live_test_support import (
+    CLEAN_REVIEW,
+    CORPUS,
+    EVAL_DIR,
+    cli,
+    fake_runner,
+    live_mod,
+    load,
+    stream_text,
+)
 
 SCRIPT = EVAL_DIR / "eval_durable_live.py"
 
@@ -182,3 +191,83 @@ def test_single_control_live_run_skips_the_comparison(
     assert cli.main(argv) == cli.EXIT_OK
     assert _out(capsys)["comparison"].startswith("not run")
     assert (tmp_path / "reduced.jsonl").is_file() and not (tmp_path / "comparison.json").exists()
+
+
+def test_dry_run_plan_names_the_reviewer_and_counts_its_launches(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert cli.main(["--reviewer-model", "haiku"]) == cli.EXIT_OK
+    plan = _out(capsys)
+    assert plan["reviewer"] == "claude:haiku:low"
+    assert plan["max_invocations"] == 36 and plan["model_calls"] == 0
+
+
+def test_dry_run_plan_without_a_reviewer_says_none(capsys: pytest.CaptureFixture[str]) -> None:
+    assert cli.main([]) == cli.EXIT_OK
+    assert _out(capsys)["reviewer"] == "none"
+
+
+def test_reviewer_effort_defaults_to_the_run_effort_and_can_differ(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert cli.main(["--effort", "medium", "--reviewer-model", "m"]) == cli.EXIT_OK
+    assert _out(capsys)["reviewer"] == "claude:m:medium"
+    assert cli.main(["--reviewer-model", "m", "--reviewer-effort", "high"]) == cli.EXIT_OK
+    assert _out(capsys)["reviewer"] == "claude:m:high"
+
+
+@pytest.mark.parametrize(
+    "argv", [["--reviewer-effort", "high"], ["--reviewer-model", "  "], ["--reviewer-model", ""]]
+)
+def test_bad_reviewer_flags_exit_2(argv: list[str], capsys: pytest.CaptureFixture[str]) -> None:
+    assert cli.main(argv) == cli.EXIT_CONFIG
+    assert capsys.readouterr().err.startswith("error:")
+
+
+def test_live_run_with_a_reviewer_records_findings_and_labels_the_reviewer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    runner = _fake_live(
+        monkeypatch,
+        ["RB-01-bounded-implementation"],
+        stdout=lambda _i: stream_text(text=f"Done.\n{CLEAN_REVIEW}"),
+    )
+    argv = [
+        "--live",
+        "--use-stored-login",
+        "--output-dir",
+        str(tmp_path),
+        "--reviewer-model",
+        "haiku",
+    ]
+
+    code = cli.main(argv)
+
+    summary = _out(capsys)
+    assert code in (cli.EXIT_OK, cli.EXIT_UNVERIFIED_OR_WORSE)
+    assert summary["reviewer"] == "claude:haiku:low"
+    assert summary["launches"] == len(runner.calls) == 4
+    row = json.loads((tmp_path / "current.jsonl").read_text(encoding="utf-8").splitlines()[0])
+    assert row["config"]["reviewer"] == "claude:haiku:low"
+    assert row["durable"]["review_findings"] == 0 and row["durable"]["rollback_events"] == 0
+    # No human timed the pass, so the record carries missing evidence, not 0.0.
+    assert row["economics"]["human_correction_minutes"] is None
+    report = json.loads((tmp_path / "report-current.json").read_text(encoding="utf-8"))
+    assert report["status"] == "UNVERIFIED"
+    assert report["durable_signals"]["human_correction_unmeasured"] == 1
+
+
+def test_live_run_without_a_reviewer_writes_null_review_findings(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _fake_live(monkeypatch, ["RB-01-bounded-implementation"])
+    argv = ["--live", "--use-stored-login", "--output-dir", str(tmp_path)]
+
+    cli.main(argv)
+
+    capsys.readouterr()
+    row = json.loads((tmp_path / "current.jsonl").read_text(encoding="utf-8").splitlines()[0])
+    assert row["config"]["reviewer"] == "none"
+    assert row["durable"]["review_findings"] is None
+    report = json.loads((tmp_path / "report-current.json").read_text(encoding="utf-8"))
+    assert report["durable_signals"]["review_findings_unmeasured"] == 1

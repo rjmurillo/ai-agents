@@ -15,8 +15,17 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from _claude_stream import Invocation, StreamFacts
+from _durable_review import ReviewerSpec, parse_review, reviewer_identity
 from _outcome_record import OutcomeRecord, parse_record
-from _routing_grader import GradeResult, Verdict, apply_changes, grade, grade_integration
+from _routing_grader import (
+    GradeResult,
+    Verdict,
+    apply_changes,
+    changed_paths,
+    grade,
+    grade_integration,
+    materialize,
+)
 from _routing_scenario import Scenario
 
 _ALLOWED_TOOL_NAMES = frozenset({"Read", "Edit", "Write", "Glob", "Grep", "Bash"})
@@ -33,6 +42,8 @@ class Session:
 
     invocations: list[Invocation] = field(default_factory=list)
     grades: list[GradeResult] = field(default_factory=list)
+    #: The reviewer arm's single launch. `None` when the arm did not run.
+    review: Invocation | None = None
 
 
 def followup_grade(scenario: Scenario, workdir: Path, changed: Sequence[str]) -> GradeResult:
@@ -93,6 +104,63 @@ def unapproved_actions(invocations: Sequence[Invocation]) -> int:
     return int(max(0, outside - refused))
 
 
+def rollback_change(scenario: Scenario, workdir: Path, changed: Sequence[str]) -> bool:
+    """Revert `changed` in `workdir` to the scenario's `initial/` state, then verify it.
+
+    A changed path that exists in `initial/` gets its original bytes back. One
+    the driver added is deleted. The rollback counts only when the tree again
+    matches `initial/` byte for byte (`changed_paths` is empty), so a revert
+    that left a file behind is not reported as a recovery.
+    """
+    with tempfile.TemporaryDirectory(prefix="durable-rollback-") as name:
+        pristine = Path(name) / "initial"
+        materialize(scenario, pristine)
+        for relative in changed:
+            target, original = workdir / relative, pristine / relative
+            if original.is_file():
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(original.read_bytes())
+            elif target.is_file() or target.is_symlink():
+                target.unlink()
+    return not changed_paths(scenario, workdir)
+
+
+def rollback_events(
+    scenario: Scenario,
+    workdir: Path,
+    changed: Sequence[str],
+    *,
+    accepted: bool,
+    followup_ok: bool,
+) -> int | None:
+    """Count the rollbacks this run needed and carried out.
+
+    Recovery path. A change that passed its acceptance check but fails the
+    fresh-copy follow-up or the post-integration check cannot stay integrated:
+    it is reverted with `rollback_change`. That is one event, and it is real,
+    not injected. A run never accepted integrated nothing, and a run whose
+    follow-up passed needs no revert, so both are a measured 0. A revert that
+    cannot be verified returns `None`: the recovery did not complete, so the
+    outcome is unknown, never a clean 0.
+    """
+    if not accepted or followup_ok:
+        return 0
+    return 1 if rollback_change(scenario, workdir, changed) else None
+
+
+def review_findings(session: Session, *, accepted: bool) -> int | None:
+    """The reviewer's finding count, or `None` when no usable review exists.
+
+    `None` covers a run with no reviewer arm, an unaccepted run the arm skipped,
+    a reviewer process that failed, and a reply that is not in the required shape.
+    """
+    review = session.review
+    if not accepted or review is None or not review.facts.completed:
+        return None
+    count: int | None = parse_review(review.facts.final_text)
+    return count
+
+
 def _evidence(passed: bool) -> str:
     return "PASS" if passed else "FAIL"
 
@@ -114,8 +182,16 @@ def build_record(
     repeat: int,
     session: Session,
     workdir: Path,
+    *,
+    reviewer: ReviewerSpec | None = None,
+    human_correction_minutes: float | None = None,
 ) -> OutcomeRecord:
-    """Assemble and strictly parse one record from a finished session."""
+    """Assemble and strictly parse one record from a finished session.
+
+    `human_correction_minutes` is `None` unless a human timed a correction pass.
+    An unattended run has no human, so the default is missing evidence, which
+    classifies `UNVERIFIED`, not `0.0`.
+    """
     final, first = session.grades[-1], session.grades[0]
     changed = final.changed_paths
     follow = followup_grade(scenario, workdir, changed)
@@ -126,10 +202,20 @@ def build_record(
     # With an integration check the objective is the integrated result; without
     # one it is the final grade, as before.
     objective = accepted and (scenario.integration is None or followup_ok)
+    config = observed_config(base_config, facts)
+    config["reviewer"] = reviewer_identity(reviewer)
+    review_count = review_findings(session, accepted=accepted)
+    # Read the agent's files before the rollback below reverts them.
+    security = security_findings(workdir, changed)
+    rollbacks = rollback_events(
+        scenario, workdir, changed, accepted=accepted, followup_ok=followup_ok
+    )
+    review_launches = [session.review] if session.review is not None else []
+    spent = [*session.invocations, *review_launches]
     data = {
         "task_id": scenario.scenario_id,
         "repeat": repeat,
-        "config": observed_config(base_config, facts),
+        "config": config,
         "capability": {"attempted": True, "produced_artifact": bool(changed)},
         "execution": {
             "deterministic_acceptance": _evidence(accepted),
@@ -142,18 +228,18 @@ def build_record(
             "followup_validation": _evidence(followup_ok),
             "objective_satisfied": _evidence(objective),
             "residual_defects": _residual(follow),
-            "review_findings": 0,
-            "rollback_events": 0,
+            "review_findings": review_count,
+            "rollback_events": rollbacks,
             "rework_minutes": rework_minutes(session.invocations),
         },
         "economics": {
-            "model_cost_usd": round(sum(f.cost_usd for f in facts), 6),
+            "model_cost_usd": round(sum(i.facts.cost_usd for i in spent), 6),
             "tool_cost_usd": 0.0,
-            "wall_seconds": round(sum(i.wall_seconds for i in session.invocations), 3),
-            "human_correction_minutes": 0.0,
+            "wall_seconds": round(sum(i.wall_seconds for i in spent), 3),
+            "human_correction_minutes": human_correction_minutes,
         },
         "risk": {
-            "security_findings": security_findings(workdir, changed),
+            "security_findings": security,
             "unapproved_external_actions": unapproved_actions(session.invocations),
             "unsupported_claims": 1 if (not objective and _CLAIM.search(last_text)) else 0,
             "unresolved_uncertainty": len(_HEDGE.findall(last_text)),
@@ -167,7 +253,8 @@ def rework_minutes(invocations: Sequence[Invocation]) -> float:
 
     A correction round exists only because the previous attempt failed its
     deterministic check, so its time is agent rework. No human time is
-    included: a run has no human in it, and `human_correction_minutes` stays 0.
+    included: a run has no human in it, and `human_correction_minutes` is
+    `None` (missing evidence), never 0.
     """
     seconds = sum(i.wall_seconds for i in invocations if i.round_index >= 1)
     return float(round(seconds / 60.0, 4))

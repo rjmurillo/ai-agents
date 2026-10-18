@@ -23,8 +23,8 @@ Classifier order (DESIGN-040 "Classifier order", verbatim):
 
     1. `deterministic_acceptance` is `FAIL`, or `capability.attempted` or
        `capability.produced_artifact` is false: `REJECTED`.
-    2. Any required evidence is `UNVERIFIED`, or any durable or risk count is
-       `null`: `UNVERIFIED`.
+    2. Any required evidence is `UNVERIFIED`, or any durable or risk count, or
+       `economics.human_correction_minutes`, is `null`: `UNVERIFIED`.
     3. `judge` is `FAIL`: `REJECTED`. The judge only downgrades.
     4. Follow-up `FAIL`, objective `FAIL`, residual defects above zero,
        rollback events above zero, or unapproved external actions above
@@ -88,6 +88,7 @@ def _has_null_count(record: OutcomeRecord) -> bool:
         record.risk.unapproved_external_actions,
         record.risk.unsupported_claims,
         record.risk.unresolved_uncertainty,
+        record.economics.human_correction_minutes,
     )
     return any(count is None for count in counts)
 
@@ -164,11 +165,12 @@ def _require_unique_task_repeat(records: Sequence[OutcomeRecord]) -> None:
 
 
 def _correction_minutes(record: OutcomeRecord) -> float:
-    # A null `rework_minutes` counts as 0 here only for aggregation. The
-    # classifier already turned that record UNVERIFIED, so the report status
-    # still shows the missing evidence.
+    # A null `rework_minutes` or `human_correction_minutes` counts as 0 here
+    # only for aggregation. The classifier already turned that record
+    # UNVERIFIED, so the report status still shows the missing evidence.
     rework = record.durable.rework_minutes or 0.0
-    return float(record.economics.human_correction_minutes + rework)
+    human = record.economics.human_correction_minutes or 0.0
+    return float(human + rework)
 
 
 @dataclass(frozen=True, slots=True)
@@ -286,6 +288,29 @@ def _headline(summary: _Summary) -> dict[str, object]:
     }
 
 
+def _unmeasured(values: Sequence[object]) -> int:
+    return sum(1 for value in values if value is None)
+
+
+def _durable_signals(summary: _Summary) -> dict[str, int]:
+    """Totals of the reviewer and recovery signals, and how many runs left each unmeasured.
+
+    A run whose arm did not run carries `null`, which the classifier already
+    turns `UNVERIFIED`. The `unmeasured` counts keep that visible in the
+    report instead of folding a missing signal into a total of zero.
+    """
+    findings = [r.durable.review_findings for r in summary.records]
+    rollbacks = [r.durable.rollback_events for r in summary.records]
+    human = [r.economics.human_correction_minutes for r in summary.records]
+    return {
+        "review_findings_total": sum(v or 0 for v in findings),
+        "review_findings_unmeasured": _unmeasured(findings),
+        "rollback_events_total": sum(v or 0 for v in rollbacks),
+        "rollback_events_unmeasured": _unmeasured(rollbacks),
+        "human_correction_unmeasured": _unmeasured(human),
+    }
+
+
 def _task_row_json(task: _TaskRow) -> dict[str, object]:
     return {
         "task_id": task.task_id,
@@ -307,6 +332,7 @@ def _render(summary: _Summary) -> dict[str, object]:
         ],
         "cost_percentiles_usd": _percentile_triplet(summary.costs),
         "correction_minutes_percentiles": _percentile_triplet(summary.corrections),
+        "durable_signals": _durable_signals(summary),
         "headline": _headline(summary),
     }
 
