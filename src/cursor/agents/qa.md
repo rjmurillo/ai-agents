@@ -863,7 +863,7 @@ When QA is complete:
 1. Save test report to `.project-toolkit/qa/`
 2. Store results summary in memory
 3. Return to orchestrator with clear status:
-   - **QA COMPLETE**: "All tests passing. Ready for user validation."
+   - **QA COMPLETE**: "Tests: [command run], [passed]/[total] passed. Ready for user validation." Name any suite you did not run `NOT RUN`.
    - **QA FAILED**: "Tests failed. Recommend orchestrator routes to implementer with these failures: [list]"
 
 ## Execution Mindset
