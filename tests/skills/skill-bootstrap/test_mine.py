@@ -1592,15 +1592,52 @@ def test_path_missing_at_the_root_and_short_in_the_skill_is_out_of_range(capsys,
     assert statuses(payload) == {"scripts/short.py:30": "line-out-of-range"}
 
 
-def test_untracked_root_file_is_not_rescued_by_a_tracked_skill_file(capsys, crepo):
+def test_untracked_root_file_does_not_hide_a_tracked_skill_file(capsys, crepo):
     target = skill_with_shadow(crepo)
     commit(crepo, "skill copy", {".claude/skills/shadow/scripts/loose.py": "x\n"})
     write(crepo, "scripts/loose.py", "x\n")
     target.write_text("Run `scripts/loose.py`.\n", encoding="utf-8")
 
+    code, payload = claims(capsys, crepo, target)
+
+    assert code == 0
+    assert payload["findings"] == []
+
+
+def test_untracked_root_file_with_a_short_tracked_skill_file_is_out_of_range(capsys, crepo):
+    target = skill_with_shadow(crepo)
+    commit(crepo, "skill copy", {".claude/skills/shadow/scripts/short.py": "x\n"})
+    write(crepo, "scripts/short.py", "x\n" * 50)
+    target.write_text("Run `scripts/short.py:30`.\n", encoding="utf-8")
+
     _, payload = claims(capsys, crepo, target)
 
-    assert statuses(payload) == {"scripts/loose.py": "untracked"}
+    assert statuses(payload) == {"scripts/short.py:30": "line-out-of-range"}
+
+
+def test_untracked_root_file_with_no_tracked_skill_file_stays_untracked(capsys, crepo):
+    target = skill_with_shadow(crepo)
+    write(crepo, "scripts/orphan.py", "x\n")
+    target.write_text("Run `scripts/orphan.py`.\n", encoding="utf-8")
+
+    code, payload = claims(capsys, crepo, target)
+
+    assert code == 1
+    assert statuses(payload) == {"scripts/orphan.py": "untracked"}
+
+
+def test_untracked_oversized_skill_file_with_a_line_is_untracked_not_a_config_error(
+    capsys, crepo, monkeypatch
+):
+    target = skill_with_shadow(crepo)
+    write(crepo, ".claude/skills/shadow/scripts/big.py", "a\n" * 10)
+    target.write_text("See `scripts/big.py:3`.\n", encoding="utf-8")
+    monkeypatch.setattr(mine, "MAX_READ_BYTES", 8)
+
+    code, payload = claims(capsys, crepo, target)
+
+    assert code == 1
+    assert statuses(payload) == {"scripts/big.py:3": "untracked"}
 
 
 # ------------------------------------------------- Outcome, not a side channel

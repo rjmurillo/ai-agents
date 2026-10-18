@@ -604,17 +604,17 @@ def _resolve(
     """
     status = view.status(path, max_line)
     # A root file that is tracked but too short is the answer: a same-named skill file
-    # must not mark that stale root reference ok. Only a path absent from the ref falls
-    # back to the skill's tracked files, and an untracked one to its files on disk.
+    # must not mark that stale root reference ok. A path absent from the ref, whether
+    # missing or only untracked on disk, falls back to the skill's tracked files.
     if base is None or status not in ("missing", "untracked"):
         return status
-    if status == "missing":
-        relative = view.status(f"{base}/{path}", max_line)
-        if relative in ("ok", "line-out-of-range"):
-            return relative
+    relative = view.status(f"{base}/{path}", max_line)
+    if relative in ("ok", "line-out-of-range"):
+        return relative
     if not authored:
         # Name the real state: the file exists under this skill, it is just not committed.
-        relative_disk = view.disk_status(f"{base}/{path}", max_line)
+        # Only presence matters here, so no line count is read and the size cap cannot fire.
+        relative_disk = view.disk_status(f"{base}/{path}", None)
         if status == "missing" and relative_disk != "missing":
             return "untracked"
         return status
