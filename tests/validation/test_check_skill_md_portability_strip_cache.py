@@ -2,9 +2,10 @@
 
 One scanned file reaches ``_strip_code`` from ``has_portability_marker``,
 ``count_file_refs``, ``count_marker_suppressed_refs``, and the drift check. The
-cache lets those calls share one CommonMark parse. These tests pin three
-things: the parse count drops, the results are the same as an uncached run, and
-a parser failure is neither swallowed nor cached.
+cache lets those calls share one CommonMark parse for an unmarked file and two
+for a marked file. These tests pin three things: the parse count drops, the
+results are the same as an uncached run, and a parser failure is neither
+swallowed nor cached.
 """
 
 from __future__ import annotations

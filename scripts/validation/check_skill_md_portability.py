@@ -392,9 +392,11 @@ def has_portability_marker(text: str) -> bool:
 
 # One scanned file reaches ``_strip_code`` several times with the same text:
 # ``count_file_refs`` and ``count_marker_suppressed_refs`` each call
-# ``has_portability_marker``, which strips, then strip again themselves, and the
-# drift check strips again. A CommonMark parse costs milliseconds, so an
-# unmarked file was parsed several times where once is enough (issue #5382).
+# ``has_portability_marker``, which strips, ``count_file_refs`` then strips
+# again itself, and the drift check strips again. A CommonMark parse costs
+# milliseconds, so an unmarked file was parsed several times where once is
+# enough (issue #5382). A marked file still takes a second parse, because
+# ``count_marker_suppressed_refs`` strips the text with its marker removed.
 # The result is a pure function of an immutable string, so it is cached. 128
 # entries hold one file's working set. A failed parse raises and is not cached.
 @functools.lru_cache(maxsize=128)
