@@ -142,8 +142,12 @@ _PROSE_CALLS: frozenset[str] = frozenset(
     {"check", "debug", "error", "exception", "info", "print", "warning"}
 )
 
-# Directories scanned for vendor-shipped scripts.
-_SCAN_ROOTS: tuple[str, ...] = (".claude/skills",)
+# Directories scanned for vendor-shipped scripts. ADR-119: a shipped skill is a
+# directory link under .claude/skills and a directory walk does not follow a
+# link, so shipped scripts are scanned at src/claude/skills. .claude/skills
+# still holds the repo-local skills as real directories. The two never share a
+# skill name, so no file is counted twice.
+_SCAN_ROOTS: tuple[str, ...] = (".claude/skills", "src/claude/skills")
 
 # Baseline of known pre-existing offenders, relative to repo root, one
 # POSIX path per line. Comments (`#`) and blank lines are ignored.
@@ -431,6 +435,23 @@ def _first_banned_line(content: str) -> tuple[int, str] | None:
     return None
 
 
+def iter_scanned_files(repo_root: Path) -> list[Path]:
+    """Return every Python file the gate examines, in stable order.
+
+    Test files are excluded: they run only in the development checkout where
+    all upstream paths exist, so a hard-coded path in a test fixture cannot
+    fail a consumer install. Issue #4046.
+    """
+    files: list[Path] = []
+    for root in scan_roots(repo_root):
+        for py_file in sorted(root.rglob("*.py")):
+            relative_path = py_file.relative_to(repo_root)
+            if "__pycache__" in relative_path.parts or "tests" in relative_path.parts:
+                continue
+            files.append(py_file)
+    return files
+
+
 def collect_offenders(repo_root: Path) -> list[Offender]:
     """Find files that hard-code a banned path without the helper.
 
@@ -440,28 +461,18 @@ def collect_offenders(repo_root: Path) -> list[Offender]:
     scanned.
     """
     offenders: list[Offender] = []
-    for root in scan_roots(repo_root):
-        for py_file in sorted(root.rglob("*.py")):
-            relative_path = py_file.relative_to(repo_root)
-            if "__pycache__" in relative_path.parts:
-                continue
-            if "tests" in relative_path.parts:
-                # Test files run only in the development checkout where all
-                # upstream paths exist.  A hard-coded path in a test fixture
-                # cannot fail a consumer install, so these are excluded from
-                # the scan.  Issue #4046.
-                continue
-            try:
-                content = py_file.read_text(encoding="utf-8")
-            except (OSError, UnicodeDecodeError):
-                continue
-            if _routes_through_helper(content):
-                continue
-            hit = _first_banned_line(content)
-            if hit is None:
-                continue
-            line_no, excerpt = hit
-            offenders.append(Offender(relative_path.as_posix(), line_no, excerpt))
+    for py_file in iter_scanned_files(repo_root):
+        try:
+            content = py_file.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        if _routes_through_helper(content):
+            continue
+        hit = _first_banned_line(content)
+        if hit is None:
+            continue
+        line_no, excerpt = hit
+        offenders.append(Offender(py_file.relative_to(repo_root).as_posix(), line_no, excerpt))
     return offenders
 
 
@@ -477,11 +488,11 @@ def split_offenders(
     return new, known
 
 
-def format_report(new: list[Offender], known: list[Offender]) -> str:
-    """Format a human-readable report."""
+def format_report(new: list[Offender], known: list[Offender], examined: int = 0) -> str:
+    """Format a human-readable report, with the count of files examined."""
     lines: list[str] = []
     if not new:
-        lines.append("[PASS] No new vendor-portability offenders.")
+        lines.append(f"[PASS] No new vendor-portability offenders in {examined} file(s) examined.")
         if known:
             lines.append(
                 f"       {len(known)} known offender(s) tracked in the baseline "
@@ -489,7 +500,10 @@ def format_report(new: list[Offender], known: list[Offender]) -> str:
             )
         return "\n".join(lines) + "\n"
 
-    lines.append(f"[FAIL] {len(new)} new vendor-portability offender(s) found.")
+    lines.append(
+        f"[FAIL] {len(new)} new vendor-portability offender(s) found "
+        f"in {examined} file(s) examined."
+    )
     lines.append("")
     lines.append(
         "These files hard-code an upstream-only path (.agents/, .claude/lib/, "
@@ -572,10 +586,11 @@ def main(argv: list[str] | None = None) -> int:
 
     roots = scan_roots(repo_root)
     if not roots:
-        print("[SKIP] no scan roots present (.claude/skills).")
+        print("[SKIP] no scan roots present (.claude/skills, src/claude/skills).")
         return 0
 
     offenders = collect_offenders(repo_root)
+    examined = len(iter_scanned_files(repo_root))
 
     bpath = baseline_path(repo_root)
     # Refuse a baseline whose diff attribute is unset (issue #4249).
@@ -596,7 +611,7 @@ def main(argv: list[str] | None = None) -> int:
 
     baseline = load_baseline(bpath)
     new, known = split_offenders(offenders, baseline)
-    print(format_report(new, known))
+    print(format_report(new, known, examined))
     return 1 if new else 0
 
 
