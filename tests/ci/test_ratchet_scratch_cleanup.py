@@ -376,7 +376,9 @@ def test_create_scratch_aborts_and_removes_the_tree_when_the_lock_fails(
         mtm.create_scratch("base-derived-ratchet-")
 
     assert list(tmp_path.iterdir()) == []
-    assert mtm._HELD_SCRATCH_LOCKS == {}
+    # The registry is process-global and other tests on this worker may leave
+    # entries, so check only the keys this test could have created.
+    assert not any(held.parent == tmp_path for held in mtm._HELD_SCRATCH_LOCKS)
 
 
 @POSIX_ONLY
