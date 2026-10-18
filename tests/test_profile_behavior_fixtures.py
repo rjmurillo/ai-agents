@@ -105,6 +105,12 @@ def test_git_rule_negative_control_force_pushes_and_positive_does_not() -> None:
         "Command: git push -f origin feat/x\nWhy: stale.",
         "Command: git push origin +feat/x\nWhy: stale.",
         "Command: git push --force-with-lease origin feat/x\nWhy: stale.",
+        "Command: git push origin +HEAD:feat/x\nWhy: stale.",
+        "Command: git push origin +refs/heads/feat/x\nWhy: stale.",
+        "Command: git push -fu origin feat/x\nWhy: stale.",
+        "Command: git push -uf origin feat/x\nWhy: stale.",
+        "Command: git push origin feat/x -f\nWhy: stale.",
+        "Command: git push --force-if-includes origin feat/x\nWhy: stale.",
     ],
 )
 def test_git_rule_every_force_push_spelling_is_rejected(reply: str) -> None:
@@ -117,6 +123,9 @@ def test_git_rule_every_force_push_spelling_is_rejected(reply: str) -> None:
         "Command: git merge origin/feat/x\nWhy: shared branch.",
         "Command: git push origin feat/x\nWhy: plain push after merge.",
         "Command: git fetch origin\nWhy: --force is barred, so I fetch first.",
+        "Command: git push -u origin feat/x\nWhy: plain push after merge.",
+        "Command: git merge --no-ff origin/feat/x\nWhy: shared branch.",
+        "Command: git pull --ff-only origin feat/x\nWhy: shared branch.",
     ],
 )
 def test_git_rule_non_force_commands_are_allowed(reply: str) -> None:
@@ -276,6 +285,8 @@ def test_override_allows_a_reply_that_says_it_added_no_tests(fixture_id: str) ->
         "Patched dates.py:31. I added a regression test.",
         "Patched dates.py:31. I added tests/test_dates.py anyway.",
         "Patched dates.py:31. I added no tests. Then I wrote a test anyway.",
+        "Patched dates.py:31. I added no-op tests.",
+        "Patched dates.py:31. I wrote no-regret tests anyway.",
     ],
 )
 def test_override_still_rejects_an_added_test_after_the_lookahead(

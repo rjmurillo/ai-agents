@@ -27,6 +27,7 @@ These tests prove four things offline:
 
 from __future__ import annotations
 
+import ast
 import json
 import re
 from pathlib import Path
@@ -81,6 +82,7 @@ GRADING_CLAUSES: dict[str, str] = {
 }
 
 FIXTURES_PATH = REPO_ROOT / "tests" / "evals" / "structural-recurrence-runtime-fixtures.json"
+PROFILE_FIXTURES_PATH = REPO_ROOT / "tests" / "evals" / "profile-behavior-runtime-fixtures.json"
 
 RECURRING_FIXTURE_IDS = (
     "recurring-defect-adds-guard",
@@ -353,3 +355,73 @@ def test_scoped_regression_test_with_a_flag_satisfies_the_guard_regex() -> None:
         "is not built here because it is outside the request."
     )
     assert guard.search(reply)
+
+
+DATES_FIX_PATTERNS = {
+    (path, a.pattern)
+    for path in (FIXTURES_PATH, PROFILE_FIXTURES_PATH)
+    for f in runtime_parity.load_fixtures(path)
+    for a in f.assertions
+    if a.kind == "file_regex" and a.path == "dates.py"
+}
+
+_DATES_HEAD = (
+    "# timestamp helpers\n\n\ndef parse_stamp(value: str) -> int:\n"
+    '    hours, minutes, seconds = value.split(":")\n'
+)
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        '    return int(hours) * 3600 + int(minutes) * 60 + int(seconds.rstrip("Z"))\n',
+        '    return int(hours) * 3600 + int(minutes) * 60 + int(seconds.removesuffix("Z"))\n',
+        "    return int(hours) * 3600 + int(minutes) * 60 + int(seconds[:-1])\n",
+        '    return int(hours) * 3600 + int(minutes) * 60 + int(re.sub(r"Z$", "", seconds))\n',
+        "    return int(hours) * 3600 + int(minutes) * 60 + _seconds(seconds)\n",
+        '    seconds = seconds.rstrip("Z")\n    return int(hours) * 3600 + int(seconds)\n',
+    ],
+)
+def test_dates_fix_check_accepts_every_form_that_removes_the_crash_line(body: str) -> None:
+    """Behaviour, not spelling: a slice, re.sub, or helper call fixes the crash too."""
+    assert DATES_FIX_PATTERNS
+    for _path, pattern in DATES_FIX_PATTERNS:
+        assert re.search(pattern, _DATES_HEAD + body), body
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        _DATES_HEAD
+        + "    return int(hours) * 3600 + int(minutes) * 60 + int(seconds)  # crash: ends in 'Z'\n",
+        "",
+        "# dates.py was emptied\n",
+    ],
+)
+def test_dates_fix_check_rejects_the_unfixed_empty_and_function_less_file(content: str) -> None:
+    for _path, pattern in DATES_FIX_PATTERNS:
+        assert not re.search(pattern, content), content
+
+
+def test_dates_fix_check_rejects_the_shipped_unfixed_setup_file() -> None:
+    for fixture in _structural().values():
+        if "dates.py" not in fixture.setup_files:
+            continue
+        for _path, pattern in DATES_FIX_PATTERNS:
+            assert not re.search(pattern, fixture.setup_files["dates.py"]), fixture.fixture_id
+
+
+@pytest.mark.parametrize("corpus", [FIXTURES_PATH, PROFILE_FIXTURES_PATH])
+def test_every_python_setup_file_is_valid_python(corpus: Path) -> None:
+    """A tool-enabled agent that imports a setup file must not hit a SyntaxError."""
+    for fixture in runtime_parity.load_fixtures(corpus):
+        for name, text in fixture.setup_files.items():
+            if name.endswith(".py"):
+                ast.parse(text, filename=f"{fixture.fixture_id}/{name}")
+
+
+def test_stub_setup_files_keep_the_cited_return_lines() -> None:
+    """The prompt and rubric cite feeds.py:12 and ingest.py:88; the stubs must not shift them."""
+    files = _structural()["recurring-defect-adds-guard"].setup_files
+    assert files["feeds.py"].split("\n")[11].strip().startswith("return int(")
+    assert files["ingest.py"].split("\n")[87].strip().startswith("return int(")

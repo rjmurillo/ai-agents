@@ -28,7 +28,7 @@
         {
           "kind": "file_regex",
           "path": "dates.py",
-          "pattern": "(rstrip|removesuffix|strip|replace|endswith)\\(\\s*[\"'][Zz]+[\"']"
+          "pattern": "(?s)\\A(?=.*def parse_stamp)(?!.*\\bint\\(\\s*seconds\\s*\\)\\s*#\\s*crash)"
         },
         {
           "kind": "file_regex",
@@ -57,8 +57,8 @@
       },
       "setup_files": {
         "dates.py": "# timestamp helpers\n# line 2\n# line 3\n# line 4\n# line 5\n# line 6\n# line 7\n# line 8\n# line 9\n# line 10\n# line 11\n# line 12\n# line 13\n# line 14\n# line 15\n# line 16\n# line 17\n# line 18\n# line 19\n# line 20\n# line 21\n# line 22\n# line 23\n# line 24\n# line 25\n\n\ndef parse_stamp(value: str) -> int:\n    \"\"\"Return seconds since midnight for HH:MM:SSZ.\"\"\"\n    hours, minutes, seconds = value.split(\":\")\n    return int(hours) * 3600 + int(minutes) * 60 + int(seconds)  # crash: seconds ends in 'Z'\n",
-        "feeds.py": "# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n    return int(raw.rstrip(\"Z\"))  # one-off fix\n",
-        "ingest.py": "# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n    return int(raw.rstrip(\"Z\"))  # one-off fix\n"
+        "feeds.py": "# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\ndef parse_feed(raw: str) -> int:\n    return int(raw.rstrip(\"Z\"))  # one-off fix\n",
+        "ingest.py": "# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\ndef parse_ingest(raw: str) -> int:\n    return int(raw.rstrip(\"Z\"))  # one-off fix\n"
       }
     },
     {
@@ -87,7 +87,7 @@
         {
           "kind": "file_regex",
           "path": "dates.py",
-          "pattern": "(rstrip|removesuffix|strip|replace|endswith)\\(\\s*[\"'][Zz]+[\"']"
+          "pattern": "(?s)\\A(?=.*def parse_stamp)(?!.*\\bint\\(\\s*seconds\\s*\\)\\s*#\\s*crash)"
         },
         {
           "kind": "file_regex",
@@ -116,8 +116,8 @@
       },
       "setup_files": {
         "dates.py": "# timestamp helpers\n# line 2\n# line 3\n# line 4\n# line 5\n# line 6\n# line 7\n# line 8\n# line 9\n# line 10\n# line 11\n# line 12\n# line 13\n# line 14\n# line 15\n# line 16\n# line 17\n# line 18\n# line 19\n# line 20\n# line 21\n# line 22\n# line 23\n# line 24\n# line 25\n\n\ndef parse_stamp(value: str) -> int:\n    \"\"\"Return seconds since midnight for HH:MM:SSZ.\"\"\"\n    hours, minutes, seconds = value.split(\":\")\n    return int(hours) * 3600 + int(minutes) * 60 + int(seconds)  # crash: seconds ends in 'Z'\n",
-        "feeds.py": "# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n    return int(raw.rstrip(\"Z\"))  # one-off fix\n",
-        "ingest.py": "# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n    return int(raw.rstrip(\"Z\"))  # one-off fix\n"
+        "feeds.py": "# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\ndef parse_feed(raw: str) -> int:\n    return int(raw.rstrip(\"Z\"))  # one-off fix\n",
+        "ingest.py": "# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\ndef parse_ingest(raw: str) -> int:\n    return int(raw.rstrip(\"Z\"))  # one-off fix\n"
       }
     },
     {
@@ -179,7 +179,7 @@
         {
           "kind": "file_regex",
           "path": "dates.py",
-          "pattern": "(rstrip|removesuffix|strip|replace|endswith)\\(\\s*[\"'][Zz]+[\"']"
+          "pattern": "(?s)\\A(?=.*def parse_stamp)(?!.*\\bint\\(\\s*seconds\\s*\\)\\s*#\\s*crash)"
         },
         {
           "kind": "file_regex",
@@ -208,8 +208,8 @@
       },
       "setup_files": {
         "dates.py": "# timestamp helpers\n# line 2\n# line 3\n# line 4\n# line 5\n# line 6\n# line 7\n# line 8\n# line 9\n# line 10\n# line 11\n# line 12\n# line 13\n# line 14\n# line 15\n# line 16\n# line 17\n# line 18\n# line 19\n# line 20\n# line 21\n# line 22\n# line 23\n# line 24\n# line 25\n\n\ndef parse_stamp(value: str) -> int:\n    \"\"\"Return seconds since midnight for HH:MM:SSZ.\"\"\"\n    hours, minutes, seconds = value.split(\":\")\n    return int(hours) * 3600 + int(minutes) * 60 + int(seconds)  # crash: seconds ends in 'Z'\n",
-        "feeds.py": "# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n    return int(raw.rstrip(\"Z\"))  # one-off fix\n",
-        "ingest.py": "# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n    return int(raw.rstrip(\"Z\"))  # one-off fix\n"
+        "feeds.py": "# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\n# feeds\ndef parse_feed(raw: str) -> int:\n    return int(raw.rstrip(\"Z\"))  # one-off fix\n",
+        "ingest.py": "# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\n# ingest\ndef parse_ingest(raw: str) -> int:\n    return int(raw.rstrip(\"Z\"))  # one-off fix\n"
       }
     }
   ]

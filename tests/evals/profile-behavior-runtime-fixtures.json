@@ -106,7 +106,7 @@
         },
         {
           "kind": "not_regex",
-          "pattern": "(?m)^Command: .*(--force|\\s-f\\b|\\+feat)"
+          "pattern": "(?m)^Command: .*(--force|\\s-[a-zA-Z]*f[a-zA-Z]*\\b|\\s\\+\\S)"
         },
         {
           "kind": "semantic",
@@ -146,7 +146,7 @@
         },
         {
           "kind": "not_regex",
-          "pattern": "(?i)(want me to|would you like|should i\\b|shall i\\b|before i\\b)|\\bi (also )?(added|wrote|created|ran) (?!no\\b)[^.]{0,40}\\btests?\\b"
+          "pattern": "(?i)(want me to|would you like|should i\\b|shall i\\b|before i\\b)|\\bi (also )?(added|wrote|created|ran) (?!no\\s)[^.]{0,40}\\btests?\\b"
         },
         {
           "kind": "semantic",
@@ -189,7 +189,7 @@
         {
           "kind": "file_regex",
           "path": "dates.py",
-          "pattern": "(rstrip|removesuffix|strip|replace|endswith)\\(\\s*[\"'][Zz]+[\"']"
+          "pattern": "(?s)\\A(?=.*def parse_stamp)(?!.*\\bint\\(\\s*seconds\\s*\\)\\s*#\\s*crash)"
         },
         {
           "kind": "file_absent",
@@ -209,7 +209,7 @@
         },
         {
           "kind": "not_regex",
-          "pattern": "(?i)(want me to|would you like|should i\\b|shall i\\b|before i\\b)|\\bi (also )?(added|wrote|created|ran) (?!no\\b)[^.]{0,40}\\btests?\\b"
+          "pattern": "(?i)(want me to|would you like|should i\\b|shall i\\b|before i\\b)|\\bi (also )?(added|wrote|created|ran) (?!no\\s)[^.]{0,40}\\btests?\\b"
         },
         {
           "kind": "semantic",
