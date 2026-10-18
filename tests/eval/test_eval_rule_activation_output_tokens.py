@@ -11,6 +11,7 @@ table line.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -231,6 +232,12 @@ class TestOutputTokenDelta:
         assert "Mean output tokens" not in eval_mod.render_table("voice", unmeasured)
 
 
+LENGTH_CUE = re.compile(
+    r"\b(words?|lines?|one-line|terse|concise|brief|short|sentences?|bullets?)\b",
+    re.IGNORECASE,
+)
+
+
 class TestVoiceReportingFixtures:
     """Shape of the #5405 claim-grounding and concision scenarios in voice.json."""
 
@@ -259,6 +266,33 @@ class TestVoiceReportingFixtures:
     def test_claim_scenarios_are_positive_cases(self, scenarios):
         for sid in ("V6", "V7", "V8", "V9", "V10", "V11", "V12", "V13", "V14"):
             assert not eval_mod._is_negative_gate(scenarios[sid]["expected_gate"]), sid
+
+    def test_size_comparison_inputs_carry_no_length_or_format_cues(self, scenarios):
+        """V6 to V13 feed the response-size mean, so only the rule may supply terseness.
+
+        V14 is outside this set: its task is a terse rewrite, so the cue is the task.
+        V10 keeps a 'Tests:' line because it measures the NOT RUN state, not length.
+        """
+        for n in range(6, 14):
+            text = scenarios[f"V{n}"]["input"].replace("a 'Tests:' line", "")
+            match = LENGTH_CUE.search(text)
+            assert match is None, (f"V{n}", match and match.group(0))
+
+    @pytest.mark.parametrize(
+        "text",
+        ["in one or two lines", "under 60 words", "keep it concise", "a one-line answer"],
+    )
+    def test_length_cue_pattern_matches_known_cues(self, text):
+        assert LENGTH_CUE.search(text)
+
+    def test_length_cue_pattern_ignores_plain_task_text(self):
+        assert LENGTH_CUE.search("Write the completion report for the user.") is None
+
+    def test_inference_scenario_signals_describe_behavior_not_vocabulary(self, scenarios):
+        signals = scenarios["V13"]["expected_signals"]
+        assert "INFERRED" not in signals and "likely" not in signals
+        assert any("inference" in sig for sig in signals)
+        assert any("body" in sig for sig in signals)
 
     def test_ids_are_unique_and_inputs_do_not_ask_for_file_changes(self, scenarios):
         data = json.loads(VOICE_SCENARIOS.read_text(encoding="utf-8"))
