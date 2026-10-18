@@ -350,12 +350,13 @@ dev = [
 # back to rediscovering the whole repository per test, or to re-sorting the
 # surface manifest once per file, and lands several times over.
 #
-# The surface parity budget is about twice its 12.5s sum, not four times. That
-# suite summed 49.6s on main before the sort-once change (JUnit sum, serial, no
-# coverage, 2026-10-18), so a 50s budget matched the code it replaced and
-# passed a revert on any runner as fast or faster. At 25s a revert fails unless
-# the runner is 2x faster, and 2x still absorbs ordinary runner load.
+# The surface parity budget is set against the CI report, which runs with
+# coverage, not against the local serial sum. In CI the suite summed 60.3s on
+# main before the sort-once change (run 39161326676, 2026-10-18) and 32.7s with
+# it (run 39161002142). Locally without coverage the same sums are 49.6s and
+# 12.5s. A 25s budget failed the fixed code in CI. At 45s the fixed code has
+# about 1.4x headroom and a revert fails by about 1.3x.
 [tool.slow-test-budget]
 "tests/test_validate_session_json.py" = 120.0
 "tests/test_guard_diff.py" = 35.0
-"tests/build_scripts/test_surface_parity_repo.py" = 25.0
+"tests/build_scripts/test_surface_parity_repo.py" = 45.0
