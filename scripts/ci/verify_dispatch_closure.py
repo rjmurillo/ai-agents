@@ -350,6 +350,9 @@ _INERT_GIT = ("-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false")
 # `checkout-index` would run on head blobs when the head's .gitattributes names it.
 _NO_SYSTEM_CONFIG = {"GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null"}
 _HEAD_MARKER = "refs/pull/{number}/head"
+# Caps the head commits one fetch brings (the PR author shapes the ref). A longer head
+# loses its merge base: no STALE label, and every finding still fails the check.
+HEAD_FETCH_DEPTH = 200
 
 
 def _git(cwd: Path, *args: str, env: dict[str, str] | None = None) -> str:
@@ -387,6 +390,7 @@ def materialize_head(
         "fetch",
         "--no-tags",
         "--no-recurse-submodules",
+        f"--depth={HEAD_FETCH_DEPTH}",
         remote,
         _HEAD_MARKER.format(number=pull_number),
     )
