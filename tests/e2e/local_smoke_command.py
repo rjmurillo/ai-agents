@@ -6,7 +6,8 @@ compound command lines, so the guard sees every program a call would start.
 Known limits: a program started through ``eval``, a variable (``$CMD``), a script file,
 a launcher outside ``_LAUNCHERS``, or a shell outside ``_SHELLS`` is not seen. A shell
 option with a value other than ``-o`` or ``-O`` (``--rcfile f``) before the command line
-misreads the value as the command.
+misreads the value as the command. A quoted Windows path with a space inside a shell's
+``/c`` value (``cmd /c "C:\\Program Files\\copilot.exe"``) is cut at the space.
 """
 
 from __future__ import annotations
@@ -60,15 +61,17 @@ _LAUNCHERS: dict[str, frozenset[str]] = {
 }
 # Launchers whose program word may be a whole command line: ``watch 'copilot -p x'``.
 _COMMAND_LINE_LAUNCHERS = frozenset({"watch"})
-# ``env`` options whose value is a whole command line: ``-S 'copilot -p x'``, and the
-# attached forms ``--split-string=CMD`` and ``-SCMD``.
-_SPLIT_STRING_OPTIONS = frozenset({"-S", "--split-string"})
-_ATTACHED_COMMAND_LINE = re.compile(r"^(?:--split-string=|-S(?=.))(.*)$", re.DOTALL)
+# ``env`` options whose value is a whole command line: ``-S 'copilot -p x'``, the attached
+# forms ``--split-string=CMD`` and ``-SCMD``, and a cluster of no-value options before ``S``
+# (``-iS``, ``-vS``). Group 1 is the ``=`` value, group 2 the short-option attached value.
+_SPLIT_STRING = re.compile(r"^(?:--split-string(?:=(.*))?|-[iv0]*S(.*))$", re.DOTALL)
 # Positional words a launcher takes before the program: `timeout 5 copilot`.
 _LEADING_POSITIONALS = {"timeout": 1}
 # Shell reserved words that can lead a simple command: `then copilot`, `! copilot`.
 _KEYWORDS = frozenset({"if", "then", "else", "elif", "fi", "while", "until", "do", "done"})
 _KEYWORDS |= frozenset({"!", "{", "}", "case", "esac", "in", "coproc", "function"})
+# fish command modifiers: `true; and copilot`, `not copilot`.
+_KEYWORDS |= frozenset({"and", "or", "not"})
 # A command substitution, even inside double quotes: `"$(copilot)"`, `"`copilot`"`.
 _SUBSTITUTION = re.compile(r"\$\(([^()]*)\)|`([^`]*)`")
 # Options after which a launcher only looks the program up instead of running it.
@@ -81,6 +84,7 @@ _POSIX_SHELLS = frozenset({"sh", "bash", "zsh", "dash", "ksh", "mksh", "ash", "f
 # Shells, mapped to the option whose value is a command line to run.
 _SHELLS: dict[str, frozenset[str]] = (
     {name: frozenset({"-c"}) for name in _POSIX_SHELLS}
+    | {"fish": frozenset({"-c", "--command"})}
     | {name: frozenset({"/c", "/k"}) for name in ("cmd", "cmd.exe")}
     | {
         name: frozenset({"-c", "-command"})
@@ -243,17 +247,20 @@ def _after_prefix(words: list[str], index: int, word: str) -> int | None:
 def _option_command_line(launcher: str, word: str, following: list[str]) -> str | None:
     """Return the command line a launcher option carries, or None if it carries none.
 
-    ``command -v`` only looks a program up, so its command line is empty. ``env`` takes a
-    whole command line attached to ``-S`` or ``--split-string=``, or as the next word.
+    ``command -v`` only looks a program up, so its command line is empty. ``env`` splits the
+    value of ``-S`` into words and runs them followed by the words after the option, so the
+    returned line holds both.
     """
     if launcher == "command" and word in _LOOKUP_OPTIONS:
         return ""
-    if launcher != "env":
+    match = _SPLIT_STRING.match(word) if launcher == "env" else None
+    if not match:
         return None
-    if word in _SPLIT_STRING_OPTIONS:
-        return following[0] if following else ""
-    attached = _ATTACHED_COMMAND_LINE.match(word)
-    return attached.group(1) if attached else None
+    attached = match.group(1) if match.group(1) is not None else (match.group(2) or "")
+    if attached:
+        return f"{attached} {shlex.join(following)}"
+    value = following[0] if following else ""
+    return f"{value} {shlex.join(following[1:])}"
 
 
 def _programs(words: list[str]) -> list[str]:

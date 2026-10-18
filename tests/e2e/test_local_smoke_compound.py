@@ -101,6 +101,19 @@ import local_smoke_guard as guard
         r'"C:\Program Files\copilot.exe" -p x',
         r'"C:\Program Files (x86)\copilot.exe" --version',
         r'echo hi & "C:\Program Files (x86)\copilot.cmd"',
+        "env -S 'A=1' copilot",
+        "env -S '-i' copilot -p x",
+        "env -S nice copilot",
+        "env --split-string='-i' copilot",
+        "env --split-string A=1 copilot",
+        ["env", "-S", "A=1", "copilot"],
+        "env -iS 'copilot -p x'",
+        "env -vS'copilot -p x'",
+        "env -i -S 'A=1' env -S 'B=2' copilot",
+        "fish --command copilot",
+        "fish -c 'true; and copilot'",
+        "fish -c 'not copilot'",
+        "fish -c 'echo hi; or copilot'",
     ],
 )
 def test_refuses_copilot_anywhere_in_a_compound_command(args: object) -> None:
@@ -159,6 +172,11 @@ def test_refuses_copilot_anywhere_in_a_compound_command(args: object) -> None:
         "fish -c 'echo copilot'",
         r'"C:\Program Files\node.exe" copilot.js',
         r'"C:\Program Files (x86)\tool.exe" -p "a;copilot"',
+        "env -S 'A=1' ls copilot",
+        "env -iS 'echo copilot'",
+        "env -S nice echo copilot",
+        "fish --command 'echo copilot'",
+        "fish -c 'not echo copilot'",
     ],
 )
 def test_allows_a_compound_command_that_never_starts_copilot(args: object) -> None:
