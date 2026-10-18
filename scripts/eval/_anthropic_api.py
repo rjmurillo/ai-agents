@@ -20,7 +20,7 @@ from typing import Any, cast
 
 # Sibling imports; loaded under the same EVAL_DIR sys.path entry every
 # caller of this module already uses to reach them by bare name.
-from _anthropic_response import MessageResponse, parse_message_response
+from _anthropic_response import MessageResponse, parse_message_response, record_provider_cap
 from _cli_credentials import parse_dotenv
 from _eval_common import (
     call_with_temperature_fallback,
@@ -149,6 +149,7 @@ def _call_selected_provider(
     )
     if metadata is not None and fingerprint is not None:
         metadata["system_fingerprint"] = fingerprint
+    record_provider_cap(selected_provider, metadata)
     return text
 
 
@@ -309,9 +310,8 @@ def call_api(
 ) -> str:
     """Call the selected provider and return assistant text.
 
-    Text view over `call_api_response`. A passed `metadata` dict also gets
-    `termination`, `stop_reason`, `refusal_category` on a refusal, and
-    `output_tokens` when the provider reported usage.
+    Text view over `call_api_response`. A passed `metadata` dict also gets `termination`,
+    `stop_reason`, `output_tokens` when reported, and `refusal_category` on a refusal.
     """
     response = call_api_response(
         api_key, messages, system, model, max_tokens, temperature, provider, seed, metadata

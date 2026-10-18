@@ -543,7 +543,52 @@ Respond in JSON only, no other text:
     fingerprint = require_str_or_none(metadata.get("system_fingerprint"), "system_fingerprint")
     if fingerprint is not None:
         result["judge_system_fingerprint"] = fingerprint
+    if not is_negative:
+        _apply_forbidden_claims(scenario, response, result)
     return result
+
+
+# A response that makes a claim its scenario forbids is not a 5, however well
+# the judge liked the rest of it. The cap sits below the "present" half of the
+# 1 to 5 rubric so the cell cannot read as grounded.
+FORBIDDEN_CLAIM_SCORE_CAP = 2
+
+
+def _forbidden_claim_hits(scenario: dict[str, Any], response: str) -> list[str]:
+    """Return the scenario's `forbidden_response_patterns` that match `response`.
+
+    The judge reads the signals as vocabulary and can pass a response that
+    names the wrong state: V9 ran the command, so "NOT RUN" misreports it, and
+    V12 never read threads 4 and 5 back, so "still open" asserts a state no
+    evidence supports (#5405). A regex over the response catches that without
+    a second model call. Patterns match case-insensitively. A pattern that
+    does not compile is a scenario bug and raises, so the run stops instead of
+    silently grading with no check.
+    """
+    patterns = scenario.get("forbidden_response_patterns", [])
+    if not isinstance(patterns, list):
+        raise ValueError(f"{scenario.get('id', '?')}: forbidden_response_patterns must be a list")
+    hits: list[str] = []
+    for pattern in patterns:
+        if not isinstance(pattern, str):
+            raise ValueError(
+                f"{scenario.get('id', '?')}: forbidden_response_patterns holds a non-string"
+            )
+        if re.search(pattern, response, re.IGNORECASE):
+            hits.append(pattern)
+    return hits
+
+
+def _apply_forbidden_claims(
+    scenario: dict[str, Any], response: str, result: dict[str, Any]
+) -> None:
+    """Cap the three scores and record the hits when a forbidden claim matched."""
+    hits = _forbidden_claim_hits(scenario, response)
+    if not hits:
+        return
+    for key in ("activation_score", "citation_score", "behavior_score"):
+        result[key] = min(result[key], FORBIDDEN_CLAIM_SCORE_CAP)
+    result["forbidden_claim_hits"] = hits
 
 
 def _clamp_score(value: object) -> int:
@@ -1195,16 +1240,47 @@ def eval_one_scenario(
         # shorter than the full answer, so its size says nothing about the rule.
         # Record why, and leave the size fields off: `_size_covers_pool` then
         # reads the pool as unmeasured and publishes no delta (#5405).
+        # `_size_is_unclipped` also covers a provider that reports no
+        # termination but applies the cap.
         termination = metadata.get("termination")
         if isinstance(termination, str):
             mechanism_result["termination"] = termination
-        if termination not in NON_SCOREABLE_TERMINATIONS:
+        finish_reason = metadata.get("finish_reason")
+        if isinstance(finish_reason, str):
+            mechanism_result["finish_reason"] = finish_reason
+        if _size_is_unclipped(metadata):
             mechanism_result["response_chars"] = len(response)
             output_tokens = metadata.get("output_tokens")
             if isinstance(output_tokens, int) and not isinstance(output_tokens, bool):
                 mechanism_result["output_tokens"] = output_tokens
         result["mechanisms"][mechanism] = mechanism_result
     return result
+
+
+# Provider finish reasons that mean the model stopped on its own: the OpenAI
+# `stop` and the Anthropic `end_turn` and `stop_sequence`.
+_COMPLETED_FINISH_REASONS: frozenset[str] = frozenset({"stop", "end_turn", "stop_sequence"})
+
+
+def _size_is_unclipped(metadata: dict[str, object]) -> bool:
+    """True when the response size can be compared across arms (#5405).
+
+    A termination in `NON_SCOREABLE_TERMINATIONS` is clipped or refused. The
+    default Anthropic path reports `completed`. Every alternate provider
+    reports `unknown`, which does not separate two cases: a CLI provider
+    ignores `max_tokens`, so its answer is never cut, while an HTTP provider
+    sends the cap and can cut at it. `max_tokens_applied` names the second
+    group. For it, only a completed finish reason proves the answer is whole;
+    a cut, an unknown reason, or no reason leaves the size unproven.
+    """
+    termination = metadata.get("termination")
+    if termination in NON_SCOREABLE_TERMINATIONS:
+        return False
+    if termination == "completed":
+        return True
+    if metadata.get("max_tokens_applied") is not True:
+        return True
+    return metadata.get("finish_reason") in _COMPLETED_FINISH_REASONS
 
 
 def _is_valid_score(value: object) -> bool:

@@ -165,6 +165,21 @@ _PARSE_ROWS: list[tuple[dict[str, Any], dict[str, Any], str]] = [
         {"output_tokens": None},
         "string_output_tokens_is_refused",
     ),
+    (
+        {"content": [], "usage": {"output_tokens": 10**9}},
+        {"output_tokens": 10**9},
+        "output_tokens_at_the_bound_is_recorded",
+    ),
+    (
+        {"content": [], "usage": {"output_tokens": 10**9 + 1}},
+        {"output_tokens": None},
+        "output_tokens_above_the_bound_is_refused",
+    ),
+    (
+        {"content": [], "usage": {"output_tokens": 10**400}},
+        {"output_tokens": None},
+        "output_tokens_beyond_float_range_is_refused",
+    ),
 ]
 _PARSE_CASES = [(payload, expected) for payload, expected, _id in _PARSE_ROWS]
 _PARSE_IDS = [row_id for _payload, _expected, row_id in _PARSE_ROWS]

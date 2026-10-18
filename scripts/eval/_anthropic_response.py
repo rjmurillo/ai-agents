@@ -89,9 +89,15 @@ class MessageResponse:
         return self.termination in NON_SCOREABLE_TERMINATIONS
 
 
-def _read_output_tokens(payload: dict[str, Any]) -> int | None:
-    """Return `usage.output_tokens` when it is a non-negative integer, else None.
+# No model emits a billion tokens in one reply. A larger value is a damaged
+# payload, and an unbounded int would overflow the float division in a mean.
+_MAX_PLAUSIBLE_OUTPUT_TOKENS = 10**9
 
+
+def _read_output_tokens(payload: dict[str, Any]) -> int | None:
+    """Return `usage.output_tokens` when it is a plausible count, else None.
+
+    Plausible means a non-negative integer up to `_MAX_PLAUSIBLE_OUTPUT_TOKENS`.
     `bool` is an `int` subclass in Python, so it is refused by name: `True`
     would otherwise be recorded as one token.
     """
@@ -99,7 +105,9 @@ def _read_output_tokens(payload: dict[str, Any]) -> int | None:
     if not isinstance(usage, dict):
         return None
     tokens = usage.get("output_tokens")
-    if isinstance(tokens, bool) or not isinstance(tokens, int) or tokens < 0:
+    if isinstance(tokens, bool) or not isinstance(tokens, int):
+        return None
+    if tokens < 0 or tokens > _MAX_PLAUSIBLE_OUTPUT_TOKENS:
         return None
     return tokens
 
@@ -154,3 +162,22 @@ def parse_message_response(payload: dict[str, Any]) -> MessageResponse:
         refusal_explanation=refusal_explanation,
         output_tokens=_read_output_tokens(payload),
     )
+
+
+def record_provider_cap(provider: object, metadata: dict[str, object] | None) -> None:
+    """Copy a provider's output cap and raw finish reason into `metadata` (#5405).
+
+    A provider that sends `max_tokens` can cut an answer yet reports no
+    termination, so a caller reading sizes cannot tell a finished answer from
+    a clipped one. `applies_max_tokens` and `finish_reason` are optional
+    provider attributes. Stale keys from a reused dict are cleared first.
+    """
+    if metadata is None:
+        return
+    metadata.pop("max_tokens_applied", None)
+    metadata.pop("finish_reason", None)
+    if getattr(provider, "applies_max_tokens", False) is True:
+        metadata["max_tokens_applied"] = True
+    finish_reason = getattr(provider, "finish_reason", None)
+    if isinstance(finish_reason, str):
+        metadata["finish_reason"] = finish_reason
