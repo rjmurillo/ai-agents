@@ -27,7 +27,8 @@ Why "git-tracked, non-__pycache__":
   ignores ``__pycache__`` entirely.
 
 Skills roots scanned (when present):
-  * ``.claude/skills/``
+  * ``.claude/skills/`` (repo-local skills; a shipped skill is a directory link here)
+  * ``src/claude/skills/`` (shipped skills, ADR-119)
   * ``src/copilot-cli/skills/``
 
 Exit codes (ADR-035):
@@ -45,8 +46,11 @@ from pathlib import Path
 
 # Skills roots, relative to the repo root. Both the Claude tree and the Copilot
 # mirror carry skill directories; a shell can regress either tree.
+# ADR-119: a shipped skill is a directory link under .claude/skills, which git
+# tracks as one entry, so its files are only visible under src/claude/skills.
 SKILLS_ROOTS: tuple[str, ...] = (
     ".claude/skills",
+    "src/claude/skills",
     "src/copilot-cli/skills",
 )
 
@@ -131,6 +135,15 @@ def _iter_skill_dirs(repo_root: Path, root_rel: str) -> list[str]:
     return ordered
 
 
+def count_skill_dirs(repo_root: Path) -> int:
+    """Return how many skill directories ``find_skill_shells`` examined."""
+    return sum(
+        len(_iter_skill_dirs(repo_root, root_rel))
+        for root_rel in SKILLS_ROOTS
+        if (repo_root / root_rel).is_dir()
+    )
+
+
 def find_skill_shells(repo_root: Path) -> list[str]:
     """Return repo-relative skill dirs that have tracked content but no SKILL.md.
 
@@ -185,8 +198,17 @@ def main(argv: list[str] | None = None) -> int:
         print(f"git ls-files failed: {exc.stderr or exc}", file=sys.stderr)
         return 2
 
+    try:
+        examined = count_skill_dirs(repo_root)
+    except (FileNotFoundError, subprocess.CalledProcessError) as exc:
+        print(f"git ls-files failed: {exc}", file=sys.stderr)
+        return 2
+
     if not shells:
-        print("No skill shells found (every skill dir with tracked content has SKILL.md).")
+        print(
+            f"No skill shells found in {examined} skill dir(s) "
+            "(every skill dir with tracked content has SKILL.md)."
+        )
         return 0
 
     print("Skill shell directories detected (tracked content but no SKILL.md):")

@@ -156,6 +156,7 @@ class TestShippedBaseline:
             "scripts/validation/",
             "build/scripts/",
             ".claude/skills/",
+            "src/claude/skills/",
         )
 
     def test_scan_roots_match_the_checker(self, tmp_path: Path) -> None:
