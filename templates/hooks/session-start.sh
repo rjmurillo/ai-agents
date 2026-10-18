@@ -31,6 +31,14 @@ fi
 # it is not the exact export line (absent, or a later `=0`), a new line is
 # appended, because the last assignment is the one sourcing leaves in effect.
 if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
+  # End the file's last line first. Another SessionStart hook can leave it
+  # without a trailing LF, and an append would then fuse onto that line:
+  # `FOO=bar` becomes `FOO=barexport ...` and the marker never takes effect.
+  # `$(tail -c1)` is empty only when the last byte is LF, so a non-empty
+  # result means the last line is unterminated. Applies to every append below.
+  if [ -s "$CLAUDE_ENV_FILE" ] && [ -n "$(tail -c1 "$CLAUDE_ENV_FILE" 2>/dev/null)" ]; then
+    { echo >> "$CLAUDE_ENV_FILE"; } 2>/dev/null || true
+  fi
   last_marker="$(grep -E '^(export )?AI_AGENTS_REMOTE_CONTAINER=' "$CLAUDE_ENV_FILE" 2>/dev/null | tail -n 1 || true)"
   if [ "$last_marker" != 'export AI_AGENTS_REMOTE_CONTAINER=1' ]; then
     echo 'export AI_AGENTS_REMOTE_CONTAINER=1' >> "$CLAUDE_ENV_FILE" ||

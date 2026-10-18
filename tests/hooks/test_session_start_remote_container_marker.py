@@ -33,10 +33,12 @@ MARKER_LINE = "export AI_AGENTS_REMOTE_CONTAINER=1"
 IMAGE_FILE_NAMES = ("Dockerfile", "Containerfile")
 MARKER_NAME = "AI_AGENTS_REMOTE_CONTAINER"
 # An actual assignment, not a mention: `ENV NAME=1`, `ENV NAME 1`, `export NAME=1`,
-# `NAME=1`, or the JSON form `"NAME": "1"`. A comment line never matches.
+# `NAME=1`, or the JSON form `"NAME": "1"`. A comment line never matches. The value
+# is captured so the check can require one `_env_truthy()` accepts: `=0` or
+# `=false` declares the marker false and must not satisfy the image check.
 _ASSIGNMENT = re.compile(
-    rf"^\s*(?:(?:ENV|export)\s+)?{MARKER_NAME}(?:\s*=\s*|\s+)\S"
-    rf"|^\s*\"{MARKER_NAME}\"\s*:\s*\"[^\"]+\""
+    rf"^\s*(?:(?:ENV|export)\s+)?{MARKER_NAME}(?:\s*=\s*|\s+)(?P<bare>\S+)"
+    rf"|^\s*\"{MARKER_NAME}\"\s*:\s*\"(?P<json>[^\"]+)\""
 )
 _COMMENT_PREFIXES = ("#", "//", "*", "/*")
 
@@ -112,6 +114,61 @@ def test_later_zero_after_one_is_overridden_by_new_one(tmp_path: Path) -> None:
 
 
 @requires_bash
+@pytest.mark.parametrize(
+    ("existing", "name", "expected"),
+    [
+        ("FOO=bar", "FOO", "bar"),
+        ("export FOO=bar", "FOO", "bar"),
+        ("FOO=bar\n", "FOO", "bar"),
+        ("export FOO=bar\nexport BAZ=qux", "BAZ", "qux"),
+        (f"{MARKER_LINE}", "FOO", ""),
+    ],
+    ids=["bare-no-lf", "export-no-lf", "with-lf", "two-lines-no-lf", "marker-last-no-lf"],
+)
+def test_unterminated_last_line_keeps_both_existing_var_and_marker(
+    tmp_path: Path, existing: str, name: str, expected: str
+) -> None:
+    """An env file whose last line lacks LF must not fuse with the appended marker."""
+    repo = _materialize_fake_repo(tmp_path, "no-lf")
+    env_file = tmp_path / "env.sh"
+    env_file.write_text(existing, encoding="utf-8")
+
+    proc = _run_session_start(repo, env_file)
+
+    assert proc.returncode == 0, proc.stderr
+    assert _source_and_read(env_file, tmp_path, name) == expected
+    assert _source_and_read(env_file, tmp_path, MARKER_NAME) == "1"
+    assert MARKER_LINE in env_file.read_text(encoding="utf-8").splitlines()
+
+
+@requires_bash
+def test_unterminated_last_line_does_not_fuse_with_later_path_append(tmp_path: Path) -> None:
+    """The newline guard covers the PATH and PYENV appends, not only the marker."""
+    repo = _materialize_fake_repo(tmp_path, "no-lf-path")
+    env_file = tmp_path / "env.sh"
+    env_file.write_text(MARKER_LINE, encoding="utf-8")
+
+    proc = _run_session_start(repo, env_file)
+
+    assert proc.returncode == 0, proc.stderr
+    lines = env_file.read_text(encoding="utf-8").splitlines()
+    assert lines[0] == MARKER_LINE
+    assert any(line.startswith("export PATH=") for line in lines)
+    assert any(line.startswith("export PYENV_ROOT=") for line in lines)
+
+
+@requires_bash
+def test_empty_env_file_gets_no_leading_blank_line(tmp_path: Path) -> None:
+    repo = _materialize_fake_repo(tmp_path, "empty-env")
+    env_file = tmp_path / "env.sh"
+    env_file.write_text("", encoding="utf-8")
+
+    _run_session_start(repo, env_file)
+
+    assert env_file.read_text(encoding="utf-8").splitlines()[0] == MARKER_LINE
+
+
+@requires_bash
 def test_unwritable_env_file_does_not_skip_bootstrap(tmp_path: Path) -> None:
     """An env file under a missing directory must not stop bootstrap-vm.sh from running."""
     repo = _materialize_fake_repo(tmp_path, "bad-env-file")
@@ -158,6 +215,12 @@ def test_marker_not_written_outside_claude_web(tmp_path: Path) -> None:
 
 @requires_bash
 def test_unset_env_file_reports_unpersisted_marker_and_exits_zero(tmp_path: Path) -> None:
+    """Accepted limit: with no env file the marker cannot persist, so the bound lapses.
+
+    The hook logs one stderr line and exits 0 so bootstrap is not blocked.
+    `_is_remote_container()` then falls back to the filesystem probe. This test
+    documents that behavior; it does not claim the bound holds in this case.
+    """
     repo = _materialize_fake_repo(tmp_path, "no-env-file")
     env = dict(os.environ)
     env["CLAUDE_CODE_REMOTE"] = "true"
@@ -200,12 +263,18 @@ def test_exported_marker_makes_is_remote_container_true(
 
 
 def _sets_marker(text: str) -> bool:
-    """True when a non-comment line assigns the marker."""
+    """True when a non-comment line assigns the marker a value ``_env_truthy()`` accepts."""
+    from scripts.validation import run_workflow_local_test as rwlt
+
     for line in text.splitlines():
         stripped = line.strip()
         if stripped.startswith(_COMMENT_PREFIXES):
             continue
-        if _ASSIGNMENT.match(line):
+        match = _ASSIGNMENT.match(line)
+        if match is None:
+            continue
+        value = (match.group("bare") or match.group("json") or "").strip("\"'").lower()
+        if value in rwlt._TRUTHY:
             return True
     return False
 
@@ -259,10 +328,19 @@ def test_image_check_flags_image_without_marker(tmp_path: Path) -> None:
         ("// AI_AGENTS_REMOTE_CONTAINER=1\n", False),
         ("RUN echo AI_AGENTS_REMOTE_CONTAINER\n", False),
         ("ENV AI_AGENTS_REMOTE_CONTAINER=\n", False),
+        ("ENV AI_AGENTS_REMOTE_CONTAINER=true\n", True),
+        ('ENV AI_AGENTS_REMOTE_CONTAINER="1"\n', True),
+        ("ENV AI_AGENTS_REMOTE_CONTAINER=TRUE\n", True),
+        ("ENV AI_AGENTS_REMOTE_CONTAINER=0\n", False),
+        ("ENV AI_AGENTS_REMOTE_CONTAINER=false\n", False),
+        ("ENV AI_AGENTS_REMOTE_CONTAINER 0\n", False),
+        ("export AI_AGENTS_REMOTE_CONTAINER=0\n", False),
+        ('{"containerEnv": {\n  "AI_AGENTS_REMOTE_CONTAINER": "0"\n}}\n', False),
+        ("ENV AI_AGENTS_REMOTE_CONTAINER=0\nENV AI_AGENTS_REMOTE_CONTAINER=1\n", True),
         ("", False),
     ],
 )
-def test_sets_marker_requires_an_assignment_not_a_mention(text: str, expected: bool) -> None:
+def test_sets_marker_requires_a_truthy_assignment_not_a_mention(text: str, expected: bool) -> None:
     assert _sets_marker(text) is expected
 
 
@@ -272,6 +350,12 @@ def test_every_tracked_managed_image_sets_the_marker() -> None:
     ADR-104 rule 8 needs every managed image detected by
     ``_is_remote_container()``. A new image either carries the marker or adds
     its own measured filesystem signal and removes itself from this check.
+
+    Limit: AC3 covers image definitions tracked in this repository only. No
+    Dockerfile, Containerfile, or .devcontainer path is tracked today, so this
+    test scans zero files and passes vacuously until one lands. An image
+    provisioned outside the repo (such as the Claude web image) has no check
+    here; the SessionStart hook is its setter.
     """
     proc = subprocess.run(
         ["git", "ls-files", "-z"],
@@ -300,11 +384,12 @@ def test_installed_script_matches_template() -> None:
 
 
 def test_known_managed_environments_each_have_a_setter() -> None:
-    """Each managed environment maps to the mechanism that marks it a remote container.
+    """Pin the two setters this repository relies on today.
 
-    Adding an environment means adding a row here, so a new managed runtime
-    cannot reach ADR-104 rule 8 unmarked. Claude web is marked by the
-    SessionStart hook; Codespaces is marked by the platform's own variable.
+    Claude web is marked by the SessionStart hook; Codespaces is marked by the
+    platform's own variable. The expected dict is hand-written, so this guards
+    against removing either setter. It does not detect a new managed
+    environment that nobody adds a row for; that gap is not covered.
     """
     from scripts.validation import run_workflow_local_test as rwlt
 
