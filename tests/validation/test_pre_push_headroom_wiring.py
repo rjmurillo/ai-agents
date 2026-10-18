@@ -221,6 +221,7 @@ def _arrange_scan(monkeypatch: pytest.MonkeyPatch, paths: list[str], events: lis
     monkeypatch.setattr(policy, "_changed_commit_paths", lambda *_a: paths)
     monkeypatch.setattr(policy, "_commit_paths", lambda *_a: paths)
     monkeypatch.setattr(policy, "_pushed_root_moves", lambda *_a: set())
+    monkeypatch.setattr(policy, "_commit_link_paths", lambda *_a: {})
     monkeypatch.setattr(policy, "_container_clamped", lambda seconds: seconds)
     monkeypatch.setattr(policy, "_heavy_stage_slot", _recording_slot(events))
 
