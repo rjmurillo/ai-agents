@@ -119,6 +119,7 @@ def test_a_test_that_uninstalls_the_guard_leaves_the_session_guard_armed(tmp_pat
         env=env,
         capture_output=True,
         encoding="utf-8",
+        errors="replace",
         timeout=120,
         check=False,
     )

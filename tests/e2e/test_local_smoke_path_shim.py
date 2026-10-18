@@ -43,7 +43,11 @@ def _run(command: list[str]) -> tuple[int, str]:
     which refuses a bare ``copilot`` before the shim can run.
     """
     with guard._ORIGINAL_POPEN(
-        command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8"
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        encoding="utf-8",
+        errors="replace",
     ) as proc:
         _, stderr = proc.communicate()
     return proc.returncode, stderr
