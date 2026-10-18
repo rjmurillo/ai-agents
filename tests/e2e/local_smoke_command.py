@@ -10,8 +10,9 @@ misreads the value as the command. An unquoted Windows path with a space inside 
 ``/c`` value is cut at the space. The fish attached forms ``-Ccmd`` and ``-ccmd`` are not
 read as the command line. ``script -c``, ``su -c``, ``runuser -c``, ``flock``, ``chrt``,
 ``taskset``, ``find -exec``, ``parallel``, and ``doas`` are not in ``_LAUNCHERS`` either.
-``local_smoke_shim.install_path_shim`` is the backstop for a bare-name launch through any of
-them; it does not stop a launch by absolute path.
+``local_smoke_shim.install_path_shim`` is the backstop for a bare-name launch through a
+launcher that keeps PATH (``flock``, ``taskset``, ``find -exec`` were checked). It does not
+stop a launch by absolute path, or through a launcher that resets PATH.
 """
 
 from __future__ import annotations

@@ -1,7 +1,8 @@
 """The PATH shim backstop of the local Copilot smoke guard (issue #6506).
 
 The command parser reads a fixed set of launchers. The shim catches a launch by bare name
-whichever launcher started it, so these tests start Copilot through forms the parser misses.
+through a launcher that keeps PATH, so these tests start Copilot through forms the parser
+misses. A form whose launcher is not installed is skipped.
 """
 
 from __future__ import annotations

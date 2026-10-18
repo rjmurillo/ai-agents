@@ -19,7 +19,7 @@ command parser reads a fixed set of launchers and shells, and its scope is froze
 forms such a test is likely to use. A program started through any other launcher
 (``script -c``, ``su -c``, ``find -exec``, ``parallel``) is not seen. The backstop is
 ``local_smoke_shim``: a ``copilot`` that exits non-zero, first on ``PATH``, so a launch by
-bare name fails whatever started it. It does not stop a launch by absolute path.
+bare name fails when the launcher keeps PATH. It does not stop a launch by absolute path.
 
 The refusal derives from ``BaseException``. A broad ``except Exception`` in the
 code under test would otherwise turn the refusal into a pass.

@@ -2,9 +2,11 @@
 
 ``local_smoke_guard`` reads a fixed set of launchers and shells, so a program started
 through any other launcher (``script -c``, ``su -c``, ``find -exec``, ``parallel``) is not
-seen. This shim is the backstop that does not depend on parsing: any child that looks
-``copilot`` up by name finds it and fails, whichever launcher started it. It does not stop a
-launch by absolute path, or on Windows a ``copilot.exe``.
+seen. This shim is the backstop that does not depend on parsing: a child that looks
+``copilot`` up by name through the inherited PATH finds it and fails. Checked on Linux:
+``flock``, ``taskset``, ``find -exec``, and ``bash -c 'builtin exec copilot'``. A launcher that
+resets PATH (``su`` and ``doas`` can) is not covered. It does not stop a launch by absolute
+path, or on Windows a ``copilot.exe``.
 """
 
 from __future__ import annotations
@@ -30,9 +32,9 @@ _saved_path: str | None = None
 def install_path_shim() -> Path:
     """Put a ``copilot`` that exits 126 first on ``PATH`` and return its directory.
 
-    This is the backstop for a launch the command parser cannot read. Any child that
-    looks ``copilot`` up by name finds the shim, so the launch fails whichever launcher
-    started it. Calling it again returns the directory already installed.
+    This is the backstop for a launch the command parser cannot read. A child that looks
+    ``copilot`` up by name through the inherited PATH finds the shim, so the launch fails.
+    Calling it again returns the directory already installed.
     """
     global _shim_dir, _saved_path
     if _shim_dir is not None:
