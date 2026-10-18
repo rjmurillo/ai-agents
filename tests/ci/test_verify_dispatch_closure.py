@@ -440,4 +440,4 @@ class TestLinkTargetConformance:
     def test_matches_the_validation_resolver(self, link_path: str, text: str) -> None:
         from scripts.validation import effective_context_sources as ecs
 
-        assert vdc._link_target(link_path, text) == ecs._link_target(link_path, text)
+        assert vdc._REF_LINKS.link_target(link_path, text) == ecs._link_target(link_path, text)
