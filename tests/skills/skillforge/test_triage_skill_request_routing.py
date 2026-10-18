@@ -142,7 +142,69 @@ def test_natural_requests_for_existing_skills_never_route_to_create_new(
     data = run_triage(query)
 
     assert data["action"] != triage.Action.CREATE_NEW
-    assert expected_skill in [m["name"] for m in data["top_matches"]]
+    # The existing skill must lead, and its score must stay out of the CREATE_NEW
+    # band. "!= CREATE_NEW" alone passes when the score collapses to a GENERAL
+    # CLARIFY, which hid the "documenting" regression.
+    assert data["top_matches"][0]["name"] == expected_skill
+    assert data["top_matches"][0]["score"] >= 50
+
+
+@pytest.mark.parametrize(
+    ("query", "domain"),
+    [
+        ("documenting the release process", "document"),
+        ("documented decisions", "document"),
+        ("how do I authorize a user", "authentication"),
+        ("authorization for the admin api", "authentication"),
+        ("authenticate the webhook caller", "authentication"),
+        ("debugging a flaky build", "debugging"),
+    ],
+)
+def test_inflected_and_long_forms_of_short_synonyms_still_match_their_domain(
+    query: str, domain: str
+) -> None:
+    detected = [name for name, _ in triage.detect_query_domains(query)]
+
+    assert domain in detected
+
+
+def test_short_synonym_does_not_match_inside_an_unrelated_word() -> None:
+    detected = [name for name, _ in triage.detect_query_domains("authority over the doctor")]
+
+    assert "authentication" not in detected
+    assert "document" not in detected
+
+
+def test_hyphenated_trigger_matches_a_spaced_query() -> None:
+    skill = make_skill("reviewer", "Checks changes.", triggers=["code-review"])
+
+    _, spaced = triage.calculate_match_score("please do a code review now", skill)
+    _, hyphenated = triage.calculate_match_score("please do a code-review now", skill)
+
+    assert "trigger: code-review" in spaced
+    assert "trigger: code-review" in hyphenated
+
+
+def test_hyphenated_trigger_does_not_match_a_partial_phrase() -> None:
+    skill = make_skill("reviewer", "Checks changes.", triggers=["code-review"])
+
+    _, reasons = triage.calculate_match_score("please do a code check now", skill)
+
+    assert "trigger: code-review" not in reasons
+
+
+def test_trigger_explained_terms_count_toward_coverage() -> None:
+    skill = make_skill("reviewer", "Checks changes.", triggers=["code-review"])
+
+    assert triage.calculate_coverage(["code", "review"], skill) == 1.0
+    assert triage.calculate_coverage(["code", "zebra"], skill) == 0.5
+
+    # The trigger alone explains both query terms, so the 25 point trigger score
+    # is not halved by an unexplained-terms discount (it was 12 before).
+    score, reasons = triage.calculate_match_score("do a code-review", skill)
+
+    assert reasons == ["trigger: code-review"]
+    assert score == 25
 
 
 def test_coverage_discount_is_half_strength() -> None:

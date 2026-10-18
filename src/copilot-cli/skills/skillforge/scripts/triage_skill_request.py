@@ -261,7 +261,7 @@ DOMAIN_SYNONYMS = {
         "cells",
         "rows columns",
     ],
-    "document": ["word", "docx", "doc", "text document", "write document", "report"],
+    "document": ["document", "word", "docx", "doc", "text document", "write document", "report"],
     "presentation": ["powerpoint", "pptx", "slides", "deck", "slide deck", "keynote", "pitch"],
     "pdf": ["pdf", "export pdf", "portable document"],
     # Development concepts
@@ -272,6 +272,7 @@ DOMAIN_SYNONYMS = {
         "stack trace",
         "traceback",
         "crash",
+        "debugging",
         "fix bug",
         "breakpoint",
         "investigate",
@@ -355,6 +356,9 @@ DOMAIN_SYNONYMS = {
     ],
     "authentication": [
         "auth",
+        "authenticate",
+        "authorize",
+        "authorization",
         "login",
         "authentication",
         "oauth",
@@ -517,12 +521,13 @@ def _stems(token: str) -> set[str]:
 
 
 def _skill_text_forms(skill: dict[str, Any]) -> set[str]:
-    """Return every word form in the skill name, keywords, and description."""
+    """Return every word form in the skill name, keywords, triggers, and description."""
     skill_text = " ".join(
         [
             str(skill.get("name", "")).replace("-", " ").replace("_", " "),
             str(skill.get("description", "")),
             " ".join(str(k) for k in skill.get("keywords", [])),
+            " ".join(str(t) for t in skill.get("triggers", [])),
         ]
     )
     forms: set[str] = set()
@@ -716,9 +721,11 @@ def score_skill(query: str, skill: dict[str, Any]) -> tuple[float, list[str], in
             score += 20
             reasons.append(f"partial name: {', '.join(name_overlap)}")
 
-    # Step 5: Trigger match (works for any skill's triggers), whole words only
+    # Step 5: Trigger match (works for any skill's triggers), whole words only,
+    # hyphens read as spaces on both sides like the name match in step 4
     for trigger in skill_triggers:
-        if trigger and contains_term(query_lower, trigger):
+        spaced_trigger = re.sub(r"[-_\s]+", " ", trigger).strip()
+        if spaced_trigger and contains_term(spaced_query, spaced_trigger):
             score += 25
             reasons.append(f"trigger: {trigger}")
             break

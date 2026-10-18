@@ -93,21 +93,21 @@ def test_scaffolding_words_are_not_reported_as_match_reasons() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_spreadsheet_request_still_uses_existingmake_skill() -> None:
+def test_spreadsheet_request_still_uses_existing_skill() -> None:
     data = run_triage("edit an xlsx spreadsheet")
 
     assert data["action"] == triage.Action.USE_EXISTING
     assert data["top_matches"][0]["name"] == "xlsx"
 
 
-def test_web_app_testing_request_still_matches_the_testingmake_skill() -> None:
+def test_web_app_testing_request_still_matches_the_testing_skill() -> None:
     data = run_triage("playwright web app testing")
 
     assert data["top_matches"][0]["name"] == "webapp-testing"
     assert data["details"]["top_score"] >= 50
 
 
-def test_explicit_improve_request_still_targets_the_namedmake_skill() -> None:
+def test_explicit_improve_request_still_targets_the_named_skill() -> None:
     data = run_triage("improve the skillify skill")
 
     assert data["action"] == triage.Action.IMPROVE_EXISTING
