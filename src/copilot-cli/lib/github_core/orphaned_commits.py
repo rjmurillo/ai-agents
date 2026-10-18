@@ -133,8 +133,14 @@ def worktree_runner(worktree: str) -> GitRunner:
     The path is validated, and ``GIT_DIR``, ``GIT_WORK_TREE`` and the other
     repository-selecting variables are dropped from the child environment.
     Inherited, they would override ``-C`` and point git back at the shared
-    checkout (issue #6506). The ``GIT_CONFIG_*`` injection variables go too,
-    since they can set ``core.fsmonitor`` or ``core.hooksPath`` for the child.
+    checkout (issue #6506). The variables that inject config values go too,
+    since they can set ``core.fsmonitor`` or ``core.hooksPath`` for the child:
+    ``GIT_CONFIG_PARAMETERS``, ``GIT_CONFIG_COUNT``, and the numbered
+    ``GIT_CONFIG_KEY_<n>`` and ``GIT_CONFIG_VALUE_<n>`` pairs. ``GIT_CONFIG_GLOBAL``
+    and ``GIT_CONFIG_SYSTEM`` are kept on purpose: they only relocate the
+    user's own config files, which git reads from ``~/.gitconfig`` and
+    ``/etc/gitconfig`` anyway, and dropping them would change which files the
+    child reads. A file at either path is trusted like the user's real config.
     An invalid path yields a runner that always reports exit 126, so the scan
     ends ``unverified`` and never raises.
     """

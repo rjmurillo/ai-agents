@@ -217,6 +217,69 @@ def test_nested_git_dir_behind_a_planted_link_does_not_become_the_root(
     assert list((other / "sub").iterdir()) == [other / "sub" / ".git"]
 
 
+def test_nested_git_dir_behind_a_planted_link_is_refused_when_cwd_is_outside(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The cwd anchor is absent here, so the fallback walk must not trust the link (#6506).
+
+    ``repo/link`` points at ``outside``; ``outside/sub`` holds its own ``.git``.
+    With the cwd in an unrelated directory, the nearest ``.git`` ancestor of the
+    target is ``repo/link/sub``. The outermost ``.git`` ancestor, ``repo``, is the
+    root instead, so the planted link is a refused ancestor.
+    """
+    repo = _fake_checkout(tmp_path / "repo")
+    outside = tmp_path / "outside"
+    (outside / "sub" / ".git").mkdir(parents=True)
+    _plant_symlink(repo / "link", outside)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    target = repo / "link" / "sub" / "y.txt"
+
+    assert atomic_write.find_repo_root(target) == repo
+    with pytest.raises(OSError, match="symlinked ancestor"):
+        atomic_write.publish_bytes_atomically(target, b"new\n")
+
+    assert not (outside / "sub" / "y.txt").exists()
+
+
+def test_a_link_below_a_nested_checkout_is_refused_when_cwd_is_outside(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A link inside a submodule-style checkout is refused under the outer root too."""
+    repo = _fake_checkout(tmp_path / "repo")
+    (repo / "sub" / ".git").mkdir(parents=True)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    _plant_symlink(repo / "sub" / "link", outside)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+
+    with pytest.raises(OSError, match="symlinked ancestor"):
+        atomic_write.publish_bytes_atomically(repo / "sub" / "link" / "y.txt", b"new\n")
+
+    assert list(outside.iterdir()) == []
+
+
+def test_a_nested_checkout_without_links_keeps_the_nearest_root_when_cwd_is_outside(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Negative case: a legitimate submodule-style layout is not re-rooted."""
+    repo = _fake_checkout(tmp_path / "repo")
+    sub = repo / "sub"
+    (sub / ".git").mkdir(parents=True)
+    (sub / "d").mkdir()
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    target = sub / "d" / "file.md"
+
+    assert atomic_write.find_repo_root(target) == sub
+    atomic_write.publish_bytes_atomically(target, b"new\n")
+    assert target.read_bytes() == b"new\n"
+
+
 def test_find_repo_root_falls_back_to_the_nearest_git_when_outside_the_cwd_checkout(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -244,3 +307,152 @@ def test_a_symlinked_checkout_root_is_not_confined(tmp_path: Path) -> None:
     (real / "d").mkdir()
 
     assert atomic_write.find_repo_root(alias / "d" / "file.md") is None
+
+
+# --- production path: _resolve_script_path hands _copy_script a resolved path ---
+
+
+def _hook_source(tmp_path: Path) -> Path:
+    source = tmp_path / "hooks_src"
+    (source / "PreToolUse").mkdir(parents=True)
+    return source
+
+
+def test_resolve_script_path_refuses_an_in_tree_symlinked_leaf(tmp_path: Path) -> None:
+    """``resolve`` would hide the link; the unresolved leaf must be checked first."""
+    source = _hook_source(tmp_path)
+    (source / "private.py").write_text("SECRET = 1\n", encoding="utf-8")
+    _plant_symlink(source / "PreToolUse" / "hook.py", Path("..") / "private.py")
+
+    with pytest.raises(generate_hooks_emit.GenerateHooksError, match="symlink"):
+        generate_hooks_emit._resolve_script_path(
+            source, "python3 .claude/hooks/PreToolUse/hook.py", "PreToolUse"
+        )
+
+
+def test_resolve_script_path_refuses_a_dangling_symlinked_leaf(tmp_path: Path) -> None:
+    source = _hook_source(tmp_path)
+    _plant_symlink(source / "PreToolUse" / "hook.py", Path("..") / "gone.py")
+
+    with pytest.raises(generate_hooks_emit.GenerateHooksError, match="symlink"):
+        generate_hooks_emit._resolve_script_path(
+            source, "python3 .claude/hooks/PreToolUse/hook.py", "PreToolUse"
+        )
+
+
+def test_resolve_script_path_refuses_an_in_tree_symlinked_directory(tmp_path: Path) -> None:
+    source = _hook_source(tmp_path)
+    (source / "real").mkdir()
+    (source / "real" / "hook.py").write_text("print('x')\n", encoding="utf-8")
+    _plant_symlink(source / "linked", Path("real"))
+
+    with pytest.raises(generate_hooks_emit.GenerateHooksError, match="symlinked ancestor"):
+        generate_hooks_emit._resolve_script_path(
+            source, "python3 .claude/hooks/linked/hook.py", "PreToolUse"
+        )
+
+
+def test_resolve_script_path_refuses_a_symlinked_leaf_on_the_flat_layout_fallback(
+    tmp_path: Path,
+) -> None:
+    """The second candidate (``<Event>/<rel>``) gets the same check as the first."""
+    source = _hook_source(tmp_path)
+    (source / "private.py").write_text("SECRET = 1\n", encoding="utf-8")
+    _plant_symlink(source / "PreToolUse" / "flat.py", Path("..") / "private.py")
+
+    with pytest.raises(generate_hooks_emit.GenerateHooksError, match="symlink"):
+        generate_hooks_emit._resolve_script_path(
+            source, "python3 .claude/hooks/flat.py", "PreToolUse"
+        )
+
+
+def test_resolve_script_path_still_returns_a_regular_script(tmp_path: Path) -> None:
+    source = _hook_source(tmp_path)
+    script = source / "PreToolUse" / "hook.py"
+    script.write_text("print('x')\n", encoding="utf-8")
+
+    resolved = generate_hooks_emit._resolve_script_path(
+        source, "python3 .claude/hooks/PreToolUse/hook.py", "PreToolUse"
+    )
+
+    assert resolved == script.resolve()
+
+
+def test_resolve_script_path_returns_none_for_a_missing_script(tmp_path: Path) -> None:
+    source = _hook_source(tmp_path)
+
+    assert (
+        generate_hooks_emit._resolve_script_path(
+            source, "python3 .claude/hooks/PreToolUse/gone.py", "PreToolUse"
+        )
+        is None
+    )
+
+
+def test_resolve_script_path_accepts_a_symlinked_script_source_root(tmp_path: Path) -> None:
+    """``script_source`` is build-authored; only links below it are refused."""
+    real = _hook_source(tmp_path)
+    (real / "PreToolUse" / "hook.py").write_text("print('x')\n", encoding="utf-8")
+    alias = tmp_path / "alias"
+    _plant_symlink(alias, real)
+
+    resolved = generate_hooks_emit._resolve_script_path(
+        alias, "python3 .claude/hooks/PreToolUse/hook.py", "PreToolUse"
+    )
+
+    assert resolved == (real / "PreToolUse" / "hook.py").resolve()
+
+
+def test_generate_hooks_end_to_end_refuses_an_in_tree_symlinked_hook(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Full generator run: the linked bytes never reach the output tree."""
+    import json
+
+    import generate_hooks
+
+    source = tmp_path / "hooks_src"
+    (source / "PreToolUse").mkdir(parents=True)
+    (source / "private.py").write_text("SECRET = 'leak'\n", encoding="utf-8")
+    _plant_symlink(source / "PreToolUse" / "hook.py", Path("..") / "private.py")
+    (tmp_path / "settings.json").write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    "PreToolUse": [
+                        {
+                            "hooks": [
+                                {
+                                    "type": "command",
+                                    "command": "python3 .claude/hooks/PreToolUse/hook.py",
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    cfg = tmp_path / "platform.yaml"
+    cfg.write_text(
+        'schemaVersion: "1.0"\n'
+        'provider: "test"\n'
+        "artifacts:\n"
+        "  hooks:\n"
+        '    settingsSource: "settings.json"\n'
+        '    scriptSource: "hooks_src"\n'
+        '    outputConfig: "out/hooks.json"\n'
+        '    outputScripts: "out"\n'
+        "    eventRemap:\n"
+        "      PreToolUse: PreToolUse\n"
+        '    matcherPolicy: "inline-script-shim"\n'
+        "    versionField: 1\n",
+        encoding="utf-8",
+    )
+
+    rc, _ = generate_hooks.generate_hooks(cfg, tmp_path)
+
+    assert rc != 0
+    assert "symlinked sources are refused" in capsys.readouterr().err
+    assert not any(p.name == "hook.py" for p in (tmp_path / "out").rglob("*"))

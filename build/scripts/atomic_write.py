@@ -115,6 +115,14 @@ def _nearest_git_root(directory: Path) -> Path | None:
     return None
 
 
+def _outermost_git_root(directory: Path) -> Path | None:
+    """Return the outermost non-symlink ancestor of ``directory`` holding ``.git``."""
+    for ancestor in (*reversed(directory.parents), directory):
+        if not ancestor.is_symlink() and (ancestor / ".git").exists():
+            return ancestor
+    return None
+
+
 def find_repo_root(path: Path) -> Path | None:
     """Return the repository root that governs ``path``, or ``None``.
 
@@ -126,6 +134,12 @@ def find_repo_root(path: Path) -> Path | None:
     a directory that holds its own ``.git``; the nearest-ancestor walk would
     then pick that outside directory as the root and accept the redirect.
 
+    The fallback has the same hole when the process runs outside the target's
+    checkout: a planted link can lead to a directory with its own ``.git``,
+    and the nearest-ancestor walk would stop there. When a symlink sits
+    between an outer ``.git`` ancestor and ``path``, the outermost one is the
+    root, so ``_confine_to_repo`` sees the link and refuses (#6506).
+
     The walk reads unresolved components, and a symlinked ancestor is never a
     root. A checkout reached through a symlinked root directory therefore has
     no root and is not confined; that is an accepted limit.
@@ -134,7 +148,17 @@ def find_repo_root(path: Path) -> Path | None:
     anchor = _nearest_git_root(Path.cwd())
     if anchor is not None and absolute.is_relative_to(anchor):
         return anchor
-    return _nearest_git_root(absolute.parent)
+    nearest = _nearest_git_root(absolute.parent)
+    if nearest is None:
+        return None
+    outermost = _outermost_git_root(absolute.parent)
+    if (
+        outermost is not None
+        and outermost != nearest
+        and reject_symlinked_ancestors(outermost, "publish target", absolute) is not None
+    ):
+        return outermost
+    return nearest
 
 
 def _confine_to_repo(path: Path) -> None:

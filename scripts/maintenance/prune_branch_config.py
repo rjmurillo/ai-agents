@@ -206,7 +206,13 @@ def _backup_config(config_path: Path) -> Path:
         except FileExistsError:
             continue
         try:
-            with os.fdopen(fd, "wb") as handle:
+            try:
+                handle = os.fdopen(fd, "wb")
+            except BaseException:
+                # fdopen owns the descriptor only once it returns.
+                os.close(fd)
+                raise
+            with handle:
                 handle.write(content)
                 if hasattr(os, "fchmod"):
                     os.fchmod(handle.fileno(), mode)

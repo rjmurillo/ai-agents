@@ -276,12 +276,14 @@ class TestWorktreeRunner:
         for key, value in injected.items():
             monkeypatch.setenv(key, value)
         monkeypatch.setenv("GIT_CONFIG_GLOBAL", "/home/keep/.gitconfig")
+        monkeypatch.setenv("GIT_CONFIG_SYSTEM", "/etc/keep-gitconfig")
         done = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
         with patch.object(oc.subprocess, "run", return_value=done) as run:
             oc.worktree_runner(worktree)(["status"])
         env = run.call_args.kwargs["env"]
         assert not set(injected) & set(env)
         assert env["GIT_CONFIG_GLOBAL"] == "/home/keep/.gitconfig"
+        assert env["GIT_CONFIG_SYSTEM"] == "/etc/keep-gitconfig"
 
     def test_default_runner_keeps_the_inherited_environment(self):
         done = subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")

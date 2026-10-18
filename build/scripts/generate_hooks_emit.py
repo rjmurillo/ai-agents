@@ -32,8 +32,10 @@ if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
 from atomic_write import (  # noqa: E402
+    is_redirecting,
     publish_bytes_preserving_mode,
     read_bytes_no_redirect,
+    reject_symlinked_ancestors,
 )
 from generate_hooks_body import inject_shim  # noqa: E402
 from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
@@ -277,13 +279,32 @@ def _resolve_script_path(script_source: Path, command: str, claude_event: str) -
 
 
 def _resolve_script_candidate(script_source: Path, rel: str) -> Path | None:
-    """Return a source script candidate only when it stays under script_source."""
+    """Return a source script candidate only when it stays under script_source.
+
+    ``resolve`` follows links, so the redirect checks run on the unresolved
+    ``script_source / rel`` first: a symlinked or junctioned leaf, or a
+    symlinked directory below ``script_source``, is refused even when the link
+    stays inside the tree. Otherwise ``_copy_script`` would receive an already
+    resolved path and its no-follow read would never see the link (#6506,
+    CWE-59). ``script_source`` itself is build-authored config, not checked.
+    """
     resolved_base = script_source.resolve()
-    candidate = (script_source / rel).resolve()
+    unresolved = script_source / rel
+    candidate = unresolved.resolve()
     try:
         candidate.relative_to(resolved_base)
     except ValueError as exc:
         raise GenerateHooksError(f"hook command path escapes scriptSource: {rel}") from exc
+    redirect = reject_symlinked_ancestors(script_source, "hook source", unresolved)
+    if redirect is None:
+        try:
+            leaf_redirects = is_redirecting(unresolved.lstat())
+        except OSError:
+            leaf_redirects = False
+        if leaf_redirects:
+            redirect = f"hook source {unresolved} is a symlink or junction"
+    if redirect is not None:
+        raise GenerateHooksError(f"{redirect} (symlinked sources are refused): {rel}")
     if candidate.is_file():
         return candidate
     return None
