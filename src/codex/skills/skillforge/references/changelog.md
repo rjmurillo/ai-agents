@@ -7,6 +7,7 @@
 - Updated `scripts/quick_validate.py` with extended property validation
 - Updated `scripts/validate-skill.py` with hooks and agent validation
 - Fixed `scripts/discover_skills.py` to extract version from `metadata.version`
+- `discover_skills.py` now indexes plugin-installed skills: `CLAUDE_PLUGIN_ROOT`, `COPILOT_PLUGIN_ROOT`, the folder holding SkillForge, `--extra-root`, and `SKILLFORGE_EXTRA_ROOTS` (#6646)
 - Added Hooks Integration section to SKILL.md and script-integration-framework.md
 - Added Forked Context documentation to synthesis-protocol.md
 - Updated skill template with modern best practices

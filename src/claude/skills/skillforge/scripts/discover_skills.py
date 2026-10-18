@@ -7,6 +7,8 @@ Part of the skillrecommender skill.
 
 Responsibilities:
 - Scan custom skills, superpowers, and plugin marketplaces
+- Scan plugin-installed skills: CLAUDE_PLUGIN_ROOT, COPILOT_PLUGIN_ROOT, the
+  skills folder that holds this script, --extra-root, SKILLFORGE_EXTRA_ROOTS
 - Extract skill metadata (name, triggers, keywords, domain)
 - Build searchable JSON index for fast matching
 
@@ -14,17 +16,20 @@ Usage:
     python discover_skills.py
     python discover_skills.py --verbose
     python discover_skills.py --output custom_path.json
+    python discover_skills.py --extra-root /opt/plugins/acme/skills
 
 Exit Codes:
     0  - Success
     1  - General failure
-    3  - Directory not found
+    3  - Directory not found (every skill source is missing and no skill was found)
 """
 
 import argparse
 import json
+import os
 import re
 import sys
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -71,7 +76,7 @@ class Result:
 # SKILL SOURCES
 # ===========================================================================
 
-SKILL_SOURCES = [
+SKILL_SOURCES: list[dict[str, Any]] = [
     {
         "name": "custom",
         "path": Path.home() / ".claude" / "skills",
@@ -103,6 +108,88 @@ SKILL_SOURCES = [
         "priority": 5,
     },
 ]
+
+# Case-insensitive: SKILL.md or skill.md, one folder below the root.
+RUNTIME_SKILL_PATTERN = "*/[Ss][Kk][Ii][Ll][Ll].[Mm][Dd]"
+
+# Runtime roots rank after the fixed sources above.
+RUNTIME_PRIORITY_START = len(SKILL_SOURCES) + 1
+
+# Environment variable holding extra skill roots, separated by os.pathsep.
+EXTRA_ROOTS_ENV = "SKILLFORGE_EXTRA_ROOTS"
+
+
+def _runtime_roots(
+    extra_roots: Sequence[Path] | None,
+    env: Mapping[str, str],
+    script_path: Path,
+) -> list[tuple[str, Path]]:
+    """Return (name, skills directory) pairs found at run time, in rank order."""
+    roots: list[tuple[str, Path]] = []
+
+    for var, name in (
+        ("CLAUDE_PLUGIN_ROOT", "plugin-claude"),
+        ("COPILOT_PLUGIN_ROOT", "plugin-copilot"),
+    ):
+        value = env.get(var, "").strip()
+        if value:
+            roots.append((name, Path(value).expanduser() / "skills"))
+
+    # <skills dir>/skillforge/scripts/discover_skills.py -> <skills dir>
+    roots.append(("plugin-local", script_path.resolve().parents[2]))
+
+    for index, root in enumerate(extra_roots or [], start=1):
+        roots.append((f"extra-{index}", Path(root).expanduser()))
+
+    env_value = env.get(EXTRA_ROOTS_ENV, "")
+    env_entries = [e.strip() for e in env_value.split(os.pathsep) if e.strip()]
+    for index, entry in enumerate(env_entries, start=1):
+        roots.append((f"env-extra-{index}", Path(entry).expanduser()))
+
+    return roots
+
+
+def build_skill_sources(
+    extra_roots: Sequence[Path] | None = None,
+    env: Mapping[str, str] | None = None,
+    script_path: Path | None = None,
+) -> list[dict[str, Any]]:
+    """Return SKILL_SOURCES plus the roots found at run time.
+
+    Runtime roots cover skills installed through a plugin cache: the plugin
+    root named by CLAUDE_PLUGIN_ROOT or COPILOT_PLUGIN_ROOT, the skills folder
+    that holds this script, each ``--extra-root``, and each SKILLFORGE_EXTRA_ROOTS
+    entry. A root that resolves to an earlier source is dropped.
+    """
+    sources = [dict(s) for s in SKILL_SOURCES]
+    seen = {_resolved(s["path"]) for s in sources}
+
+    roots = _runtime_roots(
+        extra_roots,
+        os.environ if env is None else env,
+        Path(__file__) if script_path is None else script_path,
+    )
+    priority = RUNTIME_PRIORITY_START
+    for name, path in roots:
+        key = _resolved(path)
+        if key in seen:
+            continue
+        seen.add(key)
+        sources.append(
+            {"name": name, "path": path, "pattern": RUNTIME_SKILL_PATTERN, "priority": priority}
+        )
+        priority += 1
+
+    return sources
+
+
+def _resolved(path: Path) -> Path:
+    """Resolve a path for comparison without requiring it to exist."""
+    try:
+        return path.resolve()
+    except OSError:
+        return path.absolute()
+
 
 # ===========================================================================
 # UNIVERSAL DOMAIN CLASSIFICATION
@@ -371,17 +458,29 @@ def parse_skill_file(path: Path, source_name: str, priority: int) -> dict | None
 # ===========================================================================
 
 
-def discover_skills(verbose: bool = False) -> Result:
-    """Scan all skill sources and build index."""
+def discover_skills(
+    verbose: bool = False, sources: Sequence[dict[str, Any]] | None = None
+) -> Result:
+    """Scan all skill sources and build index.
+
+    ``sources`` defaults to ``build_skill_sources()``, the fixed sources plus
+    the plugin and extra roots found at run time.
+    """
+    if sources is None:
+        sources = build_skill_sources()
+
     skills = []
     errors = []
     warnings = []
+    missing_sources = []
+    seen_files: set[Path] = set()
 
-    for source in SKILL_SOURCES:
+    for source in sources:
         source_path = source["path"]
 
         if not source_path.exists():
             warnings.append(f"Source not found: {source['name']} ({source_path})")
+            missing_sources.append(source["name"])
             continue
 
         if verbose:
@@ -399,6 +498,10 @@ def discover_skills(verbose: bool = False) -> Result:
             skill_files = [f for f in skill_files if f.name.lower() in ("skill.md", "skills.md")]
 
         for skill_file in skill_files:
+            file_key = _resolved(skill_file)
+            if file_key in seen_files:
+                continue
+            seen_files.add(file_key)
             skill_data = parse_skill_file(skill_file, source["name"], source["priority"])
             if skill_data:
                 skills.append(skill_data)
@@ -420,11 +523,13 @@ def discover_skills(verbose: bool = False) -> Result:
 
     return Result(
         success=True,
-        message=f"Discovered {len(skills)} skills from {len(SKILL_SOURCES)} sources",
+        message=f"Discovered {len(skills)} skills from {len(sources)} sources",
         data={
             "skills": skills,
             "domains": domain_index,
-            "sources": {s["name"]: str(s["path"]) for s in SKILL_SOURCES},
+            "sources": {s["name"]: str(s["path"]) for s in sources},
+            "source_count": len(sources),
+            "missing_sources": missing_sources,
             "total_count": len(skills),
         },
         warnings=warnings,
@@ -479,6 +584,18 @@ def main():
         help="Output file path (default: ~/.cache/skillrecommender/skill_index.json)",
     )
 
+    parser.add_argument(
+        "--extra-root",
+        action="append",
+        type=Path,
+        default=[],
+        metavar="PATH",
+        help=(
+            "Extra skills directory to scan (folders holding SKILL.md). "
+            f"Repeatable. {EXTRA_ROOTS_ENV} adds more, separated by the OS path separator."
+        ),
+    )
+
     parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose output")
 
     parser.add_argument("--json", action="store_true", help="Output results as JSON")
@@ -486,7 +603,9 @@ def main():
     args = parser.parse_args()
 
     # Discover skills
-    result = discover_skills(verbose=args.verbose)
+    result = discover_skills(
+        verbose=args.verbose, sources=build_skill_sources(extra_roots=args.extra_root)
+    )
 
     # Save index
     save_index(result, args.output)
@@ -507,7 +626,10 @@ def main():
     # Exit codes: 0 = success, 1 = general failure, 3 = no sources found
     if not result.success:
         sys.exit(1)
-    elif result.data["total_count"] == 0 and len(result.warnings) == len(SKILL_SOURCES):
+    elif (
+        result.data["total_count"] == 0
+        and len(result.data["missing_sources"]) == (result.data["source_count"])
+    ):
         # All sources were missing - this is exit code 3 per docstring
         sys.exit(3)
     else:

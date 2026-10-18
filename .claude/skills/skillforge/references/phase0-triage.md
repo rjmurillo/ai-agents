@@ -86,8 +86,23 @@ Phase 0 uses a pre-built index of all skills:
 python scripts/discover_skills.py
 
 # Index location: ~/.cache/skillrecommender/skill_index.json
-# Scans: ~/.claude/skills/, plugins/marketplaces/*, plugins/cache/*
 ```
+
+Sources scanned (`build_skill_sources()` in `discover_skills.py`):
+
+| Source | Root |
+|---|---|
+| `custom` | `~/.claude/skills/` |
+| `superpowers` | `~/.claude/plugins/cache/superpowers/skills/` |
+| `anthropic-agent-skills`, `claude-code-workflows`, `claude-code-plugins` | `~/.claude/plugins/marketplaces/<name>/` |
+| `plugin-claude` | `$CLAUDE_PLUGIN_ROOT/skills/` when set |
+| `plugin-copilot` | `$COPILOT_PLUGIN_ROOT/skills/` when set |
+| `plugin-local` | The skills folder that holds SkillForge |
+| `extra-N` | Each `--extra-root PATH` (repeatable) |
+| `env-extra-N` | Each entry of `SKILLFORGE_EXTRA_ROOTS`, split on the OS path separator |
+
+A skill reached through two roots is indexed once. A missing root adds a warning
+and the scan continues. The script exits 3 only when every source is missing.
 
 ### Integration with Phases 1-4
 
