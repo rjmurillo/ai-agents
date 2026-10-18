@@ -27,7 +27,9 @@ stale section's name between that second look and the removal can still lose
 its new section. On any failure, including an interrupt, only the sections this
 run removed are written back from the backup. A concurrent ``git config`` write
 to another section survives the rollback. When the live config no longer
-parses, the whole backup is copied back instead.
+parses, the whole backup is copied back instead. When the restore fails on a
+config git can still read, the file is left alone and the error names the
+backup.
 
 ``--fail-on-stale`` makes a run that leaves stale sections exit 1, so a
 report-only caller such as the pre-push ``branch-config-prune-report`` job can
@@ -49,6 +51,7 @@ import os
 import shutil
 import subprocess
 import sys
+from collections import Counter
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -241,38 +244,75 @@ def _parse_config_entries(listing: str) -> list[tuple[str, str | None]]:
     return entries
 
 
+# Branch variables where a bare key means boolean true. Git reads ``rebase``
+# with --bool as true; any other bare key prints an empty line on --get.
+_BARE_TRUE_VARIABLES = frozenset({"rebase"})
+
+
+def _restored_value(key: str, value: str | None) -> str:
+    """Return the value to write back for a backed-up entry.
+
+    ``git config`` cannot write a key with no ``=``. A bare ``rebase`` is
+    written as ``true``, which keeps its boolean meaning. Any other bare key is
+    written as an empty value, which ``--get`` prints the same way a bare key
+    prints. The raw bytes in the file differ, the values git reads do not.
+    """
+    if value is not None:
+        return value
+    return "true" if key.rpartition(".")[2].lower() in _BARE_TRUE_VARIABLES else ""
+
+
 def _restore_sections(repo: Path, backup: Path, names: Iterable[str]) -> None:
     """Write the named sections from ``backup`` back into the live config.
 
     Only the sections this run touched are restored, so a concurrent writer's
     change to another section is not overwritten the way a whole-file copy
-    would. A section that is still present (its removal never happened) is
-    skipped, which keeps the restore from duplicating values. A valueless key
-    is restored as ``true``, the boolean it means, never as an empty string.
+    would. Entries are matched one by one: an entry the live config already
+    holds (its removal never happened, or another writer recreated it) is
+    skipped, and every other backed-up entry is added back. A concurrent write
+    to the same section survives next to the restored keys. A key whose value
+    another writer changed keeps both values.
     """
     wanted = set(names)
     if not wanted:
         return
-    present = set(list_configured_branches(repo))
+    live = Counter(
+        _parse_config_entries(_git_ok(repo, "config", "--local", "--list", "-z")),
+    )
     listing = _git_ok(repo, "config", "--file", str(backup), "--list", "-z")
     for key, value in _parse_config_entries(listing):
-        name = branch_name_from_key(key)
-        if name in wanted and name not in present:
-            _git_ok(repo, "config", "--local", "--add", key, "true" if value is None else value)
+        if branch_name_from_key(key) not in wanted:
+            continue
+        if live[(key, value)] > 0:
+            live[(key, value)] -= 1
+            continue
+        _git_ok(repo, "config", "--local", "--add", key, _restored_value(key, value))
+
+
+def _live_config_parses(repo: Path) -> bool:
+    """Return True when git can read the live local config."""
+    return run_git(repo, "config", "--local", "--list").returncode == 0
 
 
 def _rollback(repo: Path, config_path: Path, backup: Path, touched: list[str]) -> None:
     """Undo a failed prune, preferring a section-only restore.
 
-    When the live config does not parse, or the section restore raises, no
-    concurrent write can be kept in a file git cannot read, so the whole
-    backup is copied back. A copy that fails too names the backup.
+    The whole backup is copied back only when the live config no longer parses:
+    git cannot read it, so no concurrent write is recoverable from it. A config
+    git can read is never overwritten wholesale, because that would discard
+    other writers' changes. When the section restore fails on a readable
+    config, the error names the backup and the live file stays as it is.
     """
     try:
         _restore_sections(repo, backup, touched)
         return
     except GitError as section_error:
         failure = section_error
+    if _live_config_parses(repo):
+        raise GitError(
+            f"rollback incomplete; the live config was left in place and the original "
+            f"config is saved at {backup}: {failure}"
+        ) from failure
     try:
         shutil.copy2(backup, config_path)
     except OSError as exc:

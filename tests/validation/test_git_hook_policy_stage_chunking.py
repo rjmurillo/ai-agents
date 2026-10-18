@@ -7,7 +7,9 @@ corpus, stages the same path set, and keeps its unsafe-path checks.
 
 from __future__ import annotations
 
+import os
 import subprocess
+import sys
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -372,3 +374,88 @@ def test_successful_staging_never_restores(
 
     assert "restore" not in verbs
     assert verbs.count("write-tree") == 1
+
+
+def test_rollback_unstages_a_name_that_is_not_valid_utf8(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Text-mode git output replaces invalid UTF-8, so the restore would miss this name."""
+    if sys.platform == "win32":
+        pytest.skip("Windows file names are UTF-16, so a raw 0xff byte cannot be created")
+    repo = _init_repo(tmp_path)
+    odd = os.fsdecode(b".serena/memories/odd-\xff-name.md")
+    try:
+        _write(repo, odd)
+    except OSError:
+        pytest.skip("filesystem rejects non-UTF-8 names")
+    for n in range(600):
+        _write(repo, _long_name(n))
+    original = policy._run_git
+
+    def fail_after_odd(repo_root: Path, args: Sequence[str], **kwargs: float) -> object:
+        if args and args[0] == "add":
+            original(repo_root, ["add", "--", odd], **kwargs)
+            return subprocess.CompletedProcess(list(args), 7, "", "chunk failed\n")
+        return original(repo_root, args, **kwargs)
+
+    monkeypatch.setattr(policy, "_run_git", fail_after_odd)
+
+    assert policy.stage_generated("memory", repo) == 7
+
+    staged = subprocess.run(
+        ["git", "diff", "--cached", "--name-only", "-z"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+    ).stdout
+    assert staged == b""
+
+
+def test_failed_drift_listing_warns_and_keeps_the_failure_code(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    for n in range(600):
+        _write(repo, _long_name(n))
+    _fail_second_add(monkeypatch)
+    original = policy._run_git_bytes
+
+    def diff_index_fails(repo_root: Path, args: Sequence[str]) -> object:
+        if args and args[0] == "diff-index":
+            return subprocess.CompletedProcess(list(args), 128, b"", b"bad tree\n")
+        return original(repo_root, args)
+
+    monkeypatch.setattr(policy, "_run_git_bytes", diff_index_fails)
+
+    assert policy.stage_generated("memory", repo) == 7
+
+    err = capsys.readouterr().err
+    assert "bad tree" in err
+    assert "could not unstage the generated paths" in err
+
+
+def test_unwritable_snapshot_stays_quiet_when_every_add_succeeds(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """No rollback was needed, so a missing snapshot is not worth a warning."""
+    repo = _init_repo(tmp_path)
+    for n in range(600):
+        _write(repo, _long_name(n))
+    original = policy._run_git
+
+    def no_snapshot(repo_root: Path, args: Sequence[str], **kwargs: float) -> object:
+        if args and args[0] == "write-tree":
+            return subprocess.CompletedProcess(list(args), 128, "", "unmerged entries\n")
+        return original(repo_root, args, **kwargs)
+
+    monkeypatch.setattr(policy, "_run_git", no_snapshot)
+
+    assert policy.stage_generated("memory", repo) == 0
+
+    assert "snapshot" not in capsys.readouterr().err
+    assert len(_staged(repo)) == 600

@@ -3323,14 +3323,18 @@ def _restore_staged_paths(repo_root: Path, snapshot: str | None, paths: Sequence
     for chunk in _chunk_paths(paths):
         # Only paths whose index entry differs from the snapshot: restore errors
         # on a path that is in neither the index nor the snapshot.
-        drift = _run_git(
+        # Bytes, then fsdecode: text mode replaces invalid UTF-8 in a name, and
+        # the restore would then miss the file that was staged.
+        drift = _run_git_bytes(
             repo_root, ["diff-index", "--cached", "--name-only", "-z", snapshot, "--", *chunk]
         )
         if drift.returncode != 0:
-            _print_process_output(drift)
+            print(drift.stdout.decode("utf-8", errors="replace"), end="")
+            print(drift.stderr.decode("utf-8", errors="replace"), end="", file=sys.stderr)
             print(_UNSTAGE_FAILED, file=sys.stderr)
             return
-        for changed in _chunk_paths([name for name in drift.stdout.split("\0") if name]):
+        changed_names = [os.fsdecode(name) for name in drift.stdout.split(b"\0") if name]
+        for changed in _chunk_paths(changed_names):
             result = _run_git(
                 repo_root, ["restore", "--staged", f"--source={snapshot}", "--", *changed]
             )

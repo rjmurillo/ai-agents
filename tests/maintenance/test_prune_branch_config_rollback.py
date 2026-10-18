@@ -28,7 +28,15 @@ from scripts.maintenance.prune_branch_config import (
 
 
 def _git(repo: Path, *args: str) -> str:
-    result = subprocess.run(["git", *args], cwd=repo, capture_output=True, text=True, check=True)
+    result = subprocess.run(
+        ["git", *args],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=True,
+    )
     return result.stdout
 
 
@@ -63,6 +71,18 @@ def _copy_fails_for_live_config(src: Path, dst: Path) -> Path:
     if Path(dst).name == "config":
         raise OSError("disk full")
     return Path(_real_copy2(src, dst))
+
+
+def _corrupt_live_config(repo: Path, error: str) -> mock.Mock:
+    """Return a ``_verify_config`` stand-in that breaks the live config, then fails."""
+    config = resolve_config_path(repo)
+
+    def corrupt_then_fail(_repo: Path) -> None:
+        with config.open("a", encoding="utf-8") as handle:
+            handle.write("[broken\n")
+        raise GitError(error)
+
+    return mock.Mock(side_effect=corrupt_then_fail)
 
 
 class TestRollbackAndLock:
@@ -184,8 +204,7 @@ class TestRollbackAndLock:
         _add_section(repo, "gone")
 
         with (
-            mock.patch.object(mod, "_verify_config", side_effect=GitError("boom")),
-            mock.patch.object(mod, "_restore_sections", side_effect=GitError("no lock")),
+            mock.patch.object(mod, "_verify_config", _corrupt_live_config(repo, "boom")),
             mock.patch.object(mod.shutil, "copy2", side_effect=_copy_fails_for_live_config),
         ):
             with pytest.raises(GitError, match=r"rollback failed; the original config is saved at"):
@@ -211,13 +230,35 @@ class TestRollbackFallbackAndBooleans:
         assert _git(repo, "config", "--local", "--list")
         assert _sections(repo) == ("gone",)
 
-    def test_section_restore_error_falls_back_to_whole_file_copy(self, repo: Path) -> None:
+    def test_section_restore_error_on_a_readable_config_keeps_the_live_file(
+        self, repo: Path
+    ) -> None:
+        _add_section(repo, "gone")
+        config = resolve_config_path(repo)
+
+        def concurrent_then_fail(_repo: Path) -> None:
+            _git(repo, "config", "--local", "user.name", "New Name")
+            raise GitError("boom")
+
+        with (
+            mock.patch.object(mod, "_verify_config", side_effect=concurrent_then_fail),
+            mock.patch.object(mod, "_restore_sections", side_effect=GitError("restore broke")),
+        ):
+            with pytest.raises(GitError) as info:
+                prune_branch_config(repo, apply=True)
+
+        assert _git(repo, "config", "--local", "user.name") == "New Name\n"
+        assert "restore broke" in str(info.value)
+        assert "config.before-prune" in str(info.value)
+        assert list(config.parent.glob("config.before-prune*"))
+
+    def test_section_restore_error_on_a_corrupt_config_copies_the_backup(self, repo: Path) -> None:
         _add_section(repo, "gone")
         config = resolve_config_path(repo)
         original = config.read_bytes()
 
         with (
-            mock.patch.object(mod, "_verify_config", side_effect=GitError("boom")),
+            mock.patch.object(mod, "_verify_config", _corrupt_live_config(repo, "boom")),
             mock.patch.object(mod, "_restore_sections", side_effect=GitError("restore broke")),
         ):
             with pytest.raises(GitError, match="boom"):
@@ -229,7 +270,7 @@ class TestRollbackFallbackAndBooleans:
         _add_section(repo, "gone")
 
         with (
-            mock.patch.object(mod, "_verify_config", side_effect=GitError("boom")),
+            mock.patch.object(mod, "_verify_config", _corrupt_live_config(repo, "boom")),
             mock.patch.object(mod, "_restore_sections", side_effect=GitError("restore broke")),
             mock.patch.object(mod.shutil, "copy2", side_effect=_copy_fails_for_live_config),
         ):
@@ -263,6 +304,19 @@ class TestRollbackFallbackAndBooleans:
 
         assert _git(repo, "config", "--local", "--get", "branch.gone.description") == "\n"
 
+    def test_valueless_nonboolean_key_reads_the_same_after_rollback(self, repo: Path) -> None:
+        _add_section(repo, "gone")
+        with resolve_config_path(repo).open("a", encoding="utf-8") as handle:
+            handle.write('[branch "gone"]\n\tdescription\n')
+        before = _git(repo, "config", "--local", "--get", "branch.gone.description")
+
+        with mock.patch.object(mod, "_verify_config", side_effect=GitError("boom")):
+            with pytest.raises(GitError):
+                prune_branch_config(repo, apply=True)
+
+        assert before == "\n"
+        assert _git(repo, "config", "--local", "--get", "branch.gone.description") == before
+
 
 class TestRestoreSections:
     def test_skips_a_section_that_is_still_present(self, repo: Path) -> None:
@@ -273,6 +327,38 @@ class TestRestoreSections:
         mod._restore_sections(repo, backup, ["kept"])
 
         assert _git(repo, "config", "--local", "--get-all", "branch.kept.remote") == "origin\n"
+
+    def test_same_section_write_keeps_the_new_key_and_restores_the_old_ones(
+        self, repo: Path
+    ) -> None:
+        _add_section(repo, "gone")
+        backup = repo / "backup-config"
+        shutil.copy2(resolve_config_path(repo), backup)
+        _git(repo, "config", "--local", "--remove-section", "branch.gone")
+        _git(repo, "config", "--local", "branch.gone.description", "updated")
+
+        mod._restore_sections(repo, backup, ["gone"])
+
+        assert _git(repo, "config", "--local", "--get-all", "branch.gone.remote") == "origin\n"
+        assert _git(repo, "config", "--local", "--get-all", "branch.gone.merge") == (
+            "refs/heads/gone\n"
+        )
+        assert _git(repo, "config", "--local", "--get-all", "branch.gone.description") == (
+            "updated\n"
+        )
+
+    def test_partly_present_multivalued_key_is_not_duplicated(self, repo: Path) -> None:
+        _add_section(repo, "gone")
+        _git(repo, "config", "--local", "--add", "branch.gone.pushremote", "one")
+        _git(repo, "config", "--local", "--add", "branch.gone.pushremote", "two")
+        backup = repo / "backup-config"
+        shutil.copy2(resolve_config_path(repo), backup)
+        _git(repo, "config", "--local", "--unset", "branch.gone.pushremote", "two")
+
+        mod._restore_sections(repo, backup, ["gone"])
+
+        values = _git(repo, "config", "--local", "--get-all", "branch.gone.pushremote")
+        assert sorted(values.split()) == ["one", "two"]
 
     def test_no_names_is_a_no_op(self, repo: Path) -> None:
         mod._restore_sections(repo, repo / "missing-backup", [])
