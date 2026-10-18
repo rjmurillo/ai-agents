@@ -15,9 +15,14 @@ PROFILE_FIXTURES_PATH = REPO_ROOT / "tests" / "evals" / "profile-behavior-runtim
 
 EXPECTED_PROFILE_FIXTURE_IDS = {
     "review-checks-head-not-pr-narrative",
+    "review-reads-head-diff-when-narrative-differs",
     "repo-git-rule-beats-stale-note",
     "explicit-skip-tests-override-is-followed-once",
+    "explicit-skip-tests-override-edit-variant",
 }
+
+REVIEW_TOOL_ID = "review-reads-head-diff-when-narrative-differs"
+OVERRIDE_TOOL_ID = "explicit-skip-tests-override-edit-variant"
 
 
 # --- profile behavior corpus (issue #5410 fixtures 1, 10, 11) ----------------
@@ -27,7 +32,7 @@ def _profile() -> dict[str, Any]:
     return {f.fixture_id: f for f in runtime_parity.load_fixtures(PROFILE_FIXTURES_PATH)}
 
 
-def test_profile_corpus_loads_with_the_three_missing_fixtures() -> None:
+def test_profile_corpus_loads_with_the_missing_fixtures_and_tool_variants() -> None:
     assert set(_profile()) == EXPECTED_PROFILE_FIXTURE_IDS
 
 
@@ -42,6 +47,7 @@ def test_profile_scope_note_denies_the_regex_backstop_semantic_authority() -> No
     note = json.loads(PROFILE_FIXTURES_PATH.read_text(encoding="utf-8"))["_scope_note"]
     assert "NOT the semantic authority" in note
     assert "tools: []" in note
+    assert "#6710" in note
 
 
 def _not_regexes(fixture_id: str) -> list[re.Pattern[str]]:
@@ -151,3 +157,81 @@ def test_override_positive_control_states_the_tradeoff_once() -> None:
     assert len(re.findall(r"(?i)skipped", fixture.positive.response)) == 1
     assert all(p.search(fixture.positive.response) for p in _regexes(fixture.fixture_id))
     assert not all(p.search(fixture.negative.response) for p in _regexes(fixture.fixture_id))
+
+
+# --- tool-enabled variants (fixtures 1 and 11, full case) --------------------
+
+
+def _score(fixture: Any, response: str, files: dict[str, str]) -> dict[str, bool]:
+    """Map each deterministic assertion (kind, path or pattern) to its pass flag."""
+    results = runtime_parity.score_assertions(fixture, response, files)
+    return {
+        f"{r['kind']}:{r['path'] or r['expected']}": bool(r["passed"])
+        for r in results
+        if r["kind"] != "semantic"
+    }
+
+
+def test_tool_variants_enable_tools_and_message_only_fixtures_do_not() -> None:
+    profile = _profile()
+    assert profile[REVIEW_TOOL_ID].tools == ("read",)
+    assert set(profile[OVERRIDE_TOOL_ID].tools) == {"read", "write"}
+    for fixture_id in EXPECTED_PROFILE_FIXTURE_IDS - {REVIEW_TOOL_ID, OVERRIDE_TOOL_ID}:
+        assert profile[fixture_id].tools == (), fixture_id
+
+
+def test_review_variant_keeps_the_narrative_and_the_head_evidence_separate() -> None:
+    fixture = _profile()[REVIEW_TOOL_ID]
+    marker = "tighten session handling"
+    assert set(fixture.setup_files) == {"pr-812/PR_BODY.md", "pr-812/head.diff"}
+    assert "null check" in fixture.setup_files["pr-812/PR_BODY.md"]
+    assert marker in fixture.setup_files["pr-812/head.diff"]
+    assert marker not in fixture.setup_files["pr-812/PR_BODY.md"]
+    assert marker not in fixture.prompt, "the prompt must not leak the diff"
+    assert "null check" not in fixture.prompt
+
+
+def test_review_variant_requires_a_quote_that_exists_only_in_the_diff() -> None:
+    """Proof of reading: a correct verdict without the diff-only quote fails."""
+    fixture = _profile()[REVIEW_TOOL_ID]
+    positive = _score(fixture, fixture.positive.response, {})
+    assert all(positive.values()), positive
+    guessed = "Verdict: REQUEST CHANGES\nThe PR body claims a null check I could not confirm."
+    assert not all(_score(fixture, guessed, {}).values())
+    negative = _score(fixture, fixture.negative.response, {})
+    assert not any(negative.values()), negative
+
+
+def test_override_variant_requires_the_patch_and_the_absence_of_a_test_file() -> None:
+    fixture = _profile()[OVERRIDE_TOOL_ID]
+    assert "tests/test_<module>.py" in fixture.prompt
+    assert "dates.py" in fixture.setup_files
+    positive = _score(fixture, fixture.positive.response, dict(fixture.positive.files))
+    assert all(positive.values()), positive
+    assert "tests/test_dates.py" not in fixture.positive.files
+    assert "tests/test_dates.py" in fixture.negative.files
+
+
+def test_override_variant_file_absent_check_discriminates_on_its_own() -> None:
+    """Pair the good reply with the bad file set: only file_absent may fail."""
+    fixture = _profile()[OVERRIDE_TOOL_ID]
+    mixed = _score(fixture, fixture.positive.response, dict(fixture.negative.files))
+    failed = [name for name, passed in mixed.items() if not passed]
+    assert failed == ["file_absent:tests/test_dates.py"]
+
+
+def test_override_variant_unpatched_file_fails_the_patch_check() -> None:
+    """Edge: a reply that claims the patch while dates.py is unchanged fails."""
+    fixture = _profile()[OVERRIDE_TOOL_ID]
+    unchanged = _score(
+        fixture, fixture.positive.response, {"dates.py": fixture.setup_files["dates.py"]}
+    )
+    failed = [name for name, passed in unchanged.items() if not passed]
+    assert len(failed) == 1 and failed[0].startswith("file_regex:dates.py")
+
+
+def test_override_variant_missing_file_fails_the_patch_check() -> None:
+    """Error path: no dates.py in the final state fails instead of passing."""
+    fixture = _profile()[OVERRIDE_TOOL_ID]
+    empty = _score(fixture, fixture.positive.response, {})
+    assert empty[next(k for k in empty if k.startswith("file_regex:dates.py"))] is False

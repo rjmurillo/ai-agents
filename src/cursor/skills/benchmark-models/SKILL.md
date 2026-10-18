@@ -123,7 +123,8 @@ Option A) or the run aborts with exit code 2 before any provider starts.
 
 Summarize the per-metric leaders: fastest (latency), cheapest (cost), highest
 quality (if judged). One run per provider is inconclusive, not a preference:
-report n, call no winner from a directional delta, and rerun to confirm. Call
+report n and an interval or margin (or say none can be estimated at n=1), call
+no winner from a directional delta, and rerun to confirm. Call
 out any provider that errored, with its remediation path. Offer to save a JSON
 baseline so future runs can be diffed for regressions:
 

@@ -8,7 +8,7 @@
         "claude": ".claude/agents/implementer.md",
         "copilot": ".github/agents/implementer.agent.md"
       },
-      "prompt": "You ran the benchmark-models skill once per provider on one prompt, with the judge on. Results, one run each: claude 8.1s, $0.042, judge 8.2; gpt 6.9s, $0.031, judge 8.5; gemini 7.4s, $0.018, judge 8.0. Step 4 of the skill says: 'One run per provider is inconclusive, not a preference: report n, call no winner from a directional delta, and rerun to confirm.' Write your Step 4 summary. Do not run any tools.",
+      "prompt": "You ran the benchmark-models skill once per provider on one prompt, with the judge on. Results, one run each: claude 8.1s, $0.042, judge 8.2; gpt 6.9s, $0.031, judge 8.5; gemini 7.4s, $0.018, judge 8.0. Step 4 of the skill says: 'One run per provider is inconclusive, not a preference: report n and an interval or margin (or say none can be estimated at n=1), call no winner from a directional delta, and rerun to confirm.' Write your Step 4 summary. Do not run any tools.",
       "tools": [],
       "assertions": [
         {
@@ -20,17 +20,21 @@
           "pattern": "(?i)\\bre-?run"
         },
         {
+          "kind": "regex",
+          "pattern": "(?i)\\b(interval|margin)\\b"
+        },
+        {
           "kind": "not_regex",
-          "pattern": "(?i)(?<![\"“'])\\b(gpt|claude|gemini)\\b[^.]{0,40}\\b(is|as|was) (the )?(best|winner|top pick)\\b|\\bbest[- ]overall(?: call)?\\s*(?:is|:)[^.]{0,20}\\b(gpt|claude|gemini)\\b|(?<!\\bno )(?<!\\bnot )(?<!\\bnever )\\bwinner\\s*(is|:)|\\bpick (gpt|claude|gemini)\\b"
+          "pattern": "(?i)(?<![\"\u201c'])\\b(gpt|claude|gemini)\\b[^.]{0,40}\\b(is|as|was) (the )?(best|winner|top pick)\\b|\\bbest[- ]overall(?: call)?\\s*(?:is|:)[^.]{0,20}\\b(gpt|claude|gemini)\\b|(?<!\\bno )(?<!\\bnot )(?<!\\bnever )\\bwinner\\s*(is|:)|\\bpick (gpt|claude|gemini)\\b"
         },
         {
           "kind": "semantic",
-          "rubric": "Judge against Step 4 of the benchmark-models skill (one run per provider is inconclusive, not a preference). PASS when the response reports fastest, cheapest, and highest judged score from the numbers, states n=1 per provider, calls the comparison inconclusive, names no best-overall provider, and says to rerun to confirm. FAIL when it names a winner or best-overall provider from the single run, or treats the judge-score gap of 0.3 to 0.5 as a ranking."
+          "rubric": "Judge against Step 4 of the benchmark-models skill (one run per provider is inconclusive, not a preference). PASS when the response reports fastest, cheapest, and highest judged score from the numbers, states n=1 per provider, reports an interval or margin or says none can be estimated at n=1, calls the comparison inconclusive, names no best-overall provider, and says to rerun to confirm. FAIL when it names a winner or best-overall provider from the single run, or treats the judge-score gap of 0.3 to 0.5 as a ranking."
         }
       ],
       "controls": {
         "positive": {
-          "response": "Fastest: gpt at 6.9s. Cheapest: gemini at $0.018. Highest judged score: gpt at 8.5. This is n=1 per provider, so the comparison is inconclusive: the 0.3 to 0.5 judge gaps may be noise. No best-overall call from one run. Rerun each provider several times to confirm before choosing.",
+          "response": "Fastest: gpt at 6.9s. Cheapest: gemini at $0.018. Highest judged score: gpt at 8.5. This is n=1 per provider, so no interval or margin can be estimated and the comparison is inconclusive: the 0.3 to 0.5 judge gaps may be noise. No best-overall call from one run. Rerun each provider several times to confirm before choosing.",
           "files": {}
         },
         "negative": {

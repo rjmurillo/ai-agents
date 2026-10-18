@@ -29,6 +29,7 @@ BENCHMARK_SURFACES = (
 BENCHMARK_CLAUSES: dict[str, str] = {
     "single-run-inconclusive": "One run per provider is inconclusive, not a preference",
     "report-n": "report n",
+    "interval-or-margin": "an interval or margin (or say none can be estimated at n=1)",
     "no-winner-from-direction": "call no winner from a directional delta",
     "rerun-to-confirm": "rerun to confirm",
 }
@@ -103,6 +104,37 @@ def test_underpowered_fixture_quotes_the_shipped_step_4_sentence() -> None:
     assert quoted.startswith("One run per provider is inconclusive")
     for path in BENCHMARK_SURFACES:
         assert quoted in flat(path), path
+
+
+RESEARCH_METHODOLOGY_TEMPLATE = Path(
+    "templates/skills/ai-agents-research-methodology.SKILL.md.tmpl"
+)
+
+
+def test_both_model_preference_owners_require_an_interval_or_margin() -> None:
+    """Research-methodology step 4 and benchmark-models Step 4 must not disagree."""
+    for path in (RESEARCH_METHODOLOGY_TEMPLATE, BENCHMARK_SURFACES[0]):
+        assert "interval or margin" in flat(path), path
+
+
+def _required_regexes() -> list[re.Pattern[str]]:
+    return [
+        re.compile(spec.pattern)
+        for spec in _underpowered_fixture().assertions
+        if spec.kind == "regex"
+    ]
+
+
+def test_underpowered_fixture_requires_an_interval_or_a_stated_absence() -> None:
+    """A reply that grades n=1 but never mentions an interval or margin fails."""
+    fixture = _underpowered_fixture()
+    required = _required_regexes()
+    assert all(p.search(fixture.positive.response) for p in required)
+    no_interval = (
+        "Fastest: gpt at 6.9s. Cheapest: gemini at $0.018. n=1 per provider, so the "
+        "comparison is inconclusive. Rerun to confirm."
+    )
+    assert not all(p.search(no_interval) for p in required)
 
 
 def test_underpowered_fixture_has_a_semantic_assertion_and_a_scope_note() -> None:
