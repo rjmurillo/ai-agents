@@ -303,6 +303,7 @@ DOMAIN_SYNONYMS = {
         "pentest",
         "xss",
         "injection",
+        "threat",
     ],
     "code_quality": [
         "review",
@@ -492,6 +493,12 @@ _TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
 # Step 8 of calculate_match_score. A skill that explains none of the query terms
 # keeps COVERAGE_FLOOR of its raw score, so a synonym match is discounted, not erased.
 COVERAGE_FLOOR = 0.5
+# A skill that declares the query's leading domain ("presentation" for a deck
+# request) keeps more of its score: its description rarely lists every context
+# word ("quarterly results") of a natural request, yet it is the right skill.
+IN_DOMAIN_COVERAGE_FLOOR = 0.75
+# A skill explaining at least this share of the content terms covers the topic.
+TOPIC_COVERAGE_MIN = 0.5
 # One explained term in a request of this many content terms is not a match; the
 # cap sits one point under the 50 point CREATE_NEW boundary.
 SINGLE_TERM_MIN_QUERY_TERMS = 3
@@ -629,6 +636,16 @@ def detect_query_domains(query: str) -> list[tuple[str, list[str]]]:
     return detected
 
 
+def _declares_leading_domain(
+    query_domains: list[tuple[str, list[str]]], skill_domains: set[str]
+) -> bool:
+    """True when the skill declares a domain with the most synonym hits in the query."""
+    if not query_domains:
+        return False
+    most_hits = len(query_domains[0][1])
+    return any(d in skill_domains for d, terms in query_domains if len(terms) == most_hits)
+
+
 def calculate_match_score(
     query: str, skill: dict[str, Any], category: str | None = None
 ) -> tuple[float, list[str]]:
@@ -650,9 +667,30 @@ def apply_ceiling(score: float, ceiling: int | None, reasons: list[str]) -> floa
     return score
 
 
+@dataclass
+class ScoreDetail:
+    """One skill's score plus the evidence the triage decision needs."""
+
+    score: float
+    reasons: list[str]
+    ceiling: int | None
+    # The query asks for this skill by its exact name (not a shared word).
+    names_skill: bool = False
+    # Share of the query content terms the skill explains, 0.0 to 1.0.
+    coverage: float = 0.0
+
+
 def score_skill(
     query: str, skill: dict[str, Any], category: str | None = None
 ) -> tuple[float, list[str], int | None]:
+    """Score one skill against the query: (score, reasons, score ceiling or None)."""
+    detail = score_skill_detail(query, skill, category)
+    return detail.score, detail.reasons, detail.ceiling
+
+
+def score_skill_detail(
+    query: str, skill: dict[str, Any], category: str | None = None
+) -> ScoreDetail:
     """
     Score one skill against the query and report any score ceiling.
 
@@ -670,7 +708,8 @@ def score_skill(
     3. Direct name/trigger matching from whatever skills exist
 
     Returns:
-        Tuple of (score 0-100, list of match reasons, score ceiling or None)
+        ScoreDetail with the score (0-100), match reasons, score ceiling, whether
+        the query names the skill exactly, and the share of query terms explained.
     """
     query_lower = query.lower()
     # Content terms only: "create", "skill", "with" and similar scaffolding
@@ -762,15 +801,25 @@ def score_skill(
     ):
         score += 35
         reasons.append(f"name match: {skill_name}")
-        # Only an exact name asked for in a lookup, or a multi-word name, is exempt
-        # from the single-term cap. A common one-word name ("test") inside an
-        # unrelated long create request is a shared word, not a request for the skill.
-        names_skill = exact_name and (is_lookup or len(spaced_name.split()) > 1)
+        # An exact name asked for in a lookup, a multi-word name, or an exact
+        # one-word name in a request that does not create a skill is exempt from
+        # the single-term cap: "debug this flaky test" asks for the test skill.
+        # A common one-word name ("test") inside a long create request is a
+        # shared word, not a request for the skill, and keeps the cap.
+        names_skill = exact_name and (
+            is_lookup
+            or len(spaced_name.split()) > 1
+            or category not in (None, InputCategory.EXPLICIT_CREATE)
+        )
     else:
         # Check if significant query words appear in skill name
         name_words = set(spaced_name.split())
         name_overlap = query_words & name_words
-        if name_overlap and any(len(w) >= MIN_PARTIAL_NAME_LENGTH for w in name_overlap):
+        # In a name lookup a short word that is a whole word of the skill name
+        # ("adr" in adr-generator) earns the credit: the user is naming the skill.
+        if name_overlap and (
+            is_lookup or any(len(w) >= MIN_PARTIAL_NAME_LENGTH for w in name_overlap)
+        ):
             score += 20
             reasons.append(f"partial name: {', '.join(name_overlap)}")
 
@@ -818,7 +867,10 @@ def score_skill(
     explained = count_explained_terms(content_tokens, skill, synonym_terms)
     coverage = calculate_coverage(content_tokens, skill, synonym_terms)
     if score and coverage < 1.0:
-        score = round(score * (COVERAGE_FLOOR + (1 - COVERAGE_FLOOR) * coverage))
+        floor = COVERAGE_FLOOR
+        if _declares_leading_domain(query_domains, skill_domains):
+            floor = IN_DOMAIN_COVERAGE_FLOOR
+        score = round(score * (floor + (1 - floor) * coverage))
         reasons.append(f"coverage: {coverage:.0%} of query terms")
     ceiling: int | None = None
     if not names_skill and explained <= 1 and len(content_tokens) >= SINGLE_TERM_MIN_QUERY_TERMS:
@@ -826,9 +878,9 @@ def score_skill(
 
     # A zero score carries no evidence, so do not report reasons for it.
     if score <= 0:
-        return 0, [], None
+        return ScoreDetail(0, [], None, False, coverage)
 
-    return min(100, score), reasons, ceiling
+    return ScoreDetail(min(100, score), reasons, ceiling, names_skill, coverage)
 
 
 def find_matching_skills(
@@ -851,7 +903,8 @@ def find_matching_skills(
     query_domain_names = [d[0] for d in query_domains]
 
     for skill in skills:
-        score, reasons, ceiling = score_skill(query, skill, category)
+        detail = score_skill_detail(query, skill, category)
+        score, reasons, ceiling = detail.score, detail.reasons, detail.ceiling
 
         # Apply context-based boosting using DOMAINS (not skill names)
         skill_domains = [d.lower() for d in skill.get("domains", [])]
@@ -889,6 +942,8 @@ def find_matching_skills(
                     "source": skill.get("source"),
                     "description": skill.get("description", "")[:100],
                     "domains": skill.get("domains", []),
+                    "names_skill": detail.names_skill,
+                    "coverage": round(detail.coverage, 2),
                 }
             )
 
@@ -899,6 +954,34 @@ def find_matching_skills(
 # ===========================================================================
 # TRIAGE DECISION
 # ===========================================================================
+
+
+def has_recall_gap(query: str, indexed_name_words: frozenset[str]) -> bool:
+    """
+    True when a short query word is a whole word of an indexed skill name.
+
+    Partial-name credit needs MIN_PARTIAL_NAME_LENGTH letters, so "adr" in
+    adr-generator earns no score outside a name lookup. The matcher cannot tell
+    whether the user means that skill, so the decision must not call it uncovered.
+    """
+    return any(
+        len(t) < MIN_PARTIAL_NAME_LENGTH and t in indexed_name_words
+        for t in tokenize_for_scoring(query)
+    )
+
+
+def topic_is_covered(matches: list[dict[str, Any]]) -> bool:
+    """
+    True when a match shows an existing skill covers the topic despite a low score.
+
+    A match covers the topic when the query names it exactly or when it explains
+    at least TOPIC_COVERAGE_MIN of the content terms ("resolve merge conflicts"
+    is explained by the merge-resolver name and description). One shared word in
+    a long request explains too little to count.
+    """
+    return any(
+        m.get("names_skill") or m.get("coverage", 0.0) >= TOPIC_COVERAGE_MIN for m in matches
+    )
 
 
 def make_triage_decision(
@@ -993,6 +1076,15 @@ def make_triage_decision(
                 "reason": f"Recommending existing skill: {top_match['name']} ({top_score}%)",
                 "recommended_skills": [m["name"] for m in matches[:3]],
             }
+        elif has_recall_gap(query, indexed_name_words):
+            # "do I have a skill for adr?" names a word of indexed skill names the
+            # matcher cannot score, so list the candidates instead of creating.
+            return Action.CLARIFY, {
+                **details,
+                "reason": "A skill name contains a word from the question. Confirm which skill is meant.",
+                "suggested_action": "Ask user whether one of the named skills fits",
+                "recommended_skills": [m["name"] for m in matches[:3]],
+            }
         else:
             return Action.CREATE_NEW, {
                 **details,
@@ -1065,13 +1157,13 @@ def make_triage_decision(
     elif (
         len(tokenize_for_scoring(query)) >= SINGLE_TERM_MIN_QUERY_TERMS
         and top_score < 50
-        and not any(
-            len(t) < MIN_PARTIAL_NAME_LENGTH and t in indexed_name_words
-            for t in tokenize_for_scoring(query)
-        )
+        and not has_recall_gap(query, indexed_name_words)
+        and not topic_is_covered(matches)
     ):
         # A described topic with no strong match is a topic no skill covers,
-        # unless a short query word names an indexed skill (a recall gap).
+        # unless a short query word names an indexed skill (a recall gap) or a
+        # match names itself or explains at least half the terms (a skill that
+        # covers the topic with a modest score).
         return Action.CREATE_NEW, {
             **details,
             "reason": "No good existing skill handles this topic. Consider creating one.",

@@ -28,8 +28,13 @@ def _documenter() -> dict[str, Any]:
     )
 
 
+def _off_domain_documenter() -> dict[str, Any]:
+    """Same skill without the leading-domain relief, so the raw score stays low."""
+    return {**_documenter(), "domains": ["general"]}
+
+
 def test_ceiling_is_set_when_the_score_is_already_below_it() -> None:
-    score, _, ceiling = triage.score_skill("docs social hook", _documenter())
+    score, _, ceiling = triage.score_skill("docs social hook", _off_domain_documenter())
 
     assert score < triage.SINGLE_TERM_SCORE_CAP
     assert ceiling == triage.SINGLE_TERM_SCORE_CAP
@@ -47,7 +52,7 @@ def test_boosts_cannot_lift_a_low_single_term_score_past_the_cap() -> None:
 
 
 def test_no_cap_reason_when_the_cap_did_not_change_the_score() -> None:
-    score, reasons = triage.calculate_match_score("docs social hook", _documenter())
+    score, reasons = triage.calculate_match_score("docs social hook", _off_domain_documenter())
 
     assert score < triage.SINGLE_TERM_SCORE_CAP
     assert not any("capped:" in r for r in reasons)
@@ -64,7 +69,7 @@ def test_apply_ceiling() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Exact one-word names are exempt only in a name lookup
+# Exact one-word names are exempt in a lookup or a request that does not create
 # ---------------------------------------------------------------------------
 
 
@@ -76,7 +81,7 @@ def _test_skill() -> dict[str, Any]:
     "query",
     [
         "create a skill for test payment gateways",
-        "I need a test payment gateways workflow",
+        "skillforge: test payment gateways",
     ],
 )
 def test_exact_one_word_name_inside_a_long_create_request_is_capped(query: str) -> None:
@@ -85,6 +90,7 @@ def test_exact_one_word_name_inside_a_long_create_request_is_capped(query: str) 
 
     score, reasons, ceiling = triage.score_skill(query, skill, category)
 
+    assert category == triage.InputCategory.EXPLICIT_CREATE
     assert "name match: test" in reasons
     assert ceiling == triage.SINGLE_TERM_SCORE_CAP
     assert triage.calculate_match_score(query, skill, category)[0] <= triage.SINGLE_TERM_SCORE_CAP
