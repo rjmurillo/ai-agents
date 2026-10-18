@@ -161,6 +161,10 @@ def _validate_scenarios_measure(data: Mapping[str, Any], path: Path) -> None:
         )
 
 
+_SHIPPED_SKILLS_DIR = Path("src") / "claude" / "skills"
+_SHIPPED_RULES_DIR = Path("src") / "claude" / "rules"
+
+
 def _resolve_target(repo_root: Path, target_str: str, artifact_dir: Path, kind: str) -> str:
     """Resolve a scenario target under its artifact dir, returning the artifact id.
 
@@ -168,13 +172,15 @@ def _resolve_target(repo_root: Path, target_str: str, artifact_dir: Path, kind: 
     or the wrong file shape for the kind.
     """
     resolved = (repo_root / target_str).resolve()
-    allowed_root = (repo_root / artifact_dir).resolve()
-    try:
-        resolved.relative_to(allowed_root)
-    except ValueError as exc:
-        raise CoverageConfigError(
-            f"{kind}_path must stay under {artifact_dir}: {target_str}"
-        ) from exc
+    allowed_roots = [(repo_root / artifact_dir).resolve()]
+    if kind == "skill":
+        # ADR-119: a shipped .claude/skills/<name> links into the plugin tree.
+        allowed_roots.append((repo_root / _SHIPPED_SKILLS_DIR).resolve())
+    else:
+        # ADR-119: a shipped .claude/rules/<name>.md links into the plugin tree.
+        allowed_roots.append((repo_root / _SHIPPED_RULES_DIR).resolve())
+    if not any(resolved.is_relative_to(root) for root in allowed_roots):
+        raise CoverageConfigError(f"{kind}_path must stay under {artifact_dir}: {target_str}")
     if kind == "rule":
         if resolved.suffix != ".md":
             raise CoverageConfigError(f"rule_path must be a .md file: {target_str}")

@@ -81,17 +81,25 @@ def install_runner(monkeypatch: pytest.MonkeyPatch, recorder: Recorder) -> None:
     monkeypatch.setattr(_cli_transport.subprocess, "run", recorder)
 
 
-def claude_payload(model: str = "claude-haiku-4-5-20251001", result: str = "PONG") -> str:
-    """Build the `--output-format json` envelope the Claude CLI emits."""
-    return json.dumps(
-        {
-            "type": "result",
-            "subtype": "success",
-            "is_error": False,
-            "result": result,
-            "modelUsage": {model: {"inputTokens": 1, "outputTokens": 1}},
-        }
-    )
+def claude_payload(
+    model: str = "claude-haiku-4-5-20251001",
+    result: str = "PONG",
+    usage: object = None,
+) -> str:
+    """Build the `--output-format json` envelope the Claude CLI emits.
+
+    `usage` is the top-level usage record; None leaves the key out.
+    """
+    envelope: dict[str, Any] = {
+        "type": "result",
+        "subtype": "success",
+        "is_error": False,
+        "result": result,
+        "modelUsage": {model: {"inputTokens": 1, "outputTokens": 1}},
+    }
+    if usage is not None:
+        envelope["usage"] = usage
+    return json.dumps(envelope)
 
 
 def write_last_message(text: str) -> Callable[[dict[str, Any]], None]:

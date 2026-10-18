@@ -31,7 +31,7 @@ from tests.skills.github.dynamic_load_routes import ROUTES, unrecognised_routes
 # fails, so the list can only shrink or be re-reviewed, never go stale. The
 # detail is part of the key, so turning a reviewed script launch into a
 # `python -c` launch is a new site.
-_PR_DIR = ".claude/skills/github/scripts/pr"
+_PR_DIR = "src/claude/skills/github/scripts/pr"
 _REVIEWED: dict[tuple[str, str, str], tuple[int, str]] = {
     (
         f"{_PR_DIR}/wait_for_unresolved_zero.py",
@@ -94,7 +94,7 @@ class TestShippedClosureRatchet:
         monkeypatch.setenv("COPILOT_PLUGIN_ROOT", str(REPO_ROOT / "src" / "copilot-cli"))
 
         assert shipped_verifier_closure() == baseline
-        assert not any(path.startswith("src/") for path in baseline[1])
+        assert not any(path.startswith("src/copilot-cli/") for path in baseline[1])
 
     def test_reviewed_launcher_target_is_itself_verified(self) -> None:
         named, closure_paths = shipped_verifier_closure()

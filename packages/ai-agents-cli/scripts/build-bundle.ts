@@ -1,5 +1,5 @@
-import { cp, rm, mkdir, readdir, stat } from "node:fs/promises";
-import { join, resolve, dirname } from "node:path";
+import { cp, rm, mkdir, readdir, realpath, stat } from "node:fs/promises";
+import { join, resolve, dirname, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const EXCLUDED_DIRS = new Set(["hooks", "lib", "worktrees"]);
@@ -21,6 +21,30 @@ async function shouldExclude(relativePath: string, name: string): Promise<boolea
   return false;
 }
 
+// .claude/agents/<name>.md and each shipped .claude/skills/<name> are relative
+// symlinks into src/claude/ (ADR-119). A Dirent reports a link as neither a
+// file nor a directory, so classify by following it, and copy the target's
+// bytes rather than the link.
+async function isDirectoryEntry(
+  path: string,
+  entry: { isDirectory(): boolean; isSymbolicLink(): boolean },
+): Promise<boolean> {
+  if (entry.isDirectory()) return true;
+  if (!entry.isSymbolicLink()) return false;
+  await assertInsideRepo(path);
+  return (await stat(path)).isDirectory();
+}
+
+// A followed link must stay inside the repository, or the npm package would
+// carry whatever file the link names (CWE-59).
+async function assertInsideRepo(path: string): Promise<void> {
+  const target = await realpath(path);
+  const root = await realpath(repoRoot);
+  if (target !== root && !target.startsWith(root + sep)) {
+    throw new Error(`Refusing to bundle ${path}: it links outside the repository (${target})`);
+  }
+}
+
 async function copyTree(src: string, dest: string, depth: number): Promise<number> {
   let count = 0;
   const entries = await readdir(src, { withFileTypes: true });
@@ -28,14 +52,14 @@ async function copyTree(src: string, dest: string, depth: number): Promise<numbe
   for (const entry of entries) {
     if (await shouldExclude(entry.name, entry.name)) continue;
 
-    if (depth === 0 && entry.name === "skills" && entry.isDirectory()) {
+    if (depth === 0 && entry.name === "skills" && (await isDirectoryEntry(join(src, entry.name), entry))) {
       const skillsSrc = join(src, "skills");
       const skillsDest = join(dest, "skills");
       const skills = await readdir(skillsSrc, { withFileTypes: true });
       for (const skill of skills) {
-        if (!skill.isDirectory()) continue;
-        if (EXCLUDED_SKILLS.has(skill.name)) continue;
         const skillSrc = join(skillsSrc, skill.name);
+        if (!(await isDirectoryEntry(skillSrc, skill))) continue;
+        if (EXCLUDED_SKILLS.has(skill.name)) continue;
         const skillDest = join(skillsDest, skill.name);
         // Recurse into each kept skill so EXCLUDED_FILES / EXCLUDED_PATTERNS
         // are enforced inside skill subtrees (lockfiles, caches, local overrides).
@@ -47,12 +71,13 @@ async function copyTree(src: string, dest: string, depth: number): Promise<numbe
     const srcPath = join(src, entry.name);
     const destPath = join(dest, entry.name);
 
-    if (entry.isDirectory()) {
+    if (await isDirectoryEntry(srcPath, entry)) {
       count += await copyTree(srcPath, destPath, depth + 1);
     } else {
       const dir = dirname(destPath);
       await mkdir(dir, { recursive: true });
-      await cp(srcPath, destPath);
+      if (entry.isSymbolicLink()) await assertInsideRepo(srcPath);
+      await cp(srcPath, destPath, { dereference: true });
       count++;
     }
   }
