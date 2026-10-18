@@ -7,7 +7,11 @@ negative numbers, and `bool` where an `int` is required (Python's `bool` is
 an `int` subclass, so `isinstance(x, int)` alone would accept `True` as 1).
 
 Fail-closed, like `_harness_capability.py::CapabilityStatus`: missing
-evidence is `UNVERIFIED`, never `PASS`. The classifier, report, and matched
+evidence is `UNVERIFIED`, never `PASS`. The count fields `review_findings`,
+`rollback_events`, and `economics.human_correction_minutes` are nullable for
+that reason: `null` means the arm or the human timing did not run, and the
+classifier turns it into `UNVERIFIED`. A producer must never write `0` for a
+signal it did not measure. The classifier, report, and matched
 comparison live in `_durable_outcome.py`.
 """
 
@@ -94,7 +98,7 @@ class Economics:
     model_cost_usd: float
     tool_cost_usd: float
     wall_seconds: float
-    human_correction_minutes: float
+    human_correction_minutes: float | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -322,7 +326,7 @@ def _parse_economics(data: object, path: str) -> Economics:
         model_cost_usd=_require_nonneg_number(section["model_cost_usd"], f"{path}.model_cost_usd"),
         tool_cost_usd=_require_nonneg_number(section["tool_cost_usd"], f"{path}.tool_cost_usd"),
         wall_seconds=_require_nonneg_number(section["wall_seconds"], f"{path}.wall_seconds"),
-        human_correction_minutes=_require_nonneg_number(
+        human_correction_minutes=_require_nonneg_number_or_none(
             section["human_correction_minutes"], f"{path}.human_correction_minutes"
         ),
     )

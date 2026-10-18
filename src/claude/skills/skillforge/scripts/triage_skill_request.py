@@ -794,11 +794,8 @@ def score_skill_detail(
     spaced_query = re.sub(r"[-_\s]+", " ", query_lower)
     is_lookup = category in NAME_LOOKUP_CATEGORIES
     scaffolding_named = is_scaffolding_phrase(spaced_name)
-    exact_name = (
-        bool(spaced_name)
-        and re.search(rf"(?<![a-z0-9]){re.escape(spaced_name)}(?![a-z0-9])", spaced_query)
-        is not None
-    )
+    name_pattern = "(?<![a-z0-9])" + re.escape(spaced_name) + "(?![a-z0-9])"
+    exact_name = bool(spaced_name) and re.search(name_pattern, spaced_query) is not None
     names_skill = False
     if (
         spaced_name

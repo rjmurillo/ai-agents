@@ -28,6 +28,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 _WORKFLOW_REL = Path(".github") / "workflows" / "validate-vendor-portability.yml"
 _TESTS = [
     "tests/ci/test_validate_vendor_portability_wiring.py",
+    "tests/ci/test_vendor_portability_prose_base_ref_wiring.py",
 ]
 
 _MUTANTS: list[tuple[str, bytes, bytes, str]] = [
@@ -35,8 +36,12 @@ _MUTANTS: list[tuple[str, bytes, bytes, str]] = [
         "remove prose portability step from validate-portability job",
         (
             b"\n      - name: Check skill prose portability ratchet"
+            b"\n        env:"
+            b"\n          BASE_REF: ${{ github.base_ref && format('origin/{0}', github.base_ref)"
+            b" || github.event.before || 'origin/main' }}"
             b"\n        run: uv run --frozen python"
             b" scripts/validation/check_skill_md_portability.py"
+            b' --base-ref "$BASE_REF"'
         ),
         b"",
         "DEAD",
@@ -59,8 +64,29 @@ _MUTANTS: list[tuple[str, bytes, bytes, str]] = [
     ),
     (
         "replace run command with wrong script",
-        (b"        run: uv run --frozen python scripts/validation/check_skill_md_portability.py\n"),
-        (b"        run: uv run --frozen python scripts/validation/XYZZY_WRONG_SCRIPT.py\n"),
+        (
+            b"        run: uv run --frozen python scripts/validation/check_skill_md_portability.py"
+            b' --base-ref "$BASE_REF"\n'
+        ),
+        (
+            b"        run: uv run --frozen python scripts/validation/XYZZY_WRONG_SCRIPT.py"
+            b' --base-ref "$BASE_REF"\n'
+        ),
+        "DEAD",
+    ),
+    (
+        "drop --base-ref from the prose ratchet command",
+        (
+            b"        run: uv run --frozen python scripts/validation/check_skill_md_portability.py"
+            b' --base-ref "$BASE_REF"\n'
+        ),
+        b"        run: uv run --frozen python scripts/validation/check_skill_md_portability.py\n",
+        "DEAD",
+    ),
+    (
+        "compare a push with origin/main instead of the tip before it",
+        b" || github.event.before || 'origin/main' }}",
+        b" || 'origin/main' }}",
         "DEAD",
     ),
     (

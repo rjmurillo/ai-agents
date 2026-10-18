@@ -76,6 +76,9 @@ SCAN_ROOTS: tuple[str, ...] = (
     "build",
     "tests",
     ".claude/skills",
+    # ADR-119: a shipped skill is a directory link under .claude/skills, which
+    # a recursive walk does not follow. Its files are canonical here.
+    "src/claude/skills",
     ".agents",
     ".project-toolkit",
     "docs",
@@ -83,9 +86,10 @@ SCAN_ROOTS: tuple[str, ...] = (
 MARKDOWN_SUFFIXES = frozenset({".md", ".tmpl"})
 COMMENT_SUFFIXES = frozenset({".py", ".sh", ".yml", ".yaml", ".toml"})
 SKIPPED_PARTS = frozenset({"__pycache__", ".venv", "node_modules"})
-# .claude/skills/<name>/SKILL.md renders from templates/skills; the rest of the
+# <skills root>/<name>/SKILL.md renders from templates/skills; the rest of the
 # skill tree (scripts, references) is canonical there.
 PROJECTED_NAME = "SKILL.md"
+_SHIPPED_SKILLS_PARTS = ("src", "claude", "skills")
 
 REQUIRED_FIELDS = ("source", "version", "evidence", "verified", "purpose")
 OPTIONAL_FIELDS = ("reverify", "capability")
@@ -205,24 +209,35 @@ def _scannable(path: Path) -> bool:
         return False
     if path.suffix not in MARKDOWN_SUFFIXES | COMMENT_SUFFIXES:
         return False
-    return path.name != PROJECTED_NAME or ".claude" not in path.parts
+    if path.name != PROJECTED_NAME:
+        return True
+    return ".claude" not in path.parts and path.parts[:3] != _SHIPPED_SKILLS_PARTS
+
+
+def scanned_files(repo_root: Path) -> list[Path]:
+    """Return every file the scan examines, in root then path order."""
+    found: list[Path] = []
+    for root in SCAN_ROOTS:
+        base = repo_root / root
+        if not base.is_dir():
+            continue
+        found.extend(
+            path
+            for path in sorted(base.rglob("*"))
+            if path.is_file() and _scannable(path.relative_to(repo_root))
+        )
+    return found
 
 
 def collect_records(repo_root: Path) -> list[Record]:
     """Return every record under the canonical scan roots, in path order."""
     records: list[Record] = []
-    for root in SCAN_ROOTS:
-        base = repo_root / root
-        if not base.is_dir():
+    for path in scanned_files(repo_root):
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
             continue
-        for path in sorted(base.rglob("*")):
-            if not path.is_file() or not _scannable(path.relative_to(repo_root)):
-                continue
-            try:
-                text = path.read_text(encoding="utf-8")
-            except (OSError, UnicodeDecodeError):
-                continue
-            records.extend(parse_file(path.relative_to(repo_root).as_posix(), text))
+        records.extend(parse_file(path.relative_to(repo_root).as_posix(), text))
     return records
 
 
@@ -354,6 +369,10 @@ def validate_external_contracts(repo_root: Path) -> bool:
     """
     findings = find_findings(repo_root)
     if not findings:
+        print(
+            f"[PASS] {len(collect_records(repo_root))} external contract record(s) "
+            f"in {len(scanned_files(repo_root))} file(s) examined."
+        )
         return True
     print(f"[FAIL] {len(findings)} external contract record defect(s):", file=sys.stderr)
     for finding in findings:

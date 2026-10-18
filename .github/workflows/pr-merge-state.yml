@@ -35,6 +35,9 @@ jobs:
       pull-requests: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The job runs repository code and needs no git push, so the token stays out of .git/config.
+          persist-credentials: false
 
       - name: Check open PR merge state
         env:

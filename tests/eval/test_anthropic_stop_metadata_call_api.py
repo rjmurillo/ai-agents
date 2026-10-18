@@ -100,6 +100,71 @@ def test_call_api_non_default_provider_writes_unknown_termination(
     assert metadata["stop_reason"] is None
 
 
+@pytest.mark.parametrize(
+    "tokens,expected",
+    [(49, 49), (0, 0), (None, None), (True, None), (-1, None), ("49", None), (4.5, None)],
+)
+def test_call_api_copies_a_provider_output_token_count_into_metadata(
+    monkeypatch: pytest.MonkeyPatch, tokens: object, expected: int | None
+) -> None:
+    import _providers
+
+    stub = SimpleNamespace(complete=lambda **kwargs: "routed text", output_tokens=tokens)
+    monkeypatch.setattr(_providers, "resolve_provider", lambda name: stub)
+    metadata: dict[str, object] = {"output_tokens": 999}
+    _anthropic_api.call_api(
+        "ignored-key",
+        [{"role": "user", "content": "x"}],
+        model="claude-haiku-4-5",
+        provider="claude-cli",
+        metadata=metadata,
+    )
+    if expected is None:
+        assert "output_tokens" not in metadata
+    else:
+        assert metadata["output_tokens"] == expected
+
+
+def test_call_api_leaves_metadata_without_tokens_for_a_provider_that_reports_none(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import _providers
+
+    stub = SimpleNamespace(complete=lambda **kwargs: "routed text")
+    monkeypatch.setattr(_providers, "resolve_provider", lambda name: stub)
+    metadata: dict[str, object] = {}
+    _anthropic_api.call_api(
+        "ignored-key",
+        [{"role": "user", "content": "x"}],
+        model="gpt-4o",
+        provider="openai",
+        metadata=metadata,
+    )
+    assert "output_tokens" not in metadata
+
+
+def test_call_api_default_path_clears_a_count_left_by_an_earlier_provider_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import _providers
+
+    stub = SimpleNamespace(complete=lambda **kwargs: "routed text", output_tokens=49)
+    monkeypatch.setattr(_providers, "resolve_provider", lambda name: stub)
+    metadata: dict[str, object] = {}
+    messages = [{"role": "user", "content": "x"}]
+    _anthropic_api.call_api(
+        "ignored-key", messages, model="claude-haiku-4-5", provider="claude-cli", metadata=metadata
+    )
+    assert metadata["output_tokens"] == 49
+
+    _mock_urlopen(monkeypatch, _OK_PAYLOAD)
+    _anthropic_api.call_api(
+        "test-key", messages, model="claude-haiku-4-5", provider="anthropic", metadata=metadata
+    )
+
+    assert "output_tokens" not in metadata
+
+
 # max_tokens pass-through
 
 
