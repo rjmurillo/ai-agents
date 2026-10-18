@@ -414,6 +414,20 @@ def validate_path_safety(raw_path: str) -> Path | None:
         return None
 
 
+def _select_raw_path(skill_dir: str | None, path: str | None) -> str:
+    """Pick the supplied path argument, falling back to the default only if none.
+
+    An empty string is a supplied value, not a missing one. It must reach
+    validate_path_safety and fail, so a gate with an unset variable cannot
+    silently audit the default directory and pass.
+    """
+    if skill_dir is not None:
+        return skill_dir
+    if path is not None:
+        return path
+    return DEFAULT_SKILLS_PATH
+
+
 def main(argv: list[str] | None = None) -> int:
     """Entry point."""
     parser = build_parser()
@@ -421,15 +435,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.skill_dir is not None and args.path is not None:
         parser.error("give either a skill directory or --path, not both")
-    # An empty string is a supplied value, not a missing one. It must reach
-    # validate_path_safety and fail, so a gate with an unset variable cannot
-    # silently audit the default directory and pass.
-    if args.skill_dir is not None:
-        raw_path = args.skill_dir
-    elif args.path is not None:
-        raw_path = args.path
-    else:
-        raw_path = DEFAULT_SKILLS_PATH
+    raw_path = _select_raw_path(args.skill_dir, args.path)
 
     skills_path = validate_path_safety(raw_path)
     if skills_path is None:
