@@ -180,8 +180,16 @@ def find_stale_branches(
     local: frozenset[str],
     checked_out: frozenset[str],
 ) -> tuple[str, ...]:
-    """Return configured branch names with no ref and no checkout."""
-    return tuple(name for name in configured if name not in local and name not in checked_out)
+    """Return configured branch names with no ref and no checkout.
+
+    Git lowercases a legacy ``[branch.Name]`` section when it reads the config,
+    so ``feature-x`` can be the section of a live ``Feature-X`` branch. The
+    comparison folds case so that section is never reported stale. A modern
+    ``[branch "feature-x"]`` section next to a live ``Feature-X`` branch is also
+    kept, which errs toward keeping config.
+    """
+    live = {name.casefold() for name in (*local, *checked_out)}
+    return tuple(name for name in configured if name.casefold() not in live)
 
 
 def _backup_config(config_path: Path) -> Path:
