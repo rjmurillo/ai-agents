@@ -107,6 +107,8 @@ RULES_KEYS = {
     "frontmatterRemap",
     "frontmatterDrop",
     "keepInternalGlobsFor",
+    "repoOnlyOutputDirs",
+    "repoOnlySourceDir",
     "outputFormat",
 }
 HOOKS_KEYS = {
@@ -221,20 +223,20 @@ def _declared_rule_output_dirs(stanza: dict[str, object]) -> set[str]:
     return {PurePosixPath(d).as_posix() for d in declared}
 
 
-def _validate_rules_keep_internal_globs(name: str, stanza: dict[str, object]) -> list[str]:
-    keep = stanza.get("keepInternalGlobsFor")
-    if keep is None:
+def _validate_rules_output_dir_subset(name: str, stanza: dict[str, object], key: str) -> list[str]:
+    """`key` (keepInternalGlobsFor, repoOnlyOutputDirs) lists declared output dirs."""
+    listed = stanza.get(key)
+    if listed is None:
         return []
-    if not isinstance(keep, list):
-        return [f"`artifacts.{name}.keepInternalGlobsFor`: must be a list of paths"]
+    if not isinstance(listed, list):
+        return [f"`artifacts.{name}.{key}`: must be a list of paths"]
     errors: list[str] = []
     declared_norm = _declared_rule_output_dirs(stanza)
-    for idx, item in enumerate(keep):
-        errors.extend(_validate_path_value(f"artifacts.{name}.keepInternalGlobsFor[{idx}]", item))
+    for idx, item in enumerate(listed):
+        errors.extend(_validate_path_value(f"artifacts.{name}.{key}[{idx}]", item))
         if isinstance(item, str) and PurePosixPath(item).as_posix() not in declared_norm:
             errors.append(
-                f"`artifacts.{name}.keepInternalGlobsFor[{idx}]`: "
-                f"{item!r} is not one of the declared output dirs"
+                f"`artifacts.{name}.{key}[{idx}]`: {item!r} is not one of the declared output dirs"
             )
     return errors
 
@@ -314,7 +316,8 @@ def _validate_artifact_stanza(name: str, stanza: object) -> list[str]:
     if name == "rules":
         errors.extend(_validate_rules_output_format(name, stanza))
         errors.extend(_validate_rules_output_dirs(name, stanza))
-        errors.extend(_validate_rules_keep_internal_globs(name, stanza))
+        for key in ("keepInternalGlobsFor", "repoOnlyOutputDirs"):
+            errors.extend(_validate_rules_output_dir_subset(name, stanza, key))
     if name == "commands":
         errors.extend(_validate_command_resources(name, stanza))
     return errors

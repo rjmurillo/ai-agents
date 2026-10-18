@@ -44,7 +44,10 @@ Public API:
         ``check=True`` mode nothing is written and a byte mismatch is
         reported as drift instead. A file under ``install_tree`` with no
         counterpart under ``plugin_tree`` is left untouched and reported as
-        ``unowned``, never deleted.
+        ``unowned``, never deleted. A row with ``link: true`` places a
+        relative symlink per top-level plugin entry instead of copying bytes
+        (``binplace_links.py``), so its install tree reads the plugin tree
+        directly and cannot go stale.
 
 Stricter/looser/different than canonical (``skill_templates.py``):
 
@@ -81,6 +84,7 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
+import binplace_links  # noqa: E402
 import skill_templates  # noqa: E402
 from atomic_write import (  # noqa: E402
     is_redirecting,
@@ -89,11 +93,30 @@ from atomic_write import (  # noqa: E402
     reject_symlinked_ancestors,
 )
 from regen_guard import detect_reason  # noqa: E402
+from rule_distribution import repo_only_rule_names  # noqa: E402
 from skill_distribution import repo_local_names  # noqa: E402
 from yaml_loader import ConfigError, load_platform_config, validate_relative_path  # noqa: E402
 
 _MANIFEST_REL = Path("templates") / "platforms" / "binplace.yaml"
 _SKILLS_COMPILE_DELEGATE = "skill_templates"
+_CODEX_SKILLS_ROOT = ".agents/skills"
+_RULES_CLASS = "rules"
+_LIB_CLASS = "lib"
+
+# Hand-maintained modules that live only in .claude/lib/ (no src/claude/lib
+# counterpart; see .claude/AGENTS.md). The `lib` link row leaves them alone.
+REPO_LOCAL_LIB_NAMES: frozenset[str] = frozenset(
+    {
+        "claude_hook_dispatch.py",
+        "claude_hook_protocol.py",
+        "hook_dispatch.py",
+        "hook_dispatch_protocol.py",
+        "hook_dispatch_timeout.py",
+        "output_capture.py",
+        "qa_report.py",
+        "shim_loader.py",
+    }
+)
 
 
 class BinplaceConfigError(Exception):
@@ -116,6 +139,7 @@ class Row:
     plugin_tree: Path | None
     install_tree: Path | None
     compile: str | None = None
+    link: bool = False
 
 
 @dataclass
@@ -172,18 +196,21 @@ def _raise_if_ancestor_symlinked(repo_root: Path, label: str, path: Path) -> Non
 
 
 def _validate_install_tree_prefix(label: str, value: str) -> None:
-    """Reject an ``install_tree`` that does not name a ``.claude/`` or ``.github/`` path.
+    """Reject an ``install_tree`` outside the install roots this manifest governs.
 
     Every row's ``install_tree`` is a write target this manifest legitimizes
     (DESIGN-025: "Each row's ``install_tree`` value is a path prefix under
     ``.claude/`` or ``.github/``"); a row naming anything else would widen
-    ``claude_allowlist``'s and ``binplace``'s reach past the two plugin
-    install roots this record governs.
+    ``claude_allowlist``'s and ``binplace``'s reach. ADR-119 adds exactly one
+    more: ``.agents/skills``, Codex's repository skill directory. The rest of
+    ``.agents/`` is governance and history, never an install target.
     """
     # A bare root would allowlist the whole tree; require a segment past it.
-    if value.startswith(".claude/") or value.startswith(".github/"):
+    if value.startswith((".claude/", ".github/")) or value == _CODEX_SKILLS_ROOT:
         return
-    raise BinplaceConfigError(f"{label} {value!r} must be under .claude/ or .github/")
+    raise BinplaceConfigError(
+        f"{label} {value!r} must be under .claude/ or .github/, or be {_CODEX_SKILLS_ROOT}"
+    )
 
 
 def load(repo_root: Path) -> list[Row]:
@@ -275,7 +302,37 @@ def _load_one_row(
     compile_raw = entry.get("compile")
     compile_name = str(compile_raw) if compile_raw is not None else None
 
-    return Row(class_name, source, plugin_tree, install_tree, compile_name)
+    link = _load_link_flag(manifest_path, class_name, entry, plugin_tree, install_tree)
+    return Row(class_name, source, plugin_tree, install_tree, compile_name, link)
+
+
+def _load_link_flag(
+    manifest_path: Path,
+    class_name: str,
+    entry: dict[object, object],
+    plugin_tree: Path | None,
+    install_tree: Path | None,
+) -> bool:
+    """Return the row's ``link`` flag, refusing a value or row shape it cannot serve.
+
+    A link row needs a directory-shaped plugin tree and an install tree: it
+    links each top-level plugin entry by name, so a file-shaped row (such as
+    ``hooks-json``) or a row with no second hop has nothing to link.
+    """
+    raw = entry.get("link", False)
+    if not isinstance(raw, bool):
+        raise BinplaceConfigError(f"{manifest_path}: row {class_name!r} `link` must be a boolean")
+    if not raw:
+        return False
+    if plugin_tree is None or install_tree is None:
+        raise BinplaceConfigError(
+            f"{manifest_path}: row {class_name!r} sets `link` without both trees"
+        )
+    if plugin_tree.is_file():
+        raise BinplaceConfigError(
+            f"{manifest_path}: row {class_name!r} sets `link` on a file-shaped plugin_tree"
+        )
+    return True
 
 
 def claude_allowlist(repo_root: Path) -> set[Path]:
@@ -299,8 +356,17 @@ def claude_allowlist(repo_root: Path) -> set[Path]:
     for row in load(repo_root):
         if row.install_tree is None or not _is_claude_rooted(row.install_tree, repo_root):
             continue
+        if row.link and row.plugin_tree is not None:
+            allow |= binplace_links.install_link_paths(
+                row.plugin_tree, row.install_tree, _repo_local_names(repo_root, row)
+            )
         if row.compile == _SKILLS_COMPILE_DELEGATE:
             allow |= skill_templates.owned_targets(repo_root)
+            continue
+        if row.class_name == _RULES_CLASS:
+            # ADR-119 decision 13: rule_templates writes repo-only rules here.
+            allow |= {row.install_tree / name for name in _repo_local_names(repo_root, row)}
+        if row.link:
             continue
         if row.plugin_tree is None:
             if row.compile is not None:
@@ -397,28 +463,57 @@ def binplace(repo_root: Path, *, check: bool) -> BinplaceResult:
             # A row with no install_tree (ADR-109 B5's Copilot-side lib
             # rows) has no second hop: its plugin_tree IS the final output.
             continue
+        if row.link:
+            _fold_link_outcome(
+                result,
+                binplace_links.link_row(
+                    row.plugin_tree,
+                    row.install_tree,
+                    check=check,
+                    skip_names=_repo_local_names(repo_root, row),
+                ),
+            )
+            continue
         _binplace_one_row(
             row.plugin_tree,
             row.install_tree,
             check=check,
             result=result,
-            skip_top_dirs=_repo_local_skill_dirs(repo_root, row),
+            skip_top_dirs=_repo_local_names(repo_root, row),
         )
     return result
 
 
-def _repo_local_skill_dirs(repo_root: Path, row: Row) -> frozenset[str]:
-    """Return the ``skills`` row's ``distribution: repo-local`` skill directory names.
+def _fold_link_outcome(result: BinplaceResult, outcome: binplace_links.LinkOutcome) -> None:
+    """Merge one link row's outcome into the run-wide :class:`BinplaceResult`."""
+    result.written.extend(outcome.written)
+    result.unowned.extend(outcome.unowned)
+    result.drifted.extend(outcome.drifted)
+    result.skipped.extend(outcome.skipped)
+    result.exit_code = max(result.exit_code, outcome.exit_code)
 
-    Binplace neither copies, drift-reports, nor lists as ``unowned`` anything
-    under a repo-local skill's directory: ``skill_templates.compile_all``
-    renders its ``SKILL.md`` straight to the install tree and its support
-    files are canonical there, so a leftover ``src/claude/skills/<name>/``
-    copy must never overwrite them. Every other row returns the empty set.
+
+def _repo_local_names(repo_root: Path, row: Row) -> frozenset[str]:
+    """Return the install-tree entry names a row must leave to the repository.
+
+    The ``skills`` row skips each ``distribution: repo-local`` skill
+    directory: ``skill_templates.compile_all`` renders its ``SKILL.md``
+    straight to the install tree and its support files are canonical there,
+    so a leftover ``src/claude/skills/<name>/`` copy must never overwrite
+    them. The ``rules`` row skips each repo-only rule file (ADR-119 decision
+    13, ``rule_distribution.is_repo_only``), which ``rule_templates`` renders
+    straight to ``.claude/rules/``. The ``lib`` row skips the hand-maintained
+    ``.claude/lib`` modules in :data:`REPO_LOCAL_LIB_NAMES` (decision 14).
+    Binplace neither links, copies, drift-reports, nor lists those entries as
+    unowned. Every other row returns the empty set.
     """
-    if row.compile != _SKILLS_COMPILE_DELEGATE:
-        return frozenset()
-    return frozenset(repo_local_names(repo_root))
+    if row.compile == _SKILLS_COMPILE_DELEGATE:
+        return frozenset(repo_local_names(repo_root))
+    if row.class_name == _RULES_CLASS:
+        return frozenset(f"{name}.md" for name in repo_only_rule_names(repo_root))
+    if row.class_name == _LIB_CLASS:
+        return REPO_LOCAL_LIB_NAMES
+    return frozenset()
 
 
 def _binplace_one_row(
@@ -444,6 +539,7 @@ def _binplace_one_row(
         return
     if not plugin_tree.is_dir():
         return
+    _replace_install_links(install_tree, check=check, result=result, skip=skip_top_dirs)
     owned_relatives: set[Path] = set()
     for src_path in sorted(plugin_tree.rglob("*")):
         rel = src_path.relative_to(plugin_tree)
@@ -464,6 +560,30 @@ def _binplace_one_row(
             continue
         if rel not in owned_relatives:
             result.unowned.append(str(existing))
+
+
+def _replace_install_links(
+    install_tree: Path, *, check: bool, result: BinplaceResult, skip: frozenset[str]
+) -> None:
+    """Remove top-level install links left by a ``link: true`` row now copied.
+
+    Without this, turning ``link`` off (the ADR-119 rollback) leaves each
+    directory link in place: the copy writes through the link into the
+    plugin tree, finds equal bytes, and reports nothing. A link is drift in
+    check mode and is unlinked in write mode, so the copy below then fills a
+    real directory. Only the link itself is removed, never its target.
+    """
+    if not install_tree.is_dir():
+        return
+    for entry in sorted(install_tree.iterdir()):
+        if entry.name in skip or not entry.is_symlink():
+            continue
+        if check:
+            result.drifted.append(str(entry))
+            result.exit_code = max(result.exit_code, 2)
+            continue
+        entry.unlink()
+        result.written.append(str(entry))
 
 
 def _current_bytes(dst_path: Path) -> bytes | None:

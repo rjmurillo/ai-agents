@@ -70,8 +70,10 @@ EXIT_OK = 0
 EXIT_DIFFERS = 1
 EXIT_CONFIG = 2
 
-GATE = ".claude/skills/github/scripts/pr/run_completion_gate.py"
-CONFIG = ".claude/skills/pr-review/pr-review-config.yaml"
+# ADR-119: .claude/skills/<name> links into src/claude/skills, and git cannot
+# read a blob through a link, so the closure names the plugin-tree paths.
+GATE = "src/claude/skills/github/scripts/pr/run_completion_gate.py"
+CONFIG = "src/claude/skills/pr-review/pr-review-config.yaml"
 CHANGED = "changed"
 ADDED = "added"
 STALE = "stale"
@@ -80,6 +82,28 @@ STALE_REMEDY = (
     "merge the base ref into the branch and push"
 )
 _PR_NUMBER = 1  # command templates substitute {pr}; the value does not change which files are named
+
+
+def _load_ref_links() -> ModuleType:
+    """Load ``_ref_links.py`` from this file's own directory, the trusted tool root.
+
+    Loaded by path, never by name, so neither ``sys.path`` nor the head work tree
+    can substitute it; it works the same run as a script and imported as a package.
+    """
+    path = Path(__file__).resolve().parent / "_ref_links.py"
+    spec = importlib.util.spec_from_file_location("verify_dispatch_closure_ref_links", path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+_REF_LINKS = _load_ref_links()
+_base_blob = _REF_LINKS.base_blob
+_blob_id = _REF_LINKS.blob_id
+_in_ref = _REF_LINKS.in_ref
+_resolve_in_ref = _REF_LINKS.resolve_in_ref
 
 
 class DispatchClosureError(Exception):
@@ -145,17 +169,6 @@ def _criteria(gate: ModuleType, config: dict[str, Any]) -> list[Any]:
     return [*listed, *gate._scripts_map_criteria(config)]
 
 
-def _base_blob(tool_root: Path, base_ref: str, path: str) -> bytes | None:
-    """The bytes of ``path`` at ``base_ref`` in the base checkout, or None if absent."""
-    result = subprocess.run(
-        ["git", "cat-file", "blob", f"{base_ref}:{path}"],
-        cwd=tool_root,
-        capture_output=True,
-        check=False,
-    )
-    return result.stdout if result.returncode == 0 else None
-
-
 def _named_files(gate: ModuleType, config: dict[str, Any], tree: Path) -> list[str]:
     """Files the config's commands name, classified from inside ``tree``.
 
@@ -172,24 +185,6 @@ def _named_files(gate: ModuleType, config: dict[str, Any], tree: Path) -> list[s
     except gate.ConfigError as exc:
         raise DispatchClosureError(f"base config commands cannot be classified: {exc}") from exc
     return [*named, *escaping]
-
-
-def _blob_id(tool_root: Path, ref: str, path: str) -> str | None:
-    """The object id of ``path`` at ``ref`` in the base checkout, or None if absent."""
-    result = subprocess.run(
-        ["git", *_INERT_GIT, "rev-parse", "--verify", "--quiet", f"{ref}:{path}"],
-        cwd=tool_root,
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
-    return result.stdout.strip() if result.returncode == 0 else None
-
-
-def _in_ref(tool_root: Path, ref: str, path: str) -> bool:
-    """True when ``path`` exists at ``ref`` in the base checkout."""
-    return _blob_id(tool_root, ref, path) is not None
 
 
 def _same_symlinks(tool_root: Path, ref: str | None, head_sha: str | None) -> set[str]:
@@ -219,7 +214,7 @@ def _symlinks_in_tree(root: Path) -> set[str]:
 
 def _base_symlinks(tool_root: Path, base_ref: str) -> set[str]:
     listing = subprocess.run(
-        ["git", *_INERT_GIT, "ls-tree", "-r", "-z", base_ref],
+        ["git", *_REF_LINKS.INERT_GIT, "ls-tree", "-r", "-z", base_ref],
         cwd=tool_root,
         capture_output=True,
         check=False,
@@ -238,7 +233,7 @@ def _merge_base(tool_root: Path, base_ref: str, head_sha: str | None) -> str | N
     if head_sha is None:
         return None
     result = subprocess.run(
-        ["git", *_INERT_GIT, "merge-base", base_ref, head_sha],
+        ["git", *_REF_LINKS.INERT_GIT, "merge-base", base_ref, head_sha],
         cwd=tool_root,
         capture_output=True,
         encoding="utf-8",
@@ -339,13 +334,6 @@ def verify(tool_root: Path, head_root: Path, base_ref: str, head_sha: str | None
     return report
 
 
-# Git configuration that makes reading untrusted objects inert. No hook can run
-# and no filesystem monitor is started. A `.gitattributes` in the head tree cannot
-# name a filter driver, because a driver is defined in configuration and none is
-# configured. It can still select the built-in conversions (`text`, `eol`,
-# `ident`), which change the bytes written to the scratch tree, so a head SHA is
-# compared by blob id and never by those written bytes.
-_INERT_GIT = ("-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false")
 # A system or global gitconfig can register a filter driver (git-lfs) that
 # `checkout-index` would run on head blobs when the head's .gitattributes names it.
 _NO_SYSTEM_CONFIG = {"GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null"}
@@ -354,7 +342,7 @@ _HEAD_MARKER = "refs/pull/{number}/head"
 
 def _git(cwd: Path, *args: str, env: dict[str, str] | None = None) -> str:
     result = subprocess.run(
-        ["git", *_INERT_GIT, *args],
+        ["git", *_REF_LINKS.INERT_GIT, *args],
         cwd=cwd,
         capture_output=True,
         encoding="utf-8",
