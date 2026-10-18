@@ -1740,7 +1740,7 @@ def _output_token_delta(treatment: dict[str, Any], control: dict[str, Any]) -> f
     base = control.get("mean_output_tokens")
     if treated is None or base is None:
         return None
-    return round(treated - base, 1)
+    return float(round(treated - base, 1))
 
 
 def _delta_measured(treatment: dict[str, Any], control: dict[str, Any]) -> float | None:
