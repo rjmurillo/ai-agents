@@ -82,3 +82,22 @@ def test_detect_infrastructure_propagates_the_staged_files_failure() -> None:
         pytest.raises(GitReadError),
     ):
         detect_infrastructure(use_git_staged=True)
+
+
+def test_get_staged_files_reads_the_given_repo_root(tmp_path: Path) -> None:
+    with patch(
+        "subprocess.run",
+        return_value=subprocess.CompletedProcess([], 0, "a.py\n", ""),
+    ) as run:
+        assert get_staged_files(tmp_path) == ["a.py"]
+    assert run.call_args.args[0][3] == str(tmp_path)
+
+
+def test_detect_infrastructure_passes_repo_root_to_the_staged_read(tmp_path: Path) -> None:
+    with patch(
+        "subprocess.run",
+        return_value=subprocess.CompletedProcess([], 0, ".github/workflows/ci.yml\n", ""),
+    ) as run:
+        result = detect_infrastructure(use_git_staged=True, repo_root=tmp_path)
+    assert run.call_args.args[0][3] == str(tmp_path)
+    assert result["highest_risk"] != "none"

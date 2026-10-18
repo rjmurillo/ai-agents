@@ -951,7 +951,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--base-branch",
         default=None,
         help="Base branch to read the ruleset from for missing-check detection "
-        "(default: PR base branch). Pass empty string to skip ruleset fetch.",
+        "(default: PR base branch). Pass empty string to skip ruleset fetch; "
+        "RequiredState then reads UNKNOWN, because no ruleset proves every "
+        "required check reported.",
     )
     add_output_format_arg(parser)
     return parser

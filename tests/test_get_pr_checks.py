@@ -239,6 +239,15 @@ class TestBuildParser:
                 ]
             )
 
+    def test_base_branch_help_warns_a_skipped_fetch_reads_unknown(self):
+        """A skipped ruleset fetch cannot prove every required check reported."""
+        action = next(a for a in build_parser()._actions if "--base-branch" in a.option_strings)
+        assert "RequiredState then reads UNKNOWN" in " ".join(action.help.split())
+
+    def test_base_branch_empty_string_is_accepted(self):
+        args = build_parser().parse_args(["--pull-request", "1", "--base-branch", ""])
+        assert args.base_branch == ""
+
 
 # ---------------------------------------------------------------------------
 # Tests: normalize_check

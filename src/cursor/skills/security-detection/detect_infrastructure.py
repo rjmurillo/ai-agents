@@ -241,8 +241,8 @@ def get_security_risk_level(file_path: str) -> str:
     return "none"
 
 
-def get_staged_files() -> list[str]:
-    """Get list of staged files from git.
+def get_staged_files(repo_root: Path | None = None) -> list[str]:
+    """Get list of staged files from git, read in ``repo_root`` (default: cwd).
 
     Raises ``GitReadError`` when git cannot answer (nonzero exit, missing binary,
     or the ``GIT_TIMEOUT_SECONDS`` timeout). An empty list means git answered and
@@ -250,7 +250,7 @@ def get_staged_files() -> list[str]:
     ``--require-security-review`` would read a failure as "no CRITICAL files" and
     exit 0 (issue #6506).
     """
-    stdout = _git(["diff", "--cached", "--name-only"], Path.cwd())
+    stdout = _git(["diff", "--cached", "--name-only"], repo_root or Path.cwd())
     return [f for f in stdout.strip().splitlines() if f.strip()]
 
 
@@ -262,10 +262,14 @@ def get_files_from_stdin() -> list[str]:
 def detect_infrastructure(
     changed_files: list[str] | None = None,
     use_git_staged: bool = False,
+    repo_root: Path | None = None,
 ) -> dict[str, Any]:
-    """Analyze files and return security risk findings."""
+    """Analyze files and return security risk findings.
+
+    ``repo_root`` is where ``use_git_staged`` reads the index (default: cwd).
+    """
     if use_git_staged:
-        changed_files = get_staged_files()
+        changed_files = get_staged_files(repo_root)
 
     if not changed_files:
         return {
@@ -780,17 +784,18 @@ def main() -> int:
     args = parser.parse_args()
 
     changed_files = get_files_from_stdin() if args.files_from_stdin else args.files
+    repo_root = (args.repo_root or Path.cwd()).resolve()
     try:
         result = detect_infrastructure(
             changed_files=changed_files,
             use_git_staged=args.use_git_staged,
+            repo_root=repo_root,
         )
     except GitReadError as exc:
-        return _report_unreadable_staged_files(exc, args.require_security_review)
+        return _report_unreadable_staged_files(exc, args.require_security_review, args.json)
 
     exit_code = 0
     if args.require_security_review:
-        repo_root = (args.repo_root or Path.cwd()).resolve()
         exit_code = enforce_security_review(
             result, args.ref, repo_root, args.base_ref, args.diff_base
         )
@@ -829,18 +834,29 @@ def main() -> int:
     return exit_code if exit_code == 0 else _report_blocked(result, exit_code)
 
 
-def _report_unreadable_staged_files(exc: GitReadError, required: bool) -> int:
+def _report_unreadable_staged_files(
+    exc: GitReadError, required: bool, as_json: bool = False
+) -> int:
     """Report that ``--use-git-staged`` could not read the index and return the exit code.
 
     With ``--require-security-review`` the gate cannot say whether a CRITICAL file
     is staged, so it exits 3 (blocked). Without the flag the exit code stays 0,
-    as the flag's help promises, but the failure still prints a typed line.
+    as the flag's help promises, but the failure still prints a typed line. Under
+    ``--json`` stdout also carries an error object (``state``, ``reason``,
+    ``detail``), so a JSON consumer never reads empty output as "nothing found".
     """
     print(
         f"[{exc.state}] detect_infrastructure reason={exc.reason} "
         f"scope=staged files from git detail={json.dumps(str(exc))}",
         file=sys.stderr,
     )
+    if as_json:
+        print(
+            json.dumps(
+                {"state": exc.state, "reason": exc.reason, "detail": str(exc)},
+                indent=2,
+            )
+        )
     return 3 if required else 0
 
 

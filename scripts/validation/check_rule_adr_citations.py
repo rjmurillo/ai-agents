@@ -77,9 +77,10 @@ Edit the baseline by hand: delete a line when its citation is fixed. Adding a
 line legalises a violation and shows in review as an added line.
 
 A scan that cannot see every tracked file does not pass. A tracked file that is
-a symlink, a non-regular file, or leaves the repository is listed on stderr and
-fails the run with exit 2. A fenced block with no closing fence masks every later
-line of its file, so it is listed and fails the run with exit 1 (issue #6506).
+not a regular file, or resolves outside the repository (including a symlink that
+leaves it), is listed on stderr and fails the run with exit 2. A fenced block with
+no closing fence masks every later line of its file, so it is listed and fails the
+run with exit 1 (issue #6506).
 
 Exit codes follow ADR-035: 0 ok, 1 new or stale violation or an unterminated
 fence, 2 configuration fault or a tracked file the scan skipped, 3 git could not
