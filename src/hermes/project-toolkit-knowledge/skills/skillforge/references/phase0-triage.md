@@ -99,7 +99,7 @@ Sources scanned (`build_skill_sources()` in `discover_skills.py`):
 | `plugin-copilot` | `$COPILOT_PLUGIN_ROOT/skills/` when set |
 | `plugin-local` | The skills folder that holds SkillForge |
 | `extra-N` | Each `--extra-root PATH` (repeatable) |
-| `env-extra-N` | Each entry of `SKILLFORGE_EXTRA_ROOTS`, split on the OS path separator |
+| `env-extra-N` | Each entry of `SKILLFORGE_EXTRA_ROOTS`, separated like `PATH` (`:` on Linux and macOS, `;` on Windows) |
 
 Other installed plugins under `~/.claude/plugins/cache/` are not scanned. Pass
 each one with `--extra-root` or `SKILLFORGE_EXTRA_ROOTS`.
@@ -109,7 +109,7 @@ roots is indexed once too: the root with the lowest priority number wins (the
 table above lists roots in rank order), and the hidden copies are recorded in
 the entry's `shadowed_paths`. Within one root, `SKILL.md` beats sibling
 markdown files that share its skill name. A missing root adds a warning and the
-scan continues. A root that exists but holds no `<root>/<skill>/SKILL.md` adds a
+scan continues. A plugin or extra root that exists but holds no `<root>/<skill>/SKILL.md` adds a
 warning too; pass the directory whose subfolders hold `SKILL.md`, not a skill
 folder itself. The script exits 3 only when every source is missing and no skill is
 found. The folder that holds SkillForge is always a source, so the CLI does not

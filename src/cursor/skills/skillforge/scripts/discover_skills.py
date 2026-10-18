@@ -438,7 +438,13 @@ def parse_skill_file(path: Path, source_name: str, priority: int) -> dict | None
     domains = classify_domain(keywords, content)
 
     # Get description
-    description = frontmatter.get("description", "")
+    # YAML types a bare `description: 2024-01-01` as a date, which json.dumps
+    # cannot serialize. Coerce any non-string scalar so save_index cannot crash.
+    description = frontmatter.get("description")
+    if description is None:
+        description = ""
+    elif not isinstance(description, str):
+        description = str(description)
     if not description:
         # Try to extract from first paragraph
         lines = content.split("\n")
@@ -659,7 +665,7 @@ def main():
         metavar="PATH",
         help=(
             "Extra skills directory to scan: a directory whose subfolders hold SKILL.md. "
-            f"Repeatable. {EXTRA_ROOTS_ENV} adds more, separated by the OS path separator."
+            f"Repeatable. {EXTRA_ROOTS_ENV} adds more, separated like PATH (: on Linux and macOS, ; on Windows)."
         ),
     )
 

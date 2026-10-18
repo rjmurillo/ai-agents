@@ -43,7 +43,9 @@ def _write_skill(root: Path, name: str, filename: str = "SKILL.md") -> Path:
     folder = root / name
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / filename
-    path.write_text(f"---\nname: {name}\ndescription: Test skill {name}.\n---\n\n# {name}\n")
+    path.write_text(
+        f"---\nname: {name}\ndescription: Test skill {name}.\n---\n\n# {name}\n", encoding="utf-8"
+    )
     return path
 
 
@@ -197,7 +199,10 @@ class TestDiscoverSkills:
         root = tmp_path / "shared"
         _write_skill(root, "dup")
         alias = tmp_path / "alias"
-        alias.symlink_to(root, target_is_directory=True)
+        try:
+            alias.symlink_to(root, target_is_directory=True)
+        except OSError as exc:
+            pytest.skip(f"symlinks unavailable on this platform: {exc}")
         sources = ds.build_skill_sources(extra_roots=[root, alias], env={}, script_path=fake_script)
         result = ds.discover_skills(sources=sources)
         assert [s["name"] for s in result.data["skills"]].count("dup") == 1
@@ -258,7 +263,9 @@ class TestDiscoverSkills:
         _write_skill(first, "dup")
         other = second / "other-folder"
         other.mkdir(parents=True)
-        (other / "SKILL.md").write_text("---\nname: ' DUP '\ndescription: Same skill.\n---\n")
+        (other / "SKILL.md").write_text(
+            "---\nname: ' DUP '\ndescription: Same skill.\n---\n", encoding="utf-8"
+        )
         sources = ds.build_skill_sources(
             extra_roots=[first, second], env={}, script_path=fake_script
         )
@@ -304,7 +311,7 @@ class TestDiscoverSkills:
         extra = tmp_path / "extra"
         _write_skill(extra, "real")
         (extra / "real" / "references").mkdir()
-        (extra / "real" / "references" / "SKILL.md").write_text("# nested\n")
+        (extra / "real" / "references" / "SKILL.md").write_text("# nested\n", encoding="utf-8")
         sources = ds.build_skill_sources(extra_roots=[extra], env={}, script_path=fake_script)
         result = ds.discover_skills(sources=sources)
         assert result.data["total_count"] == 1
@@ -315,9 +322,13 @@ class TestDiscoverSkills:
         folder = root / "systematic-debugging"
         folder.mkdir(parents=True)
         real = folder / "SKILL.md"
-        real.write_text("---\ndescription: Real skill description\n---\n\n# Real\n")
-        (folder / "CREATION-LOG.md").write_text("Notes about how this was made.\n")
-        (folder / "README.md").write_text("Readme text.\n")
+        real.write_text(
+            "---\ndescription: Real skill description\n---\n\n# Real\n", encoding="utf-8"
+        )
+        (folder / "CREATION-LOG.md").write_text(
+            "Notes about how this was made.\n", encoding="utf-8"
+        )
+        (folder / "README.md").write_text("Readme text.\n", encoding="utf-8")
         source = {"name": "glob", "path": root, "pattern": "*/*.md", "priority": 1}
         result = ds.discover_skills(sources=[source])
         entries = result.data["skills"]
@@ -334,8 +345,8 @@ class TestDiscoverSkills:
         folder = root / "alpha"
         folder.mkdir(parents=True)
         real = folder / "skill.md"
-        real.write_text("---\ndescription: Lowercase real\n---\n")
-        (folder / "AAA-notes.md").write_text("Notes.\n")
+        real.write_text("---\ndescription: Lowercase real\n---\n", encoding="utf-8")
+        (folder / "AAA-notes.md").write_text("Notes.\n", encoding="utf-8")
         source = {"name": "glob", "path": root, "pattern": "*/*.md", "priority": 1}
         result = ds.discover_skills(sources=[source])
         assert [s["path"] for s in result.data["skills"]] == [str(real)]
@@ -343,7 +354,7 @@ class TestDiscoverSkills:
     def test_folder_without_skill_md_still_indexes_its_markdown(self, tmp_path: Path) -> None:
         root = tmp_path / "plugin"
         (root / "only-notes").mkdir(parents=True)
-        (root / "only-notes" / "README.md").write_text("Just a readme.\n")
+        (root / "only-notes" / "README.md").write_text("Just a readme.\n", encoding="utf-8")
         source = {"name": "glob", "path": root, "pattern": "*/*.md", "priority": 1}
         result = ds.discover_skills(sources=[source])
         assert [s["name"] for s in result.data["skills"]] == ["only-notes"]
@@ -355,9 +366,9 @@ class TestDiscoverSkills:
         root = tmp_path / "plugin"
         (root / "Dup").mkdir(parents=True)
         (root / "dup").mkdir(parents=True)
-        (root / "Dup" / "notes.md").write_text("No frontmatter.\n")
+        (root / "Dup" / "notes.md").write_text("No frontmatter.\n", encoding="utf-8")
         real = root / "dup" / "SKILL.md"
-        real.write_text("---\nname: dup\ndescription: Real\n---\n")
+        real.write_text("---\nname: dup\ndescription: Real\n---\n", encoding="utf-8")
         source = {"name": "glob", "path": root, "pattern": "*/*.md", "priority": 1}
         result = ds.discover_skills(sources=[source])
         assert [s["path"] for s in result.data["skills"]] == [str(real)]
@@ -367,7 +378,9 @@ class TestDiscoverSkills:
     ) -> None:
         solo = tmp_path / "solo-skill"
         solo.mkdir()
-        (solo / "SKILL.md").write_text("---\nname: solo\ndescription: One.\n---\n")
+        (solo / "SKILL.md").write_text(
+            "---\nname: solo\ndescription: One.\n---\n", encoding="utf-8"
+        )
         sources = ds.build_skill_sources(extra_roots=[solo], env={}, script_path=fake_script)
         result = ds.discover_skills(sources=sources)
         assert "solo" not in [s["name"] for s in result.data["skills"]]
@@ -450,7 +463,9 @@ class TestMalformedName:
     def _write_raw(root: Path, folder: str, frontmatter: str) -> Path:
         path = root / folder / "SKILL.md"
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(f"---\n{frontmatter}\ndescription: Raw {folder}.\n---\n\n# {folder}\n")
+        path.write_text(
+            f"---\n{frontmatter}\ndescription: Raw {folder}.\n---\n\n# {folder}\n", encoding="utf-8"
+        )
         return path
 
     def test_blank_and_integer_names_fall_back_to_folder_name(
@@ -503,7 +518,70 @@ class TestMalformedName:
         assert "solo" in parsed["keywords"]
 
 
+@pytest.mark.usefixtures("isolated_fixed_sources")
+class TestNonStringDescription:
+    """A bare YAML date or number in `description:` must not break save_index."""
+
+    @staticmethod
+    def _write_raw(root: Path, folder: str, description_line: str) -> Path:
+        path = root / folder / "SKILL.md"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            f"---\nname: {folder}\n{description_line}\n---\n\n# {folder}\n", encoding="utf-8"
+        )
+        return path
+
+    def test_date_description_becomes_text(self, tmp_path: Path) -> None:
+        path = self._write_raw(tmp_path, "dated", "description: 2024-01-01")
+        parsed = ds.parse_skill_file(path, "extra-1", 9)
+        assert parsed is not None
+        assert parsed["description"] == "2024-01-01"
+
+    def test_numeric_and_list_descriptions_become_text(self, tmp_path: Path) -> None:
+        number = ds.parse_skill_file(self._write_raw(tmp_path, "num", "description: 42"), "x", 9)
+        listy = ds.parse_skill_file(self._write_raw(tmp_path, "lst", "description: [a, b]"), "x", 9)
+        assert number is not None and listy is not None
+        assert number["description"] == "42"
+        assert isinstance(listy["description"], str)
+
+    def test_blank_description_still_falls_back_to_first_paragraph(self, tmp_path: Path) -> None:
+        path = self._write_raw(tmp_path, "blank", "description:")
+        parsed = ds.parse_skill_file(path, "x", 9)
+        assert parsed is not None
+        assert parsed["description"] == "name: blank"
+
+    def test_save_index_writes_index_for_date_description(
+        self, fake_script: Path, tmp_path: Path
+    ) -> None:
+        extra = tmp_path / "extra"
+        self._write_raw(extra, "dated", "description: 2024-01-01")
+        sources = ds.build_skill_sources(extra_roots=[extra], env={}, script_path=fake_script)
+        result = ds.discover_skills(sources=sources)
+        out = tmp_path / "index.json"
+        ds.save_index(result, out)
+        index = json.loads(out.read_text(encoding="utf-8"))
+        assert [s["description"] for s in index["skills"]] == ["2024-01-01"]
+
+
+@pytest.mark.usefixtures("isolated_fixed_sources")
 class TestMain:
+    @pytest.fixture(autouse=True)
+    def _hermetic_main(self, monkeypatch: pytest.MonkeyPatch, fake_script: Path) -> None:
+        """Keep main() off the real repo skills and the host plugin env.
+
+        main() builds the plugin-local root from this module's own path, which
+        is the repo's .claude/skills. Route it to the fake script folder, and
+        clear every env var that adds a root.
+        """
+        for var in (ds.EXTRA_ROOTS_ENV, "CLAUDE_PLUGIN_ROOT", "COPILOT_PLUGIN_ROOT"):
+            monkeypatch.delenv(var, raising=False)
+        real = ds.build_skill_sources
+        monkeypatch.setattr(
+            ds,
+            "build_skill_sources",
+            lambda extra_roots=None: real(extra_roots=extra_roots, env={}, script_path=fake_script),
+        )
+
     def _run(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, *argv: str) -> tuple[int, Path]:
         out = tmp_path / "index.json"
         monkeypatch.setattr(sys, "argv", ["discover_skills.py", "-o", str(out), *argv])
@@ -519,8 +597,9 @@ class TestMain:
         monkeypatch.delenv(ds.EXTRA_ROOTS_ENV, raising=False)
         code, out = self._run(monkeypatch, tmp_path, "--extra-root", str(extra))
         assert code == 0
-        index = json.loads(out.read_text())
-        assert "flagged" in [s["name"] for s in index["skills"]]
+        index = json.loads(out.read_text(encoding="utf-8"))
+        entries = {s["name"]: s for s in index["skills"]}
+        assert entries["flagged"]["source"] == "extra-1"
 
     def test_extra_root_flag_is_repeatable(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
@@ -530,9 +609,10 @@ class TestMain:
         _write_skill(b, "beta")
         monkeypatch.delenv(ds.EXTRA_ROOTS_ENV, raising=False)
         code, out = self._run(monkeypatch, tmp_path, "--extra-root", str(a), "--extra-root", str(b))
-        names = [s["name"] for s in json.loads(out.read_text())["skills"]]
+        entries = {s["name"]: s for s in json.loads(out.read_text(encoding="utf-8"))["skills"]}
         assert code == 0
-        assert {"alpha", "beta"} <= set(names)
+        assert entries["alpha"]["source"] == "extra-1"
+        assert entries["beta"]["source"] == "extra-2"
 
     def test_exit_3_when_every_source_missing(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
@@ -607,7 +687,9 @@ class TestMainEmptyRoot:
     ) -> None:
         solo = tmp_path / "solo"
         solo.mkdir()
-        (solo / "SKILL.md").write_text("---\nname: solo\ndescription: One.\n---\n")
+        (solo / "SKILL.md").write_text(
+            "---\nname: solo\ndescription: One.\n---\n", encoding="utf-8"
+        )
         home_skills = tmp_path / "home" / ".claude" / "skills"
         _write_skill(home_skills, "present")
         monkeypatch.delenv(ds.EXTRA_ROOTS_ENV, raising=False)
