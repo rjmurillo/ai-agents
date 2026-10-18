@@ -1519,3 +1519,166 @@ def test_disk_status_refuses_a_symlink_that_leaves_the_repo(crepo, tmp_path):
 
     assert view.disk_status("scripts/escape.txt", None) == "missing"
     assert view.disk_status("scripts/inside.txt", None) == "ok"
+
+
+# ---------------------------------------------- _resolve fallback (issue #6666)
+
+
+def skill_with_shadow(crepo: Path) -> Path:
+    """Commit a skill whose scripts/tool.py has 40 lines; the root scripts/tool.py has 3."""
+    commit(
+        crepo,
+        "add skill",
+        {
+            ".claude/skills/shadow/SKILL.md": "---\nname: shadow\n---\n",
+            ".claude/skills/shadow/scripts/tool.py": "x\n" * 40,
+        },
+    )
+    return crepo / ".claude" / "skills" / "shadow" / "SKILL.md"
+
+
+def test_root_line_out_of_range_is_not_rescued_by_a_same_named_skill_file(capsys, crepo):
+    target = skill_with_shadow(crepo)
+    target.write_text("Stale `scripts/tool.py:20` here.\n", encoding="utf-8")
+
+    code, payload = claims(capsys, crepo, target)
+
+    assert code == 1
+    assert statuses(payload) == {"scripts/tool.py:20": "line-out-of-range"}
+
+
+def test_root_file_in_range_is_ok_even_when_a_skill_file_shadows_it(capsys, crepo):
+    target = skill_with_shadow(crepo)
+    target.write_text("Fine `scripts/tool.py:2`.\n", encoding="utf-8")
+
+    code, payload = claims(capsys, crepo, target)
+
+    assert code == 0
+    assert payload["findings"] == []
+
+
+def test_path_missing_at_the_root_still_resolves_against_the_skill(capsys, crepo):
+    commit(
+        crepo,
+        "skill only",
+        {
+            ".claude/skills/solo/SKILL.md": "---\nname: solo\n---\n",
+            ".claude/skills/solo/scripts/only_here.py": "x\n" * 40,
+        },
+    )
+    target = crepo / ".claude" / "skills" / "solo" / "SKILL.md"
+    target.write_text("See `scripts/only_here.py:30`.\n", encoding="utf-8")
+
+    code, payload = claims(capsys, crepo, target)
+
+    assert code == 0
+    assert payload["findings"] == []
+
+
+def test_path_missing_at_the_root_and_short_in_the_skill_is_out_of_range(capsys, crepo):
+    commit(
+        crepo,
+        "skill only",
+        {
+            ".claude/skills/solo/SKILL.md": "---\nname: solo\n---\n",
+            ".claude/skills/solo/scripts/short.py": "x\n",
+        },
+    )
+    target = crepo / ".claude" / "skills" / "solo" / "SKILL.md"
+    target.write_text("See `scripts/short.py:30`.\n", encoding="utf-8")
+
+    _, payload = claims(capsys, crepo, target)
+
+    assert statuses(payload) == {"scripts/short.py:30": "line-out-of-range"}
+
+
+def test_untracked_root_file_is_not_rescued_by_a_tracked_skill_file(capsys, crepo):
+    target = skill_with_shadow(crepo)
+    commit(crepo, "skill copy", {".claude/skills/shadow/scripts/loose.py": "x\n"})
+    write(crepo, "scripts/loose.py", "x\n")
+    target.write_text("Run `scripts/loose.py`.\n", encoding="utf-8")
+
+    _, payload = claims(capsys, crepo, target)
+
+    assert statuses(payload) == {"scripts/loose.py": "untracked"}
+
+
+# ------------------------------------------------- Outcome, not a side channel
+
+
+def test_handlers_return_the_out_path_and_root_without_touching_the_namespace(crepo, tmp_path):
+    out = tmp_path / "res" / "c.json"
+    args = mine.build_parser().parse_args(["candidates", "--repo", str(crepo), "--out", str(out)])
+    before = dict(vars(args))
+
+    outcome = mine.candidates(args)
+
+    assert outcome.code == 0
+    assert outcome.out == out.resolve()
+    assert outcome.root == crepo
+    assert vars(args) == before
+    assert not hasattr(args, "out_path")
+
+
+def test_claims_handler_returns_none_out_when_the_flag_is_absent(crepo, tmp_path):
+    target = md(tmp_path, "See scripts/tool.py\n")
+    args = mine.build_parser().parse_args(["claims", "--repo", str(crepo), str(target)])
+
+    outcome = mine.claims(args)
+
+    assert outcome.out is None
+    assert outcome.root == crepo
+    assert outcome.payload["findings"] == []
+    assert not hasattr(args, "root")
+
+
+def test_out_file_is_still_written_through_main(capsys, crepo, tmp_path):
+    out = tmp_path / "res" / "c.json"
+
+    code, payload = cand(capsys, crepo, "--out", str(out))
+
+    assert code == 0
+    assert json.loads(out.read_text(encoding="utf-8")) == payload
+
+
+# ---------------------------------------------------- disk_status size cap
+
+
+def test_disk_status_refuses_to_count_lines_of_an_oversized_file(crepo, monkeypatch):
+    (crepo / "big.txt").write_text("a\n" * 10, encoding="utf-8")
+    monkeypatch.setattr(mine, "MAX_READ_BYTES", 8)
+    view = mine.RepoView(crepo, mine.resolve_rev(crepo, "HEAD"))
+
+    with pytest.raises(mine.ConfigError, match="over the 8 byte read cap"):
+        view.disk_status("big.txt", 3)
+
+
+def test_disk_status_without_a_line_reads_nothing_so_the_cap_does_not_apply(crepo, monkeypatch):
+    (crepo / "big.txt").write_text("a\n" * 10, encoding="utf-8")
+    monkeypatch.setattr(mine, "MAX_READ_BYTES", 8)
+    view = mine.RepoView(crepo, mine.resolve_rev(crepo, "HEAD"))
+
+    assert view.disk_status("big.txt", None) == "ok"
+
+
+def test_disk_status_reads_a_file_exactly_at_the_cap(crepo, monkeypatch):
+    (crepo / "edge.txt").write_text("a\nb\n", encoding="utf-8")
+    monkeypatch.setattr(mine, "MAX_READ_BYTES", 4)
+    view = mine.RepoView(crepo, mine.resolve_rev(crepo, "HEAD"))
+
+    assert view.disk_status("edge.txt", 2) == "ok"
+    assert view.disk_status("edge.txt", 3) == "line-out-of-range"
+
+
+def test_oversized_authored_file_is_a_config_error_through_main(capsys, crepo, monkeypatch):
+    write(crepo, ".claude/skills/fresh/scripts/run.py", "a\n" * 10)
+    target = crepo / ".claude" / "skills" / "fresh" / "SKILL.md"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("See `scripts/run.py:3`.\n", encoding="utf-8")
+    monkeypatch.setattr(mine, "MAX_READ_BYTES", 8)
+
+    code, payload = claims(capsys, crepo, target)
+
+    assert code == 2
+    assert payload["error"] == "config"
+    assert "read cap" in payload["message"]

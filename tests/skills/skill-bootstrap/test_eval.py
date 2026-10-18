@@ -466,7 +466,7 @@ def test_freeze_fails_closed_when_git_is_missing(
     code, payload = run(capsys, "freeze", "--cases", str(cases_file), "--out", str(out))
 
     assert code == 3
-    assert payload["error"] == "external"
+    assert payload["error"] == "git"
     assert "git" in payload["message"]
     assert not out.exists()
 
@@ -482,12 +482,14 @@ def test_freeze_fails_closed_when_git_fails_for_another_reason(
     code, payload = run(capsys, "freeze", "--cases", str(cases_file), "--out", str(out))
 
     assert code == 3
-    assert payload["error"] == "external"
+    assert payload["error"] == "git"
     assert "unsafe repository" in payload["message"]
     assert not out.exists()
 
 
-def test_freeze_reports_write_failure_as_exit_three(capsys: Capsys, tmp_path: Path) -> None:
+def test_freeze_refuses_a_parent_that_is_a_file_as_a_config_error(
+    capsys: Capsys, tmp_path: Path
+) -> None:
     blocker = tmp_path / "blocker"
     blocker.write_text("a file, not a directory", encoding="utf-8")
     cases_file = write_json(tmp_path / "in.json", {"cases": [make_case()]})
@@ -502,8 +504,26 @@ def test_freeze_reports_write_failure_as_exit_three(capsys: Capsys, tmp_path: Pa
         "--allow-in-repo",
     )
 
-    assert code == 3
-    assert payload["error"] == "external"
+    assert code == 2
+    assert payload["error"] == "config"
+    assert "is a file, not a directory" in payload["message"]
+    assert blocker.read_text(encoding="utf-8") == "a file, not a directory"
+
+
+def test_freeze_refuses_a_deeper_path_under_a_file_as_a_config_error(
+    capsys: Capsys, tmp_path: Path
+) -> None:
+    blocker = tmp_path / "blocker"
+    blocker.write_text("x", encoding="utf-8")
+    cases_file = write_json(tmp_path / "in.json", {"cases": [make_case()]})
+
+    code, payload = run(
+        capsys, "freeze", "--cases", str(cases_file), "--allow-in-repo",
+        "--out", str(blocker / "a" / "b" / "f.json"),
+    )  # fmt: skip
+
+    assert code == 2
+    assert payload["error"] == "config"
 
 
 def test_freeze_reports_a_denied_write_as_exit_three(
@@ -521,7 +541,7 @@ def test_freeze_reports_a_denied_write_as_exit_three(
     )  # fmt: skip
 
     assert code == 3
-    assert payload["error"] == "external"
+    assert payload["error"] == "io"
     assert "denied" in payload["message"]
 
 
@@ -545,9 +565,12 @@ def test_freeze_refuses_a_dangling_symlink_that_appears_after_the_check(
 ) -> None:
     cases_file = write_json(tmp_path / "in.json", {"cases": [make_case()]})
     out = tmp_path / "f.json"
-    monkeypatch.setattr(
-        bootstrap_eval, "_check_out_path", lambda *_: symlink_or_skip(out, tmp_path / "gone")
-    )
+
+    def plant(requested: Path, _allow: bool) -> Path:
+        symlink_or_skip(out, tmp_path / "gone")
+        return requested
+
+    monkeypatch.setattr(bootstrap_eval, "_check_out_path", plant)
 
     code, payload = run(
         capsys, "freeze", "--cases", str(cases_file), "--out", str(out), "--allow-in-repo"
@@ -569,10 +592,10 @@ def test_freeze_reports_git_that_cannot_start_as_exit_three(
     code, payload = run(capsys, "freeze", "--cases", str(cases_file), "--out", str(tmp_path / "f"))
 
     assert code == 3
-    assert payload["error"] == "external"
+    assert payload["error"] == "git"
 
 
-def test_unexpected_os_error_is_exit_two(capsys: Capsys, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_unexpected_os_error_is_exit_three(capsys: Capsys, monkeypatch: pytest.MonkeyPatch) -> None:
     def broken(_args: Any) -> None:
         raise OSError("disk gone")
 
@@ -580,7 +603,7 @@ def test_unexpected_os_error_is_exit_two(capsys: Capsys, monkeypatch: pytest.Mon
 
     code, payload = run(capsys, "freeze", "--cases", "c", "--out", "o")
 
-    assert code == 2
+    assert code == 3
     assert payload["error"] == "io"
 
 
@@ -589,9 +612,12 @@ def test_freeze_refuses_an_out_that_appears_after_the_check(
 ) -> None:
     cases_file = write_json(tmp_path / "in.json", {"cases": [make_case()]})
     out = tmp_path / "f.json"
-    monkeypatch.setattr(
-        bootstrap_eval, "_check_out_path", lambda *_: out.write_text("x", encoding="utf-8")
-    )
+
+    def appear(requested: Path, _allow: bool) -> Path:
+        out.write_text("x", encoding="utf-8")
+        return requested
+
+    monkeypatch.setattr(bootstrap_eval, "_check_out_path", appear)
 
     code, payload = run(
         capsys, "freeze", "--cases", str(cases_file), "--out", str(out), "--allow-in-repo"
