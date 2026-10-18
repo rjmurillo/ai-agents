@@ -38,6 +38,11 @@ The legacy exit-100 sentinel from Skill-PR-Review-007 remains available via
 review" convention. The opposite-named flag ``--exit-zero-on-merged`` from
 issue #2277 still parses (as a no-op) for backward compatibility.
 
+The JSON also carries ``head_ref``, ``head_sha``, and ``merge_commit_sha``.
+Post-merge cleanup reads them to find the PR's worktree, confirm its head is
+the merged one, and check the merge commit is on the base branch. GitHub
+leaves ``merge_commit_sha`` null until the PR merges.
+
 ``--output-format`` is the shared ADR-056 flag every sibling ``pr/`` script
 accepts. ``json`` (and ``auto`` when stdout is not a terminal) prints the flat
 JSON object callers read as ``.merged``. ``human`` prints one summary line. The
@@ -147,6 +152,9 @@ def main(argv: list[str] | None = None) -> int:
         "merged": state.is_merged,
         "merged_at": state.merged_at,
         "merged_by": state.merged_by,
+        "head_ref": state.head_ref,
+        "head_sha": state.head_sha,
+        "merge_commit_sha": state.merge_commit_sha,
     }
 
     if get_output_format(args.output_format) == "json":
