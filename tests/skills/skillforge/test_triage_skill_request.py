@@ -76,7 +76,7 @@ def test_bare_noun_phrase_has_no_match_at_or_above_the_improve_boundary() -> Non
     data = run_triage(BARE_QUERY)
 
     assert data["details"]["top_score"] < 50
-    assert data["action"] not in {triage.Action.USE_EXISTING, triage.Action.IMPROVE_EXISTING}
+    assert data["action"] == triage.Action.CREATE_NEW
 
 
 def test_scaffolding_words_are_not_reported_as_match_reasons() -> None:

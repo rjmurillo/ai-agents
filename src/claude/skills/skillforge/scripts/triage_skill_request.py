@@ -505,6 +505,12 @@ def tokenize_for_scoring(query: str) -> list[str]:
     return tokens
 
 
+def is_scaffolding_phrase(phrase: str) -> bool:
+    """True when every word of the phrase is request scaffolding ("build", "make a")."""
+    words = _TOKEN_PATTERN.findall(phrase.lower())
+    return bool(words) and all(word in SCAFFOLDING_WORDS for word in words)
+
+
 def contains_term(text: str, term: str) -> bool:
     """True when term appears in text as a whole word or phrase, allowing inflection."""
     pattern = r"(?<![a-z0-9])" + re.escape(term.lower()) + _INFLECTION + r"(?![a-z0-9])"
@@ -701,11 +707,17 @@ def score_skill(query: str, skill: dict[str, Any]) -> tuple[float, list[str], in
             break
 
     # Step 4: Direct skill name match (works for any skill name). Whole words
-    # only, hyphens read as spaces, so "test" never matches inside "attest".
+    # only, hyphens read as spaces, so "test" never matches inside "attest". A
+    # name made only of scaffolding words ("build", "make") is skipped: "build a
+    # skill for X" frames the request, it does not ask for the skill named build.
     spaced_name = re.sub(r"[-_\s]+", " ", skill_name).strip()
     spaced_query = re.sub(r"[-_\s]+", " ", query_lower)
     names_skill = False
-    if spaced_name and contains_term(spaced_query, spaced_name):
+    if (
+        spaced_name
+        and not is_scaffolding_phrase(spaced_name)
+        and contains_term(spaced_query, spaced_name)
+    ):
         score += 35
         reasons.append(f"name match: {skill_name}")
         # Inflection ("testing" for skill "test") is a weaker claim than the exact name.
@@ -722,10 +734,15 @@ def score_skill(query: str, skill: dict[str, Any]) -> tuple[float, list[str], in
             reasons.append(f"partial name: {', '.join(name_overlap)}")
 
     # Step 5: Trigger match (works for any skill's triggers), whole words only,
-    # hyphens read as spaces on both sides like the name match in step 4
+    # hyphens read as spaces on both sides like the name match in step 4. A
+    # trigger made only of scaffolding words is skipped for the same reason.
     for trigger in skill_triggers:
         spaced_trigger = re.sub(r"[-_\s]+", " ", trigger).strip()
-        if spaced_trigger and contains_term(spaced_query, spaced_trigger):
+        if (
+            spaced_trigger
+            and not is_scaffolding_phrase(spaced_trigger)
+            and contains_term(spaced_query, spaced_trigger)
+        ):
             score += 25
             reasons.append(f"trigger: {trigger}")
             break
@@ -997,6 +1014,12 @@ def make_triage_decision(
             **details,
             "reason": f"Best match: {top_match['name']} ({top_score}%)",
             "recommended_skills": [m["name"] for m in matches[:3]],
+        }
+    elif len(tokenize_for_scoring(query)) >= SINGLE_TERM_MIN_QUERY_TERMS and top_score < 50:
+        # A described topic with no strong match is a topic no skill covers.
+        return Action.CREATE_NEW, {
+            **details,
+            "reason": "No good existing skill handles this topic. Consider creating one.",
         }
     elif top_score >= 40:
         return Action.CLARIFY, {

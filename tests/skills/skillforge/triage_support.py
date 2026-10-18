@@ -11,6 +11,7 @@ SCRIPTS_DIR = Path(__file__).resolve().parents[3] / ".claude" / "skills" / "skil
 # restore sys.path once the import is done.
 _SAVED_SYS_PATH = list(sys.path)
 sys.path.insert(0, str(SCRIPTS_DIR))
+import discover_skills  # noqa: F401  (re-exported for the tests)
 import triage_skill_request as triage
 
 sys.path[:] = _SAVED_SYS_PATH
@@ -20,6 +21,8 @@ CREATE_QUERY = (
     "with time-slot rotation and click-through scoring"
 )
 BARE_QUERY = "social media hook testing loop"
+BUILD_QUERY = CREATE_QUERY.replace("create a skill", "build a skill", 1)
+REPO_SKILLS_DIR = Path(__file__).resolve().parents[3] / ".claude" / "skills"
 
 
 def make_skill(

@@ -60,8 +60,9 @@ Before creating anything, SkillForge intelligently analyzes your input to determ
 ### How Matches Are Scored
 
 - Request scaffolding words ("create", "skill", "with", "for", and similar) are dropped before scoring. They describe the request, not its subject.
-- Domain terms match on whole words. "test" matches "testing" and "tests", never "attest". "ci" never matches inside "social". Skill names and triggers follow the same rule, with hyphens read as spaces in both the skill text and the query, so the trigger `code-review` matches "do a code review".
+- Domain terms match on whole words. "test" matches "testing" and "tests", never "attest". "ci" never matches inside "social". Skill names and triggers follow the same rule, with hyphens read as spaces in both the skill text and the query, so the trigger `code-review` matches "do a code review". A skill name or trigger made only of scaffolding words (a skill named `build` or `make`) never matches: "build a skill for X" frames the request.
 - A skill's score is discounted by coverage, the fraction of the remaining query terms that the skill name, keywords, triggers, description, or declared domain synonyms explain. The discount is half strength: a skill that explains none of the terms keeps half its score. A request of three or more terms that rests on one explained term is capped at 49, so one shared word cannot reach the 50% boundary. A query that names the skill exactly is exempt.
+- Input that fits no other category and still carries three or more content terms routes to CREATE_NEW when no skill scores 50 or higher. Shorter unclear input, or a 50-69 match, routes to CLARIFY.
 - `discover_skills.py` assigns domains from the skill name, description, and extracted keywords. It does not scan the SKILL.md body. Rebuild the index after upgrading so older domain assignments are replaced.
 
 ### Triage Script
