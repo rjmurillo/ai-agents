@@ -143,9 +143,16 @@ def find_repo_root(path: Path) -> Path | None:
     The walk from ``path`` reads unresolved components, and a symlinked
     ancestor is never a root. ``Path.cwd()`` is already resolved, so a
     relative or resolved path inside a checkout whose root directory is
-    reached through a symlink still gets the real root. Only an absolute
-    path spelled through that link has no root and is not confined; that is
-    an accepted limit.
+    reached through a symlink still gets the real root.
+
+    An absolute path spelled through such a link is handled by what sits
+    above the link. With no ``.git`` ancestor above it, the path has no root
+    and is not confined. With an unrelated outer ``.git`` above it (a dotfiles
+    repository at ``~`` with ``~/src`` linked to ``/data/src``), the outer
+    directory is the root and the write is refused as a symlinked ancestor.
+    That layout is indistinguishable from a planted link to a nested
+    checkout, so the walk fails closed; callers pass resolved paths to avoid
+    it. Both outcomes are accepted limits.
     """
     absolute = path.absolute()
     anchor = _nearest_git_root(Path.cwd())
