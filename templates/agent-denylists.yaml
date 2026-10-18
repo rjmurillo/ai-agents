@@ -21,8 +21,11 @@
 # The connector segment keeps the connector's display name with spaces replaced
 # by underscores (observed in a live session: mcp__claude_ai_Slack__,
 # mcp__claude_ai_Context7__, mcp__claude_ai_Claude_Docs__). Its capitalization is
-# the connector's, not ours, so each server lists every spelling we can justify.
-# Denying a spelling that does not exist is harmless.
+# the connector's, not ours, and one observed connector is lowercase
+# (mcp__claude_ai_hindsight__). Each server lists the display-name spelling only.
+# Every extra spelling adds one line per tool to each of four agent files, and the
+# per-fixture instruction-byte and file-size ceilings cap that growth, so a guessed
+# alternate spelling is not listed. Add one here when a real connector shows it.
 
 # Placeholders: {server} is the key under `servers`; {claude_ai} expands once per
 # name in that server's `claude_ai` list. The trailing `__<tool>` is appended.
@@ -33,17 +36,16 @@ prefix_variants:
 
 servers:
   # Serena is configured as `serena` in .mcp.json. It ships no claude.ai
-  # connector that we know of; the capitalized spelling is a guess kept because
-  # a wrong deny entry costs nothing.
+  # connector that we know of; the capitalized spelling is a guess.
   serena:
-    claude_ai: [Serena, serena]
+    claude_ai: [Serena]
   # The GitHub connector name is not confirmed. GitHub is the display name the
-  # other connectors follow; lowercase mirrors the .mcp.json key.
+  # other connectors follow.
   github:
-    claude_ai: [GitHub, github]
+    claude_ai: [GitHub]
   # Configured in .mcp.json. The claude.ai connector spelling is a guess.
   deepwiki:
-    claude_ai: [DeepWiki, Deepwiki, deepwiki]
+    claude_ai: [DeepWiki]
 
 denylists:
   # Built-in shell and file mutators. Keeping Bash out preserves the #5356

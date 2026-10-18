@@ -372,7 +372,6 @@ GITHUB_PREFIX_VARIANTS = (
     "mcp__github",
     "mcp__plugin_github_github",
     "mcp__claude_ai_GitHub",
-    "mcp__claude_ai_github",
 )
 
 # Deny entries: a bare tool name or an MCP name with any-case connector segment.

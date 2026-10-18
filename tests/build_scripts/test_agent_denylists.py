@@ -163,7 +163,6 @@ class TestLiveTable:
             "mcp__serena",
             "mcp__plugin_serena_serena",
             "mcp__claude_ai_Serena",
-            "mcp__claude_ai_serena",
         ):
             assert f"{prefix}__execute_shell_command" in got
 
@@ -342,8 +341,10 @@ class TestCompile:
     def test_validate_mode_reports_stale_expansion(self, tmp_path: Path) -> None:
         _write_pair(tmp_path, self.CLAUDE)
         agent_templates.compile_all(tmp_path, validate=False)
-        config = {**CONFIG, "denylists": {**CONFIG["denylists"]}}
-        config["denylists"]["demo-write"] = {"server": "demo", "tools": ["put_thing"]}
+        config = {
+            **CONFIG,
+            "denylists": {"demo-write": {"server": "demo", "tools": ["put_thing"]}},
+        }
         (tmp_path / "templates" / "agent-denylists.yaml").write_text(
             yaml.safe_dump(config), encoding="utf-8"
         )
