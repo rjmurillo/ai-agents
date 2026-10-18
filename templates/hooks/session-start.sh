@@ -22,15 +22,15 @@ fi
 # reclamation bound reads AI_AGENTS_REMOTE_CONTAINER through
 # _is_remote_container() in scripts/validation/run_workflow_local_test.py, and
 # the filesystem probe there finds nothing on a runtime that writes no marker
-# file. This gate is true only in the Claude Code web container, the environment
-# rule 8 was measured against, so the export cannot mark a laptop as a container.
+# file. Claude Code sets this gate in its web container, the environment rule 8
+# was measured against. Anyone who exports it locally gets the marker too.
 #
 # This runs before the bootstrap check so a missing bootstrap-vm.sh cannot skip
 # it, and the write is non-fatal so an unwritable $CLAUDE_ENV_FILE cannot stop
-# the bootstrap below. The guard reads the LAST statement touching the variable:
-# when it is not the exact export line (absent, a later `=0`, or a later
-# `unset`), a new line is appended, because the last statement is the one
-# sourcing leaves in effect.
+# the bootstrap below. The guard reads the LAST line touching the variable:
+# when it is not the exact export line (absent, a later `=0`, a later `unset`,
+# or a multi-name statement), a new line is appended, because the last
+# statement is the one sourcing leaves in effect.
 if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
   # End the file's last line first. Another SessionStart hook can leave it
   # without a trailing LF, and an append would then fuse onto that line:
@@ -40,10 +40,14 @@ if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
   if [ -s "$CLAUDE_ENV_FILE" ] && [ -n "$(tail -c1 "$CLAUDE_ENV_FILE" 2>/dev/null)" ]; then
     { echo >> "$CLAUDE_ENV_FILE"; } 2>/dev/null || true
   fi
-  # Match every statement that can change the variable: an assignment, or an
-  # `unset`, `export -n`, `declare`, `typeset`, or `readonly` line. A later
-  # `unset` leaves the marker empty after sourcing, so it must trigger the append.
-  last_marker="$(grep -E '^[[:space:]]*((export|unset|declare|typeset|readonly)([[:space:]]+-[^[:space:]]*)*[[:space:]]+)?AI_AGENTS_REMOTE_CONTAINER([=[:space:]]|$)' "$CLAUDE_ENV_FILE" 2>/dev/null | tail -n 1 || true)"
+  # Match every non-comment line that names the variable as a whole word: an
+  # assignment (`=`, `+=`, or one operand of a multi-name `export FOO=1 NAME=0`),
+  # or an `unset`, `export -n`, `declare`, `typeset`, or `readonly` line, even
+  # when other names share the statement. Any such line can change the value
+  # sourcing leaves in effect, so only the exact export line as the LAST match
+  # skips the append. A name that merely shares the prefix is not a match.
+  last_marker="$(grep -v '^[[:space:]]*#' "$CLAUDE_ENV_FILE" 2>/dev/null |
+    grep -E '(^|[^[:alnum:]_])AI_AGENTS_REMOTE_CONTAINER([^[:alnum:]_]|$)' | tail -n 1 || true)"
   if [ "$last_marker" != 'export AI_AGENTS_REMOTE_CONTAINER=1' ]; then
     echo 'export AI_AGENTS_REMOTE_CONTAINER=1' >> "$CLAUDE_ENV_FILE" ||
       echo "[session-start] could not write AI_AGENTS_REMOTE_CONTAINER to CLAUDE_ENV_FILE" >&2
