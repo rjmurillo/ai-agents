@@ -554,6 +554,24 @@ Respond in JSON only, no other text:
 FORBIDDEN_CLAIM_SCORE_CAP = 2
 
 
+# A clause that hedges ("cannot say", "whether", "if") reports the absence of
+# evidence, not a claim. A forbidden pattern that matches after a hedge in the
+# same clause is a correct answer, so it is not a hit.
+_CLAUSE_BREAK = re.compile(r"[.;!?\n]")
+_CLAIM_HEDGE = re.compile(
+    r"\b(?:cannot|can't|can\s+not|unable\s+to|do(?:es)?\s+not\s+know|don't\s+know"
+    r"|whether|if|unless)\b",
+    re.IGNORECASE,
+)
+
+
+def _is_hedged(response: str, match_start: int) -> bool:
+    """True when a hedge precedes `match_start` inside the same clause."""
+    breaks = [m.end() for m in _CLAUSE_BREAK.finditer(response, 0, match_start)]
+    clause_start = breaks[-1] if breaks else 0
+    return _CLAIM_HEDGE.search(response, clause_start, match_start) is not None
+
+
 def _forbidden_claim_hits(scenario: dict[str, Any], response: str) -> list[str]:
     """Return the scenario's `forbidden_response_patterns` that match `response`.
 
@@ -561,9 +579,11 @@ def _forbidden_claim_hits(scenario: dict[str, Any], response: str) -> list[str]:
     names the wrong state: V9 ran the command, so "NOT RUN" misreports it, and
     V12 never read threads 4 and 5 back, so "still open" asserts a state no
     evidence supports (#5405). A regex over the response catches that without
-    a second model call. Patterns match case-insensitively. A pattern that
-    does not compile is a scenario bug and raises, so the run stops instead of
-    silently grading with no check.
+    a second model call. Patterns match case-insensitively; a pattern can opt
+    out with an inline `(?-i:...)` group. A match that follows a hedge in its
+    own clause (`_CLAIM_HEDGE`) is a correct "I cannot say" answer and is not
+    a hit. A pattern that does not compile is a scenario bug and raises, so
+    the run stops instead of silently grading with no check.
     """
     patterns = scenario.get("forbidden_response_patterns", [])
     if not isinstance(patterns, list):
@@ -574,7 +594,8 @@ def _forbidden_claim_hits(scenario: dict[str, Any], response: str) -> list[str]:
             raise ValueError(
                 f"{scenario.get('id', '?')}: forbidden_response_patterns holds a non-string"
             )
-        if re.search(pattern, response, re.IGNORECASE):
+        compiled = re.compile(pattern, re.IGNORECASE | re.MULTILINE)
+        if any(not _is_hedged(response, m.start()) for m in compiled.finditer(response)):
             hits.append(pattern)
     return hits
 

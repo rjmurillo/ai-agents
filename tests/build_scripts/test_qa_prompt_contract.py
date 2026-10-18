@@ -168,14 +168,14 @@ def _complete_lines(surface: Path) -> list[str]:
 
 @pytest.mark.parametrize("surface", [*QA_SURFACES, QA_DEGRADED_PARTIAL])
 def test_qa_ready_claim_requires_no_unrun_suite(surface: Path) -> None:
-    """Issue #5405: a suite that is NOT RUN or UNAVAILABLE blocks the readiness claim."""
+    """Issue #5405: a NOT RUN, UNAVAILABLE, or all-skipped suite blocks the ready claim."""
     complete = _complete_lines(surface)
 
     assert len(complete) == 1
     line = complete[0]
     assert READY_PHRASE in line
     assert "Only if [passed] equals [total]" in line
-    assert "and no suite is `NOT RUN`/`UNAVAILABLE`" in line
+    assert "(skips not counted), [total] > 0, and no suite is `NOT RUN`/`UNAVAILABLE`" in line
     # A green run with skips is neither QA FAILED nor an unrun suite, so the
     # line has to count the skips out of [total] and report them.
     assert "[skipped] skipped" in line

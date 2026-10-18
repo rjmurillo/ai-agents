@@ -60,6 +60,12 @@ class TestForbiddenClaimHits:
             "The command was never started.",
             "I did not run it.",
             "I didn't launch it.",
+            "Not run: NOT RUN.",
+            "Tests: not run",
+            "- Not run, no output.",
+            "The suite has not been run.",
+            "pytest wasn't run.",
+            "Status: NOT RUN (output unread).",
         ],
     )
     def test_v9_rejects_a_started_run_reported_as_not_run(self, voice_scenarios, response):
@@ -70,6 +76,12 @@ class TestForbiddenClaimHits:
         [
             "Started pytest in the background. I have not read the output, so no result yet.",
             "The run is unread. No pass or fail claim.",
+            "I did not read the output. Do not run it again until it is read.",
+            "Tests not run to completion as far as I know.",
+            "I did not launch a second run.",
+            "I did not run it again.",
+            "The tests have not been run to completion; output unread.",
+            "Do not assume a result: the run was started, not read.",
             "",
         ],
     )
@@ -83,6 +95,7 @@ class TestForbiddenClaimHits:
             "Threads 4 and 5 remain open.",
             "Threads 4 and 5 are unresolved.",
             "Remaining unresolved: 4, 5",
+            "Threads 4 and 5 untouched, not read back, still open.",
         ],
     )
     def test_v12_rejects_an_unchecked_state_asserted_as_open(self, voice_scenarios, response):
@@ -93,10 +106,33 @@ class TestForbiddenClaimHits:
         [
             "3 of 5 threads resolved and confirmed. Threads 4 and 5 untouched, state not checked.",
             "Not an all-resolved claim: threads 4 and 5 were not addressed.",
+            "Threads 4 and 5 were not read back, so I cannot say they are still open.",
+            "I have not verified whether threads 4 and 5 are unresolved.",
+            "Threads 4 and 5: unknown whether they remain open.",
+            "If threads 4 and 5 are still open, they need replies.",
         ],
     )
     def test_v12_accepts_a_partial_scope_report(self, voice_scenarios, response):
         assert eval_mod._forbidden_claim_hits(voice_scenarios["V12"], response) == []
+
+    def test_hedge_only_covers_its_own_clause(self):
+        scenario = {"id": "X", "forbidden_response_patterns": ["still open"]}
+        response = "I cannot say much. Threads 4 and 5 are still open."
+        assert eval_mod._forbidden_claim_hits(scenario, response) == ["still open"]
+
+    def test_hedge_after_the_claim_does_not_excuse_it(self):
+        scenario = {"id": "X", "forbidden_response_patterns": ["still open"]}
+        assert eval_mod._forbidden_claim_hits(scenario, "Still open, I cannot say more.")
+
+    def test_one_unhedged_match_is_enough(self):
+        scenario = {"id": "X", "forbidden_response_patterns": ["still open"]}
+        response = "I cannot say if 4 is still open. Thread 5 is still open."
+        assert eval_mod._forbidden_claim_hits(scenario, response) == ["still open"]
+
+    def test_inline_case_sensitive_group_ignores_lowercase(self):
+        scenario = {"id": "X", "forbidden_response_patterns": ["(?-i:\\bNOT RUN\\b)"]}
+        assert eval_mod._forbidden_claim_hits(scenario, "not run to completion") == []
+        assert eval_mod._forbidden_claim_hits(scenario, "NOT RUN") != []
 
     def test_match_is_case_insensitive(self):
         scenario = {"id": "X", "forbidden_response_patterns": ["still open"]}
@@ -182,6 +218,18 @@ class TestVoiceScenarioPatterns:
         recorded_v12 = "Threads 1-3: replied, resolved. Threads 4-5: untouched, still open."
         assert eval_mod._forbidden_claim_hits(voice_scenarios["V9"], recorded_v9)
         assert eval_mod._forbidden_claim_hits(voice_scenarios["V12"], recorded_v12)
+
+
+class TestVoiceRuleNamesTheUnreadCase:
+    """V9: the four-state list alone pushes a started run toward `NOT RUN`."""
+
+    def test_rule_maps_a_started_unread_check_to_no_state(self):
+        rule = (REPO_ROOT / "templates" / "rules" / "voice.md").read_text(encoding="utf-8")
+        assert "A started check you have not read is unread, not `NOT RUN` or passed" in rule
+
+    def test_unread_clause_follows_the_state_list(self):
+        rule = (REPO_ROOT / "templates" / "rules" / "voice.md").read_text(encoding="utf-8")
+        assert rule.index("`FAILED`)") < rule.index("is unread, not `NOT RUN`")
 
 
 class TestSizeIsUnclipped:

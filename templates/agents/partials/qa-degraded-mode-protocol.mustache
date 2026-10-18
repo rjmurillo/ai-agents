@@ -74,7 +74,7 @@ When QA is complete:
 1. Save test report to `.project-toolkit/qa/`
 2. Store results summary in memory
 3. Return to orchestrator with clear status:
-   - **QA COMPLETE**: "Tests: [cmd], [passed]/[total] passed, [skipped] skipped. Ready for user validation." Only if [passed] equals [total] (skips not counted) and no suite is `NOT RUN`/`UNAVAILABLE`; else `[BLOCKED] Cannot evaluate: <suite>` or QA FAILED.
+   - **QA COMPLETE**: "Tests: [cmd], [passed]/[total] passed, [skipped] skipped. Ready for user validation." Only if [passed] equals [total] (skips not counted), [total] > 0, and no suite is `NOT RUN`/`UNAVAILABLE`; else `[BLOCKED] Cannot evaluate: <suite>` or QA FAILED.
    - **QA FAILED**: "Tests failed. Recommend orchestrator routes to implementer with these failures: [list]"
 
 ## Execution Mindset
