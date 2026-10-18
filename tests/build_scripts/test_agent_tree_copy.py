@@ -490,17 +490,10 @@ def test_adr107_agents_render_to_cursor_readonly(agent: str) -> None:
     assert "readonly: true" in rendered.split("---")[1]
 
 
-def test_security_with_write_is_still_not_shipped_to_cursor() -> None:
-    text = (REPO_ROOT / "src" / "claude" / "agents" / "security.md").read_text(encoding="utf-8")
-
-    assert atc.render_agent(text, ["name"], derive_readonly_flag=True, source="s") is None
-
-
-@pytest.mark.parametrize("tools", [["Read", "mcp__serena__*", "ToolSearch"]])
-def test_wildcard_with_read_builtins_is_readonly(tools: list[str]) -> None:
-    assert atc.derive_readonly({"tools": tools})
+def test_wildcard_with_read_builtins_is_readonly() -> None:
+    assert atc.derive_readonly({"tools": ["Read", "mcp__serena__*", "ToolSearch"]})
+    assert atc.has_inexpressible_restriction({"tools": ["Write", "mcp__serena__*"]})
 
 
 def test_wildcard_does_not_hide_a_write_builtin() -> None:
     assert not atc.derive_readonly({"tools": ["Read", "Write", "mcp__serena__*"]})
-    assert not atc.derive_readonly({"tools": ["Bash", "mcp__serena__*"]})

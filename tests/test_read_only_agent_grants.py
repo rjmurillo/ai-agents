@@ -128,6 +128,12 @@ def _tools(path: Path) -> list[str]:
     return _list(path, "tools")
 
 
+def _denied(path: Path) -> list[str]:
+    """Return ``disallowedTools``; the list is empty when the agent declares none."""
+    value = _frontmatter(path).get("disallowedTools") or []
+    return [str(item) for item in value]
+
+
 def _is_granted(tool: str, tools: list[str], denied: list[str]) -> bool:
     """True when ``tool`` is named or covered by a ``<prefix>__*`` entry, and not denied."""
     if tool in denied:
@@ -154,7 +160,7 @@ def test_allowlist_contains_no_executor(agent: str, tree: Path) -> None:
 @pytest.mark.parametrize("agent", READ_ONLY_AGENTS)
 def test_every_origin_main_tool_is_still_granted(agent: str, tree: Path) -> None:
     path = tree / f"{agent}.md"
-    tools, denied = _tools(path), _list(path, "disallowedTools")
+    tools, denied = _tools(path), _denied(path)
 
     lost = [t for t in LEGACY_ALLOWLISTS[agent] if not _is_granted(t, tools, denied)]
     assert not lost, f"{agent} lost capabilities it held on origin/main: {lost}"
