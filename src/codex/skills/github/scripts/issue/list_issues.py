@@ -103,7 +103,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--search",
         default="",
         help="GitHub search query (e.g. 'fix auth is:open'). "
-        "--state still applies; an is: qualifier in the query overrides it. "
+        "--state still applies and combines with any is: qualifier in the query; "
+        "use --state all when the query carries its own is: qualifier. "
         "--label/--author/--assignee/--milestone are ignored.",
     )
     parser.add_argument(
@@ -173,7 +174,8 @@ def _build_issue_list_args(args: argparse.Namespace, repo_flag: str) -> list[str
 
     # Always forward --state. Omitting it makes gh fall back to its open-only
     # default, which silently drops closed issues when the caller asked for
-    # --state all. An is: qualifier inside the --search query overrides it.
+    # --state all. Under --search, gh combines --state with any is: qualifier in
+    # the query (closed plus is:open returns nothing); use --state all then.
     list_args.extend(["--state", args.state])
 
     if args.search:

@@ -84,7 +84,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--search",
         default="",
         help="GitHub search query (e.g. 'fix auth is:open'). "
-        "--state still applies; an is: qualifier in the query overrides it. "
+        "--state still applies and combines with any is: qualifier in the query; "
+        "use --state all when the query carries its own is: qualifier. "
         "--label/--author/--base/--head are ignored.",
     )
     parser.add_argument(
@@ -144,8 +145,9 @@ def main(argv: list[str] | None = None) -> int:
 
     # Always forward --state. Omitting it makes gh fall back to its open-only
     # default, which silently drops merged and closed PRs for --state all and
-    # --state merged (issue #6670). An is: qualifier inside the --search query
-    # overrides --state, so a caller's explicit is:merged still wins.
+    # --state merged (issue #6670). Under --search, gh combines --state with any
+    # is: qualifier in the query (closed plus is:open returns nothing), so a
+    # caller whose query carries is: should pass --state all.
     list_args.extend(["--state", args.state])
 
     if args.search:
