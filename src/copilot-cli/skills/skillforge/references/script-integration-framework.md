@@ -203,7 +203,7 @@ def execute_and_check(input_data):
     # Fast-fail guard - the script checks itself; an independent postcondition check still runs after it
     is_valid, reason = verify_output(result)
     if not is_valid:
-        return Result(success=False, message=f"Verification failed: {reason}", errors=[reason])
+        return Result(success=False, message=f"Fast-fail check failed: {reason}", errors=[reason])
 
     return Result(success=True, message="Operation completed", data=result)
 ```
@@ -220,7 +220,7 @@ def resilient_operation(max_retries=3):
     for attempt in range(max_retries):
         try:
             result = perform_operation()
-            if verify_result(result):
+            if fast_fail_check(result):
                 return result
         except RecoverableError as e:
             if attempt == max_retries - 1:

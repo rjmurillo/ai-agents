@@ -46,6 +46,7 @@ _MIRRORED = (
     ("skillforge", "references/output-structure.md"),
     ("skillforge", "references/overview-and-triggers.md"),
     ("skillforge", "assets/templates/script-template.py"),
+    ("skillforge", "assets/templates/skill-spec-template.xml"),
     ("skill-bootstrap", "references/authoring-and-gates.md"),
 )
 
@@ -186,6 +187,9 @@ _SKILLFORGE_SKILL = _REPO / ".claude" / "skills" / "skillforge" / "SKILL.md"
 _SKILLFORGE_TEMPLATE_SCRIPT = (
     _REPO / ".claude" / "skills" / "skillforge" / "assets" / "templates" / "script-template.py"
 )
+_SKILLFORGE_SPEC_TEMPLATE = (
+    _REPO / ".claude" / "skills" / "skillforge" / "assets" / "templates" / "skill-spec-template.xml"
+)
 
 
 @pytest.mark.parametrize(
@@ -203,13 +207,31 @@ _SKILLFORGE_TEMPLATE_SCRIPT = (
         _SKILLFORGE_REFS / "output-structure.md",
         _SKILLFORGE_REFS / "overview-and-triggers.md",
         _SKILLFORGE_TEMPLATE_SCRIPT,
+        _SKILLFORGE_SPEC_TEMPLATE,
     ],
     ids=lambda p: p.name,
 )
 def test_gates_and_checklists_do_not_score_self_verification(path: Path) -> None:
-    """Gates and checklists must not reward self-checking."""
+    """Gates and checklists must not reward self-checking, including XML tag names."""
     text = path.read_text(encoding="utf-8")
-    assert not re.search(r"self[- ]?verif", text, re.I), path.name
+    assert not re.search(r"self[-_ ]?verif", text, re.I), path.name
+
+
+def test_spec_template_asks_fast_fail_and_independent_check() -> None:
+    text = _SKILLFORGE_SPEC_TEMPLATE.read_text(encoding="utf-8")
+    assert text.count("<fast_fail_and_independent_check>") == 2
+    assert text.count("</fast_fail_and_independent_check>") == 2
+    assert "Can scripts verify their own success?" not in text
+    assert "<self_verifies>" not in text
+
+
+def test_framework_patterns_use_fast_fail_names() -> None:
+    """Pattern 1 and Pattern 2 name the same helper as the script template."""
+    text = _REF.read_text(encoding="utf-8")
+    assert "Fast-fail check failed: {reason}" in text
+    assert "Verification failed" not in text
+    assert "verify_result(" not in text
+    assert "fast_fail_check(result)" in text
 
 
 def test_generation_path_teaches_fast_fail_plus_independent_check() -> None:
