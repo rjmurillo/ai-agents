@@ -132,7 +132,10 @@ class TestServerGrants:
 class TestWildcardRefusal:
     @pytest.mark.parametrize("key", ["explicit_only", "remote_only"])
     def test_server_marked_not_whole_cannot_be_granted_by_wildcard(self, key: str) -> None:
-        config = {**CONFIG, "servers": {**CONFIG["servers"], "locked": {key: "reason"}}}
+        config: dict[str, object] = {
+            "prefix_variants": ["mcp__{server}"],
+            "servers": {"locked": {key: "reason"}},
+        }
         with pytest.raises(caps.CapabilityError, match=key):
             caps.expand_server_grant("locked", config)
         assert "locked" not in caps.wildcard_servers(config)
