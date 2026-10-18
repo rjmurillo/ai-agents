@@ -196,3 +196,179 @@ def test_stage_generated_nothing_to_stage_runs_no_add(
 
     assert policy.stage_generated("memory", repo) == 0
     assert calls == []
+
+
+def _fail_second_add(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
+    """Let the first ``git add`` run for real and make the second one fail with rc 7."""
+    adds: list[list[str]] = []
+    original = policy._run_git
+
+    def flaky(repo_root: Path, args: Sequence[str], **kwargs: float) -> object:
+        if args and args[0] == "add":
+            adds.append(list(args))
+            if len(adds) == 2:
+                return subprocess.CompletedProcess(list(args), 7, "", "second chunk failed\n")
+        return original(repo_root, args, **kwargs)
+
+    monkeypatch.setattr(policy, "_run_git", flaky)
+    return adds
+
+
+def test_failed_chunk_unstages_the_chunks_that_already_succeeded(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    for n in range(600):
+        _write(repo, _long_name(n))
+    adds = _fail_second_add(monkeypatch)
+
+    assert policy.stage_generated("memory", repo) == 7
+
+    assert len(adds) == 2
+    assert _staged(repo) == []
+    assert "second chunk failed" in capsys.readouterr().err
+    assert (repo / _long_name(0)).exists()
+
+
+def test_rollback_keeps_what_the_user_staged_before_the_hook(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    names = [_long_name(n) for n in range(600)]
+    for name in names:
+        _write(repo, name, "user version\n")
+    _git(repo, "add", "--", names[0])
+    _write(repo, names[0], "regenerated\n")
+    _fail_second_add(monkeypatch)
+
+    assert policy.stage_generated("memory", repo) == 7
+
+    assert _staged(repo) == [names[0]]
+    assert _git(repo, "show", f":{names[0]}") == "user version\n"
+    assert (repo / names[0]).read_text(encoding="utf-8") == "regenerated\n"
+
+
+def test_rollback_restores_a_staged_deletion(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    names = [_long_name(n) for n in range(600)]
+    for name in names:
+        _write(repo, name)
+    _git(repo, "add", "--", MEMORY_DIR)
+    _git(repo, "commit", "-qm", "seed")
+    for name in names[:300]:
+        (repo / name).unlink()
+    _fail_second_add(monkeypatch)
+
+    assert policy.stage_generated("memory", repo) == 7
+
+    assert _staged(repo) == []
+    assert _git(repo, "ls-files", "-z", "--", MEMORY_DIR).count("\0") == 600
+
+
+def test_first_chunk_failure_also_rolls_back_a_partial_stage(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``git add`` can stage part of a failing call, so even the first chunk is rolled back."""
+    repo = _init_repo(tmp_path)
+    for n in range(3):
+        _write(repo, f"{MEMORY_DIR}/m{n}.md")
+    original = policy._run_git
+
+    def partial_then_fail(repo_root: Path, args: Sequence[str], **kwargs: float) -> object:
+        if args and args[0] == "add":
+            original(repo_root, ["add", "--", f"{MEMORY_DIR}/m0.md"], **kwargs)
+            return subprocess.CompletedProcess(list(args), 9, "", "partial\n")
+        return original(repo_root, args, **kwargs)
+
+    monkeypatch.setattr(policy, "_run_git", partial_then_fail)
+
+    assert policy.stage_generated("memory", repo) == 9
+
+    assert _staged(repo) == []
+
+
+def test_unwritable_snapshot_warns_and_keeps_the_failure_code(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    for n in range(600):
+        _write(repo, _long_name(n))
+    original = policy._run_git
+    adds: list[list[str]] = []
+
+    def no_snapshot(repo_root: Path, args: Sequence[str], **kwargs: float) -> object:
+        if args and args[0] == "write-tree":
+            return subprocess.CompletedProcess(list(args), 128, "", "unmerged entries\n")
+        if args and args[0] == "add":
+            adds.append(list(args))
+            if len(adds) == 2:
+                return subprocess.CompletedProcess(list(args), 7, "", "second chunk failed\n")
+        return original(repo_root, args, **kwargs)
+
+    monkeypatch.setattr(policy, "_run_git", no_snapshot)
+
+    assert policy.stage_generated("memory", repo) == 7
+
+    err = capsys.readouterr().err
+    assert "could not snapshot the index" in err
+    assert _staged(repo) != []
+
+
+def test_failed_restore_warns_and_keeps_the_failure_code(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    for n in range(600):
+        _write(repo, _long_name(n))
+    original = policy._run_git
+    adds: list[list[str]] = []
+
+    def restore_fails(repo_root: Path, args: Sequence[str], **kwargs: float) -> object:
+        if args and args[0] == "restore":
+            return subprocess.CompletedProcess(list(args), 1, "", "restore refused\n")
+        if args and args[0] == "add":
+            adds.append(list(args))
+            if len(adds) == 2:
+                return subprocess.CompletedProcess(list(args), 7, "", "second chunk failed\n")
+        return original(repo_root, args, **kwargs)
+
+    monkeypatch.setattr(policy, "_run_git", restore_fails)
+
+    assert policy.stage_generated("memory", repo) == 7
+
+    err = capsys.readouterr().err
+    assert "restore refused" in err
+    assert "could not unstage the generated paths" in err
+
+
+def test_successful_staging_never_restores(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    for n in range(600):
+        _write(repo, _long_name(n))
+    original = policy._run_git
+    verbs: list[str] = []
+
+    def spy(repo_root: Path, args: Sequence[str], **kwargs: float) -> object:
+        verbs.append(args[0])
+        return original(repo_root, args, **kwargs)
+
+    monkeypatch.setattr(policy, "_run_git", spy)
+
+    assert policy.stage_generated("memory", repo) == 0
+
+    assert "restore" not in verbs
+    assert verbs.count("write-tree") == 1

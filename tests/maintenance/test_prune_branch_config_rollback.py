@@ -55,6 +55,16 @@ def _sections(repo: Path) -> tuple[str, ...]:
     return list_configured_branches(repo)
 
 
+_real_copy2 = shutil.copy2
+
+
+def _copy_fails_for_live_config(src: Path, dst: Path) -> Path:
+    """Copy the backup normally; fail only the copy back onto the live config."""
+    if Path(dst).name == "config":
+        raise OSError("disk full")
+    return Path(_real_copy2(src, dst))
+
+
 class TestRollbackAndLock:
     def test_interrupt_restores_removed_sections(self, repo: Path) -> None:
         _add_section(repo, "gone")
@@ -176,9 +186,82 @@ class TestRollbackAndLock:
         with (
             mock.patch.object(mod, "_verify_config", side_effect=GitError("boom")),
             mock.patch.object(mod, "_restore_sections", side_effect=GitError("no lock")),
+            mock.patch.object(mod.shutil, "copy2", side_effect=_copy_fails_for_live_config),
         ):
             with pytest.raises(GitError, match=r"rollback failed; the original config is saved at"):
                 prune_branch_config(repo, apply=True)
+
+
+class TestRollbackFallbackAndBooleans:
+    def test_corrupt_live_config_is_repaired_from_the_backup(self, repo: Path) -> None:
+        _add_section(repo, "gone")
+        config = resolve_config_path(repo)
+        original = config.read_bytes()
+
+        def corrupt_then_verify(_repo: Path) -> None:
+            with config.open("a", encoding="utf-8") as handle:
+                handle.write("[broken\n")
+            raise GitError("verify failed")
+
+        with mock.patch.object(mod, "_verify_config", side_effect=corrupt_then_verify):
+            with pytest.raises(GitError, match="verify failed"):
+                prune_branch_config(repo, apply=True)
+
+        assert config.read_bytes() == original
+        assert _git(repo, "config", "--local", "--list")
+        assert _sections(repo) == ("gone",)
+
+    def test_section_restore_error_falls_back_to_whole_file_copy(self, repo: Path) -> None:
+        _add_section(repo, "gone")
+        config = resolve_config_path(repo)
+        original = config.read_bytes()
+
+        with (
+            mock.patch.object(mod, "_verify_config", side_effect=GitError("boom")),
+            mock.patch.object(mod, "_restore_sections", side_effect=GitError("restore broke")),
+        ):
+            with pytest.raises(GitError, match="boom"):
+                prune_branch_config(repo, apply=True)
+
+        assert config.read_bytes() == original
+
+    def test_failed_copy_names_both_errors_and_the_backup(self, repo: Path) -> None:
+        _add_section(repo, "gone")
+
+        with (
+            mock.patch.object(mod, "_verify_config", side_effect=GitError("boom")),
+            mock.patch.object(mod, "_restore_sections", side_effect=GitError("restore broke")),
+            mock.patch.object(mod.shutil, "copy2", side_effect=_copy_fails_for_live_config),
+        ):
+            with pytest.raises(GitError) as info:
+                prune_branch_config(repo, apply=True)
+
+        message = str(info.value)
+        assert "restore broke" in message
+        assert "disk full" in message
+        assert "config.before-prune" in message
+
+    def test_valueless_boolean_key_stays_true_after_rollback(self, repo: Path) -> None:
+        _add_section(repo, "gone")
+        with resolve_config_path(repo).open("a", encoding="utf-8") as handle:
+            handle.write('[branch "gone"]\n\trebase\n')
+        assert _git(repo, "config", "--local", "--get", "--bool", "branch.gone.rebase") == "true\n"
+
+        with mock.patch.object(mod, "_verify_config", side_effect=GitError("boom")):
+            with pytest.raises(GitError):
+                prune_branch_config(repo, apply=True)
+
+        assert _git(repo, "config", "--local", "--get", "--bool", "branch.gone.rebase") == "true\n"
+
+    def test_explicit_empty_value_stays_empty_after_rollback(self, repo: Path) -> None:
+        _add_section(repo, "gone")
+        _git(repo, "config", "--local", "branch.gone.description", "")
+
+        with mock.patch.object(mod, "_verify_config", side_effect=GitError("boom")):
+            with pytest.raises(GitError):
+                prune_branch_config(repo, apply=True)
+
+        assert _git(repo, "config", "--local", "--get", "branch.gone.description") == "\n"
 
 
 class TestRestoreSections:
@@ -203,8 +286,11 @@ class TestParseConfigEntries:
     def test_splits_key_and_value(self) -> None:
         assert mod._parse_config_entries("a.b\nv1\0c.d\nv2\0") == [("a.b", "v1"), ("c.d", "v2")]
 
-    def test_valueless_key_gets_empty_value(self) -> None:
-        assert mod._parse_config_entries("a.b\0") == [("a.b", "")]
+    def test_valueless_key_is_none_not_empty(self) -> None:
+        assert mod._parse_config_entries("a.b\0") == [("a.b", None)]
+
+    def test_empty_value_stays_empty_string(self) -> None:
+        assert mod._parse_config_entries("a.b\n\0") == [("a.b", "")]
 
     def test_value_may_contain_newline(self) -> None:
         assert mod._parse_config_entries("a.b\nline1\nline2\0") == [("a.b", "line1\nline2")]
