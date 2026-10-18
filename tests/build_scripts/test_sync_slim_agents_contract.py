@@ -153,7 +153,7 @@ def test_shipped_source_is_the_canonical_claude_tree() -> None:
         (destination.directory, destination.suffix) for destination in sync_slim_agents.DESTINATIONS
     } == {
         (_REPO_ROOT / "templates" / "agents", ".shared.md"),
-        (_REPO_ROOT / ".github" / "agents", ".agent.md"),
+        (_REPO_ROOT / "src" / "copilot-cli" / "agents", ".agent.md"),
     }
 
 

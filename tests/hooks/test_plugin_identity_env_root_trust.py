@@ -289,7 +289,10 @@ class TestReadersWithoutEnvironmentInput:
     ) -> None:
         expected = prose_lint._plugin_install_root()
         clean_env.setenv(var, str(_forged_twin_tree(tmp_path)))
-        assert prose_lint._plugin_install_root() == expected == CLAUDE_DIR
+        # `.claude/skills/<name>` is a symlink into src/claude/skills (ADR-119), so the
+        # walk up from the resolved script file lands on the plugin tree, which carries
+        # the plugin manifest. The spoofed variable must not move it.
+        assert prose_lint._plugin_install_root() == expected == REPO_ROOT / "src" / "claude"
 
     @pytest.mark.parametrize("var", SPOOF_ENV_VARS)
     def test_frontmatter_gate_plugin_roots_ignore_spoofed_env(

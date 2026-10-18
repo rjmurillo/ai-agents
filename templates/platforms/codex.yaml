@@ -6,7 +6,7 @@ artifacts:
     # Claude plugin tree ships (src/claude/skills), repo-local ai-agents-*
     # skills excluded by skill_distribution.repo_local_names. Unlike
     # copilot-cli, merge-resolver stays in.
-    sourceDir: ".claude/skills"
+    sourceDir: "src/claude/skills"
     outputDir: "src/codex/skills"
     mode: "directory-copy"
     excludeFilenames: ["AGENTS.md", "CLAUDE.md"]

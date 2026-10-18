@@ -52,18 +52,25 @@ def install_target(repo: Path, name: str) -> Path:
 
 
 def seed_target_dir(repo: Path, name: str) -> Path:
-    """Create the ``.claude/skills/<name>/`` directory discover() requires
-    to exist, plus the plugin-tree target's parent, and return the
-    plugin-tree target (what ``compile_all`` reads/writes).
+    """Create the real skill directory ``discover()`` requires, return the render target.
+
+    A shipped skill's real directory is ``src/claude/skills/<name>/`` (ADR-119:
+    ``.claude/skills/<name>`` is a symlink to it). The plugin-tree
+    ``SKILL.md`` path is what ``compile_all`` reads and writes.
     """
-    install_dir = repo / ".claude" / "skills" / name
-    install_dir.mkdir(parents=True, exist_ok=True)
     dst = target(repo, name)
     dst.parent.mkdir(parents=True, exist_ok=True)
     return dst
 
 
-def minimal_platform_config(tmp_path: Path) -> Path:
+def seed_install_dir(repo: Path, name: str) -> Path:
+    """Create the real ``.claude/skills/<name>/`` directory of a repo-local skill."""
+    install_dir = repo / ".claude" / "skills" / name
+    install_dir.mkdir(parents=True, exist_ok=True)
+    return install_dir
+
+
+def minimal_platform_config(tmp_path: Path, source_dir: str = ".claude/skills") -> Path:
     config = tmp_path / "platform.yaml"
     config.write_text(
         'schemaVersion: "1.0"\n'
@@ -71,7 +78,7 @@ def minimal_platform_config(tmp_path: Path) -> Path:
         "artifacts:\n"
         "  skills:\n"
         "    mode: directory-copy\n"
-        "    sourceDir: .claude/skills\n"
+        f"    sourceDir: {source_dir}\n"
         "    outputDir: out/skills\n",
         encoding="utf-8",
     )

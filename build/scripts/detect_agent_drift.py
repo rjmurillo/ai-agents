@@ -12,8 +12,8 @@ Two comparisons run by default:
    ``--skip-install-comparison`` to run only the vendored comparison.
 
 Both install copies are generated output (ADR-109 B1): binplace_manifest.py
-copies src/claude/agents onto .claude/agents, and the github platform renders
-.github/agents from the Copilot templates. validate_install_parity.py already
+links .claude/agents to src/claude/agents and .github/agents to
+src/copilot-cli/agents (ADR-119). validate_install_parity.py already
 enforces that they move together in a diff; this script adds the
 semantic-similarity check that parity enforcement omits.
 
@@ -957,8 +957,8 @@ def run_install_detection(
 ) -> list[AgentResult]:
     """Compare the install copies for shared-template agents.
 
-    Issue #2267: ``.claude/agents`` is binplaced from ``src/claude/agents`` and
-    ``.github/agents`` is rendered from the Copilot templates (ADR-109 B1), so
+    Issue #2267: ``.claude/agents`` links to ``src/claude/agents`` and
+    ``.github/agents`` links to ``src/copilot-cli/agents`` (ADR-119), so
     the two come from different template families. ``validate_install_parity.py``
     already enforces that the install copies move together in a diff, but it
     does not check semantic similarity. This pass adds that check for shared-template agents: agents
