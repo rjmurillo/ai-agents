@@ -101,6 +101,22 @@ _MANIFEST_REL = Path("templates") / "platforms" / "binplace.yaml"
 _SKILLS_COMPILE_DELEGATE = "skill_templates"
 _CODEX_SKILLS_ROOT = ".agents/skills"
 _RULES_CLASS = "rules"
+_LIB_CLASS = "lib"
+
+# Hand-maintained modules that live only in .claude/lib/ (no src/claude/lib
+# counterpart; see .claude/AGENTS.md). The `lib` link row leaves them alone.
+REPO_LOCAL_LIB_NAMES: frozenset[str] = frozenset(
+    {
+        "claude_hook_dispatch.py",
+        "claude_hook_protocol.py",
+        "hook_dispatch.py",
+        "hook_dispatch_protocol.py",
+        "hook_dispatch_timeout.py",
+        "output_capture.py",
+        "qa_report.py",
+        "shim_loader.py",
+    }
+)
 
 
 class BinplaceConfigError(Exception):
@@ -486,14 +502,17 @@ def _repo_local_names(repo_root: Path, row: Row) -> frozenset[str]:
     so a leftover ``src/claude/skills/<name>/`` copy must never overwrite
     them. The ``rules`` row skips each repo-only rule file (ADR-119 decision
     13, ``rule_distribution.is_repo_only``), which ``rule_templates`` renders
-    straight to ``.claude/rules/``. Binplace neither links, copies,
-    drift-reports, nor lists those entries as unowned. Every other row
-    returns the empty set.
+    straight to ``.claude/rules/``. The ``lib`` row skips the hand-maintained
+    ``.claude/lib`` modules in :data:`REPO_LOCAL_LIB_NAMES` (decision 14).
+    Binplace neither links, copies, drift-reports, nor lists those entries as
+    unowned. Every other row returns the empty set.
     """
     if row.compile == _SKILLS_COMPILE_DELEGATE:
         return frozenset(repo_local_names(repo_root))
     if row.class_name == _RULES_CLASS:
         return frozenset(f"{name}.md" for name in repo_only_rule_names(repo_root))
+    if row.class_name == _LIB_CLASS:
+        return REPO_LOCAL_LIB_NAMES
     return frozenset()
 
 
