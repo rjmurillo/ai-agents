@@ -172,16 +172,13 @@ def test_no_global_mcp_wildcard_is_granted(agent: str, tree: Path) -> None:
 
 @pytest.mark.parametrize("tree", AGENT_TREES, ids=lambda tree: tree.parent.name)
 @pytest.mark.parametrize("agent", READ_ONLY_AGENTS)
-def test_serena_wildcard_denies_its_local_mutators(agent: str, tree: Path) -> None:
-    path = tree / f"{agent}.md"
-    assert "mcp__serena__*" in _tools(path)
-    denied = _list(path, "disallowedTools")
+def test_serena_is_granted_tool_by_tool_never_by_wildcard(agent: str, tree: Path) -> None:
+    """A wildcard plus a deny list would grant any future Serena executor."""
+    tools = _tools(tree / f"{agent}.md")
 
-    for tool in SERENA_LOCAL + SERENA_MEMORY_DELETE:
-        assert f"mcp__serena__{tool}" in denied, f"{agent} does not deny mcp__serena__{tool}"
-    memory_edits = [f"mcp__serena__{t}" in denied for t in SERENA_MEMORY_EDIT]
-    assert all(memory_edits) == (agent != "security")
-    assert not any(memory_edits) == (agent == "security")
+    serena = sorted(t for t in tools if t.startswith("mcp__serena"))
+    held = sorted(t for t in LEGACY_ALLOWLISTS[agent] if t.startswith("mcp__serena"))
+    assert serena == held
 
 
 @pytest.mark.parametrize("tree", AGENT_TREES, ids=lambda tree: tree.parent.name)

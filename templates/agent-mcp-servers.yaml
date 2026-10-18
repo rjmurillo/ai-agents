@@ -25,14 +25,12 @@
 # Microsoft_Learn, Claude_Docs, Firecrawl. Its case is the connector's, not ours.
 #
 # Every entry is printed in the agent file and in the parent agent listing each
-# session, and the per-fixture instruction-byte ceilings cap that growth. A server
-# with write tools therefore lists only the `.mcp.json` prefix: each extra prefix
-# repeats its whole deny list. Dropped on purpose: the plugin and claude.ai spellings
-# of serena. GitHub and DeepWiki are not granted by wildcard: it has about 30 write
-# tools, and their deny list would add 1.2 KB to each agent and breach the F5 and F6
-# ceilings, so agents keep their explicit read-tool grants (`mcp__github__<tool>`)
-# and need no deny list. A bespoke corporate server is unreachable until it is
-# added here.
+# session, and the per-fixture instruction-byte ceilings cap that growth. Only a
+# read-only docs server (Context7) is granted by wildcard. Serena, GitHub, and
+# DeepWiki have write tools, so agents keep the explicit read-tool grants they held
+# on origin/main (`mcp__<server>__<tool>`): a wildcard plus a deny list would grant
+# any future write tool the list did not name. A bespoke corporate server is
+# unreachable until it is added here.
 
 # Placeholders: {server} is the key under `servers`; {claude_ai} expands once per
 # name in that server's `claude_ai` list. `__<tool>` or `__*` is appended.
@@ -42,10 +40,13 @@ prefix_variants:
   - "mcp__claude_ai_{claude_ai}"
 
 # Every server in .mcp.json needs an entry here: granted by an agent, or marked
-# `remote_only` with a reason. tests/build_scripts/test_agent_mcp_servers.py enforces it.
+# `remote_only` or `explicit_only` with a reason, or covered by a deny list. tests/build_scripts/test_agent_mcp_servers.py enforces it.
 servers:
+  # Local server with write tools (shell, code editors, memory). Granted tool by tool
+  # under `mcp__serena__` only, as on origin/main, never by wildcard: a wildcard plus a
+  # deny list would grant any future Serena executor. `explicit_only` records that.
   serena:
-    variants: ["mcp__{server}"]
+    explicit_only: "write tools exist, so agents list read tools one by one"
   # Hosted service: runs no local command and writes no local file. Not granted by
   # wildcard, because private mode exposes about 15 Devin write tools whose deny list
   # would breach the F6 ceiling. analyst keeps its two explicit read tools.
@@ -55,34 +56,6 @@ servers:
   context7:
     claude_ai: [Context7]
 
-denylists:
-  # Serena tools that run a command or change a local file or symbol. The #5356
-  # control: with no shell, git config injection and --output file writes are
-  # unreachable. write_memory through safe_delete_symbol were verified against the
-  # tool list of a live Serena session (2026-10-17); execute_shell_command,
-  # create_text_file, replace_regex, replace_lines, delete_lines and insert_at_line
-  # come from the security review of this change.
-  serena-local:
-    server: serena
-    tools:
-      - execute_shell_command
-      - create_text_file
-      - replace_regex
-      - replace_lines
-      - delete_lines
-      - insert_at_line
-      - replace_content
-      - replace_in_files
-      - replace_symbol_body
-      - insert_after_symbol
-      - insert_before_symbol
-      - rename_symbol
-      - safe_delete_symbol
-
-  # Serena memory writes, split so `security` keeps the two it held on origin/main.
-  serena-memory-edit:
-    server: serena
-    tools: [write_memory, edit_memory]
-  serena-memory-delete:
-    server: serena
-    tools: [delete_memory, rename_memory]
+# No deny list is in use. `$deny:<list>` stays supported by the renderer for a future
+# wildcard server that has write tools; each list is `server:` plus `tools:`.
+denylists: {}

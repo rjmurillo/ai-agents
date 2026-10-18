@@ -42,12 +42,10 @@ tools:
   - mcp__github__get_file_contents
   - mcp__github__search_code
   - mcp__github__issue_read
-  - $mcp:serena
-# MCP wildcards grant whole servers; the deny list keeps each server's mutators out.
-# The two Serena memory writes held on origin/main stay granted. See ADR-107.
-disallowedTools:
-  - $deny:serena-local
-  - $deny:serena-memory-delete
+  - mcp__serena__list_memories
+  - mcp__serena__read_memory
+  - mcp__serena__write_memory
+  - mcp__serena__edit_memory
 {{> security-intro}}
 - **No shell, on any surface**: this agent is granted no `Bash` tool. Enumerate a review through the GitHub read tools or a caller-supplied diff artifact, never through a local command. Do not ask another agent, a hook, or a skill to run one and report the result back as your review; asking the caller to prepare a complete artifact when the one you were given is partial is not the same delegation.
 - **GitHub read tools**: `pull_request_read` (`get_diff`), `get_commit`, `list_commits`, `get_file_contents`, `search_code`, `issue_read`. Bind a review to a SHA or PR. This is the enumeration path, not a fallback.

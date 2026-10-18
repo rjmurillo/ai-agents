@@ -42,25 +42,10 @@ tools:
   - mcp__github__get_file_contents
   - mcp__github__search_code
   - mcp__github__issue_read
-  - mcp__serena__*
-# MCP wildcards grant whole servers; the deny list keeps each server's mutators out.
-# The two Serena memory writes held on origin/main stay granted. See ADR-107.
-disallowedTools:
-  - mcp__serena__execute_shell_command
-  - mcp__serena__create_text_file
-  - mcp__serena__replace_regex
-  - mcp__serena__replace_lines
-  - mcp__serena__delete_lines
-  - mcp__serena__insert_at_line
-  - mcp__serena__replace_content
-  - mcp__serena__replace_in_files
-  - mcp__serena__replace_symbol_body
-  - mcp__serena__insert_after_symbol
-  - mcp__serena__insert_before_symbol
-  - mcp__serena__rename_symbol
-  - mcp__serena__safe_delete_symbol
-  - mcp__serena__delete_memory
-  - mcp__serena__rename_memory
+  - mcp__serena__list_memories
+  - mcp__serena__read_memory
+  - mcp__serena__write_memory
+  - mcp__serena__edit_memory
 ---
 # Security Agent
 

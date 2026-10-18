@@ -8,13 +8,11 @@ tools:
   - Grep
   - Glob
   - ToolSearch
-  - $mcp:serena
+  - mcp__serena__find_symbol
+  - mcp__serena__find_referencing_symbols
+  - mcp__serena__get_symbols_overview
   - mcp__github__pull_request_read
   - mcp__github__get_file_contents
   - mcp__github__issue_read
-disallowedTools:
-  - $deny:serena-local
-  - $deny:serena-memory-edit
-  - $deny:serena-memory-delete
 argument-hint: Point to the comments or PR to review for accuracy
 {{> comment-analyzer-intro}}

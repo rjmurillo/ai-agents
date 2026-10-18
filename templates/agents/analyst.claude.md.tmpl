@@ -9,7 +9,15 @@ tools:
   - Glob
   - Grep
   - ToolSearch
-  - $mcp:serena
+  - mcp__serena__find_symbol
+  - mcp__serena__find_referencing_symbols
+  - mcp__serena__find_implementations
+  - mcp__serena__get_symbols_overview
+  - mcp__serena__get_diagnostics_for_file
+  - mcp__serena__find_declaration
+  - mcp__serena__list_memories
+  - mcp__serena__read_memory
+  - mcp__serena__initial_instructions
   - mcp__github__issue_read
   - mcp__github__pull_request_read
   - mcp__github__get_file_contents
@@ -20,10 +28,6 @@ tools:
   - mcp__deepwiki__read_wiki_structure
   - mcp__deepwiki__read_wiki_contents
   - $mcp:context7
-disallowedTools:
-  - $deny:serena-local
-  - $deny:serena-memory-edit
-  - $deny:serena-memory-delete
 {{> analyst-intro}}
    - Level 3: External documentation fetched in this session (Context7, DeepWiki MCP).
    - Level 4: Training knowledge. "I recall" and "X probably is" are Level 4. Do not publish Level 4 claims. Move them to Open Questions or remove them.

@@ -60,7 +60,7 @@ KEEP_KEY = "frontmatterKeep"
 _READONLY_KEY = "readonly"
 _SOURCE_SUFFIX = ".md"
 _DEFAULT_EXCLUDES = ("AGENTS.md", "CLAUDE.md")
-_READONLY_TOOLS = frozenset({"Read", "Glob", "Grep", "WebSearch", "WebFetch"})
+_READONLY_TOOLS = frozenset({"Read", "Glob", "Grep", "WebSearch", "WebFetch", "ToolSearch"})
 # An MCP tool name is `mcp__<server>__<words>`, the words joined by `_`. It is
 # read-only when a read verb leads the words (`get_file_contents`) or the last
 # word is `read` (`issue_read`), and no word names a mutation (`find_and_replace`,
@@ -69,7 +69,10 @@ _READONLY_TOOLS = frozenset({"Read", "Glob", "Grep", "WebSearch", "WebFetch"})
 # read word: `mcp__db__query` can run a write. `resolve` and `ask` can lead a
 # state change (`resolve_review_thread`), so only the exact names in
 # _READ_NAMES earn readonly through them.
-# An unfamiliar name matches neither test and never earns `readonly: true`.
+# A server-level wildcard (`mcp__serena__*`, ADR-107) is read-only for this copy:
+# Cursor enforces `readonly: true` itself and it only narrows the agent, so the
+# built-in tools decide. A write built-in (Write, Bash, ...) still blocks it.
+# An unfamiliar name matches none of these and never earns `readonly: true`.
 _READ_WORDS = frozenset({"get", "list", "read", "find", "search", "initial"})
 _READ_NAMES = frozenset({"resolve_library_id"})
 _COMPOUND_WORDS = frozenset({"and", "or", "then"})
@@ -111,6 +114,8 @@ def is_readonly_tool(tool: object) -> bool:
     parts = tool.split("__")
     if len(parts) < 3 or parts[0] != "mcp":
         return False
+    if parts[-1] == "*":
+        return True
     words = parts[-1].split("_")
     if any(word in _MUTATING_WORDS or word in _COMPOUND_WORDS for word in words):
         return False

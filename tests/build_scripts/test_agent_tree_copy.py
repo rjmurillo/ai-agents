@@ -460,9 +460,7 @@ def test_committed_cursor_agents_match_the_claude_agents() -> None:
             )
         )
     ]
-    # Server wildcards (`mcp__serena__*`) are not provably read-only, so the four
-    # ADR-107 agents carry a restriction `readonly` cannot express (ADR-115 Decision 3).
-    assert restricted == ["analyst.md", "code-reviewer.md", "comment-analyzer.md", "security.md"]
+    assert restricted == ["security.md"]
     assert [p.name for p in copied] == [n for n in shipped if n not in restricted]
     for path in copied:
         frontmatter = yaml.safe_load(path.read_text(encoding="utf-8").split("---")[1])
@@ -476,4 +474,33 @@ def test_committed_readonly_agents_are_exactly_the_read_only_ones() -> None:
         for p in (REPO_ROOT / "src" / "cursor" / "agents").glob("*.md")
         if "readonly: true" in p.read_text(encoding="utf-8").split("---")[1]
     }
-    assert readonly == set()
+    assert readonly == {"analyst", "code-reviewer", "comment-analyzer"}
+
+
+@pytest.mark.parametrize("agent", ["analyst", "code-reviewer", "comment-analyzer"])
+def test_adr107_agents_render_to_cursor_readonly(agent: str) -> None:
+    """Server wildcards do not stop the ADR-107 agents shipping as `readonly: true`."""
+    text = (REPO_ROOT / "src" / "claude" / "agents" / f"{agent}.md").read_text(encoding="utf-8")
+
+    rendered = atc.render_agent(
+        text, ["name", "description"], derive_readonly_flag=True, source=agent
+    )
+
+    assert rendered is not None
+    assert "readonly: true" in rendered.split("---")[1]
+
+
+def test_security_with_write_is_still_not_shipped_to_cursor() -> None:
+    text = (REPO_ROOT / "src" / "claude" / "agents" / "security.md").read_text(encoding="utf-8")
+
+    assert atc.render_agent(text, ["name"], derive_readonly_flag=True, source="s") is None
+
+
+@pytest.mark.parametrize("tools", [["Read", "mcp__serena__*", "ToolSearch"]])
+def test_wildcard_with_read_builtins_is_readonly(tools: list[str]) -> None:
+    assert atc.derive_readonly({"tools": tools})
+
+
+def test_wildcard_does_not_hide_a_write_builtin() -> None:
+    assert not atc.derive_readonly({"tools": ["Read", "Write", "mcp__serena__*"]})
+    assert not atc.derive_readonly({"tools": ["Bash", "mcp__serena__*"]})

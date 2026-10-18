@@ -171,26 +171,17 @@ class TestServerGrants:
 
 
 class TestLiveTable:
-    @pytest.mark.parametrize("name", ["serena-local", "serena-memory-edit", "serena-memory-delete"])
-    def test_every_list_expands(self, name: str) -> None:
-        assert caps.expand_deny(name, LIVE)
+    def test_only_the_read_only_docs_server_is_granted_by_wildcard(self) -> None:
+        wildcard = {
+            name
+            for name, entry in LIVE["servers"].items()
+            if not ({"remote_only", "explicit_only"} & set(entry))
+        }
 
-    @pytest.mark.parametrize("name", ["github-write", "deepwiki-write", "builtin-write"])
-    def test_lists_that_do_not_fit_the_byte_budget_were_dropped(self, name: str) -> None:
-        with pytest.raises(caps.CapabilityError, match="unknown deny list"):
-            caps.expand_deny(name, LIVE)
+        assert wildcard == {"context7"}
 
-    def test_serena_mutators_are_denied_under_the_grant_prefix_only(self) -> None:
-        grant = {g.removesuffix("__*") for g in caps.expand_server_grant("serena", LIVE)}
-        for name in ("serena-local", "serena-memory-edit", "serena-memory-delete"):
-            got = caps.expand_deny(name, LIVE)
-            assert {e.rsplit("__", 1)[0] for e in got} == grant
-
-    def test_serena_local_has_the_shell_and_editors(self) -> None:
-        got = caps.expand_deny("serena-local", LIVE)
-
-        assert "mcp__serena__execute_shell_command" in got
-        assert len(got) == len(set(got)) == 13
+    def test_no_deny_list_is_in_use(self) -> None:
+        assert LIVE["denylists"] == {}
 
     def test_context7_grant_covers_every_known_variant(self) -> None:
         assert caps.expand_server_grant("context7", LIVE) == [
@@ -199,16 +190,7 @@ class TestLiveTable:
             "mcp__claude_ai_Context7__*",
         ]
 
-    def test_read_tools_are_never_denied(self) -> None:
-        denied = {
-            e.rsplit("__", 1)[1]
-            for name in ("serena-local", "serena-memory-edit", "serena-memory-delete")
-            for e in caps.expand_deny(name, LIVE)
-        }
-
-        assert denied.isdisjoint(READ_TOOLS)
-
-    def test_every_mcp_json_server_is_covered_or_marked_remote_only(self) -> None:
+    def test_every_mcp_json_server_is_covered_or_marked(self) -> None:
         configured = json.loads((_REPO_ROOT / ".mcp.json").read_text(encoding="utf-8"))
         servers = configured.get("mcpServers", configured)
         covered = {
@@ -220,14 +202,13 @@ class TestLiveTable:
         for name in servers:
             entry = LIVE["servers"].get(name)
             assert isinstance(entry, dict), f".mcp.json server {name!r} has no `servers` entry"
-            remote_only = entry.get("remote_only")
-            assert name in covered or (isinstance(remote_only, str) and remote_only.strip()), (
-                f".mcp.json server {name!r} has no deny list and no remote_only reason"
+            reasons = [entry.get(k) for k in ("remote_only", "explicit_only")]
+            assert name in covered or any(isinstance(r, str) and r.strip() for r in reasons), (
+                f".mcp.json server {name!r} has no deny list, remote_only, or explicit_only"
             )
 
-    def test_serena_must_map_to_a_deny_list(self) -> None:
-        assert "remote_only" not in LIVE["servers"]["serena"]
-        assert any(e.get("server") == "serena" for e in LIVE["denylists"].values())
+    def test_serena_is_explicit_only(self) -> None:
+        assert LIVE["servers"]["serena"].get("explicit_only")
 
 
 class TestExpandFrontmatter:
@@ -414,16 +395,19 @@ class TestLiveAgents:
     AGENTS = ("analyst", "security", "code-reviewer", "comment-analyzer")
 
     @pytest.mark.parametrize("stem", AGENTS)
-    def test_template_declares_tools_and_a_serena_deny_list(self, stem: str) -> None:
+    def test_template_declares_tools_and_explicit_serena_reads(self, stem: str) -> None:
         path = _REPO_ROOT / "templates" / "agents" / f"{stem}.claude.md.tmpl"
         # The frontmatter closes inside a partial, so read the template as lines.
         lines = path.read_text(encoding="utf-8").splitlines()
 
         assert "tools:" in lines
-        assert "  - $mcp:serena" in lines
-        assert "  - $deny:serena-local" in lines
-        assert "  - $deny:serena-memory-delete" in lines
-        assert ("  - $deny:serena-memory-edit" in lines) == (stem != "security")
+        assert "  - $mcp:serena" not in lines
+        assert not [ln for ln in lines if ln.startswith("  - $deny:")]
+        assert "disallowedTools:" not in lines
+        assert "  - mcp__serena__read_memory" in lines or stem in {
+            "code-reviewer",
+            "comment-analyzer",
+        }
 
     @pytest.mark.parametrize("stem", AGENTS)
     def test_granting_bash_in_the_live_template_fails_the_gate(
@@ -454,7 +438,7 @@ class TestLiveAgents:
         (tmp_path / "pyproject.toml").write_text("", encoding="utf-8")
         path = tmp_path / "templates" / "agents" / "analyst.claude.md.tmpl"
         path.write_text(
-            path.read_text(encoding="utf-8").replace("$mcp:serena", "$mcp:typo"), encoding="utf-8"
+            path.read_text(encoding="utf-8").replace("$mcp:context7", "$mcp:typo"), encoding="utf-8"
         )
 
         assert gate.main(["--repo-root", str(tmp_path)]) == gate.EXIT_CONFIG
