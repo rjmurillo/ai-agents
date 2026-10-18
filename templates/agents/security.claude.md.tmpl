@@ -26,6 +26,7 @@ disallowedTools:
   - $deny:builtin-mutators
   - $deny:serena-write
   - $deny:github-write
+  - $deny:deepwiki-write
 {{> security-intro}}
 - **No shell, on any surface**: this agent is granted no `Bash` tool. Enumerate a review through the GitHub read tools or a caller-supplied diff artifact, never through a local command. Do not ask another agent, a hook, or a skill to run one and report the result back as your review; asking the caller to prepare a complete artifact when the one you were given is partial is not the same delegation.
 - **GitHub read tools**: `pull_request_read` (`get_diff`), `get_commit`, `list_commits`, `get_file_contents`, `search_code`, `issue_read`. Bind a review to a SHA or PR. This is the enumeration path, not a fallback.

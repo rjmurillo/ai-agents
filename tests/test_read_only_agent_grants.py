@@ -75,8 +75,16 @@ def test_read_only_agent_denies_mcp_writes_under_every_prefix_variant(
         "mcp__plugin_github_github",
         "mcp__claude_ai_GitHub",
     ):
-        tool = "write_memory" if "serena" in prefix.lower() else "merge_pull_request"
-        assert f"{prefix}__{tool}" in denied, f"{agent} does not deny {prefix}__{tool}"
+        tools = (
+            ("write_memory", "execute_shell_command")
+            if "serena" in prefix.lower()
+            else ("merge_pull_request", "push_files")
+        )
+        for tool in tools:
+            assert f"{prefix}__{tool}" in denied, f"{agent} does not deny {prefix}__{tool}"
+
+    for prefix in ("mcp__deepwiki", "mcp__claude_ai_DeepWiki"):
+        assert f"{prefix}__devin_session_interact" in denied
 
 
 @pytest.mark.parametrize("tree", AGENT_TREES, ids=lambda tree: tree.parent.name)

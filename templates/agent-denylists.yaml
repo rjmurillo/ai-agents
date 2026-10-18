@@ -41,6 +41,9 @@ servers:
   # other connectors follow; lowercase mirrors the .mcp.json key.
   github:
     claude_ai: [GitHub, github]
+  # Configured in .mcp.json. The claude.ai connector spelling is a guess.
+  deepwiki:
+    claude_ai: [DeepWiki, Deepwiki, deepwiki]
 
 denylists:
   # Built-in shell and file mutators. Keeping Bash out preserves the #5356
@@ -49,7 +52,15 @@ denylists:
   builtin-mutators:
     tools: [Bash, Edit, Write, MultiEdit, NotebookEdit]
 
-  # Names verified against the tool list of a live Serena session. Read tools
+  # write_memory through safe_delete_symbol were verified against the tool list of
+  # a live Serena session (2026-10-17). execute_shell_command, create_text_file,
+  # replace_regex, replace_lines, delete_lines, insert_at_line and remove_project
+  # come from the Serena tool set as named by the security review, not from that
+  # session, which did not expose them. execute_shell_command is a shell behind
+  # MCP and would reopen the #5356 no-shell control.
+  # Skipped on purpose: activate_project and switch_modes change session state
+  # but write no file; onboarding and prepare_for_new_conversation return
+  # instructions and mutate nothing themselves. Read tools
   # (find_symbol, find_referencing_symbols, find_declaration,
   # find_implementations, get_symbols_overview, get_diagnostics_for_file,
   # list_memories, read_memory, initial_instructions, onboarding) stay usable.
@@ -67,6 +78,13 @@ denylists:
       - replace_content
       - replace_in_files
       - safe_delete_symbol
+      - execute_shell_command
+      - create_text_file
+      - replace_regex
+      - replace_lines
+      - delete_lines
+      - insert_at_line
+      - remove_project
 
   # Mutating GitHub MCP tools named somewhere in this repository (templates,
   # toolsets.yaml, skills, docs). Read tools (issue_read, pull_request_read,
@@ -99,3 +117,35 @@ denylists:
       - run_workflow
       - rerun_failed_jobs
       - rerun_workflow_run
+      - cancel_workflow_run
+      - delete_workflow_run_logs
+      - create_repository
+      - fork_repository
+      - create_gist
+      - update_gist
+      - projects_write
+
+  # DeepWiki in private mode exposes tools that change Devin state. The _manage and
+  # _interact tools multiplex read and write actions behind one name, so they are
+  # denied whole. devin_session_insights lists, gets, and generates; generate
+  # writes, so it is denied too. Allowed (read-only): read_wiki_structure,
+  # read_wiki_contents, ask_wiki_question, list_wiki_repos, devin_session_search,
+  # devin_session_events, devin_user_list, devin_list_integrations, devin_find_setting.
+  deepwiki-write:
+    server: deepwiki
+    tools:
+      - generate_wiki
+      - devin_automation_manage
+      - devin_billing_tag_manage
+      - devin_blueprint_test
+      - devin_campaign_manage
+      - devin_code_scan_manage
+      - devin_knowledge_manage
+      - devin_mcp_server_manage
+      - devin_oncall_manage
+      - devin_playbook_manage
+      - devin_review_manage
+      - devin_schedule_manage
+      - devin_session_create
+      - devin_session_interact
+      - devin_session_insights

@@ -25,6 +25,13 @@ disallowedTools:
   - mcp__serena__replace_content
   - mcp__serena__replace_in_files
   - mcp__serena__safe_delete_symbol
+  - mcp__serena__execute_shell_command
+  - mcp__serena__create_text_file
+  - mcp__serena__replace_regex
+  - mcp__serena__replace_lines
+  - mcp__serena__delete_lines
+  - mcp__serena__insert_at_line
+  - mcp__serena__remove_project
   - mcp__plugin_serena_serena__write_memory
   - mcp__plugin_serena_serena__edit_memory
   - mcp__plugin_serena_serena__delete_memory
@@ -36,6 +43,13 @@ disallowedTools:
   - mcp__plugin_serena_serena__replace_content
   - mcp__plugin_serena_serena__replace_in_files
   - mcp__plugin_serena_serena__safe_delete_symbol
+  - mcp__plugin_serena_serena__execute_shell_command
+  - mcp__plugin_serena_serena__create_text_file
+  - mcp__plugin_serena_serena__replace_regex
+  - mcp__plugin_serena_serena__replace_lines
+  - mcp__plugin_serena_serena__delete_lines
+  - mcp__plugin_serena_serena__insert_at_line
+  - mcp__plugin_serena_serena__remove_project
   - mcp__claude_ai_Serena__write_memory
   - mcp__claude_ai_Serena__edit_memory
   - mcp__claude_ai_Serena__delete_memory
@@ -47,6 +61,13 @@ disallowedTools:
   - mcp__claude_ai_Serena__replace_content
   - mcp__claude_ai_Serena__replace_in_files
   - mcp__claude_ai_Serena__safe_delete_symbol
+  - mcp__claude_ai_Serena__execute_shell_command
+  - mcp__claude_ai_Serena__create_text_file
+  - mcp__claude_ai_Serena__replace_regex
+  - mcp__claude_ai_Serena__replace_lines
+  - mcp__claude_ai_Serena__delete_lines
+  - mcp__claude_ai_Serena__insert_at_line
+  - mcp__claude_ai_Serena__remove_project
   - mcp__claude_ai_serena__write_memory
   - mcp__claude_ai_serena__edit_memory
   - mcp__claude_ai_serena__delete_memory
@@ -58,6 +79,13 @@ disallowedTools:
   - mcp__claude_ai_serena__replace_content
   - mcp__claude_ai_serena__replace_in_files
   - mcp__claude_ai_serena__safe_delete_symbol
+  - mcp__claude_ai_serena__execute_shell_command
+  - mcp__claude_ai_serena__create_text_file
+  - mcp__claude_ai_serena__replace_regex
+  - mcp__claude_ai_serena__replace_lines
+  - mcp__claude_ai_serena__delete_lines
+  - mcp__claude_ai_serena__insert_at_line
+  - mcp__claude_ai_serena__remove_project
   - mcp__github__issue_write
   - mcp__github__sub_issue_write
   - mcp__github__label_write
@@ -81,6 +109,13 @@ disallowedTools:
   - mcp__github__run_workflow
   - mcp__github__rerun_failed_jobs
   - mcp__github__rerun_workflow_run
+  - mcp__github__cancel_workflow_run
+  - mcp__github__delete_workflow_run_logs
+  - mcp__github__create_repository
+  - mcp__github__fork_repository
+  - mcp__github__create_gist
+  - mcp__github__update_gist
+  - mcp__github__projects_write
   - mcp__plugin_github_github__issue_write
   - mcp__plugin_github_github__sub_issue_write
   - mcp__plugin_github_github__label_write
@@ -104,6 +139,13 @@ disallowedTools:
   - mcp__plugin_github_github__run_workflow
   - mcp__plugin_github_github__rerun_failed_jobs
   - mcp__plugin_github_github__rerun_workflow_run
+  - mcp__plugin_github_github__cancel_workflow_run
+  - mcp__plugin_github_github__delete_workflow_run_logs
+  - mcp__plugin_github_github__create_repository
+  - mcp__plugin_github_github__fork_repository
+  - mcp__plugin_github_github__create_gist
+  - mcp__plugin_github_github__update_gist
+  - mcp__plugin_github_github__projects_write
   - mcp__claude_ai_GitHub__issue_write
   - mcp__claude_ai_GitHub__sub_issue_write
   - mcp__claude_ai_GitHub__label_write
@@ -127,6 +169,13 @@ disallowedTools:
   - mcp__claude_ai_GitHub__run_workflow
   - mcp__claude_ai_GitHub__rerun_failed_jobs
   - mcp__claude_ai_GitHub__rerun_workflow_run
+  - mcp__claude_ai_GitHub__cancel_workflow_run
+  - mcp__claude_ai_GitHub__delete_workflow_run_logs
+  - mcp__claude_ai_GitHub__create_repository
+  - mcp__claude_ai_GitHub__fork_repository
+  - mcp__claude_ai_GitHub__create_gist
+  - mcp__claude_ai_GitHub__update_gist
+  - mcp__claude_ai_GitHub__projects_write
   - mcp__claude_ai_github__issue_write
   - mcp__claude_ai_github__sub_issue_write
   - mcp__claude_ai_github__label_write
@@ -150,6 +199,88 @@ disallowedTools:
   - mcp__claude_ai_github__run_workflow
   - mcp__claude_ai_github__rerun_failed_jobs
   - mcp__claude_ai_github__rerun_workflow_run
+  - mcp__claude_ai_github__cancel_workflow_run
+  - mcp__claude_ai_github__delete_workflow_run_logs
+  - mcp__claude_ai_github__create_repository
+  - mcp__claude_ai_github__fork_repository
+  - mcp__claude_ai_github__create_gist
+  - mcp__claude_ai_github__update_gist
+  - mcp__claude_ai_github__projects_write
+  - mcp__deepwiki__generate_wiki
+  - mcp__deepwiki__devin_automation_manage
+  - mcp__deepwiki__devin_billing_tag_manage
+  - mcp__deepwiki__devin_blueprint_test
+  - mcp__deepwiki__devin_campaign_manage
+  - mcp__deepwiki__devin_code_scan_manage
+  - mcp__deepwiki__devin_knowledge_manage
+  - mcp__deepwiki__devin_mcp_server_manage
+  - mcp__deepwiki__devin_oncall_manage
+  - mcp__deepwiki__devin_playbook_manage
+  - mcp__deepwiki__devin_review_manage
+  - mcp__deepwiki__devin_schedule_manage
+  - mcp__deepwiki__devin_session_create
+  - mcp__deepwiki__devin_session_interact
+  - mcp__deepwiki__devin_session_insights
+  - mcp__plugin_deepwiki_deepwiki__generate_wiki
+  - mcp__plugin_deepwiki_deepwiki__devin_automation_manage
+  - mcp__plugin_deepwiki_deepwiki__devin_billing_tag_manage
+  - mcp__plugin_deepwiki_deepwiki__devin_blueprint_test
+  - mcp__plugin_deepwiki_deepwiki__devin_campaign_manage
+  - mcp__plugin_deepwiki_deepwiki__devin_code_scan_manage
+  - mcp__plugin_deepwiki_deepwiki__devin_knowledge_manage
+  - mcp__plugin_deepwiki_deepwiki__devin_mcp_server_manage
+  - mcp__plugin_deepwiki_deepwiki__devin_oncall_manage
+  - mcp__plugin_deepwiki_deepwiki__devin_playbook_manage
+  - mcp__plugin_deepwiki_deepwiki__devin_review_manage
+  - mcp__plugin_deepwiki_deepwiki__devin_schedule_manage
+  - mcp__plugin_deepwiki_deepwiki__devin_session_create
+  - mcp__plugin_deepwiki_deepwiki__devin_session_interact
+  - mcp__plugin_deepwiki_deepwiki__devin_session_insights
+  - mcp__claude_ai_DeepWiki__generate_wiki
+  - mcp__claude_ai_DeepWiki__devin_automation_manage
+  - mcp__claude_ai_DeepWiki__devin_billing_tag_manage
+  - mcp__claude_ai_DeepWiki__devin_blueprint_test
+  - mcp__claude_ai_DeepWiki__devin_campaign_manage
+  - mcp__claude_ai_DeepWiki__devin_code_scan_manage
+  - mcp__claude_ai_DeepWiki__devin_knowledge_manage
+  - mcp__claude_ai_DeepWiki__devin_mcp_server_manage
+  - mcp__claude_ai_DeepWiki__devin_oncall_manage
+  - mcp__claude_ai_DeepWiki__devin_playbook_manage
+  - mcp__claude_ai_DeepWiki__devin_review_manage
+  - mcp__claude_ai_DeepWiki__devin_schedule_manage
+  - mcp__claude_ai_DeepWiki__devin_session_create
+  - mcp__claude_ai_DeepWiki__devin_session_interact
+  - mcp__claude_ai_DeepWiki__devin_session_insights
+  - mcp__claude_ai_Deepwiki__generate_wiki
+  - mcp__claude_ai_Deepwiki__devin_automation_manage
+  - mcp__claude_ai_Deepwiki__devin_billing_tag_manage
+  - mcp__claude_ai_Deepwiki__devin_blueprint_test
+  - mcp__claude_ai_Deepwiki__devin_campaign_manage
+  - mcp__claude_ai_Deepwiki__devin_code_scan_manage
+  - mcp__claude_ai_Deepwiki__devin_knowledge_manage
+  - mcp__claude_ai_Deepwiki__devin_mcp_server_manage
+  - mcp__claude_ai_Deepwiki__devin_oncall_manage
+  - mcp__claude_ai_Deepwiki__devin_playbook_manage
+  - mcp__claude_ai_Deepwiki__devin_review_manage
+  - mcp__claude_ai_Deepwiki__devin_schedule_manage
+  - mcp__claude_ai_Deepwiki__devin_session_create
+  - mcp__claude_ai_Deepwiki__devin_session_interact
+  - mcp__claude_ai_Deepwiki__devin_session_insights
+  - mcp__claude_ai_deepwiki__generate_wiki
+  - mcp__claude_ai_deepwiki__devin_automation_manage
+  - mcp__claude_ai_deepwiki__devin_billing_tag_manage
+  - mcp__claude_ai_deepwiki__devin_blueprint_test
+  - mcp__claude_ai_deepwiki__devin_campaign_manage
+  - mcp__claude_ai_deepwiki__devin_code_scan_manage
+  - mcp__claude_ai_deepwiki__devin_knowledge_manage
+  - mcp__claude_ai_deepwiki__devin_mcp_server_manage
+  - mcp__claude_ai_deepwiki__devin_oncall_manage
+  - mcp__claude_ai_deepwiki__devin_playbook_manage
+  - mcp__claude_ai_deepwiki__devin_review_manage
+  - mcp__claude_ai_deepwiki__devin_schedule_manage
+  - mcp__claude_ai_deepwiki__devin_session_create
+  - mcp__claude_ai_deepwiki__devin_session_interact
+  - mcp__claude_ai_deepwiki__devin_session_insights
 ---
 
 # Analyst Agent

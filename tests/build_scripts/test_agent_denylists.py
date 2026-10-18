@@ -8,6 +8,7 @@ the same frontmatter.
 
 from __future__ import annotations
 
+import json
 import shutil
 import sys
 from pathlib import Path
@@ -120,7 +121,9 @@ class TestExpandDeny:
 
 
 class TestLiveTable:
-    @pytest.mark.parametrize("name", ["serena-write", "github-write", "builtin-mutators"])
+    @pytest.mark.parametrize(
+        "name", ["serena-write", "github-write", "deepwiki-write", "builtin-mutators"]
+    )
     def test_every_endorsed_list_expands(self, name: str) -> None:
         assert caps.expand_deny(name, LIVE)
 
@@ -147,11 +150,53 @@ class TestLiveTable:
             "NotebookEdit",
         }
 
-    @pytest.mark.parametrize("name", ["serena-write", "github-write"])
+    @pytest.mark.parametrize("name", ["serena-write", "github-write", "deepwiki-write"])
     def test_read_tools_are_never_denied(self, name: str) -> None:
         denied_tools = {entry.rsplit("__", 1)[1] for entry in caps.expand_deny(name, LIVE)}
 
         assert denied_tools.isdisjoint(READ_TOOLS)
+
+    def test_serena_shell_tool_is_denied_under_every_variant(self) -> None:
+        got = set(caps.expand_deny("serena-write", LIVE))
+
+        for prefix in (
+            "mcp__serena",
+            "mcp__plugin_serena_serena",
+            "mcp__claude_ai_Serena",
+            "mcp__claude_ai_serena",
+        ):
+            assert f"{prefix}__execute_shell_command" in got
+
+    def test_deepwiki_multiplexers_are_denied_and_readers_are_not(self) -> None:
+        denied = {e.rsplit("__", 1)[1] for e in caps.expand_deny("deepwiki-write", LIVE)}
+
+        assert {"devin_session_interact", "devin_knowledge_manage", "generate_wiki"} <= denied
+        assert denied.isdisjoint(
+            {
+                "read_wiki_structure",
+                "read_wiki_contents",
+                "ask_wiki_question",
+                "list_wiki_repos",
+                "devin_session_search",
+                "devin_session_events",
+                "devin_user_list",
+                "devin_list_integrations",
+                "devin_find_setting",
+            }
+        )
+
+    def test_every_mcp_json_server_has_a_deny_table_entry(self) -> None:
+        configured = json.loads((_REPO_ROOT / ".mcp.json").read_text(encoding="utf-8"))
+        servers = configured.get("mcpServers", configured)
+        covered = {
+            entry.get("server")
+            for entry in LIVE["denylists"].values()
+            if isinstance(entry, dict) and entry.get("server")
+        }
+
+        for name in servers:
+            assert name in LIVE["servers"], f".mcp.json server {name!r} has no `servers` entry"
+            assert name in covered, f".mcp.json server {name!r} has no deny list"
 
     def test_every_denied_mcp_entry_is_classified_as_its_server(self) -> None:
         for entry in caps.expand_deny("serena-write", LIVE)[:1]:
