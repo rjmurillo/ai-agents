@@ -227,7 +227,8 @@ To validate a skill in another checkout without `cd` or copying, pass
 resolve inside `DIR`. A symlinked skill directory, `SKILL.md`, or
 script file that escapes it is rejected. The default root stays the
 current directory, and an absolute path outside it is still rejected without
-`--root`:
+`--root`. A relative skill path resolves against the current directory, not
+against `DIR`, so pass an absolute path with `--root`:
 
 ```bash
 python "$FORGE/quick_validate.py" /other/repo/skills/my-skill --root /other/repo

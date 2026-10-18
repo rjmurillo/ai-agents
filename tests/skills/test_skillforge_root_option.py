@@ -18,7 +18,7 @@ import pytest
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _FORGE = Path("skills") / "skillforge" / "scripts"
 _SCRIPT_NAMES = ("quick_validate.py", "validate-skill.py")
-_TREES = (".claude", "src/copilot-cli")
+_TREES = (".claude", "src/claude", "src/copilot-cli")
 _SCRIPTS = [_REPO_ROOT / tree / _FORGE / name for tree in _TREES for name in _SCRIPT_NAMES]
 
 _TRAVERSAL_MARKER = "Path traversal detected"
@@ -66,6 +66,23 @@ def _script_id(script: Path) -> str:
 def _make_skill(dir_path: Path) -> None:
     dir_path.mkdir(parents=True, exist_ok=True)
     (dir_path / "SKILL.md").write_text(_SKILL_MD, encoding="utf-8")
+
+
+def _make_skill_with_scripts(dir_path: Path) -> None:
+    """A skill whose SKILL.md documents ok.py, so a clean scripts/ passes."""
+    dir_path.mkdir(parents=True, exist_ok=True)
+    scripts_doc = (
+        "\n## Scripts\n\n| Script | Purpose |\n|--------|---------|\n"
+        "| `ok.py` | Sample script. Exit code 0 on success. |\n"
+    )
+    (dir_path / "SKILL.md").write_text(_SKILL_MD + scripts_doc, encoding="utf-8")
+
+
+_OK_SCRIPT = (
+    '#!/usr/bin/env python3\n"""Inside."""\nimport sys\n\n'
+    "class Result:\n    pass\n\n"
+    "try:\n    sys.exit(0)\nexcept SystemExit:\n    raise\n"
+)
 
 
 def _run(script: Path, cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -282,10 +299,10 @@ def test_symlink_script_inside_root_is_not_flagged(tree: str, tmp_path: Path) ->
     script = _REPO_ROOT / tree / _FORGE / "validate-skill.py"
     root = tmp_path / "root"
     contained = root / "sample"
-    _make_skill(contained)
+    _make_skill_with_scripts(contained)
     (contained / "scripts").mkdir()
     inside = root / "shared.py"
-    inside.write_text('#!/usr/bin/env python3\n"""Inside."""\n', encoding="utf-8")
+    inside.write_text(_OK_SCRIPT, encoding="utf-8")
     try:
         (contained / "scripts" / "ok.py").symlink_to(inside)
     except (OSError, NotImplementedError):
@@ -293,6 +310,74 @@ def test_symlink_script_inside_root_is_not_flagged(tree: str, tmp_path: Path) ->
     result = _run(script, tmp_path, str(contained), "--root", str(root))
     combined = result.stdout + result.stderr
     assert _OUTSIDE_ROOT_MARKER not in combined, combined
+    assert "Traceback" not in combined, combined
+    assert result.returncode == 0, combined
+
+
+@pytest.mark.parametrize("tree", _TREES)
+def test_symlinked_scripts_dir_escaping_root_is_rejected_once(tree: str, tmp_path: Path) -> None:
+    # CWE-22: a scripts/ directory symlink to an outside directory must not be
+    # listed. One error names the directory; no outside filename is reported.
+    script = _REPO_ROOT / tree / _FORGE / "validate-skill.py"
+    root = tmp_path / "root"
+    contained = root / "sample"
+    _make_skill(contained)
+    outside_dir = tmp_path / "outside-scripts"
+    outside_dir.mkdir()
+    (outside_dir / "leaky_name.py").write_text('"""Outside."""\n', encoding="utf-8")
+    try:
+        (contained / "scripts").symlink_to(outside_dir, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation not permitted on this platform")
+    result = _run(script, tmp_path, str(contained), "--root", str(root))
+    combined = result.stdout + result.stderr
+    assert "scripts/ resolves outside the permitted root" in combined, combined
+    assert combined.count("scripts/ resolves outside the permitted root") == 1, combined
+    assert "leaky_name" not in combined, combined
+    assert "Traceback" not in combined, combined
+    assert result.returncode == 1, combined
+
+
+@pytest.mark.parametrize("tree", _TREES)
+def test_symlinked_references_dir_escaping_root_is_rejected(tree: str, tmp_path: Path) -> None:
+    script = _REPO_ROOT / tree / _FORGE / "validate-skill.py"
+    root = tmp_path / "root"
+    contained = root / "sample"
+    _make_skill(contained)
+    outside_dir = tmp_path / "outside-refs"
+    outside_dir.mkdir()
+    (outside_dir / "leaky_ref.md").write_text("# Outside\n", encoding="utf-8")
+    try:
+        (contained / "references").symlink_to(outside_dir, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation not permitted on this platform")
+    result = _run(script, tmp_path, str(contained), "--root", str(root))
+    combined = result.stdout + result.stderr
+    assert "references/ resolves outside the permitted root" in combined, combined
+    assert "leaky_ref" not in combined, combined
+    assert "Traceback" not in combined, combined
+    assert result.returncode == 1, combined
+
+
+@pytest.mark.parametrize("tree", _TREES)
+def test_symlinked_scripts_dir_inside_root_is_accepted(tree: str, tmp_path: Path) -> None:
+    # Control: the same directory symlink with an in-root target is not flagged.
+    script = _REPO_ROOT / tree / _FORGE / "validate-skill.py"
+    root = tmp_path / "root"
+    contained = root / "sample"
+    _make_skill_with_scripts(contained)
+    shared = root / "shared-scripts"
+    shared.mkdir()
+    (shared / "ok.py").write_text(_OK_SCRIPT, encoding="utf-8")
+    try:
+        (contained / "scripts").symlink_to(shared, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation not permitted on this platform")
+    result = _run(script, tmp_path, str(contained), "--root", str(root))
+    combined = result.stdout + result.stderr
+    assert _OUTSIDE_ROOT_MARKER not in combined, combined
+    assert "Traceback" not in combined, combined
+    assert result.returncode == 0, combined
 
 
 def _load_validator(script: Path):

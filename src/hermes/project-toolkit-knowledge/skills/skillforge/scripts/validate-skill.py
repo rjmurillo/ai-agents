@@ -621,9 +621,29 @@ class SkillValidator:
             warning=True,
         )
 
+    def _subdirectory_contained(self, dir_path: Path, label: str) -> bool:
+        """Return False, recording one error, when a skill subdirectory escapes the root.
+
+        SECURITY (CWE-22): ``scripts/`` and ``references/`` can be directory
+        symlinks. Listing one that points outside the root would read, and could
+        report, outside filenames. A missing path is fine: nothing to contain.
+        """
+        if not os.path.lexists(dir_path):
+            return True
+        if contained_realpath(dir_path, self.root) is not None:
+            return True
+        self.check(
+            f"{label}.contained",
+            False,
+            f"{label}/ resolves outside the permitted root",
+        )
+        return False
+
     def validate_references_directory(self):
         """Validate references directory if skill is complex."""
         refs_path = self.skill_path / "references"
+        if not self._subdirectory_contained(refs_path, "references"):
+            return
 
         # Complex skills should have references
         line_count = len(self.content.split("\n"))
@@ -638,6 +658,8 @@ class SkillValidator:
     def validate_scripts_directory(self):
         """Validate scripts directory if present."""
         scripts_path = self.skill_path / "scripts"
+        if not self._subdirectory_contained(scripts_path, "scripts"):
+            return
 
         if not scripts_path.exists():
             # Skills tagged vendor-portability intentionally reference upstream repo
