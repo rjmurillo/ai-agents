@@ -29,7 +29,8 @@ GitRunner = Callable[[list[str]], tuple[int, str]]
 #: Most commits inspected per scan. Bounds the git calls on a runaway branch.
 MAX_COMMITS = 50
 
-_SHA = re.compile(r"^[0-9a-fA-F]{7,64}$")
+# Matched with ``fullmatch``: ``$`` also accepts one trailing newline (#6506).
+_SHA = re.compile(r"[0-9a-fA-F]{7,64}")
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 _RECORD_SEP = "\x1e"
 
@@ -186,7 +187,7 @@ def scan_unpushed_commits(live_head: str, runner: GitRunner = default_runner) ->
     The SHA comes from the GitHub API, so its shape is checked before it
     reaches a git argument vector (CWE-88).
     """
-    if not _SHA.match(live_head):
+    if not _SHA.fullmatch(live_head):
         return _unverified(live_head, "live head is not a commit SHA")
     code, _ = runner(["merge-base", "--is-ancestor", live_head, "HEAD"])
     if code == 1:
