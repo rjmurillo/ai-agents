@@ -485,6 +485,7 @@ class TestLiveRepository:
 
         shutil.copytree(_REPO_ROOT / "templates" / "agents", tmp_path / "templates" / "agents")
         shutil.copy(_REPO_ROOT / "templates" / "toolsets.yaml", tmp_path / "templates")
+        shutil.copy(_REPO_ROOT / "templates" / "agent-denylists.yaml", tmp_path / "templates")
         (tmp_path / "pyproject.toml").write_text("", encoding="utf-8")
         gov = tmp_path / gate.BASELINE_RELATIVE_PATH
         gov.parent.mkdir(parents=True)

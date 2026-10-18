@@ -1,0 +1,101 @@
+# Deny lists for Claude read-only agents (ADR-107, "Read-only agents inherit tools").
+#
+# A read-only Claude agent omits `tools:` (it inherits every session tool, so MCP
+# servers nobody can enumerate stay reachable) and lists what it must not hold in
+# `disallowedTools:`. A template writes a logical reference such as
+# `- $deny:serena-write` as one list item. build/scripts/agent_templates.py
+# expands it through build/scripts/agent_capabilities.py into one entry per tool
+# per prefix variant. An unknown name fails the build.
+#
+# Why a sibling file and not templates/toolsets.yaml: toolsets.yaml is read by a
+# line-based parser in build/generate_agents_common.py (read_toolset_definitions)
+# that only understands named lists of Copilot and VS Code tools. A deny table
+# with prefix variants is a different schema and a different consumer, so it
+# lives apart and cannot disturb the Copilot expansion.
+#
+# Claude Code spells one MCP tool differently by where the server is configured
+# (https://code.claude.com/docs/en/mcp and /permissions):
+#   .mcp.json or settings server   mcp__<server>__<tool>
+#   plugin-provided server         mcp__plugin_<plugin>_<server>__<tool>
+#   claude.ai connector            mcp__claude_ai_<Server>__<tool>
+# The connector segment keeps the connector's display name with spaces replaced
+# by underscores (observed in a live session: mcp__claude_ai_Slack__,
+# mcp__claude_ai_Context7__, mcp__claude_ai_Claude_Docs__). Its capitalization is
+# the connector's, not ours, so each server lists every spelling we can justify.
+# Denying a spelling that does not exist is harmless.
+
+# Placeholders: {server} is the key under `servers`; {claude_ai} expands once per
+# name in that server's `claude_ai` list. The trailing `__<tool>` is appended.
+prefix_variants:
+  - "mcp__{server}"
+  - "mcp__plugin_{server}_{server}"
+  - "mcp__claude_ai_{claude_ai}"
+
+servers:
+  # Serena is configured as `serena` in .mcp.json. It ships no claude.ai
+  # connector that we know of; the capitalized spelling is a guess kept because
+  # a wrong deny entry costs nothing.
+  serena:
+    claude_ai: [Serena, serena]
+  # The GitHub connector name is not confirmed. GitHub is the display name the
+  # other connectors follow; lowercase mirrors the .mcp.json key.
+  github:
+    claude_ai: [GitHub, github]
+
+denylists:
+  # Built-in shell and file mutators. Keeping Bash out preserves the #5356
+  # control (commit 5c8b89781a): with no shell, git config injection, --output
+  # file writes, and mutating git are unreachable rather than forbidden.
+  builtin-mutators:
+    tools: [Bash, Edit, Write, MultiEdit, NotebookEdit]
+
+  # Names verified against the tool list of a live Serena session. Read tools
+  # (find_symbol, find_referencing_symbols, find_declaration,
+  # find_implementations, get_symbols_overview, get_diagnostics_for_file,
+  # list_memories, read_memory, initial_instructions, onboarding) stay usable.
+  serena-write:
+    server: serena
+    tools:
+      - write_memory
+      - edit_memory
+      - delete_memory
+      - rename_memory
+      - replace_symbol_body
+      - insert_after_symbol
+      - insert_before_symbol
+      - rename_symbol
+      - replace_content
+      - replace_in_files
+      - safe_delete_symbol
+
+  # Mutating GitHub MCP tools named somewhere in this repository (templates,
+  # toolsets.yaml, skills, docs). Read tools (issue_read, pull_request_read,
+  # get_file_contents, get_commit, list_commits, search_code, list_workflow_runs,
+  # get_workflow_run, get_job_logs, get_check_run, and the list_ and get_
+  # families) stay usable.
+  github-write:
+    server: github
+    tools:
+      - issue_write
+      - sub_issue_write
+      - label_write
+      - create_issue
+      - add_issue_comment
+      - add_reply_to_pull_request_comment
+      - add_comment_to_pending_review
+      - pull_request_review_write
+      - resolve_review_thread
+      - unresolve_review_thread
+      - create_pull_request
+      - update_pull_request
+      - update_pull_request_branch
+      - merge_pull_request
+      - request_copilot_review
+      - assign_copilot_to_issue
+      - create_branch
+      - push_files
+      - create_or_update_file
+      - delete_file
+      - run_workflow
+      - rerun_failed_jobs
+      - rerun_workflow_run

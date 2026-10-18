@@ -6,45 +6,164 @@ metadata:
 # Requires fresh context and separate tool state to threat-model without inherited assumptions.
 isolation_required: true
 argument-hint: Specify the code, feature, or changes to security review
-# Read-only review evidence plus the report writes this agent's templates need.
-# `tools` accepts bare tool names and MCP server-level patterns only
-# (https://code.claude.com/docs/en/sub-agents, "Supported frontmatter fields"
-# and "Available tools"; its worked example is `tools: Read, Grep, Glob, Bash`).
-# A parenthesised entry such as `Bash(git diff:*)` is permission-rule syntax,
-# not a tool name, so it grants no Bash at all: that spelling reproduced #4781's
-# symptom deterministically instead of fixing it.
-# No shell is granted, and that absence is this agent's enforcement. The field
-# cannot scope a shell grant, and the settings-file deny layer cannot substitute
-# for one: those rules match command text case-sensitively while git config keys
-# are case-insensitive, so `git -c Diff.External=<cmd>` reaches the same handler
-# as the denied lowercase spelling. Enumerating casings is not a control, and a
-# session-wide deny on the mutating subcommands would break every other agent
-# (the incident #5013 shape). Without `Bash`, mutating git, the `--output`
-# file-write flags, and config injection are unreachable rather than merely
-# forbidden. A review is enumerated through the pinned GitHub readers or a
-# caller-supplied diff artifact, the same path the Copilot and VS Code surfaces
-# use. `Edit` is dropped with it: the deliverables are new report files, so it
-# added a source-mutation vector for no capability. `Write` is retained for
-# those reports and stays unscoped, so the report-path limit is still an
-# obligation stated in the body, not a control. See #4781.
-tools:
-  - Read
-  - Grep
-  - Glob
-  - WebSearch
-  - WebFetch
-  - TodoWrite
+# No `tools:` key: the agent inherits every session tool (MCP server names vary by
+# install) and `disallowedTools` removes the mutators. See ADR-107, "Read-only
+# agents inherit tools".
+# `Bash` is denied, and that absence is this agent's enforcement (#4781, #5356).
+# Neither field can scope a shell, and the settings-file deny layer cannot
+# substitute for removing it: those rules match command text case-sensitively
+# while git config keys are case-insensitive, so `git -c Diff.External=<cmd>`
+# reaches the same handler as the denied lowercase spelling. Enumerating casings
+# is not a control, and a session-wide deny on the mutating subcommands would
+# break every other agent (the incident #5013 shape). Without `Bash`, mutating
+# git, the `--output` file-write flags, and config injection are unreachable
+# rather than merely forbidden. A review is enumerated through the pinned GitHub
+# readers or a caller-supplied diff artifact, the same path the Copilot and
+# VS Code surfaces use. `Edit`, `MultiEdit`, `NotebookEdit` and `Write` are
+# denied too: the agent returns its report to the caller, who persists it.
+disallowedTools:
+  - Agent
+  - Bash
+  - Edit
   - Write
-  - mcp__github__pull_request_read
-  - mcp__github__get_commit
-  - mcp__github__list_commits
-  - mcp__github__get_file_contents
-  - mcp__github__search_code
-  - mcp__github__issue_read
-  - mcp__serena__list_memories
-  - mcp__serena__read_memory
+  - MultiEdit
+  - NotebookEdit
   - mcp__serena__write_memory
   - mcp__serena__edit_memory
+  - mcp__serena__delete_memory
+  - mcp__serena__rename_memory
+  - mcp__serena__replace_symbol_body
+  - mcp__serena__insert_after_symbol
+  - mcp__serena__insert_before_symbol
+  - mcp__serena__rename_symbol
+  - mcp__serena__replace_content
+  - mcp__serena__replace_in_files
+  - mcp__serena__safe_delete_symbol
+  - mcp__plugin_serena_serena__write_memory
+  - mcp__plugin_serena_serena__edit_memory
+  - mcp__plugin_serena_serena__delete_memory
+  - mcp__plugin_serena_serena__rename_memory
+  - mcp__plugin_serena_serena__replace_symbol_body
+  - mcp__plugin_serena_serena__insert_after_symbol
+  - mcp__plugin_serena_serena__insert_before_symbol
+  - mcp__plugin_serena_serena__rename_symbol
+  - mcp__plugin_serena_serena__replace_content
+  - mcp__plugin_serena_serena__replace_in_files
+  - mcp__plugin_serena_serena__safe_delete_symbol
+  - mcp__claude_ai_Serena__write_memory
+  - mcp__claude_ai_Serena__edit_memory
+  - mcp__claude_ai_Serena__delete_memory
+  - mcp__claude_ai_Serena__rename_memory
+  - mcp__claude_ai_Serena__replace_symbol_body
+  - mcp__claude_ai_Serena__insert_after_symbol
+  - mcp__claude_ai_Serena__insert_before_symbol
+  - mcp__claude_ai_Serena__rename_symbol
+  - mcp__claude_ai_Serena__replace_content
+  - mcp__claude_ai_Serena__replace_in_files
+  - mcp__claude_ai_Serena__safe_delete_symbol
+  - mcp__claude_ai_serena__write_memory
+  - mcp__claude_ai_serena__edit_memory
+  - mcp__claude_ai_serena__delete_memory
+  - mcp__claude_ai_serena__rename_memory
+  - mcp__claude_ai_serena__replace_symbol_body
+  - mcp__claude_ai_serena__insert_after_symbol
+  - mcp__claude_ai_serena__insert_before_symbol
+  - mcp__claude_ai_serena__rename_symbol
+  - mcp__claude_ai_serena__replace_content
+  - mcp__claude_ai_serena__replace_in_files
+  - mcp__claude_ai_serena__safe_delete_symbol
+  - mcp__github__issue_write
+  - mcp__github__sub_issue_write
+  - mcp__github__label_write
+  - mcp__github__create_issue
+  - mcp__github__add_issue_comment
+  - mcp__github__add_reply_to_pull_request_comment
+  - mcp__github__add_comment_to_pending_review
+  - mcp__github__pull_request_review_write
+  - mcp__github__resolve_review_thread
+  - mcp__github__unresolve_review_thread
+  - mcp__github__create_pull_request
+  - mcp__github__update_pull_request
+  - mcp__github__update_pull_request_branch
+  - mcp__github__merge_pull_request
+  - mcp__github__request_copilot_review
+  - mcp__github__assign_copilot_to_issue
+  - mcp__github__create_branch
+  - mcp__github__push_files
+  - mcp__github__create_or_update_file
+  - mcp__github__delete_file
+  - mcp__github__run_workflow
+  - mcp__github__rerun_failed_jobs
+  - mcp__github__rerun_workflow_run
+  - mcp__plugin_github_github__issue_write
+  - mcp__plugin_github_github__sub_issue_write
+  - mcp__plugin_github_github__label_write
+  - mcp__plugin_github_github__create_issue
+  - mcp__plugin_github_github__add_issue_comment
+  - mcp__plugin_github_github__add_reply_to_pull_request_comment
+  - mcp__plugin_github_github__add_comment_to_pending_review
+  - mcp__plugin_github_github__pull_request_review_write
+  - mcp__plugin_github_github__resolve_review_thread
+  - mcp__plugin_github_github__unresolve_review_thread
+  - mcp__plugin_github_github__create_pull_request
+  - mcp__plugin_github_github__update_pull_request
+  - mcp__plugin_github_github__update_pull_request_branch
+  - mcp__plugin_github_github__merge_pull_request
+  - mcp__plugin_github_github__request_copilot_review
+  - mcp__plugin_github_github__assign_copilot_to_issue
+  - mcp__plugin_github_github__create_branch
+  - mcp__plugin_github_github__push_files
+  - mcp__plugin_github_github__create_or_update_file
+  - mcp__plugin_github_github__delete_file
+  - mcp__plugin_github_github__run_workflow
+  - mcp__plugin_github_github__rerun_failed_jobs
+  - mcp__plugin_github_github__rerun_workflow_run
+  - mcp__claude_ai_GitHub__issue_write
+  - mcp__claude_ai_GitHub__sub_issue_write
+  - mcp__claude_ai_GitHub__label_write
+  - mcp__claude_ai_GitHub__create_issue
+  - mcp__claude_ai_GitHub__add_issue_comment
+  - mcp__claude_ai_GitHub__add_reply_to_pull_request_comment
+  - mcp__claude_ai_GitHub__add_comment_to_pending_review
+  - mcp__claude_ai_GitHub__pull_request_review_write
+  - mcp__claude_ai_GitHub__resolve_review_thread
+  - mcp__claude_ai_GitHub__unresolve_review_thread
+  - mcp__claude_ai_GitHub__create_pull_request
+  - mcp__claude_ai_GitHub__update_pull_request
+  - mcp__claude_ai_GitHub__update_pull_request_branch
+  - mcp__claude_ai_GitHub__merge_pull_request
+  - mcp__claude_ai_GitHub__request_copilot_review
+  - mcp__claude_ai_GitHub__assign_copilot_to_issue
+  - mcp__claude_ai_GitHub__create_branch
+  - mcp__claude_ai_GitHub__push_files
+  - mcp__claude_ai_GitHub__create_or_update_file
+  - mcp__claude_ai_GitHub__delete_file
+  - mcp__claude_ai_GitHub__run_workflow
+  - mcp__claude_ai_GitHub__rerun_failed_jobs
+  - mcp__claude_ai_GitHub__rerun_workflow_run
+  - mcp__claude_ai_github__issue_write
+  - mcp__claude_ai_github__sub_issue_write
+  - mcp__claude_ai_github__label_write
+  - mcp__claude_ai_github__create_issue
+  - mcp__claude_ai_github__add_issue_comment
+  - mcp__claude_ai_github__add_reply_to_pull_request_comment
+  - mcp__claude_ai_github__add_comment_to_pending_review
+  - mcp__claude_ai_github__pull_request_review_write
+  - mcp__claude_ai_github__resolve_review_thread
+  - mcp__claude_ai_github__unresolve_review_thread
+  - mcp__claude_ai_github__create_pull_request
+  - mcp__claude_ai_github__update_pull_request
+  - mcp__claude_ai_github__update_pull_request_branch
+  - mcp__claude_ai_github__merge_pull_request
+  - mcp__claude_ai_github__request_copilot_review
+  - mcp__claude_ai_github__assign_copilot_to_issue
+  - mcp__claude_ai_github__create_branch
+  - mcp__claude_ai_github__push_files
+  - mcp__claude_ai_github__create_or_update_file
+  - mcp__claude_ai_github__delete_file
+  - mcp__claude_ai_github__run_workflow
+  - mcp__claude_ai_github__rerun_failed_jobs
+  - mcp__claude_ai_github__rerun_workflow_run
 ---
 # Security Agent
 
@@ -86,11 +205,11 @@ You have direct access to:
 - **WebSearch/WebFetch**: Research CVEs, security advisories
 - **No shell, on any surface**: this agent is granted no `Bash` tool. Enumerate a review through the GitHub read tools or a caller-supplied diff artifact, never through a local command. Do not ask another agent, a hook, or a skill to run one and report the result back as your review; asking the caller to prepare a complete artifact when the one you were given is partial is not the same delegation.
 - **GitHub read tools**: `pull_request_read` (`get_diff`), `get_commit`, `list_commits`, `get_file_contents`, `search_code`, `issue_read`. Bind a review to a SHA or PR. This is the enumeration path, not a fallback.
-- **Write, for the report paths only**: `.project-toolkit/security/**` and `.project-toolkit/planning/impact-analysis-security-*.md`. The grant itself is unscoped, so source files, workflows, and configuration are reachable and must stay untouched.
+- **No file writes**: `Write`, `Edit`, `MultiEdit`, and `NotebookEdit` are denied. Return the report text to the caller, who persists it under `.project-toolkit/security/**` or `.project-toolkit/planning/impact-analysis-security-*.md`.
 - **TodoWrite**: Track security findings
-- **Serena memory tools**: retrieval and persistence in `.serena/memories/`
+- **Serena memory tools**: retrieval only, from `.serena/memories/`
   - `mcp__serena__list_memories` / `mcp__serena__read_memory`: Retrieve prior findings
-  - `mcp__serena__write_memory` / `mcp__serena__edit_memory`: Persist new findings
+  - `write_memory`, `edit_memory`, `delete_memory`, and `rename_memory` are denied. Hand new findings to the caller to persist
   - The memory-router CLI needs a shell, so it is unavailable here; use these tools directly
 
 ## Core Mission

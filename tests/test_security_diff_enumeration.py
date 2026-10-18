@@ -61,27 +61,14 @@ ALL_SECURITY_SURFACES = (
     VSCODE_GENERATED,
 )
 
-# Bare tool names the enumeration protocol needs on a Claude surface. Reading
-# the pinned snapshot and writing the report are the whole job.
+# Bare tool names the shipped Claude copies once granted. Kept as the fixture the
+# helper controls below run on; the Claude surfaces now deny the mutators instead
+# (see DENIED_CLAUDE_TOOLS).
 REQUIRED_CLAUDE_TOOLS = (
     "Read",
     "Grep",
     "Glob",
     "Write",
-)
-
-# Tool grants no security surface may declare. `Bash` is the CWE-78 carrier the
-# PR #5356 review flagged: a settings-file deny rule matches command text
-# case-sensitively while git config keys are case-insensitive, so
-# `git -c Diff.External=<cmd>` reaches the same handler as the denied
-# `diff.external`. Enumerating casings is not a control and a session-wide deny
-# on the mutating subcommands breaks every other agent (the #5013 shape), so the
-# absent grant is the only enforcement available. `Edit` goes with it: the
-# deliverables are new report files, which `Write` creates, so `Edit` bought a
-# source-mutation vector and no capability.
-FORBIDDEN_CLAUDE_TOOLS = (
-    "Bash",
-    "Edit",
 )
 
 # Claude-side pinned-diff retrieval. With no shell on any surface this is the
@@ -361,72 +348,96 @@ def blocked_is_conditional(text: str) -> str | None:
 # --- Production tests ---
 
 
-@pytest.mark.parametrize("path", CLAUDE_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
-def test_claude_surface_declares_explicit_tools(path: Path) -> None:
-    """An absent `tools` key is the defect: the agent inherits whatever the host gives."""
-    tools = _tool_list(_frontmatter(path), "tools", path)
+# ADR-107 ("Read-only agents inherit tools"): the Claude surfaces declare no `tools`
+# allowlist, so MCP servers whose names vary by install stay reachable, and they
+# subtract the mutators through `disallowedTools`. The checks below pin that shape.
 
-    assert len(tools) == len(set(tools)), f"{path.relative_to(REPO_ROOT)}: duplicate tool entries"
+# Built-in mutators the deny list must name. `Write` is included: the agent returns
+# its report to the caller instead of writing it.
+DENIED_CLAUDE_TOOLS = ("Bash", "Edit", "Write", "MultiEdit", "NotebookEdit")
+
+# Mutating GitHub tools the Claude deny list must name under every prefix variant.
+MUTATING_GITHUB_TOOLS = (
+    "issue_write",
+    "add_issue_comment",
+    "pull_request_review_write",
+    "create_pull_request",
+    "update_pull_request",
+    "merge_pull_request",
+    "push_files",
+    "create_or_update_file",
+    "run_workflow",
+)
+GITHUB_PREFIX_VARIANTS = (
+    "mcp__github",
+    "mcp__plugin_github_github",
+    "mcp__claude_ai_GitHub",
+    "mcp__claude_ai_github",
+)
+
+# Deny entries: a bare tool name or an MCP name with any-case connector segment.
+DENY_ENTRY_NAME = re.compile(r"^([A-Z][A-Za-z0-9]*|mcp__[A-Za-z0-9_]+__[a-z0-9_]+)$")
 
 
-@pytest.mark.parametrize("path", CLAUDE_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
-def test_claude_surface_uses_only_parseable_tool_names(path: Path) -> None:
-    """A parenthesised specifier grants nothing, so it is worse than omitting the key."""
-    tools = _tool_list(_frontmatter(path), "tools", path)
-
-    offenders = find_unparseable_tool_entries(tools)
-    assert not offenders, (
-        f"{path.relative_to(REPO_ROOT)}: `tools` entries Claude Code cannot parse "
-        f"as tool names {offenders}; the allowlist takes bare names only"
+def _deny_list(path: Path) -> list[str]:
+    """Return ``disallowedTools``, failing when the surface also declares ``tools``."""
+    metadata = _frontmatter(path)
+    assert metadata.get("tools") is None, (
+        f"{path.relative_to(REPO_ROOT)}: declares a `tools` allowlist; "
+        f"ADR-107 read-only agents inherit tools and deny the mutators"
     )
+    return _tool_list(metadata, "disallowedTools", path)
 
 
 @pytest.mark.parametrize("path", CLAUDE_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
-def test_claude_surface_grants_the_tools_the_protocol_needs(path: Path) -> None:
-    """Reading the pinned snapshot and writing the report are the whole job."""
-    tools = _tool_list(_frontmatter(path), "tools", path)
+def test_claude_surface_declares_a_deny_list_and_no_allowlist(path: Path) -> None:
+    """An absent `disallowedTools` key is the defect: the agent inherits every tool."""
+    denied = _deny_list(path)
 
-    missing = find_missing_tools(tools, REQUIRED_CLAUDE_TOOLS)
-    assert not missing, f"{path.relative_to(REPO_ROOT)}: missing tool grants {missing}"
+    assert len(denied) == len(set(denied)), f"{path.relative_to(REPO_ROOT)}: duplicate entries"
 
 
 @pytest.mark.parametrize("path", CLAUDE_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
-def test_claude_surface_grants_no_shell_and_no_editor(path: Path) -> None:
+def test_claude_surface_deny_entries_are_tool_names(path: Path) -> None:
+    """A parenthesised specifier or glob in this list is permission-rule syntax, not a name."""
+    offenders = [t for t in _deny_list(path) if not DENY_ENTRY_NAME.fullmatch(t.strip())]
+
+    assert not offenders, f"{path.relative_to(REPO_ROOT)}: unparseable deny entries {offenders}"
+
+
+@pytest.mark.parametrize("path", CLAUDE_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
+def test_claude_surface_denies_the_shell_and_every_editor(path: Path) -> None:
     """`Bash` is the CWE-78 carrier the PR #5356 review flagged as Risk 8/10.
 
-    The deny rules in the repository settings file cannot substitute for the
-    absent grant: they match command text case-sensitively, and git config keys
-    are case-insensitive, so `git -c Diff.External=<cmd>` runs `<cmd>` while no
-    lowercase rule matches. Enumerating casings is not a control. Absence is.
-
-    `Edit` rides along because issue #4781's acceptance criterion puts write,
-    commit, push, and secret reads out of reach, and `Edit` reached source files
-    while adding nothing the report writes need.
+    The settings-file deny rules cannot substitute for removing the tool: they
+    match command text case-sensitively, and git config keys are case-insensitive,
+    so `git -c Diff.External=<cmd>` runs `<cmd>` while no lowercase rule matches.
+    Enumerating casings is not a control. Denying the tool is.
     """
-    tools = _tool_list(_frontmatter(path), "tools", path)
+    missing = find_missing_tools(_deny_list(path), DENIED_CLAUDE_TOOLS)
 
-    present = find_present_tools(tools, FORBIDDEN_CLAUDE_TOOLS)
-    assert not present, (
-        f"{path.relative_to(REPO_ROOT)}: declares forbidden grants {present}. "
-        f"A shell grant reopens `git -c Diff.External=` (case-insensitive to git, "
-        f"case-sensitive to the deny matcher) and `git commit`/`git push`."
+    assert not missing, (
+        f"{path.relative_to(REPO_ROOT)}: does not deny {missing}. A shell grant reopens "
+        f"`git -c Diff.External=` and `git commit`/`git push`."
     )
 
 
 @pytest.mark.parametrize("path", CLAUDE_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
-def test_claude_surface_grants_no_remote_mutation(path: Path) -> None:
-    tools = _tool_list(_frontmatter(path), "tools", path)
+def test_claude_surface_denies_remote_mutation_under_every_prefix(path: Path) -> None:
+    denied = _deny_list(path)
 
-    offenders = find_mutating_github_grants(tools)
-    assert not offenders, f"{path.relative_to(REPO_ROOT)}: remote-mutating grants {offenders}"
+    expected = tuple(f"{p}__{t}" for p in GITHUB_PREFIX_VARIANTS for t in MUTATING_GITHUB_TOOLS)
+    missing = find_missing_tools(denied, expected)
+    assert not missing, f"{path.relative_to(REPO_ROOT)}: remote-mutating tools not denied {missing}"
 
 
 @pytest.mark.parametrize("path", CLAUDE_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
 def test_claude_surface_can_bind_to_a_sha(path: Path) -> None:
-    tools = _tool_list(_frontmatter(path), "tools", path)
+    """The pinned-diff readers are the enumeration path, so none may be denied."""
+    denied = _deny_list(path)
 
-    missing = find_missing_tools(tools, REQUIRED_PINNED_DIFF_CLAUDE)
-    assert not missing, f"{path.relative_to(REPO_ROOT)}: missing pinned-diff grants {missing}"
+    blocked = find_present_tools(denied, REQUIRED_PINNED_DIFF_CLAUDE)
+    assert not blocked, f"{path.relative_to(REPO_ROOT)}: pinned-diff readers denied {blocked}"
 
 
 @pytest.mark.parametrize("path", PLATFORM_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))

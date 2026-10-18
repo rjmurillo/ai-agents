@@ -93,6 +93,7 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
+import agent_capabilities  # noqa: E402
 from atomic_write import publish_bytes_atomically  # noqa: E402
 from regen_guard import detect_reason  # noqa: E402
 from skill_template_grammar import (  # noqa: E402,F401 (F401: re-exported for callers)
@@ -240,16 +241,34 @@ def owned_targets(repo_root: Path) -> set[Path]:
     return {repo_root / "src" / "claude" / "agents" / f"{stem}.md" for stem in discover(repo_root)}
 
 
-def _try_render(tmpl_path: Path, partials_dir: Path, result: CompileResult) -> str | None:
+def _try_render(
+    tmpl_path: Path,
+    partials_dir: Path,
+    result: CompileResult,
+    denylists: dict[str, object] | None = None,
+) -> str | None:
     """Render one template, recording any failure onto ``result``.
 
     Mirrors ``skill_templates._try_render`` exactly (module docstring): the
     same three exception classes are graded the same floors, extracted to
     hold this module's compile loop under the cyclomatic-complexity ceiling.
+
+    Different than canonical: when ``denylists`` is given (the Claude variant
+    only), ``- $deny:<name>`` frontmatter list items expand into the
+    ``disallowedTools`` entries for every MCP prefix variant. An unknown name
+    is a configuration error, exit 2, the same floor a missing partial gets.
     """
     try:
-        return str(render(tmpl_path, partials_dir))
-    except (TemplateGrammarError, MissingPartialError, PartialNewlineError) as exc:
+        rendered = str(render(tmpl_path, partials_dir))
+        if denylists is not None:
+            rendered = agent_capabilities.expand_deny_frontmatter(rendered, denylists)
+        return rendered
+    except (
+        TemplateGrammarError,
+        MissingPartialError,
+        PartialNewlineError,
+        agent_capabilities.CapabilityError,
+    ) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         result.exit_code = max(result.exit_code, 2)
         return None
@@ -257,6 +276,17 @@ def _try_render(tmpl_path: Path, partials_dir: Path, result: CompileResult) -> s
         print(f"Error: {exc}", file=sys.stderr)
         result.exit_code = max(result.exit_code, 1)
         return None
+
+
+def render_claude(tmpl_path: Path, partials_dir: Path, denylists: dict[str, object]) -> str:
+    """Render a Claude template, then expand its ``$deny:`` references.
+
+    Raises the grammar errors :func:`render` raises, plus
+    ``agent_capabilities.CapabilityError`` for an unknown deny list.
+    """
+    return agent_capabilities.expand_deny_frontmatter(
+        str(render(tmpl_path, partials_dir)), denylists
+    )
 
 
 def _report_discover_errors(repo_root: Path, result: CompileResult) -> None:
@@ -276,6 +306,7 @@ def _compile_one_pair(
     validate: bool,
     what_if: bool,
     result: CompileResult,
+    denylists: dict[str, object],
 ) -> None:
     """Render, and (unless validating) write, one stem's Claude variant.
 
@@ -303,7 +334,7 @@ def _compile_one_pair(
         result.exit_code = max(result.exit_code, 1)
         return
 
-    rendered = _try_render(claude_tmpl, partials_dir, result)
+    rendered = _try_render(claude_tmpl, partials_dir, result, denylists)
     if rendered is None:
         return
 
@@ -346,6 +377,12 @@ def compile_all(repo_root: Path, *, validate: bool, what_if: bool = False) -> Co
     partials_dir = repo_root / "templates" / "agents" / "partials"
 
     _report_discover_errors(repo_root, result)
+    try:
+        denylists = agent_capabilities.load_denylists(repo_root)
+    except agent_capabilities.CapabilityError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        result.exit_code = max(result.exit_code, 2)
+        return result
 
     for stem, (claude_tmpl, copilot_tmpl) in sorted(discover(repo_root).items()):
         _compile_one_pair(
@@ -357,6 +394,7 @@ def compile_all(repo_root: Path, *, validate: bool, what_if: bool = False) -> Co
             validate=validate,
             what_if=what_if,
             result=result,
+            denylists=denylists,
         )
 
     return result
