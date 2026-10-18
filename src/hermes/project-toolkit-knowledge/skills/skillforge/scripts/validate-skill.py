@@ -6,8 +6,12 @@ Validates that a SKILL.md file meets the requirements defined in
 SkillForge 4.1's quality standards.
 
 Usage:
-    python validate-skill.py <path-to-skill-directory>
+    python validate-skill.py <path-to-skill-directory> [--root DIR]
     python validate-skill.py ~/.claude/skills/my-skill/
+
+The skill directory must resolve inside the current working directory (CWE-22
+guard). Pass --root DIR to opt in to a different trusted root, for example
+``--root /other/repo`` to validate ``/other/repo/skills/my-skill`` from anywhere.
 """
 
 import os
@@ -20,11 +24,13 @@ from typing import Any
 class SkillValidator:
     """Validates skill files against SkillForge 4.1 standards."""
 
-    def __init__(self, skill_path: str):
-        # SECURITY: Validate path stays within allowed base directory (CWE-22)
-        cwd_real = os.path.realpath(os.getcwd())
+    def __init__(self, skill_path: str, root: str | None = None):
+        # SECURITY: Validate path stays within allowed base directory (CWE-22).
+        # The base is the current working directory unless the caller opts in to
+        # another trusted root.
+        cwd_real = os.path.realpath(root if root is not None else os.getcwd())
         resolved = os.path.realpath(str(skill_path))
-        if not resolved.startswith(cwd_real + os.sep) and resolved != cwd_real:
+        if not resolved.startswith(cwd_real.rstrip(os.sep) + os.sep) and resolved != cwd_real:
             raise ValueError(f"Path traversal detected: {skill_path}")
         self.skill_path = Path(skill_path)
         self.skill_md_path = self._find_skill_md()
@@ -806,15 +812,47 @@ class SkillValidator:
         return "\n".join(lines)
 
 
+def _parse_args(argv: list[str]) -> tuple[str, str | None] | None:
+    """Parse ``<skill_directory> [--root DIR]``; return None on a usage error."""
+    skill_path: str | None = None
+    root: str | None = None
+    args = list(argv)
+    while args:
+        arg = args.pop(0)
+        if arg == "--root":
+            if not args or root is not None:
+                return None
+            root = args.pop(0)
+        elif arg.startswith("--root="):
+            if root is not None:
+                return None
+            root = arg[len("--root=") :]
+        elif arg.startswith("--") or skill_path is not None:
+            return None
+        else:
+            skill_path = arg
+    if skill_path is None or root == "":
+        return None
+    return skill_path, root
+
+
 def main():
     """Main entry point."""
-    if len(sys.argv) < 2:
-        print("Usage: python validate-skill.py <path-to-skill-directory>")
+    parsed = _parse_args(sys.argv[1:])
+    if parsed is None:
+        print("Usage: python validate-skill.py <path-to-skill-directory> [--root DIR]")
         print("Example: python validate-skill.py ~/.claude/skills/my-skill/")
         sys.exit(1)
 
-    skill_path = sys.argv[1]
-    validator = SkillValidator(skill_path)
+    skill_path, root = parsed
+    if root is not None and not Path(root).is_dir():
+        print(f"Error: --root is not a directory: {root}")
+        sys.exit(1)
+    try:
+        validator = SkillValidator(skill_path, root=root)
+    except ValueError as exc:
+        print(f"Error: {exc}")
+        sys.exit(1)
     passed, report = validator.validate()
 
     print(report)

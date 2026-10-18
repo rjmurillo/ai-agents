@@ -36,6 +36,11 @@ is an excerpt; `example-eval.json` is a full, runnable manifest.
   while any of them is in the `sel` split. The check covers `sel` only, so
   `train` may hold exposed tasks and a `--split train` review still works.
   Move exposed tasks to `train` and add untouched holdout tasks.
+  Deterministic tasks taken from a written spec before any candidate exists
+  are frozen once their list and verifiers stop changing, but freezing is not
+  isolation. When one agent writes those tasks and the candidate, list them
+  here and keep them in `train`. They count as `sel` only when a different
+  author or session wrote them and kept them from the candidate author.
 - `tasks[id].status`: optional. `"invalid"` or `"exposed"` marks a task that
   cannot count. `pair-gate` exits 2 while such a task is in the `sel` split.
   A `status` that is present but not a string exits 2, and so does a `tasks`

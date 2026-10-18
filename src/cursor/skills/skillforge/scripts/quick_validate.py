@@ -306,19 +306,50 @@ def validate_skill(skill_path, root: str | None = None):
     return True, "Skill is valid!"
 
 
+def _parse_args(argv: list[str]) -> tuple[str, str | None] | None:
+    """Parse ``<skill_directory> [--root DIR]``; return None on a usage error."""
+    skill_path: str | None = None
+    root: str | None = None
+    args = list(argv)
+    while args:
+        arg = args.pop(0)
+        if arg == "--root":
+            if not args or root is not None:
+                return None
+            root = args.pop(0)
+        elif arg.startswith("--root="):
+            if root is not None:
+                return None
+            root = arg[len("--root=") :]
+        elif arg.startswith("--") or skill_path is not None:
+            return None
+        else:
+            skill_path = arg
+    if skill_path is None or root == "":
+        return None
+    return skill_path, root
+
+
 def main():
-    if len(sys.argv) != 2:
-        print("Usage: python quick_validate.py <skill_directory>")
+    parsed = _parse_args(sys.argv[1:])
+    if parsed is None:
+        print("Usage: python quick_validate.py <skill_directory> [--root DIR]")
         print("\nExample:")
         print("  python quick_validate.py ~/.claude/skills/my-skill/")
+        print("  python quick_validate.py /other/repo/skills/my-skill --root /other/repo")
         sys.exit(1)
 
-    skill_path = sys.argv[1]
+    skill_path, root_arg = parsed
 
-    # SECURITY: Validate path stays within the current working directory (CWE-22).
+    # SECURITY: Validate path stays within the trusted root (CWE-22). The root is
+    # the current working directory unless the caller opts in to another one with
+    # --root, so a skill in a different repo validates without a cd or a copy.
     # normcase() makes the containment check case-insensitive on Windows (C:\ vs
     # c:\) while realpath() resolves symlinks so a descendant symlink cannot escape.
-    cwd_root = os.path.normcase(os.path.realpath(os.getcwd()))
+    if root_arg is not None and not Path(root_arg).is_dir():
+        print(f"Error: --root is not a directory: {root_arg}")
+        sys.exit(1)
+    cwd_root = os.path.normcase(os.path.realpath(root_arg if root_arg is not None else os.getcwd()))
     resolved = os.path.normcase(os.path.realpath(skill_path))
     if not _is_within(resolved, cwd_root):
         print(f"Error: Path traversal detected: {skill_path}")
