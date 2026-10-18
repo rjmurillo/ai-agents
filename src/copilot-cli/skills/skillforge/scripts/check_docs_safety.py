@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 check_docs_safety.py - Guard against unsafe hook command examples in docs.
 
@@ -7,16 +6,22 @@ strings without explicit quoting.
 
 Usage:
     python scripts/check_docs_safety.py
+    python scripts/check_docs_safety.py skills/my-skill/
     python scripts/check_docs_safety.py SKILL.md references/script-integration-framework.md
 
+With no argument it scans this skill's SKILL.md and two reference files. A
+directory argument scans that skill's SKILL.md plus every references/*.md. A
+file argument scans that file.
+
 Exit codes:
-    0 - no unsafe patterns found
+    0 - no unsafe patterns found (the scanned file count is printed)
     1 - unsafe patterns found
-    2 - bad input / file read error
+    2 - bad input: unreadable path, or a directory with no markdown to scan
 """
 
 from __future__ import annotations
 
+import argparse
 import sys
 from pathlib import Path
 
@@ -57,13 +62,64 @@ def scan_file(path: Path) -> list[str]:
     return issues
 
 
-def main() -> int:
-    repo_root = Path(__file__).resolve().parents[1]
-    targets = (
-        [Path(arg).resolve() for arg in sys.argv[1:]]
-        if len(sys.argv) > 1
-        else default_targets(repo_root)
+def expand_target(target: Path) -> list[Path]:
+    """Return the files to scan for one CLI argument.
+
+    A directory expands to its SKILL.md plus references/**/*.md. Any other
+    path is returned as-is so scan_file reports an unreadable file.
+    """
+    if not target.is_dir():
+        return [target]
+    files: list[Path] = []
+    skill_file = target / "SKILL.md"
+    if skill_file.is_file():
+        files.append(skill_file)
+    references = target / "references"
+    if references.is_dir():
+        files.extend(sorted(references.rglob("*.md")))
+    return files
+
+
+def build_parser() -> argparse.ArgumentParser:
+    """Build argument parser."""
+    parser = argparse.ArgumentParser(
+        prog="check_docs_safety.py",
+        description=(
+            "Flag unquoted $TOOL_INPUT or $TOOL_OUTPUT in markdown command "
+            "examples. With no argument, scans this skill's default docs."
+        ),
+        epilog=(
+            "Exit codes: 0 no unsafe patterns found, 1 unsafe patterns found, "
+            "2 bad input (unreadable path or a directory with no markdown)."
+        ),
     )
+    parser.add_argument(
+        "paths",
+        nargs="*",
+        metavar="PATH",
+        help=("Skill directory (scans SKILL.md and references/*.md) or markdown file. Repeatable."),
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    repo_root = Path(__file__).resolve().parents[1]
+
+    if args.paths:
+        targets: list[Path] = []
+        for raw in args.paths:
+            expanded = expand_target(Path(raw).resolve())
+            if not expanded:
+                print(
+                    f"No markdown files to scan under {raw} "
+                    "(expected SKILL.md or references/*.md).",
+                    file=sys.stderr,
+                )
+                return 2
+            targets.extend(expanded)
+    else:
+        targets = default_targets(repo_root)
 
     all_issues: list[str] = []
     try:
@@ -79,7 +135,7 @@ def main() -> int:
             print(f"  - {issue}")
         return 1
 
-    print("No unsafe command interpolation patterns found.")
+    print(f"No unsafe command interpolation patterns found ({len(targets)} files scanned).")
     return 0
 
 

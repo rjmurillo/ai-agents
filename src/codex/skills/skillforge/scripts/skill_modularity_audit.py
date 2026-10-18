@@ -19,9 +19,18 @@ Modularity scoring:
     - Progressive disclosure: rewarded for using scripts/, references/, templates/
     - Focus: penalized for excessive top-level sections (>10 h2 headings)
 
+Usage:
+    python skill_modularity_audit.py                    # every skill under .claude/skills
+    python skill_modularity_audit.py --path skills      # every skill under skills/
+    python skill_modularity_audit.py skills/my-skill/   # one skill
+
+A path that itself holds a SKILL.md audits that one skill. Any other path is
+treated as a directory of skills.
+
 Exit codes follow ADR-035:
-    0 - Success
+    0 - Success, at least one skill audited
     1 - Oversized skills found (CI mode)
+    2 - Bad input: unsafe or missing path, or no skills found under it
 
 Related: Issue #1267 (SkillsBench-informed skill modularity audit)
 """
@@ -52,6 +61,8 @@ def _load_has_size_exception():
 
 
 has_size_exception = _load_has_size_exception()
+
+DEFAULT_SKILLS_PATH = ".claude/skills"
 
 # Thresholds aligned with skill_size.py
 LINE_LIMIT: int = 500
@@ -246,8 +257,15 @@ def audit_skill(skill_dir: Path) -> SkillAuditResult | None:
 
 
 def audit_all_skills(skills_path: Path) -> list[SkillAuditResult]:
-    """Audit all skills in the given directory."""
+    """Audit every skill in a directory, or the one skill the path names.
+
+    When skills_path itself holds a SKILL.md it is a skill directory and is
+    audited alone. Otherwise each child directory with a SKILL.md is audited.
+    """
     results: list[SkillAuditResult] = []
+    if (skills_path / "SKILL.md").exists():
+        single = audit_skill(skills_path)
+        return [single] if single else results
     if not skills_path.is_dir():
         return results
 
@@ -342,11 +360,22 @@ def build_parser() -> argparse.ArgumentParser:
     """Build argument parser."""
     parser = argparse.ArgumentParser(
         description="Audit skill modularity based on SkillsBench research.",
+        epilog=(
+            "Exit codes: 0 at least one skill audited, 1 oversized skills in "
+            "--ci mode, 2 bad input (unsafe path, missing path, or no skills found)."
+        ),
+    )
+    parser.add_argument(
+        "skill_dir",
+        nargs="?",
+        default=None,
+        help="Skill directory to audit (same argument as quick_validate.py). "
+        "Cannot be combined with --path.",
     )
     parser.add_argument(
         "--path",
-        default=".claude/skills",
-        help="Path to skills directory (default: .claude/skills)",
+        default=None,
+        help="Skills directory, or one skill directory holding SKILL.md (default: .claude/skills)",
     )
     parser.add_argument(
         "--ci",
@@ -388,10 +417,14 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    skills_path = validate_path_safety(args.path)
+    if args.skill_dir is not None and args.path is not None:
+        parser.error("give either a skill directory or --path, not both")
+    raw_path = args.skill_dir or args.path or DEFAULT_SKILLS_PATH
+
+    skills_path = validate_path_safety(raw_path)
     if skills_path is None:
         print(
-            f"Error: Invalid or unsafe path: '{args.path}'.",
+            f"Error: Invalid or unsafe path: '{raw_path}'.",
             file=sys.stderr,
         )
         return 2
@@ -401,6 +434,18 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     results = audit_all_skills(skills_path)
+
+    if not results:
+        # Auditing nothing is a bad path, not a clean result: a gate pointed at
+        # the wrong directory must not pass.
+        print(
+            f"No skills found under {skills_path} (0 examined). Pass a skills "
+            "directory, or a skill directory that holds SKILL.md.",
+            file=sys.stderr,
+        )
+        if args.json_output:
+            print("[]")
+        return 2
 
     if args.json_output:
         print(json.dumps([asdict(r) for r in results], indent=2))

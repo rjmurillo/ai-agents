@@ -80,5 +80,9 @@ Stop at two to three skills. Four or more lost about half the gain.
 
 ```bash
 ROOT="${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}"
-python3 "$ROOT/skills/skillforge/scripts/skill_modularity_audit.py" [--json] [--ci]
+python3 "$ROOT/skills/skillforge/scripts/skill_modularity_audit.py" [--json] [--ci]   # every skill under $ROOT/skills
+python3 "$ROOT/skills/skillforge/scripts/skill_modularity_audit.py" skills/my-skill/    # one skill
 ```
+
+The audit exits `2` when the path holds no skill, so a wrong path fails a gate
+instead of passing it.

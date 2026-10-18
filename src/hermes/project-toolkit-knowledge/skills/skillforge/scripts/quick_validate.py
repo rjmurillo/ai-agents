@@ -307,6 +307,13 @@ def validate_skill(skill_path, root: str | None = None):
 
 
 def main():
+    if len(sys.argv) == 2 and sys.argv[1] in ("-h", "--help"):
+        print("Usage: python quick_validate.py <skill_directory>")
+        print("\nValidate a skill's frontmatter. The skill directory must be under the")
+        print("current directory.")
+        print("\nExit codes: 0 valid, 1 invalid or bad path.")
+        sys.exit(0)
+
     if len(sys.argv) != 2:
         print("Usage: python quick_validate.py <skill_directory>")
         print("\nExample:")
