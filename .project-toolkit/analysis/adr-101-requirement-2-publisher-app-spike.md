@@ -45,6 +45,8 @@ The three questions this spike must answer: whose key signs, what the verifier b
 
 ## Evidence
 
+In this document, outside the quoted section and the proposed-change section, "ADR line N" names ADR-101 at a17d36da1b (2026-10-11). Those pointers go stale when the ADR next changes. Find the text by its quoted words, not by the number.
+
 ### 1. Forged execution is cheap and survives every floor the ADR lists
 
 Method (MEASURED 2026-09-30): two failing tests, one candidate-authored `conftest.py`, `python3 -m pytest -q -p no:cacheprovider --junitxml=j.xml`.
@@ -74,7 +76,7 @@ def pytest_runtest_makereport(item, call):
 
 Result with the conftest: `2 passed in 0.04s`, exit 0, the JUnit XML pytest wrote reads `tests="2" errors="0" failures="0" skipped="0"`, with both `testcase` elements clean. Result with the conftest removed: `2 failed in 0.02s`.
 
-This is a third forgery. ADR-101 lists two: `os._exit(0)` from a session hook (line 220, measured at 226) and a conftest that marks every item skipped (line 218). The ADR answers the second with an "executed-and-not-skipped floor". This third one defeats that floor: every test is collected, executed, and reported passed. A supervisor that checks counts, skips, and the JUnit file reads a clean run.
+This is a third forgery. At 3f27efd8d, ADR-101 listed two: `os._exit(0)` from a session hook (now line 220, measured at 226) and a conftest that marks every item skipped (now line 218). The D23 amendment at line 199 has since counted this one as the third. The ADR answers the second with an "executed-and-not-skipped floor". This third one defeats that floor: every test is collected, executed, and reported passed. A supervisor that checks counts, skips, and the JUnit file reads a clean run.
 
 ### 2. Where each signer sits and what it can observe
 
@@ -126,7 +128,7 @@ What it leaves open, stated in the ADR's own vocabulary: the "candidate forges t
 
 ## Proposed ADR-101 text change (reported, not made)
 
-The line numbers in this section name ADR-101 at commit 3e8403e831, the revision this spike read. PR #6119 later rewrote items 1, 3 and 4 and moved the lines.
+The line numbers in this section name ADR-101 at commit 3f27efd8d, the revision this spike read. PR #6119 acted on items 1 to 4, and PRs #6119, #6241 and #6274 moved the lines.
 
 1. Line 215 carries the phrase "is now the only option that closes this requirement". Lines 195, 219, 221 and 430 repeat the same premise in other words. Replace the claim with a statement that no mechanism authenticates in-process test results against arbitrary candidate code, and move the forged-exit, collected-count and skipped-corpus cases into the accepted residuals beside line 203, citing Evidence 1.
 2. Line 430: the research item resolves to "App-authored check run, `integration_id` pinned; execution authenticity bounded as above". That lets requirement 2 enter a phase.
@@ -150,7 +152,7 @@ Request the narrow set at token time too: `permission-checks: write` on `create-
 ## How the base-owned job gets a token
 
 1. The publication job runs under `pull_request_target` (or `workflow_run`), so the workflow definition comes from the default branch. The pull request cannot edit the job that reads the key.
-2. The job declares `environment: adr101-publisher`. That environment restricts deployment branches to `main`. A head-defined workflow on another branch that names the environment is refused the secret. This contains the push-triggered branch case ADR-101 describes at lines 265-271. It does not contain `pull_request_target`: that trigger runs on the base branch by definition, so `main` admits it. That is a design fact, not something a probe can change. The only containment against a fork pull request is the content of the publication job itself (steps 4 to 7 below), CODEOWNERS on the workflow file, and the lint that the design adds.
+2. The job declares `environment: adr101-publisher`. That environment restricts deployment branches to `main`. A head-defined workflow on another branch that names the environment is refused the secret. This contains the push-triggered branch case ADR-101 describes at lines 278-284. It does not contain `pull_request_target`: that trigger runs on the base branch by definition, so `main` admits it. That is a design fact, not something a probe can change. The only containment against a fork pull request is the content of the publication job itself (steps 4 to 7 below), CODEOWNERS on the workflow file, and the lint that the design adds.
 3. A step runs `actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0` with the App id from an environment variable and the private key from the environment secret.
 4. The job checks out the base ref only, with `persist-credentials: false` and no cache restore. It never checks out, imports, or reads an artifact from the head. It fetches the diff from the API by SHA.
 5. No job that runs candidate code names the environment, holds the key, or holds `checks: write`. The execution job holds `contents: read` and nothing else.
