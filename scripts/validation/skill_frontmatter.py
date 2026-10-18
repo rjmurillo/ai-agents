@@ -114,7 +114,7 @@ VALID_TOOLS: frozenset[str] = frozenset(
 # XML tag detection pattern
 _XML_TAG_PATTERN: re.Pattern[str] = re.compile(r"<[^>]+>")
 _SKILL_FILE_PATTERN: re.Pattern[str] = re.compile(
-    r"(?:^|/)(?:\.claude|src/copilot-cli)/skills/[^/]+/SKILL\.md$",
+    r"(?:^|/)(?:\.claude|src/claude|src/copilot-cli)/skills/[^/]+/SKILL\.md$",
     re.IGNORECASE,
 )
 
@@ -125,7 +125,13 @@ _SKILL_FILE_PATTERN: re.Pattern[str] = re.compile(
 # then printed "All skill frontmatter validated successfully!", a sentence about
 # a corpus it never opened. This script has no lefthook or workflow caller, so
 # the default full scan is its only invocation path.
-_SKILL_TREE_PREFIXES: tuple[str, ...] = (".claude/skills", "src/copilot-cli/skills")
+# ADR-119: shipped skills are directory links under .claude/skills, which rglob
+# does not follow, so they are read at src/claude/skills.
+_SKILL_TREE_PREFIXES: tuple[str, ...] = (
+    ".claude/skills",
+    "src/claude/skills",
+    "src/copilot-cli/skills",
+)
 
 # Copilot CLI rejects non-string values for this skill field at load time.
 STRING_ONLY_FIELDS: frozenset[str] = frozenset({"argument-hint"})

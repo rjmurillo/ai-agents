@@ -35,6 +35,8 @@ from adr_cited_paths import (
     tracked_paths,
 )
 
+from scripts.validation import tracked_paths as tracked_paths_mod
+
 
 def _body(decision: str = "", notes: str = "", other: str = "") -> str:
     return (
@@ -199,6 +201,26 @@ def test_an_untracked_file_counts_as_missing_in_a_git_checkout(tmp_path):
 
     assert tracked == frozenset()
     assert missing_paths(["scripts/residue.py"], tmp_path, tracked) == ["scripts/residue.py"]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need Developer Mode on Windows")
+def test_a_path_through_a_tracked_symlink_exists_only_when_its_target_is_tracked(tmp_path):
+    # ADR-119: git tracks `.claude/skills/<name>` as one link entry, so the
+    # files reached through it are not in `ls-files` by that spelling.
+    _init_repo(tmp_path)
+    (tmp_path / "src" / "skills" / "alpha").mkdir(parents=True)
+    (tmp_path / "src" / "skills" / "alpha" / "SKILL.md").write_text("x", encoding="utf-8")
+    (tmp_path / ".claude" / "skills").mkdir(parents=True)
+    (tmp_path / ".claude" / "skills" / "alpha").symlink_to("../../src/skills/alpha")
+    _git(tmp_path, "add", "src/skills/alpha/SKILL.md", ".claude/skills/alpha")
+    tracked_paths_mod.clear_tracked_path_cache()
+
+    tracked = tracked_paths(tmp_path)
+
+    assert ".claude/skills/alpha/SKILL.md" not in tracked
+    assert missing_paths(
+        [".claude/skills/alpha/SKILL.md", ".claude/skills/alpha/gone.md"], tmp_path, tracked
+    ) == [".claude/skills/alpha/gone.md"]
 
 
 def test_the_filesystem_answers_outside_a_git_checkout(tmp_path):

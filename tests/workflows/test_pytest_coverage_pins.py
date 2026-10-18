@@ -36,7 +36,7 @@ _VERDICT_TARGET = "scripts/ai_review_common/verdict.py"
 _REQ009_COLLECT = "Pin REQ-009 module coverage collection (PR #1989 user requirement)"
 _REQ009_COLLECT_ID = "pin-req009-collect"
 _REQ009_GATE = "Enforce REQ-009 module coverage at 100% (PR #1989 user requirement)"
-_REQ009_TARGETS = (".claude/skills/github/scripts/pr/wait_for_unresolved_zero.py",)
+_REQ009_TARGETS = ("src/claude/skills/github/scripts/pr/wait_for_unresolved_zero.py",)
 
 _UPLOAD_STEP = "Upload test results"
 

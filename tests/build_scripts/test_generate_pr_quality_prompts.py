@@ -376,10 +376,48 @@ def test_atomic_write_preserves_prior_on_crash(
     def boom(*_args, **_kwargs) -> None:
         raise OSError("simulated crash")
 
-    monkeypatch.setattr(gen.os, "replace", boom)
+    monkeypatch.setattr("os.replace", boom)
     with pytest.raises(OSError):
         gen._atomic_write(target, "new\n")
     assert target.read_text(encoding="utf-8") == "original\n"
+
+
+def test_atomic_write_does_not_follow_a_planted_tmp_symlink(tmp_path: Path) -> None:
+    """The old fixed ``<name>.tmp`` temp path followed a planted symlink (#6506)."""
+    outside = tmp_path / "outside.txt"
+    outside.write_text("external\n", encoding="utf-8")
+    target = tmp_path / "out.md"
+    planted = tmp_path / "out.md.tmp"
+    try:
+        planted.symlink_to(outside)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation unavailable on this platform")
+
+    gen._atomic_write(target, "new\n")
+
+    assert outside.read_text(encoding="utf-8") == "external\n"
+    assert target.read_text(encoding="utf-8") == "new\n"
+    assert planted.is_symlink()  # untouched, never used as the temp path
+
+
+def test_atomic_write_leaves_no_temp_file_behind(tmp_path: Path) -> None:
+    target = tmp_path / "out.md"
+    gen._atomic_write(target, "new\n")
+    assert [p.name for p in tmp_path.iterdir()] == ["out.md"]
+
+
+def test_atomic_write_refuses_symlinked_destination(tmp_path: Path) -> None:
+    outside = tmp_path / "outside.txt"
+    outside.write_text("external\n", encoding="utf-8")
+    target = tmp_path / "out.md"
+    try:
+        target.symlink_to(outside)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation unavailable on this platform")
+
+    with pytest.raises(gen.GeneratePromptsError, match="must not be a symlink"):
+        gen._atomic_write(target, "new\n")
+    assert outside.read_text(encoding="utf-8") == "external\n"
 
 
 # ---------------------------------------------------------------------------
@@ -719,15 +757,17 @@ def test_read_committed_dest_decodes_utf8_under_cp1252_locale(
 ) -> None:
     """A Windows locale codec must not mangle git's UTF-8 output (#5440).
 
-    The stub mimics subprocess.run: with no encoding kwarg it decodes with
-    cp1252, as a Windows locale does. Git always emits UTF-8 bytes.
+    The stub mimics subprocess.run: when asked for text it decodes with the
+    requested encoding, or cp1252 as a Windows locale does. The reader asks
+    for bytes and decodes them itself as UTF-8, which git always emits.
     """
     raw = _NON_ASCII_BODY.encode("utf-8")
 
-    def _fake_run(cmd: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
-        encoding: str = kwargs.get("encoding") or "cp1252"
-        errors: str = kwargs.get("errors") or "replace"
-        return subprocess.CompletedProcess(cmd, 0, stdout=raw.decode(encoding, errors), stderr="")
+    def _fake_run(cmd: list[str], **kwargs: Any) -> subprocess.CompletedProcess[Any]:
+        if kwargs.get("text") or kwargs.get("encoding"):
+            encoding: str = kwargs.get("encoding") or "cp1252"
+            return subprocess.CompletedProcess(cmd, 0, stdout=raw.decode(encoding), stderr="")
+        return subprocess.CompletedProcess(cmd, 0, stdout=raw, stderr=b"")
 
     monkeypatch.setattr(gen, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(gen.subprocess, "run", _fake_run)
@@ -735,19 +775,40 @@ def test_read_committed_dest_decodes_utf8_under_cp1252_locale(
     assert gen._read_committed_dest(tmp_path / "x.md") == _NON_ASCII_BODY
 
 
-def test_read_committed_dest_replaces_invalid_utf8_bytes(
+def test_read_committed_dest_rejects_invalid_utf8_bytes(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """Invalid UTF-8 in git output decodes with replacement, never raises."""
+    """Invalid UTF-8 in committed content fails instead of becoming U+FFFD (#6506)."""
     rel = "bad.md"
     _commit_file(tmp_path, rel, b"ok \xff\xfe end\n")
     monkeypatch.setattr(gen, "REPO_ROOT", tmp_path)
 
-    result = gen._read_committed_dest(tmp_path / rel)
+    with pytest.raises(gen.GeneratePromptsError, match="not valid UTF-8"):
+        gen._read_committed_dest(tmp_path / rel)
 
-    assert result is not None
-    assert "\ufffd" in result
-    assert result.startswith("ok ")
+
+def test_replacement_character_in_source_does_not_match_corrupt_committed_bytes(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Edge: a real U+FFFD in the source cannot launder corrupt committed bytes.
+
+    Before the strict decode, ``b"\xff"`` in git's output became U+FFFD and
+    compared equal to a source holding a literal U+FFFD, so drift passed.
+    """
+    rel = "gen/pr-quality-gate-x.md"
+    _commit_file(tmp_path, rel, b"body \xff\n")
+    monkeypatch.setattr(gen, "REPO_ROOT", tmp_path)
+    canonical = tmp_path / "canon"
+    canonical.mkdir()
+    (canonical / "x.md").write_text(
+        "---\nname: x\ndescription: d\n---\n\nbody \ufffd\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(gen, "transform", lambda text, role: "body \ufffd\n")
+
+    code, log = gen.regenerate(canonical, tmp_path / "gen", dry_run=True)
+
+    assert code == 2
+    assert any("status=config_error" in line and "not valid UTF-8" in line for line in log)
 
 
 def test_read_committed_dest_returns_none_for_untracked_file(

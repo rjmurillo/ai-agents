@@ -7,12 +7,13 @@ tools:
   - Read
   - Grep
   - Glob
-  - mcp__github__pull_request_read
-  - mcp__github__get_file_contents
-  - mcp__github__issue_read
+  - ToolSearch
   - mcp__serena__find_symbol
   - mcp__serena__find_referencing_symbols
   - mcp__serena__get_symbols_overview
+  - mcp__github__pull_request_read
+  - mcp__github__get_file_contents
+  - mcp__github__issue_read
 argument-hint: Point to the comments or PR to review for accuracy
 ---
 

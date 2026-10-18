@@ -441,7 +441,9 @@ class TestPathsLibBootstrap:
         assert da._resolve_paths_lib_dir() == (tmp_path / "lib").resolve()
 
     def test_default_is_sibling_lib(self) -> None:
-        assert da._resolve_paths_lib_dir() == (repo_root / ".claude" / "lib").resolve()
+        # The script resolves through the `.claude/skills/<name>` symlink into
+        # src/claude/skills (ADR-119), so its sibling lib is the plugin tree's.
+        assert da._resolve_paths_lib_dir() == (repo_root / "src" / "claude" / "lib").resolve()
 
     def test_missing_lib_dir_raises(self, tmp_path, monkeypatch) -> None:
         monkeypatch.setenv("COPILOT_PLUGIN_ROOT", str(tmp_path))
