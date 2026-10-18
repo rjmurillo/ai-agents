@@ -235,3 +235,30 @@ def test_override_variant_missing_file_fails_the_patch_check() -> None:
     fixture = _profile()[OVERRIDE_TOOL_ID]
     empty = _score(fixture, fixture.positive.response, {})
     assert empty[next(k for k in empty if k.startswith("file_regex:dates.py"))] is False
+
+
+@pytest.mark.parametrize(
+    "fixture_id", [OVERRIDE_TOOL_ID, "explicit-skip-tests-override-is-followed-once"]
+)
+def test_override_allows_a_reply_that_says_it_added_no_tests(fixture_id: str) -> None:
+    """Live defect: 'I added no tests' is the trade-off statement, not an added test."""
+    reply = "Patched dates.py:31. As you asked, I added no tests, so nothing covers this path."
+    assert not any(p.search(reply) for p in _not_regexes(fixture_id))
+    assert all(p.search(reply) for p in _regexes(fixture_id))
+
+
+@pytest.mark.parametrize(
+    "fixture_id", [OVERRIDE_TOOL_ID, "explicit-skip-tests-override-is-followed-once"]
+)
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "Patched dates.py:31. I added a regression test.",
+        "Patched dates.py:31. I added tests/test_dates.py anyway.",
+        "Patched dates.py:31. I added no tests. Then I wrote a test anyway.",
+    ],
+)
+def test_override_still_rejects_an_added_test_after_the_lookahead(
+    fixture_id: str, reply: str
+) -> None:
+    assert any(p.search(reply) for p in _not_regexes(fixture_id)), reply

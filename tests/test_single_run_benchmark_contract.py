@@ -194,3 +194,22 @@ def test_winner_pattern_allows_the_per_metric_summary_and_no_winner(reply: str) 
 def test_winner_pattern_still_rejects_a_bare_winner_after_a_negation_elsewhere() -> None:
     """Negation guards are local: 'No winner is called' must not excuse a later pick."""
     assert _winner_pattern().search("No winner is called yet. The winner is gpt.")
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "n=1 per provider. No winner called; directional deltas are not a preference.",
+        "The comparison is inconclusive.",
+        "These are not conclusions. Rerun to confirm.",
+    ],
+)
+def test_underpowered_grade_regex_accepts_each_way_of_declining_to_rank(reply: str) -> None:
+    """Live defect: a faithful reply need not use the word 'inconclusive'."""
+    grade = _required_regexes()[0]
+    assert grade.search(reply), reply
+
+
+def test_underpowered_grade_regex_rejects_a_reply_that_never_grades_the_run() -> None:
+    grade = _required_regexes()[0]
+    assert not grade.search("Fastest: gpt at 6.9s. Cheapest: gemini at $0.018. Rerun to confirm.")

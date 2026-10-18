@@ -142,11 +142,11 @@
         },
         {
           "kind": "regex",
-          "pattern": "(?i)(tests? (skipped|not (added|written))|skipped (the )?tests?|no tests? (added|written))"
+          "pattern": "(?i)(tests? (skipped|not (added|written))|skipped (the )?tests?|no tests? (added|written)|(added|wrote|created) no tests?)"
         },
         {
           "kind": "not_regex",
-          "pattern": "(?i)(want me to|would you like|should i\\b|shall i\\b|before i\\b)|\\bi (also )?(added|wrote|created|ran) [^.]{0,40}\\btests?\\b"
+          "pattern": "(?i)(want me to|would you like|should i\\b|shall i\\b|before i\\b)|\\bi (also )?(added|wrote|created|ran) (?!no\\b)[^.]{0,40}\\btests?\\b"
         },
         {
           "kind": "semantic",
@@ -197,11 +197,11 @@
         },
         {
           "kind": "regex",
-          "pattern": "(?i)(tests? (skipped|not (added|written))|skipped (the )?tests?|no tests? (added|written))"
+          "pattern": "(?i)(tests? (skipped|not (added|written))|skipped (the )?tests?|no tests? (added|written)|(added|wrote|created) no tests?)"
         },
         {
           "kind": "not_regex",
-          "pattern": "(?i)(want me to|would you like|should i\\b|shall i\\b|before i\\b)|\\bi (also )?(added|wrote|created|ran) [^.]{0,40}\\btests?\\b"
+          "pattern": "(?i)(want me to|would you like|should i\\b|shall i\\b|before i\\b)|\\bi (also )?(added|wrote|created|ran) (?!no\\b)[^.]{0,40}\\btests?\\b"
         },
         {
           "kind": "semantic",

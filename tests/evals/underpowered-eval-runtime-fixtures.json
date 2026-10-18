@@ -13,7 +13,7 @@
       "assertions": [
         {
           "kind": "regex",
-          "pattern": "(?i)\\binconclusive\\b"
+          "pattern": "(?i)\\binconclusive\\b|\\bno winner\\b|\\bnot (?:a )?(?:conclusions?|preference)\\b"
         },
         {
           "kind": "regex",
