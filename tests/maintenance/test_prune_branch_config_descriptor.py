@@ -6,6 +6,8 @@ descriptor from ``os.open`` must be closed by ``_backup_config`` itself.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from contextlib import AbstractContextManager
 from pathlib import Path
 from unittest import mock
 
@@ -65,11 +67,11 @@ def test_backup_leaves_closing_to_the_file_object_on_success(tmp_path: Path) -> 
     assert closed == []
 
 
-def _fail_write_after(action: object) -> mock._patch:  # type: ignore[name-defined]
+def _fail_write_after(action: Callable[[], None]) -> AbstractContextManager[object]:
     """Patch ``os.fchmod`` to run ``action`` and then fail, after the write."""
 
     def failing(_fd: int, _mode: int) -> None:
-        action()  # type: ignore[operator]
+        action()
         raise OSError("disk full")
 
     return mock.patch.object(mod.os, "fchmod", side_effect=failing, create=True)
