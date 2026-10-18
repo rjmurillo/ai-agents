@@ -97,7 +97,8 @@ for it. The 16 lenses above are the taxonomy.
    using this knowledge, with deterministic gold.
 3. Freeze the baseline cases with `bootstrap_eval.py freeze` before the
    baseline run, then run each case without the skill before authoring. Phase 5
-   scores against that same frozen file. The lens passes the
+   scores against that same frozen file, and `freeze` never overwrites it, so
+   write every case the lens needs before freezing. The lens passes the
    gate only when at least one case fails at baseline. A lens whose
    cases all pass already lives in the model; it gets no skill.
 4. Record each gated lens with its `baseline_case` in the plan file. Skip

@@ -236,7 +236,7 @@ python "$root/skills/skill-bootstrap/scripts/bootstrap_boundary.py" snapshot --r
 
 ## Extension Points
 
-Add a discovery lens in `references/discovery.md` and in `bootstrap_forms.py`. Add a hosting provider section in `references/hosted-platforms.md`. Add a grader kind in `bootstrap_eval.py`. Add a check kind in `bootstrap_drift.py`. Change the report shape in `references/authoring-and-gates.md`.
+Add a discovery lens in `references/discovery.md`, the plan-file lens table in `references/authoring-and-gates.md`, and `bootstrap_forms.py`. Add a hosting provider section in `references/hosted-platforms.md`. Add a grader kind in `bootstrap_eval.py`. Add a check kind in `bootstrap_drift.py`. Change the report shape in `references/authoring-and-gates.md`.
 
 ## Verification
 
