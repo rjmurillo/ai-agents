@@ -32,7 +32,7 @@ is an excerpt; `example-eval.json` is a full, runnable manifest.
 - `splits.sel`: the held-out split. The gate scores only this split. Never
   reflect on `sel` tasks; that is training on the test set.
 - `exposed`: optional list of task ids whose prompt, verifier, or outcome the
-  candidate author saw before the candidate was frozen. `pair-gate` exits 2
+  candidate author saw at any point in the run. `pair-gate` exits 2
   while any of them is in the `sel` split. The check covers `sel` only, so
   `train` may hold exposed tasks and a `--split train` review still works.
   Move exposed tasks to `train` and add untouched holdout tasks. Replacement

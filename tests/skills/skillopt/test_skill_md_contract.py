@@ -302,7 +302,10 @@ def test_preconditions_require_two_isolated_runners(root: str) -> None:
     assert "do not run skillopt" in preconditions
     assert "gate cannot be independent" in preconditions
     assert "same agent are still exposed" in preconditions
-    assert "must not write, run, or see the `sel` tasks" in preconditions
+    assert (
+        "must not write, run, or see the `sel` prompts, verifiers, or per-task results"
+        in preconditions
+    )
 
 
 @pytest.mark.parametrize("root", BODY_ROOTS)
@@ -322,6 +325,8 @@ def test_eval_set_format_says_who_may_write_replacement_holdouts(root: str) -> N
     text = " ".join(refs.read_text(encoding="utf-8").split())
     assert "Replacement holdouts must come from an author who has not seen the candidate" in text
     assert "If the candidate author also writes them, they are exposed too" in text
+    assert "candidate author saw at any point in the run" in text
+    assert "before the candidate was frozen" not in text
 
 
 @pytest.mark.parametrize("root", BODY_ROOTS)
@@ -359,3 +364,33 @@ def test_precondition_four_does_not_repeat_runner_sentence(root: str) -> None:
     end = text.index("## Scripts", start)
     preconditions = " ".join(text[start:end].split())
     assert preconditions.count("fresh subagent or another session") == 1
+
+
+@pytest.mark.parametrize("root", BODY_ROOTS)
+def test_sel_runner_holds_full_eval_json_and_author_gets_train_only_copy(root: str) -> None:
+    text = _skill_md(root)
+    start = text.index("## Preconditions")
+    end = text.index("## Scripts", start)
+    preconditions = " ".join(text[start:end].split())
+    assert "The `sel` runner writes and holds the full `eval.json`" in preconditions
+    assert (
+        "The author gets a train-only copy that keeps the `sel` task ids"
+        " but drops the `sel` task bodies"
+    ) in preconditions
+    assert "`apply` reads only those ids" in preconditions
+    assert "Only the gate verdict goes back" in preconditions
+
+
+@pytest.mark.parametrize("root", BODY_ROOTS)
+def test_sel_exposure_bound_is_the_whole_run_in_every_place(root: str) -> None:
+    text = _skill_md(root)
+    pre_start = text.index("## Preconditions")
+    pre_end = text.index("## Scripts", pre_start)
+    proc_start = text.index("## Process")
+    proc_end = text.index("## Before promotion", proc_start)
+    preconditions = " ".join(text[pre_start:pre_end].split())
+    process = " ".join(text[proc_start:proc_end].split())
+    assert "for the whole run (Precondition 4)" in preconditions
+    assert "holds the `sel` prompts, verifiers, and results in every step" in process
+    assert "until the candidate is frozen" not in preconditions
+    assert "until the candidate is frozen" not in process
