@@ -30,7 +30,8 @@ treated as a directory of skills.
 Exit codes follow ADR-035:
     0 - Success, at least one skill audited
     1 - Oversized skills found (CI mode)
-    2 - Bad input: unsafe or missing path, or no skills found under it
+    2 - Nothing audited: unsafe or missing path, no skills found under it, or
+        every SKILL.md was unreadable (any unreadable SKILL.md in CI mode)
 
 Related: Issue #1267 (SkillsBench-informed skill modularity audit)
 """
@@ -362,7 +363,8 @@ def build_parser() -> argparse.ArgumentParser:
         description="Audit skill modularity based on SkillsBench research.",
         epilog=(
             "Exit codes: 0 at least one skill audited, 1 oversized skills in "
-            "--ci mode, 2 bad input (unsafe path, missing path, or no skills found)."
+            "--ci mode, 2 nothing audited (unsafe or missing path, no skills found, or "
+            "unreadable SKILL.md)."
         ),
     )
     parser.add_argument(
@@ -455,6 +457,18 @@ def main(argv: list[str] | None = None) -> int:
     oversized = [r for r in results if r.rating == "oversized"]
     if oversized and args.ci:
         return 1
+
+    # An unreadable SKILL.md is an error-rated result, not an audited skill.
+    # When every result is one, nothing was audited. In CI mode a single
+    # unreadable skill also fails, so a gate cannot pass over a skill it
+    # could not read.
+    unreadable = [r for r in results if r.rating == "error"]
+    if unreadable and (args.ci or len(unreadable) == len(results)):
+        print(
+            f"Error: {len(unreadable)} of {len(results)} SKILL.md file(s) could not be read.",
+            file=sys.stderr,
+        )
+        return 2
 
     return 0
 

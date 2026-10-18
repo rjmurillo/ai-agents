@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 check_docs_safety.py - Guard against unsafe hook command examples in docs.
 
@@ -10,8 +11,8 @@ Usage:
     python scripts/check_docs_safety.py SKILL.md references/script-integration-framework.md
 
 With no argument it scans this skill's SKILL.md and two reference files. A
-directory argument scans that skill's SKILL.md plus every references/*.md. A
-file argument scans that file.
+directory argument scans that skill's SKILL.md plus every
+references/**/*.md (recursive). A file argument scans that file.
 
 Exit codes:
     0 - no unsafe patterns found (the scanned file count is printed)
@@ -97,7 +98,10 @@ def build_parser() -> argparse.ArgumentParser:
         "paths",
         nargs="*",
         metavar="PATH",
-        help=("Skill directory (scans SKILL.md and references/*.md) or markdown file. Repeatable."),
+        help=(
+            "Skill directory (scans SKILL.md and references/**/*.md, recursive) "
+            "or markdown file. Repeatable."
+        ),
     )
     return parser
 
@@ -113,7 +117,7 @@ def main(argv: list[str] | None = None) -> int:
             if not expanded:
                 print(
                     f"No markdown files to scan under {raw} "
-                    "(expected SKILL.md or references/*.md).",
+                    "(expected SKILL.md or references/**/*.md).",
                     file=sys.stderr,
                 )
                 return 2

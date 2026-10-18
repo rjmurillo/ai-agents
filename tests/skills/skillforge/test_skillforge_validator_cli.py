@@ -66,12 +66,42 @@ class TestModularityAuditEmptyInput:
     def test_missing_path_still_exits_2(self, tmp_path: Path):
         assert audit.main(["--path", str(tmp_path / "missing")]) == 2
 
-    def test_skill_dir_with_unreadable_skill_md_is_still_audited(self, tmp_path: Path):
+    def test_only_unreadable_skill_md_exits_2(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ):
         skill = tmp_path / "skills" / "binary"
         skill.mkdir(parents=True)
         (skill / "SKILL.md").write_bytes(b"\xff\xfe\x00bad")
-        # An error-rated result counts as examined, so the run is not "empty".
-        assert audit.main(["--path", str(tmp_path / "skills")]) == 0
+        # Nothing was audited, so the run must not pass, with or without --ci.
+        assert audit.main([str(skill)]) == 2
+        assert "could not be read" in capsys.readouterr().err
+
+    def test_only_unreadable_skill_md_exits_2_in_ci_mode(self, tmp_path: Path):
+        skill = tmp_path / "skills" / "binary"
+        skill.mkdir(parents=True)
+        (skill / "SKILL.md").write_bytes(b"\xff\xfe\x00bad")
+        assert audit.main([str(skill), "--ci"]) == 2
+
+    def test_one_unreadable_among_readable_passes_without_ci(self, tmp_path: Path):
+        _make_skill(tmp_path, "good")
+        bad = tmp_path / "bad"
+        bad.mkdir()
+        (bad / "SKILL.md").write_bytes(b"\xff\xfe\x00bad")
+        # Something was audited, so the non-gate run still succeeds.
+        assert audit.main([str(tmp_path)]) == 0
+
+    def test_one_unreadable_among_readable_fails_ci(self, tmp_path: Path):
+        _make_skill(tmp_path, "good")
+        bad = tmp_path / "bad"
+        bad.mkdir()
+        (bad / "SKILL.md").write_bytes(b"\xff\xfe\x00bad")
+        assert audit.main([str(tmp_path), "--ci"]) == 2
+
+    def test_oversized_without_ci_exits_0(self, tmp_path: Path):
+        lines = ["---", "name: huge", "---"] + ["line"] * 600
+        skill = _make_skill(tmp_path, "huge", "\n".join(lines))
+        # Documents why the checklist command carries --ci.
+        assert audit.main([str(skill)]) == 0
 
 
 class TestModularityAuditSkillDirectory:
@@ -152,6 +182,14 @@ class TestCheckDocsSafety:
         assert docs_safety.main([str(skill)]) == 1
         assert "SKILL.md:5" in capsys.readouterr().out
 
+    def test_nested_reference_is_scanned(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]):
+        skill = _make_skill(tmp_path, "nested-skill")
+        nested = skill / "references" / "deep"
+        nested.mkdir(parents=True)
+        (nested / "doc.md").write_text(UNSAFE_DOC, encoding="utf-8")
+        assert docs_safety.main([str(skill)]) == 1
+        assert "doc.md" in capsys.readouterr().out
+
     def test_file_argument_still_works(self, tmp_path: Path):
         skill = _make_skill(tmp_path, "bad-skill", UNSAFE_DOC)
         assert docs_safety.main([str(skill / "SKILL.md")]) == 1
@@ -167,9 +205,10 @@ class TestCheckDocsSafety:
         assert docs_safety.main([str(empty)]) == 2
         assert "No markdown files" in capsys.readouterr().err
 
-    def test_no_argument_scans_default_targets(self):
+    def test_no_argument_scans_default_targets(self, capsys: pytest.CaptureFixture[str]):
         # The skill's own docs must be safe; also proves the default path still runs.
-        assert docs_safety.main([]) in {0, 1}
+        assert docs_safety.main([]) == 0
+        assert "3 files scanned" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize("script", ["quick_validate.py", "validate-skill.py"])

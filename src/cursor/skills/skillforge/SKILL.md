@@ -231,12 +231,14 @@ cd "$HOME/.claude"
 python "$FORGE/quick_validate.py" skills/my-skill/     # required before packaging
 python "$FORGE/validate-skill.py" skills/my-skill/     # full structural validation
 python "$FORGE/check_docs_safety.py" skills/my-skill/  # unsafe hook command examples in docs
-python "$FORGE/skill_modularity_audit.py" skills/my-skill/  # size and progressive disclosure
+python "$FORGE/skill_modularity_audit.py" skills/my-skill/ --ci  # size and progressive disclosure
 python "$FORGE/package_skill.py" skills/my-skill/ ./dist   # package for distribution
 ```
 
 Every validator takes the skill directory and answers `--help`. `skill_modularity_audit.py`
-exits `2` when it finds no skill to audit, so a wrong path cannot pass a gate.
+exits `0` without `--ci` even for an oversized skill. With `--ci` it exits `1` for an oversized
+skill and `2` when it audited nothing (wrong path, or an unreadable `SKILL.md`), so neither
+can pass a gate.
 
 See [references/output-structure.md](references/output-structure.md) for allowed
 frontmatter fields, directory layout, script categories, hook configuration, and
@@ -273,7 +275,7 @@ After creation:
 - [ ] `python "$FORGE/quick_validate.py" skills/my-skill/` passes
 - [ ] `python "$FORGE/validate-skill.py" skills/my-skill/` passes
 - [ ] `python "$FORGE/check_docs_safety.py" skills/my-skill/` passes
-- [ ] `python "$FORGE/skill_modularity_audit.py" skills/my-skill/` exits `0` (`2` means it audited nothing)
+- [ ] `python "$FORGE/skill_modularity_audit.py" skills/my-skill/ --ci` exits `0` (`1` means oversized, `2` means it audited nothing)
 - [ ] No bare `.claude/skills/...` exec path in the generated `SKILL.md`; script invocations use the portable `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/...` form (see `docs/SKILL-AUTHORING.md`, "Portable Script Invocations")
 - [ ] Reference links resolve
 - [ ] Scripts self-verify when scripts are present
