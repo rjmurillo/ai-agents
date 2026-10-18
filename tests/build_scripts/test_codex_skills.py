@@ -132,7 +132,7 @@ def _codex_stanza() -> dict[str, Any]:
 def test_codex_config_mirrors_the_claude_tree_shape() -> None:
     stanza = _codex_stanza()
 
-    assert stanza["sourceDir"] == ".claude/skills"
+    assert stanza["sourceDir"] == "src/claude/skills"
     assert stanza["outputDir"] == "src/codex/skills"
     assert stanza["mode"] == "directory-copy"
     assert "merge-resolver" not in stanza["excludeFilenames"]

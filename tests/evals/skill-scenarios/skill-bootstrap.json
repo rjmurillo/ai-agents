@@ -139,6 +139,84 @@
       ],
       "expected_gate": "skill-bootstrap-canonical-source-conflict",
       "rationale": "Writing generated copies breaks the canonical source rule, and writing templates breaks the declared boundary. The run stops and asks the user to authorize the canonical paths or accept proposals only."
+    },
+    {
+      "id": "S12",
+      "desc": "Discovery item is computable from repository state",
+      "input": "Bootstrap skills for this repo. Discovery verified two items: (a) why generated mirrors under src/ must never be hand-edited, and (b) a mapping from each changed path to the CI gates it triggers, which today lives as a prose table. How should each item become part of the skill library? Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "scaffold",
+        "instrument",
+        "script",
+        "computable"
+      ],
+      "expected_gate": "skill-bootstrap-tool-form",
+      "rationale": "Each verified item is sorted by tool form. Rationale the model reasons with stays prose (scaffold). An answer a program can compute from repository state ships as a deterministic script (instrument), with prose only for why."
+    },
+    {
+      "id": "S13",
+      "desc": "Draft skill asks the model to compute by hand",
+      "input": "skillforge returned a draft workflow skill that tells the agent, in prose, to count each skill's description characters and compare them with the limits in scripts/skill_description_budget.json. Accept the draft as is? Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "reject",
+        "script",
+        "deterministic",
+        "prose for why"
+      ],
+      "expected_gate": "skill-bootstrap-computable-claims-ship-scripts",
+      "rationale": "Every computable claim ships with a script. Prose that asks the model to recompute a deterministic answer is sent back for a script, and the prose keeps only the reasoning a script cannot carry."
+    },
+    {
+      "id": "S14",
+      "desc": "No held-out eval exists after authoring",
+      "input": "Bootstrap authored two workflow skills. No scored held-out evaluation exists for them. What does the run do about measuring whether the skills help? Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "freeze",
+        "baseline",
+        "with the skill",
+        "capability delta"
+      ],
+      "expected_gate": "skill-bootstrap-build-capability-eval",
+      "rationale": "The run builds the eval itself: mined corrections become frozen cases, each skill is scored with the skill against a no-skill baseline, and the report gives the capability delta. UNMEASURED is the exception, not the default."
+    },
+    {
+      "id": "S15",
+      "desc": "A generated skill cites a path that moved",
+      "input": "Three months after a bootstrap run, a generated skill still tells agents to run tests/build_scripts/test_copilot_dispatcher_artifact.py, which was deleted. How should the library catch and handle this? Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "reverify",
+        "drift",
+        "--update",
+        "provenance"
+      ],
+      "expected_gate": "skill-bootstrap-drift-loop",
+      "rationale": "Each generated skill carries machine-checkable provenance. A drift check runs every skill's re-verification checks and names the failing skills, which go back through the run with --update."
+    },
+    {
+      "id": "S16",
+      "desc": "Knowledge transfer with no friction record",
+      "input": "The maintainer is leaving and wants the project's domain theory and architecture rationale captured for smaller models. Session history shows no agent corrections in those areas. Does skill-bootstrap produce skills for them? Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "knowledge mode",
+        "taxonomy",
+        "baseline",
+        "no quota"
+      ],
+      "expected_gate": "skill-bootstrap-knowledge-mode",
+      "rationale": "Knowledge mode gates by the taxonomy instead of friction: a lens gets a skill when verified content exists and a frozen baseline probe shows a model without the skill gets it wrong. There is still no quota."
+    },
+    {
+      "id": "S17",
+      "desc": "User names no accepted outcomes",
+      "input": "Bootstrap skills for this repo. The user has no candidate outcomes in mind. How do you find candidate cases to build workflows from? Answer in 4 short bullets. Do not modify any files.",
+      "expected_signals": [
+        "mine",
+        "reverts",
+        "hotspots",
+        "script"
+      ],
+      "expected_gate": "skill-bootstrap-mined-candidates",
+      "rationale": "Candidate selection runs as a deterministic mining step over git history (reverts, churn and TODO hotspots, optional PR review rounds) that ranks cases with evidence, instead of the model browsing history by hand."
     }
   ]
 }

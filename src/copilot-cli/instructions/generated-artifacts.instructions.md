@@ -158,7 +158,7 @@ lib step (`build/scripts/lib_mirror.py`) now renders the shared packages
 directly into every lib plugin tree in the same run that renders every other
 class, and the binplace step that follows every generator copies the
 claude-side plugin trees onto their install-tree counterparts
-(`binplace.yaml`'s `lib-*` and `skills-sidecar` rows).
+(`binplace.yaml`'s `lib-*` rows).
 There is no second command whose order matters: `uv run python
 build/scripts/build_all.py` is the whole sequence.
 
@@ -177,15 +177,13 @@ The build writes under the install tree only through the binplace step, for
 the paths the binplace manifest names. REQ-003-010 forbids other generators
 from writing there.
 
-A skill's non-`SKILL.md` files (scripts, references, tests, and
-anything else under `.claude/skills/<name>/`) are the one exception to
-"edit the template": they stay hand-maintained at `.claude/skills/<name>/`,
-never under `templates/`. `build_all.py` mirrors them into
-`src/claude/skills/<name>/` (`generate_skills.sync_claude_plugin_skill_support`)
-the same run it renders `SKILL.md` from its template, so both land in the
-plugin tree together; edit the support file at `.claude/skills/<name>/`
-directly and run `build_all.py`. That run overwrites any edit made under
-`src/claude/skills/<name>/`, and tests import the `.claude` copy.
+A skill's non-`SKILL.md` files (scripts, references, tests) are the one
+exception to "edit the template": they are hand-maintained, never under
+`templates/`. A shipped skill keeps them in `src/claude/skills/<name>/`, and
+`.claude/skills/<name>` is a relative symlink to that directory (ADR-119),
+so either path edits the same file. A repo-local skill keeps them in its
+real `.claude/skills/<name>/` directory. `build_all.py` mirrors shipped
+skills into `src/copilot-cli/skills/<name>/`; an edit there is overwritten.
 
 ## Quick Self-Review
 

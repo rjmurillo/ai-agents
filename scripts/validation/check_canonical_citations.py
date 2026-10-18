@@ -154,6 +154,9 @@ def _scan_roots(repo_root: Path) -> list[Path]:
         repo_root / "scripts" / "validation",
         repo_root / "build" / "scripts",
         repo_root / ".claude" / "skills",
+        # ADR-119: shipped skills are directory links under .claude/skills,
+        # which a directory walk does not follow. Scan them at their source.
+        repo_root / "src" / "claude" / "skills",
     ]
     return [c for c in candidates if c.is_dir()]
 
@@ -344,14 +347,14 @@ def collect_violations(repo_root: Path) -> list[Violation]:
     return violations
 
 
-def format_report(violations: list[Violation], strict: bool) -> str:
+def format_report(violations: list[Violation], strict: bool, examined: int = 0) -> str:
     """Format a human-readable report of violations."""
     if not violations:
-        return "[PASS] No uncited mirror-claims found.\n"
+        return f"[PASS] No uncited mirror-claims found in {examined} file(s) examined.\n"
 
     label = "[FAIL]" if strict else "[WARN]"
     lines = [
-        f"{label} {len(violations)} uncited mirror-claim(s) found.",
+        f"{label} {len(violations)} uncited mirror-claim(s) found in {examined} file(s) examined.",
         "",
         "These files contain a mirror-claim (matches/mirrors/aligned with) "
         "in a docstring or top-level comment but carry no canonical path "
@@ -446,13 +449,15 @@ def main(argv: list[str] | None = None) -> int:
     if not roots:
         print(
             "[SKIP] no scan roots present "
-            "(.claude/hooks, scripts/validation, build/scripts, .claude/skills).",
+            "(.claude/hooks, scripts/validation, build/scripts, .claude/skills, "
+            "src/claude/skills).",
         )
         _report_non_pass(_no_roots_outcome())
         return 0
 
     violations, copy_findings = collect_all(repo_root)
-    print(format_report(violations, strict=args.strict))
+    examined = len(list(_iter_python_files(roots)))
+    print(format_report(violations, strict=args.strict, examined=examined))
     print(format_copy_findings(copy_findings), end="")
 
     if violations:
