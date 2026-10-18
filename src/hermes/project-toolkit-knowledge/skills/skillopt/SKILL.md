@@ -54,6 +54,13 @@ the candidate is frozen. If they were exposed, list them under `exposed` in
 the manifest, move them to `train`, and add untouched holdout tasks.
 `pair-gate` exits 2 while an exposed or invalid task sits in the `sel` split.
 
+Deterministic tasks taken from a written spec before any candidate exists
+are frozen once their list and verifiers stop changing. Freezing is not
+isolation. If the agent that wrote them also writes the candidate, it has
+seen every verifier, so list them under `exposed` and keep them in `train`.
+They still catch regressions. They count as `sel` only when a different
+author or session wrote them and kept them from the candidate author.
+
 ## Scripts
 
 Every subcommand takes explicit file paths, so it runs from any working
@@ -149,10 +156,19 @@ One optimization step:
      regressions, every held-out result a literal boolean.
    - Verdict precedence: `REJECT_UNVERIFIED` first (a missing or non-boolean
      result), then `REJECT_NULL_CONTROL` (the null run moved and no genuine
-     gain remains), then `ACCEPT_PARETO` or `REJECT`.
+     gain remains), then `REJECT_CEILING` (the incumbent already passes every
+     `sel` task and the candidate regresses none), then `ACCEPT_PARETO` or
+     `REJECT`.
    - Exit 1, `REJECT`, `REJECT_UNVERIFIED`, or `REJECT_NULL_CONTROL`: record
      it with `skillopt.py buffer-add --buffer rejected.jsonl --patches
      patches.json --score <cand> --incumbent <best> --note "..." --step T`.
+   - Exit 1, `REJECT_CEILING`: the edit lost nothing and is not bad. Do not
+     buffer it. No candidate can pass a gate that has no headroom, so stop the
+     loop and read the `hint`: freeze a new `sel` set of harder tasks that
+     sample the failure mode, re-score the incumbent on it, then author a
+     fresh candidate. Never re-gate this candidate on tasks written after it.
+     For a first draft whose `sel` tasks came from its own requirements, hand
+     back to `skillforge`.
 8. **Repeat** until the budget reaches its floor and several steps reject, or
    the step budget runs out.
 

@@ -54,8 +54,12 @@ CLAUDE_ALLOWED_TOOLS = frozenset(
         "mcp__github__list_workflow_runs",
         "mcp__github__get_workflow_run",
         "mcp__github__get_job_logs",
-        "mcp__context7__get_library_docs",
-        "mcp__context7__resolve_library_id",
+        # ADR-107 amendment 2026-10-17: Context7 is granted whole under each name
+        # prefix, and ToolSearch loads the granted deferred MCP schemas.
+        "ToolSearch",
+        "mcp__context7__*",
+        "mcp__plugin_context7_context7__*",
+        "mcp__claude_ai_Context7__*",
         "mcp__deepwiki__read_wiki_contents",
         "mcp__deepwiki__read_wiki_structure",
         *(f"mcp__serena__{operation}" for operation in READ_ONLY_SERENA_OPERATIONS),

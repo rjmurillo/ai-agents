@@ -685,7 +685,9 @@ pre-push:
               # push: python-tests (xdist workers), pre-pr-validation,
               # zero-collection-tests, python-type-check; each sibling is one
               # process, so three CPUs are held back and xdist runs
-              # min(4, visible CPUs - 3) workers, never fewer than one. When
+              # min(scaled_worker_cap, visible CPUs - 3) workers, never fewer
+              # than one (scaled_worker_cap is the AI_AGENTS_PYTEST_WORKER_CAP
+              # "scaled" value set above, not a fixed 4). When
               # the partitions overlap, the serial safe-push lane counts in
               # that budget too (pytest_lanes.plan_lanes process_budget). A
               # four-CPU container runs one worker beside them. The test in

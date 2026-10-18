@@ -63,9 +63,9 @@ surfaces:
     reason: Authored in place; no generator writes it.
   - id: agents-github
     path: .github/agents
-    relation: translated
-    authority: templates/agents
-    generator: build/generate_agents.py
+    relation: binplaced
+    authority: src/copilot-cli/agents
+    generator: build/scripts/binplace_manifest.py
     include: ["*.agent.md"]
     owner: build_all.py --check; agent-drift-detection.yml
   - id: github-agents-prompt
@@ -99,6 +99,14 @@ surfaces:
     authority: src/claude/rules
     generator: build/scripts/binplace_manifest.py
     owner: build_all.py --check
+  - id: rules-claude-repo-only
+    path: .claude/rules
+    relation: generated
+    authority: templates/rules
+    generator: build/scripts/rule_templates.py
+    include: ["adr-records.md", "governance.md", "push-lock.md", "secret-redaction.md", "session-logs.md", "tool-use-hook-bar.md"]
+    owner: build_all.py --check
+    reason: Repo-only rules (scope internal end to end) render here as real files and ship in no plugin tree (ADR-119 decision 13).
   - id: instructions-copilot-cli
     path: src/copilot-cli/instructions
     relation: translated
@@ -115,11 +123,19 @@ surfaces:
     reason: Rules become .mdc files. paths of ** becomes alwaysApply true; other paths become a comma-separated globs string. priority is dropped. Internal-only globs are filtered.
   - id: instructions-github
     path: .github/instructions
-    relation: translated
-    authority: src/claude/rules
-    generator: build/scripts/generate_rules.py
+    relation: binplaced
+    authority: src/copilot-cli/instructions
+    generator: build/scripts/binplace_manifest.py
     owner: build_all.py --check
-    reason: paths frontmatter becomes applyTo; alwaysApply and priority are dropped.
+    reason: Each shipped instruction links into the shipped tree (ADR-119).
+  - id: instructions-github-repo-only
+    path: .github/instructions
+    relation: translated
+    authority: .claude/rules
+    generator: build/scripts/generate_rules.py
+    include: ["adr-records.instructions.md", "governance.instructions.md", "push-lock.instructions.md", "secret-redaction.instructions.md", "session-logs.instructions.md", "tool-use-hook-bar.instructions.md"]
+    owner: build_all.py --check
+    reason: Repo-only rules (scope internal end to end) render here as real files; paths becomes applyTo.
 
   # ---- Hooks and settings -------------------------------------------------
   - id: hooks-claude-plugin
@@ -186,36 +202,28 @@ surfaces:
     owner: build_all.py --check
   - id: skills-claude-plugin-support
     path: src/claude/skills
-    relation: mirrored
-    authority: .claude/skills
-    generator: build/scripts/generate_skills.py
+    relation: independent
     exclude: ["*/SKILL.md"]
-    owner: build_all.py --check
-    reason: Support files mirror from .claude/skills/<name>/ into the plugin tree.
+    reason: Canonical, hand-maintained support files (ADR-119). .claude/skills/<name> links here, so there is no second copy to mirror.
   - id: skills-claude-install-skillmd
     path: .claude/skills
     relation: binplaced
     authority: src/claude/skills
     generator: build/scripts/binplace_manifest.py
     include: ["*/SKILL.md"]
+    extras: allow
     owner: build_all.py --check
-    reason: A skill with distribution repo-local renders straight here with no plugin hop.
+    reason: A shipped skill is a relative symlink to the plugin directory (ADR-119). A skill with distribution repo-local renders straight here with no plugin hop.
   - id: skills-claude-install-support
     path: .claude/skills
     relation: independent
     exclude: ["*/SKILL.md"]
-    reason: Canonical source of skill scripts, references, and tests; mirrored into both plugin trees.
+    reason: Support files of a repo-local skill, authored in place. A shipped skill's are reached through its symlink into the plugin tree.
   - id: skills-review-sidecar-plugin
     path: src/claude/skills/review/scripts/validate_review_marker.py
     relation: generated
     authority: scripts/validation/validate_review_marker.py
     generator: build/scripts/lib_mirror.py
-    owner: build_all.py --check
-  - id: skills-review-sidecar-install
-    path: .claude/skills/review/scripts/validate_review_marker.py
-    relation: binplaced
-    authority: src/claude/skills/review/scripts/validate_review_marker.py
-    generator: build/scripts/binplace_manifest.py
     owner: build_all.py --check
   - id: skills-review-sidecar-copilot
     path: src/copilot-cli/skills/review/scripts/validate_review_marker.py
@@ -232,7 +240,7 @@ surfaces:
   - id: skills-copilot-cli
     path: src/copilot-cli/skills
     relation: translated
-    authority: .claude/skills
+    authority: src/claude/skills
     generator: build/scripts/generate_skills.py
     authority_exclude: [merge-resolver]
     owner: build_all.py --check
@@ -250,10 +258,17 @@ surfaces:
     authority: scripts/validation/validate_review_marker.py
     generator: build/scripts/lib_mirror.py
     owner: build_all.py --check
+  - id: skills-codex-install
+    path: .agents/skills
+    relation: binplaced
+    authority: src/codex/skills
+    generator: build/scripts/binplace_manifest.py
+    owner: build_all.py --check
+    reason: Codex's repository skill directory; each entry links to src/codex/skills (ADR-119).
   - id: skills-codex
     path: src/codex/skills
     relation: translated
-    authority: .claude/skills
+    authority: src/claude/skills
     generator: build/scripts/generate_skills.py
     owner: build_all.py --check
     reason: Frontmatter keys model and model-rationale drop; the body ships verbatim (ADR-115 Decision 2).
@@ -371,30 +386,21 @@ surfaces:
     generator: build/scripts/lib_mirror.py
     owner: build_all.py --check
     reason: Absolute imports are rewritten to relative imports.
-  - id: lib-hook-utilities-claude-install
-    path: .claude/lib/hook_utilities
+  - id: lib-paths-claude-plugin
+    path: src/claude/lib/paths.py
+    relation: independent
+    reason: Hand-maintained and canonical (ADR-119); the `lib` binplace row links .claude/lib/paths.py to it.
+  - id: lib-claude-plugin
+    path: src/claude/lib
+    relation: independent
+    reason: Parent of the lib packages and paths.py. The `lib` link row (ADR-119 decision 14) names it as its own source; each entry has its own row.
+  - id: lib-claude-install
+    path: .claude/lib
     relation: binplaced
-    authority: src/claude/lib/hook_utilities
-    generator: build/scripts/binplace_manifest.py
+    authority: src/claude/lib
+    generator: build/scripts/binplace_links.py
     owner: build_all.py --check
-  - id: lib-github-core-claude-install
-    path: .claude/lib/github_core
-    relation: binplaced
-    authority: src/claude/lib/github_core
-    generator: build/scripts/binplace_manifest.py
-    owner: build_all.py --check
-  - id: lib-ai-review-common-claude-install
-    path: .claude/lib/ai_review_common
-    relation: binplaced
-    authority: src/claude/lib/ai_review_common
-    generator: build/scripts/binplace_manifest.py
-    owner: build_all.py --check
-  - id: lib-bootstrap-claude-install
-    path: .claude/lib/bootstrap.py
-    relation: binplaced
-    authority: src/claude/lib/bootstrap.py
-    generator: build/scripts/binplace_manifest.py
-    owner: build_all.py --check
+    reason: Each top-level plugin entry is a relative link here (ADR-119 decision 14). The hand-maintained modules below stay real files.
   - id: lib-claude-modules
     path: .claude/lib
     relation: independent
@@ -408,16 +414,6 @@ surfaces:
     divergent: [paths.py]
     owner: build/scripts/check_surface_parity.py
     reason: Hand-maintained copies of the .claude/lib top-level modules. paths.py differs on purpose; its consumer-side root is .agents, not .project-toolkit.
-  - id: lib-hook-utilities-guide
-    path: .claude/lib/hook_utilities
-    relation: independent
-    include: ["CLAUDE.md"]
-    reason: Per-package guide authored in place.
-  - id: lib-github-core-guide
-    path: .claude/lib/github_core
-    relation: independent
-    include: ["CLAUDE.md"]
-    reason: Per-package guide authored in place.
 
   # ---- Hermes packs (ADR-115 Decision 6) ----------------------------------
   - id: skills-hermes-packs

@@ -272,10 +272,10 @@ _RENDER_ERRORS = (
 )
 
 
-def _render(tmpl: Path, partials: Path) -> str:
+def _render(tmpl: Path, partials: Path, table: dict[str, object] | None = None) -> str:
     try:
-        return str(agent_templates.render(tmpl, partials))
-    except _RENDER_ERRORS as exc:
+        return str(agent_templates.render_claude(tmpl, partials, table or {}))
+    except (*_RENDER_ERRORS, agent_capabilities.CapabilityError) as exc:
         raise ConfigError(f"cannot render {tmpl}: {exc}") from exc
 
 
@@ -288,6 +288,14 @@ def _load_toolsets(repo_root: Path) -> dict[str, dict[str, object]]:
     except agent_capabilities.CapabilityError as exc:
         raise ConfigError(str(exc)) from exc
     return toolsets
+
+
+def _load_mcp_table(repo_root: Path) -> dict[str, object]:
+    try:
+        table: dict[str, object] = agent_capabilities.load_mcp_table(repo_root)
+    except agent_capabilities.CapabilityError as exc:
+        raise ConfigError(str(exc)) from exc
+    return table
 
 
 def _stems(repo_root: Path) -> list[str]:
@@ -307,6 +315,7 @@ def _compare_stem(
     copilot_tmpl: Path,
     partials: Path,
     toolsets: dict[str, dict[str, object]],
+    table: dict[str, object],
 ) -> dict[Key, str]:
     """Return the divergences between one agent's shared source and its templates."""
     found: dict[Key, str] = {}
@@ -315,9 +324,8 @@ def _compare_stem(
         (PAIR_COPILOT, copilot_tmpl, True),
     ):
         spec = CAPABILITY_KEYS[pair]
-        units = extract_units(
-            _render(tmpl, partials), tuple((own, prefix) for own, _, prefix in spec), toolsets
-        )
+        text = _render(tmpl, partials, table if pair == PAIR_CLAUDE else None)
+        units = extract_units(text, tuple((own, prefix) for own, _, prefix in spec), toolsets)
         shared_units = extract_units(
             shared_text, tuple((theirs, prefix) for _, theirs, prefix in spec), toolsets
         )
@@ -333,6 +341,7 @@ def collect_divergence(repo_root: Path) -> tuple[dict[Key, str], list[Finding]]:
     agents = repo_root / "templates" / "agents"
     pairs = agent_templates.discover(repo_root)
     toolsets = _load_toolsets(repo_root)
+    table = _load_mcp_table(repo_root)
     found: dict[Key, str] = {}
     missing: list[Finding] = []
     for stem in _stems(repo_root):
@@ -344,7 +353,13 @@ def collect_divergence(repo_root: Path) -> tuple[dict[Key, str], list[Finding]]:
         claude_tmpl, copilot_tmpl = pairs[stem]
         found.update(
             _compare_stem(
-                stem, _read(shared), claude_tmpl, copilot_tmpl, agents / "partials", toolsets
+                stem,
+                _read(shared),
+                claude_tmpl,
+                copilot_tmpl,
+                agents / "partials",
+                toolsets,
+                table,
             )
         )
     return found, missing

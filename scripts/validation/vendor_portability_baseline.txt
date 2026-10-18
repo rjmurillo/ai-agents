@@ -9,20 +9,20 @@
 # opens. The regex exemption cannot fire for them because it keys on a
 # literal '\.', which a scripts/ pattern never contains. Tracked in #4046.
 
-.claude/skills/adr-review/scripts/detect_adr_changes.py
-.claude/skills/chestertons-fence/scripts/investigate.py
-.claude/skills/github/scripts/pr/new_pr.py
-.claude/skills/github/scripts/pr/pr_validations.py
-.claude/skills/github/scripts/pr/prepare_pr_body.py
-.claude/skills/golden-principles/scripts/scan_principles.py
-.claude/skills/golden-principles/scripts/scan_principles_core.py
-.claude/skills/memory/memory_core/reflexion_memory.py
-.claude/skills/memory/scripts/extract_session_episode.py
-.claude/skills/memory/scripts/search_memory.py
-.claude/skills/memory/scripts/test_memory_health.py
-.claude/skills/merge-resolver/scripts/resolve_pr_conflicts.py
-.claude/skills/orphan-ref-validator/scripts/scan.py
-.claude/skills/quality-grades/scripts/grade_domains.py
-.claude/skills/steering-matcher/get_applicable_steering.py
-.claude/skills/steering-matcher/scripts/get_applicable_steering.py
-.claude/skills/taste-lints/scripts/taste_lints.py
+src/claude/skills/adr-review/scripts/detect_adr_changes.py
+src/claude/skills/chestertons-fence/scripts/investigate.py
+src/claude/skills/github/scripts/pr/new_pr.py
+src/claude/skills/github/scripts/pr/pr_validations.py
+src/claude/skills/github/scripts/pr/prepare_pr_body.py
+src/claude/skills/golden-principles/scripts/scan_principles.py
+src/claude/skills/golden-principles/scripts/scan_principles_core.py
+src/claude/skills/memory/memory_core/reflexion_memory.py
+src/claude/skills/memory/scripts/extract_session_episode.py
+src/claude/skills/memory/scripts/search_memory.py
+src/claude/skills/memory/scripts/test_memory_health.py
+src/claude/skills/merge-resolver/scripts/resolve_pr_conflicts.py
+src/claude/skills/orphan-ref-validator/scripts/scan.py
+src/claude/skills/quality-grades/scripts/grade_domains.py
+src/claude/skills/steering-matcher/get_applicable_steering.py
+src/claude/skills/steering-matcher/scripts/get_applicable_steering.py
+src/claude/skills/taste-lints/scripts/taste_lints.py

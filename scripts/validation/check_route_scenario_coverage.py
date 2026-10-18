@@ -67,7 +67,8 @@ EXIT_OK = 0
 EXIT_UNCOVERED = 1
 EXIT_CONFIG = 2
 
-SKILL_PATH = ".claude/skills/autoplan/SKILL.md"
+# ADR-119: .claude/skills/autoplan links here; git cannot read through the link.
+SKILL_PATH = "src/claude/skills/autoplan/SKILL.md"
 SCENARIO_PATH = "tests/evals/skill-scenarios/autoplan.json"
 DEFAULT_BASE_REF = "origin/main"
 ROUTE_TABLE_HEADERS = ["Intent", "Route"]

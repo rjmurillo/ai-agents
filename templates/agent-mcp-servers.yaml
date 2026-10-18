@@ -1,0 +1,57 @@
+# MCP server table for the Claude read-only agents (ADR-107, "Read-only agents keep
+# an allowlist and grant Context7 by server wildcard").
+#
+# A read-only Claude agent lists built-in tools in `tools:`. A read-only docs server
+# is granted as one logical reference, `- $mcp:<server>`. The renderer
+# (build/scripts/agent_templates.py, via agent_capabilities.py) expands it to
+# `<prefix>__*` for every prefix variant of that server. Servers with write tools
+# are not granted by wildcard; agents list their read tools one by one. An unknown
+# name fails the build. A bare all-server MCP wildcard grants nothing on Claude Code 2.1.302
+# (probe, 2026-10-17) and the renderer rejects it.
+#
+# Why this is a sibling of templates/toolsets.yaml: toolsets.yaml is read by a
+# line-based parser in build/generate_agents_common.py that only understands named
+# lists of Copilot and VS Code tools. Servers and prefix variants are a
+# different schema with a different consumer.
+#
+# Claude Code spells one MCP tool by where the server is configured
+# (https://code.claude.com/docs/en/mcp and /permissions):
+#   .mcp.json or settings server   mcp__<server>__<tool>
+#   plugin-provided server         mcp__plugin_<plugin>_<server>__<tool>
+#   claude.ai connector            mcp__claude_ai_<Server>__<tool>
+# The connector segment is the connector's display name with spaces replaced by
+# underscores. Observed in a live session: Context7, hindsight, Slack,
+# Microsoft_Learn, Claude_Docs, Firecrawl. Its case is the connector's, not ours.
+#
+# Every entry is printed in the agent file and in the parent agent listing each
+# session, and the per-fixture instruction-byte ceilings cap that growth. Only a
+# read-only docs server (Context7) is granted by wildcard. Serena, GitHub, and
+# DeepWiki have write tools, so agents keep the explicit read-tool grants they held
+# on origin/main (`mcp__<server>__<tool>`): a wildcard would grant any future write
+# tool. A bespoke corporate server is
+# unreachable until it is added here.
+
+# Placeholders: {server} is the key under `servers`; {claude_ai} expands once per
+# name in that server's `claude_ai` list. `__<tool>` or `__*` is appended.
+prefix_variants:
+  - "mcp__{server}"
+  - "mcp__plugin_{server}_{server}"
+  - "mcp__claude_ai_{claude_ai}"
+
+# Every server in .mcp.json needs an entry here: granted by an agent, or marked
+# `remote_only` or `explicit_only` with a reason.
+# tests/build_scripts/test_agent_mcp_servers.py enforces it.
+servers:
+  # Local server with write tools (shell, code editors, memory). Granted tool by tool
+  # under `mcp__serena__` only, as on origin/main, never by wildcard: a wildcard would
+  # grant any future Serena executor. `explicit_only` records that.
+  serena:
+    explicit_only: "write tools exist, so agents list read tools one by one"
+  # Hosted service: runs no local command and writes no local file. Not granted by
+  # wildcard, because private mode exposes about 15 Devin write tools.
+  # analyst keeps its two explicit read tools.
+  deepwiki:
+    remote_only: "DeepWiki is a hosted service. It runs no local command and writes no local file."
+  # Read-only server (resolve-library-id, query-docs): all variants.
+  context7:
+    claude_ai: [Context7]
