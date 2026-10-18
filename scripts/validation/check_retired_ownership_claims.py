@@ -110,11 +110,13 @@ RETIRED_CLAIMS: tuple[RetiredClaim, ...] = (
     RetiredClaim(
         name="skill support files edited in the install tree",
         pattern=re.compile(
-            r"(?:hand-maintained at|edit (?:it|the support file) at|"
+            r"(?:hand-maintained (?:at|under)|edit (?:it|the support file) at|"
             r"mirrors? (?:them )?(?:in)?(?:to)? ?from) `\.claude/skills/<name>/`"
+            r"|`\.claude/skills/<name>/` for other skill files"
         ),
         scope=(
             *_PIPELINE_DOCS,
+            "templates/skills/*.tmpl",
             "build/AGENTS.md",
             "src/AGENTS.md",
             "src/claude/AGENTS.md",

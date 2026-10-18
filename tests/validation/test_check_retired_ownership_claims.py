@@ -91,6 +91,16 @@ _RETIRED_LINES: tuple[tuple[str, str, str], ...] = (
         "stays hand-maintained: edit it at `.claude/skills/<name>/`, never at `src/`",
     ),
     (
+        "skill support files edited in the install tree",
+        "templates/skills/ai-agents-architecture-contract.SKILL.md.tmpl",
+        "A skill's other files stay hand-maintained under `.claude/skills/<name>/`.",
+    ),
+    (
+        "skill support files edited in the install tree",
+        "templates/skills/ai-agents-architecture-contract.SKILL.md.tmpl",
+        "| Skills | `a.tmpl` for SKILL.md; `.claude/skills/<name>/` for other skill files | x |",
+    ),
+    (
         "drift allowlist size as a count",
         "templates/rules/templates.md",
         "It scores two pairs over an 18-section allowlist.",
@@ -173,6 +183,16 @@ class TestFindRetiredClaims:
     def test_a_correction_is_not_the_retired_claim(self, tmp_path: Path, line: str) -> None:
         repo = _git_repo(tmp_path)
         _add(repo, "templates/rules/templates.md", f"{line}\n")
+
+        assert find_retired_claims(repo) == []
+
+    def test_the_current_skill_support_wording_is_not_the_claim(self, tmp_path: Path) -> None:
+        repo = _git_repo(tmp_path)
+        _add(
+            repo,
+            "templates/skills/x.SKILL.md.tmpl",
+            "Support files are hand-maintained under `src/claude/skills/<name>/`.\n",
+        )
 
         assert find_retired_claims(repo) == []
 

@@ -55,7 +55,7 @@ The generation seam is ASYMMETRIC (ADR-072 is PROPOSED and refines this; the run
 | `src/copilot-cli/agents/` | generated | templates/agents | `build/generate_agents.py` |
 | `docs/agent-catalog.md` | generated | templates/agents | `build_all.py` (agent-catalog) |
 | `.claude/` | MIXED per subtree, see Facts below | mixed | binplace, template-owned parts only |
-| `templates/skills/*.SKILL.md.tmpl` | CANONICAL for all 111 skills' SKILL.md (ADR-108, ADR-109 B3) | itself | renders `src/claude/skills/`, binplaces `.claude/skills/`, mirrors `src/copilot-cli/skills/` |
+| `templates/skills/*.SKILL.md.tmpl` | CANONICAL for all 111 skills' SKILL.md (ADR-108, ADR-109 B3) | itself | renders `src/claude/skills/`, links `.claude/skills/<name>`, mirrors `src/copilot-cli/skills/` |
 | `src/copilot-cli/{skills,instructions,hooks}` | generated | `.claude/` trees | `build/scripts/build_all.py` |
 | `.github/instructions/` | generated | `.claude/rules/` | `build_all.py` (rules) |
 | `scripts/{hook_utilities,github_core,ai_review_common}` | CANONICAL for shared Python | itself | n/a |
@@ -63,7 +63,7 @@ The generation seam is ASYMMETRIC (ADR-072 is PROPOSED and refines this; the run
 | `.claude/lib/` | binplaced from `src/claude/lib/` | `src/claude/lib/` | `build_all.py` binplace |
 | `src/claude/{agents,rules,hooks,hooks.json,settings.json}` | generated (ADR-109 B1, B2, B4; supersedes the pre-ADR-109 hand-synced model) | `templates/{agents,rules,hooks}/` | `build_all.py`, then binplaced to `.claude/` |
 
-All 111 skills are template-owned (ADR-108, ADR-109 B3): edit `templates/skills/<name>.SKILL.md.tmpl`; it renders `src/claude/skills/<name>/SKILL.md` first, binplace copies that to `.claude/skills/<name>/SKILL.md`, then the Copilot copy step mirrors it (plus the skill's hand-maintained `scripts/`, `references/`, `tests/`) into `src/copilot-cli/skills/<name>/SKILL.md`.
+All 111 skills are template-owned (ADR-108, ADR-109 B3): edit `templates/skills/<name>.SKILL.md.tmpl`; it renders `src/claude/skills/<name>/SKILL.md` first, `.claude/skills/<name>` links to that directory (ADR-119), then the Copilot copy step mirrors it (plus the skill's hand-maintained `scripts/`, `references/`, `tests/`) into `src/copilot-cli/skills/<name>/SKILL.md`.
 
 Generator inventory inside `build/scripts/build_all.py` (the `GENERATORS` list; order is load-bearing per the `Order matters` comment above it; seven since ADR-064 retired `commands`):
 

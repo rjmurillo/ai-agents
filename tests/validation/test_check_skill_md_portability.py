@@ -2214,7 +2214,7 @@ class TestBaselineSemanticConflictGuard:
     ) -> None:
         """ADR-109 B3 follow-up: a byte-identical mirror is not new drift.
 
-        generate_skills.sync_claude_plugin_skill_support mirrors a skill's
+        generate_skills.prune_stale_claude_skill_support mirrors a skill's
         support files from .claude/skills/ into src/claude/skills/ byte for
         byte. The mirror's ref count is not new against base_ref just
         because the mirror PATH is new there: the content, and its baseline

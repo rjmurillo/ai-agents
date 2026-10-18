@@ -128,7 +128,7 @@ This is the tool working as documented (`detect_agent_drift.py:29-33` names the 
 
 - `build/scripts/agent_templates.py`. Generator (emits `src/claude/agents/`)
 - `build/generate_agents.py`. Generator (emits `src/copilot-cli/agents/`, `src/vs-code-agents/`)
-- `build/scripts/binplace_manifest.py`. Binplace step (copies `src/claude/agents/` into the Claude Code install tree); `.github/agents/*.agent.md` link to `src/copilot-cli/agents/` (ADR-119), so no Copilot agent may carry a `model:` field (inherit-only since PR #5040)
+- `build/scripts/binplace_manifest.py`. Binplace step (links `.claude/agents/` to `src/claude/agents/`, ADR-119); `.github/agents/*.agent.md` link to `src/copilot-cli/agents/` (ADR-119), so no Copilot agent may carry a `model:` field (inherit-only since PR #5040)
 - `build/scripts/detect_agent_drift.py`. Semantic-similarity check on two OTHER pairs (`src/claude/agents` vs `src/vs-code-agents`; the Claude Code install copy vs `.github/agents`). Does NOT read `templates/agents/*.shared.md` content.
 - `.agents/steering/agent-prompts.md`. Prompt standards
 - `.agents/steering/claude-skills.md`. Skill authoring standards

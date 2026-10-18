@@ -811,7 +811,7 @@ _GENERATED_MIRRORS: tuple[tuple[str, str, tuple[str, str] | None], ...] = (
     ("src/copilot-cli/skills/", ".claude/skills/", None),
     ("src/copilot-cli/hooks/", ".claude/hooks/", None),
     # ADR-109 B3 (SKILL.md) and its follow-up (every other skill file,
-    # generate_skills.sync_claude_plugin_skill_support): both mirror
+    # generate_skills.prune_stale_claude_skill_support): both mirror
     # .claude/skills/ into src/claude/skills/ byte for byte. Unlike the
     # src/copilot-cli/skills/ row above, no _COPILOT_SKILL_EXCLUDES-style
     # filter applies here: merge-resolver ships in the Claude plugin tree.

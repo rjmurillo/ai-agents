@@ -214,7 +214,7 @@ class TestMirrors:
         for name in ("local-skill", "shipped-skill"):
             (repo / ".claude" / "skills" / name / "SKILL.md").write_text("x\n", encoding="utf-8")
 
-        written, removed, skipped, errors = generate_skills.sync_claude_plugin_skill_support(repo)
+        written, removed, skipped, errors = generate_skills.prune_stale_claude_skill_support(repo)
 
         assert (errors, written, removed, skipped) == ([], 0, 0, 0)
         assert (repo / "src/claude/skills/shipped-skill/helper.py").is_file()
@@ -223,7 +223,7 @@ class TestMirrors:
     def test_claude_support_mirror_reports_a_bad_value(self, repo: Path) -> None:
         write_template(repo, "typo", "---\nname: typo\nmetadata:\n  distribution: local\n---\n")
 
-        _written, _removed, _skipped, errors = generate_skills.sync_claude_plugin_skill_support(
+        _written, _removed, _skipped, errors = generate_skills.prune_stale_claude_skill_support(
             repo
         )
 
@@ -274,7 +274,7 @@ class TestStaleVendorCopies:
         stale = seed_vendor_copy(tree, "local-skill")
         kept = seed_vendor_copy(tree, "shipped-skill")
 
-        _written, removed, _skipped, errors = generate_skills.sync_claude_plugin_skill_support(repo)
+        _written, removed, _skipped, errors = generate_skills.prune_stale_claude_skill_support(repo)
 
         assert errors == []
         # Only local-skill's two files go. ADR-119: the plugin tree is the only
@@ -288,7 +288,7 @@ class TestStaleVendorCopies:
     def test_sync_check_reports_but_keeps_the_stale_copy(self, repo: Path) -> None:
         stale = seed_vendor_copy(repo / "src" / "claude" / "skills", "local-skill")
 
-        _written, removed, _skipped, _errors = generate_skills.sync_claude_plugin_skill_support(
+        _written, removed, _skipped, _errors = generate_skills.prune_stale_claude_skill_support(
             repo, check=True
         )
 
@@ -305,7 +305,7 @@ class TestStaleVendorCopies:
         except OSError:
             pytest.skip("symlinks unavailable")
 
-        _written, _removed, _skipped, errors = generate_skills.sync_claude_plugin_skill_support(
+        _written, _removed, _skipped, errors = generate_skills.prune_stale_claude_skill_support(
             repo
         )
 
