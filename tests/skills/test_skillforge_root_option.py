@@ -8,6 +8,7 @@ the current directory, and every containment check still runs against the root.
 
 from __future__ import annotations
 
+import importlib.util
 import subprocess
 import sys
 from pathlib import Path
@@ -21,6 +22,7 @@ _TREES = (".claude", "src/copilot-cli")
 _SCRIPTS = [_REPO_ROOT / tree / _FORGE / name for tree in _TREES for name in _SCRIPT_NAMES]
 
 _TRAVERSAL_MARKER = "Path traversal detected"
+_OUTSIDE_ROOT_MARKER = "outside the permitted root"
 _SKILL_MD = """---
 name: sample
 description: Sample skill for the root option. Use when you say `run sample`.
@@ -179,9 +181,18 @@ def test_root_that_is_a_file_exits_nonzero(script: Path, layout: dict[str, Path]
         ["--root"],
         ["--root="],
         ["--bogus", "skills/sample"],
+        ["-h"],
+        ["-x", "skills/sample"],
         [],
     ],
-    ids=["root-without-value", "empty-root", "unknown-flag", "no-args"],
+    ids=[
+        "root-without-value",
+        "empty-root",
+        "unknown-flag",
+        "single-dash-help",
+        "single-dash-flag",
+        "no-args",
+    ],
 )
 def test_usage_errors_exit_one_with_usage(
     script: Path, tmp_path: Path, bad_args: list[str]
@@ -207,9 +218,10 @@ def test_duplicate_root_and_extra_positional_exit_one(
 @pytest.mark.parametrize("script", _SCRIPTS, ids=_script_id)
 def test_symlink_skill_md_escaping_root_is_rejected(script: Path, tmp_path: Path) -> None:
     # CWE-22: under --root, a SKILL.md symlink that points outside the root must
-    # not be read.
+    # not be read. The directory is named "sample" to match the frontmatter, so
+    # the symlink is the only thing that can fail validation.
     root = tmp_path / "root"
-    contained = root / "evil"
+    contained = root / "sample"
     contained.mkdir(parents=True)
     secret = tmp_path / "secret.md"
     secret.write_text(_SKILL_MD, encoding="utf-8")
@@ -219,6 +231,96 @@ def test_symlink_skill_md_escaping_root_is_rejected(script: Path, tmp_path: Path
         pytest.skip("symlink creation not permitted on this platform")
     result = _run(script, tmp_path, str(contained), "--root", str(root))
     combined = result.stdout + result.stderr
+    assert _OUTSIDE_ROOT_MARKER in combined, combined
     assert "Skill is valid" not in combined, combined
     assert "All checks passed" not in combined, combined
     assert result.returncode == 1, combined
+
+
+@pytest.mark.parametrize("script", _SCRIPTS, ids=_script_id)
+def test_symlink_skill_md_inside_root_is_accepted(script: Path, tmp_path: Path) -> None:
+    # Control for the rejection test above: the same layout with the symlink
+    # target inside the root passes, so the rejection is about containment.
+    root = tmp_path / "root"
+    contained = root / "sample"
+    contained.mkdir(parents=True)
+    target = root / "shared.md"
+    target.write_text(_SKILL_MD, encoding="utf-8")
+    try:
+        (contained / "SKILL.md").symlink_to(target)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation not permitted on this platform")
+    result = _run(script, tmp_path, str(contained), "--root", str(root))
+    combined = result.stdout + result.stderr
+    assert _OUTSIDE_ROOT_MARKER not in combined, combined
+    assert result.returncode == 0, combined
+
+
+@pytest.mark.parametrize("tree", _TREES)
+def test_symlink_script_escaping_root_is_rejected(tree: str, tmp_path: Path) -> None:
+    # CWE-22: validate-skill.py reads scripts/*.py to lint them. A symlinked
+    # script that points outside the root must not be read.
+    script = _REPO_ROOT / tree / _FORGE / "validate-skill.py"
+    root = tmp_path / "root"
+    contained = root / "sample"
+    _make_skill(contained)
+    (contained / "scripts").mkdir()
+    outside = tmp_path / "outside.py"
+    outside.write_text('#!/usr/bin/env python3\n"""Outside."""\n', encoding="utf-8")
+    try:
+        (contained / "scripts" / "evil.py").symlink_to(outside)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation not permitted on this platform")
+    result = _run(script, tmp_path, str(contained), "--root", str(root))
+    combined = result.stdout + result.stderr
+    assert "Script evil.py resolves outside the permitted root" in combined, combined
+    assert result.returncode == 1, combined
+
+
+@pytest.mark.parametrize("tree", _TREES)
+def test_symlink_script_inside_root_is_not_flagged(tree: str, tmp_path: Path) -> None:
+    script = _REPO_ROOT / tree / _FORGE / "validate-skill.py"
+    root = tmp_path / "root"
+    contained = root / "sample"
+    _make_skill(contained)
+    (contained / "scripts").mkdir()
+    inside = root / "shared.py"
+    inside.write_text('#!/usr/bin/env python3\n"""Inside."""\n', encoding="utf-8")
+    try:
+        (contained / "scripts" / "ok.py").symlink_to(inside)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation not permitted on this platform")
+    result = _run(script, tmp_path, str(contained), "--root", str(root))
+    combined = result.stdout + result.stderr
+    assert _OUTSIDE_ROOT_MARKER not in combined, combined
+
+
+def _load_validator(script: Path):
+    """Import validate-skill.py as a module; restore sys.path afterwards."""
+    saved = list(sys.path)
+    try:
+        spec = importlib.util.spec_from_file_location(f"validate_skill_{script.parts[-5]}", script)
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+    finally:
+        sys.path[:] = saved
+
+
+@pytest.mark.parametrize("tree", _TREES)
+def test_validate_skill_root_comparison_is_case_normalized(
+    tree: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Windows paths differ only by casing (drive letter or component). Simulate a
+    # case-insensitive host by pinning normcase to lower(): a root spelled with
+    # different casing must still contain the skill, matching quick_validate.py.
+    module = _load_validator(_REPO_ROOT / tree / _FORGE / "validate-skill.py")
+    skill = tmp_path / "Repo" / "sample"
+    _make_skill(skill)
+    monkeypatch.setattr(module.os.path, "normcase", str.lower)
+    other_casing = str(tmp_path / "REPO")
+    validator = module.SkillValidator(str(skill), root=other_casing)
+    assert validator.load_skill() is True
+    with pytest.raises(ValueError, match=_TRAVERSAL_MARKER):
+        module.SkillValidator(str(skill), root=str(tmp_path / "REPO-evil"))

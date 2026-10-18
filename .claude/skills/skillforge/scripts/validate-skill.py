@@ -20,6 +20,15 @@ import sys
 from pathlib import Path
 from typing import Any
 
+# Shared CWE-22 containment and CLI parsing, same module quick_validate.py uses.
+# Same fallback as package_skill.py: put this file's directory on sys.path when it
+# is loaded from elsewhere.
+try:
+    from _path_guard import contained_realpath, is_within, parse_args, resolve_root
+except ImportError:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from _path_guard import contained_realpath, is_within, parse_args, resolve_root
+
 
 class SkillValidator:
     """Validates skill files against SkillForge 4.1 standards."""
@@ -28,9 +37,9 @@ class SkillValidator:
         # SECURITY: Validate path stays within allowed base directory (CWE-22).
         # The base is the current working directory unless the caller opts in to
         # another trusted root.
-        cwd_real = os.path.realpath(root if root is not None else os.getcwd())
-        resolved = os.path.realpath(str(skill_path))
-        if not resolved.startswith(cwd_real.rstrip(os.sep) + os.sep) and resolved != cwd_real:
+        self.root = resolve_root(root)
+        resolved = os.path.normcase(os.path.realpath(str(skill_path)))
+        if not is_within(resolved, self.root):
             raise ValueError(f"Path traversal detected: {skill_path}")
         self.skill_path = Path(skill_path)
         self.skill_md_path = self._find_skill_md()
@@ -55,8 +64,18 @@ class SkillValidator:
             self.errors.append(f"Skill file not found: {self.skill_md_path}")
             return False
 
+        # SECURITY (CWE-22): the skill directory is inside the root, but SKILL.md
+        # can be a symlink that points outside it. Read the resolved real path so
+        # the containment check and the read target cannot diverge.
+        read_target = contained_realpath(self.skill_md_path, self.root)
+        if read_target is None:
+            self.errors.append(
+                f"SKILL.md resolves outside the permitted root: {self.skill_md_path}"
+            )
+            return False
+
         try:
-            self.content = self.skill_md_path.read_text(encoding="utf-8")
+            self.content = Path(read_target).read_text(encoding="utf-8")
             return True
         except Exception as e:
             self.errors.append(f"Failed to read skill file: {e}")
@@ -656,8 +675,18 @@ class SkillValidator:
 
     def _validate_script(self, script_path: Path):
         """Validate a single Python script file."""
+        # SECURITY (CWE-22): a scripts/*.py symlink can point outside the root.
+        read_target = contained_realpath(script_path, self.root)
+        if read_target is None:
+            self.check(
+                f"script.{script_path.name}.contained",
+                False,
+                f"Script {script_path.name} resolves outside the permitted root",
+            )
+            return
+
         try:
-            content = script_path.read_text(encoding="utf-8")
+            content = Path(read_target).read_text(encoding="utf-8")
         except Exception as e:
             self.check(
                 f"script.{script_path.name}.readable",
@@ -812,33 +841,9 @@ class SkillValidator:
         return "\n".join(lines)
 
 
-def _parse_args(argv: list[str]) -> tuple[str, str | None] | None:
-    """Parse ``<skill_directory> [--root DIR]``; return None on a usage error."""
-    skill_path: str | None = None
-    root: str | None = None
-    args = list(argv)
-    while args:
-        arg = args.pop(0)
-        if arg == "--root":
-            if not args or root is not None:
-                return None
-            root = args.pop(0)
-        elif arg.startswith("--root="):
-            if root is not None:
-                return None
-            root = arg[len("--root=") :]
-        elif arg.startswith("--") or skill_path is not None:
-            return None
-        else:
-            skill_path = arg
-    if skill_path is None or root == "":
-        return None
-    return skill_path, root
-
-
 def main():
     """Main entry point."""
-    parsed = _parse_args(sys.argv[1:])
+    parsed = parse_args(sys.argv[1:])
     if parsed is None:
         print("Usage: python validate-skill.py <path-to-skill-directory> [--root DIR]")
         print("Example: python validate-skill.py ~/.claude/skills/my-skill/")
