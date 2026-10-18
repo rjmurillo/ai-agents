@@ -5,8 +5,9 @@
 Both subcommands are read-only. They read the repository from one named ref
 (`--rev`, default HEAD) with `git ls-tree -r -z --name-only`, `git log -z`,
 `git grep`, and `git cat-file`. They never use `git log --all` and never walk
-the working tree to learn what the repository contains. The one disk read is
-`claims`, which opens the authored markdown files you name to read their text.
+the working tree to learn what the repository contains. `claims` reads the
+disk only for authored skills: it opens the markdown files you name, and checks
+paths and counts lines under those skills' directories in the working tree.
 
 Subcommands:
 
@@ -52,7 +53,7 @@ preceded by a path character (for example a URL or `../`) is skipped. The
 placeholder filter is a heuristic. Stdlib only, so the script runs from any
 plugin root.
 
-Stricter/looser/different than `bootstrap_boundary.py`: that script treats a
+Exit codes differ from `bootstrap_boundary.py`, which treats a
 non-repository path as an external failure (exit 3) because it only verifies
 state. This one exits 2 for a bad repository path or rev, because the caller
 chose the input.
@@ -355,6 +356,8 @@ def candidates(args: argparse.Namespace) -> tuple[int, Payload]:
     )
 
     reverts, commits, unparsed = mine_reverts(root, sha, max_commits)
+    # Count one past the cap, so a history of exactly --max-commits reads as complete.
+    reachable = int(_git(root, "rev-list", "--count", "-n", str(max_commits + 1), sha).strip())
     churn_counts, churn_commits = mine_churn(root, sha, window, exclude)
     churn, churn_tie = top_with_ties(_rank(churn_counts), top)
     todo_counts, grepped = mine_todos(root, sha, tracked_files(root, sha), exclude)
@@ -365,8 +368,8 @@ def candidates(args: argparse.Namespace) -> tuple[int, Payload]:
         "rev": args.rev,
         "sha": sha,
         "reverts": reverts,
-        # The scan stops at --max-commits; a full window means older reverts were not read.
-        "reverts_truncated": commits + unparsed >= max_commits,
+        # The scan stops at --max-commits; more reachable commits means older reverts were not read.
+        "reverts_truncated": reachable > max_commits,
         "churn": [{"path": r["path"], "commits": r["count"]} for r in churn],
         "churn_tie_at_cutoff": churn_tie,
         "todo_hotspots": [{"path": r["path"], "todos": r["count"]} for r in todos],

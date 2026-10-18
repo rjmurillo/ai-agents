@@ -1399,6 +1399,18 @@ def test_reverts_truncated_when_the_scan_fills_max_commits(capsys, repo):
     assert payload["reverts_truncated"] is True
 
 
+def test_reverts_not_truncated_when_history_equals_the_cap(capsys, repo):
+    commit(repo, "one")
+    count = subprocess.run(
+        ["git", "-C", str(repo), "rev-list", "--count", "HEAD"],
+        capture_output=True, text=True, check=True,
+    ).stdout.strip()  # fmt: skip
+
+    _, payload = cand(capsys, repo, "--max-commits", count)
+
+    assert payload["reverts_truncated"] is False
+
+
 def test_reverts_not_truncated_when_history_is_shorter_than_the_cap(capsys, repo):
     _, payload = cand(capsys, repo, "--max-commits", "1000")
 
