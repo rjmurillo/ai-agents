@@ -105,6 +105,33 @@ def _origin_branch(repo_root: Path, label: str) -> str:
     raise BaseRefUnavailable(f"{label} could not resolve {_REMOTE_HEAD} to a branch ({detail})")
 
 
+def _stale_against_remote(base_ref: str, repo_root: Path) -> str:
+    """Return why the cached ``base_ref`` is not the remote tip, or "" when it is.
+
+    Asks the remote for the branch tip with ``git ls-remote`` and compares it
+    with the local ref, so a base the refresh helper never fetches is still
+    verified rather than trusted. Any git failure counts as stale: an
+    unverified base is not a fresh base.
+    """
+    branch = base_ref.removeprefix("origin/")
+    remote_code, remote_out, remote_err = _run_subprocess(
+        ["git", "-C", str(repo_root), "ls-remote", "origin", f"refs/heads/{branch}"],
+        timeout=15,
+    )
+    remote_sha = str(remote_out).split()[0] if str(remote_out).split() else ""
+    if remote_code != 0 or not remote_sha:
+        detail = str(remote_err).strip() or f"git ls-remote exit {remote_code}"
+        return f"cannot read the remote tip: {detail}"
+    local_code, local_out, _ = _run_subprocess(
+        ["git", "-C", str(repo_root), "rev-parse", "--verify", f"{base_ref}^{{commit}}"],
+        timeout=10,
+    )
+    local_sha = str(local_out).strip()
+    if local_code != 0 or local_sha != remote_sha:
+        return f"local {local_sha[:12] or 'missing'} differs from remote {remote_sha[:12]}"
+    return ""
+
+
 def _require_base_ref(repo_root: Path, label: str) -> str:
     """Return the freshly fetched base ref, or raise :class:`BaseRefUnavailable`.
 
@@ -116,9 +143,10 @@ def _require_base_ref(repo_root: Path, label: str) -> str:
     no-open-PR case is fetched like any other. A base that is not an
     ``origin/<branch>`` ref (the local ``main`` last resort) is never fetched,
     so outside CI it fails too.
-    A slash-containing base such as ``origin/release/1.0`` is also never
-    fetched: ``_refresh_remote_base`` returns ``None``, which means no fetch was
-    attempted, so outside CI that fails as well.
+    A slash-containing base such as ``origin/release/1.0`` is never fetched:
+    ``_refresh_remote_base`` returns ``None``, which means no fetch was
+    attempted. Outside CI the cached ref is compared with ``git ls-remote`` and
+    fails unless it equals the remote tip.
     """
     base_ref = _resolve_default_base_ref(repo_root)
     if base_ref is None:
@@ -141,13 +169,16 @@ def _require_base_ref(repo_root: Path, label: str) -> str:
     if refresh_error is None and not _is_ci():
         # None means no fetch was attempted. Under CI the runner already fetched.
         # Outside CI the helper also returns None for a slash-containing branch
-        # such as origin/release/1.0, which it never fetches, so the cache is stale.
-        raise BaseRefUnavailable(
-            f"{label} did not refresh {base_ref}: the refresh skips a branch name "
-            "that contains a slash, so a stale base can hide new findings. "
-            f"Run `git fetch origin {base_ref.removeprefix('origin/')}`, "
-            "then re-run with CI=true to assert the base is current"
-        )
+        # such as origin/release/1.0, which it never fetches. Compare the cached
+        # ref with the remote tip instead of trusting it.
+        stale_detail = _stale_against_remote(base_ref, repo_root)
+        if stale_detail:
+            branch = base_ref.removeprefix("origin/")
+            raise BaseRefUnavailable(
+                f"{label} did not refresh {base_ref}: the refresh skips a branch name "
+                f"that contains a slash, and the cached ref is stale ({stale_detail}). "
+                f"Run `git fetch origin {branch}` and re-run."
+            )
     return base_ref
 
 

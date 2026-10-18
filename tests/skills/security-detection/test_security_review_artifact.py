@@ -47,6 +47,11 @@ def _load_validator():
     return module
 
 
+scope_mod = import_skill_script(
+    ".claude/skills/review/scripts/validate_findings_scope.py",
+    module_name="validate_findings_scope_for_security_artifact",
+)
+
 vrm = _load_validator()
 SHA = "a" * 40
 OTHER = "b" * 40
@@ -203,3 +208,33 @@ def test_security_marker_with_altered_report_is_rejected(repo: Path) -> None:
     ok, detail = mod.find_security_review_marker("HEAD", repo)
     assert ok is False
     assert "no valid review report" in detail
+
+
+def test_an_all_out_of_scope_security_finding_still_blocks_the_marker() -> None:
+    """Review step 4a downgrades CRITICAL_FAIL to WARN for a finding outside the diff.
+
+    The security row then reads WARN, which never backs a marker (issue #6506),
+    so the downgrade cannot let an out-of-diff security finding through.
+    """
+    text = (
+        "VERDICT: CRITICAL_FAIL\n"
+        "- severity: CRITICAL\n"
+        "  location: scripts/unrelated.py:5\n"
+        "  recommendation: fix it elsewhere\n"
+    )
+    verdict = scope_mod.scope_adjusted_verdict(text, ["scripts/foo.py"])
+    assert verdict == "WARN"
+
+    message, digests, parent, axes = _case(("security",), [GOOD[0], f"security: {verdict}"])
+    assert mod.check_review_artifact(message, digests, parent, axes) is False
+    failure = vrm.check_review_artifact(message, digests, parent, axes)
+    assert failure is not None
+    assert "security" in failure
+
+
+def test_an_all_out_of_scope_non_security_finding_still_backs_a_marker() -> None:
+    """The step 4a downgrade keeps working for every axis except security."""
+    row = "analyst: WARN"
+    message, digests, parent, axes = _case(("analyst",), [GOOD[0], row])
+    assert mod.check_review_artifact(message, digests, parent, axes) is True
+    assert vrm.check_review_artifact(message, digests, parent, axes) is None
