@@ -121,9 +121,10 @@ class TestGradeDecision:
         text = "DECISION: MEASURE\nDECISION: ESTIMATE\nEVIDENCE: rg foo"
         assert dg.grade_decision(SPEC, text).reason == dg.REASON_AMBIGUOUS
 
-    def test_repeated_same_token_is_not_ambiguous(self) -> None:
+    def test_repeated_same_token_is_not_ambiguous_but_breaks_the_contract(self) -> None:
         text = "DECISION: MEASURE\nDECISION: measure\nEVIDENCE: rg foo"
-        assert dg.grade_decision(SPEC, text).passed is True
+        result = dg.grade_decision(SPEC, text)
+        assert (result.passed, result.reason) == (False, dg.REASON_CONTRACT_ORDER)
 
     def test_token_outside_options(self) -> None:
         result = dg.grade_decision(SPEC, "DECISION: MAYBE\nEVIDENCE: rg foo")
@@ -193,9 +194,28 @@ class TestTrailingText:
         text = "I considered estimating, but no.\nMore thought here.\n" + self.GOOD
         assert dg.grade_decision(SPEC, text).passed is True
 
-    def test_evidence_before_decision_uses_the_last_contract_line(self) -> None:
-        text = "EVIDENCE: rg -c foo\nDECISION: MEASURE"
-        assert dg.grade_decision(SPEC, text).passed is True
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "EVIDENCE: rg -c foo\nDECISION: MEASURE",
+            "DECISION: MEASURE\nDECISION: MEASURE\nEVIDENCE: rg -c foo",
+            "DECISION: MEASURE\nEVIDENCE: rg -c foo\nEVIDENCE: rg -c foo",
+            "EVIDENCE: rg -c foo\nDECISION: MEASURE\nEVIDENCE: rg -c foo",
+            "```\nEVIDENCE: rg -c foo\n\nDECISION: MEASURE\n```",
+        ],
+    )
+    def test_contract_lines_out_of_order_or_repeated_fail(self, text: str) -> None:
+        result = dg.grade_decision(SPEC, text)
+        assert (result.passed, result.reason) == (False, dg.REASON_CONTRACT_ORDER)
+        assert result.decision == "MEASURE"
+
+    def test_reversed_order_does_not_mask_a_wrong_decision(self) -> None:
+        result = dg.grade_decision(SPEC, "EVIDENCE: rg -c foo\nDECISION: ESTIMATE")
+        assert result.reason == dg.REASON_WRONG_DECISION
+
+    def test_reversed_order_does_not_mask_missing_evidence_patterns(self) -> None:
+        result = dg.grade_decision(SPEC, "EVIDENCE: from memory\nDECISION: MEASURE")
+        assert result.reason == dg.REASON_EVIDENCE_MISMATCH
 
     def test_a_reversal_between_the_contract_lines_fails(self) -> None:
         text = "DECISION: MEASURE\nActually no, I will estimate instead.\nEVIDENCE: rg -c foo"

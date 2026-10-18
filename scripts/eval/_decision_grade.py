@@ -14,15 +14,18 @@ The grade reads only those lines. Prose before them, including any rule
 keyword, never changes the result. Prose after the last of them does: the
 prompt says they are the last two lines, so text between them or after them (a
 reversal such as "actually, no need to run it") fails as trailing_text. Blank
-lines and a code fence may appear around them. A response passes when all of these hold:
+lines and a code fence may appear around them. The two lines must come in that
+order, DECISION then EVIDENCE, and each may appear once. A response passes when
+all of these hold:
 
 - Every DECISION line is one bare token, and all carry the same token. Two
   different tokens, or a line that holds more than one token ("A or B"), is
-  ambiguous and fails.
+  ambiguous and fails. The same token twice grades contract_order.
 - That token is one of `decision.options` and one of `decision.expected`.
 - An EVIDENCE line exists, is not empty, and matches every pattern in
   `decision.evidence_all`.
 - No prose sits between or after the DECISION and EVIDENCE lines.
+- The block is exactly one DECISION line, then one EVIDENCE line.
 
 Each failure carries a stable `reason` code, so a report says why.
 
@@ -73,6 +76,7 @@ REASON_WRONG_DECISION = "wrong_decision"
 REASON_NO_EVIDENCE = "no_evidence_line"
 REASON_EVIDENCE_MISMATCH = "evidence_mismatch"
 REASON_TRAILING_TEXT = "trailing_text"
+REASON_CONTRACT_ORDER = "contract_order"
 
 UNMEASURED = "UNMEASURED"
 
@@ -165,6 +169,21 @@ def _has_trailing_text(response: str) -> bool:
     )
 
 
+def _contract_in_order(response: str) -> bool:
+    """True when the contract lines are one DECISION line, then one EVIDENCE line.
+
+    Runs after the trailing-text check, so only contract lines are left to
+    order. The prompt asks for exactly two final lines in that order, so an
+    EVIDENCE line first, or a repeated DECISION or EVIDENCE line, fails.
+    """
+    kinds = [
+        "D" if _DECISION_LABEL_RE.match(line) else "E"
+        for line in response.splitlines()
+        if _DECISION_LABEL_RE.match(line) or _EVIDENCE_LABEL_RE.match(line)
+    ]
+    return kinds == ["D", "E"]
+
+
 def grade_decision(spec: Mapping[str, Any], response: str) -> DecisionResult:
     """Grade `response` against `spec`. Raises ValueError on a malformed spec."""
     error = validate_decision_spec(spec)
@@ -199,6 +218,8 @@ def grade_decision(spec: Mapping[str, Any], response: str) -> DecisionResult:
             )
     if _has_trailing_text(response):
         return DecisionResult(False, REASON_TRAILING_TEXT, decision=token, evidence=evidence)
+    if not _contract_in_order(response):
+        return DecisionResult(False, REASON_CONTRACT_ORDER, decision=token, evidence=evidence)
     return DecisionResult(True, REASON_PASS, decision=token, evidence=evidence)
 
 

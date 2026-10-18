@@ -40,6 +40,7 @@ DATA: dict[str, Any] = json.loads(SCENARIO_FILE.read_text(encoding="utf-8"))
 SCENARIOS: list[dict[str, Any]] = DATA["scenarios"]
 
 DESC_MARKER = "Project rules apply to your work"
+NEGATIVE_GATE = "skip-rule-not-applicable"
 
 
 def _judge_ok(*_a: object, **_kw: object) -> dict[str, object]:
@@ -53,6 +54,7 @@ def _stub_run(
     rule_name: str = "universal.md",
     judge_verdict: str | None = None,
     termination: dict[str, str] | None = None,
+    restrained_judge: bool = False,
 ) -> dict[str, Any]:
     """Run every scenario through `_process_one_rule` with stubbed model calls.
 
@@ -62,6 +64,8 @@ def _stub_run(
     the `description` mechanism measurable. `judge_verdict` replaces the judge
     verdict after aggregation, to model a judge that passes on vocabulary.
     `termination` maps a mechanism to the stop reason the stub reports for it.
+    `restrained_judge` makes the judge score every negative case at the top of
+    the scale, so the restraint floor holds and the next gate decides.
     """
     by_input = {s["input"]: s for s in SCENARIOS}
 
@@ -75,11 +79,14 @@ def _stub_run(
         key = "known_good" if style == "good" else "known_bad"
         return str(scenario["decision"][key][0])
 
-    def fake_score(*_a: object, **_kw: object) -> dict[str, object]:
+    def fake_score(
+        _key: str, scenario: dict[str, Any], *_a: object, **_kw: object
+    ) -> dict[str, object]:
+        score = 5 if restrained_judge and scenario["expected_gate"] == NEGATIVE_GATE else 3
         return {
-            "activation_score": 3,
-            "citation_score": 3,
-            "behavior_score": 3,
+            "activation_score": score,
+            "citation_score": score,
+            "behavior_score": score,
             "judge_failed": False,
         }
 
@@ -275,6 +282,27 @@ class TestRunVerdictFollowsTheDecision:
         )
         assert result["summary"]["verdict"] == "FAIL_OVER_ACTIVATION"
         assert result["summary"]["decision_check"]["gate"]["failed"]
+
+    @pytest.mark.parametrize(
+        ("restrained_judge", "verdict"),
+        [(False, "FAIL_OVER_ACTIVATION"), (True, "FAIL_NEGATIVE_INCOMPLETE")],
+    )
+    @pytest.mark.parametrize("style", ["good", "bad"])
+    def test_the_real_verdict_for_universal_md_is_never_pass(
+        self, monkeypatch: pytest.MonkeyPatch, style: str, restrained_judge: bool, verdict: str
+    ) -> None:
+        """No judge_verdict override: the aggregator itself cannot PASS this file.
+
+        universal.md has no `description:`, so the description cell is declined
+        and both pools stay incomplete. The README tells the reader to use the
+        Decision check table for this reason. If #6656 repoints rule_path to a
+        rule with a description, this test is the one to revisit.
+        """
+        styles = {"baseline": style, "description": style, "full": style}
+        summary = _stub_run(monkeypatch, styles, restrained_judge=restrained_judge)["summary"]
+        assert summary["negative_gate_incomplete"] == ["description"]
+        assert summary["positive_gate_incomplete"] == ["description"]
+        assert summary["verdict"] == verdict
 
     def test_a_rule_without_description_cannot_pass_on_decisions_alone(
         self, monkeypatch: pytest.MonkeyPatch
