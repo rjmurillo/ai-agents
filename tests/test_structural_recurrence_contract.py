@@ -39,6 +39,7 @@ TESTING_SURFACES = (
     Path(".github/instructions/testing.instructions.md"),
     Path("src/copilot-cli/instructions/testing.instructions.md"),
     Path("tests/build_scripts/fixtures/rule_templates_b2/expected/testing.md"),
+    Path("src/cursor/rules/testing.mdc"),
 )
 
 METHODOLOGY_SURFACES = (
@@ -55,7 +56,9 @@ RECURRENCE_CLAUSES: dict[str, str] = {
         "add a deterministic check that fails on recurrence (a test, validator, or type)"
     ),
     "warning-is-not-a-guard": "A warning or doc note is not a guard.",
-    "first-occurrence-limit": "A first occurrence takes the targeted fix only.",
+    "first-occurrence-limit": (
+        "A first occurrence takes the targeted fix and its regression test, nothing broader."
+    ),
 }
 
 GRADING_CLAUSES: dict[str, str] = {
@@ -72,6 +75,7 @@ FIXTURES_PATH = REPO_ROOT / "tests" / "evals" / "structural-recurrence-runtime-f
 
 EXPECTED_FIXTURE_IDS = {
     "recurring-defect-adds-guard",
+    "recurring-defect-explanation-is-not-a-guard",
     "first-occurrence-targeted-fix-only",
 }
 
@@ -153,15 +157,22 @@ def test_patch_only_negative_control_names_no_guard() -> None:
     assert not guard.search(fixture.negative.response)
 
 
+def _overbuilt_pattern() -> re.Pattern[str]:
+    """The first-occurrence fixture's not_regex, read from the corpus itself."""
+    fixture = {f.fixture_id: f for f in runtime_parity.load_fixtures(FIXTURES_PATH)}[
+        "first-occurrence-targeted-fix-only"
+    ]
+    patterns = [spec.pattern for spec in fixture.assertions if spec.kind == "not_regex"]
+    assert len(patterns) == 1
+    return re.compile(patterns[0])
+
+
 def test_overbuilt_negative_control_builds_enforcement_for_a_first_occurrence() -> None:
     """Negative control 2: the clause must not license a framework for a one-off."""
     fixture = {f.fixture_id: f for f in runtime_parity.load_fixtures(FIXTURES_PATH)}[
         "first-occurrence-targeted-fix-only"
     ]
-    overbuilt = re.compile(
-        r"(?i)\bi (also )?(added|created|built|introduced|wrote) [^.]*"
-        r"\b(framework|validator|lint rule|guard|abstraction)\b"
-    )
+    overbuilt = _overbuilt_pattern()
     assert overbuilt.search(fixture.negative.response)
     assert not overbuilt.search(fixture.positive.response)
 
@@ -171,3 +182,49 @@ def test_the_two_fixtures_give_opposite_prompts_about_history() -> None:
     fixtures = {f.fixture_id: f for f in runtime_parity.load_fixtures(FIXTURES_PATH)}
     assert "already patched" in fixtures["recurring-defect-adds-guard"].prompt
     assert "no earlier fix" in fixtures["first-occurrence-targeted-fix-only"].prompt
+
+
+def test_regression_test_described_as_a_guard_is_not_overbuilt() -> None:
+    """A regression test is allowed on a first occurrence, even when called a guard."""
+    overbuilt = _overbuilt_pattern()
+    for reply in (
+        "I added a regression test as a guard for this input.",
+        "I added a regression test for that input.",
+        "I wrote a guard clause test for the trailing Z case.",
+    ):
+        assert not overbuilt.search(reply), reply
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "I added a repo-wide guard for every parser.",
+        "I built a class-wide guard around int() parsing.",
+        "I introduced a validator for all timestamps.",
+    ],
+)
+def test_class_wide_enforcement_on_a_first_occurrence_is_overbuilt(reply: str) -> None:
+    assert _overbuilt_pattern().search(reply), reply
+
+
+def test_explain_only_negative_control_adds_no_check() -> None:
+    """Negative control 3: explaining why earlier fixes failed is not a guard."""
+    fixture = {f.fixture_id: f for f in runtime_parity.load_fixtures(FIXTURES_PATH)}[
+        "recurring-defect-explanation-is-not-a-guard"
+    ]
+    guard = re.compile(r"(?i)(test|validator|lint|type)[\s\S]{0,160}\bfails?\b")
+    assert "keeps coming back because" in fixture.negative.response
+    assert guard.search(fixture.positive.response)
+    assert not guard.search(fixture.negative.response)
+
+
+def test_semantic_rubric_requires_the_check_and_rejects_explain_only() -> None:
+    """The semantic authority must not let an explanation stand in for the guard."""
+    fixtures = {f.fixture_id: f for f in runtime_parity.load_fixtures(FIXTURES_PATH)}
+    rubric = next(
+        spec.rubric
+        for spec in fixtures["recurring-defect-adds-guard"].assertions
+        if spec.kind == "semantic"
+    )
+    assert "or explains why" not in rubric
+    assert "only explains why the earlier fixes did not hold" in rubric
