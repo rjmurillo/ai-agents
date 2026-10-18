@@ -5,7 +5,7 @@ like the rule. A response can recite the rule's vocabulary and still make the
 wrong call. This module grades the call itself.
 
 A scenario opts in with a `decision` object. The prompt asks the model to end
-with two lines:
+with two lines (labels in uppercase, matched case-sensitively; the token is not):
 
     DECISION: <one token from decision.options>
     EVIDENCE: <one line>
@@ -35,14 +35,18 @@ from typing import Any
 
 # A leading list marker, quote, or emphasis mark is allowed so a model that
 # bolds the label still counts. The token itself is a bare identifier.
+# The labels are matched case-sensitively, as the prompt asks for uppercase.
+# A prose line such as "Decision: I would run rg first." is then not read as a
+# contract line and cannot make a correct response ambiguous. Only the token is
+# case-insensitive.
 _LINE_PREFIX = r"^[\s>*_`\-]*"
 _DECISION_RE = re.compile(
-    _LINE_PREFIX + r"DECISION[\s*_`]*:[\s*_`]*([A-Za-z][A-Za-z_]*)",
-    re.IGNORECASE | re.MULTILINE,
+    _LINE_PREFIX + r"DECISION[\s*_`]*:[\s*_`]*((?i:[A-Z][A-Z_]*))",
+    re.MULTILINE,
 )
 _EVIDENCE_RE = re.compile(
     _LINE_PREFIX + r"EVIDENCE[\s*_`]*:[ \t*_`]*(.*)$",
-    re.IGNORECASE | re.MULTILINE,
+    re.MULTILINE,
 )
 
 REASON_PASS = "pass"

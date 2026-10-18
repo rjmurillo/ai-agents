@@ -38,7 +38,7 @@ class TestGradeDecision:
         "response",
         [
             "**DECISION:** MEASURE\n**EVIDENCE:** rg -c foo",
-            "- decision: measure\n- evidence: GREP foo",
+            "- DECISION: measure\n- EVIDENCE: GREP foo",
             "> DECISION : `MEASURE`\n> EVIDENCE: `rg foo`",
         ],
     )
@@ -48,6 +48,23 @@ class TestGradeDecision:
     def test_no_decision_line(self) -> None:
         result = dg.grade_decision(SPEC, "I would measure it. EVIDENCE: rg foo")
         assert (result.passed, result.reason) == (False, dg.REASON_NO_DECISION)
+
+    def test_lowercase_label_is_not_a_contract_line(self) -> None:
+        text = "- decision: measure\n- evidence: GREP foo"
+        assert dg.grade_decision(SPEC, text).reason == dg.REASON_NO_DECISION
+
+    def test_prose_decision_label_does_not_make_a_correct_reply_ambiguous(self) -> None:
+        text = "Decision: I would run rg first.\nDECISION: MEASURE\nEVIDENCE: rg -c foo"
+        result = dg.grade_decision(SPEC, text)
+        assert (result.passed, result.reason, result.decision) == (True, dg.REASON_PASS, "MEASURE")
+
+    def test_prose_evidence_label_is_not_read_as_evidence(self) -> None:
+        text = "Evidence: none yet.\nDECISION: MEASURE\nEVIDENCE: rg -c foo"
+        assert dg.grade_decision(SPEC, text).evidence == "rg -c foo"
+
+    def test_two_uppercase_decision_lines_still_conflict_beside_prose(self) -> None:
+        text = "Decision: maybe.\nDECISION: MEASURE\nDECISION: ESTIMATE\nEVIDENCE: rg foo"
+        assert dg.grade_decision(SPEC, text).reason == dg.REASON_AMBIGUOUS
 
     def test_decision_must_start_a_line(self) -> None:
         text = "Prose says DECISION: MEASURE mid-line.\nEVIDENCE: rg foo"

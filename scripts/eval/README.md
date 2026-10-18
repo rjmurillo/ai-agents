@@ -895,15 +895,16 @@ The judge scores how much a response sounds like the rule, so a response can rec
   "evidence_all": ["check_rule_scope_keys"],
   "known_good": ["...\nDECISION: REUSE\nEVIDENCE: ..."],
   "known_bad": ["..."],
+  "right_token_bad_evidence": ["..."],
   "keyword_stuffed": ["..."]
 }
 ```
 
-A response passes only when every `DECISION` line carries one token, that token is in `expected`, and the `EVIDENCE` line is non-empty and matches every `evidence_all` pattern. Rule keywords in the prose never change the grade. The harness refuses a spec that cannot fail (`expected` equal to `options`) or does not parse, with exit 2. `known_good`, `known_bad`, and `keyword_stuffed` are frozen offline examples that a pytest asserts; the runner ignores them.
+A response passes only when every `DECISION` line carries one token, that token is in `expected`, and the `EVIDENCE` line is non-empty and matches every `evidence_all` pattern. Rule keywords in the prose never change the grade. The harness refuses a spec that cannot fail (`expected` equal to `options`) or does not parse, with exit 2. The `DECISION` and `EVIDENCE` labels match case-sensitively in uppercase, so a prose line such as `Decision: I would run rg first.` is not read as a contract line. The token after the label is case-insensitive. `known_good`, `known_bad`, `right_token_bad_evidence` (the expected token with evidence that contradicts the fixture, which must fail as `evidence_mismatch`), and `keyword_stuffed` are frozen offline examples that a pytest asserts; the runner ignores them.
 
 A live run prints a `Decision check` table beside the judge table and stores it under `summary.decision_check`. A mechanism with no graded cell reads `UNMEASURED`, not 0. That includes `description` for a rule with no `description:` frontmatter, which collapses to baseline. The pass-rate gap versus baseline prints only when both arms are fully graded, and it is descriptive: one response per cell is not evidence of uplift. Tool calls and cost per cell are `UNMEASURED` because the harness is single-turn.
 
-`tests/evals/rule-scenarios/capability-first.json` is the first user (issue #6658). It freezes five decision classes (measure not guess, reuse before build, preserve judgment, verify independently, no false capability claim) plus one negative case. It targets `universal.md` today and should repoint to the capability-first rule when #6656 lands. Offline check: `uv run pytest tests/eval/test_capability_first_scenarios.py tests/eval/test_decision_grade.py`.
+`tests/evals/rule-scenarios/capability-first.json` is the first user (issue #6658). It freezes five decision classes (measure not guess, reuse before build, preserve judgment, verify independently, no false capability claim) plus one negative case. It targets `universal.md` today and should repoint to the capability-first rule when #6656 lands. Until then `eval-suite.py` does not select it: `find_rule_scenarios` keys by `rule_path`, `universal.json` also sets `.claude/rules/universal.md`, and the last sorted file wins, so run `capability-first.json` with a direct `--scenarios tests/evals/rule-scenarios/capability-first.json` call. Its results key is `capability-first`, so `eval-suite.py` would not find a verdict under `universal` either. Offline check: `uv run pytest tests/eval/test_capability_first_scenarios.py tests/eval/test_decision_grade.py`.
 
 ### Evidence states in the coverage gate
 

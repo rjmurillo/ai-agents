@@ -136,6 +136,38 @@ class TestKnownResponses:
             result = dg.grade_decision(spec, f"DECISION: {token}\nEVIDENCE: {evidence}")
             assert result.reason == dg.REASON_WRONG_DECISION
 
+    def test_contradicting_evidence_cases_cover_the_four_reviewed_scenarios(self) -> None:
+        covered = {s["id"] for s in SCENARIOS if s["decision"].get("right_token_bad_evidence")}
+        assert covered >= {"S1", "S3", "S4", "S5"}
+
+    @pytest.mark.parametrize("scenario", SCENARIOS, ids=IDS)
+    def test_right_token_with_contradicting_evidence_fails(self, scenario: dict[str, Any]) -> None:
+        spec = scenario["decision"]
+        for response in spec.get("right_token_bad_evidence", []):
+            result = dg.grade_decision(spec, response)
+            assert result.decision in {t.upper() for t in spec["expected"]}, scenario["id"]
+            assert result.reason == dg.REASON_EVIDENCE_MISMATCH, (scenario["id"], result)
+
+    @pytest.mark.parametrize(
+        ("scenario_id", "evidence"),
+        [
+            ("S4", "total 0 in out/, so no report was written"),
+            ("S4", "out/report.json does not exist"),
+            ("S4", "the directory listing is empty"),
+            ("S5", "unmeasured, no comparison run exists"),
+            ("S5", "not yet measured against a baseline"),
+            ("S3", "the account team has not named affected customers"),
+            ("S1", "python3 -c 'print(len(open(\"universal.md\").read()))' rule-scenarios"),
+        ],
+    )
+    def test_honest_variants_of_the_evidence_still_pass(
+        self, scenario_id: str, evidence: str
+    ) -> None:
+        spec = next(s["decision"] for s in SCENARIOS if s["id"] == scenario_id)
+        token = spec["expected"][0]
+        result = dg.grade_decision(spec, f"DECISION: {token}\nEVIDENCE: {evidence}")
+        assert result.passed, (scenario_id, evidence, result)
+
     @pytest.mark.parametrize("scenario", SCENARIOS, ids=IDS)
     def test_right_token_without_fixture_evidence_fails(self, scenario: dict[str, Any]) -> None:
         spec = scenario["decision"]
