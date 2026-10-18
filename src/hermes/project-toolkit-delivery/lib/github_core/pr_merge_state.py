@@ -39,7 +39,10 @@ bc179ad3a, copied character-for-character:
     }
 
 That script now calls :func:`read_pr_merge_state` instead of holding its own
-copy, so the GraphQL contract has exactly one home. GraphQL is used rather than
+copy, so the GraphQL contract has exactly one home. The live query has since
+added ``headRefName``, ``headRefOid``, and ``mergeCommit { oid }``. Post-merge
+cleanup needs the branch, the merged head, and the merge commit, and before
+this it had to call ``gh pr view`` directly to get them. GraphQL is used rather than
 the REST ``repos/{owner}/{repo}/pulls/{number}`` endpoint because
 ``test_pr_merged.py`` is the reader the 2026-08-13 incident used to prove the
 REST probe wrong (issue #4951, "Reuse the shared PR state reader or the same
@@ -91,6 +94,11 @@ query($owner: String!, $repo: String!, $prNumber: Int!) {
       mergedBy {
         login
       }
+      headRefName
+      headRefOid
+      mergeCommit {
+        oid
+      }
     }
   }
 }"""
@@ -122,6 +130,10 @@ class PrMergeState:
             or None when the probe returned no pull request.
         merged_at: GraphQL ``mergedAt`` timestamp, or None.
         merged_by: Login from GraphQL ``mergedBy``, or None.
+        head_ref: GraphQL ``headRefName``, the PR's branch name, or None.
+        head_sha: GraphQL ``headRefOid``, the PR's head commit, or None.
+        merge_commit_sha: GraphQL ``mergeCommit.oid``, or None. GitHub sets it
+            only for a merged PR.
         detail: Sanitized failure reason. Non-empty only for ``PROBE_FAILED``.
         exit_code: ADR-035 code for ``PROBE_FAILED`` (3 external, 4 auth).
             Zero for every verified status; those callers choose their own.
@@ -134,6 +146,9 @@ class PrMergeState:
     state: str | None = None
     merged_at: str | None = None
     merged_by: str | None = None
+    head_ref: str | None = None
+    head_sha: str | None = None
+    merge_commit_sha: str | None = None
     detail: str = ""
     exit_code: int = 0
 
@@ -170,6 +185,20 @@ def _merged_by_login(pull_request: dict) -> str | None:
     return login if isinstance(login, str) else None
 
 
+def _merge_commit_oid(pull_request: dict) -> str | None:
+    """Return the ``mergeCommit.oid`` value, tolerating a null ``mergeCommit``."""
+    merge_commit = pull_request.get("mergeCommit")
+    if not isinstance(merge_commit, dict):
+        return None
+    oid = merge_commit.get("oid")
+    return oid if isinstance(oid, str) else None
+
+
+def _string_or_none(value: object) -> str | None:
+    """Return ``value`` when it is a string, else None."""
+    return value if isinstance(value, str) else None
+
+
 def _classify(owner: str, repo: str, number: int, data: object) -> PrMergeState:
     """Turn a GraphQL ``data`` payload into a PrMergeState.
 
@@ -204,6 +233,9 @@ def _classify(owner: str, repo: str, number: int, data: object) -> PrMergeState:
         state=pr_state if isinstance(pr_state, str) else None,
         merged_at=merged_at if isinstance(merged_at, str) else None,
         merged_by=_merged_by_login(pull_request),
+        head_ref=_string_or_none(pull_request.get("headRefName")),
+        head_sha=_string_or_none(pull_request.get("headRefOid")),
+        merge_commit_sha=_merge_commit_oid(pull_request),
     )
 
 

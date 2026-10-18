@@ -286,6 +286,9 @@ def _graphql_payload(merged: bool) -> dict:
                 "merged": merged,
                 "mergedAt": "2026-01-01T00:00:00Z" if merged else None,
                 "mergedBy": {"login": "octocat"} if merged else None,
+                "headRefName": "feat/x",
+                "headRefOid": "a" * 40,
+                "mergeCommit": {"oid": "b" * 40} if merged else None,
             },
         },
     }
@@ -325,6 +328,15 @@ class TestOutputFormat:
         output = json.loads(capsys.readouterr().out)
         assert output["merged"] is merged
         assert output["pull_request"] == 7
+
+    @pytest.mark.parametrize("merged", [True, False])
+    def test_json_carries_branch_head_and_merge_commit(self, merged, capsys):
+        rc = _run_main(["--pull-request", "7", "--output-format", "json"], merged)
+        assert rc == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["head_ref"] == "feat/x"
+        assert output["head_sha"] == "a" * 40
+        assert output["merge_commit_sha"] == ("b" * 40 if merged else None)
 
     def test_human_reports_merged_in_one_line(self, capsys):
         rc = _run_main(["--pull-request", "7", "--output-format", "human"], True)
