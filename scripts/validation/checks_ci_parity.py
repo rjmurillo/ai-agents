@@ -93,6 +93,10 @@ def _origin_branch(repo_root: Path, label: str) -> str:
     HEAD symref is what ``_resolve_default_base_ref`` returns when no PR is
     open, the usual time to run ``pre_pr.py``, and it would otherwise pass
     through unfetched and judge a stale cache.
+
+    ``checks_ratchet._normalize_remote_head`` repeats this resolution and reports a
+    failure by printing, not raising. Keep the two in step. They share no home because
+    ``checks_common.py`` sits at the 500-line taste ceiling.
     """
     exit_code, stdout, stderr = _run_subprocess(
         ["git", "-C", str(repo_root), "symbolic-ref", "--short", _REMOTE_HEAD],

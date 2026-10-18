@@ -130,8 +130,119 @@ def test_none_needs_no_provenance_in_any_form(decisions: str) -> None:
     assert _unsourced(decisions) == []
 
 
-def test_prose_and_blank_lines_are_not_decisions() -> None:
-    assert _unsourced("Some prose about the work.\n\n---\n\nMore prose.\n") == []
+def test_prose_after_a_decision_is_not_a_second_decision() -> None:
+    """Wrapped rationale text under a sourced decision must not HOLD the handoff."""
+    decisions = "- Use the retry\n  - Provenance: a\n\nMore about why.\n"
+    assert _unsourced(decisions) == []
+
+
+@pytest.mark.parametrize("decisions", ["", "\n\n", "{decision list}\n", "None\n", "N/A\n"])
+def test_empty_placeholder_and_none_content_is_not_a_decision(decisions: str) -> None:
+    assert _unsourced(decisions) == []
+
+
+def test_a_paragraph_decision_is_reported() -> None:
+    """Issue #6506 round 4: prose with no list marker skipped the check."""
+    assert _unsourced("We chose X because Y.\n\nMore prose.\n") == [
+        "unrecognized decision form: We chose X because Y."
+    ]
+
+
+def test_a_paragraph_after_a_placeholder_is_still_reported() -> None:
+    decisions = "{decision list}\n\nWe chose X.\n"
+    assert _unsourced(decisions) == ["unrecognized decision form: We chose X."]
+
+
+TABLE = "| Decision | Rationale |\n|----------|-----------|\n"
+
+
+def test_a_table_data_row_without_provenance_is_reported() -> None:
+    """Issue #6506 round 4: the SESSION-STATE.md table form skipped the check."""
+    assert _unsourced(TABLE + "| Use X | because |\n") == ["Use X"]
+
+
+def test_each_table_data_row_is_its_own_decision() -> None:
+    assert _unsourced(TABLE + "| Use X | a |\n| Use Y | b |\n") == ["Use X", "Use Y"]
+
+
+def test_the_table_header_and_separator_are_not_decisions() -> None:
+    assert _unsourced(TABLE) == []
+
+
+def test_aligned_separator_cells_are_not_decisions() -> None:
+    assert _unsourced("| A | B |\n|:---|---:|\n| Use X | why |\n") == ["Use X"]
+
+
+def test_a_table_row_with_a_provenance_cell_is_accepted() -> None:
+    table = "| Decision | Provenance |\n|---|---|\n| Use X | ADR-1 |\n"
+    assert _unsourced(table) == []
+
+
+@pytest.mark.parametrize("cell", ["", " ", "{source}"])
+def test_a_blank_or_placeholder_provenance_cell_is_reported(cell: str) -> None:
+    table = f"| Decision | Provenance |\n|---|---|\n| Use X |{cell}|\n"
+    assert _unsourced(table) == ["Use X"]
+
+
+def test_a_table_row_shorter_than_the_header_has_no_provenance() -> None:
+    table = "| Decision | Why | Provenance |\n|---|---|---|\n| Use X | because |\n"
+    assert _unsourced(table) == ["Use X"]
+
+
+def test_a_none_table_row_needs_no_provenance() -> None:
+    assert _unsourced(TABLE + "| None | n/a |\n") == []
+
+
+def test_the_unfilled_session_state_table_is_reported() -> None:
+    assert _unsourced(TABLE + "| _what_ | _why_ |\n") == ["_what_"]
+
+
+def test_a_lone_pipe_row_without_a_separator_is_reported_as_content() -> None:
+    assert _unsourced("| Use X | because |\n") == [
+        "unrecognized decision form: | Use X | because |"
+    ]
+
+
+def test_a_table_followed_by_a_bullet_counts_both() -> None:
+    decisions = TABLE + "| Use X | a |\n\n- Use Y\n  - Provenance: b\n"
+    assert _unsourced(decisions) == ["Use X"]
+
+
+@pytest.mark.parametrize("indent", [" ", "  ", "   "])
+def test_a_numbered_item_indented_one_to_three_spaces_is_a_decision(indent: str) -> None:
+    """CommonMark reads 1 to 3 leading spaces as a top-level list item."""
+    assert _unsourced(f"{indent}1. Use X\n") == ["Use X"]
+
+
+@pytest.mark.parametrize("indent", [" ", "  ", "   "])
+def test_an_indented_numbered_item_with_provenance_is_accepted(indent: str) -> None:
+    assert _unsourced(f"{indent}1. Use X\n{indent}   - Provenance: ADR-1\n") == []
+
+
+def test_a_heading_indented_up_to_three_spaces_is_a_decision() -> None:
+    assert _unsourced("   ### Use X\n") == ["Use X"]
+
+
+def test_a_numbered_item_indented_four_spaces_is_reported_as_content() -> None:
+    """Four spaces is an indented code block, not a list item, but it is not silent."""
+    assert _unsourced("    1. Use X\n") == ["unrecognized decision form: 1. Use X"]
+
+
+def test_a_numbered_item_nested_under_a_bullet_decision_is_not_a_decision() -> None:
+    decisions = "- Use X\n  1. step one\n  2. step two\n  - Provenance: a\n"
+    assert _unsourced(decisions) == []
+
+
+def test_a_number_below_the_content_offset_of_a_numbered_decision_is_a_decision() -> None:
+    """Under `1. ` (content offset 3), a 2-space `2. ` is a sibling, not nested."""
+    decisions = "1. First\n  2. Second\n"
+    assert _unsourced(decisions) == ["First", "Second"]
+
+
+def test_a_wide_marker_raises_the_content_offset() -> None:
+    """Under `10. ` the content offset is 4, so a 3-space item is a sibling."""
+    decisions = "10. First\n   1. Sibling\n"
+    assert _unsourced(decisions) == ["First", "Sibling"]
 
 
 def test_a_missing_section_is_reported_once() -> None:
