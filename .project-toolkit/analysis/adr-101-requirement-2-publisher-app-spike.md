@@ -128,7 +128,7 @@ What it leaves open, stated in the ADR's own vocabulary: the "candidate forges t
 
 ## Proposed ADR-101 text change (reported, not made)
 
-The line numbers in this section name ADR-101 at commit 3f27efd8d, the revision this spike read. PR #6119 acted on items 1 to 4, and PRs #6119, #6241 and #6274 moved the lines.
+The line numbers in this section name ADR-101 at commit 3f27efd8d, the revision this spike read. PR #6119 acted on all five items, and PRs #6119, #6241 and #6274 moved the lines.
 
 1. Line 215 carries the phrase "is now the only option that closes this requirement". Lines 195, 219, 221 and 430 repeat the same premise in other words. Replace the claim with a statement that no mechanism authenticates in-process test results against arbitrary candidate code, and move the forged-exit, collected-count and skipped-corpus cases into the accepted residuals beside line 203, citing Evidence 1.
 2. Line 430: the research item resolves to "App-authored check run, `integration_id` pinned; execution authenticity bounded as above". That lets requirement 2 enter a phase.
