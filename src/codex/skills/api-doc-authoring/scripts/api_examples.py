@@ -136,9 +136,8 @@ def _read_capped(handle: Any, url: str) -> bytes:
         if total > MAX_BODY_BYTES:
             raise InputError(f"response from {url} is over the {MAX_BODY_BYTES} byte cap")
         chunks.append(chunk)
-    size = handle.headers.get("Content-Length", "")
-    if size.isdigit() and total < int(size):
-        raise InputError(f"response from {url} was cut off at {total} of {size} bytes")
+    if getattr(handle, "length", None):  # bytes still owed under Content-Length (0 for HEAD, 304)
+        raise InputError(f"response from {url} was cut off with {handle.length} bytes missing")
     return b"".join(chunks)
 
 

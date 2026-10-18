@@ -134,6 +134,23 @@ def test_a_body_that_matches_its_content_length_is_read_in_full() -> None:
     assert (reply.status, reply.body) == (200, b"abcde")
 
 
+@pytest.mark.parametrize(
+    ("method", "status"),
+    [("HEAD", b"200 OK"), ("GET", b"304 Not Modified"), ("GET", b"204 No Content")],
+)
+def test_a_reply_that_has_no_body_by_design_is_not_cut_off(method: str, status: bytes) -> None:
+    """Edge: HEAD, 204, and 304 carry a Content-Length the server does not send a body for."""
+
+    def no_body(conn: socket.socket) -> None:
+        conn.recv(65536)
+        conn.sendall(b"HTTP/1.1 " + status + b"\r\nContent-Length: 42\r\n\r\n")
+
+    with _serve_raw(no_body) as base:
+        reply = ax.send(method, f"{base}/x", {}, b"")
+
+    assert reply.body == b""
+
+
 def test_a_reply_with_no_content_length_is_not_refused() -> None:
     """Edge: a close-delimited body has no promised length to compare."""
 
