@@ -156,7 +156,7 @@ so an unmeasured signal cannot read as a clean result.
 | Field | Measured by | `null` when |
 |---|---|---|
 | `durable.review_findings` | the independent reviewer arm (`--reviewer-model`): one read-only launch on a copy of an accepted change, with no control file, no hidden follow-up file, and no `.git` | the arm is off, the run was not accepted, or the reply is not in the `REVIEW_RESULT` shape |
-| `durable.rollback_events` | an accepted change that fails the hidden follow-up is reverted with `git reset --hard` to the seed ref and the revert is verified: 1 | the revert cannot be verified. A run that needed no revert is 0 |
+| `durable.rollback_events` | an accepted change that fails the hidden follow-up is reverted with `git reset --hard` to the seed commit SHA (held by the harness, not the movable ref) and `git clean -fdx`, and the revert is verified against `git status --ignored`: 1 | the revert cannot be verified. A run that needed no revert is 0 |
 | `economics.human_correction_minutes` | `eval_human_minutes_join.py`, one timed row per (control, task_id, repeat) cell, joined after the run | every live record. A human cannot time a run that has not happened, so the driver never sets it. The open owner decision on #5768 is whether to keep this clause |
 
 The revert erases the run's edits, so every run's change is saved as

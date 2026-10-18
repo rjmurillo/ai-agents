@@ -268,13 +268,119 @@ def test_rollback_to_seed_keeps_harness_owned_paths(tmp_path: Path) -> None:
     assert profile.is_file()
 
 
-def test_rollback_to_seed_is_false_when_the_seed_ref_is_missing(tmp_path: Path) -> None:
+def test_rollback_to_seed_keeps_the_runtime_directory(tmp_path: Path) -> None:
     workspace, _task = _seeded(tmp_path)
-    subprocess.run(
-        ["git", "update-ref", "-d", grade.SEED_REF], cwd=workspace, check=True, capture_output=True
-    )
+    runtime = workspace / ".runtime" / "cache.bin"
+    runtime.parent.mkdir()
+    runtime.write_text("x", encoding="utf-8")
+
+    assert grade.rollback_to_seed(workspace) is True
+    assert runtime.is_file()
+
+
+def _git(workspace: Path, *args: str) -> None:
+    subprocess.run(["git", *args], cwd=workspace, check=True, capture_output=True)
+
+
+def test_rollback_to_seed_removes_a_file_ignored_by_the_exclude_file(tmp_path: Path) -> None:
+    workspace, _task = _seeded(tmp_path)
+    (workspace / ".git" / "info" / "exclude").open("a", encoding="utf-8").write("*.secret\n")
+    ignored = workspace / "agent.secret"
+    ignored.write_text("left behind\n", encoding="utf-8")
+    assert grade.changed_paths(workspace) == ()
+
+    assert grade.rollback_to_seed(workspace) is True
+    assert not ignored.exists()
+
+
+def test_rollback_to_seed_removes_a_file_ignored_by_the_agents_gitignore(tmp_path: Path) -> None:
+    workspace, _task = _seeded(tmp_path)
+    (workspace / ".gitignore").write_text("*.log\n", encoding="utf-8")
+    ignored = workspace / "build.log"
+    ignored.write_text("left behind\n", encoding="utf-8")
+
+    assert grade.rollback_to_seed(workspace) is True
+    assert not ignored.exists() and not (workspace / ".gitignore").exists()
+
+
+def test_rollback_to_seed_removes_a_file_ignored_by_the_global_excludes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workspace, _task = _seeded(tmp_path)
+    global_ignore = tmp_path / "global-ignore"
+    global_ignore.write_text("*.scratch\n", encoding="utf-8")
+    global_config = tmp_path / "gitconfig"
+    global_config.write_text(f"[core]\n\texcludesFile = {global_ignore}\n", encoding="utf-8")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(global_config))
+    ignored = workspace / "agent.scratch"
+    ignored.write_text("left behind\n", encoding="utf-8")
+    assert grade.changed_paths(workspace) == ()
+
+    assert grade.rollback_to_seed(workspace) is True
+    assert not ignored.exists()
+
+
+def test_rollback_to_seed_is_false_when_an_ignored_file_survives_the_clean(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workspace, _task = _seeded(tmp_path)
+    (workspace / ".git" / "info" / "exclude").open("a", encoding="utf-8").write("*.secret\n")
+    (workspace / "agent.secret").write_text("left behind\n", encoding="utf-8")
+    real_run_git = grade._run_git
+
+    def skip_clean(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
+        if args[0] == "clean":
+            return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+        return real_run_git(args, cwd)
+
+    monkeypatch.setattr(grade, "_run_git", skip_clean)
 
     assert grade.rollback_to_seed(workspace) is False
+
+
+def test_the_seed_is_pinned_by_sha_so_an_agent_cannot_move_it(tmp_path: Path) -> None:
+    workspace, task = _seeded(tmp_path)
+    original = (workspace / "calc" / "core.py").read_text(encoding="utf-8")
+    grade.apply_control_files(workspace, task.controls["known_good"].files)
+    _git(workspace, "add", "-A")
+    _git(workspace, "-c", "user.name=a", "-c", "user.email=a@b", "commit", "-q", "-m", "agent")
+    _git(workspace, "update-ref", grade.SEED_REF, "HEAD")
+
+    assert grade.changed_paths(workspace)
+    assert grade.rollback_to_seed(workspace) is True
+    assert (workspace / "calc" / "core.py").read_text(encoding="utf-8") == original
+    assert grade.changed_paths(workspace) == ()
+
+
+def test_rollback_to_seed_survives_a_deleted_seed_ref(tmp_path: Path) -> None:
+    workspace, _task = _seeded(tmp_path)
+    _git(workspace, "update-ref", "-d", grade.SEED_REF)
+    (workspace / "notes.txt").write_text("scratch\n", encoding="utf-8")
+
+    assert grade.rollback_to_seed(workspace) is True
+    assert not (workspace / "notes.txt").exists()
+
+
+def test_an_unseeded_workspace_falls_back_to_the_seed_ref(tmp_path: Path) -> None:
+    workspace = tmp_path / "plain"
+    workspace.mkdir()
+    _git(workspace, "init", "-q")
+    _git(
+        workspace,
+        "-c",
+        "user.name=a",
+        "-c",
+        "user.email=a@b",
+        "commit",
+        "-q",
+        "--allow-empty",
+        "-m",
+        "s",
+    )
+    _git(workspace, "update-ref", grade.SEED_REF, "HEAD")
+    (workspace / "new.txt").write_text("x\n", encoding="utf-8")
+
+    assert grade.changed_paths(workspace) == ("new.txt",)
 
 
 def test_rollback_to_seed_is_false_outside_a_repository(tmp_path: Path) -> None:
@@ -329,3 +435,32 @@ def test_review_copy_leaves_out_a_control_file_the_agent_edited(tmp_path: Path) 
 
     assert changed == ("AGENTS.md",)
     assert not (copy / "AGENTS.md").exists()
+
+
+def test_review_copy_skips_a_symlink_that_points_outside_the_workspace(tmp_path: Path) -> None:
+    workspace, task = _seeded(tmp_path)
+    outside = tmp_path / "outside.txt"
+    outside.write_text("secret\n", encoding="utf-8")
+    (workspace / "link.txt").symlink_to(outside)
+    changed = grade.changed_paths(workspace)
+    copy = tmp_path / "review"
+
+    grade.review_copy(workspace, copy, task, changed, set())
+
+    assert "link.txt" in changed
+    assert not (copy / "link.txt").exists() and not (copy / "link.txt").is_symlink()
+    assert (copy / "calc" / "core.py").is_file()
+
+
+def test_review_copy_replaces_a_copy_left_by_an_earlier_run(tmp_path: Path) -> None:
+    workspace, task = _seeded(tmp_path)
+    copy = tmp_path / "review"
+    (copy / "calc").mkdir(parents=True)
+    (copy / "calc" / "previous_agent.py").write_text("old change\n", encoding="utf-8")
+    (copy / "stray.txt").write_text("old change\n", encoding="utf-8")
+
+    grade.review_copy(workspace, copy, task, (), set())
+
+    assert not (copy / "stray.txt").exists()
+    assert not (copy / "calc" / "previous_agent.py").exists()
+    assert (copy / "calc" / "core.py").is_file()

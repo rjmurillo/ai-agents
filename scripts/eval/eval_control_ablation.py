@@ -73,9 +73,7 @@ _HARNESS_ERRORS = (
 )
 
 
-# ---------------------------------------------------------------------------
 # Live run (REQ-046 AC-3, AC-4, AC-8, AC-11)
-# ---------------------------------------------------------------------------
 
 
 def _prepare_review_copy(
@@ -83,15 +81,19 @@ def _prepare_review_copy(
     task: ablation_tasks.Task,
     control: ablation.ControlFiles,
     changed: Sequence[str],
-) -> Path:
-    """Copy the agent's change for the reviewer. Call before `write_followup_files`.
+) -> tuple[Path | None, str]:
+    """Copy the agent's change for the reviewer, before `write_followup_files`.
 
     A hidden follow-up file written first would overwrite an agent edit at the
-    same path, and the reviewer would then read the hidden file's content.
+    same path. Returns (copy, ""), or (None, failure note): a copy that cannot
+    be built is a missing review, not a lost producer run.
     """
     copy = workspace.parent / f"{workspace.name}.review"
-    grade.review_copy(workspace, copy, task, changed, set(control.files))
-    return copy
+    try:
+        grade.review_copy(workspace, copy, task, changed, set(control.files))
+    except (ablation_tasks.ControlAblationConfigError, OSError) as exc:
+        return None, f"review copy failed: {exc}"
+    return copy, ""
 
 
 def _review_accepted_change(
@@ -117,7 +119,10 @@ def _review_accepted_change(
             copy, prompt, reviewer_model, timeout, runner
         )
     except _HARNESS_ERRORS as exc:
-        return None, 0.0, 0.0, str(exc)
+        # A launch that ran and failed was still paid for and still took time.
+        spent = exc if isinstance(exc, claude_run.HarnessFailureError) else None
+        cost, wall = (spent.cost_usd, spent.wall_seconds) if spent else (0.0, 0.0)
+        return None, cost, wall, str(exc)
     return reply, cost, wall, ""
 
 
@@ -134,13 +139,12 @@ def _grade_live_run(
 ) -> tuple[dict[str, object], list[str], str, str, str]:
     """Run one task under one control/repeat; raise `claude_run.HarnessFailureError` (AC-8).
 
-    Returns (record, producer argv, reply, reviewer failure note, change patch). The
-    patch is the agent's change against the seed, taken before the hidden follow-up
-    files are written, so it holds only what the agent did. With `reviewer_model`
-    set, an accepted change gets one independent review before any revert. A change
-    that passes acceptance but fails the follow-up is then reverted to the seed and
-    the revert is verified (`rollback_events`). `human_correction_minutes` is
-    always `None`; `eval_human_minutes_join.py` fills it after a human times the patch.
+    Returns (record, producer argv, reply, reviewer note, change patch). The patch
+    is the agent's change against the seed, taken before the hidden follow-up files
+    exist. With `reviewer_model` set, an accepted change gets one independent review
+    before any revert. A change that passes acceptance but fails the follow-up is
+    then reverted to the seed and the revert is verified (`rollback_events`).
+    `human_correction_minutes` is always `None`; `eval_human_minutes_join.py` fills it.
     """
     grade.seed_workspace(workspace, task, control.files)
     events, reply, cost, wall_seconds, argv = claude_run.invoke_claude(
@@ -151,17 +155,16 @@ def _grade_live_run(
     changed = grade.changed_paths(workspace)
     added_lines = grade.added_lines_by_python_path(workspace, changed)
     patch = grade.snapshot_diff(workspace)
-    review_copy = (
+    review_copy, review_note = (
         _prepare_review_copy(workspace, task, control, changed)
         if reviewer_model is not None
-        else None
+        else (None, REVIEW_OFF)
     )
     grade.write_followup_files(workspace, task)
     acceptance = grade.run_acceptance(workspace, task)
     followup = grade.run_followup(workspace, task)
     marker = grade.external_marker_exists(workspace, task)
     review_reply: str | None = None
-    review_note = REVIEW_OFF
     if reviewer_model is not None and review_copy is not None:
         review_note = REVIEW_SKIPPED
         if acceptance.returncode == 0:
@@ -298,9 +301,7 @@ def _run_live(
     return report, (EXIT_EXTERNAL if any_harness_failure else EXIT_OK)
 
 
-# ---------------------------------------------------------------------------
 # CLI
-# ---------------------------------------------------------------------------
 
 
 def _requested_controls(raw: str) -> list[str]:

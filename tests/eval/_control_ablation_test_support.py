@@ -15,6 +15,7 @@ if str(EVAL_DIR) not in sys.path:
     sys.path.insert(0, str(EVAL_DIR))
 
 import _control_ablation as ablation  # noqa: E402
+import _control_ablation_claude as claude_run  # noqa: E402
 import _control_ablation_dry_run as dry_run  # noqa: E402
 import _control_ablation_grade as grade  # noqa: E402
 import _control_ablation_tasks as ablation_tasks  # noqa: E402
@@ -28,6 +29,7 @@ __all__ = [
     "FakeClaudeRunner",
     "ablation",
     "ablation_tasks",
+    "claude_run",
     "cli",
     "dry_run",
     "durable_outcome",

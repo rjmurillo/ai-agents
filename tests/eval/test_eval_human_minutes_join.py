@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -229,3 +230,85 @@ def test_two_inputs_with_the_same_file_name_are_refused(
     code = _run("--records", one, two, "--minutes", minutes, "--output-dir", tmp_path / "o")
 
     assert code == 2 and "share a file name" in capsys.readouterr().err
+
+
+def _timed(task: str, control: str, minutes: float) -> dict[str, Any]:
+    data = _untimed(task, control)
+    data["economics"] = {**data["economics"], "human_correction_minutes": minutes}
+    return data
+
+
+def test_a_second_join_does_not_replace_an_earlier_timed_value(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    records = _write_records(tmp_path / "in" / "r.jsonl", [_timed("t1", "reduced", 3.0)])
+    minutes = _minutes(tmp_path / "m.json", [("reduced", "t1", 0, 9.0)])
+
+    code = _run("--records", records, "--minutes", minutes, "--output-dir", tmp_path / "out")
+
+    assert code == join.EXIT_CONFIG
+    assert "--replace" in capsys.readouterr().err
+    assert not (tmp_path / "out").exists()
+
+
+def test_a_legacy_constant_zero_is_not_replaced_without_the_flag(tmp_path: Path) -> None:
+    records = _write_records(tmp_path / "in" / "r.jsonl", [_timed("t1", "reduced", 0.0)])
+    minutes = _minutes(tmp_path / "m.json", [("reduced", "t1", 0, 6.0)])
+
+    code = _run("--records", records, "--minutes", minutes, "--output-dir", tmp_path / "out")
+
+    assert code == join.EXIT_CONFIG
+
+
+def test_replace_overwrites_a_held_value(tmp_path: Path) -> None:
+    records = _write_records(tmp_path / "in" / "r.jsonl", [_timed("t1", "reduced", 3.0)])
+    minutes = _minutes(tmp_path / "m.json", [("reduced", "t1", 0, 9.0)])
+
+    code = _run(
+        "--records", records, "--minutes", minutes, "--output-dir", tmp_path / "out", "--replace"
+    )
+
+    assert code == join.EXIT_OK
+    (row,) = _read(tmp_path / "out" / "r.jsonl")
+    assert row["economics"]["human_correction_minutes"] == 9.0
+
+
+def test_a_record_without_a_minutes_row_keeps_its_held_value_and_needs_no_flag(
+    tmp_path: Path,
+) -> None:
+    records = _write_records(
+        tmp_path / "in" / "r.jsonl", [_timed("t1", "reduced", 3.0), _untimed("t2", "reduced")]
+    )
+    minutes = _minutes(tmp_path / "m.json", [("reduced", "t2", 0, 5.0)])
+
+    code = _run("--records", records, "--minutes", minutes, "--output-dir", tmp_path / "out")
+
+    assert code == join.EXIT_OK
+    first, second = _read(tmp_path / "out" / "r.jsonl")
+    assert first["economics"]["human_correction_minutes"] == 3.0
+    assert second["economics"]["human_correction_minutes"] == 5.0
+
+
+def test_a_failed_second_write_leaves_no_joined_copy_behind(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    first = _write_records(tmp_path / "in" / "a.jsonl", [_untimed("t1", "current")])
+    second = _write_records(tmp_path / "in" / "b.jsonl", [_untimed("t1", "reduced")])
+    minutes = _minutes(tmp_path / "m.json", [("current", "t1", 0, 1.0), ("reduced", "t1", 0, 2.0)])
+    real_fdopen = os.fdopen
+    opened = []
+
+    def failing_fdopen(fd: int, *args: Any, **kwargs: Any) -> Any:
+        opened.append(fd)
+        if len(opened) == 2:
+            os.close(fd)
+            raise OSError("disk full")
+        return real_fdopen(fd, *args, **kwargs)
+
+    monkeypatch.setattr(join.os, "fdopen", failing_fdopen)
+
+    code = _run("--records", first, second, "--minutes", minutes, "--output-dir", tmp_path / "out")
+
+    assert code == join.EXIT_CONFIG
+    assert "disk full" in capsys.readouterr().err
+    assert list((tmp_path / "out").iterdir()) == []

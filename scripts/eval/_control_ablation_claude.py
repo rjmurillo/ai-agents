@@ -30,7 +30,18 @@ REVIEWER_TOOLS = ",".join(REVIEW_TOOLS)
 
 
 class HarnessFailureError(RuntimeError):
-    """A live run's Claude invocation could not produce a usable record (AC-8)."""
+    """A live run's Claude invocation could not produce a usable record (AC-8).
+
+    `cost_usd` and `wall_seconds` are what the failed launch still spent: the
+    elapsed time always, the cost when the stream reported one. The reviewer arm
+    adds them to the run's economics, because a launch that ran and failed was
+    still paid for.
+    """
+
+    def __init__(self, message: str, *, cost_usd: float = 0.0, wall_seconds: float = 0.0) -> None:
+        super().__init__(message)
+        self.cost_usd = cost_usd
+        self.wall_seconds = wall_seconds
 
 
 # ---------------------------------------------------------------------------
@@ -89,6 +100,15 @@ def total_cost_usd(events: Sequence[Mapping[str, object]]) -> float | None:
             return None
         return float(value)
     return None
+
+
+def _reported_cost(stdout: str) -> float:
+    """The cost a failed launch's stream reported, or 0.0 when it reported none."""
+    try:
+        cost = total_cost_usd(parse_events(stdout))
+    except RuntimeOutputError:
+        return 0.0
+    return cost if cost is not None else 0.0
 
 
 def _require_success_result(events: Sequence[Mapping[str, object]], reply: str) -> None:
@@ -173,23 +193,35 @@ def _run_claude(
         )
     except subprocess.TimeoutExpired:
         # str(TimeoutExpired) carries the full argv, including the prompt.
-        raise HarnessFailureError(f"claude timed out after {timeout:.0f}s") from None
+        raise HarnessFailureError(
+            f"claude timed out after {timeout:.0f}s", wall_seconds=time.monotonic() - started
+        ) from None
     wall_seconds = time.monotonic() - started
+    spent = _reported_cost(result.stdout)
     if result.returncode != 0:
-        raise HarnessFailureError(f"claude exited {result.returncode}")
+        raise HarnessFailureError(
+            f"claude exited {result.returncode}", cost_usd=spent, wall_seconds=wall_seconds
+        )
     try:
         events = parse_events(result.stdout)
     except RuntimeOutputError as exc:
-        raise HarnessFailureError(str(exc)) from exc
+        raise HarnessFailureError(str(exc), wall_seconds=wall_seconds) from exc
     reply, resolved_model = claude_result(events)
-    _require_success_result(events, reply)
+    try:
+        _require_success_result(events, reply)
+    except HarnessFailureError as exc:
+        raise HarnessFailureError(str(exc), cost_usd=spent, wall_seconds=wall_seconds) from exc
     if not same_model(resolved_model, model):
         raise HarnessFailureError(
-            f"resolved model {resolved_model!r} does not match requested {model!r}"
+            f"resolved model {resolved_model!r} does not match requested {model!r}",
+            cost_usd=spent,
+            wall_seconds=wall_seconds,
         )
     cost = total_cost_usd(events)
     if cost is None:
-        raise HarnessFailureError("claude stream result event carries no total_cost_usd")
+        raise HarnessFailureError(
+            "claude stream result event carries no total_cost_usd", wall_seconds=wall_seconds
+        )
     return events, reply, cost, wall_seconds, argv
 
 
