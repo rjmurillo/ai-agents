@@ -69,16 +69,28 @@ def test_workflow_mode_is_the_default_and_tolerates_no_gap(capsys, tmp_path):
     assert payload["failing_cases"] == []
 
 
-def test_knowledge_mode_fails_a_no_gap_case_and_lists_it(capsys, tmp_path):
+def test_knowledge_mode_passes_a_skill_with_one_gain_and_one_no_gap(capsys, tmp_path):
     frozen, results = _frozen_and_results(capsys, tmp_path, ROWS)
 
     code, payload = _run(
         capsys, "score", "--frozen", str(frozen), "--results", str(results), "--mode", "knowledge"
     )
 
-    assert code == 1
+    assert code == 0
     assert payload["mode"] == "knowledge"
-    assert payload["failing_cases"] == ["C2"]
+    assert payload["failing_cases"] == []
+
+
+def test_knowledge_mode_fails_a_skill_whose_cases_are_all_no_gap(capsys, tmp_path):
+    rows = [(c, k, "alpha") for c in ("C1", "C2") for k in ("baseline", "with_skill")]
+    frozen, results = _frozen_and_results(capsys, tmp_path, rows)
+
+    code, payload = _run(
+        capsys, "score", "--frozen", str(frozen), "--results", str(results), "--mode", "knowledge"
+    )
+
+    assert code == 1
+    assert payload["failing_cases"] == ["C1", "C2"]
 
 
 def test_knowledge_mode_passes_when_every_case_gains(capsys, tmp_path):
@@ -129,14 +141,14 @@ def test_abbreviated_flags_are_rejected(flag):
 # --- regex deadline -----------------------------------------------------------
 
 
-def test_regex_timeout_grades_as_non_match_and_warns(monkeypatch, capsys):
+def test_regex_timeout_leaves_the_result_ungraded_and_warns(monkeypatch, capsys):
     monkeypatch.setattr(bootstrap_eval, "REGEX_TIMEOUT_S", 0.5)
     grade = bootstrap_eval.compile_grader({"kind": "regex", "pattern": r"\s*\s*\s*x"})
 
     started = time.monotonic()
     matched = grade(" " * 3000)
 
-    assert matched is False
+    assert matched is None
     assert time.monotonic() - started < 10
     assert "regex timed out after 0.5 s" in capsys.readouterr().err
 
@@ -163,3 +175,21 @@ def test_unterminated_draft_block_does_not_hide_the_final_answer():
     )
 
     assert bootstrap_eval.extract_last_json_object(output) == {"stale": ["x"]}
+
+
+def test_a_timed_out_baseline_makes_the_case_incomplete_not_a_gain(monkeypatch, capsys, tmp_path):
+    frozen, results = _frozen_and_results(capsys, tmp_path, ROWS)
+    real = bootstrap_eval.compile_grader
+
+    def ungraded_on_nope(grader):
+        inner = real(grader)
+        return lambda output: None if output == "nope" else inner(output)
+
+    monkeypatch.setattr(bootstrap_eval, "compile_grader", ungraded_on_nope)
+
+    code, payload = _run(capsys, "score", "--frozen", str(frozen), "--results", str(results))
+
+    row = next(r for r in payload["cases"] if r["id"] == "C1")
+    assert row["status"] == "incomplete"
+    assert row["ungraded_runs"] == 1
+    assert code == 1

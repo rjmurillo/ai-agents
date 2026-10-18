@@ -143,7 +143,7 @@ Pass each skill this run wrote or updated with `--authored`, so its uncommitted 
    python3 "${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/skill-bootstrap/scripts/bootstrap_eval.py" score --frozen "<frozen path>" --results "<results path>"
    ```
 
-   A skill whose cases are all `no_gap` adds nothing measurable: drop it or report why it stays. A `regression` is a blocking finding. In `knowledge` mode, add `--mode knowledge` to `score`: any `no_gap` case then also exits 1 and appears in `failing_cases`.
+   A skill whose cases are all `no_gap` adds nothing measurable: drop it or report why it stays. A `regression` is a blocking finding. In `knowledge` mode, add `--mode knowledge` to `score`: a skill whose cases are all `no_gap` then also exits 1, with its cases in `failing_cases`. A regex result that times out is left ungraded, so its case is `incomplete`.
 3. Run `skillopt` only after steps 1 and 2, on the frozen cases as its held-out set. Otherwise report `skillopt: NOT RUN` with the missing input. Never invent an optimization result.
 
 ### Phase 6: Review, verify, and deliver

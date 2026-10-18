@@ -28,7 +28,8 @@ Graders:
     {"kind": "regex", "pattern": "...", "ignore_case": true}
         Pass when `re.search` finds the pattern. `ignore_case` is optional.
         The search runs in a child process killed after 5 s. A timeout
-        grades as a non-match (the case fails) and warns on stderr. Pattern
+        leaves that result ungraded, so its case scores `incomplete`, and
+        warns on stderr. Pattern
         length and searched text are capped, and a quantified group that
         holds a quantifier or a `|` is refused at freeze time, but none of
         those caps bounds the run time; the deadline does.
@@ -63,8 +64,8 @@ Exit codes:
        `--min-delta` when given).
     1  score found an incomplete case or a regression case, or the overall
        delta is below `--min-delta` (or unmeasured, when no case is complete).
-       With `--mode knowledge`, a no_gap case also fails. The payload lists
-       every failing case id under `failing_cases`.
+       With `--mode knowledge`, a skill whose cases are all no_gap also
+       fails. The payload lists every failing case id under `failing_cases`.
     2  Configuration error: bad arguments, malformed cases, results, or
        frozen file, a frozen file edited after freezing, an existing `--out`,
        an `--out` inside a git work tree without `--allow-in-repo`, or git
@@ -98,7 +99,6 @@ SOURCE_PREFIXES = ("correction:", "lens:", "outcome:")
 CONDITIONS = ("baseline", "with_skill")
 STATUSES = ("gain", "no_gap", "regression", "flat", "incomplete")
 WORKFLOW_FAILING = ("regression", "incomplete")
-KNOWLEDGE_FAILING = WORKFLOW_FAILING + ("no_gap",)
 CASE_KEYS = frozenset({"id", "skill", "source", "prompt", "grader"})
 # The lookahead leaves each closing fence unconsumed, so a draft block that never
 # closes cannot swallow the opening fence of the final block.
@@ -119,7 +119,8 @@ REGEX_CHILD = (
 )
 
 Payload = dict[str, Any]
-Grade = Callable[[str], bool]
+# A grader returns None when it could not grade the output (a regex timeout).
+Grade = Callable[[str], bool | None]
 
 
 class ConfigError(Exception):
@@ -247,13 +248,13 @@ def _regex(grader: Payload) -> Grade:
     return lambda output: _search_with_deadline(pattern, ignore_case, output)
 
 
-def _search_with_deadline(pattern: str, ignore_case: bool, output: str) -> bool:
+def _search_with_deadline(pattern: str, ignore_case: bool, output: str) -> bool | None:
     """Run `re.search` in a child process with a hard deadline.
 
     Shape checks cannot rule out polynomial backtracking such as `\\s*\\s*\\s*x`,
     and `signal.alarm` does not interrupt the C regex engine, so the deadline
-    is a process kill. A timeout grades as a non-match (the case fails, which
-    never inflates a gain) and prints a warning to stderr.
+    is a process kill. A timeout returns None, so the result stays ungraded and
+    its case scores `incomplete` on either side, and prints a warning to stderr.
     """
     request = json.dumps(
         {"pattern": pattern, "ignore_case": ignore_case, "text": output[:MAX_SEARCHED_CHARS]}
@@ -269,7 +270,7 @@ def _search_with_deadline(pattern: str, ignore_case: bool, output: str) -> bool:
         )
     except subprocess.TimeoutExpired:
         print(f"warning: regex timed out after {REGEX_TIMEOUT_S} s: {pattern!r}", file=sys.stderr)
-        return False
+        return None
     if done.returncode != 0:
         raise ConfigError(f"regex grader child failed: {done.stderr.strip()[-200:]}")
     return done.stdout.strip() == "1"
@@ -475,7 +476,9 @@ def load_frozen(path: str) -> list[Payload]:
     return cases
 
 
-def _parse_result(line: str, number: int, graders: dict[str, Grade]) -> tuple[str, str, bool]:
+def _parse_result(
+    line: str, number: int, graders: dict[str, Grade]
+) -> tuple[str, str, bool | None]:
     try:
         row = json.loads(line)
     except ValueError as exc:
@@ -492,14 +495,16 @@ def _parse_result(line: str, number: int, graders: dict[str, Grade]) -> tuple[st
     return case_id, condition, graders[case_id](output)
 
 
-def grade_results(path: str, cases: list[Payload]) -> tuple[dict[tuple[str, str], list[bool]], int]:
+def grade_results(
+    path: str, cases: list[Payload]
+) -> tuple[dict[tuple[str, str], list[bool | None]], int]:
     """Grade every result line. Return pass flags per (case, condition) and the line count."""
     graders = {case["id"]: compile_grader(case["grader"]) for case in cases}
     try:
         lines = Path(path).read_text(encoding="utf-8").splitlines()
     except (OSError, ValueError) as exc:
         raise ConfigError(f"cannot read results {path}: {exc}") from exc
-    tally: dict[tuple[str, str], list[bool]] = {}
+    tally: dict[tuple[str, str], list[bool | None]] = {}
     count = 0
     for number, line in enumerate(lines, start=1):
         if not line.strip():
@@ -510,8 +515,9 @@ def grade_results(path: str, cases: list[Payload]) -> tuple[dict[tuple[str, str]
     return tally, count
 
 
-def _rate(flags: list[bool]) -> float | None:
-    return sum(flags) / len(flags) if flags else None
+def _rate(flags: list[bool | None]) -> float | None:
+    graded = [flag for flag in flags if flag is not None]
+    return sum(graded) / len(graded) if graded else None
 
 
 def _status(baseline: float | None, with_skill: float | None) -> str:
@@ -524,18 +530,21 @@ def _status(baseline: float | None, with_skill: float | None) -> str:
     return "no_gap" if baseline == 1.0 else "flat"
 
 
-def _case_row(case: Payload, tally: dict[tuple[str, str], list[bool]]) -> Payload:
+def _case_row(case: Payload, tally: dict[tuple[str, str], list[bool | None]]) -> Payload:
     base_flags = tally.get((case["id"], "baseline"), [])
     with_flags = tally.get((case["id"], "with_skill"), [])
     baseline, with_skill = _rate(base_flags), _rate(with_flags)
     delta = with_skill - baseline if baseline is not None and with_skill is not None else None
+    ungraded = (base_flags + with_flags).count(None)
     return {
         "id": case["id"],
         "skill": case["skill"],
         "baseline_pass_rate": baseline,
         "with_skill_pass_rate": with_skill,
         "delta": delta,
-        "status": _status(baseline, with_skill),
+        # An ungraded result on either side could hide a pass, so the case is incomplete.
+        "status": "incomplete" if ungraded else _status(baseline, with_skill),
+        "ungraded_runs": ungraded,
         "baseline_runs": len(base_flags),
         "with_skill_runs": len(with_flags),
     }
@@ -574,8 +583,14 @@ def score(args: argparse.Namespace) -> tuple[int, Payload]:
         for name in sorted({row["skill"] for row in rows})
     }
     overall = _summary(rows)
-    failing_statuses = KNOWLEDGE_FAILING if args.mode == "knowledge" else WORKFLOW_FAILING
-    failing_cases = [row["id"] for row in rows if row["status"] in failing_statuses]
+    failing_cases = [row["id"] for row in rows if row["status"] in WORKFLOW_FAILING]
+    if args.mode == "knowledge":
+        # A lens passes when one frozen case fails at baseline, so only a skill whose
+        # cases are all no_gap fails; one no_gap case among gains does not.
+        for name in skills:
+            own = [row for row in rows if row["skill"] == name]
+            if all(row["status"] == "no_gap" for row in own):
+                failing_cases += [row["id"] for row in own]
     failing = bool(failing_cases)
     payload: Payload = {
         "mode": args.mode,
