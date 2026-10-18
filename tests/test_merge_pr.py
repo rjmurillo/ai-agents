@@ -2718,3 +2718,50 @@ class TestRefusalAudit:
     def test_already_merged_carries_audit(self, capsys):
         _, env = _run_main(_FakeGh(state=_pr_state("MERGED")), [], capsys)
         assert env["Data"]["audit"]["result"] == "already merged; no merge call"
+
+
+_LEAKED_TOKEN = "ghp_" + "A1b2C3d4E5f6G7h8I9j0K1l2"
+
+_REFUSALS = [
+    pytest.param("Head branch was modified", "head moved", id="head-moved"),
+    pytest.param(
+        "Pull request is not mergeable: conflicts", "is not mergeable", id="not-mergeable"
+    ),
+    pytest.param("Pull request is BLOCKED by a rule", "branch protection", id="blocked"),
+]
+
+
+def _refused(stderr: str):
+    """A fake gh whose merge fails with ``stderr``; REST also fails for the BLOCKED path."""
+    fake = _BlockedThenRest(rest=_completed(rc=1, stderr="rest denied"), readback=_OPEN_READBACK)
+    fake.merge = _completed(rc=1, stderr=stderr)
+    return fake
+
+
+class TestRefusalMessagesAreSanitized:
+    """The three refusal messages built from raw gh output redact and collapse it (#6506)."""
+
+    @pytest.mark.parametrize(("stderr", "marker"), _REFUSALS)
+    def test_token_in_gh_output_is_redacted(self, stderr, marker, capsys):
+        fake = _refused(f"{stderr}\n\ttoken {_LEAKED_TOKEN}\nnext line")
+        code, env = _run_main(fake, [], capsys)
+        message = env["Error"]["Message"]
+        assert code != 0
+        assert marker in message
+        assert _LEAKED_TOKEN not in message
+        assert "[REDACTED]" in message
+
+    @pytest.mark.parametrize(("stderr", "marker"), _REFUSALS)
+    def test_control_whitespace_in_gh_output_is_collapsed(self, stderr, marker, capsys):
+        fake = _refused(f"{stderr}\nforged log line\r\nanother")
+        _, env = _run_main(fake, [], capsys)
+        message = env["Error"]["Message"]
+        assert marker in message
+        assert "forged log line another" in message
+        assert "\r" not in message
+
+    @pytest.mark.parametrize(("stderr", "marker"), _REFUSALS)
+    def test_long_gh_output_is_bounded(self, stderr, marker, capsys):
+        fake = _refused(stderr + " " + "x" * 5000)
+        _, env = _run_main(fake, [], capsys)
+        assert len(env["Error"]["Message"]) < 500

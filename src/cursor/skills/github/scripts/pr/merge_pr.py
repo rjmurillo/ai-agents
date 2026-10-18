@@ -1009,13 +1009,15 @@ def _handle_merge_failure(
     if any(kw in lowered for kw in _HEAD_MOVED_KEYWORDS):
         raise _MergeFailureError(
             f"PR #{pr} head moved after review; refusing the stale target "
-            f"(pinned {ctx.head_sha or 'none'}): {output}",
+            f"(pinned {ctx.head_sha or 'none'}): {sanitize_failure_detail(output)}",
             _EXIT_NOT_MERGEABLE,
             "General",
         )
     if any(kw in output for kw in ("not mergeable", "cannot be merged", "conflicts")):
         raise _MergeFailureError(
-            f"PR #{pr} is not mergeable: {output}", _EXIT_NOT_MERGEABLE, "General"
+            f"PR #{pr} is not mergeable: {sanitize_failure_detail(output)}",
+            _EXIT_NOT_MERGEABLE,
+            "General",
         )
     if not ctx.auto and any(kw in output for kw in _STACK_KEYWORDS):
         # The synchronous REST endpoint refuses a stack, so go asynchronous.
@@ -1040,7 +1042,7 @@ def _handle_merge_failure(
                 return
         # REST also failed; surface the original GraphQL error.
         raise _MergeFailureError(
-            f"PR #{pr} is blocked by branch protection policy: {output}\n"
+            f"PR #{pr} is blocked by branch protection policy: {sanitize_failure_detail(output)}\n"
             "Hint: use --auto to enable auto-merge when checks pass.",
             _EXIT_NOT_MERGEABLE,
             "General",
