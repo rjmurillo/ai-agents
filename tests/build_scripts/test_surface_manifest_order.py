@@ -14,10 +14,15 @@ import dataclasses
 from tests.build_scripts._surface_parity_helpers import REPO_ROOT, sm
 
 
-def _row(path: str, **fields: object) -> sm.Surface:
+def _row(path: str, include: tuple[str, ...] = (), exclude: tuple[str, ...] = ()) -> sm.Surface:
     return sm.Surface(
-        id=path.replace("/", "-"), path=path, relation="independent", reason="authored", **fields
-    )  # type: ignore[arg-type]
+        id=path.replace("/", "-"),
+        path=path,
+        relation="independent",
+        reason="authored",
+        include=include,
+        exclude=exclude,
+    )
 
 
 def _manifest(*surfaces: sm.Surface, roots: tuple[str, ...] = ("src",)) -> sm.Manifest:
