@@ -71,6 +71,21 @@ class TestHeadOnOrigin:
     ) -> None:
         assert _pr_val.head_on_origin("--upload-pack=true") is False
 
+    def test_a_ref_that_only_ends_with_the_head_is_not_a_match(
+        self, clone_with_origin: Path
+    ) -> None:
+        """``ls-remote`` matches the tail of a ref, so ``x/refs/heads/main`` answers ``main``."""
+        _git(clone_with_origin, "branch", "evil/refs/heads/target")
+        _git(clone_with_origin, "push", "origin", "evil/refs/heads/target")
+
+        assert _pr_val.head_on_origin("target") is False
+        assert _pr_val.head_on_origin("evil/refs/heads/target") is True
+
+    def test_a_glob_head_is_refused_without_a_git_call(self) -> None:
+        with patch("subprocess.run", side_effect=AssertionError("git must not run")):
+            assert _pr_val.head_on_origin("feat/*") is False
+            assert _pr_val.head_on_origin("feat/[a-z]") is False
+
     def test_none_when_origin_cannot_be_read(self, clone_with_origin: Path) -> None:
         _git(clone_with_origin, "remote", "set-url", "origin", str(clone_with_origin / "gone.git"))
 
@@ -88,7 +103,81 @@ class TestHeadOnOrigin:
             assert _pr_val.head_on_origin("feat/x") is None
 
 
+_LEGAL_NAMES = [
+    "main",
+    "feat/x",
+    "fix/6506-input",
+    "release-1.2",
+    "a.b",
+    "user/feat_x",
+    "@x",
+    "a@b",
+]
+_ILLEGAL_NAMES = [
+    "",
+    "@",
+    "-x",
+    "--upload-pack=true",
+    "a b",
+    "a\tb",
+    "a\nb",
+    "a\x7fb",
+    "a*",
+    "a?b",
+    "a[b",
+    "a\\b",
+    "a~1",
+    "a^",
+    "a:b",
+    "a..b",
+    "a@{u}",
+    "a//b",
+    "/a",
+    "a/",
+    "a.",
+    ".a",
+    "a/.b",
+    "a.lock",
+    "a.lock/b",
+]
+
+
+class TestIsValidBranchName:
+    @pytest.mark.parametrize("name", _LEGAL_NAMES)
+    def test_accepts_legal_names(self, name: str) -> None:
+        assert _pr_val.is_valid_branch_name(name) is True
+
+    @pytest.mark.parametrize("name", _ILLEGAL_NAMES)
+    def test_rejects_names_git_refuses(self, name: str) -> None:
+        assert _pr_val.is_valid_branch_name(name) is False
+
+    # ``check-ref-format --branch @`` exits 0 because ``@`` expands to HEAD, but
+    # ``git branch @`` refuses it, so ``@`` stays rejected and out of this table.
+    @pytest.mark.parametrize(
+        "name", [*_LEGAL_NAMES, *[n for n in _ILLEGAL_NAMES if n not in {"", "@"}]]
+    )
+    def test_agrees_with_git_check_ref_format(self, name: str, tmp_path: Path) -> None:
+        git = subprocess.run(
+            ["git", "check-ref-format", "--branch", name],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            cwd=tmp_path,
+        )
+        assert (git.returncode == 0) is _pr_val.is_valid_branch_name(name)
+
+
 class TestRequireHeadOnOrigin:
+    def test_invalid_head_is_refused_without_a_push_hint(self, capsys) -> None:
+        with patch("subprocess.run", side_effect=AssertionError("git must not run")):
+            assert _pr_val.require_head_on_origin("feat/*") is False
+
+        err = capsys.readouterr().err
+        assert "not a valid git branch name" in err
+        assert "git push" not in err
+
     def test_missing_branch_names_the_push_command(self, capsys) -> None:
         with patch.object(_pr_val, "head_on_origin", return_value=False):
             assert _pr_val.require_head_on_origin("feat/x") is False
