@@ -343,7 +343,10 @@ class TestCompile:
         agent_templates.compile_all(tmp_path, validate=False)
         config = {
             **CONFIG,
-            "denylists": {"demo-write": {"server": "demo", "tools": ["put_thing"]}},
+            "denylists": {
+                **CONFIG["denylists"],  # type: ignore[dict-item]
+                "demo-write": {"server": "demo", "tools": ["put_thing"]},
+            },
         }
         (tmp_path / "templates" / "agent-denylists.yaml").write_text(
             yaml.safe_dump(config), encoding="utf-8"
