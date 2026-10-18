@@ -39,6 +39,11 @@ itself behind you.
 > below describe behavior during the armed period. The serialization they
 > document is no longer enforced by the ruleset, though count ratchets still
 > impose practical freshness requirements.
+>
+> **Re-measured 2026-10-18 on ruleset 11104075: strict is still `false`. Fourteen open PRs sat 3 to 5 commits behind `main`, and GitHub reported each as `UNSTABLE`, never `BEHIND`.** Since issue #5065, the five merge-tree-registered ratchets
+> print `BEHIND BASE (not blocking)`. Only subprocess-encoding and
+> canonical-citations still block a behind branch. The pr-autofix skill no
+> longer lists "up to date with main" as a merge condition.
 This memory originally recorded
 `"strict_required_status_checks_policy": false`, and reasoned that no PR was
 ever *required* to be current. That is no longer the configuration. Measured
