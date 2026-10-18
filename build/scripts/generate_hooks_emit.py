@@ -31,7 +31,12 @@ import sys  # noqa: E402
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
-from atomic_write import publish_bytes_preserving_mode  # noqa: E402
+from atomic_write import (  # noqa: E402
+    is_redirecting,
+    publish_bytes_preserving_mode,
+    read_bytes_no_redirect,
+    reject_symlinked_ancestors,
+)
 from generate_hooks_body import inject_shim  # noqa: E402
 from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
 from yaml_loader import (  # noqa: E402
@@ -274,13 +279,32 @@ def _resolve_script_path(script_source: Path, command: str, claude_event: str) -
 
 
 def _resolve_script_candidate(script_source: Path, rel: str) -> Path | None:
-    """Return a source script candidate only when it stays under script_source."""
+    """Return a source script candidate only when it stays under script_source.
+
+    ``resolve`` follows links, so the redirect checks run on the unresolved
+    ``script_source / rel`` first: a symlinked or junctioned leaf, or a
+    symlinked directory below ``script_source``, is refused even when the link
+    stays inside the tree. Otherwise ``_copy_script`` would receive an already
+    resolved path and its no-follow read would never see the link (#6506,
+    CWE-59). ``script_source`` itself is build-authored config, not checked.
+    """
     resolved_base = script_source.resolve()
-    candidate = (script_source / rel).resolve()
+    unresolved = script_source / rel
+    candidate = unresolved.resolve()
     try:
         candidate.relative_to(resolved_base)
     except ValueError as exc:
         raise GenerateHooksError(f"hook command path escapes scriptSource: {rel}") from exc
+    redirect = reject_symlinked_ancestors(script_source, "hook source", unresolved)
+    if redirect is None:
+        try:
+            leaf_redirects = is_redirecting(unresolved.lstat())
+        except OSError:
+            leaf_redirects = False
+        if leaf_redirects:
+            redirect = f"hook source {unresolved} is a symlink or junction"
+    if redirect is not None:
+        raise GenerateHooksError(f"{redirect} (symlinked sources are refused): {rel}")
     if candidate.is_file():
         return candidate
     return None
@@ -418,7 +442,8 @@ def _copy_script(
     ``written=False`` when a sentinel is detected; reason captures which
     sentinel. When ``matcher`` is non-empty the shim from
     :func:`inject_shim` is prepended; otherwise the script is copied
-    verbatim.
+    verbatim. The source is read without following a symlink; a redirecting
+    source raises :class:`GenerateHooksError`.
     """
     reason = regen_detect_reason(target)
     if reason is not None:
@@ -428,10 +453,20 @@ def _copy_script(
     if what_if:
         return True, ""
     _ensure_exact_case_dir(target.parent)
+    try:
+        source_bytes = read_bytes_no_redirect(source)
+    except OSError as exc:
+        # ELOOP is a symlinked hook source (POSIX) or a junction (Windows): it
+        # would ship bytes from outside the plugin tree (CWE-59), so refuse it.
+        # A Windows file symlink is not caught here: O_NOFOLLOW is 0 there.
+        raise GenerateHooksError(
+            f"cannot read hook script '{source}' (symlinked sources are refused): {exc}"
+        ) from exc
     if not matcher:
-        publish_bytes_preserving_mode(target, source.read_bytes())
+        publish_bytes_preserving_mode(target, source_bytes)
         return True, ""
-    body = source.read_text(encoding="utf-8")
+    # Path.read_text translated CRLF and CR to LF; keep that output stable.
+    body = source_bytes.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n")
     transformed = inject_shim(body, matcher)
     publish_bytes_preserving_mode(target, transformed.encode("utf-8"))
     return True, ""

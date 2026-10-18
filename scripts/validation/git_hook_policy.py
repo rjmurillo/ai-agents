@@ -4759,6 +4759,25 @@ def _scan_updates(
         scan_paths = [
             path for path in paths if PurePosixPath(path).suffix.lower() in SEMGREP_SUFFIXES
         ]
+        # A tracked file link (ADR-119 decision 14: .claude/lib/paths.py) holds
+        # a target path, not source. Scan the target in its place, even when
+        # the push only retargets the link, so the new content is never skipped.
+        links = _commit_link_paths(update.head, scan_paths, repo_root)
+        if links is None:
+            return 2
+        tree_set = set(tree_paths)
+        dangling = sorted(path for path, target in links.items() if target not in tree_set)
+        if dangling:
+            print(f"ERROR: pushed link target is not in the tree: {dangling}", file=sys.stderr)
+            return 2
+        targets = [
+            links[path]
+            for path in scan_paths
+            if path in links and PurePosixPath(links[path]).suffix.lower() in SEMGREP_SUFFIXES
+        ]
+        scan_paths = list(
+            dict.fromkeys([path for path in scan_paths if path not in links] + targets)
+        )
         if not scan_paths:
             continue
         root_moves = _pushed_root_moves(update, repo_root)
@@ -5048,6 +5067,41 @@ def _validate_materialization_paths(paths: Sequence[str]) -> list[str] | None:
         directory_destinations.update(parent_destinations)
         validated_paths.append(path)
     return validated_paths
+
+
+def _commit_link_paths(head: str, paths: Sequence[str], repo_root: Path) -> dict[str, str] | None:
+    """Return each of ``paths`` that is a symlink entry (mode 120000) in ``head``, with its target.
+
+    The target is the link text resolved against the link's directory, as a
+    repository-relative path. A link whose text is absolute or leaves the
+    repository fails the whole lookup (``None``), so it cannot hide a file.
+    """
+    if not paths:
+        return {}
+    result = _run_git_bytes(repo_root, ["ls-tree", "-z", head, "--", *paths])
+    if result.returncode != 0:
+        print(result.stderr.decode("utf-8", errors="replace"), file=sys.stderr)
+        return None
+    links: dict[str, str] = {}
+    for record in result.stdout.split(b"\0"):
+        if not record:
+            continue
+        metadata, _, raw_name = record.partition(b"\t")
+        fields = metadata.split(b" ")
+        if fields[0] != b"120000":
+            continue
+        name = os.fsdecode(raw_name)
+        blob = _run_git_bytes(repo_root, ["cat-file", "blob", fields[2].decode("ascii")])
+        if blob.returncode != 0:
+            print(blob.stderr.decode("utf-8", errors="replace"), file=sys.stderr)
+            return None
+        text = os.fsdecode(blob.stdout)
+        target = posixpath.normpath(posixpath.join(posixpath.dirname(name), text))
+        if posixpath.isabs(text) or target == ".." or target.startswith("../"):
+            print(f"ERROR: pushed link {name} leaves the repository: {text}", file=sys.stderr)
+            return None
+        links[name] = target
+    return links
 
 
 def _commit_blob_id(head: str, path: str, repo_root: Path) -> str | None:

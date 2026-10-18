@@ -195,7 +195,7 @@ What is classified, and why:
     halts the gate until the change is approved. That is the posture to
     want for a file whose contents can wave a red check through. In an
     installed-plugin consumer it is not the same file. Each marketplace
-    maps ``project-toolkit`` to one root and only one, ``./.claude`` in
+    maps ``project-toolkit`` to one root and only one, ``./src/claude`` in
     ``.claude-plugin/marketplace.json`` and ``./src/copilot-cli`` in
     ``.github/plugin/marketplace.json``, and neither root contains the
     upstream ``.agents`` tree, so a consumer workspace has no such path
@@ -1407,6 +1407,116 @@ def _are_disjoint(first: Path, second: Path) -> bool:
     return not (_is_within(first, second) or _is_within(second, first))
 
 
+# Tracked symlinks the trusted ref vouches for, keyed by repo-relative POSIX
+# path, valued by link text (ADR-119). :func:`main` names the ref and work tree
+# in _PINNED_LINK_SOURCE before any path is classified; the table loads on the
+# first link component the gate meets, so a run that meets none costs no git
+# call. An empty table means every in-tree symlink is refused, which is the
+# behavior with no source and when the table cannot be read.
+_PINNED_LINK_SOURCE: tuple[str, Path] | None = None
+_PINNED_LINKS: tuple[Path, dict[str, str]] | None = None
+
+# A pinned link may point at another pinned link. Bounded so a cycle of pinned
+# links halts instead of spinning.
+_MAX_PINNED_LINK_HOPS = 8
+
+_GIT_SYMLINK_MODE = "120000"
+
+
+def _load_pinned_links(trust_anchor_ref: str, cwd: Path) -> tuple[Path, dict[str, str]] | None:
+    """The work-tree root and every symlink at ``trust_anchor_ref`` under it.
+
+    Returns ``(toplevel, {toplevel-relative path: link text})``. Paths come
+    from ``ls-tree --full-tree``, so they are relative to the git toplevel
+    whatever ``cwd`` is, and :func:`_pinned_link_text` resolves each link
+    against that same toplevel. Keying on ``cwd`` instead let a link at
+    ``a/link`` match the pinned ``sub/a/link`` when the project root was a
+    subdirectory.
+
+    Returns ``None`` (refuse every link) when the ref is malformed, is not a
+    remote-tracking ref, or git cannot list it. Only a ref the PR cannot move
+    may vouch for a link: a link the checked-out PR adds or retargets is
+    absent from this table or differs from it, and still halts.
+    """
+    if not _TRUSTED_REF_RE.match(trust_anchor_ref):
+        return None
+    if _require_remote_tracking_ref(trust_anchor_ref, cwd) is not None:
+        return None
+    try:
+        top = _run_git(["rev-parse", "--show-toplevel"], cwd)
+        if top.returncode != 0:
+            return None
+        toplevel = Path(_git_text(top.stdout).strip())
+        listing = _run_git(["ls-tree", "-r", "-z", "--full-tree", trust_anchor_ref], cwd)
+        if listing.returncode != 0:
+            return None
+        blobs: dict[str, str] = {}
+        for entry in _git_text(listing.stdout).split("\0"):
+            meta, _, path = entry.partition("\t")
+            fields = meta.split()
+            if len(fields) == 3 and fields[0] == _GIT_SYMLINK_MODE:
+                blobs[path] = fields[2]
+        links: dict[str, str] = {}
+        for path, sha in blobs.items():
+            blob = _run_git(["cat-file", "blob", sha], cwd)
+            if blob.returncode != 0:
+                return None
+            links[path] = _git_text(blob.stdout)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return toplevel, links
+
+
+def _git_text(output: bytes | str) -> str:
+    """Decode captured git output; callers and test doubles pass bytes or text."""
+    return output.decode(errors="replace") if isinstance(output, bytes) else output
+
+
+def _pinned_links() -> tuple[Path, dict[str, str]] | None:
+    """The pinned-link table for this run, loaded on first use; ``None`` pins nothing."""
+    global _PINNED_LINKS
+    if _PINNED_LINKS is None and _PINNED_LINK_SOURCE is not None:
+        _PINNED_LINKS = _load_pinned_links(*_PINNED_LINK_SOURCE)
+    return _PINNED_LINKS
+
+
+def _pinned_link_text(link: Path, root: Path) -> str | None:
+    """The link's text when the trusted ref holds the identical link, else ``None``.
+
+    ``root`` bounds which links the caller inspects; the lookup key is the
+    link's path under the git toplevel the table was read from.
+    """
+    pinned = _pinned_links()
+    if pinned is None or not _is_within(link, root):
+        return None
+    toplevel, table = pinned
+    try:
+        # The parents were scanned as real directories, so resolving them
+        # only normalizes spelling (a symlinked /tmp, say); the link stays.
+        rel = (link.parent.resolve() / link.name).relative_to(toplevel.resolve()).as_posix()
+        text = os.readlink(link)
+    except (ValueError, OSError):
+        return None
+    if table.get(rel) != text or Path(text).is_absolute():
+        return None
+    return text
+
+
+def _first_link_component(candidate: Path, root: Path) -> Path | None:
+    """First symlinked component of ``candidate`` at or below ``root``, pinned or not."""
+    probe = Path(candidate.parts[0])
+    for part in candidate.parts[1:]:
+        probe = probe / part
+        if not _is_within(probe, root):
+            continue
+        try:
+            if probe.is_symlink():
+                return probe
+        except OSError:
+            return probe
+    return None
+
+
 def _first_symlinked_component(candidate: Path, root: Path) -> Path | None:
     """First symlinked component of ``candidate`` at or below ``root``.
 
@@ -1420,18 +1530,29 @@ def _first_symlinked_component(candidate: Path, root: Path) -> Path | None:
     ones PR content can create; a symlink above the root, such as a
     symlinked home directory, is the operator's own environment and must
     not false-halt the gate.
+
+    A link the trusted ref already holds, with identical link text
+    (:data:`_PINNED_LINKS`, ADR-119), is not PR-controlled: the base branch
+    vouches for the link blob, and the target file is still byte-compared
+    at the trusted ref. Such a link is followed, and the scan continues
+    over its target, so every component on the way to the file is either a
+    real directory or a pinned link. A pinned link whose target leaves
+    ``root``, or a chain longer than :data:`_MAX_PINNED_LINK_HOPS`, is
+    returned as the offending component.
     """
-    probe = Path(candidate.parts[0])
-    for part in candidate.parts[1:]:
-        probe = probe / part
-        if not _is_within(probe, root):
-            continue
-        try:
-            if probe.is_symlink():
-                return probe
-        except OSError:
-            return probe
-    return None
+    current = candidate
+    for _ in range(_MAX_PINNED_LINK_HOPS):
+        link = _first_link_component(current, root)
+        if link is None:
+            return None
+        text = _pinned_link_text(link, root)
+        if text is None:
+            return link
+        rest = current.parts[len(link.parts) :]
+        current = Path(os.path.normpath(link.parent / text), *rest)
+        if not _is_within(current, root):
+            return link
+    return candidate
 
 
 # The plugin-root form every shipped invocation uses. Expanding it is not
@@ -1643,14 +1764,54 @@ def _import_roots(script: Path, toplevel: Path) -> list[Path]:
     work tree itself (top-level packages such as ``scripts.utils``).
     """
     roots = [script.parent]
+    # ADR-119: a script reached through a pinned link runs with ``__file__``
+    # spelled through the link, and the verifiers put
+    # ``abspath(dirname(__file__)/../../../../lib)`` first on ``sys.path``.
+    # ``abspath`` does not resolve links, so that is the ``lib`` beside the
+    # link (``.claude/lib``), a separate file from the one beside the target.
+    # Those roots come first, as they do at run time.
+    for alias in _pinned_aliases(script, toplevel):
+        roots.extend(_ancestor_libs(alias, toplevel))
+    roots.extend(lib for lib in _ancestor_libs(script, toplevel) if lib not in roots)
+    roots.append(toplevel)
+    return roots
+
+
+def _ancestor_libs(script: Path, toplevel: Path) -> list[Path]:
+    """Every ``lib`` directory in an ancestor of ``script`` at or below ``toplevel``."""
+    libs: list[Path] = []
     for ancestor in script.parents:
         if not _is_within(ancestor, toplevel):
             continue
         lib = ancestor / "lib"
         if lib.is_dir():
-            roots.append(lib)
-    roots.append(toplevel)
-    return roots
+            libs.append(lib)
+    return libs
+
+
+def _pinned_aliases(script: Path, toplevel: Path) -> list[Path]:
+    """The paths that spell ``script`` through a pinned link, lexically.
+
+    For each link the trusted ref pins and the work tree still holds, a
+    script under the link's resolved target is also reachable as
+    ``<link>/<rest>``. Returns those spellings without resolving them.
+    """
+    pinned = _pinned_links()
+    if pinned is None:
+        return []
+    git_top, table = pinned
+    resolved_script = script.resolve()
+    aliases: list[Path] = []
+    for rel in table:
+        link = git_top / rel
+        if not _is_within(link, toplevel) or _pinned_link_text(link, toplevel) is None:
+            continue
+        target = Path(os.path.normpath(link.parent / table[rel])).resolve()
+        if resolved_script != target and not resolved_script.is_relative_to(target):
+            continue
+        alias = link / resolved_script.relative_to(target) if resolved_script != target else link
+        aliases.append(Path(os.path.normpath(alias)))
+    return aliases
 
 
 def _imported_module_names(source: bytes) -> list[tuple[int, str]]:
@@ -1743,11 +1904,28 @@ def _module_files(dotted: str, roots: list[Path], toplevel: Path) -> list[str]:
     trusted verdict unless the initializer is in the closure too. An ancestor with
     no ``__init__.py`` is a namespace package and contributes nothing. An ancestor
     initializer reached through a symlink is not followed, like any other symlink.
+
+    Every root that holds the module contributes its copy, not only the first.
+    Which copy runs depends on how the verifier's own path was spelled and on
+    plugin-root environment variables (ADR-119: ``.claude/lib`` beside a link,
+    ``src/claude/lib`` beside its target), so each candidate is compared.
     """
-    resolved = _resolve_module_root(dotted, roots, toplevel)
-    if resolved is None:
-        return []
-    root, module = resolved
+    files: list[str] = []
+    for root in roots:
+        for found in _module_files_in_root(dotted, root, toplevel):
+            if found not in files:
+                files.append(found)
+    return files
+
+
+def _module_files_in_root(dotted: str, root: Path, toplevel: Path) -> list[str]:
+    """:func:`_module_files` for one root: its initializers, then the module.
+
+    An ancestor initializer runs even when the leaf module is missing (the
+    import fails after it), so it joins the closure either way.
+    """
+    resolved = _resolve_module_root(dotted, [root], toplevel)
+    module = None if resolved is None else resolved[1]
     parts = [part for part in dotted.split(".") if part]
     files: list[str] = []
     for depth in range(1, len(parts)):
@@ -1757,7 +1935,7 @@ def _module_files(dotted: str, roots: list[Path], toplevel: Path) -> list[str]:
         if _first_symlinked_component(initializer, toplevel) is not None:
             continue
         files.append(initializer.relative_to(toplevel).as_posix())
-    if module not in files:
+    if module is not None and module not in files:
         files.append(module)
     return files
 
@@ -2335,6 +2513,58 @@ def _unresolvable_dynamic_sites(rel_paths: list[str], toplevel: Path) -> list[st
     return sites
 
 
+def _symlinked_import_sites(rel_paths: list[str], toplevel: Path) -> list[str]:
+    """``path: message`` for every import in ``rel_paths`` that reaches an unpinned link.
+
+    :func:`_resolve_module_root` declines a candidate behind a symlink, so it
+    never joins the closure and is never byte-compared. The verifier still
+    imports it: ``sys.path`` follows the link. A pull request could replace a
+    package directory with a link to its own code and run it under a trusted
+    verdict (CWE-59, CWE-829). ADR-119 makes links routine, so such an import
+    fails closed here instead. A link the trusted ref pins is followed by
+    :func:`_first_symlinked_component` and is not reported.
+    """
+    sites: list[str] = []
+    for rel in rel_paths:
+        if not rel.endswith(".py"):
+            continue
+        script = toplevel / rel
+        try:
+            source = script.read_bytes()
+        except OSError:
+            continue
+        absolute_roots = _import_roots(script, toplevel)
+        imports = list(_imported_module_names(source))
+        # A literal dynamic load (importlib.import_module("x")) imports too.
+        imports.extend((0, load.module) for load in _dynamic_loads(source, script) if load.module)
+        for level, dotted in imports:
+            roots = absolute_roots if level == 0 else _relative_import_root(script, level, toplevel)
+            parts = [part for part in dotted.split(".") if part]
+            if not parts:
+                continue
+            for root in roots:
+                # Every dotted prefix: an ancestor package's __init__.py runs
+                # even when the leaf is missing.
+                candidates = [root.joinpath(*parts).with_suffix(".py")]
+                candidates.extend(
+                    root.joinpath(*parts[:depth], "__init__.py")
+                    for depth in range(1, len(parts) + 1)
+                )
+                for candidate in candidates:
+                    if not _is_within(candidate, toplevel) or not candidate.is_file():
+                        continue
+                    link = _first_symlinked_component(candidate, toplevel)
+                    if link is None:
+                        continue
+                    site = (
+                        f"{rel}: import {dotted} reaches unpinned symlink "
+                        f"{link.relative_to(toplevel).as_posix()}"
+                    )
+                    if site not in sites:
+                        sites.append(site)
+    return sites
+
+
 def _expand_import_closure(rel_paths: list[str], toplevel: Path) -> list[str]:
     """``rel_paths`` plus every work-tree module they transitively import.
 
@@ -2578,6 +2808,7 @@ def _verify_command_trust(
 
         untrusted = list(escaping) + nested
         untrusted.extend(_unresolvable_dynamic_sites(checked, toplevel))
+        untrusted.extend(_symlinked_import_sites(checked, toplevel))
         errors: list[str] = []
         for rel_path in checked:
             is_trusted, error = _verify_worktree_file_trust(
@@ -3505,6 +3736,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.pull_request <= 0:
         print("Pull request number must be positive.", file=sys.stderr)
         return 2
+
+    # Before any path is classified: the config path itself may cross a
+    # link the trusted ref vouches for (ADR-119).
+    global _PINNED_LINK_SOURCE, _PINNED_LINKS
+    _PINNED_LINK_SOURCE = (args.trust_anchor_ref, _PROJECT_ROOT)
+    _PINNED_LINKS = None
 
     resolved = _resolve_and_read_config(args.config)
     if resolved.path is None or resolved.raw is None:

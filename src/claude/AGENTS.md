@@ -1,16 +1,16 @@
 # src/claude/
 
-`project-toolkit` plugin source (ADR-109 B6; `claude-agents` retired) in the `rjmurillo/ai-agents` repository. The generated trees below binplace into `.claude/`, the dogfood copy.
+`project-toolkit` plugin source (ADR-109 B6; `claude-agents` retired) in the `rjmurillo/ai-agents` repository. The trees below binplace into `.claude/`, the dogfood copy (ADR-119: `agents/`, `skills/` as symlinks).
 
 <!-- vendor-portability: repo-only contributor guide; templates/, build/, .github/agents/ and sibling src/ trees do not ship with this plugin -->
 
 ## Matters
 
-- Generated (ADR-109 B1 to B4): `agents/` 30, `rules/` 28, `skills/<name>/SKILL.md` 111, `hooks/` plus `hooks.json`.
-- Hand-maintained: `claude-instructions.template.md`, `security/references/`, `.claude-plugin/plugin.json`, this file.
+- Generated (ADR-109 B1 to B4): `agents/` 30, `rules/` 23 (repo-only rules stay in `.claude/rules/`), `skills/<name>/SKILL.md` 111, `hooks/` plus `hooks.json`.
+- Hand-maintained: `claude-instructions.template.md`, `security/references/`, `.claude-plugin/plugin.json`, this file, `skills/<name>/` files but `SKILL.md`.
 - Edit the template, never the render. A hand-edit fails its Template Drift gate next run.
-- Agent frontmatter: `name`, `description`, `argument-hint` in all 30. `metadata.role` in 24. `tools:` only `analyst.md`, `security.md`. `model:` only `code-reviewer.md`.
-- `skills/<name>/`: `SKILL.md` renders from its template; `scripts/`, `references/`, `tests/` are build mirrors of `.claude/skills/<name>/`, the hand-maintained source. Edit there.
+- Agent frontmatter: `name`, `description`, `argument-hint` in all 30. `metadata.role` in 24. `tools:` only `analyst.md`, `security.md`.
+- `skills/<name>/`: `SKILL.md` renders from its template; `scripts/`, `references/`, `tests/` are hand-maintained here.
 
 ## Entry points
 
@@ -24,13 +24,13 @@
 
 ## Skip
 
-- `.claude/agents/`, `.claude/rules/`, `.claude/skills/<name>/SKILL.md`, `.claude/hooks/` minus its seven hand-maintained docs: byte-for-byte binplace copies of this tree.
+- `.claude/agents/`, shipped `.claude/skills/<name>`, shipped `.claude/rules/<name>.md`: symlinks here. `.claude/hooks/` minus its seven docs: binplace copies.
 
 ## Constraints
 
 - Cross-harness change: read `agent-harness-reference` first. In the ai-agents repository, route through `ai-agents-portability-campaign`.
-- `model:` needs an ADR-080 `KEEP_PIN` sidecar entry, or a bare alias (`sonnet`, `opus`, `haiku`) plus `model-rationale:` priced below the harness default through the platform `model_tiers` map (`check_model_pins.py`). Only `code-reviewer.md` qualifies.
-- Those three agents read `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/<name>/scripts` (`merge-resolver.md` still bare `${CLAUDE_PLUGIN_ROOT:-.claude}`; `plugin-self-containment.md` MUST 2 wants the nested form). Resolves against this plugin's own `skills/` now that support files mirror here (#5794); before that the fallback needed a second install.
+- `model:` needs an ADR-080 `KEEP_PIN` sidecar entry, or a bare alias (`sonnet`, `opus`, `haiku`) plus `model-rationale:` priced below the harness default through the platform `model_tiers` map (`check_model_pins.py`). None qualifies; no Copilot agent may pin, since `.github/agents` links to it.
+- Those three agents read `${COPILOT_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-.claude}}/skills/<name>/scripts` (`merge-resolver.md` still bare `${CLAUDE_PLUGIN_ROOT:-.claude}`; `plugin-self-containment.md` MUST 2 wants the nested form). Resolves against this plugin's own `skills/`, where support files live (#5794); before that the fallback needed a second install.
 
 ## Dangerous assumptions
 

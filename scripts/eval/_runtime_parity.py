@@ -432,15 +432,45 @@ def resolve_instructions(paths: Sequence[str], ref: str | None) -> dict[str, byt
     return {path: _read_instruction(path, ref) for path in paths}
 
 
+_MAX_LINK_HOPS = 8
+
+
 def _read_instruction(path: str, ref: str | None) -> bytes:
     if ref is None:
         candidate = (REPO_ROOT / path).resolve()
         if not candidate.is_file():
             raise ParityConfigError(f"instruction file does not exist: {path}")
         return candidate.read_bytes()
+    current = path
+    for _ in range(_MAX_LINK_HOPS + 1):
+        mode = _git_at_ref(["ls-tree", "--full-tree", ref, "--", current], path, ref).split(b" ")[0]
+        content = _git_at_ref(["show", f"{ref}:{current}"], path, ref)
+        if mode != b"120000":
+            return content
+        # ADR-119: a tracked symlink (a shipped rule in .claude/rules) holds
+        # its target as text; follow it at the same ref, inside the repo only.
+        current = _link_target(current, content.decode("utf-8", errors="replace"), path)
+    raise ParityConfigError(f"{path!r} at ref {ref!r} follows more than {_MAX_LINK_HOPS} links")
+
+
+def _link_target(link_path: str, text: str, origin: str) -> str:
+    if text.startswith("/"):
+        raise ParityConfigError(f"{origin!r} links to an absolute path: {text}")
+    parts: list[str] = list(Path(link_path).parent.parts)
+    for part in Path(text).parts:
+        if part == "..":
+            if not parts:
+                raise ParityConfigError(f"{origin!r} links outside the repository: {text}")
+            parts.pop()
+        elif part != ".":
+            parts.append(part)
+    return "/".join(parts)
+
+
+def _git_at_ref(args: list[str], path: str, ref: str) -> bytes:
     try:
         run = subprocess.run(
-            ["git", "show", f"{ref}:{path}"],
+            ["git", *args],
             cwd=REPO_ROOT,
             capture_output=True,
             timeout=10,
@@ -448,8 +478,8 @@ def _read_instruction(path: str, ref: str | None) -> bytes:
         )
     except (OSError, subprocess.SubprocessError) as exc:
         raise ParityConfigError(f"could not resolve {path!r} at ref {ref!r}: {exc}") from exc
-    if run.returncode != 0:
-        stderr = run.stderr.decode("utf-8", errors="replace").strip()
+    if run.returncode != 0 or not run.stdout:
+        stderr = run.stderr.decode("utf-8", errors="replace").strip() or "path not in tree"
         raise ParityConfigError(f"instructions ref {ref!r} could not resolve {path!r}: {stderr}")
     return run.stdout
 

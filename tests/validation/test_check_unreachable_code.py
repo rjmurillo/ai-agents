@@ -371,3 +371,24 @@ def test_cli_exits_1_on_unreachable(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     assert result.returncode == 1
+
+
+def test_tracked_file_link_is_scanned_through_its_target(tmp_path: Path) -> None:
+    """ADR-119 decision 14: a tracked link to a tracked file is not scanned twice."""
+    _write(tmp_path, "real.py", "def f():\n    return 1\n    x = 2\n")
+    (tmp_path / "linked.py").symlink_to("real.py")
+    subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True)
+
+    findings = find_unreachable_statements(tmp_path)
+
+    assert [path.name for path, _, _ in findings] == ["real.py"]
+
+
+def test_tracked_file_link_to_an_untracked_target_fails_closed(tmp_path: Path) -> None:
+    _write(tmp_path, "real.py", "x = 1\n")
+    (tmp_path / "ghost.py").write_text("x = 1\n", encoding="utf-8")
+    (tmp_path / "linked.py").symlink_to("ghost.py")
+    subprocess.run(["git", "add", "linked.py"], cwd=tmp_path, check=True)
+
+    with pytest.raises(ScanError):
+        find_unreachable_statements(tmp_path)
