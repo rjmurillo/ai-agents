@@ -70,13 +70,13 @@ def _pr(**overrides: Any) -> dict[str, Any]:
     return base
 
 
-def _classify(reviews, pr=None, ci_green=True) -> dict[str, Any]:
+def _classify(reviews, pr=None, ci_state="green") -> dict[str, Any]:
     return classify(
         owner="o",
         repo="r",
         pr_number=7,
         pr=pr if pr is not None else _pr(),
-        ci_green=ci_green,
+        ci_state=ci_state,
         reviews=reviews,
     )
 
@@ -186,25 +186,27 @@ class TestFreshAndAbsent:
 
 class TestNotReady:
     @pytest.mark.parametrize(
-        ("pr", "ci_green", "reason"),
+        ("pr", "ci_state", "reason"),
         [
-            (_pr(review_thread_unresolved_count=2), True, "2 review thread(s) unresolved"),
-            (_pr(review_thread_counts_complete=False), True, "thread count is incomplete"),
-            (_pr(review_thread_unresolved_count=None), True, "thread count is incomplete"),
-            (_pr(), False, "CI is not passing"),
-            (_pr(merge_state_status="BEHIND"), True, "merge state is BEHIND"),
-            (_pr(merge_state_status="DIRTY"), True, "merge state is DIRTY"),
-            (_pr(head_sha=""), True, "head SHA is unknown"),
+            (_pr(review_thread_unresolved_count=2), "green", "2 review thread(s) unresolved"),
+            (_pr(review_thread_counts_complete=False), "green", "thread count is incomplete"),
+            (_pr(review_thread_unresolved_count=None), "green", "thread count is incomplete"),
+            (_pr(), "failing", "CI is not passing"),
+            (_pr(), "unknown", "CI state is unknown"),
+            (_pr(), "bogus", "CI state is unknown"),
+            (_pr(merge_state_status="BEHIND"), "green", "merge state is BEHIND"),
+            (_pr(merge_state_status="DIRTY"), "green", "merge state is DIRTY"),
+            (_pr(head_sha=""), "green", "head SHA is unknown"),
         ],
     )
-    def test_open_work_blocks_the_stale_review_path(self, pr, ci_green, reason):
-        out = _classify([_stale_cr()], pr=pr, ci_green=ci_green)
+    def test_open_work_blocks_the_stale_review_path(self, pr, ci_state, reason):
+        out = _classify([_stale_cr()], pr=pr, ci_state=ci_state)
         assert out["verdict"] == "NOT_READY"
         assert any(reason in r for r in out["reasons"])
         assert out["handoff"] is None
 
     def test_readiness_is_not_checked_when_no_bot_blocks(self):
-        out = _classify([], pr=_pr(review_thread_unresolved_count=5), ci_green=False)
+        out = _classify([], pr=_pr(review_thread_unresolved_count=5), ci_state="failing")
         assert out["verdict"] == "NO_BOT_CHANGES_REQUESTED"
         assert out["reasons"] == []
 
@@ -310,11 +312,6 @@ class TestMain:
         assert "reviews/100/dismissals" in envelope["Data"]["handoff"]
         assert sorted(calls) == ["get_pr_checks.py", "get_pr_context.py", "get_pr_reviews.py"]
 
-    def test_failing_ci_reports_not_ready(self, capsys):
-        fake = _siblings(_pr(), (1, _checks("FAILURE", False)), [_stale_cr()], [])
-        assert _run_main(fake) == 0
-        assert json.loads(capsys.readouterr().out)["Data"]["verdict"] == "NOT_READY"
-
     @pytest.mark.parametrize("exit_code", [0, 1], ids=["pending_optional", "failing_optional"])
     def test_optional_checks_do_not_block_the_handoff(self, exit_code, capsys):
         # Issue #6632: PR #6431 had 9/9 required checks green and 7 optional checks
@@ -354,41 +351,51 @@ class TestMain:
         assert _run_main(fake) == 0
         assert json.loads(capsys.readouterr().out)["Data"]["verdict"] == "DISMISSAL_HANDOFF"
 
-    @pytest.mark.parametrize("state", ["PENDING", "FAILURE", "UNKNOWN"])
-    def test_required_state_other_than_success_reports_not_ready(self, state, capsys):
-        # AllPassing True is ignored: only RequiredState decides.
-        fake = _siblings(_pr(), (0, _checks(state, all_passing=True)), [_stale_cr()], [])
+    @pytest.mark.parametrize(
+        ("exit_code", "checks", "reason"),
+        [
+            (1, _checks("FAILURE", False), "CI is not passing"),
+            (0, _checks("PENDING"), "CI is not passing"),
+            (0, _checks("SUCCESS", merge_ref_usable=False), "CI is not passing"),
+            (0, _checks("UNKNOWN"), "CI state is unknown"),
+            # Issue #6632 shape over REST: required row passed, optional row WAITING.
+            # REST cannot prove the required set, so a driver must re-run, not fix CI.
+            (0, _checks("UNKNOWN", all_passing=False), "CI state is unknown"),
+            # REST with an empty ruleset marks no row required and reports UNKNOWN
+            # even when every check passes. Classic branch protection may still
+            # require a check, so AllPassing alone must not reach the handoff.
+            (0, _checks("UNKNOWN", required_rows=False), "CI state is unknown"),
+            (0, _checks("PENDING", required_rows=False), "CI state is unknown"),
+            (7, _checks("UNKNOWN", False), "CI state is unknown"),
+            # build_output always emits these keys, so a missing one is malformed.
+            (0, _checks("SUCCESS", merge_ref_usable=None), "CI state is unknown"),
+            (
+                0,
+                {"AllPassing": True, "MergeRefUsable": True, "Checks": [{"IsRequired": True}]},
+                "CI state is unknown",
+            ),
+        ],
+        ids=[
+            "failing_required",
+            "pending_required",
+            "unusable_merge_ref",
+            "unknown_required",
+            "rest_optional_pending",
+            "no_required_rows_unknown",
+            "no_required_rows_pending",
+            "incomplete_exit_7",
+            "merge_ref_key_missing",
+            "required_state_key_missing",
+        ],
+    )
+    def test_ci_not_proven_green_reports_not_ready(self, exit_code, checks, reason, capsys):
+        # AllPassing True never rescues a required set that is failing or unproven.
+        fake = _siblings(_pr(), (exit_code, checks), [_stale_cr()], [])
         assert _run_main(fake) == 0
         data = json.loads(capsys.readouterr().out)["Data"]
         assert data["verdict"] == "NOT_READY"
-        assert "CI is not passing" in data["reasons"]
-
-    @pytest.mark.parametrize("usable", [False, None], ids=["unusable", "key_missing"])
-    def test_merge_ref_not_proven_usable_reports_not_ready(self, usable, capsys):
-        # build_output always emits MergeRefUsable, so a missing key is malformed
-        # and fails closed like an unusable ref, even with RequiredState SUCCESS.
-        rereview = _review(101, CODERABBIT, "COMMENTED", HEAD, "2026-09-02T00:00:00Z")
-        checks = (0, _checks("SUCCESS", merge_ref_usable=usable))
-        fake = _siblings(_pr(), checks, [_stale_cr(), rereview], [])
-        assert _run_main(fake) == 0
-        assert json.loads(capsys.readouterr().out)["Data"]["verdict"] == "NOT_READY"
-
-    def test_envelope_without_required_state_reports_not_ready(self, capsys):
-        fake = _siblings(
-            _pr(),
-            (
-                0,
-                {
-                    "AllPassing": True,
-                    "MergeRefUsable": True,
-                    "Checks": [{"Name": "build", "IsRequired": True}],
-                },
-            ),
-            [_stale_cr()],
-            [],
-        )
-        assert _run_main(fake) == 0
-        assert json.loads(capsys.readouterr().out)["Data"]["verdict"] == "NOT_READY"
+        assert data["reasons"] == [reason]
+        assert data["handoff"] is None
 
     def test_checks_call_does_not_pass_required_only(self):
         # --required-only exits 3 on the REST fallback with no ruleset contexts,
@@ -413,11 +420,6 @@ class TestMain:
         fake = _siblings(_pr(), (3, {"Number": 7}), [_stale_cr()], [])
         assert _run_main(fake) == 3
         assert json.loads(capsys.readouterr().out)["Success"] is False
-
-    def test_incomplete_checks_exit_7_is_a_verdict(self, capsys):
-        fake = _siblings(_pr(), (7, _checks("UNKNOWN", False)), [_stale_cr()], [])
-        assert _run_main(fake) == 0
-        assert json.loads(capsys.readouterr().out)["Data"]["verdict"] == "NOT_READY"
 
     def test_unreadable_checks_exits_3(self):
         fake = _siblings(_pr(), (3, None), [], [])

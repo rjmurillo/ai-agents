@@ -16,8 +16,9 @@ Verdicts in ``Data.verdict``:
 
     NO_BOT_CHANGES_REQUESTED  No bot holds an active CHANGES_REQUESTED review.
     NOT_READY                 A bot holds one, but a thread is unresolved, a
-                              required CI check is not passing, or the branch
-                              needs an update first.
+                              required CI check is not passing (any check, when
+                              the repo marks none required), the CI state is
+                              unknown, or the branch needs an update first.
                               Finish that work; this is not a stale-review case.
     FRESH_CHANGES_REQUESTED   A bot review on the current head still requests
                               changes. Address its findings.
@@ -87,6 +88,9 @@ _BRANCH_WORK_STATES = frozenset({"BEHIND", "DIRTY"})
 
 # get_pr_checks.py exits that still carry a verdict: pass, failing, incomplete.
 _CHECKS_VERDICT_EXITS = frozenset({0, 1, 7})
+_CI_GREEN = "green"
+_CI_FAILING = "failing"
+_CI_UNKNOWN = "unknown"
 
 # Comment that makes a known bot re-review the current head. A bot absent from
 # this map has no verified trigger, so the script never invents one.
@@ -164,7 +168,7 @@ def _human_blockers(reviews: list[dict[str, Any]]) -> list[str]:
     )
 
 
-def _readiness_reasons(pr: dict[str, Any], ci_green: bool) -> list[str]:
+def _readiness_reasons(pr: dict[str, Any], ci_state: str) -> list[str]:
     """Reasons the PR is not yet in the all-threads-resolved, CI-green state."""
     reasons: list[str] = []
     unresolved = pr.get("review_thread_unresolved_count")
@@ -172,8 +176,10 @@ def _readiness_reasons(pr: dict[str, Any], ci_green: bool) -> list[str]:
         reasons.append("review thread count is incomplete")
     elif unresolved > 0:
         reasons.append(f"{unresolved} review thread(s) unresolved")
-    if not ci_green:
+    if ci_state == _CI_FAILING:
         reasons.append("CI is not passing")
+    elif ci_state != _CI_GREEN:
+        reasons.append("CI state is unknown")
     state = pr.get("merge_state_status")
     if state in _BRANCH_WORK_STATES:
         reasons.append(f"merge state is {state}")
@@ -252,7 +258,7 @@ def classify(
     repo: str,
     pr_number: int,
     pr: dict[str, Any],
-    ci_green: bool,
+    ci_state: str,
     reviews: list[dict[str, Any]],
 ) -> dict[str, Any]:
     """Classify the PR's bot CHANGES_REQUESTED state. Pure: no I/O."""
@@ -272,7 +278,7 @@ def classify(
     if not blockers:
         return data
     data["bots"] = [_bot_entry(r, reviews, head_sha) for r in blockers]
-    reasons = _readiness_reasons(pr, ci_green)
+    reasons = _readiness_reasons(pr, ci_state)
     if not head_sha:
         reasons.append("head SHA is unknown")
     if reasons:
@@ -310,36 +316,50 @@ def _common_args(owner: str, repo: str, pr: int) -> list[str]:
     return ["--owner", owner, "--repo", repo, "--pull-request", str(pr)]
 
 
-def _required_checks_green(checks: dict[str, Any]) -> bool:
-    """Return True when CI passes for merge purposes and the merge ref is usable.
+def _ci_state(checks: dict[str, Any]) -> str:
+    """Classify CI for merge purposes as _CI_GREEN, _CI_FAILING, or _CI_UNKNOWN.
 
-    When at least one check row is marked required, RequiredState decides:
-    SUCCESS only when no required check is failing, pending, or missing and the
-    check set is complete. Optional checks never move it. get_pr_checks.py
-    downgrades RequiredState to UNKNOWN when REST cannot prove which checks are
-    required, so an unproven required set is never green.
+    A missing or malformed key is unknown, never green: build_output always
+    emits MergeRefUsable, RequiredState, and AllPassing. MergeRefUsable False is
+    failing (no usable merge ref).
 
-    When no row is marked required, RequiredState is SUCCESS vacuously (a repo
-    can require reviews but no status checks), so AllPassing decides instead.
+    When at least one check row is marked required, RequiredState decides.
+    SUCCESS is green. FAILURE or PENDING is failing. UNKNOWN, which also covers
+    an incomplete check set, is unknown. Optional checks never move it.
+    get_pr_checks.py downgrades RequiredState to UNKNOWN when REST cannot prove
+    which checks are required.
 
-    MergeRefUsable must be True. A missing key is never usable: build_output
-    always emits it, so a missing key means a malformed envelope.
+    When no row is marked required, RequiredState SUCCESS means the repo
+    requires no status checks (vacuous), so AllPassing decides. Any other
+    RequiredState there is unproven: the required set may come from classic
+    branch protection that REST cannot see. That is unknown, so the handoff
+    never claims required checks are green on an unproven set.
     """
-    if checks.get("MergeRefUsable") is not True:
-        return False
+    merge_ref_usable = checks.get("MergeRefUsable")
+    if merge_ref_usable is False:
+        return _CI_FAILING
+    if merge_ref_usable is not True:
+        return _CI_UNKNOWN
+    required_state = checks.get("RequiredState")
     rows = checks.get("Checks")
     has_required = isinstance(rows, list) and any(
         isinstance(row, dict) and row.get("IsRequired") is True for row in rows
     )
     if has_required:
-        return checks.get("RequiredState") == "SUCCESS"
-    return checks.get("AllPassing") is True
+        if required_state == "SUCCESS":
+            return _CI_GREEN
+        if required_state in ("FAILURE", "PENDING"):
+            return _CI_FAILING
+        return _CI_UNKNOWN
+    if required_state != "SUCCESS":
+        return _CI_UNKNOWN
+    return _CI_GREEN if checks.get("AllPassing") is True else _CI_FAILING
 
 
 def _fetch_inputs(
     owner: str, repo: str, pr: int
-) -> tuple[dict[str, Any], bool, list[dict[str, Any]]]:
-    """Fetch PR context, CI verdict, and reviews. Raises RuntimeError on failure."""
+) -> tuple[dict[str, Any], str, list[dict[str, Any]]]:
+    """Fetch PR context, CI state, and reviews. Raises RuntimeError on failure."""
     args = _common_args(owner, repo, pr)
     code, context = _run_sibling("get_pr_context.py", args)
     if code != 0 or context is None:
@@ -350,8 +370,9 @@ def _fetch_inputs(
     # CI is green when the required checks pass. AllPassing also counts optional
     # checks, and one that waits on an environment approval stays pending forever
     # (issue #6632). With no required check it is the only signal left, so
-    # _required_checks_green falls back to it. The call omits --required-only: with no ruleset contexts on the
-    # REST fallback that flag exits 3, which is outside _CHECKS_VERDICT_EXITS.
+    # _ci_state falls back to it. The call omits --required-only: with no
+    # ruleset contexts on the REST fallback that flag exits 3, which is outside
+    # _CHECKS_VERDICT_EXITS.
     checks_code, checks = _run_sibling("get_pr_checks.py", args)
     if checks is None or checks_code not in _CHECKS_VERDICT_EXITS:
         raise RuntimeError(
@@ -361,7 +382,7 @@ def _fetch_inputs(
     reviews = review_data.get("reviews") if review_data else None
     if code != 0 or not isinstance(reviews, list):
         raise RuntimeError(f"get_pr_reviews.py failed for PR #{pr} (exit {code})")
-    return context, _required_checks_green(checks), reviews
+    return context, _ci_state(checks), reviews
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -372,7 +393,7 @@ def main(argv: list[str] | None = None) -> int:
     owner, repo, pr = resolved.owner, resolved.repo, args.pull_request
 
     try:
-        context, ci_green, reviews = _fetch_inputs(owner, repo, pr)
+        context, ci_state, reviews = _fetch_inputs(owner, repo, pr)
     except (RuntimeError, subprocess.TimeoutExpired) as exc:
         write_skill_error(
             str(exc) or "sibling script timed out",
@@ -389,7 +410,7 @@ def main(argv: list[str] | None = None) -> int:
         repo=repo,
         pr_number=pr,
         pr=context,
-        ci_green=ci_green,
+        ci_state=ci_state,
         reviews=reviews,
     )
     write_skill_output(
