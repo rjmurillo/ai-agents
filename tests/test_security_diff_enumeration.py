@@ -352,27 +352,13 @@ def blocked_is_conditional(text: str) -> str | None:
 # allowlist, so MCP servers whose names vary by install stay reachable, and they
 # subtract the mutators through `disallowedTools`. The checks below pin that shape.
 
-# Built-in mutators the deny list must name. `Write` is included: the agent returns
-# its report to the caller instead of writing it.
-DENIED_CLAUDE_TOOLS = ("Bash", "Edit", "Write", "MultiEdit", "NotebookEdit")
+# Built-in tools the deny list must name. `Write` is not here: `security` writes its
+# reports and held `Write` on origin/main, so it keeps it. The invariant is #5356: no
+# shell and no editor of existing files.
+DENIED_CLAUDE_TOOLS = ("Bash", "Edit", "MultiEdit", "NotebookEdit")
 
-# Mutating GitHub tools the Claude deny list must name under every prefix variant.
-MUTATING_GITHUB_TOOLS = (
-    "issue_write",
-    "add_issue_comment",
-    "pull_request_review_write",
-    "create_pull_request",
-    "update_pull_request",
-    "merge_pull_request",
-    "push_files",
-    "create_or_update_file",
-    "run_workflow",
-)
-GITHUB_PREFIX_VARIANTS = (
-    "mcp__github",
-    "mcp__plugin_github_github",
-    "mcp__claude_ai_GitHub",
-)
+# Serena tools that run a command or edit local code, denied under `mcp__serena__`.
+SERENA_LOCAL_TOOLS = ("execute_shell_command", "create_text_file", "replace_content")
 
 # Deny entries: a bare tool name or an MCP name with any-case connector segment.
 DENY_ENTRY_NAME = re.compile(r"^([A-Z][A-Za-z0-9]*|mcp__[A-Za-z0-9_]+__[a-z0-9_]+)$")
@@ -422,12 +408,22 @@ def test_claude_surface_denies_the_shell_and_every_editor(path: Path) -> None:
 
 
 @pytest.mark.parametrize("path", CLAUDE_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
-def test_claude_surface_denies_remote_mutation_under_every_prefix(path: Path) -> None:
+def test_claude_surface_denies_serena_shell_and_code_editors(path: Path) -> None:
     denied = _deny_list(path)
 
-    expected = tuple(f"{p}__{t}" for p in GITHUB_PREFIX_VARIANTS for t in MUTATING_GITHUB_TOOLS)
-    missing = find_missing_tools(denied, expected)
-    assert not missing, f"{path.relative_to(REPO_ROOT)}: remote-mutating tools not denied {missing}"
+    expected = tuple(f"mcp__serena__{tool}" for tool in SERENA_LOCAL_TOOLS)
+    assert not find_missing_tools(denied, expected)
+
+
+@pytest.mark.parametrize("path", CLAUDE_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))
+def test_claude_surface_keeps_the_report_write_and_memory_tools(path: Path) -> None:
+    """Capabilities held on origin/main are never removed (owner decision D3)."""
+    denied = _deny_list(path)
+
+    kept = find_present_tools(
+        denied, ("Write", "mcp__serena__write_memory", "mcp__serena__edit_memory")
+    )
+    assert not kept, f"{path.relative_to(REPO_ROOT)}: denies capabilities security held: {kept}"
 
 
 @pytest.mark.parametrize("path", CLAUDE_SURFACES, ids=lambda p: str(p.relative_to(REPO_ROOT)))

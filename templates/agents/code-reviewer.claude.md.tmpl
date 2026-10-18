@@ -7,14 +7,13 @@ metadata:
   role: executor
 # Runs the review contract in fresh context with read-only tools, apart from the implementer.
 isolation_required: true
-# No `tools:` key: inherit every session tool, then subtract mutators. See ADR-107,
-# "Read-only agents inherit tools". The read-only promise is the deny list.
+# No `tools:` key: inherit every session tool, deny only shell and local mutators.
+# See ADR-107, "Read-only agents inherit tools".
 disallowedTools:
   - Agent
-  - $deny:builtin-mutators
-  - $deny:serena-write
-  - $deny:github-write
-  - $deny:deepwiki-write
+  - $deny:builtin-shell-edit
+  - $deny:builtin-write
+  - $deny:serena-local
 argument-hint: Point to the diff, PR, or files to review; defaults to current working changes
 {{> code-reviewer-intro}}
 

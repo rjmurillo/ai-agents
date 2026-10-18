@@ -26,8 +26,9 @@ Stanza keys (all under ``artifacts.agents``):
 
 ``readonly`` is derived, never guessed: an agent without a ``tools`` list gets
 no ``readonly`` key (it is unrestricted in Claude too), unless it carries a
-``disallowedTools`` list that denies every built-in shell and file mutator. Cursor documents no
-tool allow-list for subagents, so ``readonly: true`` is the only tool
+``disallowedTools`` list that denies every built-in shell and file mutator. A deny-list
+agent that leaves one of them open (``security`` keeps ``Write``) is not shipped.
+Cursor documents no tool allow-list for subagents, so ``readonly: true`` is the only tool
 restriction it can carry. ADR-115 Decision 3: an agent whose ``tools`` list is
 non-empty but not all read-only has a restriction ``readonly`` cannot express,
 and copying it would hand it every tool, shell included. With
@@ -149,7 +150,7 @@ def derive_readonly(frontmatter: dict[str, object]) -> bool:
     """
     tools = declared_tools(frontmatter)
     if tools is None and agent_capabilities.is_deny_list_member(frontmatter):
-        return not agent_capabilities.uncovered_mutators(frontmatter)
+        return not agent_capabilities.uncovered_mutators(frontmatter, include_write=True)
     return bool(tools) and all(is_readonly_tool(tool) for tool in tools or [])
 
 
@@ -159,7 +160,10 @@ def has_inexpressible_restriction(frontmatter: dict[str, object]) -> bool:
     An empty list or empty string restricts the agent to nothing. Cursor has no
     way to say that, so it fails closed like any other non-read-only list.
     """
-    return declared_tools(frontmatter) is not None and not derive_readonly(frontmatter)
+    restricted = declared_tools(frontmatter) is not None
+    if agent_capabilities.is_deny_list_member(frontmatter):
+        restricted = True
+    return restricted and not derive_readonly(frontmatter)
 
 
 def render_agent(

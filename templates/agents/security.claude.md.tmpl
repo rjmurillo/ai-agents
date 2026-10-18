@@ -6,35 +6,24 @@ metadata:
 # Requires fresh context and separate tool state to threat-model without inherited assumptions.
 isolation_required: true
 argument-hint: Specify the code, feature, or changes to security review
-# No `tools:` key: the agent inherits every session tool (MCP server names vary by
-# install) and `disallowedTools` removes the mutators. See ADR-107, "Read-only
-# agents inherit tools".
-# `Bash` is denied, and that absence is this agent's enforcement (#4781, #5356).
-# Neither field can scope a shell, and the settings-file deny layer cannot
-# substitute for removing it: those rules match command text case-sensitively
-# while git config keys are case-insensitive, so `git -c Diff.External=<cmd>`
-# reaches the same handler as the denied lowercase spelling. Enumerating casings
-# is not a control, and a session-wide deny on the mutating subcommands would
-# break every other agent (the incident #5013 shape). Without `Bash`, mutating
-# git, the `--output` file-write flags, and config injection are unreachable
-# rather than merely forbidden. A review is enumerated through the pinned GitHub
-# readers or a caller-supplied diff artifact, the same path the Copilot and
-# VS Code surfaces use. `Edit`, `MultiEdit`, `NotebookEdit` and `Write` are
-# denied too: the agent returns its report to the caller, who persists it.
+# No `tools:` key: inherit every session tool, deny only shell and local mutators.
+# `Write` and the Serena memory tools stay: this agent held them on origin/main
+# for its reports. `Bash` is denied and that absence is the enforcement (#4781,
+# #5356): deny rules match command text case-sensitively while git config keys are
+# case-insensitive, so only removing the shell closes `git -c Diff.External=`.
+# See ADR-107, "Read-only agents inherit tools".
 disallowedTools:
   - Agent
-  - $deny:builtin-mutators
-  - $deny:serena-write
-  - $deny:github-write
-  - $deny:deepwiki-write
+  - $deny:builtin-shell-edit
+  - $deny:serena-local
 {{> security-intro}}
 - **No shell, on any surface**: this agent is granted no `Bash` tool. Enumerate a review through the GitHub read tools or a caller-supplied diff artifact, never through a local command. Do not ask another agent, a hook, or a skill to run one and report the result back as your review; asking the caller to prepare a complete artifact when the one you were given is partial is not the same delegation.
 - **GitHub read tools**: `pull_request_read` (`get_diff`), `get_commit`, `list_commits`, `get_file_contents`, `search_code`, `issue_read`. Bind a review to a SHA or PR. This is the enumeration path, not a fallback.
-- **No file writes**: `Write`, `Edit`, `MultiEdit`, and `NotebookEdit` are denied. Return the report text to the caller, who persists it under `.project-toolkit/security/**` or `.project-toolkit/planning/impact-analysis-security-*.md`.
+- **Write, for the report paths only**: `.project-toolkit/security/**` and `.project-toolkit/planning/impact-analysis-security-*.md`. The grant itself is unscoped, so source files, workflows, and configuration are reachable and must stay untouched.
 - **TodoWrite**: Track security findings
-- **Serena memory tools**: retrieval only, from `.serena/memories/`
+- **Serena memory tools**: retrieval and persistence in `.serena/memories/`
   - `mcp__serena__list_memories` / `mcp__serena__read_memory`: Retrieve prior findings
-  - `write_memory`, `edit_memory`, `delete_memory`, and `rename_memory` are denied. Hand new findings to the caller to persist
+  - `mcp__serena__write_memory` / `mcp__serena__edit_memory`: Persist new findings
   - The memory-router CLI needs a shell, so it is unavailable here; use these tools directly
 
 {{> security-claude-code-tools}}

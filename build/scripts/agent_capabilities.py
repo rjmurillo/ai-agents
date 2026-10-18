@@ -304,17 +304,22 @@ def is_deny_list_member(frontmatter: dict[str, object]) -> bool:
     return bool(denied & _claude_mutators())
 
 
-def uncovered_mutators(frontmatter: dict[str, object]) -> list[str]:
+def uncovered_mutators(frontmatter: dict[str, object], *, include_write: bool = False) -> list[str]:
     """Return Claude built-in mutator tools a deny-list member fails to deny.
 
     Empty when the member is not deny-list shaped, because then the ordinary
     ``tools`` comparison owns the question. A member that omits ``tools``
-    inherits every tool, so each built-in mutator must be denied by name.
+    inherits every tool, so the shell and the editors must be denied by name.
+    ``Write`` is required only with ``include_write``: ``security`` held it on
+    origin/main for its reports and keeps it, and an agent never loses a
+    capability it already had. The Cursor ``readonly`` derivation passes
+    ``include_write=True`` because ``readonly`` means no file writes at all.
     """
     if not is_deny_list_member(frontmatter):
         return []
     denied = set(_names(frontmatter["disallowedTools"], "disallowedTools"))
-    return sorted(_claude_mutators() - denied)
+    required = _claude_mutators() if include_write else _claude_mutators() - {"Write"}
+    return sorted(required - denied)
 
 
 def reduce_deny_list_member(

@@ -9,6 +9,7 @@ the same frontmatter.
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -121,70 +122,43 @@ class TestExpandDeny:
 
 
 class TestLiveTable:
-    @pytest.mark.parametrize(
-        "name", ["serena-write", "github-write", "deepwiki-write", "builtin-mutators"]
-    )
-    def test_every_endorsed_list_expands(self, name: str) -> None:
+    @pytest.mark.parametrize("name", ["serena-local", "builtin-shell-edit", "builtin-write"])
+    def test_every_list_expands(self, name: str) -> None:
         assert caps.expand_deny(name, LIVE)
 
-    def test_serena_write_covers_all_variants(self) -> None:
-        got = set(caps.expand_deny("serena-write", LIVE))
+    @pytest.mark.parametrize("name", ["serena-write", "github-write", "deepwiki-write"])
+    def test_remote_and_memory_lists_were_dropped(self, name: str) -> None:
+        """Owner decision D3: remote writes follow the user's permission rules."""
+        with pytest.raises(caps.CapabilityError, match="unknown deny list"):
+            caps.expand_deny(name, LIVE)
 
-        for prefix in ("mcp__serena", "mcp__plugin_serena_serena", "mcp__claude_ai_Serena"):
-            for tool in ("write_memory", "edit_memory", "delete_memory", "rename_symbol"):
-                assert f"{prefix}__{tool}" in got
+    def test_serena_local_is_emitted_under_the_mcp_json_prefix(self) -> None:
+        got = caps.expand_deny("serena-local", LIVE)
 
-    def test_github_write_covers_all_variants(self) -> None:
-        got = set(caps.expand_deny("github-write", LIVE))
+        assert all(entry.startswith("mcp__serena__") for entry in got)
+        assert "mcp__serena__execute_shell_command" in got
+        assert len(got) == len(set(got)) == 13
 
-        for prefix in ("mcp__github", "mcp__plugin_github_github", "mcp__claude_ai_GitHub"):
-            assert f"{prefix}__merge_pull_request" in got
-            assert f"{prefix}__issue_write" in got
+    def test_serena_memory_tools_are_not_denied(self) -> None:
+        got = {e.rsplit("__", 1)[1] for e in caps.expand_deny("serena-local", LIVE)}
 
-    def test_builtin_mutators_cover_shell_and_editors(self) -> None:
-        assert set(caps.expand_deny("builtin-mutators", LIVE)) == {
+        assert got.isdisjoint({"write_memory", "edit_memory", "delete_memory", "rename_memory"})
+
+    def test_builtin_lists_split_write_from_the_shell_and_editors(self) -> None:
+        assert caps.expand_deny("builtin-shell-edit", LIVE) == [
             "Bash",
             "Edit",
-            "Write",
             "MultiEdit",
             "NotebookEdit",
-        }
+        ]
+        assert caps.expand_deny("builtin-write", LIVE) == ["Write"]
 
-    @pytest.mark.parametrize("name", ["serena-write", "github-write", "deepwiki-write"])
-    def test_read_tools_are_never_denied(self, name: str) -> None:
-        denied_tools = {entry.rsplit("__", 1)[1] for entry in caps.expand_deny(name, LIVE)}
+    def test_read_tools_are_never_denied(self) -> None:
+        denied_tools = {e.rsplit("__", 1)[1] for e in caps.expand_deny("serena-local", LIVE)}
 
         assert denied_tools.isdisjoint(READ_TOOLS)
 
-    def test_serena_shell_tool_is_denied_under_every_variant(self) -> None:
-        got = set(caps.expand_deny("serena-write", LIVE))
-
-        for prefix in (
-            "mcp__serena",
-            "mcp__plugin_serena_serena",
-            "mcp__claude_ai_Serena",
-        ):
-            assert f"{prefix}__execute_shell_command" in got
-
-    def test_deepwiki_multiplexers_are_denied_and_readers_are_not(self) -> None:
-        denied = {e.rsplit("__", 1)[1] for e in caps.expand_deny("deepwiki-write", LIVE)}
-
-        assert {"devin_session_interact", "devin_knowledge_manage", "generate_wiki"} <= denied
-        assert denied.isdisjoint(
-            {
-                "read_wiki_structure",
-                "read_wiki_contents",
-                "ask_wiki_question",
-                "list_wiki_repos",
-                "devin_session_search",
-                "devin_session_events",
-                "devin_user_list",
-                "devin_list_integrations",
-                "devin_find_setting",
-            }
-        )
-
-    def test_every_mcp_json_server_has_a_deny_table_entry(self) -> None:
+    def test_every_mcp_json_server_is_covered_or_marked_remote_only(self) -> None:
         configured = json.loads((_REPO_ROOT / ".mcp.json").read_text(encoding="utf-8"))
         servers = configured.get("mcpServers", configured)
         covered = {
@@ -194,12 +168,16 @@ class TestLiveTable:
         }
 
         for name in servers:
-            assert name in LIVE["servers"], f".mcp.json server {name!r} has no `servers` entry"
-            assert name in covered, f".mcp.json server {name!r} has no deny list"
+            entry = LIVE["servers"].get(name)
+            assert isinstance(entry, dict), f".mcp.json server {name!r} has no `servers` entry"
+            remote_only = entry.get("remote_only")
+            assert name in covered or (isinstance(remote_only, str) and remote_only.strip()), (
+                f".mcp.json server {name!r} has no deny list and no remote_only reason"
+            )
 
-    def test_every_denied_mcp_entry_is_classified_as_its_server(self) -> None:
-        for entry in caps.expand_deny("serena-write", LIVE)[:1]:
-            assert caps.classify(entry)[0] == "mcp:serena"
+    def test_serena_must_map_to_a_deny_list(self) -> None:
+        assert "remote_only" not in LIVE["servers"]["serena"]
+        assert any(e.get("server") == "serena" for e in LIVE["denylists"].values())
 
 
 class TestExpandFrontmatter:
@@ -261,10 +239,17 @@ class TestLoadDenylists:
 
 class TestMutatorCoverage:
     FULL = {"disallowedTools": ["Agent", "Bash", "Edit", "Write", "MultiEdit", "NotebookEdit"]}
+    NO_WRITE = {"disallowedTools": ["Agent", "Bash", "Edit", "MultiEdit", "NotebookEdit"]}
 
     def test_full_list_is_covered(self) -> None:
         assert caps.is_deny_list_member(self.FULL)
         assert caps.uncovered_mutators(self.FULL) == []
+        assert caps.uncovered_mutators(self.FULL, include_write=True) == []
+
+    def test_write_is_optional_unless_asked_for(self) -> None:
+        """`security` keeps Write, so the parity gate must not demand it."""
+        assert caps.uncovered_mutators(self.NO_WRITE) == []
+        assert caps.uncovered_mutators(self.NO_WRITE, include_write=True) == ["Write"]
 
     def test_comma_string_form_is_read(self) -> None:
         fm = {"disallowedTools": "Bash, Edit, Write, MultiEdit, NotebookEdit"}
@@ -275,7 +260,6 @@ class TestMutatorCoverage:
             "Edit",
             "MultiEdit",
             "NotebookEdit",
-            "Write",
         ]
 
     def test_agent_only_deny_is_not_a_deny_list_member(self) -> None:
@@ -447,7 +431,9 @@ class TestLiveReadOnlyAgentsAreNotGrantedBash:
 
         assert "tools:" not in lines
         assert "disallowedTools:" in lines
-        assert "  - $deny:builtin-mutators" in lines
+        assert "  - $deny:builtin-shell-edit" in lines
+        assert "  - $deny:serena-local" in lines
+        assert ("  - $deny:builtin-write" in lines) == (stem != "security")
 
     @pytest.mark.parametrize("stem", AGENTS)
     def test_granting_bash_in_the_live_template_fails_the_gate(
@@ -464,14 +450,11 @@ class TestLiveReadOnlyAgentsAreNotGrantedBash:
 
         path = tmp_path / "templates" / "agents" / f"{stem}.claude.md.tmpl"
         text = path.read_text(encoding="utf-8")
-        assert "disallowedTools:\n  - Agent\n  - $deny:builtin-mutators\n" in text
-        path.write_text(
-            text.replace(
-                "disallowedTools:\n  - Agent\n  - $deny:builtin-mutators\n",
-                "tools:\n  - Read\n  - Bash\n",
-            ),
-            encoding="utf-8",
+        granted, count = re.subn(
+            r"^disallowedTools:\n(?:  - .*\n)+", "tools:\n  - Read\n  - Bash\n", text, flags=re.M
         )
+        assert count == 1
+        path.write_text(granted, encoding="utf-8")
 
         assert gate.main(["--repo-root", str(tmp_path)]) == gate.EXIT_DIVERGED
 
@@ -484,6 +467,15 @@ class TestCursorReadonlyDerivation:
 
     def test_partial_deny_list_does_not_earn_readonly(self) -> None:
         assert not agent_tree_copy.derive_readonly({"disallowedTools": ["Bash"]})
+
+    def test_deny_list_that_keeps_write_is_not_shipped(self) -> None:
+        """`security` keeps Write: readonly would be false, and Cursor has no deny list."""
+        fm = {"disallowedTools": ["Agent", "Bash", "Edit", "MultiEdit", "NotebookEdit"]}
+        assert not agent_tree_copy.derive_readonly(fm)
+        assert agent_tree_copy.has_inexpressible_restriction(fm)
+
+    def test_agent_only_deny_is_not_a_restriction(self) -> None:
+        assert not agent_tree_copy.has_inexpressible_restriction({"disallowedTools": "Agent"})
 
     def test_agent_only_deny_does_not_earn_readonly(self) -> None:
         assert not agent_tree_copy.derive_readonly({"disallowedTools": "Agent"})

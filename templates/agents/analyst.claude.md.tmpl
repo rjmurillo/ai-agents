@@ -4,15 +4,13 @@ description: Research and investigation specialist who digs deep into root cause
 metadata:
   role: support
 argument-hint: Describe the topic, issue, or feature to research
-# No `tools:` key: the agent inherits every session tool, so MCP servers whose names
-# vary by install (.mcp.json, plugin, claude.ai connector) stay reachable. The
-# deny list removes the mutators. See ADR-107, "Read-only agents inherit tools".
+# No `tools:` key: inherit every session tool, deny only shell and local mutators.
+# See ADR-107, "Read-only agents inherit tools".
 disallowedTools:
   - Agent
-  - $deny:builtin-mutators
-  - $deny:serena-write
-  - $deny:github-write
-  - $deny:deepwiki-write
+  - $deny:builtin-shell-edit
+  - $deny:builtin-write
+  - $deny:serena-local
 {{> analyst-intro}}
    - Level 3: External documentation fetched in this session (Context7, DeepWiki MCP).
    - Level 4: Training knowledge. "I recall" and "X probably is" are Level 4. Do not publish Level 4 claims. Move them to Open Questions or remove them.
