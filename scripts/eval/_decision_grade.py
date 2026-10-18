@@ -40,13 +40,17 @@ from typing import Any
 # A prose line such as "Decision: I would run rg first." is then not read as a
 # contract line and cannot make a correct response ambiguous. Only the token is
 # case-insensitive.
+# Both contract lines are same-line: the value follows the colon on the same
+# line. "DECISION:" with the token on the next line is a labeled line that is
+# not one bare token (ambiguous_decision), and "EVIDENCE:" with the value on
+# the next line grades no_evidence_line.
 # The token must be the whole value: only emphasis marks and a closing period
 # may follow it. "DECISION: REUSE or BUILD" is therefore not a REUSE line. It
 # is a labeled line that is not one bare token, and it is graded ambiguous.
 _LINE_PREFIX = r"^[\s>*_`\-]*(?:\d+[.)][\s>*_`]*)?"
 _DECISION_LABEL = _LINE_PREFIX + r"DECISION[\s*_`]*:"
 _DECISION_RE = re.compile(
-    _DECISION_LABEL + r"[\s*_`]*((?i:[A-Z][A-Z_]*))[ \t\r*_`.]*$",
+    _DECISION_LABEL + r"[ \t*_`]*((?i:[A-Z][A-Z_]*))[ \t\r*_`.]*$",
     re.MULTILINE,
 )
 _DECISION_LABEL_RE = re.compile(_DECISION_LABEL, re.MULTILINE)

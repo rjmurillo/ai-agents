@@ -84,6 +84,14 @@ class TestGradeDecision:
         text = "1. I will measure.\nEVIDENCE: rg -c foo"
         assert dg.grade_decision(SPEC, text).reason == dg.REASON_NO_DECISION
 
+    def test_decision_token_on_the_next_line_is_not_a_bare_token(self) -> None:
+        result = dg.grade_decision(SPEC, "DECISION:\nMEASURE\nEVIDENCE: rg -c foo")
+        assert (result.passed, result.reason) == (False, dg.REASON_AMBIGUOUS)
+
+    def test_evidence_value_on_the_next_line_grades_no_evidence(self) -> None:
+        result = dg.grade_decision(SPEC, "DECISION: MEASURE\nEVIDENCE:\nrg -c foo")
+        assert (result.passed, result.reason) == (False, dg.REASON_NO_EVIDENCE)
+
     def test_no_decision_line(self) -> None:
         result = dg.grade_decision(SPEC, "I would measure it. EVIDENCE: rg foo")
         assert (result.passed, result.reason) == (False, dg.REASON_NO_DECISION)
