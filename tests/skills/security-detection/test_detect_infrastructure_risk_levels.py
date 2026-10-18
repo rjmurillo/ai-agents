@@ -112,6 +112,7 @@ class TestAuthFilenamePattern:
             "lib/authorship.js",
             "lib/authored_by.py",
             "lib/AuthorsList.cs",
+            "lib/authorial.py",
         ],
     )
     def test_author_words_are_not_critical(self, path: str) -> None:
