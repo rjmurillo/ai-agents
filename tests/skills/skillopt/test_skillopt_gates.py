@@ -142,6 +142,76 @@ class TestPairGate:
         assert report["verdict"] == "REJECT"
         assert report["regressions"] == ["s1"]
 
+    def test_ceiling_when_incumbent_passes_every_sel_task(self) -> None:
+        report = skillopt.pair_gate(self.EVAL, self.ALL_PASS, dict(self.ALL_PASS))
+        assert report["accepted"] is False
+        assert report["verdict"] == "REJECT_CEILING"
+        assert (report["incumbent_passes"], report["selection_tasks"]) == (3, 3)
+        assert report["gains"] == []
+        assert report["regressions"] == []
+        assert list(report)[-1] == "hint"
+        assert "harder sel tasks" in report["hint"]
+        assert "skillforge" in report["hint"]
+
+    def test_ceiling_with_single_sel_task(self) -> None:
+        report = skillopt.pair_gate({"splits": {"sel": ["a"]}}, {"a": True}, {"a": True})
+        assert report["verdict"] == "REJECT_CEILING"
+
+    def test_ceiling_with_train_gain_still_ceiling_on_sel(self) -> None:
+        eval_set = {"splits": {"sel": ["a", "b"], "train": ["t"]}}
+        sel = skillopt.pair_gate(
+            eval_set, {"a": True, "b": True}, {"a": True, "b": True, "t": True}
+        )
+        train = skillopt.pair_gate(eval_set, {"t": False}, {"t": True}, split="train")
+        assert sel["verdict"] == "REJECT_CEILING"
+        assert train["verdict"] == "ACCEPT_PARETO"
+
+    def test_no_ceiling_when_incumbent_below_full_pass(self) -> None:
+        report = skillopt.pair_gate(self.EVAL, self.BASE, dict(self.BASE))
+        assert report["verdict"] == "REJECT"
+        assert "hint" not in report
+
+    def test_no_ceiling_when_candidate_regresses(self) -> None:
+        candidate = {"s1": True, "s2": False, "ctx": True}
+        report = skillopt.pair_gate(self.EVAL, self.ALL_PASS, candidate)
+        assert report["verdict"] == "REJECT"
+        assert report["regressions"] == ["s2"]
+        assert "hint" not in report
+
+    def test_train_split_never_reports_ceiling(self) -> None:
+        eval_set = {"splits": {"sel": ["a"], "train": ["t"]}}
+        report = skillopt.pair_gate(eval_set, {"t": True}, {"t": True}, split="train")
+        assert report["verdict"] == "REJECT"
+        assert "hint" not in report
+
+    def test_unverified_outranks_ceiling(self) -> None:
+        candidate = {**self.ALL_PASS, "ctx": "UNVERIFIED"}
+        report = skillopt.pair_gate(self.EVAL, self.ALL_PASS, candidate)
+        assert report["verdict"] == "REJECT_UNVERIFIED"
+        assert "hint" not in report
+
+    def test_null_control_outranks_ceiling(self) -> None:
+        null = {"s1": True, "s2": True, "ctx": False}
+        report = skillopt.pair_gate(
+            self.EVAL, self.ALL_PASS, dict(self.ALL_PASS), null_results=null, **self.SHA
+        )
+        assert report["null_regressions"] == ["ctx"]
+        assert report["verdict"] == "REJECT_NULL_CONTROL"
+        assert "hint" not in report
+
+    def test_quiet_null_control_at_ceiling_reports_ceiling(self) -> None:
+        report = skillopt.pair_gate(
+            self.EVAL, self.ALL_PASS, dict(self.ALL_PASS), null_results=dict(self.ALL_PASS),
+            **self.SHA,
+        )  # fmt: skip
+        assert report["verdict"] == "REJECT_CEILING"
+        assert list(report)[-1] == "hint"
+
+    def test_exposed_sel_task_still_raises_at_ceiling(self) -> None:
+        eval_set = {"splits": {"sel": ["a"]}, "exposed": ["a"]}
+        with pytest.raises(SkillOptError, match="exposed or invalid"):
+            skillopt.pair_gate(eval_set, {"a": True}, {"a": True})
+
     def test_other_split(self) -> None:
         eval_set = {"splits": {"sel": ["a"], "dev": ["b"]}}
         report = skillopt.pair_gate(eval_set, {"b": False}, {"b": True}, split="dev")

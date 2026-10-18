@@ -15,6 +15,14 @@ SCORER_VALUES = ("deterministic", "nondeterministic")
 
 _SHA256_RE = re.compile(r"[0-9a-fA-F]{64}")
 
+# Next step printed with REJECT_CEILING. The incumbent already passes every
+# held-out task, so no candidate can show a gain on this split.
+CEILING_HINT = (
+    "The incumbent already passes every held-out task, so no candidate can show a gain. "
+    "Add harder sel tasks that sample the failure mode, then re-score the incumbent. "
+    "For a first draft whose sel tasks came from its own requirements, hand back to skillforge."
+)
+
 
 # --------------------------------------------------------------------------- #
 # Validation gates: scalar strict-greater and per-task strict Pareto
@@ -94,6 +102,12 @@ def _verdict(report: dict[str, Any], has_null: bool) -> str:
         null_moved = report["null_gains"] or report["null_regressions"]
         if null_moved and not report["genuine_gains"]:
             return "REJECT_NULL_CONTROL"
+    if (
+        report["split"] == "sel"
+        and report["incumbent_passes"] == report["selection_tasks"]
+        and not report["regressions"]
+    ):
+        return "REJECT_CEILING"
     gained = report["genuine_gains"] if has_null else report["gains"]
     return "ACCEPT_PARETO" if gained and not report["regressions"] else "REJECT"
 
@@ -159,7 +173,12 @@ def pair_gate(
         If the null run moved and no genuine gain remains, REJECT_NULL_CONTROL.
         null_results requires incumbent_sha256 and null_sha256 (from the
         `hash` subcommand) and they must match, proving the null run used the
-        byte-identical incumbent.
+        byte-identical incumbent;
+      - on the "sel" split, an incumbent that already passes every task with
+        no candidate regression is REJECT_CEILING, not REJECT: no gain is
+        possible, so the report adds a `hint` naming the next step. Verdict
+        precedence is UNVERIFIED, NULL_CONTROL, CEILING, then ACCEPT_PARETO or
+        REJECT.
     """
     task_ids = _split_task_ids(eval_set, split)
     _assert_gate_preconditions(eval_set, split, null_results, incumbent_sha256, null_sha256)
@@ -186,6 +205,8 @@ def pair_gate(
         report.update(_null_control(task_ids, incumbent_set, null_results, gains))
     report["verdict"] = _verdict(report, null_results is not None)
     report["accepted"] = report["verdict"] == "ACCEPT_PARETO"
+    if report["verdict"] == "REJECT_CEILING":
+        report["hint"] = CEILING_HINT
     ordered = ["accepted", "verdict", *[k for k in report if k not in ("accepted", "verdict")]]
     return {key: report[key] for key in ordered}
 

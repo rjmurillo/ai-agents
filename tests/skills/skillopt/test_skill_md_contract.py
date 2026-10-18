@@ -23,7 +23,13 @@ TRIGGERS = (
     "compress these skills safely",
     "tune this prompt against an eval",
 )
-VERDICTS = ("ACCEPT_PARETO", "REJECT", "REJECT_UNVERIFIED", "REJECT_NULL_CONTROL")
+VERDICTS = (
+    "ACCEPT_PARETO",
+    "REJECT",
+    "REJECT_UNVERIFIED",
+    "REJECT_NULL_CONTROL",
+    "REJECT_CEILING",
+)
 BUNDLED = (
     "scripts/skillopt.py",
     "scripts/mine_sessions.py",
