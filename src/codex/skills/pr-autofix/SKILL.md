@@ -839,7 +839,7 @@ posts nothing, and exits 0 with `Data.verdict`. A nonzero exit is an unknown: ne
 | `Data.verdict` | Meaning | Action |
 |----------------|---------|--------|
 | `NO_BOT_CHANGES_REQUESTED` | No bot holds an active `CHANGES_REQUESTED` review | The block is another outside gate: stop |
-| `NOT_READY` | A bot holds one, but `Data.reasons` lists open work (thread, CI, `BEHIND`, `DIRTY`, an incomplete thread count, or an unknown head SHA) | Finish open work. An incomplete count or unknown head SHA is an unknown: re-run the detector, do not fix anything. Then run the detector again |
+| `NOT_READY` | A bot holds one, but `Data.reasons` lists open work (thread, a required check not passing, `BEHIND`, `DIRTY`, an incomplete thread count, or an unknown head SHA) | Finish open work. An incomplete count or unknown head SHA is an unknown: re-run the detector, do not fix anything. Then run the detector again |
 | `FRESH_CHANGES_REQUESTED` | The review is on the current head | Address its findings through the thread lifecycle |
 | `REQUEST_REREVIEW` | Stale review, PR ready, no bot review at head yet | For each `Data.bots[]` entry whose `action` is `REQUEST_REREVIEW`, post its `rereview_trigger` as a PR comment once per head SHA. First read the PR comments: if that trigger was already posted since the last push, wait instead. Then run the detector again. `Data.handoff` stays null on this verdict even when another bot is handoff-ready; the next run produces it |
 | `DISMISSAL_HANDOFF` | Stale review, PR ready, and the bot already reviewed head (or has no known trigger) | Give `Data.handoff` to the human verbatim and stop |
@@ -847,7 +847,7 @@ posts nothing, and exits 0 with `Data.verdict`. A nonzero exit is an unknown: ne
 An `APPROVED` bot review at head supersedes the stale one, so the detector reports
 `NO_BOT_CHANGES_REQUESTED`. The handoff carries the review id, the reviewed commit,
 the `PUT .../reviews/{id}/dismissals` command, and what the detector checked (every
-thread resolved, CI green, review older than head). It does not check that later
+thread resolved, required CI checks green, review older than head). It does not check that later
 commits fixed each finding, so the human confirms that before dismissing. A bot with no verified re-review trigger goes straight to the
 handoff; the script never guesses one.
 

@@ -250,6 +250,18 @@ def test_dismissal_command_is_a_single_put_to_the_dismissals_endpoint():
 # --- main() wiring -------------------------------------------------------
 
 
+def _checks(
+    required_state: str = "SUCCESS",
+    all_passing: bool = True,
+    merge_ref_usable: bool | None = True,
+) -> dict[str, Any]:
+    """Build a get_pr_checks.py Data payload. A None merge_ref_usable omits the key."""
+    data: dict[str, Any] = {"RequiredState": required_state, "AllPassing": all_passing}
+    if merge_ref_usable is not None:
+        data["MergeRefUsable"] = merge_ref_usable
+    return data
+
+
 def _siblings(context, checks, reviews, calls):
     def fake(script, args):
         calls.append(script)
@@ -279,7 +291,7 @@ class TestMain:
     def test_emits_handoff_envelope_and_only_reads(self, capsys):
         calls: list[str] = []
         rereview = _review(101, CODERABBIT, "COMMENTED", HEAD, "2026-09-02T00:00:00Z")
-        fake = _siblings(_pr(), (1, {"AllPassing": True}), [_stale_cr(), rereview], calls)
+        fake = _siblings(_pr(), (0, _checks()), [_stale_cr(), rereview], calls)
 
         assert _run_main(fake) == 0
 
@@ -290,12 +302,76 @@ class TestMain:
         assert sorted(calls) == ["get_pr_checks.py", "get_pr_context.py", "get_pr_reviews.py"]
 
     def test_failing_ci_reports_not_ready(self, capsys):
-        fake = _siblings(_pr(), (1, {"AllPassing": False}), [_stale_cr()], [])
+        fake = _siblings(_pr(), (1, _checks("FAILURE", False)), [_stale_cr()], [])
         assert _run_main(fake) == 0
         assert json.loads(capsys.readouterr().out)["Data"]["verdict"] == "NOT_READY"
 
+    def test_pending_optional_checks_do_not_block_the_handoff(self, capsys):
+        # Issue #6632: PR #6431 had 9/9 required checks green and 7 optional checks
+        # in WAITING. AllPassing was False, RequiredState was SUCCESS.
+        rereview = _review(101, CODERABBIT, "COMMENTED", HEAD, "2026-09-02T00:00:00Z")
+        fake = _siblings(
+            _pr(), (0, _checks("SUCCESS", all_passing=False)), [_stale_cr(), rereview], []
+        )
+        assert _run_main(fake) == 0
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert data["verdict"] == "DISMISSAL_HANDOFF"
+        assert "reviews/100/dismissals" in data["handoff"]
+
+    def test_failing_optional_check_exit_1_does_not_block_the_handoff(self, capsys):
+        rereview = _review(101, CODERABBIT, "COMMENTED", HEAD, "2026-09-02T00:00:00Z")
+        fake = _siblings(
+            _pr(), (1, _checks("SUCCESS", all_passing=False)), [_stale_cr(), rereview], []
+        )
+        assert _run_main(fake) == 0
+        assert json.loads(capsys.readouterr().out)["Data"]["verdict"] == "DISMISSAL_HANDOFF"
+
+    @pytest.mark.parametrize("state", ["PENDING", "FAILURE", "UNKNOWN"])
+    def test_required_state_other_than_success_reports_not_ready(self, state, capsys):
+        # AllPassing True is ignored: only RequiredState decides.
+        fake = _siblings(_pr(), (0, _checks(state, all_passing=True)), [_stale_cr()], [])
+        assert _run_main(fake) == 0
+        data = json.loads(capsys.readouterr().out)["Data"]
+        assert data["verdict"] == "NOT_READY"
+        assert "CI is not passing" in data["reasons"]
+
+    def test_unusable_merge_ref_reports_not_ready_even_with_required_success(self, capsys):
+        fake = _siblings(
+            _pr(),
+            (1, _checks("SUCCESS", all_passing=False, merge_ref_usable=False)),
+            [_stale_cr()],
+            [],
+        )
+        assert _run_main(fake) == 0
+        assert json.loads(capsys.readouterr().out)["Data"]["verdict"] == "NOT_READY"
+
+    def test_missing_merge_ref_key_is_treated_as_usable(self, capsys):
+        rereview = _review(101, CODERABBIT, "COMMENTED", HEAD, "2026-09-02T00:00:00Z")
+        fake = _siblings(_pr(), (0, _checks(merge_ref_usable=None)), [_stale_cr(), rereview], [])
+        assert _run_main(fake) == 0
+        assert json.loads(capsys.readouterr().out)["Data"]["verdict"] == "DISMISSAL_HANDOFF"
+
+    def test_envelope_without_required_state_reports_not_ready(self, capsys):
+        fake = _siblings(_pr(), (0, {"AllPassing": True}), [_stale_cr()], [])
+        assert _run_main(fake) == 0
+        assert json.loads(capsys.readouterr().out)["Data"]["verdict"] == "NOT_READY"
+
+    def test_checks_call_does_not_pass_required_only(self):
+        # --required-only exits 3 on the REST fallback with no ruleset contexts,
+        # which _fetch_inputs rejects. Read RequiredState from the unflagged call.
+        seen: list[list[str]] = []
+
+        def fake(script, args):
+            if script == "get_pr_checks.py":
+                seen.append(args)
+            return _siblings(_pr(), (0, _checks()), [_stale_cr()], [])(script, args)
+
+        assert _run_main(fake) == 0
+        assert seen
+        assert all("--required-only" not in a for a in seen)
+
     def test_context_failure_exits_3(self, capsys):
-        fake = _siblings(None, (0, {"AllPassing": True}), [], [])
+        fake = _siblings(None, (0, _checks()), [], [])
         assert _run_main(fake) == 3
         assert json.loads(capsys.readouterr().out)["Success"] is False
 
@@ -305,7 +381,7 @@ class TestMain:
         assert json.loads(capsys.readouterr().out)["Success"] is False
 
     def test_incomplete_checks_exit_7_is_a_verdict(self, capsys):
-        fake = _siblings(_pr(), (7, {"AllPassing": False}), [_stale_cr()], [])
+        fake = _siblings(_pr(), (7, _checks("UNKNOWN", False)), [_stale_cr()], [])
         assert _run_main(fake) == 0
         assert json.loads(capsys.readouterr().out)["Data"]["verdict"] == "NOT_READY"
 
@@ -314,7 +390,7 @@ class TestMain:
         assert _run_main(fake) == 3
 
     def test_review_fetch_failure_exits_3(self):
-        fake = _siblings(_pr(), (0, {"AllPassing": True}), None, [])
+        fake = _siblings(_pr(), (0, _checks()), None, [])
         assert _run_main(fake) == 3
 
     def test_sibling_timeout_exits_3(self):
@@ -325,7 +401,7 @@ class TestMain:
 
     def test_human_format_prints_the_handoff(self, capsys):
         rereview = _review(101, CODERABBIT, "COMMENTED", HEAD, "2026-09-02T00:00:00Z")
-        fake = _siblings(_pr(), (0, {"AllPassing": True}), [_stale_cr(), rereview], [])
+        fake = _siblings(_pr(), (0, _checks()), [_stale_cr(), rereview], [])
         assert _run_main(fake, ["--pull-request", "7", "--output-format", "human"]) == 0
         assert "gh api -X PUT" in capsys.readouterr().out
 

@@ -308,6 +308,18 @@ def _common_args(owner: str, repo: str, pr: int) -> list[str]:
     return ["--owner", owner, "--repo", repo, "--pull-request", str(pr)]
 
 
+def _required_checks_green(checks: dict[str, Any]) -> bool:
+    """Return True when every required check passed and the merge ref is usable.
+
+    RequiredState is SUCCESS only when no required check is failing, pending, or
+    missing and the check set is complete. get_pr_checks.py downgrades it to
+    UNKNOWN when REST cannot prove which checks are required, so an unproven
+    required set is never green. Optional checks never move it. MergeRefUsable
+    False (conflicts, dirty merge state) keeps the guard AllPassing carried.
+    """
+    return checks.get("RequiredState") == "SUCCESS" and checks.get("MergeRefUsable") is not False
+
+
 def _fetch_inputs(
     owner: str, repo: str, pr: int
 ) -> tuple[dict[str, Any], bool, list[dict[str, Any]]]:
@@ -318,7 +330,11 @@ def _fetch_inputs(
         raise RuntimeError(f"get_pr_context.py failed for PR #{pr} (exit {code})")
     # get_pr_checks.py exits 0 (all pass), 1 (failing), or 7 (incomplete) with a
     # verdict. Any other exit (2 config, 3 API or ruleset error, 4 auth) carries an
-    # error envelope with no AllPassing, which is an unknown, never failing CI.
+    # error envelope with no RequiredState, which is an unknown, never failing CI.
+    # CI is green when the required checks pass. AllPassing also counts optional
+    # checks, and one that waits on an environment approval stays pending forever
+    # (issue #6632). The call omits --required-only: with no ruleset contexts on the
+    # REST fallback that flag exits 3, which is outside _CHECKS_VERDICT_EXITS.
     checks_code, checks = _run_sibling("get_pr_checks.py", args)
     if checks is None or checks_code not in _CHECKS_VERDICT_EXITS:
         raise RuntimeError(
@@ -328,7 +344,7 @@ def _fetch_inputs(
     reviews = review_data.get("reviews") if review_data else None
     if code != 0 or not isinstance(reviews, list):
         raise RuntimeError(f"get_pr_reviews.py failed for PR #{pr} (exit {code})")
-    return context, checks.get("AllPassing") is True, reviews
+    return context, _required_checks_green(checks), reviews
 
 
 def main(argv: list[str] | None = None) -> int:
