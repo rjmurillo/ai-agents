@@ -20,10 +20,6 @@ For non-trivial tasks, delegate to specialized agents via Task tool:
 ADR-064 retired `.claude/commands/`. Skills are the single user-invocable
 surface, and a blocking validator refuses a command file under any plugin root.
 
-### Default Behavior
-
-For non-trivial tasks: `Task(subagent_type="orchestrator", prompt="...")`
-
 ## Path-scoped instructions
 
 Before editing any file, read matching rules in `.claude/rules/*.md`; Claude Code reads that tree at runtime. Since ADR-109 B2 the edit location is `templates/rules/<name>.md`; `uv run python build/scripts/build_all.py` renders, mirrors, and binplaces it. A rule's `paths` frontmatter is the scope key; `check_rule_scope_keys.py` refuses any other. Universal rules live in `universal.md`.

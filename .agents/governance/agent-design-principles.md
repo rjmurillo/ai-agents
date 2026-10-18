@@ -50,6 +50,39 @@ No single symptom proves the model is below the floor. Together, and especially 
 
 ---
 
+## Operating Objective: System Capability, Not Model Competence
+
+**Statement**: Optimize verified task outcomes of the whole system. Do not optimize the model's unaided performance.
+
+Amnesiac contributors use this to choose between model reasoning, an external instrument, persistent knowledge, and an executable program.
+
+### Four parts of the system
+
+| Part | Holds | What it can and cannot do |
+|---|---|---|
+| Base model | Frozen weights | Reasons well. Does not remember across sessions. |
+| Agent system | Tools, instructions, skills, scripts | Extends what the model can do. Adds cost and surface area. |
+| External state | Memory, repository records, retrievable knowledge | Accumulates across sessions. The model reads it when needed. |
+| Measurable outcomes | Accepted results | The only evidence that the system improved. |
+
+Frozen weights do not stop the agent system from gaining useful, retrievable external state. The system can improve while the model stays the same.
+
+### Rules
+
+1. Skills and scripts are means. They are not outcomes.
+2. A successful run does not show improvement. A skill count, a script count, or instruction compliance does not either. An accepted outcome does. Issue #5768 owns outcome measurement. Do not rebuild it here.
+3. Measure a computable fact instead of asking a model to guess it.
+4. Keep model judgment for real ambiguity.
+5. Reject a new control surface when an existing rule, skill, or script can carry the job.
+
+### Scope
+
+This section changes no authority tier, safety constraint, model routing, or skill routing. It adds no skill, evaluator, or registration system.
+
+It is a different rule from the "Capability-first, grounded reads" SHOULD in `universal.md`. That rule says to prefer an existing host capability over inline shell. This section says what the system optimizes for.
+
+---
+
 ## Principle 1: Non-Overlapping Specialization
 
 **Statement**: Each agent has a unique specialty that does not substantially overlap with other agents.
