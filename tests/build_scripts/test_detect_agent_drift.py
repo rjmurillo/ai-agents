@@ -441,13 +441,25 @@ def test_default_claude_path_compares_every_vendored_agent(
 def test_merge_resolver_baseline_floor_matches_checked_in_prompts(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """Issue #5642 AC1/AC2: the merge-resolver floors match the measured overlap.
+    """PR #6684 acceptance criteria: each merge-resolver floor equals the measurement.
 
     PR #5470 removed a constraint line from both merge-resolver bodies and the
     measured similarity fell below the recorded floor, so the weekly workflow
-    reopened the drift issue. Both comparisons must classify as baselined, and
-    the floor must not sit above the measurement (a floor above it would fail
-    here; a floor far below it would hide worsening, so the gap is bounded).
+    reopened the drift issue (#5642). Both comparisons must classify as
+    baselined, and each floor must equal the measured overlap exactly. The
+    detector rounds the overlap to 0.1 and compares with ``overall >= floor``,
+    so a floor below the measurement would hide up to that gap of further
+    drift, and a floor above it would print DRIFT DETECTED. Equality fails in
+    both directions whenever the prompts move and the floor is not re-measured.
+
+    Known flake: this test reads the live checked-in prompts. It failed once
+    with DRIFT DETECTED in a full pre-push run and passed alone, in a 14172-test
+    subset, and in later full and xdist reruns. The root cause was not found.
+    The measurement is deterministic (identical under 32 PYTHONHASHSEED values),
+    so a failure most likely means the prompt files differed from the checked-in
+    ones during that run (inferred, not observed). If it fails again, compare
+    ``git status`` and the two prompt files against HEAD before trusting the
+    floor.
     """
     drift.main(["--output-format", "json"])
 
@@ -458,7 +470,7 @@ def test_merge_resolver_baseline_floor_matches_checked_in_prompts(
     for r in pairs:
         floor = drift.KNOWN_BASELINE_DRIFT[("merge-resolver", r["comparison"])]
         assert r["status"] == "OK (baselined)", pairs
-        assert 0.0 <= r["overallSimilarity"] - floor <= 0.5, pairs
+        assert r["overallSimilarity"] == floor, pairs
 
 
 # --- Issue #2423: changed-files scoping for pre-push -------------------------
