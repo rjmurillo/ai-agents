@@ -39,6 +39,7 @@ jobs:
               # is the body plus every references/*.md beside it, so an edit to
               # a reference changes graded behavior and has to fire this gate.
               - '.claude/skills/spec/**'
+              - 'src/claude/skills/spec/**'
             spec_evals:
               - 'tests/evals/spec-scenarios.json'
               - 'scripts/eval/eval-prompt-change.py'

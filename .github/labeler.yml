@@ -43,6 +43,7 @@ area-skills:
   - changed-files:
       - any-glob-to-any-file:
           - ".claude/skills/**/*"
+          - "src/claude/skills/**/*"
           - ".serena/memories/skill-*.md"
 
 # ============================================================================

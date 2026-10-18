@@ -10,6 +10,8 @@ means shipped; any other value is a hard error. Covers
 
 from __future__ import annotations
 
+import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -33,6 +35,10 @@ from _skill_template_helpers import (  # noqa: E402
     write_template,
 )
 
+needs_symlinks = pytest.mark.skipif(
+    sys.platform == "win32", reason="symlink creation needs Developer Mode on Windows"
+)
+
 LOCAL = "---\nname: {name}\nmetadata:\n  distribution: repo-local\n---\n\nbody {name}\n"
 SHIPPED = "---\nname: {name}\nmetadata:\n  capability:\n    kind: x\n---\n\nbody {name}\n"
 BINPLACE_MANIFEST = (
@@ -44,15 +50,25 @@ BINPLACE_MANIFEST = (
     "    plugin_tree: src/claude/skills\n"
     "    install_tree: .claude/skills\n"
     "    compile: skill_templates\n"
+    "    link: true\n"
 )
 
 
 def seed_skill(repo: Path, name: str, body: str) -> None:
-    """Write a template plus the existing ``.claude/skills/<name>/`` directory."""
+    """Write a template plus the skill's real directory (ADR-119).
+
+    A repo-local skill's real directory is ``.claude/skills/<name>/``. A
+    shipped skill's is ``src/claude/skills/<name>/``; ``.claude/skills/<name>``
+    is a symlink to it, which these fixtures stand in for with a real
+    directory holding the same support file.
+    """
     write_template(repo, name, body.format(name=name))
-    skill_dir = repo / ".claude" / "skills" / name
-    skill_dir.mkdir(parents=True, exist_ok=True)
-    (skill_dir / "helper.py").write_text("print('support')\n", encoding="utf-8")
+    dirs = [repo / ".claude" / "skills" / name]
+    if "distribution: repo-local" not in body:
+        dirs.append(repo / "src" / "claude" / "skills" / name)
+    for skill_dir in dirs:
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "helper.py").write_text("print('support')\n", encoding="utf-8")
 
 
 @pytest.fixture
@@ -162,13 +178,14 @@ class TestCompile:
 
         assert skill_templates.compile_all(repo, validate=True).exit_code == 0
 
-    def test_owned_targets_omit_the_plugin_path_for_repo_local(self, repo: Path) -> None:
+    def test_owned_targets_hold_only_the_path_compile_writes(self, repo: Path) -> None:
         owned = skill_templates.owned_targets(repo)
 
         assert install_target(repo, "local-skill") in owned
         assert target(repo, "local-skill") not in owned
-        assert install_target(repo, "shipped-skill") in owned
+        # Shipped: the install path is a symlink, never written through.
         assert target(repo, "shipped-skill") in owned
+        assert install_target(repo, "shipped-skill") not in owned
 
     def test_unknown_distribution_value_fails_compile_with_exit_2(self, repo: Path) -> None:
         seed_skill(repo, "typo", "---\nname: {name}\nmetadata:\n  distribution: local\n---\n")
@@ -191,15 +208,15 @@ class TestCompile:
 
 
 class TestMirrors:
-    def test_claude_support_mirror_skips_repo_local(self, repo: Path) -> None:
+    def test_claude_support_sync_leaves_shipped_and_repo_local_trees_alone(
+        self, repo: Path
+    ) -> None:
         for name in ("local-skill", "shipped-skill"):
             (repo / ".claude" / "skills" / name / "SKILL.md").write_text("x\n", encoding="utf-8")
 
-        _written, _removed, _skipped, errors = generate_skills.sync_claude_plugin_skill_support(
-            repo
-        )
+        written, removed, skipped, errors = generate_skills.sync_claude_plugin_skill_support(repo)
 
-        assert errors == []
+        assert (errors, written, removed, skipped) == ([], 0, 0, 0)
         assert (repo / "src/claude/skills/shipped-skill/helper.py").is_file()
         assert not (repo / "src" / "claude" / "skills" / "local-skill").exists()
 
@@ -260,12 +277,12 @@ class TestStaleVendorCopies:
         _written, removed, _skipped, errors = generate_skills.sync_claude_plugin_skill_support(repo)
 
         assert errors == []
-        # local-skill's two files, plus shipped-skill's scripts/run.py: the
-        # fixture gives shipped-skill a template, so the sync discovers it and
-        # prunes the plugin-tree file that has no source.
-        assert removed == 3
+        # Only local-skill's two files go. ADR-119: the plugin tree is the only
+        # copy of a shipped skill's support files, so shipped-skill's
+        # scripts/run.py (no longer mirrored from .claude) must survive.
+        assert removed == 2
         assert not stale.exists()
-        assert not (kept / "scripts" / "run.py").exists()
+        assert (kept / "scripts" / "run.py").read_text(encoding="utf-8") == "print(1)\n"
         assert (kept / "SKILL.md").read_text(encoding="utf-8") == "old\n"
 
     def test_sync_check_reports_but_keeps_the_stale_copy(self, repo: Path) -> None:
@@ -282,7 +299,7 @@ class TestStaleVendorCopies:
         outside = tmp_path_factory.mktemp("outside")
         (outside / "keep.txt").write_text("x\n", encoding="utf-8")
         tree = repo / "src" / "claude" / "skills"
-        tree.mkdir(parents=True)
+        tree.mkdir(parents=True, exist_ok=True)
         try:
             (tree / "local-skill").symlink_to(outside, target_is_directory=True)
         except OSError:
@@ -329,6 +346,8 @@ class TestStaleVendorCopies:
 
 
 class TestBinplace:
+    """ADR-119: a ``link: true`` skills row links shipped skills, never repo-local ones."""
+
     @staticmethod
     def stale_plugin_copy(repo: Path) -> Path:
         stale = repo / "src" / "claude" / "skills" / "local-skill" / "SKILL.md"
@@ -341,6 +360,9 @@ class TestBinplace:
         platforms.mkdir(parents=True, exist_ok=True)
         (platforms / "binplace.yaml").write_text(BINPLACE_MANIFEST, encoding="utf-8")
         skill_templates.compile_all(repo, validate=False)
+        # The fixture's stand-in install directory for the shipped skill is
+        # what binplace replaces with a link.
+        shutil.rmtree(repo / ".claude" / "skills" / "shipped-skill")
 
     def test_check_reports_no_drift_for_a_repo_local_skill(self, repo: Path) -> None:
         self.setup_trees(repo)
@@ -351,6 +373,15 @@ class TestBinplace:
         assert result.exit_code == 0
         assert result.drifted == []
         assert not any("local-skill" in path for path in result.unowned)
+
+    def test_repo_local_skill_stays_a_real_directory(self, repo: Path) -> None:
+        self.setup_trees(repo)
+
+        binplace_manifest.binplace(repo, check=False)
+
+        local = repo / ".claude" / "skills" / "local-skill"
+        assert local.is_dir()
+        assert not local.is_symlink()
 
     def test_leftover_plugin_copy_never_overwrites_the_install_file(self, repo: Path) -> None:
         self.setup_trees(repo)
@@ -365,26 +396,33 @@ class TestBinplace:
         assert not any("local-skill" in path for path in write.written)
         assert install_target(repo, "local-skill").read_bytes() == before
 
-    def test_shipped_skill_is_still_binplaced(self, repo: Path) -> None:
+    @needs_symlinks
+    def test_shipped_skill_is_linked_to_the_plugin_tree(self, repo: Path) -> None:
         self.setup_trees(repo)
 
         result = binplace_manifest.binplace(repo, check=False)
 
-        assert str(install_target(repo, "shipped-skill")) in result.written
-        assert (
-            install_target(repo, "shipped-skill").read_bytes()
-            == target(repo, "shipped-skill").read_bytes()
+        link = repo / ".claude" / "skills" / "shipped-skill"
+        assert str(link) in result.written
+        assert link.is_symlink()
+        assert os.readlink(link) == "../../src/claude/skills/shipped-skill"
+        assert install_target(repo, "shipped-skill").read_bytes() == (
+            target(repo, "shipped-skill").read_bytes()
         )
 
+    @needs_symlinks
     def test_check_still_reports_drift_for_a_shipped_skill(self, repo: Path) -> None:
         self.setup_trees(repo)
         binplace_manifest.binplace(repo, check=False)
-        install_target(repo, "shipped-skill").write_text("edited\n", encoding="utf-8")
+        link = repo / ".claude" / "skills" / "shipped-skill"
+        link.unlink()
+        link.mkdir()
+        (link / "SKILL.md").write_text("edited\n", encoding="utf-8")
 
         result = binplace_manifest.binplace(repo, check=True)
 
         assert result.exit_code == 2
-        assert result.drifted == [str(install_target(repo, "shipped-skill"))]
+        assert str(link) in result.drifted
 
     def test_allowlist_covers_the_repo_local_install_path(self, repo: Path) -> None:
         self.setup_trees(repo)
