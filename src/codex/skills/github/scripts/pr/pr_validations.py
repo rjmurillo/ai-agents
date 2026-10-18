@@ -88,9 +88,9 @@ _REF_FORBIDDEN = re.compile(r"[\x00-\x20\x7f~^:?*\[\\]")
 def is_valid_branch_name(name: str) -> bool:
     """Return whether ``name`` is a legal git branch name, refused before any git call.
 
-    ``TestIsValidBranchName`` checks it against ``git check-ref-format --branch``.
+    Parity with ``git check-ref-format --branch``, except ``@`` (``git branch`` refuses it).
     """
-    if not name or name == "@" or name.startswith("-") or name.endswith("."):
+    if not name or name in {"@", "HEAD"} or name.startswith("-") or name.endswith("."):
         return False
     if _REF_FORBIDDEN.search(name) or ".." in name or "@{" in name:
         return False

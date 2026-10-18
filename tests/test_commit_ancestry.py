@@ -121,6 +121,51 @@ class TestRefNameCollision:
         )
 
 
+class TestUppercaseSha:
+    def _orphan_with_letter_prefix(self, root: Path) -> str:
+        """Create an unreferenced commit whose first 7 hex digits include a letter."""
+        for attempt in range(200):
+            tree = _git(root, "hash-object", "-t", "tree", "-w", "--stdin")
+            sha = _git(root, "commit-tree", tree, "-m", f"orphan {attempt}")
+            if any(c in "abcdef" for c in sha[:7]):
+                return sha
+        raise AssertionError("no orphan commit with a letter in its prefix")
+
+    def test_uppercase_sha_resolves_like_lowercase(self, repo) -> None:
+        root, first, second = repo
+        prefix = first[:7]
+
+        upper = commit_ancestry.check_ancestor(prefix.upper(), second, str(root))
+
+        assert upper == commit_ancestry.check_ancestor(prefix, second, str(root))
+        assert upper == (True, "reachable", "")
+
+    def test_root_ref_named_like_an_uppercase_prefix_cannot_shadow_the_commit(self, repo) -> None:
+        """$GIT_DIR/<UPPER> is a root ref; it must not turn an orphan into a reachable commit."""
+        root, _, second = repo
+        orphan = self._orphan_with_letter_prefix(root)
+        upper = orphan[:7].upper()
+        (root / ".git" / upper).write_text(second + "\n", encoding="utf-8")
+
+        assert commit_ancestry.check_ancestor(upper, second, str(root)) == (
+            False,
+            "unreachable",
+            "",
+        )
+        assert commit_ancestry.check_ancestor(orphan[:7], second, str(root)) == (
+            False,
+            "unreachable",
+            "",
+        )
+
+    def test_uppercase_non_hex_is_still_refused(self) -> None:
+        assert commit_ancestry.check_ancestor("ABCG123", "b" * 40, ".") == (
+            False,
+            "invalid",
+            "not-a-sha",
+        )
+
+
 class TestShaShape:
     @pytest.mark.parametrize(
         "value",

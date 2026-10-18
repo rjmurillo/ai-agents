@@ -60,10 +60,12 @@ WORKFLOW_DIR = Path(".github") / "workflows"
 # `# ADR-055 Exception:`, case-insensitive, any spacing around the words.
 MARKER_RE = re.compile(r"#\s*ADR-(?P<number>\d+)\s+Exception\s*:", re.IGNORECASE)
 
-# A comment that starts like a marker: `# ADR`, a number, an optional separator, then
-# the next word. The word is compared with "exception" to catch a misspelling.
+# A comment that starts like a marker: `#` at the start of a line or after whitespace,
+# `ADR`, a number, an optional separator, then the next word. The word is compared with
+# "exception" to catch a misspelling. The `(?<!\S)` guard keeps a URL fragment such as
+# `https://h/p#adr-7-exception` from reading as a comment.
 CANDIDATE_RE = re.compile(
-    r"#\s*ADR[\s_-]*(?P<number>\d+)\s*[:,-]?\s*(?P<word>[A-Za-z]+)", re.IGNORECASE
+    r"(?<!\S)#\s*ADR[\s_-]*(?P<number>\d+)\s*[:,-]?\s*(?P<word>[A-Za-z]+)", re.IGNORECASE
 )
 NEAR_MISS_WORD = "exception"
 # "Exeption" and "Exceptions" score 0.94; "except" scores 0.80 and stays unflagged.
@@ -149,7 +151,7 @@ def scan_markers(repo_root: Path, workflow_dir: Path) -> tuple[list[Marker], lis
             match = MARKER_RE.search(line)
             if match:
                 markers.append(Marker(rel, number, int(match.group("number"))))
-            elif (miss := find_near_miss(line)) is not None:
+            if (miss := find_near_miss(line)) is not None:
                 near_misses.append(NearMiss(rel, number, miss))
     return markers, near_misses, len(files)
 

@@ -85,6 +85,13 @@ class TestCell:
             ("<b>bold</b>", "&lt;b&gt;bold&lt;/b&gt;"),
             ("<!-- c -->", "&lt;!-- c --&gt;"),
             ("  padded   spaces  ", "padded spaces"),
+            ("[click](https://evil.example)", "\\[click\\](https://evil.example)"),
+            ("![x](https://evil.example/t.png)", "!\\[x\\](https://evil.example/t.png)"),
+            ("@team", "team"),
+            ("ping @org/team and @user-1", "ping org/team and user-1"),
+            ("a@b.example", "a@b.example"),
+            ("lone @ sign", "lone @ sign"),
+            ("[a]|[b]", "\\[a\\]\\|\\[b\\]"),
         ],
     )
     def test_cell_value(self, value, expected):

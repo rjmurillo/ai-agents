@@ -112,10 +112,14 @@ _LEGAL_NAMES = [
     "user/feat_x",
     "@x",
     "a@b",
+    "head",
+    "HEAD2",
+    "feat/HEAD",
 ]
 _ILLEGAL_NAMES = [
     "",
     "@",
+    "HEAD",
     "-x",
     "--upload-pack=true",
     "a b",

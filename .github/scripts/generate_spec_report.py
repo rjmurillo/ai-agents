@@ -44,6 +44,9 @@ from scripts.ai_review_common import (  # noqa: E402
 )
 
 _CELL_CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f\u2028\u2029]")
+# `@name` at the start of a word notifies a user or team. An address such as
+# `a@b.example` has a word character before the `@` and is left alone.
+_CELL_MENTION = re.compile(r"(?<!\w)@(?=[\w-])")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -228,17 +231,21 @@ See PR template for full guidance.
 
 
 def _cell(value: str) -> str:
-    """Return ``value`` as one inert markdown table cell.
+    """Return ``value`` as one markdown table cell that opens no HTML, link, or mention.
 
     The reference lists come from PR text through ``spec_extract_refs.py``, whose
     regexes keep them to plain tokens today. This report does not rely on that:
     whitespace and control characters collapse to single spaces, ``|`` and ``\\``
-    are escaped so the row keeps its columns, and ``<`` and ``>`` become
-    entities so no HTML opens. Emphasis markers stay, because the empty-list
+    are escaped so the row keeps its columns, ``[`` and ``]`` are escaped so no
+    link or image forms, ``<`` and ``>`` become entities so no HTML opens, and the
+    ``@`` of a mention is dropped so no user or team is notified. A bare URL still
+    renders as an autolink. Emphasis markers stay, because the empty-list
     placeholder ``*None*`` is meant to render in italics.
     """
     flat = " ".join(_CELL_CONTROL.sub(" ", value).split())
+    flat = _CELL_MENTION.sub("", flat)
     escaped = flat.replace("\\", "\\\\").replace("|", "\\|")
+    escaped = escaped.replace("[", "\\[").replace("]", "\\]")
     return escaped.replace("<", "&lt;").replace(">", "&gt;")
 
 

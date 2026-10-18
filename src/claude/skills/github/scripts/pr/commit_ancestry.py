@@ -54,9 +54,10 @@ def _shadowing_ref(sha: str, repo_path: str) -> tuple[bool, str]:
     ``git rev-parse`` tries a ref of that name before an object-name prefix, so
     a branch or tag called ``abc1234`` makes a cited ``abc1234`` resolve to the
     ref's tip instead of the commit the reviewer meant. The names tried are the
-    ``gitrevisions`` dwim list. ``sha`` is hex only, so the patterns carry no
-    glob characters; ``for-each-ref`` also lists refs below a match, so the
-    output is compared to the exact names.
+    ``gitrevisions`` dwim list after ``$GIT_DIR/<name>``, which a lowercase
+    ``sha`` cannot match (``check_ancestor`` lowercases). ``sha`` is hex only,
+    so the patterns carry no glob characters; ``for-each-ref`` also lists refs
+    below a match, so the output is compared to the exact names.
     """
     exact = {
         f"refs/{sha}",
@@ -87,9 +88,15 @@ def check_ancestor(sha: str, head_sha: str, repo_path: str) -> tuple[bool, str, 
     40 hex digits), ref-name-collision (a ref carries the same name, so git
     would resolve the ref, not the commit), missing-object (not in the local
     clone), not-a-commit, or git-error: <git's first stderr line>.
+
+    The SHA is lowercased before git sees it. Object-name prefixes are case
+    insensitive, but git reads an all-uppercase name as a root ref under
+    ``$GIT_DIR`` (``$GIT_DIR/ABC1234``) before it tries an object. A lowercase
+    name is never a root ref, so the first dwim entry cannot shadow it.
     """
     if not _HEX_SHA.fullmatch(sha):
         return False, "invalid", "not-a-sha"
+    sha = sha.lower()
     # rev-parse --verify --quiet exits 1 when the name does not resolve to a
     # commit; any other nonzero exit is git itself failing.
     returncode, stdout, stderr = _git(

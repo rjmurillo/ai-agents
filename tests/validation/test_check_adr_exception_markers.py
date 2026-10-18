@@ -217,6 +217,9 @@ def test_near_miss_after_a_key_is_found(tmp_path: Path) -> None:
         "# ADR-055",
         "# ADR-055 expiry: 2027",
         "# ADR coverage matrix",
+        "# see https://x/ADR-055.md#adr-055-exceptions",
+        "url: https://h/p#adr-7-exception",
+        "docs: https://h/ADR-055.md#adr-055-exeption",
     ],
 )
 def test_prose_that_only_mentions_an_adr_is_not_a_near_miss(tmp_path: Path, comment: str) -> None:
@@ -252,6 +255,24 @@ def test_find_near_miss_returns_the_comment_text() -> None:
     assert gate.find_near_miss("key: v  # ADR 055 Exception: why") == "# ADR 055 Exception: why"
     assert gate.find_near_miss("# ADR-055 Exception: ok") is None
     assert gate.find_near_miss("no comment here") is None
+
+
+def test_find_near_miss_ignores_a_url_fragment_but_reads_a_spaced_comment() -> None:
+    assert gate.find_near_miss("url: https://h/p#adr-7-exception") is None
+    assert gate.find_near_miss("# see https://x/ADR-055.md#adr-055-exceptions") is None
+    assert gate.find_near_miss("url: https://h/p  # ADR-7 Exeption: x") == "# ADR-7 Exeption: x"
+
+
+def test_misspelled_second_marker_on_a_line_with_a_valid_marker_is_reported(
+    tmp_path: Path,
+) -> None:
+    _adr(tmp_path, 55, "accepted")
+    _adr(tmp_path, 56, "accepted")
+    _workflow(tmp_path, "# ADR-055 Exception: ok; old # ADR-056 Exeption: x")
+    result = _run(tmp_path)
+    assert result.returncode == 1
+    assert "1 marker" in result.stdout
+    assert "near-miss marker '# ADR-056 Exeption: x'" in result.stdout
 
 
 def test_adapter_returns_false_on_a_near_miss(tmp_path: Path) -> None:
