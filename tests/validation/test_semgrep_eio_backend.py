@@ -7,9 +7,11 @@ the proof is the environment the child sees, not the arguments passed to a mock.
 
 Coverage:
 
-- positive: the scan child sees EIO_BACKEND=posix.
+- positive: on Linux the scan child sees EIO_BACKEND=posix.
 - negative: a caller-set io_uring value does not reach the child.
 - edge: the version probe, which also starts semgrep, gets the same env.
+- edge: off Linux the env is empty, because Windows semgrep-core disables the
+  posix backend.
 """
 
 from __future__ import annotations
@@ -23,9 +25,11 @@ import pytest
 
 from scripts.validation import git_hook_policy as policy
 
+_LINUX_ONLY = pytest.mark.skipif(sys.platform != "linux", reason="io_uring is Linux only")
 _PRINT_BACKEND = "import os; print(os.environ.get('EIO_BACKEND', 'unset'))"
 
 
+@_LINUX_ONLY
 def test_scan_child_sees_posix_backend(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.delenv("EIO_BACKEND", raising=False)
     monkeypatch.setattr(policy, "_semgrep_target_batches", lambda targets, _root: [targets])
@@ -40,6 +44,7 @@ def test_scan_child_sees_posix_backend(monkeypatch: pytest.MonkeyPatch, tmp_path
     assert result.stdout.strip() == "posix"
 
 
+@_LINUX_ONLY
 def test_caller_io_uring_setting_is_overridden(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -67,4 +72,13 @@ def test_version_probe_passes_the_posix_backend(
     monkeypatch.setattr(policy, "_run_command", record)
 
     assert policy._probe_semgrep_version("semgrep", tmp_path) == "1.0.0"
-    assert seen == [{"EIO_BACKEND": "posix"}]
+    assert seen == [policy.SEMGREP_ENV]
+
+
+@pytest.mark.parametrize(
+    ("platform", "expected"),
+    [("linux", {"EIO_BACKEND": "posix"}), ("win32", {}), ("darwin", {})],
+)
+def test_only_linux_gets_the_posix_backend(platform: str, expected: dict[str, str]) -> None:
+    """Windows semgrep-core has the posix backend disabled, so it must not be set."""
+    assert policy._semgrep_env(platform) == expected

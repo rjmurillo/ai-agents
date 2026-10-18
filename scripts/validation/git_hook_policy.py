@@ -578,9 +578,17 @@ SEMGREP_TIMEOUT_SECONDS = 840
 # Issue #6708: semgrep-core's Eio_linux backend calls io_uring_queue_init, which
 # charges locked memory. Under concurrent pushes with `ulimit -l 8192` it fails
 # with "Cannot allocate memory". The posix backend does not use io_uring and
-# passed every time it was tried. Only the local semgrep-push hook runs this
-# path; the remote semgrep check is server-side and reads no local env.
-SEMGREP_ENV = {"EIO_BACKEND": "posix"}
+# passed every time it was tried. Linux only: io_uring is a Linux API, and the
+# Windows semgrep-core build has the posix backend disabled, so setting it there
+# fails with "Invalid argument". Only the local semgrep-push hook runs this path;
+# the remote semgrep check is server-side and reads no local env.
+
+
+def _semgrep_env(platform: str) -> dict[str, str]:
+    return {"EIO_BACKEND": "posix"} if platform == "linux" else {}
+
+
+SEMGREP_ENV = _semgrep_env(sys.platform)
 # Issue #6609: the longest a semgrep push waits for a host-wide heavy-stage slot
 # and for load to drop. The wait spends the scan's own deadline, because the
 # security-scan cap (15m) leaves only 60s above SEMGREP_TIMEOUT_SECONDS. Half the
