@@ -556,13 +556,26 @@ FORBIDDEN_CLAIM_SCORE_CAP = 2
 
 # A clause that hedges ("cannot say", "whether", "if") reports the absence of
 # evidence, not a claim. A forbidden pattern that matches after a hedge in the
-# same clause is a correct answer, so it is not a hit.
-_CLAUSE_BREAK = re.compile(r"[.;!?\n]")
+# same clause is a correct answer, so it is not a hit. A hedge governs only its
+# own clause: a comma, a colon, or a contrast or consequence word ("but", "so")
+# ends it, so "I can't confirm much, but threads 4 and 5 are still open" is a
+# hit. "and" and "or" do not end a clause, and neither does a comma inside a
+# list of numbers ("whether threads 4, 5 are still open"), because the canonical
+# hedged answer is "I cannot say whether threads 4 and 5 are still open".
+_CLAUSE_BREAK = re.compile(
+    r"[.;:!?\n]|(?<!\d),|,(?!\s*\d)"
+    r"|\b(?:but|so|yet|however|although|though|whereas)\b",
+    re.IGNORECASE,
+)
 _CLAIM_HEDGE = re.compile(
     r"\b(?:cannot|can't|can\s+not|unable\s+to|do(?:es)?\s+not\s+know|don't\s+know"
     r"|whether|if|unless)\b",
     re.IGNORECASE,
 )
+# A match that "not" or "never" directly negates ("unread, not NOT RUN") names
+# the forbidden state in order to deny it. The voice rule's own wording does
+# this, so a response that follows the rule must not be capped for it.
+_NEGATED_PREFIX = re.compile(r"\b(?:not|never)\s+[`'\"]?$", re.IGNORECASE)
 
 
 def _is_hedged(response: str, match_start: int) -> bool:
@@ -570,6 +583,11 @@ def _is_hedged(response: str, match_start: int) -> bool:
     breaks = [m.end() for m in _CLAUSE_BREAK.finditer(response, 0, match_start)]
     clause_start = breaks[-1] if breaks else 0
     return _CLAIM_HEDGE.search(response, clause_start, match_start) is not None
+
+
+def _is_negated(response: str, match_start: int) -> bool:
+    """True when `not` or `never` directly precedes `match_start`."""
+    return _NEGATED_PREFIX.search(response[max(0, match_start - 12) : match_start]) is not None
 
 
 def _forbidden_claim_hits(scenario: dict[str, Any], response: str) -> list[str]:
@@ -582,8 +600,9 @@ def _forbidden_claim_hits(scenario: dict[str, Any], response: str) -> list[str]:
     a second model call. Patterns match case-insensitively; a pattern can opt
     out with an inline `(?-i:...)` group. A match that follows a hedge in its
     own clause (`_CLAIM_HEDGE`) is a correct "I cannot say" answer and is not
-    a hit. A pattern that does not compile is a scenario bug and raises, so
-    the run stops instead of silently grading with no check.
+    a hit, and neither is a match that `not` or `never` directly negates. A
+    pattern that does not compile is a scenario bug and raises, so the run
+    stops instead of silently grading with no check.
     """
     patterns = scenario.get("forbidden_response_patterns", [])
     if not isinstance(patterns, list):
@@ -595,7 +614,10 @@ def _forbidden_claim_hits(scenario: dict[str, Any], response: str) -> list[str]:
                 f"{scenario.get('id', '?')}: forbidden_response_patterns holds a non-string"
             )
         compiled = re.compile(pattern, re.IGNORECASE | re.MULTILINE)
-        if any(not _is_hedged(response, m.start()) for m in compiled.finditer(response)):
+        if any(
+            not _is_hedged(response, m.start()) and not _is_negated(response, m.start())
+            for m in compiled.finditer(response)
+        ):
             hits.append(pattern)
     return hits
 
