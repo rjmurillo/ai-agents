@@ -142,6 +142,24 @@ class TestModularityAuditSkillDirectory:
     def test_positional_traversal_is_rejected(self):
         assert audit.main(["../../../etc"]) == 2
 
+    def test_empty_positional_is_rejected_not_defaulted(self):
+        assert audit.main(["", "--ci"]) == 2
+
+    def test_empty_path_flag_is_rejected_not_defaulted(self):
+        assert audit.main(["--path", "", "--ci"]) == 2
+
+    def test_empty_positional_without_ci_is_rejected(self):
+        assert audit.main([""]) == 2
+
+    def test_empty_positional_does_not_audit_default_directory(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        default = tmp_path / "default-skills"
+        _make_skill(default, "my-skill")
+        monkeypatch.setattr(audit, "DEFAULT_SKILLS_PATH", str(default))
+        assert audit.main(["", "--ci"]) == 2
+        assert audit.main([]) == 0
+
     def test_help_exits_0_and_documents_exit_codes(self, capsys: pytest.CaptureFixture[str]):
         with pytest.raises(SystemExit) as excinfo:
             audit.main(["--help"])

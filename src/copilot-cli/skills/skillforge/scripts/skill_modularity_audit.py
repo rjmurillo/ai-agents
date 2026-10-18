@@ -421,7 +421,15 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.skill_dir is not None and args.path is not None:
         parser.error("give either a skill directory or --path, not both")
-    raw_path = args.skill_dir or args.path or DEFAULT_SKILLS_PATH
+    # An empty string is a supplied value, not a missing one. It must reach
+    # validate_path_safety and fail, so a gate with an unset variable cannot
+    # silently audit the default directory and pass.
+    if args.skill_dir is not None:
+        raw_path = args.skill_dir
+    elif args.path is not None:
+        raw_path = args.path
+    else:
+        raw_path = DEFAULT_SKILLS_PATH
 
     skills_path = validate_path_safety(raw_path)
     if skills_path is None:

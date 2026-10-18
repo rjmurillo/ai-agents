@@ -236,9 +236,9 @@ python "$FORGE/package_skill.py" skills/my-skill/ ./dist   # package for distrib
 ```
 
 Every validator takes the skill directory and answers `--help`. `skill_modularity_audit.py`
-exits `0` without `--ci` even for an oversized skill. With `--ci` it exits `1` for an oversized
-skill and `2` when it audited nothing (wrong path, or an unreadable `SKILL.md`), so neither
-can pass a gate.
+exits `0` without `--ci` even for an oversized skill; with `--ci` it exits `1`. In either mode it
+exits `2` when it audited nothing (wrong path, or every `SKILL.md` unreadable). With `--ci`, any
+unreadable `SKILL.md` also exits `2`. An exit `2` is never a pass.
 
 See [references/output-structure.md](references/output-structure.md) for allowed
 frontmatter fields, directory layout, script categories, hook configuration, and
