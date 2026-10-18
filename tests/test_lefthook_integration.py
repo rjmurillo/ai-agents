@@ -8516,6 +8516,7 @@ def test_changed_commit_path_and_scan_edge_cases(
         "_changed_commit_paths",
         lambda *_args: ["source.py"],
     )
+    monkeypatch.setattr(policy, "_commit_link_paths", lambda *_args: {})
     monkeypatch.setattr(policy, "_pushed_root_moves", lambda *_args: set())
     monkeypatch.setattr(policy, "_scan_pushed_head", lambda *_args, **_kwargs: 0)
     assert policy.scan_pushed_heads(io.StringIO(), tmp_path) == 0
@@ -11399,6 +11400,7 @@ def test_scan_pushed_heads_skips_identical_root_moves(
     monkeypatch.setattr(policy, "_push_updates", lambda *_args: [_push_update()])
     monkeypatch.setattr(policy, "_changed_commit_paths", lambda *_args: [moved])
     monkeypatch.setattr(policy, "_commit_paths", lambda *_args: [moved])
+    monkeypatch.setattr(policy, "_commit_link_paths", lambda *_args: {})
     monkeypatch.setattr(policy, "_pushed_root_moves", lambda *_args: {moved})
     monkeypatch.setattr(policy, "_scan_pushed_head", lambda *_args, **_kwargs: 1)
     assert policy.scan_pushed_heads(io.StringIO(), tmp_path) == 0

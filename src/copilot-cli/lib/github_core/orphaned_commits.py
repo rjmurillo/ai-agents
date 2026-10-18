@@ -18,6 +18,7 @@ Status values: ``clean`` (no commit ahead), ``ahead`` (commits listed),
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 from collections.abc import Callable
@@ -30,6 +31,36 @@ GitRunner = Callable[[list[str]], tuple[int, str]]
 MAX_COMMITS = 50
 
 _SHA = re.compile(r"^[0-9a-fA-F]{7,64}$")
+#: Exit code the runners report when git could not be launched.
+_LAUNCH_FAILURE = 127
+#: Exit code the worktree runner reports for a path it refused to use.
+_INVALID_WORKTREE = 126
+#: Every repo-local variable ``git rev-parse --local-env-vars`` reports. Each
+#: one redirects, rewrites, or hides history for a child that ``-C`` should
+#: have pointed at one repository (``GIT_GRAFT_FILE`` and ``GIT_SHALLOW_FILE``
+#: hide commits, ``GIT_REPLACE_REF_BASE`` and ``GIT_NO_REPLACE_OBJECTS`` swap them).
+_GIT_ENV_KEYS = (
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_CONFIG",
+    "GIT_CONFIG_PARAMETERS",
+    "GIT_CONFIG_COUNT",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_IMPLICIT_WORK_TREE",
+    "GIT_GRAFT_FILE",
+    "GIT_INDEX_FILE",
+    "GIT_NO_REPLACE_OBJECTS",
+    "GIT_REPLACE_REF_BASE",
+    "GIT_PREFIX",
+    "GIT_SHALLOW_FILE",
+    "GIT_COMMON_DIR",
+    # Not in the rev-parse list, but each one still steers git away from ``-C``.
+    "GIT_NAMESPACE",
+    "GIT_CEILING_DIRECTORIES",
+)
+#: Numbered config injection variables (``GIT_CONFIG_KEY_0``, ``GIT_CONFIG_VALUE_0``).
+_GIT_ENV_PREFIXES = ("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_")
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 _RECORD_SEP = "\x1e"
 
@@ -69,8 +100,7 @@ class Commit:
         return {"sha": self.sha, "subject": self.subject, "risks": list(self.risks)}
 
 
-def default_runner(args: list[str]) -> tuple[int, str]:
-    """Run ``git`` in the current directory. A launch failure maps to exit 127."""
+def _run_git(args: list[str], env: dict[str, str] | None = None) -> tuple[int, str]:
     try:
         result = subprocess.run(
             ["git", *args],
@@ -79,10 +109,30 @@ def default_runner(args: list[str]) -> tuple[int, str]:
             errors="replace",
             timeout=30,
             check=False,
+            env=env,
         )
     except (subprocess.SubprocessError, OSError):
-        return 127, ""
+        return _LAUNCH_FAILURE, ""
     return result.returncode, result.stdout or ""
+
+
+def default_runner(args: list[str]) -> tuple[int, str]:
+    """Run ``git`` in the current directory. A launch failure maps to exit 127."""
+    return _run_git(args)
+
+
+def _is_worktree_path(worktree: str) -> bool:
+    """Return whether ``worktree`` is a usable git checkout path.
+
+    The value comes from a CLI flag that a dispatch block fills from a PR
+    branch lookup, so it is checked before it reaches a git argument vector.
+    Refuses an empty value, a NUL byte, a leading ``-`` (read as an option),
+    and anything that is not a directory holding a ``.git`` entry. A linked
+    worktree holds a ``.git`` file, a clone holds a ``.git`` directory.
+    """
+    if not worktree or "\x00" in worktree or worktree.startswith("-"):
+        return False
+    return os.path.isdir(worktree) and os.path.exists(os.path.join(worktree, ".git"))
 
 
 def worktree_runner(worktree: str) -> GitRunner:
@@ -90,10 +140,32 @@ def worktree_runner(worktree: str) -> GitRunner:
 
     The tier-dispatch loop runs from a shared checkout, so the comparison must
     name the PR's worktree instead of trusting the current directory's ``HEAD``.
+
+    The path is validated, and ``GIT_DIR``, ``GIT_WORK_TREE`` and every other
+    variable that ``git rev-parse --local-env-vars`` lists are dropped from the
+    child environment.
+    Inherited, they would override ``-C`` and point git back at the shared
+    checkout (issue #6506). The variables that inject config values go too,
+    since they can set ``core.fsmonitor`` or ``core.hooksPath`` for the child:
+    ``GIT_CONFIG_PARAMETERS``, ``GIT_CONFIG_COUNT``, and the numbered
+    ``GIT_CONFIG_KEY_<n>`` and ``GIT_CONFIG_VALUE_<n>`` pairs. ``GIT_CONFIG_GLOBAL``
+    and ``GIT_CONFIG_SYSTEM`` are kept on purpose: they only relocate the
+    user's own config files, which git reads from ``~/.gitconfig`` and
+    ``/etc/gitconfig`` anyway, and dropping them would change which files the
+    child reads. A file at either path is trusted like the user's real config.
+    An invalid path yields a runner that always reports exit 126, so the scan
+    ends ``unverified`` and never raises.
     """
+    if not _is_worktree_path(worktree):
+        return lambda _args: (_INVALID_WORKTREE, "")
+    env = {
+        key: value
+        for key, value in os.environ.items()
+        if key not in _GIT_ENV_KEYS and not key.startswith(_GIT_ENV_PREFIXES)
+    }
 
     def run(args: list[str]) -> tuple[int, str]:
-        return default_runner(["-C", worktree, *args])
+        return _run_git(["-C", worktree, *args], env)
 
     return run
 
@@ -193,6 +265,10 @@ def scan_unpushed_commits(live_head: str, runner: GitRunner = default_runner) ->
         return _unverified(
             live_head, "live head is not an ancestor of HEAD (diverged or another branch)"
         )
+    if code == _INVALID_WORKTREE:
+        return _unverified(live_head, "the --worktree path is not a git checkout; scan skipped")
+    if code == _LAUNCH_FAILURE:
+        return _unverified(live_head, "git could not be launched")
     if code != 0:
         return _unverified(live_head, f"git merge-base exited {code}; fetch the PR head first")
     code, out = runner(

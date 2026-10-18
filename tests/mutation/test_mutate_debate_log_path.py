@@ -98,6 +98,9 @@ def _run_tests_in(wt_path: Path) -> subprocess.CompletedProcess[str]:
         "-m",
         "pytest",
         "--tb=short",
+        # First failure decides DEAD; the inverted control passes, so it still runs
+        # in full. Issue #5382, guarded by test_mutation_runs_stop_at_first_failure.py.
+        "-x",
         "-q",
         "--import-mode=importlib",
         *_TESTS,

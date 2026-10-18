@@ -142,7 +142,9 @@ class TestGoldenPrinciplesCrossReferences:
         assert links, f"expected a Markdown link on: {line!r}"
         resolved = _resolve_markdown_link(self.SKILL_MD, links[0])
         assert resolved.is_file(), f"{links[0]!r} does not resolve to a real file: {resolved}"
-        assert resolved == (_REPO_ROOT / ".claude" / "skills" / "taste-lints" / "SKILL.md")
+        assert (
+            resolved == (_REPO_ROOT / ".claude" / "skills" / "taste-lints" / "SKILL.md").resolve()
+        )
 
     def test_quality_grades_link_resolves(self):
         line = _line_with(self.SKILL_MD, "Cross-References", "quality-grades")
@@ -150,7 +152,10 @@ class TestGoldenPrinciplesCrossReferences:
         assert links, f"expected a Markdown link on: {line!r}"
         resolved = _resolve_markdown_link(self.SKILL_MD, links[0])
         assert resolved.is_file(), f"{links[0]!r} does not resolve to a real file: {resolved}"
-        assert resolved == (_REPO_ROOT / ".claude" / "skills" / "quality-grades" / "SKILL.md")
+        assert (
+            resolved
+            == (_REPO_ROOT / ".claude" / "skills" / "quality-grades" / "SKILL.md").resolve()
+        )
 
 
 class TestMemoryEnhancementAdrCitations:

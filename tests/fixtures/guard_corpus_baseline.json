@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "corpus_root": ".claude/skills",
+  "corpus_root": "src/claude/skills",
   "description": "Pinned findings for the differential gate. Edit only when removing a detection deliberately; explain why in the commit message. Keys are [normalized_line_text, occurrence_index] per issue #4286.",
   "findings": {
     "adr-review/scripts/detect_adr_changes.py": [

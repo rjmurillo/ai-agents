@@ -8,13 +8,7 @@ tools:
   - Read
   - Glob
   - Grep
-  - mcp__github__issue_read
-  - mcp__github__pull_request_read
-  - mcp__github__get_file_contents
-  - mcp__github__list_commits
-  - mcp__github__list_workflow_runs
-  - mcp__github__get_workflow_run
-  - mcp__github__get_job_logs
+  - ToolSearch
   - mcp__serena__find_symbol
   - mcp__serena__find_referencing_symbols
   - mcp__serena__find_implementations
@@ -24,10 +18,18 @@ tools:
   - mcp__serena__list_memories
   - mcp__serena__read_memory
   - mcp__serena__initial_instructions
-  - mcp__context7__resolve_library_id
-  - mcp__context7__get_library_docs
+  - mcp__github__issue_read
+  - mcp__github__pull_request_read
+  - mcp__github__get_file_contents
+  - mcp__github__list_commits
+  - mcp__github__list_workflow_runs
+  - mcp__github__get_workflow_run
+  - mcp__github__get_job_logs
   - mcp__deepwiki__read_wiki_structure
   - mcp__deepwiki__read_wiki_contents
+  - mcp__context7__*
+  - mcp__plugin_context7_context7__*
+  - mcp__claude_ai_Context7__*
 ---
 
 # Analyst Agent

@@ -164,7 +164,10 @@ def test_unexpected_skill_is_named_in_the_diff(
     code = ev.main(["--fixtures", str(_write(tmp_path, scenario))])
     assert code == ev.EXIT_FAIL
     out = capsys.readouterr().out
-    assert "unexpected skills selected: local:dx-review" in out
+    # The resolver reads the skills root that holds its own file. `.claude/skills/autoplan`
+    # is a symlink into src/claude/skills (ADR-119), so the default root carries the
+    # plugin manifest's `project-toolkit` namespace, not `local`.
+    assert "unexpected skills selected: project-toolkit:dx-review" in out
     assert "expected kind=specialist route=dx-review; observed kind=specialist" in out
 
 

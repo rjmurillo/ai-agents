@@ -1281,6 +1281,37 @@ def _parse_baseline_payload(
     return {name: dict(entries[name]) for name in CHECKS if name in entries}
 
 
+def _symlink_on_baseline_path(repo_root: Path, baseline_path: Path) -> Path | None:
+    """The first symlink from ``repo_root`` down to ``baseline_path``, or None.
+
+    The base-ref comparison resolves the baseline path and skips itself when the
+    result leaves the repository. A symlinked baseline that points outside would
+    therefore turn the comparison off, and a branch could then raise the ceiling
+    in the committed target (issue #6506). The walk starts at the shallowest
+    ancestor of ``baseline_path`` that is the repository root by identity
+    (``samefile``), so a resolved ``repo_root`` and a baseline reached through a
+    symlinked parent of the checkout, which is how ``main`` builds the two
+    defaults, still line up. ``..`` segments are kept, not collapsed, so
+    ``repo/link/../x.json`` is still walked through ``link``. A baseline with no
+    ancestor that is the repository root, which the comparison deliberately
+    skips, is not affected.
+    """
+    target = baseline_path if baseline_path.is_absolute() else Path.cwd() / baseline_path
+    for anchor in reversed(target.parents):
+        try:
+            if not anchor.samefile(repo_root):
+                continue
+        except OSError:
+            continue
+        current = anchor
+        for part in target.relative_to(anchor).parts:
+            current = current / part
+            if current.is_symlink():
+                return current
+        return None
+    return None
+
+
 def read_baseline(path: Path) -> Baseline | str:
     """Baseline identities, or a one-line reason the file cannot be used."""
     try:
@@ -1492,6 +1523,15 @@ def run(
     ``--repo-root`` explicitly (see ``main()``); it gates the worktree-identity
     check below.
     """
+    symlink = _symlink_on_baseline_path(repo_root, baseline_path)
+    if symlink is not None:
+        print(
+            f"[CONFIG] baseline {baseline_path} resolves through the symlink {symlink}. "
+            "A symlinked baseline can point outside the repository and switch off the "
+            "base-ref ceiling check. Replace the symlink with a regular file.",
+            file=sys.stderr,
+        )
+        return EXIT_CONFIG
     violations = scan(adr_dir, repo_root, today)
     found = identities(violations)
     # Read once, separately from scan()'s own collect_records() call, only for

@@ -41,6 +41,7 @@ no model pin. ``model`` is not in the keep list, so Cursor's default
 
 from __future__ import annotations
 
+import functools
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -51,6 +52,7 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_SCRIPT_DIR))
 sys.path.insert(0, str(_SCRIPT_DIR.parent))
 
+from agent_capabilities import load_mcp_table, wildcard_grants  # noqa: E402
 from atomic_write import publish_bytes_preserving_mode  # noqa: E402
 from generate_agents_common import read_yaml_frontmatter  # noqa: E402
 from regen_guard import detect_reason as regen_detect_reason  # noqa: E402
@@ -60,7 +62,7 @@ KEEP_KEY = "frontmatterKeep"
 _READONLY_KEY = "readonly"
 _SOURCE_SUFFIX = ".md"
 _DEFAULT_EXCLUDES = ("AGENTS.md", "CLAUDE.md")
-_READONLY_TOOLS = frozenset({"Read", "Glob", "Grep", "WebSearch", "WebFetch"})
+_READONLY_TOOLS = frozenset({"Read", "Glob", "Grep", "WebSearch", "WebFetch", "ToolSearch"})
 # An MCP tool name is `mcp__<server>__<words>`, the words joined by `_`. It is
 # read-only when a read verb leads the words (`get_file_contents`) or the last
 # word is `read` (`issue_read`), and no word names a mutation (`find_and_replace`,
@@ -69,7 +71,11 @@ _READONLY_TOOLS = frozenset({"Read", "Glob", "Grep", "WebSearch", "WebFetch"})
 # read word: `mcp__db__query` can run a write. `resolve` and `ask` can lead a
 # state change (`resolve_review_thread`), so only the exact names in
 # _READ_NAMES earn readonly through them.
-# An unfamiliar name matches neither test and never earns `readonly: true`.
+# A server-level wildcard (`mcp__context7__*`, ADR-107) is read-only only when
+# `templates/agent-mcp-servers.yaml` lets that server be granted whole. A
+# wildcard for any other server (`mcp__github__*`, `mcp__serena__*`) can carry
+# write or shell tools, so it never earns `readonly: true`.
+# An unfamiliar name matches none of these and never earns `readonly: true`.
 _READ_WORDS = frozenset({"get", "list", "read", "find", "search", "initial"})
 _READ_NAMES = frozenset({"resolve_library_id"})
 _COMPOUND_WORDS = frozenset({"and", "or", "then"})
@@ -102,6 +108,13 @@ def uses_agent_tree_copy(stanza: object) -> bool:
     return isinstance(stanza, dict) and KEEP_KEY in stanza
 
 
+@functools.cache
+def _readonly_wildcards() -> frozenset[str]:
+    """Return the ``<prefix>__*`` grants of the servers the MCP table marks safe whole."""
+    grants: frozenset[str] = wildcard_grants(load_mcp_table(_SCRIPT_DIR.parents[1]))
+    return grants
+
+
 def is_readonly_tool(tool: object) -> bool:
     """True when ``tool`` names a tool that changes no state."""
     if not isinstance(tool, str):
@@ -111,6 +124,8 @@ def is_readonly_tool(tool: object) -> bool:
     parts = tool.split("__")
     if len(parts) < 3 or parts[0] != "mcp":
         return False
+    if parts[-1] == "*":
+        return tool in _readonly_wildcards()
     words = parts[-1].split("_")
     if any(word in _MUTATING_WORDS or word in _COMPOUND_WORDS for word in words):
         return False
