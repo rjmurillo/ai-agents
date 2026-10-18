@@ -6,9 +6,11 @@ the 500-line taste limit. Stdlib only, so it runs under bare python3.
 
 from __future__ import annotations
 
+import re
 import subprocess
 
 _GIT_TIMEOUT_SECONDS = 30
+_HEX_SHA = re.compile(r"[0-9a-fA-F]{4,40}")
 
 
 def _git(repo_path: str, *args: str) -> tuple[int, str, str]:
@@ -46,13 +48,48 @@ def _classify_unresolved(sha: str, repo_path: str) -> tuple[bool, str, str]:
     return False, "invalid", "missing-object"
 
 
+def _shadowing_ref(sha: str, repo_path: str) -> tuple[bool, str]:
+    """Return (shadowed, git stderr): whether a ref is named exactly like ``sha``.
+
+    ``git rev-parse`` tries a ref of that name before an object-name prefix, so
+    a branch or tag called ``abc1234`` makes a cited ``abc1234`` resolve to the
+    ref's tip instead of the commit the reviewer meant. The names tried are the
+    ``gitrevisions`` dwim list. ``sha`` is hex only, so the patterns carry no
+    glob characters; ``for-each-ref`` also lists refs below a match, so the
+    output is compared to the exact names.
+    """
+    exact = {
+        f"refs/{sha}",
+        f"refs/tags/{sha}",
+        f"refs/heads/{sha}",
+        f"refs/remotes/{sha}",
+        f"refs/remotes/{sha}/HEAD",
+    }
+    returncode, stdout, stderr = _git(
+        repo_path,
+        "for-each-ref",
+        "--format=%(refname)",
+        f"refs/{sha}",
+        f"refs/tags/{sha}",
+        f"refs/heads/{sha}",
+        f"refs/remotes/{sha}",
+    )
+    if returncode != 0:
+        return False, stderr or f"git for-each-ref exited {returncode}"
+    return any(line.strip() in exact for line in stdout.splitlines()), ""
+
+
 def check_ancestor(sha: str, head_sha: str, repo_path: str) -> tuple[bool, str, str]:
     """Classify a SHA as (reachable, status, detail).
 
     status is reachable, unreachable, ambiguous, or invalid; the gate fails on
-    the last three. detail says why an invalid SHA failed: missing-object (not
-    in the local clone), not-a-commit, or git-error: <git's first stderr line>.
+    the last three. detail says why an invalid SHA failed: not-a-sha (not 4 to
+    40 hex digits), ref-name-collision (a ref carries the same name, so git
+    would resolve the ref, not the commit), missing-object (not in the local
+    clone), not-a-commit, or git-error: <git's first stderr line>.
     """
+    if not _HEX_SHA.fullmatch(sha):
+        return False, "invalid", "not-a-sha"
     # rev-parse --verify --quiet exits 1 when the name does not resolve to a
     # commit; any other nonzero exit is git itself failing.
     returncode, stdout, stderr = _git(
@@ -62,6 +99,12 @@ def check_ancestor(sha: str, head_sha: str, repo_path: str) -> tuple[bool, str, 
         return _classify_unresolved(sha, repo_path)
     if returncode != 0:
         return False, "invalid", _git_error(stderr)
+
+    shadowed, probe_error = _shadowing_ref(sha, repo_path)
+    if probe_error:
+        return False, "invalid", _git_error(probe_error)
+    if shadowed:
+        return False, "invalid", "ref-name-collision"
 
     returncode, _, stderr = _git(repo_path, "merge-base", "--is-ancestor", stdout.strip(), head_sha)
     if returncode == 0:

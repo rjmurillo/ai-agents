@@ -241,9 +241,14 @@ def test_check_ancestor_reports_ambiguous_count() -> None:
     [
         (_done(128, stderr="fatal: not a git repository\nmore"),),
         (_done(1), _done(129, stderr="fatal: bad option\n")),
-        (_done(0, stdout="abc1234\n"), _done(128, stderr="fatal: Not a valid commit name\n")),
+        (
+            _done(0, stdout="abc1234\n"),
+            _done(0),
+            _done(128, stderr="fatal: Not a valid commit name\n"),
+        ),
+        (_done(0, stdout="abc1234\n"), _done(128, stderr="fatal: bad ref probe\n")),
     ],
-    ids=["verify", "disambiguate", "merge-base"],
+    ids=["verify", "disambiguate", "merge-base", "ref-probe"],
 )
 def test_check_ancestor_names_git_errors(results: tuple[subprocess.CompletedProcess[str]]) -> None:
     # 6195-A5: a git failure is invalid (gate blocks) and carries git's message.
