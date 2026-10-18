@@ -9,43 +9,17 @@ over the 50 point CREATE_NEW boundary.
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 from typing import Any
 
 import pytest
 
-SCRIPTS_DIR = Path(__file__).resolve().parents[3] / ".claude" / "skills" / "skillforge" / "scripts"
-# skillforge/scripts holds a frontmatter.py that shadows the PyPI package, so
-# restore sys.path once the import is done.
-_SAVED_SYS_PATH = list(sys.path)
-sys.path.insert(0, str(SCRIPTS_DIR))
-import triage_skill_request as triage
-
-sys.path[:] = _SAVED_SYS_PATH
-
-CREATE_QUERY = (
-    "create a skill for running a social media hook testing loop "
-    "with time-slot rotation and click-through scoring"
+from tests.skills.skillforge.triage_support import (
+    BARE_QUERY,
+    CREATE_QUERY,
+    make_skill,
+    run_triage,
+    triage,
 )
-BARE_QUERY = "social media hook testing loop"
-
-
-def _skill(
-    name: str,
-    description: str,
-    keywords: list[str] | None = None,
-    domains: list[str] | None = None,
-    triggers: list[str] | None = None,
-) -> dict[str, Any]:
-    return {
-        "name": name,
-        "source": "fixture",
-        "description": description,
-        "keywords": keywords or [],
-        "domains": domains or [],
-        "triggers": triggers or [],
-    }
 
 
 @pytest.fixture
@@ -53,25 +27,25 @@ def index() -> dict[str, Any]:
     """A small index shaped like a real one, with no social media skill."""
     return {
         "skills": [
-            _skill(
+            make_skill(
                 "skill-creator",
                 "Create new skills, improve existing skills, and run evals to test a skill.",
                 keywords=["skill-creator", "skill", "creator", "create", "with", "test", "evals"],
                 domains=["testing", "meta", "document"],
             ),
-            _skill(
+            make_skill(
                 "skillify",
                 "Turn a completed workflow into a reusable skill with a test plan.",
                 keywords=["skillify", "skill", "create", "with", "workflow"],
                 domains=["testing", "meta"],
             ),
-            _skill(
+            make_skill(
                 "webapp-testing",
                 "Toolkit for testing local web applications using Playwright.",
                 keywords=["webapp-testing", "webapp", "testing", "playwright", "browser"],
                 domains=["testing", "frontend"],
             ),
-            _skill(
+            make_skill(
                 "xlsx",
                 "Edit and create xlsx spreadsheet files, including formulas and charts.",
                 keywords=["xlsx", "spreadsheet", "excel", "formulas"],
@@ -86,33 +60,27 @@ def _fixture_index(monkeypatch: pytest.MonkeyPatch, index: dict[str, Any]) -> No
     monkeypatch.setattr(triage, "load_skill_index", lambda: index)
 
 
-def _run(query: str) -> dict[str, Any]:
-    result = triage.triage_request(query)
-    assert result.success
-    return result.data
-
-
 # ---------------------------------------------------------------------------
 # Positive: the two repros from the issue
 # ---------------------------------------------------------------------------
 
 
 def test_creation_request_with_no_matching_skill_routes_to_create_new() -> None:
-    data = _run(CREATE_QUERY)
+    data = run_triage(CREATE_QUERY)
 
     assert data["action"] == triage.Action.CREATE_NEW
     assert data["details"]["top_score"] < 50
 
 
 def test_bare_noun_phrase_has_no_match_at_or_above_the_improve_boundary() -> None:
-    data = _run(BARE_QUERY)
+    data = run_triage(BARE_QUERY)
 
     assert data["details"]["top_score"] < 50
     assert data["action"] not in {triage.Action.USE_EXISTING, triage.Action.IMPROVE_EXISTING}
 
 
 def test_scaffolding_words_are_not_reported_as_match_reasons() -> None:
-    data = _run(CREATE_QUERY)
+    data = run_triage(CREATE_QUERY)
 
     reasons = " ".join(r for m in data["top_matches"] for r in m["reasons"])
     assert "partial name: skill" not in reasons
@@ -125,29 +93,29 @@ def test_scaffolding_words_are_not_reported_as_match_reasons() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_spreadsheet_request_still_uses_existing_skill() -> None:
-    data = _run("edit an xlsx spreadsheet")
+def test_spreadsheet_request_still_uses_existingmake_skill() -> None:
+    data = run_triage("edit an xlsx spreadsheet")
 
     assert data["action"] == triage.Action.USE_EXISTING
     assert data["top_matches"][0]["name"] == "xlsx"
 
 
-def test_web_app_testing_request_still_matches_the_testing_skill() -> None:
-    data = _run("playwright web app testing")
+def test_web_app_testing_request_still_matches_the_testingmake_skill() -> None:
+    data = run_triage("playwright web app testing")
 
     assert data["top_matches"][0]["name"] == "webapp-testing"
     assert data["details"]["top_score"] >= 50
 
 
-def test_explicit_improve_request_still_targets_the_named_skill() -> None:
-    data = _run("improve the skillify skill")
+def test_explicit_improve_request_still_targets_the_namedmake_skill() -> None:
+    data = run_triage("improve the skillify skill")
 
     assert data["action"] == triage.Action.IMPROVE_EXISTING
     assert data["details"]["target_skill"] == "skillify"
 
 
 def test_creation_request_for_an_existing_domain_still_warns_about_duplicates() -> None:
-    data = _run("create a skill for editing xlsx spreadsheet files")
+    data = run_triage("create a skill for editing xlsx spreadsheet files")
 
     assert data["action"] == triage.Action.CLARIFY
     assert data["top_matches"][0]["name"] == "xlsx"
@@ -159,27 +127,27 @@ def test_creation_request_for_an_existing_domain_still_warns_about_duplicates() 
 
 
 def test_scaffolding_only_query_creates_new() -> None:
-    data = _run("create a skill")
+    data = run_triage("create a skill")
 
     assert data["action"] == triage.Action.CREATE_NEW
     assert data["details"]["top_score"] == 0
 
 
 def test_empty_query_does_not_crash_and_matches_nothing() -> None:
-    data = _run("")
+    data = run_triage("")
 
     assert data["details"]["top_score"] == 0
     assert data["action"] == triage.Action.CLARIFY
 
 
 def test_single_content_word_is_fully_covered() -> None:
-    skill = _skill("webapp-testing", "Toolkit for testing web applications.")
+    skill = make_skill("webapp-testing", "Toolkit for testing web applications.")
 
     assert triage.calculate_coverage(["testing"], skill) == 1.0
 
 
 def test_one_shared_term_in_a_long_query_scores_low() -> None:
-    skill = _skill("webapp-testing", "Toolkit for testing web applications.", ["testing"])
+    skill = make_skill("webapp-testing", "Toolkit for testing web applications.", ["testing"])
     full, _ = triage.calculate_match_score("testing", skill)
     diluted, reasons = triage.calculate_match_score(BARE_QUERY, skill)
 
@@ -188,7 +156,7 @@ def test_one_shared_term_in_a_long_query_scores_low() -> None:
 
 
 def test_unanchored_result_is_unchanged_when_every_term_is_covered() -> None:
-    skill = _skill("webapp-testing", "Toolkit for testing web applications.", ["testing"])
+    skill = make_skill("webapp-testing", "Toolkit for testing web applications.", ["testing"])
     _, reasons = triage.calculate_match_score("testing", skill)
 
     assert not any(r.startswith("coverage:") for r in reasons)

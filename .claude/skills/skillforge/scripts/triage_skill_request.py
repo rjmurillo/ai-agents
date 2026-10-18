@@ -88,10 +88,14 @@ class InputCategory:
 # Patterns for detecting input category
 EXPLICIT_CREATE_PATTERNS = [
     r"\b(?:create|build|make|design|develop)\s+(?:a\s+)?(?:new\s+)?skill\b",
-    r"\bskillforge[:\s]",
     r"\b(?:new|custom)\s+skill\s+(?:for|to)\b",
     r"\bultimate\s+skill\b",
 ]
+
+# A bare "skillforge:" or "skillforge " prefix only addresses the router. It is
+# checked after the improve patterns so "improve the skillforge skill" stays an
+# improve request.
+SKILLFORGE_PREFIX_PATTERN = r"\bskillforge[:\s]"
 
 EXPLICIT_IMPROVE_PATTERNS = [
     r"\b(?:improve|enhance|update|upgrade|fix|extend)\s+(?:the\s+)?(?:\w+\s+)?skill\b",
@@ -141,6 +145,15 @@ URL_PATTERNS = [
 ]
 
 
+def _explicit_create(query_lower: str, signals: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    """Record the requested purpose and classify the input as an explicit create."""
+    # SECURITY: Use bounded character class to prevent ReDoS (polynomial backtracking)
+    purpose_match = re.search(r"skill\s+(?:for|to)\s+([a-zA-Z0-9 \-,\'\"]{1,200})", query_lower)
+    if purpose_match:
+        signals["extracted_purpose"] = purpose_match.group(1).strip()
+    return InputCategory.EXPLICIT_CREATE, signals
+
+
 def classify_input(query: str) -> tuple[str, dict[str, Any]]:
     """
     Classify user input into a category and extract signals.
@@ -159,16 +172,8 @@ def classify_input(query: str) -> tuple[str, dict[str, Any]]:
     }
 
     # Check for explicit skill creation request
-    for pattern in EXPLICIT_CREATE_PATTERNS:
-        if re.search(pattern, query_lower):
-            # Extract the purpose/goal
-            # SECURITY: Use bounded character class to prevent ReDoS (polynomial backtracking)
-            purpose_match = re.search(
-                r"skill\s+(?:for|to)\s+([a-zA-Z0-9 \-,\'\"]{1,200})", query_lower
-            )
-            if purpose_match:
-                signals["extracted_purpose"] = purpose_match.group(1).strip()
-            return InputCategory.EXPLICIT_CREATE, signals
+    if any(re.search(pattern, query_lower) for pattern in EXPLICIT_CREATE_PATTERNS):
+        return _explicit_create(query_lower, signals)
 
     # Check for explicit improvement request
     for pattern in EXPLICIT_IMPROVE_PATTERNS:
@@ -180,6 +185,10 @@ def classify_input(query: str) -> tuple[str, dict[str, Any]]:
             if skill_match:
                 signals["mentioned_skill_name"] = skill_match.group(1)
             return InputCategory.EXPLICIT_IMPROVE, signals
+
+    # A "skillforge:" prefix with no improve verb asks the router to create.
+    if re.search(SKILLFORGE_PREFIX_PATTERN, query_lower):
+        return _explicit_create(query_lower, signals)
 
     # Check for skill question
     for pattern in SKILL_QUESTION_PATTERNS:
@@ -467,6 +476,14 @@ _INFLECTION = r"(?:s|es|ing|ed)?"
 
 _TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
 
+# Step 8 of calculate_match_score. A skill that explains none of the query terms
+# keeps COVERAGE_FLOOR of its raw score, so a synonym match is discounted, not erased.
+COVERAGE_FLOOR = 0.5
+# One explained term in a request of this many content terms is not a match; the
+# cap sits one point under the 50 point CREATE_NEW boundary.
+SINGLE_TERM_MIN_QUERY_TERMS = 3
+SINGLE_TERM_SCORE_CAP = 49
+
 
 def tokenize_for_scoring(query: str) -> list[str]:
     """
@@ -499,16 +516,8 @@ def _stems(token: str) -> set[str]:
     return forms
 
 
-def calculate_coverage(tokens: list[str], skill: dict[str, Any]) -> float:
-    """
-    Fraction of query content terms the skill name, keywords, or description explain.
-
-    Returns 1.0 when the query has no content terms, so a scaffolding-only
-    request is not penalized for words it does not have.
-    """
-    if not tokens:
-        return 1.0
-
+def _skill_text_forms(skill: dict[str, Any]) -> set[str]:
+    """Return every word form in the skill name, keywords, and description."""
     skill_text = " ".join(
         [
             str(skill.get("name", "")).replace("-", " ").replace("_", " "),
@@ -516,11 +525,55 @@ def calculate_coverage(tokens: list[str], skill: dict[str, Any]) -> float:
             " ".join(str(k) for k in skill.get("keywords", [])),
         ]
     )
-    explained_forms: set[str] = set()
+    forms: set[str] = set()
     for word in _TOKEN_PATTERN.findall(skill_text.lower()):
-        explained_forms |= _stems(word)
-    explained = sum(1 for t in tokens if _stems(t) & explained_forms)
-    return explained / len(tokens)
+        forms |= _stems(word)
+    return forms
+
+
+def count_explained_terms(
+    tokens: list[str], skill: dict[str, Any], synonym_terms: frozenset[str] = frozenset()
+) -> int:
+    """
+    Count query content terms the skill explains.
+
+    A term is explained when the skill name, keywords, or description contain it,
+    or when it is a synonym of a domain the skill declares (synonym_terms). The
+    second path keeps a query like "excel workbook" covered by a skill that names
+    the "spreadsheet" domain but never lists "excel" or "workbook".
+    """
+    explained_forms = _skill_text_forms(skill)
+    synonym_forms: set[str] = set()
+    for term in synonym_terms:
+        synonym_forms |= _stems(term)
+    return sum(1 for t in tokens if _stems(t) & (explained_forms | synonym_forms))
+
+
+def calculate_coverage(
+    tokens: list[str], skill: dict[str, Any], synonym_terms: frozenset[str] = frozenset()
+) -> float:
+    """
+    Fraction of query content terms the skill name, keywords, description, or
+    declared domain synonyms explain.
+
+    Returns 1.0 when the query has no content terms, so a scaffolding-only
+    request is not penalized for words it does not have.
+    """
+    if not tokens:
+        return 1.0
+    return count_explained_terms(tokens, skill, synonym_terms) / len(tokens)
+
+
+def domain_synonym_terms(
+    query_domains: list[tuple[str, list[str]]], skill_domains: set[str]
+) -> frozenset[str]:
+    """Collect the query words that matched a synonym of any domain the skill declares."""
+    terms: set[str] = set()
+    for domain, matched_terms in query_domains:
+        if domain in skill_domains:
+            for matched in matched_terms:
+                terms.update(_TOKEN_PATTERN.findall(matched.lower()))
+    return frozenset(terms)
 
 
 def detect_query_domains(query: str) -> list[tuple[str, list[str]]]:
@@ -546,9 +599,26 @@ def detect_query_domains(query: str) -> list[tuple[str, list[str]]]:
     return detected
 
 
-def calculate_match_score(query: str, skill: dict) -> tuple[float, list[str]]:
+def calculate_match_score(query: str, skill: dict[str, Any]) -> tuple[float, list[str]]:
     """
     Calculate how well a skill matches the query using UNIVERSAL domain matching.
+
+    Returns:
+        Tuple of (score 0-100, list of match reasons)
+    """
+    score, reasons, ceiling = score_skill(query, skill)
+    if ceiling is not None:
+        score = min(score, ceiling)
+    return score, reasons
+
+
+def score_skill(query: str, skill: dict[str, Any]) -> tuple[float, list[str], int | None]:
+    """
+    Score one skill against the query and report any score ceiling.
+
+    The ceiling is set when a long request rests on a single shared term. The
+    caller applies it after context boosts, so a boost cannot lift the score back
+    over the CREATE_NEW boundary.
 
     This function does NOT use any hardcoded skill names - it works purely based on:
     1. Domain detection from query using universal synonyms
@@ -556,7 +626,7 @@ def calculate_match_score(query: str, skill: dict) -> tuple[float, list[str]]:
     3. Direct name/trigger matching from whatever skills exist
 
     Returns:
-        Tuple of (score 0-100, list of match reasons)
+        Tuple of (score 0-100, list of match reasons, score ceiling or None)
     """
     query_lower = query.lower()
     # Content terms only: "create", "skill", "with" and similar scaffolding
@@ -625,21 +695,30 @@ def calculate_match_score(query: str, skill: dict) -> tuple[float, list[str]]:
             desc_matched = True
             break
 
-    # Step 4: Direct skill name match (works for any skill name)
-    if skill_name in query_lower:
+    # Step 4: Direct skill name match (works for any skill name). Whole words
+    # only, hyphens read as spaces, so "test" never matches inside "attest".
+    spaced_name = re.sub(r"[-_\s]+", " ", skill_name).strip()
+    spaced_query = re.sub(r"[-_\s]+", " ", query_lower)
+    names_skill = False
+    if spaced_name and contains_term(spaced_query, spaced_name):
         score += 35
         reasons.append(f"name match: {skill_name}")
+        # Inflection ("testing" for skill "test") is a weaker claim than the exact name.
+        names_skill = (
+            re.search(rf"(?<![a-z0-9]){re.escape(spaced_name)}(?![a-z0-9])", spaced_query)
+            is not None
+        )
     else:
         # Check if significant query words appear in skill name
-        name_words = set(skill_name.replace("-", " ").replace("_", " ").split())
+        name_words = set(spaced_name.split())
         name_overlap = query_words & name_words
         if name_overlap and any(len(w) > 3 for w in name_overlap):
             score += 20
             reasons.append(f"partial name: {', '.join(name_overlap)}")
 
-    # Step 5: Trigger match (works for any skill's triggers)
+    # Step 5: Trigger match (works for any skill's triggers), whole words only
     for trigger in skill_triggers:
-        if trigger in query_lower:
+        if trigger and contains_term(query_lower, trigger):
             score += 25
             reasons.append(f"trigger: {trigger}")
             break
@@ -661,15 +740,34 @@ def calculate_match_score(query: str, skill: dict) -> tuple[float, list[str]]:
         score += 8
         reasons.append("description overlap")
 
-    # Step 8: Coverage. Scale the score by the fraction of query terms the skill
-    # explains, so one shared term in a long, unrelated request cannot reach the
-    # 50 point CREATE_NEW boundary.
-    coverage = calculate_coverage(content_tokens, skill)
+    # Step 8: Coverage. Discount the score by the share of query terms the skill
+    # explains. The discount is half-strength (down to x0.5) so natural phrasing
+    # with a few context words ("fix the failing pytest tests in my repo") still
+    # reaches the routing thresholds. A request of three or more content terms
+    # that rests on a single explained term is capped below the 50 point
+    # CREATE_NEW boundary: one shared word is not a match. A query that names the
+    # skill exactly is exempt.
+    synonym_terms = domain_synonym_terms(query_domains, skill_domains)
+    explained = count_explained_terms(content_tokens, skill, synonym_terms)
+    coverage = explained / len(content_tokens) if content_tokens else 1.0
     if score and coverage < 1.0:
-        score = round(score * coverage)
+        score = round(score * (COVERAGE_FLOOR + (1 - COVERAGE_FLOOR) * coverage))
         reasons.append(f"coverage: {coverage:.0%} of query terms")
+    ceiling: int | None = None
+    if (
+        not names_skill
+        and score > SINGLE_TERM_SCORE_CAP
+        and explained <= 1
+        and len(content_tokens) >= SINGLE_TERM_MIN_QUERY_TERMS
+    ):
+        ceiling = SINGLE_TERM_SCORE_CAP
+        reasons.append("capped: one shared term in a long request")
 
-    return min(100, score), reasons
+    # A zero score carries no evidence, so do not report reasons for it.
+    if score <= 0:
+        return 0, [], None
+
+    return min(100, score), reasons, ceiling
 
 
 def find_matching_skills(
@@ -691,7 +789,7 @@ def find_matching_skills(
     query_domain_names = [d[0] for d in query_domains]
 
     for skill in skills:
-        score, reasons = calculate_match_score(query, skill)
+        score, reasons, ceiling = score_skill(query, skill)
 
         # Apply context-based boosting using DOMAINS (not skill names)
         skill_domains = [d.lower() for d in skill.get("domains", [])]
@@ -717,6 +815,9 @@ def find_matching_skills(
         if matching_domains and score > 0:
             # Additional boost for strong domain alignment
             score += min(15, len(matching_domains) * 5)
+
+        if ceiling is not None:
+            score = min(score, ceiling)
 
         if score > 0:
             matches.append(
