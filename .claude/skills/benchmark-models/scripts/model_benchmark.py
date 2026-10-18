@@ -4,7 +4,7 @@
 Cross-model benchmark for skills/prompts. Runs the same prompt through each
 provider's CLI in parallel, measures latency, token usage, estimated cost, and
 tool-call count, and (optionally) scores output quality with an Anthropic-API
-judge. Answers "which model is actually best for this skill?" with data.
+judge. Reports per-metric leaders with data; one run per provider is inconclusive.
 
 Ported to Python (stdlib only) from gstack's bun/TypeScript gstack-model-benchmark
 (garrytan/gstack). The gstack runtime overhead (telemetry, artifacts-sync,

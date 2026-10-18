@@ -1,15 +1,17 @@
-"""Contract tests for the two canonical amendments made for issue #5410.
+"""Contract tests for the three canonical amendments made for issue #5410.
 
 Issue #5410 reconciles the standalone `you` profile into existing canonical
-owners. Two behaviors had no effective owner and were added to the narrowest
-one:
+owners. Two behaviors had no effective owner. One lands at two sites, so three
+clauses changed:
 
 1. Recurring defect: a defect class that returns gets a deterministic guard,
    not another one-off patch. Owner: SHOULD 18 of the testing rule.
 2. Grading eval results: an underpowered comparison is inconclusive, not a
-   preference. Owner: the ai-agents-research-methodology skill.
+   preference. Owners: step 4 of the ai-agents-research-methodology skill and
+   Step 4 of the benchmark-models skill, the shipped skill that emits model
+   preference claims.
 
-These tests prove four things offline:
+These tests prove five things offline:
 
 1. Every rendered surface carries each clause.
 2. A mutation check removes one clause at a time and proves the checker
@@ -18,6 +20,8 @@ These tests prove four things offline:
    documented reason.
 4. The recurring-defect clause stays scoped: it names the first-occurrence
    limit that stops it from demanding a framework for a one-off defect.
+5. benchmark-models no longer tells the agent to make a best-overall call that
+   the single-run clause forbids.
 """
 
 from __future__ import annotations
@@ -285,6 +289,38 @@ def test_removing_a_benchmark_clause_is_detected(clause_id: str) -> None:
     source = _flat(BENCHMARK_SURFACES[0])
     mutated = source.replace(" ".join(BENCHMARK_CLAUSES[clause_id].split()), "")
     assert missing(mutated, BENCHMARK_CLAUSES) == [clause_id]
+
+
+BEST_MODEL_PROMISES = ("best-overall call", "actually best for this skill")
+
+
+def promises_a_best_model(text: str) -> list[str]:
+    """Return the removed best-model phrases still present in ``text``."""
+    flat = " ".join(text.lower().split())
+    return [phrase for phrase in BEST_MODEL_PROMISES if phrase in flat]
+
+
+@pytest.mark.parametrize("path", BENCHMARK_SURFACES, ids=str)
+def test_benchmark_surface_has_no_best_overall_instruction(path: Path) -> None:
+    """Step 4 must not order a best-overall call beside the no-winner clause.
+
+    model_benchmark.py has no repeat flag, so every invocation is one run per
+    provider and the single-run clause always applies. The description and
+    the Step 4 text must also stop promising a "best" model from that run.
+    """
+    assert promises_a_best_model(_flat(path)) == []
+
+
+def test_benchmark_script_docstring_does_not_promise_a_best_model() -> None:
+    script = REPO_ROOT / ".claude/skills/benchmark-models/scripts/model_benchmark.py"
+    assert promises_a_best_model(script.read_text(encoding="utf-8")) == []
+
+
+@pytest.mark.parametrize("phrase", BEST_MODEL_PROMISES)
+def test_best_model_check_detects_each_reintroduced_phrase(phrase: str) -> None:
+    """Negative control: the check fires when a removed phrase returns."""
+    mutated = _flat(BENCHMARK_SURFACES[0]) + " " + phrase.upper()
+    assert promises_a_best_model(mutated) == [phrase]
 
 
 def _underpowered_fixture() -> Any:
