@@ -46,6 +46,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.ci.count_ratchet import git_environment
 from scripts.utils.markdown_parser import blank_non_prose_block_lines
+from scripts.validation.tracked_paths import path_exists_in_repo
 
 BINDING_SECTIONS: frozenset[str] = frozenset({"decision", "implementation notes"})
 
@@ -135,7 +136,16 @@ def tracked_paths(repo_root: Path) -> frozenset[str] | None:
 
 
 def missing_paths(paths: list[str], repo_root: Path, tracked: frozenset[str] | None) -> list[str]:
-    """The members of ``paths`` that do not exist, preserving order."""
+    """The members of ``paths`` that do not exist, preserving order.
+
+    A path under a tracked symlink (``.claude/skills/<name>/...``, ADR-119)
+    exists when its target is tracked: git lists the link, not the files
+    reached through it.
+    """
     if tracked is not None:
-        return [path for path in paths if path not in tracked]
+        return [
+            path
+            for path in paths
+            if path not in tracked and not path_exists_in_repo(repo_root, path)
+        ]
     return [path for path in paths if not (repo_root / path).is_file()]

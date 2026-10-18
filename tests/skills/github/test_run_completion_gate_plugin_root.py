@@ -208,11 +208,16 @@ def test_every_shipped_criterion_names_its_script_through_the_plugin_root() -> N
 def test_every_shipped_criterion_script_is_verified_from_the_repo_root(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # The classification dispatch shares: from the repo root with no plugin
-    # root declared, every criterion script is a tracked .claude file.
+    # The classification dispatch shares: from the repo root with the Claude
+    # plugin tree declared as the plugin root, every criterion script is a
+    # tracked file under it. The default `.claude` root is not usable in this
+    # repository: `.claude/skills/<name>` is a symlink into `src/claude/skills`
+    # (ADR-119), and the gate refuses a symlinked component (CWE-59).
     monkeypatch.chdir(REPO_ROOT)
+    monkeypatch.delenv("COPILOT_PLUGIN_ROOT", raising=False)
+    monkeypatch.setenv("CLAUDE_PLUGIN_ROOT", "src/claude")
     criteria = yaml.safe_load(_CONFIG.read_text(encoding="utf-8"))["completion_criteria"]
     to_verify, external, escaping = gate._collect_command_paths(criteria, 7, REPO_ROOT)
-    scripts = [shlex.split(c["command"])[1].replace(_FORM, ".claude") for c in criteria]
+    scripts = [shlex.split(c["command"])[1].replace(_FORM, "src/claude") for c in criteria]
     assert all(script in to_verify for script in scripts), (scripts, to_verify)
     assert (external, escaping) == ([], [])

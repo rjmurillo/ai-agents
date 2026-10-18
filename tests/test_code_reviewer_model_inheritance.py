@@ -2,9 +2,9 @@
 
 Copilot CLI refused `claude-haiku-4.5` on a host that did not offer it, so the
 reviewer never started when the caller omitted `model`. The Copilot CLI and
-VS Code projections now carry no `model:` key and inherit the host default.
-The Claude projection keeps its `haiku` alias, which Claude Code resolves
-itself. This module pins both halves in the committed trees.
+VS Code projections carry no `model:` key and inherit the host default
+(ADR-119 decision 11). This module pins that in the committed trees. Claude
+pins are the owner's call and are not asserted here.
 
 CI has no Copilot CLI host, so these checks read the generated output. A
 top-level Copilot CLI 1.0.98 Linux run is recorded on the pull request. The
@@ -20,6 +20,7 @@ new haiku-tier template would bring the bug back unseen.
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -35,10 +36,6 @@ COPILOT_SIDE_FILES = (
     REPO_ROOT / "src" / "copilot-cli" / "agents" / "code-reviewer.agent.md",
     REPO_ROOT / "src" / "vs-code-agents" / "code-reviewer.agent.md",
     REPO_ROOT / ".github" / "agents" / "code-reviewer.agent.md",
-)
-CLAUDE_FILES = (
-    REPO_ROOT / "src" / "claude" / "agents" / "code-reviewer.md",
-    REPO_ROOT / ".claude" / "agents" / "code-reviewer.md",
 )
 COPILOT_TEMPLATES = (
     REPO_ROOT / "templates" / "agents" / "code-reviewer.copilot.md.tmpl",
@@ -69,11 +66,6 @@ def test_copilot_side_code_reviewer_sets_no_model(path: Path) -> None:
 def test_copilot_side_template_sets_no_model_tier(path: Path) -> None:
     lines = path.read_text(encoding="utf-8").splitlines()
     assert not [line for line in lines if line.startswith("model_tier:")]
-
-
-@pytest.mark.parametrize("path", CLAUDE_FILES, ids=lambda p: p.parent.parent.name)
-def test_claude_code_reviewer_keeps_haiku_alias(path: Path) -> None:
-    assert _frontmatter(path).get("model") == "haiku"
 
 
 def test_versioned_haiku_id_is_absent_from_copilot_side_files() -> None:
@@ -185,6 +177,46 @@ def test_generated_copilot_agents_are_discovered() -> None:
     for pattern in GENERATED_COPILOT_AGENT_GLOBS:
         prefix = pattern.split("*")[0]
         assert any(r.startswith(prefix) for r in relative), f"no agents found under {prefix}"
+
+
+def _unguarded_agents(tracked: set[str], guarded: set[str]) -> list[str]:
+    """Return tracked agent files that no guarded glob covers."""
+    return sorted(tracked - guarded)
+
+
+def test_every_tracked_agent_file_is_in_a_guarded_tree() -> None:
+    """A new tree or nested agent must join the scan set, or this fails."""
+    listing = subprocess.run(
+        ["git", "ls-files", "*.agent.md"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert listing.returncode == 0, f"git ls-files failed: {listing.stderr}"
+    tracked = {line for line in listing.stdout.splitlines() if line}
+    assert tracked, "git ls-files found no .agent.md files"
+    guarded = {p.relative_to(REPO_ROOT).as_posix() for p in _generated_copilot_agents()}
+    unguarded = _unguarded_agents(tracked, guarded)
+    assert not unguarded, (
+        f"{unguarded} sit outside GENERATED_COPILOT_AGENT_GLOBS, so the #6638 pin "
+        "guard never reads them. Add the tree to the globs and PLATFORM_YAML_BY_TREE."
+    )
+
+
+def test_unlisted_tree_is_reported_as_unguarded() -> None:
+    """Negative control: an agent in a new tree is flagged."""
+    tracked = {"src/copilot-cli/agents/a.agent.md", "src/new-host/agents/b.agent.md"}
+    guarded = {"src/copilot-cli/agents/a.agent.md"}
+
+    assert _unguarded_agents(tracked, guarded) == ["src/new-host/agents/b.agent.md"]
+
+
+def test_listed_trees_report_no_unguarded_agents() -> None:
+    """Edge: full coverage returns an empty list."""
+    both = {"src/copilot-cli/agents/a.agent.md"}
+
+    assert _unguarded_agents(both, both) == []
 
 
 @pytest.mark.parametrize(

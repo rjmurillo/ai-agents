@@ -13,17 +13,15 @@ With no ``--skills-root``, the resolver reads the skills directory that holds
 this script's own ``autoplan`` skill (two directories up from this file:
 ``scripts/`` -> ``autoplan/`` -> the skills root). Its namespace is the
 nearest ancestor ``.claude-plugin/plugin.json`` ``name`` field above that
-root, or ``local`` when no manifest exists. In this repository's own
-development checkout that walk finds no manifest above ``.claude/skills``, so
-the in-repo namespace is ``local``; the packaged plugin copy under
-``src/claude/skills`` sits under ``src/claude/.claude-plugin/plugin.json``
-(name ``project-toolkit``), which is why DESIGN-037's Identity table names
-``project-toolkit:autoplan`` as the packaged-plugin identity and ``autoplan``
-(no namespace, i.e. this repository's own ``local`` namespace) as the
-in-repo one. Verified 2026-09-25 by reading
-``src/claude/.claude-plugin/plugin.json`` (``"name": "project-toolkit"``) and
-confirming no ``.claude-plugin/plugin.json`` exists above ``.claude/skills``
-in this checkout.
+root, or ``local`` when no manifest exists. The walk resolves symlinks first.
+In this repository's development checkout ``.claude/skills/autoplan`` is a
+symlink into ``src/claude/skills`` (ADR-119), so the default root is the
+packaged plugin tree, which sits under ``src/claude/.claude-plugin/plugin.json``
+(name ``project-toolkit``). The default namespace is therefore
+``project-toolkit`` there, matching DESIGN-037's Identity table entry
+``project-toolkit:autoplan``. ``local`` applies only when a root resolves to
+a directory with no plugin manifest above it, such as a ``--skills-root`` that
+names a bare skills directory.
 
 Self-identification rule (this is the one implementation decision DESIGN-037
 leaves to the resolver: it says only "the resolver identifies itself by

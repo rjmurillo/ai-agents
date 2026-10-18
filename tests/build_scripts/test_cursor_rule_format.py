@@ -174,11 +174,18 @@ def test_generator_rejects_unknown_output_format(tmp_path: Path, bad: str) -> No
 def _render_copilot(tmp_path: Path, extra_stanza: dict[str, object]) -> Path:
     """Render the real Copilot rules stanza from the real rules into tmp_path."""
     shutil.copytree(REPO_ROOT / "src" / "claude" / "rules", tmp_path / "src" / "claude" / "rules")
+    # ADR-119: repo-only rules are real files beside the links in .claude/rules.
+    repo_only = tmp_path / ".claude" / "rules"
+    repo_only.mkdir(parents=True)
+    for path in (REPO_ROOT / ".claude" / "rules").glob("*.md"):
+        if not path.is_symlink():
+            shutil.copy2(path, repo_only / path.name)
     cfg = yaml.safe_load(COPILOT_CONFIG.read_text(encoding="utf-8"))
     stanza = cfg["artifacts"]["rules"]
     stanza.update(extra_stanza)
     stanza["outputDirs"] = ["gh/instructions", "src/copilot-cli/instructions"]
     stanza["keepInternalGlobsFor"] = ["gh/instructions"]
+    stanza["repoOnlyOutputDirs"] = ["gh/instructions"]
     config = tmp_path / "copilot.yaml"
     config.write_text(yaml.safe_dump({**cfg, "artifacts": {"rules": stanza}}), encoding="utf-8")
     rc, _ = generate_rules.generate_rules(config, tmp_path)
@@ -200,10 +207,14 @@ def test_copilot_plugin_instructions_are_byte_identical_to_committed(
 
 
 def test_copilot_github_instructions_are_byte_identical_to_committed(tmp_path: Path) -> None:
+    """The repo-only renders equal the real files; every other entry is a link."""
     rendered = _render_copilot(tmp_path, {}) / "gh" / "instructions"
     committed = REPO_ROOT / ".github" / "instructions"
-    for path in sorted(rendered.glob("*.instructions.md")):
-        assert path.read_bytes() == (committed / path.name).read_bytes(), path.name
+    real = sorted(p.name for p in committed.glob("*.instructions.md") if not p.is_symlink())
+    assert real, "no repo-only instructions to compare"
+    assert sorted(p.name for p in rendered.glob("*.instructions.md")) == real
+    for name in real:
+        assert (rendered / name).read_bytes() == (committed / name).read_bytes(), name
 
 
 def test_copilot_config_does_not_opt_in_to_cursor_format() -> None:

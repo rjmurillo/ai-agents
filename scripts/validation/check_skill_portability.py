@@ -341,7 +341,13 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     try:
+        # ADR-119: shipped skills are directory links into src/claude/skills, and
+        # a directory walk does not follow a link. Scan the canonical tree plus
+        # the repo-local real directories; the two never share a skill name.
         current = scan_skill_scripts(skills_dir)
+        shipped_dir = root / "src" / "claude" / "skills"
+        if shipped_dir.is_dir() and shipped_dir.resolve().is_relative_to(root_resolved):
+            current.update(scan_skill_scripts(shipped_dir))
     except OSError as exc:
         print(f"Could not scan skills dir {skills_dir}: {exc}", file=sys.stderr)
         return 2

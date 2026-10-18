@@ -732,7 +732,8 @@ class TestDefaultCorpus:
         assert exit_code == 0
         out = capsys.readouterr().out
         assert "Scanning skill trees: .claude/skills" in out
-        assert "absent, not scanned: src/copilot-cli/skills" in out
+        absent = out.split("absent, not scanned: ", 1)[1].splitlines()[0]
+        assert absent.split(", ") == ["src/claude/skills", "src/copilot-cli/skills"]
         assert "  Total:  1" in out
 
     def test_no_trees_present_reports_nothing_found(
