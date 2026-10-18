@@ -33,6 +33,8 @@ def _import_script(name: str):
 
 _mod = _import_script("close_pr")
 main = _mod.main
+
+pytestmark = pytest.mark.usefixtures("stub_git_probes")
 build_parser = _mod.build_parser
 
 
@@ -308,6 +310,59 @@ class TestMain:
                     ]
                 )
             assert exc.value.code == 2
+
+    def test_scratchpad_comment_file_under_temp_dir_closes(self, tmp_path, monkeypatch):
+        """Issue #6667: a /tmp/claude-<uid>/ scratchpad file is accepted."""
+        scratch = tmp_path / "claude-1000" / "scratchpad"
+        scratch.mkdir(parents=True)
+        body = scratch / "close.md"
+        body.write_text("Closing from scratchpad.", encoding="utf-8")
+        monkeypatch.setenv("TMPDIR", str(tmp_path))
+        results = [_completed(stdout=json.dumps({"state": "OPEN"})), _completed(), _completed()]
+        with (
+            patch("close_pr.assert_gh_authenticated"),
+            patch("close_pr.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
+            patch("subprocess.run", side_effect=results) as mock_run,
+        ):
+            rc = main(["--pull-request", "50", "--comment-file", str(body)])
+        assert rc == 0
+        comment_call = mock_run.call_args_list[1].args[0]
+        assert "Closing from scratchpad." in comment_call
+
+    def test_comment_file_outside_every_root_exits_2(self, external_tmp_path, monkeypatch):
+        outside = external_tmp_path / "outside.md"
+        outside.write_text("secret", encoding="utf-8")
+        monkeypatch.delenv("TMPDIR", raising=False)
+        with (
+            patch("close_pr.assert_gh_authenticated"),
+            patch("close_pr.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
+            patch("subprocess.run") as mock_run,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "50", "--comment-file", str(outside)])
+            assert exc.value.code == 2
+        mock_run.assert_not_called()
+
+    def test_symlink_in_temp_dir_pointing_outside_exits_2(
+        self, tmp_path, external_tmp_path, monkeypatch
+    ):
+        target = external_tmp_path / "secret.md"
+        target.write_text("secret", encoding="utf-8")
+        link = tmp_path / "link.md"
+        try:
+            link.symlink_to(target)
+        except OSError:
+            pytest.skip("symlinks unavailable")
+        monkeypatch.setenv("TMPDIR", str(tmp_path))
+        with (
+            patch("close_pr.assert_gh_authenticated"),
+            patch("close_pr.resolve_repo_params", return_value=RepoInfo(owner="o", repo="r")),
+            patch("subprocess.run") as mock_run,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                main(["--pull-request", "50", "--comment-file", str(link)])
+            assert exc.value.code == 2
+        mock_run.assert_not_called()
 
     def test_pr_view_non_not_found_error_exits_3(self):
         with (

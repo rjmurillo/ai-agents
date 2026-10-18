@@ -70,7 +70,7 @@ from github_core.output import (
     write_skill_error,
     write_skill_output,
 )
-from github_core.validation import escaped_newline_body_error
+from github_core.validation import escaped_newline_body_error, is_allowed_body_file_path
 
 
 def _load_sibling(filename: str, module_name: str):
@@ -201,6 +201,11 @@ def _read_body(args: argparse.Namespace, fmt: str) -> str | int:
             script_name="new_issue.py",
         )
         return 2
+    if not is_allowed_body_file_path(args.body_file):
+        return _usage_error(
+            f"Body file must be under the repo root, a temp directory, or the git dir: {args.body_file}",
+            fmt,
+        )
     return body_path.read_text(encoding="utf-8")
 
 

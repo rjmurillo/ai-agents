@@ -365,6 +365,27 @@ def external_tmp_path() -> Iterator[Path]:
         shutil.rmtree(path, ignore_errors=True)
 
 
+@pytest.fixture
+def stub_git_probes(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Answer the body-file containment git probes without a subprocess.
+
+    ``github_core.validation.is_allowed_body_file_path`` asks git for the repo
+    root and the git dir. Script tests that patch ``subprocess.run`` with an
+    ordered ``side_effect`` list would see those probes as extra calls. This
+    fake answers both from the checkout, so the containment rule runs for
+    real and the ordered ``gh`` call lists stay exact (issue #6667).
+    """
+    import github_core.repo as repo_module
+    import github_core.validation as validation_module
+
+    monkeypatch.setattr(
+        repo_module,
+        "resolve_repo_root",
+        lambda **_kwargs: (PROJECT_ROOT, repo_module.REPO_ROOT_OK),
+    )
+    monkeypatch.setattr(validation_module, "_candidate_git_dir_roots", lambda: [])
+
+
 def assert_validation_result(
     result: ValidationResult,
     *,

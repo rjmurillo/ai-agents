@@ -112,6 +112,19 @@ All scripts import `modules/GitHubCore.psm1`:
 | `Test-SafeFilePath` | Prevent path traversal (CWE-22 prevention) |
 | `Assert-ValidBodyFile` | Validate BodyFile parameter |
 
+## Body and Comment Files
+
+One rule covers every script that reads `--body-file` or `--comment-file`: `post_issue_comment.py`, `new_issue.py`, `close_issue.py`, `reopen_issue.py`, `close_pr.py`, `edit_issue_body.py`, `post_pr_comment_reply.py`, `add_pr_review_thread_reply.py`, and `new_pr_review_comment.py`.
+
+The file must resolve under the repo root, a temp directory (`TMPDIR`, the system temp dir, `/tmp`, `/private/tmp`), or the git dir. Any other path exits 2, including a symlink that points out of those roots. A session scratchpad under `/tmp` passes, so write the body there and pass the path. Do not inline it with `--comment "$(cat file)"`.
+
+The rule lives in `github_core.validation.is_allowed_body_file_path`. `assert_valid_body_file` wraps it for scripts that exit directly. `close_issue.py`, `reopen_issue.py` and `new_issue.py` call the predicate so they keep their JSON error envelope.
+
+Two readers differ on purpose:
+
+- `new_pr.py` and `edit_pr_body.py` read only a file allocated by `--prepare-body-file`. It is stricter than the rule above and stays that way.
+- `validate_pr_description.py` only reads the file and posts nothing, so it has no containment check.
+
 ## Troubleshooting
 
 ### "Could not infer repository info"

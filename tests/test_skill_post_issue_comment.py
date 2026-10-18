@@ -147,7 +147,7 @@ def test_403_error(mock_run, tmp_path):
 
 
 @patch("subprocess.run")
-def test_body_file(mock_run, capsys, tmp_path):
+def test_body_file(mock_run, capsys, tmp_path, stub_git_probes):
     body_file = tmp_path / "comment.md"
     body_file.write_text("File comment body")
 

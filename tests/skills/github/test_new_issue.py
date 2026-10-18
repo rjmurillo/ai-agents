@@ -188,3 +188,50 @@ class TestSourceLabelConflicts:
         rc, gh = _run(["--title", "T", "--labels", "source:agent", *AGENT_ARGS])
         assert rc == 0
         assert ("issue", "edit") not in gh.verbs()
+
+
+class TestBodyFileContainment:
+    """--body-file follows the shared containment rule (issue #6667)."""
+
+    def test_scratchpad_body_file_under_temp_dir_creates_issue(self, tmp_path, monkeypatch):
+        scratch = tmp_path / "claude-1000" / "scratchpad"
+        scratch.mkdir(parents=True)
+        body = scratch / "issue.md"
+        body.write_text("from scratchpad", encoding="utf-8")
+        monkeypatch.setenv("TMPDIR", str(tmp_path))
+        rc, gh = _run(["--title", "T", "--source", "human", "--body-file", str(body)])
+        assert rc == 0
+        assert "from scratchpad" in _body_arg(gh.find("issue", "create"))
+
+    def test_body_file_outside_every_root_exits_2_before_any_call(
+        self, external_tmp_path, monkeypatch, capsys
+    ):
+        outside = external_tmp_path / "outside.md"
+        outside.write_text("secret", encoding="utf-8")
+        monkeypatch.delenv("TMPDIR", raising=False)
+        rc, gh = _run(["--title", "T", "--source", "human", "--body-file", str(outside)])
+        assert rc == 2
+        assert gh.calls == []
+        assert "Body file must be under" in _error(capsys)
+
+    def test_symlink_in_temp_dir_pointing_outside_exits_2(
+        self, tmp_path, external_tmp_path, monkeypatch, capsys
+    ):
+        target = external_tmp_path / "secret.md"
+        target.write_text("secret", encoding="utf-8")
+        link = tmp_path / "link.md"
+        try:
+            link.symlink_to(target)
+        except OSError:
+            pytest.skip("symlinks unavailable")
+        monkeypatch.setenv("TMPDIR", str(tmp_path))
+        rc, gh = _run(["--title", "T", "--source", "human", "--body-file", str(link)])
+        assert rc == 2
+        assert gh.calls == []
+        assert "Body file must be under" in _error(capsys)
+
+    def test_missing_body_file_exits_2(self, tmp_path, capsys):
+        rc, gh = _run(["--title", "T", "--source", "human", "--body-file", str(tmp_path / "x.md")])
+        assert rc == 2
+        assert gh.calls == []
+        assert "Body file not found" in _error(capsys)
