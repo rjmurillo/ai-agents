@@ -20,11 +20,14 @@ and reftable. Two sets of branches are always kept even without a ref:
 The default run reports only. ``--apply`` backs up the config file beside
 itself, removes each stale section with ``git config --remove-section``, and
 verifies git still parses the result. A prune lock file keeps two ``--apply``
-runs apart, and the stale set is computed again under that lock so a branch
-created after the first look is never pruned. On any failure, including an
-interrupt, only the sections this run removed are written back from the backup.
-A concurrent ``git config`` write to another section survives the rollback.
-When the live config no longer parses, the whole backup is copied back instead.
+runs apart. It does not stop ``git branch --track`` or ``git config``, which
+never check it. The stale set is computed again under the lock, so a branch
+created before the lock was taken keeps its section. A branch that reuses a
+stale section's name between that second look and the removal can still lose
+its new section. On any failure, including an interrupt, only the sections this
+run removed are written back from the backup. A concurrent ``git config`` write
+to another section survives the rollback. When the live config no longer
+parses, the whole backup is copied back instead.
 
 ``--fail-on-stale`` makes a run that leaves stale sections exit 1, so a
 report-only caller such as the pre-push ``branch-config-prune-report`` job can
@@ -321,8 +324,9 @@ def prune_branch_config(repo: Path, apply: bool = False) -> PruneResult:
         return PruneResult(config_path=config_path, configured=configured, stale=stale)
 
     with _prune_lock(config_path):
-        # Listed again under the lock: a branch created since any earlier look
-        # must not lose its section.
+        # Listed again under the lock: a branch created before the lock was
+        # taken must not lose its section. The lock does not stop other git
+        # writers, so a branch created after this look can still lose one.
         configured, stale = _find_stale(repo)
         if not stale:
             return PruneResult(config_path=config_path, configured=configured, stale=stale)
