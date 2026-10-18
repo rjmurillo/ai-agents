@@ -78,7 +78,7 @@ CHANGED = "changed"
 ADDED = "added"
 STALE = "stale"
 STALE_REMEDY = (
-    "dispatch-closure: STALE files match the merge base but not the base ref: "
+    "dispatch-closure: STALE files match every merge base but not the base ref: "
     "merge the base ref into the branch and push"
 )
 _PR_NUMBER = 1  # command templates substitute {pr}; the value does not change which files are named
