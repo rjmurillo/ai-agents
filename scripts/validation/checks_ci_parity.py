@@ -69,16 +69,32 @@ def _run_workflow_validator(repo_root: Path, relative: str, *args: str, module: 
     return bool(exit_code == 0)
 
 
-def _base_ref_or_skip(repo_root: Path, label: str) -> str:
+class BaseRefUnavailable(Exception):  # noqa: N818 - names the missing input, not an error class
+    """The base ref a diff gate needs could not be resolved or refreshed.
+
+    ``pre_pr.run_validation`` records any exception a gate raises as a FAIL, so
+    this fails the gate instead of skipping it (issue #6506).
+    """
+
+
+def _require_base_ref(repo_root: Path, label: str) -> str:
+    """Return the freshly fetched base ref, or raise :class:`BaseRefUnavailable`.
+
+    A gate that diffs against a missing or stale base judges the wrong file set
+    and can read clean while the required check fails. So an unresolved base ref
+    and a failed refresh are both failures, not skips or warnings.
+    """
     base_ref = _resolve_default_base_ref(repo_root)
     if base_ref is None:
-        raise MissingScriptSkip(f"{label} needs a base ref and none resolved")
+        raise BaseRefUnavailable(f"{label} needs a base ref and none resolved")
     # CI fetches the current base before it diffs. A stale local origin/<branch>
-    # changes which files and suppressions count as new, so refresh it here. A
-    # failed fetch warns and proceeds, as check_adr_lifecycle does offline.
+    # changes which files and suppressions count as new, so refresh it here.
     refresh_error = _refresh_remote_base(base_ref, repo_root)
     if refresh_error:
-        print(f"[WARNING] {label}: could not refresh {base_ref} ({refresh_error}); using cache")
+        raise BaseRefUnavailable(
+            f"{label} could not refresh {base_ref} ({refresh_error}); "
+            "a stale base can hide new findings, so fetch the base and re-run"
+        )
     return base_ref
 
 
@@ -150,7 +166,7 @@ def validate_sha_pinning(repo_root: Path) -> bool:
 
 def validate_placeholder_identity(repo_root: Path) -> bool:
     """Fail when a commit on this branch carries a placeholder identity."""
-    base_ref = _base_ref_or_skip(repo_root, "placeholder identity check")
+    base_ref = _require_base_ref(repo_root, "placeholder identity check")
     return _run_workflow_validator(
         repo_root,
         "scripts/validation/check_placeholder_identity.py",
@@ -170,7 +186,7 @@ def validate_tracked_conflict_markers(repo_root: Path) -> bool:
 
 def validate_security_suppressions_diff(repo_root: Path) -> bool:
     """Fail when the branch adds a security-scanner suppression."""
-    base_ref = _base_ref_or_skip(repo_root, "security suppression diff")
+    base_ref = _require_base_ref(repo_root, "security suppression diff")
     return _run_workflow_validator(
         repo_root,
         "scripts/validation/git_hook_policy.py",
@@ -188,7 +204,7 @@ def validate_memory_placement(repo_root: Path) -> bool:
     commit first, because an uncommitted edit to a memory is not judged here.
     The pre-commit ``memory-placement`` job covers staged files. Issue #5828.
     """
-    base_ref = _base_ref_or_skip(repo_root, "memory placement check")
+    base_ref = _require_base_ref(repo_root, "memory placement check")
     return _run_workflow_validator(
         repo_root,
         "scripts/validation/check_memory_placement.py",
@@ -205,7 +221,7 @@ def validate_route_scenario_coverage(repo_root: Path) -> bool:
     route`` step of ``Rule Activation Coverage`` runs, against the same base.
     It diffs the committed range from the merge base, as CI does. Issue #6291.
     """
-    base_ref = _base_ref_or_skip(repo_root, "route scenario coverage")
+    base_ref = _require_base_ref(repo_root, "route scenario coverage")
     return _run_workflow_validator(
         repo_root,
         "scripts/validation/check_route_scenario_coverage.py",
