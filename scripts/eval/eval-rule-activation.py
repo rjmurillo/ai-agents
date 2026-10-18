@@ -1191,10 +1191,18 @@ def eval_one_scenario(
             "system_prompt_chars": len(system),
         }
         _add_mechanism_metadata(mechanism_result, routing, fingerprint)
-        mechanism_result["response_chars"] = len(response)
-        output_tokens = metadata.get("output_tokens")
-        if isinstance(output_tokens, int) and not isinstance(output_tokens, bool):
-            mechanism_result["output_tokens"] = output_tokens
+        # A response cut at the token cap, refused, or otherwise unfinished is
+        # shorter than the full answer, so its size says nothing about the rule.
+        # Record why, and leave the size fields off: `_size_covers_pool` then
+        # reads the pool as unmeasured and publishes no delta (#5405).
+        termination = metadata.get("termination")
+        if isinstance(termination, str):
+            mechanism_result["termination"] = termination
+        if termination not in NON_SCOREABLE_TERMINATIONS:
+            mechanism_result["response_chars"] = len(response)
+            output_tokens = metadata.get("output_tokens")
+            if isinstance(output_tokens, int) and not isinstance(output_tokens, bool):
+                mechanism_result["output_tokens"] = output_tokens
         result["mechanisms"][mechanism] = mechanism_result
     return result
 
@@ -1320,7 +1328,10 @@ def _incomplete_mechanisms(
 
 
 def _mean_int_field(pool: list[dict[str, Any]], mech: str, field: str) -> tuple[float | None, int]:
-    """Mean of an integer field over the cells that recorded it, and how many did.
+    """Unrounded mean of an integer field over the cells that recorded it, and how many did.
+
+    Callers round for display and keep this value for any subtraction, the same
+    split `avg_score` and `avg_score_exact` make.
 
     `bool` is refused by name because it is an `int` subclass. None, not 0.0,
     when no cell recorded the field: an unmeasured size is not a size of zero.
@@ -1333,7 +1344,12 @@ def _mean_int_field(pool: list[dict[str, Any]], mech: str, field: str) -> tuple[
     ]
     if not values:
         return None, 0
-    return round(sum(values) / len(values), 1), len(values)
+    return sum(values) / len(values), len(values)
+
+
+def _round_mean(value: float | None) -> float | None:
+    """The published one-decimal form of a mean, or None when nothing was measured."""
+    return None if value is None else round(value, 1)
 
 
 def _mechanism_summary(pool: list[dict[str, Any]], mech: str) -> dict[str, Any]:
@@ -1361,8 +1377,8 @@ def _mechanism_summary(pool: list[dict[str, Any]], mech: str) -> dict[str, Any]:
     # observation supports. An absent number has to be handled; a zero does
     # not, so it travels silently into the table.
     avg = round(sum(scores) / len(scores), 2) if scores else None
-    output_token_mean, output_token_count = _mean_int_field(pool, mech, "output_tokens")
-    response_chars_mean, response_chars_count = _mean_int_field(pool, mech, "response_chars")
+    output_token_exact, output_token_count = _mean_int_field(pool, mech, "output_tokens")
+    response_chars_exact, response_chars_count = _mean_int_field(pool, mech, "response_chars")
     return {
         "avg_score": avg,
         # The published average is rounded, and archived runs recorded it that
@@ -1382,11 +1398,13 @@ def _mechanism_summary(pool: list[dict[str, Any]], mech: str) -> dict[str, Any]:
         # Output tokens the API reported for the response under test (#5405),
         # not the judge's. None when no cell reported usage, so a provider
         # that sends none is never read as a zero-token response.
-        "mean_output_tokens": output_token_mean,
+        "mean_output_tokens": _round_mean(output_token_exact),
+        "mean_output_tokens_exact": output_token_exact,
         "output_token_count": output_token_count,
         # Length of the response text. A subscription CLI provider returns
         # text with no usage block, so this is the only size signal there.
-        "mean_response_chars": response_chars_mean,
+        "mean_response_chars": _round_mean(response_chars_exact),
+        "mean_response_chars_exact": response_chars_exact,
         "response_chars_count": response_chars_count,
     }
 
@@ -1774,8 +1792,10 @@ def _size_delta(
     """
     if not _size_covers_pool(treatment, count_key) or not _size_covers_pool(control, count_key):
         return None
-    treated = treatment.get(mean_key)
-    base = control.get(mean_key)
+    # Subtract the exact means and round only the result. Archived summaries
+    # predate the exact keys, so they fall back to the published mean.
+    treated = treatment.get(f"{mean_key}_exact", treatment.get(mean_key))
+    base = control.get(f"{mean_key}_exact", control.get(mean_key))
     if treated is None or base is None:
         return None
     return float(round(treated - base, 1))

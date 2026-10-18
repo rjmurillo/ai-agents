@@ -50,6 +50,13 @@ class TestCallApiMetadata:
         _anthropic_api.call_api("key", [], metadata=metadata)
         assert "output_tokens" not in metadata
 
+    def test_reused_dict_does_not_keep_a_stale_count(self, monkeypatch):
+        response = _anthropic_api.MessageResponse("text", "end_turn", "completed", ())
+        monkeypatch.setattr(_anthropic_api, "call_api_response", lambda *a, **k: response)
+        metadata: dict[str, object] = {"output_tokens": 99}
+        _anthropic_api.call_api("key", [], metadata=metadata)
+        assert "output_tokens" not in metadata
+
     def test_zero_tokens_are_recorded_not_dropped(self, monkeypatch):
         response = _anthropic_api.MessageResponse("", "end_turn", "completed", (), None, None, 0)
         monkeypatch.setattr(_anthropic_api, "call_api_response", lambda *a, **k: response)
@@ -60,12 +67,14 @@ class TestCallApiMetadata:
 
 class TestEvalOneScenarioRecordsTokens:
     @staticmethod
-    def _run(monkeypatch, usage: object) -> dict[str, Any]:
+    def _run(monkeypatch, usage: object, termination: str | None = None) -> dict[str, Any]:
         monkeypatch.setattr(eval_mod, "RATE_LIMIT_SLEEP_SEC", 0)
 
         def fake_call(*args, metadata=None, **kwargs):
             if metadata is not None and usage is not None:
                 metadata["output_tokens"] = usage
+            if metadata is not None and termination is not None:
+                metadata["termination"] = termination
             return "response"
 
         monkeypatch.setattr(eval_mod, "_call_api", fake_call)
@@ -97,6 +106,29 @@ class TestEvalOneScenarioRecordsTokens:
     def test_bool_usage_is_not_recorded(self, monkeypatch):
         result = self._run(monkeypatch, True)
         assert "output_tokens" not in result["mechanisms"]["full"]
+
+    @pytest.mark.parametrize("termination", ["token_limit", "refusal", "incomplete"])
+    def test_cut_or_refused_response_records_why_and_no_size(self, monkeypatch, termination):
+        result = self._run(monkeypatch, 600, termination=termination)
+        for mech in ("baseline", "full"):
+            cell = result["mechanisms"][mech]
+            assert cell["termination"] == termination
+            assert "output_tokens" not in cell
+            assert "response_chars" not in cell
+
+    @pytest.mark.parametrize("termination", ["completed", "unknown"])
+    def test_finished_or_unreported_response_keeps_its_size(self, monkeypatch, termination):
+        result = self._run(monkeypatch, 55, termination=termination)
+        cell = result["mechanisms"]["full"]
+        assert cell["termination"] == termination
+        assert cell["output_tokens"] == 55
+        assert cell["response_chars"] == len("response")
+
+    def test_provider_without_termination_metadata_keeps_its_size(self, monkeypatch):
+        result = self._run(monkeypatch, 55)
+        cell = result["mechanisms"]["full"]
+        assert "termination" not in cell
+        assert cell["response_chars"] == len("response")
 
 
 class TestMechanismMean:
@@ -218,6 +250,32 @@ class TestOutputTokenDelta:
         summary = eval_mod.aggregate(scenarios)
         assert summary["output_tokens_delta_full_vs_baseline"] == -50.0
 
+    def test_aggregate_with_a_clipped_cell_publishes_none(self):
+        """A cell cut at the token cap carries no size, so the pool is not covered."""
+        clipped = _with_tokens(_make_scenario(2, 3, 4), baseline=600)
+        clipped["mechanisms"]["full"]["termination"] = "token_limit"
+        scenarios = [
+            _with_tokens(_make_scenario(2, 3, 4), baseline=120, full=70),
+            clipped,
+        ]
+        summary = eval_mod.aggregate(scenarios)
+        assert summary["output_tokens_delta_full_vs_baseline"] is None
+        assert "Mean output tokens" not in eval_mod.render_table("voice", summary)
+
+    def test_delta_is_taken_from_exact_means_not_rounded_ones(self):
+        """Means 10.667 and 10.333 publish as 10.7 and 10.3; their gap is 0.3, not 0.4."""
+        baseline = [11, 11, 10]
+        full = [10, 10, 11]
+        scenarios = [
+            _with_tokens(_make_scenario(2, 3, 4), baseline=b, full=f)
+            for b, f in zip(baseline, full, strict=True)
+        ]
+        summary = eval_mod.aggregate(scenarios)
+        per_mech = summary["per_mechanism"]
+        assert per_mech["baseline"]["mean_output_tokens"] == 10.7
+        assert per_mech["full"]["mean_output_tokens"] == 10.3
+        assert summary["output_tokens_delta_full_vs_baseline"] == -0.3
+
     def test_aggregate_without_usage_publishes_none(self):
         summary = eval_mod.aggregate([_make_scenario(2, 3, 4)])
         assert summary["output_tokens_delta_full_vs_baseline"] is None
@@ -300,6 +358,8 @@ class TestNegativePoolSize:
         assert "full 1594.0 (n=1) (+345.0)" in text
 
 
+RULE_VOCABULARY = re.compile(r"\b(FAILED|UNAVAILABLE|NOT RUN|INFERRED)\b")
+
 LENGTH_CUE = re.compile(
     r"\b(words?|lines?|one-line|terse|concise|brief|short|sentences?|bullets?)\b",
     re.IGNORECASE,
@@ -315,9 +375,47 @@ class TestVoiceReportingFixtures:
         return {s["id"]: s for s in data["scenarios"]}
 
     def test_every_evidence_state_has_a_scenario(self, scenarios):
-        text = json.dumps([s["expected_signals"] for s in scenarios.values()])
-        for state in ("NOT RUN", "FAILED", "UNAVAILABLE", "INFERRED"):
-            assert state in text, state
+        """Each state is pinned by its gate, not by the rule's own vocabulary."""
+        gates = {s["expected_gate"] for s in scenarios.values()}
+        state_gates = {
+            "failed": {"enforce-failure-report", "enforce-failed-not-updated"},
+            "not run": {"enforce-not-run"},
+            "unavailable": {"enforce-unavailable-state"},
+            "inferred": {"enforce-inference-label"},
+        }
+        for state, wanted in state_gates.items():
+            assert wanted <= gates, state
+
+    def test_claim_signals_describe_behavior_not_the_rule_vocabulary(self, scenarios):
+        """The baseline arm never sees the rule, so a signal must not need its tokens.
+
+        A literal 'FAILED' or 'NOT RUN' rewards vocabulary the baseline cannot know,
+        which inflates the full-vs-baseline gain. Issue #5405 asks for the semantic
+        distinction.
+        """
+        for sid in ("V6", "V7", "V8", "V9", "V10", "V11", "V12", "V13", "V14"):
+            for signal in scenarios[sid]["expected_signals"]:
+                match = RULE_VOCABULARY.search(signal)
+                assert match is None, (sid, signal)
+
+    @pytest.mark.parametrize(
+        "text", ["FAILED", "Tests: NOT RUN", "UNAVAILABLE", "INFERRED safe to merge"]
+    )
+    def test_rule_vocabulary_pattern_matches_the_state_tokens(self, text):
+        assert RULE_VOCABULARY.search(text)
+
+    @pytest.mark.parametrize(
+        "text",
+        ["reports the push as failed, not completed", "tests reported as not run", "unavailable"],
+    )
+    def test_rule_vocabulary_pattern_ignores_plain_behavior_wording(self, text):
+        assert RULE_VOCABULARY.search(text) is None
+
+    def test_partial_scope_signal_does_not_assert_an_unobserved_state(self, scenarios):
+        """V12 never read threads 4 and 5 back, so 'open' would be an ungrounded claim."""
+        signals = " ".join(scenarios["V12"]["expected_signals"])
+        assert "open" not in signals
+        assert "state not checked" in signals
 
     def test_partial_scope_and_unread_result_have_scenarios(self, scenarios):
         gates = {s["expected_gate"] for s in scenarios.values()}
@@ -325,7 +423,7 @@ class TestVoiceReportingFixtures:
 
     def test_semantic_equivalence_scenario_names_each_state_it_must_keep(self, scenarios):
         signals = " ".join(scenarios["V14"]["expected_signals"])
-        assert "NOT RUN" in signals and "INFERRED" in signals
+        assert "not run" in signals and "inference" in signals and "confirmed" in signals
 
     def test_exemptions_are_negative_cases(self, scenarios):
         for sid in ("V15", "V16", "V17"):
@@ -358,7 +456,7 @@ class TestVoiceReportingFixtures:
 
     def test_inference_scenario_signals_describe_behavior_not_vocabulary(self, scenarios):
         signals = scenarios["V13"]["expected_signals"]
-        assert "INFERRED" not in signals and "likely" not in signals
+        assert "likely" not in signals
         assert any("inference" in sig for sig in signals)
         assert any("body" in sig for sig in signals)
 

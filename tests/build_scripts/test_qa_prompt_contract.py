@@ -174,7 +174,12 @@ def test_qa_ready_claim_requires_no_unrun_suite(surface: Path) -> None:
     assert len(complete) == 1
     line = complete[0]
     assert READY_PHRASE in line
-    assert "Only if [passed] equals [total] and no suite is `NOT RUN`/`UNAVAILABLE`" in line
+    assert "Only if [passed] equals [total]" in line
+    assert "and no suite is `NOT RUN`/`UNAVAILABLE`" in line
+    # A green run with skips is neither QA FAILED nor an unrun suite, so the
+    # line has to count the skips out of [total] and report them.
+    assert "[skipped] skipped" in line
+    assert "(skips not counted)" in line
     assert "or QA FAILED" in line
     assert "`[BLOCKED] Cannot evaluate: <suite>`" in line
     # The readiness phrase must precede the condition, never follow the BLOCKED branch.
@@ -187,3 +192,12 @@ def test_qa_ready_claim_appears_once_per_surface(surface: Path) -> None:
 
     assert len(ready_lines) == 1
     assert ready_lines[0].lstrip().startswith("- **QA COMPLETE**:")
+
+
+@pytest.mark.parametrize("surface", QA_SURFACES)
+def test_qa_coverage_directive_keeps_the_no_memory_guardrail(surface: Path) -> None:
+    """Issue #5405: trimming QA prose for the F1 byte budget must not drop this guardrail."""
+    directive = [ln for ln in _read(surface).splitlines() if "Coverage tool directive (A5)" in ln]
+
+    assert len(directive) == 1
+    assert "Do not rely on memory or test counts." in directive[0]

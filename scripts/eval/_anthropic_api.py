@@ -321,6 +321,7 @@ def call_api(
         metadata["stop_reason"] = response.stop_reason
         if response.refusal_category is not None:
             metadata["refusal_category"] = response.refusal_category
+        metadata.pop("output_tokens", None)  # a reused dict keeps no stale count
         if response.output_tokens is not None:
             metadata["output_tokens"] = response.output_tokens
     # Per-file mypy resolves the sibling import as Any; the field is str.
