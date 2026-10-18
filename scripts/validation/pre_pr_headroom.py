@@ -45,7 +45,7 @@ def _in_container() -> bool:
         from run_workflow_local_test import _is_remote_container
     except ImportError:
         return False
-    return _is_remote_container()
+    return bool(_is_remote_container())
 
 
 def wait_seconds() -> float:

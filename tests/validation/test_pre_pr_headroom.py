@@ -144,7 +144,12 @@ def test_main_runs_the_gates_inside_the_wait(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setattr(bare, "_in_container", lambda: False)
     monkeypatch.setenv(bare.FAST_STAGE_RAN_ENV, "1")
     monkeypatch.delenv("CI", raising=False)
-    monkeypatch.setattr(pre_pr, "_main", lambda argv: events.append(("run", argv)) or 7)
+
+    def fake_main(argv: list[str] | None) -> int:
+        events.append(("run", argv))
+        return 7
+
+    monkeypatch.setattr(pre_pr, "_main", fake_main)
     assert pre_pr.main(["--quick"]) == 7
     assert events[0][0] == "enter"
     assert events[1] == ("run", ["--quick"])
