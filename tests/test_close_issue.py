@@ -34,8 +34,9 @@ def _import_script(name: str):
 _mod = _import_script("close_issue")
 main = _mod.main
 
-pytestmark = pytest.mark.usefixtures("stub_git_probes", "tmp_path_is_temp_root")
 build_parser = _mod.build_parser
+
+pytestmark = pytest.mark.usefixtures("stub_git_probes", "tmp_path_is_temp_root")
 
 
 # ---------------------------------------------------------------------------

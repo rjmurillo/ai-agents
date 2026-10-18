@@ -31,8 +31,9 @@ def _import_script(name: str):
 _mod = _import_script("reopen_issue")
 main = _mod.main
 
-pytestmark = pytest.mark.usefixtures("stub_git_probes", "tmp_path_is_temp_root")
 build_parser = _mod.build_parser
+
+pytestmark = pytest.mark.usefixtures("stub_git_probes", "tmp_path_is_temp_root")
 
 
 def _completed(stdout: str = "", stderr: str = "", rc: int = 0):
@@ -257,10 +258,6 @@ class TestMain:
             assert exc.value.code == 2
 
 
-if __name__ == "__main__":
-    raise SystemExit(pytest.main([__file__, "-v"]))
-
-
 class TestCommentFileContainment:
     """--comment-file follows the shared containment rule (issue #6667)."""
 
@@ -394,3 +391,7 @@ class TestCommentFileContainment:
             assert exc.value.code == 2
         mock_run.assert_not_called()
         assert _envelope(capsys)["Error"]["Type"] == "NotFound"
+
+
+if __name__ == "__main__":
+    raise SystemExit(pytest.main([__file__, "-v"]))

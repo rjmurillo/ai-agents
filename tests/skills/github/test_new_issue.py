@@ -235,3 +235,17 @@ class TestBodyFileContainment:
         assert rc == 2
         assert gh.calls == []
         assert "Body file not found" in _error(capsys)
+
+    def test_missing_file_outside_every_root_reports_containment_not_missing(
+        self, external_tmp_path, capsys, stub_temp_roots
+    ):
+        """A path outside every root gets one answer whether or not it exists."""
+        stub_temp_roots()
+        rc, gh = _run(
+            ["--title", "T", "--source", "human", "--body-file", str(external_tmp_path / "no.md")]
+        )
+        assert rc == 2
+        assert gh.calls == []
+        message = _error(capsys)
+        assert "Body file must be under" in message
+        assert "not found" not in message

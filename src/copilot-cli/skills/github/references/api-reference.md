@@ -120,6 +120,8 @@ Relative paths resolve differently per script, so pass an absolute path. `close_
 
 The rule lives in `github_core.validation.is_allowed_body_file_path`. `assert_valid_body_file` wraps it for scripts that exit directly. `close_issue.py`, `reopen_issue.py` and `new_issue.py` call the predicate so they keep their JSON error envelope.
 
+The check and the read are two steps. A script resolves symlinks to test containment, then opens the path it was given. A writer who controls a directory under a shared temp root could swap the file for a symlink in between. Keep body files in a private directory such as the session scratchpad. `prepare_pr_body.py` closes the gap with `O_NOFOLLOW` and is the model if a script needs to.
+
 These readers differ on purpose:
 
 - `new_pr.py` and `edit_pr_body.py` read only a file allocated by `--prepare-body-file`. It is stricter than the rule above and stays that way.
