@@ -70,8 +70,10 @@ EXIT_OK = 0
 EXIT_DIFFERS = 1
 EXIT_CONFIG = 2
 
-GATE = ".claude/skills/github/scripts/pr/run_completion_gate.py"
-CONFIG = ".claude/skills/pr-review/pr-review-config.yaml"
+# ADR-119: .claude/skills/<name> links into src/claude/skills, and git cannot
+# read a blob through a link, so the closure names the plugin-tree paths.
+GATE = "src/claude/skills/github/scripts/pr/run_completion_gate.py"
+CONFIG = "src/claude/skills/pr-review/pr-review-config.yaml"
 CHANGED = "changed"
 ADDED = "added"
 STALE = "stale"
