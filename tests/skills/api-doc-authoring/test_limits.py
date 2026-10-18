@@ -78,8 +78,10 @@ def test_the_direct_opener_has_no_proxy_handler_even_with_proxy_variables(
 
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
-    assert not [h for h in opener.handlers if isinstance(h, urllib.request.ProxyHandler)]
-    assert not [h for h in ax._DIRECT_OPENER.handlers if isinstance(h, urllib.request.ProxyHandler)]
+    for candidate in (opener, ax._DIRECT_OPENER):
+        handlers = getattr(candidate, "handlers", None)
+        assert isinstance(handlers, list) and handlers
+        assert not [h for h in handlers if isinstance(h, urllib.request.ProxyHandler)]
 
 
 def test_a_loopback_request_ignores_a_configured_proxy(monkeypatch: pytest.MonkeyPatch) -> None:
