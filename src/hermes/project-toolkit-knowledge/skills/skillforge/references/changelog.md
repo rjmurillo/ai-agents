@@ -4,6 +4,8 @@
 
 - `discover_skills.py` now indexes plugin-installed skills: `CLAUDE_PLUGIN_ROOT`, `COPILOT_PLUGIN_ROOT`, the folder holding SkillForge, `--extra-root`, and `SKILLFORGE_EXTRA_ROOTS` (#6646)
 - `discover_skills.py` keeps one entry per skill name, from the lowest-priority-number source, and records hidden copies in `shadowed_paths` (#6646)
+- `discover_skills.py` prefers `SKILL.md` over sibling markdown files when a `*/*.md` source gives them the same skill name (#6646)
+- `discover_skills.py` warns when a plugin or extra root exists but holds no skill files, and names the parent directory fix when the root is itself a skill folder (#6646)
 
 ## v4.1.0 (Current)
 

@@ -309,6 +309,111 @@ class TestDiscoverSkills:
         result = ds.discover_skills(sources=sources)
         assert result.data["total_count"] == 1
 
+    def test_skill_md_beats_sibling_markdown_in_a_glob_source(self, tmp_path: Path) -> None:
+        """A */*.md source parses every file; sibling notes must not shadow SKILL.md."""
+        root = tmp_path / "plugin"
+        folder = root / "systematic-debugging"
+        folder.mkdir(parents=True)
+        real = folder / "SKILL.md"
+        real.write_text("---\ndescription: Real skill description\n---\n\n# Real\n")
+        (folder / "CREATION-LOG.md").write_text("Notes about how this was made.\n")
+        (folder / "README.md").write_text("Readme text.\n")
+        source = {"name": "glob", "path": root, "pattern": "*/*.md", "priority": 1}
+        result = ds.discover_skills(sources=[source])
+        entries = result.data["skills"]
+        assert len(entries) == 1
+        assert entries[0]["path"] == str(real)
+        assert entries[0]["description"] == "Real skill description"
+        assert sorted(Path(p).name for p in entries[0]["shadowed_paths"]) == [
+            "CREATION-LOG.md",
+            "README.md",
+        ]
+
+    def test_lowercase_skill_md_beats_sibling_markdown(self, tmp_path: Path) -> None:
+        root = tmp_path / "plugin"
+        folder = root / "alpha"
+        folder.mkdir(parents=True)
+        real = folder / "skill.md"
+        real.write_text("---\ndescription: Lowercase real\n---\n")
+        (folder / "AAA-notes.md").write_text("Notes.\n")
+        source = {"name": "glob", "path": root, "pattern": "*/*.md", "priority": 1}
+        result = ds.discover_skills(sources=[source])
+        assert [s["path"] for s in result.data["skills"]] == [str(real)]
+
+    def test_folder_without_skill_md_still_indexes_its_markdown(self, tmp_path: Path) -> None:
+        root = tmp_path / "plugin"
+        (root / "only-notes").mkdir(parents=True)
+        (root / "only-notes" / "README.md").write_text("Just a readme.\n")
+        source = {"name": "glob", "path": root, "pattern": "*/*.md", "priority": 1}
+        result = ds.discover_skills(sources=[source])
+        assert [s["name"] for s in result.data["skills"]] == ["only-notes"]
+
+    def test_skill_md_preference_applies_across_case_variants_of_a_name(
+        self, tmp_path: Path
+    ) -> None:
+        """Dedupe folds case, so the SKILL.md preference must sort on the folded name."""
+        root = tmp_path / "plugin"
+        (root / "Dup").mkdir(parents=True)
+        (root / "dup").mkdir(parents=True)
+        (root / "Dup" / "notes.md").write_text("No frontmatter.\n")
+        real = root / "dup" / "SKILL.md"
+        real.write_text("---\nname: dup\ndescription: Real\n---\n")
+        source = {"name": "glob", "path": root, "pattern": "*/*.md", "priority": 1}
+        result = ds.discover_skills(sources=[source])
+        assert [s["path"] for s in result.data["skills"]] == [str(real)]
+
+    def test_skill_folder_passed_as_root_warns_with_fix(
+        self, fake_script: Path, tmp_path: Path
+    ) -> None:
+        solo = tmp_path / "solo-skill"
+        solo.mkdir()
+        (solo / "SKILL.md").write_text("---\nname: solo\ndescription: One.\n---\n")
+        sources = ds.build_skill_sources(extra_roots=[solo], env={}, script_path=fake_script)
+        result = ds.discover_skills(sources=sources)
+        assert "solo" not in [s["name"] for s in result.data["skills"]]
+        matching = [w for w in result.warnings if str(solo) in w]
+        assert len(matching) == 1
+        assert "extra-1" in matching[0]
+        assert "pass its parent directory" in matching[0]
+
+    def test_empty_existing_root_warns(self, fake_script: Path, tmp_path: Path) -> None:
+        empty = tmp_path / "empty"
+        empty.mkdir()
+        sources = ds.build_skill_sources(extra_roots=[empty], env={}, script_path=fake_script)
+        result = ds.discover_skills(sources=sources)
+        matching = [w for w in result.warnings if str(empty) in w]
+        assert len(matching) == 1
+        assert "subfolder holding SKILL.md" in matching[0]
+
+    def test_root_with_skills_does_not_warn_empty(self, fake_script: Path, tmp_path: Path) -> None:
+        extra = tmp_path / "extra"
+        _write_skill(extra, "fine")
+        sources = ds.build_skill_sources(extra_roots=[extra], env={}, script_path=fake_script)
+        result = ds.discover_skills(sources=sources)
+        assert not [w for w in result.warnings if str(extra) in w]
+
+    def test_empty_fixed_source_does_not_warn(self, tmp_path: Path) -> None:
+        """Only runtime roots warn; a bare fixed source is normal on a clean host."""
+        root = tmp_path / "fixed"
+        root.mkdir()
+        source = {"name": "fixed", "path": root, "pattern": ds.RUNTIME_SKILL_PATTERN, "priority": 1}
+        result = ds.discover_skills(sources=[source])
+        assert not [w for w in result.warnings if "No skills found" in w]
+
+    def test_unlistable_root_still_warns(
+        self, fake_script: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        empty = tmp_path / "locked"
+        empty.mkdir()
+
+        def boom(self: Path):
+            raise PermissionError("denied")
+
+        monkeypatch.setattr(Path, "iterdir", boom)
+        warning = ds._empty_root_warning({"name": "extra-1", "path": empty})
+        assert "No skills found in extra-1" in warning
+        assert "subfolder holding SKILL.md" in warning
+
     def test_unreadable_skill_file_warns(self, fake_script: Path, tmp_path: Path) -> None:
         extra = tmp_path / "extra"
         folder = extra / "bad"
@@ -430,3 +535,37 @@ class TestMain:
         payload = json.loads(capsys.readouterr().out)
         assert code == 0
         assert payload["data"]["sources"]["extra-1"] == str(extra)
+
+
+@pytest.mark.usefixtures("isolated_fixed_sources")
+class TestMainEmptyRoot:
+    def test_skill_folder_as_extra_root_prints_warning_and_exits_zero(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        solo = tmp_path / "solo"
+        solo.mkdir()
+        (solo / "SKILL.md").write_text("---\nname: solo\ndescription: One.\n---\n")
+        home_skills = tmp_path / "home" / ".claude" / "skills"
+        _write_skill(home_skills, "present")
+        monkeypatch.delenv(ds.EXTRA_ROOTS_ENV, raising=False)
+        out = tmp_path / "index.json"
+        monkeypatch.setattr(
+            sys, "argv", ["discover_skills.py", "-o", str(out), "--json", "--extra-root", str(solo)]
+        )
+        with pytest.raises(SystemExit) as exc:
+            ds.main()
+        payload = json.loads(capsys.readouterr().out)
+        assert exc.value.code == 0
+        assert any(str(solo) in w and "parent directory" in w for w in payload["warnings"])
+
+    def test_help_describes_extra_root_as_parent_directory(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        monkeypatch.setattr(sys, "argv", ["discover_skills.py", "--help"])
+        with pytest.raises(SystemExit):
+            ds.main()
+        text = " ".join(capsys.readouterr().out.split())
+        assert "subfolders hold SKILL.md" in text

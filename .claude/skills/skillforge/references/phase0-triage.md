@@ -104,8 +104,11 @@ Sources scanned (`build_skill_sources()` in `discover_skills.py`):
 A skill reached through two roots is indexed once. A skill name found in several
 roots is indexed once too: the root with the lowest priority number wins (the
 table above lists roots in rank order), and the hidden copies are recorded in
-the entry's `shadowed_paths`. A missing root adds a warning and the scan
-continues. The script exits 3 only when every source is missing and no skill is
+the entry's `shadowed_paths`. Within one root, `SKILL.md` beats sibling
+markdown files that share its skill name. A missing root adds a warning and the
+scan continues. A root that exists but holds no `<root>/<skill>/SKILL.md` adds a
+warning too; pass the directory whose subfolders hold `SKILL.md`, not a skill
+folder itself. The script exits 3 only when every source is missing and no skill is
 found. The folder that holds SkillForge is always a source, so the CLI does not
 reach exit 3 while that folder exists.
 

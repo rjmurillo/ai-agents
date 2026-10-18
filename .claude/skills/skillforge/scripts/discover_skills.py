@@ -461,6 +461,38 @@ def parse_skill_file(path: Path, source_name: str, priority: int) -> dict | None
 # ===========================================================================
 
 
+def _skill_sort_key(skill: dict[str, Any]) -> tuple[int, str, bool, str, str]:
+    """Order skills so the dedupe keeps the real SKILL.md within one source.
+
+    A ``*/*.md`` source parses every markdown file in a skill folder, and a
+    file with no frontmatter takes its folder name. Sibling files such as
+    CREATION-LOG.md would then outrank SKILL.md by path order, so SKILL.md
+    sorts first among entries with the same normalized name.
+    """
+    path = Path(str(skill["path"]))
+    return (
+        skill["priority"],
+        str(skill["name"]).strip().lower(),
+        path.name.lower() != "skill.md",
+        str(skill["name"]),
+        str(path),
+    )
+
+
+def _empty_root_warning(source: dict[str, Any]) -> str:
+    """Explain why a runtime root that exists produced no skill files."""
+    root = source["path"]
+    try:
+        holds_skill = any(c.is_file() and c.name.lower() == "skill.md" for c in root.iterdir())
+    except OSError:
+        holds_skill = False
+    if holds_skill:
+        hint = "it holds SKILL.md itself, so pass its parent directory"
+    else:
+        hint = "each skill must sit in a subfolder holding SKILL.md"
+    return f"No skills found in {source['name']} ({root}): {hint}"
+
+
 def _dedupe_by_name(skills: list[dict[str, Any]], verbose: bool = False) -> list[dict[str, Any]]:
     """Keep one entry per skill name: the one from the lowest priority number.
 
@@ -524,6 +556,9 @@ def discover_skills(
             skill_files = list(source_path.glob("**/*.md"))
             skill_files = [f for f in skill_files if f.name.lower() in ("skill.md", "skills.md")]
 
+        if not skill_files and source["priority"] >= RUNTIME_PRIORITY_START:
+            warnings.append(_empty_root_warning(source))
+
         for skill_file in skill_files:
             file_key = _resolved(skill_file)
             if file_key in seen_files:
@@ -538,7 +573,7 @@ def discover_skills(
                 warnings.append(f"Failed to parse: {skill_file}")
 
     # Sort by priority (lower = higher priority), then keep one entry per skill name.
-    skills.sort(key=lambda s: (s["priority"], s["name"], s["path"]))
+    skills.sort(key=_skill_sort_key)
     skills = _dedupe_by_name(skills, verbose)
 
     # Build domain index
@@ -619,7 +654,7 @@ def main():
         default=[],
         metavar="PATH",
         help=(
-            "Extra skills directory to scan (folders holding SKILL.md). "
+            "Extra skills directory to scan: a directory whose subfolders hold SKILL.md. "
             f"Repeatable. {EXTRA_ROOTS_ENV} adds more, separated by the OS path separator."
         ),
     )
