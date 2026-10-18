@@ -403,9 +403,8 @@ def _refresh_remote_base(base_ref: str, repo_root: Path) -> str | None:
 
     Returns: None when no fetch was attempted (non-``origin/<branch>`` ref,
     or under CI where the runner already fetched); a short error string on
-    a failed attempt (each caller decides: the ``checks_ci_parity`` diff gates and
-    ``checks_ratchet`` fail, ``_run_build_script_gate`` warns, ``check_adr_lifecycle``
-    ignores it); empty string on success.
+    a failed attempt (callers decide: ci_parity and ratchets fail, the build-script gate warns,
+    check_adr_lifecycle ignores it); empty string on success.
     """
     if not base_ref.startswith("origin/"):
         return None
