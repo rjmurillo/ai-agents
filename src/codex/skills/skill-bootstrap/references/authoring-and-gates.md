@@ -49,14 +49,13 @@ Each workflow skill holds:
 
 Prefer a link to a maintained procedure over a copied manual. Keep `SKILL.md`
 thin: triggers, outcomes, decisions, feature order, essential hints, and
-sibling routes. Put conditional detail in `references/`. Add a script only
-for repeated deterministic work that no existing feature performs. Reuse an
-existing instrument first, and add a script only after you verify the
-capability gap. Name the map, GPS, or hybrid design only where it changes the
-workflow. Use a
-Mermaid diagram when the branching is easier to read as a graph. Keep each
-command, coordinate, authority requirement, and success check as text beside
-the diagram.
+sibling routes. Put conditional detail in `references/`. Reuse an existing
+instrument first. Add a script only for repeated deterministic work, and only
+after you verify the capability gap: no existing feature performs it. Name the
+map, GPS, or hybrid design (per skillforge Design Selection) only where it
+changes the workflow. Use a Mermaid diagram when the branching is easier to
+read as a graph. Keep each command, coordinate, authority requirement, and
+success check as text beside the diagram.
 
 ## Writing standard
 

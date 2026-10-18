@@ -38,8 +38,8 @@ Does this operation require...?
 ├─► State persistence across sessions?
 │   └── YES → Script required (JSON/YAML state files)
 │
-├─► Autonomous verification (skill verifies itself)?
-│   └── YES → Script required (exit codes, ValidationResult)
+├─► Autonomous verification (outcome must be checked without the agent's opinion)?
+│   └── YES → Script required (executor script plus an independent postcondition check)
 │
 ├─► Complex calculations or transformations?
 │   └── YES → Script recommended
@@ -64,8 +64,8 @@ Does this operation require...?
 | "Read this file and understand it" | No | Cognitive task, not automatable |
 | "Transform JSON to YAML" | Yes | Deterministic transformation |
 | "Decide which approach to use" | No | Requires human judgment |
-| "Check if all tests pass" | Yes | Verification with clear exit code |
-| "Count the open threads on a PR" | Existing instrument | Exact computable fact; an existing tool already answers it |
+| "Check if all tests pass" | Yes | Counts as verification through its reported results (count, names), not exit 0 alone |
+| "Count the unresolved threads on a PR" | Existing instrument | Exact computable fact; an existing tool already answers it |
 | "Choose between two designs with different costs" | No (map) | Ambiguous tradeoff; the agent decides from observations |
 | "Collect CI evidence, pick a fix, apply and re-check" | Partial (hybrid) | Scripts gather and validate; the agent decides in between |
 
@@ -93,7 +93,7 @@ Routing examples:
 
 | Task | Design | Why |
 |------|--------|-----|
-| Report the number of unresolved review threads on a PR | GPS, through the existing instrument | Exact computable fact. The github skill already returns it. |
+| Report the number of unresolved review threads on a PR | GPS, through the existing instrument | Exact computable fact. `get_unresolved_review_threads.py` returns the thread list. Count it. |
 | Pick between two architectures with different maintenance costs | Map | Ambiguous tradeoff. No program can score it. Give criteria and let the agent decide. |
 | Gather failing-check logs, decide the fix, apply it, re-run the checks | Hybrid | Measured facts, then judgment, then a validated action. |
 
@@ -191,24 +191,24 @@ Python is the default language for skill scripts because:
 
 These patterns make scripts capable of autonomous operation.
 
-### Pattern 1: Self-Verification
+### Pattern 1: Fast-Fail Output Check
 
-Scripts should verify their own outputs:
+Scripts should check their own outputs and fail fast. This guard is not verification authority. An independent postcondition check still runs after the script:
 
 ```python
 def execute_and_verify(input_data):
     """Execute operation and verify the result."""
     result = perform_operation(input_data)
 
-    # Self-verification - the script checks itself
+    # Fast-fail guard - the script checks itself; an independent postcondition check still runs after it
     is_valid, reason = verify_output(result)
     if not is_valid:
         return Result(success=False, message=f"Verification failed: {reason}", errors=[reason])
 
-    return Result(success=True, message="Operation verified", data=result)
+    return Result(success=True, message="Operation completed", data=result)
 ```
 
-**Why:** Enables autonomous operation. The exit code reports executor success only. Where a postcondition can be checked independently, run a separate check and treat that result as the evidence, not exit 0.
+**Why:** Stops a bad result early. The exit code reports executor success only. Where a postcondition can be checked independently, run a separate check and treat that result as the evidence, not exit 0.
 
 ### Pattern 2: Error Recovery
 

@@ -21,7 +21,13 @@ _BOOTSTRAP_REF = (
     _REPO / ".claude" / "skills" / "skill-bootstrap" / "references" / "authoring-and-gates.md"
 )
 _SKILLFORGE_TMPL = _REPO / "templates" / "skills" / "skillforge.SKILL.md.tmpl"
-_MIRROR_ROOTS = ("src/claude", "src/codex", "src/copilot-cli", "src/cursor")
+_MIRROR_ROOTS = (
+    "src/claude",
+    "src/codex",
+    "src/copilot-cli",
+    "src/cursor",
+    "src/hermes/project-toolkit-knowledge",
+)
 _MIRRORED = (
     ("skillforge", "references/script-integration-framework.md"),
     ("skillforge", "references/degrees-of-freedom.md"),
@@ -106,10 +112,40 @@ def test_self_verification_pattern_no_longer_trusts_exit_code() -> None:
     assert "executor success only" in text
 
 
+def test_pattern_one_is_a_fast_fail_guard_not_verification_authority() -> None:
+    text = _REF.read_text(encoding="utf-8")
+    body = re.search(r"^### Pattern 1: Fast-Fail Output Check\n(.*?)(?=^### )", text, re.S | re.M)
+    assert body, "Pattern 1 section not found or renamed"
+    assert "not verification authority" in body.group(1)
+    assert "independent postcondition check still runs" in body.group(1)
+    assert "Self-verification - the script checks itself" not in text
+    assert 'message="Operation verified"' not in text
+
+
+def test_decision_tree_and_matrix_do_not_treat_exit_code_as_verification() -> None:
+    text = _REF.read_text(encoding="utf-8")
+    assert "Autonomous verification (skill verifies itself)" not in text
+    assert "independent postcondition check" in text
+    row = next(
+        (ln for ln in text.splitlines() if ln.startswith('| "Check if all tests pass"')), None
+    )
+    assert row
+    assert "not exit 0 alone" in row
+    assert "Verification with clear exit code" not in text
+
+
+def test_thread_count_example_names_the_real_instrument(design_section: str) -> None:
+    assert "get_unresolved_review_threads.py" in design_section
+    assert "The github skill already returns it" not in design_section
+    text = _REF.read_text(encoding="utf-8")
+    assert "Count the unresolved threads on a PR" in text
+    assert "Count the open threads on a PR" not in text
+
+
 def test_matrix_has_hybrid_and_instrument_rows() -> None:
     text = _REF.read_text(encoding="utf-8")
     assert re.search(r"^\| \"Collect CI evidence.*\| Partial \(hybrid\) \|", text, re.M)
-    assert re.search(r"^\| \"Count the open threads.*\| Existing instrument \|", text, re.M)
+    assert re.search(r"^\| \"Count the unresolved threads.*\| Existing instrument \|", text, re.M)
 
 
 def test_skillforge_template_requires_choice_only_where_it_matters() -> None:
@@ -135,6 +171,10 @@ def test_degrees_of_freedom_cross_links_design_selection() -> None:
 
 
 def test_no_new_skill_or_router_for_the_philosophy() -> None:
+    """Name guard only: it rejects skill directories named for the philosophy.
+
+    It does not detect a router, registry, or framework file under another name.
+    """
     skills = {p.name.lower() for p in (_REPO / ".claude" / "skills").iterdir() if p.is_dir()}
     offenders = {
         n for n in skills if re.search(r"map-?gps|gps-?map|hybrid-?design|design-?selection", n)
