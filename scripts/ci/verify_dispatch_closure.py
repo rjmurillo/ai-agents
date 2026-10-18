@@ -418,7 +418,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--head-root", type=Path, help="Pull request head work tree.")
     parser.add_argument(
-        "--head-sha", help="Head commit to fetch and read as data; needs --pull-number."
+        "--head-sha", help="Head commit to read as data; needs --pull-number. Shallows the base."
     )
     parser.add_argument("--pull-number", type=int, help="Pull request number for --head-sha.")
     parser.add_argument(
